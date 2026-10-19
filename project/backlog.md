@@ -1,0 +1,247 @@
+<!-- markdownlint-disable MD007 -- Unordered list indentation -->
+<!-- markdownlint-disable MD010 -- No hard tabs -->
+<!-- markdownlint-disable MD033 -- No inline html -->
+<!-- markdownlint-disable MD055 -- Table pipe style [Expected: leading_and_trailing; Actual: leading_only; Missing trailing pipe] -->
+<!-- markdownlint-disable MD041 -- First line in a file should be a top-level heading -->
+# Requirements
+
+This is a product backlog just for pre-v1.0.0 release. After that, bugs, features, and enhancements will be managed in Github Issues.
+
+<!-- TOC ignore:true -->
+## Table of contents
+
+<!-- TOC -->
+
+- [Issues](#issues)
+- [Template](#template)
+
+<!-- /TOC -->
+
+## Issues
+
+Sorted per the notes in [Template](#template).
+
+- Finish the requirement for moving between time spans
+	- ID: 2026101916013880
+	- Type: Task
+	- Status: Waiting for answers
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013886
+	- Requirements:
+		- The log axis item has a sentence that stops partway: "The transition from 1m to 1h to 1d to "everything" should".
+		- Fill in the rest, or drop it if the smooth animation line already covers it.
+
+- Confirm the language split
+	- ID: 2026101916013881
+	- Type: Task
+	- Status: Waiting for answers
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013889
+	- Requirements:
+		- OK or change the proposal in `design.md` under Code layout: a Rust core library, and a short C file per panel only where the panel API is C.
+		- Once it's settled, move it from proposed to a decision in `design.md`.
+
+- What "Local" means on the network graph
+	- ID: 2026101916013883
+	- Type: Task
+	- Status: Waiting for answers
+	- Priority|Severity: Avg
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013887
+	- Requirements:
+		- `design.md` assumes it's loopback traffic.
+		- The other likely meaning is traffic to the LAN, as opposed to the internet. That needs a guess at which addresses are local.
+
+- Core library and Linux collectors
+	- ID: 2026101916013884
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Prereq IDs: 2026101916013881
+	- Requirements:
+		- A Rust library with no GUI toolkit in it.
+		- Reads every graph's numbers on Linux, from the sources listed in `design.md`.
+		- A graph whose source is missing, like a desktop with no battery, is hidden.
+
+- History store
+	- ID: 2026101916013885
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Prereq IDs: 2026101916013884
+	- Requirements:
+		- These requirements suggest that all data points should be kept across all time, to continuously recalculate optimal averaging and antialiasing. But that would be impractical for year-long runs. The data will necessarily have to be more temporally compressed as it gets older. But the data will always necessarily need to be at a higher fidelity than the graph, so that:
+			- The user can widen the existing graph and not lose resolution.
+			- Averaging and antialiasing has enough higher-detailed data to work with.
+		- If the graph is closed and then re-opened, it should (optionally) re-load previous data - just with a blank representing the time it was not active. (That doesn't eventually get averaged as values of "0".)
+		- If the computer is off or rebooted, the graph should (optionally) re-load previous data, going back indefinitely - just with blank spaces representing the time it was not active. (That doesn't eventually get averaged as values of "0".)
+	- Note: the proposed tiers are in `design.md` under History.
+
+- Graphs with an optional (default) log X axis
+	- ID: 2026101916013886
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Prereq IDs: 2026101916013885
+	- Related IDs: 2026101916013880
+	- Requirements:
+		- In log mode, squeezes all data from start to now, across the whole thing, right away.
+		- On very long sessions:
+			- Four quarters of the graph:
+				- The rightmost quarter area covers no more than 1 minute.
+				- The second quarter covers no more than the next 59 minutes.
+				- The third quarter covers no more than the next 23 hours.
+				- The last quarter covers everything else.
+			- But if the graph hasn't been running long enough:
+				- x <= 1m: The entire graph is an ever-compressing log plot of all available time continuously.
+				- 1m < x <= 1h:
+					- If rightmost quarter shows <= 1m, then still log plot of all available time.
+					- Else [rightmost quarter is therefore > 1m], then (smoothly) adjust the graph so that rightmost covers exactly 1m, and the remaining three quarters plot all of remaining time continuously.
+				- 1h < x <= 1d:
+					- Rightmost quarter shows <= 1m and second quarter <= 1h, then still log plot of all available time continuously.
+					- Rightmost quarter = 1m and second quarter <= 1h, then the leftmost three quarters plot of all remaining time continuously.
+					- Rightmost quarter = 1m and second > 1h, then (smoothly) adjust the second quarter to cover only the next 59 minutes, and remaining left two quarters plot of all remaining time continuously.
+				- And so on.
+			- All adjustments to time divisions should be animated smoothly.
+			- The transition from 1m to 1h to 1d to "everything" should
+			- The graph should be averaged and antialiased, so that it doesn't shimmer or look weird while animating.
+				- The averaging should be very small and possibly even variable over time - being able to represent single-pixel spikes is important, e.g. when on the farther left, to show for example that the CPU was spiked for a very long time. (But eventually far enough left, it gets averaged into a background level.)
+
+- The graphs
+	- ID: 2026101916013887
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Prereq IDs: 2026101916013884
+	- Related IDs: 2026101916013883
+	- Requirements:
+		- CPU; with detail stacked from bottom to top: I/O wait, system, user, nice.
+		- Memory; with detail stacked from bottom to top: User, Buffer, Cache
+		- Network; Local, Sending, Receiving
+		- Swap; % used
+		- Zswap (or Zram etc.); % used, and a text number overlay for compression ratio, e.g. "2.1x"
+		- Load
+		- Disk; write, read
+			- Auto-adjusts peak level
+			- With optional logarithmic Y axis
+			- Can choose all disks, or specific drives.
+		- CPU Temperature; normal, critical on top of that when normal maxes out
+		- Battery; charging, discharging, discharging and critical level
+
+- XFCE panel plugin
+	- ID: 2026101916013889
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Prereq IDs: 2026101916013881, 2026101916013884
+	- Requirements:
+		- Start first with an XFCE4 panel plugin.
+		- Works on XFCE 4.20, on X11 and on Wayland.
+		- One plugin instance can show one or more graphs side by side, picked in its settings dialog.
+		- Follows the panel's size and orientation, including a vertical panel.
+		- Packaged for Debian, and as a Nix package for tukzedo-linux's NixOS edition.
+
+**Stop here for a next release**
+
+- Other Linux and BSD panels
+	- ID: 2026101916013890
+	- Type: Feature
+	- Status: Deferred
+	- Priority|Severity: Avg
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Prereq IDs: 2026101916013889
+	- Requirements:
+		- Supporting all the most popular DE panels.
+		- LXQt first, for lxqtukz.
+		- Then KDE Plasma, GNOME Shell, Cinnamon, MATE, Budgie, the Wayfire panel, and Waybar. `design.md` has how each one would work.
+		- For some platforms, may need to run as a system tray. For others, taskbar-specific plugins.
+		- BSD collectors through `sysctl`.
+
+- Windows and macOS
+	- ID: 2026101916013892
+	- Type: Feature
+	- Status: Deferred
+	- Priority|Severity: Low
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Prereq IDs: 2026101916013884
+	- Requirements:
+		- Cross platform: Linux, Windows, macOS, BSD.
+		- Windows 11 has no taskbar toolbars, so it gets a tray icon plus a small window docked over the taskbar.
+		- macOS gets a menu bar item, which can be wide.
+
+## Template
+
+- Notes:
+
+	- Only use rows that you actually need or expect will be filled in. Always fill in the title, ID, Type, Status, Opened and Created by.
+
+	- The ID is the local time to the hundredth of a second. Opened is when it was written down, which may differ. (Use a keyboard macro and possibly something like project 'zuid' to generate.)
+
+	- Status values meaning: Testing means the fix is in and checks are running or still to run. Waiting on signoff means automated testing passed. Moot means something else changed that made it irrelevant. Canceled means it still applies but was decided against. Waiting for testing means the fix is in and waits on a long CI run or an outside test host. Can't reproduce means a real attempt to reproduce it failed.
+		- An item with nothing left for a person to judge skips Waiting on signoff and goes straight to Done. `Clean up the backlog` in the directives says when.
+
+	- As issues are worked, and statuses change, place them in correct sorting order within the list:
+		- First by status: Waiting for answers, Waiting on signoff, Testing, Waiting for testing, Can't reproduce, Stalled, Started, Queued, Done, Deferred, Canceled, Moot
+		- Then by severity|priority: Critical, High, Avg, Low
+		- Then by type: Bugs, [not bugs together]
+
+	- Rows marked [Bug] are for bugs only, and rows marked [Feature] for features and enhancements. Priority and Severity share one row and one scale. Priority is for a Feature or Enhancement, and Severity for a Bug. Children are not nested. They sit at the top level and point back with Parent ID.
+
+Template:
+
+- Title
+	- ID: YYYYmmDDHHMMSSNN
+	- Type: [Bug|Feature|Enhancement|Task]
+	- Status: [Queued|Waiting for answers|Waiting on signoff|Waiting for testing|Started|Testing|Stalled|Can't reproduce|Moot|Canceled|Deferred|Done]
+	- Needs local test suite run?:
+	- Needs external testing:
+	- Priority [Feature|Enhancement] | Severity [Bug]: [Critical|High|Avg|Low]
+	- Opened:
+	- Opened by:
+	- Assigned to:
+	- Parent ID:
+	- Prereq IDs:
+	- Related IDs:
+	- Target OS:
+	- Test environment:
+	- Version and build:
+	- Requirements  [Feature]:
+		- Hierarchical bulleted list.
+	- Steps to reproduce [Bug]:
+		- …
+	- Incorrect behavior [Bug]:
+	- Expected behavior [Bug]:
+	- Reproduced [Bug]: [No, or when, where and how]
+	- Possible cause [Bug]:
+	- Actual cause [Bug]:
+		- …
+	- Estimated effort: [High|Avg|Low]
+	- Actual effort: [High|Avg|Low]
+	- Progress log:
+		- …
+	- Decisions:
+		- …
+	- Actual fix [Bug]:
+	- Branch:
+	- Commit:
+	- Test case: [Reason not applicable, or CI test case #]
+	- Acceptance signoff:
+	- Superseded by ID:
+	- Closed:
