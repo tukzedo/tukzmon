@@ -33,7 +33,7 @@ XFCE comes first. The other panels and platforms are in the backlog.
 
 ## Code layout
 
-Proposed, and waiting on an OK.
+Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - `tukzmon-core` is a Rust library with no GUI toolkit in it.
 	- Collectors for each platform, behind one trait.
@@ -90,7 +90,7 @@ On panels without a native plugin, tukzmon falls back to a tray icon with one sm
 | :---        | :---
 | CPU         | `/proc/stat`. The I/O wait, system, user, and nice columns.
 | Memory      | `/proc/meminfo`. User is total minus free, buffers, and cache.
-| Network     | `/proc/net/dev`. Local is the loopback device.
+| Network     | `/proc/net/dev`. Local is the loopback device, `lo`.
 | Swap        | `/proc/meminfo`.
 | Zswap       | `Zswap` and `Zswapped` in `/proc/meminfo`, on kernels new enough to have them. The ratio is `Zswapped / Zswap`. `/sys/kernel/debug/zswap` needs root, so it isn't used.
 | Zram        | `/sys/block/zram*/mm_stat`.
@@ -98,6 +98,14 @@ On panels without a native plugin, tukzmon falls back to a tray icon with one sm
 | Disk        | `/proc/diskstats`, one row per device, with partitions left out of the total.
 | Temperature | `hwmon` under `/sys/class/hwmon`, picking the CPU package sensor. `temp*_crit` gives the critical level when the sensor has one.
 | Battery     | `/sys/class/power_supply/BAT*`.
+
+Splitting network traffic into LAN and internet is backlog item 2026101916274800. `/proc/net/dev` counts per interface, not per destination, so it needs one of these:
+
+- An nftables counter set that matches private address ranges. Its overhead is close to none, but it needs root to install once.
+
+- Polling every TCP socket through `sock_diag` and summing bytes by remote address. It needs no root, but it misses UDP, which includes QUIC, and sockets that close between polls.
+
+- eBPF. It's exact, and it needs root too.
 
 The BSDs use `sysctl`, Windows uses PDH counters, and macOS uses `host_statistics64` and IOKit. Those come later.
 
@@ -134,6 +142,8 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 - Within a quarter, time is still log scaled.
 
 - When a boundary changes, it's eased over about half a second, so nothing jumps.
+
+- There's no visible seam where one quarter meets the next. Each quarter's log curve is fit so a pixel covers the same time on both sides of a boundary. The move from 1 minute to 1 hour to 1 day to everything older looks like one smooth curve.
 
 - A linear mode is there too, for anyone who wants a plain scrolling graph.
 

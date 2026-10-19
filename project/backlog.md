@@ -21,41 +21,19 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- Finish the requirement for moving between time spans
-	- ID: 2026101916013880
-	- Type: Task
+- Split network traffic into LAN and internet
+	- ID: 2026101916274800
+	- Type: Feature
 	- Status: Waiting for answers
-	- Priority|Severity: High
-	- Opened: 20261019-160138
+	- Priority|Severity: Low
+	- Opened: 20261019-162748
 	- Opened by: t00mietum
-	- Related IDs: 2026101916013886
+	- Related IDs: 2026101916013883, 2026101916013887
 	- Requirements:
-		- The log axis item has a sentence that stops partway: "The transition from 1m to 1h to 1d to "everything" should".
-		- Fill in the rest, or drop it if the smooth animation line already covers it.
-
-- Confirm the language split
-	- ID: 2026101916013881
-	- Type: Task
-	- Status: Waiting for answers
-	- Priority|Severity: High
-	- Opened: 20261019-160138
-	- Opened by: t00mietum
-	- Related IDs: 2026101916013889
-	- Requirements:
-		- OK or change the proposal in `design.md` under Code layout: a Rust core library, and a short C file per panel only where the panel API is C.
-		- Once it's settled, move it from proposed to a decision in `design.md`.
-
-- What "Local" means on the network graph
-	- ID: 2026101916013883
-	- Type: Task
-	- Status: Waiting for answers
-	- Priority|Severity: Avg
-	- Opened: 20261019-160138
-	- Opened by: t00mietum
-	- Related IDs: 2026101916013887
-	- Requirements:
-		- `design.md` assumes it's loopback traffic.
-		- The other likely meaning is traffic to the LAN, as opposed to the internet. That needs a guess at which addresses are local.
+		- If it can be done easily with low overhead, the network graph shows 5 series: local, LAN sent, LAN received, internet sent, and internet received.
+	- Question:
+		- The kernel counts bytes per interface, not per destination, so this can't be read for free. The low overhead way is an nftables counter set, but it needs root to install once. `design.md` has the options under Data sources on Linux.
+		- Is a counter set installed by the package, as a system service, OK? If not, the graph stays at 3 series.
 
 - Core library and Linux collectors
 	- ID: 2026101916013884
@@ -114,7 +92,7 @@ Sorted per the notes in [Template](#template).
 					- Rightmost quarter = 1m and second > 1h, then (smoothly) adjust the second quarter to cover only the next 59 minutes, and remaining left two quarters plot of all remaining time continuously.
 				- And so on.
 			- All adjustments to time divisions should be animated smoothly.
-			- The transition from 1m to 1h to 1d to "everything" should
+			- The transition from 1m to 1h to 1d to "everything" should be smooth, with no obvious gate or line there behind the scenes.
 			- The graph should be averaged and antialiased, so that it doesn't shimmer or look weird while animating.
 				- The averaging should be very small and possibly even variable over time - being able to represent single-pixel spikes is important, e.g. when on the farther left, to show for example that the CPU was spiked for a very long time. (But eventually far enough left, it gets averaged into a background level.)
 
@@ -155,6 +133,49 @@ Sorted per the notes in [Template](#template).
 		- One plugin instance can show one or more graphs side by side, picked in its settings dialog.
 		- Follows the panel's size and orientation, including a vertical panel.
 		- Packaged for Debian, and as a Nix package for tukzedo-linux's NixOS edition.
+
+- Finish the requirement for moving between time spans
+	- ID: 2026101916013880
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013886
+	- Requirements:
+		- The log axis item has a sentence that stops partway: "The transition from 1m to 1h to 1d to "everything" should".
+	- Progress log:
+		- Finished: it should be smooth, with no obvious gate or line behind the scenes. `design.md` has how under Time axis.
+	- Closed: 20261019
+
+- Confirm the language split
+	- ID: 2026101916013881
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013889
+	- Requirements:
+		- OK or change the proposal in `design.md` under Code layout: a Rust core library, and a short C file per panel only where the panel API is C.
+	- Progress log:
+		- OK'd as proposed. `design.md` now lists it as settled.
+	- Closed: 20261019
+
+- What "Local" means on the network graph
+	- ID: 2026101916013883
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013887, 2026101916274800
+	- Requirements:
+		- Loopback traffic, or traffic to the LAN as opposed to the internet?
+	- Progress log:
+		- Local is 127.0.0.1, the loopback device.
+		- A LAN and internet split is its own item, 2026101916274800.
+	- Closed: 20261019
 
 **Stop here for a next release**
 
