@@ -21,20 +21,6 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- Split network traffic into LAN and internet
-	- ID: 2026101916274800
-	- Type: Feature
-	- Status: Waiting for answers
-	- Priority|Severity: Low
-	- Opened: 20261019-162748
-	- Opened by: t00mietum
-	- Related IDs: 2026101916013883, 2026101916013887
-	- Requirements:
-		- If it can be done easily with low overhead, the network graph shows 5 series: local, LAN sent, LAN received, internet sent, and internet received.
-	- Question:
-		- The kernel counts bytes per interface, not per destination, so this can't be read for free. The low overhead way is an nftables counter set, but it needs root to install once. `design.md` has the options under Data sources on Linux.
-		- Is a counter set installed by the package, as a system service, OK? If not, the graph stays at 3 series.
-
 - Core library and Linux collectors
 	- ID: 2026101916013884
 	- Type: Feature
@@ -133,6 +119,24 @@ Sorted per the notes in [Template](#template).
 		- One plugin instance can show one or more graphs side by side, picked in its settings dialog.
 		- Follows the panel's size and orientation, including a vertical panel.
 		- Packaged for Debian, and as a Nix package for tukzedo-linux's NixOS edition.
+
+- Split network traffic into LAN and internet
+	- ID: 2026101916274800
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261019-162748
+	- Opened by: t00mietum
+	- Prereq IDs: 2026101916013887
+	- Related IDs: 2026101916013883
+	- Requirements:
+		- If it can be done easily with low overhead, the network graph shows 5 series: local, LAN sent, LAN received, internet sent, and internet received.
+		- Optional. Settings let the user pick the way:
+			- Off, the default. 3 series: local, sent, and received.
+			- Polling TCP sockets. No root, but UDP and QUIC traffic isn't split.
+			- An nftables counter set. Close to no overhead, but needs root to install once.
+	- Decisions:
+		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
 
 - Finish the requirement for moving between time spans
 	- ID: 2026101916013880

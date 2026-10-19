@@ -99,13 +99,13 @@ On panels without a native plugin, tukzmon falls back to a tray icon with one sm
 | Temperature | `hwmon` under `/sys/class/hwmon`, picking the CPU package sensor. `temp*_crit` gives the critical level when the sensor has one.
 | Battery     | `/sys/class/power_supply/BAT*`.
 
-Splitting network traffic into LAN and internet is backlog item 2026101916274800. `/proc/net/dev` counts per interface, not per destination, so it needs one of these:
+Splitting network traffic into LAN and internet is optional, backlog item 2026101916274800. It's off by default, and the user picks the way in settings. `/proc/net/dev` counts per interface, not per destination, so it needs one of these:
 
 - An nftables counter set that matches private address ranges. Its overhead is close to none, but it needs root to install once.
 
 - Polling every TCP socket through `sock_diag` and summing bytes by remote address. It needs no root, but it misses UDP, which includes QUIC, and sockets that close between polls.
 
-- eBPF. It's exact, and it needs root too.
+- eBPF. It's exact, and it needs root too. It isn't offered unless the other two fall short.
 
 The BSDs use `sysctl`, Windows uses PDH counters, and macOS uses `host_statistics64` and IOKit. Those come later.
 
