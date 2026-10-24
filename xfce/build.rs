@@ -8,6 +8,7 @@ fn main() {
 	for lib in [
 		"libxfce4panel-2.0.so.4",
 		"libgtk-3.so.0",
+		"libgdk-3.so.0",
 		"libcairo.so.2",
 		"libgobject-2.0.so.0",
 		"libglib-2.0.so.0",

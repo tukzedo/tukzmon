@@ -65,6 +65,8 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - The plugin reads the settings file again when its modified time changes, checked at every sample. That's how a save in the settings window shows up.
 
+- The tip belongs to the drawing area, through `query-tooltip`, so it can say what's under the pointer. GTK shows a tip once the pointer has been still for 500 ms, and asking again restarts that wait. So the timer asks again only after the pointer has been still for a second, which keeps a still pointer's time current.
+
 - A `.desktop` file tells the panel where the plugin is. XFCE 4.20 reads them only from `/usr/share/xfce4/panel/plugins`, and the library only from `xfce4/panel/plugins` under the system lib dir. `XDG_DATA_DIRS` and `~/.local` aren't searched, so even a build for one user needs root once. `utility/dev-install.bash` installs to `~/.local/lib/tukzmon`, makes the 2 symlinks with sudo when they're missing, and restarts the panel.
 
 - If Rust can't be used for some reason, the fallback is the same split, with the C file growing into the whole plugin.
@@ -80,8 +82,12 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 - It follows SilkTerm's settings dialog, on top of knobs:
 	- Tabs down the left, groups with a rule under the title, and a sub-group stepped in under the switch it depends on.
 	- A revert arrow on every row, live when the value isn't its default.
-	- Cancel, Apply, and OK. Enter is OK and Esc is Cancel, even from inside a field.
-	- A color chip opens a picker, and the hex value can be typed beside it.
+	- Cancel, Apply, and Apply and close, with Cancel set a little apart. Enter is Apply and close and Esc is Cancel, even from inside a field.
+	- A slider can reach less far than its number box takes. The box takes any sane value, and `slider_range` in `core/src/settings.shcl` sets how far the slider goes.
+	- The selected tab is a tint of the theme's highlight under the normal text color, so it reads in a dark theme too.
+	- A tab with rows of its own and tabs under it, which is Themes, keeps those rows on top and shows its tabs as sub-tabs below them. Themes has the Name dropdown with Save, Save as, Rename, Delete and Randomize, and a sub-tab per graph's colors, plus Background for the colors they share. Like every other change, the theme buttons take effect at Apply.
+	- Two keys in `core/src/settings.shcl` are tukzmon's, not knobs'. `shown_as: radio` draws a dropdown as radio buttons, and `shown_when: "id = key"` shows a row only while that dropdown is on that key. knobs' gates only take a checkbox.
+	- A color chip opens a picker, and the hex value can be typed beside it. The picker is SilkTerm's, not the toolkit's: a saturation and brightness square, a hue strip, and boxes for red, green, blue, brightness, saturation and hex. The row behind it follows every change, and Cancel puts back all of it, the theme's "*" included. The color model is in `settings/src/pick.rs`.
 	- The file gets only what was changed in the window, applied to the file as it is at save time, so a hand edit made meanwhile isn't lost.
 	- A save that would drop a line it can't read, or a setting it doesn't know, is refused, and the error names the lines.
 
@@ -89,9 +95,36 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 ### Theme
 
-- Graph colors are meant to start from the panel theme: the GTK style context on XFCE, the Qt palette on LXQt. That's how a tukzedo personality's theme reaches the graphs. For now the defaults are a customized multiload-ng setup instead.
+- Graph colors are meant to start from the panel theme: the GTK style context on XFCE, the Qt palette on LXQt. That's how a tukzedo personality's theme reaches the graphs. For now the defaults are a customized multiload-ng setup instead, with the CPU system and nice colors changed since.
 
 - Each color can be overridden in the settings window.
+
+- Every color is in one knobs preset group, `theme`, picked with the Name dropdown on the Themes tab, at `theme.name`, and so is each graph's mode. The built-in themes are in `core/src/settings.shcl`: Default, then Green and Blue, each standard and pastel, then Fire.
+	- A theme is named for the color that leads, the user share. Nice, the border and the background are that hue, muted. I/O wait and system stay red and orange in every theme, so trouble reads the same whichever is picked.
+	- Default is the earlier multiload-ng colors moved onto one hue, 150 degrees. System went from `#c64600` to `#c64200`, the border from `#40806a` to `#408060`, and the top from `#2a5446` to `#2a543f`.
+	- Each color row's default is Default's color, so Custom starts from it. `config::tests::the_default_theme_is_the_row_defaults` holds the two together.
+	- A color changed on a theme is kept apart from it, and the dropdown says "Name *", the way SilkTerm's does. Picking another theme drops those changes.
+	- knobs reads a color line at its own path as the Custom set. A file with colors and no theme line reads as Custom, so a hand edit or an older file isn't hidden under Default. A save names the theme whenever Custom colors are stored, even Default, or the file would read back as Custom.
+
+- Each graph's sub-tab starts with its mode, Detailed or Gradient, at `cpu.mode` for the CPU graph.
+	- Detailed stacks a color per series, as before.
+	- Gradient draws the column in one blend of Low, Medium and High. A pixel takes the blend at its height in the plot, Low at the bottom, Medium halfway and High at the top, so a busier column reaches further up the ramp and the colors stay put as it grows. The column's height is the same as the stack's.
+	- Only the rows for the mode picked are shown. A mode changed by hand is a change on the theme, like a color.
+	- Fire is a Gradient theme: dim red, yellow-white, then light blue, like a hot flame. Every other built-in is Detailed, with a gradient from its nice color through its user color to a pale tint of it.
+
+- Saved themes are kept whole in the config file, under `themes.<key>`, with a `name` and every color and mode by its setting id, the same shape as a built-in in settings.shcl. The dropdown lists them after the built-ins, and before Custom.
+	- They join the `theme` group as presets on a copy of the spec, through knobs' `Spec::finish`. The plugin reads them the same way, so knobs is unchanged.
+	- The key comes from the name when the theme is made, and stays through a rename. A key that is a built-in's, or a color line that can't be read, stops a save like any other unreadable line. A missing color is Default's.
+	- Save puts the "*" changes into the saved theme in force. Save as makes a new theme from the colors showing and picks it. Delete picks Default. Built-in themes can't be saved over, renamed or deleted, and no two themes share a name.
+	- A save writes every saved theme. One this window didn't touch is written as the file has it, so a theme added by hand meanwhile isn't lost.
+
+- Transparent, on the Background sub-tab at `graph.transparent`, leaves out the Top and Bottom colors so the panel shows through. It's one setting for every theme, outside the `theme` group, so a theme pick, a roll or Save as doesn't touch it. The border, the series and the hover line stay opaque. Pixels are premultiplied, so a row a column only half fills is half clear.
+
+- Randomize rolls colors for every graph and sets them as changes on the theme in force, so the dropdown says "Name *". Save as keeps a roll, and picking a theme drops it. The rules are in `settings/src/dice.rs`.
+	- The user share leads, at any hue from yellow-green round to magenta, which keeps it off red and orange. Nice and a gradient's Low are that hue muted, or one up to 30 degrees from it. The border and background are the lead hue or nice's, darker and grayer.
+	- I/O wait stays red and system orange, as in the built-ins, since those are the ones to watch. Every color softens together, from as bright as Green standard to as pale as Green pastel.
+	- A roll is always Detailed. Its gradient runs from nice through the user color to a pale tint, like the built-ins', so it's ready if Gradient is picked. The hover line stays black.
+	- Every theme member needs a role in `dice::ROLES`. A new graph's members fail `dice::tests::every_theme_member_has_a_role` until they get one, such as buffers and cache as muted ones.
 
 ## Panels and trays
 
@@ -119,7 +152,7 @@ On panels without a native plugin, tukzmon falls back to a tray icon with one sm
 | Graph       | Source
 | :---        | :---
 | CPU         | `/proc/stat`. The I/O wait, system, user, and nice columns.
-| Memory      | `/proc/meminfo`. User is total minus free, buffers, and cache.
+| Memory      | `/proc/meminfo`. User is total minus free, buffers, and cache. Cache is the `Cached` row alone, as multiload-ng counts it, so slab is in user.
 | Network     | `/proc/net/dev`. Local is the loopback device, `lo`.
 | Swap        | `/proc/meminfo`.
 | Zswap       | `Zswap` and `Zswapped` in `/proc/meminfo`, on kernels new enough to have them. The ratio is `Zswapped / Zswap`. `/sys/kernel/debug/zswap` needs root, so it isn't used.
@@ -163,17 +196,28 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - Rough size at tier 4: 8,760 buckets a year, times about 25 series, times 12 bytes, so that way it comes to about 2.6 MB a year. Each bucket adds 20 bytes for its seconds and its start and end.
 
-- History is to be saved under `$XDG_DATA_HOME/tukzmon/`, one file per plugin instance. On start the file is read back, and the time since the last sample becomes a gap. Both reloads can be turned off in settings. The proof of concept keeps history in memory only.
+- History is saved under `$XDG_DATA_HOME/tukzmon/`, as `plugin-<id>.hist`, one file per plugin instance. On start the file is read back, and the time since the last sample becomes a gap.
+	- It's written every 15 minutes and when the panel quits, to a temp file renamed over the old one. A crash loses at most the 15 minutes.
+	- The file holds a named section per graph. A file from other tiers, or one that doesn't read whole, is skipped. The graph starts fresh, and the next save replaces it.
+	- Times are Unix seconds, so runs line up. A clock set back to before the saved history is moved up to its end, so new samples aren't dropped as old.
+	- "Keep across restarts" turns it off. Off stops saving and loading, and leaves the file as it is. Turned back on, the file is loaded again, so what was seen while it was off is a gap.
+	- History older than the max age, 365 days by default, is dropped at each save and load.
 
 ## Time axis
 
 - In log mode, the newest sample is at the right edge. Every pixel to the left covers more time than the one to its right, and the left edge is the oldest sample. Until the caps below kick in, the whole run is squeezed into the graph from the first second.
 
-- The graph is split into 4 quarters with caps. From the right, they cover at most 1 minute, the next 59 minutes, the next 23 hours, and then everything older.
+- There are 3 log curves, picked under Log curve in settings. Smooth log is the default.
+	- Smooth log is one curve over the whole run, `u = ln(1 + age / 5 s) / ln(1 + T / 5 s)`, with no caps. A year in, the right quarter covers about 4 minutes.
+	- Log A and Log B put caps on 4 quarters, as below. They differ in the free curve that places a boundary before its cap is reached.
+	- Log A is the first curve tukzmon had. Its free curve is scaled to the run, so the caps fill early.
+	- Log B's free curve is Smooth log, so it stays the same as Smooth log until a quarter fills its cap. The right quarter fills at about 1.7 days, the third at about 36 days, and the second at about 128 days.
+
+- With caps, the graph is split into 4 quarters. From the right, they cover at most 1 minute, the next 59 minutes, the next 23 hours, and then everything older.
 
 - Each quarter boundary is the smaller of where pure log mode would put it and its cap. Early on, no cap is reached and the graph is pure log. Once the right quarter would cover more than a minute, it's pinned at 1 minute and the other 3 quarters share the rest in log mode. The same happens at 1 hour and 1 day.
-	- Pure log is scaled to the run: age at `u` of the width, from the right, is `T * ((1 + K)^u - 1) / K`, with `K` at 50. So the right quarter covers about 3% of the run, and the caps start to pin at about 30 minutes, 8 hours, and 2.7 days.
-	- A fixed log, `ln(1 + age / a)` with `a` a second or so, never reaches the caps in a year, so it isn't used for the boundaries.
+	- For Log A, pure log is scaled to the run: age at `u` of the width, from the right, is `T * ((1 + K)^u - 1) / K`, with `K` at 50. So the right quarter covers about 3% of the run, and the caps pin at about 30 minutes, 18 hours, and 7 days.
+	- For Log B, it's the fixed log `ln(1 + age / 5 s)` of Smooth log, which pins much later, as above.
 
 - Within a quarter, time is still log scaled.
 
@@ -191,6 +235,8 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 	- The part is the Spike emphasis setting times `1 / (1 + seconds / 20)`. A stack that comes out over 100% is scaled down to fit.
 
 - A column with data for less than half its time is drawn as a gap.
+
+- With the pointer over the graph, a line one pixel wide is drawn under it, black unless set otherwise, over the plot and not the border. The tip gives the time under the line, either as "7 hrs ago" or as the local time, with the date for anything before today. The time and date follow the locale's short formats, so 12 or 24 hour is its call too. Under that are the CPU shares across the line's column, or "No data" for a gap.
 
 - Stacked graphs, like CPU and memory, draw each series on top of the one below, in the order the backlog gives.
 

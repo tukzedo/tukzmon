@@ -4,39 +4,49 @@
 // The settings window in Qt Widgets. Rows come from settings.shcl through the
 // Rust side, and every change goes back there, so this file only lays out
 // controls and copies state onto them. Same model as SilkTerm's dialog: tabs
-// down the left, a revert arrow per row, and Cancel, Apply, and OK.
+// down the left, a revert arrow per row, and Cancel, Apply, Apply and close.
 
 #include "tukzmon-settings/src/qt.h"
 #include "tukzmon-settings/src/bridge.rs.h"
 
 #include <QApplication>
+#include <QButtonGroup>
 #include <QCheckBox>
-#include <QColorDialog>
 #include <QComboBox>
 #include <QDialog>
-#include <QDialogButtonBox>
 #include <QDoubleSpinBox>
+#include <QFormLayout>
 #include <QFrame>
 #include <QKeyEvent>
 #include <QGridLayout>
 #include <QHBoxLayout>
+#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
+#include <QLinearGradient>
 #include <QListWidget>
 #include <QMessageBox>
+#include <QMouseEvent>
+#include <QPainter>
 #include <QPixmap>
 #include <QPushButton>
+#include <QRadioButton>
+#include <QScreen>
 #include <QRegularExpressionValidator>
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QSlider>
+#include <QSpinBox>
 #include <QStackedWidget>
 #include <QStyle>
+#include <QTabWidget>
 #include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
+#include <string>
 #include <memory>
 #include <vector>
 
@@ -45,7 +55,254 @@ namespace {
 
 QString qs(const rust::String &s) { return QString::fromUtf8(s.data(), int(s.size())); }
 
+// The style's own selection is a solid block meant for highlighted text, and in
+// a dark theme that's white on bright blue. A tint of it under the plain text
+// color reads in a light theme and a dark one.
+void softenSelection(QWidget *w) {
+	QPalette pal = w->palette();
+	for (auto group : {QPalette::Active, QPalette::Inactive}) {
+		const QColor base = pal.color(group, QPalette::Base);
+		const QColor pick = pal.color(group, QPalette::Highlight);
+		auto mix = [](float a, float b) { return a + (b - a) * 0.35f; };
+		const QColor tint = QColor::fromRgbF(mix(base.redF(), pick.redF()), mix(base.greenF(), pick.greenF()),
+			mix(base.blueF(), pick.blueF()));
+		pal.setColor(group, QPalette::Highlight, tint);
+		pal.setColor(group, QPalette::HighlightedText, pal.color(group, QPalette::Text));
+	}
+	w->setPalette(pal);
+}
+
 constexpr int SLIDER_STEPS = 1000;
+constexpr int HEAD_GAP = 10;
+
+// QScrollArea's own hint stops at about 24 lines, so a tall tab opened with a
+// scroll bar it had no need for.
+class FitScroll : public QScrollArea {
+public:
+	QSize sizeHint() const override {
+		QSize s = QScrollArea::sizeHint();
+		if (widget())
+			s.setHeight(std::max(s.height(), widget()->sizeHint().height() + 2 * frameWidth()));
+		return s;
+	}
+};
+
+// A press or drag on the square or the strip, or an arrow key on it.
+class PickArea : public QWidget {
+public:
+	std::function<void(double, double)> moved;
+	double h = 0, s = 0, v = 0;
+
+protected:
+	// x and y are 0 to 1 across the area, clamped, so a drag off the edge holds it there
+	virtual void pickAt(double x, double y) = 0;
+	virtual void arrow(int dx, int dy, double by) = 0;
+
+	void mousePressEvent(QMouseEvent *e) override {
+		if (e->button() == Qt::LeftButton)
+			pickFrom(e);
+	}
+	void mouseMoveEvent(QMouseEvent *e) override {
+		if (e->buttons() & Qt::LeftButton)
+			pickFrom(e);
+	}
+	void keyPressEvent(QKeyEvent *e) override {
+		const double by = e->modifiers() & Qt::ShiftModifier ? 0.1 : 0.01;
+		switch (e->key()) {
+		case Qt::Key_Left: arrow(-1, 0, by); break;
+		case Qt::Key_Right: arrow(1, 0, by); break;
+		case Qt::Key_Up: arrow(0, -1, by); break;
+		case Qt::Key_Down: arrow(0, 1, by); break;
+		default: QWidget::keyPressEvent(e);
+		}
+	}
+	void edge(QPainter &p) {
+		const bool on = hasFocus();
+		p.setPen(QPen(palette().color(on ? QPalette::Highlight : QPalette::Mid), on ? 2 : 1));
+		p.setBrush(Qt::NoBrush);
+		p.drawRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5));
+	}
+
+private:
+	void pickFrom(QMouseEvent *e) {
+		const QPointF at = e->position();
+		pickAt(std::clamp(at.x() / std::max(1, width() - 1), 0.0, 1.0),
+			std::clamp(at.y() / std::max(1, height() - 1), 0.0, 1.0));
+	}
+};
+
+// saturation left to right, brightness bottom to top, at one hue
+class SvSquare : public PickArea {
+public:
+	explicit SvSquare(int side) {
+		setFixedSize(side, side);
+		setFocusPolicy(Qt::StrongFocus);
+		setCursor(Qt::CrossCursor);
+	}
+
+protected:
+	void pickAt(double x, double y) override { moved(x, 1 - y); }
+	void arrow(int dx, int dy, double by) override {
+		moved(std::clamp(s + dx * by, 0.0, 1.0), std::clamp(v - dy * by, 0.0, 1.0));
+	}
+	void paintEvent(QPaintEvent *) override {
+		QPainter p(this);
+		p.fillRect(rect(), QColor::fromHsvF(float(h), 1, 1));
+		QLinearGradient white(0, 0, width(), 0);
+		white.setColorAt(0, QColor(255, 255, 255));
+		white.setColorAt(1, QColor(255, 255, 255, 0));
+		p.fillRect(rect(), white);
+		QLinearGradient black(0, 0, 0, height());
+		black.setColorAt(0, QColor(0, 0, 0, 0));
+		black.setColorAt(1, QColor(0, 0, 0));
+		p.fillRect(rect(), black);
+		edge(p);
+		const QColor now = QColor::fromHsvF(float(h), float(s), float(v));
+		const bool light = 0.2126 * now.redF() + 0.7152 * now.greenF() + 0.0722 * now.blueF() > 0.5;
+		p.setRenderHint(QPainter::Antialiasing);
+		p.setPen(QPen(light ? Qt::black : Qt::white, 2));
+		p.drawEllipse(QPointF(s * (width() - 1), (1 - v) * (height() - 1)), 5, 5);
+	}
+};
+
+// the hue, top to bottom
+class HueStrip : public PickArea {
+public:
+	HueStrip(int w, int h) {
+		setFixedSize(w, h);
+		setFocusPolicy(Qt::StrongFocus);
+	}
+
+protected:
+	void pickAt(double, double y) override { moved(y, 0); }
+	void arrow(int dx, int dy, double by) override {
+		if (dy)
+			moved(std::fmod(h + dy * by + 1, 1), 0);
+		else
+			focusNextPrevChild(dx > 0);
+	}
+	void paintEvent(QPaintEvent *) override {
+		QPainter p(this);
+		QLinearGradient ramp(0, 0, 0, height());
+		for (int k = 0; k <= 6; k++)
+			ramp.setColorAt(k / 6.0, QColor::fromHsvF(k == 6 ? 0 : k / 6.0f, 1, 1));
+		p.fillRect(rect(), ramp);
+		edge(p);
+		// the strip is every hue, so its marker is black and white
+		const double y = h * (height() - 1);
+		p.fillRect(QRectF(0, y - 2.5, width(), 5), Qt::black);
+		p.fillRect(QRectF(1, y - 1.5, width() - 2, 3), Qt::white);
+	}
+};
+
+// SilkTerm's picker, not the toolkit's. The row behind follows every change,
+// and Cancel puts back all of it.
+class ColorPicker : public QDialog {
+public:
+	ColorPicker(Dialog &d, const QString &title, std::function<void()> changed, QWidget *parent)
+		: QDialog(parent), d(d), changed(std::move(changed)) {
+		setWindowTitle(title);
+		const int line = fontMetrics().height();
+		square = new SvSquare(line * 12);
+		strip = new HueStrip(line * 3 / 2, line * 12);
+		square->moved = [this](double s, double v) { set(state.h, s, v); };
+		strip->moved = [this](double h, double) { set(h, state.s, state.v); };
+
+		state = pick_state(d);
+		auto *form = new QFormLayout;
+		for (size_t i = 0; i < state.fields.size(); i++) {
+			const bool hex = i + 1 == state.fields.size();
+			QWidget *box = nullptr;
+			if (hex) {
+				auto *edit = new QLineEdit;
+				edit->setValidator(new QRegularExpressionValidator(QRegularExpression("#?[0-9a-fA-F]{0,6}"), edit));
+				edit->setMaximumWidth(edit->fontMetrics().horizontalAdvance("#DDDDDDD") + 16);
+				connect(edit, &QLineEdit::textEdited, this, [this, i, edit](const QString &t) {
+					if (pick_type(this->d, i, t.toStdString()))
+						sync(edit);
+				});
+				// a half-typed hex shows the color again on the way out
+				connect(edit, &QLineEdit::editingFinished, this, [this] { sync(nullptr); });
+				hexBox = edit;
+				box = edit;
+			} else {
+				auto *spin = new QSpinBox;
+				spin->setRange(0, 100);
+				connect(spin, &QSpinBox::valueChanged, this, [this, i, spin](int v) {
+					if (pick_type(this->d, i, std::to_string(v)))
+						sync(spin);
+				});
+				spins.push_back(spin);
+				box = spin;
+			}
+			form->addRow(qs(state.labels[i]), box);
+		}
+
+		auto *cancel = new QPushButton("Cancel");
+		auto *ok = new QPushButton("OK");
+		cancel->setAutoDefault(false);
+		ok->setDefault(true);
+		connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
+		connect(ok, &QPushButton::clicked, this, &QDialog::accept);
+		auto *buttons = new QHBoxLayout;
+		buttons->addStretch(1);
+		buttons->addWidget(cancel);
+		buttons->addWidget(ok);
+
+		auto *top = new QHBoxLayout;
+		top->addWidget(square, 0, Qt::AlignTop);
+		top->addWidget(strip, 0, Qt::AlignTop);
+		top->addSpacing(line);
+		top->addLayout(form);
+		auto *outer = new QVBoxLayout(this);
+		outer->addLayout(top);
+		outer->addLayout(buttons);
+		sync(nullptr);
+		square->setFocus();
+	}
+
+	void done(int r) override {
+		pick_close(d, r == QDialog::Accepted);
+		changed();
+		QDialog::done(r);
+	}
+
+private:
+	Dialog &d;
+	std::function<void()> changed;
+	PickState state;
+	SvSquare *square = nullptr;
+	HueStrip *strip = nullptr;
+	std::vector<QSpinBox *> spins;
+	QLineEdit *hexBox = nullptr;
+
+	void set(double h, double s, double v) {
+		pick_set(d, h, s, v);
+		sync(nullptr);
+	}
+
+	// `typing` is the box being typed in, which keeps its own text
+	void sync(QWidget *typing) {
+		state = pick_state(d);
+		for (PickArea *a : {static_cast<PickArea *>(square), static_cast<PickArea *>(strip)}) {
+			a->h = state.h;
+			a->s = state.s;
+			a->v = state.v;
+			a->update();
+		}
+		for (size_t i = 0; i < spins.size(); i++) {
+			if (spins[i] == typing)
+				continue;
+			QSignalBlocker b(spins[i]);
+			spins[i]->setValue(std::stoi(std::string(state.fields[i])));
+		}
+		if (hexBox != typing) {
+			QSignalBlocker b(hexBox);
+			hexBox->setText(qs(state.hex));
+		}
+		changed();
+	}
+};
 
 struct Row {
 	RowInfo info;
@@ -57,6 +314,14 @@ struct Row {
 	QLineEdit *line = nullptr;
 	QPushButton *chip = nullptr;
 	QToolButton *revert = nullptr;
+	QWidget *control = nullptr;
+	QLabel *head = nullptr;
+	QFrame *rule = nullptr;
+	QGridLayout *grid = nullptr;
+	int gap = -1;
+	std::vector<QRadioButton *> radios;
+	// what a dropdown's items stand for, which can change as themes are saved
+	std::vector<std::string> keys;
 	std::string id() const { return std::string(info.id); }
 };
 
@@ -72,8 +337,15 @@ public:
 		}
 
 		tabList = new QListWidget;
+		softenSelection(tabList);
 		pages = new QStackedWidget;
+		auto hasRows = [this](int tab) {
+			return std::any_of(rows.begin(), rows.end(), [tab](auto &r) { return r->info.tab == tab; });
+		};
 		for (size_t i = 0; i < tabs.size(); i++) {
+			// a tab with rows of its own keeps them on top, over its sub-tabs
+			if (tabs[i].parent >= 0 && hasRows(tabs[i].parent))
+				continue;
 			bool parent = false;
 			for (auto &t : tabs)
 				parent |= t.parent == int(i);
@@ -82,9 +354,32 @@ public:
 				depth++;
 			auto *item = new QListWidgetItem(QString(depth * 4, ' ') + qs(tabs[i].label));
 			tabList->addItem(item);
-			tabPage.push_back(parent ? -1 : pages->addWidget(buildPage(int(i), tabs[i])));
+			if (parent && !hasRows(int(i))) {
+				tabPage.push_back(-1);
+				subTabs.push_back(nullptr);
+				continue;
+			}
+			QTabWidget *sub = nullptr;
+			QWidget *page = buildPage(int(i), tabs[i], !parent);
+			if (parent) {
+				sub = new QTabWidget;
+				for (size_t j = 0; j < tabs.size(); j++)
+					if (tabs[j].parent == int(i))
+						sub->addTab(buildPage(int(j), tabs[j], true), qs(tabs[j].label));
+				auto *holder = new QWidget;
+				auto *v = new QVBoxLayout(holder);
+				v->setContentsMargins(0, 0, 0, 0);
+				v->addWidget(page);
+				v->addWidget(sub, 1);
+				page = holder;
+			}
+			tabPage.push_back(pages->addWidget(page));
+			subTabs.push_back(sub);
 		}
-		tabList->setFixedWidth(tabList->sizeHintForColumn(0) + 2 * tabList->frameWidth() + 24);
+		const int tabWidth = tabList->sizeHintForColumn(0);
+		tabList->setFixedWidth(tabWidth + 2 * tabList->frameWidth() + 24);
+		for (int i = 0; i < tabList->count(); i++)
+			tabList->item(i)->setSizeHint(QSize(tabWidth, tabList->fontMetrics().height() * 2));
 		// one width for every number box, so the sliders all end in one column
 		int numberWidth = 0;
 		for (auto &r : rows)
@@ -95,25 +390,38 @@ public:
 				r->spin->setFixedWidth(numberWidth);
 		connect(tabList, &QListWidget::currentRowChanged, this, [this](int i) { showTab(i); });
 
-		auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Apply | QDialogButtonBox::Cancel);
-		applyButton = buttons->button(QDialogButtonBox::Apply);
-		buttons->button(QDialogButtonBox::Cancel)->setToolTip("Discard every change and close Settings.");
+		// Cancel stands a little apart from the 2 that save
+		auto *cancel = new QPushButton("Cancel");
+		applyButton = new QPushButton("&Apply");
+		auto *closeButton = new QPushButton("Apply and &close");
+		cancel->setToolTip("Discard every change and close Settings.");
 		applyButton->setToolTip("Save changes now, without closing Settings.");
-		buttons->button(QDialogButtonBox::Ok)->setToolTip("Save changes and close Settings.");
-		buttons->button(QDialogButtonBox::Ok)->setDefault(true);
-		connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
-		connect(buttons, &QDialogButtonBox::accepted, this, [this] {
+		closeButton->setToolTip("Save changes and close Settings.");
+		closeButton->setDefault(true);
+		connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
+		connect(applyButton, &QPushButton::clicked, this, [this] { save(); });
+		connect(closeButton, &QPushButton::clicked, this, [this] {
 			if (save())
 				accept();
 		});
-		connect(applyButton, &QPushButton::clicked, this, [this] { save(); });
+		int gap = style()->layoutSpacing(QSizePolicy::PushButton, QSizePolicy::PushButton, Qt::Horizontal);
+		if (gap < 0)
+			gap = 6;
+		auto *buttons = new QHBoxLayout;
+		buttons->setSpacing(0);
+		buttons->addStretch(1);
+		buttons->addWidget(cancel);
+		buttons->addSpacing(2 * gap);
+		buttons->addWidget(applyButton);
+		buttons->addSpacing(gap);
+		buttons->addWidget(closeButton);
 
 		auto *body = new QHBoxLayout;
 		body->addWidget(tabList);
 		body->addWidget(pages, 1);
 		auto *outer = new QVBoxLayout(this);
 		outer->addLayout(body, 1);
-		outer->addWidget(buttons);
+		outer->addLayout(buttons);
 
 		tabList->setCurrentRow(0);
 		refresh();
@@ -145,11 +453,23 @@ public:
 	int tabCount() const { return tabList->count(); }
 	bool isLeaf(int i) const { return tabPage[size_t(i)] >= 0; }
 	void select(int i) { tabList->setCurrentRow(i); }
+	int subCount(int i) const { return subTabs[size_t(i)] ? subTabs[size_t(i)]->count() : 0; }
+	void selectSub(int i, int j) { subTabs[size_t(i)]->setCurrentIndex(j); }
+	std::unique_ptr<ColorPicker> firstPicker() {
+		for (auto &r : rows)
+			if (r->chip)
+				return picker(*r);
+		return nullptr;
+	}
 
 private:
 	Dialog &d;
 	std::vector<std::unique_ptr<Row>> rows;
 	std::vector<int> tabPage;
+	std::vector<QTabWidget *> subTabs;
+	QPushButton *saveTheme = nullptr;
+	QPushButton *renameTheme = nullptr;
+	QPushButton *deleteTheme = nullptr;
 	QListWidget *tabList = nullptr;
 	QStackedWidget *pages = nullptr;
 	QPushButton *applyButton = nullptr;
@@ -166,7 +486,7 @@ private:
 		}
 	}
 
-	QWidget *buildPage(int tab, const TabInfo &info) {
+	QWidget *buildPage(int tab, const TabInfo &info, bool scrolls) {
 		auto *page = new QWidget;
 		auto *grid = new QGridLayout(page);
 		grid->setColumnStretch(1, 1);
@@ -188,16 +508,22 @@ private:
 				auto *rule = new QFrame;
 				rule->setFrameShape(QFrame::HLine);
 				rule->setFrameShadow(QFrame::Sunken);
-				if (line > 0)
-					grid->setRowMinimumHeight(line++, 10);
+				if (line > 0) {
+					r.grid = grid;
+					r.gap = line;
+					grid->setRowMinimumHeight(line++, HEAD_GAP);
+				}
 				grid->addWidget(h, line++, 0, 1, 3);
 				grid->addWidget(rule, line++, 0, 1, 3);
+				r.head = h;
+				r.rule = rule;
 				continue;
 			}
 			r.label = new QLabel(label);
 			r.label->setContentsMargins(16 * r.info.indent, 0, 12, 0);
 			grid->addWidget(r.label, line, 0);
-			grid->addWidget(buildControl(r), line, 1);
+			r.control = buildControl(r);
+			grid->addWidget(r.control, line, 1);
 			r.revert = new QToolButton;
 			r.revert->setIcon(QIcon::fromTheme("edit-undo", style()->standardIcon(QStyle::SP_BrowserReload)));
 			r.revert->setAutoRaise(true);
@@ -208,8 +534,10 @@ private:
 			grid->addWidget(r.revert, line, 2);
 			line++;
 		}
+		if (!scrolls)
+			return page;
 		grid->setRowStretch(line, 1);
-		auto *scroll = new QScrollArea;
+		auto *scroll = new FitScroll;
 		scroll->setWidget(page);
 		scroll->setWidgetResizable(true);
 		scroll->setFrameShape(QFrame::NoFrame);
@@ -258,16 +586,39 @@ private:
 			r.spin = numberBox(r);
 			return r.spin;
 		}
+		if (c == "radio") {
+			auto *w = new QWidget;
+			auto *h = new QHBoxLayout(w);
+			h->setContentsMargins(0, 0, 0, 0);
+			auto *group = new QButtonGroup(w);
+			for (size_t i = 0; i < r.info.options.size(); i++) {
+				auto *b = new QRadioButton(qs(r.info.option_labels[i]));
+				group->addButton(b);
+				r.radios.push_back(b);
+				r.keys.push_back(std::string(r.info.options[i]));
+				connect(b, &QRadioButton::toggled, this, [this, &r, i](bool on) {
+					// the one turned off says so too, and the other one covers it
+					if (!on)
+						return;
+					set_text(d, r.id(), r.keys[i]);
+					refresh();
+				});
+				h->addWidget(b);
+			}
+			h->addStretch(1);
+			return w;
+		}
 		if (c == "dropdown") {
 			r.combo = new QComboBox;
-			for (auto &l : r.info.option_labels)
-				r.combo->addItem(qs(l));
+			r.combo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
 			connect(r.combo, &QComboBox::activated, this, [this, &r](int i) {
-				if (i >= 0 && size_t(i) < r.info.options.size())
-					set_text(d, r.id(), std::string(r.info.options[size_t(i)]));
+				if (i >= 0 && size_t(i) < r.keys.size())
+					set_text(d, r.id(), r.keys[size_t(i)]);
 				refresh();
 			});
-			return r.combo;
+			if (!r.info.chooser)
+				return r.combo;
+			return themeButtons(r.combo);
 		}
 		r.line = new QLineEdit;
 		connect(r.line, &QLineEdit::editingFinished, this, [this, &r] {
@@ -292,20 +643,77 @@ private:
 		return w;
 	}
 
-	// Edits show on the row at once, and Cancel puts the old color back.
-	void pickColor(Row &r) {
-		QString was = qs(row_state(d, r.id()).text);
-		QColorDialog pick(QColor(was), this);
-		pick.setWindowTitle(r.label->text());
-		connect(&pick, &QColorDialog::currentColorChanged, this, [this, &r](const QColor &c) {
-			set_text(d, r.id(), c.name().toStdString());
+	// Like the rest of the window, these take effect at Apply.
+	QWidget *themeButtons(QComboBox *combo) {
+		saveTheme = new QPushButton("Save");
+		auto *saveAs = new QPushButton("Save as...");
+		renameTheme = new QPushButton("Rename...");
+		deleteTheme = new QPushButton("Delete");
+		auto *dice = new QPushButton("Randomize");
+		saveTheme->setToolTip("Keep the colors changed here in this theme.");
+		saveAs->setToolTip("Keep the colors showing as a new theme of your own.");
+		renameTheme->setToolTip("Give this theme another name.");
+		deleteTheme->setToolTip("Delete this theme. Default is picked in its place.");
+		dice->setToolTip("Random colors for every graph, in one scheme around the User color, with the "
+						 "ones to watch kept red and orange. They're changes on this theme, so Save as keeps "
+						 "them and picking a theme drops them.");
+		for (auto *b : {saveTheme, saveAs, renameTheme, deleteTheme, dice})
+			b->setAutoDefault(false);
+		connect(saveTheme, &QPushButton::clicked, this, [this] {
+			save_theme(d);
 			refresh();
 		});
-		if (pick.exec() == QDialog::Accepted)
-			set_text(d, r.id(), pick.selectedColor().name().toStdString());
-		else
-			set_text(d, r.id(), was.toStdString());
+		connect(saveAs, &QPushButton::clicked, this, [this] { nameTheme("Save theme as", QString(), false); });
+		connect(renameTheme, &QPushButton::clicked, this,
+			[this] { nameTheme("Rename theme", qs(theme_name(d)), true); });
+		connect(deleteTheme, &QPushButton::clicked, this, [this] {
+			const QString name = qs(theme_name(d));
+			if (QMessageBox::question(this, "Delete theme", QString("Delete the theme %1?").arg(name)) !=
+				QMessageBox::Yes)
+				return;
+			delete_theme(d);
+			refresh();
+		});
+		connect(dice, &QPushButton::clicked, this, [this] {
+			randomize_theme(d);
+			refresh();
+		});
+		auto *w = new QWidget;
+		auto *h = new QHBoxLayout(w);
+		h->setContentsMargins(0, 0, 0, 0);
+		h->addWidget(combo);
+		h->addSpacing(12);
+		for (auto *b : {saveTheme, saveAs, renameTheme, deleteTheme, dice})
+			h->addWidget(b);
+		h->addStretch(1);
+		return w;
+	}
+
+	// asks again after a name that won't do, with the reason
+	void nameTheme(const QString &title, QString name, bool rename) {
+		for (;;) {
+			bool ok = false;
+			name = QInputDialog::getText(this, title, "Name:", QLineEdit::Normal, name, &ok);
+			if (!ok)
+				return;
+			const std::string typed = name.toStdString();
+			auto err = rename ? rename_theme(d, typed) : save_theme_as(d, typed);
+			if (err.empty())
+				break;
+			QMessageBox::warning(this, title, qs(err));
+		}
 		refresh();
+	}
+
+	std::unique_ptr<ColorPicker> picker(Row &r) {
+		if (!pick_open(d, r.id()))
+			return nullptr;
+		return std::make_unique<ColorPicker>(d, r.label->text(), [this] { refresh(); }, this);
+	}
+
+	void pickColor(Row &r) {
+		if (auto pick = picker(r))
+			pick->exec();
 	}
 
 	bool save() {
@@ -322,9 +730,18 @@ private:
 	void refresh() {
 		for (auto &rp : rows) {
 			Row &r = *rp;
+			if (r.head) {
+				const bool shown = row_state(d, r.id()).shown;
+				r.head->setVisible(shown);
+				r.rule->setVisible(shown);
+				if (r.grid)
+					r.grid->setRowMinimumHeight(r.gap, shown ? HEAD_GAP : 0);
+			}
 			if (!r.label)
 				continue;
 			auto st = row_state(d, r.id());
+			for (QWidget *w : {static_cast<QWidget *>(r.label), r.control, static_cast<QWidget *>(r.revert)})
+				w->setVisible(st.shown);
 			QString tip = qs(st.tip);
 			QString text = qs(st.text);
 			r.label->setToolTip(tip);
@@ -343,13 +760,32 @@ private:
 			if (r.spin) {
 				QSignalBlocker b(r.spin);
 				r.spin->setValue(st.number);
+				r.spin->setToolTip(tip);
 			}
 			if (r.combo) {
 				QSignalBlocker b(r.combo);
-				for (size_t i = 0; i < r.info.options.size(); i++)
-					if (qs(r.info.options[i]) == text)
+				std::vector<std::string> keys;
+				for (auto &k : st.options)
+					keys.push_back(std::string(k));
+				if (keys != r.keys) {
+					r.keys = keys;
+					r.combo->clear();
+					for (auto &l : st.option_labels)
+						r.combo->addItem(qs(l));
+				}
+				for (size_t i = 0; i < r.keys.size(); i++) {
+					const bool on = QString::fromStdString(r.keys[i]) == text;
+					// a theme with changes on top says "Name *"
+					r.combo->setItemText(int(i), on && !st.choice.empty() ? qs(st.choice) : qs(st.option_labels[i]));
+					if (on)
 						r.combo->setCurrentIndex(int(i));
+				}
 				r.combo->setToolTip(tip);
+			}
+			for (size_t i = 0; i < r.radios.size(); i++) {
+				QSignalBlocker b(r.radios[i]);
+				r.radios[i]->setChecked(QString::fromStdString(r.keys[i]) == text);
+				r.radios[i]->setToolTip(tip);
 			}
 			if (r.line) {
 				QSignalBlocker b(r.line);
@@ -358,6 +794,12 @@ private:
 			}
 			if (r.chip)
 				r.chip->setStyleSheet(QString("background-color: %1; border: 1px solid palette(mid);").arg(text));
+		}
+		if (saveTheme) {
+			auto b = theme_buttons(d);
+			saveTheme->setEnabled(b.save);
+			renameTheme->setEnabled(b.rename);
+			deleteTheme->setEnabled(b.remove);
 		}
 		applyButton->setEnabled(is_dirty(d));
 	}
@@ -372,11 +814,15 @@ std::int32_t run_dialog(Dialog &d, rust::Str snapshot) {
 	QApplication app(argc, argv);
 	QApplication::setApplicationName("tukzmon-settings");
 	Window w(d);
-	w.resize(w.sizeHint().expandedTo(QSize(560, 420)));
+	QSize size = w.sizeHint().expandedTo(QSize(560, 420));
+	if (const QScreen *screen = w.screen())
+		size = size.boundedTo(screen->availableGeometry().size());
+	w.resize(size);
 	if (snapshot.empty())
 		return w.exec() == QDialog::Accepted ? 0 : 1;
 
-	// one picture per tab with rows, as base-1.png, base-2.png, and so on
+	// one picture per tab with rows, as base-1.png, base-2.png, and so on, then
+	// the color picker
 	QString base = QString::fromUtf8(snapshot.data(), int(snapshot.size()));
 	if (base.endsWith(".png"))
 		base.chop(4);
@@ -386,8 +832,20 @@ std::int32_t run_dialog(Dialog &d, rust::Str snapshot) {
 		if (!w.isLeaf(i))
 			continue;
 		w.select(i);
+		for (int j = 0; j < std::max(1, w.subCount(i)); j++) {
+			if (w.subCount(i) > 0)
+				w.selectSub(i, j);
+			app.processEvents();
+			if (!w.grab().save(QString("%1-%2.png").arg(base).arg(++n)))
+				return 3;
+		}
+	}
+	if (auto pick = w.firstPicker()) {
+		pick->show();
 		app.processEvents();
-		if (!w.grab().save(QString("%1-%2.png").arg(base).arg(++n)))
+		const bool saved = pick->grab().save(QString("%1-%2.png").arg(base).arg(++n));
+		pick->reject();
+		if (!saved)
 			return 3;
 	}
 	return 0;

@@ -232,6 +232,111 @@ impl<const N: usize> History<N> {
 		}
 		out
 	}
+
+	/// Drops every bucket that ends by `before`, in every tier.
+	pub fn trim(&mut self, before: f64) {
+		if self.last.is_none_or(|l| l <= before) {
+			*self = History::default();
+			return;
+		}
+		for tier in &mut self.tiers {
+			while !tier.buckets.is_empty() && tier.start() + tier.len <= before {
+				tier.buckets.pop_front();
+				tier.first += 1;
+			}
+		}
+		self.first = self.first.map(|f| f.max(before));
+	}
+
+	/// Appends the history as bytes, for [`History::decode`].
+	pub fn encode(&self, out: &mut Vec<u8>) {
+		let f64s = |out: &mut Vec<u8>, x: f64| out.extend_from_slice(&x.to_le_bytes());
+		let f32s = |out: &mut Vec<u8>, xs: &[f32]| {
+			for x in xs {
+				out.extend_from_slice(&x.to_le_bytes());
+			}
+		};
+		f64s(out, self.first.unwrap_or(f64::NAN));
+		f64s(out, self.last.unwrap_or(f64::NAN));
+		out.extend_from_slice(&(self.tiers.len() as u32).to_le_bytes());
+		for tier in &self.tiers {
+			f64s(out, tier.len);
+			out.extend_from_slice(&tier.first.to_le_bytes());
+			out.extend_from_slice(&(tier.buckets.len() as u32).to_le_bytes());
+			for b in &tier.buckets {
+				f32s(out, &b.sum);
+				f32s(out, &b.min);
+				f32s(out, &b.max);
+				f32s(out, &[b.secs]);
+				f64s(out, b.lo);
+				f64s(out, b.hi);
+			}
+		}
+	}
+
+	/// None for anything [`History::encode`] wouldn't have written with
+	/// today's tiers, so a stale or broken file starts fresh.
+	pub fn decode(bytes: &[u8]) -> Option<History<N>> {
+		let mut rd = Reader(bytes);
+		let first = Some(rd.f64()?).filter(|x| x.is_finite());
+		let last = Some(rd.f64()?).filter(|x| x.is_finite());
+		let mut h = History::<N> {
+			first,
+			last,
+			..History::default()
+		};
+		if rd.u32()? as usize != h.tiers.len() {
+			return None;
+		}
+		for tier in &mut h.tiers {
+			if rd.f64()? != tier.len {
+				return None;
+			}
+			tier.first = rd.i64()?;
+			let count = rd.u32()? as i64;
+			if count > tier.cap() {
+				return None;
+			}
+			for _ in 0..count {
+				let b = Bucket {
+					sum: rd.f32s()?,
+					min: rd.f32s()?,
+					max: rd.f32s()?,
+					secs: rd.f32s::<1>()?[0],
+					lo: rd.f64()?,
+					hi: rd.f64()?,
+				};
+				tier.buckets.push_back(b);
+			}
+		}
+		(rd.0.is_empty() && first.is_some() == last.is_some()).then_some(h)
+	}
+}
+
+struct Reader<'a>(&'a [u8]);
+
+impl Reader<'_> {
+	fn take<const K: usize>(&mut self) -> Option<[u8; K]> {
+		let (head, rest) = self.0.split_first_chunk::<K>()?;
+		self.0 = rest;
+		Some(*head)
+	}
+	fn f64(&mut self) -> Option<f64> {
+		self.take().map(f64::from_le_bytes)
+	}
+	fn i64(&mut self) -> Option<i64> {
+		self.take().map(i64::from_le_bytes)
+	}
+	fn u32(&mut self) -> Option<u32> {
+		self.take().map(u32::from_le_bytes)
+	}
+	fn f32s<const K: usize>(&mut self) -> Option<[f32; K]> {
+		let mut v = [0.0; K];
+		for x in &mut v {
+			*x = f32::from_le_bytes(self.take()?);
+		}
+		Some(v)
+	}
 }
 
 #[cfg(test)]
@@ -339,5 +444,81 @@ mod tests {
 		h.add(4.5, 5.5, &[0.9]);
 		assert!(close(h.span(4.0, 5.0).max[0], 0.1));
 		assert!(close(h.span(5.0, 5.5).mean[0], 0.9));
+	}
+
+	fn a_day_of_samples() -> History<2> {
+		let mut h = History::<2>::default();
+		let t0 = 1.76e9;
+		for i in 0..2000 {
+			let t = t0 + i as f64 * 0.5;
+			h.add(t, t + 0.5, &[(i % 7) as f32 / 7.0, 0.25]);
+		}
+		// an hour off, then a day later
+		h.add(t0 + 4600.0, t0 + 4601.0, &[0.9, 0.1]);
+		h.add(t0 + 90000.0, t0 + 90002.0, &[0.3, 0.3]);
+		h
+	}
+
+	#[test]
+	fn encode_and_decode_give_back_the_same_history() {
+		let h = a_day_of_samples();
+		let mut bytes = Vec::new();
+		h.encode(&mut bytes);
+		let back = History::<2>::decode(&bytes).unwrap();
+		let mut again = Vec::new();
+		back.encode(&mut again);
+		assert_eq!(bytes, again);
+		assert_eq!((back.first(), back.last()), (h.first(), h.last()));
+		let t0 = 1.76e9;
+		for (a, b) in [(0.0, 1.0), (100.0, 400.0), (0.0, 90002.0), (4000.0, 5000.0)] {
+			assert_eq!(back.span(t0 + a, t0 + b), h.span(t0 + a, t0 + b));
+		}
+		assert!(History::<2>::decode(&[]).is_none());
+		let mut empty = Vec::new();
+		History::<2>::default().encode(&mut empty);
+		let e = History::<2>::decode(&empty).unwrap();
+		assert_eq!((e.first(), e.last()), (None, None));
+	}
+
+	#[test]
+	fn decode_refuses_what_encode_wouldnt_write() {
+		let h = a_day_of_samples();
+		let mut bytes = Vec::new();
+		h.encode(&mut bytes);
+		// cut short, a byte over, or saved with another series count
+		for n in [0, 7, 16, 20, 100, bytes.len() - 1] {
+			assert!(History::<2>::decode(&bytes[..n]).is_none(), "cut at {n}");
+		}
+		let mut long = bytes.clone();
+		long.push(0);
+		assert!(History::<2>::decode(&long).is_none());
+		assert!(History::<3>::decode(&bytes).is_none());
+		// tiers that don't match today's
+		let mut other = bytes.clone();
+		other[20..28].copy_from_slice(&0.5f64.to_le_bytes());
+		assert!(History::<2>::decode(&other).is_none());
+		// a bucket count past what the fine tier keeps
+		let mut over = bytes.clone();
+		over[36..40].copy_from_slice(&5000u32.to_le_bytes());
+		assert!(History::<2>::decode(&over).is_none());
+	}
+
+	#[test]
+	fn trim_drops_only_what_is_older() {
+		let mut h = a_day_of_samples();
+		let t0 = 1.76e9;
+		let before = h.span(t0 + 4600.0, t0 + 90002.0);
+		h.trim(t0 + 1000.0);
+		assert_eq!(h.first(), Some(t0 + 1000.0));
+		// a coarse bucket across the cut keeps its part, so look before it
+		assert_eq!(h.span(t0, t0 + 399.0).covered, 0.0);
+		assert_eq!(h.span(t0 + 4600.0, t0 + 90002.0), before);
+		assert!(
+			h.tiers
+				.iter()
+				.all(|t| t.buckets.is_empty() || t.start() + t.len > t0 + 1000.0)
+		);
+		h.trim(t0 + 1e6);
+		assert_eq!((h.first(), h.last()), (None, None));
 	}
 }

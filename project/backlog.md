@@ -43,6 +43,344 @@ Sorted per the notes in [Template](#template).
 		- Not done yet: history kept across restarts, a live preview before Apply, and the search box.
 	- Branch: dev
 
+- Settings window: tabs, highlight, number boxes, tips, and buttons
+	- ID: 2026102408304546
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- The look of the tabs, the highlight and the button gaps is for a person to judge, in the real theme.
+	- Needs hand testing: open Settings from the panel on b23, in its light and dark themes, and check the tab height, the selected tab, the button gaps, and typing a width past 1024.
+	- Priority|Severity: High
+	- Opened: 20261024-082803
+	- Opened by: t00mietum
+	- Requirements:
+		- The tabs are too vertically narrow.
+		- The highlight is too bright, and dark-mode text (i.e. white) is hard to read.
+			- Make it more readable in either dark or light mode, more like nemo-anywhere (which is a different system, C and GTK).
+		- Numeric input boxes:
+			- Allow manually typing values that exceed the slider range, but are still sane.
+		- Spike emphasis % flyover tip text: Explain what 0% and 100% would do.
+		- Buttons:
+			- [Cancel] <double space> [Apply] <single space> [Apply and close]
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Tabs are twice the text height.
+		- The selected tab is a 35% tint of the theme's highlight over the list background, with the normal text color on it.
+		- A slider can now reach less far than its box takes. The box takes width 16 to 4096, sample time 50 to 60000 ms, and border 0 to 16. The sliders still go 24 to 1024, 100 to 5000, and 0 to 4. Spike emphasis stays 0 to 100. The tip says both ranges.
+		- The spike tip says what 0% and 100% do.
+		- The buttons are Cancel, Apply, and Apply and close, which is still the Enter default.
+	- Decisions:
+		- "Double space" is read as twice the theme's gap between buttons.
+		- The slider's reach is a `slider_range` key in settings.shcl, read by tukzmon, since knobs has to stay the same as SilkTerm's.
+		- A value past the old range in the file used to fall back to the default. Now it's kept, up to the new limits.
+	- Branch: round-1024
+	- Test case: `config::tests::slider_ranges_sit_inside_their_range` and `dialog::tests::the_box_takes_more_than_the_slider_reaches`. Both fail on the old spec and pass now. The tab look and buttons have no test.
+		- 2026-10-24: `dialog::tests::sliders_snap_to_detents_and_gates_turn_on` now gets the width setting through `Dialog::slider` instead of the spec, so it maps over the slider's range. What it checks is unchanged.
+
+- Option for persistent graph
+	- ID: 2026102408304572
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- It's on by default, and turning it back on reloads the file. Both are calls for a person to make.
+	- Needs hand testing: on b23, restart the panel and then reboot, and check that the graph comes back with a gap for the time it was down. Then turn "Keep across restarts" off for a minute and back on.
+	- Priority|Severity: High
+	- Opened: 20261024-082803
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013885
+	- Requirements:
+		- Max age (days); default 365.
+		- Note: Don't delete values when disabled, just don't log new ones until reenabled.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- History is saved to `$XDG_DATA_HOME/tukzmon/plugin-<id>.hist` every 15 minutes and when the panel quits, and read back on start. The time it was down is a gap.
+		- Settings has a History heading on the Graph tab, with "Keep across restarts" (on) and "Max age in days" (365).
+		- `design.md` History has the details.
+		- Verified: a panel stop and start kept the first run's history, and off left the file as it was. Turned back on, it reloaded, with a gap for the time it was off.
+	- Decisions:
+		- Off stops both saving and loading, and keeps the file. Turned back on, the file is loaded again, so what the graph showed while it was off is replaced by the saved history, with a gap for that stretch. That's how "don't log new ones" was read.
+		- Max age is dropped at each save and load, and only while it's on.
+		- Times are Unix seconds now, not seconds since start, so runs line up.
+	- Branch: round-1024
+	- Test case: `history::tests::encode_and_decode_give_back_the_same_history`, `decode_refuses_what_encode_wouldnt_write`, `trim_drops_only_what_is_older`, the 3 `keep::tests`, `tests::saved_history_comes_back_with_a_gap`, `a_clock_set_back_still_takes_new_samples`, `load_trims_to_the_max_age_and_refuses_junk`, and `config::tests::history_is_kept_a_year_by_default`.
+
+- A dropdown for time function
+	- ID: 2026102408304586
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- Which curve reads best, and the names, are for a person to judge on a graph with days of history.
+		- It departs from the wording in 2 ways. Log B was read as the fixed divisions laid over the 5 s floor curve. And one tip covers all 3 choices and names the divisions, rather than a tip per item in the list.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Needs hand testing: on b23, open Settings and read the Log curve names and tip. Then switch between the 3 curves on a graph with a few days of history.
+	- Priority|Severity: High
+	- Opened: 20261024-082803
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013886
+	- Requirements:
+		- Pure log with a fixed 5 s floor (u = ln(1+age/5) / ln(1+total/5), where 5 s is the code's A0).
+			- With a better name.
+			- Default.
+		- Log A with fixed divisions. The existing formula. Show the divisions in its tooltip.
+		- Log B with fixed divisions. The existing formula. Show the divisions in its tooltip.
+			- Use a different formula: Pure log with a fixed 5 s floor (u = ln(1+age/5) / ln(1+total/5), where 5 s is the code's A0).
+				- Or just a less bunched-up log formula.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Settings has a Log curve dropdown under Log time axis, with Smooth log (the default), "Log A, fixed divisions", and "Log B, fixed divisions". Picking one turns the log axis on.
+		- Smooth log is the 5 s floor log across the whole run, with no divisions.
+		- Log A is the old curve. Log B keeps the divisions but places them on the Smooth log curve, so it matches Smooth log until a division fills, about 1.7 days in for the first.
+		- The settings window now opens tall enough for the whole Graph tab, which the new row had pushed into a scroll bar.
+		- `design.md` Time axis has the details.
+	- Decisions:
+		- The dropdown sits under the Log time axis checkbox rather than replacing it, so settings files keep working and a linear graph stays one click away.
+		- Saved as `graph.log_curve`: `smooth`, `fixed_a` or `fixed_b`. A file without it gets Smooth log, so b23's graph changes from Log A to Smooth log at the next install.
+	- Branch: round-1024
+	- Test case: `axis::tests::smooth_is_one_log_curve_with_no_caps`, `fixed_b_is_smooth_until_a_cap`, `caps_pin_when_the_tip_says` and `curves_parse_as_the_spec_spells_them`, with the other axis tests now run over all 3 curves. Also `config::tests::the_log_curve_comes_from_the_file`, `tests::log_axis_takes_the_chosen_curve`, and `dialog::tests::the_log_curve_sits_under_the_log_switch`. The window height has no test.
+		- Swept: every `Axis::log` and `Axis::knots` caller, in core, its tests, and the preview example. The plugin and settings build no axis of their own.
+
+- Show snapshot time on mouseover
+	- ID: 2026102408304599
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- How the line looks, and which tip format is the default, are for a person to judge.
+		- It departs from the wording in 2 ways. The tip also gives the CPU shares at the line's time, in place of the old tip with the latest read. And the line's color can be changed, under Colors.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Needs hand testing: on b23, hover the graph in the panel on a graph with a few days of history, and read the line and the tip in both Hover shows settings.
+	- Priority|Severity: High
+	- Opened: 20261024-082803
+	- Opened by: t00mietum
+	- Requirements:
+		- In the graph, show a thin black vertical line where the mouse is hovering.
+		- Mouseover text: How long ago the line is at. Configurable in settings:
+			- Date/time (expressed in current user's time).
+				- If after midnight, just the time (24-hour or 12-hour depending on user's OS-defined settings).
+				- If before previous midnight, date and time (in user's OS-defined short settings).
+			- How long ago, e.g.:
+				- 5 min ago
+				- 7 hrs ago
+				- 3 days ago
+				- 2 wks ago
+				- 9 mos ago
+				- 2 yrs ago
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A line one pixel wide follows the pointer over the graph, black by default, and set under Colors as Hover line.
+		- The tip gives the time under the line, then the CPU shares there, or No data for a gap.
+		- Hover shows, on the Graph tab, picks How long ago or Date and time. Date and time is the locale's short time, with its short date for anything before today.
+		- `design.md` Drawing and XFCE plugin have the details.
+		- Verified: in a test panel the line followed the pointer and went away when it left. The tip read "15 sec ago" and kept counting while the pointer was still, and gave "09:34:52 AM" in Date and time.
+	- Decisions:
+		- How long ago is the default, since the requirement's first line asks for it.
+		- "OS-defined settings" is read as the locale's `LC_TIME`.
+		- Units round down, so 90 minutes is "1 hr ago". Under a minute is in seconds, and under a second is "just now".
+		- The tip is the graph's own now, so the old tip with only the latest read is gone. At the right edge it gives about the same numbers.
+	- Branch: round-1024
+	- Test case: `when::tests::ago_reads_like_the_backlog_says`, `said_parses_as_the_spec_spells_it` and `clock_gives_the_date_only_before_today`, `render::tests::the_hover_line_stays_off_the_border`, `tests::the_hover_tip_says_when_and_what`, `the_hover_tip_shows_gaps_and_no_history` and `the_hover_line_is_drawn_where_the_pointer_is`, and `config::tests::the_hover_settings_come_from_the_file`. The pointer events, and when GTK shows the tip, have no test.
+		- Swept: every `Graph::tooltip` caller, every `Look` built in a test, and every `gtk_widget_set_tooltip_text` call, of which none is left.
+
+- Theme presets, with a coordinated Default
+	- ID: 2026102409400679
+	- Type: Feature
+	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- How the built-in themes look is for a person to judge.
+		- It departs from the wording in one way. b23's file sets 2 colors with no theme line, so it opens as Custom, with exactly the colors it has now. Picking Default there gives the coordinated set.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Needs hand testing: on b23, open Settings, pick each theme on the Colors tab and Apply, and look at the panel graph. Then pick Default.
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304612
+	- Related IDs: 2026102408304559, 2026102408304625
+	- Requirements:
+		- A Theme dropdown that picks a named set of every graph color, backgrounds included, from the parent's requirements.
+		- "Default" is the current colors, moved onto one coordinated scheme close to them.
+		- A few built-in themes named by the color that dominates, such as "Green standard" and "Green pastel".
+		- A color changed by hand sits on top of the theme as a change, the way SilkTerm's do.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A Theme dropdown sits at the top of the Colors tab. It picks Default, Green standard, Green pastel, Blue standard, Blue pastel, or Custom.
+		- Default keeps the user and nice colors, and moves system, the border and the top a little, onto one hue. `design.md` Theme has the values and the rule behind them.
+		- A color changed on a theme shows "Name *" in the dropdown, and is kept with that theme across a save.
+		- Verified: in the window, a change on Blue standard showed "Blue standard *" with the revert arrow live on that row.
+	- Decisions:
+		- The themes use knobs' preset groups, the same model as SilkTerm's, so knobs is unchanged.
+		- A file with colors and no theme line reads as Custom, so a hand edit isn't hidden under Default. A save names the theme whenever Custom colors are stored.
+		- I/O wait and system stay red and orange in every built-in theme, so trouble reads the same in each.
+		- One theme for the whole panel for now. A theme per graph comes with the live graph list, 2026102408304639.
+	- Branch: round-1024
+	- Test case: `config::tests::the_default_theme_is_the_row_defaults`, `a_theme_sets_every_color`, `colors_with_no_theme_line_are_custom`, `a_change_on_a_theme_is_kept_with_it` and `back_to_default_from_custom_stays_default`, and `dialog::tests::a_theme_and_the_changes_on_it_are_saved` and `custom_then_the_revert_arrow_is_default_again`. The 2 back-to-Default tests fail with the theme naming taken out and pass with it.
+		- 2026-10-24: `config::tests::defaults_are_the_multiload_colors` got new values only. System went from `#c64600` to `#c64200`, the border from `#40806a` to `#408060`, and the top from `#2a5446` to `#2a543f`.
+		- Swept: every `Model::load`, `Look::load` and `Look::from_model` caller, and every color row in `settings.shcl`. The plugin reads through `Look::load`, and the window through `config::model`.
+
+- Themes tab, with Save, Save as, Rename and Delete
+	- ID: 2026102409400684
+	- Type: Feature
+	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- How the tab and the theme buttons look and feel is for a person to judge.
+		- It departs from the wording in one way. The colors the graphs share, the border, background and hover line, are on a Background sub-tab beside CPU.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Needs hand testing: on b23, open Settings, go to Themes, and Save as a theme of your own. Change a color, Save, Rename it, Apply, and check the panel graph. Then Delete it.
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304612
+	- Prereq IDs: 2026102409400679
+	- Requirements:
+		- A Themes tab, with a top row that stays while its sub-tabs change: Name [Dropdown], [Save] [Save as...] [Rename...] [Delete].
+		- Saved themes are kept whole in the config file, and listed in the dropdown after the built-in ones.
+		- Each graph's colors are on a sub-tab of their own.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The Colors tab is now Themes. Its top row has the Name dropdown with Save, Save as, Rename and Delete, and stays put over the CPU and Background sub-tabs.
+		- Saved themes go in the config file under `themes`, every color written, and the dropdown lists them after the built-ins and before Custom. The panel graph reads them too.
+		- `design.md` Theme and Settings window have the details.
+		- Verified: the window drew the top row over both sub-tabs, with a saved theme picked.
+	- Decisions:
+		- Saved themes are presets added to the spec at load, so knobs is unchanged.
+		- Save, Rename and Delete only act on a saved theme. A built-in is kept by Save as.
+		- Delete picks Default. The theme buttons take effect at Apply, like the rest of the window.
+		- A theme's key comes from its name when it's made, and stays through a rename.
+		- A save refuses a theme line it can't read, the same as any other line.
+	- Branch: round-1024
+	- Test case: `config::tests::a_saved_theme_is_listed_after_the_built_ins_and_sets_the_look`, `a_saved_theme_cant_take_a_built_in_key`, `saved_themes_write_whole_and_read_back` and `theme_keys_are_plain_and_free`, and `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme`, `save_puts_the_changes_into_the_theme`, `rename_and_delete`, `a_theme_saved_by_hand_meanwhile_survives` and `a_theme_line_it_cant_read_stops_the_save`. The dialog tests fail with the themes left out of the save, and the hand-edit one with the merge taken out.
+		- Swept: every `config::model`, `Model::load` and `Look::load` caller. The plugin reads through `Look::load` and the window through `config::model_on`, so both get the saved themes. No code or doc named the old Colors tab.
+
+- Color picker in place of the toolkit's
+	- ID: 2026102409400689
+	- Type: Feature
+	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- How the picker looks and handles is for a person to judge.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Needs hand testing: on b23, open Settings, go to Themes, click a color chip, and drag in the square and the strip. Check the row behind follows, then Cancel and check the old color and the theme name are back. Then type a hex value and press OK.
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304612
+	- Requirements:
+		- Don't use the toolkit's color dialog. Use something more like SilkTerm's: a saturation and brightness square, a hue strip, value boxes, and Cancel and OK.
+		- Edits show at once, and Cancel puts the old color back.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A color chip opens our own picker in place of Qt's: a saturation and brightness square, a hue strip, and boxes for red, green, blue, brightness and saturation in percent, plus hex. Cancel and OK are at the bottom.
+		- The row behind follows every change, with its chip, its hex box and the theme's "*". Cancel puts back all that was stored when the picker opened. Esc is Cancel and Enter is OK, and neither reaches the settings window.
+		- The square and the strip take the arrow keys too, a hundredth a press, or a tenth with Shift.
+		- `--snapshot` takes a picture of the picker after the tabs.
+		- `design.md` Settings window has the details.
+		- Verified: in the window, a click in the square moved the User row and showed "Default *", and Esc put back the color and "Default" with Apply off. A typed hex and Enter kept the color, with the settings window still open.
+	- Decisions:
+		- The color model is SilkTerm's, ported to `settings/src/pick.rs`. The picker's state lives in the Rust dialog, so the live edits and Cancel are tested without a window.
+		- Cancel restores everything stored, not just the color. Setting the old color back, as the Qt dialog did, left the window changed after Cancel, so Apply would have pinned that color in the file.
+	- Branch: round-1024
+	- Test case: `pick::tests::a_color_survives_the_trip_through_hsv`, `a_gray_keeps_the_hue_and_saturation_it_had`, `the_hue_ramp_hits_the_primaries` and `a_typed_value_reaches_what_it_names`, and `dialog::tests::the_picker_moves_its_row_and_cancel_puts_it_all_back` and `the_picker_keeps_what_ok_was_pressed_on`. The Cancel test fails with the old way of setting the color back, and passes now. The drawing and the pointer have no test.
+		- Swept: the one `QColorDialog` use, now gone, and every color row, which all open the picker through the same chip. No code or doc names the toolkit's dialog.
+
+- Gradient mode per graph, and a Fire theme
+	- ID: 2026102409400695
+	- Type: Feature
+	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- How the gradient and Fire look in the panel is for a person to judge.
+		- It departs from the wording in one way. Only the CPU graph has a sub-tab so far, so only it has the mode. A new graph's sub-tab gets the same rows.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Needs hand testing: on b23, open Settings, go to Themes, pick Fire and Apply, and look at the panel graph under some load. Then go back to Detailed on the CPU sub-tab and check the Detailed rows come back.
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304612
+	- Prereq IDs: 2026102409400679, 2026102409400684
+	- Requirements:
+		- At the top of each graph's sub-tab: ( ) Detailed ( ) Gradient.
+		- Gradient takes 3 colors, Low, Medium and High, blended smoothly by how high a pixel reaches into the graph.
+		- A built-in "Fire" theme: dim red, yellow-white, bright light blue.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The CPU sub-tab starts with Colors: ( ) Detailed ( ) Gradient. Only the rows for the mode picked are shown.
+		- Gradient draws the column in a blend of Low, Medium and High by each pixel's height in the plot. The column is as tall as the stack would be.
+		- Fire is a built-in theme in Gradient mode: `#8b1a00`, `#fff4c8` and `#7fd4ff`. The others stay Detailed, and each has a gradient from its own colors for when it's switched.
+		- `design.md` Theme and Settings window have the details.
+		- Verified: the window showed the Detailed rows on Default and the Low, Medium and High rows on Fire, and a drawn graph on Fire ran from dim red at the bottom up toward yellow-white.
+	- Decisions:
+		- The mode is in the theme group, so picking Fire turns on Gradient, and a mode changed by hand shows "Name *" like a color. Saved themes keep it.
+		- The color follows the pixel's height, not the column's, so a busy column climbs into High and a quiet one stays Low.
+		- The radio buttons and showing rows by mode use 2 keys of tukzmon's own in settings.shcl, since knobs has to stay the same as SilkTerm's.
+	- Branch: round-1024
+	- Test case: `render::tests::the_gradient_goes_by_height_not_by_series` and `the_blend_hits_its_stops`, `config::tests::fire_is_a_gradient_and_the_rest_are_detailed`, `the_mode_shows_only_its_own_rows` and `a_saved_theme_keeps_its_mode`, and `dialog::tests::the_mode_swaps_the_rows_and_fire_is_a_gradient`. The render test fails with the blend fixed at one height, and the dialog test with every row always shown. The radio buttons have no test.
+		- 2026-10-24: new values only, for the 4 new theme rows and Fire. `config::tests::the_default_theme_is_the_row_defaults` members went from 8 to 12, and it now takes a dropdown for a `_mode` member where it took only colors. `saved_themes_write_whole_and_read_back` went from 8 values to 12. `a_saved_theme_is_listed_after_the_built_ins_and_sets_the_look` lists `fire` after `blue_pastel`. In `dialog::tests`, `save_as_keeps_the_colors_whole_and_picks_the_new_theme` finds Night seventh, not sixth, and counts 11 colors, not 8. `rename_and_delete` counts 8 options, not 7, and `a_theme_saved_by_hand_meanwhile_survives` 9, not 8.
+		- Swept: every `Frame` built (the plugin, the preview example and the render tests), and every use of the theme group's members, which now take a mode as well as colors (`saved_themes`, `theme_problems`, `shown_colors`, the picker, and `unthemed`).
+
+- Randomize button on the Themes tab
+	- ID: 2026102409400700
+	- Type: Feature
+	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- Whether the rolls look good together is for a person to judge.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Needs hand testing: on b23, open Settings, go to Themes, and press Randomize a few times, with Apply each time, and look at the panel graph. Then Save as one you like, and pick Default to drop a roll.
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304612
+	- Prereq IDs: 2026102409400684, 2026102409400695
+	- Requirements:
+		- [Randomize] on the Themes tab's top row sets random colors for every graph, by the parent's rules: one coordinated scheme around the user color, alarming colors for stats to watch, muted ones for nice, buffers and cache, and never Gradient mode.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- Randomize sits after Delete on the Themes top row. It sets every color and the mode as changes on the theme in force, so the dropdown says "Name *", Save as keeps the roll, and picking a theme drops it.
+		- The user color leads at any hue off red and orange. Nice, Low and the background are that hue or one near it, muted. I/O wait stays red and system orange. A roll is always Detailed, with a gradient ready from nice through user to a pale tint.
+		- `design.md` Theme and Settings window have the details.
+		- Verified: the Themes tab drew Randomize after Delete on the top row.
+	- Decisions:
+		- A roll is a change on the theme in force, not a switch to Custom, the same as a color changed by hand.
+		- I/O wait and system stay red and orange, as the presets decided, and the lead hue keeps clear of them.
+		- The hover line stays black, as in every built-in.
+		- Every theme member has a role in `settings/src/dice.rs`. A new graph's members fail a test until they get one.
+	- Branch: round-1024
+	- Test case: `dice::tests::every_theme_member_has_a_role`, `every_roll_is_a_value_its_setting_takes_and_never_a_gradient`, `the_lead_rules_and_the_alarms_stay_red_and_orange`, `the_quiet_ones_are_muted_and_near_the_lead`, `the_gradient_runs_from_calm_through_the_lead` and `a_seed_rolls_the_same_theme_and_seeds_differ`, over 2000 seeds each, and `dialog::tests::randomize_changes_every_color_on_the_theme_and_turns_off_the_gradient`. Each fails with its rule broken: the mode set to gradient, the lead hue let into red, a member left out, nice as bright as user, and Randomize doing nothing.
+		- Swept: every member of the theme group, which the role test walks, and the one theme button row in qt.cpp.
+
+- Transparent background setting
+	- ID: 2026102409400705
+	- Type: Feature
+	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- How it looks over the real panel, with its own background, is for a person to judge.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Needs hand testing: on b23, open Settings, go to Themes, then Background, tick Transparent and Apply, and look at the panel graph. Then pick another theme and check it stays clear.
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304612
+	- Requirements:
+		- One global setting that makes the graph background transparent, over every theme's background colors.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Worked at medium effort rather than high, since it's one setting.
+		- A Transparent checkbox sits first on the Background sub-tab, at `graph.transparent`, off by default. On, the Top and Bottom colors aren't drawn and the panel shows through. The border, the graph and the hover line still are.
+		- `design.md` Theme has the details.
+		- Verified: in a test panel, the empty part of the graph showed the panel's own color with it on, and the theme's top color with it off.
+	- Decisions:
+		- It's outside the theme group, so a theme pick, Randomize or Save as leaves it alone.
+		- It sits on the Background sub-tab, next to the colors it replaces, with a tip saying it goes for every theme.
+		- The Top and Bottom rows stay live while it's on, since knobs' gates only turn a row on with a checkbox, not off.
+	- Branch: round-1024
+	- Test case: `render::tests::a_transparent_background_lets_the_panel_through`, `config::tests::transparent_is_off_and_outlives_any_theme` and `dialog::tests::transparent_stays_through_a_theme_pick_and_a_roll`. The first 2 fail with the setting left unread or the background drawn opaque, and pass with it.
+		- Swept: every reader of the Top and Bottom colors, which is only `render::Frame::draw`, and the hover line in `Graph::render`, which stays opaque.
+
 - Core library and Linux collectors
 	- ID: 2026101916013884
 	- Type: Feature
@@ -57,6 +395,7 @@ Sorted per the notes in [Template](#template).
 		- A graph whose source is missing, like a desktop with no battery, is hidden.
 	- Progress log:
 		- CPU from `/proc/stat` works. The other graphs aren't started.
+		- 2026-10-24: Split into one child per source: 2026102408512192 (the collector trait, memory and swap), 2026102408512197 (zswap and zram), 2026102408512202 (network), 2026102408512207 (load), 2026102408512212 (disk), 2026102408512217 (temperature), and 2026102408512223 (battery). This closes with the last of them.
 
 - History store
 	- ID: 2026101916013885
@@ -151,84 +490,6 @@ Sorted per the notes in [Template](#template).
 		- CPU Temperature; normal, critical on top of that when normal maxes out
 		- Battery; charging, discharging, discharging and critical level
 
-- Settings window: tabs, highlight, number boxes, tips, and buttons
-	- ID: 2026102408304546
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-082803
-	- Opened by: t00mietum
-	- Requirements:
-		- The tabs are too vertically narrow.
-		- The highlight is too bright, and dark-mode text (i.e. white) is hard to read.
-			- Make it more readable in either dark or light mode, more like nemo-anywhere (which is a different system, C and GTK).
-		- Numeric input boxes:
-			- Allow manually typing values that exceed the slider range, but are still sane.
-		- Spike emphasis % flyover tip text: Explain what 0% and 100% would do.
-		- Buttons:
-			- [Cancel] <double space> [Apply] <single space> [Apply and close]
-
-- Update default colors to my current selection
-	- ID: 2026102408304559
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-082803
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304612
-	- Requirements:
-		- Update default colors to use my current selection.
-
-- Option for persistent graph
-	- ID: 2026102408304572
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-082803
-	- Opened by: t00mietum
-	- Related IDs: 2026101916013885
-	- Requirements:
-		- Max age (days); default 365.
-		- Note: Don't delete values when disabled, just don't log new ones until reenabled.
-
-- A dropdown for time function
-	- ID: 2026102408304586
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-082803
-	- Opened by: t00mietum
-	- Related IDs: 2026101916013886
-	- Requirements:
-		- Pure log with a fixed 5 s floor (u = ln(1+age/5) / ln(1+total/5), where 5 s is the code's A0).
-			- With a better name.
-			- Default.
-		- Log A with fixed divisions. The existing formula. Show the divisions in its tooltip.
-		- Log B with fixed divisions. The existing formula. Show the divisions in its tooltip.
-			- Use a different formula: Pure log with a fixed 5 s floor (u = ln(1+age/5) / ln(1+total/5), where 5 s is the code's A0).
-				- Or just a less bunched-up log formula.
-
-- Show snapshot time on mouseover
-	- ID: 2026102408304599
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-082803
-	- Opened by: t00mietum
-	- Requirements:
-		- In the graph, show a thin black vertical line where the mouse is hovering.
-		- Mouseover text: How long ago the line is at. Configurable in settings:
-			- Date/time (expressed in current user's time).
-				- If after midnight, just the time (24-hour or 12-hour depending on user's OS-defined settings).
-				- If before previous midnight, date and time (in user's OS-defined short settings).
-			- How long ago, e.g.:
-				- 5 min ago
-				- 7 hrs ago
-				- 3 days ago
-				- 2 wks ago
-				- 9 mos ago
-				- 2 yrs ago
-
 - Color themes tab
 	- ID: 2026102408304612
 	- Type: Feature
@@ -260,6 +521,8 @@ Sorted per the notes in [Template](#template).
 					- E.g. a "Fire" theme: dim red, yellow-white, bright light blue. (Like a hot flame.)
 					- These get smoothly blended into a gradient, based on how high a pixel reaches into the graph.
 		- Global setting to make background transparent, which overrides all background colors.
+	- Progress log:
+		- Split into 6 children, in this order: 2026102409400679 (theme presets and Default), 2026102409400684 (Themes tab and its top row), 2026102409400689 (color picker), 2026102409400695 (Gradient mode and Fire), 2026102409400700 (Randomize), and 2026102409400705 (transparent background).
 
 - Memory graph
 	- ID: 2026102408304625
@@ -268,7 +531,9 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: High
 	- Opened: 20261024-082803
 	- Opened by: t00mietum
-	- Prereq IDs: 2026101916013884
+	- Prereq IDs: 2026102408512192, 2026102409400679
+		- Was the collectors parent. Only its memory collector child is needed, and that's done.
+		- Its colors join the theme presets, so it waits on those.
 	- Related IDs: 2026101916013887
 	- Requirements:
 		- Memory, using my current color definitions from multiload-ng.
@@ -290,6 +555,85 @@ Sorted per the notes in [Template](#template).
 			- Dropdown to select the named theme.
 			- Grippers on the right to vertically reorder monitors with the mouse.
 
+- Zswap and zram collector
+	- ID: 2026102408512197
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Requirements:
+		- Zswap from `Zswap` and `Zswapped` in `/proc/meminfo`, as % used, plus the compression ratio for the text overlay.
+		- Zram from `/sys/block/zram*/mm_stat`, the same way, when there's no zswap.
+		- No collector on a kernel or box with neither.
+
+- Network collector
+	- ID: 2026102408512202
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Requirements:
+		- Bytes per second from `/proc/net/dev`: local (`lo`), sent, and received.
+		- Counters that wrap or reset, as when an interface goes away, make a gap, not a spike.
+
+- Load collector
+	- ID: 2026102408512207
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Requirements:
+		- The 1 minute load from `/proc/loadavg`.
+
+- Disk collector
+	- ID: 2026102408512212
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Requirements:
+		- Read and write bytes per second from `/proc/diskstats`, per device.
+		- Partitions left out of the total, so nothing is counted twice.
+		- All disks, or a chosen list of drives.
+
+- CPU temperature collector
+	- ID: 2026102408512217
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Requirements:
+		- The CPU package sensor under `/sys/class/hwmon`, with `temp*_crit` as the critical level where the sensor has one.
+		- No collector when no CPU sensor is found.
+
+- Battery collector
+	- ID: 2026102408512223
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Requirements:
+		- Charge and state from `/sys/class/power_supply/BAT*`: charging, discharging, and the critical level.
+		- No collector on a box with no battery.
+
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
 	- Type: Feature
@@ -307,6 +651,50 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Update default colors to my current selection
+	- ID: 2026102408304559
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-082803
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304612
+	- Requirements:
+		- Update default colors to use my current selection.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The current selection is the colors in b23's `~/.config/tukzmon/tukzmon.shcl`. It changes 2 of them: system is `#c64600` and nice is `#205f40`. Those are the built-in defaults now. The other CPU and background colors were already the same.
+	- Decisions:
+		- The file also sets sample time to 1000 ms. That isn't a color, so the default stays 500 ms.
+	- Branch: round-1024
+	- Test case: `config::tests::defaults_are_the_multiload_colors` and `config::tests::a_file_overrides_and_bad_lines_fall_back`. Both fail on the old defaults and pass now.
+		- 2026-10-24: both asserts got new values only. System went from `#008000` to `#c64600`, and nice from `#c000c0` to `#205f40`, in both tests.
+	- Closed: 20261024-090621
+
+- Collector trait, memory and swap
+	- ID: 2026102408512192
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Related IDs: 2026102408304625
+	- Requirements:
+		- One collector trait, which every source sits behind. CPU moves onto it.
+		- A source that isn't there gives no collector, so its graph can be hidden.
+		- Memory from `/proc/meminfo`, stacked user, buffers, cache.
+		- Swap from `/proc/meminfo`, as % used.
+	- Progress log:
+		- `core/src/collect.rs` has the `Collector` trait. `probe()` gives None when the source isn't there, and the graph is hidden off that. CPU is on it now.
+		- `core/src/mem.rs` reads memory and swap. A box with no swap gets no swap collector, and swap turned off later reads as a gap.
+		- Nothing draws them yet. That's the memory graph item and The graphs.
+	- Decisions:
+		- Cache is the `Cached` row alone, the way multiload-ng counts it by its base formula. `free` adds `SReclaimable`. Noted in `design.md`.
+	- Test case: `mem::tests` (6) and `collect::tests::slurp_reuses_and_misses`.
+	- Closed: 20261024-085549
 
 - Build date after the version, for non-release builds
 	- ID: 2026102408304652

@@ -13,8 +13,10 @@ pub const G_CONNECT_AFTER: c_uint = 1;
 pub const G_SIGNAL_MATCH_FUNC: c_uint = 1 << 3;
 pub const CAIRO_FORMAT_ARGB32: c_int = 0;
 pub const MODE_HORIZONTAL: c_int = 0;
+pub const GDK_POINTER_MOTION_MASK: c_int = 1 << 2;
 pub const GDK_BUTTON_PRESS_MASK: c_int = 1 << 8;
 pub const GDK_BUTTON_RELEASE_MASK: c_int = 1 << 9;
+pub const GDK_LEAVE_NOTIFY_MASK: c_int = 1 << 13;
 
 #[repr(C)]
 #[allow(clippy::struct_field_names, reason = "glibc's Dl_info, as named there")]
@@ -72,8 +74,13 @@ unsafe extern "C" {
 	pub fn gtk_widget_get_allocated_width(widget: *mut c_void) -> c_int;
 	pub fn gtk_widget_get_allocated_height(widget: *mut c_void) -> c_int;
 	pub fn gtk_widget_get_scale_factor(widget: *mut c_void) -> c_int;
-	pub fn gtk_widget_set_tooltip_text(widget: *mut c_void, text: *const c_char);
 	pub fn gtk_widget_add_events(widget: *mut c_void, events: c_int);
+	pub fn gtk_widget_set_has_tooltip(widget: *mut c_void, on: Gboolean);
+	pub fn gtk_widget_trigger_tooltip_query(widget: *mut c_void);
+	pub fn gtk_tooltip_set_text(tooltip: *mut c_void, text: *const c_char);
+
+	pub fn gdk_event_get_coords(event: *const c_void, x: *mut f64, y: *mut f64) -> Gboolean;
+	pub fn gdk_event_request_motions(event: *const c_void);
 
 	pub fn cairo_image_surface_create_for_data(
 		data: *mut u8,
@@ -90,6 +97,7 @@ unsafe extern "C" {
 	pub fn xfce_panel_plugin_get_type() -> GType;
 	pub fn xfce_panel_plugin_get_size(plugin: *mut c_void) -> c_int;
 	pub fn xfce_panel_plugin_get_mode(plugin: *mut c_void) -> c_int;
+	pub fn xfce_panel_plugin_get_unique_id(plugin: *mut c_void) -> c_int;
 	pub fn xfce_panel_plugin_menu_show_configure(plugin: *mut c_void);
 	pub fn xfce_panel_plugin_add_action_widget(plugin: *mut c_void, widget: *mut c_void);
 }

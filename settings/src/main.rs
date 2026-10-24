@@ -10,13 +10,16 @@ use std::process::ExitCode;
 #[cfg(feature = "qt")]
 mod bridge;
 mod dialog;
+mod dice;
+mod pick;
 
 const USAGE: &str = "Usage: tukzmon-settings [--config FILE]
 
 Opens the settings window for tukzmon's graphs.
 
   --config FILE    Settings file to edit. Default: ~/.config/tukzmon/tukzmon.shcl
-  --snapshot PNG   Save a picture of each tab and quit, for checking the layout.
+  --snapshot PNG   Save a picture of each tab and the color picker, and quit, for
+                   checking the layout.
   --help           Show this and quit.
   --version        Show the version and quit.";
 

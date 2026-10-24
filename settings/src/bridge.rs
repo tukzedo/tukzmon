@@ -6,6 +6,7 @@
 use knobs::{Control, Value};
 
 use crate::dialog::Dialog;
+use crate::pick::{Field, Hsv};
 
 #[cxx::bridge(namespace = "tukzmon")]
 pub mod ffi {
@@ -25,6 +26,8 @@ pub mod ffi {
 		options: Vec<String>,
 		option_labels: Vec<String>,
 		indent: i32,
+		/// It picks a theme, so the theme buttons go beside it.
+		chooser: bool,
 	}
 
 	struct RowState {
@@ -35,6 +38,26 @@ pub mod ffi {
 		can_reset: bool,
 		counts: bool,
 		tip: String,
+		choice: String,
+		options: Vec<String>,
+		option_labels: Vec<String>,
+		shown: bool,
+	}
+
+	struct ThemeButtons {
+		save: bool,
+		rename: bool,
+		remove: bool,
+	}
+
+	/// The open picker's color, and what each value box shows for it.
+	struct PickState {
+		h: f64,
+		s: f64,
+		v: f64,
+		hex: String,
+		labels: Vec<String>,
+		fields: Vec<String>,
 	}
 
 	extern "Rust" {
@@ -50,6 +73,18 @@ pub mod ffi {
 		fn reset_row(d: &mut Dialog, id: &str);
 		fn apply(d: &mut Dialog) -> String;
 		fn is_dirty(d: &Dialog) -> bool;
+		fn theme_buttons(d: &Dialog) -> ThemeButtons;
+		fn theme_name(d: &Dialog) -> String;
+		fn save_theme(d: &mut Dialog);
+		fn save_theme_as(d: &mut Dialog, name: &str) -> String;
+		fn rename_theme(d: &mut Dialog, name: &str) -> String;
+		fn delete_theme(d: &mut Dialog);
+		fn randomize_theme(d: &mut Dialog);
+		fn pick_open(d: &mut Dialog, id: &str) -> bool;
+		fn pick_state(d: &Dialog) -> PickState;
+		fn pick_set(d: &mut Dialog, h: f64, s: f64, v: f64);
+		fn pick_type(d: &mut Dialog, field: usize, text: &str) -> bool;
+		fn pick_close(d: &mut Dialog, keep: bool);
 	}
 
 	unsafe extern "C++" {
@@ -82,13 +117,20 @@ fn dialog_rows(d: &Dialog) -> Vec<ffi::RowInfo> {
 			id: s.id.clone(),
 			label: s.label.clone(),
 			tab: s.tab as i32,
-			control: format!("{:?}", s.control).to_lowercase(),
+			control: if s.control == Control::Dropdown
+				&& tukzmon_core::config::shown_as_radio(&s.id)
+			{
+				"radio".into()
+			} else {
+				format!("{:?}", s.control).to_lowercase()
+			},
 			whole: s.kind == knobs::Kind::Int,
 			min: s.min,
 			max: s.max,
 			options: s.options.iter().map(|(k, _)| k.clone()).collect(),
 			option_labels: s.options.iter().map(|(_, l)| l.clone()).collect(),
 			indent: s.indent as i32,
+			chooser: d.spec().chooser_of(&s.id).is_some(),
 		})
 		.collect()
 }
@@ -103,6 +145,10 @@ fn row_state(d: &Dialog, id: &str) -> ffi::RowState {
 		can_reset: s.can_reset,
 		counts: s.counts,
 		tip: s.tip,
+		choice: s.choice,
+		shown: s.shown,
+		option_labels: s.options.iter().map(|(_, l)| l.clone()).collect(),
+		options: s.options.into_iter().map(|(k, _)| k).collect(),
 	}
 }
 
@@ -132,6 +178,67 @@ fn apply(d: &mut Dialog) -> String {
 
 fn is_dirty(d: &Dialog) -> bool {
 	d.dirty()
+}
+
+fn theme_buttons(d: &Dialog) -> ffi::ThemeButtons {
+	let b = d.theme_buttons();
+	ffi::ThemeButtons {
+		save: b.save,
+		rename: b.rename,
+		remove: b.delete,
+	}
+}
+
+fn theme_name(d: &Dialog) -> String {
+	d.theme_name()
+}
+
+fn save_theme(d: &mut Dialog) {
+	d.save_theme();
+}
+
+fn save_theme_as(d: &mut Dialog, name: &str) -> String {
+	d.save_theme_as(name).err().unwrap_or_default()
+}
+
+fn rename_theme(d: &mut Dialog, name: &str) -> String {
+	d.rename_theme(name).err().unwrap_or_default()
+}
+
+fn delete_theme(d: &mut Dialog) {
+	d.delete_theme();
+}
+
+fn randomize_theme(d: &mut Dialog) {
+	d.randomize();
+}
+
+fn pick_open(d: &mut Dialog, id: &str) -> bool {
+	d.pick_open(id)
+}
+
+fn pick_state(d: &Dialog) -> ffi::PickState {
+	let hsv = d.pick_hsv().unwrap_or_default();
+	ffi::PickState {
+		h: hsv.h,
+		s: hsv.s,
+		v: hsv.v,
+		hex: crate::pick::hex(crate::pick::to_rgb(hsv)),
+		labels: Field::ALL.iter().map(|f| f.label().to_string()).collect(),
+		fields: Field::ALL.iter().map(|f| f.text(hsv)).collect(),
+	}
+}
+
+fn pick_set(d: &mut Dialog, h: f64, s: f64, v: f64) {
+	d.pick_set(Hsv { h, s, v });
+}
+
+fn pick_type(d: &mut Dialog, field: usize, text: &str) -> bool {
+	Field::ALL.get(field).is_some_and(|&f| d.pick_type(f, text))
+}
+
+fn pick_close(d: &mut Dialog, keep: bool) {
+	d.pick_close(keep);
 }
 
 pub fn run(d: &mut Dialog, snapshot: &str) -> i32 {

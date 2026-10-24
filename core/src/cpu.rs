@@ -3,6 +3,8 @@
 
 //! CPU use from `/proc/stat`.
 
+use crate::collect::{Collector, slurp};
+
 /// Series names, bottom of the stack first.
 pub const SERIES: [&str; 4] = ["iowait", "system", "user", "nice"];
 
@@ -69,15 +71,24 @@ pub fn shares(was: &Ticks, now: &Ticks) -> Option<[f32; 4]> {
 	])
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct CpuReader {
 	was: Option<Ticks>,
+	buf: String,
 }
 
-impl CpuReader {
+impl Collector<4> for CpuReader {
+	const SERIES: [&'static str; 4] = SERIES;
+
+	fn probe() -> Option<Self> {
+		let mut r = CpuReader::default();
+		r.read();
+		r.was.is_some().then_some(r)
+	}
+
 	/// Shares since the last call. The first call only primes it.
-	pub fn read(&mut self) -> Option<[f32; 4]> {
-		let now = parse_stat(&std::fs::read_to_string("/proc/stat").ok()?)?;
+	fn read(&mut self) -> Option<[f32; 4]> {
+		let now = parse_stat(slurp("/proc/stat", &mut self.buf)?)?;
 		let out = self.was.and_then(|w| shares(&w, &now));
 		self.was = Some(now);
 		out
@@ -145,6 +156,7 @@ mod tests {
 	fn live_proc_stat_reads() {
 		let mut r = CpuReader::default();
 		assert!(r.read().is_none());
+		assert!(CpuReader::probe().is_some_and(|p| p.was.is_some()));
 		std::thread::sleep(std::time::Duration::from_millis(30));
 		// a busy box can tick nothing in 30 ms, so only check the sum when it did
 		if let Some(s) = r.read() {

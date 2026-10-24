@@ -3,10 +3,15 @@
 
 //! Settings, as knobs reads them from `settings.shcl` and the config file.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 
 use knobs::{Model, NoEnv, Spec};
+
+use crate::axis::Curve;
+use crate::render::Paint;
+use crate::when::Said;
 
 pub const SPEC_TEXT: &str = include_str!("settings.shcl");
 
@@ -18,6 +23,305 @@ pub fn spec() -> Arc<Spec> {
 		Arc::new(Spec::parse(SPEC_TEXT).expect("settings.shcl"))
 	})
 	.clone()
+}
+
+fn slider_ranges() -> &'static [(String, f64, f64)] {
+	static RANGES: OnceLock<Vec<(String, f64, f64)>> = OnceLock::new();
+	RANGES.get_or_init(|| {
+		let doc = shcl::Document::parse(SPEC_TEXT);
+		doc.children("settings")
+			.into_iter()
+			.filter_map(|id| {
+				let at = format!("settings.{id}.slider_range");
+				let v = doc.get_float_array(&at).or_else(|_| {
+					doc.get_int_array(&at)
+						.map(|v| v.into_iter().map(|i| i as f64).collect())
+				});
+				match v.ok()?.as_slice() {
+					[lo, hi] => Some((id, *lo, *hi)),
+					_ => None,
+				}
+			})
+			.collect()
+	})
+}
+
+/// How far a slider reaches, where `slider_range` in settings.shcl makes it
+/// shorter than the range the number box beside it takes. knobs has no such
+/// key, so it's read here.
+pub fn slider_range(id: &str) -> Option<(f64, f64)> {
+	slider_ranges()
+		.iter()
+		.find(|(k, ..)| k == id)
+		.map(|&(_, lo, hi)| (lo, hi))
+}
+
+fn row_texts(key: &str) -> Vec<(String, String)> {
+	let doc = shcl::Document::parse(SPEC_TEXT);
+	doc.children("settings")
+		.into_iter()
+		.filter_map(|id| {
+			let v = doc.get_string(&format!("settings.{id}.{key}")).ok()?;
+			Some((id, v))
+		})
+		.collect()
+}
+
+/// Rows with `shown_as: radio`, whose dropdown is drawn as radio buttons.
+pub fn shown_as_radio(id: &str) -> bool {
+	static RADIOS: OnceLock<Vec<(String, String)>> = OnceLock::new();
+	RADIOS
+		.get_or_init(|| row_texts("shown_as"))
+		.iter()
+		.any(|(k, v)| k == id && v == "radio")
+}
+
+/// The dropdown and key a row is shown for, from `shown_when: "id = key"`.
+/// knobs' gates only take a checkbox, so this is read here.
+pub fn shown_when(id: &str) -> Option<(&'static str, &'static str)> {
+	static WHEN: OnceLock<Vec<(String, String, String)>> = OnceLock::new();
+	WHEN.get_or_init(|| {
+		row_texts("shown_when")
+			.into_iter()
+			.filter_map(|(row, v)| {
+				let (on, key) = v.split_once('=')?;
+				Some((row, on.trim().to_string(), key.trim().to_string()))
+			})
+			.collect()
+	})
+	.iter()
+	.find(|(row, ..)| row == id)
+	.map(|(_, on, key)| (on.as_str(), key.as_str()))
+}
+
+/// How a graph's columns are colored.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Mode {
+	/// A color per series, stacked.
+	#[default]
+	Detailed,
+	/// Low, Medium and High, blended by height.
+	Gradient,
+}
+
+impl Mode {
+	pub fn parse(s: &str) -> Option<Mode> {
+		match s.to_ascii_lowercase().as_str() {
+			"detailed" => Some(Mode::Detailed),
+			"gradient" => Some(Mode::Gradient),
+			_ => None,
+		}
+	}
+}
+
+/// The group every color is in, and the id of the dropdown that picks one.
+pub const THEME: &str = "theme";
+
+fn unthemed(m: &Model) -> bool {
+	m.spec.group(THEME).is_some_and(|g| {
+		!m.values.own.contains_key(&g.chooser)
+			&& g.members.iter().any(|id| m.values.own.contains_key(id))
+	})
+}
+
+/// Colors in a file with no theme line are from before themes, or a hand
+/// edit, so they read as Custom rather than hide under Default.
+/// [`name_the_theme`] keeps that from misreading a file saved here.
+pub fn unthemed_is_custom(m: &mut Model) {
+	if unthemed(m) {
+		m.set(THEME, &knobs::Value::Text(knobs::CUSTOM.into()), &NoEnv);
+	}
+}
+
+/// Before a save: knobs leaves out a theme pick that is the default, but
+/// still writes the Custom colors, which would read back as Custom.
+pub fn name_the_theme(m: &mut Model) {
+	if unthemed(m) {
+		let on = m.stored_choice(THEME, &NoEnv);
+		m.values.own.insert(THEME.into(), knobs::Value::Text(on));
+	}
+}
+
+/// A theme saved in the window, kept whole in the config file under
+/// `themes.<key>`, with every color named by its setting id.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SavedTheme {
+	pub key: String,
+	pub name: String,
+	/// Setting id to `#rrggbb`, one per theme color, plus each graph's mode.
+	pub colors: BTreeMap<String, String>,
+}
+
+// a theme member's value as the spec stores it, or None if it won't take it
+fn theme_value(spec: &Spec, id: &str, raw: &str) -> Option<String> {
+	let s = spec.get(id)?;
+	let v = spec.valid(s, &knobs::Value::Text(raw.to_string())).ok()?;
+	Some(v.as_text().to_string())
+}
+
+pub const THEMES: &str = "themes";
+
+fn builtin_key(key: &str) -> bool {
+	key.eq_ignore_ascii_case(knobs::CUSTOM)
+		|| spec()
+			.group(THEME)
+			.is_some_and(|g| g.presets.iter().any(|p| p.key.eq_ignore_ascii_case(key)))
+}
+
+/// The saved themes in a config file, in file order. A value that's missing
+/// or unreadable is Default's, and a theme with a built-in's key is left out.
+pub fn saved_themes(doc: &shcl::Document) -> Vec<SavedTheme> {
+	let spec = spec();
+	let Some(g) = spec.group(THEME) else {
+		return Vec::new();
+	};
+	doc.children(THEMES)
+		.into_iter()
+		.filter(|key| !builtin_key(key))
+		.map(|key| {
+			let at = |k: &str| format!("{THEMES}.{key}.{k}");
+			let colors = g
+				.members
+				.iter()
+				.map(|id| {
+					let v = doc
+						.get_string(&at(id))
+						.ok()
+						.and_then(|raw| theme_value(&spec, id, &raw))
+						.or_else(|| spec.get(id).map(|s| s.default.as_text().to_string()))
+						.unwrap_or_default();
+					(id.clone(), v)
+				})
+				.collect();
+			let name = doc
+				.get_string(&at("name"))
+				.ok()
+				.map(|n| n.trim().to_string())
+				.filter(|n| !n.is_empty())
+				.unwrap_or_else(|| key.clone());
+			SavedTheme { key, name, colors }
+		})
+		.collect()
+}
+
+/// Lines under `themes` that [`saved_themes`] can't read, so a save would
+/// drop or change them.
+pub fn theme_problems(doc: &shcl::Document) -> Vec<String> {
+	let spec = spec();
+	let members = spec.group(THEME).map_or(&[][..], |g| g.members.as_slice());
+	let mut out = Vec::new();
+	for key in doc.children(THEMES) {
+		let at = format!("{THEMES}.{key}");
+		if builtin_key(&key) {
+			out.push(format!(
+				"line {}: {at} has the name of a built-in theme",
+				doc.line(&at)
+			));
+			continue;
+		}
+		for field in doc.children(&at) {
+			let path = format!("{at}.{field}");
+			let fine = if field == "name" {
+				doc.get_string(&path).is_ok()
+			} else {
+				members.contains(&field)
+					&& doc
+						.get_string(&path)
+						.is_ok_and(|raw| theme_value(&spec, &field, &raw).is_some())
+			};
+			if !fine {
+				out.push(format!(
+					"line {}: {path} isn't a theme value I can read",
+					doc.line(&path)
+				));
+			}
+		}
+	}
+	out
+}
+
+/// The spec with saved themes as presets after the built-in ones, so the
+/// Theme dropdown lists them and a pick of one sets its colors.
+pub fn spec_with(themes: &[SavedTheme]) -> Arc<Spec> {
+	let base = spec();
+	if themes.is_empty() {
+		return base;
+	}
+	let mut s = (*base).clone();
+	if let Some(g) = s.groups.iter_mut().find(|g| g.id == THEME) {
+		for t in themes {
+			g.presets.push(knobs::Preset {
+				key: t.key.clone(),
+				label: t.name.clone(),
+				temporary: false,
+				values: t
+					.colors
+					.iter()
+					.map(|(id, hex)| (id.clone(), knobs::Value::Text(hex.clone())))
+					.collect(),
+			});
+		}
+	}
+	// the presets are whole and their colors checked, so this can't fail
+	s.finish().map_or(base, Arc::new)
+}
+
+/// The themes as config file lines, to go after what knobs writes.
+pub fn themes_text(themes: &[SavedTheme]) -> String {
+	if themes.is_empty() {
+		return String::new();
+	}
+	let mut doc = shcl::Document::new();
+	for t in themes {
+		let at = |k: &str| format!("{THEMES}.{}.{k}", t.key);
+		// keys are from theme_key or a file that parsed, so the paths are good
+		let _ = doc.set_string(&at("name"), &t.name);
+		for (id, hex) in &t.colors {
+			let _ = doc.set_string(&at(id), hex);
+		}
+	}
+	doc.to_canonical()
+}
+
+/// A key for a new theme from its name, not one that's taken.
+pub fn theme_key(name: &str, themes: &[SavedTheme]) -> String {
+	let mut slug = String::new();
+	for c in name.chars() {
+		if c.is_ascii_alphanumeric() {
+			slug.push(c.to_ascii_lowercase());
+		} else if !slug.is_empty() && !slug.ends_with('_') {
+			slug.push('_');
+		}
+	}
+	let slug = slug.trim_end_matches('_');
+	let slug = if slug.is_empty() || slug.starts_with(|c: char| c.is_ascii_digit()) {
+		format!("theme_{slug}").trim_end_matches('_').to_string()
+	} else {
+		slug.to_string()
+	};
+	let taken = |k: &str| builtin_key(k) || themes.iter().any(|t| t.key.eq_ignore_ascii_case(k));
+	if !taken(&slug) {
+		return slug;
+	}
+	// n themes can take at most n of these
+	(2..=themes.len() + 2)
+		.map(|n| format!("{slug}_{n}"))
+		.find(|k| !taken(k))
+		.unwrap_or(slug)
+}
+
+/// A parsed config file as a model on `spec`, with [`unthemed_is_custom`]
+/// applied.
+pub fn model_on(spec: Arc<Spec>, doc: &shcl::Document) -> Model {
+	let mut m = Model::load_docs(spec, doc, &shcl::Document::new());
+	unthemed_is_custom(&mut m);
+	m
+}
+
+/// A config file's text as a model, saved themes and all.
+pub fn model(text: &str) -> Model {
+	let doc = shcl::Document::parse(text);
+	model_on(spec_with(&saved_themes(&doc)), &doc)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -43,15 +347,27 @@ impl Rgb {
 pub struct Look {
 	pub width: u32,
 	pub log_axis: bool,
+	pub curve: Curve,
 	pub sample_ms: u32,
+	/// What the hover tip says about the time under the pointer.
+	pub said: Said,
 	/// 0 to 1.
 	pub spikes: f32,
 	pub border: u32,
+	/// Save history and load it back on start.
+	pub keep: bool,
+	pub max_days: u32,
 	/// In `cpu::SERIES` order, bottom first.
 	pub cpu: [Rgb; 4],
+	pub cpu_mode: Mode,
+	/// Low, Medium and High.
+	pub cpu_gradient: [Rgb; 3],
 	pub border_color: Rgb,
+	/// No background, so the panel shows through, whatever the theme.
+	pub transparent: bool,
 	pub top: Rgb,
 	pub bottom: Rgb,
+	pub hover: Rgb,
 }
 
 impl Default for Look {
@@ -61,24 +377,51 @@ impl Default for Look {
 }
 
 impl Look {
+	/// The model as read from a file, so [`unthemed_is_custom`] applies.
 	pub fn from_model(m: &Model) -> Look {
+		let custom;
+		let m = if unthemed(m) {
+			custom = {
+				let mut c = m.clone();
+				unthemed_is_custom(&mut c);
+				c
+			};
+			&custom
+		} else {
+			m
+		};
 		let num = |id: &str| m.value(id, &NoEnv).as_f64();
 		let color = |id: &str| Rgb::parse(m.value(id, &NoEnv).as_text()).unwrap_or(Rgb(0, 0, 0));
 		Look {
 			width: num("width") as u32,
 			log_axis: m.value("log_axis", &NoEnv).as_bool(),
+			curve: Curve::parse(m.value("log_curve", &NoEnv).as_text()).unwrap_or_default(),
 			sample_ms: num("sample_ms") as u32,
+			said: Said::parse(m.value("hover_time", &NoEnv).as_text()).unwrap_or_default(),
 			spikes: (num("spikes") / 100.0) as f32,
 			border: num("border") as u32,
+			keep: m.value("keep_history", &NoEnv).as_bool(),
+			max_days: num("max_days") as u32,
 			cpu: [
 				color("iowait"),
 				color("system"),
 				color("user"),
 				color("nice"),
 			],
+			cpu_mode: Mode::parse(m.value("cpu_mode", &NoEnv).as_text()).unwrap_or_default(),
+			cpu_gradient: [color("cpu_low"), color("cpu_medium"), color("cpu_high")],
 			border_color: color("border_color"),
+			transparent: m.value("transparent", &NoEnv).as_bool(),
 			top: color("back_top"),
 			bottom: color("back_bottom"),
+			hover: color("hover_color"),
+		}
+	}
+
+	pub fn cpu_paint(&self) -> Paint<'_, 4> {
+		match self.cpu_mode {
+			Mode::Detailed => Paint::Stack(&self.cpu),
+			Mode::Gradient => Paint::Gradient(self.cpu_gradient),
 		}
 	}
 
@@ -86,7 +429,7 @@ impl Look {
 	/// that setting's default.
 	pub fn load(path: &Path) -> Look {
 		let text = std::fs::read_to_string(path).unwrap_or_default();
-		Look::from_model(&Model::load(spec(), &text, ""))
+		Look::from_model(&model(&text))
 	}
 }
 
@@ -118,6 +461,26 @@ mod tests {
 	}
 
 	#[test]
+	fn slider_ranges_sit_inside_their_range() {
+		let doc = shcl::Document::parse(SPEC_TEXT);
+		let named: Vec<String> = doc
+			.paths()
+			.into_iter()
+			.filter(|p| p.ends_with(".slider_range"))
+			.collect();
+		assert!(!named.is_empty());
+		assert_eq!(named.len(), slider_ranges().len(), "one didn't parse");
+		let spec = spec();
+		for (id, lo, hi) in slider_ranges() {
+			let s = spec.get(id).unwrap();
+			assert_eq!(s.control, knobs::Control::Slider, "{id}");
+			assert!(s.min <= *lo && lo < hi && *hi <= s.max, "{id}");
+		}
+		assert_eq!(slider_range("width"), Some((24.0, 1024.0)));
+		assert_eq!(slider_range("spikes"), None);
+	}
+
+	#[test]
 	fn no_text_was_split_on_a_comma() {
 		// a bare value with a comma in it reads as a list, which shows up quoted
 		for s in &spec().settings {
@@ -133,15 +496,333 @@ mod tests {
 	fn defaults_are_the_multiload_colors() {
 		let l = Look::default();
 		assert_eq!(l.cpu[0], Rgb(0xff, 0, 0));
-		assert_eq!(l.cpu[1], Rgb(0, 0x80, 0));
+		assert_eq!(l.cpu[1], Rgb(0xc6, 0x42, 0));
 		assert_eq!(l.cpu[2], Rgb(0, 0xff, 0x80));
-		assert_eq!(l.cpu[3], Rgb(0xc0, 0, 0xc0));
-		assert_eq!(l.border_color, Rgb(0x40, 0x80, 0x6a));
-		assert_eq!(l.top, Rgb(0x2a, 0x54, 0x46));
+		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x40));
+		assert_eq!(l.border_color, Rgb(0x40, 0x80, 0x60));
+		assert_eq!(l.top, Rgb(0x2a, 0x54, 0x3f));
 		assert_eq!(l.bottom, Rgb(0, 0, 0));
 		assert_eq!((l.width, l.sample_ms, l.border), (128, 500, 1));
 		assert!(l.log_axis);
+		assert_eq!(l.curve, Curve::Smooth);
 		assert_eq!(l.spikes, 0.5);
+		assert_eq!(l.hover, Rgb(0, 0, 0));
+		assert_eq!(l.said, Said::Ago);
+	}
+
+	#[test]
+	fn the_default_theme_is_the_row_defaults() {
+		let spec = spec();
+		let g = spec.group(THEME).unwrap();
+		assert_eq!(g.members.len(), 12);
+		let default = g.preset("default").unwrap();
+		assert_eq!(default.label, "Default");
+		for id in &g.members {
+			let s = spec.get(id).unwrap();
+			// colors, and a graph's mode
+			let control = if id.ends_with("_mode") {
+				knobs::Control::Dropdown
+			} else {
+				knobs::Control::Color
+			};
+			assert_eq!(s.control, control, "{id}");
+			assert_eq!(default.values.get(id), Some(&s.default), "{id}");
+		}
+		// every color row is in it
+		for s in &spec.settings {
+			if s.control == knobs::Control::Color {
+				assert!(g.members.contains(&s.id), "{}", s.id);
+			}
+		}
+	}
+
+	#[test]
+	fn a_theme_sets_every_color() {
+		let l = Look::from_model(&model("theme:\n\tname: blue_pastel\n"));
+		assert_eq!(l.cpu[2], Rgb(0xa1, 0xc8, 0xf0));
+		assert_eq!(l.bottom, Rgb(0x0f, 0x12, 0x14));
+		assert_eq!(l.width, 128);
+		assert_eq!(
+			Look::from_model(&model("theme:\n\tname: plaid\n")),
+			Look::default()
+		);
+	}
+
+	#[test]
+	fn transparent_is_off_and_outlives_any_theme() {
+		assert!(!Look::default().transparent);
+		assert_eq!(
+			spec().get("transparent").and_then(|s| s.group.as_deref()),
+			None
+		);
+		let on = "graph:\n\ttransparent: true\n";
+		for theme in ["theme:\n\tname: fire\n", "theme:\n\tname: plaid\n", ""] {
+			let l = Look::from_model(&model(&format!("{theme}{on}")));
+			assert!(l.transparent, "{theme:?}");
+		}
+		// Custom too
+		let l = Look::from_model(&model(&format!(
+			"{on}graph:\n\tcolors:\n\t\ttop: \"#123456\"\n"
+		)));
+		assert!(l.transparent);
+		assert_eq!(l.top, Rgb(0x12, 0x34, 0x56));
+	}
+
+	#[test]
+	fn colors_with_no_theme_line_are_custom() {
+		let text = "cpu:\n\tcolors:\n\t\tuser: \"#123456\"\n";
+		let m = model(text);
+		assert_eq!(m.chosen(THEME, &NoEnv), knobs::CUSTOM);
+		assert_eq!(Look::from_model(&m).cpu[2], Rgb(0x12, 0x34, 0x56));
+		// the rest of Custom starts as Default
+		assert_eq!(Look::from_model(&m).cpu[3], Rgb(0x20, 0x5f, 0x40));
+		// with a theme named, they're its Custom set and wait
+		let text = format!("theme:\n\tname: default\n{text}");
+		let l = Look::from_model(&model(&text));
+		assert_eq!(l.cpu[2], Rgb(0, 0xff, 0x80));
+	}
+
+	#[test]
+	fn a_change_on_a_theme_is_kept_with_it() {
+		let mut m = model("theme:\n\tname: green_standard\n");
+		m.set("user", &knobs::Value::Text("#abcdef".into()), &NoEnv);
+		assert_eq!(m.shown_choice(THEME, &NoEnv), "Green standard *");
+		name_the_theme(&mut m);
+		let back = model(&m.save(&NoEnv).0);
+		assert_eq!(back.shown_choice(THEME, &NoEnv), "Green standard *");
+		let l = Look::from_model(&back);
+		assert_eq!(l.cpu[2], Rgb(0xab, 0xcd, 0xef));
+		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x20));
+	}
+
+	#[test]
+	fn back_to_default_from_custom_stays_default() {
+		let mut m = model("");
+		let text = |v: &str| knobs::Value::Text(v.into());
+		m.set(THEME, &text(knobs::CUSTOM), &NoEnv);
+		m.set("user", &text("#123456"), &NoEnv);
+		// the revert arrow, which is also how a save takes back a pick of the
+		// default; the Custom set is still written, so the theme has to be too
+		m.reset(THEME, &NoEnv);
+		assert_eq!(m.chosen(THEME, &NoEnv), "default");
+		name_the_theme(&mut m);
+		let saved = m.save(&NoEnv).0;
+		assert!(saved.contains("#123456"), "{saved}");
+		let back = model(&saved);
+		assert_eq!(back.chosen(THEME, &NoEnv), "default");
+		assert_eq!(Look::from_model(&back).cpu[2], Rgb(0, 0xff, 0x80));
+		// and nothing to name when there's no Custom set
+		let mut plain = model("");
+		name_the_theme(&mut plain);
+		assert_eq!(plain.save(&NoEnv).0.trim(), "");
+	}
+
+	#[test]
+	fn a_saved_theme_is_listed_after_the_built_ins_and_sets_the_look() {
+		let text = "theme:\n\tname: mine\nthemes:\n\tmine:\n\t\tname: \"My green\"\n\t\tuser: \"#11AA22\"\n\t\tnice: nope\n";
+		let m = model(text);
+		let options = &m.spec.get(THEME).unwrap().options;
+		let keys: Vec<&str> = options.iter().map(|(k, _)| k.as_str()).collect();
+		assert_eq!(
+			keys,
+			[
+				"default",
+				"green_standard",
+				"green_pastel",
+				"blue_standard",
+				"blue_pastel",
+				"fire",
+				"mine",
+				knobs::CUSTOM
+			]
+		);
+		assert_eq!(m.shown_choice(THEME, &NoEnv), "My green");
+		let l = Look::from_model(&m);
+		assert_eq!(l.cpu[2], Rgb(0x11, 0xaa, 0x22));
+		// a missing or bad color is Default's
+		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x40));
+		let doc = shcl::Document::parse(text);
+		let p = theme_problems(&doc);
+		assert_eq!(p.len(), 1, "{p:?}");
+		assert!(p[0].contains("themes.mine.nice"), "{p:?}");
+		// the plugin reads it the same way
+		let dir = std::env::temp_dir().join(format!("test_tukzmon_{}_saved", std::process::id()));
+		std::fs::create_dir_all(&dir).unwrap();
+		let path = dir.join("t.shcl");
+		std::fs::write(&path, text).unwrap();
+		let loaded = Look::load(&path);
+		std::fs::remove_file(&path).unwrap();
+		std::fs::remove_dir(&dir).unwrap();
+		assert_eq!(loaded, l);
+	}
+
+	#[test]
+	fn fire_is_a_gradient_and_the_rest_are_detailed() {
+		let l = Look::from_model(&model("theme:\n\tname: fire\n"));
+		assert_eq!(l.cpu_mode, Mode::Gradient);
+		assert_eq!(
+			l.cpu_gradient,
+			[
+				Rgb(0x8b, 0x1a, 0),
+				Rgb(0xff, 0xf4, 0xc8),
+				Rgb(0x7f, 0xd4, 0xff)
+			]
+		);
+		assert_eq!(
+			l.cpu_paint(),
+			crate::render::Paint::Gradient(l.cpu_gradient)
+		);
+		let spec = spec();
+		for p in &spec.group(THEME).unwrap().presets {
+			let want = if p.key == "fire" {
+				"gradient"
+			} else {
+				"detailed"
+			};
+			assert_eq!(p.values["cpu_mode"].as_text(), want, "{}", p.key);
+		}
+		let d = Look::default();
+		assert_eq!(d.cpu_mode, Mode::Detailed);
+		assert_eq!(d.cpu_paint(), crate::render::Paint::Stack(&d.cpu));
+		// a mode set by hand is a change on the theme, like a color
+		let mut m = model("theme:\n\tname: blue_standard\n");
+		m.set("cpu_mode", &knobs::Value::Text("Gradient".into()), &NoEnv);
+		assert_eq!(m.shown_choice(THEME, &NoEnv), "Blue standard *");
+		name_the_theme(&mut m);
+		let l = Look::from_model(&model(&m.save(&NoEnv).0));
+		assert_eq!(l.cpu_mode, Mode::Gradient);
+		assert_eq!(l.cpu_gradient[1], Rgb(0, 0x80, 0xff));
+		assert_eq!(Mode::parse("plaid"), None);
+	}
+
+	#[test]
+	fn the_mode_shows_only_its_own_rows() {
+		assert!(shown_as_radio("cpu_mode"));
+		assert!(!shown_as_radio("theme"));
+		assert_eq!(shown_when("user"), Some(("cpu_mode", "detailed")));
+		assert_eq!(shown_when("cpu_low"), Some(("cpu_mode", "gradient")));
+		assert_eq!(shown_when("back_top"), None);
+		// every shown_when names a dropdown and one of its keys
+		let spec = spec();
+		let named = shcl::Document::parse(SPEC_TEXT)
+			.paths()
+			.into_iter()
+			.filter(|p| p.ends_with(".shown_when"))
+			.count();
+		let mut found = 0;
+		for s in &spec.settings {
+			let Some((on, key)) = shown_when(&s.id) else {
+				continue;
+			};
+			found += 1;
+			let d = spec.get(on).unwrap();
+			assert_eq!(d.control, knobs::Control::Dropdown, "{}", s.id);
+			assert!(d.options.iter().any(|(k, _)| k == key), "{}", s.id);
+		}
+		assert_eq!(found, named, "one didn't parse");
+		// a gradient color is in every theme, like the others
+		let g = spec.group(THEME).unwrap();
+		for id in ["cpu_mode", "cpu_low", "cpu_medium", "cpu_high"] {
+			assert!(g.members.iter().any(|m| m == id), "{id}");
+		}
+	}
+
+	#[test]
+	fn a_saved_theme_keeps_its_mode() {
+		let text = "theme:\n\tname: mine\nthemes:\n\tmine:\n\t\tname: Mine\n\t\tcpu_mode: GRADIENT\n\t\tcpu_low: \"#010203\"\n";
+		let doc = shcl::Document::parse(text);
+		let t = saved_themes(&doc);
+		assert_eq!(t[0].colors["cpu_mode"], "gradient");
+		assert!(theme_problems(&doc).is_empty());
+		let l = Look::from_model(&model(text));
+		assert_eq!(l.cpu_mode, Mode::Gradient);
+		assert_eq!(l.cpu_gradient[0], Rgb(1, 2, 3));
+		assert_eq!(saved_themes(&shcl::Document::parse(&themes_text(&t))), t);
+		// a mode it can't read is a problem, and reads as Default's
+		let bad = text.replace("GRADIENT", "plaid");
+		let doc = shcl::Document::parse(&bad);
+		assert_eq!(saved_themes(&doc)[0].colors["cpu_mode"], "detailed");
+		let p = theme_problems(&doc);
+		assert_eq!(p.len(), 1, "{p:?}");
+		assert!(p[0].contains("themes.mine.cpu_mode"), "{p:?}");
+		// and a color where the mode goes
+		let doc = shcl::Document::parse(&text.replace("GRADIENT", "\"#123456\""));
+		assert_eq!(theme_problems(&doc).len(), 1);
+	}
+
+	#[test]
+	fn a_saved_theme_cant_take_a_built_in_key() {
+		let text = "themes:\n\tdefault:\n\t\tuser: \"#123456\"\n\tCustom:\n\t\tuser: \"#123456\"\n";
+		let doc = shcl::Document::parse(text);
+		assert!(saved_themes(&doc).is_empty());
+		assert_eq!(theme_problems(&doc).len(), 2);
+		assert_eq!(Look::from_model(&model(text)), Look::default());
+	}
+
+	#[test]
+	fn saved_themes_write_whole_and_read_back() {
+		let mut t = saved_themes(&shcl::Document::parse(
+			"themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n",
+		));
+		assert_eq!(t[0].name, "Say \"hi\"");
+		assert_eq!(t[0].colors.len(), 12);
+		t.push(SavedTheme {
+			key: theme_key("Default", &t),
+			name: "Default".into(),
+			colors: t[0].colors.clone(),
+		});
+		assert_eq!(t[1].key, "default_2");
+		let back = saved_themes(&shcl::Document::parse(&themes_text(&t)));
+		assert_eq!(back, t);
+		assert_eq!(themes_text(&[]), "");
+	}
+
+	#[test]
+	fn theme_keys_are_plain_and_free() {
+		assert_eq!(theme_key("My Green!", &[]), "my_green");
+		assert_eq!(theme_key("  -- ", &[]), "theme");
+		assert_eq!(theme_key("1984", &[]), "theme_1984");
+		assert_eq!(theme_key("Gr\u{fc}n", &[]), "gr_n");
+		assert_eq!(theme_key("custom", &[]), "custom_2");
+		assert_eq!(theme_key("Blue pastel", &[]), "blue_pastel_2");
+	}
+
+	#[test]
+	fn the_hover_settings_come_from_the_file() {
+		let text = "graph:\n\thover_time: clock\n\tcolors:\n\t\thover: \"#ffffff\"\n";
+		let l = Look::from_model(&Model::load(spec(), text, ""));
+		assert_eq!(l.said, Said::Clock);
+		assert_eq!(l.hover, Rgb(0xff, 0xff, 0xff));
+		let l = Look::from_model(&Model::load(spec(), "graph:\n\thover_time: never\n", ""));
+		assert_eq!(l.said, Said::Ago);
+	}
+
+	#[test]
+	fn the_log_curve_comes_from_the_file() {
+		let pick = |v: &str| {
+			let text = format!("graph:\n\tlog_curve: {v}\n");
+			Look::from_model(&Model::load(spec(), &text, "")).curve
+		};
+		assert_eq!(pick("fixed_a"), Curve::FixedA);
+		assert_eq!(pick("Fixed_B"), Curve::FixedB);
+		assert_eq!(pick("wobbly"), Curve::Smooth);
+		// the tip's paragraph break is a real one
+		let tip = spec()
+			.get("log_curve")
+			.map(|s| s.tip.clone())
+			.unwrap_or_default();
+		assert!(tip.contains("\n\nLog A") && !tip.contains("\\n"), "{tip}");
+	}
+
+	#[test]
+	fn history_is_kept_a_year_by_default() {
+		let l = Look::default();
+		assert!(l.keep);
+		assert_eq!(l.max_days, 365);
+		let text = "history:\n\tkeep: false\n\tmax_days: 0\n";
+		let l = Look::from_model(&Model::load(spec(), text, ""));
+		assert!(!l.keep);
+		assert_eq!(l.max_days, 365);
 	}
 
 	#[test]
@@ -151,7 +832,7 @@ mod tests {
 		assert_eq!(l.width, 200);
 		assert_eq!(l.sample_ms, 500);
 		assert_eq!(l.cpu[2], Rgb(0x12, 0x34, 0x56));
-		assert_eq!(l.cpu[3], Rgb(0xc0, 0, 0xc0));
+		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x40));
 	}
 
 	#[test]
