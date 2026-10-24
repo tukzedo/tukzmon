@@ -18,6 +18,7 @@ tukzmon-core = { path = "../core" }
 knobs = { path = "../knobs" }
 shcl.workspace = true
 cxx = { version = "1.0.205", optional = true }
+libc = "0.2.191"
 
 [build-dependencies]
 cxx-build = { version = "1.0.205", optional = true }

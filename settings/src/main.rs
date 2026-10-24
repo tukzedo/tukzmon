@@ -42,7 +42,7 @@ fn main() -> ExitCode {
 				return ExitCode::SUCCESS;
 			}
 			"--version" => {
-				println!("tukzmon-settings {}", env!("CARGO_PKG_VERSION"));
+				println!("tukzmon-settings {}", version());
 				return ExitCode::SUCCESS;
 			}
 			_ => {
@@ -54,6 +54,36 @@ fn main() -> ExitCode {
 	let path = config.unwrap_or_else(tukzmon_core::config::config_file);
 	let mut d = dialog::Dialog::open(path);
 	run(&mut d, &snapshot)
+}
+
+// "0.1.0 (2026-10-24)" for a dev build, in the local date of whoever asks.
+fn version() -> String {
+	let v = env!("CARGO_PKG_VERSION");
+	match env!("TUKZMON_BUILT").parse::<i64>() {
+		Ok(secs) if secs > 0 => match local_date(secs) {
+			Some(d) => format!("{v} ({d})"),
+			None => v.to_string(),
+		},
+		_ => v.to_string(),
+	}
+}
+
+fn local_date(secs: i64) -> Option<String> {
+	let t = libc::time_t::try_from(secs).ok()?;
+	// SAFETY: localtime_r only writes the tm we hand it.
+	let tm = unsafe {
+		let mut tm: libc::tm = std::mem::zeroed();
+		if libc::localtime_r(&raw const t, &raw mut tm).is_null() {
+			return None;
+		}
+		tm
+	};
+	Some(format!(
+		"{:04}-{:02}-{:02}",
+		tm.tm_year + 1900,
+		tm.tm_mon + 1,
+		tm.tm_mday
+	))
 }
 
 #[cfg(feature = "qt")]
