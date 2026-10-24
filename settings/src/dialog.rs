@@ -9,7 +9,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use knobs::{Control, Kind, Model, NoEnv, Setting, Spec, Value};
-use tukzmon_core::config::{self, SavedTheme, THEME};
+use tukzmon_core::config::{self, Rgb, SavedTheme, THEME};
+
+use crate::pick::{self, Field, Hsv};
 
 const HEADER: &str = "## tukzmon settings. Only values changed from their defaults are listed.\n";
 
@@ -50,6 +52,17 @@ pub struct Dialog {
 	themes: Vec<SavedTheme>,
 	/// As the file had them when it was last read or written.
 	saved_themes: Vec<SavedTheme>,
+	picker: Option<Picker>,
+}
+
+/// An open color picker. Its row follows every change, and Cancel puts back
+/// all that was stored when it opened, since a color change also marks the
+/// theme changed.
+struct Picker {
+	id: String,
+	hsv: Hsv,
+	values: knobs::Values,
+	touched: Vec<String>,
 }
 
 fn read(path: &Path) -> Result<String, String> {
@@ -140,6 +153,7 @@ impl Dialog {
 			short_sliders,
 			saved_themes: themes.clone(),
 			themes,
+			picker: None,
 		}
 	}
 
@@ -390,6 +404,63 @@ impl Dialog {
 		if self.spec.get(id).is_some() {
 			self.model.reset(id, &NoEnv);
 			self.touch(id);
+		}
+	}
+
+	/// Opens the picker on a color row. False for any other row.
+	pub fn pick_open(&mut self, id: &str) -> bool {
+		if self.spec.get(id).is_none_or(|s| s.kind != Kind::Color) {
+			return false;
+		}
+		let now = Rgb::parse(self.model.value(id, &NoEnv).as_text()).unwrap_or(Rgb(0, 0, 0));
+		self.picker = Some(Picker {
+			id: id.to_string(),
+			hsv: pick::from_rgb(now, Hsv::default()),
+			values: self.model.values.clone(),
+			touched: self.touched.clone(),
+		});
+		true
+	}
+
+	pub fn pick_hsv(&self) -> Option<Hsv> {
+		self.picker.as_ref().map(|p| p.hsv)
+	}
+
+	/// The one place the picker's color changes, and its row with it.
+	pub fn pick_set(&mut self, hsv: Hsv) {
+		let Some(p) = self.picker.as_mut() else {
+			return;
+		};
+		p.hsv = Hsv {
+			h: hsv.h.rem_euclid(1.0),
+			s: hsv.s.clamp(0.0, 1.0),
+			v: hsv.v.clamp(0.0, 1.0),
+		};
+		let (id, text) = (p.id.clone(), pick::hex(pick::to_rgb(p.hsv)));
+		self.set(&id, &Value::Text(text));
+	}
+
+	/// A value typed into one of the picker's boxes. False while it says
+	/// nothing yet, and nothing changes.
+	pub fn pick_type(&mut self, field: Field, typed: &str) -> bool {
+		let Some(hsv) = self.pick_hsv() else {
+			return false;
+		};
+		let Some(hsv) = field.apply(hsv, typed) else {
+			return false;
+		};
+		self.pick_set(hsv);
+		true
+	}
+
+	/// OK keeps the color, and Cancel puts back what was there before.
+	pub fn pick_close(&mut self, keep: bool) {
+		let Some(p) = self.picker.take() else {
+			return;
+		};
+		if !keep {
+			self.model.values = p.values;
+			self.touched = p.touched;
 		}
 	}
 
@@ -753,5 +824,62 @@ mod tests {
 		dlg.apply().unwrap();
 		let text = std::fs::read_to_string(&path).unwrap();
 		assert!(text.contains("log_curve: fixed_b"), "{text}");
+	}
+
+	#[test]
+	fn the_picker_moves_its_row_and_cancel_puts_it_all_back() {
+		let d = scratch("pick_cancel");
+		let mut dlg = Dialog::open(d.0.join("t.shcl"));
+		let was = dlg.state("user").text;
+		assert!(!dlg.pick_open("width"), "not a color row");
+		assert!(dlg.pick_open("user"));
+		let start = dlg.pick_hsv().unwrap();
+		assert_eq!(pick::hex(pick::to_rgb(start)), was);
+		// the square's top left is white at any hue
+		dlg.pick_set(Hsv {
+			s: 0.0,
+			v: 1.0,
+			..start
+		});
+		assert_eq!(dlg.state("user").text, "#ffffff", "the row follows at once");
+		assert_eq!(dlg.state("theme").choice, "Default *");
+		assert!(dlg.dirty());
+		dlg.pick_close(false);
+		assert_eq!(dlg.state("user").text, was);
+		assert_eq!(dlg.state("theme").choice, "Default");
+		assert!(!dlg.dirty());
+		assert!(dlg.touched.is_empty(), "a save would still write the row");
+		// and with it closed, nothing moves the row
+		dlg.pick_set(Hsv {
+			s: 0.0,
+			v: 1.0,
+			..start
+		});
+		assert_eq!(dlg.state("user").text, was);
+	}
+
+	#[test]
+	fn the_picker_keeps_what_ok_was_pressed_on() {
+		let d = scratch("pick_ok");
+		let path = d.0.join("t.shcl");
+		let mut dlg = Dialog::open(path.clone());
+		assert!(dlg.pick_open("nice"));
+		assert!(
+			!dlg.pick_type(Field::Hex, "#33"),
+			"half-typed changes nothing"
+		);
+		assert!(dlg.pick_type(Field::Hex, "#3366cc"));
+		let hsv = dlg.pick_hsv().unwrap();
+		assert_eq!(Field::Red.text(hsv), "20");
+		assert_eq!(Field::Blue.text(hsv), "80");
+		assert!(dlg.pick_type(Field::Red, "100"));
+		assert_eq!(dlg.state("nice").text, "#ff66cc");
+		dlg.pick_close(true);
+		assert!(dlg.pick_hsv().is_none());
+		assert_eq!(dlg.state("nice").text, "#ff66cc");
+		dlg.apply().unwrap();
+		let dlg = Dialog::open(path);
+		assert_eq!(dlg.state("nice").text, "#ff66cc");
+		assert_eq!(dlg.state("theme").choice, "Default *");
 	}
 }

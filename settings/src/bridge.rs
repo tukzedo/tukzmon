@@ -6,6 +6,7 @@
 use knobs::{Control, Value};
 
 use crate::dialog::Dialog;
+use crate::pick::{Field, Hsv};
 
 #[cxx::bridge(namespace = "tukzmon")]
 pub mod ffi {
@@ -48,6 +49,16 @@ pub mod ffi {
 		remove: bool,
 	}
 
+	/// The open picker's color, and what each value box shows for it.
+	struct PickState {
+		h: f64,
+		s: f64,
+		v: f64,
+		hex: String,
+		labels: Vec<String>,
+		fields: Vec<String>,
+	}
+
 	extern "Rust" {
 		type Dialog;
 		fn dialog_title(d: &Dialog) -> String;
@@ -67,6 +78,11 @@ pub mod ffi {
 		fn save_theme_as(d: &mut Dialog, name: &str) -> String;
 		fn rename_theme(d: &mut Dialog, name: &str) -> String;
 		fn delete_theme(d: &mut Dialog);
+		fn pick_open(d: &mut Dialog, id: &str) -> bool;
+		fn pick_state(d: &Dialog) -> PickState;
+		fn pick_set(d: &mut Dialog, h: f64, s: f64, v: f64);
+		fn pick_type(d: &mut Dialog, field: usize, text: &str) -> bool;
+		fn pick_close(d: &mut Dialog, keep: bool);
 	}
 
 	unsafe extern "C++" {
@@ -182,6 +198,34 @@ fn rename_theme(d: &mut Dialog, name: &str) -> String {
 
 fn delete_theme(d: &mut Dialog) {
 	d.delete_theme();
+}
+
+fn pick_open(d: &mut Dialog, id: &str) -> bool {
+	d.pick_open(id)
+}
+
+fn pick_state(d: &Dialog) -> ffi::PickState {
+	let hsv = d.pick_hsv().unwrap_or_default();
+	ffi::PickState {
+		h: hsv.h,
+		s: hsv.s,
+		v: hsv.v,
+		hex: crate::pick::hex(crate::pick::to_rgb(hsv)),
+		labels: Field::ALL.iter().map(|f| f.label().to_string()).collect(),
+		fields: Field::ALL.iter().map(|f| f.text(hsv)).collect(),
+	}
+}
+
+fn pick_set(d: &mut Dialog, h: f64, s: f64, v: f64) {
+	d.pick_set(Hsv { h, s, v });
+}
+
+fn pick_type(d: &mut Dialog, field: usize, text: &str) -> bool {
+	Field::ALL.get(field).is_some_and(|&f| d.pick_type(f, text))
+}
+
+fn pick_close(d: &mut Dialog, keep: bool) {
+	d.pick_close(keep);
 }
 
 pub fn run(d: &mut Dialog, snapshot: &str) -> i32 {

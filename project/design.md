@@ -86,7 +86,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- A slider can reach less far than its number box takes. The box takes any sane value, and `slider_range` in `core/src/settings.shcl` sets how far the slider goes.
 	- The selected tab is a tint of the theme's highlight under the normal text color, so it reads in a dark theme too.
 	- A tab with rows of its own and tabs under it, which is Themes, keeps those rows on top and shows its tabs as sub-tabs below them. Themes has the Name dropdown with Save, Save as, Rename and Delete, and a sub-tab per graph's colors, plus Background for the colors they share. Like every other change, the theme buttons take effect at Apply.
-	- A color chip opens a picker, and the hex value can be typed beside it.
+	- A color chip opens a picker, and the hex value can be typed beside it. The picker is SilkTerm's, not the toolkit's: a saturation and brightness square, a hue strip, and boxes for red, green, blue, brightness, saturation and hex. The row behind it follows every change, and Cancel puts back all of it, the theme's "*" included. The color model is in `settings/src/pick.rs`.
 	- The file gets only what was changed in the window, applied to the file as it is at save time, so a hand edit made meanwhile isn't lost.
 	- A save that would drop a line it can't read, or a setting it doesn't know, is refused, and the error names the lines.
 

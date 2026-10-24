@@ -249,6 +249,36 @@ Sorted per the notes in [Template](#template).
 	- Test case: `config::tests::a_saved_theme_is_listed_after_the_built_ins_and_sets_the_look`, `a_saved_theme_cant_take_a_built_in_key`, `saved_themes_write_whole_and_read_back` and `theme_keys_are_plain_and_free`, and `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme`, `save_puts_the_changes_into_the_theme`, `rename_and_delete`, `a_theme_saved_by_hand_meanwhile_survives` and `a_theme_line_it_cant_read_stops_the_save`. The dialog tests fail with the themes left out of the save, and the hand-edit one with the merge taken out.
 		- Swept: every `config::model`, `Model::load` and `Look::load` caller. The plugin reads through `Look::load` and the window through `config::model_on`, so both get the saved themes. No code or doc named the old Colors tab.
 
+- Color picker in place of the toolkit's
+	- ID: 2026102409400689
+	- Type: Feature
+	- Status: Waiting on UAT
+		- How the picker looks and handles is for a person to judge.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Needs hand testing: on b23, open Settings, go to Themes, click a color chip, and drag in the square and the strip. Check the row behind follows, then Cancel and check the old color and the theme name are back. Then type a hex value and press OK.
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304612
+	- Requirements:
+		- Don't use the toolkit's color dialog. Use something more like SilkTerm's: a saturation and brightness square, a hue strip, value boxes, and Cancel and OK.
+		- Edits show at once, and Cancel puts the old color back.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A color chip opens our own picker in place of Qt's: a saturation and brightness square, a hue strip, and boxes for red, green, blue, brightness and saturation in percent, plus hex. Cancel and OK are at the bottom.
+		- The row behind follows every change, with its chip, its hex box and the theme's "*". Cancel puts back all that was stored when the picker opened. Esc is Cancel and Enter is OK, and neither reaches the settings window.
+		- The square and the strip take the arrow keys too, a hundredth a press, or a tenth with Shift.
+		- `--snapshot` takes a picture of the picker after the tabs.
+		- `design.md` Settings window has the details.
+		- Verified: in the window, a click in the square moved the User row and showed "Default *", and Esc put back the color and "Default" with Apply off. A typed hex and Enter kept the color, with the settings window still open.
+	- Decisions:
+		- The color model is SilkTerm's, ported to `settings/src/pick.rs`. The picker's state lives in the Rust dialog, so the live edits and Cancel are tested without a window.
+		- Cancel restores everything stored, not just the color. Setting the old color back, as the Qt dialog did, left the window changed after Cancel, so Apply would have pinned that color in the file.
+	- Branch: round-1024
+	- Test case: `pick::tests::a_color_survives_the_trip_through_hsv`, `a_gray_keeps_the_hue_and_saturation_it_had`, `the_hue_ramp_hits_the_primaries` and `a_typed_value_reaches_what_it_names`, and `dialog::tests::the_picker_moves_its_row_and_cancel_puts_it_all_back` and `the_picker_keeps_what_ok_was_pressed_on`. The Cancel test fails with the old way of setting the color back, and passes now. The drawing and the pointer have no test.
+		- Swept: the one `QColorDialog` use, now gone, and every color row, which all open the picker through the same chip. No code or doc names the toolkit's dialog.
+
 - Core library and Linux collectors
 	- ID: 2026101916013884
 	- Type: Feature
@@ -391,18 +421,6 @@ Sorted per the notes in [Template](#template).
 		- Global setting to make background transparent, which overrides all background colors.
 	- Progress log:
 		- Split into 6 children, in this order: 2026102409400679 (theme presets and Default), 2026102409400684 (Themes tab and its top row), 2026102409400689 (color picker), 2026102409400695 (Gradient mode and Fire), 2026102409400700 (Randomize), and 2026102409400705 (transparent background).
-
-- Color picker in place of the toolkit's
-	- ID: 2026102409400689
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-094007
-	- Opened by: t00mietum
-	- Parent ID: 2026102408304612
-	- Requirements:
-		- Don't use the toolkit's color dialog. Use something more like SilkTerm's: a saturation and brightness square, a hue strip, value boxes, and Cancel and OK.
-		- Edits show at once, and Cancel puts the old color back.
 
 - Gradient mode per graph, and a Fire theme
 	- ID: 2026102409400695
