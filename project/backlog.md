@@ -47,6 +47,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102408304546
 	- Type: Enhancement
 	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
 		- The look of the tabs, the highlight and the button gaps is for a person to judge, in the real theme.
 	- Needs hand testing: open Settings from the panel on b23, in its light and dark themes, and check the tab height, the selected tab, the button gaps, and typing a width past 1024.
 	- Priority|Severity: High
@@ -81,6 +82,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102408304572
 	- Type: Enhancement
 	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
 		- It's on by default, and turning it back on reloads the file. Both are calls for a person to make.
 	- Needs hand testing: on b23, restart the panel and then reboot, and check that the graph comes back with a gap for the time it was down. Then turn "Keep across restarts" off for a minute and back on.
 	- Priority|Severity: High
@@ -108,6 +110,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102408304586
 	- Type: Enhancement
 	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
 		- Which curve reads best, and the names, are for a person to judge on a graph with days of history.
 		- It departs from the wording in 2 ways. Log B was read as the fixed divisions laid over the 5 s floor curve. And one tip covers all 3 choices and names the divisions, rather than a tip per item in the list.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
@@ -143,6 +146,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102408304599
 	- Type: Enhancement
 	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
 		- How the line looks, and which tip format is the default, are for a person to judge.
 		- It departs from the wording in 2 ways. The tip also gives the CPU shares at the line's time, in place of the old tip with the latest read. And the line's color can be changed, under Colors.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
@@ -184,6 +188,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102409400679
 	- Type: Feature
 	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
 		- How the built-in themes look is for a person to judge.
 		- It departs from the wording in one way. b23's file sets 2 colors with no theme line, so it opens as Custom, with exactly the colors it has now. Picking Default there gives the coordinated set.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
@@ -219,6 +224,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102409400684
 	- Type: Feature
 	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
 		- How the tab and the theme buttons look and feel is for a person to judge.
 		- It departs from the wording in one way. The colors the graphs share, the border, background and hover line, are on a Background sub-tab beside CPU.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
@@ -253,6 +259,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102409400689
 	- Type: Feature
 	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
 		- How the picker looks and handles is for a person to judge.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
 	- Needs hand testing: on b23, open Settings, go to Themes, click a color chip, and drag in the square and the strip. Check the row behind follows, then Cancel and check the old color and the theme name are back. Then type a hex value and press OK.
@@ -283,6 +290,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102409400695
 	- Type: Feature
 	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
 		- How the gradient and Fire look in the panel is for a person to judge.
 		- It departs from the wording in one way. Only the CPU graph has a sub-tab so far, so only it has the mode. A new graph's sub-tab gets the same rows.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
@@ -317,6 +325,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102409400700
 	- Type: Feature
 	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
 		- Whether the rolls look good together is for a person to judge.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
 	- Needs hand testing: on b23, open Settings, go to Themes, and press Randomize a few times, with Apply each time, and look at the panel graph. Then Save as one you like, and pick Default to drop a roll.
@@ -347,6 +356,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102409400705
 	- Type: Feature
 	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
 		- How it looks over the real panel, with its own background, is for a person to judge.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
 	- Needs hand testing: on b23, open Settings, go to Themes, then Background, tick Transparent and Apply, and look at the panel graph. Then pick another theme and check it stays clear.
