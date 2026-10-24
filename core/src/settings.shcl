@@ -77,6 +77,16 @@ settings:
 		gate: log_axis
 		tip: "How far a squeezed column reaches from its average toward its peak. At 0% every column shows only its average, so short spikes in older history are smoothed away. At 100% a column covering a few seconds shows its full peak. The reach fades as a column covers more time, so on the far left spikes melt into the background even at 100%."
 
+	hover_time:
+		label: Hover shows
+		tab: Graph
+		control: dropdown
+		options: ago, clock
+		option_labels: "How long ago", "Date and time"
+		path: graph.hover_time
+		default: ago
+		tip: "What the tip says about the time under the pointer. How long ago reads like 7 hrs ago. Date and time gives just the time for today, and the date too for anything older, in your locale's short format."
+
 	LookHead:
 		label: Frame
 		tab: Graph
@@ -176,3 +186,11 @@ settings:
 		control: color
 		path: graph.colors.bottom
 		default: "#000000"
+
+	hover_color:
+		label: Hover line
+		tab: Colors
+		control: color
+		path: graph.colors.hover
+		default: "#000000"
+		tip: "The line under the pointer."

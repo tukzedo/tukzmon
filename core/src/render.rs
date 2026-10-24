@@ -12,7 +12,7 @@ use crate::history::History;
 const SPIKE_FADE: f64 = 20.0;
 
 /// A column with less data than this is a gap.
-const MIN_COVER: f32 = 0.5;
+pub(crate) const MIN_COVER: f32 = 0.5;
 
 fn mix(a: Rgb, b: Rgb, t: f32) -> [f32; 3] {
 	let m = |x: u8, y: u8| x as f32 + (y as f32 - x as f32) * t;
@@ -38,6 +38,21 @@ pub fn column<const N: usize>(mean: &[f32; N], max: &[f32; N], secs: f64, spikes
 		}
 	}
 	v
+}
+
+/// A vertical line `thick` pixels wide from column `x`, over the plot only, so
+/// a pointer on the border puts it at the plot's edge. `bw` is the border.
+pub fn line(px: &mut [u32], w: usize, h: usize, bw: usize, x: usize, thick: usize, color: Rgb) {
+	if px.len() < w * h || w <= 2 * bw || h <= 2 * bw {
+		return;
+	}
+	let (pw, ph) = (w - 2 * bw, h - 2 * bw);
+	let thick = thick.clamp(1, pw);
+	let x0 = x.clamp(bw, bw + pw - thick);
+	let c = color.argb();
+	for row in px[bw * w..(bw + ph) * w].chunks_exact_mut(w) {
+		row[x0..x0 + thick].fill(c);
+	}
 }
 
 pub struct Frame<'a, const N: usize> {
@@ -218,6 +233,32 @@ mod tests {
 		let v = column(&[0.5, 0.4], &[1.0, 1.0], 0.0, 1.0);
 		assert!((v[0] + v[1] - 1.0).abs() < 1e-6);
 		assert!(v[0] == v[1]);
+	}
+
+	#[test]
+	fn the_hover_line_stays_off_the_border() {
+		let back = 0xff11_1111;
+		let draw_at = |x: usize, thick: usize| {
+			let mut px = vec![back; 8 * 4];
+			line(&mut px, 8, 4, 1, x, thick, Rgb(0, 0, 0));
+			px
+		};
+		let px = draw_at(3, 2);
+		for r in 0..4 {
+			let want = |x: usize| (1..3).contains(&r) && (3..5).contains(&x);
+			for x in 0..8 {
+				assert_eq!(px[r * 8 + x] == 0xff00_0000, want(x), "{x},{r}");
+			}
+		}
+		// pointer on the border, or past it, puts it at the plot's edge
+		assert_eq!(draw_at(0, 1)[8 + 1], 0xff00_0000);
+		assert_eq!(draw_at(7, 2)[8 + 5], 0xff00_0000);
+		assert_eq!(draw_at(99, 2)[8 + 6], 0xff00_0000);
+		assert_eq!(draw_at(99, 2)[8 + 7], back);
+		// too small to have a plot is left alone
+		let mut px = vec![back; 4];
+		line(&mut px, 2, 2, 1, 0, 1, Rgb(0, 0, 0));
+		assert!(px.iter().all(|&p| p == back));
 	}
 
 	#[test]

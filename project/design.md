@@ -65,6 +65,8 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - The plugin reads the settings file again when its modified time changes, checked at every sample. That's how a save in the settings window shows up.
 
+- The tip belongs to the drawing area, through `query-tooltip`, so it can say what's under the pointer. GTK shows a tip once the pointer has been still for 500 ms, and asking again restarts that wait. So the timer asks again only after the pointer has been still for a second, which keeps a still pointer's time current.
+
 - A `.desktop` file tells the panel where the plugin is. XFCE 4.20 reads them only from `/usr/share/xfce4/panel/plugins`, and the library only from `xfce4/panel/plugins` under the system lib dir. `XDG_DATA_DIRS` and `~/.local` aren't searched, so even a build for one user needs root once. `utility/dev-install.bash` installs to `~/.local/lib/tukzmon`, makes the 2 symlinks with sudo when they're missing, and restarts the panel.
 
 - If Rust can't be used for some reason, the fallback is the same split, with the C file growing into the whole plugin.
@@ -204,6 +206,8 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 	- The part is the Spike emphasis setting times `1 / (1 + seconds / 20)`. A stack that comes out over 100% is scaled down to fit.
 
 - A column with data for less than half its time is drawn as a gap.
+
+- With the pointer over the graph, a line one pixel wide is drawn under it, black unless set otherwise, over the plot and not the border. The tip gives the time under the line, either as "7 hrs ago" or as the local time, with the date for anything before today. The time and date follow the locale's short formats, so 12 or 24 hour is its call too. Under that are the CPU shares across the line's column, or "No data" for a gap.
 
 - Stacked graphs, like CPU and memory, draw each series on top of the one below, in the order the backlog gives.
 

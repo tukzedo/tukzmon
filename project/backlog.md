@@ -139,6 +139,47 @@ Sorted per the notes in [Template](#template).
 	- Test case: `axis::tests::smooth_is_one_log_curve_with_no_caps`, `fixed_b_is_smooth_until_a_cap`, `caps_pin_when_the_tip_says` and `curves_parse_as_the_spec_spells_them`, with the other axis tests now run over all 3 curves. Also `config::tests::the_log_curve_comes_from_the_file`, `tests::log_axis_takes_the_chosen_curve`, and `dialog::tests::the_log_curve_sits_under_the_log_switch`. The window height has no test.
 		- Swept: every `Axis::log` and `Axis::knots` caller, in core, its tests, and the preview example. The plugin and settings build no axis of their own.
 
+- Show snapshot time on mouseover
+	- ID: 2026102408304599
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- How the line looks, and which tip format is the default, are for a person to judge.
+		- It departs from the wording in 2 ways. The tip also gives the CPU shares at the line's time, in place of the old tip with the latest read. And the line's color can be changed, under Colors.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Needs hand testing: on b23, hover the graph in the panel on a graph with a few days of history, and read the line and the tip in both Hover shows settings.
+	- Priority|Severity: High
+	- Opened: 20261024-082803
+	- Opened by: t00mietum
+	- Requirements:
+		- In the graph, show a thin black vertical line where the mouse is hovering.
+		- Mouseover text: How long ago the line is at. Configurable in settings:
+			- Date/time (expressed in current user's time).
+				- If after midnight, just the time (24-hour or 12-hour depending on user's OS-defined settings).
+				- If before previous midnight, date and time (in user's OS-defined short settings).
+			- How long ago, e.g.:
+				- 5 min ago
+				- 7 hrs ago
+				- 3 days ago
+				- 2 wks ago
+				- 9 mos ago
+				- 2 yrs ago
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A line one pixel wide follows the pointer over the graph, black by default, and set under Colors as Hover line.
+		- The tip gives the time under the line, then the CPU shares there, or No data for a gap.
+		- Hover shows, on the Graph tab, picks How long ago or Date and time. Date and time is the locale's short time, with its short date for anything before today.
+		- `design.md` Drawing and XFCE plugin have the details.
+		- Verified: in a test panel the line followed the pointer and went away when it left. The tip read "15 sec ago" and kept counting while the pointer was still, and gave "09:34:52 AM" in Date and time.
+	- Decisions:
+		- How long ago is the default, since the requirement's first line asks for it.
+		- "OS-defined settings" is read as the locale's `LC_TIME`.
+		- Units round down, so 90 minutes is "1 hr ago". Under a minute is in seconds, and under a second is "just now".
+		- The tip is the graph's own now, so the old tip with only the latest read is gone. At the right edge it gives about the same numbers.
+	- Branch: round-1024
+	- Test case: `when::tests::ago_reads_like_the_backlog_says`, `said_parses_as_the_spec_spells_it` and `clock_gives_the_date_only_before_today`, `render::tests::the_hover_line_stays_off_the_border`, `tests::the_hover_tip_says_when_and_what`, `the_hover_tip_shows_gaps_and_no_history` and `the_hover_line_is_drawn_where_the_pointer_is`, and `config::tests::the_hover_settings_come_from_the_file`. The pointer events, and when GTK shows the tip, have no test.
+		- Swept: every `Graph::tooltip` caller, every `Look` built in a test, and every `gtk_widget_set_tooltip_text` call, of which none is left.
+
 - Core library and Linux collectors
 	- ID: 2026101916013884
 	- Type: Feature
@@ -247,27 +288,6 @@ Sorted per the notes in [Template](#template).
 			- Can choose all disks, or specific drives.
 		- CPU Temperature; normal, critical on top of that when normal maxes out
 		- Battery; charging, discharging, discharging and critical level
-
-- Show snapshot time on mouseover
-	- ID: 2026102408304599
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-082803
-	- Opened by: t00mietum
-	- Requirements:
-		- In the graph, show a thin black vertical line where the mouse is hovering.
-		- Mouseover text: How long ago the line is at. Configurable in settings:
-			- Date/time (expressed in current user's time).
-				- If after midnight, just the time (24-hour or 12-hour depending on user's OS-defined settings).
-				- If before previous midnight, date and time (in user's OS-defined short settings).
-			- How long ago, e.g.:
-				- 5 min ago
-				- 7 hrs ago
-				- 3 days ago
-				- 2 wks ago
-				- 9 mos ago
-				- 2 yrs ago
 
 - Color themes tab
 	- ID: 2026102408304612

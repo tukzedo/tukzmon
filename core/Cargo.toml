@@ -15,5 +15,8 @@ name = "tukzmon_core"
 knobs = { path = "../knobs" }
 shcl.workspace = true
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.191"
+
 [lints]
 workspace = true

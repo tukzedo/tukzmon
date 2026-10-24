@@ -11,6 +11,7 @@ pub mod history;
 pub mod keep;
 pub mod mem;
 pub mod render;
+pub mod when;
 
 use std::io;
 use std::path::Path;
@@ -22,6 +23,7 @@ use config::Look;
 use cpu::CpuReader;
 use history::History;
 use render::Frame;
+use when::Said;
 
 /// One CPU graph: reads, history, and drawing.
 pub struct Graph {
@@ -34,6 +36,21 @@ pub struct Graph {
 	read_at: Option<f64>,
 	latest: Option<[f32; 4]>,
 	px: Vec<u32>,
+	/// Where the pointer is, in device pixels from the left, for the hover line.
+	pub hover: Option<usize>,
+}
+
+fn cpu_text(v: &[f32; 4]) -> String {
+	let pc = |x: f32| (x * 100.0).round() as i32;
+	let busy: f32 = v.iter().sum();
+	format!(
+		"CPU {}%\nUser {}%  System {}%\nNice {}%  I/O wait {}%",
+		pc(busy),
+		pc(v[2]),
+		pc(v[1]),
+		pc(v[3]),
+		pc(v[0])
+	)
 }
 
 impl Graph {
@@ -49,6 +66,7 @@ impl Graph {
 			read_at: None,
 			latest: None,
 			px: Vec::new(),
+			hover: None,
 		}
 	}
 
@@ -117,9 +135,53 @@ impl Graph {
 		}
 	}
 
+	fn columns(&self, w: usize, scale: usize) -> usize {
+		w.saturating_sub(2 * self.look.border as usize * scale)
+	}
+
+	// as Frame::draw clamps it
+	fn border_px(&self, w: usize, h: usize, scale: usize) -> usize {
+		(self.look.border as usize * scale).min(w / 2).min(h / 2)
+	}
+
+	/// The time under the hover line at device column `x`, oldest end first, as
+	/// `render` at that size draws it. None with no history yet.
+	pub fn span_at(&self, x: usize, w: usize, h: usize, scale: usize) -> Option<(f64, f64)> {
+		let now = self.hist.last()?;
+		let bw = self.border_px(w, h, scale);
+		if w <= 2 * bw || h <= 2 * bw {
+			return None;
+		}
+		let pw = w - 2 * bw;
+		let thick = scale.clamp(1, pw);
+		let x0 = x.clamp(bw, bw + pw - thick) - bw;
+		let axis = self.axis(self.columns(w, scale));
+		let u = |cx: usize| (pw - cx) as f64 / pw as f64;
+		Some((now - axis.age(u(x0)), now - axis.age(u(x0 + thick))))
+	}
+
+	/// The tip for the pointer at device column `x`: when that is, and what
+	/// the CPU was doing then.
+	pub fn hover_tip(&self, x: usize, w: usize, h: usize, scale: usize) -> String {
+		let Some((a, b)) = self.span_at(x, w, h, scale) else {
+			return self.tooltip();
+		};
+		let t = f64::midpoint(a, b);
+		let now = self.now().max(t);
+		let when = match self.look.said {
+			Said::Ago => when::ago(now - t),
+			Said::Clock => when::clock(t, now).unwrap_or_else(|| when::ago(now - t)),
+		};
+		let span = self.hist.span(a, b);
+		if span.covered < render::MIN_COVER {
+			return format!("{when}\nNo data");
+		}
+		format!("{when}\n{}", cpu_text(&span.mean))
+	}
+
 	/// The graph as cairo ARGB32 pixels, `w` by `h`.
 	pub fn render(&mut self, w: usize, h: usize, scale: usize) -> &[u32] {
-		let columns = w.saturating_sub(2 * self.look.border as usize * scale);
+		let columns = self.columns(w, scale);
 		let axis = self.axis(columns);
 		let mut px = std::mem::take(&mut self.px);
 		Frame {
@@ -130,6 +192,10 @@ impl Graph {
 			colors: &self.look.cpu,
 		}
 		.draw(&mut px, w, h, scale);
+		if let Some(x) = self.hover {
+			let bw = self.border_px(w, h, scale);
+			render::line(&mut px, w, h, bw, x, scale, self.look.hover);
+		}
 		self.px = px;
 		&self.px
 	}
@@ -139,16 +205,7 @@ impl Graph {
 		let Some(v) = self.latest else {
 			return "CPU".into();
 		};
-		let pc = |x: f32| (x * 100.0).round() as i32;
-		let busy: f32 = v.iter().sum();
-		format!(
-			"CPU {}%\nUser {}%  System {}%\nNice {}%  I/O wait {}%",
-			pc(busy),
-			pc(v[2]),
-			pc(v[1]),
-			pc(v[3]),
-			pc(v[0])
-		)
+		cpu_text(&v)
 	}
 }
 
@@ -188,6 +245,86 @@ mod tests {
 		g.look.curve = axis::Curve::FixedA;
 		assert_eq!(g.axis(100), Axis::log(axis::Curve::FixedA, 7201.0));
 		assert_ne!(g.axis(100), Axis::log(axis::Curve::Smooth, 7201.0));
+	}
+
+	// a busy hour, then an idle one, ending now
+	fn two_hours() -> Graph {
+		let mut g = Graph::new(Look::default());
+		let now = g.now();
+		g.hist
+			.add(now - 7200.0, now - 3600.0, &[0.0, 0.0, 0.8, 0.0]);
+		g.hist.add(now - 3600.0, now, &[0.0, 0.0, 0.1, 0.0]);
+		g
+	}
+
+	#[test]
+	fn the_hover_tip_says_when_and_what() {
+		let mut g = two_hours();
+		// 130 px wide, 1 px border: 128 columns, as render would draw them
+		let (w, h) = (130, 20);
+		let (a, b) = g.span_at(1, w, h, 1).unwrap();
+		assert!(
+			near_secs(a, g.hist.first().unwrap()),
+			"left edge is the first sample"
+		);
+		assert!(b > a);
+		let (a, b) = g.span_at(128, w, h, 1).unwrap();
+		assert!(near_secs(b, g.hist.last().unwrap()), "right edge is now");
+		assert!(a < b);
+		// the border reads as the plot's edge
+		assert_eq!(g.span_at(0, w, h, 1), g.span_at(1, w, h, 1));
+		assert_eq!(g.span_at(500, w, h, 1), g.span_at(128, w, h, 1));
+		let left = g.hover_tip(1, w, h, 1);
+		assert!(left.starts_with("1 hr ago\nCPU 80%\nUser 80%"), "{left}");
+		let right = g.hover_tip(128, w, h, 1);
+		assert!(right.starts_with("just now\nCPU 10%"), "{right}");
+		g.look.said = Said::Clock;
+		let tip = g.hover_tip(128, w, h, 1);
+		assert_eq!(tip.lines().next().map(str::len), Some(8), "{tip}");
+		// device columns on a scale 2 screen land on the same times
+		assert_eq!(g.span_at(2, 2 * w, 2 * h, 2), g.span_at(1, w, h, 1));
+	}
+
+	fn near_secs(a: f64, b: f64) -> bool {
+		(a - b).abs() < 1e-6
+	}
+
+	#[test]
+	fn the_hover_tip_shows_gaps_and_no_history() {
+		let g = Graph::new(Look::default());
+		assert_eq!(g.span_at(5, 130, 20, 1), None);
+		assert_eq!(g.hover_tip(5, 130, 20, 1), "CPU");
+		let mut g = Graph::new(Look {
+			log_axis: false,
+			..Look::default()
+		});
+		let now = g.now();
+		g.hist.add(now - 10.0, now, &[0.1; 4]);
+		// linear at 500 ms covers 64 s, so the left edge is before the first sample
+		assert!(g.hover_tip(1, 130, 20, 1).ends_with("\nNo data"));
+		assert!(g.hover_tip(128, 130, 20, 1).contains("CPU 40%"));
+	}
+
+	#[test]
+	fn the_hover_line_is_drawn_where_the_pointer_is() {
+		let mut g = two_hours();
+		g.look.hover = config::Rgb(1, 2, 3);
+		let (w, h) = (40, 10);
+		let plain = g.render(w, h, 1).to_vec();
+		assert!(!plain.contains(&0xff01_0203));
+		g.hover = Some(17);
+		let px = g.render(w, h, 1).to_vec();
+		for r in 0..h {
+			for x in 0..w {
+				let lit = px[r * w + x] == 0xff01_0203;
+				assert_eq!(lit, x == 17 && (1..h - 1).contains(&r), "{x},{r}");
+				if !lit {
+					assert_eq!(px[r * w + x], plain[r * w + x]);
+				}
+			}
+		}
+		g.hover = None;
+		assert_eq!(g.render(w, h, 1), plain.as_slice());
 	}
 
 	fn scratch(name: &str) -> std::path::PathBuf {

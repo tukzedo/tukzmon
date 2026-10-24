@@ -25,14 +25,18 @@ struct Plugin {
 	timer_ms: u32,
 	config: PathBuf,
 	config_time: Option<SystemTime>,
-	tip: String,
 	settings: Option<Child>,
 	history: PathBuf,
 	saved_at: Instant,
+	moved_at: Instant,
 }
 
 /// A crash loses at most this much history.
 const SAVE_EVERY: Duration = Duration::from_secs(15 * 60);
+
+/// GTK waits 500 ms for a still pointer before it shows a tip, and asking
+/// again restarts that wait. So the tick leaves the tip alone until then.
+const TIP_SHOWN: Duration = Duration::from_secs(1);
 
 fn modified(p: &Path) -> Option<SystemTime> {
 	std::fs::metadata(p).and_then(|m| m.modified()).ok()
@@ -117,16 +121,14 @@ extern "C" fn tick(data: *mut c_void) -> Gboolean {
 	if p.graph.look.keep && p.saved_at.elapsed() >= SAVE_EVERY {
 		p.save_history();
 	}
-	let tip = p.graph.tooltip();
-	if tip != p.tip {
-		if let Ok(c) = CString::new(tip.as_str()) {
-			// SAFETY: plugin is live and the text is copied by GTK.
-			unsafe { gtk_widget_set_tooltip_text(p.xpp, c.as_ptr()) };
-		}
-		p.tip = tip;
-	}
 	// SAFETY: area is a child of the live plugin.
-	unsafe { gtk_widget_queue_draw(p.area) };
+	unsafe {
+		gtk_widget_queue_draw(p.area);
+		if p.graph.hover.is_some() && p.moved_at.elapsed() >= TIP_SHOWN {
+			// a still pointer's time moves on too
+			gtk_widget_trigger_tooltip_query(p.area);
+		}
+	}
 	if p.graph.look.sample_ms.max(50) != p.timer_ms {
 		p.start_timer();
 		return 0;
@@ -159,6 +161,76 @@ extern "C" fn draw(widget: *mut c_void, cr: *mut c_void, data: *mut c_void) -> G
 		cairo_paint(cr);
 		cairo_surface_destroy(surf);
 	}
+	1
+}
+
+extern "C" fn motion(widget: *mut c_void, event: *mut c_void, data: *mut c_void) -> Gboolean {
+	// SAFETY: data is the connected Plugin.
+	let p = unsafe { &mut *data.cast::<Plugin>() };
+	let (mut x, mut y) = (0.0, 0.0);
+	// SAFETY: event is the motion event GTK is handing us, and widget its widget.
+	let (got, scale) = unsafe {
+		gdk_event_request_motions(event);
+		(
+			gdk_event_get_coords(event, &raw mut x, &raw mut y) != 0,
+			gtk_widget_get_scale_factor(widget).max(1),
+		)
+	};
+	if got {
+		p.moved_at = Instant::now();
+		let at = Some(x.max(0.0).floor() as usize * scale as usize);
+		if at != p.graph.hover {
+			p.graph.hover = at;
+			// SAFETY: widget is live for this event.
+			unsafe { gtk_widget_queue_draw(widget) };
+		}
+	}
+	0
+}
+
+extern "C" fn leave(widget: *mut c_void, _event: *mut c_void, data: *mut c_void) -> Gboolean {
+	// SAFETY: data is the connected Plugin.
+	let p = unsafe { &mut *data.cast::<Plugin>() };
+	if p.graph.hover.take().is_some() {
+		// SAFETY: widget is live for this event.
+		unsafe { gtk_widget_queue_draw(widget) };
+	}
+	0
+}
+
+extern "C" fn query_tooltip(
+	widget: *mut c_void,
+	x: c_int,
+	_y: c_int,
+	keyboard: Gboolean,
+	tooltip: *mut c_void,
+	data: *mut c_void,
+) -> Gboolean {
+	// SAFETY: data is the connected Plugin.
+	let p = unsafe { &*data.cast::<Plugin>() };
+	let tip = if keyboard == 0 {
+		// SAFETY: widget is the live drawing area GTK is asking about.
+		let (scale, w, h) = unsafe {
+			(
+				gtk_widget_get_scale_factor(widget).max(1),
+				gtk_widget_get_allocated_width(widget).max(0),
+				gtk_widget_get_allocated_height(widget).max(0),
+			)
+		};
+		p.graph.hover_tip(
+			(x.max(0) * scale) as usize,
+			(w * scale) as usize,
+			(h * scale) as usize,
+			scale as usize,
+		)
+	} else {
+		p.graph.tooltip()
+	};
+	let Ok(c) = CString::new(tip) else {
+		return 0;
+	};
+	// SAFETY: tooltip is GTK's for this query, and it copies the text.
+	unsafe { gtk_tooltip_set_text(tooltip, c.as_ptr()) };
 	1
 }
 
@@ -237,13 +309,13 @@ fn construct(plugin: *mut c_void) {
 		timer_ms: 0,
 		config_time: modified(&config),
 		config,
-		tip: String::new(),
 		settings: None,
 		// SAFETY: plugin is a live XfcePanelPlugin.
 		history: keep::data_dir().join(format!("plugin-{}.hist", unsafe {
 			xfce_panel_plugin_get_unique_id(plugin)
 		})),
 		saved_at: Instant::now(),
+		moved_at: Instant::now(),
 	});
 	if p.graph.look.keep {
 		p.load_history();
@@ -255,10 +327,30 @@ fn construct(plugin: *mut c_void) {
 		gtk_container_add(plugin, p.area);
 		// the area has a window of its own, so clicks stop there unless it takes
 		// them and hands right-clicks on to the panel's menu
-		gtk_widget_add_events(p.area, GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK);
+		gtk_widget_add_events(
+			p.area,
+			GDK_BUTTON_PRESS_MASK
+				| GDK_BUTTON_RELEASE_MASK
+				| GDK_POINTER_MOTION_MASK
+				| GDK_LEAVE_NOTIFY_MASK,
+		);
 		xfce_panel_plugin_add_action_widget(plugin, p.area);
+		gtk_widget_set_has_tooltip(p.area, 1);
 		let data: *mut c_void = std::ptr::from_mut(p.as_mut()).cast();
 		connect(p.area, c"draw", draw as *const c_void, data);
+		connect(
+			p.area,
+			c"motion-notify-event",
+			motion as *const c_void,
+			data,
+		);
+		connect(p.area, c"leave-notify-event", leave as *const c_void, data);
+		connect(
+			p.area,
+			c"query-tooltip",
+			query_tooltip as *const c_void,
+			data,
+		);
 		connect(plugin, c"size-changed", size_changed as *const c_void, data);
 		connect(plugin, c"mode-changed", mode_changed as *const c_void, data);
 		connect(

@@ -9,6 +9,7 @@ use std::sync::{Arc, OnceLock};
 use knobs::{Model, NoEnv, Spec};
 
 use crate::axis::Curve;
+use crate::when::Said;
 
 pub const SPEC_TEXT: &str = include_str!("settings.shcl");
 
@@ -78,6 +79,8 @@ pub struct Look {
 	pub log_axis: bool,
 	pub curve: Curve,
 	pub sample_ms: u32,
+	/// What the hover tip says about the time under the pointer.
+	pub said: Said,
 	/// 0 to 1.
 	pub spikes: f32,
 	pub border: u32,
@@ -89,6 +92,7 @@ pub struct Look {
 	pub border_color: Rgb,
 	pub top: Rgb,
 	pub bottom: Rgb,
+	pub hover: Rgb,
 }
 
 impl Default for Look {
@@ -106,6 +110,7 @@ impl Look {
 			log_axis: m.value("log_axis", &NoEnv).as_bool(),
 			curve: Curve::parse(m.value("log_curve", &NoEnv).as_text()).unwrap_or_default(),
 			sample_ms: num("sample_ms") as u32,
+			said: Said::parse(m.value("hover_time", &NoEnv).as_text()).unwrap_or_default(),
 			spikes: (num("spikes") / 100.0) as f32,
 			border: num("border") as u32,
 			keep: m.value("keep_history", &NoEnv).as_bool(),
@@ -119,6 +124,7 @@ impl Look {
 			border_color: color("border_color"),
 			top: color("back_top"),
 			bottom: color("back_bottom"),
+			hover: color("hover_color"),
 		}
 	}
 
@@ -203,6 +209,18 @@ mod tests {
 		assert!(l.log_axis);
 		assert_eq!(l.curve, Curve::Smooth);
 		assert_eq!(l.spikes, 0.5);
+		assert_eq!(l.hover, Rgb(0, 0, 0));
+		assert_eq!(l.said, Said::Ago);
+	}
+
+	#[test]
+	fn the_hover_settings_come_from_the_file() {
+		let text = "graph:\n\thover_time: clock\n\tcolors:\n\t\thover: \"#ffffff\"\n";
+		let l = Look::from_model(&Model::load(spec(), text, ""));
+		assert_eq!(l.said, Said::Clock);
+		assert_eq!(l.hover, Rgb(0xff, 0xff, 0xff));
+		let l = Look::from_model(&Model::load(spec(), "graph:\n\thover_time: never\n", ""));
+		assert_eq!(l.said, Said::Ago);
 	}
 
 	#[test]
