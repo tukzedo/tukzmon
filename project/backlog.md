@@ -343,6 +343,34 @@ Sorted per the notes in [Template](#template).
 	- Test case: `dice::tests::every_theme_member_has_a_role`, `every_roll_is_a_value_its_setting_takes_and_never_a_gradient`, `the_lead_rules_and_the_alarms_stay_red_and_orange`, `the_quiet_ones_are_muted_and_near_the_lead`, `the_gradient_runs_from_calm_through_the_lead` and `a_seed_rolls_the_same_theme_and_seeds_differ`, over 2000 seeds each, and `dialog::tests::randomize_changes_every_color_on_the_theme_and_turns_off_the_gradient`. Each fails with its rule broken: the mode set to gradient, the lead hue let into red, a member left out, nice as bright as user, and Randomize doing nothing.
 		- Swept: every member of the theme group, which the role test walks, and the one theme button row in qt.cpp.
 
+- Transparent background setting
+	- ID: 2026102409400705
+	- Type: Feature
+	- Status: Waiting on UAT
+		- How it looks over the real panel, with its own background, is for a person to judge.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Needs hand testing: on b23, open Settings, go to Themes, then Background, tick Transparent and Apply, and look at the panel graph. Then pick another theme and check it stays clear.
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304612
+	- Requirements:
+		- One global setting that makes the graph background transparent, over every theme's background colors.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Worked at medium effort rather than high, since it's one setting.
+		- A Transparent checkbox sits first on the Background sub-tab, at `graph.transparent`, off by default. On, the Top and Bottom colors aren't drawn and the panel shows through. The border, the graph and the hover line still are.
+		- `design.md` Theme has the details.
+		- Verified: in a test panel, the empty part of the graph showed the panel's own color with it on, and the theme's top color with it off.
+	- Decisions:
+		- It's outside the theme group, so a theme pick, Randomize or Save as leaves it alone.
+		- It sits on the Background sub-tab, next to the colors it replaces, with a tip saying it goes for every theme.
+		- The Top and Bottom rows stay live while it's on, since knobs' gates only turn a row on with a checkbox, not off.
+	- Branch: round-1024
+	- Test case: `render::tests::a_transparent_background_lets_the_panel_through`, `config::tests::transparent_is_off_and_outlives_any_theme` and `dialog::tests::transparent_stays_through_a_theme_pick_and_a_roll`. The first 2 fail with the setting left unread or the background drawn opaque, and pass with it.
+		- Swept: every reader of the Top and Bottom colors, which is only `render::Frame::draw`, and the hover line in `Graph::render`, which stays opaque.
+
 - Core library and Linux collectors
 	- ID: 2026101916013884
 	- Type: Feature
@@ -485,17 +513,6 @@ Sorted per the notes in [Template](#template).
 		- Global setting to make background transparent, which overrides all background colors.
 	- Progress log:
 		- Split into 6 children, in this order: 2026102409400679 (theme presets and Default), 2026102409400684 (Themes tab and its top row), 2026102409400689 (color picker), 2026102409400695 (Gradient mode and Fire), 2026102409400700 (Randomize), and 2026102409400705 (transparent background).
-
-- Transparent background setting
-	- ID: 2026102409400705
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-094007
-	- Opened by: t00mietum
-	- Parent ID: 2026102408304612
-	- Requirements:
-		- One global setting that makes the graph background transparent, over every theme's background colors.
 
 - Memory graph
 	- ID: 2026102408304625

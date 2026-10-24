@@ -363,6 +363,8 @@ pub struct Look {
 	/// Low, Medium and High.
 	pub cpu_gradient: [Rgb; 3],
 	pub border_color: Rgb,
+	/// No background, so the panel shows through, whatever the theme.
+	pub transparent: bool,
 	pub top: Rgb,
 	pub bottom: Rgb,
 	pub hover: Rgb,
@@ -409,6 +411,7 @@ impl Look {
 			cpu_mode: Mode::parse(m.value("cpu_mode", &NoEnv).as_text()).unwrap_or_default(),
 			cpu_gradient: [color("cpu_low"), color("cpu_medium"), color("cpu_high")],
 			border_color: color("border_color"),
+			transparent: m.value("transparent", &NoEnv).as_bool(),
 			top: color("back_top"),
 			bottom: color("back_bottom"),
 			hover: color("hover_color"),
@@ -543,6 +546,26 @@ mod tests {
 			Look::from_model(&model("theme:\n\tname: plaid\n")),
 			Look::default()
 		);
+	}
+
+	#[test]
+	fn transparent_is_off_and_outlives_any_theme() {
+		assert!(!Look::default().transparent);
+		assert_eq!(
+			spec().get("transparent").and_then(|s| s.group.as_deref()),
+			None
+		);
+		let on = "graph:\n\ttransparent: true\n";
+		for theme in ["theme:\n\tname: fire\n", "theme:\n\tname: plaid\n", ""] {
+			let l = Look::from_model(&model(&format!("{theme}{on}")));
+			assert!(l.transparent, "{theme:?}");
+		}
+		// Custom too
+		let l = Look::from_model(&model(&format!(
+			"{on}graph:\n\tcolors:\n\t\ttop: \"#123456\"\n"
+		)));
+		assert!(l.transparent);
+		assert_eq!(l.top, Rgb(0x12, 0x34, 0x56));
 	}
 
 	#[test]

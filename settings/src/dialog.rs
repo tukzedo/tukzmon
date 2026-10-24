@@ -722,6 +722,30 @@ mod tests {
 	}
 
 	#[test]
+	fn transparent_stays_through_a_theme_pick_and_a_roll() {
+		let d = scratch("clear");
+		let path = d.0.join("t.shcl");
+		let mut dlg = Dialog::open(path.clone());
+		assert!(!dlg.state("transparent").on);
+		assert!(dlg.set_text("transparent", "on"));
+		assert!(dlg.set_text("theme", "fire"));
+		dlg.randomize_from(7);
+		assert!(dlg.set_text("theme", "blue_pastel"));
+		assert!(dlg.state("transparent").on);
+		assert_eq!(dlg.state("theme").choice, "Blue pastel");
+		dlg.apply().unwrap();
+		let mut dlg = Dialog::open(path.clone());
+		assert!(dlg.state("transparent").on);
+		assert!(config::Look::load(&path).transparent);
+		// Save as doesn't take it into the theme
+		dlg.save_theme_as("Clear").unwrap();
+		dlg.apply().unwrap();
+		let text = std::fs::read_to_string(&path).unwrap();
+		let themes = &text[text.find("themes:").unwrap()..];
+		assert!(!themes.contains("transparent"), "{text}");
+	}
+
+	#[test]
 	fn randomize_changes_every_color_on_the_theme_and_turns_off_the_gradient() {
 		let d = scratch("dice");
 		let path = d.0.join("t.shcl");

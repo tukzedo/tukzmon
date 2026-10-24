@@ -237,6 +237,14 @@ settings:
 		tab: Themes/Background
 		control: heading
 
+	transparent:
+		label: Transparent
+		tab: Themes/Background
+		control: checkbox
+		path: graph.transparent
+		default: false
+		tip: "Let the panel show through behind the graph, in place of the Top and Bottom colors. This one goes for every theme, so picking another keeps it. The border and the hover line are still drawn."
+
 	border_color:
 		label: Border
 		tab: Themes/Background

@@ -2,7 +2,8 @@
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
 //! Stacked column graphs into a pixel buffer. Pixels are cairo's ARGB32:
-//! premultiplied, native-endian `0xAARRGGBB`, and always opaque here.
+//! premultiplied, native-endian `0xAARRGGBB`. Only a transparent background
+//! is less than opaque.
 
 use crate::axis::Axis;
 use crate::config::{Look, Rgb};
@@ -19,9 +20,10 @@ fn mix(a: Rgb, b: Rgb, t: f32) -> [f32; 3] {
 	[m(a.0, b.0), m(a.1, b.1), m(a.2, b.2)]
 }
 
-fn pack(c: [f32; 3]) -> u32 {
+/// `c` already premultiplied by `alpha`, 0 to 1.
+fn pack_alpha(c: [f32; 3], alpha: f32) -> u32 {
 	let q = |v: f32| v.round().clamp(0.0, 255.0) as u32;
-	0xff00_0000 | q(c[0]) << 16 | q(c[1]) << 8 | q(c[2])
+	q(alpha * 255.0) << 24 | q(c[0]) << 16 | q(c[1]) << 8 | q(c[2])
 }
 
 /// Heights of each series in a column, 0 to 1, bottom first. Squeezed columns
@@ -95,6 +97,8 @@ impl<const N: usize> Frame<'_, N> {
 		if pw == 0 || ph == 0 {
 			return;
 		}
+		// premultiplied, so a transparent one is all zeros
+		let back_alpha = if self.look.transparent { 0.0 } else { 1.0 };
 		let back: Vec<[f32; 3]> = (0..ph)
 			.map(|r| {
 				mix(
@@ -106,6 +110,7 @@ impl<const N: usize> Frame<'_, N> {
 						0.0
 					},
 				)
+				.map(|v| v * back_alpha)
 			})
 			.collect();
 		let cols: Vec<[f32; 3]> = match self.paint {
@@ -137,6 +142,7 @@ impl<const N: usize> Frame<'_, N> {
 			};
 			for r in 0..ph {
 				let mut c = back[r];
+				let mut alpha = back_alpha;
 				if let Some(hs) = &heights {
 					// this pixel's slice of the stack, measured up from the bottom
 					let (p0, p1) = ((ph - r - 1) as f32, (ph - r) as f32);
@@ -149,7 +155,8 @@ impl<const N: usize> Frame<'_, N> {
 						for k in 0..3 {
 							c[k] = c[k] * (1.0 - cover) + g[k] * cover;
 						}
-						px[(r + bw) * w + cx + bw] = pack(c);
+						alpha = alpha * (1.0 - cover) + cover;
+						px[(r + bw) * w + cx + bw] = pack_alpha(c, alpha);
 						continue;
 					}
 					for (s, hgt) in hs.iter().enumerate() {
@@ -167,8 +174,9 @@ impl<const N: usize> Frame<'_, N> {
 					for k in 0..3 {
 						c[k] = c[k] * left + acc[k];
 					}
+					alpha = alpha * left + (1.0 - left);
 				}
-				px[(r + bw) * w + cx + bw] = pack(c);
+				px[(r + bw) * w + cx + bw] = pack_alpha(c, alpha);
 			}
 		}
 	}
@@ -178,6 +186,10 @@ impl<const N: usize> Frame<'_, N> {
 mod tests {
 	use super::*;
 	use crate::axis::Curve;
+
+	fn pack(c: [f32; 3]) -> u32 {
+		pack_alpha(c, 1.0)
+	}
 
 	fn look() -> Look {
 		Look {
@@ -363,6 +375,70 @@ mod tests {
 		assert_eq!(pack(blend(stops, 0.25)), pack(mix(stops[0], stops[1], 0.5)));
 		assert_eq!(blend(stops, -1.0), blend(stops, 0.0));
 		assert_eq!(blend(stops, 2.0), blend(stops, 1.0));
+	}
+
+	#[test]
+	fn a_transparent_background_lets_the_panel_through() {
+		let h = steady([0.25, 0.5], 120.0);
+		let axis = Axis::log(Curve::FixedA, 120.0);
+		let l = Look {
+			transparent: true,
+			..look()
+		};
+		let f = |hist: &History<2>, paint: Paint<'_, 2>| {
+			let f = Frame {
+				hist,
+				axis: &axis,
+				now: 120.0,
+				look: &l,
+				paint,
+			};
+			let mut px = Vec::new();
+			f.draw(&mut px, 22, 12, 1);
+			px
+		};
+		let opaque = draw(&h, &axis, 22, 12);
+		for paint in [
+			Paint::Stack(&COLORS),
+			Paint::Gradient([Rgb(200, 0, 0), Rgb(255, 255, 200), Rgb(100, 200, 255)]),
+		] {
+			let px = f(&h, paint);
+			let at = |row: usize| px[(row + 1) * 22 + 12];
+			// border stays, the empty top of the plot is clear
+			assert_eq!(px[0], 0xff09_0909);
+			assert_eq!(at(0), 0);
+			assert_eq!(at(1), 0);
+			// the column is opaque, and the stack the same as on a background
+			assert_eq!(at(9) >> 24, 0xff);
+			assert_eq!(at(4) >> 24, 0xff);
+			if let Paint::Stack(_) = paint {
+				assert_eq!(at(9), opaque[10 * 22 + 12]);
+				assert_eq!(at(5), opaque[6 * 22 + 12]);
+			}
+			// its top row is half covered, so half clear, and premultiplied
+			let edge = at(2);
+			let a = edge >> 24;
+			assert!((120..136).contains(&a), "{edge:x}");
+			assert!(
+				[16, 8, 0].iter().all(|s| (edge >> s) & 0xff <= a),
+				"{edge:x}"
+			);
+		}
+		// a gap is clear too
+		let mut gap = History::<2>::default();
+		gap.add(0.0, 30.0, &[1.0, 0.0]);
+		gap.add(90.0, 120.0, &[1.0, 0.0]);
+		let f = Frame {
+			hist: &gap,
+			axis: &Axis::linear(120.0),
+			now: 120.0,
+			look: &l,
+			paint: Paint::Stack(&COLORS),
+		};
+		let mut px = Vec::new();
+		f.draw(&mut px, 122, 6, 1);
+		assert_eq!(px[3 * 122 + 61], 0);
+		assert_eq!(px[3 * 122 + 11], 0xffff_0000);
 	}
 
 	#[test]
