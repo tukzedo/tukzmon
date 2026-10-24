@@ -2,8 +2,32 @@
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
 fn main() {
+	built();
 	#[cfg(feature = "qt")]
 	qt();
+}
+
+// Build time as Unix seconds, shown in the viewer's own local date by --version.
+// A release build (TUKZMON_RELEASE=1) leaves it out.
+fn built() {
+	let secs = std::env::var("SOURCE_DATE_EPOCH")
+		.ok()
+		.and_then(|s| s.parse::<u64>().ok())
+		.unwrap_or_else(|| {
+			std::time::SystemTime::now()
+				.duration_since(std::time::UNIX_EPOCH)
+				.map_or(0, |d| d.as_secs())
+		});
+	let release = std::env::var("TUKZMON_RELEASE").is_ok_and(|v| v == "1");
+	println!(
+		"cargo:rustc-env=TUKZMON_BUILT={}",
+		if release { 0 } else { secs }
+	);
+	println!("cargo:rerun-if-env-changed=SOURCE_DATE_EPOCH");
+	println!("cargo:rerun-if-env-changed=TUKZMON_RELEASE");
+	println!("cargo:rerun-if-changed=src");
+	println!("cargo:rerun-if-changed=../core/src");
+	println!("cargo:rerun-if-changed=../knobs/src");
 }
 
 #[cfg(feature = "qt")]
