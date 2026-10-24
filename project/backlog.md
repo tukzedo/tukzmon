@@ -21,10 +21,32 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- Proof of concept: CPU graph in the XFCE panel, dogfooded on b23
+	- ID: 2026102319155124
+	- Type: Feature
+	- Status: Waiting on UAT
+	- Priority|Severity: High
+	- Opened: 20261023-183946
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013884, 2026101916013885, 2026101916013886, 2026101916013889
+	- Requirements:
+		- CPU only, on XFCE 4.
+		- Settings are a standalone app that uses a shcl config file, since the graph is meant to be cross-platform.
+		- Start with the colors from my customized multiload-ng setup.
+		- Use SilkTerm's Settings model, but drawn with Qt: the lightest-weight, fully cross-platform, Rust-compatible, maintained version.
+		- If that Qt needs its own file format that goes out to users, use it for user settings too.
+	- Progress log:
+		- Built: the core library, the plugin, and tukzmon-settings in Qt 6 Widgets. The defaults are the multiload-ng CPU colors.
+		- Qt doesn't need a file of its own, so settings stay in shcl, at `~/.config/tukzmon/tukzmon.shcl`.
+		- SilkTerm's settings model, knobs, is MIT now under Bubbles, in both projects, and copied in here.
+		- The panel only loads plugins from its system folders. `utility/dev-install.bash` installs to `~/.local/lib/tukzmon` and prints the 2 symlinks to make once as root.
+		- Not done yet: history kept across restarts, a live preview before Apply, and the search box.
+	- Branch: dev
+
 - Core library and Linux collectors
 	- ID: 2026101916013884
 	- Type: Feature
-	- Status: Queued
+	- Status: Started
 	- Priority|Severity: High
 	- Opened: 20261019-160138
 	- Opened by: t00mietum
@@ -33,11 +55,13 @@ Sorted per the notes in [Template](#template).
 		- A Rust library with no GUI toolkit in it.
 		- Reads every graph's numbers on Linux, from the sources listed in `design.md`.
 		- A graph whose source is missing, like a desktop with no battery, is hidden.
+	- Progress log:
+		- CPU from `/proc/stat` works. The other graphs aren't started.
 
 - History store
 	- ID: 2026101916013885
 	- Type: Feature
-	- Status: Queued
+	- Status: Started
 	- Priority|Severity: High
 	- Opened: 20261019-160138
 	- Opened by: t00mietum
@@ -49,11 +73,13 @@ Sorted per the notes in [Template](#template).
 		- If the graph is closed and then re-opened, it should (optionally) re-load previous data - just with a blank representing the time it was not active. (That doesn't eventually get averaged as values of "0".)
 		- If the computer is off or rebooted, the graph should (optionally) re-load previous data, going back indefinitely - just with blank spaces representing the time it was not active. (That doesn't eventually get averaged as values of "0".)
 	- Note: the proposed tiers are in `design.md` under History.
+	- Progress log:
+		- The tiers are in and keep gaps as gaps. Saving and reloading across restarts isn't done yet.
 
 - Graphs with an optional (default) log X axis
 	- ID: 2026101916013886
 	- Type: Feature
-	- Status: Queued
+	- Status: Started
 	- Priority|Severity: High
 	- Opened: 20261019-160138
 	- Opened by: t00mietum
@@ -81,6 +107,26 @@ Sorted per the notes in [Template](#template).
 			- The transition from 1m to 1h to 1d to "everything" should be smooth, with no obvious gate or line there behind the scenes.
 			- The graph should be averaged and antialiased, so that it doesn't shimmer or look weird while animating.
 				- The averaging should be very small and possibly even variable over time - being able to represent single-pixel spikes is important, e.g. when on the farther left, to show for example that the CPU was spiked for a very long time. (But eventually far enough left, it gets averaged into a background level.)
+	- Progress log:
+		- Log and linear modes work, with the caps and no seams. `design.md` has how.
+		- Still needs easing when the width changes or old history is loaded. While running, the boundaries move smoothly by themselves.
+
+- XFCE panel plugin
+	- ID: 2026101916013889
+	- Type: Feature
+	- Status: Started
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Prereq IDs: 2026101916013881, 2026101916013884
+	- Requirements:
+		- Start first with an XFCE4 panel plugin.
+		- Works on XFCE 4.20, on X11 and on Wayland.
+		- One plugin instance can show one or more graphs side by side, picked in its settings dialog.
+		- Follows the panel's size and orientation, including a vertical panel.
+		- Packaged for Debian, and as a Nix package for tukzedo-linux's NixOS edition.
+	- Progress log:
+		- One CPU graph in the panel, with a tooltip and Properties opening tukzmon-settings. Tried on X11 only so far.
 
 - The graphs
 	- ID: 2026101916013887
@@ -104,21 +150,6 @@ Sorted per the notes in [Template](#template).
 			- Can choose all disks, or specific drives.
 		- CPU Temperature; normal, critical on top of that when normal maxes out
 		- Battery; charging, discharging, discharging and critical level
-
-- XFCE panel plugin
-	- ID: 2026101916013889
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261019-160138
-	- Opened by: t00mietum
-	- Prereq IDs: 2026101916013881, 2026101916013884
-	- Requirements:
-		- Start first with an XFCE4 panel plugin.
-		- Works on XFCE 4.20, on X11 and on Wayland.
-		- One plugin instance can show one or more graphs side by side, picked in its settings dialog.
-		- Follows the panel's size and orientation, including a vertical panel.
-		- Packaged for Debian, and as a Nix package for tukzedo-linux's NixOS edition.
 
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800

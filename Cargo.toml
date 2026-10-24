@@ -1,0 +1,46 @@
+[workspace]
+resolver = "3"
+members = ["core", "knobs", "settings", "xfce"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "LGPL-2.1-or-later"
+repository = "https://github.com/tukzedo/tukzmon"
+
+[workspace.dependencies]
+shcl = "2.0.0"
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "warn"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# Pixel and time math casts all over the place, on purpose.
+cast_possible_truncation = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+cast_possible_wrap = "allow"
+cast_lossless = "allow"
+float_cmp = "allow"
+collapsible_if = "allow"
+similar_names = "allow"
+many_single_char_names = "allow"
+too_many_lines = "allow"
+must_use_candidate = "allow"
+missing_panics_doc = "allow"
+module_name_repetitions = "allow"
+unwrap_used = "warn"
+expect_used = "warn"
+undocumented_unsafe_blocks = "warn"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+debug = "line-tables-only"

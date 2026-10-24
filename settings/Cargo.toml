@@ -1,0 +1,27 @@
+[package]
+name = "tukzmon-settings"
+description = "Settings window for tukzmon, in Qt"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[features]
+default = ["qt"]
+# Off builds only the model side, for testing on a box with no Qt headers.
+qt = ["dep:cxx", "dep:cxx-build", "dep:pkg-config"]
+
+[dependencies]
+tukzmon-core = { path = "../core" }
+knobs = { path = "../knobs" }
+shcl.workspace = true
+cxx = { version = "1.0.205", optional = true }
+
+[build-dependencies]
+cxx-build = { version = "1.0.205", optional = true }
+pkg-config = { version = "0.3.32", optional = true }
+
+[lints]
+workspace = true
