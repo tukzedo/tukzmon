@@ -184,9 +184,9 @@ mod tests {
 	fn defaults_are_the_multiload_colors() {
 		let l = Look::default();
 		assert_eq!(l.cpu[0], Rgb(0xff, 0, 0));
-		assert_eq!(l.cpu[1], Rgb(0, 0x80, 0));
+		assert_eq!(l.cpu[1], Rgb(0xc6, 0x46, 0));
 		assert_eq!(l.cpu[2], Rgb(0, 0xff, 0x80));
-		assert_eq!(l.cpu[3], Rgb(0xc0, 0, 0xc0));
+		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x40));
 		assert_eq!(l.border_color, Rgb(0x40, 0x80, 0x6a));
 		assert_eq!(l.top, Rgb(0x2a, 0x54, 0x46));
 		assert_eq!(l.bottom, Rgb(0, 0, 0));
@@ -202,7 +202,7 @@ mod tests {
 		assert_eq!(l.width, 200);
 		assert_eq!(l.sample_ms, 500);
 		assert_eq!(l.cpu[2], Rgb(0x12, 0x34, 0x56));
-		assert_eq!(l.cpu[3], Rgb(0xc0, 0, 0xc0));
+		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x40));
 	}
 
 	#[test]

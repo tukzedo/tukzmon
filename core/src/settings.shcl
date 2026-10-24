@@ -98,7 +98,7 @@ settings:
 		tab: Colors
 		control: color
 		path: cpu.colors.system
-		default: "#008000"
+		default: "#c64600"
 		tip: "Kernel time, including interrupts."
 
 	user:
@@ -113,7 +113,7 @@ settings:
 		tab: Colors
 		control: color
 		path: cpu.colors.nice
-		default: "#c000c0"
+		default: "#205f40"
 		tip: "Programs running at a lower priority."
 
 	BackHead:

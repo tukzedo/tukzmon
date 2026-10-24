@@ -186,17 +186,6 @@ Sorted per the notes in [Template](#template).
 		- CPU Temperature; normal, critical on top of that when normal maxes out
 		- Battery; charging, discharging, discharging and critical level
 
-- Update default colors to my current selection
-	- ID: 2026102408304559
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-082803
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304612
-	- Requirements:
-		- Update default colors to use my current selection.
-
 - Option for persistent graph
 	- ID: 2026102408304572
 	- Type: Enhancement
@@ -405,6 +394,27 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Update default colors to my current selection
+	- ID: 2026102408304559
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-082803
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304612
+	- Requirements:
+		- Update default colors to use my current selection.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The current selection is the colors in b23's `~/.config/tukzmon/tukzmon.shcl`. It changes 2 of them: system is `#c64600` and nice is `#205f40`. Those are the built-in defaults now. The other CPU and background colors were already the same.
+	- Decisions:
+		- The file also sets sample time to 1000 ms. That isn't a color, so the default stays 500 ms.
+	- Branch: round-1024
+	- Test case: `config::tests::defaults_are_the_multiload_colors` and `config::tests::a_file_overrides_and_bad_lines_fall_back`. Both fail on the old defaults and pass now.
+		- 2026-10-24: both asserts got new values only. System went from `#008000` to `#c64600`, and nice from `#c000c0` to `#205f40`, in both tests.
+	- Closed: 20261024-090621
 
 - Collector trait, memory and swap
 	- ID: 2026102408512192

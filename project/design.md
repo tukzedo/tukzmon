@@ -91,7 +91,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 ### Theme
 
-- Graph colors are meant to start from the panel theme: the GTK style context on XFCE, the Qt palette on LXQt. That's how a tukzedo personality's theme reaches the graphs. For now the defaults are a customized multiload-ng setup instead.
+- Graph colors are meant to start from the panel theme: the GTK style context on XFCE, the Qt palette on LXQt. That's how a tukzedo personality's theme reaches the graphs. For now the defaults are a customized multiload-ng setup instead, with the CPU system and nice colors changed since.
 
 - Each color can be overridden in the settings window.
 
