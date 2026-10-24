@@ -20,6 +20,37 @@ pub fn spec() -> Arc<Spec> {
 	.clone()
 }
 
+fn slider_ranges() -> &'static [(String, f64, f64)] {
+	static RANGES: OnceLock<Vec<(String, f64, f64)>> = OnceLock::new();
+	RANGES.get_or_init(|| {
+		let doc = shcl::Document::parse(SPEC_TEXT);
+		doc.children("settings")
+			.into_iter()
+			.filter_map(|id| {
+				let at = format!("settings.{id}.slider_range");
+				let v = doc.get_float_array(&at).or_else(|_| {
+					doc.get_int_array(&at)
+						.map(|v| v.into_iter().map(|i| i as f64).collect())
+				});
+				match v.ok()?.as_slice() {
+					[lo, hi] => Some((id, *lo, *hi)),
+					_ => None,
+				}
+			})
+			.collect()
+	})
+}
+
+/// How far a slider reaches, where `slider_range` in settings.shcl makes it
+/// shorter than the range the number box beside it takes. knobs has no such
+/// key, so it's read here.
+pub fn slider_range(id: &str) -> Option<(f64, f64)> {
+	slider_ranges()
+		.iter()
+		.find(|(k, ..)| k == id)
+		.map(|&(_, lo, hi)| (lo, hi))
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Rgb(pub u8, pub u8, pub u8);
 
@@ -115,6 +146,26 @@ mod tests {
 		if let Err(e) = Spec::parse(SPEC_TEXT) {
 			panic!("{}", e.join("\n"));
 		}
+	}
+
+	#[test]
+	fn slider_ranges_sit_inside_their_range() {
+		let doc = shcl::Document::parse(SPEC_TEXT);
+		let named: Vec<String> = doc
+			.paths()
+			.into_iter()
+			.filter(|p| p.ends_with(".slider_range"))
+			.collect();
+		assert!(!named.is_empty());
+		assert_eq!(named.len(), slider_ranges().len(), "one didn't parse");
+		let spec = spec();
+		for (id, lo, hi) in slider_ranges() {
+			let s = spec.get(id).unwrap();
+			assert_eq!(s.control, knobs::Control::Slider, "{id}");
+			assert!(s.min <= *lo && lo < hi && *hi <= s.max, "{id}");
+		}
+		assert_eq!(slider_range("width"), Some((24.0, 1024.0)));
+		assert_eq!(slider_range("spikes"), None);
 	}
 
 	#[test]

@@ -43,6 +43,40 @@ Sorted per the notes in [Template](#template).
 		- Not done yet: history kept across restarts, a live preview before Apply, and the search box.
 	- Branch: dev
 
+- Settings window: tabs, highlight, number boxes, tips, and buttons
+	- ID: 2026102408304546
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- The look of the tabs, the highlight and the button gaps is for a person to judge, in the real theme.
+	- Needs hand testing: open Settings from the panel on b23, in its light and dark themes, and check the tab height, the selected tab, the button gaps, and typing a width past 1024.
+	- Priority|Severity: High
+	- Opened: 20261024-082803
+	- Opened by: t00mietum
+	- Requirements:
+		- The tabs are too vertically narrow.
+		- The highlight is too bright, and dark-mode text (i.e. white) is hard to read.
+			- Make it more readable in either dark or light mode, more like nemo-anywhere (which is a different system, C and GTK).
+		- Numeric input boxes:
+			- Allow manually typing values that exceed the slider range, but are still sane.
+		- Spike emphasis % flyover tip text: Explain what 0% and 100% would do.
+		- Buttons:
+			- [Cancel] <double space> [Apply] <single space> [Apply and close]
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Tabs are twice the text height.
+		- The selected tab is a 35% tint of the theme's highlight over the list background, with the normal text color on it.
+		- A slider can now reach less far than its box takes. The box takes width 16 to 4096, sample time 50 to 60000 ms, and border 0 to 16. The sliders still go 24 to 1024, 100 to 5000, and 0 to 4. Spike emphasis stays 0 to 100. The tip says both ranges.
+		- The spike tip says what 0% and 100% do.
+		- The buttons are Cancel, Apply, and Apply and close, which is still the Enter default.
+	- Decisions:
+		- "Double space" is read as twice the theme's gap between buttons.
+		- The slider's reach is a `slider_range` key in settings.shcl, read by tukzmon, since knobs has to stay the same as SilkTerm's.
+		- A value past the old range in the file used to fall back to the default. Now it's kept, up to the new limits.
+	- Branch: round-1024
+	- Test case: `config::tests::slider_ranges_sit_inside_their_range` and `dialog::tests::the_box_takes_more_than_the_slider_reaches`. Both fail on the old spec and pass now. The tab look and buttons have no test.
+		- 2026-10-24: `dialog::tests::sliders_snap_to_detents_and_gates_turn_on` now gets the width setting through `Dialog::slider` instead of the spec, so it maps over the slider's range. What it checks is unchanged.
+
 - Core library and Linux collectors
 	- ID: 2026101916013884
 	- Type: Feature
@@ -151,23 +185,6 @@ Sorted per the notes in [Template](#template).
 			- Can choose all disks, or specific drives.
 		- CPU Temperature; normal, critical on top of that when normal maxes out
 		- Battery; charging, discharging, discharging and critical level
-
-- Settings window: tabs, highlight, number boxes, tips, and buttons
-	- ID: 2026102408304546
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-082803
-	- Opened by: t00mietum
-	- Requirements:
-		- The tabs are too vertically narrow.
-		- The highlight is too bright, and dark-mode text (i.e. white) is hard to read.
-			- Make it more readable in either dark or light mode, more like nemo-anywhere (which is a different system, C and GTK).
-		- Numeric input boxes:
-			- Allow manually typing values that exceed the slider range, but are still sane.
-		- Spike emphasis % flyover tip text: Explain what 0% and 100% would do.
-		- Buttons:
-			- [Cancel] <double space> [Apply] <single space> [Apply and close]
 
 - Update default colors to my current selection
 	- ID: 2026102408304559

@@ -4,7 +4,7 @@
 // The settings window in Qt Widgets. Rows come from settings.shcl through the
 // Rust side, and every change goes back there, so this file only lays out
 // controls and copies state onto them. Same model as SilkTerm's dialog: tabs
-// down the left, a revert arrow per row, and Cancel, Apply, and OK.
+// down the left, a revert arrow per row, and Cancel, Apply, Apply and close.
 
 #include "tukzmon-settings/src/qt.h"
 #include "tukzmon-settings/src/bridge.rs.h"
@@ -14,7 +14,6 @@
 #include <QColorDialog>
 #include <QComboBox>
 #include <QDialog>
-#include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QFrame>
 #include <QKeyEvent>
@@ -45,6 +44,23 @@ namespace {
 
 QString qs(const rust::String &s) { return QString::fromUtf8(s.data(), int(s.size())); }
 
+// The style's own selection is a solid block meant for highlighted text, and in
+// a dark theme that's white on bright blue. A tint of it under the plain text
+// color reads in a light theme and a dark one.
+void softenSelection(QWidget *w) {
+	QPalette pal = w->palette();
+	for (auto group : {QPalette::Active, QPalette::Inactive}) {
+		const QColor base = pal.color(group, QPalette::Base);
+		const QColor pick = pal.color(group, QPalette::Highlight);
+		auto mix = [](float a, float b) { return a + (b - a) * 0.35f; };
+		const QColor tint = QColor::fromRgbF(mix(base.redF(), pick.redF()), mix(base.greenF(), pick.greenF()),
+			mix(base.blueF(), pick.blueF()));
+		pal.setColor(group, QPalette::Highlight, tint);
+		pal.setColor(group, QPalette::HighlightedText, pal.color(group, QPalette::Text));
+	}
+	w->setPalette(pal);
+}
+
 constexpr int SLIDER_STEPS = 1000;
 
 struct Row {
@@ -72,6 +88,7 @@ public:
 		}
 
 		tabList = new QListWidget;
+		softenSelection(tabList);
 		pages = new QStackedWidget;
 		for (size_t i = 0; i < tabs.size(); i++) {
 			bool parent = false;
@@ -84,7 +101,10 @@ public:
 			tabList->addItem(item);
 			tabPage.push_back(parent ? -1 : pages->addWidget(buildPage(int(i), tabs[i])));
 		}
-		tabList->setFixedWidth(tabList->sizeHintForColumn(0) + 2 * tabList->frameWidth() + 24);
+		const int tabWidth = tabList->sizeHintForColumn(0);
+		tabList->setFixedWidth(tabWidth + 2 * tabList->frameWidth() + 24);
+		for (int i = 0; i < tabList->count(); i++)
+			tabList->item(i)->setSizeHint(QSize(tabWidth, tabList->fontMetrics().height() * 2));
 		// one width for every number box, so the sliders all end in one column
 		int numberWidth = 0;
 		for (auto &r : rows)
@@ -95,25 +115,38 @@ public:
 				r->spin->setFixedWidth(numberWidth);
 		connect(tabList, &QListWidget::currentRowChanged, this, [this](int i) { showTab(i); });
 
-		auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Apply | QDialogButtonBox::Cancel);
-		applyButton = buttons->button(QDialogButtonBox::Apply);
-		buttons->button(QDialogButtonBox::Cancel)->setToolTip("Discard every change and close Settings.");
+		// Cancel stands a little apart from the 2 that save
+		auto *cancel = new QPushButton("Cancel");
+		applyButton = new QPushButton("&Apply");
+		auto *closeButton = new QPushButton("Apply and &close");
+		cancel->setToolTip("Discard every change and close Settings.");
 		applyButton->setToolTip("Save changes now, without closing Settings.");
-		buttons->button(QDialogButtonBox::Ok)->setToolTip("Save changes and close Settings.");
-		buttons->button(QDialogButtonBox::Ok)->setDefault(true);
-		connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
-		connect(buttons, &QDialogButtonBox::accepted, this, [this] {
+		closeButton->setToolTip("Save changes and close Settings.");
+		closeButton->setDefault(true);
+		connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
+		connect(applyButton, &QPushButton::clicked, this, [this] { save(); });
+		connect(closeButton, &QPushButton::clicked, this, [this] {
 			if (save())
 				accept();
 		});
-		connect(applyButton, &QPushButton::clicked, this, [this] { save(); });
+		int gap = style()->layoutSpacing(QSizePolicy::PushButton, QSizePolicy::PushButton, Qt::Horizontal);
+		if (gap < 0)
+			gap = 6;
+		auto *buttons = new QHBoxLayout;
+		buttons->setSpacing(0);
+		buttons->addStretch(1);
+		buttons->addWidget(cancel);
+		buttons->addSpacing(2 * gap);
+		buttons->addWidget(applyButton);
+		buttons->addSpacing(gap);
+		buttons->addWidget(closeButton);
 
 		auto *body = new QHBoxLayout;
 		body->addWidget(tabList);
 		body->addWidget(pages, 1);
 		auto *outer = new QVBoxLayout(this);
 		outer->addLayout(body, 1);
-		outer->addWidget(buttons);
+		outer->addLayout(buttons);
 
 		tabList->setCurrentRow(0);
 		refresh();
@@ -343,6 +376,7 @@ private:
 			if (r.spin) {
 				QSignalBlocker b(r.spin);
 				r.spin->setValue(st.number);
+				r.spin->setToolTip(tip);
 			}
 			if (r.combo) {
 				QSignalBlocker b(r.combo);

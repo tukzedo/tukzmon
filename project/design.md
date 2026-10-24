@@ -80,7 +80,9 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 - It follows SilkTerm's settings dialog, on top of knobs:
 	- Tabs down the left, groups with a rule under the title, and a sub-group stepped in under the switch it depends on.
 	- A revert arrow on every row, live when the value isn't its default.
-	- Cancel, Apply, and OK. Enter is OK and Esc is Cancel, even from inside a field.
+	- Cancel, Apply, and Apply and close, with Cancel set a little apart. Enter is Apply and close and Esc is Cancel, even from inside a field.
+	- A slider can reach less far than its number box takes. The box takes any sane value, and `slider_range` in `core/src/settings.shcl` sets how far the slider goes.
+	- The selected tab is a tint of the theme's highlight under the normal text color, so it reads in a dark theme too.
 	- A color chip opens a picker, and the hex value can be typed beside it.
 	- The file gets only what was changed in the window, applied to the file as it is at save time, so a hand edit made meanwhile isn't lost.
 	- A save that would drop a line it can't read, or a setting it doesn't know, is refused, and the error names the lines.

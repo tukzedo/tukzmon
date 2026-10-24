@@ -4,10 +4,11 @@
 //! What the settings window shows and does, with no Qt in it. The window
 //! asks this for every row's state after each change.
 
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use knobs::{Control, Kind, Model, NoEnv, Spec, Value};
+use knobs::{Control, Kind, Model, NoEnv, Setting, Spec, Value};
 use tukzmon_core::config;
 
 const HEADER: &str = "## tukzmon settings. Only values changed from their defaults are listed.\n";
@@ -31,6 +32,9 @@ pub struct Dialog {
 	saved: Model,
 	/// Settings changed in the window, so a save writes only those.
 	touched: Vec<String>,
+	/// Sliders that reach less far than their number box takes, as copies of
+	/// the setting over the slider's own range.
+	short_sliders: Vec<Setting>,
 }
 
 fn read(path: &Path) -> Result<String, String> {
@@ -76,13 +80,34 @@ impl Dialog {
 		let spec = config::spec();
 		let text = read(&path).unwrap_or_default();
 		let model = Model::load(Arc::clone(&spec), &text, "");
+		let short_sliders = spec
+			.settings
+			.iter()
+			.filter_map(|s| {
+				let (min, max) = config::slider_range(&s.id)?;
+				Some(Setting {
+					min,
+					max,
+					..s.clone()
+				})
+			})
+			.collect();
 		Dialog {
 			path,
 			spec,
 			saved: model.clone(),
 			model,
 			touched: Vec::new(),
+			short_sliders,
 		}
+	}
+
+	/// The setting as its slider sees it.
+	pub fn slider(&self, id: &str) -> Option<&Setting> {
+		self.short_sliders
+			.iter()
+			.find(|s| s.id == id)
+			.or_else(|| self.spec.get(id))
 	}
 
 	pub fn path(&self) -> &Path {
@@ -99,8 +124,21 @@ impl Dialog {
 
 	pub fn state(&self, id: &str) -> RowState {
 		let v = self.model.value(id, &NoEnv);
-		let s = self.spec.get(id);
 		let number = v.as_f64();
+		let mut tip = self.model.tip(id, &NoEnv);
+		if let (Some(short), Some(s)) = (
+			self.short_sliders.iter().find(|s| s.id == id),
+			self.spec.get(id),
+		) {
+			if !tip.is_empty() {
+				tip.push_str("\n\n");
+			}
+			let _ = write!(
+				tip,
+				"The slider goes from {} to {}. Type in the box for anything from {} to {}.",
+				short.min, short.max, s.min, s.max
+			);
+		}
 		RowState {
 			text: match &v {
 				Value::Text(t) => t.clone(),
@@ -108,10 +146,10 @@ impl Dialog {
 			},
 			on: v.as_bool(),
 			number,
-			slider: s.map_or(0.0, |s| s.to_t(number)),
+			slider: self.slider(id).map_or(0.0, |s| s.to_t(number)),
 			can_reset: self.model.can_reset(id, &NoEnv),
 			counts: self.model.counts(id, &NoEnv),
-			tip: self.model.tip(id, &NoEnv),
+			tip,
 		}
 	}
 
@@ -158,7 +196,7 @@ impl Dialog {
 
 	/// A slider dragged to `t`, 0 to 1, pulled onto a nearby detent.
 	pub fn set_slider(&mut self, id: &str, t: f64) {
-		let Some(s) = self.spec.get(id) else {
+		let Some(s) = self.slider(id) else {
 			return;
 		};
 		let v = s.from_t(s.snap_t(t, 0.015));
@@ -309,10 +347,31 @@ mod tests {
 	}
 
 	#[test]
+	fn the_box_takes_more_than_the_slider_reaches() {
+		let d = scratch("reach");
+		let mut dlg = Dialog::open(d.0.join("t.shcl"));
+		assert!(dlg.set_text("width", "2000"));
+		let s = dlg.state("width");
+		assert_eq!(s.number, 2000.0);
+		assert_eq!(s.slider, 1.0);
+		assert!(s.tip.contains("16 to 4096"), "{}", s.tip);
+		dlg.set_slider("width", 1.0);
+		assert_eq!(dlg.state("width").number, 1024.0);
+		dlg.set_slider("width", 0.0);
+		assert_eq!(dlg.state("width").number, 24.0);
+		assert!(dlg.set_text("width", "16"));
+		assert!(dlg.set_text("sample_ms", "30000"));
+		assert!(dlg.set_text("border", "10"));
+		assert!(!dlg.set_text("border", "17"));
+		assert!(!dlg.set_text("spikes", "101"));
+		assert!(!dlg.state("spikes").tip.contains("The slider goes"));
+	}
+
+	#[test]
 	fn sliders_snap_to_detents_and_gates_turn_on() {
 		let d = scratch("slider");
 		let mut dlg = Dialog::open(d.0.join("t.shcl"));
-		let s = dlg.spec().get("width").unwrap().clone();
+		let s = dlg.slider("width").unwrap().clone();
 		dlg.set_slider("width", s.to_t(130.0));
 		assert_eq!(dlg.state("width").number, 128.0);
 		assert!(dlg.set_text("log_axis", "off"));

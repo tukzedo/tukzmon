@@ -3,6 +3,9 @@
 ## Compiled into both. The format is knobs', documented in knobs/src/lib.rs
 ## and SilkTerm's knobs/demo/demo.shcl. Colors default to a customized
 ## multiload-ng setup.
+##
+## slider_range is ours, not knobs'. It's how far a slider reaches, while
+## range is what can be typed in the box beside it.
 
 tabs: "Graph", "Colors"
 
@@ -18,7 +21,8 @@ settings:
 		tab: Graph
 		control: slider
 		whole: true
-		range: 24, 1024
+		range: 16, 4096
+		slider_range: 24, 1024
 		scale: log
 		path: graph.width
 		default: 128
@@ -43,7 +47,8 @@ settings:
 		tab: Graph
 		control: slider
 		whole: true
-		range: 100, 5000
+		range: 50, 60000
+		slider_range: 100, 5000
 		scale: log
 		path: graph.sample_ms
 		default: 500
@@ -59,7 +64,7 @@ settings:
 		path: graph.spikes
 		default: 50
 		gate: log_axis
-		tip: "How far a squeezed column reaches toward its peak. It fades as a column covers more time, so short spikes melt into the background on the far left."
+		tip: "How far a squeezed column reaches from its average toward its peak. At 0% every column shows only its average, so short spikes in older history are smoothed away. At 100% a column covering a few seconds shows its full peak. The reach fades as a column covers more time, so on the far left spikes melt into the background even at 100%."
 
 	LookHead:
 		label: Frame
@@ -71,7 +76,8 @@ settings:
 		tab: Graph
 		control: slider
 		whole: true
-		range: 0, 4
+		range: 0, 16
+		slider_range: 0, 4
 		path: graph.border
 		default: 1
 
