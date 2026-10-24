@@ -119,7 +119,7 @@ On panels without a native plugin, tukzmon falls back to a tray icon with one sm
 | Graph       | Source
 | :---        | :---
 | CPU         | `/proc/stat`. The I/O wait, system, user, and nice columns.
-| Memory      | `/proc/meminfo`. User is total minus free, buffers, and cache.
+| Memory      | `/proc/meminfo`. User is total minus free, buffers, and cache. Cache is the `Cached` row alone, as multiload-ng counts it, so slab is in user.
 | Network     | `/proc/net/dev`. Local is the loopback device, `lo`.
 | Swap        | `/proc/meminfo`.
 | Zswap       | `Zswap` and `Zswapped` in `/proc/meminfo`, on kernels new enough to have them. The ratio is `Zswapped / Zswap`. `/sys/kernel/debug/zswap` needs root, so it isn't used.

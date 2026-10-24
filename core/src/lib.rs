@@ -4,14 +4,17 @@
 //! The part of tukzmon every panel shares. No GUI toolkit in here.
 
 pub mod axis;
+pub mod collect;
 pub mod config;
 pub mod cpu;
 pub mod history;
+pub mod mem;
 pub mod render;
 
 use std::time::Instant;
 
 use axis::Axis;
+use collect::Collector;
 use config::Look;
 use cpu::CpuReader;
 use history::History;

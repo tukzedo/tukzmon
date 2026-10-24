@@ -57,6 +57,7 @@ Sorted per the notes in [Template](#template).
 		- A graph whose source is missing, like a desktop with no battery, is hidden.
 	- Progress log:
 		- CPU from `/proc/stat` works. The other graphs aren't started.
+		- 2026-10-24: Split into one child per source: 2026102408512192 (the collector trait, memory and swap), 2026102408512197 (zswap and zram), 2026102408512202 (network), 2026102408512207 (load), 2026102408512212 (disk), 2026102408512217 (temperature), and 2026102408512223 (battery). This closes with the last of them.
 
 - History store
 	- ID: 2026101916013885
@@ -290,6 +291,85 @@ Sorted per the notes in [Template](#template).
 			- Dropdown to select the named theme.
 			- Grippers on the right to vertically reorder monitors with the mouse.
 
+- Zswap and zram collector
+	- ID: 2026102408512197
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Requirements:
+		- Zswap from `Zswap` and `Zswapped` in `/proc/meminfo`, as % used, plus the compression ratio for the text overlay.
+		- Zram from `/sys/block/zram*/mm_stat`, the same way, when there's no zswap.
+		- No collector on a kernel or box with neither.
+
+- Network collector
+	- ID: 2026102408512202
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Requirements:
+		- Bytes per second from `/proc/net/dev`: local (`lo`), sent, and received.
+		- Counters that wrap or reset, as when an interface goes away, make a gap, not a spike.
+
+- Load collector
+	- ID: 2026102408512207
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Requirements:
+		- The 1 minute load from `/proc/loadavg`.
+
+- Disk collector
+	- ID: 2026102408512212
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Requirements:
+		- Read and write bytes per second from `/proc/diskstats`, per device.
+		- Partitions left out of the total, so nothing is counted twice.
+		- All disks, or a chosen list of drives.
+
+- CPU temperature collector
+	- ID: 2026102408512217
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Requirements:
+		- The CPU package sensor under `/sys/class/hwmon`, with `temp*_crit` as the critical level where the sensor has one.
+		- No collector when no CPU sensor is found.
+
+- Battery collector
+	- ID: 2026102408512223
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Requirements:
+		- Charge and state from `/sys/class/power_supply/BAT*`: charging, discharging, and the critical level.
+		- No collector on a box with no battery.
+
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
 	- Type: Feature
@@ -307,6 +387,29 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Collector trait, memory and swap
+	- ID: 2026102408512192
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Related IDs: 2026102408304625
+	- Requirements:
+		- One collector trait, which every source sits behind. CPU moves onto it.
+		- A source that isn't there gives no collector, so its graph can be hidden.
+		- Memory from `/proc/meminfo`, stacked user, buffers, cache.
+		- Swap from `/proc/meminfo`, as % used.
+	- Progress log:
+		- `core/src/collect.rs` has the `Collector` trait. `probe()` gives None when the source isn't there, and the graph is hidden off that. CPU is on it now.
+		- `core/src/mem.rs` reads memory and swap. A box with no swap gets no swap collector, and swap turned off later reads as a gap.
+		- Nothing draws them yet. That's the memory graph item and The graphs.
+	- Decisions:
+		- Cache is the `Cached` row alone, the way multiload-ng counts it by its base formula. `free` adds `SReclaimable`. Noted in `design.md`.
+	- Test case: `mem::tests` (6) and `collect::tests::slurp_reuses_and_misses`.
+	- Closed: 20261024-085549
 
 - Build date after the version, for non-release builds
 	- ID: 2026102408304652
