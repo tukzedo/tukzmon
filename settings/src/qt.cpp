@@ -10,6 +10,7 @@
 #include "tukzmon-settings/src/bridge.rs.h"
 
 #include <QApplication>
+#include <QButtonGroup>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
@@ -29,6 +30,7 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QScreen>
 #include <QRegularExpressionValidator>
 #include <QScrollArea>
@@ -71,6 +73,7 @@ void softenSelection(QWidget *w) {
 }
 
 constexpr int SLIDER_STEPS = 1000;
+constexpr int HEAD_GAP = 10;
 
 // QScrollArea's own hint stops at about 24 lines, so a tall tab opened with a
 // scroll bar it had no need for.
@@ -311,6 +314,12 @@ struct Row {
 	QLineEdit *line = nullptr;
 	QPushButton *chip = nullptr;
 	QToolButton *revert = nullptr;
+	QWidget *control = nullptr;
+	QLabel *head = nullptr;
+	QFrame *rule = nullptr;
+	QGridLayout *grid = nullptr;
+	int gap = -1;
+	std::vector<QRadioButton *> radios;
 	// what a dropdown's items stand for, which can change as themes are saved
 	std::vector<std::string> keys;
 	std::string id() const { return std::string(info.id); }
@@ -499,16 +508,22 @@ private:
 				auto *rule = new QFrame;
 				rule->setFrameShape(QFrame::HLine);
 				rule->setFrameShadow(QFrame::Sunken);
-				if (line > 0)
-					grid->setRowMinimumHeight(line++, 10);
+				if (line > 0) {
+					r.grid = grid;
+					r.gap = line;
+					grid->setRowMinimumHeight(line++, HEAD_GAP);
+				}
 				grid->addWidget(h, line++, 0, 1, 3);
 				grid->addWidget(rule, line++, 0, 1, 3);
+				r.head = h;
+				r.rule = rule;
 				continue;
 			}
 			r.label = new QLabel(label);
 			r.label->setContentsMargins(16 * r.info.indent, 0, 12, 0);
 			grid->addWidget(r.label, line, 0);
-			grid->addWidget(buildControl(r), line, 1);
+			r.control = buildControl(r);
+			grid->addWidget(r.control, line, 1);
 			r.revert = new QToolButton;
 			r.revert->setIcon(QIcon::fromTheme("edit-undo", style()->standardIcon(QStyle::SP_BrowserReload)));
 			r.revert->setAutoRaise(true);
@@ -570,6 +585,28 @@ private:
 		if (c == "number") {
 			r.spin = numberBox(r);
 			return r.spin;
+		}
+		if (c == "radio") {
+			auto *w = new QWidget;
+			auto *h = new QHBoxLayout(w);
+			h->setContentsMargins(0, 0, 0, 0);
+			auto *group = new QButtonGroup(w);
+			for (size_t i = 0; i < r.info.options.size(); i++) {
+				auto *b = new QRadioButton(qs(r.info.option_labels[i]));
+				group->addButton(b);
+				r.radios.push_back(b);
+				r.keys.push_back(std::string(r.info.options[i]));
+				connect(b, &QRadioButton::toggled, this, [this, &r, i](bool on) {
+					// the one turned off says so too, and the other one covers it
+					if (!on)
+						return;
+					set_text(d, r.id(), r.keys[i]);
+					refresh();
+				});
+				h->addWidget(b);
+			}
+			h->addStretch(1);
+			return w;
 		}
 		if (c == "dropdown") {
 			r.combo = new QComboBox;
@@ -685,9 +722,18 @@ private:
 	void refresh() {
 		for (auto &rp : rows) {
 			Row &r = *rp;
+			if (r.head) {
+				const bool shown = row_state(d, r.id()).shown;
+				r.head->setVisible(shown);
+				r.rule->setVisible(shown);
+				if (r.grid)
+					r.grid->setRowMinimumHeight(r.gap, shown ? HEAD_GAP : 0);
+			}
 			if (!r.label)
 				continue;
 			auto st = row_state(d, r.id());
+			for (QWidget *w : {static_cast<QWidget *>(r.label), r.control, static_cast<QWidget *>(r.revert)})
+				w->setVisible(st.shown);
 			QString tip = qs(st.tip);
 			QString text = qs(st.text);
 			r.label->setToolTip(tip);
@@ -727,6 +773,11 @@ private:
 						r.combo->setCurrentIndex(int(i));
 				}
 				r.combo->setToolTip(tip);
+			}
+			for (size_t i = 0; i < r.radios.size(); i++) {
+				QSignalBlocker b(r.radios[i]);
+				r.radios[i]->setChecked(QString::fromStdString(r.keys[i]) == text);
+				r.radios[i]->setToolTip(tip);
 			}
 			if (r.line) {
 				QSignalBlocker b(r.line);

@@ -15,6 +15,10 @@ use crate::pick::{self, Field, Hsv};
 
 const HEADER: &str = "## tukzmon settings. Only values changed from their defaults are listed.\n";
 
+#[allow(
+	clippy::struct_excessive_bools,
+	reason = "a snapshot of one row for the window, and each flag stands alone"
+)]
 pub struct RowState {
 	pub text: String,
 	pub on: bool,
@@ -28,6 +32,8 @@ pub struct RowState {
 	pub choice: String,
 	/// A dropdown's keys and labels, which change as themes are saved.
 	pub options: Vec<(String, String)>,
+	/// False while its `shown_when` dropdown is on another key.
+	pub shown: bool,
 }
 
 /// Which theme buttons do anything right now.
@@ -347,6 +353,8 @@ impl Dialog {
 				.get(id)
 				.map(|s| s.options.clone())
 				.unwrap_or_default(),
+			shown: config::shown_when(id)
+				.is_none_or(|(on, key)| self.model.value(on, &NoEnv).as_text() == key),
 		}
 	}
 
@@ -662,6 +670,46 @@ mod tests {
 	}
 
 	#[test]
+	fn the_mode_swaps_the_rows_and_fire_is_a_gradient() {
+		let d = scratch("mode");
+		let path = d.0.join("t.shcl");
+		let mut dlg = Dialog::open(path.clone());
+		let shown = |dlg: &Dialog, id: &str| dlg.state(id).shown;
+		assert_eq!(dlg.state("cpu_mode").text, "detailed");
+		for id in ["cpuhead", "user", "iowait"] {
+			assert!(shown(&dlg, id), "{id}");
+		}
+		for id in ["cpugradhead", "cpu_low", "cpu_medium", "cpu_high"] {
+			assert!(!shown(&dlg, id), "{id}");
+		}
+		assert!(shown(&dlg, "back_top") && shown(&dlg, "theme"));
+		assert!(dlg.set_text("cpu_mode", "gradient"));
+		assert!(shown(&dlg, "cpu_low") && !shown(&dlg, "user"));
+		assert_eq!(dlg.state("theme").choice, "Default *");
+		assert!(!dlg.set_text("cpu_mode", "plaid"));
+		// Fire picks the mode with its colors, and the revert arrow takes it back
+		assert!(dlg.set_text("theme", "fire"));
+		assert_eq!(dlg.state("theme").choice, "Fire");
+		assert_eq!(dlg.state("cpu_high").text, "#7fd4ff");
+		dlg.apply().unwrap();
+		let l = config::Look::load(&path);
+		assert_eq!(l.cpu_mode, config::Mode::Gradient);
+		assert_eq!(l.cpu_gradient[0], config::Rgb(0x8b, 0x1a, 0));
+		let mut dlg = Dialog::open(path.clone());
+		assert!(shown(&dlg, "cpu_medium"));
+		// a theme saved from it keeps the mode
+		dlg.save_theme_as("Embers").unwrap();
+		dlg.reset("theme");
+		assert!(!shown(&dlg, "cpu_medium"));
+		assert!(dlg.set_text("theme", "embers"));
+		assert!(shown(&dlg, "cpu_medium"));
+		dlg.apply().unwrap();
+		assert_eq!(config::Look::load(&path).cpu_mode, config::Mode::Gradient);
+		let text = std::fs::read_to_string(&path).unwrap();
+		assert!(text.contains("cpu_mode: gradient"), "{text}");
+	}
+
+	#[test]
 	fn custom_then_the_revert_arrow_is_default_again() {
 		let d = scratch("custom");
 		let path = d.0.join("t.shcl");
@@ -702,7 +750,7 @@ mod tests {
 				.options
 				.iter()
 				.map(|(_, l)| l.as_str())
-				.nth(5),
+				.nth(6),
 			Some("Night")
 		);
 		let b = dlg.theme_buttons();
@@ -711,7 +759,7 @@ mod tests {
 		dlg.apply().unwrap();
 		let text = std::fs::read_to_string(&path).unwrap();
 		assert!(text.contains("name: night"), "{text}");
-		assert_eq!(text.matches("\"#").count(), 8, "{text}");
+		assert_eq!(text.matches("\"#").count(), 11, "{text}");
 		assert!(!text.contains("kept"), "{text}");
 		let dlg = Dialog::open(path.clone());
 		assert_eq!(dlg.state("theme").choice, "Night");
@@ -771,7 +819,7 @@ mod tests {
 		assert!(text.contains("mine") && !text.contains("other"), "{text}");
 		let dlg = Dialog::open(path.clone());
 		assert_eq!(dlg.state("theme").choice, "Default");
-		assert_eq!(dlg.state("theme").options.len(), 7);
+		assert_eq!(dlg.state("theme").options.len(), 8);
 	}
 
 	#[test]
@@ -794,7 +842,7 @@ mod tests {
 			!text.contains("gone") && text.contains("#020202") && text.contains("mine:"),
 			"{text}"
 		);
-		assert_eq!(dlg.state("theme").options.len(), 8);
+		assert_eq!(dlg.state("theme").options.len(), 9);
 	}
 
 	#[test]

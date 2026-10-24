@@ -2,7 +2,7 @@
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
 // Draws made-up CPU history to a PPM file, to eyeball the log axis.
-//   cargo run --example preview -- OUT.ppm WIDTH HEIGHT HOURS
+//   cargo run --example preview -- OUT.ppm WIDTH HEIGHT HOURS [SETTINGS]
 
 use tukzmon_core::axis::Axis;
 use tukzmon_core::config::Look;
@@ -36,7 +36,9 @@ fn main() {
 		t += step;
 	}
 
-	let look = Look::default();
+	let look = args
+		.get(4)
+		.map_or_else(Look::default, |p| Look::load(std::path::Path::new(p)));
 	let axis = Axis::log(look.curve, end);
 	let mut px = Vec::new();
 	Frame {
@@ -44,7 +46,7 @@ fn main() {
 		axis: &axis,
 		now: end,
 		look: &look,
-		colors: &look.cpu,
+		paint: look.cpu_paint(),
 	}
 	.draw(&mut px, w, h, 1);
 

@@ -10,6 +10,7 @@ use std::sync::{Arc, OnceLock};
 use knobs::{Model, NoEnv, Spec};
 
 use crate::axis::Curve;
+use crate::render::Paint;
 use crate::when::Said;
 
 pub const SPEC_TEXT: &str = include_str!("settings.shcl");
@@ -55,6 +56,64 @@ pub fn slider_range(id: &str) -> Option<(f64, f64)> {
 		.map(|&(_, lo, hi)| (lo, hi))
 }
 
+fn row_texts(key: &str) -> Vec<(String, String)> {
+	let doc = shcl::Document::parse(SPEC_TEXT);
+	doc.children("settings")
+		.into_iter()
+		.filter_map(|id| {
+			let v = doc.get_string(&format!("settings.{id}.{key}")).ok()?;
+			Some((id, v))
+		})
+		.collect()
+}
+
+/// Rows with `shown_as: radio`, whose dropdown is drawn as radio buttons.
+pub fn shown_as_radio(id: &str) -> bool {
+	static RADIOS: OnceLock<Vec<(String, String)>> = OnceLock::new();
+	RADIOS
+		.get_or_init(|| row_texts("shown_as"))
+		.iter()
+		.any(|(k, v)| k == id && v == "radio")
+}
+
+/// The dropdown and key a row is shown for, from `shown_when: "id = key"`.
+/// knobs' gates only take a checkbox, so this is read here.
+pub fn shown_when(id: &str) -> Option<(&'static str, &'static str)> {
+	static WHEN: OnceLock<Vec<(String, String, String)>> = OnceLock::new();
+	WHEN.get_or_init(|| {
+		row_texts("shown_when")
+			.into_iter()
+			.filter_map(|(row, v)| {
+				let (on, key) = v.split_once('=')?;
+				Some((row, on.trim().to_string(), key.trim().to_string()))
+			})
+			.collect()
+	})
+	.iter()
+	.find(|(row, ..)| row == id)
+	.map(|(_, on, key)| (on.as_str(), key.as_str()))
+}
+
+/// How a graph's columns are colored.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Mode {
+	/// A color per series, stacked.
+	#[default]
+	Detailed,
+	/// Low, Medium and High, blended by height.
+	Gradient,
+}
+
+impl Mode {
+	pub fn parse(s: &str) -> Option<Mode> {
+		match s.to_ascii_lowercase().as_str() {
+			"detailed" => Some(Mode::Detailed),
+			"gradient" => Some(Mode::Gradient),
+			_ => None,
+		}
+	}
+}
+
 /// The group every color is in, and the id of the dropdown that picks one.
 pub const THEME: &str = "theme";
 
@@ -89,8 +148,15 @@ pub fn name_the_theme(m: &mut Model) {
 pub struct SavedTheme {
 	pub key: String,
 	pub name: String,
-	/// Setting id to `#rrggbb`, one per theme color.
+	/// Setting id to `#rrggbb`, one per theme color, plus each graph's mode.
 	pub colors: BTreeMap<String, String>,
+}
+
+// a theme member's value as the spec stores it, or None if it won't take it
+fn theme_value(spec: &Spec, id: &str, raw: &str) -> Option<String> {
+	let s = spec.get(id)?;
+	let v = spec.valid(s, &knobs::Value::Text(raw.to_string())).ok()?;
+	Some(v.as_text().to_string())
 }
 
 pub const THEMES: &str = "themes";
@@ -102,7 +168,7 @@ fn builtin_key(key: &str) -> bool {
 			.is_some_and(|g| g.presets.iter().any(|p| p.key.eq_ignore_ascii_case(key)))
 }
 
-/// The saved themes in a config file, in file order. A color that's missing
+/// The saved themes in a config file, in file order. A value that's missing
 /// or unreadable is Default's, and a theme with a built-in's key is left out.
 pub fn saved_themes(doc: &shcl::Document) -> Vec<SavedTheme> {
 	let spec = spec();
@@ -118,14 +184,13 @@ pub fn saved_themes(doc: &shcl::Document) -> Vec<SavedTheme> {
 				.members
 				.iter()
 				.map(|id| {
-					let hex = doc
+					let v = doc
 						.get_string(&at(id))
 						.ok()
-						.filter(|h| Rgb::parse(h).is_some())
-						.map(|h| h.to_ascii_lowercase())
+						.and_then(|raw| theme_value(&spec, id, &raw))
 						.or_else(|| spec.get(id).map(|s| s.default.as_text().to_string()))
 						.unwrap_or_default();
-					(id.clone(), hex)
+					(id.clone(), v)
 				})
 				.collect();
 			let name = doc
@@ -162,11 +227,11 @@ pub fn theme_problems(doc: &shcl::Document) -> Vec<String> {
 				members.contains(&field)
 					&& doc
 						.get_string(&path)
-						.is_ok_and(|h| Rgb::parse(&h).is_some())
+						.is_ok_and(|raw| theme_value(&spec, &field, &raw).is_some())
 			};
 			if !fine {
 				out.push(format!(
-					"line {}: {path} isn't a theme color I can read",
+					"line {}: {path} isn't a theme value I can read",
 					doc.line(&path)
 				));
 			}
@@ -294,6 +359,9 @@ pub struct Look {
 	pub max_days: u32,
 	/// In `cpu::SERIES` order, bottom first.
 	pub cpu: [Rgb; 4],
+	pub cpu_mode: Mode,
+	/// Low, Medium and High.
+	pub cpu_gradient: [Rgb; 3],
 	pub border_color: Rgb,
 	pub top: Rgb,
 	pub bottom: Rgb,
@@ -338,10 +406,19 @@ impl Look {
 				color("user"),
 				color("nice"),
 			],
+			cpu_mode: Mode::parse(m.value("cpu_mode", &NoEnv).as_text()).unwrap_or_default(),
+			cpu_gradient: [color("cpu_low"), color("cpu_medium"), color("cpu_high")],
 			border_color: color("border_color"),
 			top: color("back_top"),
 			bottom: color("back_bottom"),
 			hover: color("hover_color"),
+		}
+	}
+
+	pub fn cpu_paint(&self) -> Paint<'_, 4> {
+		match self.cpu_mode {
+			Mode::Detailed => Paint::Stack(&self.cpu),
+			Mode::Gradient => Paint::Gradient(self.cpu_gradient),
 		}
 	}
 
@@ -434,12 +511,18 @@ mod tests {
 	fn the_default_theme_is_the_row_defaults() {
 		let spec = spec();
 		let g = spec.group(THEME).unwrap();
-		assert_eq!(g.members.len(), 8);
+		assert_eq!(g.members.len(), 12);
 		let default = g.preset("default").unwrap();
 		assert_eq!(default.label, "Default");
 		for id in &g.members {
 			let s = spec.get(id).unwrap();
-			assert_eq!(s.control, knobs::Control::Color, "{id}");
+			// colors, and a graph's mode
+			let control = if id.ends_with("_mode") {
+				knobs::Control::Dropdown
+			} else {
+				knobs::Control::Color
+			};
+			assert_eq!(s.control, control, "{id}");
 			assert_eq!(default.values.get(id), Some(&s.default), "{id}");
 		}
 		// every color row is in it
@@ -525,6 +608,7 @@ mod tests {
 				"green_pastel",
 				"blue_standard",
 				"blue_pastel",
+				"fire",
 				"mine",
 				knobs::CUSTOM
 			]
@@ -550,6 +634,100 @@ mod tests {
 	}
 
 	#[test]
+	fn fire_is_a_gradient_and_the_rest_are_detailed() {
+		let l = Look::from_model(&model("theme:\n\tname: fire\n"));
+		assert_eq!(l.cpu_mode, Mode::Gradient);
+		assert_eq!(
+			l.cpu_gradient,
+			[
+				Rgb(0x8b, 0x1a, 0),
+				Rgb(0xff, 0xf4, 0xc8),
+				Rgb(0x7f, 0xd4, 0xff)
+			]
+		);
+		assert_eq!(
+			l.cpu_paint(),
+			crate::render::Paint::Gradient(l.cpu_gradient)
+		);
+		let spec = spec();
+		for p in &spec.group(THEME).unwrap().presets {
+			let want = if p.key == "fire" {
+				"gradient"
+			} else {
+				"detailed"
+			};
+			assert_eq!(p.values["cpu_mode"].as_text(), want, "{}", p.key);
+		}
+		let d = Look::default();
+		assert_eq!(d.cpu_mode, Mode::Detailed);
+		assert_eq!(d.cpu_paint(), crate::render::Paint::Stack(&d.cpu));
+		// a mode set by hand is a change on the theme, like a color
+		let mut m = model("theme:\n\tname: blue_standard\n");
+		m.set("cpu_mode", &knobs::Value::Text("Gradient".into()), &NoEnv);
+		assert_eq!(m.shown_choice(THEME, &NoEnv), "Blue standard *");
+		name_the_theme(&mut m);
+		let l = Look::from_model(&model(&m.save(&NoEnv).0));
+		assert_eq!(l.cpu_mode, Mode::Gradient);
+		assert_eq!(l.cpu_gradient[1], Rgb(0, 0x80, 0xff));
+		assert_eq!(Mode::parse("plaid"), None);
+	}
+
+	#[test]
+	fn the_mode_shows_only_its_own_rows() {
+		assert!(shown_as_radio("cpu_mode"));
+		assert!(!shown_as_radio("theme"));
+		assert_eq!(shown_when("user"), Some(("cpu_mode", "detailed")));
+		assert_eq!(shown_when("cpu_low"), Some(("cpu_mode", "gradient")));
+		assert_eq!(shown_when("back_top"), None);
+		// every shown_when names a dropdown and one of its keys
+		let spec = spec();
+		let named = shcl::Document::parse(SPEC_TEXT)
+			.paths()
+			.into_iter()
+			.filter(|p| p.ends_with(".shown_when"))
+			.count();
+		let mut found = 0;
+		for s in &spec.settings {
+			let Some((on, key)) = shown_when(&s.id) else {
+				continue;
+			};
+			found += 1;
+			let d = spec.get(on).unwrap();
+			assert_eq!(d.control, knobs::Control::Dropdown, "{}", s.id);
+			assert!(d.options.iter().any(|(k, _)| k == key), "{}", s.id);
+		}
+		assert_eq!(found, named, "one didn't parse");
+		// a gradient color is in every theme, like the others
+		let g = spec.group(THEME).unwrap();
+		for id in ["cpu_mode", "cpu_low", "cpu_medium", "cpu_high"] {
+			assert!(g.members.iter().any(|m| m == id), "{id}");
+		}
+	}
+
+	#[test]
+	fn a_saved_theme_keeps_its_mode() {
+		let text = "theme:\n\tname: mine\nthemes:\n\tmine:\n\t\tname: Mine\n\t\tcpu_mode: GRADIENT\n\t\tcpu_low: \"#010203\"\n";
+		let doc = shcl::Document::parse(text);
+		let t = saved_themes(&doc);
+		assert_eq!(t[0].colors["cpu_mode"], "gradient");
+		assert!(theme_problems(&doc).is_empty());
+		let l = Look::from_model(&model(text));
+		assert_eq!(l.cpu_mode, Mode::Gradient);
+		assert_eq!(l.cpu_gradient[0], Rgb(1, 2, 3));
+		assert_eq!(saved_themes(&shcl::Document::parse(&themes_text(&t))), t);
+		// a mode it can't read is a problem, and reads as Default's
+		let bad = text.replace("GRADIENT", "plaid");
+		let doc = shcl::Document::parse(&bad);
+		assert_eq!(saved_themes(&doc)[0].colors["cpu_mode"], "detailed");
+		let p = theme_problems(&doc);
+		assert_eq!(p.len(), 1, "{p:?}");
+		assert!(p[0].contains("themes.mine.cpu_mode"), "{p:?}");
+		// and a color where the mode goes
+		let doc = shcl::Document::parse(&text.replace("GRADIENT", "\"#123456\""));
+		assert_eq!(theme_problems(&doc).len(), 1);
+	}
+
+	#[test]
 	fn a_saved_theme_cant_take_a_built_in_key() {
 		let text = "themes:\n\tdefault:\n\t\tuser: \"#123456\"\n\tCustom:\n\t\tuser: \"#123456\"\n";
 		let doc = shcl::Document::parse(text);
@@ -564,7 +742,7 @@ mod tests {
 			"themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n",
 		));
 		assert_eq!(t[0].name, "Say \"hi\"");
-		assert_eq!(t[0].colors.len(), 8);
+		assert_eq!(t[0].colors.len(), 12);
 		t.push(SavedTheme {
 			key: theme_key("Default", &t),
 			name: "Default".into(),

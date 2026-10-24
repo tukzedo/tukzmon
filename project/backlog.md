@@ -279,6 +279,40 @@ Sorted per the notes in [Template](#template).
 	- Test case: `pick::tests::a_color_survives_the_trip_through_hsv`, `a_gray_keeps_the_hue_and_saturation_it_had`, `the_hue_ramp_hits_the_primaries` and `a_typed_value_reaches_what_it_names`, and `dialog::tests::the_picker_moves_its_row_and_cancel_puts_it_all_back` and `the_picker_keeps_what_ok_was_pressed_on`. The Cancel test fails with the old way of setting the color back, and passes now. The drawing and the pointer have no test.
 		- Swept: the one `QColorDialog` use, now gone, and every color row, which all open the picker through the same chip. No code or doc names the toolkit's dialog.
 
+- Gradient mode per graph, and a Fire theme
+	- ID: 2026102409400695
+	- Type: Feature
+	- Status: Waiting on UAT
+		- How the gradient and Fire look in the panel is for a person to judge.
+		- It departs from the wording in one way. Only the CPU graph has a sub-tab so far, so only it has the mode. A new graph's sub-tab gets the same rows.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Needs hand testing: on b23, open Settings, go to Themes, pick Fire and Apply, and look at the panel graph under some load. Then go back to Detailed on the CPU sub-tab and check the Detailed rows come back.
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304612
+	- Prereq IDs: 2026102409400679, 2026102409400684
+	- Requirements:
+		- At the top of each graph's sub-tab: ( ) Detailed ( ) Gradient.
+		- Gradient takes 3 colors, Low, Medium and High, blended smoothly by how high a pixel reaches into the graph.
+		- A built-in "Fire" theme: dim red, yellow-white, bright light blue.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The CPU sub-tab starts with Colors: ( ) Detailed ( ) Gradient. Only the rows for the mode picked are shown.
+		- Gradient draws the column in a blend of Low, Medium and High by each pixel's height in the plot. The column is as tall as the stack would be.
+		- Fire is a built-in theme in Gradient mode: `#8b1a00`, `#fff4c8` and `#7fd4ff`. The others stay Detailed, and each has a gradient from its own colors for when it's switched.
+		- `design.md` Theme and Settings window have the details.
+		- Verified: the window showed the Detailed rows on Default and the Low, Medium and High rows on Fire, and a drawn graph on Fire ran from dim red at the bottom up toward yellow-white.
+	- Decisions:
+		- The mode is in the theme group, so picking Fire turns on Gradient, and a mode changed by hand shows "Name *" like a color. Saved themes keep it.
+		- The color follows the pixel's height, not the column's, so a busy column climbs into High and a quiet one stays Low.
+		- The radio buttons and showing rows by mode use 2 keys of tukzmon's own in settings.shcl, since knobs has to stay the same as SilkTerm's.
+	- Branch: round-1024
+	- Test case: `render::tests::the_gradient_goes_by_height_not_by_series` and `the_blend_hits_its_stops`, `config::tests::fire_is_a_gradient_and_the_rest_are_detailed`, `the_mode_shows_only_its_own_rows` and `a_saved_theme_keeps_its_mode`, and `dialog::tests::the_mode_swaps_the_rows_and_fire_is_a_gradient`. The render test fails with the blend fixed at one height, and the dialog test with every row always shown. The radio buttons have no test.
+		- 2026-10-24: new values only, for the 4 new theme rows and Fire. `config::tests::the_default_theme_is_the_row_defaults` members went from 8 to 12, and it now takes a dropdown for a `_mode` member where it took only colors. `saved_themes_write_whole_and_read_back` went from 8 values to 12. `a_saved_theme_is_listed_after_the_built_ins_and_sets_the_look` lists `fire` after `blue_pastel`. In `dialog::tests`, `save_as_keeps_the_colors_whole_and_picks_the_new_theme` finds Night seventh, not sixth, and counts 11 colors, not 8. `rename_and_delete` counts 8 options, not 7, and `a_theme_saved_by_hand_meanwhile_survives` 9, not 8.
+		- Swept: every `Frame` built (the plugin, the preview example and the render tests), and every use of the theme group's members, which now take a mode as well as colors (`saved_themes`, `theme_problems`, `shown_colors`, the picker, and `unthemed`).
+
 - Core library and Linux collectors
 	- ID: 2026101916013884
 	- Type: Feature
@@ -421,20 +455,6 @@ Sorted per the notes in [Template](#template).
 		- Global setting to make background transparent, which overrides all background colors.
 	- Progress log:
 		- Split into 6 children, in this order: 2026102409400679 (theme presets and Default), 2026102409400684 (Themes tab and its top row), 2026102409400689 (color picker), 2026102409400695 (Gradient mode and Fire), 2026102409400700 (Randomize), and 2026102409400705 (transparent background).
-
-- Gradient mode per graph, and a Fire theme
-	- ID: 2026102409400695
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-094007
-	- Opened by: t00mietum
-	- Parent ID: 2026102408304612
-	- Prereq IDs: 2026102409400679, 2026102409400684
-	- Requirements:
-		- At the top of each graph's sub-tab: ( ) Detailed ( ) Gradient.
-		- Gradient takes 3 colors, Low, Medium and High, blended smoothly by how high a pixel reaches into the graph.
-		- A built-in "Fire" theme: dim red, yellow-white, bright light blue.
 
 - Randomize button on the Themes tab
 	- ID: 2026102409400700

@@ -86,6 +86,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- A slider can reach less far than its number box takes. The box takes any sane value, and `slider_range` in `core/src/settings.shcl` sets how far the slider goes.
 	- The selected tab is a tint of the theme's highlight under the normal text color, so it reads in a dark theme too.
 	- A tab with rows of its own and tabs under it, which is Themes, keeps those rows on top and shows its tabs as sub-tabs below them. Themes has the Name dropdown with Save, Save as, Rename and Delete, and a sub-tab per graph's colors, plus Background for the colors they share. Like every other change, the theme buttons take effect at Apply.
+	- Two keys in `core/src/settings.shcl` are tukzmon's, not knobs'. `shown_as: radio` draws a dropdown as radio buttons, and `shown_when: "id = key"` shows a row only while that dropdown is on that key. knobs' gates only take a checkbox.
 	- A color chip opens a picker, and the hex value can be typed beside it. The picker is SilkTerm's, not the toolkit's: a saturation and brightness square, a hue strip, and boxes for red, green, blue, brightness, saturation and hex. The row behind it follows every change, and Cancel puts back all of it, the theme's "*" included. The color model is in `settings/src/pick.rs`.
 	- The file gets only what was changed in the window, applied to the file as it is at save time, so a hand edit made meanwhile isn't lost.
 	- A save that would drop a line it can't read, or a setting it doesn't know, is refused, and the error names the lines.
@@ -98,14 +99,20 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - Each color can be overridden in the settings window.
 
-- Every color is in one knobs preset group, `theme`, picked with the Name dropdown on the Themes tab, at `theme.name`. The built-in themes are in `core/src/settings.shcl`: Default, then Green and Blue, each standard and pastel.
+- Every color is in one knobs preset group, `theme`, picked with the Name dropdown on the Themes tab, at `theme.name`, and so is each graph's mode. The built-in themes are in `core/src/settings.shcl`: Default, then Green and Blue, each standard and pastel, then Fire.
 	- A theme is named for the color that leads, the user share. Nice, the border and the background are that hue, muted. I/O wait and system stay red and orange in every theme, so trouble reads the same whichever is picked.
 	- Default is the earlier multiload-ng colors moved onto one hue, 150 degrees. System went from `#c64600` to `#c64200`, the border from `#40806a` to `#408060`, and the top from `#2a5446` to `#2a543f`.
 	- Each color row's default is Default's color, so Custom starts from it. `config::tests::the_default_theme_is_the_row_defaults` holds the two together.
 	- A color changed on a theme is kept apart from it, and the dropdown says "Name *", the way SilkTerm's does. Picking another theme drops those changes.
 	- knobs reads a color line at its own path as the Custom set. A file with colors and no theme line reads as Custom, so a hand edit or an older file isn't hidden under Default. A save names the theme whenever Custom colors are stored, even Default, or the file would read back as Custom.
 
-- Saved themes are kept whole in the config file, under `themes.<key>`, with a `name` and every color by its setting id, the same shape as a built-in in settings.shcl. The dropdown lists them after the built-ins, and before Custom.
+- Each graph's sub-tab starts with its mode, Detailed or Gradient, at `cpu.mode` for the CPU graph.
+	- Detailed stacks a color per series, as before.
+	- Gradient draws the column in one blend of Low, Medium and High. A pixel takes the blend at its height in the plot, Low at the bottom, Medium halfway and High at the top, so a busier column reaches further up the ramp and the colors stay put as it grows. The column's height is the same as the stack's.
+	- Only the rows for the mode picked are shown. A mode changed by hand is a change on the theme, like a color.
+	- Fire is a Gradient theme: dim red, yellow-white, then light blue, like a hot flame. Every other built-in is Detailed, with a gradient from its nice color through its user color to a pale tint of it.
+
+- Saved themes are kept whole in the config file, under `themes.<key>`, with a `name` and every color and mode by its setting id, the same shape as a built-in in settings.shcl. The dropdown lists them after the built-ins, and before Custom.
 	- They join the `theme` group as presets on a copy of the spec, through knobs' `Spec::finish`. The plugin reads them the same way, so knobs is unchanged.
 	- The key comes from the name when the theme is made, and stays through a rename. A key that is a built-in's, or a color line that can't be read, stops a save like any other unreadable line. A missing color is Default's.
 	- Save puts the "*" changes into the saved theme in force. Save as makes a new theme from the colors showing and picks it. Delete picks Default. Built-in themes can't be saved over, renamed or deleted, and no two themes share a name.

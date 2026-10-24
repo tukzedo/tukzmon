@@ -189,7 +189,7 @@ impl Graph {
 			axis: &axis,
 			now: self.hist.last().unwrap_or(0.0),
 			look: &self.look,
-			colors: &self.look.cpu,
+			paint: self.look.cpu_paint(),
 		}
 		.draw(&mut px, w, h, scale);
 		if let Some(x) = self.hover {

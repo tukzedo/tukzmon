@@ -55,13 +55,33 @@ pub fn line(px: &mut [u32], w: usize, h: usize, bw: usize, x: usize, thick: usiz
 	}
 }
 
+/// How a column is colored.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Paint<'a, const N: usize> {
+	/// A color per series, stacked from the bottom.
+	Stack(&'a [Rgb; N]),
+	/// Low, Medium and High. The whole column takes the blend at each
+	/// pixel's height in the plot, so the colors stay put as it grows.
+	Gradient([Rgb; 3]),
+}
+
+/// The gradient's color `t` of the way up, 0 to 1.
+pub fn blend(stops: [Rgb; 3], t: f32) -> [f32; 3] {
+	let t = t.clamp(0.0, 1.0) * 2.0;
+	if t <= 1.0 {
+		mix(stops[0], stops[1], t)
+	} else {
+		mix(stops[1], stops[2], t - 1.0)
+	}
+}
+
 pub struct Frame<'a, const N: usize> {
 	pub hist: &'a History<N>,
 	pub axis: &'a Axis,
 	/// Time at the right edge.
 	pub now: f64,
 	pub look: &'a Look,
-	pub colors: &'a [Rgb; N],
+	pub paint: Paint<'a, N>,
 }
 
 impl<const N: usize> Frame<'_, N> {
@@ -88,11 +108,20 @@ impl<const N: usize> Frame<'_, N> {
 				)
 			})
 			.collect();
-		let cols: Vec<[f32; 3]> = self
-			.colors
-			.iter()
-			.map(|c| [c.0 as f32, c.1 as f32, c.2 as f32])
-			.collect();
+		let cols: Vec<[f32; 3]> = match self.paint {
+			Paint::Stack(colors) => colors
+				.iter()
+				.map(|c| [c.0 as f32, c.1 as f32, c.2 as f32])
+				.collect(),
+			Paint::Gradient(_) => Vec::new(),
+		};
+		// row by row, top first, at each row's middle
+		let grad: Vec<[f32; 3]> = match self.paint {
+			Paint::Gradient(stops) => (0..ph)
+				.map(|r| blend(stops, ((ph - r) as f32 - 0.5) / ph as f32))
+				.collect(),
+			Paint::Stack(_) => Vec::new(),
+		};
 		for cx in 0..pw {
 			let u_new = (pw - cx - 1) as f64 / pw as f64;
 			let u_old = (pw - cx) as f64 / pw as f64;
@@ -114,6 +143,15 @@ impl<const N: usize> Frame<'_, N> {
 					let mut y = 0.0f32;
 					let mut left = 1.0f32;
 					let mut acc = [0.0f32; 3];
+					if let Some(g) = grad.get(r) {
+						let top = hs.iter().sum::<f32>() * ph as f32;
+						let cover = (top.min(p1) - p0).clamp(0.0, 1.0);
+						for k in 0..3 {
+							c[k] = c[k] * (1.0 - cover) + g[k] * cover;
+						}
+						px[(r + bw) * w + cx + bw] = pack(c);
+						continue;
+					}
 					for (s, hgt) in hs.iter().enumerate() {
 						let y1 = y + hgt * ph as f32;
 						let cover = (y1.min(p1) - y.max(p0)).max(0.0);
@@ -170,7 +208,7 @@ mod tests {
 			axis,
 			now: h.last().unwrap_or(0.0),
 			look: &l,
-			colors: &COLORS,
+			paint: Paint::Stack(&COLORS),
 		};
 		let mut px = Vec::new();
 		f.draw(&mut px, w, ht, 1);
@@ -262,6 +300,72 @@ mod tests {
 	}
 
 	#[test]
+	fn the_gradient_goes_by_height_not_by_series() {
+		const LO: Rgb = Rgb(200, 0, 0);
+		const MID: Rgb = Rgb(255, 255, 200);
+		const HI: Rgb = Rgb(100, 200, 255);
+		// a quarter and a half, as in stack_heights_are_exact, on a 10 px plot
+		let h = steady([0.25, 0.5], 120.0);
+		let l = look();
+		let axis = Axis::log(Curve::FixedA, 120.0);
+		let paint = |p: Paint<'_, 2>| {
+			let f = Frame {
+				hist: &h,
+				axis: &axis,
+				now: 120.0,
+				look: &l,
+				paint: p,
+			};
+			let mut px = Vec::new();
+			f.draw(&mut px, 22, 12, 1);
+			px
+		};
+		let px = paint(Paint::Gradient([LO, MID, HI]));
+		let at = |row: usize| px[(row + 1) * 22 + 12];
+		let want = |row: usize| pack(blend([LO, MID, HI], ((10 - row) as f32 - 0.5) / 10.0));
+		// rows from the bottom of the plot up to 7.5 take the blend at their height
+		for row in 3..10 {
+			assert_eq!(at(row), want(row), "{row}");
+		}
+		assert_ne!(at(9), at(8));
+		// the row the column ends in is half blend, half background
+		let half = at(2);
+		assert_ne!(half, want(2));
+		assert_ne!(half, at(0));
+		// above it is background, the same as the stack
+		let stack = paint(Paint::Stack(&COLORS));
+		assert_eq!(at(0), stack[22 + 12]);
+		assert_eq!(at(1), stack[2 * 22 + 12]);
+		// a full column runs Low at the bottom through Medium to High at the top
+		let full = steady([1.0, 0.0], 120.0);
+		let f = Frame {
+			hist: &full,
+			axis: &axis,
+			now: 120.0,
+			look: &l,
+			paint: Paint::Gradient([LO, MID, HI]),
+		};
+		let mut px = Vec::new();
+		f.draw(&mut px, 22, 12, 1);
+		let red = |row: usize| (px[(row + 1) * 22 + 12] >> 16) & 0xff;
+		let blue = |row: usize| px[(row + 1) * 22 + 12] & 0xff;
+		assert!(red(9) > 200 && blue(9) < 25, "{:x}", px[10 * 22 + 12]);
+		assert!(blue(0) > 240 && red(0) < 120, "{:x}", px[22 + 12]);
+		assert!((0..9).all(|r| blue(r) >= blue(r + 1)));
+	}
+
+	#[test]
+	fn the_blend_hits_its_stops() {
+		let stops = [Rgb(10, 20, 30), Rgb(100, 110, 120), Rgb(200, 210, 220)];
+		assert_eq!(pack(blend(stops, 0.0)), 0xff0a_141e);
+		assert_eq!(pack(blend(stops, 0.5)), 0xff64_6e78);
+		assert_eq!(pack(blend(stops, 1.0)), 0xffc8_d2dc);
+		assert_eq!(pack(blend(stops, 0.25)), pack(mix(stops[0], stops[1], 0.5)));
+		assert_eq!(blend(stops, -1.0), blend(stops, 0.0));
+		assert_eq!(blend(stops, 2.0), blend(stops, 1.0));
+	}
+
+	#[test]
 	fn tiny_and_borderless() {
 		let h = steady([0.5, 0.0], 10.0);
 		assert!(
@@ -278,7 +382,7 @@ mod tests {
 			axis: &Axis::log(Curve::FixedA, 10.0),
 			now: 10.0,
 			look: &l,
-			colors: &COLORS,
+			paint: Paint::Stack(&COLORS),
 		};
 		let mut px = Vec::new();
 		f.draw(&mut px, 4, 4, 1);

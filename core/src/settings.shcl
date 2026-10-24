@@ -5,10 +5,13 @@
 ## multiload-ng setup.
 ##
 ## slider_range is ours, not knobs'. It's how far a slider reaches, while
-## range is what can be typed in the box beside it.
+## range is what can be typed in the box beside it. shown_as: radio draws a
+## dropdown as radio buttons, and shown_when: "id = key" shows a row only
+## while that dropdown is on that key. Those 2 are ours too.
 ##
-## Every color is in the theme group. A row's default is the Default theme's
-## color, and config::tests holds the two to each other.
+## Every color is in the theme group, and so is each graph's mode. A row's
+## default is the Default theme's value, and config::tests holds the two to
+## each other.
 
 tabs: "Graph", "Themes", "Themes/CPU", "Themes/Background"
 
@@ -137,10 +140,23 @@ settings:
 		default: default
 		tip: "A set of colors for every graph and its background. A color changed below is kept on top of the theme, and the theme's name gets a * after it. Save as keeps the colors as a theme of your own."
 
+	cpu_mode:
+		label: Colors
+		tab: Themes/CPU
+		control: dropdown
+		shown_as: radio
+		options: detailed, gradient
+		option_labels: "Detailed", "Gradient"
+		path: cpu.mode
+		default: detailed
+		group: theme
+		tip: "Detailed gives each kind of CPU time a color of its own. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
 	CpuHead:
 		label: "CPU, from the bottom up"
 		tab: Themes/CPU
 		control: heading
+		shown_when: "cpu_mode = detailed"
 
 	iowait:
 		label: I/O wait
@@ -149,6 +165,7 @@ settings:
 		path: cpu.colors.iowait
 		default: "#ff0000"
 		group: theme
+		shown_when: "cpu_mode = detailed"
 
 	system:
 		label: System
@@ -157,6 +174,7 @@ settings:
 		path: cpu.colors.system
 		default: "#c64200"
 		group: theme
+		shown_when: "cpu_mode = detailed"
 		tip: "Kernel time, including interrupts."
 
 	user:
@@ -166,6 +184,7 @@ settings:
 		path: cpu.colors.user
 		default: "#00ff80"
 		group: theme
+		shown_when: "cpu_mode = detailed"
 
 	nice:
 		label: Nice
@@ -174,7 +193,44 @@ settings:
 		path: cpu.colors.nice
 		default: "#205f40"
 		group: theme
+		shown_when: "cpu_mode = detailed"
 		tip: "Programs running at a lower priority."
+
+	CpuGradHead:
+		label: "CPU, by height"
+		tab: Themes/CPU
+		control: heading
+		shown_when: "cpu_mode = gradient"
+
+	cpu_low:
+		label: Low
+		tab: Themes/CPU
+		control: color
+		path: cpu.colors.low
+		default: "#205f40"
+		group: theme
+		shown_when: "cpu_mode = gradient"
+		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
+
+	cpu_medium:
+		label: Medium
+		tab: Themes/CPU
+		control: color
+		path: cpu.colors.medium
+		default: "#00ff80"
+		group: theme
+		shown_when: "cpu_mode = gradient"
+		tip: "The color halfway up."
+
+	cpu_high:
+		label: High
+		tab: Themes/CPU
+		control: color
+		path: cpu.colors.high
+		default: "#c0ffe0"
+		group: theme
+		shown_when: "cpu_mode = gradient"
+		tip: "The color at the top."
 
 	BackHead:
 		label: Background
@@ -215,7 +271,8 @@ settings:
 		tip: "The line under the pointer."
 
 ## Themes are named for the color that leads, the user share, which sets the
-## hue. Nice, the border and the background are that hue muted. I/O wait and
+## hue. Fire is the exception, named for its gradient: dim red, yellow-white,
+## then light blue, like a hot flame. Nice, the border and the background are that hue muted. I/O wait and
 ## system stay red and orange in every theme, so trouble reads the same.
 
 groups:
@@ -227,6 +284,10 @@ groups:
 		presets:
 			default:
 				label: Default
+				cpu_mode: detailed
+				cpu_low: "#205f40"
+				cpu_medium: "#00ff80"
+				cpu_high: "#c0ffe0"
 				iowait: "#ff0000"
 				system: "#c64200"
 				user: "#00ff80"
@@ -237,6 +298,10 @@ groups:
 				hover_color: "#000000"
 			green_standard:
 				label: Green standard
+				cpu_mode: detailed
+				cpu_low: "#205f20"
+				cpu_medium: "#00ff00"
+				cpu_high: "#c0ffc0"
 				iowait: "#ff0000"
 				system: "#c64200"
 				user: "#00ff00"
@@ -247,6 +312,10 @@ groups:
 				hover_color: "#000000"
 			green_pastel:
 				label: Green pastel
+				cpu_mode: detailed
+				cpu_low: "#6a8a6a"
+				cpu_medium: "#a1f0a1"
+				cpu_high: "#e0ffe0"
 				iowait: "#ff6161"
 				system: "#f09b71"
 				user: "#a1f0a1"
@@ -257,6 +326,10 @@ groups:
 				hover_color: "#000000"
 			blue_standard:
 				label: Blue standard
+				cpu_mode: detailed
+				cpu_low: "#20405f"
+				cpu_medium: "#0080ff"
+				cpu_high: "#c0e0ff"
 				iowait: "#ff0000"
 				system: "#c64200"
 				user: "#0080ff"
@@ -267,6 +340,10 @@ groups:
 				hover_color: "#000000"
 			blue_pastel:
 				label: Blue pastel
+				cpu_mode: detailed
+				cpu_low: "#6a7a8a"
+				cpu_medium: "#a1c8f0"
+				cpu_high: "#e0f0ff"
 				iowait: "#ff6161"
 				system: "#f09b71"
 				user: "#a1c8f0"
@@ -274,4 +351,18 @@ groups:
 				border_color: "#7f90a1"
 				back_top: "#3a424a"
 				back_bottom: "#0f1214"
+				hover_color: "#000000"
+			fire:
+				label: Fire
+				cpu_mode: gradient
+				cpu_low: "#8b1a00"
+				cpu_medium: "#fff4c8"
+				cpu_high: "#7fd4ff"
+				iowait: "#ff0000"
+				system: "#c64200"
+				user: "#ffa000"
+				nice: "#7f4a10"
+				border_color: "#80401a"
+				back_top: "#3a1c0c"
+				back_bottom: "#000000"
 				hover_color: "#000000"

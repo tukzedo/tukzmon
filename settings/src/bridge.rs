@@ -41,6 +41,7 @@ pub mod ffi {
 		choice: String,
 		options: Vec<String>,
 		option_labels: Vec<String>,
+		shown: bool,
 	}
 
 	struct ThemeButtons {
@@ -115,7 +116,13 @@ fn dialog_rows(d: &Dialog) -> Vec<ffi::RowInfo> {
 			id: s.id.clone(),
 			label: s.label.clone(),
 			tab: s.tab as i32,
-			control: format!("{:?}", s.control).to_lowercase(),
+			control: if s.control == Control::Dropdown
+				&& tukzmon_core::config::shown_as_radio(&s.id)
+			{
+				"radio".into()
+			} else {
+				format!("{:?}", s.control).to_lowercase()
+			},
 			whole: s.kind == knobs::Kind::Int,
 			min: s.min,
 			max: s.max,
@@ -138,6 +145,7 @@ fn row_state(d: &Dialog, id: &str) -> ffi::RowState {
 		counts: s.counts,
 		tip: s.tip,
 		choice: s.choice,
+		shown: s.shown,
 		option_labels: s.options.iter().map(|(_, l)| l.clone()).collect(),
 		options: s.options.into_iter().map(|(k, _)| k).collect(),
 	}
