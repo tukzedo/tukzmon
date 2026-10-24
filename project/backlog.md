@@ -269,7 +269,8 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: High
 	- Opened: 20261024-082803
 	- Opened by: t00mietum
-	- Prereq IDs: 2026101916013884
+	- Prereq IDs: 2026102408512192
+		- Was the collectors parent. Only its memory collector child is needed, and that's done.
 	- Related IDs: 2026101916013887
 	- Requirements:
 		- Memory, using my current color definitions from multiload-ng.
