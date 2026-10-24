@@ -3,6 +3,7 @@
 
 //! Settings, as knobs reads them from `settings.shcl` and the config file.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 
@@ -82,11 +83,180 @@ pub fn name_the_theme(m: &mut Model) {
 	}
 }
 
-/// A config file's text as a model, with [`unthemed_is_custom`] applied.
-pub fn model(text: &str) -> Model {
-	let mut m = Model::load(spec(), text, "");
+/// A theme saved in the window, kept whole in the config file under
+/// `themes.<key>`, with every color named by its setting id.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SavedTheme {
+	pub key: String,
+	pub name: String,
+	/// Setting id to `#rrggbb`, one per theme color.
+	pub colors: BTreeMap<String, String>,
+}
+
+pub const THEMES: &str = "themes";
+
+fn builtin_key(key: &str) -> bool {
+	key.eq_ignore_ascii_case(knobs::CUSTOM)
+		|| spec()
+			.group(THEME)
+			.is_some_and(|g| g.presets.iter().any(|p| p.key.eq_ignore_ascii_case(key)))
+}
+
+/// The saved themes in a config file, in file order. A color that's missing
+/// or unreadable is Default's, and a theme with a built-in's key is left out.
+pub fn saved_themes(doc: &shcl::Document) -> Vec<SavedTheme> {
+	let spec = spec();
+	let Some(g) = spec.group(THEME) else {
+		return Vec::new();
+	};
+	doc.children(THEMES)
+		.into_iter()
+		.filter(|key| !builtin_key(key))
+		.map(|key| {
+			let at = |k: &str| format!("{THEMES}.{key}.{k}");
+			let colors = g
+				.members
+				.iter()
+				.map(|id| {
+					let hex = doc
+						.get_string(&at(id))
+						.ok()
+						.filter(|h| Rgb::parse(h).is_some())
+						.map(|h| h.to_ascii_lowercase())
+						.or_else(|| spec.get(id).map(|s| s.default.as_text().to_string()))
+						.unwrap_or_default();
+					(id.clone(), hex)
+				})
+				.collect();
+			let name = doc
+				.get_string(&at("name"))
+				.ok()
+				.map(|n| n.trim().to_string())
+				.filter(|n| !n.is_empty())
+				.unwrap_or_else(|| key.clone());
+			SavedTheme { key, name, colors }
+		})
+		.collect()
+}
+
+/// Lines under `themes` that [`saved_themes`] can't read, so a save would
+/// drop or change them.
+pub fn theme_problems(doc: &shcl::Document) -> Vec<String> {
+	let spec = spec();
+	let members = spec.group(THEME).map_or(&[][..], |g| g.members.as_slice());
+	let mut out = Vec::new();
+	for key in doc.children(THEMES) {
+		let at = format!("{THEMES}.{key}");
+		if builtin_key(&key) {
+			out.push(format!(
+				"line {}: {at} has the name of a built-in theme",
+				doc.line(&at)
+			));
+			continue;
+		}
+		for field in doc.children(&at) {
+			let path = format!("{at}.{field}");
+			let fine = if field == "name" {
+				doc.get_string(&path).is_ok()
+			} else {
+				members.contains(&field)
+					&& doc
+						.get_string(&path)
+						.is_ok_and(|h| Rgb::parse(&h).is_some())
+			};
+			if !fine {
+				out.push(format!(
+					"line {}: {path} isn't a theme color I can read",
+					doc.line(&path)
+				));
+			}
+		}
+	}
+	out
+}
+
+/// The spec with saved themes as presets after the built-in ones, so the
+/// Theme dropdown lists them and a pick of one sets its colors.
+pub fn spec_with(themes: &[SavedTheme]) -> Arc<Spec> {
+	let base = spec();
+	if themes.is_empty() {
+		return base;
+	}
+	let mut s = (*base).clone();
+	if let Some(g) = s.groups.iter_mut().find(|g| g.id == THEME) {
+		for t in themes {
+			g.presets.push(knobs::Preset {
+				key: t.key.clone(),
+				label: t.name.clone(),
+				temporary: false,
+				values: t
+					.colors
+					.iter()
+					.map(|(id, hex)| (id.clone(), knobs::Value::Text(hex.clone())))
+					.collect(),
+			});
+		}
+	}
+	// the presets are whole and their colors checked, so this can't fail
+	s.finish().map_or(base, Arc::new)
+}
+
+/// The themes as config file lines, to go after what knobs writes.
+pub fn themes_text(themes: &[SavedTheme]) -> String {
+	if themes.is_empty() {
+		return String::new();
+	}
+	let mut doc = shcl::Document::new();
+	for t in themes {
+		let at = |k: &str| format!("{THEMES}.{}.{k}", t.key);
+		// keys are from theme_key or a file that parsed, so the paths are good
+		let _ = doc.set_string(&at("name"), &t.name);
+		for (id, hex) in &t.colors {
+			let _ = doc.set_string(&at(id), hex);
+		}
+	}
+	doc.to_canonical()
+}
+
+/// A key for a new theme from its name, not one that's taken.
+pub fn theme_key(name: &str, themes: &[SavedTheme]) -> String {
+	let mut slug = String::new();
+	for c in name.chars() {
+		if c.is_ascii_alphanumeric() {
+			slug.push(c.to_ascii_lowercase());
+		} else if !slug.is_empty() && !slug.ends_with('_') {
+			slug.push('_');
+		}
+	}
+	let slug = slug.trim_end_matches('_');
+	let slug = if slug.is_empty() || slug.starts_with(|c: char| c.is_ascii_digit()) {
+		format!("theme_{slug}").trim_end_matches('_').to_string()
+	} else {
+		slug.to_string()
+	};
+	let taken = |k: &str| builtin_key(k) || themes.iter().any(|t| t.key.eq_ignore_ascii_case(k));
+	if !taken(&slug) {
+		return slug;
+	}
+	// n themes can take at most n of these
+	(2..=themes.len() + 2)
+		.map(|n| format!("{slug}_{n}"))
+		.find(|k| !taken(k))
+		.unwrap_or(slug)
+}
+
+/// A parsed config file as a model on `spec`, with [`unthemed_is_custom`]
+/// applied.
+pub fn model_on(spec: Arc<Spec>, doc: &shcl::Document) -> Model {
+	let mut m = Model::load_docs(spec, doc, &shcl::Document::new());
 	unthemed_is_custom(&mut m);
 	m
+}
+
+/// A config file's text as a model, saved themes and all.
+pub fn model(text: &str) -> Model {
+	let doc = shcl::Document::parse(text);
+	model_on(spec_with(&saved_themes(&doc)), &doc)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -339,6 +509,81 @@ mod tests {
 		let mut plain = model("");
 		name_the_theme(&mut plain);
 		assert_eq!(plain.save(&NoEnv).0.trim(), "");
+	}
+
+	#[test]
+	fn a_saved_theme_is_listed_after_the_built_ins_and_sets_the_look() {
+		let text = "theme:\n\tname: mine\nthemes:\n\tmine:\n\t\tname: \"My green\"\n\t\tuser: \"#11AA22\"\n\t\tnice: nope\n";
+		let m = model(text);
+		let options = &m.spec.get(THEME).unwrap().options;
+		let keys: Vec<&str> = options.iter().map(|(k, _)| k.as_str()).collect();
+		assert_eq!(
+			keys,
+			[
+				"default",
+				"green_standard",
+				"green_pastel",
+				"blue_standard",
+				"blue_pastel",
+				"mine",
+				knobs::CUSTOM
+			]
+		);
+		assert_eq!(m.shown_choice(THEME, &NoEnv), "My green");
+		let l = Look::from_model(&m);
+		assert_eq!(l.cpu[2], Rgb(0x11, 0xaa, 0x22));
+		// a missing or bad color is Default's
+		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x40));
+		let doc = shcl::Document::parse(text);
+		let p = theme_problems(&doc);
+		assert_eq!(p.len(), 1, "{p:?}");
+		assert!(p[0].contains("themes.mine.nice"), "{p:?}");
+		// the plugin reads it the same way
+		let dir = std::env::temp_dir().join(format!("test_tukzmon_{}_saved", std::process::id()));
+		std::fs::create_dir_all(&dir).unwrap();
+		let path = dir.join("t.shcl");
+		std::fs::write(&path, text).unwrap();
+		let loaded = Look::load(&path);
+		std::fs::remove_file(&path).unwrap();
+		std::fs::remove_dir(&dir).unwrap();
+		assert_eq!(loaded, l);
+	}
+
+	#[test]
+	fn a_saved_theme_cant_take_a_built_in_key() {
+		let text = "themes:\n\tdefault:\n\t\tuser: \"#123456\"\n\tCustom:\n\t\tuser: \"#123456\"\n";
+		let doc = shcl::Document::parse(text);
+		assert!(saved_themes(&doc).is_empty());
+		assert_eq!(theme_problems(&doc).len(), 2);
+		assert_eq!(Look::from_model(&model(text)), Look::default());
+	}
+
+	#[test]
+	fn saved_themes_write_whole_and_read_back() {
+		let mut t = saved_themes(&shcl::Document::parse(
+			"themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n",
+		));
+		assert_eq!(t[0].name, "Say \"hi\"");
+		assert_eq!(t[0].colors.len(), 8);
+		t.push(SavedTheme {
+			key: theme_key("Default", &t),
+			name: "Default".into(),
+			colors: t[0].colors.clone(),
+		});
+		assert_eq!(t[1].key, "default_2");
+		let back = saved_themes(&shcl::Document::parse(&themes_text(&t)));
+		assert_eq!(back, t);
+		assert_eq!(themes_text(&[]), "");
+	}
+
+	#[test]
+	fn theme_keys_are_plain_and_free() {
+		assert_eq!(theme_key("My Green!", &[]), "my_green");
+		assert_eq!(theme_key("  -- ", &[]), "theme");
+		assert_eq!(theme_key("1984", &[]), "theme_1984");
+		assert_eq!(theme_key("Gr\u{fc}n", &[]), "gr_n");
+		assert_eq!(theme_key("custom", &[]), "custom_2");
+		assert_eq!(theme_key("Blue pastel", &[]), "blue_pastel_2");
 	}
 
 	#[test]

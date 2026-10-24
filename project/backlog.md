@@ -215,6 +215,40 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-24: `config::tests::defaults_are_the_multiload_colors` got new values only. System went from `#c64600` to `#c64200`, the border from `#40806a` to `#408060`, and the top from `#2a5446` to `#2a543f`.
 		- Swept: every `Model::load`, `Look::load` and `Look::from_model` caller, and every color row in `settings.shcl`. The plugin reads through `Look::load`, and the window through `config::model`.
 
+- Themes tab, with Save, Save as, Rename and Delete
+	- ID: 2026102409400684
+	- Type: Feature
+	- Status: Waiting on UAT
+		- How the tab and the theme buttons look and feel is for a person to judge.
+		- It departs from the wording in one way. The colors the graphs share, the border, background and hover line, are on a Background sub-tab beside CPU.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Needs hand testing: on b23, open Settings, go to Themes, and Save as a theme of your own. Change a color, Save, Rename it, Apply, and check the panel graph. Then Delete it.
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304612
+	- Prereq IDs: 2026102409400679
+	- Requirements:
+		- A Themes tab, with a top row that stays while its sub-tabs change: Name [Dropdown], [Save] [Save as...] [Rename...] [Delete].
+		- Saved themes are kept whole in the config file, and listed in the dropdown after the built-in ones.
+		- Each graph's colors are on a sub-tab of their own.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The Colors tab is now Themes. Its top row has the Name dropdown with Save, Save as, Rename and Delete, and stays put over the CPU and Background sub-tabs.
+		- Saved themes go in the config file under `themes`, every color written, and the dropdown lists them after the built-ins and before Custom. The panel graph reads them too.
+		- `design.md` Theme and Settings window have the details.
+		- Verified: the window drew the top row over both sub-tabs, with a saved theme picked.
+	- Decisions:
+		- Saved themes are presets added to the spec at load, so knobs is unchanged.
+		- Save, Rename and Delete only act on a saved theme. A built-in is kept by Save as.
+		- Delete picks Default. The theme buttons take effect at Apply, like the rest of the window.
+		- A theme's key comes from its name when it's made, and stays through a rename.
+		- A save refuses a theme line it can't read, the same as any other line.
+	- Branch: round-1024
+	- Test case: `config::tests::a_saved_theme_is_listed_after_the_built_ins_and_sets_the_look`, `a_saved_theme_cant_take_a_built_in_key`, `saved_themes_write_whole_and_read_back` and `theme_keys_are_plain_and_free`, and `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme`, `save_puts_the_changes_into_the_theme`, `rename_and_delete`, `a_theme_saved_by_hand_meanwhile_survives` and `a_theme_line_it_cant_read_stops_the_save`. The dialog tests fail with the themes left out of the save, and the hand-edit one with the merge taken out.
+		- Swept: every `config::model`, `Model::load` and `Look::load` caller. The plugin reads through `Look::load` and the window through `config::model_on`, so both get the saved themes. No code or doc named the old Colors tab.
+
 - Core library and Linux collectors
 	- ID: 2026101916013884
 	- Type: Feature
@@ -357,20 +391,6 @@ Sorted per the notes in [Template](#template).
 		- Global setting to make background transparent, which overrides all background colors.
 	- Progress log:
 		- Split into 6 children, in this order: 2026102409400679 (theme presets and Default), 2026102409400684 (Themes tab and its top row), 2026102409400689 (color picker), 2026102409400695 (Gradient mode and Fire), 2026102409400700 (Randomize), and 2026102409400705 (transparent background).
-
-- Themes tab, with Save, Save as, Rename and Delete
-	- ID: 2026102409400684
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-094007
-	- Opened by: t00mietum
-	- Parent ID: 2026102408304612
-	- Prereq IDs: 2026102409400679
-	- Requirements:
-		- A Themes tab, with a top row that stays while its sub-tabs change: Name [Dropdown], [Save] [Save as...] [Rename...] [Delete].
-		- Saved themes are kept whole in the config file, and listed in the dropdown after the built-in ones.
-		- Each graph's colors are on a sub-tab of their own.
 
 - Color picker in place of the toolkit's
 	- ID: 2026102409400689

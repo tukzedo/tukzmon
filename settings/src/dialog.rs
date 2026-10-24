@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use knobs::{Control, Kind, Model, NoEnv, Setting, Spec, Value};
-use tukzmon_core::config;
+use tukzmon_core::config::{self, SavedTheme, THEME};
 
 const HEADER: &str = "## tukzmon settings. Only values changed from their defaults are listed.\n";
 
@@ -24,6 +24,16 @@ pub struct RowState {
 	pub tip: String,
 	/// What a dropdown shows, with " *" on a theme changed on top of.
 	pub choice: String,
+	/// A dropdown's keys and labels, which change as themes are saved.
+	pub options: Vec<(String, String)>,
+}
+
+/// Which theme buttons do anything right now.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ThemeButtons {
+	pub save: bool,
+	pub rename: bool,
+	pub delete: bool,
 }
 
 pub struct Dialog {
@@ -37,6 +47,9 @@ pub struct Dialog {
 	/// Sliders that reach less far than their number box takes, as copies of
 	/// the setting over the slider's own range.
 	short_sliders: Vec<Setting>,
+	themes: Vec<SavedTheme>,
+	/// As the file had them when it was last read or written.
+	saved_themes: Vec<SavedTheme>,
 }
 
 fn read(path: &Path) -> Result<String, String> {
@@ -60,6 +73,8 @@ fn would_lose(spec: &Spec, text: &str) -> Vec<String> {
 	for p in doc.paths() {
 		let known = p == "kept"
 			|| p.starts_with("kept.")
+			|| p == config::THEMES
+			|| p.starts_with("themes.")
 			|| spec.settings.iter().any(|s| {
 				s.control != Control::Heading
 					&& (s.path == p
@@ -74,14 +89,36 @@ fn would_lose(spec: &Spec, text: &str) -> Vec<String> {
 			));
 		}
 	}
+	out.extend(config::theme_problems(&doc));
+	out
+}
+
+// Saved themes as the file has them, with what this window changed since
+// `was` laid over them. One changed here is written whole.
+fn merge_themes(file: Vec<SavedTheme>, was: &[SavedTheme], now: &[SavedTheme]) -> Vec<SavedTheme> {
+	let mut out: Vec<SavedTheme> = file
+		.into_iter()
+		.filter(|t| now.iter().any(|n| n.key == t.key) || !was.iter().any(|w| w.key == t.key))
+		.collect();
+	for t in now {
+		if was.contains(t) {
+			continue;
+		}
+		match out.iter_mut().find(|o| o.key == t.key) {
+			Some(o) => *o = t.clone(),
+			None => out.push(t.clone()),
+		}
+	}
 	out
 }
 
 impl Dialog {
 	pub fn open(path: PathBuf) -> Dialog {
-		let spec = config::spec();
 		let text = read(&path).unwrap_or_default();
-		let model = config::model(&text);
+		let doc = shcl::Document::parse(&text);
+		let themes = config::saved_themes(&doc);
+		let spec = config::spec_with(&themes);
+		let model = config::model_on(Arc::clone(&spec), &doc);
 		let short_sliders = spec
 			.settings
 			.iter()
@@ -96,11 +133,13 @@ impl Dialog {
 			.collect();
 		Dialog {
 			path,
-			spec,
+			spec: Arc::clone(&spec),
 			saved: model.clone(),
 			model,
 			touched: Vec::new(),
 			short_sliders,
+			saved_themes: themes.clone(),
+			themes,
 		}
 	}
 
@@ -121,7 +160,140 @@ impl Dialog {
 	}
 
 	pub fn dirty(&self) -> bool {
-		self.model != self.saved
+		self.model != self.saved || self.themes != self.saved_themes
+	}
+
+	// the saved theme in force, if it's one
+	fn on_saved(&self) -> Option<usize> {
+		let key = self.model.chosen(THEME, &NoEnv);
+		self.themes.iter().position(|t| t.key == key)
+	}
+
+	pub fn theme_buttons(&self) -> ThemeButtons {
+		if self.on_saved().is_none() {
+			return ThemeButtons::default();
+		}
+		ThemeButtons {
+			save: !self.model.changed(THEME, &NoEnv).is_empty(),
+			rename: true,
+			delete: true,
+		}
+	}
+
+	/// The saved theme in force, or "".
+	pub fn theme_name(&self) -> String {
+		self.on_saved()
+			.map(|i| self.themes[i].name.clone())
+			.unwrap_or_default()
+	}
+
+	fn shown_colors(&self) -> std::collections::BTreeMap<String, String> {
+		self.spec
+			.group(THEME)
+			.map(|g| {
+				g.members
+					.iter()
+					.map(|id| {
+						let v = self.model.value(id, &NoEnv);
+						(id.clone(), v.as_text().to_string())
+					})
+					.collect()
+			})
+			.unwrap_or_default()
+	}
+
+	// After the themes change, the dropdown and every pick go by the new list.
+	fn respec(&mut self) {
+		self.spec = config::spec_with(&self.themes);
+		self.model.spec = Arc::clone(&self.spec);
+	}
+
+	// the colors are the theme's own now, so nothing is changed on top of it
+	fn drop_theme_changes(&mut self) {
+		let members = self
+			.spec
+			.group(THEME)
+			.map(|g| g.members.clone())
+			.unwrap_or_default();
+		for id in &members {
+			self.model.values.changes.remove(id);
+			self.touch(id);
+		}
+		self.model.values.changed_on.remove(THEME);
+		self.touch(THEME);
+	}
+
+	fn check_name(&self, name: &str, skip: Option<usize>) -> Result<String, String> {
+		let name = name.trim();
+		if name.is_empty() {
+			return Err("A theme needs a name.".into());
+		}
+		if name.chars().any(char::is_control) {
+			return Err("A theme name has to fit on one line.".into());
+		}
+		let mine = skip.map(|i| self.themes[i].key.as_str());
+		let taken = self.spec.get(THEME).is_some_and(|s| {
+			s.options
+				.iter()
+				.any(|(k, l)| Some(k.as_str()) != mine && l.eq_ignore_ascii_case(name))
+		});
+		if taken {
+			return Err(format!("There's already a theme called {name}."));
+		}
+		Ok(name.to_string())
+	}
+
+	/// Put the colors showing into the saved theme in force.
+	pub fn save_theme(&mut self) {
+		let Some(i) = self.on_saved() else {
+			return;
+		};
+		self.themes[i].colors = self.shown_colors();
+		self.respec();
+		self.drop_theme_changes();
+	}
+
+	/// Keep the colors showing as a new theme, and pick it.
+	///
+	/// # Errors
+	///
+	/// Why the name won't do.
+	pub fn save_theme_as(&mut self, name: &str) -> Result<(), String> {
+		let name = self.check_name(name, None)?;
+		let theme = SavedTheme {
+			key: config::theme_key(&name, &self.themes),
+			name,
+			colors: self.shown_colors(),
+		};
+		let key = theme.key.clone();
+		self.themes.push(theme);
+		self.respec();
+		self.model.set(THEME, &Value::Text(key), &NoEnv);
+		self.drop_theme_changes();
+		Ok(())
+	}
+
+	/// # Errors
+	///
+	/// Why the name won't do.
+	pub fn rename_theme(&mut self, name: &str) -> Result<(), String> {
+		let Some(i) = self.on_saved() else {
+			return Ok(());
+		};
+		self.themes[i].name = self.check_name(name, Some(i))?;
+		self.respec();
+		Ok(())
+	}
+
+	/// Delete the saved theme in force, which leaves Default picked.
+	pub fn delete_theme(&mut self) {
+		let Some(i) = self.on_saved() else {
+			return;
+		};
+		self.themes.remove(i);
+		self.model.reset(THEME, &NoEnv);
+		self.respec();
+		self.touch(THEME);
 	}
 
 	pub fn state(&self, id: &str) -> RowState {
@@ -156,6 +328,11 @@ impl Dialog {
 				Some(s) if s.control == Control::Dropdown => self.model.shown_choice(id, &NoEnv),
 				_ => String::new(),
 			},
+			options: self
+				.spec
+				.get(id)
+				.map(|s| s.options.clone())
+				.unwrap_or_default(),
 		}
 	}
 
@@ -224,7 +401,7 @@ impl Dialog {
 	/// Why nothing was written.
 	pub fn apply(&mut self) -> Result<(), String> {
 		let text = read(&self.path)?;
-		let lose = would_lose(&self.spec, &text);
+		let lose = would_lose(&config::spec(), &text);
 		if !lose.is_empty() {
 			return Err(format!(
 				"{} has lines a save would drop, so it wasn't changed. Fix or remove them first.\n\n{}",
@@ -232,7 +409,10 @@ impl Dialog {
 				lose.join("\n")
 			));
 		}
-		let mut fresh = config::model(&text);
+		let doc = shcl::Document::parse(&text);
+		let themes = merge_themes(config::saved_themes(&doc), &self.saved_themes, &self.themes);
+		let spec = config::spec_with(&themes);
+		let mut fresh = config::model_on(Arc::clone(&spec), &doc);
 		for id in &self.touched {
 			if self.model.can_reset(id, &NoEnv) {
 				fresh.set(id, &self.model.value(id, &NoEnv), &NoEnv);
@@ -252,9 +432,13 @@ impl Dialog {
 			std::fs::create_dir_all(dir)
 				.map_err(|e| format!("{} can't be made: {e}", dir.display()))?;
 		}
-		shcl::write_file_atomic(file, &format!("{HEADER}{body}"))?;
+		let themes_text = config::themes_text(&themes);
+		shcl::write_file_atomic(file, &format!("{HEADER}{body}{themes_text}"))?;
 		self.saved = fresh.clone();
 		self.model = fresh;
+		self.spec = spec;
+		self.saved_themes = themes.clone();
+		self.themes = themes;
 		self.touched.clear();
 		Ok(())
 	}
@@ -424,6 +608,135 @@ mod tests {
 		assert_eq!(dlg.state("theme").choice, "Default");
 		assert_eq!(dlg.state("user").text, "#00ff80");
 		assert!(!dlg.dirty());
+	}
+
+	#[test]
+	fn save_as_keeps_the_colors_whole_and_picks_the_new_theme() {
+		let d = scratch("save_as");
+		let path = d.0.join("t.shcl");
+		let mut dlg = Dialog::open(path.clone());
+		assert_eq!(dlg.theme_buttons(), ThemeButtons::default());
+		assert!(dlg.set_text("theme", "blue_standard"));
+		assert!(dlg.set_text("user", "#111111"));
+		assert!(dlg.save_theme_as("  ").is_err());
+		assert!(dlg.save_theme_as("blue Standard").is_err());
+		assert!(dlg.save_theme_as("Custom").is_err());
+		dlg.save_theme_as(" Night ").unwrap();
+		assert_eq!(dlg.state("theme").choice, "Night");
+		assert_eq!(dlg.state("user").text, "#111111");
+		assert_eq!(dlg.state("nice").text, "#20405f");
+		assert!(!dlg.state("user").can_reset);
+		assert_eq!(
+			dlg.state("theme")
+				.options
+				.iter()
+				.map(|(_, l)| l.as_str())
+				.nth(5),
+			Some("Night")
+		);
+		let b = dlg.theme_buttons();
+		assert!(!b.save && b.rename && b.delete);
+		assert!(dlg.save_theme_as("night").is_err());
+		dlg.apply().unwrap();
+		let text = std::fs::read_to_string(&path).unwrap();
+		assert!(text.contains("name: night"), "{text}");
+		assert_eq!(text.matches("\"#").count(), 8, "{text}");
+		assert!(!text.contains("kept"), "{text}");
+		let dlg = Dialog::open(path.clone());
+		assert_eq!(dlg.state("theme").choice, "Night");
+		assert!(!dlg.dirty());
+		assert_eq!(
+			config::Look::load(&path).cpu[2],
+			config::Rgb(0x11, 0x11, 0x11)
+		);
+	}
+
+	#[test]
+	fn save_puts_the_changes_into_the_theme() {
+		let d = scratch("save");
+		let path = d.0.join("t.shcl");
+		let mut dlg = Dialog::open(path.clone());
+		dlg.save_theme_as("Mine").unwrap();
+		dlg.apply().unwrap();
+		assert!(dlg.set_text("user", "#222222"));
+		assert_eq!(dlg.state("theme").choice, "Mine *");
+		assert!(dlg.theme_buttons().save);
+		dlg.save_theme();
+		assert_eq!(dlg.state("theme").choice, "Mine");
+		assert!(!dlg.theme_buttons().save);
+		assert!(dlg.dirty());
+		dlg.apply().unwrap();
+		let text = std::fs::read_to_string(&path).unwrap();
+		assert!(text.contains("#222222") && !text.contains("kept"), "{text}");
+		// the theme picked again gives the saved color
+		let mut dlg = Dialog::open(path.clone());
+		assert!(dlg.set_text("theme", "default"));
+		assert!(dlg.set_text("theme", "mine"));
+		assert_eq!(dlg.state("user").text, "#222222");
+	}
+
+	#[test]
+	fn rename_and_delete() {
+		let d = scratch("rename");
+		let path = d.0.join("t.shcl");
+		let mut dlg = Dialog::open(path.clone());
+		dlg.rename_theme("Nope").unwrap();
+		assert!(!dlg.dirty());
+		dlg.save_theme_as("Mine").unwrap();
+		dlg.save_theme_as("Other").unwrap();
+		assert!(dlg.rename_theme("mine").is_err());
+		dlg.rename_theme("OTHER").unwrap();
+		assert_eq!(dlg.theme_name(), "OTHER");
+		dlg.apply().unwrap();
+		let text = std::fs::read_to_string(&path).unwrap();
+		assert!(
+			text.contains("name: OTHER") && text.contains("name: other"),
+			"{text}"
+		);
+		dlg.delete_theme();
+		assert_eq!(dlg.state("theme").choice, "Default");
+		dlg.apply().unwrap();
+		let text = std::fs::read_to_string(&path).unwrap();
+		assert!(text.contains("mine") && !text.contains("other"), "{text}");
+		let dlg = Dialog::open(path.clone());
+		assert_eq!(dlg.state("theme").choice, "Default");
+		assert_eq!(dlg.state("theme").options.len(), 7);
+	}
+
+	#[test]
+	fn a_theme_saved_by_hand_meanwhile_survives() {
+		let d = scratch("merge");
+		let path = d.0.join("t.shcl");
+		std::fs::write(&path, "themes:\n\tgone:\n\t\tuser: \"#010101\"\n").unwrap();
+		let mut dlg = Dialog::open(path.clone());
+		assert!(dlg.set_text("theme", "gone"));
+		dlg.delete_theme();
+		dlg.save_theme_as("Mine").unwrap();
+		std::fs::write(
+			&path,
+			"themes:\n\tgone:\n\t\tuser: \"#010101\"\n\thand:\n\t\tuser: \"#020202\"\n",
+		)
+		.unwrap();
+		dlg.apply().unwrap();
+		let text = std::fs::read_to_string(&path).unwrap();
+		assert!(
+			!text.contains("gone") && text.contains("#020202") && text.contains("mine:"),
+			"{text}"
+		);
+		assert_eq!(dlg.state("theme").options.len(), 8);
+	}
+
+	#[test]
+	fn a_theme_line_it_cant_read_stops_the_save() {
+		let d = scratch("bad_theme");
+		let path = d.0.join("t.shcl");
+		let text = "themes:\n\tmine:\n\t\tuser: blue\n";
+		std::fs::write(&path, text).unwrap();
+		let mut dlg = Dialog::open(path.clone());
+		assert!(dlg.set_text("border", "2"));
+		let e = dlg.apply().unwrap_err();
+		assert!(e.contains("themes.mine.user"), "{e}");
+		assert_eq!(std::fs::read_to_string(&path).unwrap(), text);
 	}
 
 	#[test]

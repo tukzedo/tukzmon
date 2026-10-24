@@ -19,6 +19,7 @@
 #include <QKeyEvent>
 #include <QGridLayout>
 #include <QHBoxLayout>
+#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -32,6 +33,7 @@
 #include <QSlider>
 #include <QStackedWidget>
 #include <QStyle>
+#include <QTabWidget>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -86,6 +88,8 @@ struct Row {
 	QLineEdit *line = nullptr;
 	QPushButton *chip = nullptr;
 	QToolButton *revert = nullptr;
+	// what a dropdown's items stand for, which can change as themes are saved
+	std::vector<std::string> keys;
 	std::string id() const { return std::string(info.id); }
 };
 
@@ -103,7 +107,13 @@ public:
 		tabList = new QListWidget;
 		softenSelection(tabList);
 		pages = new QStackedWidget;
+		auto hasRows = [this](int tab) {
+			return std::any_of(rows.begin(), rows.end(), [tab](auto &r) { return r->info.tab == tab; });
+		};
 		for (size_t i = 0; i < tabs.size(); i++) {
+			// a tab with rows of its own keeps them on top, over its sub-tabs
+			if (tabs[i].parent >= 0 && hasRows(tabs[i].parent))
+				continue;
 			bool parent = false;
 			for (auto &t : tabs)
 				parent |= t.parent == int(i);
@@ -112,7 +122,27 @@ public:
 				depth++;
 			auto *item = new QListWidgetItem(QString(depth * 4, ' ') + qs(tabs[i].label));
 			tabList->addItem(item);
-			tabPage.push_back(parent ? -1 : pages->addWidget(buildPage(int(i), tabs[i])));
+			if (parent && !hasRows(int(i))) {
+				tabPage.push_back(-1);
+				subTabs.push_back(nullptr);
+				continue;
+			}
+			QTabWidget *sub = nullptr;
+			QWidget *page = buildPage(int(i), tabs[i], !parent);
+			if (parent) {
+				sub = new QTabWidget;
+				for (size_t j = 0; j < tabs.size(); j++)
+					if (tabs[j].parent == int(i))
+						sub->addTab(buildPage(int(j), tabs[j], true), qs(tabs[j].label));
+				auto *holder = new QWidget;
+				auto *v = new QVBoxLayout(holder);
+				v->setContentsMargins(0, 0, 0, 0);
+				v->addWidget(page);
+				v->addWidget(sub, 1);
+				page = holder;
+			}
+			tabPage.push_back(pages->addWidget(page));
+			subTabs.push_back(sub);
 		}
 		const int tabWidth = tabList->sizeHintForColumn(0);
 		tabList->setFixedWidth(tabWidth + 2 * tabList->frameWidth() + 24);
@@ -191,11 +221,17 @@ public:
 	int tabCount() const { return tabList->count(); }
 	bool isLeaf(int i) const { return tabPage[size_t(i)] >= 0; }
 	void select(int i) { tabList->setCurrentRow(i); }
+	int subCount(int i) const { return subTabs[size_t(i)] ? subTabs[size_t(i)]->count() : 0; }
+	void selectSub(int i, int j) { subTabs[size_t(i)]->setCurrentIndex(j); }
 
 private:
 	Dialog &d;
 	std::vector<std::unique_ptr<Row>> rows;
 	std::vector<int> tabPage;
+	std::vector<QTabWidget *> subTabs;
+	QPushButton *saveTheme = nullptr;
+	QPushButton *renameTheme = nullptr;
+	QPushButton *deleteTheme = nullptr;
 	QListWidget *tabList = nullptr;
 	QStackedWidget *pages = nullptr;
 	QPushButton *applyButton = nullptr;
@@ -212,7 +248,7 @@ private:
 		}
 	}
 
-	QWidget *buildPage(int tab, const TabInfo &info) {
+	QWidget *buildPage(int tab, const TabInfo &info, bool scrolls) {
 		auto *page = new QWidget;
 		auto *grid = new QGridLayout(page);
 		grid->setColumnStretch(1, 1);
@@ -254,6 +290,8 @@ private:
 			grid->addWidget(r.revert, line, 2);
 			line++;
 		}
+		if (!scrolls)
+			return page;
 		grid->setRowStretch(line, 1);
 		auto *scroll = new FitScroll;
 		scroll->setWidget(page);
@@ -306,14 +344,15 @@ private:
 		}
 		if (c == "dropdown") {
 			r.combo = new QComboBox;
-			for (auto &l : r.info.option_labels)
-				r.combo->addItem(qs(l));
+			r.combo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
 			connect(r.combo, &QComboBox::activated, this, [this, &r](int i) {
-				if (i >= 0 && size_t(i) < r.info.options.size())
-					set_text(d, r.id(), std::string(r.info.options[size_t(i)]));
+				if (i >= 0 && size_t(i) < r.keys.size())
+					set_text(d, r.id(), r.keys[size_t(i)]);
 				refresh();
 			});
-			return r.combo;
+			if (!r.info.chooser)
+				return r.combo;
+			return themeButtons(r.combo);
 		}
 		r.line = new QLineEdit;
 		connect(r.line, &QLineEdit::editingFinished, this, [this, &r] {
@@ -336,6 +375,60 @@ private:
 		h->addWidget(r.line);
 		h->addStretch(1);
 		return w;
+	}
+
+	// Like the rest of the window, these take effect at Apply.
+	QWidget *themeButtons(QComboBox *combo) {
+		saveTheme = new QPushButton("Save");
+		auto *saveAs = new QPushButton("Save as...");
+		renameTheme = new QPushButton("Rename...");
+		deleteTheme = new QPushButton("Delete");
+		saveTheme->setToolTip("Keep the colors changed here in this theme.");
+		saveAs->setToolTip("Keep the colors showing as a new theme of your own.");
+		renameTheme->setToolTip("Give this theme another name.");
+		deleteTheme->setToolTip("Delete this theme. Default is picked in its place.");
+		for (auto *b : {saveTheme, saveAs, renameTheme, deleteTheme})
+			b->setAutoDefault(false);
+		connect(saveTheme, &QPushButton::clicked, this, [this] {
+			save_theme(d);
+			refresh();
+		});
+		connect(saveAs, &QPushButton::clicked, this, [this] { nameTheme("Save theme as", QString(), false); });
+		connect(renameTheme, &QPushButton::clicked, this,
+			[this] { nameTheme("Rename theme", qs(theme_name(d)), true); });
+		connect(deleteTheme, &QPushButton::clicked, this, [this] {
+			const QString name = qs(theme_name(d));
+			if (QMessageBox::question(this, "Delete theme", QString("Delete the theme %1?").arg(name)) !=
+				QMessageBox::Yes)
+				return;
+			delete_theme(d);
+			refresh();
+		});
+		auto *w = new QWidget;
+		auto *h = new QHBoxLayout(w);
+		h->setContentsMargins(0, 0, 0, 0);
+		h->addWidget(combo);
+		h->addSpacing(12);
+		for (auto *b : {saveTheme, saveAs, renameTheme, deleteTheme})
+			h->addWidget(b);
+		h->addStretch(1);
+		return w;
+	}
+
+	// asks again after a name that won't do, with the reason
+	void nameTheme(const QString &title, QString name, bool rename) {
+		for (;;) {
+			bool ok = false;
+			name = QInputDialog::getText(this, title, "Name:", QLineEdit::Normal, name, &ok);
+			if (!ok)
+				return;
+			const std::string typed = name.toStdString();
+			auto err = rename ? rename_theme(d, typed) : save_theme_as(d, typed);
+			if (err.empty())
+				break;
+			QMessageBox::warning(this, title, qs(err));
+		}
+		refresh();
 	}
 
 	// Edits show on the row at once, and Cancel puts the old color back.
@@ -393,10 +486,19 @@ private:
 			}
 			if (r.combo) {
 				QSignalBlocker b(r.combo);
-				for (size_t i = 0; i < r.info.options.size(); i++) {
-					const bool on = qs(r.info.options[i]) == text;
+				std::vector<std::string> keys;
+				for (auto &k : st.options)
+					keys.push_back(std::string(k));
+				if (keys != r.keys) {
+					r.keys = keys;
+					r.combo->clear();
+					for (auto &l : st.option_labels)
+						r.combo->addItem(qs(l));
+				}
+				for (size_t i = 0; i < r.keys.size(); i++) {
+					const bool on = QString::fromStdString(r.keys[i]) == text;
 					// a theme with changes on top says "Name *"
-					r.combo->setItemText(int(i), on && !st.choice.empty() ? qs(st.choice) : qs(r.info.option_labels[i]));
+					r.combo->setItemText(int(i), on && !st.choice.empty() ? qs(st.choice) : qs(st.option_labels[i]));
 					if (on)
 						r.combo->setCurrentIndex(int(i));
 				}
@@ -409,6 +511,12 @@ private:
 			}
 			if (r.chip)
 				r.chip->setStyleSheet(QString("background-color: %1; border: 1px solid palette(mid);").arg(text));
+		}
+		if (saveTheme) {
+			auto b = theme_buttons(d);
+			saveTheme->setEnabled(b.save);
+			renameTheme->setEnabled(b.rename);
+			deleteTheme->setEnabled(b.remove);
 		}
 		applyButton->setEnabled(is_dirty(d));
 	}
@@ -440,9 +548,13 @@ std::int32_t run_dialog(Dialog &d, rust::Str snapshot) {
 		if (!w.isLeaf(i))
 			continue;
 		w.select(i);
-		app.processEvents();
-		if (!w.grab().save(QString("%1-%2.png").arg(base).arg(++n)))
-			return 3;
+		for (int j = 0; j < std::max(1, w.subCount(i)); j++) {
+			if (w.subCount(i) > 0)
+				w.selectSub(i, j);
+			app.processEvents();
+			if (!w.grab().save(QString("%1-%2.png").arg(base).arg(++n)))
+				return 3;
+		}
 	}
 	return 0;
 }

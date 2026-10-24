@@ -10,7 +10,7 @@
 ## Every color is in the theme group. A row's default is the Default theme's
 ## color, and config::tests holds the two to each other.
 
-tabs: "Graph", "Colors"
+tabs: "Graph", "Themes", "Themes/CPU", "Themes/Background"
 
 settings:
 
@@ -130,21 +130,21 @@ settings:
 		tip: "History older than this is dropped."
 
 	theme:
-		label: Theme
-		tab: Colors
+		label: Name
+		tab: Themes
 		control: dropdown
 		path: theme.name
 		default: default
-		tip: "A set of colors for the graph and its background. A color changed below is kept on top of the theme, and the theme's name gets a * after it."
+		tip: "A set of colors for every graph and its background. A color changed below is kept on top of the theme, and the theme's name gets a * after it. Save as keeps the colors as a theme of your own."
 
 	CpuHead:
 		label: "CPU, from the bottom up"
-		tab: Colors
+		tab: Themes/CPU
 		control: heading
 
 	iowait:
 		label: I/O wait
-		tab: Colors
+		tab: Themes/CPU
 		control: color
 		path: cpu.colors.iowait
 		default: "#ff0000"
@@ -152,7 +152,7 @@ settings:
 
 	system:
 		label: System
-		tab: Colors
+		tab: Themes/CPU
 		control: color
 		path: cpu.colors.system
 		default: "#c64200"
@@ -161,7 +161,7 @@ settings:
 
 	user:
 		label: User
-		tab: Colors
+		tab: Themes/CPU
 		control: color
 		path: cpu.colors.user
 		default: "#00ff80"
@@ -169,7 +169,7 @@ settings:
 
 	nice:
 		label: Nice
-		tab: Colors
+		tab: Themes/CPU
 		control: color
 		path: cpu.colors.nice
 		default: "#205f40"
@@ -178,12 +178,12 @@ settings:
 
 	BackHead:
 		label: Background
-		tab: Colors
+		tab: Themes/Background
 		control: heading
 
 	border_color:
 		label: Border
-		tab: Colors
+		tab: Themes/Background
 		control: color
 		path: graph.colors.border
 		default: "#408060"
@@ -191,7 +191,7 @@ settings:
 
 	back_top:
 		label: Top
-		tab: Colors
+		tab: Themes/Background
 		control: color
 		path: graph.colors.top
 		default: "#2a543f"
@@ -199,7 +199,7 @@ settings:
 
 	back_bottom:
 		label: Bottom
-		tab: Colors
+		tab: Themes/Background
 		control: color
 		path: graph.colors.bottom
 		default: "#000000"
@@ -207,7 +207,7 @@ settings:
 
 	hover_color:
 		label: Hover line
-		tab: Colors
+		tab: Themes/Background
 		control: color
 		path: graph.colors.hover
 		default: "#000000"

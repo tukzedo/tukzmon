@@ -25,6 +25,8 @@ pub mod ffi {
 		options: Vec<String>,
 		option_labels: Vec<String>,
 		indent: i32,
+		/// It picks a theme, so the theme buttons go beside it.
+		chooser: bool,
 	}
 
 	struct RowState {
@@ -36,6 +38,14 @@ pub mod ffi {
 		counts: bool,
 		tip: String,
 		choice: String,
+		options: Vec<String>,
+		option_labels: Vec<String>,
+	}
+
+	struct ThemeButtons {
+		save: bool,
+		rename: bool,
+		remove: bool,
 	}
 
 	extern "Rust" {
@@ -51,6 +61,12 @@ pub mod ffi {
 		fn reset_row(d: &mut Dialog, id: &str);
 		fn apply(d: &mut Dialog) -> String;
 		fn is_dirty(d: &Dialog) -> bool;
+		fn theme_buttons(d: &Dialog) -> ThemeButtons;
+		fn theme_name(d: &Dialog) -> String;
+		fn save_theme(d: &mut Dialog);
+		fn save_theme_as(d: &mut Dialog, name: &str) -> String;
+		fn rename_theme(d: &mut Dialog, name: &str) -> String;
+		fn delete_theme(d: &mut Dialog);
 	}
 
 	unsafe extern "C++" {
@@ -90,6 +106,7 @@ fn dialog_rows(d: &Dialog) -> Vec<ffi::RowInfo> {
 			options: s.options.iter().map(|(k, _)| k.clone()).collect(),
 			option_labels: s.options.iter().map(|(_, l)| l.clone()).collect(),
 			indent: s.indent as i32,
+			chooser: d.spec().chooser_of(&s.id).is_some(),
 		})
 		.collect()
 }
@@ -105,6 +122,8 @@ fn row_state(d: &Dialog, id: &str) -> ffi::RowState {
 		counts: s.counts,
 		tip: s.tip,
 		choice: s.choice,
+		option_labels: s.options.iter().map(|(_, l)| l.clone()).collect(),
+		options: s.options.into_iter().map(|(k, _)| k).collect(),
 	}
 }
 
@@ -134,6 +153,35 @@ fn apply(d: &mut Dialog) -> String {
 
 fn is_dirty(d: &Dialog) -> bool {
 	d.dirty()
+}
+
+fn theme_buttons(d: &Dialog) -> ffi::ThemeButtons {
+	let b = d.theme_buttons();
+	ffi::ThemeButtons {
+		save: b.save,
+		rename: b.rename,
+		remove: b.delete,
+	}
+}
+
+fn theme_name(d: &Dialog) -> String {
+	d.theme_name()
+}
+
+fn save_theme(d: &mut Dialog) {
+	d.save_theme();
+}
+
+fn save_theme_as(d: &mut Dialog, name: &str) -> String {
+	d.save_theme_as(name).err().unwrap_or_default()
+}
+
+fn rename_theme(d: &mut Dialog, name: &str) -> String {
+	d.rename_theme(name).err().unwrap_or_default()
+}
+
+fn delete_theme(d: &mut Dialog) {
+	d.delete_theme();
 }
 
 pub fn run(d: &mut Dialog, snapshot: &str) -> i32 {
