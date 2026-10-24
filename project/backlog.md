@@ -39,7 +39,7 @@ Sorted per the notes in [Template](#template).
 		- Built: the core library, the plugin, and tukzmon-settings in Qt 6 Widgets. The defaults are the multiload-ng CPU colors.
 		- Qt doesn't need a file of its own, so settings stay in shcl, at `~/.config/tukzmon/tukzmon.shcl`.
 		- SilkTerm's settings model, knobs, is MIT now under Bubbles, in both projects, and copied in here.
-		- The panel only loads plugins from its system folders. `utility/dev-install.bash` installs to `~/.local/lib/tukzmon` and prints the 2 symlinks to make once as root.
+		- The panel only loads plugins from its system folders. `utility/dev-install.bash` installs to `~/.local/lib/tukzmon`, links it there with sudo, and restarts the panel. It's in b23's live panel now.
 		- Not done yet: history kept across restarts, a live preview before Apply, and the search box.
 	- Branch: dev
 

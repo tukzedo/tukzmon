@@ -13,7 +13,7 @@ The time axis is logarithmic by default. The last minute gets the most room, and
 
 Early. A CPU graph runs as an XFCE panel plugin, with a settings window, but there's no package yet and history isn't kept across restarts. The plan is in [project/design.md](project/design.md) and the work list in [project/backlog.md](project/backlog.md).
 
-To try it from a checkout you need Rust, XFCE 4.20, and Qt 6 (`qt6-base-dev` on Debian). Run `utility/dev-install.bash`. The panel only loads plugins from its system folders, so the script prints 2 symlinks to make as root the first time.
+To try it from a checkout you need Rust, XFCE 4.20, and Qt 6 (`qt6-base-dev` on Debian). Run `utility/dev-install.bash`. The panel only loads plugins from its system folders, so the first run links them there with sudo. Each run restarts the panel to load the new build.
 
 The first version is an XFCE panel plugin. Other desktops come after that, and later Windows, macOS, and the BSDs.
 

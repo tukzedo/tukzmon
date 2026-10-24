@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-#	Builds tukzmon and puts it in ~/.local/lib/tukzmon, for running from a
-#	checkout. XFCE 4.20's panel only looks for plugins in its own system
-#	folders, so the first install also needs 2 symlinks made as root. This
-#	prints them; it never runs sudo itself.
-#	usage: dev-install.bash [--restart]   (--restart restarts xfce4-panel)
+#	Builds tukzmon, puts it in ~/.local/lib/tukzmon, and restarts the panel so
+#	it loads the new build. XFCE 4.20's panel only looks for plugins in its own
+#	system folders, so a missing link there is made with sudo.
+#	usage: dev-install.bash [--no-restart]
 
 ##	Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 ##	SPDX-License-Identifier: LGPL-2.1-or-later
@@ -26,19 +25,17 @@ echo "Installed to ${dest}"
 panel_lib="$(grep -m1 -F 'libxfce4panel-2.0.so.4 ' <<< "$(ldconfig -p)" | sed 's/.*=> //' || true)"
 libdir="$(dirname "${panel_lib:-/usr/lib/x86_64-linux-gnu/x}")/xfce4/panel/plugins"
 sharedir="/usr/share/xfce4/panel/plugins"
-missing=0
-[[ "$(readlink "${libdir}/libtukzmon.so" || true)" == "${dest}/libtukzmon.so" ]] || missing=1
-[[ "$(readlink "${sharedir}/tukzmon.desktop" || true)" == "${dest}/tukzmon.desktop" ]] || missing=1
-if [[ "${missing}" == "1" ]]; then
-	echo
-	echo "One time, as root, so the panel can find it:"
-	echo "  sudo ln -sfn '${dest}/libtukzmon.so' '${libdir}/libtukzmon.so'"
-	echo "  sudo ln -sfn '${dest}/tukzmon.desktop' '${sharedir}/tukzmon.desktop'"
-	echo "Then add it with the panel's right-click menu, Panel, Add New Items, tukzmon."
-fi
+fLink() {
+	[[ "$(readlink "${2}" || true)" == "${1}" ]] && return 0
+	echo "Linking ${2} (sudo)"
+	sudo ln -sfn "${1}" "${2}"
+}
+fLink "${dest}/libtukzmon.so" "${libdir}/libtukzmon.so"
+fLink "${dest}/tukzmon.desktop" "${sharedir}/tukzmon.desktop"
 
-if [[ "${1:-}" == "--restart" ]]; then
+if [[ "${1:-}" != "--no-restart" ]] && pgrep -x -u "${UID}" xfce4-panel > /dev/null; then
 	xfce4-panel --restart
-elif [[ "${missing}" == "0" ]]; then
-	echo "A plugin already in the panel keeps the old build until: xfce4-panel --restart"
+fi
+if ! grep -q 'tukzmon$' <<< "$(xfconf-query -c xfce4-panel -lv 2> /dev/null || true)"; then
+	echo "Not in a panel yet. Add it with the panel's right-click menu, Panel, Add New Items, tukzmon."
 fi

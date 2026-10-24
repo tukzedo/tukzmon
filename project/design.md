@@ -65,7 +65,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - The plugin reads the settings file again when its modified time changes, checked at every sample. That's how a save in the settings window shows up.
 
-- A `.desktop` file tells the panel where the plugin is. XFCE 4.20 reads them only from `/usr/share/xfce4/panel/plugins`, and the library only from `xfce4/panel/plugins` under the system lib dir. `XDG_DATA_DIRS` and `~/.local` aren't searched, so even a build for one user needs root once. `utility/dev-install.bash` installs to `~/.local/lib/tukzmon` and prints the 2 symlinks to make.
+- A `.desktop` file tells the panel where the plugin is. XFCE 4.20 reads them only from `/usr/share/xfce4/panel/plugins`, and the library only from `xfce4/panel/plugins` under the system lib dir. `XDG_DATA_DIRS` and `~/.local` aren't searched, so even a build for one user needs root once. `utility/dev-install.bash` installs to `~/.local/lib/tukzmon`, makes the 2 symlinks with sudo when they're missing, and restarts the panel.
 
 - If Rust can't be used for some reason, the fallback is the same split, with the C file growing into the whole plugin.
 
