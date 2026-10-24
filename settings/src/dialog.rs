@@ -316,6 +316,18 @@ impl Dialog {
 		self.touch(THEME);
 	}
 
+	/// Random colors for every graph, as changes on the theme in force, so
+	/// Save as keeps them and picking a theme drops them.
+	pub fn randomize(&mut self) {
+		self.randomize_from(crate::dice::fresh_seed());
+	}
+
+	pub fn randomize_from(&mut self, seed: u64) {
+		for (id, v) in crate::dice::theme(seed) {
+			self.set(id, &Value::Text(v));
+		}
+	}
+
 	pub fn state(&self, id: &str) -> RowState {
 		let v = self.model.value(id, &NoEnv);
 		let number = v.as_f64();
@@ -707,6 +719,38 @@ mod tests {
 		assert_eq!(config::Look::load(&path).cpu_mode, config::Mode::Gradient);
 		let text = std::fs::read_to_string(&path).unwrap();
 		assert!(text.contains("cpu_mode: gradient"), "{text}");
+	}
+
+	#[test]
+	fn randomize_changes_every_color_on_the_theme_and_turns_off_the_gradient() {
+		let d = scratch("dice");
+		let path = d.0.join("t.shcl");
+		let mut dlg = Dialog::open(path.clone());
+		assert!(dlg.set_text("theme", "fire"));
+		dlg.randomize_from(42);
+		assert_eq!(dlg.state("theme").choice, "Fire *");
+		assert_eq!(dlg.state("cpu_mode").text, "detailed");
+		assert!(dlg.state("user").shown && !dlg.state("cpu_high").shown);
+		let rolled = crate::dice::theme(42);
+		for (id, v) in &rolled {
+			assert_eq!(&dlg.state(id).text, v, "{id}");
+		}
+		// another roll, then Save as keeps that one whole
+		let first_user = dlg.state("user").text;
+		dlg.randomize_from(43);
+		assert_ne!(dlg.state("user").text, first_user);
+		dlg.save_theme_as("Lucky").unwrap();
+		dlg.apply().unwrap();
+		let mut dlg = Dialog::open(path.clone());
+		assert_eq!(dlg.state("theme").choice, "Lucky");
+		for (id, v) in crate::dice::theme(43) {
+			assert_eq!(dlg.state(id).text, v, "{id}");
+		}
+		// picking a theme drops a roll
+		dlg.randomize_from(44);
+		assert!(dlg.set_text("theme", "default"));
+		assert_eq!(dlg.state("user").text, "#00ff80");
+		assert_eq!(dlg.state("theme").choice, "Default");
 	}
 
 	#[test]

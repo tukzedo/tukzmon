@@ -79,6 +79,7 @@ pub mod ffi {
 		fn save_theme_as(d: &mut Dialog, name: &str) -> String;
 		fn rename_theme(d: &mut Dialog, name: &str) -> String;
 		fn delete_theme(d: &mut Dialog);
+		fn randomize_theme(d: &mut Dialog);
 		fn pick_open(d: &mut Dialog, id: &str) -> bool;
 		fn pick_state(d: &Dialog) -> PickState;
 		fn pick_set(d: &mut Dialog, h: f64, s: f64, v: f64);
@@ -206,6 +207,10 @@ fn rename_theme(d: &mut Dialog, name: &str) -> String {
 
 fn delete_theme(d: &mut Dialog) {
 	d.delete_theme();
+}
+
+fn randomize_theme(d: &mut Dialog) {
+	d.randomize();
 }
 
 fn pick_open(d: &mut Dialog, id: &str) -> bool {

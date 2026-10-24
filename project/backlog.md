@@ -313,6 +313,36 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-24: new values only, for the 4 new theme rows and Fire. `config::tests::the_default_theme_is_the_row_defaults` members went from 8 to 12, and it now takes a dropdown for a `_mode` member where it took only colors. `saved_themes_write_whole_and_read_back` went from 8 values to 12. `a_saved_theme_is_listed_after_the_built_ins_and_sets_the_look` lists `fire` after `blue_pastel`. In `dialog::tests`, `save_as_keeps_the_colors_whole_and_picks_the_new_theme` finds Night seventh, not sixth, and counts 11 colors, not 8. `rename_and_delete` counts 8 options, not 7, and `a_theme_saved_by_hand_meanwhile_survives` 9, not 8.
 		- Swept: every `Frame` built (the plugin, the preview example and the render tests), and every use of the theme group's members, which now take a mode as well as colors (`saved_themes`, `theme_problems`, `shown_colors`, the picker, and `unthemed`).
 
+- Randomize button on the Themes tab
+	- ID: 2026102409400700
+	- Type: Feature
+	- Status: Waiting on UAT
+		- Whether the rolls look good together is for a person to judge.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Needs hand testing: on b23, open Settings, go to Themes, and press Randomize a few times, with Apply each time, and look at the panel graph. Then Save as one you like, and pick Default to drop a roll.
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304612
+	- Prereq IDs: 2026102409400684, 2026102409400695
+	- Requirements:
+		- [Randomize] on the Themes tab's top row sets random colors for every graph, by the parent's rules: one coordinated scheme around the user color, alarming colors for stats to watch, muted ones for nice, buffers and cache, and never Gradient mode.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- Randomize sits after Delete on the Themes top row. It sets every color and the mode as changes on the theme in force, so the dropdown says "Name *", Save as keeps the roll, and picking a theme drops it.
+		- The user color leads at any hue off red and orange. Nice, Low and the background are that hue or one near it, muted. I/O wait stays red and system orange. A roll is always Detailed, with a gradient ready from nice through user to a pale tint.
+		- `design.md` Theme and Settings window have the details.
+		- Verified: the Themes tab drew Randomize after Delete on the top row.
+	- Decisions:
+		- A roll is a change on the theme in force, not a switch to Custom, the same as a color changed by hand.
+		- I/O wait and system stay red and orange, as the presets decided, and the lead hue keeps clear of them.
+		- The hover line stays black, as in every built-in.
+		- Every theme member has a role in `settings/src/dice.rs`. A new graph's members fail a test until they get one.
+	- Branch: round-1024
+	- Test case: `dice::tests::every_theme_member_has_a_role`, `every_roll_is_a_value_its_setting_takes_and_never_a_gradient`, `the_lead_rules_and_the_alarms_stay_red_and_orange`, `the_quiet_ones_are_muted_and_near_the_lead`, `the_gradient_runs_from_calm_through_the_lead` and `a_seed_rolls_the_same_theme_and_seeds_differ`, over 2000 seeds each, and `dialog::tests::randomize_changes_every_color_on_the_theme_and_turns_off_the_gradient`. Each fails with its rule broken: the mode set to gradient, the lead hue let into red, a member left out, nice as bright as user, and Randomize doing nothing.
+		- Swept: every member of the theme group, which the role test walks, and the one theme button row in qt.cpp.
+
 - Core library and Linux collectors
 	- ID: 2026101916013884
 	- Type: Feature
@@ -455,18 +485,6 @@ Sorted per the notes in [Template](#template).
 		- Global setting to make background transparent, which overrides all background colors.
 	- Progress log:
 		- Split into 6 children, in this order: 2026102409400679 (theme presets and Default), 2026102409400684 (Themes tab and its top row), 2026102409400689 (color picker), 2026102409400695 (Gradient mode and Fire), 2026102409400700 (Randomize), and 2026102409400705 (transparent background).
-
-- Randomize button on the Themes tab
-	- ID: 2026102409400700
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-094007
-	- Opened by: t00mietum
-	- Parent ID: 2026102408304612
-	- Prereq IDs: 2026102409400684, 2026102409400695
-	- Requirements:
-		- [Randomize] on the Themes tab's top row sets random colors for every graph, by the parent's rules: one coordinated scheme around the user color, alarming colors for stats to watch, muted ones for nice, buffers and cache, and never Gradient mode.
 
 - Transparent background setting
 	- ID: 2026102409400705

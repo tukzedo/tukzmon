@@ -10,6 +10,7 @@ use std::process::ExitCode;
 #[cfg(feature = "qt")]
 mod bridge;
 mod dialog;
+mod dice;
 mod pick;
 
 const USAGE: &str = "Usage: tukzmon-settings [--config FILE]

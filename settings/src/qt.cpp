@@ -649,11 +649,15 @@ private:
 		auto *saveAs = new QPushButton("Save as...");
 		renameTheme = new QPushButton("Rename...");
 		deleteTheme = new QPushButton("Delete");
+		auto *dice = new QPushButton("Randomize");
 		saveTheme->setToolTip("Keep the colors changed here in this theme.");
 		saveAs->setToolTip("Keep the colors showing as a new theme of your own.");
 		renameTheme->setToolTip("Give this theme another name.");
 		deleteTheme->setToolTip("Delete this theme. Default is picked in its place.");
-		for (auto *b : {saveTheme, saveAs, renameTheme, deleteTheme})
+		dice->setToolTip("Random colors for every graph, in one scheme around the User color, with the "
+						 "ones to watch kept red and orange. They're changes on this theme, so Save as keeps "
+						 "them and picking a theme drops them.");
+		for (auto *b : {saveTheme, saveAs, renameTheme, deleteTheme, dice})
 			b->setAutoDefault(false);
 		connect(saveTheme, &QPushButton::clicked, this, [this] {
 			save_theme(d);
@@ -670,12 +674,16 @@ private:
 			delete_theme(d);
 			refresh();
 		});
+		connect(dice, &QPushButton::clicked, this, [this] {
+			randomize_theme(d);
+			refresh();
+		});
 		auto *w = new QWidget;
 		auto *h = new QHBoxLayout(w);
 		h->setContentsMargins(0, 0, 0, 0);
 		h->addWidget(combo);
 		h->addSpacing(12);
-		for (auto *b : {saveTheme, saveAs, renameTheme, deleteTheme})
+		for (auto *b : {saveTheme, saveAs, renameTheme, deleteTheme, dice})
 			h->addWidget(b);
 		h->addStretch(1);
 		return w;
