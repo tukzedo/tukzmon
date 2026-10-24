@@ -90,6 +90,7 @@ unsafe extern "C" {
 	pub fn xfce_panel_plugin_get_type() -> GType;
 	pub fn xfce_panel_plugin_get_size(plugin: *mut c_void) -> c_int;
 	pub fn xfce_panel_plugin_get_mode(plugin: *mut c_void) -> c_int;
+	pub fn xfce_panel_plugin_get_unique_id(plugin: *mut c_void) -> c_int;
 	pub fn xfce_panel_plugin_menu_show_configure(plugin: *mut c_void);
 	pub fn xfce_panel_plugin_add_action_widget(plugin: *mut c_void, widget: *mut c_void);
 }

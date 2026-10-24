@@ -81,6 +81,30 @@ settings:
 		path: graph.border
 		default: 1
 
+	HistoryHead:
+		label: History
+		tab: Graph
+		control: heading
+
+	keep_history:
+		label: Keep across restarts
+		tab: Graph
+		control: checkbox
+		path: history.keep
+		default: true
+		tip: "Save the graph's history and load it back when the panel starts, with the time it wasn't running left as a gap. Off stops saving, but what's already saved is kept for when it's turned back on."
+
+	max_days:
+		label: Max age in days
+		tab: Graph
+		control: number
+		whole: true
+		range: 1, 36500
+		path: history.max_days
+		default: 365
+		gate: keep_history
+		tip: "History older than this is dropped."
+
 	CpuHead:
 		label: "CPU, from the bottom up"
 		tab: Colors

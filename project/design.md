@@ -165,7 +165,12 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - Rough size at tier 4: 8,760 buckets a year, times about 25 series, times 12 bytes, so that way it comes to about 2.6 MB a year. Each bucket adds 20 bytes for its seconds and its start and end.
 
-- History is to be saved under `$XDG_DATA_HOME/tukzmon/`, one file per plugin instance. On start the file is read back, and the time since the last sample becomes a gap. Both reloads can be turned off in settings. The proof of concept keeps history in memory only.
+- History is saved under `$XDG_DATA_HOME/tukzmon/`, as `plugin-<id>.hist`, one file per plugin instance. On start the file is read back, and the time since the last sample becomes a gap.
+	- It's written every 15 minutes and when the panel quits, to a temp file renamed over the old one. A crash loses at most the 15 minutes.
+	- The file holds a named section per graph. A file from other tiers, or one that doesn't read whole, is skipped. The graph starts fresh, and the next save replaces it.
+	- Times are Unix seconds, so runs line up. A clock set back to before the saved history is moved up to its end, so new samples aren't dropped as old.
+	- "Keep across restarts" turns it off. Off stops saving and loading, and leaves the file as it is. Turned back on, the file is loaded again, so what was seen while it was off is a gap.
+	- History older than the max age, 365 days by default, is dropped at each save and load.
 
 ## Time axis
 

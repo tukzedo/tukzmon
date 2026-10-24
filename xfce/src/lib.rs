@@ -7,10 +7,11 @@
 use std::ffi::{CStr, CString, c_char, c_int, c_uint, c_ulong, c_void};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
-use std::time::SystemTime;
+use std::time::{Duration, Instant, SystemTime};
 
 use tukzmon_core::Graph;
 use tukzmon_core::config::{self, Look};
+use tukzmon_core::keep;
 
 mod sys;
 #[allow(clippy::wildcard_imports, reason = "sys is only the C declarations")]
@@ -26,7 +27,12 @@ struct Plugin {
 	config_time: Option<SystemTime>,
 	tip: String,
 	settings: Option<Child>,
+	history: PathBuf,
+	saved_at: Instant,
 }
+
+/// A crash loses at most this much history.
+const SAVE_EVERY: Duration = Duration::from_secs(15 * 60);
 
 fn modified(p: &Path) -> Option<SystemTime> {
 	std::fs::metadata(p).and_then(|m| m.modified()).ok()
@@ -52,6 +58,23 @@ impl Plugin {
 		self.timer = unsafe { g_timeout_add(self.timer_ms, tick, std::ptr::from_mut(self).cast()) };
 	}
 
+	fn load_history(&mut self) {
+		match self.graph.load(&self.history) {
+			Ok(()) => {}
+			Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+			Err(e) => eprintln!("tukzmon: can't read {}: {e}", self.history.display()),
+		}
+		self.saved_at = Instant::now();
+	}
+
+	fn save_history(&mut self) {
+		self.graph.trim();
+		if let Err(e) = self.graph.save(&self.history) {
+			eprintln!("tukzmon: can't save {}: {e}", self.history.display());
+		}
+		self.saved_at = Instant::now();
+	}
+
 	/// Pick up a save from the settings window.
 	fn reload_if_changed(&mut self) {
 		let t = modified(&self.config);
@@ -62,7 +85,16 @@ impl Plugin {
 		let look = Look::load(&self.config);
 		if look != self.graph.look {
 			let refit = look.width != self.graph.look.width;
+			let keep = (self.graph.look.keep, look.keep);
+			if keep == (true, false) {
+				// what came in while it was on still counts
+				self.save_history();
+			}
 			self.graph.look = look;
+			if keep == (false, true) {
+				// nothing seen while it was off is logged, per backlog 2026102408304572
+				self.load_history();
+			}
 			if refit {
 				self.fit();
 			}
@@ -82,6 +114,9 @@ extern "C" fn tick(data: *mut c_void) -> Gboolean {
 	}
 	p.reload_if_changed();
 	p.graph.sample();
+	if p.graph.look.keep && p.saved_at.elapsed() >= SAVE_EVERY {
+		p.save_history();
+	}
 	let tip = p.graph.tooltip();
 	if tip != p.tip {
 		if let Ok(c) = CString::new(tip.as_str()) {
@@ -182,7 +217,10 @@ extern "C" fn configure(_plugin: *mut c_void, data: *mut c_void) {
 
 extern "C" fn free_data(_plugin: *mut c_void, data: *mut c_void) {
 	// SAFETY: data came from Box::into_raw in construct, and this is its last use.
-	let p = unsafe { Box::from_raw(data.cast::<Plugin>()) };
+	let mut p = unsafe { Box::from_raw(data.cast::<Plugin>()) };
+	if p.graph.look.keep {
+		p.save_history();
+	}
 	if p.timer != 0 {
 		// SAFETY: the timer id is ours and still running.
 		unsafe { g_source_remove(p.timer) };
@@ -201,7 +239,15 @@ fn construct(plugin: *mut c_void) {
 		config,
 		tip: String::new(),
 		settings: None,
+		// SAFETY: plugin is a live XfcePanelPlugin.
+		history: keep::data_dir().join(format!("plugin-{}.hist", unsafe {
+			xfce_panel_plugin_get_unique_id(plugin)
+		})),
+		saved_at: Instant::now(),
 	});
+	if p.graph.look.keep {
+		p.load_history();
+	}
 	// SAFETY: plugin is a fresh XfcePanelPlugin, and every handler gets the
 	// boxed Plugin, which outlives them all until free-data.
 	unsafe {

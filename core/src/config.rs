@@ -78,6 +78,9 @@ pub struct Look {
 	/// 0 to 1.
 	pub spikes: f32,
 	pub border: u32,
+	/// Save history and load it back on start.
+	pub keep: bool,
+	pub max_days: u32,
 	/// In `cpu::SERIES` order, bottom first.
 	pub cpu: [Rgb; 4],
 	pub border_color: Rgb,
@@ -101,6 +104,8 @@ impl Look {
 			sample_ms: num("sample_ms") as u32,
 			spikes: (num("spikes") / 100.0) as f32,
 			border: num("border") as u32,
+			keep: m.value("keep_history", &NoEnv).as_bool(),
+			max_days: num("max_days") as u32,
 			cpu: [
 				color("iowait"),
 				color("system"),
@@ -193,6 +198,17 @@ mod tests {
 		assert_eq!((l.width, l.sample_ms, l.border), (128, 500, 1));
 		assert!(l.log_axis);
 		assert_eq!(l.spikes, 0.5);
+	}
+
+	#[test]
+	fn history_is_kept_a_year_by_default() {
+		let l = Look::default();
+		assert!(l.keep);
+		assert_eq!(l.max_days, 365);
+		let text = "history:\n\tkeep: false\n\tmax_days: 0\n";
+		let l = Look::from_model(&Model::load(spec(), text, ""));
+		assert!(!l.keep);
+		assert_eq!(l.max_days, 365);
 	}
 
 	#[test]

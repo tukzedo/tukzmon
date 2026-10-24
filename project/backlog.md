@@ -77,6 +77,33 @@ Sorted per the notes in [Template](#template).
 	- Test case: `config::tests::slider_ranges_sit_inside_their_range` and `dialog::tests::the_box_takes_more_than_the_slider_reaches`. Both fail on the old spec and pass now. The tab look and buttons have no test.
 		- 2026-10-24: `dialog::tests::sliders_snap_to_detents_and_gates_turn_on` now gets the width setting through `Dialog::slider` instead of the spec, so it maps over the slider's range. What it checks is unchanged.
 
+- Option for persistent graph
+	- ID: 2026102408304572
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- It's on by default, and turning it back on reloads the file. Both are calls for a person to make.
+	- Needs hand testing: on b23, restart the panel and then reboot, and check that the graph comes back with a gap for the time it was down. Then turn "Keep across restarts" off for a minute and back on.
+	- Priority|Severity: High
+	- Opened: 20261024-082803
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013885
+	- Requirements:
+		- Max age (days); default 365.
+		- Note: Don't delete values when disabled, just don't log new ones until reenabled.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- History is saved to `$XDG_DATA_HOME/tukzmon/plugin-<id>.hist` every 15 minutes and when the panel quits, and read back on start. The time it was down is a gap.
+		- Settings has a History heading on the Graph tab, with "Keep across restarts" (on) and "Max age in days" (365).
+		- `design.md` History has the details.
+		- Verified: a panel stop and start kept the first run's history, and off left the file as it was. Turned back on, it reloaded, with a gap for the time it was off.
+	- Decisions:
+		- Off stops both saving and loading, and keeps the file. Turned back on, the file is loaded again, so what the graph showed while it was off is replaced by the saved history, with a gap for that stretch. That's how "don't log new ones" was read.
+		- Max age is dropped at each save and load, and only while it's on.
+		- Times are Unix seconds now, not seconds since start, so runs line up.
+	- Branch: round-1024
+	- Test case: `history::tests::encode_and_decode_give_back_the_same_history`, `decode_refuses_what_encode_wouldnt_write`, `trim_drops_only_what_is_older`, the 3 `keep::tests`, `tests::saved_history_comes_back_with_a_gap`, `a_clock_set_back_still_takes_new_samples`, `load_trims_to_the_max_age_and_refuses_junk`, and `config::tests::history_is_kept_a_year_by_default`.
+
 - Core library and Linux collectors
 	- ID: 2026101916013884
 	- Type: Feature
@@ -185,18 +212,6 @@ Sorted per the notes in [Template](#template).
 			- Can choose all disks, or specific drives.
 		- CPU Temperature; normal, critical on top of that when normal maxes out
 		- Battery; charging, discharging, discharging and critical level
-
-- Option for persistent graph
-	- ID: 2026102408304572
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-082803
-	- Opened by: t00mietum
-	- Related IDs: 2026101916013885
-	- Requirements:
-		- Max age (days); default 365.
-		- Note: Don't delete values when disabled, just don't log new ones until reenabled.
 
 - A dropdown for time function
 	- ID: 2026102408304586
