@@ -393,9 +393,13 @@ private:
 			}
 			if (r.combo) {
 				QSignalBlocker b(r.combo);
-				for (size_t i = 0; i < r.info.options.size(); i++)
-					if (qs(r.info.options[i]) == text)
+				for (size_t i = 0; i < r.info.options.size(); i++) {
+					const bool on = qs(r.info.options[i]) == text;
+					// a theme with changes on top says "Name *"
+					r.combo->setItemText(int(i), on && !st.choice.empty() ? qs(st.choice) : qs(r.info.option_labels[i]));
+					if (on)
 						r.combo->setCurrentIndex(int(i));
+				}
 				r.combo->setToolTip(tip);
 			}
 			if (r.line) {

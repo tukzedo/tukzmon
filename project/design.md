@@ -97,6 +97,13 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - Each color can be overridden in the settings window.
 
+- Every color is in one knobs preset group, `theme`, picked with the Theme dropdown at `theme.name`. The built-in themes are in `core/src/settings.shcl`: Default, then Green and Blue, each standard and pastel.
+	- A theme is named for the color that leads, the user share. Nice, the border and the background are that hue, muted. I/O wait and system stay red and orange in every theme, so trouble reads the same whichever is picked.
+	- Default is the earlier multiload-ng colors moved onto one hue, 150 degrees. System went from `#c64600` to `#c64200`, the border from `#40806a` to `#408060`, and the top from `#2a5446` to `#2a543f`.
+	- Each color row's default is Default's color, so Custom starts from it. `config::tests::the_default_theme_is_the_row_defaults` holds the two together.
+	- A color changed on a theme is kept apart from it, and the dropdown says "Name *", the way SilkTerm's does. Picking another theme drops those changes.
+	- knobs reads a color line at its own path as the Custom set. A file with colors and no theme line reads as Custom, so a hand edit or an older file isn't hidden under Default. A save names the theme whenever Custom colors are stored, even Default, or the file would read back as Custom.
+
 ## Panels and trays
 
 Can a status bar indicator be wide? For a tray icon, mostly no. For a panel plugin, yes.

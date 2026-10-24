@@ -180,6 +180,41 @@ Sorted per the notes in [Template](#template).
 	- Test case: `when::tests::ago_reads_like_the_backlog_says`, `said_parses_as_the_spec_spells_it` and `clock_gives_the_date_only_before_today`, `render::tests::the_hover_line_stays_off_the_border`, `tests::the_hover_tip_says_when_and_what`, `the_hover_tip_shows_gaps_and_no_history` and `the_hover_line_is_drawn_where_the_pointer_is`, and `config::tests::the_hover_settings_come_from_the_file`. The pointer events, and when GTK shows the tip, have no test.
 		- Swept: every `Graph::tooltip` caller, every `Look` built in a test, and every `gtk_widget_set_tooltip_text` call, of which none is left.
 
+- Theme presets, with a coordinated Default
+	- ID: 2026102409400679
+	- Type: Feature
+	- Status: Waiting on UAT
+		- How the built-in themes look is for a person to judge.
+		- It departs from the wording in one way. b23's file sets 2 colors with no theme line, so it opens as Custom, with exactly the colors it has now. Picking Default there gives the coordinated set.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Needs hand testing: on b23, open Settings, pick each theme on the Colors tab and Apply, and look at the panel graph. Then pick Default.
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304612
+	- Related IDs: 2026102408304559, 2026102408304625
+	- Requirements:
+		- A Theme dropdown that picks a named set of every graph color, backgrounds included, from the parent's requirements.
+		- "Default" is the current colors, moved onto one coordinated scheme close to them.
+		- A few built-in themes named by the color that dominates, such as "Green standard" and "Green pastel".
+		- A color changed by hand sits on top of the theme as a change, the way SilkTerm's do.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A Theme dropdown sits at the top of the Colors tab. It picks Default, Green standard, Green pastel, Blue standard, Blue pastel, or Custom.
+		- Default keeps the user and nice colors, and moves system, the border and the top a little, onto one hue. `design.md` Theme has the values and the rule behind them.
+		- A color changed on a theme shows "Name *" in the dropdown, and is kept with that theme across a save.
+		- Verified: in the window, a change on Blue standard showed "Blue standard *" with the revert arrow live on that row.
+	- Decisions:
+		- The themes use knobs' preset groups, the same model as SilkTerm's, so knobs is unchanged.
+		- A file with colors and no theme line reads as Custom, so a hand edit isn't hidden under Default. A save names the theme whenever Custom colors are stored.
+		- I/O wait and system stay red and orange in every built-in theme, so trouble reads the same in each.
+		- One theme for the whole panel for now. A theme per graph comes with the live graph list, 2026102408304639.
+	- Branch: round-1024
+	- Test case: `config::tests::the_default_theme_is_the_row_defaults`, `a_theme_sets_every_color`, `colors_with_no_theme_line_are_custom`, `a_change_on_a_theme_is_kept_with_it` and `back_to_default_from_custom_stays_default`, and `dialog::tests::a_theme_and_the_changes_on_it_are_saved` and `custom_then_the_revert_arrow_is_default_again`. The 2 back-to-Default tests fail with the theme naming taken out and pass with it.
+		- 2026-10-24: `config::tests::defaults_are_the_multiload_colors` got new values only. System went from `#c64600` to `#c64200`, the border from `#40806a` to `#408060`, and the top from `#2a5446` to `#2a543f`.
+		- Swept: every `Model::load`, `Look::load` and `Look::from_model` caller, and every color row in `settings.shcl`. The plugin reads through `Look::load`, and the window through `config::model`.
+
 - Core library and Linux collectors
 	- ID: 2026101916013884
 	- Type: Feature
@@ -320,6 +355,71 @@ Sorted per the notes in [Template](#template).
 					- E.g. a "Fire" theme: dim red, yellow-white, bright light blue. (Like a hot flame.)
 					- These get smoothly blended into a gradient, based on how high a pixel reaches into the graph.
 		- Global setting to make background transparent, which overrides all background colors.
+	- Progress log:
+		- Split into 6 children, in this order: 2026102409400679 (theme presets and Default), 2026102409400684 (Themes tab and its top row), 2026102409400689 (color picker), 2026102409400695 (Gradient mode and Fire), 2026102409400700 (Randomize), and 2026102409400705 (transparent background).
+
+- Themes tab, with Save, Save as, Rename and Delete
+	- ID: 2026102409400684
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304612
+	- Prereq IDs: 2026102409400679
+	- Requirements:
+		- A Themes tab, with a top row that stays while its sub-tabs change: Name [Dropdown], [Save] [Save as...] [Rename...] [Delete].
+		- Saved themes are kept whole in the config file, and listed in the dropdown after the built-in ones.
+		- Each graph's colors are on a sub-tab of their own.
+
+- Color picker in place of the toolkit's
+	- ID: 2026102409400689
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304612
+	- Requirements:
+		- Don't use the toolkit's color dialog. Use something more like SilkTerm's: a saturation and brightness square, a hue strip, value boxes, and Cancel and OK.
+		- Edits show at once, and Cancel puts the old color back.
+
+- Gradient mode per graph, and a Fire theme
+	- ID: 2026102409400695
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304612
+	- Prereq IDs: 2026102409400679, 2026102409400684
+	- Requirements:
+		- At the top of each graph's sub-tab: ( ) Detailed ( ) Gradient.
+		- Gradient takes 3 colors, Low, Medium and High, blended smoothly by how high a pixel reaches into the graph.
+		- A built-in "Fire" theme: dim red, yellow-white, bright light blue.
+
+- Randomize button on the Themes tab
+	- ID: 2026102409400700
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304612
+	- Prereq IDs: 2026102409400684, 2026102409400695
+	- Requirements:
+		- [Randomize] on the Themes tab's top row sets random colors for every graph, by the parent's rules: one coordinated scheme around the user color, alarming colors for stats to watch, muted ones for nice, buffers and cache, and never Gradient mode.
+
+- Transparent background setting
+	- ID: 2026102409400705
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304612
+	- Requirements:
+		- One global setting that makes the graph background transparent, over every theme's background colors.
 
 - Memory graph
 	- ID: 2026102408304625

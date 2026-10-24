@@ -35,6 +35,7 @@ pub mod ffi {
 		can_reset: bool,
 		counts: bool,
 		tip: String,
+		choice: String,
 	}
 
 	extern "Rust" {
@@ -103,6 +104,7 @@ fn row_state(d: &Dialog, id: &str) -> ffi::RowState {
 		can_reset: s.can_reset,
 		counts: s.counts,
 		tip: s.tip,
+		choice: s.choice,
 	}
 }
 

@@ -22,6 +22,8 @@ pub struct RowState {
 	pub can_reset: bool,
 	pub counts: bool,
 	pub tip: String,
+	/// What a dropdown shows, with " *" on a theme changed on top of.
+	pub choice: String,
 }
 
 pub struct Dialog {
@@ -79,7 +81,7 @@ impl Dialog {
 	pub fn open(path: PathBuf) -> Dialog {
 		let spec = config::spec();
 		let text = read(&path).unwrap_or_default();
-		let model = Model::load(Arc::clone(&spec), &text, "");
+		let model = config::model(&text);
 		let short_sliders = spec
 			.settings
 			.iter()
@@ -150,6 +152,10 @@ impl Dialog {
 			can_reset: self.model.can_reset(id, &NoEnv),
 			counts: self.model.counts(id, &NoEnv),
 			tip,
+			choice: match self.spec.get(id) {
+				Some(s) if s.control == Control::Dropdown => self.model.shown_choice(id, &NoEnv),
+				_ => String::new(),
+			},
 		}
 	}
 
@@ -226,7 +232,7 @@ impl Dialog {
 				lose.join("\n")
 			));
 		}
-		let mut fresh = Model::load(Arc::clone(&self.spec), &text, "");
+		let mut fresh = config::model(&text);
 		for id in &self.touched {
 			if self.model.can_reset(id, &NoEnv) {
 				fresh.set(id, &self.model.value(id, &NoEnv), &NoEnv);
@@ -234,6 +240,7 @@ impl Dialog {
 				fresh.reset(id, &NoEnv);
 			}
 		}
+		config::name_the_theme(&mut fresh);
 		let (body, _) = fresh.save(&NoEnv);
 		let Some(file) = self.path.to_str() else {
 			return Err(format!(
@@ -379,6 +386,44 @@ mod tests {
 		// changing a row under a switch turns the switch back on
 		assert!(dlg.set_text("spikes", "20"));
 		assert!(dlg.state("log_axis").on);
+	}
+
+	#[test]
+	fn a_theme_and_the_changes_on_it_are_saved() {
+		let d = scratch("theme");
+		let path = d.0.join("t.shcl");
+		let mut dlg = Dialog::open(path.clone());
+		assert_eq!(dlg.state("theme").choice, "Default");
+		assert!(dlg.state("width").choice.is_empty());
+		assert!(dlg.set_text("theme", "blue_standard"));
+		assert_eq!(dlg.state("user").text, "#0080ff");
+		assert!(dlg.set_text("user", "#111111"));
+		assert_eq!(dlg.state("theme").choice, "Blue standard *");
+		dlg.apply().unwrap();
+		let dlg = Dialog::open(path.clone());
+		assert_eq!(dlg.state("theme").choice, "Blue standard *");
+		assert_eq!(dlg.state("user").text, "#111111");
+		assert_eq!(dlg.state("nice").text, "#20405f");
+	}
+
+	#[test]
+	fn custom_then_the_revert_arrow_is_default_again() {
+		let d = scratch("custom");
+		let path = d.0.join("t.shcl");
+		let mut dlg = Dialog::open(path.clone());
+		assert!(dlg.set_text("theme", "custom"));
+		assert!(dlg.set_text("user", "#123456"));
+		dlg.apply().unwrap();
+		assert_eq!(
+			config::Look::load(&path).cpu[2],
+			config::Rgb(0x12, 0x34, 0x56)
+		);
+		dlg.reset("theme");
+		dlg.apply().unwrap();
+		let dlg = Dialog::open(path.clone());
+		assert_eq!(dlg.state("theme").choice, "Default");
+		assert_eq!(dlg.state("user").text, "#00ff80");
+		assert!(!dlg.dirty());
 	}
 
 	#[test]

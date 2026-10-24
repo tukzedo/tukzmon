@@ -6,6 +6,9 @@
 ##
 ## slider_range is ours, not knobs'. It's how far a slider reaches, while
 ## range is what can be typed in the box beside it.
+##
+## Every color is in the theme group. A row's default is the Default theme's
+## color, and config::tests holds the two to each other.
 
 tabs: "Graph", "Colors"
 
@@ -126,6 +129,14 @@ settings:
 		gate: keep_history
 		tip: "History older than this is dropped."
 
+	theme:
+		label: Theme
+		tab: Colors
+		control: dropdown
+		path: theme.name
+		default: default
+		tip: "A set of colors for the graph and its background. A color changed below is kept on top of the theme, and the theme's name gets a * after it."
+
 	CpuHead:
 		label: "CPU, from the bottom up"
 		tab: Colors
@@ -137,13 +148,15 @@ settings:
 		control: color
 		path: cpu.colors.iowait
 		default: "#ff0000"
+		group: theme
 
 	system:
 		label: System
 		tab: Colors
 		control: color
 		path: cpu.colors.system
-		default: "#c64600"
+		default: "#c64200"
+		group: theme
 		tip: "Kernel time, including interrupts."
 
 	user:
@@ -152,6 +165,7 @@ settings:
 		control: color
 		path: cpu.colors.user
 		default: "#00ff80"
+		group: theme
 
 	nice:
 		label: Nice
@@ -159,6 +173,7 @@ settings:
 		control: color
 		path: cpu.colors.nice
 		default: "#205f40"
+		group: theme
 		tip: "Programs running at a lower priority."
 
 	BackHead:
@@ -171,14 +186,16 @@ settings:
 		tab: Colors
 		control: color
 		path: graph.colors.border
-		default: "#40806a"
+		default: "#408060"
+		group: theme
 
 	back_top:
 		label: Top
 		tab: Colors
 		control: color
 		path: graph.colors.top
-		default: "#2a5446"
+		default: "#2a543f"
+		group: theme
 
 	back_bottom:
 		label: Bottom
@@ -186,6 +203,7 @@ settings:
 		control: color
 		path: graph.colors.bottom
 		default: "#000000"
+		group: theme
 
 	hover_color:
 		label: Hover line
@@ -193,4 +211,67 @@ settings:
 		control: color
 		path: graph.colors.hover
 		default: "#000000"
+		group: theme
 		tip: "The line under the pointer."
+
+## Themes are named for the color that leads, the user share, which sets the
+## hue. Nice, the border and the background are that hue muted. I/O wait and
+## system stay red and orange in every theme, so trouble reads the same.
+
+groups:
+
+	theme:
+		chooser: theme
+		noun: theme
+		custom: Custom
+		presets:
+			default:
+				label: Default
+				iowait: "#ff0000"
+				system: "#c64200"
+				user: "#00ff80"
+				nice: "#205f40"
+				border_color: "#408060"
+				back_top: "#2a543f"
+				back_bottom: "#000000"
+				hover_color: "#000000"
+			green_standard:
+				label: Green standard
+				iowait: "#ff0000"
+				system: "#c64200"
+				user: "#00ff00"
+				nice: "#205f20"
+				border_color: "#408040"
+				back_top: "#2a542a"
+				back_bottom: "#000000"
+				hover_color: "#000000"
+			green_pastel:
+				label: Green pastel
+				iowait: "#ff6161"
+				system: "#f09b71"
+				user: "#a1f0a1"
+				nice: "#6a8a6a"
+				border_color: "#7fa17f"
+				back_top: "#3a4a3a"
+				back_bottom: "#0f140f"
+				hover_color: "#000000"
+			blue_standard:
+				label: Blue standard
+				iowait: "#ff0000"
+				system: "#c64200"
+				user: "#0080ff"
+				nice: "#20405f"
+				border_color: "#406080"
+				back_top: "#2a3f54"
+				back_bottom: "#000000"
+				hover_color: "#000000"
+			blue_pastel:
+				label: Blue pastel
+				iowait: "#ff6161"
+				system: "#f09b71"
+				user: "#a1c8f0"
+				nice: "#6a7a8a"
+				border_color: "#7f90a1"
+				back_top: "#3a424a"
+				back_bottom: "#0f1214"
+				hover_color: "#000000"

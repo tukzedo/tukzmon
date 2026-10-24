@@ -54,6 +54,41 @@ pub fn slider_range(id: &str) -> Option<(f64, f64)> {
 		.map(|&(_, lo, hi)| (lo, hi))
 }
 
+/// The group every color is in, and the id of the dropdown that picks one.
+pub const THEME: &str = "theme";
+
+fn unthemed(m: &Model) -> bool {
+	m.spec.group(THEME).is_some_and(|g| {
+		!m.values.own.contains_key(&g.chooser)
+			&& g.members.iter().any(|id| m.values.own.contains_key(id))
+	})
+}
+
+/// Colors in a file with no theme line are from before themes, or a hand
+/// edit, so they read as Custom rather than hide under Default.
+/// [`name_the_theme`] keeps that from misreading a file saved here.
+pub fn unthemed_is_custom(m: &mut Model) {
+	if unthemed(m) {
+		m.set(THEME, &knobs::Value::Text(knobs::CUSTOM.into()), &NoEnv);
+	}
+}
+
+/// Before a save: knobs leaves out a theme pick that is the default, but
+/// still writes the Custom colors, which would read back as Custom.
+pub fn name_the_theme(m: &mut Model) {
+	if unthemed(m) {
+		let on = m.stored_choice(THEME, &NoEnv);
+		m.values.own.insert(THEME.into(), knobs::Value::Text(on));
+	}
+}
+
+/// A config file's text as a model, with [`unthemed_is_custom`] applied.
+pub fn model(text: &str) -> Model {
+	let mut m = Model::load(spec(), text, "");
+	unthemed_is_custom(&mut m);
+	m
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Rgb(pub u8, pub u8, pub u8);
 
@@ -102,7 +137,19 @@ impl Default for Look {
 }
 
 impl Look {
+	/// The model as read from a file, so [`unthemed_is_custom`] applies.
 	pub fn from_model(m: &Model) -> Look {
+		let custom;
+		let m = if unthemed(m) {
+			custom = {
+				let mut c = m.clone();
+				unthemed_is_custom(&mut c);
+				c
+			};
+			&custom
+		} else {
+			m
+		};
 		let num = |id: &str| m.value(id, &NoEnv).as_f64();
 		let color = |id: &str| Rgb::parse(m.value(id, &NoEnv).as_text()).unwrap_or(Rgb(0, 0, 0));
 		Look {
@@ -132,7 +179,7 @@ impl Look {
 	/// that setting's default.
 	pub fn load(path: &Path) -> Look {
 		let text = std::fs::read_to_string(path).unwrap_or_default();
-		Look::from_model(&Model::load(spec(), &text, ""))
+		Look::from_model(&model(&text))
 	}
 }
 
@@ -199,11 +246,11 @@ mod tests {
 	fn defaults_are_the_multiload_colors() {
 		let l = Look::default();
 		assert_eq!(l.cpu[0], Rgb(0xff, 0, 0));
-		assert_eq!(l.cpu[1], Rgb(0xc6, 0x46, 0));
+		assert_eq!(l.cpu[1], Rgb(0xc6, 0x42, 0));
 		assert_eq!(l.cpu[2], Rgb(0, 0xff, 0x80));
 		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x40));
-		assert_eq!(l.border_color, Rgb(0x40, 0x80, 0x6a));
-		assert_eq!(l.top, Rgb(0x2a, 0x54, 0x46));
+		assert_eq!(l.border_color, Rgb(0x40, 0x80, 0x60));
+		assert_eq!(l.top, Rgb(0x2a, 0x54, 0x3f));
 		assert_eq!(l.bottom, Rgb(0, 0, 0));
 		assert_eq!((l.width, l.sample_ms, l.border), (128, 500, 1));
 		assert!(l.log_axis);
@@ -211,6 +258,87 @@ mod tests {
 		assert_eq!(l.spikes, 0.5);
 		assert_eq!(l.hover, Rgb(0, 0, 0));
 		assert_eq!(l.said, Said::Ago);
+	}
+
+	#[test]
+	fn the_default_theme_is_the_row_defaults() {
+		let spec = spec();
+		let g = spec.group(THEME).unwrap();
+		assert_eq!(g.members.len(), 8);
+		let default = g.preset("default").unwrap();
+		assert_eq!(default.label, "Default");
+		for id in &g.members {
+			let s = spec.get(id).unwrap();
+			assert_eq!(s.control, knobs::Control::Color, "{id}");
+			assert_eq!(default.values.get(id), Some(&s.default), "{id}");
+		}
+		// every color row is in it
+		for s in &spec.settings {
+			if s.control == knobs::Control::Color {
+				assert!(g.members.contains(&s.id), "{}", s.id);
+			}
+		}
+	}
+
+	#[test]
+	fn a_theme_sets_every_color() {
+		let l = Look::from_model(&model("theme:\n\tname: blue_pastel\n"));
+		assert_eq!(l.cpu[2], Rgb(0xa1, 0xc8, 0xf0));
+		assert_eq!(l.bottom, Rgb(0x0f, 0x12, 0x14));
+		assert_eq!(l.width, 128);
+		assert_eq!(
+			Look::from_model(&model("theme:\n\tname: plaid\n")),
+			Look::default()
+		);
+	}
+
+	#[test]
+	fn colors_with_no_theme_line_are_custom() {
+		let text = "cpu:\n\tcolors:\n\t\tuser: \"#123456\"\n";
+		let m = model(text);
+		assert_eq!(m.chosen(THEME, &NoEnv), knobs::CUSTOM);
+		assert_eq!(Look::from_model(&m).cpu[2], Rgb(0x12, 0x34, 0x56));
+		// the rest of Custom starts as Default
+		assert_eq!(Look::from_model(&m).cpu[3], Rgb(0x20, 0x5f, 0x40));
+		// with a theme named, they're its Custom set and wait
+		let text = format!("theme:\n\tname: default\n{text}");
+		let l = Look::from_model(&model(&text));
+		assert_eq!(l.cpu[2], Rgb(0, 0xff, 0x80));
+	}
+
+	#[test]
+	fn a_change_on_a_theme_is_kept_with_it() {
+		let mut m = model("theme:\n\tname: green_standard\n");
+		m.set("user", &knobs::Value::Text("#abcdef".into()), &NoEnv);
+		assert_eq!(m.shown_choice(THEME, &NoEnv), "Green standard *");
+		name_the_theme(&mut m);
+		let back = model(&m.save(&NoEnv).0);
+		assert_eq!(back.shown_choice(THEME, &NoEnv), "Green standard *");
+		let l = Look::from_model(&back);
+		assert_eq!(l.cpu[2], Rgb(0xab, 0xcd, 0xef));
+		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x20));
+	}
+
+	#[test]
+	fn back_to_default_from_custom_stays_default() {
+		let mut m = model("");
+		let text = |v: &str| knobs::Value::Text(v.into());
+		m.set(THEME, &text(knobs::CUSTOM), &NoEnv);
+		m.set("user", &text("#123456"), &NoEnv);
+		// the revert arrow, which is also how a save takes back a pick of the
+		// default; the Custom set is still written, so the theme has to be too
+		m.reset(THEME, &NoEnv);
+		assert_eq!(m.chosen(THEME, &NoEnv), "default");
+		name_the_theme(&mut m);
+		let saved = m.save(&NoEnv).0;
+		assert!(saved.contains("#123456"), "{saved}");
+		let back = model(&saved);
+		assert_eq!(back.chosen(THEME, &NoEnv), "default");
+		assert_eq!(Look::from_model(&back).cpu[2], Rgb(0, 0xff, 0x80));
+		// and nothing to name when there's no Custom set
+		let mut plain = model("");
+		name_the_theme(&mut plain);
+		assert_eq!(plain.save(&NoEnv).0.trim(), "");
 	}
 
 	#[test]
