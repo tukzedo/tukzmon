@@ -8,6 +8,8 @@ use std::sync::{Arc, OnceLock};
 
 use knobs::{Model, NoEnv, Spec};
 
+use crate::axis::Curve;
+
 pub const SPEC_TEXT: &str = include_str!("settings.shcl");
 
 /// The parsed spec. A test proves it parses, so a bad one never gets built.
@@ -74,6 +76,7 @@ impl Rgb {
 pub struct Look {
 	pub width: u32,
 	pub log_axis: bool,
+	pub curve: Curve,
 	pub sample_ms: u32,
 	/// 0 to 1.
 	pub spikes: f32,
@@ -101,6 +104,7 @@ impl Look {
 		Look {
 			width: num("width") as u32,
 			log_axis: m.value("log_axis", &NoEnv).as_bool(),
+			curve: Curve::parse(m.value("log_curve", &NoEnv).as_text()).unwrap_or_default(),
 			sample_ms: num("sample_ms") as u32,
 			spikes: (num("spikes") / 100.0) as f32,
 			border: num("border") as u32,
@@ -197,7 +201,25 @@ mod tests {
 		assert_eq!(l.bottom, Rgb(0, 0, 0));
 		assert_eq!((l.width, l.sample_ms, l.border), (128, 500, 1));
 		assert!(l.log_axis);
+		assert_eq!(l.curve, Curve::Smooth);
 		assert_eq!(l.spikes, 0.5);
+	}
+
+	#[test]
+	fn the_log_curve_comes_from_the_file() {
+		let pick = |v: &str| {
+			let text = format!("graph:\n\tlog_curve: {v}\n");
+			Look::from_model(&Model::load(spec(), &text, "")).curve
+		};
+		assert_eq!(pick("fixed_a"), Curve::FixedA);
+		assert_eq!(pick("Fixed_B"), Curve::FixedB);
+		assert_eq!(pick("wobbly"), Curve::Smooth);
+		// the tip's paragraph break is a real one
+		let tip = spec()
+			.get("log_curve")
+			.map(|s| s.tip.clone())
+			.unwrap_or_default();
+		assert!(tip.contains("\n\nLog A") && !tip.contains("\\n"), "{tip}");
 	}
 
 	#[test]

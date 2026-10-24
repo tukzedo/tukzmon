@@ -104,6 +104,41 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1024
 	- Test case: `history::tests::encode_and_decode_give_back_the_same_history`, `decode_refuses_what_encode_wouldnt_write`, `trim_drops_only_what_is_older`, the 3 `keep::tests`, `tests::saved_history_comes_back_with_a_gap`, `a_clock_set_back_still_takes_new_samples`, `load_trims_to_the_max_age_and_refuses_junk`, and `config::tests::history_is_kept_a_year_by_default`.
 
+- A dropdown for time function
+	- ID: 2026102408304586
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- Which curve reads best, and the names, are for a person to judge on a graph with days of history.
+		- It departs from the wording in 2 ways. Log B was read as the fixed divisions laid over the 5 s floor curve. And one tip covers all 3 choices and names the divisions, rather than a tip per item in the list.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Needs hand testing: on b23, open Settings and read the Log curve names and tip. Then switch between the 3 curves on a graph with a few days of history.
+	- Priority|Severity: High
+	- Opened: 20261024-082803
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013886
+	- Requirements:
+		- Pure log with a fixed 5 s floor (u = ln(1+age/5) / ln(1+total/5), where 5 s is the code's A0).
+			- With a better name.
+			- Default.
+		- Log A with fixed divisions. The existing formula. Show the divisions in its tooltip.
+		- Log B with fixed divisions. The existing formula. Show the divisions in its tooltip.
+			- Use a different formula: Pure log with a fixed 5 s floor (u = ln(1+age/5) / ln(1+total/5), where 5 s is the code's A0).
+				- Or just a less bunched-up log formula.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Settings has a Log curve dropdown under Log time axis, with Smooth log (the default), "Log A, fixed divisions", and "Log B, fixed divisions". Picking one turns the log axis on.
+		- Smooth log is the 5 s floor log across the whole run, with no divisions.
+		- Log A is the old curve. Log B keeps the divisions but places them on the Smooth log curve, so it matches Smooth log until a division fills, about 1.7 days in for the first.
+		- The settings window now opens tall enough for the whole Graph tab, which the new row had pushed into a scroll bar.
+		- `design.md` Time axis has the details.
+	- Decisions:
+		- The dropdown sits under the Log time axis checkbox rather than replacing it, so settings files keep working and a linear graph stays one click away.
+		- Saved as `graph.log_curve`: `smooth`, `fixed_a` or `fixed_b`. A file without it gets Smooth log, so b23's graph changes from Log A to Smooth log at the next install.
+	- Branch: round-1024
+	- Test case: `axis::tests::smooth_is_one_log_curve_with_no_caps`, `fixed_b_is_smooth_until_a_cap`, `caps_pin_when_the_tip_says` and `curves_parse_as_the_spec_spells_them`, with the other axis tests now run over all 3 curves. Also `config::tests::the_log_curve_comes_from_the_file`, `tests::log_axis_takes_the_chosen_curve`, and `dialog::tests::the_log_curve_sits_under_the_log_switch`. The window height has no test.
+		- Swept: every `Axis::log` and `Axis::knots` caller, in core, its tests, and the preview example. The plugin and settings build no axis of their own.
+
 - Core library and Linux collectors
 	- ID: 2026101916013884
 	- Type: Feature
@@ -212,23 +247,6 @@ Sorted per the notes in [Template](#template).
 			- Can choose all disks, or specific drives.
 		- CPU Temperature; normal, critical on top of that when normal maxes out
 		- Battery; charging, discharging, discharging and critical level
-
-- A dropdown for time function
-	- ID: 2026102408304586
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-082803
-	- Opened by: t00mietum
-	- Related IDs: 2026101916013886
-	- Requirements:
-		- Pure log with a fixed 5 s floor (u = ln(1+age/5) / ln(1+total/5), where 5 s is the code's A0).
-			- With a better name.
-			- Default.
-		- Log A with fixed divisions. The existing formula. Show the divisions in its tooltip.
-		- Log B with fixed divisions. The existing formula. Show the divisions in its tooltip.
-			- Use a different formula: Pure log with a fixed 5 s floor (u = ln(1+age/5) / ln(1+total/5), where 5 s is the code's A0).
-				- Or just a less bunched-up log formula.
 
 - Show snapshot time on mouseover
 	- ID: 2026102408304599

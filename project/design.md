@@ -176,11 +176,17 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - In log mode, the newest sample is at the right edge. Every pixel to the left covers more time than the one to its right, and the left edge is the oldest sample. Until the caps below kick in, the whole run is squeezed into the graph from the first second.
 
-- The graph is split into 4 quarters with caps. From the right, they cover at most 1 minute, the next 59 minutes, the next 23 hours, and then everything older.
+- There are 3 log curves, picked under Log curve in settings. Smooth log is the default.
+	- Smooth log is one curve over the whole run, `u = ln(1 + age / 5 s) / ln(1 + T / 5 s)`, with no caps. A year in, the right quarter covers about 4 minutes.
+	- Log A and Log B put caps on 4 quarters, as below. They differ in the free curve that places a boundary before its cap is reached.
+	- Log A is the first curve tukzmon had. Its free curve is scaled to the run, so the caps fill early.
+	- Log B's free curve is Smooth log, so it stays the same as Smooth log until a quarter fills its cap. The right quarter fills at about 1.7 days, the third at about 36 days, and the second at about 128 days.
+
+- With caps, the graph is split into 4 quarters. From the right, they cover at most 1 minute, the next 59 minutes, the next 23 hours, and then everything older.
 
 - Each quarter boundary is the smaller of where pure log mode would put it and its cap. Early on, no cap is reached and the graph is pure log. Once the right quarter would cover more than a minute, it's pinned at 1 minute and the other 3 quarters share the rest in log mode. The same happens at 1 hour and 1 day.
-	- Pure log is scaled to the run: age at `u` of the width, from the right, is `T * ((1 + K)^u - 1) / K`, with `K` at 50. So the right quarter covers about 3% of the run, and the caps start to pin at about 30 minutes, 8 hours, and 2.7 days.
-	- A fixed log, `ln(1 + age / a)` with `a` a second or so, never reaches the caps in a year, so it isn't used for the boundaries.
+	- For Log A, pure log is scaled to the run: age at `u` of the width, from the right, is `T * ((1 + K)^u - 1) / K`, with `K` at 50. So the right quarter covers about 3% of the run, and the caps pin at about 30 minutes, 18 hours, and 7 days.
+	- For Log B, it's the fixed log `ln(1 + age / 5 s)` of Smooth log, which pins much later, as above.
 
 - Within a quarter, time is still log scaled.
 

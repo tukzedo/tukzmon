@@ -37,7 +37,7 @@ fn main() {
 	}
 
 	let look = Look::default();
-	let axis = Axis::log(end);
+	let axis = Axis::log(look.curve, end);
 	let mut px = Vec::new();
 	Frame {
 		hist: &hist,

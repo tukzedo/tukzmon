@@ -124,6 +124,7 @@ impl<const N: usize> Frame<'_, N> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::axis::Curve;
 
 	fn look() -> Look {
 		Look {
@@ -164,7 +165,7 @@ mod tests {
 	#[test]
 	fn border_and_gradient_with_no_data() {
 		let h = History::<2>::default();
-		let px = draw(&h, &Axis::log(0.0), 10, 12);
+		let px = draw(&h, &Axis::log(Curve::FixedA, 0.0), 10, 12);
 		assert_eq!(px.len(), 120);
 		assert_eq!(px[0], 0xff09_0909);
 		assert_eq!(px[119], 0xff09_0909);
@@ -177,7 +178,7 @@ mod tests {
 	fn stack_heights_are_exact() {
 		// a quarter red, a half green, on a 10 px tall plot
 		let h = steady([0.25, 0.5], 120.0);
-		let px = draw(&h, &Axis::log(120.0), 22, 12);
+		let px = draw(&h, &Axis::log(Curve::FixedA, 120.0), 22, 12);
 		let col = 12;
 		let at = |row: usize| px[(row + 1) * 22 + col];
 		// rows counted from the bottom of the plot: 0..2.5 red, 2.5..7.5 green
@@ -223,7 +224,7 @@ mod tests {
 	fn tiny_and_borderless() {
 		let h = steady([0.5, 0.0], 10.0);
 		assert!(
-			draw(&h, &Axis::log(10.0), 2, 2)
+			draw(&h, &Axis::log(Curve::FixedA, 10.0), 2, 2)
 				.iter()
 				.all(|&p| p == 0xff09_0909)
 		);
@@ -233,7 +234,7 @@ mod tests {
 		};
 		let f = Frame {
 			hist: &h,
-			axis: &Axis::log(10.0),
+			axis: &Axis::log(Curve::FixedA, 10.0),
 			now: 10.0,
 			look: &l,
 			colors: &COLORS,

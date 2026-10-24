@@ -42,6 +42,17 @@ settings:
 		default: true
 		tip: "Squeeze older history to the left, so the last minute and the last day fit in one graph. Off gives a plain scrolling graph."
 
+	log_curve:
+		label: Log curve
+		tab: Graph
+		control: dropdown
+		options: smooth, fixed_a, fixed_b
+		option_labels: "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: graph.log_curve
+		default: smooth
+		gate: log_axis
+		tip: "How older history is squeezed. Smooth log is one log curve across the whole run, with each pixel covering a little more time than the one to its right.\n\nLog A and Log B split the graph into 4 fixed divisions. From the right, they cover at most the last minute, the next 59 minutes, the next 23 hours, and everything older. Log A fills them early: the first after about half an hour of history, and all 3 within a week. Log B follows Smooth log until a division fills, after about a day and a half for the first and 4 months for all 3."
+
 	sample_ms:
 		label: Sample every ms
 		tab: Graph

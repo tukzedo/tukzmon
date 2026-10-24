@@ -380,4 +380,20 @@ mod tests {
 		assert!(dlg.set_text("spikes", "20"));
 		assert!(dlg.state("log_axis").on);
 	}
+
+	#[test]
+	fn the_log_curve_sits_under_the_log_switch() {
+		let d = scratch("curve");
+		let path = d.0.join("t.shcl");
+		let mut dlg = Dialog::open(path.clone());
+		assert_eq!(dlg.state("log_curve").text, "smooth");
+		assert!(dlg.set_text("log_axis", "off"));
+		assert!(!dlg.state("log_curve").counts);
+		assert!(!dlg.set_text("log_curve", "squiggly"));
+		assert!(dlg.set_text("log_curve", "fixed_b"));
+		assert!(dlg.state("log_axis").on);
+		dlg.apply().unwrap();
+		let text = std::fs::read_to_string(&path).unwrap();
+		assert!(text.contains("log_curve: fixed_b"), "{text}");
+	}
 }

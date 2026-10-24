@@ -25,6 +25,7 @@
 #include <QMessageBox>
 #include <QPixmap>
 #include <QPushButton>
+#include <QScreen>
 #include <QRegularExpressionValidator>
 #include <QScrollArea>
 #include <QSignalBlocker>
@@ -62,6 +63,18 @@ void softenSelection(QWidget *w) {
 }
 
 constexpr int SLIDER_STEPS = 1000;
+
+// QScrollArea's own hint stops at about 24 lines, so a tall tab opened with a
+// scroll bar it had no need for.
+class FitScroll : public QScrollArea {
+public:
+	QSize sizeHint() const override {
+		QSize s = QScrollArea::sizeHint();
+		if (widget())
+			s.setHeight(std::max(s.height(), widget()->sizeHint().height() + 2 * frameWidth()));
+		return s;
+	}
+};
 
 struct Row {
 	RowInfo info;
@@ -242,7 +255,7 @@ private:
 			line++;
 		}
 		grid->setRowStretch(line, 1);
-		auto *scroll = new QScrollArea;
+		auto *scroll = new FitScroll;
 		scroll->setWidget(page);
 		scroll->setWidgetResizable(true);
 		scroll->setFrameShape(QFrame::NoFrame);
@@ -406,7 +419,10 @@ std::int32_t run_dialog(Dialog &d, rust::Str snapshot) {
 	QApplication app(argc, argv);
 	QApplication::setApplicationName("tukzmon-settings");
 	Window w(d);
-	w.resize(w.sizeHint().expandedTo(QSize(560, 420)));
+	QSize size = w.sizeHint().expandedTo(QSize(560, 420));
+	if (const QScreen *screen = w.screen())
+		size = size.boundedTo(screen->availableGeometry().size());
+	w.resize(size);
 	if (snapshot.empty())
 		return w.exec() == QDialog::Accepted ? 0 : 1;
 

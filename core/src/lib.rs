@@ -111,7 +111,7 @@ impl Graph {
 				(Some(a), Some(b)) => b - a,
 				_ => 0.0,
 			};
-			Axis::log(total)
+			Axis::log(self.look.curve, total)
 		} else {
 			Axis::linear(columns as f64 * self.look.sample_ms as f64 / 1000.0)
 		}
@@ -177,6 +177,17 @@ mod tests {
 			..Look::default()
 		});
 		assert_eq!(g.axis(100), Axis::linear(25.0));
+	}
+
+	#[test]
+	fn log_axis_takes_the_chosen_curve() {
+		let mut g = Graph::new(Look::default());
+		g.hist.add(0.0, 1.0, &[0.1; 4]);
+		g.hist.add(7200.0, 7201.0, &[0.1; 4]);
+		assert_eq!(g.axis(100), Axis::log(axis::Curve::Smooth, 7201.0));
+		g.look.curve = axis::Curve::FixedA;
+		assert_eq!(g.axis(100), Axis::log(axis::Curve::FixedA, 7201.0));
+		assert_ne!(g.axis(100), Axis::log(axis::Curve::Smooth, 7201.0));
 	}
 
 	fn scratch(name: &str) -> std::path::PathBuf {
