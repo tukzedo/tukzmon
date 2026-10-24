@@ -1,0 +1,19 @@
+[package]
+name = "tukzmon-core"
+description = "Collectors, history, time axis, and drawing for tukzmon"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+name = "tukzmon_core"
+
+[dependencies]
+knobs = { path = "../knobs" }
+shcl.workspace = true
+
+[lints]
+workspace = true

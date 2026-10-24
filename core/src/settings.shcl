@@ -1,0 +1,137 @@
+## tukzmon settings, read by the panel plugin and by tukzmon-settings.
+##
+## Compiled into both. The format is knobs', documented in knobs/src/lib.rs
+## and SilkTerm's knobs/demo/demo.shcl. Colors default to a customized
+## multiload-ng setup.
+
+tabs: "Graph", "Colors"
+
+settings:
+
+	SizeHead:
+		label: Size
+		tab: Graph
+		control: heading
+
+	width:
+		label: Width px
+		tab: Graph
+		control: slider
+		whole: true
+		range: 24, 1024
+		scale: log
+		path: graph.width
+		default: 128
+		detents: 64, 128, 256
+		tip: "How wide the graph is in the panel. Its height follows the panel."
+
+	TimeHead:
+		label: Time
+		tab: Graph
+		control: heading
+
+	log_axis:
+		label: Log time axis
+		tab: Graph
+		control: checkbox
+		path: graph.log_axis
+		default: true
+		tip: "Squeeze older history to the left, so the last minute and the last day fit in one graph. Off gives a plain scrolling graph."
+
+	sample_ms:
+		label: Sample every ms
+		tab: Graph
+		control: slider
+		whole: true
+		range: 100, 5000
+		scale: log
+		path: graph.sample_ms
+		default: 500
+		detents: 250, 500, 1000, 2000
+		tip: "How often the CPU is read and the graph redrawn."
+
+	spikes:
+		label: Spike emphasis %
+		tab: Graph
+		control: slider
+		whole: true
+		range: 0, 100
+		path: graph.spikes
+		default: 50
+		gate: log_axis
+		tip: "How far a squeezed column reaches toward its peak. It fades as a column covers more time, so short spikes melt into the background on the far left."
+
+	LookHead:
+		label: Frame
+		tab: Graph
+		control: heading
+
+	border:
+		label: Border px
+		tab: Graph
+		control: slider
+		whole: true
+		range: 0, 4
+		path: graph.border
+		default: 1
+
+	CpuHead:
+		label: "CPU, from the bottom up"
+		tab: Colors
+		control: heading
+
+	iowait:
+		label: I/O wait
+		tab: Colors
+		control: color
+		path: cpu.colors.iowait
+		default: "#ff0000"
+
+	system:
+		label: System
+		tab: Colors
+		control: color
+		path: cpu.colors.system
+		default: "#008000"
+		tip: "Kernel time, including interrupts."
+
+	user:
+		label: User
+		tab: Colors
+		control: color
+		path: cpu.colors.user
+		default: "#00ff80"
+
+	nice:
+		label: Nice
+		tab: Colors
+		control: color
+		path: cpu.colors.nice
+		default: "#c000c0"
+		tip: "Programs running at a lower priority."
+
+	BackHead:
+		label: Background
+		tab: Colors
+		control: heading
+
+	border_color:
+		label: Border
+		tab: Colors
+		control: color
+		path: graph.colors.border
+		default: "#40806a"
+
+	back_top:
+		label: Top
+		tab: Colors
+		control: color
+		path: graph.colors.top
+		default: "#2a5446"
+
+	back_bottom:
+		label: Bottom
+		tab: Colors
+		control: color
+		path: graph.colors.bottom
+		default: "#000000"
