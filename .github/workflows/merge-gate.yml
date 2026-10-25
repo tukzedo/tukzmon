@@ -1,0 +1,26 @@
+# The merge gate off this box: cicd.bash --merge-gate on a push or pull
+# request against main, or by hand on any branch. It builds the image from
+# cicd/container each time and runs the checks in it, as the pre-push hook
+# does locally. Linux only for now.
+name: merge-gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  merge-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: merge gate
+        env:
+          HOST_TEMP: ${{ runner.temp }}
+        run: cicd/cicd.bash --merge-gate

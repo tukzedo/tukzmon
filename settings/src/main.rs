@@ -4,6 +4,7 @@
 //! tukzmon-settings: the settings window, a program of its own so every panel
 //! and platform can share it.
 
+use std::fmt::Write as _;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -45,7 +46,7 @@ fn main() -> ExitCode {
 				return ExitCode::SUCCESS;
 			}
 			"--version" => {
-				println!("tukzmon-settings {}", version());
+				println!("{}\n{COPYRIGHT}", version());
 				return ExitCode::SUCCESS;
 			}
 			_ => {
@@ -59,16 +60,42 @@ fn main() -> ExitCode {
 	run(&mut d, &snapshot)
 }
 
-// "0.1.0 (2026-10-24)" for a dev build, in the local date of whoever asks.
+const COPYRIGHT: &str = "Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)";
+
 fn version() -> String {
-	let v = env!("CARGO_PKG_VERSION");
-	match env!("TUKZMON_BUILT").parse::<i64>() {
-		Ok(secs) if secs > 0 => match local_date(secs) {
-			Some(d) => format!("{v} ({d})"),
-			None => v.to_string(),
-		},
-		_ => v.to_string(),
+	version_line(
+		env!("TUKZMON_BUILT_MIN").parse().unwrap_or(0),
+		env!("TUKZMON_RELEASE") == "1",
+	)
+}
+
+// "tukzmon-settings v0.1.0 build decp8 (2026-10-24)". The build number is
+// minutes since 2000 in Crockford base 32, and a dev build adds the day in
+// the local time zone of whoever asks.
+fn version_line(minutes: u64, release: bool) -> String {
+	const DIGITS: &[u8; 32] = b"0123456789abcdefghjkmnpqrstvwxyz";
+	let mut build = Vec::new();
+	let mut n = minutes;
+	loop {
+		build.push(DIGITS[(n % 32) as usize]);
+		n /= 32;
+		if n == 0 {
+			break;
+		}
 	}
+	build.reverse();
+	let mut line = format!(
+		"tukzmon-settings v{} build {}",
+		env!("CARGO_PKG_VERSION"),
+		String::from_utf8_lossy(&build)
+	);
+	let day = i64::try_from(minutes)
+		.ok()
+		.and_then(|m| local_date(946_684_800 + m * 60));
+	if let (false, Some(d)) = (release, day) {
+		let _ = write!(line, " ({d})");
+	}
+	line
 }
 
 fn local_date(secs: i64) -> Option<String> {
@@ -98,4 +125,28 @@ fn run(d: &mut dialog::Dialog, snapshot: &str) -> ExitCode {
 fn run(_d: &mut dialog::Dialog, _snapshot: &str) -> ExitCode {
 	eprintln!("This tukzmon-settings was built without Qt, so it has no window.");
 	ExitCode::FAILURE
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	// Test ID: dednz
+	#[test]
+	fn the_version_line_has_the_build_and_a_dev_build_its_day() {
+		let v = env!("CARGO_PKG_VERSION");
+		// 2026-10-24 22:00 UTC, the 24th or 25th in every time zone.
+		let line = version_line(14_103_240, false);
+		let day = line
+			.strip_prefix(&format!("tukzmon-settings v{v} build decp8"))
+			.unwrap_or_else(|| panic!("{line}"));
+		assert!([" (2026-10-24)", " (2026-10-25)"].contains(&day), "{line}");
+		assert_eq!(day, format!(" ({})", local_date(1_792_879_200).unwrap()));
+		assert_eq!(
+			version_line(14_103_240, true),
+			format!("tukzmon-settings v{v} build decp8")
+		);
+		assert!(version_line(0, true).ends_with(" build 0"));
+		assert!(version().starts_with(&format!("tukzmon-settings v{v} build ")));
+	}
 }

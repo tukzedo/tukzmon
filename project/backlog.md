@@ -21,6 +21,32 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- A theme per graph
+	- ID: 2026102508393159
+	- Type: Feature
+	- Status: Waiting for answers
+		- Waits on the question in questions.md on how a theme per graph sits with the Themes tab.
+	- Priority|Severity: High
+	- Opened: 20261025-083931
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304639
+	- Prereq IDs: 2026102508393152
+	- Related IDs: 2026102409400679, 2026102409400684
+	- Requirements:
+		- Each graph picks a named theme of its own.
+
+- Memory cache counts slab, the way b23's multiload-ng does
+	- ID: 2026102508354893
+	- Type: Enhancement
+	- Status: Waiting for answers
+		- Waits on the question about it in questions.md.
+	- Priority|Severity: Avg
+	- Opened: 20261025-083548
+	- Opened by: t00mietum
+	- Related IDs: 2026102408512192, 2026102408304625
+	- Requirements:
+		- b23's multiload-ng has `graph-mem-procps-compliant=true`, so it counts slab as cache. tukzmon counts `Cached` alone, per 2026102408512192, so its cache band is thinner and user thicker than multiload-ng showed.
+
 - Proof of concept: CPU graph in the XFCE panel, dogfooded on b23
 	- ID: 2026102319155124
 	- Type: Feature
@@ -75,7 +101,7 @@ Sorted per the notes in [Template](#template).
 		- The slider's reach is a `slider_range` key in settings.shcl, read by tukzmon, since knobs has to stay the same as SilkTerm's.
 		- A value past the old range in the file used to fall back to the default. Now it's kept, up to the new limits.
 	- Branch: round-1024
-	- Test case: `config::tests::slider_ranges_sit_inside_their_range` and `dialog::tests::the_box_takes_more_than_the_slider_reaches`. Both fail on the old spec and pass now. The tab look and buttons have no test.
+	- Test case: `config::tests::slider_ranges_sit_inside_their_range` (decb4) and `dialog::tests::the_box_takes_more_than_the_slider_reaches` (decb5). Both fail on the old spec and pass now. The tab look and buttons have no test.
 		- 2026-10-24: `dialog::tests::sliders_snap_to_detents_and_gates_turn_on` now gets the width setting through `Dialog::slider` instead of the spec, so it maps over the slider's range. What it checks is unchanged.
 
 - Option for persistent graph
@@ -104,7 +130,7 @@ Sorted per the notes in [Template](#template).
 		- Max age is dropped at each save and load, and only while it's on.
 		- Times are Unix seconds now, not seconds since start, so runs line up.
 	- Branch: round-1024
-	- Test case: `history::tests::encode_and_decode_give_back_the_same_history`, `decode_refuses_what_encode_wouldnt_write`, `trim_drops_only_what_is_older`, the 3 `keep::tests`, `tests::saved_history_comes_back_with_a_gap`, `a_clock_set_back_still_takes_new_samples`, `load_trims_to_the_max_age_and_refuses_junk`, and `config::tests::history_is_kept_a_year_by_default`.
+	- Test case: `history::tests::encode_and_decode_give_back_the_same_history` (decbg), `decode_refuses_what_encode_wouldnt_write` (decbh), `trim_drops_only_what_is_older` (decbj), the 3 `keep::tests` (decbk, decbm, decbn), `tests::saved_history_comes_back_with_a_gap` (decbp), `a_clock_set_back_still_takes_new_samples` (decbq), `load_trims_to_the_max_age_and_refuses_junk` (decbr), and `config::tests::history_is_kept_a_year_by_default` (decbf).
 
 - A dropdown for time function
 	- ID: 2026102408304586
@@ -139,7 +165,7 @@ Sorted per the notes in [Template](#template).
 		- The dropdown sits under the Log time axis checkbox rather than replacing it, so settings files keep working and a linear graph stays one click away.
 		- Saved as `graph.log_curve`: `smooth`, `fixed_a` or `fixed_b`. A file without it gets Smooth log, so b23's graph changes from Log A to Smooth log at the next install.
 	- Branch: round-1024
-	- Test case: `axis::tests::smooth_is_one_log_curve_with_no_caps`, `fixed_b_is_smooth_until_a_cap`, `caps_pin_when_the_tip_says` and `curves_parse_as_the_spec_spells_them`, with the other axis tests now run over all 3 curves. Also `config::tests::the_log_curve_comes_from_the_file`, `tests::log_axis_takes_the_chosen_curve`, and `dialog::tests::the_log_curve_sits_under_the_log_switch`. The window height has no test.
+	- Test case: `axis::tests::smooth_is_one_log_curve_with_no_caps` (decbs), `fixed_b_is_smooth_until_a_cap` (decbt), `caps_pin_when_the_tip_says` (decbv) and `curves_parse_as_the_spec_spells_them` (decbw), with the other axis tests now run over all 3 curves. Also `config::tests::the_log_curve_comes_from_the_file` (decbx), `tests::log_axis_takes_the_chosen_curve` (decby), and `dialog::tests::the_log_curve_sits_under_the_log_switch` (decbz). The window height has no test.
 		- Swept: every `Axis::log` and `Axis::knots` caller, in core, its tests, and the preview example. The plugin and settings build no axis of their own.
 
 - Show snapshot time on mouseover
@@ -181,7 +207,7 @@ Sorted per the notes in [Template](#template).
 		- Units round down, so 90 minutes is "1 hr ago". Under a minute is in seconds, and under a second is "just now".
 		- The tip is the graph's own now, so the old tip with only the latest read is gone. At the right edge it gives about the same numbers.
 	- Branch: round-1024
-	- Test case: `when::tests::ago_reads_like_the_backlog_says`, `said_parses_as_the_spec_spells_it` and `clock_gives_the_date_only_before_today`, `render::tests::the_hover_line_stays_off_the_border`, `tests::the_hover_tip_says_when_and_what`, `the_hover_tip_shows_gaps_and_no_history` and `the_hover_line_is_drawn_where_the_pointer_is`, and `config::tests::the_hover_settings_come_from_the_file`. The pointer events, and when GTK shows the tip, have no test.
+	- Test case: `when::tests::ago_reads_like_the_backlog_says` (decca), `said_parses_as_the_spec_spells_it` (deccb) and `clock_gives_the_date_only_before_today` (deccc), `render::tests::the_hover_line_stays_off_the_border` (decc9), `tests::the_hover_tip_says_when_and_what` (decc6), `the_hover_tip_shows_gaps_and_no_history` (decc7) and `the_hover_line_is_drawn_where_the_pointer_is` (decc8), and `config::tests::the_hover_settings_come_from_the_file` (decc5). The pointer events, and when GTK shows the tip, have no test.
 		- Swept: every `Graph::tooltip` caller, every `Look` built in a test, and every `gtk_widget_set_tooltip_text` call, of which none is left.
 
 - Theme presets, with a coordinated Default
@@ -216,7 +242,7 @@ Sorted per the notes in [Template](#template).
 		- I/O wait and system stay red and orange in every built-in theme, so trouble reads the same in each.
 		- One theme for the whole panel for now. A theme per graph comes with the live graph list, 2026102408304639.
 	- Branch: round-1024
-	- Test case: `config::tests::the_default_theme_is_the_row_defaults`, `a_theme_sets_every_color`, `colors_with_no_theme_line_are_custom`, `a_change_on_a_theme_is_kept_with_it` and `back_to_default_from_custom_stays_default`, and `dialog::tests::a_theme_and_the_changes_on_it_are_saved` and `custom_then_the_revert_arrow_is_default_again`. The 2 back-to-Default tests fail with the theme naming taken out and pass with it.
+	- Test case: `config::tests::the_default_theme_is_the_row_defaults` (deccf), `a_theme_sets_every_color` (deccg), `colors_with_no_theme_line_are_custom` (decch), `a_change_on_a_theme_is_kept_with_it` (deccj) and `back_to_default_from_custom_stays_default` (decck), and `dialog::tests::a_theme_and_the_changes_on_it_are_saved` (deccm) and `custom_then_the_revert_arrow_is_default_again` (deccn). The 2 back-to-Default tests fail with the theme naming taken out and pass with it.
 		- 2026-10-24: `config::tests::defaults_are_the_multiload_colors` got new values only. System went from `#c64600` to `#c64200`, the border from `#40806a` to `#408060`, and the top from `#2a5446` to `#2a543f`.
 		- Swept: every `Model::load`, `Look::load` and `Look::from_model` caller, and every color row in `settings.shcl`. The plugin reads through `Look::load`, and the window through `config::model`.
 
@@ -252,7 +278,7 @@ Sorted per the notes in [Template](#template).
 		- A theme's key comes from its name when it's made, and stays through a rename.
 		- A save refuses a theme line it can't read, the same as any other line.
 	- Branch: round-1024
-	- Test case: `config::tests::a_saved_theme_is_listed_after_the_built_ins_and_sets_the_look`, `a_saved_theme_cant_take_a_built_in_key`, `saved_themes_write_whole_and_read_back` and `theme_keys_are_plain_and_free`, and `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme`, `save_puts_the_changes_into_the_theme`, `rename_and_delete`, `a_theme_saved_by_hand_meanwhile_survives` and `a_theme_line_it_cant_read_stops_the_save`. The dialog tests fail with the themes left out of the save, and the hand-edit one with the merge taken out.
+	- Test case: `config::tests::a_saved_theme_is_listed_after_the_built_ins_and_sets_the_look` (decct), `a_saved_theme_cant_take_a_built_in_key` (deccv), `saved_themes_write_whole_and_read_back` (deccw) and `theme_keys_are_plain_and_free` (deccx), and `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme` (deccy), `save_puts_the_changes_into_the_theme` (deccz), `rename_and_delete` (decd0), `a_theme_saved_by_hand_meanwhile_survives` (decd1) and `a_theme_line_it_cant_read_stops_the_save` (decd2). The dialog tests fail with the themes left out of the save, and the hand-edit one with the merge taken out.
 		- Swept: every `config::model`, `Model::load` and `Look::load` caller. The plugin reads through `Look::load` and the window through `config::model_on`, so both get the saved themes. No code or doc named the old Colors tab.
 
 - Color picker in place of the toolkit's
@@ -283,7 +309,7 @@ Sorted per the notes in [Template](#template).
 		- The color model is SilkTerm's, ported to `settings/src/pick.rs`. The picker's state lives in the Rust dialog, so the live edits and Cancel are tested without a window.
 		- Cancel restores everything stored, not just the color. Setting the old color back, as the Qt dialog did, left the window changed after Cancel, so Apply would have pinned that color in the file.
 	- Branch: round-1024
-	- Test case: `pick::tests::a_color_survives_the_trip_through_hsv`, `a_gray_keeps_the_hue_and_saturation_it_had`, `the_hue_ramp_hits_the_primaries` and `a_typed_value_reaches_what_it_names`, and `dialog::tests::the_picker_moves_its_row_and_cancel_puts_it_all_back` and `the_picker_keeps_what_ok_was_pressed_on`. The Cancel test fails with the old way of setting the color back, and passes now. The drawing and the pointer have no test.
+	- Test case: `pick::tests::a_color_survives_the_trip_through_hsv` (decd5), `a_gray_keeps_the_hue_and_saturation_it_had` (decd6), `the_hue_ramp_hits_the_primaries` (decd7) and `a_typed_value_reaches_what_it_names` (decd8), and `dialog::tests::the_picker_moves_its_row_and_cancel_puts_it_all_back` (decd3) and `the_picker_keeps_what_ok_was_pressed_on` (decd4). The Cancel test fails with the old way of setting the color back, and passes now. The drawing and the pointer have no test.
 		- Swept: the one `QColorDialog` use, now gone, and every color row, which all open the picker through the same chip. No code or doc names the toolkit's dialog.
 
 - Gradient mode per graph, and a Fire theme
@@ -317,7 +343,7 @@ Sorted per the notes in [Template](#template).
 		- The color follows the pixel's height, not the column's, so a busy column climbs into High and a quiet one stays Low.
 		- The radio buttons and showing rows by mode use 2 keys of tukzmon's own in settings.shcl, since knobs has to stay the same as SilkTerm's.
 	- Branch: round-1024
-	- Test case: `render::tests::the_gradient_goes_by_height_not_by_series` and `the_blend_hits_its_stops`, `config::tests::fire_is_a_gradient_and_the_rest_are_detailed`, `the_mode_shows_only_its_own_rows` and `a_saved_theme_keeps_its_mode`, and `dialog::tests::the_mode_swaps_the_rows_and_fire_is_a_gradient`. The render test fails with the blend fixed at one height, and the dialog test with every row always shown. The radio buttons have no test.
+	- Test case: `render::tests::the_gradient_goes_by_height_not_by_series` (decdk) and `the_blend_hits_its_stops` (decdm), `config::tests::fire_is_a_gradient_and_the_rest_are_detailed` (decdg), `the_mode_shows_only_its_own_rows` (decdh) and `a_saved_theme_keeps_its_mode` (decdj), and `dialog::tests::the_mode_swaps_the_rows_and_fire_is_a_gradient` (decdn). The render test fails with the blend fixed at one height, and the dialog test with every row always shown. The radio buttons have no test.
 		- 2026-10-24: new values only, for the 4 new theme rows and Fire. `config::tests::the_default_theme_is_the_row_defaults` members went from 8 to 12, and it now takes a dropdown for a `_mode` member where it took only colors. `saved_themes_write_whole_and_read_back` went from 8 values to 12. `a_saved_theme_is_listed_after_the_built_ins_and_sets_the_look` lists `fire` after `blue_pastel`. In `dialog::tests`, `save_as_keeps_the_colors_whole_and_picks_the_new_theme` finds Night seventh, not sixth, and counts 11 colors, not 8. `rename_and_delete` counts 8 options, not 7, and `a_theme_saved_by_hand_meanwhile_survives` 9, not 8.
 		- Swept: every `Frame` built (the plugin, the preview example and the render tests), and every use of the theme group's members, which now take a mode as well as colors (`saved_themes`, `theme_problems`, `shown_colors`, the picker, and `unthemed`).
 
@@ -349,7 +375,7 @@ Sorted per the notes in [Template](#template).
 		- The hover line stays black, as in every built-in.
 		- Every theme member has a role in `settings/src/dice.rs`. A new graph's members fail a test until they get one.
 	- Branch: round-1024
-	- Test case: `dice::tests::every_theme_member_has_a_role`, `every_roll_is_a_value_its_setting_takes_and_never_a_gradient`, `the_lead_rules_and_the_alarms_stay_red_and_orange`, `the_quiet_ones_are_muted_and_near_the_lead`, `the_gradient_runs_from_calm_through_the_lead` and `a_seed_rolls_the_same_theme_and_seeds_differ`, over 2000 seeds each, and `dialog::tests::randomize_changes_every_color_on_the_theme_and_turns_off_the_gradient`. Each fails with its rule broken: the mode set to gradient, the lead hue let into red, a member left out, nice as bright as user, and Randomize doing nothing.
+	- Test case: `dice::tests::every_theme_member_has_a_role` (decdr), `every_roll_is_a_value_its_setting_takes_and_never_a_gradient` (decds), `the_lead_rules_and_the_alarms_stay_red_and_orange` (decdt), `the_quiet_ones_are_muted_and_near_the_lead` (decdv), `the_gradient_runs_from_calm_through_the_lead` (decdw) and `a_seed_rolls_the_same_theme_and_seeds_differ` (decdx), over 2000 seeds each, and `dialog::tests::randomize_changes_every_color_on_the_theme_and_turns_off_the_gradient` (decdq). Each fails with its rule broken: the mode set to gradient, the lead hue let into red, a member left out, nice as bright as user, and Randomize doing nothing.
 		- Swept: every member of the theme group, which the role test walks, and the one theme button row in qt.cpp.
 
 - Transparent background setting
@@ -378,8 +404,297 @@ Sorted per the notes in [Template](#template).
 		- It sits on the Background sub-tab, next to the colors it replaces, with a tip saying it goes for every theme.
 		- The Top and Bottom rows stay live while it's on, since knobs' gates only turn a row on with a checkbox, not off.
 	- Branch: round-1024
-	- Test case: `render::tests::a_transparent_background_lets_the_panel_through`, `config::tests::transparent_is_off_and_outlives_any_theme` and `dialog::tests::transparent_stays_through_a_theme_pick_and_a_roll`. The first 2 fail with the setting left unread or the background drawn opaque, and pass with it.
+	- Test case: `render::tests::a_transparent_background_lets_the_panel_through` (decdz), `config::tests::transparent_is_off_and_outlives_any_theme` (decdy) and `dialog::tests::transparent_stays_through_a_theme_pick_and_a_roll` (dece0). The first 2 fail with the setting left unread or the background drawn opaque, and pass with it.
 		- Swept: every reader of the Top and Bottom colors, which is only `render::Frame::draw`, and the hover line in `Graph::render`, which stays opaque.
+
+- Memory graph
+	- ID: 2026102408304625
+	- Type: Feature
+	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- How the 2 graphs look side by side is for a person to judge. On Default, cache is `#408060`, close to the shared top color `#2a543f`.
+		- It departs from the wording in one way. multiload-ng's memory border and background, `#404020` and `#13261d`, aren't used, since every graph shares the Background sub-tab.
+	- Needs local test suite run?: No. The full run passed on 2026-10-25.
+	- Needs hand testing: on b23, look at the memory graph beside the CPU graph, and hover each for its tip. Then open Settings, go to Themes, Memory, change a color and Apply. Then untick Memory graph on the Graph tab, Apply, and check the panel item gets narrower.
+	- Priority|Severity: High
+	- Opened: 20261024-082803
+	- Opened by: t00mietum
+	- Prereq IDs: 2026102408512192, 2026102409400679
+		- Was the collectors parent. Only its memory collector child is needed, and that's done.
+		- Its colors join the theme presets, so it waits on those.
+	- Related IDs: 2026101916013887, 2026102508354893
+	- Requirements:
+		- Memory, using my current color definitions from multiload-ng.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The plugin draws a memory graph right of the CPU graph, at the same width with no gap, stacked from the bottom: programs, buffers, cache. On a vertical panel it goes under the CPU graph.
+		- Default's memory colors are b23's multiload-ng ones: `#ffff80`, `#804080` and `#408060`. Every built-in theme has its own, and Fire draws memory as a gradient.
+		- Themes has a Memory sub-tab, with Detailed or Gradient like CPU's. The Graph tab has a Memory graph checkbox, on by default.
+		- Its history is saved in the same file as CPU's. A hidden graph's history is kept in the file, and comes back when it's shown again.
+		- `design.md` XFCE plugin, Theme and History have the details.
+		- Verified: in a test panel the memory graph drew beside the CPU graph in Default's colors, and its history was saved at quit. The settings window showed the Memory sub-tab and the checkbox.
+	- Decisions:
+		- One plugin shows both, the way multiload-ng does, rather than a plugin per graph. The live graph list, 2026102408304639, adds turning graphs on and off, order and a width each.
+		- The sample rate, width, axis and border are shared for now.
+		- Randomize gives buffers a muted color of its own, a step round the hue from cache, so the 2 never roll the same.
+		- Default's memory colors stay as multiload-ng had them, rather than moved onto Default's hue, since the requirement names them.
+	- Branch: round-1025
+	- Test case: `graphs::tests::the_memory_graph_samples_draws_and_tips` (dedq1), `graphs_sit_side_by_side_and_the_pointer_finds_its_own` (dedq2), `a_save_keeps_every_graph_and_a_hidden_ones_history` (dedq3) and `hiding_memory_drops_it_and_showing_brings_its_history_back` (dedq4), `config::tests::memory_colors_are_multiload_ngs_and_every_theme_has_them` (dedpz) and `dice::tests::buffers_and_cache_are_muted_and_told_apart` (dedq0). dedq2 fails with the memory tile drawn as CPU, dedq3 with other sections dropped at save, and dedq0 with buffers rolled as cache.
+		- 2026-10-25: new values only. `config::tests::the_default_theme_is_the_row_defaults` and `saved_themes_write_whole_and_read_back` count 19 theme members, not 12. `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme` counts 17 colors, not 11.
+		- Swept: every `Graph` use (the plugin, now through `Graphs`, and the lib tests), every `cpu_paint` caller, every `keep::write` caller, and every theme member, which the role and row-default tests walk.
+
+- Turn each graph on or off, with a width each
+	- ID: 2026102508393152
+	- Type: Feature
+	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- The 0-means-Width rule and CPU showing when nothing else does are for a person to judge.
+	- Needs local test suite run?: No. The full run passed on 2026-10-25.
+	- Needs hand testing: on b23, open Settings, set CPU width px to 40 and Apply, and check the CPU graph gets narrower beside memory. Then untick CPU graph, Apply, and check only memory is left. Then untick Memory graph too, and check CPU comes back.
+	- Priority|Severity: High
+	- Opened: 20261025-083931
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304639
+	- Requirements:
+		- A setting per graph to show it or not, CPU included.
+		- A width per graph, in the same DPI-aware pixels as Width.
+		- The plugin lays the graphs out by their own widths.
+		- Saved configs with `mem.show` keep working.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Under Graphs on the Graph tab: CPU graph, CPU width px, Memory graph, and Memory width px. Each width is stepped in under its checkbox.
+		- The plugin asks the panel for the sum of the shown widths, and shares out what it gets by width. On a vertical panel they still share the height evenly.
+		- A hidden graph isn't read, and its history comes back with a gap for the hidden time, the same for CPU as for memory.
+		- `design.md` XFCE plugin has the details.
+		- Verified: in a test panel, CPU at 40 and memory at 100 drew 40 and 100 pixels wide. With CPU unticked only memory was left, and with both unticked CPU came back at Width.
+	- Decisions:
+		- A graph's width of 0, the default, means the Width setting, so a saved `graph.width` still sets every graph, and one setting still resizes them all.
+		- `mem.show` is unchanged, and CPU got `cpu.show` beside it, default on.
+		- With every other graph off, CPU shows anyway. A panel item with nothing in it has no width, so its right-click menu, the only way to Settings, couldn't be reached.
+		- Widths are the panel's logical pixels, as Width already was, so they follow the screen scale.
+	- Branch: round-1025
+	- Test case: `graphs::tests::each_graph_takes_its_own_width_and_0_is_width` (dedqd), `cpu_can_be_hidden_but_not_with_nothing_else_shown` (dedqe), and `config::tests::each_graph_has_a_switch_and_a_width` (dedqf). dedqd fails with the widths ignored, and dedqe with CPU always shown.
+		- Swept: every `Graphs::count` and `Look::width` user (the plugin's fit and reload, the layout, the tip and the render), and every `show_memory` reader. `core/examples/preview.rs` draws one `Graph` and has no layout.
+
+- Graph order
+	- ID: 2026102508393154
+	- Type: Feature
+	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- The Order row is plain text for now, which is for a person to judge.
+	- Needs local test suite run?: No. The full run passed on 2026-10-25.
+	- Needs hand testing: on b23, open Settings, type `mem cpu` in Order on the Graph tab and Apply, and check memory is now left of CPU.
+	- Priority|Severity: High
+	- Opened: 20261025-083931
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304639
+	- Prereq IDs: 2026102508393152
+	- Requirements:
+		- A saved order of the graphs, which the plugin lays them out in, left to right, or top to bottom on a vertical panel.
+		- A graph added later, such as network, goes at the end of a saved order that doesn't name it.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- Order, a text row under Graphs on the Graph tab, at `graph.order`, names the graphs first to last: `cpu` and `mem`. The default is `cpu mem`.
+		- The plugin lays them out in that order, and the pointer, the tip and the panel size follow it. A change takes effect at Apply.
+		- `design.md` XFCE plugin has the details.
+		- Verified: in a test panel, `mem cpu` with widths 100 and 40 drew memory 100 wide on the left and CPU on the right. With no order CPU came back first, and a hand-typed `order: mem, cpu` swapped them again.
+	- Decisions:
+		- The names are the graphs' history section names, so a new graph brings its own.
+		- Spaces or commas both work, since shcl reads a bare `mem, cpu` as a list.
+		- A name it doesn't know is skipped, and a graph it doesn't name goes last, in the default order.
+		- A hidden graph keeps its place for when it's shown again.
+		- For 2026102508393161: the Order row is a stand-in. The list's grippers should write `graph.order` and the row should go.
+	- Branch: round-1025
+	- Test case: `graphs::tests::the_saved_order_lays_them_out_and_one_it_leaves_out_goes_last` (dedqp), `config::tests::the_graph_order_reads_with_spaces_or_commas` (dedqq), and `dialog::tests::the_graph_order_is_saved_as_typed_and_reads_back` (dedqr). dedqp fails with the order ignored, and dedqq with the setting left unread.
+		- Swept: every `Graphs::shown` user (count, widths, tiles, the pointer, the tip and the render), and the plugin's fit and reload, which go through `widths`.
+
+- CICD reset: standard flags
+	- ID: 2026102416252892
+	- Type: Task
+	- Status: Waiting on UAT
+		- The hook is turned on per clone, so it's off until the step below is run.
+		- It departs from the wording in one way. `--message` is taken but does nothing yet, since the pipeline has no publish step.
+	- Needs local test suite run?: No. `--backlog-run-full` passed on 2026-10-25.
+	- Needs hand testing: in each clone, run `git config core.hooksPath cicd/hooks`. Then on the next push to `main`, see the merge gate run first.
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- `cicd.bash` takes the shared flags: none for the default run under about an hour, `--quick`, `--long` with `--slow` as another name, `--leakcheck`, `--no-leakcheck`, `--backlog-run-quick [<area>...]`, `--backlog-run-full`, `--merge-gate`, `--no-container`, `--no-remote`, `--no-sync`, `--keep-temp`, `--list`, `--help`, `--quiet`, and `--message`.
+		- `--gate` and `--ci` are other names for `--backlog-run-quick` and `--merge-gate`.
+		- The backlog and merge gate runs never dogfood, publish, commit, push, install, sync, rewrite a tracked file, or prompt.
+		- A pre-push hook runs `--merge-gate` on a push to `main` only. A push to `dev` or a feature branch isn't gated, and a docs-only push to `main` skips it, with the docs paths in one place the hook reads.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- `cicd/cicd.bash` takes every shared flag. `--quick` and `--long` run the same steps as the default run for now, since nothing is slow yet.
+		- `--backlog-run-quick` runs the format check, build, lint and tests, or only the areas named: format, build, lint, test, and release. `--backlog-run-full` and `--merge-gate` add the release build.
+		- The 3 hands-off runs don't sync, dogfood or prompt, only check the format, and build with `--locked`, so `Cargo.lock` stays as it is.
+		- `cicd/hooks/pre-push` runs `--merge-gate` on the commit pushed to `main`, in a worktree of its own when the checkout has other changes. A push that changes only the paths in `DOCS_PATHS` in `cicd/config.bash` skips it.
+		- Verified: the hook ran the gate on a push to `main`, let a docs-only push and a push to `dev` through, and refused a commit with a lint error. Uncommitted files didn't change what it gated.
+	- Decisions:
+		- `--list` prints the steps and what's off. Test IDs come with 2026102416252895.
+		- The hook is turned on by a documented step, not by the pipeline, so nobody's pushes get gated without them knowing.
+	- Branch: round-1025
+	- Test case: None in the repo, since `cicd.bash` has no harness of its own yet. The gate was watched to fail on a planted format error and a planted lint error.
+
+- CICD reset: CPU and priority
+	- ID: 2026102416252891
+	- Type: Task
+	- Status: Waiting on UAT
+		- It departs from the wording in one way. `CICD_MAX_JOBS` lets a caller set a lower cap.
+	- Needs local test suite run?: No. `--backlog-run-full` passed on 2026-10-25.
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Half the logical CPUs, or a quarter when the 1-minute load is over half the CPU count, checked at the start and before each step. The heavy steps, such as the leak checks, use a quarter, busy or not.
+		- The counts are worked out once and passed to cargo's `-j` and `--test-threads`. Now cargo takes every core.
+		- Everything runs under `nice -n 19`, plus `ionice -c 3`. Containers get `--cpus` and `--cpu-shares 256`, and `nice` inside.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Half the CPUs, or a quarter when the 1-minute load is over half the CPU count, worked out before each step and passed to cargo's `-j` and `--test-threads`. A quarter is kept for the heavy steps, for the leak checks to come.
+		- The pipeline sets nice 19 and ionice idle on itself at the start, so everything it starts inherits them.
+		- Verified: a run used 16 of 32 CPUs at a load of 10, and 8 with the cap set.
+		- Since 2026102416252889, containers get `--cpus` at the run's job count and `--cpu-shares 256`, and the steps in them run under `nice -n 19` and `ionice -c 3`.
+		- Verified: a container ran with 8 CPUs and a share of 256, with its cargo at nice 19.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892.
+
+- CICD reset: containers
+	- ID: 2026102416252889
+	- Type: Task
+	- Status: Waiting on UAT
+		- It departs from the wording in one way. GTK 3 is in the image as its runtime libraries, not the dev package, since the plugin links GTK, cairo and the panel library by soname. The Debian snapshot the image reads pins them, as it does Qt.
+	- Needs hand testing: on b23, run `cicd/cicd.bash` with no options, as on 2026102416252898. It's the one run that builds the release on the host, for dogfood.
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Related IDs: 2026102416252898
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- There's no pipeline yet, and every check runs on the host. Build and test in a pinned image from a recipe in the repo, with the Rust toolchain, Qt 6 and GTK 3 pinned.
+		- A missing docker falls back to the host with one line, and never fails a run. `--no-container` runs on the host on purpose.
+		- Tests that need a real panel or display run on the host.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- `cicd/container/` holds the recipe: Debian trixie by digest, apt from a dated snapshot, Qt 6 Widgets dev, the GTK 3 and panel libraries, the Rust toolchain from `rust-toolchain.toml`, and shellcheck and markdownlint at the `cicd/config.bash` pins. The tag is a hash of the recipe, so an edit means a new image.
+		- `cicd.bash` builds the image when its tag is missing, checks it has the pinned Rust, and fetches the crates. Format, build, lint, tests and the release build then run in it offline, as the caller's uid, into `target/container`.
+		- Remote sync and dogfood stay on the host, and so does the release build in a run that dogfoods, since that build is what gets installed. A test that needs a real panel or display gets a step left out of `CTR_STEPS` in `cicd/config.bash`. None does yet.
+		- No docker, a docker that doesn't answer, or an image that won't build is one line, and the run goes on on the host.
+		- Verified: `--backlog-run-full` passed in the image, and so did a run in a linked worktree building into `target/gate`, as the pre-push hook does. A planted format error failed it. A docker that didn't answer and an image that failed to build each fell back to the host with one line, and passed.
+	- Decisions:
+		- The image has its own target dir. The paths inside differ from the host's, so a shared `target/` would rebuild everything each time a run switched sides.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892. The gate was watched to fail on a planted format error.
+
+- CICD reset: test IDs
+	- ID: 2026102416252895
+	- Type: Task
+	- Status: Waiting on UAT
+		- The knobs copy's test IDs now differ from SilkTerm's, until SilkTerm converts its own. The 2 copies match only if SilkTerm's other tests leave the same minutes free.
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Every test gets a unique ID, from when it was first committed: whole minutes since 2000-01-01 UTC, in lower-case Crockford base 32. 2 that come out the same take the next free minute, and an ID never changes.
+		- The run prints one line per test, such as `PASS decp8 empty input round-trips`, or `FAIL` or `SKIP`.
+		- `Test case` rows in the backlog name the IDs.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Every one of the 141 tests has a `// Test ID:` line above it. Ours come from the commit that added each test. The knobs tests came from SilkTerm with base 62 IDs in milliseconds, so theirs were converted from the times those stand for.
+		- The tests step prints `PASS`, `FAIL` or `SKIP`, the ID, and the test's name, in place of each of cargo's own test lines. A skipped test adds its reason.
+		- Lint runs the ID check, which fails on a test with no ID, a shared ID, one that isn't a sane time, or a test somewhere it doesn't look. `--list` prints every test's ID.
+		- `cicd/utility/test-ids.bash new` gives a new test its ID.
+		- The `Test case` rows name the IDs.
+		- Verified: the quick gate printed 141 lines with IDs. A failing test showed as `FAIL` and failed the step, and an ignored one as `SKIP` with its reason. A missing ID, a shared one, an upper-case one, and a test outside `src/` each failed the check.
+	- Decisions:
+		- The name on each line is the test's path as cargo gives it, such as `when::tests::ago_reads_like_the_backlog_says`, so it can be found in the code.
+		- The tool is bash and awk, since the build image has no Python.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892. The check was watched to fail on each kind of bad ID.
+
+- CICD reset: version line
+	- ID: 2026102416252897
+	- Type: Task
+	- Status: Waiting on UAT
+		- It departs from the wording in one way. Nothing has an About box yet, so only `--version` prints the line. One added later would show the same line.
+		- A build from a tree with changes to the program's sources, or from outside git, isn't any commit, so it takes the time it was built. That's a call for a person to make.
+	- Priority|Severity: Avg
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304652
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- It overrides how 2026102408304652 stamps the build, from the time of the build.
+		- `--version` and About print `tukzmon-settings v<version> build <build>`, then the copyright line. The build number is the commit's time in minutes since 2000, in lower-case Crockford base 32.
+		- A non-release build adds its date after the build number, from that same time, in the viewer's time zone.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `tukzmon-settings --version` prints `tukzmon-settings v0.1.0 build dedp0 (2026-10-25)`, then the copyright line.
+		- The build number is HEAD's commit time. `SOURCE_DATE_EPOCH` wins when set. A build with changes under `settings/`, `core/`, `knobs/` or the Cargo files, or with no git, takes the time it was built.
+		- A build with `TUKZMON_RELEASE=1` leaves the date off, as before.
+		- Verified: a clean build gave the commit's minute, `SOURCE_DATE_EPOCH` gave its own, a changed source file and a tree outside git each gave the time of the build, and a release build had no date. A time zone a day ahead showed the next day.
+	- Decisions:
+		- A change only to docs, such as the backlog, still counts as the commit, since it doesn't change the program.
+	- Branch: round-1025
+	- Test case: `tests::the_version_line_has_the_build_and_a_dev_build_its_day` (dednz). It failed with the date left off a dev build, and passes now.
+
+- A killed pipeline run leaves its container and temp folder
+	- ID: 2026102514470001
+	- Type: Bug
+	- Status: Waiting on UAT
+		- It departs from the wording in 2 ways. A run kept with `--keep-temp` still waits 2 days, with its containers, even if it was killed. And a container's run is found by a new `dev.pid` label, the run's process, with `dev.run` for its folder.
+	- Priority|Severity: Low
+	- Opened: 20261025-144700
+	- Opened by: t00mietum
+	- Related IDs: 2026102416252890, 2026102416252896
+	- Steps to reproduce:
+		- Start `cicd/cicd.bash --backlog-run-full` and kill it with SIGKILL during a container step.
+	- Incorrect behavior: the container runs on to its end, and the temp folder stays until the 2-day sweep.
+	- Expected behavior: the next run stops containers whose run is gone, by the `dev.run` label, and sweeps its folder when no process from it is left.
+	- Reproduced: 2026-10-25 on b23. After the kill the tests container ran on and the folder stayed, and the old code's next run left both.
+	- Actual fix: a run folder whose run is gone goes at the next run's start once nothing runs from it. The image step stops and removes containers whose run is gone, then sweeps again, since a running container keeps its folder from the first sweep.
+	- Progress log:
+		- Verified: a run killed with SIGKILL as its tests container started had the container stopped and its folder removed by the next run, both with the container still running and after it had ended. A `--keep-temp` run's folder and containers stayed through 2 later runs.
+	- Decisions:
+		- `--keep-temp` writes a `keep` file in the folder at the start, so a kept run that was killed keeps the 2-day wait.
+		- A container's run is its `dev.pid` label, so a run with another temp root isn't taken for gone. One from before that label goes by its run folder.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
+
+- Hosted workflow for the merge gate
+	- ID: 2026102513560001
+	- Type: Task
+	- Status: Waiting on automated testing
+	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
+	- Priority|Severity: Avg
+	- Opened: 20261025-135600
+	- Opened by: t00mietum
+	- Prereq IDs: 2026102416252892
+	- Related IDs: 2026102416252889
+	- Requirements:
+		- One small GitHub workflow on push and pull request against `main`, plus a manual trigger so any branch can be run by hand.
+		- It runs `cicd.bash --merge-gate`, as far as the runner can. No matrix, and no macOS runner, since it's Linux only for now.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `.github/workflows/merge-gate.yml` runs `cicd/cicd.bash --merge-gate` on a push or pull request against `main`, and by hand on any branch. It's one job on `ubuntu-24.04`, which builds the image from `cicd/container/` and runs the checks in it.
+	- Decisions:
+		- Asked for on 2026-10-25, in answer to the round settings question about a hosted workflow.
+		- No layer cache between runs, to keep it small. Each run builds the image first, which takes a few minutes.
+	- Branch: round-1025
+	- Test case: The workflow is its own test. Its first run is in the row above.
 
 - Core library and Linux collectors
 	- ID: 2026101916013884
@@ -524,20 +839,6 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Split into 6 children, in this order: 2026102409400679 (theme presets and Default), 2026102409400684 (Themes tab and its top row), 2026102409400689 (color picker), 2026102409400695 (Gradient mode and Fire), 2026102409400700 (Randomize), and 2026102409400705 (transparent background).
 
-- Memory graph
-	- ID: 2026102408304625
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-082803
-	- Opened by: t00mietum
-	- Prereq IDs: 2026102408512192, 2026102409400679
-		- Was the collectors parent. Only its memory collector child is needed, and that's done.
-		- Its colors join the theme presets, so it waits on those.
-	- Related IDs: 2026101916013887
-	- Requirements:
-		- Memory, using my current color definitions from multiload-ng.
-
 - Live graph list on the first settings tab
 	- ID: 2026102408304639
 	- Type: Feature
@@ -554,6 +855,48 @@ Sorted per the notes in [Template](#template).
 			- Dropdown to select the time function.
 			- Dropdown to select the named theme.
 			- Grippers on the right to vertically reorder monitors with the mouse.
+	- Progress log:
+		- Split into 6 children, in this order: 2026102508393152 (on or off and a width per graph), 2026102508393154 (order), 2026102508393156 (time function per graph), 2026102508393159 (theme per graph), 2026102508393161 (the list itself), and 2026102508393163 (live graphs in it).
+
+- A time function per graph
+	- ID: 2026102508393156
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261025-083931
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304639
+	- Prereq IDs: 2026102508393152
+	- Related IDs: 2026102408304586
+	- Requirements:
+		- Each graph picks its own time function, from the Log curve choices, and maybe a plain linear one.
+		- Saved configs with `graph.log_axis` and `graph.log_curve` keep working.
+
+- The graph list on the Graph tab
+	- ID: 2026102508393161
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261025-083931
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304639
+	- Prereq IDs: 2026102508393152, 2026102508393154, 2026102508393156, 2026102508393159
+	- Requirements:
+		- A row per graph on the first tab, in columns: a checkbox to show it, a space for its live graph, its width as a text box, a time function dropdown, a theme dropdown, and a gripper on the right to drag it up or down.
+		- It replaces the per-graph rows under the Graphs heading.
+
+- Live graphs in the graph list
+	- ID: 2026102508393163
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261025-083931
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304639
+	- Prereq IDs: 2026102508393161
+	- Requirements:
+		- Each row of the graph list draws its graph live.
+		- The longest graph sets the column's width, so the columns after it line up.
 
 - Zswap and zram collector
 	- ID: 2026102408512197
@@ -634,131 +977,11 @@ Sorted per the notes in [Template](#template).
 		- Charge and state from `/sys/class/power_supply/BAT*`: charging, discharging, and the critical level.
 		- No collector on a box with no battery.
 
-- CICD reset: containers
-	- ID: 2026102416252889
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Related IDs: 2026102416252898
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- There's no pipeline yet, and every check runs on the host. Build and test in a pinned image from a recipe in the repo, with the Rust toolchain, Qt 6 and GTK 3 pinned.
-		- A missing docker falls back to the host with one line, and never fails a run. `--no-container` runs on the host on purpose.
-		- Tests that need a real panel or display run on the host.
-
-- CICD reset: container cleanup
-	- ID: 2026102416252890
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Prereq IDs: 2026102416252889
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- Every container, image, and volume gets `dev.project=tukzmon` and `dev.run=<run folder name>`, and containers are named `tukzmon-<run folder name>-<step>`.
-		- Containers run with `--rm`, unless `--keep-temp` was passed. The run's containers are removed by label at its end, on failure and Ctrl+C too.
-		- The project's dangling images go, and older tags once a newer one has passed, keeping the current tag and the one before it. Then `docker builder prune -f --filter until=168h`.
-		- Nothing without the project's label is touched. The end of the run says what it removed and about what that freed.
-
-- CICD reset: CPU and priority
-	- ID: 2026102416252891
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- Half the logical CPUs, or a quarter when the 1-minute load is over half the CPU count, checked at the start and before each step. The heavy steps, such as the leak checks, use a quarter, busy or not.
-		- The counts are worked out once and passed to cargo's `-j` and `--test-threads`. Now cargo takes every core.
-		- Everything runs under `nice -n 19`, plus `ionice -c 3`. Containers get `--cpus` and `--cpu-shares 256`, and `nice` inside.
-
-- CICD reset: standard flags
-	- ID: 2026102416252892
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- `cicd.bash` takes the shared flags: none for the default run under about an hour, `--quick`, `--long` with `--slow` as another name, `--leakcheck`, `--no-leakcheck`, `--backlog-run-quick [<area>...]`, `--backlog-run-full`, `--merge-gate`, `--no-container`, `--no-remote`, `--no-sync`, `--keep-temp`, `--list`, `--help`, `--quiet`, and `--message`.
-		- `--gate` and `--ci` are other names for `--backlog-run-quick` and `--merge-gate`.
-		- The backlog and merge gate runs never dogfood, publish, commit, push, install, sync, rewrite a tracked file, or prompt.
-		- A pre-push hook runs `--merge-gate` on a push to `main` only. A push to `dev` or a feature branch isn't gated, and a docs-only push to `main` skips it, with the docs paths in one place the hook reads.
-
-- CICD reset: step output
-	- ID: 2026102416252893
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- Each step prints the shared lines: a 79 character rule, `[ YYYYmmDD-HHMMSS.NN: Step 1 of 9; Starting Format ]`, its output, then `PASS Format` or `FAIL Format` in the same form.
-		- Steps turned off aren't counted, and the first section lists them with the flag or reason.
-
-- CICD reset: a test for every Done item
-	- ID: 2026102416252894
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- 4 Done items have no `Test case` row. The build date one needs a test. The 3 answered questions get a few words on why there's none.
-		- Every Done feature and bug from now on names its test's ID, or says why it has none.
-
-- CICD reset: test IDs
-	- ID: 2026102416252895
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- Every test gets a unique ID, from when it was first committed: whole minutes since 2000-01-01 UTC, in lower-case Crockford base 32. 2 that come out the same take the next free minute, and an ID never changes.
-		- The run prints one line per test, such as `PASS decp8 empty input round-trips`, or `FAIL` or `SKIP`.
-		- `Test case` rows in the backlog name the IDs.
-
-- CICD reset: temp files and safe removal
-	- ID: 2026102416252896
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- Each run's folder is `<HOST_TEMP>/tukzmon/<YYYYmmDD-HHMMSS>_<NNN>/`, made with a plain `mkdir` and a counter, with `TMPDIR`, `TEMP`, and `TMP` pointed into it. Unit tests' scratch folders go there too.
-		- A trap removes it at the end, on failure and Ctrl+C too, through the shared guard. `--keep-temp` keeps it and prints its path.
-		- Each run writes `run.pid` there, and removes the project's own folders older than 2 days whose process is gone.
-		- A test that starts a session bus stops it, on failure too, along with what the bus started. Session buses and gvfsd processes were found still running after a run on 2026-10-23.
-
-- CICD reset: version line
-	- ID: 2026102416252897
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304652
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- It overrides how 2026102408304652 stamps the build, from the time of the build.
-		- `--version` and About print `tukzmon-settings v<version> build <build>`, then the copyright line. The build number is the commit's time in minutes since 2000, in lower-case Crockford base 32.
-		- A non-release build adds its date after the build number, from that same time, in the viewer's time zone.
-
 - CICD reset: CICD process gaps
 	- ID: 2026102416252898
 	- Type: Task
 	- Status: Queued
+	- Needs hand testing: on b23, run `cicd/cicd.bash` with no options. It dogfoods, which restarts the live panel, so a round doesn't run it.
 	- Priority|Severity: Avg
 	- Opened: 20261024-162528
 	- Opened by: t00mietum
@@ -769,6 +992,50 @@ Sorted per the notes in [Template](#template).
 		- Lint output rotated into `cicd/artifacts/lint/`, with a `--check` that prints only what's new.
 		- Leak checks: ASan, LSan, and UBSan over the Rust and the C++ shim, Miri, a soak test, clippy's `mem_forget` and `undocumented_unsafe_blocks`, and the known-advisory scan.
 		- `.deb` and `.rpm` packages, and a profiler stage.
+	- Progress log:
+		- `cicd/cicd.bash` runs remote sync, format, build, lint, tests, the release build and dogfood, then cleans up.
+		- `rust-toolchain.toml` pins Rust 1.96.0 with rustfmt and clippy. The lint tool versions are pinned in `cicd/config.bash`, and a run warns when the box has another.
+		- Lint output goes to `cicd/artifacts/lint/`, rotated. `cicd/utility/lint-report.bash --check` prints only what's new since the last look.
+		- The rest is split into children: leak checks 2026102506591278, packages 2026102506591283, and the profiler 2026102506591288.
+	- Decisions:
+		- Dogfood is `utility/dev-install.bash`. A panel plugin has to sit where the panel loads it, so the synced dogfood folder, which holds programs a person runs, doesn't fit.
+		- No `dogfood_tukzmon.ps1` launcher either. The panel starts the plugin and the plugin starts tukzmon-settings, so there's nothing for a person to launch.
+		- No publish step yet, since none was asked for here.
+	- Branch: round-1025
+
+- CICD reset: leak checks
+	- ID: 2026102506591278
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261025-065912
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- ASan, LSan and UBSan over the Rust and the C++ shim, Miri, a soak test, clippy's `mem_forget` and `undocumented_unsafe_blocks`, and the known-advisory scan.
+		- They run on a quarter of the CPUs, the heavy-step count `cicd.bash` already works out.
+
+- CICD reset: .deb and .rpm packages
+	- ID: 2026102506591283
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261025-065912
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- `.deb` and `.rpm` packages of the release build in the default run, with a sha256 sums file beside them.
+
+- CICD reset: profiler stage
+	- ID: 2026102506591288
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261025-065912
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- A profiler step in the default run, with flamegraphs rotated into `cicd/artifacts/profiling/` and a report on the hot spots after each one.
 
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
@@ -788,6 +1055,76 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
 
+- CICD reset: a test for every Done item
+	- ID: 2026102416252894
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- 4 Done items have no `Test case` row. The build date one needs a test. The 3 answered questions get a few words on why there's none.
+		- Every Done feature and bug from now on names its test's ID, or says why it has none.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The build date item names the version line's test, which checks the date in the viewer's time zone. The 3 questions each say why they have none.
+		- The test ID check in lint now fails on a Done item with no `Test case` row, and on an ID a `Test case` row names that no test has.
+		- Verified: the check failed on a planted Done item with no row, and on a row naming an unknown ID.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892. The check was watched to fail on both.
+	- Closed: 20261025-075906
+
+- CICD reset: container cleanup
+	- ID: 2026102416252890
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Prereq IDs: 2026102416252889
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Every container, image, and volume gets `dev.project=tukzmon` and `dev.run=<run folder name>`, and containers are named `tukzmon-<run folder name>-<step>`.
+		- Containers run with `--rm`, unless `--keep-temp` was passed. The run's containers are removed by label at its end, on failure and Ctrl+C too.
+		- The project's dangling images go, and older tags once a newer one has passed, keeping the current tag and the one before it. Then `docker builder prune -f --filter until=168h`.
+		- Nothing without the project's label is touched. The end of the run says what it removed and about what that freed.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Every container is named `tukzmon-<run folder name>-<step>` and has both labels, and so does the image. Containers run with `--rm` unless `--keep-temp` was passed, which keeps them and says how to list them.
+		- At the end, on failure and Ctrl+C too, the run's containers are stopped and removed by label. Then the project's dangling images go, and its older tags once this run's image has answered, keeping it and the one before. Then the build cache prune.
+		- Nothing is removed by force, and only what has the project's label. The end of the run names what went, about what it freed by `docker system df` before and after, and what the prune took.
+		- Verified: a Ctrl+C mid-build stopped its container at once, a container left running was removed by label, `--keep-temp` kept the run's 2, and 3 recipe changes in a row kept the current tag and the one before.
+	- Decisions:
+		- No volumes. The image's cargo home and target dir are folders under `target/container`, so `cargo clean` takes them too.
+		- Tags are ordered by a `dev.built` label set at build time, since a build from cache gives every tag the same creation time.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892.
+	- Closed: 20261025-073422
+
+- CICD reset: step output
+	- ID: 2026102416252893
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Each step prints the shared lines: a 79 character rule, `[ YYYYmmDD-HHMMSS.NN: Step 1 of 9; Starting Format ]`, its output, then `PASS Format` or `FAIL Format` in the same form.
+		- Steps turned off aren't counted, and the first section lists them with the flag or reason.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Each step prints the 79 character rule, `[ <time>: Step 1 of 5; Starting Format ]`, its output, and the `PASS` or `FAIL` line in the same form, then a blank line.
+		- The first section lists the steps, then every step that's off, with the flag or the reason.
+		- Verified: in a quick run, a full run, and runs that failed at Format and at Lint.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892.
+	- Closed: 20261025-071028
+
 - Update default colors to my current selection
 	- ID: 2026102408304559
 	- Type: Enhancement
@@ -805,7 +1142,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- The file also sets sample time to 1000 ms. That isn't a color, so the default stays 500 ms.
 	- Branch: round-1024
-	- Test case: `config::tests::defaults_are_the_multiload_colors` and `config::tests::a_file_overrides_and_bad_lines_fall_back`. Both fail on the old defaults and pass now.
+	- Test case: `config::tests::defaults_are_the_multiload_colors` (debhj) and `config::tests::a_file_overrides_and_bad_lines_fall_back` (debhk). Both fail on the old defaults and pass now.
 		- 2026-10-24: both asserts got new values only. System went from `#008000` to `#c64600`, and nice from `#c000c0` to `#205f40`, in both tests.
 	- Closed: 20261024-090621
 
@@ -829,8 +1166,65 @@ Sorted per the notes in [Template](#template).
 		- Nothing draws them yet. That's the memory graph item and The graphs.
 	- Decisions:
 		- Cache is the `Cached` row alone, the way multiload-ng counts it by its base formula. `free` adds `SReclaimable`. Noted in `design.md`.
-	- Test case: `mem::tests` (6) and `collect::tests::slurp_reuses_and_misses`.
+	- Test case: `mem::tests` (6: decax, decay, decaz, decb0, decb1, decb2) and `collect::tests::slurp_reuses_and_misses` (decaw).
 	- Closed: 20261024-085549
+
+- Finish the requirement for moving between time spans
+	- ID: 2026101916013880
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013886
+	- Requirements:
+		- The log axis item has a sentence that stops partway: "The transition from 1m to 1h to 1d to "everything" should".
+	- Progress log:
+		- Finished: it should be smooth, with no obvious gate or line behind the scenes. `design.md` has how under Time axis.
+	- Test case: None, since it was a question. The log axis item's tests cover the answer.
+	- Closed: 20261019
+
+- Confirm the language split
+	- ID: 2026101916013881
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013889
+	- Requirements:
+		- OK or change the proposal in `design.md` under Code layout: a Rust core library, and a short C file per panel only where the panel API is C.
+	- Progress log:
+		- OK'd as proposed. `design.md` now lists it as settled.
+	- Test case: None, since it was a question about the code layout.
+	- Closed: 20261019
+
+- CICD reset: temp files and safe removal
+	- ID: 2026102416252896
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Each run's folder is `<HOST_TEMP>/tukzmon/<YYYYmmDD-HHMMSS>_<NNN>/`, made with a plain `mkdir` and a counter, with `TMPDIR`, `TEMP`, and `TMP` pointed into it. Unit tests' scratch folders go there too.
+		- A trap removes it at the end, on failure and Ctrl+C too, through the shared guard. `--keep-temp` keeps it and prints its path.
+		- Each run writes `run.pid` there, and removes the project's own folders older than 2 days whose process is gone.
+		- A test that starts a session bus stops it, on failure too, along with what the bus started. Session buses and gvfsd processes were found still running after a run on 2026-10-23.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Each run makes `<HOST_TEMP>/tukzmon/<YYYYmmDD-HHMMSS>_<NNN>` with a plain `mkdir` and a counter, writes `run.pid` there, and points `TMPDIR`, `TEMP` and `TMP` into it. The unit tests' scratch folders land there too.
+		- At the end, on failure and Ctrl+C too, it stops whatever is still running with that folder in its `TMPDIR`, then removes the folder through the shared guard. `--keep-temp` keeps it and prints its path.
+		- Run folders 2 days old whose run is gone are removed at the start.
+		- Verified: a run stopped part way removed its folder and stopped a process left running from it. The folder names, the counter, the stale sweep and the guard's refusals were checked too.
+	- Decisions:
+		- None of the tests starts a session bus now. A bus a test starts, and what the bus starts, inherit the run's `TMPDIR`, so the stop at the end takes them down without each test doing it.
+		- Only folders with a `run.pid` count as stale runs, so a temp folder made by hand is left alone.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892.
+	- Closed: 20261025-071028
 
 - Build date after the version, for non-release builds
 	- ID: 2026102408304652
@@ -846,35 +1240,8 @@ Sorted per the notes in [Template](#template).
 		- `tukzmon-settings --version` shows "0.1.0 (2026-10-24)". The build time is stored, and the date is worked out in the local time zone of whoever runs it.
 		- A build with `TUKZMON_RELEASE=1` leaves the date off. `SOURCE_DATE_EPOCH` is used when set.
 	- Branch: build-date
+	- Test case: `tests::the_version_line_has_the_build_and_a_dev_build_its_day` (dednz), added with 2026102416252897, which also moved the stamp to the commit's time.
 	- Closed: 20261024
-
-- Finish the requirement for moving between time spans
-	- ID: 2026101916013880
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261019-160138
-	- Opened by: t00mietum
-	- Related IDs: 2026101916013886
-	- Requirements:
-		- The log axis item has a sentence that stops partway: "The transition from 1m to 1h to 1d to "everything" should".
-	- Progress log:
-		- Finished: it should be smooth, with no obvious gate or line behind the scenes. `design.md` has how under Time axis.
-	- Closed: 20261019
-
-- Confirm the language split
-	- ID: 2026101916013881
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261019-160138
-	- Opened by: t00mietum
-	- Related IDs: 2026101916013889
-	- Requirements:
-		- OK or change the proposal in `design.md` under Code layout: a Rust core library, and a short C file per panel only where the panel API is C.
-	- Progress log:
-		- OK'd as proposed. `design.md` now lists it as settled.
-	- Closed: 20261019
 
 - What "Local" means on the network graph
 	- ID: 2026101916013883
@@ -889,7 +1256,52 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Local is 127.0.0.1, the loopback device.
 		- A LAN and internet split is its own item, 2026101916274800.
+	- Test case: None, since it was a question. The network collector's tests will cover the answer.
 	- Closed: 20261019
+
+- Dogfood install and cicd build with different Rust versions
+	- ID: 2026102514130001
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261025-141300
+	- Opened by: t00mietum
+	- Related IDs: 2026102416252898
+	- Steps to reproduce:
+		- Run `cicd/cicd.bash --backlog-run-full`, then `utility/dev-install.bash` by hand.
+	- Incorrect behavior: cicd.bash follows `rust-toolchain.toml` (1.96.0), while dev-install.bash run by hand gets Debian's cargo 1.95, so each one rebuilds `target/release` from scratch.
+	- Expected behavior: both build with the pinned version, so a dogfood install reuses the pipeline's build.
+	- Reproduced: 2026-10-25 on b23. Not from scratch: cargo keeps each version's dependencies side by side, so each swap rebuilt the plugin and settings crates.
+	- Actual cause: dev-install.bash ran whichever cargo came first in PATH, which is Debian's.
+	- Actual fix: dev-install.bash puts `~/.cargo/bin` first, as cicd.bash does, and runs from the repo folder, since the pinned version is looked up from there. It warns when the build isn't on the pinned version.
+	- Progress log:
+		- Verified: after the pipeline's host release build, dev-install.bash run from another folder finished in 0.05 s with nothing compiled. The old line rebuilt 3 crates with 1.95, and the pipeline then rebuilt the plugin.
+		- Note: `--backlog-run-full` builds in the image, into its own target folder, so it never shares `target/release`. Only the default run, which dogfoods, builds the release on the host.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
+	- Closed: 20261025-081952
+
+- 2 pipeline runs at once can remove each other's image
+	- ID: 2026102514470002
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261025-144700
+	- Opened by: t00mietum
+	- Related IDs: 2026102416252890
+	- Steps to reproduce:
+		- Start 2 runs of `cicd/cicd.bash` in the same project, with a changed container recipe, so both build the image.
+	- Incorrect behavior: the cleanup at the end of one run can remove the other's half-built image, which has no tag yet.
+	- Expected behavior: a run removes only images it built, or none while another run of the project is live.
+	- Actual fix: the cleanup removes no image while another run of the project is live: one with a live run folder, or with a container whose run is live. Containers and build cache are still cleaned.
+	- Progress log:
+		- Verified: with another run live, the old cleanup removed a labeled dangling image and the new one left it, saying which run was live. Once that run was gone, the next run removed it.
+	- Decisions:
+		- Took the second way, none while another run is live. An image from a killed run has no live owner either way, so it still goes at the next quiet run.
+		- A run that starts in the moment between the check and the removal isn't covered.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
+	- Closed: 20261025-081952
 
 **Stop here for a next release**
 

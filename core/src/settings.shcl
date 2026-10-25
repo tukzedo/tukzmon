@@ -13,7 +13,7 @@
 ## default is the Default theme's value, and config::tests holds the two to
 ## each other.
 
-tabs: "Graph", "Themes", "Themes/CPU", "Themes/Background"
+tabs: "Graph", "Themes", "Themes/CPU", "Themes/Memory", "Themes/Background"
 
 settings:
 
@@ -33,7 +33,7 @@ settings:
 		path: graph.width
 		default: 128
 		detents: 64, 128, 256
-		tip: "How wide the graph is in the panel. Its height follows the panel."
+		tip: "How wide each graph is in the panel, unless it has a width of its own under Graphs. Its height follows the panel."
 
 	TimeHead:
 		label: Time
@@ -70,7 +70,7 @@ settings:
 		path: graph.sample_ms
 		default: 500
 		detents: 250, 500, 1000, 2000
-		tip: "How often the CPU is read and the graph redrawn."
+		tip: "How often the graphs are read and redrawn."
 
 	spikes:
 		label: Spike emphasis %
@@ -107,6 +107,57 @@ settings:
 		slider_range: 0, 4
 		path: graph.border
 		default: 1
+
+	GraphsHead:
+		label: Graphs
+		tab: Graph
+		control: heading
+
+	show_cpu:
+		label: CPU graph
+		tab: Graph
+		control: checkbox
+		path: cpu.show
+		default: true
+		tip: "Show CPU use: I/O wait, system, user and nice, from the bottom up. With every other graph off, it shows anyway, so the panel item never goes away."
+
+	cpu_width:
+		label: CPU width px
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 4096
+		path: cpu.width
+		default: 0
+		gate: show_cpu
+		tip: "How wide the CPU graph is, in the same pixels as Width. 0 uses Width."
+
+	show_memory:
+		label: Memory graph
+		tab: Graph
+		control: checkbox
+		path: mem.show
+		default: true
+		tip: "Show memory use beside the CPU graph: what programs use, then buffers, then cache, from the bottom up. It's left out on a box where memory can't be read."
+
+	mem_width:
+		label: Memory width px
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 4096
+		path: mem.width
+		default: 0
+		gate: show_memory
+		tip: "How wide the memory graph is, in the same pixels as Width. 0 uses Width."
+
+	graph_order:
+		label: Order
+		tab: Graph
+		control: text
+		path: graph.order
+		default: "cpu mem"
+		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU and mem for memory. One left out goes at the end."
 
 	HistoryHead:
 		label: History
@@ -232,6 +283,89 @@ settings:
 		shown_when: "cpu_mode = gradient"
 		tip: "The color at the top."
 
+	mem_mode:
+		label: Colors
+		tab: Themes/Memory
+		control: dropdown
+		shown_as: radio
+		options: detailed, gradient
+		option_labels: "Detailed", "Gradient"
+		path: mem.mode
+		default: detailed
+		group: theme
+		tip: "Detailed gives programs, buffers and cache a color each. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	MemHead:
+		label: "Memory, from the bottom up"
+		tab: Themes/Memory
+		control: heading
+		shown_when: "mem_mode = detailed"
+
+	mem_user:
+		label: Programs
+		tab: Themes/Memory
+		control: color
+		path: mem.colors.user
+		default: "#ffff80"
+		group: theme
+		shown_when: "mem_mode = detailed"
+		tip: "Memory in use that isn't buffers or cache."
+
+	mem_buffers:
+		label: Buffers
+		tab: Themes/Memory
+		control: color
+		path: mem.colors.buffers
+		default: "#804080"
+		group: theme
+		shown_when: "mem_mode = detailed"
+
+	mem_cache:
+		label: Cache
+		tab: Themes/Memory
+		control: color
+		path: mem.colors.cache
+		default: "#408060"
+		group: theme
+		shown_when: "mem_mode = detailed"
+		tip: "The page cache, which the kernel gives back when programs need it."
+
+	MemGradHead:
+		label: "Memory, by height"
+		tab: Themes/Memory
+		control: heading
+		shown_when: "mem_mode = gradient"
+
+	mem_low:
+		label: Low
+		tab: Themes/Memory
+		control: color
+		path: mem.colors.low
+		default: "#408060"
+		group: theme
+		shown_when: "mem_mode = gradient"
+		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
+
+	mem_medium:
+		label: Medium
+		tab: Themes/Memory
+		control: color
+		path: mem.colors.medium
+		default: "#ffff80"
+		group: theme
+		shown_when: "mem_mode = gradient"
+		tip: "The color halfway up."
+
+	mem_high:
+		label: High
+		tab: Themes/Memory
+		control: color
+		path: mem.colors.high
+		default: "#ffffe0"
+		group: theme
+		shown_when: "mem_mode = gradient"
+		tip: "The color at the top."
+
 	BackHead:
 		label: Background
 		tab: Themes/Background
@@ -282,6 +416,8 @@ settings:
 ## hue. Fire is the exception, named for its gradient: dim red, yellow-white,
 ## then light blue, like a hot flame. Nice, the border and the background are that hue muted. I/O wait and
 ## system stay red and orange in every theme, so trouble reads the same.
+## Default's memory colors are multiload-ng's as they were. Buffers and cache
+## are muted in the others, cache as nice and buffers a step round from it.
 
 groups:
 
@@ -300,6 +436,13 @@ groups:
 				system: "#c64200"
 				user: "#00ff80"
 				nice: "#205f40"
+				mem_mode: detailed
+				mem_low: "#408060"
+				mem_medium: "#ffff80"
+				mem_high: "#ffffe0"
+				mem_user: "#ffff80"
+				mem_buffers: "#804080"
+				mem_cache: "#408060"
 				border_color: "#408060"
 				back_top: "#2a543f"
 				back_bottom: "#000000"
@@ -314,6 +457,13 @@ groups:
 				system: "#c64200"
 				user: "#00ff00"
 				nice: "#205f20"
+				mem_mode: detailed
+				mem_low: "#205f20"
+				mem_medium: "#00ff00"
+				mem_high: "#c0ffc0"
+				mem_user: "#00ff00"
+				mem_buffers: "#2f6f5f"
+				mem_cache: "#205f20"
 				border_color: "#408040"
 				back_top: "#2a542a"
 				back_bottom: "#000000"
@@ -328,6 +478,13 @@ groups:
 				system: "#f09b71"
 				user: "#a1f0a1"
 				nice: "#6a8a6a"
+				mem_mode: detailed
+				mem_low: "#6a8a6a"
+				mem_medium: "#a1f0a1"
+				mem_high: "#e0ffe0"
+				mem_user: "#a1f0a1"
+				mem_buffers: "#7a9a92"
+				mem_cache: "#6a8a6a"
 				border_color: "#7fa17f"
 				back_top: "#3a4a3a"
 				back_bottom: "#0f140f"
@@ -342,6 +499,13 @@ groups:
 				system: "#c64200"
 				user: "#0080ff"
 				nice: "#20405f"
+				mem_mode: detailed
+				mem_low: "#20405f"
+				mem_medium: "#0080ff"
+				mem_high: "#c0e0ff"
+				mem_user: "#0080ff"
+				mem_buffers: "#40407f"
+				mem_cache: "#20405f"
 				border_color: "#406080"
 				back_top: "#2a3f54"
 				back_bottom: "#000000"
@@ -356,6 +520,13 @@ groups:
 				system: "#f09b71"
 				user: "#a1c8f0"
 				nice: "#6a7a8a"
+				mem_mode: detailed
+				mem_low: "#6a7a8a"
+				mem_medium: "#a1c8f0"
+				mem_high: "#e0f0ff"
+				mem_user: "#a1c8f0"
+				mem_buffers: "#8a8aa8"
+				mem_cache: "#6a7a8a"
 				border_color: "#7f90a1"
 				back_top: "#3a424a"
 				back_bottom: "#0f1214"
@@ -370,6 +541,13 @@ groups:
 				system: "#c64200"
 				user: "#ffa000"
 				nice: "#7f4a10"
+				mem_mode: gradient
+				mem_low: "#8b1a00"
+				mem_medium: "#fff4c8"
+				mem_high: "#7fd4ff"
+				mem_user: "#ffa000"
+				mem_buffers: "#7f2a10"
+				mem_cache: "#7f4a10"
 				border_color: "#80401a"
 				back_top: "#3a1c0c"
 				back_bottom: "#000000"

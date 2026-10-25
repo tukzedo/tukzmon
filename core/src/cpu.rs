@@ -102,6 +102,7 @@ mod tests {
 	const STAT: &str =
 		"cpu  100 20 30 800 40 5 5 0 0 0\ncpu0 50 10 15 400 20 2 3 0 0 0\nintr 1 2 3\n";
 
+	// Test ID: debhp
 	#[test]
 	fn reads_the_all_cpu_line() {
 		let t = parse_stat(STAT).unwrap();
@@ -111,6 +112,7 @@ mod tests {
 		assert_eq!(t.total(), 1000);
 	}
 
+	// Test ID: debhq
 	#[test]
 	fn short_old_kernel_line() {
 		let t = parse_stat("cpu  1 2 3 4\n").unwrap();
@@ -118,6 +120,7 @@ mod tests {
 		assert_eq!(t.steal, 0);
 	}
 
+	// Test ID: debhr
 	#[test]
 	fn junk_is_none() {
 		assert!(parse_stat("cpu  1 x 3 4\n").is_none());
@@ -125,6 +128,7 @@ mod tests {
 		assert!(parse_stat("").is_none());
 	}
 
+	// Test ID: debhs
 	#[test]
 	fn shares_add_up() {
 		let a = parse_stat(STAT).unwrap();
@@ -142,6 +146,7 @@ mod tests {
 		assert_eq!(s, [0.2, 0.2, 0.3, 0.1]);
 	}
 
+	// Test ID: debht
 	#[test]
 	fn no_time_or_backwards_is_none() {
 		let a = parse_stat(STAT).unwrap();
@@ -152,6 +157,7 @@ mod tests {
 		assert!(shares(&a, &b).is_none());
 	}
 
+	// Test ID: debhv
 	#[test]
 	fn live_proc_stat_reads() {
 		let mut r = CpuReader::default();

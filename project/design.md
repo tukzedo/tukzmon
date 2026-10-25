@@ -61,6 +61,17 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- The other way, a short C file built against the headers, needs `libxfce4panel-2.0-dev`. On b23 that would pull the panel library back from 4.20.7 to Debian's 4.20.4.
 	- The panel runs external plugins in a separate wrapper process, so a crash takes down the plugin adn not the panel.
 
+- The plugin draws its graphs in one drawing area, side by side, in the saved order. There's no gap between them, like multiload-ng's spacing of 0. On a vertical panel they're stacked, and share the height evenly. The graph under the pointer gets the hover line and the tip. `core/src/graphs.rs` has the layout.
+	- Under Graphs on the Graph tab, each graph has a checkbox, at `cpu.show` and `mem.show`, and a width, at `cpu.width` and `mem.width`. A width of 0, the default, is the Width setting. Widths are in the panel's own pixels, so they scale with it.
+	- A box where `/proc/meminfo` can't be read never shows the memory graph.
+	- With every other graph off, CPU shows anyway, so the item never shrinks to nothing, and its right-click menu stays in reach.
+	- A hidden graph isn't read. Its history is kept, and shows a gap for the time it was hidden.
+	- Order on the Graph tab, at `graph.order`, names the graphs first to last, left to right or top to bottom: `cpu` and `mem`, by their history section names. The default is `cpu mem`.
+		- Spaces or commas both work, since a hand edit like `order: mem, cpu` is a list to shcl.
+		- A name it doesn't know is skipped. A graph it doesn't name goes at the end, in the default order, so that way a graph added later, such as network, shows up last in a saved order.
+		- A hidden graph keeps its place for when it's shown again.
+	- The live graph list, backlog 2026102408304639, takes over these rows. Its grippers set the order.
+
 - The drawing area has a window of its own, so it has to take button events and be an action widget, or a right-click never reaches the panel's menu.
 
 - The plugin reads the settings file again when its modified time changes, checked at every sample. That's how a save in the settings window shows up.
@@ -106,11 +117,16 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- A color changed on a theme is kept apart from it, and the dropdown says "Name *", the way SilkTerm's does. Picking another theme drops those changes.
 	- knobs reads a color line at its own path as the Custom set. A file with colors and no theme line reads as Custom, so a hand edit or an older file isn't hidden under Default. A save names the theme whenever Custom colors are stored, even Default, or the file would read back as Custom.
 
-- Each graph's sub-tab starts with its mode, Detailed or Gradient, at `cpu.mode` for the CPU graph.
+- Each graph's sub-tab starts with its mode, Detailed or Gradient, at `cpu.mode` for the CPU graph and `mem.mode` for memory.
 	- Detailed stacks a color per series, as before.
 	- Gradient draws the column in one blend of Low, Medium and High. A pixel takes the blend at its height in the plot, Low at the bottom, Medium halfway and High at the top, so a busier column reaches further up the ramp and the colors stay put as it grows. The column's height is the same as the stack's.
 	- Only the rows for the mode picked are shown. A mode changed by hand is a change on the theme, like a color.
 	- Fire is a Gradient theme: dim red, yellow-white, then light blue, like a hot flame. Every other built-in is Detailed, with a gradient from its nice color through its user color to a pale tint of it.
+
+- The memory graph's colors are on the Memory sub-tab: Programs, Buffers and Cache, at `mem.colors.user`, `.buffers` and `.cache`, plus its own Low, Medium and High.
+	- Default's are multiload-ng's memory colors as they were, `#ffff80`, `#804080` and `#408060`, not moved onto Default's hue.
+	- In the other built-ins, cache is the theme's nice color and buffers a muted color a step round the hue from it. Fire draws memory as a gradient too.
+	- multiload-ng's memory border and background aren't used, since every graph shares the Background sub-tab.
 
 - Saved themes are kept whole in the config file, under `themes.<key>`, with a `name` and every color and mode by its setting id, the same shape as a built-in in settings.shcl. The dropdown lists them after the built-ins, and before Custom.
 	- They join the `theme` group as presets on a copy of the spec, through knobs' `Spec::finish`. The plugin reads them the same way, so knobs is unchanged.
@@ -124,6 +140,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- The user share leads, at any hue from yellow-green round to magenta, which keeps it off red and orange. Nice and a gradient's Low are that hue muted, or one up to 30 degrees from it. The border and background are the lead hue or nice's, darker and grayer.
 	- I/O wait stays red and system orange, as in the built-ins, since those are the ones to watch. Every color softens together, from as bright as Green standard to as pale as Green pastel.
 	- A roll is always Detailed. Its gradient runs from nice through the user color to a pale tint, like the built-ins', so it's ready if Gradient is picked. The hover line stays black.
+	- Buffers has a role of its own. It's muted like cache, but on the other side of the lead hue and at least 30 degrees from cache, so that way the 2 are told apart.
 	- Every theme member needs a role in `dice::ROLES`. A new graph's members fail `dice::tests::every_theme_member_has_a_role` until they get one, such as buffers and cache as muted ones.
 
 ## Panels and trays
@@ -198,7 +215,7 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - History is saved under `$XDG_DATA_HOME/tukzmon/`, as `plugin-<id>.hist`, one file per plugin instance. On start the file is read back, and the time since the last sample becomes a gap.
 	- It's written every 15 minutes and when the panel quits, to a temp file renamed over the old one. A crash loses at most the 15 minutes.
-	- The file holds a named section per graph. A file from other tiers, or one that doesn't read whole, is skipped. The graph starts fresh, and the next save replaces it.
+	- The file holds a named section per graph. A section that no graph shown owns, such as a hidden graph's, is kept at each save, so showing the graph again brings its history back. A file from other tiers, or one that doesn't read whole, is skipped. The graph starts fresh, and the next save replaces it.
 	- Times are Unix seconds, so runs line up. A clock set back to before the saved history is moved up to its end, so new samples aren't dropped as old.
 	- "Keep across restarts" turns it off. Off stops saving and loading, and leaves the file as it is. Turned back on, the file is loaded again, so what was seen while it was off is a gap.
 	- History older than the max age, 365 days by default, is dropped at each save and load.
@@ -236,7 +253,7 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - A column with data for less than half its time is drawn as a gap.
 
-- With the pointer over the graph, a line one pixel wide is drawn under it, black unless set otherwise, over the plot and not the border. The tip gives the time under the line, either as "7 hrs ago" or as the local time, with the date for anything before today. The time and date follow the locale's short formats, so 12 or 24 hour is its call too. Under that are the CPU shares across the line's column, or "No data" for a gap.
+- With the pointer over the graph, a line one pixel wide is drawn under it, black unless set otherwise, over the plot and not the border. The tip gives the time under the line, either as "7 hrs ago" or as the local time, with the date for anything before today. The time and date follow the locale's short formats, so 12 or 24 hour is its call too. Under that are that graph's shares across the line's column, or "No data" for a gap.
 
 - Stacked graphs, like CPU and memory, draw each series on top of the one below, in the order the backlog gives.
 

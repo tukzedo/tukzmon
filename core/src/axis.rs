@@ -172,6 +172,7 @@ mod tests {
 		None
 	}
 
+	// Test ID: debh9
 	#[test]
 	fn ends_are_now_and_the_first_sample() {
 		for curve in CURVES {
@@ -183,6 +184,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: debha
 	#[test]
 	fn always_older_to_the_left() {
 		for curve in CURVES {
@@ -198,6 +200,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: debhb
 	#[test]
 	fn no_caps_early_on() {
 		// 10 minutes in, the right quarter is still under its minute
@@ -206,6 +209,7 @@ mod tests {
 		assert!(near(b[1], 600.0 * log_share(0.25), 1e-12));
 	}
 
+	// Test ID: debhc
 	#[test]
 	fn caps_pin_in_turn() {
 		let b = Axis::knots(Curve::FixedA, 2.0 * 3600.0);
@@ -226,6 +230,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: decbs
 	#[test]
 	fn smooth_is_one_log_curve_with_no_caps() {
 		for total in [10.0, 600.0, DAY, 365.0 * DAY] {
@@ -240,6 +245,7 @@ mod tests {
 		assert!(Axis::knots(Curve::Smooth, 365.0 * DAY)[1] > 4.0 * 60.0);
 	}
 
+	// Test ID: decbt
 	#[test]
 	fn fixed_b_is_smooth_until_a_cap() {
 		for total in [10.0, 600.0, DAY] {
@@ -251,6 +257,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: decbv
 	#[test]
 	fn caps_pin_when_the_tip_says() {
 		// the log_curve tip in settings.shcl gives these
@@ -268,6 +275,7 @@ mod tests {
 		assert!((110.0 * DAY..140.0 * DAY).contains(&b), "{b}");
 	}
 
+	// Test ID: debhd
 	#[test]
 	fn boundaries_never_jump_as_time_goes_on() {
 		for curve in CURVES {
@@ -291,6 +299,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: debhe
 	#[test]
 	fn no_seam_at_quarter_boundaries() {
 		// a pixel covers the same time either side of each boundary
@@ -310,6 +319,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: decbw
 	#[test]
 	fn curves_parse_as_the_spec_spells_them() {
 		let spec = crate::config::spec();
@@ -323,6 +333,7 @@ mod tests {
 		assert_eq!(Curve::parse(s.default.as_text()), Some(Curve::default()));
 	}
 
+	// Test ID: debhf
 	#[test]
 	fn linear_is_plain() {
 		let a = Axis::linear(64.0);

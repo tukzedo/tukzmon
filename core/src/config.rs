@@ -344,6 +344,10 @@ impl Rgb {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[allow(
+	clippy::struct_excessive_bools,
+	reason = "each is a checkbox in settings.shcl, not a state"
+)]
 pub struct Look {
 	pub width: u32,
 	pub log_axis: bool,
@@ -362,6 +366,20 @@ pub struct Look {
 	pub cpu_mode: Mode,
 	/// Low, Medium and High.
 	pub cpu_gradient: [Rgb; 3],
+	/// Draw the CPU graph. It's drawn anyway when no other graph is.
+	pub show_cpu: bool,
+	/// 0 is `width`.
+	pub cpu_width: u32,
+	/// Draw the memory graph, where the box has one.
+	pub show_memory: bool,
+	/// 0 is `width`.
+	pub mem_width: u32,
+	/// Graph names as saved, first drawn first. See [`graph_order`].
+	pub order: Vec<String>,
+	/// In `mem::MemoryReader::SERIES` order, bottom first.
+	pub mem: [Rgb; 3],
+	pub mem_mode: Mode,
+	pub mem_gradient: [Rgb; 3],
 	pub border_color: Rgb,
 	/// No background, so the panel shows through, whatever the theme.
 	pub transparent: bool,
@@ -410,6 +428,14 @@ impl Look {
 			],
 			cpu_mode: Mode::parse(m.value("cpu_mode", &NoEnv).as_text()).unwrap_or_default(),
 			cpu_gradient: [color("cpu_low"), color("cpu_medium"), color("cpu_high")],
+			show_cpu: m.value("show_cpu", &NoEnv).as_bool(),
+			cpu_width: num("cpu_width") as u32,
+			show_memory: m.value("show_memory", &NoEnv).as_bool(),
+			mem_width: num("mem_width") as u32,
+			order: graph_order(m.value("graph_order", &NoEnv).as_text()),
+			mem: [color("mem_user"), color("mem_buffers"), color("mem_cache")],
+			mem_mode: Mode::parse(m.value("mem_mode", &NoEnv).as_text()).unwrap_or_default(),
+			mem_gradient: [color("mem_low"), color("mem_medium"), color("mem_high")],
 			border_color: color("border_color"),
 			transparent: m.value("transparent", &NoEnv).as_bool(),
 			top: color("back_top"),
@@ -425,12 +451,35 @@ impl Look {
 		}
 	}
 
+	pub fn mem_paint(&self) -> Paint<'_, 3> {
+		match self.mem_mode {
+			Mode::Detailed => Paint::Stack(&self.mem),
+			Mode::Gradient => Paint::Gradient(self.mem_gradient),
+		}
+	}
+
 	/// A missing or unreadable file gives the defaults, and a bad line gives
 	/// that setting's default.
 	pub fn load(path: &Path) -> Look {
 		let text = std::fs::read_to_string(path).unwrap_or_default();
 		Look::from_model(&model(&text))
 	}
+}
+
+/// The names in a `graph.order` line, lower case, each once. Commas work as
+/// well as spaces, since shcl reads `cpu, mem` as a list and hands it back
+/// with quotes.
+pub fn graph_order(text: &str) -> Vec<String> {
+	let mut names: Vec<String> = Vec::new();
+	for word in text.split(|c: char| c == ',' || c.is_whitespace()) {
+		let name = word
+			.trim_matches(|c| c == '"' || c == '\'')
+			.to_ascii_lowercase();
+		if !name.is_empty() && !names.contains(&name) {
+			names.push(name);
+		}
+	}
+	names
 }
 
 /// `$XDG_CONFIG_HOME/tukzmon`, else `~/.config/tukzmon`.
@@ -453,6 +502,7 @@ pub fn config_file() -> PathBuf {
 mod tests {
 	use super::*;
 
+	// Test ID: debhg
 	#[test]
 	fn parse_spec() {
 		if let Err(e) = Spec::parse(SPEC_TEXT) {
@@ -460,6 +510,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: decb4
 	#[test]
 	fn slider_ranges_sit_inside_their_range() {
 		let doc = shcl::Document::parse(SPEC_TEXT);
@@ -480,6 +531,7 @@ mod tests {
 		assert_eq!(slider_range("spikes"), None);
 	}
 
+	// Test ID: debhh
 	#[test]
 	fn no_text_was_split_on_a_comma() {
 		// a bare value with a comma in it reads as a list, which shows up quoted
@@ -492,6 +544,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: debhj
 	#[test]
 	fn defaults_are_the_multiload_colors() {
 		let l = Look::default();
@@ -510,11 +563,12 @@ mod tests {
 		assert_eq!(l.said, Said::Ago);
 	}
 
+	// Test ID: deccf
 	#[test]
 	fn the_default_theme_is_the_row_defaults() {
 		let spec = spec();
 		let g = spec.group(THEME).unwrap();
-		assert_eq!(g.members.len(), 12);
+		assert_eq!(g.members.len(), 19);
 		let default = g.preset("default").unwrap();
 		assert_eq!(default.label, "Default");
 		for id in &g.members {
@@ -536,6 +590,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: deccg
 	#[test]
 	fn a_theme_sets_every_color() {
 		let l = Look::from_model(&model("theme:\n\tname: blue_pastel\n"));
@@ -548,6 +603,7 @@ mod tests {
 		);
 	}
 
+	// Test ID: decdy
 	#[test]
 	fn transparent_is_off_and_outlives_any_theme() {
 		assert!(!Look::default().transparent);
@@ -568,6 +624,7 @@ mod tests {
 		assert_eq!(l.top, Rgb(0x12, 0x34, 0x56));
 	}
 
+	// Test ID: decch
 	#[test]
 	fn colors_with_no_theme_line_are_custom() {
 		let text = "cpu:\n\tcolors:\n\t\tuser: \"#123456\"\n";
@@ -582,6 +639,7 @@ mod tests {
 		assert_eq!(l.cpu[2], Rgb(0, 0xff, 0x80));
 	}
 
+	// Test ID: deccj
 	#[test]
 	fn a_change_on_a_theme_is_kept_with_it() {
 		let mut m = model("theme:\n\tname: green_standard\n");
@@ -595,6 +653,7 @@ mod tests {
 		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x20));
 	}
 
+	// Test ID: decck
 	#[test]
 	fn back_to_default_from_custom_stays_default() {
 		let mut m = model("");
@@ -617,6 +676,7 @@ mod tests {
 		assert_eq!(plain.save(&NoEnv).0.trim(), "");
 	}
 
+	// Test ID: decct
 	#[test]
 	fn a_saved_theme_is_listed_after_the_built_ins_and_sets_the_look() {
 		let text = "theme:\n\tname: mine\nthemes:\n\tmine:\n\t\tname: \"My green\"\n\t\tuser: \"#11AA22\"\n\t\tnice: nope\n";
@@ -656,6 +716,7 @@ mod tests {
 		assert_eq!(loaded, l);
 	}
 
+	// Test ID: decdg
 	#[test]
 	fn fire_is_a_gradient_and_the_rest_are_detailed() {
 		let l = Look::from_model(&model("theme:\n\tname: fire\n"));
@@ -695,6 +756,93 @@ mod tests {
 		assert_eq!(Mode::parse("plaid"), None);
 	}
 
+	// Test ID: dedpz
+	#[test]
+	fn memory_colors_are_multiload_ngs_and_every_theme_has_them() {
+		let d = Look::default();
+		assert_eq!(
+			d.mem,
+			[
+				Rgb(0xff, 0xff, 0x80),
+				Rgb(0x80, 0x40, 0x80),
+				Rgb(0x40, 0x80, 0x60)
+			]
+		);
+		assert!(d.show_memory);
+		assert_eq!(d.mem_mode, Mode::Detailed);
+		assert_eq!(d.mem_paint(), crate::render::Paint::Stack(&d.mem));
+		let spec = spec();
+		for p in &spec.group(THEME).unwrap().presets {
+			let v = |id: &str| p.values[id].as_text().to_string();
+			assert_eq!(v("mem_mode"), v("cpu_mode"), "{}", p.key);
+			assert_ne!(v("mem_buffers"), v("mem_cache"), "{}", p.key);
+			assert_ne!(v("mem_user"), v("mem_buffers"), "{}", p.key);
+		}
+		let fire = Look::from_model(&model("theme:\n\tname: fire\n"));
+		assert_eq!(
+			fire.mem_paint(),
+			crate::render::Paint::Gradient(fire.cpu_gradient)
+		);
+		assert_eq!(shown_when("mem_buffers"), Some(("mem_mode", "detailed")));
+		assert_eq!(shown_when("mem_high"), Some(("mem_mode", "gradient")));
+		assert!(shown_as_radio("mem_mode"));
+		// a file can hide it, and the colors are its own
+		let l = Look::from_model(&model(
+			"mem:\n\tshow: false\n\tcolors:\n\t\tcache: \"#010203\"\n",
+		));
+		assert!(!l.show_memory);
+		assert_eq!(l.mem[2], Rgb(1, 2, 3));
+		assert_eq!(l.cpu, d.cpu);
+	}
+
+	// Test ID: dedqf
+	#[test]
+	fn each_graph_has_a_switch_and_a_width() {
+		let d = Look::default();
+		assert!(d.show_cpu && d.show_memory);
+		assert_eq!((d.cpu_width, d.mem_width), (0, 0));
+		let l = Look::from_model(&model(
+			"graph:\n\twidth: 90\ncpu:\n\tshow: false\n\twidth: 64\nmem:\n\twidth: 4096\n",
+		));
+		assert_eq!(
+			(l.show_cpu, l.cpu_width, l.mem_width, l.width),
+			(false, 64, 4096, 90)
+		);
+		assert!(l.show_memory);
+		let spec = spec();
+		let gate = |id: &str| {
+			spec.settings
+				.iter()
+				.find(|s| s.id == id)
+				.unwrap()
+				.gate
+				.clone()
+		};
+		assert_eq!(gate("cpu_width").as_deref(), Some("show_cpu"));
+		assert_eq!(gate("mem_width").as_deref(), Some("show_memory"));
+	}
+
+	// Test ID: dedqq
+	#[test]
+	fn the_graph_order_reads_with_spaces_or_commas() {
+		assert_eq!(Look::default().order, ["cpu", "mem"]);
+		for text in [
+			"graph:\n\torder: mem cpu\n",
+			"graph:\n\torder: mem, cpu\n",
+			"graph:\n\torder: \"MEM  cpu\"\n",
+			"graph:\n\torder: mem, mem, cpu\n",
+		] {
+			assert_eq!(
+				Look::from_model(&model(text)).order,
+				["mem", "cpu"],
+				"{text}"
+			);
+		}
+		assert_eq!(graph_order("net, \"mem\" 'cpu'"), ["net", "mem", "cpu"]);
+		assert!(graph_order(" , ").is_empty());
+	}
+
+	// Test ID: decdh
 	#[test]
 	fn the_mode_shows_only_its_own_rows() {
 		assert!(shown_as_radio("cpu_mode"));
@@ -727,6 +875,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: decdj
 	#[test]
 	fn a_saved_theme_keeps_its_mode() {
 		let text = "theme:\n\tname: mine\nthemes:\n\tmine:\n\t\tname: Mine\n\t\tcpu_mode: GRADIENT\n\t\tcpu_low: \"#010203\"\n";
@@ -750,6 +899,7 @@ mod tests {
 		assert_eq!(theme_problems(&doc).len(), 1);
 	}
 
+	// Test ID: deccv
 	#[test]
 	fn a_saved_theme_cant_take_a_built_in_key() {
 		let text = "themes:\n\tdefault:\n\t\tuser: \"#123456\"\n\tCustom:\n\t\tuser: \"#123456\"\n";
@@ -759,13 +909,14 @@ mod tests {
 		assert_eq!(Look::from_model(&model(text)), Look::default());
 	}
 
+	// Test ID: deccw
 	#[test]
 	fn saved_themes_write_whole_and_read_back() {
 		let mut t = saved_themes(&shcl::Document::parse(
 			"themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n",
 		));
 		assert_eq!(t[0].name, "Say \"hi\"");
-		assert_eq!(t[0].colors.len(), 12);
+		assert_eq!(t[0].colors.len(), 19);
 		t.push(SavedTheme {
 			key: theme_key("Default", &t),
 			name: "Default".into(),
@@ -777,6 +928,7 @@ mod tests {
 		assert_eq!(themes_text(&[]), "");
 	}
 
+	// Test ID: deccx
 	#[test]
 	fn theme_keys_are_plain_and_free() {
 		assert_eq!(theme_key("My Green!", &[]), "my_green");
@@ -787,6 +939,7 @@ mod tests {
 		assert_eq!(theme_key("Blue pastel", &[]), "blue_pastel_2");
 	}
 
+	// Test ID: decc5
 	#[test]
 	fn the_hover_settings_come_from_the_file() {
 		let text = "graph:\n\thover_time: clock\n\tcolors:\n\t\thover: \"#ffffff\"\n";
@@ -797,6 +950,7 @@ mod tests {
 		assert_eq!(l.said, Said::Ago);
 	}
 
+	// Test ID: decbx
 	#[test]
 	fn the_log_curve_comes_from_the_file() {
 		let pick = |v: &str| {
@@ -814,6 +968,7 @@ mod tests {
 		assert!(tip.contains("\n\nLog A") && !tip.contains("\\n"), "{tip}");
 	}
 
+	// Test ID: decbf
 	#[test]
 	fn history_is_kept_a_year_by_default() {
 		let l = Look::default();
@@ -825,6 +980,7 @@ mod tests {
 		assert_eq!(l.max_days, 365);
 	}
 
+	// Test ID: debhk
 	#[test]
 	fn a_file_overrides_and_bad_lines_fall_back() {
 		let text = "graph:\n\twidth: 200\n\tsample_ms: 99999\ncpu:\n\tcolors:\n\t\tuser: \"#123456\"\n\t\tnice: red\n";
@@ -835,6 +991,7 @@ mod tests {
 		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x40));
 	}
 
+	// Test ID: debhm
 	#[test]
 	fn missing_file_is_defaults() {
 		assert_eq!(
@@ -843,6 +1000,7 @@ mod tests {
 		);
 	}
 
+	// Test ID: debhn
 	#[test]
 	fn rgb_parsing() {
 		assert_eq!(Rgb::parse("#0a0B0c"), Some(Rgb(10, 11, 12)));

@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+
+#  shellcheck disable=1091  ## 'source is valid here, but shellcheck doesn't know the path to it.'
+#  shellcheck disable=2317,2329  ## 'Can't reach' and 'never invoked.' False hits on the EXIT trap's function.
+#  shellcheck enable=require-variable-braces  ## Every expansion braced: "${var}", not "$var".
+
+##	- Purpose: Run cicd.bash --merge-gate before a push moves main. A push to
+##	  dev, a feature branch or a tag isn't gated.
+##	- A push to main whose changes are all under DOCS_PATHS in
+##	  cicd/config.bash skips the gate. That's judged against what the remote's
+##	  main has, so a new or unknown remote commit runs the gate.
+##	- The gate runs on the commit being pushed. When that's the checkout's HEAD
+##	  with nothing uncommitted, it runs in place. Otherwise it runs in a
+##	  detached worktree in the run's temp folder, building into target/gate.
+##	- A commit with no cicd/cicd.bash in it, from before the pipeline, isn't
+##	  gated.
+##	- Escape hatch: TUKZMON_SKIP_HOOK=1, or `git push --no-verify`.
+##	- Turned on per clone by pointing git at this folder:
+##		git config core.hooksPath cicd/hooks
+##	History: At bottom of script.
+
+##	Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
+##	Licensed under The MIT License (MIT). Full text at:
+##		https://mit-license.org/
+##	SPDX-License-Identifier: MIT
+
+
+set -Eeuo pipefail
+
+[[ -n "${TUKZMON_SKIP_HOOK:-}" ]] && exit 0
+
+## A push from a linked worktree hands the hook GIT_DIR and friends, which
+## would point every git call here at the wrong place.
+for gitVar in $(git rev-parse --local-env-vars 2> /dev/null || true); do unset "${gitVar}"; done
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+root="$(cd "${here}/../.." && pwd)"
+source "${root}/cicd/config.bash"
+source "${root}/cicd/utility/include/run-tmp.bash"
+
+fSay() { printf '\n[ pre-push: %s ]\n\n' "$*"; }
+
+## True when every file that differs between the two commits is under
+## DOCS_PATHS. A missing commit, or none at all, reads as code, and so does a
+## failed diff.
+fDocsOnly() {   ## fDocsOnly OLD_SHA NEW_SHA
+	local f='' pat='' any=0 doc=0
+	[[ "$1" =~ ^0+$ ]] && return 1
+	git -C "${root}" cat-file -e "$1^{commit}" 2> /dev/null || return 1
+	while IFS= read -r -d '' f; do
+		any=1; doc=0
+		for pat in "${DOCS_PATHS[@]}"; do
+			# shellcheck disable=2053  ## The pattern is meant to glob.
+			if [[ "${f}" == ${pat} ]]; then doc=1; break; fi
+		done
+		((doc)) || return 1
+	done < <(git -C "${root}" diff -z --no-renames --name-only "$1" "$2" || printf '\x01\0')
+	((any))
+}
+
+## stdin gives "<local ref> <local sha> <remote ref> <remote sha>" per ref. All
+## zeros is a delete, with nothing to test.
+gated=()
+while read -r _localRef localSha remoteRef remoteSha; do
+	[[ "${remoteRef}" == refs/heads/main ]] || continue
+	[[ "${localSha}" =~ ^0+$ ]] && continue
+	if fDocsOnly "${remoteSha}" "${localSha}"; then fSay "${localSha:0:12} changes only docs, so the gate isn't run"; continue; fi
+	gated+=("${localSha}")
+done
+((${#gated[@]})) || exit 0
+
+worktree=""
+fDone() {
+	if [[ -n "${worktree}" ]]; then git -C "${root}" worktree remove --force "${worktree}" 2> /dev/null || true; fi
+	if [[ -n "${runTmp}" ]]; then fSafeRm "${runTmp}" || true; fi
+}
+trap fDone EXIT
+
+for sha in "${gated[@]}"; do
+	if ! git -C "${root}" cat-file -e "${sha}:cicd/cicd.bash" 2> /dev/null; then
+		fSay "${sha:0:12} has no cicd/cicd.bash, so there's no gate to run on it"
+		continue
+	fi
+	gateRoot="${root}"
+	if [[ "$(git -C "${root}" rev-parse HEAD)" != "${sha}" || -n "$(git -C "${root}" status --porcelain)" ]]; then
+		[[ -n "${runTmp}" ]] || fRunTmpMake || { fSay "could not make a temp folder, so the push is refused"; exit 1; }
+		worktree="${runTmp}/tree"
+		git -C "${root}" worktree add --detach --quiet "${worktree}" "${sha}" || { fSay "could not check ${sha:0:12} out to gate it"; exit 1; }
+		gateRoot="${worktree}"
+		export CARGO_TARGET_DIR="${root}/target/gate"
+	fi
+	fSay "running the merge gate on ${sha:0:12} before it goes to main"
+	if ! "${gateRoot}/cicd/cicd.bash" --merge-gate; then
+		fSay "the merge gate failed on ${sha:0:12}, so the push is refused" >&2
+		exit 1
+	fi
+	if [[ -n "${worktree}" ]]; then git -C "${root}" worktree remove --force "${worktree}" || true; worktree=""; fi
+done
+exit 0
+
+
+##	History:
+##		- 2026-10-25: Created from tukfs-hash's hook. It gates main only, per
+##		  the 2026-10-24 CICD reset.

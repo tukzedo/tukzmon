@@ -12,8 +12,11 @@ use crate::pick::{self, Hsv};
 pub enum Role {
 	/// The lead color, the user share.
 	Lead,
-	/// Nice, buffers, cache: the lead hue, muted.
+	/// Nice, cache: the lead hue, muted.
 	Calm,
+	/// Buffers, which sit on cache: muted too, on the other side of the lead,
+	/// so the 2 are told apart.
+	Hush,
 	/// I/O wait.
 	Alarm,
 	/// System, which has the interrupts in it.
@@ -39,6 +42,13 @@ pub const ROLES: &[(&str, Role)] = &[
 	("cpu_low", Role::Calm),
 	("cpu_medium", Role::Lead),
 	("cpu_high", Role::Tint),
+	("mem_mode", Role::Mode),
+	("mem_user", Role::Lead),
+	("mem_buffers", Role::Hush),
+	("mem_cache", Role::Calm),
+	("mem_low", Role::Calm),
+	("mem_medium", Role::Lead),
+	("mem_high", Role::Tint),
 	("border_color", Role::Border),
 	("back_top", Role::Top),
 	("back_bottom", Role::Bottom),
@@ -80,6 +90,7 @@ fn lerp(a: f64, b: f64, t: f64) -> f64 {
 struct Scheme {
 	lead: Hsv,
 	calm: Hsv,
+	hush: Hsv,
 	alarm: Hsv,
 	warn: Hsv,
 	tint: Hsv,
@@ -119,9 +130,17 @@ fn scheme(seed: u64) -> Scheme {
 	};
 	// the background takes the calm hue or the lead's
 	let back_h = if r.unit() < 0.5 { h } else { calm_h };
+	// mirrored, and pushed out so it's 30 degrees or more from calm
+	let off = calm_h - h;
+	let hush = Hsv {
+		h: (h - off.signum() * (1.0 / 12.0 - off.abs() / 2.0)).rem_euclid(1.0),
+		s: calm.s,
+		v: (calm.v * 1.2).min(lead.v * 0.7),
+	};
 	Scheme {
 		lead,
 		calm,
+		hush,
 		alarm,
 		warn,
 		tint: Hsv {
@@ -162,6 +181,7 @@ pub fn theme(seed: u64) -> Vec<(&'static str, String)> {
 				Role::Mode => "detailed".to_string(),
 				Role::Lead => hex(k.lead),
 				Role::Calm => hex(k.calm),
+				Role::Hush => hex(k.hush),
 				Role::Alarm => hex(k.alarm),
 				Role::Warn => hex(k.warn),
 				Role::Tint => hex(k.tint),
@@ -209,6 +229,7 @@ mod tests {
 
 	const SEEDS: std::ops::Range<u64> = 0..2000;
 
+	// Test ID: decdr
 	#[test]
 	fn every_theme_member_has_a_role() {
 		let spec = config::spec();
@@ -221,6 +242,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: decds
 	#[test]
 	fn every_roll_is_a_value_its_setting_takes_and_never_a_gradient() {
 		let spec = config::spec();
@@ -238,6 +260,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: decdt
 	#[test]
 	fn the_lead_rules_and_the_alarms_stay_red_and_orange() {
 		for seed in SEEDS {
@@ -262,6 +285,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: decdv
 	#[test]
 	fn the_quiet_ones_are_muted_and_near_the_lead() {
 		for seed in SEEDS {
@@ -284,6 +308,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: decdw
 	#[test]
 	fn the_gradient_runs_from_calm_through_the_lead() {
 		for seed in SEEDS {
@@ -298,6 +323,32 @@ mod tests {
 		}
 	}
 
+	// Test ID: dedq0
+	#[test]
+	fn buffers_and_cache_are_muted_and_told_apart() {
+		for seed in SEEDS {
+			let t = theme(seed);
+			let get = |id: &str| t.iter().find(|(i, _)| *i == id).unwrap().1.clone();
+			let lead = hsv_of(&get("mem_user"));
+			let buffers = hsv_of(&get("mem_buffers"));
+			assert_eq!(get("mem_user"), get("user"), "{seed}");
+			assert_eq!(get("mem_cache"), get("nice"), "{seed}");
+			assert_ne!(get("mem_buffers"), get("mem_cache"), "{seed}");
+			assert!(
+				buffers.v < lead.v * 0.75 && buffers.s <= lead.s,
+				"{seed} {lead:?} {buffers:?}"
+			);
+			// a dark gray-ish one reads its hue back a few degrees off
+			assert!(hue_gap(buffers.h, lead.h) <= 36.0 / 360.0, "{seed}");
+			let calm = scheme(seed);
+			assert!(
+				hue_gap(calm.hush.h, calm.calm.h) >= 30.0 / 360.0 - 1e-9,
+				"{seed}"
+			);
+		}
+	}
+
+	// Test ID: decdx
 	#[test]
 	fn a_seed_rolls_the_same_theme_and_seeds_differ() {
 		assert_eq!(theme(7), theme(7));

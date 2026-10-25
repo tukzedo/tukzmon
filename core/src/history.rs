@@ -347,6 +347,7 @@ mod tests {
 		(a - b).abs() < 1e-5
 	}
 
+	// Test ID: debhw
 	#[test]
 	fn mean_and_max_of_a_span() {
 		let mut h = History::<1>::default();
@@ -360,6 +361,7 @@ mod tests {
 		assert!(close(s.covered, 1.0));
 	}
 
+	// Test ID: debhx
 	#[test]
 	fn a_long_sample_fills_every_bucket_it_covers() {
 		// half-second samples on quarter-second buckets leave no holes
@@ -374,6 +376,7 @@ mod tests {
 		assert!(close(h.span(10.0, 11.0).mean[0], 0.5));
 	}
 
+	// Test ID: debhy
 	#[test]
 	fn part_buckets_count_in_part() {
 		let mut h = History::<1>::default();
@@ -384,6 +387,7 @@ mod tests {
 		assert!(close(s.mean[0], 0.8));
 	}
 
+	// Test ID: debhz
 	#[test]
 	fn the_newest_part_bucket_is_full_where_it_has_data() {
 		let mut h = History::<1>::default();
@@ -394,6 +398,7 @@ mod tests {
 		assert_eq!(h.span(10.1, 10.2).covered, 0.0);
 	}
 
+	// Test ID: debj0
 	#[test]
 	fn gaps_are_left_out_not_zero() {
 		let mut h = History::<1>::default();
@@ -408,6 +413,7 @@ mod tests {
 		assert_eq!(s, 5);
 	}
 
+	// Test ID: debj1
 	#[test]
 	fn old_buckets_age_out_of_the_fine_tier() {
 		let mut h = History::<1>::default();
@@ -422,6 +428,7 @@ mod tests {
 		assert!(close(s.covered, 1.0));
 	}
 
+	// Test ID: debj2
 	#[test]
 	fn a_long_gap_resets_a_tier_instead_of_filling_it() {
 		let mut h = History::<1>::default();
@@ -435,6 +442,7 @@ mod tests {
 		assert_eq!(h.first(), Some(0.0));
 	}
 
+	// Test ID: debj3
 	#[test]
 	fn overlap_and_backwards_time_are_dropped() {
 		let mut h = History::<1>::default();
@@ -459,6 +467,7 @@ mod tests {
 		h
 	}
 
+	// Test ID: decbg
 	#[test]
 	fn encode_and_decode_give_back_the_same_history() {
 		let h = a_day_of_samples();
@@ -480,6 +489,7 @@ mod tests {
 		assert_eq!((e.first(), e.last()), (None, None));
 	}
 
+	// Test ID: decbh
 	#[test]
 	fn decode_refuses_what_encode_wouldnt_write() {
 		let h = a_day_of_samples();
@@ -503,6 +513,7 @@ mod tests {
 		assert!(History::<2>::decode(&over).is_none());
 	}
 
+	// Test ID: decbj
 	#[test]
 	fn trim_drops_only_what_is_older() {
 		let mut h = a_day_of_samples();

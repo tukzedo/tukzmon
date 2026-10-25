@@ -556,6 +556,7 @@ mod tests {
 		Dir(base)
 	}
 
+	// Test ID: debjc
 	#[test]
 	fn opens_on_defaults_with_no_file() {
 		let d = scratch("defaults");
@@ -567,6 +568,22 @@ mod tests {
 		assert_eq!(dlg.state("width").number, 128.0);
 	}
 
+	// Test ID: dedqr
+	#[test]
+	fn the_graph_order_is_saved_as_typed_and_reads_back() {
+		let d = scratch("order");
+		let path = d.0.join("t.shcl");
+		let mut dlg = Dialog::open(path.clone());
+		for typed in ["mem cpu", "mem, cpu"] {
+			assert!(dlg.set_text("graph_order", typed));
+			dlg.apply().unwrap();
+			assert_eq!(config::Look::load(&path).order, ["mem", "cpu"], "{typed}");
+			// and the window takes the file back without a complaint
+			assert!(Dialog::open(path.clone()).apply().is_ok(), "{typed}");
+		}
+	}
+
+	// Test ID: debjd
 	#[test]
 	fn apply_writes_only_what_changed() {
 		let d = scratch("apply");
@@ -586,6 +603,7 @@ mod tests {
 		);
 	}
 
+	// Test ID: debje
 	#[test]
 	fn a_hand_edit_made_while_open_survives() {
 		let d = scratch("hand");
@@ -602,6 +620,7 @@ mod tests {
 		assert_eq!(config::Look::load(&path).border, 1);
 	}
 
+	// Test ID: debjf
 	#[test]
 	fn refuses_to_drop_lines_it_cant_place() {
 		let d = scratch("lose");
@@ -617,6 +636,7 @@ mod tests {
 		);
 	}
 
+	// Test ID: debjg
 	#[test]
 	fn bad_input_changes_nothing() {
 		let d = scratch("bad");
@@ -628,6 +648,7 @@ mod tests {
 		assert!(!dlg.dirty());
 	}
 
+	// Test ID: decb5
 	#[test]
 	fn the_box_takes_more_than_the_slider_reaches() {
 		let d = scratch("reach");
@@ -649,6 +670,7 @@ mod tests {
 		assert!(!dlg.state("spikes").tip.contains("The slider goes"));
 	}
 
+	// Test ID: debjh
 	#[test]
 	fn sliders_snap_to_detents_and_gates_turn_on() {
 		let d = scratch("slider");
@@ -663,6 +685,7 @@ mod tests {
 		assert!(dlg.state("log_axis").on);
 	}
 
+	// Test ID: deccm
 	#[test]
 	fn a_theme_and_the_changes_on_it_are_saved() {
 		let d = scratch("theme");
@@ -681,6 +704,7 @@ mod tests {
 		assert_eq!(dlg.state("nice").text, "#20405f");
 	}
 
+	// Test ID: decdn
 	#[test]
 	fn the_mode_swaps_the_rows_and_fire_is_a_gradient() {
 		let d = scratch("mode");
@@ -721,6 +745,7 @@ mod tests {
 		assert!(text.contains("cpu_mode: gradient"), "{text}");
 	}
 
+	// Test ID: dece0
 	#[test]
 	fn transparent_stays_through_a_theme_pick_and_a_roll() {
 		let d = scratch("clear");
@@ -745,6 +770,7 @@ mod tests {
 		assert!(!themes.contains("transparent"), "{text}");
 	}
 
+	// Test ID: decdq
 	#[test]
 	fn randomize_changes_every_color_on_the_theme_and_turns_off_the_gradient() {
 		let d = scratch("dice");
@@ -777,6 +803,7 @@ mod tests {
 		assert_eq!(dlg.state("theme").choice, "Default");
 	}
 
+	// Test ID: deccn
 	#[test]
 	fn custom_then_the_revert_arrow_is_default_again() {
 		let d = scratch("custom");
@@ -797,6 +824,7 @@ mod tests {
 		assert!(!dlg.dirty());
 	}
 
+	// Test ID: deccy
 	#[test]
 	fn save_as_keeps_the_colors_whole_and_picks_the_new_theme() {
 		let d = scratch("save_as");
@@ -827,7 +855,7 @@ mod tests {
 		dlg.apply().unwrap();
 		let text = std::fs::read_to_string(&path).unwrap();
 		assert!(text.contains("name: night"), "{text}");
-		assert_eq!(text.matches("\"#").count(), 11, "{text}");
+		assert_eq!(text.matches("\"#").count(), 17, "{text}");
 		assert!(!text.contains("kept"), "{text}");
 		let dlg = Dialog::open(path.clone());
 		assert_eq!(dlg.state("theme").choice, "Night");
@@ -838,6 +866,7 @@ mod tests {
 		);
 	}
 
+	// Test ID: deccz
 	#[test]
 	fn save_puts_the_changes_into_the_theme() {
 		let d = scratch("save");
@@ -862,6 +891,7 @@ mod tests {
 		assert_eq!(dlg.state("user").text, "#222222");
 	}
 
+	// Test ID: decd0
 	#[test]
 	fn rename_and_delete() {
 		let d = scratch("rename");
@@ -890,6 +920,7 @@ mod tests {
 		assert_eq!(dlg.state("theme").options.len(), 8);
 	}
 
+	// Test ID: decd1
 	#[test]
 	fn a_theme_saved_by_hand_meanwhile_survives() {
 		let d = scratch("merge");
@@ -913,6 +944,7 @@ mod tests {
 		assert_eq!(dlg.state("theme").options.len(), 9);
 	}
 
+	// Test ID: decd2
 	#[test]
 	fn a_theme_line_it_cant_read_stops_the_save() {
 		let d = scratch("bad_theme");
@@ -926,6 +958,7 @@ mod tests {
 		assert_eq!(std::fs::read_to_string(&path).unwrap(), text);
 	}
 
+	// Test ID: decbz
 	#[test]
 	fn the_log_curve_sits_under_the_log_switch() {
 		let d = scratch("curve");
@@ -942,6 +975,7 @@ mod tests {
 		assert!(text.contains("log_curve: fixed_b"), "{text}");
 	}
 
+	// Test ID: decd3
 	#[test]
 	fn the_picker_moves_its_row_and_cancel_puts_it_all_back() {
 		let d = scratch("pick_cancel");
@@ -974,6 +1008,7 @@ mod tests {
 		assert_eq!(dlg.state("user").text, was);
 	}
 
+	// Test ID: decd4
 	#[test]
 	fn the_picker_keeps_what_ok_was_pressed_on() {
 		let d = scratch("pick_ok");
