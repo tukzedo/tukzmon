@@ -21,6 +21,18 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- Memory cache counts slab, the way b23's multiload-ng does
+	- ID: 2026102508354893
+	- Type: Enhancement
+	- Status: Waiting for answers
+		- Waits on the question about it in questions.md.
+	- Priority|Severity: Avg
+	- Opened: 20261025-083548
+	- Opened by: t00mietum
+	- Related IDs: 2026102408512192, 2026102408304625
+	- Requirements:
+		- b23's multiload-ng has `graph-mem-procps-compliant=true`, so it counts slab as cache. tukzmon counts `Cached` alone, per 2026102408512192, so its cache band is thinner and user thicker than multiload-ng showed.
+
 - Proof of concept: CPU graph in the XFCE panel, dogfooded on b23
 	- ID: 2026102319155124
 	- Type: Feature
@@ -381,6 +393,43 @@ Sorted per the notes in [Template](#template).
 	- Test case: `render::tests::a_transparent_background_lets_the_panel_through` (decdz), `config::tests::transparent_is_off_and_outlives_any_theme` (decdy) and `dialog::tests::transparent_stays_through_a_theme_pick_and_a_roll` (dece0). The first 2 fail with the setting left unread or the background drawn opaque, and pass with it.
 		- Swept: every reader of the Top and Bottom colors, which is only `render::Frame::draw`, and the hover line in `Graph::render`, which stays opaque.
 
+- Memory graph
+	- ID: 2026102408304625
+	- Type: Feature
+	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- How the 2 graphs look side by side is for a person to judge. On Default, cache is `#408060`, close to the shared top color `#2a543f`.
+		- It departs from the wording in one way. multiload-ng's memory border and background, `#404020` and `#13261d`, aren't used, since every graph shares the Background sub-tab.
+	- Needs local test suite run?: No. The full run passed on 2026-10-25.
+	- Needs hand testing: on b23, look at the memory graph beside the CPU graph, and hover each for its tip. Then open Settings, go to Themes, Memory, change a color and Apply. Then untick Memory graph on the Graph tab, Apply, and check the panel item gets narrower.
+	- Priority|Severity: High
+	- Opened: 20261024-082803
+	- Opened by: t00mietum
+	- Prereq IDs: 2026102408512192, 2026102409400679
+		- Was the collectors parent. Only its memory collector child is needed, and that's done.
+		- Its colors join the theme presets, so it waits on those.
+	- Related IDs: 2026101916013887, 2026102508354893
+	- Requirements:
+		- Memory, using my current color definitions from multiload-ng.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The plugin draws a memory graph right of the CPU graph, at the same width with no gap, stacked from the bottom: programs, buffers, cache. On a vertical panel it goes under the CPU graph.
+		- Default's memory colors are b23's multiload-ng ones: `#ffff80`, `#804080` and `#408060`. Every built-in theme has its own, and Fire draws memory as a gradient.
+		- Themes has a Memory sub-tab, with Detailed or Gradient like CPU's. The Graph tab has a Memory graph checkbox, on by default.
+		- Its history is saved in the same file as CPU's. A hidden graph's history is kept in the file, and comes back when it's shown again.
+		- `design.md` XFCE plugin, Theme and History have the details.
+		- Verified: in a test panel the memory graph drew beside the CPU graph in Default's colors, and its history was saved at quit. The settings window showed the Memory sub-tab and the checkbox.
+	- Decisions:
+		- One plugin shows both, the way multiload-ng does, rather than a plugin per graph. The live graph list, 2026102408304639, adds turning graphs on and off, order and a width each.
+		- The sample rate, width, axis and border are shared for now.
+		- Randomize gives buffers a muted color of its own, a step round the hue from cache, so the 2 never roll the same.
+		- Default's memory colors stay as multiload-ng had them, rather than moved onto Default's hue, since the requirement names them.
+	- Branch: round-1025
+	- Test case: `graphs::tests::the_memory_graph_samples_draws_and_tips` (dedq1), `graphs_sit_side_by_side_and_the_pointer_finds_its_own` (dedq2), `a_save_keeps_every_graph_and_a_hidden_ones_history` (dedq3) and `hiding_memory_drops_it_and_showing_brings_its_history_back` (dedq4), `config::tests::memory_colors_are_multiload_ngs_and_every_theme_has_them` (dedpz) and `dice::tests::buffers_and_cache_are_muted_and_told_apart` (dedq0). dedq2 fails with the memory tile drawn as CPU, dedq3 with other sections dropped at save, and dedq0 with buffers rolled as cache.
+		- 2026-10-25: new values only. `config::tests::the_default_theme_is_the_row_defaults` and `saved_themes_write_whole_and_read_back` count 19 theme members, not 12. `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme` counts 17 colors, not 11.
+		- Swept: every `Graph` use (the plugin, now through `Graphs`, and the lib tests), every `cpu_paint` caller, every `keep::write` caller, and every theme member, which the role and row-default tests walk.
+
 - CICD reset: standard flags
 	- ID: 2026102416252892
 	- Type: Task
@@ -708,20 +757,6 @@ Sorted per the notes in [Template](#template).
 		- Global setting to make background transparent, which overrides all background colors.
 	- Progress log:
 		- Split into 6 children, in this order: 2026102409400679 (theme presets and Default), 2026102409400684 (Themes tab and its top row), 2026102409400689 (color picker), 2026102409400695 (Gradient mode and Fire), 2026102409400700 (Randomize), and 2026102409400705 (transparent background).
-
-- Memory graph
-	- ID: 2026102408304625
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-082803
-	- Opened by: t00mietum
-	- Prereq IDs: 2026102408512192, 2026102409400679
-		- Was the collectors parent. Only its memory collector child is needed, and that's done.
-		- Its colors join the theme presets, so it waits on those.
-	- Related IDs: 2026101916013887
-	- Requirements:
-		- Memory, using my current color definitions from multiload-ng.
 
 - Live graph list on the first settings tab
 	- ID: 2026102408304639

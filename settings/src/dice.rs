@@ -12,8 +12,11 @@ use crate::pick::{self, Hsv};
 pub enum Role {
 	/// The lead color, the user share.
 	Lead,
-	/// Nice, buffers, cache: the lead hue, muted.
+	/// Nice, cache: the lead hue, muted.
 	Calm,
+	/// Buffers, which sit on cache: muted too, on the other side of the lead,
+	/// so the 2 are told apart.
+	Hush,
 	/// I/O wait.
 	Alarm,
 	/// System, which has the interrupts in it.
@@ -39,6 +42,13 @@ pub const ROLES: &[(&str, Role)] = &[
 	("cpu_low", Role::Calm),
 	("cpu_medium", Role::Lead),
 	("cpu_high", Role::Tint),
+	("mem_mode", Role::Mode),
+	("mem_user", Role::Lead),
+	("mem_buffers", Role::Hush),
+	("mem_cache", Role::Calm),
+	("mem_low", Role::Calm),
+	("mem_medium", Role::Lead),
+	("mem_high", Role::Tint),
 	("border_color", Role::Border),
 	("back_top", Role::Top),
 	("back_bottom", Role::Bottom),
@@ -80,6 +90,7 @@ fn lerp(a: f64, b: f64, t: f64) -> f64 {
 struct Scheme {
 	lead: Hsv,
 	calm: Hsv,
+	hush: Hsv,
 	alarm: Hsv,
 	warn: Hsv,
 	tint: Hsv,
@@ -119,9 +130,17 @@ fn scheme(seed: u64) -> Scheme {
 	};
 	// the background takes the calm hue or the lead's
 	let back_h = if r.unit() < 0.5 { h } else { calm_h };
+	// mirrored, and pushed out so it's 30 degrees or more from calm
+	let off = calm_h - h;
+	let hush = Hsv {
+		h: (h - off.signum() * (1.0 / 12.0 - off.abs() / 2.0)).rem_euclid(1.0),
+		s: calm.s,
+		v: (calm.v * 1.2).min(lead.v * 0.7),
+	};
 	Scheme {
 		lead,
 		calm,
+		hush,
 		alarm,
 		warn,
 		tint: Hsv {
@@ -162,6 +181,7 @@ pub fn theme(seed: u64) -> Vec<(&'static str, String)> {
 				Role::Mode => "detailed".to_string(),
 				Role::Lead => hex(k.lead),
 				Role::Calm => hex(k.calm),
+				Role::Hush => hex(k.hush),
 				Role::Alarm => hex(k.alarm),
 				Role::Warn => hex(k.warn),
 				Role::Tint => hex(k.tint),
@@ -298,6 +318,31 @@ mod tests {
 			assert_eq!(get("cpu_medium"), get("user"));
 			assert!(
 				hsv_of(&get("cpu_high")).s < hsv_of(&get("user")).s,
+				"{seed}"
+			);
+		}
+	}
+
+	// Test ID: dedq0
+	#[test]
+	fn buffers_and_cache_are_muted_and_told_apart() {
+		for seed in SEEDS {
+			let t = theme(seed);
+			let get = |id: &str| t.iter().find(|(i, _)| *i == id).unwrap().1.clone();
+			let lead = hsv_of(&get("mem_user"));
+			let buffers = hsv_of(&get("mem_buffers"));
+			assert_eq!(get("mem_user"), get("user"), "{seed}");
+			assert_eq!(get("mem_cache"), get("nice"), "{seed}");
+			assert_ne!(get("mem_buffers"), get("mem_cache"), "{seed}");
+			assert!(
+				buffers.v < lead.v * 0.75 && buffers.s <= lead.s,
+				"{seed} {lead:?} {buffers:?}"
+			);
+			// a dark gray-ish one reads its hue back a few degrees off
+			assert!(hue_gap(buffers.h, lead.h) <= 36.0 / 360.0, "{seed}");
+			let calm = scheme(seed);
+			assert!(
+				hue_gap(calm.hush.h, calm.calm.h) >= 30.0 / 360.0 - 1e-9,
 				"{seed}"
 			);
 		}

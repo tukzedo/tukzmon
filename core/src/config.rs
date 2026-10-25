@@ -344,6 +344,10 @@ impl Rgb {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[allow(
+	clippy::struct_excessive_bools,
+	reason = "each is a checkbox in settings.shcl, not a state"
+)]
 pub struct Look {
 	pub width: u32,
 	pub log_axis: bool,
@@ -362,6 +366,12 @@ pub struct Look {
 	pub cpu_mode: Mode,
 	/// Low, Medium and High.
 	pub cpu_gradient: [Rgb; 3],
+	/// Draw the memory graph, where the box has one.
+	pub show_memory: bool,
+	/// In `mem::MemoryReader::SERIES` order, bottom first.
+	pub mem: [Rgb; 3],
+	pub mem_mode: Mode,
+	pub mem_gradient: [Rgb; 3],
 	pub border_color: Rgb,
 	/// No background, so the panel shows through, whatever the theme.
 	pub transparent: bool,
@@ -410,6 +420,10 @@ impl Look {
 			],
 			cpu_mode: Mode::parse(m.value("cpu_mode", &NoEnv).as_text()).unwrap_or_default(),
 			cpu_gradient: [color("cpu_low"), color("cpu_medium"), color("cpu_high")],
+			show_memory: m.value("show_memory", &NoEnv).as_bool(),
+			mem: [color("mem_user"), color("mem_buffers"), color("mem_cache")],
+			mem_mode: Mode::parse(m.value("mem_mode", &NoEnv).as_text()).unwrap_or_default(),
+			mem_gradient: [color("mem_low"), color("mem_medium"), color("mem_high")],
 			border_color: color("border_color"),
 			transparent: m.value("transparent", &NoEnv).as_bool(),
 			top: color("back_top"),
@@ -422,6 +436,13 @@ impl Look {
 		match self.cpu_mode {
 			Mode::Detailed => Paint::Stack(&self.cpu),
 			Mode::Gradient => Paint::Gradient(self.cpu_gradient),
+		}
+	}
+
+	pub fn mem_paint(&self) -> Paint<'_, 3> {
+		match self.mem_mode {
+			Mode::Detailed => Paint::Stack(&self.mem),
+			Mode::Gradient => Paint::Gradient(self.mem_gradient),
 		}
 	}
 
@@ -519,7 +540,7 @@ mod tests {
 	fn the_default_theme_is_the_row_defaults() {
 		let spec = spec();
 		let g = spec.group(THEME).unwrap();
-		assert_eq!(g.members.len(), 12);
+		assert_eq!(g.members.len(), 19);
 		let default = g.preset("default").unwrap();
 		assert_eq!(default.label, "Default");
 		for id in &g.members {
@@ -707,6 +728,45 @@ mod tests {
 		assert_eq!(Mode::parse("plaid"), None);
 	}
 
+	// Test ID: dedpz
+	#[test]
+	fn memory_colors_are_multiload_ngs_and_every_theme_has_them() {
+		let d = Look::default();
+		assert_eq!(
+			d.mem,
+			[
+				Rgb(0xff, 0xff, 0x80),
+				Rgb(0x80, 0x40, 0x80),
+				Rgb(0x40, 0x80, 0x60)
+			]
+		);
+		assert!(d.show_memory);
+		assert_eq!(d.mem_mode, Mode::Detailed);
+		assert_eq!(d.mem_paint(), crate::render::Paint::Stack(&d.mem));
+		let spec = spec();
+		for p in &spec.group(THEME).unwrap().presets {
+			let v = |id: &str| p.values[id].as_text().to_string();
+			assert_eq!(v("mem_mode"), v("cpu_mode"), "{}", p.key);
+			assert_ne!(v("mem_buffers"), v("mem_cache"), "{}", p.key);
+			assert_ne!(v("mem_user"), v("mem_buffers"), "{}", p.key);
+		}
+		let fire = Look::from_model(&model("theme:\n\tname: fire\n"));
+		assert_eq!(
+			fire.mem_paint(),
+			crate::render::Paint::Gradient(fire.cpu_gradient)
+		);
+		assert_eq!(shown_when("mem_buffers"), Some(("mem_mode", "detailed")));
+		assert_eq!(shown_when("mem_high"), Some(("mem_mode", "gradient")));
+		assert!(shown_as_radio("mem_mode"));
+		// a file can hide it, and the colors are its own
+		let l = Look::from_model(&model(
+			"mem:\n\tshow: false\n\tcolors:\n\t\tcache: \"#010203\"\n",
+		));
+		assert!(!l.show_memory);
+		assert_eq!(l.mem[2], Rgb(1, 2, 3));
+		assert_eq!(l.cpu, d.cpu);
+	}
+
 	// Test ID: decdh
 	#[test]
 	fn the_mode_shows_only_its_own_rows() {
@@ -781,7 +841,7 @@ mod tests {
 			"themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n",
 		));
 		assert_eq!(t[0].name, "Say \"hi\"");
-		assert_eq!(t[0].colors.len(), 12);
+		assert_eq!(t[0].colors.len(), 19);
 		t.push(SavedTheme {
 			key: theme_key("Default", &t),
 			name: "Default".into(),

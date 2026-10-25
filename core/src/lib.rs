@@ -7,6 +7,7 @@ pub mod axis;
 pub mod collect;
 pub mod config;
 pub mod cpu;
+pub mod graphs;
 pub mod history;
 pub mod keep;
 pub mod mem;
@@ -22,43 +23,97 @@ use collect::Collector;
 use config::Look;
 use cpu::CpuReader;
 use history::History;
-use render::Frame;
+use mem::MemoryReader;
+use render::{Frame, Paint};
 use when::Said;
 
-/// One CPU graph: reads, history, and drawing.
-pub struct Graph {
+/// A collector as one graph draws and names it.
+pub trait Source<const N: usize>: Collector<N> {
+	/// The graph's section in the history file.
+	const SECTION: &'static str;
+	/// The tip before there's anything read.
+	const TITLE: &'static str;
+	fn text(v: &[f32; N]) -> String;
+	fn paint(look: &Look) -> Paint<'_, N>;
+}
+
+fn pc(x: f32) -> i32 {
+	(x * 100.0).round() as i32
+}
+
+impl Source<4> for CpuReader {
+	const SECTION: &'static str = "cpu";
+	const TITLE: &'static str = "CPU";
+
+	fn text(v: &[f32; 4]) -> String {
+		let busy: f32 = v.iter().sum();
+		format!(
+			"CPU {}%\nUser {}%  System {}%\nNice {}%  I/O wait {}%",
+			pc(busy),
+			pc(v[2]),
+			pc(v[1]),
+			pc(v[3]),
+			pc(v[0])
+		)
+	}
+
+	fn paint(look: &Look) -> Paint<'_, 4> {
+		look.cpu_paint()
+	}
+}
+
+impl Source<3> for MemoryReader {
+	const SECTION: &'static str = "mem";
+	const TITLE: &'static str = "Memory";
+
+	fn text(v: &[f32; 3]) -> String {
+		format!(
+			"Memory {}% in use\nBuffers {}%  Cache {}%",
+			pc(v[0]),
+			pc(v[1]),
+			pc(v[2])
+		)
+	}
+
+	fn paint(look: &Look) -> Paint<'_, 3> {
+		look.mem_paint()
+	}
+}
+
+/// One graph: reads, history, and drawing. CPU unless said otherwise.
+pub struct Graph<S: Source<N> = CpuReader, const N: usize = 4> {
 	pub look: Look,
-	hist: History<4>,
-	cpu: CpuReader,
+	hist: History<N>,
+	src: S,
 	clock: Instant,
 	/// Unix time at `clock`'s start, so saved history lines up across runs.
 	epoch: f64,
 	read_at: Option<f64>,
-	latest: Option<[f32; 4]>,
+	latest: Option<[f32; N]>,
 	px: Vec<u32>,
 	/// Where the pointer is, in device pixels from the left, for the hover line.
 	pub hover: Option<usize>,
 }
 
-fn cpu_text(v: &[f32; 4]) -> String {
-	let pc = |x: f32| (x * 100.0).round() as i32;
-	let busy: f32 = v.iter().sum();
-	format!(
-		"CPU {}%\nUser {}%  System {}%\nNice {}%  I/O wait {}%",
-		pc(busy),
-		pc(v[2]),
-		pc(v[1]),
-		pc(v[3]),
-		pc(v[0])
-	)
-}
-
 impl Graph {
 	pub fn new(look: Look) -> Graph {
+		Graph::with(look, CpuReader::default())
+	}
+}
+
+impl Graph<MemoryReader, 3> {
+	/// None where memory can't be read, so the graph is left out.
+	pub fn memory(look: Look) -> Option<Self> {
+		MemoryReader::probe().map(|src| Graph::with(look, src))
+	}
+}
+
+impl<S: Source<N>, const N: usize> Graph<S, N> {
+	fn with(look: Look, src: S) -> Self {
 		Graph {
 			look,
 			hist: History::default(),
-			cpu: CpuReader::default(),
+			src,
 			clock: Instant::now(),
 			epoch: SystemTime::now()
 				.duration_since(SystemTime::UNIX_EPOCH)
@@ -85,14 +140,29 @@ impl Graph {
 	///
 	/// # Errors
 	///
-	/// As [`keep::read`], or `InvalidData` with no CPU history that reads.
-	/// The history in memory is left as it was.
+	/// As [`keep::read`], or `InvalidData` with no history of this graph's
+	/// that reads. The history in memory is left as it was.
 	pub fn load(&mut self, path: &Path) -> io::Result<()> {
-		let saved = keep::read(path)?
-			.into_iter()
-			.find(|(name, _)| name == "cpu")
-			.and_then(|(_, body)| History::decode(&body))
-			.ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "no cpu history"))?;
+		if self.adopt(&keep::read(path)?) {
+			Ok(())
+		} else {
+			Err(io::Error::new(
+				io::ErrorKind::InvalidData,
+				format!("no {} history", S::SECTION),
+			))
+		}
+	}
+
+	/// [`Self::load`] from a file's sections, read once for every graph in
+	/// it. False, with nothing changed, when none of them is this graph's.
+	pub fn adopt(&mut self, sections: &[(String, Vec<u8>)]) -> bool {
+		let Some(saved) = sections
+			.iter()
+			.find(|(name, _)| name == S::SECTION)
+			.and_then(|(_, body)| History::decode(body))
+		else {
+			return false;
+		};
 		// a clock set back mustn't hide new samples behind old ones
 		if let Some(last) = saved.last() {
 			self.epoch += (last - self.now()).max(0.0);
@@ -100,22 +170,28 @@ impl Graph {
 		self.hist = saved;
 		self.read_at = None;
 		self.trim();
-		Ok(())
+		true
+	}
+
+	/// The graph's history file section, for [`keep::write`].
+	pub fn section(&self) -> (&'static str, Vec<u8>) {
+		let mut body = Vec::new();
+		self.hist.encode(&mut body);
+		(S::SECTION, body)
 	}
 
 	/// # Errors
 	///
 	/// As [`keep::write`].
 	pub fn save(&self, path: &Path) -> io::Result<()> {
-		let mut body = Vec::new();
-		self.hist.encode(&mut body);
-		keep::write(path, &[("cpu", &body)])
+		let (name, body) = self.section();
+		keep::write(path, &[(name, &body)])
 	}
 
-	/// Read the CPU and keep it. The first call only primes the counters.
+	/// Read the source and keep it. The first call only primes it.
 	pub fn sample(&mut self) {
 		let now = self.now();
-		let shares = self.cpu.read();
+		let shares = self.src.read();
 		if let (Some(v), Some(was)) = (shares, self.read_at) {
 			self.hist.add(was, now, &v);
 			self.latest = Some(v);
@@ -161,7 +237,7 @@ impl Graph {
 	}
 
 	/// The tip for the pointer at device column `x`: when that is, and what
-	/// the CPU was doing then.
+	/// the source read then.
 	pub fn hover_tip(&self, x: usize, w: usize, h: usize, scale: usize) -> String {
 		let Some((a, b)) = self.span_at(x, w, h, scale) else {
 			return self.tooltip();
@@ -176,7 +252,7 @@ impl Graph {
 		if span.covered < render::MIN_COVER {
 			return format!("{when}\nNo data");
 		}
-		format!("{when}\n{}", cpu_text(&span.mean))
+		format!("{when}\n{}", S::text(&span.mean))
 	}
 
 	/// The graph as cairo ARGB32 pixels, `w` by `h`.
@@ -189,7 +265,7 @@ impl Graph {
 			axis: &axis,
 			now: self.hist.last().unwrap_or(0.0),
 			look: &self.look,
-			paint: self.look.cpu_paint(),
+			paint: S::paint(&self.look),
 		}
 		.draw(&mut px, w, h, scale);
 		if let Some(x) = self.hover {
@@ -203,9 +279,9 @@ impl Graph {
 	/// The latest read, as the panel's tooltip.
 	pub fn tooltip(&self) -> String {
 		let Some(v) = self.latest else {
-			return "CPU".into();
+			return S::TITLE.into();
 		};
-		cpu_text(&v)
+		S::text(&v)
 	}
 }
 

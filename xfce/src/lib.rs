@@ -9,8 +9,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::time::{Duration, Instant, SystemTime};
 
-use tukzmon_core::Graph;
 use tukzmon_core::config::{self, Look};
+use tukzmon_core::graphs::Graphs;
 use tukzmon_core::keep;
 
 mod sys;
@@ -20,7 +20,7 @@ use sys::*;
 struct Plugin {
 	xpp: *mut c_void,
 	area: *mut c_void,
-	graph: Graph,
+	graphs: Graphs,
 	timer: c_uint,
 	timer_ms: u32,
 	config: PathBuf,
@@ -43,27 +43,29 @@ fn modified(p: &Path) -> Option<SystemTime> {
 }
 
 impl Plugin {
-	fn fit(&self) {
+	fn fit(&mut self) {
 		// SAFETY: plugin is the live XfcePanelPlugin this state belongs to.
 		unsafe {
 			let size = xfce_panel_plugin_get_size(self.xpp);
-			let w = self.graph.look.width as c_int;
-			if xfce_panel_plugin_get_mode(self.xpp) == MODE_HORIZONTAL {
-				gtk_widget_set_size_request(self.xpp, w, size);
+			let n = self.graphs.count() as c_int;
+			self.graphs.stacked = xfce_panel_plugin_get_mode(self.xpp) != MODE_HORIZONTAL;
+			if self.graphs.stacked {
+				gtk_widget_set_size_request(self.xpp, size, (size / 2).max(16) * n);
 			} else {
-				gtk_widget_set_size_request(self.xpp, size, (size / 2).max(16));
+				let w = self.graphs.look().width as c_int * n;
+				gtk_widget_set_size_request(self.xpp, w, size);
 			}
 		}
 	}
 
 	fn start_timer(&mut self) {
-		self.timer_ms = self.graph.look.sample_ms.max(50);
+		self.timer_ms = self.graphs.look().sample_ms.max(50);
 		// SAFETY: self lives in a Box until free-data, which stops this timer.
 		self.timer = unsafe { g_timeout_add(self.timer_ms, tick, std::ptr::from_mut(self).cast()) };
 	}
 
 	fn load_history(&mut self) {
-		match self.graph.load(&self.history) {
+		match self.graphs.load(&self.history) {
 			Ok(()) => {}
 			Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
 			Err(e) => eprintln!("tukzmon: can't read {}: {e}", self.history.display()),
@@ -72,8 +74,8 @@ impl Plugin {
 	}
 
 	fn save_history(&mut self) {
-		self.graph.trim();
-		if let Err(e) = self.graph.save(&self.history) {
+		self.graphs.trim();
+		if let Err(e) = self.graphs.save(&self.history) {
 			eprintln!("tukzmon: can't save {}: {e}", self.history.display());
 		}
 		self.saved_at = Instant::now();
@@ -87,14 +89,20 @@ impl Plugin {
 		}
 		self.config_time = t;
 		let look = Look::load(&self.config);
-		if look != self.graph.look {
-			let refit = look.width != self.graph.look.width;
-			let keep = (self.graph.look.keep, look.keep);
-			if keep == (true, false) {
-				// what came in while it was on still counts
+		if look != *self.graphs.look() {
+			let count = self.graphs.count();
+			let keep = (self.graphs.look().keep, look.keep);
+			let refit = look.width != self.graphs.look().width;
+			let dropped = !look.show_memory && self.graphs.mem.is_some();
+			// what came in while it was on still counts
+			if keep.0 && (!keep.1 || dropped) {
 				self.save_history();
 			}
-			self.graph.look = look;
+			let from = keep.1.then_some(self.history.as_path());
+			if let Err(e) = self.graphs.set_look(look, from) {
+				eprintln!("tukzmon: can't read {}: {e}", self.history.display());
+			}
+			let refit = refit || count != self.graphs.count();
 			if keep == (false, true) {
 				// nothing seen while it was off is logged, per backlog 2026102408304572
 				self.load_history();
@@ -117,19 +125,19 @@ extern "C" fn tick(data: *mut c_void) -> Gboolean {
 		p.settings = None;
 	}
 	p.reload_if_changed();
-	p.graph.sample();
-	if p.graph.look.keep && p.saved_at.elapsed() >= SAVE_EVERY {
+	p.graphs.sample();
+	if p.graphs.look().keep && p.saved_at.elapsed() >= SAVE_EVERY {
 		p.save_history();
 	}
 	// SAFETY: area is a child of the live plugin.
 	unsafe {
 		gtk_widget_queue_draw(p.area);
-		if p.graph.hover.is_some() && p.moved_at.elapsed() >= TIP_SHOWN {
+		if p.graphs.hovered() && p.moved_at.elapsed() >= TIP_SHOWN {
 			// a still pointer's time moves on too
 			gtk_widget_trigger_tooltip_query(p.area);
 		}
 	}
-	if p.graph.look.sample_ms.max(50) != p.timer_ms {
+	if p.graphs.look().sample_ms.max(50) != p.timer_ms {
 		p.start_timer();
 		return 0;
 	}
@@ -147,7 +155,7 @@ extern "C" fn draw(widget: *mut c_void, cr: *mut c_void, data: *mut c_void) -> G
 		if w == 0 || h == 0 {
 			return 0;
 		}
-		let px = p.graph.render(w as usize, h as usize, scale as usize);
+		let px = p.graphs.render(w as usize, h as usize, scale as usize);
 		// cairo only reads a source surface, so the const cast is fine
 		let surf = cairo_image_surface_create_for_data(
 			px.as_ptr().cast_mut().cast(),
@@ -169,18 +177,19 @@ extern "C" fn motion(widget: *mut c_void, event: *mut c_void, data: *mut c_void)
 	let p = unsafe { &mut *data.cast::<Plugin>() };
 	let (mut x, mut y) = (0.0, 0.0);
 	// SAFETY: event is the motion event GTK is handing us, and widget its widget.
-	let (got, scale) = unsafe {
+	let (got, scale, w, h) = unsafe {
 		gdk_event_request_motions(event);
 		(
 			gdk_event_get_coords(event, &raw mut x, &raw mut y) != 0,
-			gtk_widget_get_scale_factor(widget).max(1),
+			gtk_widget_get_scale_factor(widget).max(1) as usize,
+			gtk_widget_get_allocated_width(widget).max(0) as usize,
+			gtk_widget_get_allocated_height(widget).max(0) as usize,
 		)
 	};
 	if got {
 		p.moved_at = Instant::now();
-		let at = Some(x.max(0.0).floor() as usize * scale as usize);
-		if at != p.graph.hover {
-			p.graph.hover = at;
+		let px = |v: f64| v.max(0.0).floor() as usize * scale;
+		if p.graphs.hover(Some((px(x), px(y))), w * scale, h * scale) {
 			// SAFETY: widget is live for this event.
 			unsafe { gtk_widget_queue_draw(widget) };
 		}
@@ -191,7 +200,7 @@ extern "C" fn motion(widget: *mut c_void, event: *mut c_void, data: *mut c_void)
 extern "C" fn leave(widget: *mut c_void, _event: *mut c_void, data: *mut c_void) -> Gboolean {
 	// SAFETY: data is the connected Plugin.
 	let p = unsafe { &mut *data.cast::<Plugin>() };
-	if p.graph.hover.take().is_some() {
+	if p.graphs.hover(None, 0, 0) {
 		// SAFETY: widget is live for this event.
 		unsafe { gtk_widget_queue_draw(widget) };
 	}
@@ -201,7 +210,7 @@ extern "C" fn leave(widget: *mut c_void, _event: *mut c_void, data: *mut c_void)
 extern "C" fn query_tooltip(
 	widget: *mut c_void,
 	x: c_int,
-	_y: c_int,
+	y: c_int,
 	keyboard: Gboolean,
 	tooltip: *mut c_void,
 	data: *mut c_void,
@@ -217,14 +226,15 @@ extern "C" fn query_tooltip(
 				gtk_widget_get_allocated_height(widget).max(0),
 			)
 		};
-		p.graph.hover_tip(
+		p.graphs.hover_tip(
 			(x.max(0) * scale) as usize,
+			(y.max(0) * scale) as usize,
 			(w * scale) as usize,
 			(h * scale) as usize,
 			scale as usize,
 		)
 	} else {
-		p.graph.tooltip()
+		p.graphs.tooltip()
 	};
 	let Ok(c) = CString::new(tip) else {
 		return 0;
@@ -236,13 +246,13 @@ extern "C" fn query_tooltip(
 
 extern "C" fn size_changed(_plugin: *mut c_void, _size: c_int, data: *mut c_void) -> Gboolean {
 	// SAFETY: data is the connected Plugin.
-	unsafe { &*data.cast::<Plugin>() }.fit();
+	unsafe { &mut *data.cast::<Plugin>() }.fit();
 	1
 }
 
 extern "C" fn mode_changed(_plugin: *mut c_void, _mode: c_int, data: *mut c_void) {
 	// SAFETY: data is the connected Plugin.
-	unsafe { &*data.cast::<Plugin>() }.fit();
+	unsafe { &mut *data.cast::<Plugin>() }.fit();
 }
 
 /// tukzmon-settings beside the real library file, else on PATH.
@@ -290,7 +300,7 @@ extern "C" fn configure(_plugin: *mut c_void, data: *mut c_void) {
 extern "C" fn free_data(_plugin: *mut c_void, data: *mut c_void) {
 	// SAFETY: data came from Box::into_raw in construct, and this is its last use.
 	let mut p = unsafe { Box::from_raw(data.cast::<Plugin>()) };
-	if p.graph.look.keep {
+	if p.graphs.look().keep {
 		p.save_history();
 	}
 	if p.timer != 0 {
@@ -304,7 +314,7 @@ fn construct(plugin: *mut c_void) {
 	let mut p = Box::new(Plugin {
 		xpp: plugin,
 		area: std::ptr::null_mut(),
-		graph: Graph::new(Look::load(&config)),
+		graphs: Graphs::new(Look::load(&config)),
 		timer: 0,
 		timer_ms: 0,
 		config_time: modified(&config),
@@ -317,7 +327,7 @@ fn construct(plugin: *mut c_void) {
 		saved_at: Instant::now(),
 		moved_at: Instant::now(),
 	});
-	if p.graph.look.keep {
+	if p.graphs.look().keep {
 		p.load_history();
 	}
 	// SAFETY: plugin is a fresh XfcePanelPlugin, and every handler gets the
@@ -360,7 +370,7 @@ fn construct(plugin: *mut c_void) {
 			data,
 		);
 		xfce_panel_plugin_menu_show_configure(plugin);
-		p.graph.sample();
+		p.graphs.sample();
 		p.fit();
 		p.start_timer();
 		gtk_widget_show_all(plugin);
