@@ -831,6 +831,19 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- Asked for on 2026-10-25, in answer to the round settings question about a hosted workflow.
 
+- Dogfood install and cicd build with different Rust versions
+	- ID: 2026102514130001
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261025-141300
+	- Opened by: t00mietum
+	- Related IDs: 2026102416252898
+	- Steps to reproduce:
+		- Run `cicd/cicd.bash --backlog-run-full`, then `utility/dev-install.bash` by hand.
+	- Incorrect behavior: cicd.bash follows `rust-toolchain.toml` (1.96.0), while dev-install.bash run by hand gets Debian's cargo 1.95, so each one rebuilds `target/release` from scratch.
+	- Expected behavior: both build with the pinned version, so a dogfood install reuses the pipeline's build.
+
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
 	- Type: Feature
