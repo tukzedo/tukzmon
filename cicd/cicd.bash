@@ -18,10 +18,12 @@
 ##	   5. Lint            clippy -D warnings, shellcheck, markdownlint, and the
 ##	                      test ID check, with the output also rotated into
 ##	                      cicd/artifacts/lint/
-##	   6. Tests           cargo test, with TMPDIR in the run's temp folder. One
+##	   6. Advisories      cargo deny check advisories: the crates in Cargo.lock
+##	                      against RustSec's database, per deny.toml
+##	   7. Tests           cargo test, with TMPDIR in the run's temp folder. One
 ##	                      line per test: PASS, FAIL or SKIP, its ID, its name
-##	   7. Release build   the plugin and tukzmon-settings
-##	   8. Dogfood         utility/dev-install.bash, which installs the build to
+##	   8. Release build   the plugin and tukzmon-settings
+##	   9. Dogfood         utility/dev-install.bash, which installs the build to
 ##	                      ~/.local/lib/tukzmon and restarts the panel
 ##	  A step that's off isn't counted, and the first section says why it's off.
 ##	  Cleanup comes last, on failure and Ctrl+C too.
@@ -33,8 +35,10 @@
 ##	                       as the default run
 ##	   --long              everything. Nothing here takes hours yet, so the same
 ##	                       as the default run. Also --slow
-##	   --leakcheck         add every leak check. There are none yet
-##	   --no-leakcheck      take every leak check out
+##	   --leakcheck         add every leak check. Only clippy's are in so far,
+##	                       and lint always runs those
+##	   --no-leakcheck      take every leak check out. The advisory scan isn't
+##	                       one, and stays
 ##	   --backlog-run-quick [AREA...]
 ##	                       what a backlog worker runs before it commits: the
 ##	                       format check, build, lint and tests, or only the
@@ -44,6 +48,7 @@
 ##	                         lint    clippy, shellcheck, markdownlint, and
 ##	                                 the test ID check
 ##	                         test    cargo test
+##	                         advisories  the advisory scan, only when named
 ##	                         release the release build, only when named
 ##	   --gate [AREA...]    another name for --backlog-run-quick
 ##	   --backlog-run-full  what a backlog round runs once at its end: every
@@ -179,7 +184,7 @@ esac; done
 
 handsOff=0
 case "${mode}" in backlog-run-quick|backlog-run-full|merge-gate) handsOff=1 ;; esac
-allAreas=(format build lint test release)
+allAreas=(format build lint test advisories release)
 if [[ "${mode}" == backlog-run-quick ]]; then
 	for a in "${areas[@]}"; do [[ " ${allAreas[*]} " == *" ${a} "* ]] || fUsage "no area '${a}'. Areas: ${allAreas[*]}"; done
 	((${#areas[@]})) || areas=(format build lint test)
@@ -205,6 +210,10 @@ else fPlan "Container image" fStepImage ""; fi
 fPlan "Format" fStepFormat format
 fPlan "Build (debug)" fStepBuild build
 fPlan "Lint" fStepLint lint
+## It needs the network, and finds what a dependency change brings in, so a
+## worker's quick run takes it only when it's named.
+if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" advisories "* ]]; then offLines+=("Advisories: --backlog-run-quick runs it only when the advisories area is named")
+else fPlan "Advisories" fStepAdvisories ""; fi
 fPlan "Tests" fStepTests test
 if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" release "* ]]; then offLines+=("Release build: --backlog-run-quick runs it only when the release area is named")
 else fPlan "Release build" fStepRelease ""; fi
@@ -212,7 +221,7 @@ if ((handsOff)); then offLines+=("Dogfood: --${mode} never dogfoods")
 else fPlan "Dogfood" fStepDogfood ""; fi
 ## Off by name, until they're built.
 if [[ "${leakOpt}" == --no-leakcheck ]]; then offLines+=("Leak checks: --no-leakcheck")
-else offLines+=("Leak checks: not built yet (backlog 2026102506591278)"); fi
+else offLines+=("Leak checks: sanitizers, Miri and the soak test aren't built yet (backlog 2026102506591278)"); fi
 offLines+=("Packages: not built yet (backlog 2026102506591283)")
 offLines+=("Profiler: not built yet (backlog 2026102506591288)")
 if ((noRemote)); then offLines+=("Other hosts: --no-remote")
@@ -370,6 +379,31 @@ fStepTests() {
 	## too, and its per-test lines are what get the IDs.
 	env -u DISPLAY -u WAYLAND_DISPLAY -u CARGO_TERM_QUIET cargo test --workspace "${locked[@]}" -j "${jobs}" -- --test-threads "${jobs}" 2>&1 \
 		| "${here}/utility/test-ids.bash" annotate || return 1
+}
+
+## The fetch and the check are apart, so a database that can't be had isn't
+## read as a finding. With none at all the step warns and passes, like a sync
+## that can't reach the remote. cargo-deny's fetch passes with no network when
+## it has a copy, so the age of the copy's newest commit is what tells a stale
+## one. RustSec commits most days.
+fStepAdvisories() {
+	local out='' newest='' days=0
+	local -a dbs=()
+	if ! command -v cargo-deny > /dev/null 2>&1; then
+		fEcho_Clean "cargo-deny isn't installed (pinned in config.bash)"
+		((! handsOff)) || return 1
+		return 0
+	fi
+	fEcho_Clean "cargo deny fetch db"
+	out="$(cargo deny fetch db 2>&1)" || fEcho_Clean "${out}"
+	dbs=("${CARGO_HOME:-${HOME}/.cargo}"/advisory-dbs/advisory-db-*/)
+	newest="$(git -C "${dbs[0]}" log -1 --format=%ct 2> /dev/null || true)"
+	if ! [[ "${newest}" =~ ^[0-9]+$ ]]; then fEcho_Clean "WARNING: no advisory database (offline?), so nothing was scanned"; return 0; fi
+	days=$(( (EPOCHSECONDS - newest) / 86400 ))
+	fEcho_Clean "advisory database as of $(printf '%(%Y-%m-%d)T' "${newest}")"
+	((days <= 7)) || fEcho_Clean "WARNING: the advisory database is ${days} days old (offline?)"
+	fEcho_Clean "cargo deny check --disable-fetch advisories"
+	cargo deny --locked check --disable-fetch advisories || return 1
 }
 
 fStepRelease() {
@@ -627,7 +661,7 @@ fStepImage() {
 ## own paths, so every path reads the same inside.
 fCtrStep() {   ## fCtrStep FUNCTION
 	local fn="$1" step='' common=''
-	local -a mounts=() env=()
+	local -a mounts=() env=() net=()
 	step="${fn#fStep}"; step="${step,,}"
 	mounts=(-v "${root}:${root}" -v "${runTmp}:${runTmp}" -v "${ctrBase}:${ctrBase}")
 	## A linked worktree's git dir is outside it, and lint lists files with git.
@@ -638,8 +672,10 @@ fCtrStep() {   ## fCtrStep FUNCTION
 		-e "CARGO_HOME=${ctrBase}/cargo-home" -e "CARGO_TARGET_DIR=${ctrBase}/target" -e CARGO_NET_OFFLINE=true
 		-e CARGO_TERM_QUIET -e SOURCE_DATE_EPOCH -e TUKZMON_RELEASE)
 	[[ ! -t 1 ]] || env+=(-e CARGO_TERM_COLOR=always)
+	net=(--network none)
+	if [[ " ${CTR_NET_STEPS[*]} " == *" ${fn} "* ]]; then net=(); fi
 	fEcho_Clean "in ${projectName}-${runName}-${step}"
-	fCtrRun "${step}" --network none "${mounts[@]}" -w "${root}" "${env[@]}" \
+	fCtrRun "${step}" "${net[@]}" "${mounts[@]}" -w "${root}" "${env[@]}" \
 		"${ctrTag}" nice -n 19 ionice -c 3 bash "${root}/cicd/cicd.bash" "${cliArgs[@]}"
 }
 
@@ -755,3 +791,4 @@ exit 0
 ##		  --list.
 ##		- 2026-10-25: Containers and run folders a killed run left are cleaned
 ##		  up by the next run, and no image goes while another run is live.
+##		- 2026-10-25: The known-advisory scan, in the image with the network.

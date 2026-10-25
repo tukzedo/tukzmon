@@ -23,6 +23,8 @@ TOOL_PINS=(
 	"shellcheck|0.11.0|shellcheck --version"
 	## markdownlint-cli, the `markdownlint` command, not markdownlint-cli2.
 	"markdownlint|0.49.1|markdownlint --version"
+	## The known-advisory scan. Pinned in the image's Dockerfile too.
+	"cargo-deny|0.19.9|cargo deny --version"
 )
 
 ## Paths that don't change the product. A push to main that changes only
@@ -53,9 +55,12 @@ LINT_LOG_DIR="cicd/artifacts/lint"
 CTR_IMAGE="tukzmon-cicd"
 CTR_DIR="cicd/container"
 CTR_CONTEXT_EXTRA=(rust-toolchain.toml)
-CTR_STEPS=(fStepFormat fStepBuild fStepLint fStepTests fStepRelease)
+CTR_STEPS=(fStepFormat fStepBuild fStepLint fStepAdvisories fStepTests fStepRelease)
+## The image steps that get the network. The rest run with none.
+CTR_NET_STEPS=(fStepAdvisories)
 
 
 ##	History:
 ##		- 2026-10-25: Created.
 ##		- 2026-10-25: The build image's settings.
+##		- 2026-10-25: cargo-deny pin, and the advisory step in the image.

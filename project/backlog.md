@@ -1038,6 +1038,48 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- ASan, LSan and UBSan over the Rust and the C++ shim, Miri, a soak test, clippy's `mem_forget` and `undocumented_unsafe_blocks`, and the known-advisory scan.
 		- They run on a quarter of the CPUs, the heavy-step count `cicd.bash` already works out.
+	- Progress log:
+		- Split into children: clippy and the advisory scan 2026102516060718 (Done), sanitizers 2026102516060724, Miri 2026102516060729, and the soak test 2026102516060734.
+	- Branch: round-1025b
+
+- CICD reset: leak checks, sanitizers
+	- ID: 2026102516060724
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261025-160607
+	- Opened by: t00mietum
+	- Parent ID: 2026102506591278
+	- Requirements:
+		- ASan and LSan over the Rust tests, with `-Zbuild-std`, an explicit `--target`, and a dated nightly pinned beside the stable toolchain, in a build dir of its own.
+		- ASan, LSan and UBSan over the C++ shim in the same build, with `-fno-sanitize-recover=all` and `-D_GLIBCXX_ASSERTIONS`. Suppressions name prebuilt libraries only, such as Qt.
+		- The leak check step and its lengths, with `--leakcheck` and `--no-leakcheck`. It runs on a quarter of the CPUs.
+
+- CICD reset: leak checks, Miri
+	- ID: 2026102516060729
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261025-160607
+	- Opened by: t00mietum
+	- Parent ID: 2026102506591278
+	- Prereq IDs: 2026102516060724
+	- Requirements:
+		- The test suite under Miri, on the nightly the sanitizers pin, on a quarter of the CPUs.
+		- A test that needs FFI or files Miri can't reach gets `cfg_attr(miri, ignore)` with a one-line reason.
+
+- CICD reset: leak checks, soak test
+	- ID: 2026102516060734
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261025-160607
+	- Opened by: t00mietum
+	- Parent ID: 2026102506591278
+	- Prereq IDs: 2026102516060724
+	- Requirements:
+		- A soak test that loops the main work headless: sample, draw, and save and load history. It fails when the heap at round 2N is past round N's by more than a set margin, and keeps the heap report as an artifact.
+		- One of the slow leak checks, in the default run and `--long`, on a quarter of the CPUs.
 
 - CICD reset: .deb and .rpm packages
 	- ID: 2026102506591283
@@ -1078,6 +1120,30 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- CICD reset: leak checks, clippy and advisories
+	- ID: 2026102516060718
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261025-160607
+	- Opened by: t00mietum
+	- Parent ID: 2026102506591278
+	- Requirements:
+		- clippy's `mem_forget` and `undocumented_unsafe_blocks` fail the lint step.
+		- The known-advisory scan runs on every full run.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- clippy's `mem_forget` joins `undocumented_unsafe_blocks` in the workspace lints, and lint fails on either.
+		- A new Advisories step runs `cargo deny check advisories` with `deny.toml`, after lint. It's in every run but `--backlog-run-quick`, which takes it only when the `advisories` area is named. cargo-deny is pinned in `cicd/config.bash` and the image.
+		- It runs in the image with the network, since it fetches RustSec's database. With no database it warns and passes. A copy over 7 days old gets a warning.
+		- Verified: a planted `mem::forget` and an unsafe block with no SAFETY comment failed lint. A crate with a known advisory failed cargo-deny in the image, and a bad `deny.toml` failed the step. With no network the step passed with a warning, both with no database and with a 22 day old one.
+	- Decisions:
+		- The advisory scan isn't a leak check, so `--no-leakcheck` leaves it in.
+	- Branch: round-1025b
+	- Test case: None in the repo, as for 2026102416252892. Each check was watched to fail.
+	- Closed: 20261025-160906
 
 - CICD reset: a test for every Done item
 	- ID: 2026102416252894

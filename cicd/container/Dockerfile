@@ -1,7 +1,7 @@
 # The image cicd.bash builds and tests in: the Rust toolchain from
 # rust-toolchain.toml, Qt 6 Widgets for tukzmon-settings, the GTK 3 and panel
-# libraries the plugin links by soname, and the lint tools at the versions
-# cicd/config.bash pins.
+# libraries the plugin links by soname, and the lint and audit tools at the
+# versions cicd/config.bash pins.
 #
 # cicd.bash builds it from this dir plus rust-toolchain.toml, and tags it with
 # a hash of them, so an edit to any of them means a new image.
@@ -66,6 +66,15 @@ RUN curl -fsSLo /tmp/rustup-init "https://static.rust-lang.org/rustup/archive/${
 	&& /opt/cargo/bin/rustup toolchain install \
 	&& /opt/cargo/bin/rustup default "$(/opt/cargo/bin/rustup show active-toolchain | cut -d' ' -f1)" \
 	&& rm -rf /opt/cargo/registry /tmp/rustup-init
+
+# cargo-deny for the known-advisory scan. Its own layer, so a bump doesn't
+# rebuild the ones above.
+ARG CARGO_DENY_VER=0.19.9
+ARG CARGO_DENY_SHA256=f1f8eedc2a3ac297c540873f93785d4104b102c0079506b2a6b3221b7ec956af
+RUN curl -fsSLo /tmp/cd.tgz "https://github.com/EmbarkStudios/cargo-deny/releases/download/${CARGO_DENY_VER}/cargo-deny-${CARGO_DENY_VER}-x86_64-unknown-linux-musl.tar.gz" \
+	&& echo "${CARGO_DENY_SHA256}  /tmp/cd.tgz" | sha256sum -c - \
+	&& tar -C /usr/local/bin --strip-components=1 -xzf /tmp/cd.tgz "cargo-deny-${CARGO_DENY_VER}-x86_64-unknown-linux-musl/cargo-deny" \
+	&& rm -f /tmp/cd.tgz
 
 # Runs as the caller's uid, which has no passwd entry here. CARGO_HOME, HOME
 # and TMPDIR are set per run to dirs mounted from the host.

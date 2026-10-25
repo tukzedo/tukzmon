@@ -34,6 +34,8 @@ module_name_repetitions = "allow"
 unwrap_used = "warn"
 expect_used = "warn"
 undocumented_unsafe_blocks = "warn"
+# A leak in safe Rust. Lint runs with -D warnings, so warn fails it.
+mem_forget = "warn"
 
 [profile.release]
 opt-level = 3
