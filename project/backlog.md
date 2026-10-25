@@ -33,6 +33,20 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- b23's multiload-ng has `graph-mem-procps-compliant=true`, so it counts slab as cache. tukzmon counts `Cached` alone, per 2026102408512192, so its cache band is thinner and user thicker than multiload-ng showed.
 
+- A theme per graph
+	- ID: 2026102508393159
+	- Type: Feature
+	- Status: Waiting for answers
+		- Waits on the question in questions.md on how a theme per graph sits with the Themes tab.
+	- Priority|Severity: High
+	- Opened: 20261025-083931
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304639
+	- Prereq IDs: 2026102508393152
+	- Related IDs: 2026102409400679, 2026102409400684
+	- Requirements:
+		- Each graph picks a named theme of its own.
+
 - Proof of concept: CPU graph in the XFCE panel, dogfooded on b23
 	- ID: 2026102319155124
 	- Type: Feature
@@ -430,6 +444,40 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-25: new values only. `config::tests::the_default_theme_is_the_row_defaults` and `saved_themes_write_whole_and_read_back` count 19 theme members, not 12. `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme` counts 17 colors, not 11.
 		- Swept: every `Graph` use (the plugin, now through `Graphs`, and the lib tests), every `cpu_paint` caller, every `keep::write` caller, and every theme member, which the role and row-default tests walk.
 
+- Turn each graph on or off, with a width each
+	- ID: 2026102508393152
+	- Type: Feature
+	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- The 0-means-Width rule and CPU showing when nothing else does are for a person to judge.
+	- Needs local test suite run?: No. The full run passed on 2026-10-25.
+	- Needs hand testing: on b23, open Settings, set CPU width px to 40 and Apply, and check the CPU graph gets narrower beside memory. Then untick CPU graph, Apply, and check only memory is left. Then untick Memory graph too, and check CPU comes back.
+	- Priority|Severity: High
+	- Opened: 20261025-083931
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304639
+	- Requirements:
+		- A setting per graph to show it or not, CPU included.
+		- A width per graph, in the same DPI-aware pixels as Width.
+		- The plugin lays the graphs out by their own widths.
+		- Saved configs with `mem.show` keep working.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Under Graphs on the Graph tab: CPU graph, CPU width px, Memory graph, and Memory width px. Each width is stepped in under its checkbox.
+		- The plugin asks the panel for the sum of the shown widths, and shares out what it gets by width. On a vertical panel they still share the height evenly.
+		- A hidden graph isn't read, and its history comes back with a gap for the hidden time, the same for CPU as for memory.
+		- `design.md` XFCE plugin has the details.
+		- Verified: in a test panel, CPU at 40 and memory at 100 drew 40 and 100 pixels wide. With CPU unticked only memory was left, and with both unticked CPU came back at Width.
+	- Decisions:
+		- A graph's width of 0, the default, means the Width setting, so a saved `graph.width` still sets every graph, and one setting still resizes them all.
+		- `mem.show` is unchanged, and CPU got `cpu.show` beside it, default on.
+		- With every other graph off, CPU shows anyway. A panel item with nothing in it has no width, so its right-click menu, the only way to Settings, couldn't be reached.
+		- Widths are the panel's logical pixels, as Width already was, so they follow the screen scale.
+	- Branch: round-1025
+	- Test case: `graphs::tests::each_graph_takes_its_own_width_and_0_is_width` (dedqd), `cpu_can_be_hidden_but_not_with_nothing_else_shown` (dedqe), and `config::tests::each_graph_has_a_switch_and_a_width` (dedqf). dedqd fails with the widths ignored, and dedqe with CPU always shown.
+		- Swept: every `Graphs::count` and `Look::width` user (the plugin's fit and reload, the layout, the tip and the render), and every `show_memory` reader. `core/examples/preview.rs` draws one `Graph` and has no layout.
+
 - CICD reset: standard flags
 	- ID: 2026102416252892
 	- Type: Task
@@ -774,6 +822,61 @@ Sorted per the notes in [Template](#template).
 			- Dropdown to select the time function.
 			- Dropdown to select the named theme.
 			- Grippers on the right to vertically reorder monitors with the mouse.
+	- Progress log:
+		- Split into 6 children, in this order: 2026102508393152 (on or off and a width per graph), 2026102508393154 (order), 2026102508393156 (time function per graph), 2026102508393159 (theme per graph), 2026102508393161 (the list itself), and 2026102508393163 (live graphs in it).
+
+- Graph order
+	- ID: 2026102508393154
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261025-083931
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304639
+	- Prereq IDs: 2026102508393152
+	- Requirements:
+		- A saved order of the graphs, which the plugin lays them out in, left to right, or top to bottom on a vertical panel.
+		- A graph added later, such as network, goes at the end of a saved order that doesn't name it.
+
+- A time function per graph
+	- ID: 2026102508393156
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261025-083931
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304639
+	- Prereq IDs: 2026102508393152
+	- Related IDs: 2026102408304586
+	- Requirements:
+		- Each graph picks its own time function, from the Log curve choices, and maybe a plain linear one.
+		- Saved configs with `graph.log_axis` and `graph.log_curve` keep working.
+
+- The graph list on the Graph tab
+	- ID: 2026102508393161
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261025-083931
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304639
+	- Prereq IDs: 2026102508393152, 2026102508393154, 2026102508393156, 2026102508393159
+	- Requirements:
+		- A row per graph on the first tab, in columns: a checkbox to show it, a space for its live graph, its width as a text box, a time function dropdown, a theme dropdown, and a gripper on the right to drag it up or down.
+		- It replaces the per-graph rows under the Graphs heading.
+
+- Live graphs in the graph list
+	- ID: 2026102508393163
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261025-083931
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304639
+	- Prereq IDs: 2026102508393161
+	- Requirements:
+		- Each row of the graph list draws its graph live.
+		- The longest graph sets the column's width, so the columns after it line up.
 
 - Zswap and zram collector
 	- ID: 2026102408512197

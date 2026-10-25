@@ -61,9 +61,12 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- The other way, a short C file built against the headers, needs `libxfce4panel-2.0-dev`. On b23 that would pull the panel library back from 4.20.7 to Debian's 4.20.4.
 	- The panel runs external plugins in a separate wrapper process, so a crash takes down the plugin adn not the panel.
 
-- The plugin draws its graphs in one drawing area, CPU then memory, side by side and each as wide as the Width setting. There's no gap between them, like multiload-ng's spacing of 0. On a vertical panel they're stacked. The graph under the pointer gets the hover line and the tip. `core/src/graphs.rs` has the layout.
-	- "Memory graph" on the Graph tab, at `mem.show`, hides the memory graph. A box where `/proc/meminfo` can't be read never shows it.
-	- The live graph list, backlog 2026102408304639, takes over turning graphs on and off and their order.
+- The plugin draws its graphs in one drawing area, CPU then memory, side by side. There's no gap between them, like multiload-ng's spacing of 0. On a vertical panel they're stacked, and share the height evenly. The graph under the pointer gets the hover line and the tip. `core/src/graphs.rs` has the layout.
+	- Under Graphs on the Graph tab, each graph has a checkbox, at `cpu.show` and `mem.show`, and a width, at `cpu.width` and `mem.width`. A width of 0, the default, is the Width setting. Widths are in the panel's own pixels, so they scale with it.
+	- A box where `/proc/meminfo` can't be read never shows the memory graph.
+	- With every other graph off, CPU shows anyway, so the item never shrinks to nothing, and its right-click menu stays in reach.
+	- A hidden graph isn't read. Its history is kept, and shows a gap for the time it was hidden.
+	- The live graph list, backlog 2026102408304639, takes over these rows, and adds the order.
 
 - The drawing area has a window of its own, so it has to take button events and be an action widget, or a right-click never reaches the panel's menu.
 

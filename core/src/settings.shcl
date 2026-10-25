@@ -33,7 +33,7 @@ settings:
 		path: graph.width
 		default: 128
 		detents: 64, 128, 256
-		tip: "How wide the graph is in the panel. Its height follows the panel."
+		tip: "How wide each graph is in the panel, unless it has a width of its own under Graphs. Its height follows the panel."
 
 	TimeHead:
 		label: Time
@@ -113,6 +113,25 @@ settings:
 		tab: Graph
 		control: heading
 
+	show_cpu:
+		label: CPU graph
+		tab: Graph
+		control: checkbox
+		path: cpu.show
+		default: true
+		tip: "Show CPU use: I/O wait, system, user and nice, from the bottom up. With every other graph off, it shows anyway, so the panel item never goes away."
+
+	cpu_width:
+		label: CPU width px
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 4096
+		path: cpu.width
+		default: 0
+		gate: show_cpu
+		tip: "How wide the CPU graph is, in the same pixels as Width. 0 uses Width."
+
 	show_memory:
 		label: Memory graph
 		tab: Graph
@@ -120,6 +139,17 @@ settings:
 		path: mem.show
 		default: true
 		tip: "Show memory use beside the CPU graph: what programs use, then buffers, then cache, from the bottom up. It's left out on a box where memory can't be read."
+
+	mem_width:
+		label: Memory width px
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 4096
+		path: mem.width
+		default: 0
+		gate: show_memory
+		tip: "How wide the memory graph is, in the same pixels as Width. 0 uses Width."
 
 	HistoryHead:
 		label: History

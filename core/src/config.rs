@@ -366,8 +366,14 @@ pub struct Look {
 	pub cpu_mode: Mode,
 	/// Low, Medium and High.
 	pub cpu_gradient: [Rgb; 3],
+	/// Draw the CPU graph. It's drawn anyway when no other graph is.
+	pub show_cpu: bool,
+	/// 0 is `width`.
+	pub cpu_width: u32,
 	/// Draw the memory graph, where the box has one.
 	pub show_memory: bool,
+	/// 0 is `width`.
+	pub mem_width: u32,
 	/// In `mem::MemoryReader::SERIES` order, bottom first.
 	pub mem: [Rgb; 3],
 	pub mem_mode: Mode,
@@ -420,7 +426,10 @@ impl Look {
 			],
 			cpu_mode: Mode::parse(m.value("cpu_mode", &NoEnv).as_text()).unwrap_or_default(),
 			cpu_gradient: [color("cpu_low"), color("cpu_medium"), color("cpu_high")],
+			show_cpu: m.value("show_cpu", &NoEnv).as_bool(),
+			cpu_width: num("cpu_width") as u32,
 			show_memory: m.value("show_memory", &NoEnv).as_bool(),
+			mem_width: num("mem_width") as u32,
 			mem: [color("mem_user"), color("mem_buffers"), color("mem_cache")],
 			mem_mode: Mode::parse(m.value("mem_mode", &NoEnv).as_text()).unwrap_or_default(),
 			mem_gradient: [color("mem_low"), color("mem_medium"), color("mem_high")],
@@ -765,6 +774,33 @@ mod tests {
 		assert!(!l.show_memory);
 		assert_eq!(l.mem[2], Rgb(1, 2, 3));
 		assert_eq!(l.cpu, d.cpu);
+	}
+
+	// Test ID: dedqf
+	#[test]
+	fn each_graph_has_a_switch_and_a_width() {
+		let d = Look::default();
+		assert!(d.show_cpu && d.show_memory);
+		assert_eq!((d.cpu_width, d.mem_width), (0, 0));
+		let l = Look::from_model(&model(
+			"graph:\n\twidth: 90\ncpu:\n\tshow: false\n\twidth: 64\nmem:\n\twidth: 4096\n",
+		));
+		assert_eq!(
+			(l.show_cpu, l.cpu_width, l.mem_width, l.width),
+			(false, 64, 4096, 90)
+		);
+		assert!(l.show_memory);
+		let spec = spec();
+		let gate = |id: &str| {
+			spec.settings
+				.iter()
+				.find(|s| s.id == id)
+				.unwrap()
+				.gate
+				.clone()
+		};
+		assert_eq!(gate("cpu_width").as_deref(), Some("show_cpu"));
+		assert_eq!(gate("mem_width").as_deref(), Some("show_memory"));
 	}
 
 	// Test ID: decdh

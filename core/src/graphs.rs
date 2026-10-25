@@ -24,6 +24,12 @@ pub struct Graphs {
 /// A graph's place in the area: x, y, width, height.
 type Tile = (usize, usize, usize, usize);
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Which {
+	Cpu,
+	Mem,
+}
+
 impl Graphs {
 	pub fn new(look: Look) -> Graphs {
 		let mem = if look.show_memory {
@@ -43,8 +49,37 @@ impl Graphs {
 		&self.cpu.look
 	}
 
+	/// CPU is drawn whenever no other graph is, so the panel item never
+	/// shrinks to nothing and its menu stays in reach.
+	pub fn cpu_shown(&self) -> bool {
+		self.cpu.look.show_cpu || self.mem.is_none()
+	}
+
+	fn shown(&self) -> impl Iterator<Item = Which> + '_ {
+		[
+			self.cpu_shown().then_some(Which::Cpu),
+			self.mem.as_ref().map(|_| Which::Mem),
+		]
+		.into_iter()
+		.flatten()
+	}
+
 	pub fn count(&self) -> usize {
-		1 + usize::from(self.mem.is_some())
+		self.shown().count()
+	}
+
+	fn width_of(&self, which: Which) -> u32 {
+		let l = &self.cpu.look;
+		let own = match which {
+			Which::Cpu => l.cpu_width,
+			Which::Mem => l.mem_width,
+		};
+		if own == 0 { l.width } else { own }
+	}
+
+	/// Each shown graph's width in logical pixels, in the order drawn.
+	pub fn widths(&self) -> impl Iterator<Item = u32> + '_ {
+		self.shown().map(|w| self.width_of(w))
 	}
 
 	/// Takes a new look, adding or dropping the memory graph to match. One
@@ -74,18 +109,26 @@ impl Graphs {
 			m.look = look.clone();
 		}
 		self.cpu.look = look;
+		if !self.cpu_shown() {
+			self.cpu.hover = None;
+		}
 		res
 	}
 
+	/// A hidden graph isn't read, so it shows a gap when it's back.
 	pub fn sample(&mut self) {
-		self.cpu.sample();
+		if self.cpu_shown() {
+			self.cpu.sample();
+		}
 		if let Some(m) = &mut self.mem {
 			m.sample();
 		}
 	}
 
 	pub fn trim(&mut self) {
-		self.cpu.trim();
+		if self.cpu_shown() {
+			self.cpu.trim();
+		}
 		if let Some(m) = &mut self.mem {
 			m.trim();
 		}
@@ -130,24 +173,30 @@ impl Graphs {
 		}
 	}
 
-	fn tiles(&self, w: usize, h: usize) -> impl Iterator<Item = Tile> {
+	// side by side, the area is shared out by width, since the panel may
+	// not give exactly what was asked for. Stacked, they share it evenly.
+	fn tiles(&self, w: usize, h: usize) -> impl Iterator<Item = (Which, Tile)> + '_ {
 		let (n, stacked) = (self.count(), self.stacked);
-		(0..n).map(move |i| {
-			let cut = |len: usize| (i * len / n, (i + 1) * len / n);
-			if stacked {
-				let (a, b) = cut(h);
+		let total = self.widths().map(|x| x as usize).sum::<usize>().max(1);
+		let (mut i, mut done) = (0, 0);
+		self.shown().map(move |which| {
+			let own = self.width_of(which) as usize;
+			let tile = if stacked {
+				let (a, b) = (i * h / n, (i + 1) * h / n);
 				(0, a, w, b - a)
 			} else {
-				let (a, b) = cut(w);
+				let (a, b) = (done * w / total, (done + own) * w / total);
 				(a, 0, b - a, h)
-			}
+			};
+			i += 1;
+			done += own;
+			(which, tile)
 		})
 	}
 
 	// which graph holds device pixel (x, y), and where it is in it
-	fn find(&self, x: usize, y: usize, w: usize, h: usize) -> Option<(usize, Tile)> {
+	fn find(&self, x: usize, y: usize, w: usize, h: usize) -> Option<(Which, Tile)> {
 		self.tiles(w, h)
-			.enumerate()
 			.find(|&(_, (tx, ty, tw, th))| x < tx + tw && y < ty + th)
 	}
 
@@ -155,14 +204,14 @@ impl Graphs {
 	/// when that changed what's drawn.
 	pub fn hover(&mut self, at: Option<(usize, usize)>, w: usize, h: usize) -> bool {
 		let hit = at.and_then(|(x, y)| Some((x, self.find(x, y, w, h)?)));
-		let want = |i: usize| hit.and_then(|(x, (j, (tx, ..)))| (i == j).then(|| x - tx));
+		let want = |w: Which| hit.and_then(|(x, (j, (tx, ..)))| (w == j).then(|| x - tx));
 		let mut changed = false;
-		let cpu = want(0);
+		let cpu = want(Which::Cpu);
 		if self.cpu.hover != cpu {
 			self.cpu.hover = cpu;
 			changed = true;
 		}
-		let mem = want(1);
+		let mem = want(Which::Mem);
 		if let Some(m) = &mut self.mem
 			&& m.hover != mem
 		{
@@ -179,20 +228,22 @@ impl Graphs {
 	/// The tip for the pointer at device pixel (x, y).
 	pub fn hover_tip(&self, x: usize, y: usize, w: usize, h: usize, scale: usize) -> String {
 		match (self.find(x, y, w, h), &self.mem) {
-			(Some((1, (tx, _, tw, th))), Some(m)) => m.hover_tip(x - tx, tw, th, scale),
+			(Some((Which::Mem, (tx, _, tw, th))), Some(m)) => m.hover_tip(x - tx, tw, th, scale),
 			(Some((_, (tx, _, tw, th))), _) => self.cpu.hover_tip(x - tx, tw, th, scale),
 			(None, _) => self.tooltip(),
 		}
 	}
 
-	/// The latest reads of every graph.
+	/// The latest reads of every graph shown.
 	pub fn tooltip(&self) -> String {
-		let mut tip = self.cpu.tooltip();
-		if let Some(m) = &self.mem {
-			tip.push_str("\n\n");
-			tip.push_str(&m.tooltip());
-		}
-		tip
+		let tips: Vec<String> = self
+			.shown()
+			.map(|w| match (w, &self.mem) {
+				(Which::Mem, Some(m)) => m.tooltip(),
+				_ => self.cpu.tooltip(),
+			})
+			.collect();
+		tips.join("\n\n")
 	}
 
 	/// Every graph as cairo ARGB32 pixels, `w` by `h`.
@@ -200,13 +251,13 @@ impl Graphs {
 		let mut px = std::mem::take(&mut self.px);
 		px.clear();
 		px.resize(w * h, 0);
-		let tiles: Vec<Tile> = self.tiles(w, h).collect();
-		for (i, &(tx, ty, tw, th)) in tiles.iter().enumerate() {
+		let tiles: Vec<(Which, Tile)> = self.tiles(w, h).collect();
+		for &(which, (tx, ty, tw, th)) in &tiles {
 			if tw == 0 || th == 0 {
 				continue;
 			}
-			let one = match (i, &mut self.mem) {
-				(1, Some(m)) => m.render(tw, th, scale),
+			let one = match (which, &mut self.mem) {
+				(Which::Mem, Some(m)) => m.render(tw, th, scale),
 				_ => self.cpu.render(tw, th, scale),
 			};
 			for (r, row) in one.chunks_exact(tw).enumerate() {
@@ -361,5 +412,77 @@ mod tests {
 			.mem
 			.is_none()
 		);
+	}
+
+	// Test ID: dedqd
+	#[test]
+	fn each_graph_takes_its_own_width_and_0_is_width() {
+		let mut g = both();
+		g.set_look(
+			Look {
+				width: 100,
+				cpu_width: 40,
+				..Look::default()
+			},
+			None,
+		)
+		.unwrap();
+		assert_eq!(g.widths().collect::<Vec<_>>(), [40, 100]);
+		let h = 10;
+		for scale in [1, 2] {
+			let (cw, mw) = (40 * scale, 100 * scale);
+			let w = cw + mw;
+			let left = g.cpu.render(cw, h, scale).to_vec();
+			let right = g.mem.as_mut().unwrap().render(mw, h, scale).to_vec();
+			let px = g.render(w, h, scale).to_vec();
+			for r in 0..h {
+				assert_eq!(&px[r * w..r * w + cw], &left[r * cw..(r + 1) * cw]);
+				assert_eq!(&px[r * w + cw..(r + 1) * w], &right[r * mw..(r + 1) * mw]);
+			}
+			assert!(g.hover(Some((cw + 5, 3)), w, h));
+			assert_eq!(g.mem.as_ref().unwrap().hover, Some(5));
+			assert!(g.hover(Some((cw - 1, 3)), w, h));
+			assert_eq!(g.cpu.hover, Some(cw - 1));
+		}
+		// stacked, they share the height evenly whatever their widths
+		g.stacked = true;
+		assert!(g.hover(Some((5, 6)), 10, 10));
+		assert_eq!(g.mem.as_ref().unwrap().hover, Some(5));
+	}
+
+	// Test ID: dedqe
+	#[test]
+	fn cpu_can_be_hidden_but_not_with_nothing_else_shown() {
+		let mut g = both();
+		assert!(g.hover(Some((5, 3)), 40, 10));
+		let had = g.cpu.hist.last();
+		let no_cpu = Look {
+			show_cpu: false,
+			mem_width: 30,
+			..Look::default()
+		};
+		g.set_look(no_cpu.clone(), None).unwrap();
+		assert_eq!(g.cpu.hover, None);
+		assert_eq!(g.count(), 1);
+		assert_eq!(g.widths().collect::<Vec<_>>(), [30]);
+		let alone = g.mem.as_mut().unwrap().render(30, 10, 1).to_vec();
+		assert_eq!(g.render(30, 10, 1), alone.as_slice());
+		assert!(g.hover(Some((5, 3)), 30, 10));
+		assert_eq!(g.cpu.hover, None);
+		assert_eq!(g.mem.as_ref().unwrap().hover, Some(5));
+		assert!(g.tooltip().starts_with("Memory"), "{}", g.tooltip());
+		// a hidden graph isn't read
+		g.sample();
+		assert_eq!(g.cpu.hist.last(), had);
+		// with nothing else to show, CPU shows anyway
+		let none = Look {
+			show_memory: false,
+			..no_cpu
+		};
+		g.set_look(none.clone(), None).unwrap();
+		assert!(g.cpu_shown());
+		assert_eq!(g.widths().collect::<Vec<_>>(), [none.width]);
+		assert_eq!(g.tooltip(), "CPU");
+		assert!(Graphs::new(none).cpu_shown());
 	}
 }

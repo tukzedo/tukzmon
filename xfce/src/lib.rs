@@ -52,7 +52,7 @@ impl Plugin {
 			if self.graphs.stacked {
 				gtk_widget_set_size_request(self.xpp, size, (size / 2).max(16) * n);
 			} else {
-				let w = self.graphs.look().width as c_int * n;
+				let w = self.graphs.widths().sum::<u32>() as c_int;
 				gtk_widget_set_size_request(self.xpp, w, size);
 			}
 		}
@@ -90,9 +90,8 @@ impl Plugin {
 		self.config_time = t;
 		let look = Look::load(&self.config);
 		if look != *self.graphs.look() {
-			let count = self.graphs.count();
+			let widths: Vec<u32> = self.graphs.widths().collect();
 			let keep = (self.graphs.look().keep, look.keep);
-			let refit = look.width != self.graphs.look().width;
 			let dropped = !look.show_memory && self.graphs.mem.is_some();
 			// what came in while it was on still counts
 			if keep.0 && (!keep.1 || dropped) {
@@ -102,7 +101,7 @@ impl Plugin {
 			if let Err(e) = self.graphs.set_look(look, from) {
 				eprintln!("tukzmon: can't read {}: {e}", self.history.display());
 			}
-			let refit = refit || count != self.graphs.count();
+			let refit = !self.graphs.widths().eq(widths);
 			if keep == (false, true) {
 				// nothing seen while it was off is logged, per backlog 2026102408304572
 				self.load_history();
