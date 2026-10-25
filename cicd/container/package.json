@@ -1,0 +1,8 @@
+{
+	"name": "tukzmon-cicd-markdownlint",
+	"private": true,
+	"description": "markdownlint-cli for the cicd/container image, at the TOOL_PINS version.",
+	"dependencies": {
+		"markdownlint-cli": "0.49.1"
+	}
+}

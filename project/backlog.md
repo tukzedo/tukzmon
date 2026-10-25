@@ -416,7 +416,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102416252891
 	- Type: Task
 	- Status: Waiting on UAT
-		- It departs from the wording in 2 ways. The container bullet waits on 2026102416252889, since there's no container yet. And `CICD_MAX_JOBS` lets a caller set a lower cap.
+		- It departs from the wording in one way. `CICD_MAX_JOBS` lets a caller set a lower cap.
 	- Needs local test suite run?: No. `--backlog-run-full` passed on 2026-10-25.
 	- Priority|Severity: High
 	- Opened: 20261024-162528
@@ -432,8 +432,61 @@ Sorted per the notes in [Template](#template).
 		- Half the CPUs, or a quarter when the 1-minute load is over half the CPU count, worked out before each step and passed to cargo's `-j` and `--test-threads`. A quarter is kept for the heavy steps, for the leak checks to come.
 		- The pipeline sets nice 19 and ionice idle on itself at the start, so everything it starts inherits them.
 		- Verified: a run used 16 of 32 CPUs at a load of 10, and 8 with the cap set.
+		- Since 2026102416252889, containers get `--cpus` at the run's job count and `--cpu-shares 256`, and the steps in them run under `nice -n 19` and `ionice -c 3`.
+		- Verified: a container ran with 8 CPUs and a share of 256, with its cargo at nice 19.
 	- Branch: round-1025
 	- Test case: None in the repo, as for 2026102416252892.
+
+- CICD reset: containers
+	- ID: 2026102416252889
+	- Type: Task
+	- Status: Waiting on UAT
+		- It departs from the wording in one way. GTK 3 is in the image as its runtime libraries, not the dev package, since the plugin links GTK, cairo and the panel library by soname. The Debian snapshot the image reads pins them, as it does Qt.
+	- Needs hand testing: on b23, run `cicd/cicd.bash` with no options, as on 2026102416252898. It's the one run that builds the release on the host, for dogfood.
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Related IDs: 2026102416252898
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- There's no pipeline yet, and every check runs on the host. Build and test in a pinned image from a recipe in the repo, with the Rust toolchain, Qt 6 and GTK 3 pinned.
+		- A missing docker falls back to the host with one line, and never fails a run. `--no-container` runs on the host on purpose.
+		- Tests that need a real panel or display run on the host.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- `cicd/container/` holds the recipe: Debian trixie by digest, apt from a dated snapshot, Qt 6 Widgets dev, the GTK 3 and panel libraries, the Rust toolchain from `rust-toolchain.toml`, and shellcheck and markdownlint at the `cicd/config.bash` pins. The tag is a hash of the recipe, so an edit means a new image.
+		- `cicd.bash` builds the image when its tag is missing, checks it has the pinned Rust, and fetches the crates. Format, build, lint, tests and the release build then run in it offline, as the caller's uid, into `target/container`.
+		- Remote sync and dogfood stay on the host, and so does the release build in a run that dogfoods, since that build is what gets installed. A test that needs a real panel or display gets a step left out of `CTR_STEPS` in `cicd/config.bash`. None does yet.
+		- No docker, a docker that doesn't answer, or an image that won't build is one line, and the run goes on on the host.
+		- Verified: `--backlog-run-full` passed in the image, and so did a run in a linked worktree building into `target/gate`, as the pre-push hook does. A planted format error failed it. A docker that didn't answer and an image that failed to build each fell back to the host with one line, and passed.
+	- Decisions:
+		- The image has its own target dir. The paths inside differ from the host's, so a shared `target/` would rebuild everything each time a run switched sides.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892. The gate was watched to fail on a planted format error.
+
+- Hosted workflow for the merge gate
+	- ID: 2026102513560001
+	- Type: Task
+	- Status: Waiting on automated testing
+	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
+	- Priority|Severity: Avg
+	- Opened: 20261025-135600
+	- Opened by: t00mietum
+	- Prereq IDs: 2026102416252892
+	- Related IDs: 2026102416252889
+	- Requirements:
+		- One small GitHub workflow on push and pull request against `main`, plus a manual trigger so any branch can be run by hand.
+		- It runs `cicd.bash --merge-gate`, as far as the runner can. No matrix, and no macOS runner, since it's Linux only for now.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `.github/workflows/merge-gate.yml` runs `cicd/cicd.bash --merge-gate` on a push or pull request against `main`, and by hand on any branch. It's one job on `ubuntu-24.04`, which builds the image from `cicd/container/` and runs the checks in it.
+	- Decisions:
+		- Asked for on 2026-10-25, in answer to the round settings question about a hosted workflow.
+		- No layer cache between runs, to keep it small. Each run builds the image first, which takes a few minutes.
+	- Branch: round-1025
+	- Test case: The workflow is its own test. Its first run is in the row above.
 
 - Core library and Linux collectors
 	- ID: 2026101916013884
@@ -688,35 +741,6 @@ Sorted per the notes in [Template](#template).
 		- Charge and state from `/sys/class/power_supply/BAT*`: charging, discharging, and the critical level.
 		- No collector on a box with no battery.
 
-- CICD reset: containers
-	- ID: 2026102416252889
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Related IDs: 2026102416252898
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- There's no pipeline yet, and every check runs on the host. Build and test in a pinned image from a recipe in the repo, with the Rust toolchain, Qt 6 and GTK 3 pinned.
-		- A missing docker falls back to the host with one line, and never fails a run. `--no-container` runs on the host on purpose.
-		- Tests that need a real panel or display run on the host.
-
-- CICD reset: container cleanup
-	- ID: 2026102416252890
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Prereq IDs: 2026102416252889
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- Every container, image, and volume gets `dev.project=tukzmon` and `dev.run=<run folder name>`, and containers are named `tukzmon-<run folder name>-<step>`.
-		- Containers run with `--rm`, unless `--keep-temp` was passed. The run's containers are removed by label at its end, on failure and Ctrl+C too.
-		- The project's dangling images go, and older tags once a newer one has passed, keeping the current tag and the one before it. Then `docker builder prune -f --filter until=168h`.
-		- Nothing without the project's label is touched. The end of the run says what it removed and about what that freed.
-
 - CICD reset: a test for every Done item
 	- ID: 2026102416252894
 	- Type: Task
@@ -816,21 +840,6 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- A profiler step in the default run, with flamegraphs rotated into `cicd/artifacts/profiling/` and a report on the hot spots after each one.
 
-- Hosted workflow for the merge gate
-	- ID: 2026102513560001
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261025-135600
-	- Opened by: t00mietum
-	- Prereq IDs: 2026102416252892
-	- Related IDs: 2026102416252889
-	- Requirements:
-		- One small GitHub workflow on push and pull request against `main`, plus a manual trigger so any branch can be run by hand.
-		- It runs `cicd.bash --merge-gate`, as far as the runner can. No matrix, and no macOS runner, since it's Linux only for now.
-	- Decisions:
-		- Asked for on 2026-10-25, in answer to the round settings question about a hosted workflow.
-
 - Dogfood install and cicd build with different Rust versions
 	- ID: 2026102514130001
 	- Type: Bug
@@ -861,6 +870,34 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- CICD reset: container cleanup
+	- ID: 2026102416252890
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Prereq IDs: 2026102416252889
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Every container, image, and volume gets `dev.project=tukzmon` and `dev.run=<run folder name>`, and containers are named `tukzmon-<run folder name>-<step>`.
+		- Containers run with `--rm`, unless `--keep-temp` was passed. The run's containers are removed by label at its end, on failure and Ctrl+C too.
+		- The project's dangling images go, and older tags once a newer one has passed, keeping the current tag and the one before it. Then `docker builder prune -f --filter until=168h`.
+		- Nothing without the project's label is touched. The end of the run says what it removed and about what that freed.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Every container is named `tukzmon-<run folder name>-<step>` and has both labels, and so does the image. Containers run with `--rm` unless `--keep-temp` was passed, which keeps them and says how to list them.
+		- At the end, on failure and Ctrl+C too, the run's containers are stopped and removed by label. Then the project's dangling images go, and its older tags once this run's image has answered, keeping it and the one before. Then the build cache prune.
+		- Nothing is removed by force, and only what has the project's label. The end of the run names what went, about what it freed by `docker system df` before and after, and what the prune took.
+		- Verified: a Ctrl+C mid-build stopped its container at once, a container left running was removed by label, `--keep-temp` kept the run's 2, and 3 recipe changes in a row kept the current tag and the one before.
+	- Decisions:
+		- No volumes. The image's cargo home and target dir are folders under `target/container`, so `cargo clean` takes them too.
+		- Tags are ordered by a `dev.built` label set at build time, since a build from cache gives every tag the same creation time.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892.
+	- Closed: 20261025-073422
 
 - CICD reset: step output
 	- ID: 2026102416252893

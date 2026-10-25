@@ -11,13 +11,15 @@
 ##	- Purpose: tukzmon's local CI/CD pipeline. Settings are in config.bash.
 ##	- Steps, fail-fast:
 ##	   1. Remote sync     fast-forward from upstream before anything is built
-##	   2. Format          cargo fmt, in place; a check only in the hands-off runs
-##	   3. Build (debug)   every crate and test target
-##	   4. Lint            clippy -D warnings, shellcheck, markdownlint, with the
+##	   2. Container image build the image from cicd/container/ when this recipe
+##	                      has none, and fetch the crates the steps need
+##	   3. Format          cargo fmt, in place; a check only in the hands-off runs
+##	   4. Build (debug)   every crate and test target
+##	   5. Lint            clippy -D warnings, shellcheck, markdownlint, with the
 ##	                      output also rotated into cicd/artifacts/lint/
-##	   5. Tests           cargo test, with TMPDIR in the run's temp folder
-##	   6. Release build   the plugin and tukzmon-settings
-##	   7. Dogfood         utility/dev-install.bash, which installs the build to
+##	   6. Tests           cargo test, with TMPDIR in the run's temp folder
+##	   7. Release build   the plugin and tukzmon-settings
+##	   8. Dogfood         utility/dev-install.bash, which installs the build to
 ##	                      ~/.local/lib/tukzmon and restarts the panel
 ##	  A step that's off isn't counted, and the first section says why it's off.
 ##	  Cleanup comes last, on failure and Ctrl+C too.
@@ -47,11 +49,11 @@
 ##	                       pre-push hook runs it. Also --ci
 ##	                       None of those 3 syncs, dogfoods, installs, commits,
 ##	                       pushes, prompts, or rewrites a tracked file.
-##	   --no-container      run on this box. There's no container yet, so every
-##	                       run does
+##	   --no-container      run every step on this box
 ##	   --no-remote         skip other hosts. There are none yet
 ##	   --no-sync           skip the remote sync
-##	   --keep-temp         keep the run's temp folder, and print where it is
+##	   --keep-temp         keep the run's temp folder and containers, and print
+##	                       where they are
 ##	   --list              print the steps the other options would run, and
 ##	                       run nothing
 ##	   -q, --quiet         quieter cargo, and no prompt. Step lines still print
@@ -66,6 +68,14 @@
 ##	  TMPDIR, TEMP and TMP pointed into it. It's removed at the end, along with
 ##	  anything still running from it, and run folders 2 days old whose run is
 ##	  gone.
+##	- Container: format, build, lint, tests and the release build run in the
+##	  image, offline, as the caller's uid, with the repo and the temp folder
+##	  at their own paths. It builds into target/container, beside the host's
+##	  target/. A run that dogfoods builds the release on the host instead,
+##	  since that's what gets installed. With no docker, or an image that won't
+##	  build, the run says so in one line and goes on on the host. Containers,
+##	  images and build cache are cleaned up at the end, only what has the
+##	  dev.project=tukzmon label.
 ##	- Lint: utility/lint-report.bash reports on the newest lint log, and its
 ##	  --check prints only what's new since the last look.
 ##	- The pre-push hook, hooks/pre-push, runs --merge-gate on a push to main.
@@ -130,6 +140,8 @@ fGitRemote() { if command -v gitsby > /dev/null 2>&1; then gitsby raw git "$@"; 
 #•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Options
 
+## Each container step runs this script again in the image, with these.
+cliArgs=("$@")
 mode="default"; areas=(); aliasNote=""; quiet=0; keepTemp=0; listOnly=0; syncOn=1; leakOpt=""; noRemote=0; noContainer=0; cliMessage=""
 fMode() { [[ "${mode}" == default || "${mode}" == "$1" ]] || fUsage "${mode/#/--} and --$1 are separate runs; give one"; mode="$1"; }
 while (($#)); do case "$1" in
@@ -181,6 +193,8 @@ fPlan() {   ## fPlan NAME FUNCTION AREA
 if ((handsOff)); then offLines+=("Remote sync: --${mode} never syncs")
 elif ((! syncOn)); then offLines+=("Remote sync: --no-sync")
 else fPlan "Remote sync" fStepSync ""; fi
+if ((noContainer)); then offLines+=("Container: --no-container, so this runs on the host")
+else fPlan "Container image" fStepImage ""; fi
 fPlan "Format" fStepFormat format
 fPlan "Build (debug)" fStepBuild build
 fPlan "Lint" fStepLint lint
@@ -194,86 +208,32 @@ if [[ "${leakOpt}" == --no-leakcheck ]]; then offLines+=("Leak checks: --no-leak
 else offLines+=("Leak checks: not built yet (backlog 2026102506591278)"); fi
 offLines+=("Packages: not built yet (backlog 2026102506591283)")
 offLines+=("Profiler: not built yet (backlog 2026102506591288)")
-if ((noContainer)); then offLines+=("Container: --no-container")
-else offLines+=("Container: not built yet (backlog 2026102416252889), so this runs on the host"); fi
 if ((noRemote)); then offLines+=("Other hosts: --no-remote")
 else offLines+=("Other hosts: none, since tukzmon is Linux only for now"); fi
 offLines+=("Publish: not part of this pipeline${cliMessage:+, so --message goes unused}")
 
+## Which steps go in the image. The release build is what dogfood installs on
+## this box, so a run that dogfoods builds it here.
+dogfoodOn=0; [[ " ${planFns[*]} " != *" fStepDogfood "* ]] || dogfoodOn=1
+fInImage() {
+	[[ " ${CTR_STEPS[*]} " == *" $1 "* ]] || return 1
+	[[ "$1" != fStepRelease ]] || ((! dogfoodOn))
+}
+
 fShowPlan() {
-	local i
+	local i where=''
 	fSection "${projectName} cicd: ${mode}"
 	[[ -z "${aliasNote}" ]] || fEcho_Clean "${aliasNote}"
 	fEcho_Clean "Steps:"
-	for i in "${!planNames[@]}"; do fEcho_Clean "	$((i + 1)). ${planNames[i]}"; done
+	for i in "${!planNames[@]}"; do
+		where=''
+		if ((! noContainer)) && [[ "${planFns[i]}" != fStepImage ]] && ! fInImage "${planFns[i]}"; then where=" (host)"; fi
+		fEcho_Clean "	$((i + 1)). ${planNames[i]}${where}"
+	done
 	fEcho_Clean "Off:"
 	for i in "${offLines[@]}"; do fEcho_Clean "	${i}"; done
 }
 if ((listOnly)); then fShowPlan; fEcho_Clean; exit 0; fi
-
-
-#•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
-## Machine use
-
-## Children inherit both.
-renice -n 19 -p "$$" > /dev/null 2>&1 || true
-if command -v ionice > /dev/null 2>&1; then ionice -c 3 -p "$$" > /dev/null 2>&1 || true; fi
-
-## Half the CPUs, a quarter when the box is busy, and a quarter for the heavy
-## steps either way. Never under 1. Sets jobs, heavyJobs and loadNote.
-cores="$(nproc 2> /dev/null || echo 2)"
-jobs=1; heavyJobs=1; loadNote=""
-fJobs() {
-	local load='' busy=0
-	read -r load _ < /proc/loadavg || load=0
-	## Load against half the CPUs, both in hundredths, with no float math.
-	load="${load%%.*}${load#*.}"
-	if (( 10#${load} > cores * 50 )); then busy=1; fi
-	jobs=$((busy ? cores / 4 : cores / 2)); ((jobs >= 1)) || jobs=1
-	heavyJobs=$((cores / 4)); ((heavyJobs >= 1)) || heavyJobs=1
-	## A caller sharing the box can set a lower cap. Digits only, since it goes
-	## into arithmetic.
-	if [[ "${CICD_MAX_JOBS:-}" =~ ^[1-9][0-9]{0,3}$ ]]; then
-		((jobs <= CICD_MAX_JOBS)) || jobs="${CICD_MAX_JOBS}"
-		((heavyJobs <= CICD_MAX_JOBS)) || heavyJobs="${CICD_MAX_JOBS}"
-	fi
-	printf -v loadNote '%s of %s CPUs, load %d.%02d' "${jobs}" "${cores}" $((10#${load} / 100)) $((10#${load} % 100))
-	if ((busy)); then loadNote+=", busy"; fi
-	export CARGO_BUILD_JOBS="${jobs}" RUST_TEST_THREADS="${jobs}"
-}
-
-
-#•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
-## Temp folder and cleanup
-
-source "${here}/utility/include/run-tmp.bash"
-staleGone="$(fSweepStale)"
-fRunTmpMake || fDie "could not make a temp folder under ${HOST_TEMP}/${projectName}"
-export TMPDIR="${runTmp}" TEMP="${runTmp}" TMP="${runTmp}"
-
-runSaid=0; cleaned=0
-fCleanup() {
-	local stopped=0 kb=''
-	((cleaned)) && return 0
-	cleaned=1
-	trap '' INT TERM HUP
-	((runSaid)) || printf '\n[ CICD ABORTED (stopped) ]\n' >&2
-	stopped="$(fStopLeftovers "${runTmp}")"
-	fSection "$(fNow): Cleanup"
-	((stopped == 0)) || fEcho_Clean "stopped ${stopped} process(es) still running from this run's temp folder"
-	((staleGone == 0)) || fEcho_Clean "removed ${staleGone} stale run folder(s)"
-	if ((keepTemp)); then
-		fEcho_Clean "kept the temp folder: ${runTmp}"
-	else
-		kb="$(du -sk -- "${runTmp}" 2> /dev/null | cut -f1 || true)"
-		if fSafeRm "${runTmp}"; then fEcho_Clean "removed this run's temp folder, about $(( (${kb:-0} + 512) / 1024 )) MB"; fi
-	fi
-}
-trap 'fCleanup; fEcho_Clean' EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
-trap 'exit 129' HUP
-trap 'rc=$?; runSaid=1; printf "\n[ CICD ABORTED (exit %s) at line %s: %s ]\n" "${rc}" "${LINENO}" "${BASH_COMMAND}" >&2; exit "${rc}"' ERR
 
 
 #•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -407,6 +367,262 @@ fStepDogfood() {
 
 
 #•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## In the image. fCtrStep starts this script again in a container, with the
+## step to run in TUKZMON_IN_IMAGE. The temp folder, step lines and cleanup
+## stay with the run outside.
+
+if [[ -n "${TUKZMON_IN_IMAGE:-}" ]]; then
+	[[ " ${CTR_STEPS[*]} " == *" ${TUKZMON_IN_IMAGE} "* ]] || fDie "no container step '${TUKZMON_IN_IMAGE}'"
+	[[ "${TUKZMON_JOBS:-}" =~ ^[1-9][0-9]{0,3}$ ]] || fDie "TUKZMON_JOBS isn't a job count: '${TUKZMON_JOBS:-}'"
+	jobs="${TUKZMON_JOBS}"
+	export CARGO_BUILD_JOBS="${jobs}" RUST_TEST_THREADS="${jobs}"
+	if "${TUKZMON_IN_IMAGE}"; then exit 0; fi
+	exit 1
+fi
+
+
+#•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Machine use
+
+## Children inherit both.
+renice -n 19 -p "$$" > /dev/null 2>&1 || true
+if command -v ionice > /dev/null 2>&1; then ionice -c 3 -p "$$" > /dev/null 2>&1 || true; fi
+
+## Half the CPUs, a quarter when the box is busy, and a quarter for the heavy
+## steps either way. Never under 1. Sets jobs, heavyJobs and loadNote.
+cores="$(nproc 2> /dev/null || echo 2)"
+jobs=1; heavyJobs=1; loadNote=""
+fJobs() {
+	local load='' busy=0
+	read -r load _ < /proc/loadavg || load=0
+	## Load against half the CPUs, both in hundredths, with no float math.
+	load="${load%%.*}${load#*.}"
+	if (( 10#${load} > cores * 50 )); then busy=1; fi
+	jobs=$((busy ? cores / 4 : cores / 2)); ((jobs >= 1)) || jobs=1
+	heavyJobs=$((cores / 4)); ((heavyJobs >= 1)) || heavyJobs=1
+	## A caller sharing the box can set a lower cap. Digits only, since it goes
+	## into arithmetic.
+	if [[ "${CICD_MAX_JOBS:-}" =~ ^[1-9][0-9]{0,3}$ ]]; then
+		((jobs <= CICD_MAX_JOBS)) || jobs="${CICD_MAX_JOBS}"
+		((heavyJobs <= CICD_MAX_JOBS)) || heavyJobs="${CICD_MAX_JOBS}"
+	fi
+	printf -v loadNote '%s of %s CPUs, load %d.%02d' "${jobs}" "${cores}" $((10#${load} / 100)) $((10#${load} % 100))
+	if ((busy)); then loadNote+=", busy"; fi
+	export CARGO_BUILD_JOBS="${jobs}" RUST_TEST_THREADS="${jobs}"
+}
+
+
+#•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Temp folder and cleanup
+
+source "${here}/utility/include/run-tmp.bash"
+staleGone="$(fSweepStale)"
+fRunTmpMake || fDie "could not make a temp folder under ${HOST_TEMP}/${projectName}"
+export TMPDIR="${runTmp}" TEMP="${runTmp}" TMP="${runTmp}"
+
+runSaid=0; cleaned=0; ctrTouched=0
+fCleanup() {
+	local stopped=0 kb=''
+	((cleaned)) && return 0
+	cleaned=1
+	trap '' INT TERM HUP
+	((runSaid)) || printf '\n[ CICD ABORTED (stopped) ]\n' >&2
+	stopped="$(fStopLeftovers "${runTmp}")"
+	fSection "$(fNow): Cleanup"
+	((stopped == 0)) || fEcho_Clean "stopped ${stopped} process(es) still running from this run's temp folder"
+	((! ctrTouched)) || fCtrCleanup
+	((staleGone == 0)) || fEcho_Clean "removed ${staleGone} stale run folder(s)"
+	if ((keepTemp)); then
+		fEcho_Clean "kept the temp folder: ${runTmp}"
+	else
+		kb="$(du -sk -- "${runTmp}" 2> /dev/null | cut -f1 || true)"
+		if fSafeRm "${runTmp}"; then fEcho_Clean "removed this run's temp folder, about $(( (${kb:-0} + 512) / 1024 )) MB"; fi
+	fi
+}
+trap 'fCleanup; fEcho_Clean' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+trap 'rc=$?; runSaid=1; printf "\n[ CICD ABORTED (exit %s) at line %s: %s ]\n" "${rc}" "${LINENO}" "${BASH_COMMAND}" >&2; exit "${rc}"' ERR
+
+
+#•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Container. The image is built from CTR_DIR, and the CTR_STEPS run in it as
+## this script again. Everything here carries the project's and the run's
+## labels, and cleanup touches nothing without them.
+
+runName="${runTmp##*/}"
+ctrOn=0; ctrPassed=0; ctrTag=""
+## Its own target and cargo home. The paths inside differ from the host's, so
+## sharing target/ would rebuild everything each time a run switched sides.
+## docker reads a relative -v source as a named volume.
+ctrBase="${CARGO_TARGET_DIR:-${root}/target}"
+[[ "${ctrBase}" == /* ]] || ctrBase="${root}/${ctrBase}"
+ctrBase+="/container"
+ctrLabels=(--label "dev.project=${projectName}" --label "dev.run=${runName}")
+
+## Why docker can't be used, or nothing. One with no daemon behind it counts as
+## missing. The timeout is for a DOCKER_HOST that never replies.
+fCtrWhyNot() {
+	local -a limit=()
+	if [[ "$(uname -m)" != x86_64 ]]; then echo "the image is x86_64 only"; return 0; fi
+	command -v docker > /dev/null 2>&1 || { echo "there's no docker here"; return 0; }
+	if command -v timeout > /dev/null 2>&1; then limit=(timeout 30); fi
+	"${limit[@]}" docker info > /dev/null 2>&1 || echo "docker doesn't answer"
+	return 0
+}
+
+## Copies the recipe to DIR and sets ctrTag from a hash of it, so an edit to
+## any of it means a new image.
+fCtrContext() {   ## fCtrContext DIR
+	local ctx="$1" f
+	local -a ctxFiles=()
+	mkdir -p -- "${ctx}" || return 1
+	cp -p -- "${root}/${CTR_DIR}"/* "${ctx}/" || return 1
+	for f in "${CTR_CONTEXT_EXTRA[@]}"; do cp -p -- "${root}/${f}" "${ctx}/" || return 1; done
+	mapfile -t ctxFiles < <(cd "${ctx}" && find . -type f | LC_ALL=C sort)
+	ctrTag="${CTR_IMAGE}:$(cd "${ctx}" && for f in "${ctxFiles[@]}"; do echo "${f}"; cat "${f}"; done | git hash-object --stdin | cut -c1-12)"
+}
+
+## Every container goes through here. nice on the client doesn't reach a
+## container, so each gets the run's job count at a low share, and the ones
+## that build run nice inside too. The init passes a Ctrl+C to the whole
+## group inside, or cargo would run on to the end.
+fCtrRun() {   ## fCtrRun STEP DOCKER_RUN_ARG...
+	local step="$1"
+	local -a rm=(--rm)
+	shift
+	((! keepTemp)) || rm=()
+	docker run "${rm[@]}" --init -e TINI_KILL_PROCESS_GROUP=1 --name "${projectName}-${runName}-${step}" "${ctrLabels[@]}" \
+		--cpus "${jobs}" --cpu-shares 256 --user "$(id -u):$(id -g)" "$@"
+}
+
+## Builds the image when this recipe has none, checks it answers, and fills
+## its cargo home for the offline steps. Anything that goes wrong is one line,
+## and the run goes on on the host.
+fStepImage() {
+	local why='' have='' want='' got='' ch="${ctrBase}/cargo-home" i
+	local -a inside=()
+	why="$(fCtrWhyNot)"
+	if [[ -n "${why}" ]]; then fEcho_Clean "${why}, so this run is on the host"; return 0; fi
+	ctrTouched=1
+	fCtrContext "${runTmp}/ctx" || { fEcho_Clean "could not copy the image's recipe, so this run is on the host"; return 0; }
+	if docker image inspect "${ctrTag}" > /dev/null 2>&1; then
+		fEcho_Clean "${ctrTag} is here"
+	else
+		fEcho_Clean "building ${ctrTag}, which takes several minutes the first time"
+		## dev.built orders the tags for cleanup. Created can't, since a build
+		## from cache gives every tag the same one.
+		if ! docker build --progress=plain "${ctrLabels[@]}" --label "dev.built=${EPOCHSECONDS}" -t "${ctrTag}" "${runTmp}/ctx" > "${runTmp}/image-build.log" 2>&1; then
+			tail -n 25 "${runTmp}/image-build.log"
+			fEcho_Clean "could not build ${ctrTag}, so this run is on the host"
+			return 0
+		fi
+		fEcho_Clean "built ${ctrTag}"
+	fi
+	want="$(sed -n 's/^channel *= *"\(.*\)"/\1/p' "${root}/rust-toolchain.toml")"
+	have="$(fCtrRun check --network none -e HOME=/tmp "${ctrTag}" rustc --version 2>&1 || true)"
+	if [[ "${have}" != "rustc ${want} "* ]]; then
+		fEcho_Clean "${ctrTag} says '${have}', not rustc ${want}, so this run is on the host"
+		return 0
+	fi
+	ctrPassed=1
+	mkdir -p -- "${ch}" "${ctrBase}/target" "${runTmp}/home" || return 1
+	want="$(sha256sum < "${root}/Cargo.lock" | cut -c1-16) ${ctrTag}"
+	{ read -r got < "${ch}/.fetched"; } 2> /dev/null || true
+	if [[ "${got}" != "${want}" ]]; then
+		fEcho_Clean "cargo fetch --locked, for the steps, which run offline"
+		if fCtrRun fetch -v "${root}:${root}:ro" -v "${ch}:${ch}" -w "${root}" -e "HOME=${ch}" -e "CARGO_HOME=${ch}" \
+			"${ctrTag}" nice -n 19 cargo fetch --locked --quiet; then
+			printf '%s\n' "${want}" > "${ch}/.fetched"
+		else
+			fEcho_Clean "WARNING: could not fetch crates (offline?); going on with what's cached"
+		fi
+	fi
+	ctrOn=1
+	for i in "${!planFns[@]}"; do fInImage "${planFns[i]}" && inside+=("${planNames[i]}"); done
+	fEcho_Clean "in ${ctrTag}: ${inside[*]:-none of the steps}"
+}
+
+## One step in the image, as this script with the run's own options. The
+## repo, the run's temp folder and the image's target dir are mounted at their
+## own paths, so every path reads the same inside.
+fCtrStep() {   ## fCtrStep FUNCTION
+	local fn="$1" step='' common=''
+	local -a mounts=() env=()
+	step="${fn#fStep}"; step="${step,,}"
+	mounts=(-v "${root}:${root}" -v "${runTmp}:${runTmp}" -v "${ctrBase}:${ctrBase}")
+	## A linked worktree's git dir is outside it, and lint lists files with git.
+	common="$(git rev-parse --path-format=absolute --git-common-dir 2> /dev/null || true)"
+	if [[ -n "${common}" && "${common}" != "${root}"/* ]]; then mounts+=(-v "${common}:${common}:ro"); fi
+	env=(-e "TUKZMON_IN_IMAGE=${fn}" -e "TUKZMON_JOBS=${jobs}" -e "HOME=${runTmp}/home"
+		-e "TMPDIR=${runTmp}" -e "TEMP=${runTmp}" -e "TMP=${runTmp}"
+		-e "CARGO_HOME=${ctrBase}/cargo-home" -e "CARGO_TARGET_DIR=${ctrBase}/target" -e CARGO_NET_OFFLINE=true
+		-e CARGO_TERM_QUIET -e SOURCE_DATE_EPOCH -e TUKZMON_RELEASE)
+	[[ ! -t 1 ]] || env+=(-e CARGO_TERM_COLOR=always)
+	fEcho_Clean "in ${projectName}-${runName}-${step}"
+	fCtrRun "${step}" --network none "${mounts[@]}" -w "${root}" "${env[@]}" \
+		"${ctrTag}" nice -n 19 ionice -c 3 bash "${root}/cicd/cicd.bash" "${cliArgs[@]}"
+}
+
+## The images' total from docker system df, in bytes. Layers are shared, so
+## the sizes of what was removed would overstate what it freed.
+fCtrImagesBytes() {
+	docker system df --format '{{.Type}}|{{.Size}}' 2> /dev/null | awk -F'|' '$1 == "Images" {
+		n = $2 + 0; u = $2; sub(/^[0-9.]+/, "", u)
+		m = (u == "kB") ? 1e3 : (u == "MB") ? 1e6 : (u == "GB") ? 1e9 : (u == "TB") ? 1e12 : 1
+		printf "%.0f\n", n * m }' || true
+}
+
+## The run's containers, the project's dangling images, and its older tags
+## once this run's image has answered, keeping it and the one before. Then a
+## week of build cache is kept for every project.
+fCtrCleanup() {
+	local tag='' seen=0 kept=0 before=0 after=0 freed='' pruned='' i
+	local -a ids=() doomed=() gone=() tags=() built=() order=()
+	mapfile -t ids < <(docker ps -aq --filter "label=dev.project=${projectName}" --filter "label=dev.run=${runName}" 2> /dev/null || true)
+	if ((keepTemp)); then
+		((${#ids[@]} == 0)) || fEcho_Clean "kept ${#ids[@]} container(s): docker ps -a --filter label=dev.run=${runName}"
+	elif ((${#ids[@]})); then
+		## The --rm ones go away on the stop, so rm can find them gone.
+		docker stop -t 5 "${ids[@]}" > /dev/null 2>&1 || true
+		docker rm "${ids[@]}" > /dev/null 2>&1 || true
+		fEcho_Clean "stopped and removed ${#ids[@]} container(s) left by this run"
+	fi
+	mapfile -t doomed < <(docker image ls -q --no-trunc --filter dangling=true --filter "label=dev.project=${projectName}" 2> /dev/null | LC_ALL=C sort -u || true)
+	if ((ctrPassed)); then
+		mapfile -t tags < <(docker image ls "${CTR_IMAGE}" --filter "label=dev.project=${projectName}" --format '{{.Repository}}:{{.Tag}}' 2> /dev/null || true)
+		((${#tags[@]} == 0)) || mapfile -t built < <(docker image inspect --format '{{index .Config.Labels "dev.built"}}' "${tags[@]}" 2> /dev/null || true)
+		## Newest first. One with no stamp counts as oldest.
+		for i in "${!tags[@]}"; do
+			[[ "${built[i]:-}" =~ ^[0-9]+$ ]] || built[i]=0
+			order+=("${built[i]}|${tags[i]}")
+		done
+		while IFS='|' read -r _ tag; do
+			if [[ "${tag}" == "${ctrTag}" ]]; then seen=1; continue; fi
+			((seen)) || continue
+			if ((! kept)); then kept=1; continue; fi
+			doomed+=("${tag}")
+		done < <(((${#order[@]} == 0)) || printf '%s\n' "${order[@]}" | sort -t '|' -k1,1nr)
+	fi
+	if ((${#doomed[@]})); then
+		before="$(fCtrImagesBytes)"
+		## Not -f, so an image a container still uses stays.
+		for tag in "${doomed[@]}"; do
+			if ! docker rmi "${tag}" > /dev/null 2>&1; then continue; fi
+			if [[ "${tag}" == sha256:* ]]; then gone+=("<none> ${tag:7:12}"); else gone+=("${tag}"); fi
+		done
+		after="$(fCtrImagesBytes)"
+		## Other projects build meanwhile, so it's only roughly ours.
+		if ((${before:-0} > ${after:-0})); then freed=$((before - after)); else freed=0; fi
+		freed=", about $((freed / 1000000)) MB"
+	fi
+	pruned="$(docker builder prune -f --filter until=168h 2> /dev/null | sed -n 's/^Total\( reclaimed space\)\{0,1\}:[[:space:]]*//p' || true)"
+	fEcho_Clean "docker: removed ${gone[*]:-no image}${freed}, and ${pruned:-0B} of build cache"
+}
+
+
+#•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Run
 
 fJobs
@@ -422,7 +638,9 @@ for i in "${!planNames[@]}"; do
 	fEcho_Clean; fEcho_Clean "${__letterbox}"
 	fEcho "$(fNow): Step ${n} of ${stepCount}; Starting ${name}"
 	if [[ "${loadNote}" != "${lastNote}" ]]; then fEcho_Clean "jobs: ${loadNote}"; lastNote="${loadNote}"; fi
-	if "${planFns[i]}"; then
+	stepRun=("${planFns[i]}")
+	if ((ctrOn)) && fInImage "${planFns[i]}"; then stepRun=(fCtrStep "${planFns[i]}"); fi
+	if "${stepRun[@]}"; then
 		fEcho_ResetBlankCounter
 		fEcho "$(fNow): Step ${n} of ${stepCount}; PASS ${name}"
 		fEcho_Clean
@@ -446,3 +664,5 @@ exit 0
 ##		- 2026-10-25: Created from tukfs-hash's engine and gitsby's flags: the
 ##		  shared flags, step lines, CPU caps under nice and ionice, a temp
 ##		  folder per run behind fSafeRm, lint logs, and the pre-push hook.
+##		- 2026-10-25: Format, build, lint, tests and release in the image from
+##		  cicd/container/, with labeled containers and their cleanup.

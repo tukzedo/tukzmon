@@ -47,6 +47,15 @@ MARKDOWNLINT_DISABLE_FOR=(
 ## Rotated lint logs, gitignored. utility/lint-report.bash reads them.
 LINT_LOG_DIR="cicd/artifacts/lint"
 
+## The build image: CTR_DIR plus CTR_CONTEXT_EXTRA, tagged with a hash of them
+## all. The steps in CTR_STEPS run in it, and the rest on the host. A test that
+## needs a real panel or display gets a step of its own, left out of the list.
+CTR_IMAGE="tukzmon-cicd"
+CTR_DIR="cicd/container"
+CTR_CONTEXT_EXTRA=(rust-toolchain.toml)
+CTR_STEPS=(fStepFormat fStepBuild fStepLint fStepTests fStepRelease)
+
 
 ##	History:
 ##		- 2026-10-25: Created.
+##		- 2026-10-25: The build image's settings.
