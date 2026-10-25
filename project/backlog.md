@@ -381,6 +381,60 @@ Sorted per the notes in [Template](#template).
 	- Test case: `render::tests::a_transparent_background_lets_the_panel_through`, `config::tests::transparent_is_off_and_outlives_any_theme` and `dialog::tests::transparent_stays_through_a_theme_pick_and_a_roll`. The first 2 fail with the setting left unread or the background drawn opaque, and pass with it.
 		- Swept: every reader of the Top and Bottom colors, which is only `render::Frame::draw`, and the hover line in `Graph::render`, which stays opaque.
 
+- CICD reset: standard flags
+	- ID: 2026102416252892
+	- Type: Task
+	- Status: Waiting on UAT
+		- The hook is turned on per clone, so it's off until the step below is run.
+		- It departs from the wording in one way. `--message` is taken but does nothing yet, since the pipeline has no publish step.
+	- Needs local test suite run?: No. `--backlog-run-full` passed on 2026-10-25.
+	- Needs hand testing: in each clone, run `git config core.hooksPath cicd/hooks`. Then on the next push to `main`, see the merge gate run first.
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- `cicd.bash` takes the shared flags: none for the default run under about an hour, `--quick`, `--long` with `--slow` as another name, `--leakcheck`, `--no-leakcheck`, `--backlog-run-quick [<area>...]`, `--backlog-run-full`, `--merge-gate`, `--no-container`, `--no-remote`, `--no-sync`, `--keep-temp`, `--list`, `--help`, `--quiet`, and `--message`.
+		- `--gate` and `--ci` are other names for `--backlog-run-quick` and `--merge-gate`.
+		- The backlog and merge gate runs never dogfood, publish, commit, push, install, sync, rewrite a tracked file, or prompt.
+		- A pre-push hook runs `--merge-gate` on a push to `main` only. A push to `dev` or a feature branch isn't gated, and a docs-only push to `main` skips it, with the docs paths in one place the hook reads.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- `cicd/cicd.bash` takes every shared flag. `--quick` and `--long` run the same steps as the default run for now, since nothing is slow yet.
+		- `--backlog-run-quick` runs the format check, build, lint and tests, or only the areas named: format, build, lint, test, and release. `--backlog-run-full` and `--merge-gate` add the release build.
+		- The 3 hands-off runs don't sync, dogfood or prompt, only check the format, and build with `--locked`, so `Cargo.lock` stays as it is.
+		- `cicd/hooks/pre-push` runs `--merge-gate` on the commit pushed to `main`, in a worktree of its own when the checkout has other changes. A push that changes only the paths in `DOCS_PATHS` in `cicd/config.bash` skips it.
+		- Verified: the hook ran the gate on a push to `main`, let a docs-only push and a push to `dev` through, and refused a commit with a lint error. Uncommitted files didn't change what it gated.
+	- Decisions:
+		- `--list` prints the steps and what's off. Test IDs come with 2026102416252895.
+		- The hook is turned on by a documented step, not by the pipeline, so nobody's pushes get gated without them knowing.
+	- Branch: round-1025
+	- Test case: None in the repo, since `cicd.bash` has no harness of its own yet. The gate was watched to fail on a planted format error and a planted lint error.
+
+- CICD reset: CPU and priority
+	- ID: 2026102416252891
+	- Type: Task
+	- Status: Waiting on UAT
+		- It departs from the wording in 2 ways. The container bullet waits on 2026102416252889, since there's no container yet. And `CICD_MAX_JOBS` lets a caller set a lower cap.
+	- Needs local test suite run?: No. `--backlog-run-full` passed on 2026-10-25.
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Half the logical CPUs, or a quarter when the 1-minute load is over half the CPU count, checked at the start and before each step. The heavy steps, such as the leak checks, use a quarter, busy or not.
+		- The counts are worked out once and passed to cargo's `-j` and `--test-threads`. Now cargo takes every core.
+		- Everything runs under `nice -n 19`, plus `ionice -c 3`. Containers get `--cpus` and `--cpu-shares 256`, and `nice` inside.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Half the CPUs, or a quarter when the 1-minute load is over half the CPU count, worked out before each step and passed to cargo's `-j` and `--test-threads`. A quarter is kept for the heavy steps, for the leak checks to come.
+		- The pipeline sets nice 19 and ionice idle on itself at the start, so everything it starts inherits them.
+		- Verified: a run used 16 of 32 CPUs at a load of 10, and 8 with the cap set.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892.
+
 - Core library and Linux collectors
 	- ID: 2026101916013884
 	- Type: Feature
@@ -663,45 +717,6 @@ Sorted per the notes in [Template](#template).
 		- The project's dangling images go, and older tags once a newer one has passed, keeping the current tag and the one before it. Then `docker builder prune -f --filter until=168h`.
 		- Nothing without the project's label is touched. The end of the run says what it removed and about what that freed.
 
-- CICD reset: CPU and priority
-	- ID: 2026102416252891
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- Half the logical CPUs, or a quarter when the 1-minute load is over half the CPU count, checked at the start and before each step. The heavy steps, such as the leak checks, use a quarter, busy or not.
-		- The counts are worked out once and passed to cargo's `-j` and `--test-threads`. Now cargo takes every core.
-		- Everything runs under `nice -n 19`, plus `ionice -c 3`. Containers get `--cpus` and `--cpu-shares 256`, and `nice` inside.
-
-- CICD reset: standard flags
-	- ID: 2026102416252892
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- `cicd.bash` takes the shared flags: none for the default run under about an hour, `--quick`, `--long` with `--slow` as another name, `--leakcheck`, `--no-leakcheck`, `--backlog-run-quick [<area>...]`, `--backlog-run-full`, `--merge-gate`, `--no-container`, `--no-remote`, `--no-sync`, `--keep-temp`, `--list`, `--help`, `--quiet`, and `--message`.
-		- `--gate` and `--ci` are other names for `--backlog-run-quick` and `--merge-gate`.
-		- The backlog and merge gate runs never dogfood, publish, commit, push, install, sync, rewrite a tracked file, or prompt.
-		- A pre-push hook runs `--merge-gate` on a push to `main` only. A push to `dev` or a feature branch isn't gated, and a docs-only push to `main` skips it, with the docs paths in one place the hook reads.
-
-- CICD reset: step output
-	- ID: 2026102416252893
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- Each step prints the shared lines: a 79 character rule, `[ YYYYmmDD-HHMMSS.NN: Step 1 of 9; Starting Format ]`, its output, then `PASS Format` or `FAIL Format` in the same form.
-		- Steps turned off aren't counted, and the first section lists them with the flag or reason.
-
 - CICD reset: a test for every Done item
 	- ID: 2026102416252894
 	- Type: Task
@@ -727,20 +742,6 @@ Sorted per the notes in [Template](#template).
 		- The run prints one line per test, such as `PASS decp8 empty input round-trips`, or `FAIL` or `SKIP`.
 		- `Test case` rows in the backlog name the IDs.
 
-- CICD reset: temp files and safe removal
-	- ID: 2026102416252896
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- Each run's folder is `<HOST_TEMP>/tukzmon/<YYYYmmDD-HHMMSS>_<NNN>/`, made with a plain `mkdir` and a counter, with `TMPDIR`, `TEMP`, and `TMP` pointed into it. Unit tests' scratch folders go there too.
-		- A trap removes it at the end, on failure and Ctrl+C too, through the shared guard. `--keep-temp` keeps it and prints its path.
-		- Each run writes `run.pid` there, and removes the project's own folders older than 2 days whose process is gone.
-		- A test that starts a session bus stops it, on failure too, along with what the bus started. Session buses and gvfsd processes were found still running after a run on 2026-10-23.
-
 - CICD reset: version line
 	- ID: 2026102416252897
 	- Type: Task
@@ -759,6 +760,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102416252898
 	- Type: Task
 	- Status: Queued
+	- Needs hand testing: on b23, run `cicd/cicd.bash` with no options. It dogfoods, which restarts the live panel, so a round doesn't run it.
 	- Priority|Severity: Avg
 	- Opened: 20261024-162528
 	- Opened by: t00mietum
@@ -769,6 +771,50 @@ Sorted per the notes in [Template](#template).
 		- Lint output rotated into `cicd/artifacts/lint/`, with a `--check` that prints only what's new.
 		- Leak checks: ASan, LSan, and UBSan over the Rust and the C++ shim, Miri, a soak test, clippy's `mem_forget` and `undocumented_unsafe_blocks`, and the known-advisory scan.
 		- `.deb` and `.rpm` packages, and a profiler stage.
+	- Progress log:
+		- `cicd/cicd.bash` runs remote sync, format, build, lint, tests, the release build and dogfood, then cleans up.
+		- `rust-toolchain.toml` pins Rust 1.96.0 with rustfmt and clippy. The lint tool versions are pinned in `cicd/config.bash`, and a run warns when the box has another.
+		- Lint output goes to `cicd/artifacts/lint/`, rotated. `cicd/utility/lint-report.bash --check` prints only what's new since the last look.
+		- The rest is split into children: leak checks 2026102506591278, packages 2026102506591283, and the profiler 2026102506591288.
+	- Decisions:
+		- Dogfood is `utility/dev-install.bash`. A panel plugin has to sit where the panel loads it, so the synced dogfood folder, which holds programs a person runs, doesn't fit.
+		- No `dogfood_tukzmon.ps1` launcher either. The panel starts the plugin and the plugin starts tukzmon-settings, so there's nothing for a person to launch.
+		- No publish step yet, since none was asked for here.
+	- Branch: round-1025
+
+- CICD reset: leak checks
+	- ID: 2026102506591278
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261025-065912
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- ASan, LSan and UBSan over the Rust and the C++ shim, Miri, a soak test, clippy's `mem_forget` and `undocumented_unsafe_blocks`, and the known-advisory scan.
+		- They run on a quarter of the CPUs, the heavy-step count `cicd.bash` already works out.
+
+- CICD reset: .deb and .rpm packages
+	- ID: 2026102506591283
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261025-065912
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- `.deb` and `.rpm` packages of the release build in the default run, with a sha256 sums file beside them.
+
+- CICD reset: profiler stage
+	- ID: 2026102506591288
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261025-065912
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- A profiler step in the default run, with flamegraphs rotated into `cicd/artifacts/profiling/` and a report on the hot spots after each one.
 
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
@@ -802,6 +848,54 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- CICD reset: step output
+	- ID: 2026102416252893
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Each step prints the shared lines: a 79 character rule, `[ YYYYmmDD-HHMMSS.NN: Step 1 of 9; Starting Format ]`, its output, then `PASS Format` or `FAIL Format` in the same form.
+		- Steps turned off aren't counted, and the first section lists them with the flag or reason.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Each step prints the 79 character rule, `[ <time>: Step 1 of 5; Starting Format ]`, its output, and the `PASS` or `FAIL` line in the same form, then a blank line.
+		- The first section lists the steps, then every step that's off, with the flag or the reason.
+		- Verified: in a quick run, a full run, and runs that failed at Format and at Lint.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892.
+	- Closed: 20261025-071028
+
+- CICD reset: temp files and safe removal
+	- ID: 2026102416252896
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Each run's folder is `<HOST_TEMP>/tukzmon/<YYYYmmDD-HHMMSS>_<NNN>/`, made with a plain `mkdir` and a counter, with `TMPDIR`, `TEMP`, and `TMP` pointed into it. Unit tests' scratch folders go there too.
+		- A trap removes it at the end, on failure and Ctrl+C too, through the shared guard. `--keep-temp` keeps it and prints its path.
+		- Each run writes `run.pid` there, and removes the project's own folders older than 2 days whose process is gone.
+		- A test that starts a session bus stops it, on failure too, along with what the bus started. Session buses and gvfsd processes were found still running after a run on 2026-10-23.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Each run makes `<HOST_TEMP>/tukzmon/<YYYYmmDD-HHMMSS>_<NNN>` with a plain `mkdir` and a counter, writes `run.pid` there, and points `TMPDIR`, `TEMP` and `TMP` into it. The unit tests' scratch folders land there too.
+		- At the end, on failure and Ctrl+C too, it stops whatever is still running with that folder in its `TMPDIR`, then removes the folder through the shared guard. `--keep-temp` keeps it and prints its path.
+		- Run folders 2 days old whose run is gone are removed at the start.
+		- Verified: a run stopped part way removed its folder and stopped a process left running from it. The folder names, the counter, the stale sweep and the guard's refusals were checked too.
+	- Decisions:
+		- None of the tests starts a session bus now. A bus a test starts, and what the bus starts, inherit the run's `TMPDIR`, so the stop at the end takes them down without each test doing it.
+		- Only folders with a `run.pid` count as stale runs, so a temp folder made by hand is left alone.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892.
+	- Closed: 20261025-071028
 
 - Update default colors to my current selection
 	- ID: 2026102408304559
