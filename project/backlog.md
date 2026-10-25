@@ -520,6 +520,29 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: `tests::the_version_line_has_the_build_and_a_dev_build_its_day` (dednz). It failed with the date left off a dev build, and passes now.
 
+- A killed pipeline run leaves its container and temp folder
+	- ID: 2026102514470001
+	- Type: Bug
+	- Status: Waiting on UAT
+		- It departs from the wording in 2 ways. A run kept with `--keep-temp` still waits 2 days, with its containers, even if it was killed. And a container's run is found by a new `dev.pid` label, the run's process, with `dev.run` for its folder.
+	- Priority|Severity: Low
+	- Opened: 20261025-144700
+	- Opened by: t00mietum
+	- Related IDs: 2026102416252890, 2026102416252896
+	- Steps to reproduce:
+		- Start `cicd/cicd.bash --backlog-run-full` and kill it with SIGKILL during a container step.
+	- Incorrect behavior: the container runs on to its end, and the temp folder stays until the 2-day sweep.
+	- Expected behavior: the next run stops containers whose run is gone, by the `dev.run` label, and sweeps its folder when no process from it is left.
+	- Reproduced: 2026-10-25 on b23. After the kill the tests container ran on and the folder stayed, and the old code's next run left both.
+	- Actual fix: a run folder whose run is gone goes at the next run's start once nothing runs from it. The image step stops and removes containers whose run is gone, then sweeps again, since a running container keeps its folder from the first sweep.
+	- Progress log:
+		- Verified: a run killed with SIGKILL as its tests container started had the container stopped and its folder removed by the next run, both with the container still running and after it had ended. A `--keep-temp` run's folder and containers stayed through 2 later runs.
+	- Decisions:
+		- `--keep-temp` writes a `keep` file in the folder at the start, so a kept run that was killed keeps the 2-day wait.
+		- A container's run is its `dev.pid` label, so a run with another temp root isn't taken for gone. One from before that label goes by its run folder.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
+
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
@@ -856,45 +879,6 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- A profiler step in the default run, with flamegraphs rotated into `cicd/artifacts/profiling/` and a report on the hot spots after each one.
 
-- Dogfood install and cicd build with different Rust versions
-	- ID: 2026102514130001
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261025-141300
-	- Opened by: t00mietum
-	- Related IDs: 2026102416252898
-	- Steps to reproduce:
-		- Run `cicd/cicd.bash --backlog-run-full`, then `utility/dev-install.bash` by hand.
-	- Incorrect behavior: cicd.bash follows `rust-toolchain.toml` (1.96.0), while dev-install.bash run by hand gets Debian's cargo 1.95, so each one rebuilds `target/release` from scratch.
-	- Expected behavior: both build with the pinned version, so a dogfood install reuses the pipeline's build.
-
-- A killed pipeline run leaves its container and temp folder
-	- ID: 2026102514470001
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261025-144700
-	- Opened by: t00mietum
-	- Related IDs: 2026102416252890, 2026102416252896
-	- Steps to reproduce:
-		- Start `cicd/cicd.bash --backlog-run-full` and kill it with SIGKILL during a container step.
-	- Incorrect behavior: the container runs on to its end, and the temp folder stays until the 2-day sweep.
-	- Expected behavior: the next run stops containers whose run is gone, by the `dev.run` label, and sweeps its folder when no process from it is left.
-
-- 2 pipeline runs at once can remove each other's image
-	- ID: 2026102514470002
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261025-144700
-	- Opened by: t00mietum
-	- Related IDs: 2026102416252890
-	- Steps to reproduce:
-		- Start 2 runs of `cicd/cicd.bash` in the same project, with a changed container recipe, so both build the image.
-	- Incorrect behavior: the cleanup at the end of one run can remove the other's half-built image, which has no tag yet.
-	- Expected behavior: a run removes only images it built, or none while another run of the project is live.
-
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
 	- Type: Feature
@@ -912,6 +896,50 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Dogfood install and cicd build with different Rust versions
+	- ID: 2026102514130001
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261025-141300
+	- Opened by: t00mietum
+	- Related IDs: 2026102416252898
+	- Steps to reproduce:
+		- Run `cicd/cicd.bash --backlog-run-full`, then `utility/dev-install.bash` by hand.
+	- Incorrect behavior: cicd.bash follows `rust-toolchain.toml` (1.96.0), while dev-install.bash run by hand gets Debian's cargo 1.95, so each one rebuilds `target/release` from scratch.
+	- Expected behavior: both build with the pinned version, so a dogfood install reuses the pipeline's build.
+	- Reproduced: 2026-10-25 on b23. Not from scratch: cargo keeps each version's dependencies side by side, so each swap rebuilt the plugin and settings crates.
+	- Actual cause: dev-install.bash ran whichever cargo came first in PATH, which is Debian's.
+	- Actual fix: dev-install.bash puts `~/.cargo/bin` first, as cicd.bash does, and runs from the repo folder, since the pinned version is looked up from there. It warns when the build isn't on the pinned version.
+	- Progress log:
+		- Verified: after the pipeline's host release build, dev-install.bash run from another folder finished in 0.05 s with nothing compiled. The old line rebuilt 3 crates with 1.95, and the pipeline then rebuilt the plugin.
+		- Note: `--backlog-run-full` builds in the image, into its own target folder, so it never shares `target/release`. Only the default run, which dogfoods, builds the release on the host.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
+	- Closed: 20261025-081952
+
+- 2 pipeline runs at once can remove each other's image
+	- ID: 2026102514470002
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261025-144700
+	- Opened by: t00mietum
+	- Related IDs: 2026102416252890
+	- Steps to reproduce:
+		- Start 2 runs of `cicd/cicd.bash` in the same project, with a changed container recipe, so both build the image.
+	- Incorrect behavior: the cleanup at the end of one run can remove the other's half-built image, which has no tag yet.
+	- Expected behavior: a run removes only images it built, or none while another run of the project is live.
+	- Actual fix: the cleanup removes no image while another run of the project is live: one with a live run folder, or with a container whose run is live. Containers and build cache are still cleaned.
+	- Progress log:
+		- Verified: with another run live, the old cleanup removed a labeled dangling image and the new one left it, saying which run was live. Once that run was gone, the next run removed it.
+	- Decisions:
+		- Took the second way, none while another run is live. An image from a killed run has no live owner either way, so it still goes at the next quiet run.
+		- A run that starts in the moment between the check and the removal isn't covered.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
+	- Closed: 20261025-081952
 
 - CICD reset: a test for every Done item
 	- ID: 2026102416252894

@@ -69,8 +69,9 @@
 ##	  under nice 19 and ionice idle.
 ##	- Temp: each run works in <HOST_TEMP>/tukzmon/<YYYYmmDD-HHMMSS>_<NNN>, with
 ##	  TMPDIR, TEMP and TMP pointed into it. It's removed at the end, along with
-##	  anything still running from it, and run folders 2 days old whose run is
-##	  gone.
+##	  anything still running from it. A run folder whose run is gone, such as
+##	  after a kill -9, goes at the next run's start once nothing runs from it,
+##	  or 2 days on with --keep-temp.
 ##	- Container: format, build, lint, tests and the release build run in the
 ##	  image, offline, as the caller's uid, with the repo and the temp folder
 ##	  at their own paths. It builds into target/container, beside the host's
@@ -78,7 +79,8 @@
 ##	  since that's what gets installed. With no docker, or an image that won't
 ##	  build, the run says so in one line and goes on on the host. Containers,
 ##	  images and build cache are cleaned up at the end, only what has the
-##	  dev.project=tukzmon label.
+##	  dev.project=tukzmon label. Images are left alone while another run is
+##	  live. The image step stops containers whose run is gone.
 ##	- Lint: utility/lint-report.bash reports on the newest lint log, and its
 ##	  --check prints only what's new since the last look.
 ##	- Test IDs: utility/test-ids.bash makes, reads and checks them. A new test
@@ -434,6 +436,9 @@ source "${here}/utility/include/run-tmp.bash"
 staleGone="$(fSweepStale)"
 fRunTmpMake || fDie "could not make a temp folder under ${HOST_TEMP}/${projectName}"
 export TMPDIR="${runTmp}" TEMP="${runTmp}" TMP="${runTmp}"
+## Marked at the start, so a kept run that was killed is kept too.
+((! keepTemp)) || : > "${runTmp}/keep"
+runStamp="$(fPidStamp "$$")"
 
 runSaid=0; cleaned=0; ctrTouched=0
 fCleanup() {
@@ -474,7 +479,8 @@ ctrOn=0; ctrPassed=0; ctrTag=""
 ctrBase="${CARGO_TARGET_DIR:-${root}/target}"
 [[ "${ctrBase}" == /* ]] || ctrBase="${root}/${ctrBase}"
 ctrBase+="/container"
-ctrLabels=(--label "dev.project=${projectName}" --label "dev.run=${runName}")
+## dev.pid is the run's "<pid> <start time>", so a later run can tell it's gone.
+ctrLabels=(--label "dev.project=${projectName}" --label "dev.run=${runName}" --label "dev.pid=${runStamp}")
 
 ## Why docker can't be used, or nothing. One with no daemon behind it counts as
 ## missing. The timeout is for a DOCKER_HOST that never replies.
@@ -485,6 +491,62 @@ fCtrWhyNot() {
 	if command -v timeout > /dev/null 2>&1; then limit=(timeout 30); fi
 	"${limit[@]}" docker info > /dev/null 2>&1 || echo "docker doesn't answer"
 	return 0
+}
+
+## True while the run behind a container is going: by its dev.pid label, or
+## for one made before that label, by its run folder.
+fCtrRunLive() {   ## fCtrRunLive RUN STAMP
+	if [[ -n "${2}" ]]; then fStampLive "${2}"; return; fi
+	[[ -n "${1}" ]] && fRunLive "${HOST_TEMP}/${projectName}/${1}"
+}
+
+## The project's containers, one "id|run|stamp" a line, this run's left out.
+fCtrOthers() {
+	docker ps -a --filter "label=dev.project=${projectName}" --format '{{.ID}}|{{.Label "dev.run"}}|{{.Label "dev.pid"}}' 2> /dev/null \
+		| awk -F'|' -v me="${runName}" '$2 != me' || true
+}
+
+## Stops and removes containers whose run is gone, such as after a kill -9,
+## other than those of a kept run folder, then sweeps run folders again, since
+## a container, or the gone run's docker client, can keep a folder from the
+## sweep at the start.
+fCtrSweepGone() {
+	local id='' run='' stamp='' n=0 left=0
+	local -a gone=() runs=()
+	while IFS='|' read -r id run stamp; do
+		[[ -n "${id}" ]] || continue
+		! fCtrRunLive "${run}" "${stamp}" || continue
+		[[ -z "${run}" || ! -e "${HOST_TEMP}/${projectName}/${run}/keep" ]] || continue
+		gone+=("${id}"); [[ -z "${run}" ]] || runs+=("${run}")
+	done < <(fCtrOthers)
+	if ((${#gone[@]})); then
+		docker stop -t 5 "${gone[@]}" > /dev/null 2>&1 || true
+		docker rm "${gone[@]}" > /dev/null 2>&1 || true
+		fEcho_Clean "stopped and removed ${#gone[@]} container(s) whose run is gone"
+	fi
+	## The gone run's docker client outlives its container by a moment.
+	for n in {1..25}; do
+		left=0
+		for run in "${runs[@]}"; do [[ -z "$(fRunPids "${HOST_TEMP}/${projectName}/${run}")" ]] || left=1; done
+		((left)) || break
+		sleep 0.2
+	done
+	n="$(fSweepStale)"
+	staleGone=$((staleGone + n))
+}
+
+## The name of another live run of the project, or nothing: one with a run
+## folder here, or with a container, which covers one with another temp root.
+fOtherRun() {
+	local d='' id='' run='' stamp=''
+	for d in "${HOST_TEMP}/${projectName}"/*_[0-9][0-9][0-9]; do
+		[[ "${d}" != "${runTmp}" && -d "${d}" ]] || continue
+		if fRunLive "${d}"; then echo "${d##*/}"; return 0; fi
+	done
+	while IFS='|' read -r id run stamp; do
+		[[ -n "${id}" ]] || continue
+		if fCtrRunLive "${run}" "${stamp}"; then echo "${run:-${id}}"; return 0; fi
+	done < <(fCtrOthers)
 }
 
 ## Copies the recipe to DIR and sets ctrTag from a hash of it, so an edit to
@@ -521,6 +583,7 @@ fStepImage() {
 	why="$(fCtrWhyNot)"
 	if [[ -n "${why}" ]]; then fEcho_Clean "${why}, so this run is on the host"; return 0; fi
 	ctrTouched=1
+	fCtrSweepGone
 	fCtrContext "${runTmp}/ctx" || { fEcho_Clean "could not copy the image's recipe, so this run is on the host"; return 0; }
 	if docker image inspect "${ctrTag}" > /dev/null 2>&1; then
 		fEcho_Clean "${ctrTag} is here"
@@ -591,9 +654,11 @@ fCtrImagesBytes() {
 
 ## The run's containers, the project's dangling images, and its older tags
 ## once this run's image has answered, keeping it and the one before. Then a
-## week of build cache is kept for every project.
+## week of build cache is kept for every project. No image goes while another
+## run is live, since its half-built image has no tag yet, and the tag it
+## runs from may be an older one.
 fCtrCleanup() {
-	local tag='' seen=0 kept=0 before=0 after=0 freed='' pruned='' i
+	local tag='' seen=0 kept=0 before=0 after=0 freed='' pruned='' other='' i
 	local -a ids=() doomed=() gone=() tags=() built=() order=()
 	mapfile -t ids < <(docker ps -aq --filter "label=dev.project=${projectName}" --filter "label=dev.run=${runName}" 2> /dev/null || true)
 	if ((keepTemp)); then
@@ -604,8 +669,13 @@ fCtrCleanup() {
 		docker rm "${ids[@]}" > /dev/null 2>&1 || true
 		fEcho_Clean "stopped and removed ${#ids[@]} container(s) left by this run"
 	fi
-	mapfile -t doomed < <(docker image ls -q --no-trunc --filter dangling=true --filter "label=dev.project=${projectName}" 2> /dev/null | LC_ALL=C sort -u || true)
-	if ((ctrPassed)); then
+	other="$(fOtherRun)"
+	if [[ -n "${other}" ]]; then
+		fEcho_Clean "left the images alone, since run ${other} is live"
+	else
+		mapfile -t doomed < <(docker image ls -q --no-trunc --filter dangling=true --filter "label=dev.project=${projectName}" 2> /dev/null | LC_ALL=C sort -u || true)
+	fi
+	if ((ctrPassed)) && [[ -z "${other}" ]]; then
 		mapfile -t tags < <(docker image ls "${CTR_IMAGE}" --filter "label=dev.project=${projectName}" --format '{{.Repository}}:{{.Tag}}' 2> /dev/null || true)
 		((${#tags[@]} == 0)) || mapfile -t built < <(docker image inspect --format '{{index .Config.Labels "dev.built"}}' "${tags[@]}" 2> /dev/null || true)
 		## Newest first. One with no stamp counts as oldest.
@@ -683,3 +753,5 @@ exit 0
 ##		  cicd/container/, with labeled containers and their cleanup.
 ##		- 2026-10-25: Test IDs on each test's line, checked with lint, and in
 ##		  --list.
+##		- 2026-10-25: Containers and run folders a killed run left are cleaned
+##		  up by the next run, and no image goes while another run is live.

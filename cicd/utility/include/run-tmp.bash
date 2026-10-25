@@ -5,8 +5,9 @@
 ##		- A run's temp folder, and the only rm -rf the pipeline does. Source it
 ##		  after projectName is set, then call fRunTmpMake.
 ##		- The folder is <HOST_TEMP>/<project>/<YYYYmmDD-HHMMSS>_<NNN>, with a
-##		  run.pid in it. Stale ones, older than 2 days with their run gone, go
-##		  through fSweepStale.
+##		  run.pid in it, and a keep file under --keep-temp. fSweepStale takes
+##		  the ones whose run is gone and that nothing runs from any more: at
+##		  once, or after 2 days for a kept one.
 ##		- fStopLeftovers stops what a run left running, such as a session bus
 ##		  a test started and what the bus started in turn. They're found by the
 ##		  run folder in their TMPDIR, which they inherit.
@@ -47,6 +48,30 @@ fPidStamp() {
 	printf '%s %s\n' "${1}" "${fields[19]}"
 }
 
+## True when STAMP, from fPidStamp, is still the same process.
+fStampLive() { [[ "${1:-}" =~ ^[0-9]+\ [0-9]+$ ]] && [[ "$(fPidStamp "${1% *}" || true)" == "${1}" ]]; }
+
+## True while the run that made run folder DIR is going.
+fRunLive() {
+	local got=''
+	{ read -r got < "${1}/run.pid"; } 2> /dev/null || return 1
+	fStampLive "${got}"
+}
+
+## The pids of ours with DIR, or a folder in it, as their TMPDIR, which every
+## child of a run inherits. One grep over every process for a rough match,
+## then an exact look at the few it names.
+fRunPids() {   ## fRunPids DIR
+	local dir="${1:?}" p='' e=''
+	while IFS= read -r p; do
+		p="${p#/proc/}"; p="${p%/environ}"
+		[[ "${p}" =~ ^[0-9]+$ ]] || continue
+		while IFS= read -r -d '' e; do
+			if [[ "${e}" == "TMPDIR=${dir}" || "${e}" == "TMPDIR=${dir}/"* ]]; then echo "${p}"; break; fi
+		done 2> /dev/null < "/proc/${p}/environ"
+	done < <(LC_ALL=C grep -lszF -- "TMPDIR=${dir}" /proc/[0-9]*/environ 2> /dev/null || true)
+}
+
 ## Sets runTmp. A plain mkdir, counting up while the name is taken.
 runTmp=''
 fRunTmpMake() {
@@ -65,19 +90,23 @@ fRunTmpMake() {
 	return 1
 }
 
-## Removes our own run folders from 2 days ago or older whose run is gone.
-## Only folders with a run.pid, so a temp folder made by hand is left alone.
-## Prints how many went.
+## Removes our own run folders whose run is gone and that nothing runs from,
+## such as one a kill -9 left. A kept one waits 2 days. Only folders with a
+## run.pid, so a temp folder made by hand is left alone. Prints how many went.
 fSweepStale() {
-	local d='' name='' got='' epoch='' cutoff='' n=0
+	local d='' name='' got='' old=0 epoch='' cutoff='' n=0
 	printf -v epoch '%(%s)T' -1
 	printf -v cutoff '%(%Y%m%d-%H%M%S)T' "$((epoch - 172800))"
 	for d in "${HOST_TEMP}/${projectName}"/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]_[0-9][0-9][0-9]; do
 		[[ -d "${d}" && ! -L "${d}" && -f "${d}/run.pid" ]] || continue
 		name="${d##*/}"
-		[[ "${name:0:15}" < "${cutoff}" ]] || continue
+		old=0; [[ ! "${name:0:15}" < "${cutoff}" ]] || old=1
+		if [[ -e "${d}/keep" ]] && ((! old)); then continue; fi
+		## A run.pid not yet written may be a run just starting.
 		got=''; { read -r got < "${d}/run.pid"; } 2> /dev/null || true
-		if [[ "${got}" =~ ^[0-9]+\ [0-9]+$ ]] && [[ "$(fPidStamp "${got% *}" || true)" == "${got}" ]]; then continue; fi
+		if [[ ! "${got}" =~ ^[0-9]+\ [0-9]+$ ]] && ((! old)); then continue; fi
+		! fStampLive "${got}" || continue
+		[[ -z "$(fRunPids "${d}")" ]] || continue
 		if fSafeRm "${d}"; then n=$((n + 1)); fi
 	done
 	echo "${n}"
@@ -86,7 +115,7 @@ fSweepStale() {
 ## TERM, then KILL, every process of ours with this run's folder in its
 ## TMPDIR, other than this shell and what started it. Prints how many.
 fStopLeftovers() {
-	local dir="${1:?}" p='' e='' stat='' pid='' n=0 alive=0
+	local dir="${1:?}" p='' stat='' pid='' n=0 alive=0
 	local -a found=() fields=()
 	local -A spare=()
 	p="${BASHPID}"
@@ -97,15 +126,9 @@ fStopLeftovers() {
 		p="${fields[1]}"
 	done
 	spare["$$"]=1
-	## One grep over every process for a rough match, then an exact look at
-	## the few it names.
-	while IFS= read -r p; do
-		pid="${p#/proc/}"; pid="${pid%/environ}"
-		[[ "${pid}" =~ ^[0-9]+$ && -z "${spare[${pid}]:-}" ]] || continue
-		while IFS= read -r -d '' e; do
-			if [[ "${e}" == "TMPDIR=${dir}" || "${e}" == "TMPDIR=${dir}/"* ]]; then found+=("${pid}"); break; fi
-		done 2> /dev/null < "${p}"
-	done < <(LC_ALL=C grep -lszF -- "TMPDIR=${dir}" /proc/[0-9]*/environ 2> /dev/null || true)
+	while IFS= read -r pid; do
+		[[ -n "${spare[${pid}]:-}" ]] || found+=("${pid}")
+	done < <(fRunPids "${dir}")
 	((${#found[@]})) || { echo 0; return 0; }
 	kill -TERM "${found[@]}" 2> /dev/null || true
 	for n in 1 2 3 4 5 6 7 8 9 10; do
@@ -121,3 +144,4 @@ fStopLeftovers() {
 
 ##	History:
 ##		- 2026-10-25: Created, with fSafeRm from the CICD process.
+##		- 2026-10-25: A folder whose run is gone goes at once, unless kept.

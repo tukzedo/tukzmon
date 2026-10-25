@@ -12,7 +12,18 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dest="${HOME}/.local/lib/tukzmon"
 
-cargo build --release --manifest-path "${repo}/Cargo.toml" -p tukzmon-xfce -p tukzmon-settings
+# rustup's cargo follows rust-toolchain.toml and Debian's /bin/cargo doesn't.
+# The same toolchain as cicd.bash means the same target/release, not a rebuild.
+# rustup looks for that file from the working folder, not the manifest.
+export PATH="${HOME}/.cargo/bin:${PATH}"
+cd "${repo}"
+pin="$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)"
+have="$(rustc --version 2> /dev/null || true)"
+if [[ "${have}" != "rustc ${pin} "* ]]; then
+	echo "WARNING: building with '${have:-no rustc}', not the pinned ${pin}. Install rustup to get it."
+fi
+
+cargo build --release -p tukzmon-xfce -p tukzmon-settings
 
 mkdir -p "${dest}"
 # copy then rename, so a running panel keeps the old file it has open
