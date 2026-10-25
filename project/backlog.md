@@ -21,18 +21,6 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- Memory cache counts slab, the way b23's multiload-ng does
-	- ID: 2026102508354893
-	- Type: Enhancement
-	- Status: Waiting for answers
-		- Waits on the question about it in questions.md.
-	- Priority|Severity: Avg
-	- Opened: 20261025-083548
-	- Opened by: t00mietum
-	- Related IDs: 2026102408512192, 2026102408304625
-	- Requirements:
-		- b23's multiload-ng has `graph-mem-procps-compliant=true`, so it counts slab as cache. tukzmon counts `Cached` alone, per 2026102408512192, so its cache band is thinner and user thicker than multiload-ng showed.
-
 - A theme per graph
 	- ID: 2026102508393159
 	- Type: Feature
@@ -46,6 +34,18 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026102409400679, 2026102409400684
 	- Requirements:
 		- Each graph picks a named theme of its own.
+
+- Memory cache counts slab, the way b23's multiload-ng does
+	- ID: 2026102508354893
+	- Type: Enhancement
+	- Status: Waiting for answers
+		- Waits on the question about it in questions.md.
+	- Priority|Severity: Avg
+	- Opened: 20261025-083548
+	- Opened by: t00mietum
+	- Related IDs: 2026102408512192, 2026102408304625
+	- Requirements:
+		- b23's multiload-ng has `graph-mem-procps-compliant=true`, so it counts slab as cache. tukzmon counts `Cached` alone, per 2026102408512192, so its cache band is thinner and user thicker than multiload-ng showed.
 
 - Proof of concept: CPU graph in the XFCE panel, dogfooded on b23
 	- ID: 2026102319155124
@@ -1055,50 +1055,6 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
 
-- Dogfood install and cicd build with different Rust versions
-	- ID: 2026102514130001
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261025-141300
-	- Opened by: t00mietum
-	- Related IDs: 2026102416252898
-	- Steps to reproduce:
-		- Run `cicd/cicd.bash --backlog-run-full`, then `utility/dev-install.bash` by hand.
-	- Incorrect behavior: cicd.bash follows `rust-toolchain.toml` (1.96.0), while dev-install.bash run by hand gets Debian's cargo 1.95, so each one rebuilds `target/release` from scratch.
-	- Expected behavior: both build with the pinned version, so a dogfood install reuses the pipeline's build.
-	- Reproduced: 2026-10-25 on b23. Not from scratch: cargo keeps each version's dependencies side by side, so each swap rebuilt the plugin and settings crates.
-	- Actual cause: dev-install.bash ran whichever cargo came first in PATH, which is Debian's.
-	- Actual fix: dev-install.bash puts `~/.cargo/bin` first, as cicd.bash does, and runs from the repo folder, since the pinned version is looked up from there. It warns when the build isn't on the pinned version.
-	- Progress log:
-		- Verified: after the pipeline's host release build, dev-install.bash run from another folder finished in 0.05 s with nothing compiled. The old line rebuilt 3 crates with 1.95, and the pipeline then rebuilt the plugin.
-		- Note: `--backlog-run-full` builds in the image, into its own target folder, so it never shares `target/release`. Only the default run, which dogfoods, builds the release on the host.
-	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
-	- Closed: 20261025-081952
-
-- 2 pipeline runs at once can remove each other's image
-	- ID: 2026102514470002
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261025-144700
-	- Opened by: t00mietum
-	- Related IDs: 2026102416252890
-	- Steps to reproduce:
-		- Start 2 runs of `cicd/cicd.bash` in the same project, with a changed container recipe, so both build the image.
-	- Incorrect behavior: the cleanup at the end of one run can remove the other's half-built image, which has no tag yet.
-	- Expected behavior: a run removes only images it built, or none while another run of the project is live.
-	- Actual fix: the cleanup removes no image while another run of the project is live: one with a live run folder, or with a container whose run is live. Containers and build cache are still cleaned.
-	- Progress log:
-		- Verified: with another run live, the old cleanup removed a labeled dangling image and the new one left it, saying which run was live. Once that run was gone, the next run removed it.
-	- Decisions:
-		- Took the second way, none while another run is live. An image from a killed run has no live owner either way, so it still goes at the next quiet run.
-		- A run that starts in the moment between the check and the removal isn't covered.
-	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
-	- Closed: 20261025-081952
-
 - CICD reset: a test for every Done item
 	- ID: 2026102416252894
 	- Type: Task
@@ -1169,33 +1125,6 @@ Sorted per the notes in [Template](#template).
 	- Test case: None in the repo, as for 2026102416252892.
 	- Closed: 20261025-071028
 
-- CICD reset: temp files and safe removal
-	- ID: 2026102416252896
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- Each run's folder is `<HOST_TEMP>/tukzmon/<YYYYmmDD-HHMMSS>_<NNN>/`, made with a plain `mkdir` and a counter, with `TMPDIR`, `TEMP`, and `TMP` pointed into it. Unit tests' scratch folders go there too.
-		- A trap removes it at the end, on failure and Ctrl+C too, through the shared guard. `--keep-temp` keeps it and prints its path.
-		- Each run writes `run.pid` there, and removes the project's own folders older than 2 days whose process is gone.
-		- A test that starts a session bus stops it, on failure too, along with what the bus started. Session buses and gvfsd processes were found still running after a run on 2026-10-23.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- Each run makes `<HOST_TEMP>/tukzmon/<YYYYmmDD-HHMMSS>_<NNN>` with a plain `mkdir` and a counter, writes `run.pid` there, and points `TMPDIR`, `TEMP` and `TMP` into it. The unit tests' scratch folders land there too.
-		- At the end, on failure and Ctrl+C too, it stops whatever is still running with that folder in its `TMPDIR`, then removes the folder through the shared guard. `--keep-temp` keeps it and prints its path.
-		- Run folders 2 days old whose run is gone are removed at the start.
-		- Verified: a run stopped part way removed its folder and stopped a process left running from it. The folder names, the counter, the stale sweep and the guard's refusals were checked too.
-	- Decisions:
-		- None of the tests starts a session bus now. A bus a test starts, and what the bus starts, inherit the run's `TMPDIR`, so the stop at the end takes them down without each test doing it.
-		- Only folders with a `run.pid` count as stale runs, so a temp folder made by hand is left alone.
-	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892.
-	- Closed: 20261025-071028
-
 - Update default colors to my current selection
 	- ID: 2026102408304559
 	- Type: Enhancement
@@ -1240,23 +1169,6 @@ Sorted per the notes in [Template](#template).
 	- Test case: `mem::tests` (6: decax, decay, decaz, decb0, decb1, decb2) and `collect::tests::slurp_reuses_and_misses` (decaw).
 	- Closed: 20261024-085549
 
-- Build date after the version, for non-release builds
-	- ID: 2026102408304652
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261024-082803
-	- Opened by: t00mietum
-	- Requirements:
-		- For non-release builds, include " (YYYY-mm-DD)" after the build number.
-			- Report the date as the local date of whoever views the version.
-	- Progress log:
-		- `tukzmon-settings --version` shows "0.1.0 (2026-10-24)". The build time is stored, and the date is worked out in the local time zone of whoever runs it.
-		- A build with `TUKZMON_RELEASE=1` leaves the date off. `SOURCE_DATE_EPOCH` is used when set.
-	- Branch: build-date
-	- Test case: `tests::the_version_line_has_the_build_and_a_dev_build_its_day` (dednz), added with 2026102416252897, which also moved the stamp to the commit's time.
-	- Closed: 20261024
-
 - Finish the requirement for moving between time spans
 	- ID: 2026101916013880
 	- Type: Task
@@ -1287,6 +1199,50 @@ Sorted per the notes in [Template](#template).
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019
 
+- CICD reset: temp files and safe removal
+	- ID: 2026102416252896
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Each run's folder is `<HOST_TEMP>/tukzmon/<YYYYmmDD-HHMMSS>_<NNN>/`, made with a plain `mkdir` and a counter, with `TMPDIR`, `TEMP`, and `TMP` pointed into it. Unit tests' scratch folders go there too.
+		- A trap removes it at the end, on failure and Ctrl+C too, through the shared guard. `--keep-temp` keeps it and prints its path.
+		- Each run writes `run.pid` there, and removes the project's own folders older than 2 days whose process is gone.
+		- A test that starts a session bus stops it, on failure too, along with what the bus started. Session buses and gvfsd processes were found still running after a run on 2026-10-23.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Each run makes `<HOST_TEMP>/tukzmon/<YYYYmmDD-HHMMSS>_<NNN>` with a plain `mkdir` and a counter, writes `run.pid` there, and points `TMPDIR`, `TEMP` and `TMP` into it. The unit tests' scratch folders land there too.
+		- At the end, on failure and Ctrl+C too, it stops whatever is still running with that folder in its `TMPDIR`, then removes the folder through the shared guard. `--keep-temp` keeps it and prints its path.
+		- Run folders 2 days old whose run is gone are removed at the start.
+		- Verified: a run stopped part way removed its folder and stopped a process left running from it. The folder names, the counter, the stale sweep and the guard's refusals were checked too.
+	- Decisions:
+		- None of the tests starts a session bus now. A bus a test starts, and what the bus starts, inherit the run's `TMPDIR`, so the stop at the end takes them down without each test doing it.
+		- Only folders with a `run.pid` count as stale runs, so a temp folder made by hand is left alone.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892.
+	- Closed: 20261025-071028
+
+- Build date after the version, for non-release builds
+	- ID: 2026102408304652
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261024-082803
+	- Opened by: t00mietum
+	- Requirements:
+		- For non-release builds, include " (YYYY-mm-DD)" after the build number.
+			- Report the date as the local date of whoever views the version.
+	- Progress log:
+		- `tukzmon-settings --version` shows "0.1.0 (2026-10-24)". The build time is stored, and the date is worked out in the local time zone of whoever runs it.
+		- A build with `TUKZMON_RELEASE=1` leaves the date off. `SOURCE_DATE_EPOCH` is used when set.
+	- Branch: build-date
+	- Test case: `tests::the_version_line_has_the_build_and_a_dev_build_its_day` (dednz), added with 2026102416252897, which also moved the stamp to the commit's time.
+	- Closed: 20261024
+
 - What "Local" means on the network graph
 	- ID: 2026101916013883
 	- Type: Task
@@ -1302,6 +1258,50 @@ Sorted per the notes in [Template](#template).
 		- A LAN and internet split is its own item, 2026101916274800.
 	- Test case: None, since it was a question. The network collector's tests will cover the answer.
 	- Closed: 20261019
+
+- Dogfood install and cicd build with different Rust versions
+	- ID: 2026102514130001
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261025-141300
+	- Opened by: t00mietum
+	- Related IDs: 2026102416252898
+	- Steps to reproduce:
+		- Run `cicd/cicd.bash --backlog-run-full`, then `utility/dev-install.bash` by hand.
+	- Incorrect behavior: cicd.bash follows `rust-toolchain.toml` (1.96.0), while dev-install.bash run by hand gets Debian's cargo 1.95, so each one rebuilds `target/release` from scratch.
+	- Expected behavior: both build with the pinned version, so a dogfood install reuses the pipeline's build.
+	- Reproduced: 2026-10-25 on b23. Not from scratch: cargo keeps each version's dependencies side by side, so each swap rebuilt the plugin and settings crates.
+	- Actual cause: dev-install.bash ran whichever cargo came first in PATH, which is Debian's.
+	- Actual fix: dev-install.bash puts `~/.cargo/bin` first, as cicd.bash does, and runs from the repo folder, since the pinned version is looked up from there. It warns when the build isn't on the pinned version.
+	- Progress log:
+		- Verified: after the pipeline's host release build, dev-install.bash run from another folder finished in 0.05 s with nothing compiled. The old line rebuilt 3 crates with 1.95, and the pipeline then rebuilt the plugin.
+		- Note: `--backlog-run-full` builds in the image, into its own target folder, so it never shares `target/release`. Only the default run, which dogfoods, builds the release on the host.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
+	- Closed: 20261025-081952
+
+- 2 pipeline runs at once can remove each other's image
+	- ID: 2026102514470002
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261025-144700
+	- Opened by: t00mietum
+	- Related IDs: 2026102416252890
+	- Steps to reproduce:
+		- Start 2 runs of `cicd/cicd.bash` in the same project, with a changed container recipe, so both build the image.
+	- Incorrect behavior: the cleanup at the end of one run can remove the other's half-built image, which has no tag yet.
+	- Expected behavior: a run removes only images it built, or none while another run of the project is live.
+	- Actual fix: the cleanup removes no image while another run of the project is live: one with a live run folder, or with a container whose run is live. Containers and build cache are still cleaned.
+	- Progress log:
+		- Verified: with another run live, the old cleanup removed a labeled dangling image and the new one left it, saying which run was live. Once that run was gone, the next run removed it.
+	- Decisions:
+		- Took the second way, none while another run is live. An image from a killed run has no live owner either way, so it still goes at the next quiet run.
+		- A run that starts in the moment between the check and the removal isn't covered.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
+	- Closed: 20261025-081952
 
 **Stop here for a next release**
 
