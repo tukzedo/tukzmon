@@ -113,6 +113,7 @@ pub fn clock(_t: f64, _now: f64) -> Option<String> {
 mod tests {
 	use super::*;
 
+	// Test ID: decca
 	#[test]
 	fn ago_reads_like_the_backlog_says() {
 		for (secs, want) in [
@@ -140,6 +141,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: deccb
 	#[test]
 	fn said_parses_as_the_spec_spells_it() {
 		let spec = crate::config::spec();
@@ -156,6 +158,7 @@ mod tests {
 	}
 
 	// tests run in the C locale: %H:%M:%S, and %m/%d/%y for the date
+	// Test ID: deccc
 	#[cfg(unix)]
 	#[test]
 	fn clock_gives_the_date_only_before_today() {

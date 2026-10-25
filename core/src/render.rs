@@ -227,6 +227,7 @@ mod tests {
 		px
 	}
 
+	// Test ID: debj6
 	#[test]
 	fn border_and_gradient_with_no_data() {
 		let h = History::<2>::default();
@@ -239,6 +240,7 @@ mod tests {
 		assert_eq!(px[10 * 10 + 1], 0xff00_0000);
 	}
 
+	// Test ID: debj7
 	#[test]
 	fn stack_heights_are_exact() {
 		// a quarter red, a half green, on a 10 px tall plot
@@ -256,6 +258,7 @@ mod tests {
 		assert_ne!(at(1) & 0xff, 0);
 	}
 
+	// Test ID: debj8
 	#[test]
 	fn gaps_draw_as_background() {
 		let mut h = History::<2>::default();
@@ -269,6 +272,7 @@ mod tests {
 		assert_ne!(at(60), 0xffff_0000);
 	}
 
+	// Test ID: debj9
 	#[test]
 	fn spike_reach_fades_with_time() {
 		let near = column(&[0.1], &[0.9], 0.5, 1.0)[0];
@@ -278,6 +282,7 @@ mod tests {
 		assert_eq!(column(&[0.1], &[0.9], 0.5, 0.0)[0], 0.1);
 	}
 
+	// Test ID: debja
 	#[test]
 	fn an_overfull_stack_is_scaled_to_fit() {
 		let v = column(&[0.5, 0.4], &[1.0, 1.0], 0.0, 1.0);
@@ -285,6 +290,7 @@ mod tests {
 		assert!(v[0] == v[1]);
 	}
 
+	// Test ID: decc9
 	#[test]
 	fn the_hover_line_stays_off_the_border() {
 		let back = 0xff11_1111;
@@ -311,6 +317,7 @@ mod tests {
 		assert!(px.iter().all(|&p| p == back));
 	}
 
+	// Test ID: decdk
 	#[test]
 	fn the_gradient_goes_by_height_not_by_series() {
 		const LO: Rgb = Rgb(200, 0, 0);
@@ -366,6 +373,7 @@ mod tests {
 		assert!((0..9).all(|r| blue(r) >= blue(r + 1)));
 	}
 
+	// Test ID: decdm
 	#[test]
 	fn the_blend_hits_its_stops() {
 		let stops = [Rgb(10, 20, 30), Rgb(100, 110, 120), Rgb(200, 210, 220)];
@@ -377,6 +385,7 @@ mod tests {
 		assert_eq!(blend(stops, 2.0), blend(stops, 1.0));
 	}
 
+	// Test ID: decdz
 	#[test]
 	fn a_transparent_background_lets_the_panel_through() {
 		let h = steady([0.25, 0.5], 120.0);
@@ -441,6 +450,7 @@ mod tests {
 		assert_eq!(px[3 * 122 + 11], 0xffff_0000);
 	}
 
+	// Test ID: debjb
 	#[test]
 	fn tiny_and_borderless() {
 		let h = steady([0.5, 0.0], 10.0);

@@ -31,6 +31,7 @@ pub(crate) fn slurp<'a>(path: &str, buf: &'a mut String) -> Option<&'a str> {
 mod tests {
 	use super::*;
 
+	// Test ID: decaw
 	#[test]
 	fn slurp_reuses_and_misses() {
 		let mut buf = String::from("left over");

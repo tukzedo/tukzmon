@@ -209,6 +209,7 @@ mod tests {
 
 	const SEEDS: std::ops::Range<u64> = 0..2000;
 
+	// Test ID: decdr
 	#[test]
 	fn every_theme_member_has_a_role() {
 		let spec = config::spec();
@@ -221,6 +222,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: decds
 	#[test]
 	fn every_roll_is_a_value_its_setting_takes_and_never_a_gradient() {
 		let spec = config::spec();
@@ -238,6 +240,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: decdt
 	#[test]
 	fn the_lead_rules_and_the_alarms_stay_red_and_orange() {
 		for seed in SEEDS {
@@ -262,6 +265,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: decdv
 	#[test]
 	fn the_quiet_ones_are_muted_and_near_the_lead() {
 		for seed in SEEDS {
@@ -284,6 +288,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: decdw
 	#[test]
 	fn the_gradient_runs_from_calm_through_the_lead() {
 		for seed in SEEDS {
@@ -298,6 +303,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: decdx
 	#[test]
 	fn a_seed_rolls_the_same_theme_and_seeds_differ() {
 		assert_eq!(theme(7), theme(7));

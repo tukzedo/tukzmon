@@ -213,6 +213,7 @@ impl Graph {
 mod tests {
 	use super::*;
 
+	// Test ID: debj4
 	#[test]
 	fn samples_and_draws() {
 		let mut g = Graph::new(Look::default());
@@ -226,6 +227,7 @@ mod tests {
 		assert!(g.tooltip().starts_with("CPU "));
 	}
 
+	// Test ID: debj5
 	#[test]
 	fn linear_axis_follows_the_sample_rate() {
 		let g = Graph::new(Look {
@@ -236,6 +238,7 @@ mod tests {
 		assert_eq!(g.axis(100), Axis::linear(25.0));
 	}
 
+	// Test ID: decby
 	#[test]
 	fn log_axis_takes_the_chosen_curve() {
 		let mut g = Graph::new(Look::default());
@@ -257,6 +260,7 @@ mod tests {
 		g
 	}
 
+	// Test ID: decc6
 	#[test]
 	fn the_hover_tip_says_when_and_what() {
 		let mut g = two_hours();
@@ -289,6 +293,7 @@ mod tests {
 		(a - b).abs() < 1e-6
 	}
 
+	// Test ID: decc7
 	#[test]
 	fn the_hover_tip_shows_gaps_and_no_history() {
 		let g = Graph::new(Look::default());
@@ -305,6 +310,7 @@ mod tests {
 		assert!(g.hover_tip(128, 130, 20, 1).contains("CPU 40%"));
 	}
 
+	// Test ID: decc8
 	#[test]
 	fn the_hover_line_is_drawn_where_the_pointer_is() {
 		let mut g = two_hours();
@@ -334,6 +340,7 @@ mod tests {
 		))
 	}
 
+	// Test ID: decbp
 	#[test]
 	fn saved_history_comes_back_with_a_gap() {
 		let path = scratch("gap");
@@ -357,6 +364,7 @@ mod tests {
 		std::fs::remove_file(&path).unwrap();
 	}
 
+	// Test ID: decbq
 	#[test]
 	fn a_clock_set_back_still_takes_new_samples() {
 		let path = scratch("back");
@@ -373,6 +381,7 @@ mod tests {
 		std::fs::remove_file(&path).unwrap();
 	}
 
+	// Test ID: decbr
 	#[test]
 	fn load_trims_to_the_max_age_and_refuses_junk() {
 		let path = scratch("trim");

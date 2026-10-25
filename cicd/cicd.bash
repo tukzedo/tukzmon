@@ -15,9 +15,11 @@
 ##	                      has none, and fetch the crates the steps need
 ##	   3. Format          cargo fmt, in place; a check only in the hands-off runs
 ##	   4. Build (debug)   every crate and test target
-##	   5. Lint            clippy -D warnings, shellcheck, markdownlint, with the
-##	                      output also rotated into cicd/artifacts/lint/
-##	   6. Tests           cargo test, with TMPDIR in the run's temp folder
+##	   5. Lint            clippy -D warnings, shellcheck, markdownlint, and the
+##	                      test ID check, with the output also rotated into
+##	                      cicd/artifacts/lint/
+##	   6. Tests           cargo test, with TMPDIR in the run's temp folder. One
+##	                      line per test: PASS, FAIL or SKIP, its ID, its name
 ##	   7. Release build   the plugin and tukzmon-settings
 ##	   8. Dogfood         utility/dev-install.bash, which installs the build to
 ##	                      ~/.local/lib/tukzmon and restarts the panel
@@ -39,7 +41,8 @@
 ##	                       areas named:
 ##	                         format  cargo fmt --check
 ##	                         build   the debug build
-##	                         lint    clippy, shellcheck and markdownlint
+##	                         lint    clippy, shellcheck, markdownlint, and
+##	                                 the test ID check
 ##	                         test    cargo test
 ##	                         release the release build, only when named
 ##	   --gate [AREA...]    another name for --backlog-run-quick
@@ -54,8 +57,8 @@
 ##	   --no-sync           skip the remote sync
 ##	   --keep-temp         keep the run's temp folder and containers, and print
 ##	                       where they are
-##	   --list              print the steps the other options would run, and
-##	                       run nothing
+##	   --list              print the steps and test IDs the other options
+##	                       would run, and run nothing
 ##	   -q, --quiet         quieter cargo, and no prompt. Step lines still print
 ##	   -m, --message MSG   kept for the shared flags. There's no publish step,
 ##	                       so nothing uses it yet. Also --msg MSG and -m=MSG
@@ -78,6 +81,8 @@
 ##	  dev.project=tukzmon label.
 ##	- Lint: utility/lint-report.bash reports on the newest lint log, and its
 ##	  --check prints only what's new since the last look.
+##	- Test IDs: utility/test-ids.bash makes, reads and checks them. A new test
+##	  takes one from its "new" command.
 ##	- The pre-push hook, hooks/pre-push, runs --merge-gate on a push to main.
 ##	  Turn it on per clone with:
 ##	    git config core.hooksPath cicd/hooks
@@ -233,7 +238,14 @@ fShowPlan() {
 	fEcho_Clean "Off:"
 	for i in "${offLines[@]}"; do fEcho_Clean "	${i}"; done
 }
-if ((listOnly)); then fShowPlan; fEcho_Clean; exit 0; fi
+if ((listOnly)); then
+	fShowPlan
+	if [[ " ${planFns[*]} " == *" fStepTests "* ]]; then
+		fEcho_Clean "Test IDs:"
+		"${here}/utility/test-ids.bash" list | sed 's/^/	/'
+	fi
+	fEcho_Clean; exit 0
+fi
 
 
 #•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -341,6 +353,7 @@ fStepLint() {
 		done
 		[[ " ${failed[*]} " == *" markdownlint "* ]] || fEcho_Clean "markdownlint: clean"
 	fi
+	fLintRun "${here}/utility/test-ids.bash" check || failed+=("test IDs")
 	if [[ "${lintLog}" != /dev/null ]]; then
 		printf '[ lint: done, %d failed ]\n' "${#failed[@]}" >> "${lintLog}"
 		gfs_rotate "${root}/${LINT_LOG_DIR}" lint log > /dev/null 2>&1 || true
@@ -351,8 +364,10 @@ fStepLint() {
 
 fStepTests() {
 	fEcho_Clean "cargo test --workspace -j ${jobs} -- --test-threads ${jobs}  (TMPDIR=${TMPDIR})"
-	## No test may reach the screen in use.
-	env -u DISPLAY -u WAYLAND_DISPLAY cargo test --workspace "${locked[@]}" -j "${jobs}" -- --test-threads "${jobs}" || return 1
+	## No test may reach the screen in use. A quiet cargo would quiet libtest
+	## too, and its per-test lines are what get the IDs.
+	env -u DISPLAY -u WAYLAND_DISPLAY -u CARGO_TERM_QUIET cargo test --workspace "${locked[@]}" -j "${jobs}" -- --test-threads "${jobs}" 2>&1 \
+		| "${here}/utility/test-ids.bash" annotate || return 1
 }
 
 fStepRelease() {
@@ -666,3 +681,5 @@ exit 0
 ##		  folder per run behind fSafeRm, lint logs, and the pre-push hook.
 ##		- 2026-10-25: Format, build, lint, tests and release in the image from
 ##		  cicd/container/, with labeled containers and their cleanup.
+##		- 2026-10-25: Test IDs on each test's line, checked with lint, and in
+##		  --list.

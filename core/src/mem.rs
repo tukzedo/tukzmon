@@ -131,6 +131,7 @@ HugePages_Total:       0
 Hugepagesize:       2048 kB
 ";
 
+	// Test ID: decax
 	#[test]
 	fn reads_the_rows() {
 		let m = parse_meminfo(MEMINFO_TEXT).unwrap();
@@ -147,6 +148,7 @@ Hugepagesize:       2048 kB
 		);
 	}
 
+	// Test ID: decay
 	#[test]
 	fn shares() {
 		let m = parse_meminfo(MEMINFO_TEXT).unwrap();
@@ -154,6 +156,7 @@ Hugepagesize:       2048 kB
 		assert_eq!(swap_share(&m), Some([0.25]));
 	}
 
+	// Test ID: decaz
 	#[test]
 	fn missing_rows() {
 		assert!(parse_meminfo("MemTotal: 100 kB\n").is_none());
@@ -163,6 +166,7 @@ Hugepagesize:       2048 kB
 		assert_eq!(swap_share(&m), None);
 	}
 
+	// Test ID: decb0
 	#[test]
 	fn junk_in_a_used_row_is_none() {
 		assert!(parse_meminfo("MemTotal: 100 kB\nMemFree: lots kB\n").is_none());
@@ -171,6 +175,7 @@ Hugepagesize:       2048 kB
 		assert!(parse_meminfo("MemTotal: 100 kB\nMemFree: 1 kB\nOdd: x\nno colon\n").is_some());
 	}
 
+	// Test ID: decb1
 	#[test]
 	fn odd_counts_stay_in_range() {
 		let m = Meminfo {
@@ -186,6 +191,7 @@ Hugepagesize:       2048 kB
 		assert_eq!(memory_shares(&Meminfo::default()), None);
 	}
 
+	// Test ID: decb2
 	#[test]
 	fn live_proc_meminfo_reads() {
 		let mut r = MemoryReader::probe().unwrap();

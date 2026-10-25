@@ -40,7 +40,7 @@ fn text(t: &str) -> Value {
 	Value::Text(t.into())
 }
 
-// Test ID: EsFc30B
+// Test ID: ddqps
 #[test]
 fn the_demo_spec_parses_and_works_out_indents() {
 	let m = demo();
@@ -66,7 +66,7 @@ fn the_demo_spec_parses_and_works_out_indents() {
 	);
 }
 
-// Test ID: EsFc30C
+// Test ID: ddqpt
 #[test]
 fn a_bad_spec_names_every_mistake() {
 	let bad = "tabs: \"A\"\nsettings:\n\tx:\n\t\tlabel: X\n\t\ttab: A\n\t\tcontrol: slider\n\t\tpath: a.x\n\t\tgate: nothing\n\ty:\n\t\tlabel: Y\n\t\ttab: B\n\t\tcontrol: checkbox\n\t\tpath: a.x\n";
@@ -77,7 +77,7 @@ fn a_bad_spec_names_every_mistake() {
 	assert!(all.contains("y: no tab"), "{all}");
 }
 
-// Test ID: EsFc30D
+// Test ID: ddqpv
 #[test]
 fn a_switch_keeps_the_value_set_by_hand_for_the_round_trip() {
 	let mut m = demo();
@@ -108,7 +108,7 @@ fn a_switch_keeps_the_value_set_by_hand_for_the_round_trip() {
 	);
 }
 
-// Test ID: EsFc30E
+// Test ID: ddqpw
 #[test]
 fn switching_off_with_nothing_kept_keeps_what_shows() {
 	let mut m = demo();
@@ -120,7 +120,7 @@ fn switching_off_with_nothing_kept_keeps_what_shows() {
 	);
 }
 
-// Test ID: EsFc30F
+// Test ID: ddqpx
 #[test]
 fn with_nothing_to_follow_the_value_set_by_hand_is_used() {
 	let mut m = demo();
@@ -133,7 +133,7 @@ fn with_nothing_to_follow_the_value_set_by_hand_is_used() {
 	assert_eq!(m.value("family", &bare), text("Fira Code"));
 }
 
-// Test ID: EsFc30G
+// Test ID: ddqpy
 #[test]
 fn editing_one_member_turns_its_switch_off_and_the_others_keep_what_they_show() {
 	let mut m = demo();
@@ -150,7 +150,7 @@ fn editing_one_member_turns_its_switch_off_and_the_others_keep_what_they_show() 
 	);
 }
 
-// Test ID: EsFc30H
+// Test ID: ddqpz
 #[test]
 fn changing_a_row_under_a_switch_that_is_off_turns_it_on() {
 	let mut m = demo();
@@ -160,7 +160,7 @@ fn changing_a_row_under_a_switch_that_is_off_turns_it_on() {
 	assert!(m.counts("idle_min", &DESK));
 }
 
-// Test ID: EsFc30I
+// Test ID: ddqq0
 #[test]
 fn a_row_changed_on_a_preset_stars_it_stops_the_machine_and_spares_custom() {
 	let mut m = demo();
@@ -190,7 +190,7 @@ fn a_row_changed_on_a_preset_stars_it_stops_the_machine_and_spares_custom() {
 	);
 }
 
-// Test ID: EsFc30J
+// Test ID: ddqq1
 #[test]
 fn resetting_every_changed_row_takes_the_star_away() {
 	let mut m = demo();
@@ -202,7 +202,7 @@ fn resetting_every_changed_row_takes_the_star_away() {
 	assert_eq!(m.value("strength", &DESK), int(50));
 }
 
-// Test ID: EsFc30K
+// Test ID: ddqq2
 #[test]
 fn picking_another_profile_drops_the_changes_and_custom_comes_back() {
 	let mut m = demo();
@@ -232,7 +232,7 @@ fn picking_another_profile_drops_the_changes_and_custom_comes_back() {
 	);
 }
 
-// Test ID: EsFc30L
+// Test ID: ddqq3
 #[test]
 fn choose_automatically_is_the_profile_s_own_switch() {
 	let mut m = demo();
@@ -249,7 +249,7 @@ fn choose_automatically_is_the_profile_s_own_switch() {
 	assert_eq!(m.chosen("perf", &DESK), "low", "the hand pick comes back");
 }
 
-// Test ID: EsFc30M
+// Test ID: ddqq4
 #[test]
 fn a_temporary_preset_ignores_changes_stores_nothing_and_ends_on_an_edit() {
 	let mut m = demo();
@@ -271,7 +271,7 @@ fn a_temporary_preset_ignores_changes_stores_nothing_and_ends_on_an_edit() {
 
 // Config words never care about case, and a choice is stored the way the
 // spec spells it, so a save writes the usual word back.
-// Test ID: EsGFVZe
+// Test ID: ddqvp
 #[test]
 fn a_choice_matches_without_case_and_keeps_the_spec_s_word() {
 	let m = demo();
@@ -283,7 +283,7 @@ fn a_choice_matches_without_case_and_keeps_the_spec_s_word() {
 
 // A file that names a temporary preset was not written by a save, and loads
 // as if it named nothing.
-// Test ID: EsGFIt0
+// Test ID: ddqvn
 #[test]
 fn a_file_naming_a_temporary_preset_loads_as_no_pick() {
 	let mut m = demo();
@@ -296,7 +296,7 @@ fn a_file_naming_a_temporary_preset_loads_as_no_pick() {
 	assert_eq!(back.chosen("perf", &DESK), demo().chosen("perf", &DESK));
 }
 
-// Test ID: EsFc30N
+// Test ID: ddqq5
 #[test]
 fn wallpaper_colors_beat_the_theme_and_an_edit_turns_them_off() {
 	let mut m = demo();
@@ -324,7 +324,7 @@ fn wallpaper_colors_beat_the_theme_and_an_edit_turns_them_off() {
 	assert_eq!(m.value("fg", &DESK), text("#123456"));
 }
 
-// Test ID: EsFc30O
+// Test ID: ddqq6
 #[test]
 fn the_files_round_trip_and_set_aside_values_go_in_kept() {
 	let mut m = demo();
@@ -340,7 +340,7 @@ fn the_files_round_trip_and_set_aside_values_go_in_kept() {
 	assert_eq!(back.values, m.values, "{config}\n{state}");
 }
 
-// Test ID: EsFc30P
+// Test ID: ddqq7
 #[test]
 fn a_bad_value_in_the_file_is_dropped() {
 	let m = demo();
@@ -351,7 +351,7 @@ fn a_bad_value_in_the_file_is_dropped() {
 	assert_eq!(back.values.own.get("family"), Some(&text("Fira Code")));
 }
 
-// Test ID: EsFc30Q
+// Test ID: ddqq8
 #[test]
 fn slider_scales_round_trip_and_snap_to_detents() {
 	let m = demo();
@@ -380,7 +380,7 @@ fn slider_scales_round_trip_and_snap_to_detents() {
 	assert_eq!(idle.snap_t(hour + 0.1, 0.02), hour + 0.1);
 }
 
-// Test ID: EsFdZzC
+// Test ID: ddqq9
 #[test]
 fn custom_starts_as_the_preset_not_as_what_a_rule_shows_over_it() {
 	let mut m = demo();
@@ -397,7 +397,7 @@ fn custom_starts_as_the_preset_not_as_what_a_rule_shows_over_it() {
 	);
 }
 
-// Test ID: EsFdZzD
+// Test ID: ddqqa
 #[test]
 fn the_kept_block_comes_last() {
 	let mut m = demo();
@@ -416,7 +416,7 @@ fn the_kept_block_comes_last() {
 	);
 }
 
-// Test ID: EsFdq3f
+// Test ID: ddqqb
 #[test]
 fn turning_choose_automatically_back_on_drops_the_changes() {
 	let mut m = demo();
@@ -519,7 +519,7 @@ fn shop() -> Model {
 	Model::new(spec.finish().unwrap_or_else(|e| panic!("{e:#?}")))
 }
 
-// Test ID: EsFwIor
+// Test ID: ddqs9
 #[test]
 fn a_spec_built_in_code_is_checked_like_a_parsed_one() {
 	let m = shop();
@@ -535,7 +535,7 @@ fn a_spec_built_in_code_is_checked_like_a_parsed_one() {
 	assert!(errs.contains("no presets"), "{errs}");
 }
 
-// Test ID: EsFwIuv
+// Test ID: ddqsa
 #[test]
 fn a_rule_with_no_switch_is_the_default_and_the_arrow_puts_it_back() {
 	let mut m = shop();
@@ -556,7 +556,7 @@ fn a_rule_with_no_switch_is_the_default_and_the_arrow_puts_it_back() {
 	assert!(m.values.own.is_empty());
 }
 
-// Test ID: EsFwIzk
+// Test ID: ddqsb
 #[test]
 fn a_group_s_presets_can_come_from_the_program() {
 	let mut m = shop();
@@ -588,7 +588,7 @@ fn a_group_s_presets_can_come_from_the_program() {
 	);
 }
 
-// Test ID: EsFwJ4B
+// Test ID: ddqsc
 #[test]
 fn changes_under_a_temporary_preset_are_still_saved() {
 	let mut m = demo();
@@ -602,7 +602,7 @@ fn changes_under_a_temporary_preset_are_still_saved() {
 	assert_eq!(m.shown_choice("profile", &DESK), "Low *");
 }
 
-// Test ID: EsFwJ8T
+// Test ID: ddqsd
 #[test]
 fn lines_put_set_aside_values_and_changes_under_kept() {
 	let mut m = demo();
@@ -628,7 +628,7 @@ fn lines_put_set_aside_values_and_changes_under_kept() {
 	assert!(!lines.config.iter().any(|(p, _)| p == "font.family"));
 }
 
-// Test ID: EsG0DsQ
+// Test ID: ddqss
 #[test]
 fn a_held_value_wins_for_the_run_and_is_never_saved() {
 	let mut m = demo();
@@ -663,7 +663,7 @@ fn a_held_value_wins_for_the_run_and_is_never_saved() {
 	assert_eq!(m.value("family", &DESK), text("Fira Code"));
 }
 
-// Test ID: EsG8XbQ
+// Test ID: ddqtt
 #[test]
 fn the_chooser_s_arrow_ends_a_temporary_preset_and_drops_the_changes() {
 	let mut m = demo();

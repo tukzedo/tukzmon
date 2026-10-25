@@ -105,6 +105,7 @@ mod tests {
 		dir
 	}
 
+	// Test ID: decbk
 	#[test]
 	fn sections_round_trip_and_no_tmp_is_left() {
 		let dir = scratch("trip");
@@ -121,6 +122,7 @@ mod tests {
 		std::fs::remove_dir(&dir).unwrap();
 	}
 
+	// Test ID: decbm
 	#[test]
 	fn every_cut_short_file_is_refused() {
 		let dir = scratch("cut");
@@ -139,6 +141,7 @@ mod tests {
 		std::fs::remove_dir(&dir).unwrap();
 	}
 
+	// Test ID: decbn
 	#[test]
 	fn a_missing_file_is_not_found() {
 		let e = read(Path::new("/nonexistent/tukzmon/plugin-1.hist")).unwrap_err();

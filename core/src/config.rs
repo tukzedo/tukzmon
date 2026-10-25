@@ -453,6 +453,7 @@ pub fn config_file() -> PathBuf {
 mod tests {
 	use super::*;
 
+	// Test ID: debhg
 	#[test]
 	fn parse_spec() {
 		if let Err(e) = Spec::parse(SPEC_TEXT) {
@@ -460,6 +461,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: decb4
 	#[test]
 	fn slider_ranges_sit_inside_their_range() {
 		let doc = shcl::Document::parse(SPEC_TEXT);
@@ -480,6 +482,7 @@ mod tests {
 		assert_eq!(slider_range("spikes"), None);
 	}
 
+	// Test ID: debhh
 	#[test]
 	fn no_text_was_split_on_a_comma() {
 		// a bare value with a comma in it reads as a list, which shows up quoted
@@ -492,6 +495,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: debhj
 	#[test]
 	fn defaults_are_the_multiload_colors() {
 		let l = Look::default();
@@ -510,6 +514,7 @@ mod tests {
 		assert_eq!(l.said, Said::Ago);
 	}
 
+	// Test ID: deccf
 	#[test]
 	fn the_default_theme_is_the_row_defaults() {
 		let spec = spec();
@@ -536,6 +541,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: deccg
 	#[test]
 	fn a_theme_sets_every_color() {
 		let l = Look::from_model(&model("theme:\n\tname: blue_pastel\n"));
@@ -548,6 +554,7 @@ mod tests {
 		);
 	}
 
+	// Test ID: decdy
 	#[test]
 	fn transparent_is_off_and_outlives_any_theme() {
 		assert!(!Look::default().transparent);
@@ -568,6 +575,7 @@ mod tests {
 		assert_eq!(l.top, Rgb(0x12, 0x34, 0x56));
 	}
 
+	// Test ID: decch
 	#[test]
 	fn colors_with_no_theme_line_are_custom() {
 		let text = "cpu:\n\tcolors:\n\t\tuser: \"#123456\"\n";
@@ -582,6 +590,7 @@ mod tests {
 		assert_eq!(l.cpu[2], Rgb(0, 0xff, 0x80));
 	}
 
+	// Test ID: deccj
 	#[test]
 	fn a_change_on_a_theme_is_kept_with_it() {
 		let mut m = model("theme:\n\tname: green_standard\n");
@@ -595,6 +604,7 @@ mod tests {
 		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x20));
 	}
 
+	// Test ID: decck
 	#[test]
 	fn back_to_default_from_custom_stays_default() {
 		let mut m = model("");
@@ -617,6 +627,7 @@ mod tests {
 		assert_eq!(plain.save(&NoEnv).0.trim(), "");
 	}
 
+	// Test ID: decct
 	#[test]
 	fn a_saved_theme_is_listed_after_the_built_ins_and_sets_the_look() {
 		let text = "theme:\n\tname: mine\nthemes:\n\tmine:\n\t\tname: \"My green\"\n\t\tuser: \"#11AA22\"\n\t\tnice: nope\n";
@@ -656,6 +667,7 @@ mod tests {
 		assert_eq!(loaded, l);
 	}
 
+	// Test ID: decdg
 	#[test]
 	fn fire_is_a_gradient_and_the_rest_are_detailed() {
 		let l = Look::from_model(&model("theme:\n\tname: fire\n"));
@@ -695,6 +707,7 @@ mod tests {
 		assert_eq!(Mode::parse("plaid"), None);
 	}
 
+	// Test ID: decdh
 	#[test]
 	fn the_mode_shows_only_its_own_rows() {
 		assert!(shown_as_radio("cpu_mode"));
@@ -727,6 +740,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: decdj
 	#[test]
 	fn a_saved_theme_keeps_its_mode() {
 		let text = "theme:\n\tname: mine\nthemes:\n\tmine:\n\t\tname: Mine\n\t\tcpu_mode: GRADIENT\n\t\tcpu_low: \"#010203\"\n";
@@ -750,6 +764,7 @@ mod tests {
 		assert_eq!(theme_problems(&doc).len(), 1);
 	}
 
+	// Test ID: deccv
 	#[test]
 	fn a_saved_theme_cant_take_a_built_in_key() {
 		let text = "themes:\n\tdefault:\n\t\tuser: \"#123456\"\n\tCustom:\n\t\tuser: \"#123456\"\n";
@@ -759,6 +774,7 @@ mod tests {
 		assert_eq!(Look::from_model(&model(text)), Look::default());
 	}
 
+	// Test ID: deccw
 	#[test]
 	fn saved_themes_write_whole_and_read_back() {
 		let mut t = saved_themes(&shcl::Document::parse(
@@ -777,6 +793,7 @@ mod tests {
 		assert_eq!(themes_text(&[]), "");
 	}
 
+	// Test ID: deccx
 	#[test]
 	fn theme_keys_are_plain_and_free() {
 		assert_eq!(theme_key("My Green!", &[]), "my_green");
@@ -787,6 +804,7 @@ mod tests {
 		assert_eq!(theme_key("Blue pastel", &[]), "blue_pastel_2");
 	}
 
+	// Test ID: decc5
 	#[test]
 	fn the_hover_settings_come_from_the_file() {
 		let text = "graph:\n\thover_time: clock\n\tcolors:\n\t\thover: \"#ffffff\"\n";
@@ -797,6 +815,7 @@ mod tests {
 		assert_eq!(l.said, Said::Ago);
 	}
 
+	// Test ID: decbx
 	#[test]
 	fn the_log_curve_comes_from_the_file() {
 		let pick = |v: &str| {
@@ -814,6 +833,7 @@ mod tests {
 		assert!(tip.contains("\n\nLog A") && !tip.contains("\\n"), "{tip}");
 	}
 
+	// Test ID: decbf
 	#[test]
 	fn history_is_kept_a_year_by_default() {
 		let l = Look::default();
@@ -825,6 +845,7 @@ mod tests {
 		assert_eq!(l.max_days, 365);
 	}
 
+	// Test ID: debhk
 	#[test]
 	fn a_file_overrides_and_bad_lines_fall_back() {
 		let text = "graph:\n\twidth: 200\n\tsample_ms: 99999\ncpu:\n\tcolors:\n\t\tuser: \"#123456\"\n\t\tnice: red\n";
@@ -835,6 +856,7 @@ mod tests {
 		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x40));
 	}
 
+	// Test ID: debhm
 	#[test]
 	fn missing_file_is_defaults() {
 		assert_eq!(
@@ -843,6 +865,7 @@ mod tests {
 		);
 	}
 
+	// Test ID: debhn
 	#[test]
 	fn rgb_parsing() {
 		assert_eq!(Rgb::parse("#0a0B0c"), Some(Rgb(10, 11, 12)));

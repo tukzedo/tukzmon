@@ -75,7 +75,7 @@ Sorted per the notes in [Template](#template).
 		- The slider's reach is a `slider_range` key in settings.shcl, read by tukzmon, since knobs has to stay the same as SilkTerm's.
 		- A value past the old range in the file used to fall back to the default. Now it's kept, up to the new limits.
 	- Branch: round-1024
-	- Test case: `config::tests::slider_ranges_sit_inside_their_range` and `dialog::tests::the_box_takes_more_than_the_slider_reaches`. Both fail on the old spec and pass now. The tab look and buttons have no test.
+	- Test case: `config::tests::slider_ranges_sit_inside_their_range` (decb4) and `dialog::tests::the_box_takes_more_than_the_slider_reaches` (decb5). Both fail on the old spec and pass now. The tab look and buttons have no test.
 		- 2026-10-24: `dialog::tests::sliders_snap_to_detents_and_gates_turn_on` now gets the width setting through `Dialog::slider` instead of the spec, so it maps over the slider's range. What it checks is unchanged.
 
 - Option for persistent graph
@@ -104,7 +104,7 @@ Sorted per the notes in [Template](#template).
 		- Max age is dropped at each save and load, and only while it's on.
 		- Times are Unix seconds now, not seconds since start, so runs line up.
 	- Branch: round-1024
-	- Test case: `history::tests::encode_and_decode_give_back_the_same_history`, `decode_refuses_what_encode_wouldnt_write`, `trim_drops_only_what_is_older`, the 3 `keep::tests`, `tests::saved_history_comes_back_with_a_gap`, `a_clock_set_back_still_takes_new_samples`, `load_trims_to_the_max_age_and_refuses_junk`, and `config::tests::history_is_kept_a_year_by_default`.
+	- Test case: `history::tests::encode_and_decode_give_back_the_same_history` (decbg), `decode_refuses_what_encode_wouldnt_write` (decbh), `trim_drops_only_what_is_older` (decbj), the 3 `keep::tests` (decbk, decbm, decbn), `tests::saved_history_comes_back_with_a_gap` (decbp), `a_clock_set_back_still_takes_new_samples` (decbq), `load_trims_to_the_max_age_and_refuses_junk` (decbr), and `config::tests::history_is_kept_a_year_by_default` (decbf).
 
 - A dropdown for time function
 	- ID: 2026102408304586
@@ -139,7 +139,7 @@ Sorted per the notes in [Template](#template).
 		- The dropdown sits under the Log time axis checkbox rather than replacing it, so settings files keep working and a linear graph stays one click away.
 		- Saved as `graph.log_curve`: `smooth`, `fixed_a` or `fixed_b`. A file without it gets Smooth log, so b23's graph changes from Log A to Smooth log at the next install.
 	- Branch: round-1024
-	- Test case: `axis::tests::smooth_is_one_log_curve_with_no_caps`, `fixed_b_is_smooth_until_a_cap`, `caps_pin_when_the_tip_says` and `curves_parse_as_the_spec_spells_them`, with the other axis tests now run over all 3 curves. Also `config::tests::the_log_curve_comes_from_the_file`, `tests::log_axis_takes_the_chosen_curve`, and `dialog::tests::the_log_curve_sits_under_the_log_switch`. The window height has no test.
+	- Test case: `axis::tests::smooth_is_one_log_curve_with_no_caps` (decbs), `fixed_b_is_smooth_until_a_cap` (decbt), `caps_pin_when_the_tip_says` (decbv) and `curves_parse_as_the_spec_spells_them` (decbw), with the other axis tests now run over all 3 curves. Also `config::tests::the_log_curve_comes_from_the_file` (decbx), `tests::log_axis_takes_the_chosen_curve` (decby), and `dialog::tests::the_log_curve_sits_under_the_log_switch` (decbz). The window height has no test.
 		- Swept: every `Axis::log` and `Axis::knots` caller, in core, its tests, and the preview example. The plugin and settings build no axis of their own.
 
 - Show snapshot time on mouseover
@@ -181,7 +181,7 @@ Sorted per the notes in [Template](#template).
 		- Units round down, so 90 minutes is "1 hr ago". Under a minute is in seconds, and under a second is "just now".
 		- The tip is the graph's own now, so the old tip with only the latest read is gone. At the right edge it gives about the same numbers.
 	- Branch: round-1024
-	- Test case: `when::tests::ago_reads_like_the_backlog_says`, `said_parses_as_the_spec_spells_it` and `clock_gives_the_date_only_before_today`, `render::tests::the_hover_line_stays_off_the_border`, `tests::the_hover_tip_says_when_and_what`, `the_hover_tip_shows_gaps_and_no_history` and `the_hover_line_is_drawn_where_the_pointer_is`, and `config::tests::the_hover_settings_come_from_the_file`. The pointer events, and when GTK shows the tip, have no test.
+	- Test case: `when::tests::ago_reads_like_the_backlog_says` (decca), `said_parses_as_the_spec_spells_it` (deccb) and `clock_gives_the_date_only_before_today` (deccc), `render::tests::the_hover_line_stays_off_the_border` (decc9), `tests::the_hover_tip_says_when_and_what` (decc6), `the_hover_tip_shows_gaps_and_no_history` (decc7) and `the_hover_line_is_drawn_where_the_pointer_is` (decc8), and `config::tests::the_hover_settings_come_from_the_file` (decc5). The pointer events, and when GTK shows the tip, have no test.
 		- Swept: every `Graph::tooltip` caller, every `Look` built in a test, and every `gtk_widget_set_tooltip_text` call, of which none is left.
 
 - Theme presets, with a coordinated Default
@@ -216,7 +216,7 @@ Sorted per the notes in [Template](#template).
 		- I/O wait and system stay red and orange in every built-in theme, so trouble reads the same in each.
 		- One theme for the whole panel for now. A theme per graph comes with the live graph list, 2026102408304639.
 	- Branch: round-1024
-	- Test case: `config::tests::the_default_theme_is_the_row_defaults`, `a_theme_sets_every_color`, `colors_with_no_theme_line_are_custom`, `a_change_on_a_theme_is_kept_with_it` and `back_to_default_from_custom_stays_default`, and `dialog::tests::a_theme_and_the_changes_on_it_are_saved` and `custom_then_the_revert_arrow_is_default_again`. The 2 back-to-Default tests fail with the theme naming taken out and pass with it.
+	- Test case: `config::tests::the_default_theme_is_the_row_defaults` (deccf), `a_theme_sets_every_color` (deccg), `colors_with_no_theme_line_are_custom` (decch), `a_change_on_a_theme_is_kept_with_it` (deccj) and `back_to_default_from_custom_stays_default` (decck), and `dialog::tests::a_theme_and_the_changes_on_it_are_saved` (deccm) and `custom_then_the_revert_arrow_is_default_again` (deccn). The 2 back-to-Default tests fail with the theme naming taken out and pass with it.
 		- 2026-10-24: `config::tests::defaults_are_the_multiload_colors` got new values only. System went from `#c64600` to `#c64200`, the border from `#40806a` to `#408060`, and the top from `#2a5446` to `#2a543f`.
 		- Swept: every `Model::load`, `Look::load` and `Look::from_model` caller, and every color row in `settings.shcl`. The plugin reads through `Look::load`, and the window through `config::model`.
 
@@ -252,7 +252,7 @@ Sorted per the notes in [Template](#template).
 		- A theme's key comes from its name when it's made, and stays through a rename.
 		- A save refuses a theme line it can't read, the same as any other line.
 	- Branch: round-1024
-	- Test case: `config::tests::a_saved_theme_is_listed_after_the_built_ins_and_sets_the_look`, `a_saved_theme_cant_take_a_built_in_key`, `saved_themes_write_whole_and_read_back` and `theme_keys_are_plain_and_free`, and `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme`, `save_puts_the_changes_into_the_theme`, `rename_and_delete`, `a_theme_saved_by_hand_meanwhile_survives` and `a_theme_line_it_cant_read_stops_the_save`. The dialog tests fail with the themes left out of the save, and the hand-edit one with the merge taken out.
+	- Test case: `config::tests::a_saved_theme_is_listed_after_the_built_ins_and_sets_the_look` (decct), `a_saved_theme_cant_take_a_built_in_key` (deccv), `saved_themes_write_whole_and_read_back` (deccw) and `theme_keys_are_plain_and_free` (deccx), and `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme` (deccy), `save_puts_the_changes_into_the_theme` (deccz), `rename_and_delete` (decd0), `a_theme_saved_by_hand_meanwhile_survives` (decd1) and `a_theme_line_it_cant_read_stops_the_save` (decd2). The dialog tests fail with the themes left out of the save, and the hand-edit one with the merge taken out.
 		- Swept: every `config::model`, `Model::load` and `Look::load` caller. The plugin reads through `Look::load` and the window through `config::model_on`, so both get the saved themes. No code or doc named the old Colors tab.
 
 - Color picker in place of the toolkit's
@@ -283,7 +283,7 @@ Sorted per the notes in [Template](#template).
 		- The color model is SilkTerm's, ported to `settings/src/pick.rs`. The picker's state lives in the Rust dialog, so the live edits and Cancel are tested without a window.
 		- Cancel restores everything stored, not just the color. Setting the old color back, as the Qt dialog did, left the window changed after Cancel, so Apply would have pinned that color in the file.
 	- Branch: round-1024
-	- Test case: `pick::tests::a_color_survives_the_trip_through_hsv`, `a_gray_keeps_the_hue_and_saturation_it_had`, `the_hue_ramp_hits_the_primaries` and `a_typed_value_reaches_what_it_names`, and `dialog::tests::the_picker_moves_its_row_and_cancel_puts_it_all_back` and `the_picker_keeps_what_ok_was_pressed_on`. The Cancel test fails with the old way of setting the color back, and passes now. The drawing and the pointer have no test.
+	- Test case: `pick::tests::a_color_survives_the_trip_through_hsv` (decd5), `a_gray_keeps_the_hue_and_saturation_it_had` (decd6), `the_hue_ramp_hits_the_primaries` (decd7) and `a_typed_value_reaches_what_it_names` (decd8), and `dialog::tests::the_picker_moves_its_row_and_cancel_puts_it_all_back` (decd3) and `the_picker_keeps_what_ok_was_pressed_on` (decd4). The Cancel test fails with the old way of setting the color back, and passes now. The drawing and the pointer have no test.
 		- Swept: the one `QColorDialog` use, now gone, and every color row, which all open the picker through the same chip. No code or doc names the toolkit's dialog.
 
 - Gradient mode per graph, and a Fire theme
@@ -317,7 +317,7 @@ Sorted per the notes in [Template](#template).
 		- The color follows the pixel's height, not the column's, so a busy column climbs into High and a quiet one stays Low.
 		- The radio buttons and showing rows by mode use 2 keys of tukzmon's own in settings.shcl, since knobs has to stay the same as SilkTerm's.
 	- Branch: round-1024
-	- Test case: `render::tests::the_gradient_goes_by_height_not_by_series` and `the_blend_hits_its_stops`, `config::tests::fire_is_a_gradient_and_the_rest_are_detailed`, `the_mode_shows_only_its_own_rows` and `a_saved_theme_keeps_its_mode`, and `dialog::tests::the_mode_swaps_the_rows_and_fire_is_a_gradient`. The render test fails with the blend fixed at one height, and the dialog test with every row always shown. The radio buttons have no test.
+	- Test case: `render::tests::the_gradient_goes_by_height_not_by_series` (decdk) and `the_blend_hits_its_stops` (decdm), `config::tests::fire_is_a_gradient_and_the_rest_are_detailed` (decdg), `the_mode_shows_only_its_own_rows` (decdh) and `a_saved_theme_keeps_its_mode` (decdj), and `dialog::tests::the_mode_swaps_the_rows_and_fire_is_a_gradient` (decdn). The render test fails with the blend fixed at one height, and the dialog test with every row always shown. The radio buttons have no test.
 		- 2026-10-24: new values only, for the 4 new theme rows and Fire. `config::tests::the_default_theme_is_the_row_defaults` members went from 8 to 12, and it now takes a dropdown for a `_mode` member where it took only colors. `saved_themes_write_whole_and_read_back` went from 8 values to 12. `a_saved_theme_is_listed_after_the_built_ins_and_sets_the_look` lists `fire` after `blue_pastel`. In `dialog::tests`, `save_as_keeps_the_colors_whole_and_picks_the_new_theme` finds Night seventh, not sixth, and counts 11 colors, not 8. `rename_and_delete` counts 8 options, not 7, and `a_theme_saved_by_hand_meanwhile_survives` 9, not 8.
 		- Swept: every `Frame` built (the plugin, the preview example and the render tests), and every use of the theme group's members, which now take a mode as well as colors (`saved_themes`, `theme_problems`, `shown_colors`, the picker, and `unthemed`).
 
@@ -349,7 +349,7 @@ Sorted per the notes in [Template](#template).
 		- The hover line stays black, as in every built-in.
 		- Every theme member has a role in `settings/src/dice.rs`. A new graph's members fail a test until they get one.
 	- Branch: round-1024
-	- Test case: `dice::tests::every_theme_member_has_a_role`, `every_roll_is_a_value_its_setting_takes_and_never_a_gradient`, `the_lead_rules_and_the_alarms_stay_red_and_orange`, `the_quiet_ones_are_muted_and_near_the_lead`, `the_gradient_runs_from_calm_through_the_lead` and `a_seed_rolls_the_same_theme_and_seeds_differ`, over 2000 seeds each, and `dialog::tests::randomize_changes_every_color_on_the_theme_and_turns_off_the_gradient`. Each fails with its rule broken: the mode set to gradient, the lead hue let into red, a member left out, nice as bright as user, and Randomize doing nothing.
+	- Test case: `dice::tests::every_theme_member_has_a_role` (decdr), `every_roll_is_a_value_its_setting_takes_and_never_a_gradient` (decds), `the_lead_rules_and_the_alarms_stay_red_and_orange` (decdt), `the_quiet_ones_are_muted_and_near_the_lead` (decdv), `the_gradient_runs_from_calm_through_the_lead` (decdw) and `a_seed_rolls_the_same_theme_and_seeds_differ` (decdx), over 2000 seeds each, and `dialog::tests::randomize_changes_every_color_on_the_theme_and_turns_off_the_gradient` (decdq). Each fails with its rule broken: the mode set to gradient, the lead hue let into red, a member left out, nice as bright as user, and Randomize doing nothing.
 		- Swept: every member of the theme group, which the role test walks, and the one theme button row in qt.cpp.
 
 - Transparent background setting
@@ -378,7 +378,7 @@ Sorted per the notes in [Template](#template).
 		- It sits on the Background sub-tab, next to the colors it replaces, with a tip saying it goes for every theme.
 		- The Top and Bottom rows stay live while it's on, since knobs' gates only turn a row on with a checkbox, not off.
 	- Branch: round-1024
-	- Test case: `render::tests::a_transparent_background_lets_the_panel_through`, `config::tests::transparent_is_off_and_outlives_any_theme` and `dialog::tests::transparent_stays_through_a_theme_pick_and_a_roll`. The first 2 fail with the setting left unread or the background drawn opaque, and pass with it.
+	- Test case: `render::tests::a_transparent_background_lets_the_panel_through` (decdz), `config::tests::transparent_is_off_and_outlives_any_theme` (decdy) and `dialog::tests::transparent_stays_through_a_theme_pick_and_a_roll` (dece0). The first 2 fail with the setting left unread or the background drawn opaque, and pass with it.
 		- Swept: every reader of the Top and Bottom colors, which is only `render::Frame::draw`, and the hover line in `Graph::render`, which stays opaque.
 
 - CICD reset: standard flags
@@ -464,6 +464,34 @@ Sorted per the notes in [Template](#template).
 		- The image has its own target dir. The paths inside differ from the host's, so a shared `target/` would rebuild everything each time a run switched sides.
 	- Branch: round-1025
 	- Test case: None in the repo, as for 2026102416252892. The gate was watched to fail on a planted format error.
+
+- CICD reset: test IDs
+	- ID: 2026102416252895
+	- Type: Task
+	- Status: Waiting on UAT
+		- The knobs copy's test IDs now differ from SilkTerm's, until SilkTerm converts its own. The 2 copies match only if SilkTerm's other tests leave the same minutes free.
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Every test gets a unique ID, from when it was first committed: whole minutes since 2000-01-01 UTC, in lower-case Crockford base 32. 2 that come out the same take the next free minute, and an ID never changes.
+		- The run prints one line per test, such as `PASS decp8 empty input round-trips`, or `FAIL` or `SKIP`.
+		- `Test case` rows in the backlog name the IDs.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Every one of the 141 tests has a `// Test ID:` line above it. Ours come from the commit that added each test. The knobs tests came from SilkTerm with base 62 IDs in milliseconds, so theirs were converted from the times those stand for.
+		- The tests step prints `PASS`, `FAIL` or `SKIP`, the ID, and the test's name, in place of each of cargo's own test lines. A skipped test adds its reason.
+		- Lint runs the ID check, which fails on a test with no ID, a shared ID, one that isn't a sane time, or a test somewhere it doesn't look. `--list` prints every test's ID.
+		- `cicd/utility/test-ids.bash new` gives a new test its ID.
+		- The `Test case` rows name the IDs.
+		- Verified: the quick gate printed 141 lines with IDs. A failing test showed as `FAIL` and failed the step, and an ignored one as `SKIP` with its reason. A missing ID, a shared one, an upper-case one, and a test outside `src/` each failed the check.
+	- Decisions:
+		- The name on each line is the test's path as cargo gives it, such as `when::tests::ago_reads_like_the_backlog_says`, so it can be found in the code.
+		- The tool is bash and awk, since the build image has no Python.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892. The check was watched to fail on each kind of bad ID.
 
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
@@ -753,19 +781,6 @@ Sorted per the notes in [Template](#template).
 		- 4 Done items have no `Test case` row. The build date one needs a test. The 3 answered questions get a few words on why there's none.
 		- Every Done feature and bug from now on names its test's ID, or says why it has none.
 
-- CICD reset: test IDs
-	- ID: 2026102416252895
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- Every test gets a unique ID, from when it was first committed: whole minutes since 2000-01-01 UTC, in lower-case Crockford base 32. 2 that come out the same take the next free minute, and an ID never changes.
-		- The run prints one line per test, such as `PASS decp8 empty input round-trips`, or `FAIL` or `SKIP`.
-		- `Test case` rows in the backlog name the IDs.
-
 - CICD reset: version line
 	- ID: 2026102416252897
 	- Type: Task
@@ -990,7 +1005,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- The file also sets sample time to 1000 ms. That isn't a color, so the default stays 500 ms.
 	- Branch: round-1024
-	- Test case: `config::tests::defaults_are_the_multiload_colors` and `config::tests::a_file_overrides_and_bad_lines_fall_back`. Both fail on the old defaults and pass now.
+	- Test case: `config::tests::defaults_are_the_multiload_colors` (debhj) and `config::tests::a_file_overrides_and_bad_lines_fall_back` (debhk). Both fail on the old defaults and pass now.
 		- 2026-10-24: both asserts got new values only. System went from `#008000` to `#c64600`, and nice from `#c000c0` to `#205f40`, in both tests.
 	- Closed: 20261024-090621
 
@@ -1014,7 +1029,7 @@ Sorted per the notes in [Template](#template).
 		- Nothing draws them yet. That's the memory graph item and The graphs.
 	- Decisions:
 		- Cache is the `Cached` row alone, the way multiload-ng counts it by its base formula. `free` adds `SReclaimable`. Noted in `design.md`.
-	- Test case: `mem::tests` (6) and `collect::tests::slurp_reuses_and_misses`.
+	- Test case: `mem::tests` (6: decax, decay, decaz, decb0, decb1, decb2) and `collect::tests::slurp_reuses_and_misses` (decaw).
 	- Closed: 20261024-085549
 
 - Build date after the version, for non-release builds

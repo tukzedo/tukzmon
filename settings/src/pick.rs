@@ -154,6 +154,7 @@ mod tests {
 
 	// Every edit crosses this both ways, so a color that shifted on the way
 	// would creep each time the picker opened.
+	// Test ID: decd5
 	#[test]
 	fn a_color_survives_the_trip_through_hsv() {
 		let seed = hsv(0.25, 0.5, 0.5);
@@ -167,6 +168,7 @@ mod tests {
 		}
 	}
 
+	// Test ID: decd6
 	#[test]
 	fn a_gray_keeps_the_hue_and_saturation_it_had() {
 		let held = hsv(0.6, 0.8, 0.4);
@@ -177,6 +179,7 @@ mod tests {
 		assert_eq!((black.h, black.s, black.v), (held.h, held.s, 0.0));
 	}
 
+	// Test ID: decd7
 	#[test]
 	fn the_hue_ramp_hits_the_primaries() {
 		for (h, want) in [
@@ -195,6 +198,7 @@ mod tests {
 		assert_eq!(to_rgb(hsv(0.3, 1.0, 0.0)), Rgb(0, 0, 0));
 	}
 
+	// Test ID: decd8
 	#[test]
 	fn a_typed_value_reaches_what_it_names() {
 		let start = from_rgb(Rgb(10, 20, 30), hsv(0.0, 0.0, 0.0));
