@@ -770,6 +770,21 @@ Sorted per the notes in [Template](#template).
 		- Leak checks: ASan, LSan, and UBSan over the Rust and the C++ shim, Miri, a soak test, clippy's `mem_forget` and `undocumented_unsafe_blocks`, and the known-advisory scan.
 		- `.deb` and `.rpm` packages, and a profiler stage.
 
+- Hosted workflow for the merge gate
+	- ID: 2026102513560001
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261025-135600
+	- Opened by: t00mietum
+	- Prereq IDs: 2026102416252892
+	- Related IDs: 2026102416252889
+	- Requirements:
+		- One small GitHub workflow on push and pull request against `main`, plus a manual trigger so any branch can be run by hand.
+		- It runs `cicd.bash --merge-gate`, as far as the runner can. No matrix, and no macOS runner, since it's Linux only for now.
+	- Decisions:
+		- Asked for on 2026-10-25, in answer to the round settings question about a hosted workflow.
+
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
 	- Type: Feature
