@@ -23,7 +23,11 @@
 ##	   7. Tests           cargo test, with TMPDIR in the run's temp folder. One
 ##	                      line per test: PASS, FAIL or SKIP, its ID, its name
 ##	   8. Release build   the plugin and tukzmon-settings
-##	   9. Dogfood         utility/dev-install.bash, which installs the build to
+##	   9. Sanitizers      a leak check: the tests under ASan and LSan on the
+##	                      nightly config.bash pins, std included, then
+##	                      tukzmon-settings --snapshot, with its C++ under
+##	                      ASan, LSan and UBSan too
+##	  10. Dogfood         utility/dev-install.bash, which installs the build to
 ##	                      ~/.local/lib/tukzmon and restarts the panel
 ##	  A step that's off isn't counted, and the first section says why it's off.
 ##	  Cleanup comes last, on failure and Ctrl+C too.
@@ -31,18 +35,17 @@
 ##	  cicd/cicd.bash [options]
 ##	  Options:
 ##	   (none)              the default run: every step
-##	   --quick             the fast steps. Nothing here is slow yet, so the same
-##	                       as the default run
+##	   --quick             the fast steps: the default run but the slow leak
+##	                       checks. None is slow yet
 ##	   --long              everything. Nothing here takes hours yet, so the same
 ##	                       as the default run. Also --slow
-##	   --leakcheck         add every leak check. Only clippy's are in so far,
-##	                       and lint always runs those
-##	   --no-leakcheck      take every leak check out. The advisory scan isn't
-##	                       one, and stays
+##	   --leakcheck         add every leak check to any run
+##	   --no-leakcheck      take every leak check out. The advisory scan and
+##	                       clippy's leak lints aren't leak check steps, and stay
 ##	   --backlog-run-quick [AREA...]
 ##	                       what a backlog worker runs before it commits: the
-##	                       format check, build, lint and tests, or only the
-##	                       areas named:
+##	                       format check, build, lint, tests and the fast leak
+##	                       checks, or only the areas named:
 ##	                         format  cargo fmt --check
 ##	                         build   the debug build
 ##	                         lint    clippy, shellcheck, markdownlint, and
@@ -50,6 +53,7 @@
 ##	                         test    cargo test
 ##	                         advisories  the advisory scan, only when named
 ##	                         release the release build, only when named
+##	                         sanitizers  the Sanitizers leak check
 ##	   --gate [AREA...]    another name for --backlog-run-quick
 ##	   --backlog-run-full  what a backlog round runs once at its end: every
 ##	                       check of the default run
@@ -70,8 +74,9 @@
 ##	   -h, --help          show this help
 ##	- Jobs: half the logical CPUs, or a quarter when the 1-minute load is over
 ##	  half the CPU count, worked out before each step and passed to cargo's -j
-##	  and --test-threads. CICD_MAX_JOBS, when set, caps both. The whole run is
-##	  under nice 19 and ionice idle.
+##	  and --test-threads. The leak checks get a quarter either way.
+##	  CICD_MAX_JOBS, when set, caps them all. The whole run is under nice 19
+##	  and ionice idle.
 ##	- Temp: each run works in <HOST_TEMP>/tukzmon/<YYYYmmDD-HHMMSS>_<NNN>, with
 ##	  TMPDIR, TEMP and TMP pointed into it. It's removed at the end, along with
 ##	  anything still running from it. A run folder whose run is gone, such as
@@ -185,6 +190,8 @@ esac; done
 handsOff=0
 case "${mode}" in backlog-run-quick|backlog-run-full|merge-gate) handsOff=1 ;; esac
 allAreas=(format build lint test advisories release)
+for entry in "${LEAK_CHECKS[@]}"; do entry="${entry%%|*}"; allAreas+=("${entry,,}"); done
+namedAreas="${#areas[@]}"
 if [[ "${mode}" == backlog-run-quick ]]; then
 	for a in "${areas[@]}"; do [[ " ${allAreas[*]} " == *" ${a} "* ]] || fUsage "no area '${a}'. Areas: ${allAreas[*]}"; done
 	((${#areas[@]})) || areas=(format build lint test)
@@ -217,11 +224,33 @@ else fPlan "Advisories" fStepAdvisories ""; fi
 fPlan "Tests" fStepTests test
 if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" release "* ]]; then offLines+=("Release build: --backlog-run-quick runs it only when the release area is named")
 else fPlan "Release build" fStepRelease ""; fi
+## A leak check's length says which runs take it, per LEAK_CHECKS. Prints why
+## when it's off.
+fLeakWhyOff() {   ## fLeakWhyOff NAME LENGTH
+	local area="${1,,}"
+	[[ "${leakOpt}" != --no-leakcheck ]] || { echo "--no-leakcheck"; return 0; }
+	[[ "${leakOpt}" != --leakcheck ]] || return 0
+	if [[ "${mode}" == backlog-run-quick ]]; then
+		[[ " ${areas[*]} " != *" ${area} "* ]] || return 0
+		[[ "${2}" != fast ]] || ((namedAreas)) || return 0
+		echo "--backlog-run-quick runs it only when the ${area} area is named, or with --leakcheck"; return 0
+	fi
+	case "${2}" in
+		fast) ;;
+		slow) [[ "${mode}" != quick ]] || echo "a slow leak check, so not in --quick without --leakcheck" ;;
+		hours) [[ "${mode}" == long ]] || echo "takes hours, so only in --long or with --leakcheck" ;;
+	esac
+}
+for entry in "${LEAK_CHECKS[@]}"; do
+	IFS='|' read -r leakName leakFn leakLength <<< "${entry}"
+	[[ " fast slow hours " == *" ${leakLength} "* ]] || fDie "LEAK_CHECKS: ${leakName} has no length fast, slow or hours"
+	leakWhy="$(fLeakWhyOff "${leakName}" "${leakLength}")"
+	if [[ -n "${leakWhy}" ]]; then offLines+=("${leakName}: ${leakWhy}"); else fPlan "${leakName}" "${leakFn}" ""; fi
+done
 if ((handsOff)); then offLines+=("Dogfood: --${mode} never dogfoods")
 else fPlan "Dogfood" fStepDogfood ""; fi
 ## Off by name, until they're built.
-if [[ "${leakOpt}" == --no-leakcheck ]]; then offLines+=("Leak checks: --no-leakcheck")
-else offLines+=("Leak checks: sanitizers, Miri and the soak test aren't built yet (backlog 2026102506591278)"); fi
+offLines+=("Miri and the soak test: not built yet (backlog 2026102516060729, 2026102516060734)")
 offLines+=("Packages: not built yet (backlog 2026102506591283)")
 offLines+=("Profiler: not built yet (backlog 2026102506591288)")
 if ((noRemote)); then offLines+=("Other hosts: --no-remote")
@@ -411,6 +440,71 @@ fStepRelease() {
 	cargo build --release "${locked[@]}" "${RELEASE_PACKAGES[@]}" -j "${jobs}" || return 1
 }
 
+## The tests under ASan and LSan on the pinned nightly, with std built too and
+## the target named, so the flags don't reach build scripts. clang builds the
+## C++ with UBSan and the libstdc++ assertions as well. No test reaches
+## qt.cpp, so tukzmon-settings --snapshot then runs it offscreen. LSan reports
+## at exit, so a leak fails a whole test binary: rerun that one with
+## --test-threads=1 and a name filter to find the test.
+fStepSanitizers() {
+	local dir="${CARGO_TARGET_DIR:-${root}/target}/asan" cxx='' gccDir='' sym='' flags='' lib='' syms='' snap="${TMPDIR}/snapshot" pics=0
+	local -a sanEnv=() runEnv=() target=(-Zbuild-std --target x86_64-unknown-linux-gnu)
+	## Asking cargo through rustup would install a missing toolchain then and
+	## there, so the list says whether it's here.
+	if [[ "$(rustup toolchain list 2> /dev/null || true)" != *"${RUST_NIGHTLY}-"* ]]; then
+		fEcho_Clean "${RUST_NIGHTLY} isn't here: rustup toolchain install ${RUST_NIGHTLY} --profile minimal --component rust-src"
+		((! handsOff)) || return 1
+		fEcho_Clean "WARNING: so nothing was sanitized"; return 0
+	fi
+	## rustc's ASan runtime has no UBSan C++ part, so the vptr check won't link.
+	flags="-fsanitize=address,undefined -fno-sanitize=vptr -fno-sanitize-recover=all -fno-omit-frame-pointer -D_GLIBCXX_ASSERTIONS -g"
+	for cxx in clang++-{30..14} clang++; do command -v "${cxx}" > /dev/null 2>&1 && break; done
+	## clang takes the newest GCC it finds, which can lack the C++ headers, so
+	## then it's pointed at g++'s.
+	if ! printf '#include <algorithm>\n' | "${cxx}" -x c++ -fsyntax-only - > /dev/null 2>&1; then
+		gccDir="$(g++ -print-libgcc-file-name 2> /dev/null || true)"
+		gccDir="--gcc-install-dir=${gccDir%/*}"
+		if ! printf '#include <algorithm>\n' | "${cxx}" "${gccDir}" -x c++ -fsyntax-only - > /dev/null 2>&1; then
+			fEcho_Clean "no clang++ here that builds C++ (tried ${cxx})"
+			((! handsOff)) || return 1
+			fEcho_Clean "WARNING: so nothing was sanitized"; return 0
+		fi
+		flags+=" ${gccDir}"
+	fi
+	for sym in llvm-symbolizer-{30..14} llvm-symbolizer; do command -v "${sym}" > /dev/null 2>&1 && break; done
+	sym="$(command -v "${sym}" 2> /dev/null || true)"
+	sanEnv=(RUSTFLAGS="-Zsanitizer=address -Cforce-frame-pointers=yes"
+		"CC_x86_64_unknown_linux_gnu=${cxx/clang++/clang}" "CXX_x86_64_unknown_linux_gnu=${cxx}"
+		"CFLAGS_x86_64_unknown_linux_gnu=${flags}" "CXXFLAGS_x86_64_unknown_linux_gnu=${flags}")
+	## exitcode 77 is no test's own, so a report can't pass for a failed test.
+	## The suppressions load for the tests too, so a planted leak shows they
+	## hide nothing of ours.
+	runEnv=(ASAN_OPTIONS="detect_leaks=1:exitcode=77:strict_string_checks=1:check_initialization_order=1${sym:+:external_symbolizer_path=${sym}}"
+		LSAN_OPTIONS="exitcode=77:suppressions=${root}/${LSAN_SUPP}:print_suppressions=0"
+		UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1" G_SLICE=always-malloc G_DEBUG=gc-friendly)
+	fEcho_Clean "cargo +${RUST_NIGHTLY} test --workspace ${target[*]} -j ${jobs} -- --test-threads ${jobs}, in ${dir#"${root}/"}"
+	## The tests step showed the passes, so only the rest shows here.
+	env -u DISPLAY -u WAYLAND_DISPLAY -u CARGO_TERM_QUIET "${sanEnv[@]}" "${runEnv[@]}" cargo "+${RUST_NIGHTLY}" test --workspace "${locked[@]}" "${target[@]}" \
+		--target-dir "${dir}" -j "${jobs}" -- --test-threads "${jobs}" 2>&1 \
+		| "${here}/utility/test-ids.bash" annotate | awk '/^PASS / { n++; next } { print } END { printf "%d test(s) passed under ASan\n", n }' || return 1
+
+	fEcho_Clean "tukzmon-settings --snapshot, offscreen"
+	env "${sanEnv[@]}" cargo "+${RUST_NIGHTLY}" build -p tukzmon-settings "${locked[@]}" "${target[@]}" --target-dir "${dir}" -j "${jobs}" || return 1
+	## Its C++ has to show the instrumentation, or it went unchecked.
+	lib="$(find "${dir}/x86_64-unknown-linux-gnu/debug/build" -name libtukzmon-settings-qt.a -printf '%T@ %p\n' 2> /dev/null | sort -n | tail -n 1)"
+	lib="${lib#* }"
+	syms="$(nm -u -- "${lib}" 2> /dev/null || true)"
+	if [[ "${syms}" != *__asan_report_* || "${syms}" != *__ubsan_handle_* ]]; then
+		fEcho_Clean "${lib:-libtukzmon-settings-qt.a} has no ASan or UBSan calls, so qt.cpp would go unchecked"; return 1
+	fi
+	mkdir -p -- "${snap}/config" "${snap}/data" || return 1
+	env -u DISPLAY -u WAYLAND_DISPLAY "${runEnv[@]}" QT_QPA_PLATFORM=offscreen XDG_CONFIG_HOME="${snap}/config" XDG_DATA_HOME="${snap}/data" \
+		"${dir}/x86_64-unknown-linux-gnu/debug/tukzmon-settings" --snapshot "${snap}/tab.png" 2>&1 || return 1
+	pics="$(find "${snap}" -maxdepth 1 -name 'tab-*.png' | wc -l)"
+	((pics > 0)) || { fEcho_Clean "--snapshot drew nothing, so qt.cpp went unchecked"; return 1; }
+	fEcho_Clean "sanitizers: nothing reported, and ${pics} snapshot(s) drawn"
+}
+
 fStepDogfood() {
 	fEcho_Clean "${DOGFOOD_CMD[*]}"
 	"${root}/${DOGFOOD_CMD[0]}" "${DOGFOOD_CMD[@]:1}" || return 1
@@ -440,7 +534,8 @@ renice -n 19 -p "$$" > /dev/null 2>&1 || true
 if command -v ionice > /dev/null 2>&1; then ionice -c 3 -p "$$" > /dev/null 2>&1 || true; fi
 
 ## Half the CPUs, a quarter when the box is busy, and a quarter for the heavy
-## steps either way. Never under 1. Sets jobs, heavyJobs and loadNote.
+## steps either way. Never under 1. Sets jobs, heavyJobs and loadNote, and
+## jobs to heavyJobs when given "heavy".
 cores="$(nproc 2> /dev/null || echo 2)"
 jobs=1; heavyJobs=1; loadNote=""
 fJobs() {
@@ -457,8 +552,10 @@ fJobs() {
 		((jobs <= CICD_MAX_JOBS)) || jobs="${CICD_MAX_JOBS}"
 		((heavyJobs <= CICD_MAX_JOBS)) || heavyJobs="${CICD_MAX_JOBS}"
 	fi
+	[[ "${1:-}" != heavy ]] || jobs="${heavyJobs}"
 	printf -v loadNote '%s of %s CPUs, load %d.%02d' "${jobs}" "${cores}" $((10#${load} / 100)) $((10#${load} % 100))
 	if ((busy)); then loadNote+=", busy"; fi
+	if [[ "${1:-}" == heavy ]]; then loadNote+=", a heavy step"; fi
 	export CARGO_BUILD_JOBS="${jobs}" RUST_TEST_THREADS="${jobs}"
 }
 
@@ -583,8 +680,8 @@ fOtherRun() {
 	done < <(fCtrOthers)
 }
 
-## Copies the recipe to DIR and sets ctrTag from a hash of it, so an edit to
-## any of it means a new image.
+## Copies the recipe to DIR and sets ctrTag from a hash of it and the build
+## args, so an edit to any of them means a new image.
 fCtrContext() {   ## fCtrContext DIR
 	local ctx="$1" f
 	local -a ctxFiles=()
@@ -592,7 +689,7 @@ fCtrContext() {   ## fCtrContext DIR
 	cp -p -- "${root}/${CTR_DIR}"/* "${ctx}/" || return 1
 	for f in "${CTR_CONTEXT_EXTRA[@]}"; do cp -p -- "${root}/${f}" "${ctx}/" || return 1; done
 	mapfile -t ctxFiles < <(cd "${ctx}" && find . -type f | LC_ALL=C sort)
-	ctrTag="${CTR_IMAGE}:$(cd "${ctx}" && for f in "${ctxFiles[@]}"; do echo "${f}"; cat "${f}"; done | git hash-object --stdin | cut -c1-12)"
+	ctrTag="${CTR_IMAGE}:$({ (cd "${ctx}" && for f in "${ctxFiles[@]}"; do echo "${f}"; cat "${f}"; done); printf 'build-arg %s\n' "${CTR_BUILD_ARGS[@]}"; } | git hash-object --stdin | cut -c1-12)"
 }
 
 ## Every container goes through here. nice on the client doesn't reach a
@@ -612,8 +709,8 @@ fCtrRun() {   ## fCtrRun STEP DOCKER_RUN_ARG...
 ## its cargo home for the offline steps. Anything that goes wrong is one line,
 ## and the run goes on on the host.
 fStepImage() {
-	local why='' have='' want='' got='' ch="${ctrBase}/cargo-home" i
-	local -a inside=()
+	local why='' have='' want='' got='' ch="${ctrBase}/cargo-home" i arg
+	local -a inside=() buildArgs=()
 	why="$(fCtrWhyNot)"
 	if [[ -n "${why}" ]]; then fEcho_Clean "${why}, so this run is on the host"; return 0; fi
 	ctrTouched=1
@@ -625,7 +722,8 @@ fStepImage() {
 		fEcho_Clean "building ${ctrTag}, which takes several minutes the first time"
 		## dev.built orders the tags for cleanup. Created can't, since a build
 		## from cache gives every tag the same one.
-		if ! docker build --progress=plain "${ctrLabels[@]}" --label "dev.built=${EPOCHSECONDS}" -t "${ctrTag}" "${runTmp}/ctx" > "${runTmp}/image-build.log" 2>&1; then
+		buildArgs=(); for arg in "${CTR_BUILD_ARGS[@]}"; do buildArgs+=(--build-arg "${arg}"); done
+		if ! docker build --progress=plain "${ctrLabels[@]}" --label "dev.built=${EPOCHSECONDS}" "${buildArgs[@]}" -t "${ctrTag}" "${runTmp}/ctx" > "${runTmp}/image-build.log" 2>&1; then
 			tail -n 25 "${runTmp}/image-build.log"
 			fEcho_Clean "could not build ${ctrTag}, so this run is on the host"
 			return 0
@@ -643,9 +741,12 @@ fStepImage() {
 	want="$(sha256sum < "${root}/Cargo.lock" | cut -c1-16) ${ctrTag}"
 	{ read -r got < "${ch}/.fetched"; } 2> /dev/null || true
 	if [[ "${got}" != "${want}" ]]; then
-		fEcho_Clean "cargo fetch --locked, for the steps, which run offline"
+		## -Zbuild-std needs std's own crates too, from its Cargo.lock in rust-src.
+		fEcho_Clean "cargo fetch --locked, for the steps, which run offline, and for std's build on ${RUST_NIGHTLY}"
 		if fCtrRun fetch -v "${root}:${root}:ro" -v "${ch}:${ch}" -w "${root}" -e "HOME=${ch}" -e "CARGO_HOME=${ch}" \
-			"${ctrTag}" nice -n 19 cargo fetch --locked --quiet; then
+			"${ctrTag}" nice -n 19 cargo fetch --locked --quiet \
+			&& fCtrRun fetch-std -v "${ch}:${ch}" -e "HOME=${ch}" -e "CARGO_HOME=${ch}" "${ctrTag}" nice -n 19 cargo "+${RUST_NIGHTLY}" fetch --locked --quiet \
+				--manifest-path "/opt/rustup/toolchains/${RUST_NIGHTLY}-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/Cargo.toml"; then
 			printf '%s\n' "${want}" > "${ch}/.fetched"
 		else
 			fEcho_Clean "WARNING: could not fetch crates (offline?); going on with what's cached"
@@ -755,7 +856,7 @@ fEcho_Clean
 stepCount="${#planNames[@]}"; lastNote=""
 for i in "${!planNames[@]}"; do
 	n=$((i + 1)); name="${planNames[i]}"
-	fJobs
+	if [[ " ${HEAVY_STEPS[*]} " == *" ${planFns[i]} "* ]]; then fJobs heavy; else fJobs; fi
 	fEcho_Clean; fEcho_Clean "${__letterbox}"
 	fEcho "$(fNow): Step ${n} of ${stepCount}; Starting ${name}"
 	if [[ "${loadNote}" != "${lastNote}" ]]; then fEcho_Clean "jobs: ${loadNote}"; lastNote="${loadNote}"; fi
@@ -792,3 +893,5 @@ exit 0
 ##		- 2026-10-25: Containers and run folders a killed run left are cleaned
 ##		  up by the next run, and no image goes while another run is live.
 ##		- 2026-10-25: The known-advisory scan, in the image with the network.
+##		- 2026-10-25: The Sanitizers leak check on a pinned nightly, leak check
+##		  lengths, and a quarter of the CPUs for heavy steps.

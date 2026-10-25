@@ -3,8 +3,9 @@
 # libraries the plugin links by soname, and the lint and audit tools at the
 # versions cicd/config.bash pins.
 #
-# cicd.bash builds it from this dir plus rust-toolchain.toml, and tags it with
-# a hash of them, so an edit to any of them means a new image.
+# cicd.bash builds it from this dir plus rust-toolchain.toml and the build
+# args in cicd/config.bash, and tags it with a hash of them, so an edit to any
+# of them means a new image.
 # From tukfs-hash's and shcl's cicd/container/Dockerfile.
 #
 # Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
@@ -75,6 +76,18 @@ RUN curl -fsSLo /tmp/cd.tgz "https://github.com/EmbarkStudios/cargo-deny/release
 	&& echo "${CARGO_DENY_SHA256}  /tmp/cd.tgz" | sha256sum -c - \
 	&& tar -C /usr/local/bin --strip-components=1 -xzf /tmp/cd.tgz "cargo-deny-${CARGO_DENY_VER}-x86_64-unknown-linux-musl/cargo-deny" \
 	&& rm -f /tmp/cd.tgz
+
+# The sanitizer step. clang builds the C++ with the sanitizers, since rustc's
+# runtime is LLVM's, and llvm-symbolizer puts names in the reports. Then the
+# dated nightly cicd/config.bash pins, with rust-src for -Zbuild-std. It
+# comes in as a build arg, so that way it's pinned in one place.
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends clang-19 llvm-19 \
+	&& rm -rf /var/lib/apt/lists/*
+ARG RUST_NIGHTLY
+RUN test -n "${RUST_NIGHTLY}" \
+	&& CARGO_HOME=/opt/cargo /opt/cargo/bin/rustup toolchain install "${RUST_NIGHTLY}" --profile minimal --component rust-src \
+	&& rm -rf /opt/cargo/registry
 
 # Runs as the caller's uid, which has no passwd entry here. CARGO_HOME, HOME
 # and TMPDIR are set per run to dirs mounted from the host.

@@ -1042,19 +1042,6 @@ Sorted per the notes in [Template](#template).
 		- Split into children: clippy and the advisory scan 2026102516060718 (Done), sanitizers 2026102516060724, Miri 2026102516060729, and the soak test 2026102516060734.
 	- Branch: round-1025b
 
-- CICD reset: leak checks, sanitizers
-	- ID: 2026102516060724
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261025-160607
-	- Opened by: t00mietum
-	- Parent ID: 2026102506591278
-	- Requirements:
-		- ASan and LSan over the Rust tests, with `-Zbuild-std`, an explicit `--target`, and a dated nightly pinned beside the stable toolchain, in a build dir of its own.
-		- ASan, LSan and UBSan over the C++ shim in the same build, with `-fno-sanitize-recover=all` and `-D_GLIBCXX_ASSERTIONS`. Suppressions name prebuilt libraries only, such as Qt.
-		- The leak check step and its lengths, with `--leakcheck` and `--no-leakcheck`. It runs on a quarter of the CPUs.
-
 - CICD reset: leak checks, Miri
 	- ID: 2026102516060729
 	- Type: Task
@@ -1120,6 +1107,34 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- CICD reset: leak checks, sanitizers
+	- ID: 2026102516060724
+	- Type: Task
+	- Status: Done
+	- Needs local test suite run?: No. `--backlog-run-full` passed on 2026-10-25.
+	- Priority|Severity: Avg
+	- Opened: 20261025-160607
+	- Opened by: t00mietum
+	- Parent ID: 2026102506591278
+	- Requirements:
+		- ASan and LSan over the Rust tests, with `-Zbuild-std`, an explicit `--target`, and a dated nightly pinned beside the stable toolchain, in a build dir of its own.
+		- ASan, LSan and UBSan over the C++ shim in the same build, with `-fno-sanitize-recover=all` and `-D_GLIBCXX_ASSERTIONS`. Suppressions name prebuilt libraries only, such as Qt.
+		- The leak check step and its lengths, with `--leakcheck` and `--no-leakcheck`. It runs on a quarter of the CPUs.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A Sanitizers step runs the tests under ASan and LSan on nightly-2026-10-16, with `-Zbuild-std` and `--target`, in `target/asan`. The nightly is pinned in `cicd/config.bash`, and the image gets it with rust-src.
+		- In the same build, clang builds the C++ shim and cxx's C++ under ASan, LSan and UBSan, with `-fno-sanitize-recover=all` and `-D_GLIBCXX_ASSERTIONS`. No test reaches qt.cpp, so the step then runs `tukzmon-settings --snapshot` offscreen on that build.
+		- `cicd/lsan.supp` is loaded but holds no entries, since nothing needed one.
+		- The leak checks are listed in `cicd/config.bash` with a length: fast, slow or hours. `--leakcheck` adds every one to any run, and `--no-leakcheck` takes every one out. They get a quarter of the CPUs.
+		- Verified: a planted Rust leak, a C++ leak, a signed overflow, a use after free through a stale vector reference, and an index past a vector's size but inside its capacity each failed the step. The clean tree passed, in the image and with `--no-container`.
+	- Decisions:
+		- UBSan's vptr check is off. rustc's ASan runtime has no UBSan C++ part, so it won't link.
+		- Sanitizers is a fast leak check: 1m 25s from a fresh build dir, about 5 s with nothing to rebuild. So it runs in every run, `--quick` and `--backlog-run-quick` included.
+	- Branch: round-1025b
+	- Test case: None in the repo, as for 2026102516060718. Each check was watched to fail.
+	- Closed: 20261025-163803
 
 - CICD reset: leak checks, clippy and advisories
 	- ID: 2026102516060718

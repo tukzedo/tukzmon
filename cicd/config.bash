@@ -26,6 +26,9 @@ TOOL_PINS=(
 	## The known-advisory scan. Pinned in the image's Dockerfile too.
 	"cargo-deny|0.19.9|cargo deny --version"
 )
+## The sanitizers need -Z flags, so they run on this dated nightly, beside the
+## stable toolchain rust-toolchain.toml pins. The image gets it as a build arg.
+RUST_NIGHTLY="nightly-2026-10-16"
 
 ## Paths that don't change the product. A push to main that changes only
 ## these skips the merge gate. Bash patterns, matched against the whole path.
@@ -46,6 +49,22 @@ MARKDOWNLINT_DISABLE_FOR=(
 	"project/backlog.md|MD036"
 )
 
+## The leak checks, "name|step function|length". The length is by measured
+## time: fast ones run in every run, slow ones in all but --quick and
+## --backlog-run-quick, and hours ones only in --long. --leakcheck adds every
+## one to any run, and --no-leakcheck takes every one out. The name, in lower
+## case, is its --backlog-run-quick area.
+LEAK_CHECKS=(
+	## The tests under ASan and LSan, then tukzmon-settings --snapshot with
+	## its C++ under UBSan too. 1m 25s from a fresh target dir and about 5 s
+	## with nothing to rebuild, at 8 jobs and load 14 (2026-10-25).
+	"Sanitizers|fStepSanitizers|fast"
+)
+## Steps that get a quarter of the CPUs, busy or not.
+HEAVY_STEPS=(fStepSanitizers)
+## LeakSanitizer's suppressions. Prebuilt libraries only, by name.
+LSAN_SUPP="cicd/lsan.supp"
+
 ## Rotated lint logs, gitignored. utility/lint-report.bash reads them.
 LINT_LOG_DIR="cicd/artifacts/lint"
 
@@ -55,7 +74,9 @@ LINT_LOG_DIR="cicd/artifacts/lint"
 CTR_IMAGE="tukzmon-cicd"
 CTR_DIR="cicd/container"
 CTR_CONTEXT_EXTRA=(rust-toolchain.toml)
-CTR_STEPS=(fStepFormat fStepBuild fStepLint fStepAdvisories fStepTests fStepRelease)
+## NAME=value, passed to docker build and part of the tag's hash.
+CTR_BUILD_ARGS=("RUST_NIGHTLY=${RUST_NIGHTLY}")
+CTR_STEPS=(fStepFormat fStepBuild fStepLint fStepAdvisories fStepTests fStepRelease fStepSanitizers)
 ## The image steps that get the network. The rest run with none.
 CTR_NET_STEPS=(fStepAdvisories)
 
@@ -64,3 +85,5 @@ CTR_NET_STEPS=(fStepAdvisories)
 ##		- 2026-10-25: Created.
 ##		- 2026-10-25: The build image's settings.
 ##		- 2026-10-25: cargo-deny pin, and the advisory step in the image.
+##		- 2026-10-25: The nightly pin, the leak checks and their lengths, and
+##		  the image's build args.

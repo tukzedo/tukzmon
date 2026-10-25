@@ -1,0 +1,6 @@
+# LeakSanitizer suppressions for cicd.bash's Sanitizers step. Prebuilt
+# libraries only, matched by library name, such as leak:libQt6Gui.so for Qt.
+# A leak in our code, or in a crate built from source, gets fixed instead.
+# A leak: line matches any frame in the stack, not just the one that
+# allocated, so a planted leak has to be caught with this file loaded.
+# None are needed so far.
