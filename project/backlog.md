@@ -853,6 +853,32 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: cicd.bash follows `rust-toolchain.toml` (1.96.0), while dev-install.bash run by hand gets Debian's cargo 1.95, so each one rebuilds `target/release` from scratch.
 	- Expected behavior: both build with the pinned version, so a dogfood install reuses the pipeline's build.
 
+- A killed pipeline run leaves its container and temp folder
+	- ID: 2026102514470001
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261025-144700
+	- Opened by: t00mietum
+	- Related IDs: 2026102416252890, 2026102416252896
+	- Steps to reproduce:
+		- Start `cicd/cicd.bash --backlog-run-full` and kill it with SIGKILL during a container step.
+	- Incorrect behavior: the container runs on to its end, and the temp folder stays until the 2-day sweep.
+	- Expected behavior: the next run stops containers whose run is gone, by the `dev.run` label, and sweeps its folder when no process from it is left.
+
+- 2 pipeline runs at once can remove each other's image
+	- ID: 2026102514470002
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261025-144700
+	- Opened by: t00mietum
+	- Related IDs: 2026102416252890
+	- Steps to reproduce:
+		- Start 2 runs of `cicd/cicd.bash` in the same project, with a changed container recipe, so both build the image.
+	- Incorrect behavior: the cleanup at the end of one run can remove the other's half-built image, which has no tag yet.
+	- Expected behavior: a run removes only images it built, or none while another run of the project is live.
+
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
 	- Type: Feature
