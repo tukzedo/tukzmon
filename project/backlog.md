@@ -54,6 +54,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: High
 	- Opened: 20261023-183946
 	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
 	- Related IDs: 2026101916013884, 2026101916013885, 2026101916013886, 2026101916013889
 	- Requirements:
 		- CPU only, on XFCE 4.
@@ -73,12 +74,14 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102408304546
 	- Type: Enhancement
 	- Status: Waiting on UAT
-		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
 		- The look of the tabs, the highlight and the button gaps is for a person to judge, in the real theme.
 	- Needs hand testing: open Settings from the panel on b23, in its light and dark themes, and check the tab height, the selected tab, the button gaps, and typing a width past 1024.
 	- Priority|Severity: High
 	- Opened: 20261024-082803
 	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+		- Answered 2026-10-25 for this item and the other 9 from round-1024: a round may install with `--no-restart`, so round-1025 put this build on b23.
 	- Requirements:
 		- The tabs are too vertically narrow.
 		- The highlight is too bright, and dark-mode text (i.e. white) is hard to read.
@@ -108,12 +111,13 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102408304572
 	- Type: Enhancement
 	- Status: Waiting on UAT
-		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
 		- It's on by default, and turning it back on reloads the file. Both are calls for a person to make.
 	- Needs hand testing: on b23, restart the panel and then reboot, and check that the graph comes back with a gap for the time it was down. Then turn "Keep across restarts" off for a minute and back on.
 	- Priority|Severity: High
 	- Opened: 20261024-082803
 	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
 	- Related IDs: 2026101916013885
 	- Requirements:
 		- Max age (days); default 365.
@@ -136,7 +140,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102408304586
 	- Type: Enhancement
 	- Status: Waiting on UAT
-		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
 		- Which curve reads best, and the names, are for a person to judge on a graph with days of history.
 		- It departs from the wording in 2 ways. Log B was read as the fixed divisions laid over the 5 s floor curve. And one tip covers all 3 choices and names the divisions, rather than a tip per item in the list.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
@@ -144,6 +148,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: High
 	- Opened: 20261024-082803
 	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
 	- Related IDs: 2026101916013886
 	- Requirements:
 		- Pure log with a fixed 5 s floor (u = ln(1+age/5) / ln(1+total/5), where 5 s is the code's A0).
@@ -172,7 +177,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102408304599
 	- Type: Enhancement
 	- Status: Waiting on UAT
-		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
 		- How the line looks, and which tip format is the default, are for a person to judge.
 		- It departs from the wording in 2 ways. The tip also gives the CPU shares at the line's time, in place of the old tip with the latest read. And the line's color can be changed, under Colors.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
@@ -180,6 +185,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: High
 	- Opened: 20261024-082803
 	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
 	- Requirements:
 		- In the graph, show a thin black vertical line where the mouse is hovering.
 		- Mouseover text: How long ago the line is at. Configurable in settings:
@@ -214,7 +220,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102409400679
 	- Type: Feature
 	- Status: Waiting on UAT
-		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
 		- How the built-in themes look is for a person to judge.
 		- It departs from the wording in one way. b23's file sets 2 colors with no theme line, so it opens as Custom, with exactly the colors it has now. Picking Default there gives the coordinated set.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
@@ -222,6 +228,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: High
 	- Opened: 20261024-094007
 	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
 	- Parent ID: 2026102408304612
 	- Related IDs: 2026102408304559, 2026102408304625
 	- Requirements:
@@ -250,7 +257,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102409400684
 	- Type: Feature
 	- Status: Waiting on UAT
-		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
 		- How the tab and the theme buttons look and feel is for a person to judge.
 		- It departs from the wording in one way. The colors the graphs share, the border, background and hover line, are on a Background sub-tab beside CPU.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
@@ -258,6 +265,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: High
 	- Opened: 20261024-094007
 	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
 	- Parent ID: 2026102408304612
 	- Prereq IDs: 2026102409400679
 	- Requirements:
@@ -285,13 +293,14 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102409400689
 	- Type: Feature
 	- Status: Waiting on UAT
-		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
 		- How the picker looks and handles is for a person to judge.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
 	- Needs hand testing: on b23, open Settings, go to Themes, click a color chip, and drag in the square and the strip. Check the row behind follows, then Cancel and check the old color and the theme name are back. Then type a hex value and press OK.
 	- Priority|Severity: High
 	- Opened: 20261024-094007
 	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
 	- Parent ID: 2026102408304612
 	- Requirements:
 		- Don't use the toolkit's color dialog. Use something more like SilkTerm's: a saturation and brightness square, a hue strip, value boxes, and Cancel and OK.
@@ -316,7 +325,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102409400695
 	- Type: Feature
 	- Status: Waiting on UAT
-		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
 		- How the gradient and Fire look in the panel is for a person to judge.
 		- It departs from the wording in one way. Only the CPU graph has a sub-tab so far, so only it has the mode. A new graph's sub-tab gets the same rows.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
@@ -324,6 +333,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: High
 	- Opened: 20261024-094007
 	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
 	- Parent ID: 2026102408304612
 	- Prereq IDs: 2026102409400679, 2026102409400684
 	- Requirements:
@@ -351,13 +361,14 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102409400700
 	- Type: Feature
 	- Status: Waiting on UAT
-		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
 		- Whether the rolls look good together is for a person to judge.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
 	- Needs hand testing: on b23, open Settings, go to Themes, and press Randomize a few times, with Apply each time, and look at the panel graph. Then Save as one you like, and pick Default to drop a roll.
 	- Priority|Severity: High
 	- Opened: 20261024-094007
 	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
 	- Parent ID: 2026102408304612
 	- Prereq IDs: 2026102409400684, 2026102409400695
 	- Requirements:
@@ -382,13 +393,14 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102409400705
 	- Type: Feature
 	- Status: Waiting on UAT
-		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
 		- How it looks over the real panel, with its own background, is for a person to judge.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
 	- Needs hand testing: on b23, open Settings, go to Themes, then Background, tick Transparent and Apply, and look at the panel graph. Then pick another theme and check it stays clear.
 	- Priority|Severity: High
 	- Opened: 20261024-094007
 	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
 	- Parent ID: 2026102408304612
 	- Requirements:
 		- One global setting that makes the graph background transparent, over every theme's background colors.
@@ -411,7 +423,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102408304625
 	- Type: Feature
 	- Status: Waiting on UAT
-		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
 		- How the 2 graphs look side by side is for a person to judge. On Default, cache is `#408060`, close to the shared top color `#2a543f`.
 		- It departs from the wording in one way. multiload-ng's memory border and background, `#404020` and `#13261d`, aren't used, since every graph shares the Background sub-tab.
 	- Needs local test suite run?: No. The full run passed on 2026-10-25.
@@ -419,6 +431,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: High
 	- Opened: 20261024-082803
 	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
 	- Prereq IDs: 2026102408512192, 2026102409400679
 		- Was the collectors parent. Only its memory collector child is needed, and that's done.
 		- Its colors join the theme presets, so it waits on those.
@@ -448,13 +461,14 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102508393152
 	- Type: Feature
 	- Status: Waiting on UAT
-		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
 		- The 0-means-Width rule and CPU showing when nothing else does are for a person to judge.
 	- Needs local test suite run?: No. The full run passed on 2026-10-25.
 	- Needs hand testing: on b23, open Settings, set CPU width px to 40 and Apply, and check the CPU graph gets narrower beside memory. Then untick CPU graph, Apply, and check only memory is left. Then untick Memory graph too, and check CPU comes back.
 	- Priority|Severity: High
 	- Opened: 20261025-083931
 	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
 	- Parent ID: 2026102408304639
 	- Requirements:
 		- A setting per graph to show it or not, CPU included.
@@ -482,13 +496,14 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102508393154
 	- Type: Feature
 	- Status: Waiting on UAT
-		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
 		- The Order row is plain text for now, which is for a person to judge.
 	- Needs local test suite run?: No. The full run passed on 2026-10-25.
 	- Needs hand testing: on b23, open Settings, type `mem cpu` in Order on the Graph tab and Apply, and check memory is now left of CPU.
 	- Priority|Severity: High
 	- Opened: 20261025-083931
 	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
 	- Parent ID: 2026102408304639
 	- Prereq IDs: 2026102508393152
 	- Requirements:
@@ -522,6 +537,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: High
 	- Opened: 20261024-162528
 	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
 	- Requirements:
 		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
 		- `cicd.bash` takes the shared flags: none for the default run under about an hour, `--quick`, `--long` with `--slow` as another name, `--leakcheck`, `--no-leakcheck`, `--backlog-run-quick [<area>...]`, `--backlog-run-full`, `--merge-gate`, `--no-container`, `--no-remote`, `--no-sync`, `--keep-temp`, `--list`, `--help`, `--quiet`, and `--message`.
@@ -551,6 +567,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: High
 	- Opened: 20261024-162528
 	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
 	- Requirements:
 		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
 		- Half the logical CPUs, or a quarter when the 1-minute load is over half the CPU count, checked at the start and before each step. The heavy steps, such as the leak checks, use a quarter, busy or not.
@@ -576,6 +593,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: High
 	- Opened: 20261024-162528
 	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
 	- Related IDs: 2026102416252898
 	- Requirements:
 		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
@@ -603,6 +621,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: High
 	- Opened: 20261024-162528
 	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
 	- Requirements:
 		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
 		- Every test gets a unique ID, from when it was first committed: whole minutes since 2000-01-01 UTC, in lower-case Crockford base 32. 2 that come out the same take the next free minute, and an ID never changes.
@@ -632,6 +651,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: Avg
 	- Opened: 20261024-162528
 	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
 	- Related IDs: 2026102408304652
 	- Requirements:
 		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
@@ -658,6 +678,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: Low
 	- Opened: 20261025-144700
 	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
 	- Related IDs: 2026102416252890, 2026102416252896
 	- Steps to reproduce:
 		- Start `cicd/cicd.bash --backlog-run-full` and kill it with SIGKILL during a container step.
