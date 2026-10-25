@@ -374,6 +374,8 @@ pub struct Look {
 	pub show_memory: bool,
 	/// 0 is `width`.
 	pub mem_width: u32,
+	/// Graph names as saved, first drawn first. See [`graph_order`].
+	pub order: Vec<String>,
 	/// In `mem::MemoryReader::SERIES` order, bottom first.
 	pub mem: [Rgb; 3],
 	pub mem_mode: Mode,
@@ -430,6 +432,7 @@ impl Look {
 			cpu_width: num("cpu_width") as u32,
 			show_memory: m.value("show_memory", &NoEnv).as_bool(),
 			mem_width: num("mem_width") as u32,
+			order: graph_order(m.value("graph_order", &NoEnv).as_text()),
 			mem: [color("mem_user"), color("mem_buffers"), color("mem_cache")],
 			mem_mode: Mode::parse(m.value("mem_mode", &NoEnv).as_text()).unwrap_or_default(),
 			mem_gradient: [color("mem_low"), color("mem_medium"), color("mem_high")],
@@ -461,6 +464,22 @@ impl Look {
 		let text = std::fs::read_to_string(path).unwrap_or_default();
 		Look::from_model(&model(&text))
 	}
+}
+
+/// The names in a `graph.order` line, lower case, each once. Commas work as
+/// well as spaces, since shcl reads `cpu, mem` as a list and hands it back
+/// with quotes.
+pub fn graph_order(text: &str) -> Vec<String> {
+	let mut names: Vec<String> = Vec::new();
+	for word in text.split(|c: char| c == ',' || c.is_whitespace()) {
+		let name = word
+			.trim_matches(|c| c == '"' || c == '\'')
+			.to_ascii_lowercase();
+		if !name.is_empty() && !names.contains(&name) {
+			names.push(name);
+		}
+	}
+	names
 }
 
 /// `$XDG_CONFIG_HOME/tukzmon`, else `~/.config/tukzmon`.
@@ -801,6 +820,26 @@ mod tests {
 		};
 		assert_eq!(gate("cpu_width").as_deref(), Some("show_cpu"));
 		assert_eq!(gate("mem_width").as_deref(), Some("show_memory"));
+	}
+
+	// Test ID: dedqq
+	#[test]
+	fn the_graph_order_reads_with_spaces_or_commas() {
+		assert_eq!(Look::default().order, ["cpu", "mem"]);
+		for text in [
+			"graph:\n\torder: mem cpu\n",
+			"graph:\n\torder: mem, cpu\n",
+			"graph:\n\torder: \"MEM  cpu\"\n",
+			"graph:\n\torder: mem, mem, cpu\n",
+		] {
+			assert_eq!(
+				Look::from_model(&model(text)).order,
+				["mem", "cpu"],
+				"{text}"
+			);
+		}
+		assert_eq!(graph_order("net, \"mem\" 'cpu'"), ["net", "mem", "cpu"]);
+		assert!(graph_order(" , ").is_empty());
 	}
 
 	// Test ID: decdh

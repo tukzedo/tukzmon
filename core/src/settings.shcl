@@ -151,6 +151,14 @@ settings:
 		gate: show_memory
 		tip: "How wide the memory graph is, in the same pixels as Width. 0 uses Width."
 
+	graph_order:
+		label: Order
+		tab: Graph
+		control: text
+		path: graph.order
+		default: "cpu mem"
+		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU and mem for memory. One left out goes at the end."
+
 	HistoryHead:
 		label: History
 		tab: Graph

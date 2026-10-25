@@ -61,12 +61,16 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- The other way, a short C file built against the headers, needs `libxfce4panel-2.0-dev`. On b23 that would pull the panel library back from 4.20.7 to Debian's 4.20.4.
 	- The panel runs external plugins in a separate wrapper process, so a crash takes down the plugin adn not the panel.
 
-- The plugin draws its graphs in one drawing area, CPU then memory, side by side. There's no gap between them, like multiload-ng's spacing of 0. On a vertical panel they're stacked, and share the height evenly. The graph under the pointer gets the hover line and the tip. `core/src/graphs.rs` has the layout.
+- The plugin draws its graphs in one drawing area, side by side, in the saved order. There's no gap between them, like multiload-ng's spacing of 0. On a vertical panel they're stacked, and share the height evenly. The graph under the pointer gets the hover line and the tip. `core/src/graphs.rs` has the layout.
 	- Under Graphs on the Graph tab, each graph has a checkbox, at `cpu.show` and `mem.show`, and a width, at `cpu.width` and `mem.width`. A width of 0, the default, is the Width setting. Widths are in the panel's own pixels, so they scale with it.
 	- A box where `/proc/meminfo` can't be read never shows the memory graph.
 	- With every other graph off, CPU shows anyway, so the item never shrinks to nothing, and its right-click menu stays in reach.
 	- A hidden graph isn't read. Its history is kept, and shows a gap for the time it was hidden.
-	- The live graph list, backlog 2026102408304639, takes over these rows, and adds the order.
+	- Order on the Graph tab, at `graph.order`, names the graphs first to last, left to right or top to bottom: `cpu` and `mem`, by their history section names. The default is `cpu mem`.
+		- Spaces or commas both work, since a hand edit like `order: mem, cpu` is a list to shcl.
+		- A name it doesn't know is skipped. A graph it doesn't name goes at the end, in the default order, so that way a graph added later, such as network, shows up last in a saved order.
+		- A hidden graph keeps its place for when it's shown again.
+	- The live graph list, backlog 2026102408304639, takes over these rows. Its grippers set the order.
 
 - The drawing area has a window of its own, so it has to take button events and be an action widget, or a right-click never reaches the panel's menu.
 

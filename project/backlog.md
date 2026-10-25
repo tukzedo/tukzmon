@@ -478,6 +478,39 @@ Sorted per the notes in [Template](#template).
 	- Test case: `graphs::tests::each_graph_takes_its_own_width_and_0_is_width` (dedqd), `cpu_can_be_hidden_but_not_with_nothing_else_shown` (dedqe), and `config::tests::each_graph_has_a_switch_and_a_width` (dedqf). dedqd fails with the widths ignored, and dedqe with CPU always shown.
 		- Swept: every `Graphs::count` and `Look::width` user (the plugin's fit and reload, the layout, the tip and the render), and every `show_memory` reader. `core/examples/preview.rs` draws one `Graph` and has no layout.
 
+- Graph order
+	- ID: 2026102508393154
+	- Type: Feature
+	- Status: Waiting on UAT
+		- b23 runs the 2026-10-23 20:03 build, which is older than this. It needs a dev-install first.
+		- The Order row is plain text for now, which is for a person to judge.
+	- Needs local test suite run?: No. The full run passed on 2026-10-25.
+	- Needs hand testing: on b23, open Settings, type `mem cpu` in Order on the Graph tab and Apply, and check memory is now left of CPU.
+	- Priority|Severity: High
+	- Opened: 20261025-083931
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304639
+	- Prereq IDs: 2026102508393152
+	- Requirements:
+		- A saved order of the graphs, which the plugin lays them out in, left to right, or top to bottom on a vertical panel.
+		- A graph added later, such as network, goes at the end of a saved order that doesn't name it.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- Order, a text row under Graphs on the Graph tab, at `graph.order`, names the graphs first to last: `cpu` and `mem`. The default is `cpu mem`.
+		- The plugin lays them out in that order, and the pointer, the tip and the panel size follow it. A change takes effect at Apply.
+		- `design.md` XFCE plugin has the details.
+		- Verified: in a test panel, `mem cpu` with widths 100 and 40 drew memory 100 wide on the left and CPU on the right. With no order CPU came back first, and a hand-typed `order: mem, cpu` swapped them again.
+	- Decisions:
+		- The names are the graphs' history section names, so a new graph brings its own.
+		- Spaces or commas both work, since shcl reads a bare `mem, cpu` as a list.
+		- A name it doesn't know is skipped, and a graph it doesn't name goes last, in the default order.
+		- A hidden graph keeps its place for when it's shown again.
+		- For 2026102508393161: the Order row is a stand-in. The list's grippers should write `graph.order` and the row should go.
+	- Branch: round-1025
+	- Test case: `graphs::tests::the_saved_order_lays_them_out_and_one_it_leaves_out_goes_last` (dedqp), `config::tests::the_graph_order_reads_with_spaces_or_commas` (dedqq), and `dialog::tests::the_graph_order_is_saved_as_typed_and_reads_back` (dedqr). dedqp fails with the order ignored, and dedqq with the setting left unread.
+		- Swept: every `Graphs::shown` user (count, widths, tiles, the pointer, the tip and the render), and the plugin's fit and reload, which go through `widths`.
+
 - CICD reset: standard flags
 	- ID: 2026102416252892
 	- Type: Task
@@ -824,19 +857,6 @@ Sorted per the notes in [Template](#template).
 			- Grippers on the right to vertically reorder monitors with the mouse.
 	- Progress log:
 		- Split into 6 children, in this order: 2026102508393152 (on or off and a width per graph), 2026102508393154 (order), 2026102508393156 (time function per graph), 2026102508393159 (theme per graph), 2026102508393161 (the list itself), and 2026102508393163 (live graphs in it).
-
-- Graph order
-	- ID: 2026102508393154
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261025-083931
-	- Opened by: t00mietum
-	- Parent ID: 2026102408304639
-	- Prereq IDs: 2026102508393152
-	- Requirements:
-		- A saved order of the graphs, which the plugin lays them out in, left to right, or top to bottom on a vertical panel.
-		- A graph added later, such as network, goes at the end of a saved order that doesn't name it.
 
 - A time function per graph
 	- ID: 2026102508393156

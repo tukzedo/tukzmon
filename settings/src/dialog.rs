@@ -568,6 +568,21 @@ mod tests {
 		assert_eq!(dlg.state("width").number, 128.0);
 	}
 
+	// Test ID: dedqr
+	#[test]
+	fn the_graph_order_is_saved_as_typed_and_reads_back() {
+		let d = scratch("order");
+		let path = d.0.join("t.shcl");
+		let mut dlg = Dialog::open(path.clone());
+		for typed in ["mem cpu", "mem, cpu"] {
+			assert!(dlg.set_text("graph_order", typed));
+			dlg.apply().unwrap();
+			assert_eq!(config::Look::load(&path).order, ["mem", "cpu"], "{typed}");
+			// and the window takes the file back without a complaint
+			assert!(Dialog::open(path.clone()).apply().is_ok(), "{typed}");
+		}
+	}
+
 	// Test ID: debjd
 	#[test]
 	fn apply_writes_only_what_changed() {

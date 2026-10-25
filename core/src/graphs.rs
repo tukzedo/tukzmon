@@ -7,10 +7,11 @@
 use std::io;
 use std::path::Path;
 
-use crate::Graph;
 use crate::config::Look;
+use crate::cpu::CpuReader;
 use crate::keep;
 use crate::mem::MemoryReader;
+use crate::{Graph, Source};
 
 pub struct Graphs {
 	pub cpu: Graph,
@@ -28,6 +29,19 @@ type Tile = (usize, usize, usize, usize);
 enum Which {
 	Cpu,
 	Mem,
+}
+
+impl Which {
+	/// The order with nothing saved. Graphs a saved order leaves out go
+	/// last, in this order.
+	const ALL: [Which; 2] = [Which::Cpu, Which::Mem];
+
+	fn name(self) -> &'static str {
+		match self {
+			Which::Cpu => CpuReader::SECTION,
+			Which::Mem => MemoryReader::SECTION,
+		}
+	}
 }
 
 impl Graphs {
@@ -55,13 +69,31 @@ impl Graphs {
 		self.cpu.look.show_cpu || self.mem.is_none()
 	}
 
+	// the saved order, unknown names skipped, then any it doesn't name
+	fn order(&self) -> [Which; 2] {
+		let mut out = Which::ALL;
+		let mut n = 0;
+		let named = self
+			.cpu
+			.look
+			.order
+			.iter()
+			.filter_map(|name| Which::ALL.into_iter().find(|w| w.name() == name.as_str()));
+		for w in named.chain(Which::ALL) {
+			if !out[..n].contains(&w) {
+				out[n] = w;
+				n += 1;
+			}
+		}
+		out
+	}
+
+	/// In the order drawn.
 	fn shown(&self) -> impl Iterator<Item = Which> + '_ {
-		[
-			self.cpu_shown().then_some(Which::Cpu),
-			self.mem.as_ref().map(|_| Which::Mem),
-		]
-		.into_iter()
-		.flatten()
+		self.order().into_iter().filter(|w| match w {
+			Which::Cpu => self.cpu_shown(),
+			Which::Mem => self.mem.is_some(),
+		})
 	}
 
 	pub fn count(&self) -> usize {
@@ -484,5 +516,82 @@ mod tests {
 		assert_eq!(g.widths().collect::<Vec<_>>(), [none.width]);
 		assert_eq!(g.tooltip(), "CPU");
 		assert!(Graphs::new(none).cpu_shown());
+	}
+
+	// Test ID: dedqp
+	#[test]
+	fn the_saved_order_lays_them_out_and_one_it_leaves_out_goes_last() {
+		let mut g = both();
+		let order = |names: &[&str]| names.iter().map(|n| (*n).to_string()).collect();
+		g.set_look(
+			Look {
+				cpu_width: 40,
+				mem_width: 100,
+				order: order(&["mem", "cpu"]),
+				..Look::default()
+			},
+			None,
+		)
+		.unwrap();
+		assert_eq!(g.widths().collect::<Vec<_>>(), [100, 40]);
+		let (w, h) = (140, 10);
+		let left = g.mem.as_mut().unwrap().render(100, h, 1).to_vec();
+		let right = g.cpu.render(40, h, 1).to_vec();
+		let px = g.render(w, h, 1).to_vec();
+		for r in 0..h {
+			assert_eq!(
+				&px[r * w..r * w + 100],
+				&left[r * 100..(r + 1) * 100],
+				"{r}"
+			);
+			assert_eq!(
+				&px[r * w + 100..(r + 1) * w],
+				&right[r * 40..(r + 1) * 40],
+				"{r}"
+			);
+		}
+		assert!(g.hover(Some((5, 3)), w, h));
+		assert_eq!(g.mem.as_ref().unwrap().hover, Some(5));
+		assert_eq!(g.cpu.hover, None);
+		assert!(g.hover_tip(105, 3, w, h, 1).contains("CPU 50%"));
+		assert!(g.tooltip().starts_with("Memory"), "{}", g.tooltip());
+		// stacked, the first is on top
+		g.stacked = true;
+		assert!(g.hover(Some((6, 7)), 10, 10));
+		assert_eq!(g.cpu.hover, Some(6));
+		assert!(g.hover(Some((6, 2)), 10, 10));
+		assert_eq!(g.mem.as_ref().unwrap().hover, Some(6));
+		g.stacked = false;
+		// a name it doesn't know is skipped, and a graph it doesn't name goes last
+		for (saved, want) in [
+			(order(&["mem"]), [100, 40]),
+			(order(&["net", "mem"]), [100, 40]),
+			(order(&["cpu"]), [40, 100]),
+			(Vec::new(), [40, 100]),
+		] {
+			let look = Look {
+				order: saved,
+				..g.look().clone()
+			};
+			g.set_look(look, None).unwrap();
+			assert_eq!(g.widths().collect::<Vec<_>>(), want, "{:?}", g.look().order);
+		}
+		// a hidden graph keeps its place for when it's back
+		let look = Look {
+			order: order(&["mem", "cpu"]),
+			show_memory: false,
+			..g.look().clone()
+		};
+		g.set_look(look.clone(), None).unwrap();
+		assert_eq!(g.widths().collect::<Vec<_>>(), [40]);
+		g.set_look(
+			Look {
+				show_memory: true,
+				..look
+			},
+			None,
+		)
+		.unwrap();
+		assert_eq!(g.widths().collect::<Vec<_>>(), [100, 40]);
 	}
 }
