@@ -24,8 +24,8 @@ Sorted per the notes in [Template](#template).
 - A theme per graph
 	- ID: 2026102508393159
 	- Type: Feature
-	- Status: Waiting for answers
-		- Waits on the question in questions.md on how a theme per graph sits with the Themes tab.
+	- Status: Queued
+		- Answered 2026-10-25: one theme colors every graph, so no graph picks its own. The Themes tab may already work this way. Check it, add a test, and take the theme dropdown out of the graph list item.
 	- Priority|Severity: High
 	- Opened: 20261025-083931
 	- Opened by: t00mietum
@@ -33,13 +33,15 @@ Sorted per the notes in [Template](#template).
 	- Prereq IDs: 2026102508393152
 	- Related IDs: 2026102409400679, 2026102409400684
 	- Requirements:
-		- Each graph picks a named theme of its own.
+		- Each theme defines colors for all monitors.
+		- The CRUD controls for themes are at the top of the Themes tab, and stay in place on every per-monitor sub-tab.
+		- Changing the theme changes the colors that every sub-tab shows.
 
 - Memory cache counts slab, the way b23's multiload-ng does
 	- ID: 2026102508354893
 	- Type: Enhancement
-	- Status: Waiting for answers
-		- Waits on the question about it in questions.md.
+	- Status: Queued
+		- Answered 2026-10-25: yes, count reclaimable slab as cache, always, like `free`.
 	- Priority|Severity: Avg
 	- Opened: 20261025-083548
 	- Opened by: t00mietum
@@ -878,6 +880,7 @@ Sorted per the notes in [Template](#template).
 			- Grippers on the right to vertically reorder monitors with the mouse.
 	- Progress log:
 		- Split into 6 children, in this order: 2026102508393152 (on or off and a width per graph), 2026102508393154 (order), 2026102508393156 (time function per graph), 2026102508393159 (theme per graph), 2026102508393161 (the list itself), and 2026102508393163 (live graphs in it).
+		- 2026-10-25: no theme dropdown per graph after all. One theme colors every graph, per the answer on 2026102508393159.
 
 - A time function per graph
 	- ID: 2026102508393156
@@ -903,7 +906,7 @@ Sorted per the notes in [Template](#template).
 	- Parent ID: 2026102408304639
 	- Prereq IDs: 2026102508393152, 2026102508393154, 2026102508393156, 2026102508393159
 	- Requirements:
-		- A row per graph on the first tab, in columns: a checkbox to show it, a space for its live graph, its width as a text box, a time function dropdown, a theme dropdown, and a gripper on the right to drag it up or down.
+		- A row per graph on the first tab, in columns: a checkbox to show it, a space for its live graph, its width as a text box, a time function dropdown, and a gripper on the right to drag it up or down.
 		- It replaces the per-graph rows under the Graphs heading.
 
 - Live graphs in the graph list
