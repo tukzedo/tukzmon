@@ -493,6 +493,33 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: None in the repo, as for 2026102416252892. The check was watched to fail on each kind of bad ID.
 
+- CICD reset: version line
+	- ID: 2026102416252897
+	- Type: Task
+	- Status: Waiting on UAT
+		- It departs from the wording in one way. Nothing has an About box yet, so only `--version` prints the line. One added later would show the same line.
+		- A build from a tree with changes to the program's sources, or from outside git, isn't any commit, so it takes the time it was built. That's a call for a person to make.
+	- Priority|Severity: Avg
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304652
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- It overrides how 2026102408304652 stamps the build, from the time of the build.
+		- `--version` and About print `tukzmon-settings v<version> build <build>`, then the copyright line. The build number is the commit's time in minutes since 2000, in lower-case Crockford base 32.
+		- A non-release build adds its date after the build number, from that same time, in the viewer's time zone.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `tukzmon-settings --version` prints `tukzmon-settings v0.1.0 build dedp0 (2026-10-25)`, then the copyright line.
+		- The build number is HEAD's commit time. `SOURCE_DATE_EPOCH` wins when set. A build with changes under `settings/`, `core/`, `knobs/` or the Cargo files, or with no git, takes the time it was built.
+		- A build with `TUKZMON_RELEASE=1` leaves the date off, as before.
+		- Verified: a clean build gave the commit's minute, `SOURCE_DATE_EPOCH` gave its own, a changed source file and a tree outside git each gave the time of the build, and a release build had no date. A time zone a day ahead showed the next day.
+	- Decisions:
+		- A change only to docs, such as the backlog, still counts as the commit, since it doesn't change the program.
+	- Branch: round-1025
+	- Test case: `tests::the_version_line_has_the_build_and_a_dev_build_its_day` (dednz). It failed with the date left off a dev build, and passes now.
+
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
@@ -769,32 +796,6 @@ Sorted per the notes in [Template](#template).
 		- Charge and state from `/sys/class/power_supply/BAT*`: charging, discharging, and the critical level.
 		- No collector on a box with no battery.
 
-- CICD reset: a test for every Done item
-	- ID: 2026102416252894
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- 4 Done items have no `Test case` row. The build date one needs a test. The 3 answered questions get a few words on why there's none.
-		- Every Done feature and bug from now on names its test's ID, or says why it has none.
-
-- CICD reset: version line
-	- ID: 2026102416252897
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304652
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- It overrides how 2026102408304652 stamps the build, from the time of the build.
-		- `--version` and About print `tukzmon-settings v<version> build <build>`, then the copyright line. The build number is the commit's time in minutes since 2000, in lower-case Crockford base 32.
-		- A non-release build adds its date after the build number, from that same time, in the viewer's time zone.
-
 - CICD reset: CICD process gaps
 	- ID: 2026102416252898
 	- Type: Task
@@ -911,6 +912,27 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- CICD reset: a test for every Done item
+	- ID: 2026102416252894
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- 4 Done items have no `Test case` row. The build date one needs a test. The 3 answered questions get a few words on why there's none.
+		- Every Done feature and bug from now on names its test's ID, or says why it has none.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The build date item names the version line's test, which checks the date in the viewer's time zone. The 3 questions each say why they have none.
+		- The test ID check in lint now fails on a Done item with no `Test case` row, and on an ID a `Test case` row names that no test has.
+		- Verified: the check failed on a planted Done item with no row, and on a row naming an unknown ID.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892. The check was watched to fail on both.
+	- Closed: 20261025-075906
 
 - CICD reset: container cleanup
 	- ID: 2026102416252890
@@ -1046,6 +1068,7 @@ Sorted per the notes in [Template](#template).
 		- `tukzmon-settings --version` shows "0.1.0 (2026-10-24)". The build time is stored, and the date is worked out in the local time zone of whoever runs it.
 		- A build with `TUKZMON_RELEASE=1` leaves the date off. `SOURCE_DATE_EPOCH` is used when set.
 	- Branch: build-date
+	- Test case: `tests::the_version_line_has_the_build_and_a_dev_build_its_day` (dednz), added with 2026102416252897, which also moved the stamp to the commit's time.
 	- Closed: 20261024
 
 - Finish the requirement for moving between time spans
@@ -1060,6 +1083,7 @@ Sorted per the notes in [Template](#template).
 		- The log axis item has a sentence that stops partway: "The transition from 1m to 1h to 1d to "everything" should".
 	- Progress log:
 		- Finished: it should be smooth, with no obvious gate or line behind the scenes. `design.md` has how under Time axis.
+	- Test case: None, since it was a question. The log axis item's tests cover the answer.
 	- Closed: 20261019
 
 - Confirm the language split
@@ -1074,6 +1098,7 @@ Sorted per the notes in [Template](#template).
 		- OK or change the proposal in `design.md` under Code layout: a Rust core library, and a short C file per panel only where the panel API is C.
 	- Progress log:
 		- OK'd as proposed. `design.md` now lists it as settled.
+	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019
 
 - What "Local" means on the network graph
@@ -1089,6 +1114,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Local is 127.0.0.1, the loopback device.
 		- A LAN and internet split is its own item, 2026101916274800.
+	- Test case: None, since it was a question. The network collector's tests will cover the answer.
 	- Closed: 20261019
 
 **Stop here for a next release**

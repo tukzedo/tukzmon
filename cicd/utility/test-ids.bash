@@ -15,7 +15,10 @@
 ##		test-ids.bash at WHEN [N]       the same for a past time, as date -d reads it
 ##		test-ids.bash when ID ...       the time each ID stands for, in UTC
 ##		test-ids.bash list              every test, as ID and name
-##		test-ids.bash check             every test has a sane ID and no 2 share one
+##		test-ids.bash check             every test has a sane ID and no 2 share one,
+##		                                every Done item in the backlog has a
+##		                                Test case row, and every ID one names
+##		                                is a test's
 ##		test-ids.bash annotate          a filter on cargo test's output (stderr
 ##		                                too), turning each libtest result line
 ##		                                into "PASS|FAIL|SKIP ID name"
@@ -129,6 +132,32 @@ fNew() {   ## fNew MINUTES COUNT
 
 fWhen() { local -i m; m="$(fDecode "$1")" || return 1; printf '%s  %s\n' "$1" "$(date -u -d "@$((epoch2000 + m * 60))" '+%Y-%m-%d %H:%M UTC')"; }
 
+## Done items with no Test case row, and IDs a Test case row names that no
+## test has. A word counts as an ID when it would be a sane one, so "seven",
+## which stands for 2050, doesn't.
+fBacklog() {   ## fBacklog FIRST NOW KNOWN-IDS-FILE
+	local log="${root}/project/backlog.md"
+	[[ -f "${log}" ]] || return 0
+	awk -v first="$1" -v now="$2" -v known="$3" -v file="project/backlog.md" -v digits="${digits}" '
+		BEGIN { while ((getline k < known) > 0) have[k] = 1 }
+		function done_item() { if (status == "Done" && !tc) printf "%s:%d: %s is Done with no Test case row\n", file, at, id }
+		/^## Template/ { done_item(); status = ""; exit }
+		/^- / { done_item(); at = NR; id = "?"; status = ""; tc = 0 }
+		/^\t- ID: / { id = $3 }
+		/^\t- Status: / { status = $0; sub(/^\t- Status: */, "", status) }
+		/^\t- Test case:/ {
+			tc = 1; n = split($0, w, /[^0-9a-z]+/)
+			for (i = 1; i <= n; i++) {
+				if (length(w[i]) != 5) continue
+				m = 0; ok = 1
+				for (j = 1; j <= 5; j++) { d = index(digits, substr(w[i], j, 1)); if (!d) { ok = 0; break }; m = m * 32 + d - 1 }
+				if (ok && m >= first && m <= now && !(w[i] in have)) printf "%s:%d: %s names %s, which no test has\n", file, NR, id, w[i]
+			}
+		}
+		END { done_item() }
+	' "${log}"
+}
+
 fCheck() {
 	local id crate name at prob; local -i bad=0 count=0 m now first
 	local -A seen=()
@@ -144,6 +173,7 @@ fCheck() {
 		[[ -z "${prob}" ]] || { printf 'test-ids: %s\n' "${prob}" >&2; bad+=1; }
 	done < <(fScan)
 	while IFS= read -r prob; do printf 'test-ids: %s\n' "${prob}" >&2; bad+=1; done < <(fStrays)
+	while IFS= read -r prob; do printf 'test-ids: %s\n' "${prob}" >&2; bad+=1; done < <(fBacklog "${first}" "${now}" <(printf '%s\n' "${!seen[@]}"))
 	if ((bad)); then
 		printf 'test-ids: %d problem(s). A new test takes its ID from cicd/utility/test-ids.bash new\n' "${bad}" >&2
 		return 1
@@ -200,4 +230,4 @@ esac
 
 ##	History:
 ##		- 2026-10-25: Created, from silkterm's test-id.py, in Crockford base 32
-##		  minutes.
+##		  minutes. check also reads the backlog's Test case rows.
