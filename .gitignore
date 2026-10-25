@@ -7,3 +7,6 @@
 .vscode/
 .idea/
 .DS_Store
+
+# Pipeline output
+/cicd/artifacts/
