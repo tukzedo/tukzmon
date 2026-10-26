@@ -616,7 +616,7 @@ Sorted per the notes in [Template](#template).
 		- A slider can now reach less far than its box takes. The box takes width 16 to 4096, sample time 50 to 60000 ms, and border 0 to 16. The sliders still go 24 to 1024, 100 to 5000, and 0 to 4. Spike emphasis stays 0 to 100. The tip says both ranges.
 		- The spike tip says what 0% and 100% do.
 		- The buttons are Cancel, Apply, and Apply and close, which is still the Enter default.
-		- Verified, 2026-10-25, build deea9: in the light and dark GTK themes, the tabs are twice the text height, the selected tab keeps the normal text color and reads well, and the buttons are Cancel, a double gap, Apply, and Apply and close. A typed width of 2000 was kept, with the slider at its end, and saved.
+		- Verified, 2026-10-25, build deea9: in a light theme and the dark GTK theme, the tabs are twice the text height, the selected tab keeps the normal text color and reads well, and the buttons are Cancel, a double gap, Apply, and Apply and close. A typed width of 2000 was kept, with the slider at its end, and saved.
 	- Decisions:
 		- "Double space" is read as twice the theme's gap between buttons.
 		- The slider's reach is a `slider_range` key in settings.shcl, read by tukzmon, since knobs has to stay the same as SilkTerm's.
