@@ -199,8 +199,8 @@ Sorted per the notes in [Template](#template).
 - CICD reset: leak checks, Miri
 	- ID: 2026102516060729
 	- Type: Task
-	- Status: Waiting on automated testing
-	- Needs local test suite run?: `cicd/cicd.bash --backlog-run-quick miri`, which takes hours. The step has run on the axis tests only. Every test ran under Miri one at a time, before the ignores and the float flag, which they came from. All but the slow dice test finished.
+	- Status: Done
+	- Needs local test suite run?: No. The full Miri step passed on 2026-10-25.
 	- Priority|Severity: Avg
 	- Opened: 20261025-160607
 	- Opened by: t00mietum
@@ -221,6 +221,7 @@ Sorted per the notes in [Template](#template).
 		- It's a leak check that takes hours, so it runs only in `--long`, with `--leakcheck`, or as the `miri` area. The tests took about 7 hours of CPU under Miri one at a time, so nearly an hour at 8 at a time, which would push the default run past its hour. A test that parses the settings spec takes 3 to 11 minutes. One dice test ran past 20 minutes and wasn't waited for, so the step takes at least that long.
 	- Branch: round-1025b
 	- Test case: None in the repo, as for 2026102516060718. The step was watched to fail.
+	- Verified 2026-10-25: `cicd/cicd.bash --backlog-run-quick miri` on 5c996ac passed in 68m 51s, with 154 tests, 16 of them skipped by their ignore attributes. Log was in the round's run folder.
 
 - Core library and Linux collectors
 	- ID: 2026101916013884
@@ -493,7 +494,7 @@ Sorted per the notes in [Template](#template).
 - CICD reset: CICD process gaps
 	- ID: 2026102416252898
 	- Type: Task
-	- Status: Queued
+	- Status: Waiting on UAT
 	- Needs hand testing: on b23, run `cicd/cicd.bash` with no options. It dogfoods, which restarts the live panel, so a round doesn't run it.
 	- Priority|Severity: Avg
 	- Opened: 20261024-162528
@@ -515,11 +516,12 @@ Sorted per the notes in [Template](#template).
 		- No `dogfood_tukzmon.ps1` launcher either. The panel starts the plugin and the plugin starts tukzmon-settings, so there's nothing for a person to launch.
 		- No publish step yet, since none was asked for here.
 	- Branch: round-1025
+	- 2026-10-25: every child is Done. Only the no-options run in the hand test row is left, which dogfoods.
 
 - CICD reset: leak checks
 	- ID: 2026102506591278
 	- Type: Task
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261025-065912
 	- Opened by: t00mietum
@@ -530,6 +532,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Split into children: clippy and the advisory scan 2026102516060718 (Done), sanitizers 2026102516060724, Miri 2026102516060729, and the soak test 2026102516060734.
 	- Branch: round-1025b
+	- All 4 children are Done as of 2026-10-25: clippy and advisories, sanitizers, Miri, and the soak test.
 
 - tukzmon-settings --version aborts when its output can't be written
 	- ID: 2026102519030128
