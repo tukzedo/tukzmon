@@ -33,175 +33,6 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- b23's multiload-ng has `graph-mem-procps-compliant=true`, so it counts slab as cache. tukzmon counts `Cached` alone, per 2026102408512192, so its cache band is thinner and user thicker than multiload-ng showed.
 
-- Proof of concept: CPU graph in the XFCE panel, dogfooded on b23
-	- ID: 2026102319155124
-	- Type: Feature
-	- Status: Waiting on UAT
-	- Priority|Severity: High
-	- Opened: 20261023-183946
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-	- Related IDs: 2026101916013884, 2026101916013885, 2026101916013886, 2026101916013889
-	- Requirements:
-		- CPU only, on XFCE 4.
-		- Settings are a standalone app that uses a shcl config file, since the graph is meant to be cross-platform.
-		- Start with the colors from my customized multiload-ng setup.
-		- Use SilkTerm's Settings model, but drawn with Qt: the lightest-weight, fully cross-platform, Rust-compatible, maintained version.
-		- If that Qt needs its own file format that goes out to users, use it for user settings too.
-	- Progress log:
-		- Built: the core library, the plugin, and tukzmon-settings in Qt 6 Widgets. The defaults are the multiload-ng CPU colors.
-		- Qt doesn't need a file of its own, so settings stay in shcl, at `~/.config/tukzmon/tukzmon.shcl`.
-		- SilkTerm's settings model, knobs, is MIT now under Bubbles, in both projects, and copied in here.
-		- The panel only loads plugins from its system folders. `utility/dev-install.bash` installs to `~/.local/lib/tukzmon`, links it there with sudo, and restarts the panel. It's in b23's live panel now.
-		- Not done yet: history kept across restarts, a live preview before Apply, and the search box.
-	- Branch: dev
-
-- Settings window: tabs, highlight, number boxes, tips, and buttons
-	- ID: 2026102408304546
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
-		- The look of the tabs, the highlight and the button gaps is for a person to judge, in the real theme.
-	- Needs hand testing: open Settings from the panel on b23, in its light and dark themes, and check the tab height, the selected tab, the button gaps, and typing a width past 1024.
-	- Priority|Severity: High
-	- Opened: 20261024-082803
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-		- Answered 2026-10-25 for this item and the other 9 from round-1024: a round may install with `--no-restart`, so round-1025 put this build on b23.
-	- Requirements:
-		- The tabs are too vertically narrow.
-		- The highlight is too bright, and dark-mode text (i.e. white) is hard to read.
-			- Make it more readable in either dark or light mode, more like nemo-anywhere (which is a different system, C and GTK).
-		- Numeric input boxes:
-			- Allow manually typing values that exceed the slider range, but are still sane.
-		- Spike emphasis % flyover tip text: Explain what 0% and 100% would do.
-		- Buttons:
-			- [Cancel] <double space> [Apply] <single space> [Apply and close]
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- Tabs are twice the text height.
-		- The selected tab is a 35% tint of the theme's highlight over the list background, with the normal text color on it.
-		- A slider can now reach less far than its box takes. The box takes width 16 to 4096, sample time 50 to 60000 ms, and border 0 to 16. The sliders still go 24 to 1024, 100 to 5000, and 0 to 4. Spike emphasis stays 0 to 100. The tip says both ranges.
-		- The spike tip says what 0% and 100% do.
-		- The buttons are Cancel, Apply, and Apply and close, which is still the Enter default.
-	- Decisions:
-		- "Double space" is read as twice the theme's gap between buttons.
-		- The slider's reach is a `slider_range` key in settings.shcl, read by tukzmon, since knobs has to stay the same as SilkTerm's.
-		- A value past the old range in the file used to fall back to the default. Now it's kept, up to the new limits.
-	- Branch: round-1024
-	- Test case: `config::tests::slider_ranges_sit_inside_their_range` (decb4) and `dialog::tests::the_box_takes_more_than_the_slider_reaches` (decb5). Both fail on the old spec and pass now. The tab look and buttons have no test.
-		- 2026-10-24: `dialog::tests::sliders_snap_to_detents_and_gates_turn_on` now gets the width setting through `Dialog::slider` instead of the spec, so it maps over the slider's range. What it checks is unchanged.
-
-- Option for persistent graph
-	- ID: 2026102408304572
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
-		- It's on by default, and turning it back on reloads the file. Both are calls for a person to make.
-	- Needs hand testing: on b23, restart the panel and then reboot, and check that the graph comes back with a gap for the time it was down. Then turn "Keep across restarts" off for a minute and back on.
-	- Priority|Severity: High
-	- Opened: 20261024-082803
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-	- Related IDs: 2026101916013885
-	- Requirements:
-		- Max age (days); default 365.
-		- Note: Don't delete values when disabled, just don't log new ones until reenabled.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- History is saved to `$XDG_DATA_HOME/tukzmon/plugin-<id>.hist` every 15 minutes and when the panel quits, and read back on start. The time it was down is a gap.
-		- Settings has a History heading on the Graph tab, with "Keep across restarts" (on) and "Max age in days" (365).
-		- `design.md` History has the details.
-		- Verified: a panel stop and start kept the first run's history, and off left the file as it was. Turned back on, it reloaded, with a gap for the time it was off.
-	- Decisions:
-		- Off stops both saving and loading, and keeps the file. Turned back on, the file is loaded again, so what the graph showed while it was off is replaced by the saved history, with a gap for that stretch. That's how "don't log new ones" was read.
-		- Max age is dropped at each save and load, and only while it's on.
-		- Times are Unix seconds now, not seconds since start, so runs line up.
-	- Branch: round-1024
-	- Test case: `history::tests::encode_and_decode_give_back_the_same_history` (decbg), `decode_refuses_what_encode_wouldnt_write` (decbh), `trim_drops_only_what_is_older` (decbj), the 3 `keep::tests` (decbk, decbm, decbn), `tests::saved_history_comes_back_with_a_gap` (decbp), `a_clock_set_back_still_takes_new_samples` (decbq), `load_trims_to_the_max_age_and_refuses_junk` (decbr), and `config::tests::history_is_kept_a_year_by_default` (decbf).
-
-- A dropdown for time function
-	- ID: 2026102408304586
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
-		- Which curve reads best, and the names, are for a person to judge on a graph with days of history.
-		- It departs from the wording in 2 ways. Log B was read as the fixed divisions laid over the 5 s floor curve. And one tip covers all 3 choices and names the divisions, rather than a tip per item in the list.
-	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
-	- Needs hand testing: on b23, open Settings and read the Log curve names and tip. Then switch between the 3 curves on a graph with a few days of history.
-	- Priority|Severity: High
-	- Opened: 20261024-082803
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-	- Related IDs: 2026101916013886
-	- Requirements:
-		- Pure log with a fixed 5 s floor (u = ln(1+age/5) / ln(1+total/5), where 5 s is the code's A0).
-			- With a better name.
-			- Default.
-		- Log A with fixed divisions. The existing formula. Show the divisions in its tooltip.
-		- Log B with fixed divisions. The existing formula. Show the divisions in its tooltip.
-			- Use a different formula: Pure log with a fixed 5 s floor (u = ln(1+age/5) / ln(1+total/5), where 5 s is the code's A0).
-				- Or just a less bunched-up log formula.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- Settings has a Log curve dropdown under Log time axis, with Smooth log (the default), "Log A, fixed divisions", and "Log B, fixed divisions". Picking one turns the log axis on.
-		- Smooth log is the 5 s floor log across the whole run, with no divisions.
-		- Log A is the old curve. Log B keeps the divisions but places them on the Smooth log curve, so it matches Smooth log until a division fills, about 1.7 days in for the first.
-		- The settings window now opens tall enough for the whole Graph tab, which the new row had pushed into a scroll bar.
-		- `design.md` Time axis has the details.
-	- Decisions:
-		- The dropdown sits under the Log time axis checkbox rather than replacing it, so settings files keep working and a linear graph stays one click away.
-		- Saved as `graph.log_curve`: `smooth`, `fixed_a` or `fixed_b`. A file without it gets Smooth log, so b23's graph changes from Log A to Smooth log at the next install.
-	- Branch: round-1024
-	- Test case: `axis::tests::smooth_is_one_log_curve_with_no_caps` (decbs), `fixed_b_is_smooth_until_a_cap` (decbt), `caps_pin_when_the_tip_says` (decbv) and `curves_parse_as_the_spec_spells_them` (decbw), with the other axis tests now run over all 3 curves. Also `config::tests::the_log_curve_comes_from_the_file` (decbx), `tests::log_axis_takes_the_chosen_curve` (decby), and `dialog::tests::the_log_curve_sits_under_the_log_switch` (decbz). The window height has no test.
-		- Swept: every `Axis::log` and `Axis::knots` caller, in core, its tests, and the preview example. The plugin and settings build no axis of their own.
-
-- Show snapshot time on mouseover
-	- ID: 2026102408304599
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
-		- How the line looks, and which tip format is the default, are for a person to judge.
-		- It departs from the wording in 2 ways. The tip also gives the CPU shares at the line's time, in place of the old tip with the latest read. And the line's color can be changed, under Colors.
-	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
-	- Needs hand testing: on b23, hover the graph in the panel on a graph with a few days of history, and read the line and the tip in both Hover shows settings.
-	- Priority|Severity: High
-	- Opened: 20261024-082803
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-	- Requirements:
-		- In the graph, show a thin black vertical line where the mouse is hovering.
-		- Mouseover text: How long ago the line is at. Configurable in settings:
-			- Date/time (expressed in current user's time).
-				- If after midnight, just the time (24-hour or 12-hour depending on user's OS-defined settings).
-				- If before previous midnight, date and time (in user's OS-defined short settings).
-			- How long ago, e.g.:
-				- 5 min ago
-				- 7 hrs ago
-				- 3 days ago
-				- 2 wks ago
-				- 9 mos ago
-				- 2 yrs ago
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- A line one pixel wide follows the pointer over the graph, black by default, and set under Colors as Hover line.
-		- The tip gives the time under the line, then the CPU shares there, or No data for a gap.
-		- Hover shows, on the Graph tab, picks How long ago or Date and time. Date and time is the locale's short time, with its short date for anything before today.
-		- `design.md` Drawing and XFCE plugin have the details.
-		- Verified: in a test panel the line followed the pointer and went away when it left. The tip read "15 sec ago" and kept counting while the pointer was still, and gave "09:34:52 AM" in Date and time.
-	- Decisions:
-		- How long ago is the default, since the requirement's first line asks for it.
-		- "OS-defined settings" is read as the locale's `LC_TIME`.
-		- Units round down, so 90 minutes is "1 hr ago". Under a minute is in seconds, and under a second is "just now".
-		- The tip is the graph's own now, so the old tip with only the latest read is gone. At the right edge it gives about the same numbers.
-	- Branch: round-1024
-	- Test case: `when::tests::ago_reads_like_the_backlog_says` (decca), `said_parses_as_the_spec_spells_it` (deccb) and `clock_gives_the_date_only_before_today` (deccc), `render::tests::the_hover_line_stays_off_the_border` (decc9), `tests::the_hover_tip_says_when_and_what` (decc6), `the_hover_tip_shows_gaps_and_no_history` (decc7) and `the_hover_line_is_drawn_where_the_pointer_is` (decc8), and `config::tests::the_hover_settings_come_from_the_file` (decc5). The pointer events, and when GTK shows the tip, have no test.
-		- Swept: every `Graph::tooltip` caller, every `Look` built in a test, and every `gtk_widget_set_tooltip_text` call, of which none is left.
-
 - Theme presets, with a coordinated Default
 	- ID: 2026102409400679
 	- Type: Feature
@@ -209,8 +40,9 @@ Sorted per the notes in [Template](#template).
 		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
 		- How the built-in themes look is for a person to judge.
 		- It departs from the wording in one way. b23's file sets 2 colors with no theme line, so it opens as Custom, with exactly the colors it has now. Picking Default there gives the coordinated set.
+		- Stand-in, 2026-10-25, build deea9: each built-in theme drew both graphs in a test panel, and a pick took effect at once. Only the look is left.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
-	- Needs hand testing: on b23, open Settings, pick each theme on the Colors tab and Apply, and look at the panel graph. Then pick Default.
+	- Needs hand testing: on b23, after a panel restart, pick each theme on the Themes tab, Apply, and judge how it looks on the panel graph, Default most of all.
 	- Priority|Severity: High
 	- Opened: 20261024-094007
 	- Opened by: t00mietum
@@ -239,118 +71,15 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-24: `config::tests::defaults_are_the_multiload_colors` got new values only. System went from `#c64600` to `#c64200`, the border from `#40806a` to `#408060`, and the top from `#2a5446` to `#2a543f`.
 		- Swept: every `Model::load`, `Look::load` and `Look::from_model` caller, and every color row in `settings.shcl`. The plugin reads through `Look::load`, and the window through `config::model`.
 
-- Themes tab, with Save, Save as, Rename and Delete
-	- ID: 2026102409400684
-	- Type: Feature
-	- Status: Waiting on UAT
-		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
-		- How the tab and the theme buttons look and feel is for a person to judge.
-		- It departs from the wording in one way. The colors the graphs share, the border, background and hover line, are on a Background sub-tab beside CPU.
-	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
-	- Needs hand testing: on b23, open Settings, go to Themes, and Save as a theme of your own. Change a color, Save, Rename it, Apply, and check the panel graph. Then Delete it.
-	- Priority|Severity: High
-	- Opened: 20261024-094007
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-	- Parent ID: 2026102408304612
-	- Prereq IDs: 2026102409400679
-	- Requirements:
-		- A Themes tab, with a top row that stays while its sub-tabs change: Name [Dropdown], [Save] [Save as...] [Rename...] [Delete].
-		- Saved themes are kept whole in the config file, and listed in the dropdown after the built-in ones.
-		- Each graph's colors are on a sub-tab of their own.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- The Colors tab is now Themes. Its top row has the Name dropdown with Save, Save as, Rename and Delete, and stays put over the CPU and Background sub-tabs.
-		- Saved themes go in the config file under `themes`, every color written, and the dropdown lists them after the built-ins and before Custom. The panel graph reads them too.
-		- `design.md` Theme and Settings window have the details.
-		- Verified: the window drew the top row over both sub-tabs, with a saved theme picked.
-	- Decisions:
-		- Saved themes are presets added to the spec at load, so knobs is unchanged.
-		- Save, Rename and Delete only act on a saved theme. A built-in is kept by Save as.
-		- Delete picks Default. The theme buttons take effect at Apply, like the rest of the window.
-		- A theme's key comes from its name when it's made, and stays through a rename.
-		- A save refuses a theme line it can't read, the same as any other line.
-	- Branch: round-1024
-	- Test case: `config::tests::a_saved_theme_is_listed_after_the_built_ins_and_sets_the_look` (decct), `a_saved_theme_cant_take_a_built_in_key` (deccv), `saved_themes_write_whole_and_read_back` (deccw) and `theme_keys_are_plain_and_free` (deccx), and `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme` (deccy), `save_puts_the_changes_into_the_theme` (deccz), `rename_and_delete` (decd0), `a_theme_saved_by_hand_meanwhile_survives` (decd1) and `a_theme_line_it_cant_read_stops_the_save` (decd2). The dialog tests fail with the themes left out of the save, and the hand-edit one with the merge taken out.
-		- Swept: every `config::model`, `Model::load` and `Look::load` caller. The plugin reads through `Look::load` and the window through `config::model_on`, so both get the saved themes. No code or doc named the old Colors tab.
-
-- Color picker in place of the toolkit's
-	- ID: 2026102409400689
-	- Type: Feature
-	- Status: Waiting on UAT
-		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
-		- How the picker looks and handles is for a person to judge.
-	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
-	- Needs hand testing: on b23, open Settings, go to Themes, click a color chip, and drag in the square and the strip. Check the row behind follows, then Cancel and check the old color and the theme name are back. Then type a hex value and press OK.
-	- Priority|Severity: High
-	- Opened: 20261024-094007
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-	- Parent ID: 2026102408304612
-	- Requirements:
-		- Don't use the toolkit's color dialog. Use something more like SilkTerm's: a saturation and brightness square, a hue strip, value boxes, and Cancel and OK.
-		- Edits show at once, and Cancel puts the old color back.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- A color chip opens our own picker in place of Qt's: a saturation and brightness square, a hue strip, and boxes for red, green, blue, brightness and saturation in percent, plus hex. Cancel and OK are at the bottom.
-		- The row behind follows every change, with its chip, its hex box and the theme's "*". Cancel puts back all that was stored when the picker opened. Esc is Cancel and Enter is OK, and neither reaches the settings window.
-		- The square and the strip take the arrow keys too, a hundredth a press, or a tenth with Shift.
-		- `--snapshot` takes a picture of the picker after the tabs.
-		- `design.md` Settings window has the details.
-		- Verified: in the window, a click in the square moved the User row and showed "Default *", and Esc put back the color and "Default" with Apply off. A typed hex and Enter kept the color, with the settings window still open.
-	- Decisions:
-		- The color model is SilkTerm's, ported to `settings/src/pick.rs`. The picker's state lives in the Rust dialog, so the live edits and Cancel are tested without a window.
-		- Cancel restores everything stored, not just the color. Setting the old color back, as the Qt dialog did, left the window changed after Cancel, so Apply would have pinned that color in the file.
-	- Branch: round-1024
-	- Test case: `pick::tests::a_color_survives_the_trip_through_hsv` (decd5), `a_gray_keeps_the_hue_and_saturation_it_had` (decd6), `the_hue_ramp_hits_the_primaries` (decd7) and `a_typed_value_reaches_what_it_names` (decd8), and `dialog::tests::the_picker_moves_its_row_and_cancel_puts_it_all_back` (decd3) and `the_picker_keeps_what_ok_was_pressed_on` (decd4). The Cancel test fails with the old way of setting the color back, and passes now. The drawing and the pointer have no test.
-		- Swept: the one `QColorDialog` use, now gone, and every color row, which all open the picker through the same chip. No code or doc names the toolkit's dialog.
-
-- Gradient mode per graph, and a Fire theme
-	- ID: 2026102409400695
-	- Type: Feature
-	- Status: Waiting on UAT
-		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
-		- How the gradient and Fire look in the panel is for a person to judge.
-		- It departs from the wording in one way. Only the CPU graph has a sub-tab so far, so only it has the mode. A new graph's sub-tab gets the same rows.
-	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
-	- Needs hand testing: on b23, open Settings, go to Themes, pick Fire and Apply, and look at the panel graph under some load. Then go back to Detailed on the CPU sub-tab and check the Detailed rows come back.
-	- Priority|Severity: High
-	- Opened: 20261024-094007
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-	- Parent ID: 2026102408304612
-	- Prereq IDs: 2026102409400679, 2026102409400684
-	- Requirements:
-		- At the top of each graph's sub-tab: ( ) Detailed ( ) Gradient.
-		- Gradient takes 3 colors, Low, Medium and High, blended smoothly by how high a pixel reaches into the graph.
-		- A built-in "Fire" theme: dim red, yellow-white, bright light blue.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- The CPU sub-tab starts with Colors: ( ) Detailed ( ) Gradient. Only the rows for the mode picked are shown.
-		- Gradient draws the column in a blend of Low, Medium and High by each pixel's height in the plot. The column is as tall as the stack would be.
-		- Fire is a built-in theme in Gradient mode: `#8b1a00`, `#fff4c8` and `#7fd4ff`. The others stay Detailed, and each has a gradient from its own colors for when it's switched.
-		- `design.md` Theme and Settings window have the details.
-		- Verified: the window showed the Detailed rows on Default and the Low, Medium and High rows on Fire, and a drawn graph on Fire ran from dim red at the bottom up toward yellow-white.
-	- Decisions:
-		- The mode is in the theme group, so picking Fire turns on Gradient, and a mode changed by hand shows "Name *" like a color. Saved themes keep it.
-		- The color follows the pixel's height, not the column's, so a busy column climbs into High and a quiet one stays Low.
-		- The radio buttons and showing rows by mode use 2 keys of tukzmon's own in settings.shcl, since knobs has to stay the same as SilkTerm's.
-	- Branch: round-1024
-	- Test case: `render::tests::the_gradient_goes_by_height_not_by_series` (decdk) and `the_blend_hits_its_stops` (decdm), `config::tests::fire_is_a_gradient_and_the_rest_are_detailed` (decdg), `the_mode_shows_only_its_own_rows` (decdh) and `a_saved_theme_keeps_its_mode` (decdj), and `dialog::tests::the_mode_swaps_the_rows_and_fire_is_a_gradient` (decdn). The render test fails with the blend fixed at one height, and the dialog test with every row always shown. The radio buttons have no test.
-		- 2026-10-24: new values only, for the 4 new theme rows and Fire. `config::tests::the_default_theme_is_the_row_defaults` members went from 8 to 12, and it now takes a dropdown for a `_mode` member where it took only colors. `saved_themes_write_whole_and_read_back` went from 8 values to 12. `a_saved_theme_is_listed_after_the_built_ins_and_sets_the_look` lists `fire` after `blue_pastel`. In `dialog::tests`, `save_as_keeps_the_colors_whole_and_picks_the_new_theme` finds Night seventh, not sixth, and counts 11 colors, not 8. `rename_and_delete` counts 8 options, not 7, and `a_theme_saved_by_hand_meanwhile_survives` 9, not 8.
-		- Swept: every `Frame` built (the plugin, the preview example and the render tests), and every use of the theme group's members, which now take a mode as well as colors (`saved_themes`, `theme_problems`, `shown_colors`, the picker, and `unthemed`).
-
 - Randomize button on the Themes tab
 	- ID: 2026102409400700
 	- Type: Feature
 	- Status: Waiting on UAT
 		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
 		- Whether the rolls look good together is for a person to judge.
+		- Stand-in, 2026-10-25, build deea9: in the window a roll changed every color as "Default *", Save as kept it, and the panel graph took it at Apply. Only the look is left.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
-	- Needs hand testing: on b23, open Settings, go to Themes, and press Randomize a few times, with Apply each time, and look at the panel graph. Then Save as one you like, and pick Default to drop a roll.
+	- Needs hand testing: on b23, after a panel restart, press Randomize a few times with Apply, and judge whether the rolls look good together.
 	- Priority|Severity: High
 	- Opened: 20261024-094007
 	- Opened by: t00mietum
@@ -375,36 +104,6 @@ Sorted per the notes in [Template](#template).
 	- Test case: `dice::tests::every_theme_member_has_a_role` (decdr), `every_roll_is_a_value_its_setting_takes_and_never_a_gradient` (decds), `the_lead_rules_and_the_alarms_stay_red_and_orange` (decdt), `the_quiet_ones_are_muted_and_near_the_lead` (decdv), `the_gradient_runs_from_calm_through_the_lead` (decdw) and `a_seed_rolls_the_same_theme_and_seeds_differ` (decdx), over 2000 seeds each, and `dialog::tests::randomize_changes_every_color_on_the_theme_and_turns_off_the_gradient` (decdq). Each fails with its rule broken: the mode set to gradient, the lead hue let into red, a member left out, nice as bright as user, and Randomize doing nothing.
 		- Swept: every member of the theme group, which the role test walks, and the one theme button row in qt.cpp.
 
-- Transparent background setting
-	- ID: 2026102409400705
-	- Type: Feature
-	- Status: Waiting on UAT
-		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
-		- How it looks over the real panel, with its own background, is for a person to judge.
-	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
-	- Needs hand testing: on b23, open Settings, go to Themes, then Background, tick Transparent and Apply, and look at the panel graph. Then pick another theme and check it stays clear.
-	- Priority|Severity: High
-	- Opened: 20261024-094007
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-	- Parent ID: 2026102408304612
-	- Requirements:
-		- One global setting that makes the graph background transparent, over every theme's background colors.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- Worked at medium effort rather than high, since it's one setting.
-		- A Transparent checkbox sits first on the Background sub-tab, at `graph.transparent`, off by default. On, the Top and Bottom colors aren't drawn and the panel shows through. The border, the graph and the hover line still are.
-		- `design.md` Theme has the details.
-		- Verified: in a test panel, the empty part of the graph showed the panel's own color with it on, and the theme's top color with it off.
-	- Decisions:
-		- It's outside the theme group, so a theme pick, Randomize or Save as leaves it alone.
-		- It sits on the Background sub-tab, next to the colors it replaces, with a tip saying it goes for every theme.
-		- The Top and Bottom rows stay live while it's on, since knobs' gates only turn a row on with a checkbox, not off.
-	- Branch: round-1024
-	- Test case: `render::tests::a_transparent_background_lets_the_panel_through` (decdz), `config::tests::transparent_is_off_and_outlives_any_theme` (decdy) and `dialog::tests::transparent_stays_through_a_theme_pick_and_a_roll` (dece0). The first 2 fail with the setting left unread or the background drawn opaque, and pass with it.
-		- Swept: every reader of the Top and Bottom colors, which is only `render::Frame::draw`, and the hover line in `Graph::render`, which stays opaque.
-
 - Memory graph
 	- ID: 2026102408304625
 	- Type: Feature
@@ -412,8 +111,9 @@ Sorted per the notes in [Template](#template).
 		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
 		- How the 2 graphs look side by side is for a person to judge. On Default, cache is `#408060`, close to the shared top color `#2a543f`.
 		- It departs from the wording in one way. multiload-ng's memory border and background, `#404020` and `#13261d`, aren't used, since every graph shares the Background sub-tab.
+		- Stand-in, 2026-10-25, build deea9: in a test panel the memory graph drew beside CPU, its tip read "Memory 33% in use", every built-in theme recolored it, and with Memory graph off the item narrowed to CPU alone. Only the look is left.
 	- Needs local test suite run?: No. The full run passed on 2026-10-25.
-	- Needs hand testing: on b23, look at the memory graph beside the CPU graph, and hover each for its tip. Then open Settings, go to Themes, Memory, change a color and Apply. Then untick Memory graph on the Graph tab, Apply, and check the panel item gets narrower.
+	- Needs hand testing: on b23, after a panel restart, look at the memory graph beside CPU on Default, and judge whether cache (`#408060`) stands apart from the top color (`#2a543f`).
 	- Priority|Severity: High
 	- Opened: 20261024-082803
 	- Opened by: t00mietum
@@ -443,173 +143,13 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-25: new values only. `config::tests::the_default_theme_is_the_row_defaults` and `saved_themes_write_whole_and_read_back` count 19 theme members, not 12. `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme` counts 17 colors, not 11.
 		- Swept: every `Graph` use (the plugin, now through `Graphs`, and the lib tests), every `cpu_paint` caller, every `keep::write` caller, and every theme member, which the role and row-default tests walk.
 
-- Turn each graph on or off, with a width each
-	- ID: 2026102508393152
-	- Type: Feature
-	- Status: Waiting on UAT
-		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
-		- The 0-means-Width rule and CPU showing when nothing else does are for a person to judge.
-	- Needs local test suite run?: No. The full run passed on 2026-10-25.
-	- Needs hand testing: on b23, open Settings, set CPU width px to 40 and Apply, and check the CPU graph gets narrower beside memory. Then untick CPU graph, Apply, and check only memory is left. Then untick Memory graph too, and check CPU comes back.
-	- Priority|Severity: High
-	- Opened: 20261025-083931
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-	- Parent ID: 2026102408304639
-	- Requirements:
-		- A setting per graph to show it or not, CPU included.
-		- A width per graph, in the same DPI-aware pixels as Width.
-		- The plugin lays the graphs out by their own widths.
-		- Saved configs with `mem.show` keep working.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- Under Graphs on the Graph tab: CPU graph, CPU width px, Memory graph, and Memory width px. Each width is stepped in under its checkbox.
-		- The plugin asks the panel for the sum of the shown widths, and shares out what it gets by width. On a vertical panel they still share the height evenly.
-		- A hidden graph isn't read, and its history comes back with a gap for the hidden time, the same for CPU as for memory.
-		- `design.md` XFCE plugin has the details.
-		- Verified: in a test panel, CPU at 40 and memory at 100 drew 40 and 100 pixels wide. With CPU unticked only memory was left, and with both unticked CPU came back at Width.
-	- Decisions:
-		- A graph's width of 0, the default, means the Width setting, so a saved `graph.width` still sets every graph, and one setting still resizes them all.
-		- `mem.show` is unchanged, and CPU got `cpu.show` beside it, default on.
-		- With every other graph off, CPU shows anyway. A panel item with nothing in it has no width, so its right-click menu, the only way to Settings, couldn't be reached.
-		- Widths are the panel's logical pixels, as Width already was, so they follow the screen scale.
-	- Branch: round-1025
-	- Test case: `graphs::tests::each_graph_takes_its_own_width_and_0_is_width` (dedqd), `cpu_can_be_hidden_but_not_with_nothing_else_shown` (dedqe), and `config::tests::each_graph_has_a_switch_and_a_width` (dedqf). dedqd fails with the widths ignored, and dedqe with CPU always shown.
-		- Swept: every `Graphs::count` and `Look::width` user (the plugin's fit and reload, the layout, the tip and the render), and every `show_memory` reader. `core/examples/preview.rs` draws one `Graph` and has no layout.
-
-- Graph order
-	- ID: 2026102508393154
-	- Type: Feature
-	- Status: Waiting on UAT
-		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
-		- The Order row is plain text for now, which is for a person to judge.
-	- Needs local test suite run?: No. The full run passed on 2026-10-25.
-	- Needs hand testing: on b23, open Settings, type `mem cpu` in Order on the Graph tab and Apply, and check memory is now left of CPU.
-	- Priority|Severity: High
-	- Opened: 20261025-083931
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-	- Parent ID: 2026102408304639
-	- Prereq IDs: 2026102508393152
-	- Requirements:
-		- A saved order of the graphs, which the plugin lays them out in, left to right, or top to bottom on a vertical panel.
-		- A graph added later, such as network, goes at the end of a saved order that doesn't name it.
-	- Estimated effort: Avg
-	- Actual effort: Low
-	- Progress log:
-		- Order, a text row under Graphs on the Graph tab, at `graph.order`, names the graphs first to last: `cpu` and `mem`. The default is `cpu mem`.
-		- The plugin lays them out in that order, and the pointer, the tip and the panel size follow it. A change takes effect at Apply.
-		- `design.md` XFCE plugin has the details.
-		- Verified: in a test panel, `mem cpu` with widths 100 and 40 drew memory 100 wide on the left and CPU on the right. With no order CPU came back first, and a hand-typed `order: mem, cpu` swapped them again.
-	- Decisions:
-		- The names are the graphs' history section names, so a new graph brings its own.
-		- Spaces or commas both work, since shcl reads a bare `mem, cpu` as a list.
-		- A name it doesn't know is skipped, and a graph it doesn't name goes last, in the default order.
-		- A hidden graph keeps its place for when it's shown again.
-		- For 2026102508393161: the Order row is a stand-in. The list's grippers should write `graph.order` and the row should go.
-	- Branch: round-1025
-	- Test case: `graphs::tests::the_saved_order_lays_them_out_and_one_it_leaves_out_goes_last` (dedqp), `config::tests::the_graph_order_reads_with_spaces_or_commas` (dedqq), and `dialog::tests::the_graph_order_is_saved_as_typed_and_reads_back` (dedqr). dedqp fails with the order ignored, and dedqq with the setting left unread.
-		- Swept: every `Graphs::shown` user (count, widths, tiles, the pointer, the tip and the render), and the plugin's fit and reload, which go through `widths`.
-
-- A time function per graph
-	- ID: 2026102508393156
-	- Type: Feature
-	- Status: Waiting on UAT
-		- Not on b23 yet. It needs a build with this and a panel restart.
-		- The labels, As set under Time in particular, and where the rows sit are for a person to judge.
-	- Needs local test suite run?: No. The full run passed on 2026-10-25.
-	- Needs hand testing: on b23, once a build with this is loaded, open Settings, set CPU time axis to Linear and Apply, and check the CPU graph scrolls plainly while memory stays squeezed. Then set Memory time axis to "Log A, fixed divisions", untick Log time axis, Apply, and check memory stays squeezed.
-	- Priority|Severity: High
-	- Opened: 20261025-083931
-	- Opened by: t00mietum
-	- Parent ID: 2026102408304639
-	- Prereq IDs: 2026102508393152
-	- Related IDs: 2026102408304586
-	- Requirements:
-		- Each graph picks its own time function, from the Log curve choices, and maybe a plain linear one.
-		- Saved configs with `graph.log_axis` and `graph.log_curve` keep working.
-	- Estimated effort: Avg
-	- Actual effort: Low
-	- Progress log:
-		- Under Graphs on the Graph tab, each graph has a time axis dropdown under its width: As set under Time, the default, then Linear, Smooth log, "Log A, fixed divisions" and "Log B, fixed divisions".
-		- As set under Time follows Log time axis and Log curve, so a saved file keeps its axis. The Log time axis tip now says a graph can pick its own.
-		- `design.md` Time axis has the details.
-		- Verified: the Graph tab shows each graph's time axis row under its width, and the full run passed.
-	- Decisions:
-		- Saved as `cpu.time` and `mem.time`: `same`, `linear`, `smooth`, `fixed_a` or `fixed_b`. A file without them gets `same`.
-		- `same` follows the Time settings the way a width of 0 follows Width, so one setting still changes every graph with no pick of its own.
-		- Linear is in, since the Time settings already offer it.
-		- Spike emphasis stays under Log time axis. It still applies to a graph on its own log curve while Log time axis is off, though its slider is greyed then. The graph list can sort that out.
-		- For 2026102508393161: the list's time function dropdown should write `<graph>.time`, and these rows should go.
-	- Branch: round-1025b
-	- Test case: `graphs::tests::each_graph_takes_its_own_time_axis_or_the_time_settings` (deea2) and `config::tests::each_graph_has_a_time_axis_and_old_files_keep_theirs` (deea4). deea2 fails with the pick ignored, and deea4 with `cpu.time` left unread.
-		- Swept: every `Graph::axis` caller (the hover span and the render, which the plugin's tip and draw go through), and every `log_axis` and `curve` reader. `core/examples/preview.rs` builds its own log axis and is unchanged.
-
-- CICD reset: standard flags
-	- ID: 2026102416252892
-	- Type: Task
-	- Status: Waiting on UAT
-		- The hook is turned on per clone, so it's off until the step below is run.
-		- It departs from the wording in one way. `--message` is taken but does nothing yet, since the pipeline has no publish step.
-	- Needs local test suite run?: No. `--backlog-run-full` passed on 2026-10-25.
-	- Needs hand testing: in each clone, run `git config core.hooksPath cicd/hooks`. Then on the next push to `main`, see the merge gate run first.
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- `cicd.bash` takes the shared flags: none for the default run under about an hour, `--quick`, `--long` with `--slow` as another name, `--leakcheck`, `--no-leakcheck`, `--backlog-run-quick [<area>...]`, `--backlog-run-full`, `--merge-gate`, `--no-container`, `--no-remote`, `--no-sync`, `--keep-temp`, `--list`, `--help`, `--quiet`, and `--message`.
-		- `--gate` and `--ci` are other names for `--backlog-run-quick` and `--merge-gate`.
-		- The backlog and merge gate runs never dogfood, publish, commit, push, install, sync, rewrite a tracked file, or prompt.
-		- A pre-push hook runs `--merge-gate` on a push to `main` only. A push to `dev` or a feature branch isn't gated, and a docs-only push to `main` skips it, with the docs paths in one place the hook reads.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- `cicd/cicd.bash` takes every shared flag. `--quick` and `--long` run the same steps as the default run for now, since nothing is slow yet.
-		- `--backlog-run-quick` runs the format check, build, lint and tests, or only the areas named: format, build, lint, test, and release. `--backlog-run-full` and `--merge-gate` add the release build.
-		- The 3 hands-off runs don't sync, dogfood or prompt, only check the format, and build with `--locked`, so `Cargo.lock` stays as it is.
-		- `cicd/hooks/pre-push` runs `--merge-gate` on the commit pushed to `main`, in a worktree of its own when the checkout has other changes. A push that changes only the paths in `DOCS_PATHS` in `cicd/config.bash` skips it.
-		- Verified: the hook ran the gate on a push to `main`, let a docs-only push and a push to `dev` through, and refused a commit with a lint error. Uncommitted files didn't change what it gated.
-	- Decisions:
-		- `--list` prints the steps and what's off. Test IDs come with 2026102416252895.
-		- The hook is turned on by a documented step, not by the pipeline, so nobody's pushes get gated without them knowing.
-	- Branch: round-1025
-	- Test case: None in the repo, since `cicd.bash` has no harness of its own yet. The gate was watched to fail on a planted format error and a planted lint error.
-
-- CICD reset: CPU and priority
-	- ID: 2026102416252891
-	- Type: Task
-	- Status: Waiting on UAT
-		- It departs from the wording in one way. `CICD_MAX_JOBS` lets a caller set a lower cap.
-	- Needs local test suite run?: No. `--backlog-run-full` passed on 2026-10-25.
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- Half the logical CPUs, or a quarter when the 1-minute load is over half the CPU count, checked at the start and before each step. The heavy steps, such as the leak checks, use a quarter, busy or not.
-		- The counts are worked out once and passed to cargo's `-j` and `--test-threads`. Now cargo takes every core.
-		- Everything runs under `nice -n 19`, plus `ionice -c 3`. Containers get `--cpus` and `--cpu-shares 256`, and `nice` inside.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- Half the CPUs, or a quarter when the 1-minute load is over half the CPU count, worked out before each step and passed to cargo's `-j` and `--test-threads`. A quarter is kept for the heavy steps, for the leak checks to come.
-		- The pipeline sets nice 19 and ionice idle on itself at the start, so everything it starts inherits them.
-		- Verified: a run used 16 of 32 CPUs at a load of 10, and 8 with the cap set.
-		- Since 2026102416252889, containers get `--cpus` at the run's job count and `--cpu-shares 256`, and the steps in them run under `nice -n 19` and `ionice -c 3`.
-		- Verified: a container ran with 8 CPUs and a share of 256, with its cargo at nice 19.
-	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892.
-
 - CICD reset: containers
 	- ID: 2026102416252889
 	- Type: Task
 	- Status: Waiting on UAT
 		- It departs from the wording in one way. GTK 3 is in the image as its runtime libraries, not the dev package, since the plugin links GTK, cairo and the panel library by soname. The Debian snapshot the image reads pins them, as it does Qt.
-	- Needs hand testing: on b23, run `cicd/cicd.bash` with no options, as on 2026102416252898. It's the one run that builds the release on the host, for dogfood.
+		- Stand-in, 2026-10-25: `--list` for the default run shows Release build and Dogfood on the host, and the merge gate on e131b57 passed in the image. Only the run that dogfoods is left, which a round may not do.
+	- Needs hand testing: on b23, run `cicd/cicd.bash` with no options, as on 2026102416252898. It builds the release on the host, installs it and restarts the panel.
 	- Priority|Severity: High
 	- Opened: 20261024-162528
 	- Opened by: t00mietum
@@ -632,87 +172,6 @@ Sorted per the notes in [Template](#template).
 		- The image has its own target dir. The paths inside differ from the host's, so a shared `target/` would rebuild everything each time a run switched sides.
 	- Branch: round-1025
 	- Test case: None in the repo, as for 2026102416252892. The gate was watched to fail on a planted format error.
-
-- CICD reset: test IDs
-	- ID: 2026102416252895
-	- Type: Task
-	- Status: Waiting on UAT
-		- The knobs copy's test IDs now differ from SilkTerm's, until SilkTerm converts its own. The 2 copies match only if SilkTerm's other tests leave the same minutes free.
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- Every test gets a unique ID, from when it was first committed: whole minutes since 2000-01-01 UTC, in lower-case Crockford base 32. 2 that come out the same take the next free minute, and an ID never changes.
-		- The run prints one line per test, such as `PASS decp8 empty input round-trips`, or `FAIL` or `SKIP`.
-		- `Test case` rows in the backlog name the IDs.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- Every one of the 141 tests has a `// Test ID:` line above it. Ours come from the commit that added each test. The knobs tests came from SilkTerm with base 62 IDs in milliseconds, so theirs were converted from the times those stand for.
-		- The tests step prints `PASS`, `FAIL` or `SKIP`, the ID, and the test's name, in place of each of cargo's own test lines. A skipped test adds its reason.
-		- Lint runs the ID check, which fails on a test with no ID, a shared ID, one that isn't a sane time, or a test somewhere it doesn't look. `--list` prints every test's ID.
-		- `cicd/utility/test-ids.bash new` gives a new test its ID.
-		- The `Test case` rows name the IDs.
-		- Verified: the quick gate printed 141 lines with IDs. A failing test showed as `FAIL` and failed the step, and an ignored one as `SKIP` with its reason. A missing ID, a shared one, an upper-case one, and a test outside `src/` each failed the check.
-	- Decisions:
-		- The name on each line is the test's path as cargo gives it, such as `when::tests::ago_reads_like_the_backlog_says`, so it can be found in the code.
-		- The tool is bash and awk, since the build image has no Python.
-	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892. The check was watched to fail on each kind of bad ID.
-
-- CICD reset: version line
-	- ID: 2026102416252897
-	- Type: Task
-	- Status: Waiting on UAT
-		- It departs from the wording in one way. Nothing has an About box yet, so only `--version` prints the line. One added later would show the same line.
-		- A build from a tree with changes to the program's sources, or from outside git, isn't any commit, so it takes the time it was built. That's a call for a person to make.
-	- Priority|Severity: Avg
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-	- Related IDs: 2026102408304652
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- It overrides how 2026102408304652 stamps the build, from the time of the build.
-		- `--version` and About print `tukzmon-settings v<version> build <build>`, then the copyright line. The build number is the commit's time in minutes since 2000, in lower-case Crockford base 32.
-		- A non-release build adds its date after the build number, from that same time, in the viewer's time zone.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- `tukzmon-settings --version` prints `tukzmon-settings v0.1.0 build dedp0 (2026-10-25)`, then the copyright line.
-		- The build number is HEAD's commit time. `SOURCE_DATE_EPOCH` wins when set. A build with changes under `settings/`, `core/`, `knobs/` or the Cargo files, or with no git, takes the time it was built.
-		- A build with `TUKZMON_RELEASE=1` leaves the date off, as before.
-		- Verified: a clean build gave the commit's minute, `SOURCE_DATE_EPOCH` gave its own, a changed source file and a tree outside git each gave the time of the build, and a release build had no date. A time zone a day ahead showed the next day.
-	- Decisions:
-		- A change only to docs, such as the backlog, still counts as the commit, since it doesn't change the program.
-	- Branch: round-1025
-	- Test case: `tests::the_version_line_has_the_build_and_a_dev_build_its_day` (dednz). It failed with the date left off a dev build, and passes now.
-
-- A killed pipeline run leaves its container and temp folder
-	- ID: 2026102514470001
-	- Type: Bug
-	- Status: Waiting on UAT
-		- It departs from the wording in 2 ways. A run kept with `--keep-temp` still waits 2 days, with its containers, even if it was killed. And a container's run is found by a new `dev.pid` label, the run's process, with `dev.run` for its folder.
-	- Priority|Severity: Low
-	- Opened: 20261025-144700
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-	- Related IDs: 2026102416252890, 2026102416252896
-	- Steps to reproduce:
-		- Start `cicd/cicd.bash --backlog-run-full` and kill it with SIGKILL during a container step.
-	- Incorrect behavior: the container runs on to its end, and the temp folder stays until the 2-day sweep.
-	- Expected behavior: the next run stops containers whose run is gone, by the `dev.run` label, and sweeps its folder when no process from it is left.
-	- Reproduced: 2026-10-25 on b23. After the kill the tests container ran on and the folder stayed, and the old code's next run left both.
-	- Actual fix: a run folder whose run is gone goes at the next run's start once nothing runs from it. The image step stops and removes containers whose run is gone, then sweeps again, since a running container keeps its folder from the first sweep.
-	- Progress log:
-		- Verified: a run killed with SIGKILL as its tests container started had the container stopped and its folder removed by the next run, both with the container still running and after it had ended. A `--keep-temp` run's folder and containers stayed through 2 later runs.
-	- Decisions:
-		- `--keep-temp` writes a `keep` file in the folder at the start, so a kept run that was killed keeps the 2-day wait.
-		- A container's run is its `dev.pid` label, so a run with another temp root isn't taken for gone. One from before that label goes by its run folder.
-	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
 
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
@@ -1072,6 +531,21 @@ Sorted per the notes in [Template](#template).
 		- Split into children: clippy and the advisory scan 2026102516060718 (Done), sanitizers 2026102516060724, Miri 2026102516060729, and the soak test 2026102516060734.
 	- Branch: round-1025b
 
+- tukzmon-settings --version aborts when its output can't be written
+	- ID: 2026102519030128
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261025-190301
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build deea9, and dedr4 on b23.
+	- Steps to reproduce:
+		- Run `tukzmon-settings --version > /dev/full`, or pipe it into `head -1`.
+	- Incorrect behavior: it panics with "failed printing to stdout" and aborts, with exit 134.
+	- Expected behavior: no panic. A closed pipe quits quietly, and a failed write gives one error line and a non-zero exit.
+	- Reproduced: 2026-10-25 on b23, 5 times out of 5 with `/dev/full`.
+	- Possible cause: `println!` in `settings/src/main.rs` panics on a failed write, and the release build aborts on a panic. `--help` likely does the same.
+
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
 	- Type: Feature
@@ -1089,6 +563,496 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Proof of concept: CPU graph in the XFCE panel, dogfooded on b23
+	- ID: 2026102319155124
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261023-183946
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+	- Related IDs: 2026101916013884, 2026101916013885, 2026101916013886, 2026101916013889
+	- Requirements:
+		- CPU only, on XFCE 4.
+		- Settings are a standalone app that uses a shcl config file, since the graph is meant to be cross-platform.
+		- Start with the colors from my customized multiload-ng setup.
+		- Use SilkTerm's Settings model, but drawn with Qt: the lightest-weight, fully cross-platform, Rust-compatible, maintained version.
+		- If that Qt needs its own file format that goes out to users, use it for user settings too.
+	- Progress log:
+		- Built: the core library, the plugin, and tukzmon-settings in Qt 6 Widgets. The defaults are the multiload-ng CPU colors.
+		- Qt doesn't need a file of its own, so settings stay in shcl, at `~/.config/tukzmon/tukzmon.shcl`.
+		- SilkTerm's settings model, knobs, is MIT now under Bubbles, in both projects, and copied in here.
+		- The panel only loads plugins from its system folders. `utility/dev-install.bash` installs to `~/.local/lib/tukzmon`, links it there with sudo, and restarts the panel. It's in b23's live panel now.
+		- Not done yet: history kept across restarts, a live preview before Apply, and the search box.
+		- Verified, 2026-10-25, build deea9: in a test panel the CPU graph drew live beside the memory graph, and tukzmon-settings read and wrote its shcl file.
+	- Branch: dev
+	- Test case: None of its own. Its parts each have an item with tests of their own.
+	- Closed: 20261025-190500
+
+- Settings window: tabs, highlight, number boxes, tips, and buttons
+	- ID: 2026102408304546
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-082803
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+		- Answered 2026-10-25 for this item and the other 9 from round-1024: a round may install with `--no-restart`, so round-1025 put this build on b23.
+	- Requirements:
+		- The tabs are too vertically narrow.
+		- The highlight is too bright, and dark-mode text (i.e. white) is hard to read.
+			- Make it more readable in either dark or light mode, more like nemo-anywhere (which is a different system, C and GTK).
+		- Numeric input boxes:
+			- Allow manually typing values that exceed the slider range, but are still sane.
+		- Spike emphasis % flyover tip text: Explain what 0% and 100% would do.
+		- Buttons:
+			- [Cancel] <double space> [Apply] <single space> [Apply and close]
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Tabs are twice the text height.
+		- The selected tab is a 35% tint of the theme's highlight over the list background, with the normal text color on it.
+		- A slider can now reach less far than its box takes. The box takes width 16 to 4096, sample time 50 to 60000 ms, and border 0 to 16. The sliders still go 24 to 1024, 100 to 5000, and 0 to 4. Spike emphasis stays 0 to 100. The tip says both ranges.
+		- The spike tip says what 0% and 100% do.
+		- The buttons are Cancel, Apply, and Apply and close, which is still the Enter default.
+		- Verified, 2026-10-25, build deea9: in the light and dark GTK themes, the tabs are twice the text height, the selected tab keeps the normal text color and reads well, and the buttons are Cancel, a double gap, Apply, and Apply and close. A typed width of 2000 was kept, with the slider at its end, and saved.
+	- Decisions:
+		- "Double space" is read as twice the theme's gap between buttons.
+		- The slider's reach is a `slider_range` key in settings.shcl, read by tukzmon, since knobs has to stay the same as SilkTerm's.
+		- A value past the old range in the file used to fall back to the default. Now it's kept, up to the new limits.
+	- Branch: round-1024
+	- Test case: `config::tests::slider_ranges_sit_inside_their_range` (decb4) and `dialog::tests::the_box_takes_more_than_the_slider_reaches` (decb5). Both fail on the old spec and pass now. The tab look and buttons have no test.
+		- 2026-10-24: `dialog::tests::sliders_snap_to_detents_and_gates_turn_on` now gets the width setting through `Dialog::slider` instead of the spec, so it maps over the slider's range. What it checks is unchanged.
+	- Closed: 20261025-190500
+
+- Option for persistent graph
+	- ID: 2026102408304572
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-082803
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+	- Related IDs: 2026101916013885
+	- Requirements:
+		- Max age (days); default 365.
+		- Note: Don't delete values when disabled, just don't log new ones until reenabled.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- History is saved to `$XDG_DATA_HOME/tukzmon/plugin-<id>.hist` every 15 minutes and when the panel quits, and read back on start. The time it was down is a gap.
+		- Settings has a History heading on the Graph tab, with "Keep across restarts" (on) and "Max age in days" (365).
+		- `design.md` History has the details.
+		- Verified: a panel stop and start kept the first run's history, and off left the file as it was. Turned back on, it reloaded, with a gap for the time it was off.
+		- Verified, 2026-10-25, build deea9: a test panel stopped and started 25 s later brought back both graphs, with a gap for the time it was down. A reboot takes the same path, since logout stops the panel. Keep across restarts off left the file alone while the graph ran on, and back on reloaded it, with a gap for that stretch.
+	- Decisions:
+		- Off stops both saving and loading, and keeps the file. Turned back on, the file is loaded again, so what the graph showed while it was off is replaced by the saved history, with a gap for that stretch. That's how "don't log new ones" was read.
+		- Max age is dropped at each save and load, and only while it's on.
+		- Times are Unix seconds now, not seconds since start, so runs line up.
+	- Branch: round-1024
+	- Test case: `history::tests::encode_and_decode_give_back_the_same_history` (decbg), `decode_refuses_what_encode_wouldnt_write` (decbh), `trim_drops_only_what_is_older` (decbj), the 3 `keep::tests` (decbk, decbm, decbn), `tests::saved_history_comes_back_with_a_gap` (decbp), `a_clock_set_back_still_takes_new_samples` (decbq), `load_trims_to_the_max_age_and_refuses_junk` (decbr), and `config::tests::history_is_kept_a_year_by_default` (decbf).
+	- Closed: 20261025-190500
+
+- A dropdown for time function
+	- ID: 2026102408304586
+	- Type: Enhancement
+	- Status: Done
+		- It departs from the wording in 2 ways. Log B was read as the fixed divisions laid over the 5 s floor curve. And one tip covers all 3 choices and names the divisions, rather than a tip per item in the list.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Priority|Severity: High
+	- Opened: 20261024-082803
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+	- Related IDs: 2026101916013886
+	- Requirements:
+		- Pure log with a fixed 5 s floor (u = ln(1+age/5) / ln(1+total/5), where 5 s is the code's A0).
+			- With a better name.
+			- Default.
+		- Log A with fixed divisions. The existing formula. Show the divisions in its tooltip.
+		- Log B with fixed divisions. The existing formula. Show the divisions in its tooltip.
+			- Use a different formula: Pure log with a fixed 5 s floor (u = ln(1+age/5) / ln(1+total/5), where 5 s is the code's A0).
+				- Or just a less bunched-up log formula.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Settings has a Log curve dropdown under Log time axis, with Smooth log (the default), "Log A, fixed divisions", and "Log B, fixed divisions". Picking one turns the log axis on.
+		- Smooth log is the 5 s floor log across the whole run, with no divisions.
+		- Log A is the old curve. Log B keeps the divisions but places them on the Smooth log curve, so it matches Smooth log until a division fills, about 1.7 days in for the first.
+		- The settings window now opens tall enough for the whole Graph tab, which the new row had pushed into a scroll bar.
+		- `design.md` Time axis has the details.
+		- Verified, 2026-10-25, build deea9: 3 days of history drew with each of the 3 curves, each with its own spread, and Log B matched Smooth log until its first division. Smooth log is the default in the window.
+	- Decisions:
+		- The dropdown sits under the Log time axis checkbox rather than replacing it, so settings files keep working and a linear graph stays one click away.
+		- Saved as `graph.log_curve`: `smooth`, `fixed_a` or `fixed_b`. A file without it gets Smooth log, so b23's graph changes from Log A to Smooth log at the next install.
+	- Branch: round-1024
+	- Test case: `axis::tests::smooth_is_one_log_curve_with_no_caps` (decbs), `fixed_b_is_smooth_until_a_cap` (decbt), `caps_pin_when_the_tip_says` (decbv) and `curves_parse_as_the_spec_spells_them` (decbw), with the other axis tests now run over all 3 curves. Also `config::tests::the_log_curve_comes_from_the_file` (decbx), `tests::log_axis_takes_the_chosen_curve` (decby), and `dialog::tests::the_log_curve_sits_under_the_log_switch` (decbz). The window height has no test.
+		- Swept: every `Axis::log` and `Axis::knots` caller, in core, its tests, and the preview example. The plugin and settings build no axis of their own.
+	- Closed: 20261025-190500
+
+- Show snapshot time on mouseover
+	- ID: 2026102408304599
+	- Type: Enhancement
+	- Status: Done
+		- It departs from the wording in 2 ways. The tip also gives the CPU shares at the line's time, in place of the old tip with the latest read. And the line's color can be changed, under Colors.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Priority|Severity: High
+	- Opened: 20261024-082803
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+	- Requirements:
+		- In the graph, show a thin black vertical line where the mouse is hovering.
+		- Mouseover text: How long ago the line is at. Configurable in settings:
+			- Date/time (expressed in current user's time).
+				- If after midnight, just the time (24-hour or 12-hour depending on user's OS-defined settings).
+				- If before previous midnight, date and time (in user's OS-defined short settings).
+			- How long ago, e.g.:
+				- 5 min ago
+				- 7 hrs ago
+				- 3 days ago
+				- 2 wks ago
+				- 9 mos ago
+				- 2 yrs ago
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A line one pixel wide follows the pointer over the graph, black by default, and set under Colors as Hover line.
+		- The tip gives the time under the line, then the CPU shares there, or No data for a gap.
+		- Hover shows, on the Graph tab, picks How long ago or Date and time. Date and time is the locale's short time, with its short date for anything before today.
+		- `design.md` Drawing and XFCE plugin have the details.
+		- Verified: in a test panel the line followed the pointer and went away when it left. The tip read "15 sec ago" and kept counting while the pointer was still, and gave "09:34:52 AM" in Date and time.
+		- Verified, 2026-10-25, build deea9: in a test panel a one-pixel black line followed the pointer over each graph. The CPU tip read "10 sec ago" and the shares, the memory tip "5 sec ago" and its use, and Date and time gave "06:52:35 PM".
+	- Decisions:
+		- How long ago is the default, since the requirement's first line asks for it.
+		- "OS-defined settings" is read as the locale's `LC_TIME`.
+		- Units round down, so 90 minutes is "1 hr ago". Under a minute is in seconds, and under a second is "just now".
+		- The tip is the graph's own now, so the old tip with only the latest read is gone. At the right edge it gives about the same numbers.
+	- Branch: round-1024
+	- Test case: `when::tests::ago_reads_like_the_backlog_says` (decca), `said_parses_as_the_spec_spells_it` (deccb) and `clock_gives_the_date_only_before_today` (deccc), `render::tests::the_hover_line_stays_off_the_border` (decc9), `tests::the_hover_tip_says_when_and_what` (decc6), `the_hover_tip_shows_gaps_and_no_history` (decc7) and `the_hover_line_is_drawn_where_the_pointer_is` (decc8), and `config::tests::the_hover_settings_come_from_the_file` (decc5). The pointer events, and when GTK shows the tip, have no test.
+		- Swept: every `Graph::tooltip` caller, every `Look` built in a test, and every `gtk_widget_set_tooltip_text` call, of which none is left.
+	- Closed: 20261025-190500
+
+- Themes tab, with Save, Save as, Rename and Delete
+	- ID: 2026102409400684
+	- Type: Feature
+	- Status: Done
+		- It departs from the wording in one way. The colors the graphs share, the border, background and hover line, are on a Background sub-tab beside CPU.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+	- Parent ID: 2026102408304612
+	- Prereq IDs: 2026102409400679
+	- Requirements:
+		- A Themes tab, with a top row that stays while its sub-tabs change: Name [Dropdown], [Save] [Save as...] [Rename...] [Delete].
+		- Saved themes are kept whole in the config file, and listed in the dropdown after the built-in ones.
+		- Each graph's colors are on a sub-tab of their own.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The Colors tab is now Themes. Its top row has the Name dropdown with Save, Save as, Rename and Delete, and stays put over the CPU and Background sub-tabs.
+		- Saved themes go in the config file under `themes`, every color written, and the dropdown lists them after the built-ins and before Custom. The panel graph reads them too.
+		- `design.md` Theme and Settings window have the details.
+		- Verified: the window drew the top row over both sub-tabs, with a saved theme picked.
+		- Verified, 2026-10-25, build deea9: in the window, a roll saved as "Rolled" was listed and picked, and the panel graph took its colors at Apply. A change, Save, and Rename to Night kept its key and wrote the new colors. Delete asked first, then went back to Default, and the panel followed.
+	- Decisions:
+		- Saved themes are presets added to the spec at load, so knobs is unchanged.
+		- Save, Rename and Delete only act on a saved theme. A built-in is kept by Save as.
+		- Delete picks Default. The theme buttons take effect at Apply, like the rest of the window.
+		- A theme's key comes from its name when it's made, and stays through a rename.
+		- A save refuses a theme line it can't read, the same as any other line.
+	- Branch: round-1024
+	- Test case: `config::tests::a_saved_theme_is_listed_after_the_built_ins_and_sets_the_look` (decct), `a_saved_theme_cant_take_a_built_in_key` (deccv), `saved_themes_write_whole_and_read_back` (deccw) and `theme_keys_are_plain_and_free` (deccx), and `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme` (deccy), `save_puts_the_changes_into_the_theme` (deccz), `rename_and_delete` (decd0), `a_theme_saved_by_hand_meanwhile_survives` (decd1) and `a_theme_line_it_cant_read_stops_the_save` (decd2). The dialog tests fail with the themes left out of the save, and the hand-edit one with the merge taken out.
+		- Swept: every `config::model`, `Model::load` and `Look::load` caller. The plugin reads through `Look::load` and the window through `config::model_on`, so both get the saved themes. No code or doc named the old Colors tab.
+	- Closed: 20261025-190500
+
+- Color picker in place of the toolkit's
+	- ID: 2026102409400689
+	- Type: Feature
+	- Status: Done
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+	- Parent ID: 2026102408304612
+	- Requirements:
+		- Don't use the toolkit's color dialog. Use something more like SilkTerm's: a saturation and brightness square, a hue strip, value boxes, and Cancel and OK.
+		- Edits show at once, and Cancel puts the old color back.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A color chip opens our own picker in place of Qt's: a saturation and brightness square, a hue strip, and boxes for red, green, blue, brightness and saturation in percent, plus hex. Cancel and OK are at the bottom.
+		- The row behind follows every change, with its chip, its hex box and the theme's "*". Cancel puts back all that was stored when the picker opened. Esc is Cancel and Enter is OK, and neither reaches the settings window.
+		- The square and the strip take the arrow keys too, a hundredth a press, or a tenth with Shift.
+		- `--snapshot` takes a picture of the picker after the tabs.
+		- `design.md` Settings window has the details.
+		- Verified: in the window, a click in the square moved the User row and showed "Default *", and Esc put back the color and "Default" with Apply off. A typed hex and Enter kept the color, with the settings window still open.
+		- Verified, 2026-10-25, build deea9: a drag in the square and then the strip moved the I/O wait row and showed "Default *". Esc put back `#ff0000` and "Default". A typed `#123456` and Enter kept it, with the settings window still open, and Apply and close saved it as a change on Default.
+	- Decisions:
+		- The color model is SilkTerm's, ported to `settings/src/pick.rs`. The picker's state lives in the Rust dialog, so the live edits and Cancel are tested without a window.
+		- Cancel restores everything stored, not just the color. Setting the old color back, as the Qt dialog did, left the window changed after Cancel, so Apply would have pinned that color in the file.
+	- Branch: round-1024
+	- Test case: `pick::tests::a_color_survives_the_trip_through_hsv` (decd5), `a_gray_keeps_the_hue_and_saturation_it_had` (decd6), `the_hue_ramp_hits_the_primaries` (decd7) and `a_typed_value_reaches_what_it_names` (decd8), and `dialog::tests::the_picker_moves_its_row_and_cancel_puts_it_all_back` (decd3) and `the_picker_keeps_what_ok_was_pressed_on` (decd4). The Cancel test fails with the old way of setting the color back, and passes now. The drawing and the pointer have no test.
+		- Swept: the one `QColorDialog` use, now gone, and every color row, which all open the picker through the same chip. No code or doc names the toolkit's dialog.
+	- Closed: 20261025-190500
+
+- Gradient mode per graph, and a Fire theme
+	- ID: 2026102409400695
+	- Type: Feature
+	- Status: Done
+		- It departs from the wording in one way. Only the CPU graph has a sub-tab so far, so only it has the mode. A new graph's sub-tab gets the same rows.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+	- Parent ID: 2026102408304612
+	- Prereq IDs: 2026102409400679, 2026102409400684
+	- Requirements:
+		- At the top of each graph's sub-tab: ( ) Detailed ( ) Gradient.
+		- Gradient takes 3 colors, Low, Medium and High, blended smoothly by how high a pixel reaches into the graph.
+		- A built-in "Fire" theme: dim red, yellow-white, bright light blue.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The CPU sub-tab starts with Colors: ( ) Detailed ( ) Gradient. Only the rows for the mode picked are shown.
+		- Gradient draws the column in a blend of Low, Medium and High by each pixel's height in the plot. The column is as tall as the stack would be.
+		- Fire is a built-in theme in Gradient mode: `#8b1a00`, `#fff4c8` and `#7fd4ff`. The others stay Detailed, and each has a gradient from its own colors for when it's switched.
+		- `design.md` Theme and Settings window have the details.
+		- Verified: the window showed the Detailed rows on Default and the Low, Medium and High rows on Fire, and a drawn graph on Fire ran from dim red at the bottom up toward yellow-white.
+		- Verified, 2026-10-25, build deea9: in a test panel Fire drew both graphs as a gradient from dim red up to pale blue. Detailed on CPU as a change on Fire drew CPU in Fire's detailed colors, with memory still a gradient.
+	- Decisions:
+		- The mode is in the theme group, so picking Fire turns on Gradient, and a mode changed by hand shows "Name *" like a color. Saved themes keep it.
+		- The color follows the pixel's height, not the column's, so a busy column climbs into High and a quiet one stays Low.
+		- The radio buttons and showing rows by mode use 2 keys of tukzmon's own in settings.shcl, since knobs has to stay the same as SilkTerm's.
+	- Branch: round-1024
+	- Test case: `render::tests::the_gradient_goes_by_height_not_by_series` (decdk) and `the_blend_hits_its_stops` (decdm), `config::tests::fire_is_a_gradient_and_the_rest_are_detailed` (decdg), `the_mode_shows_only_its_own_rows` (decdh) and `a_saved_theme_keeps_its_mode` (decdj), and `dialog::tests::the_mode_swaps_the_rows_and_fire_is_a_gradient` (decdn). The render test fails with the blend fixed at one height, and the dialog test with every row always shown. The radio buttons have no test.
+		- 2026-10-24: new values only, for the 4 new theme rows and Fire. `config::tests::the_default_theme_is_the_row_defaults` members went from 8 to 12, and it now takes a dropdown for a `_mode` member where it took only colors. `saved_themes_write_whole_and_read_back` went from 8 values to 12. `a_saved_theme_is_listed_after_the_built_ins_and_sets_the_look` lists `fire` after `blue_pastel`. In `dialog::tests`, `save_as_keeps_the_colors_whole_and_picks_the_new_theme` finds Night seventh, not sixth, and counts 11 colors, not 8. `rename_and_delete` counts 8 options, not 7, and `a_theme_saved_by_hand_meanwhile_survives` 9, not 8.
+		- Swept: every `Frame` built (the plugin, the preview example and the render tests), and every use of the theme group's members, which now take a mode as well as colors (`saved_themes`, `theme_problems`, `shown_colors`, the picker, and `unthemed`).
+	- Closed: 20261025-190500
+
+- Transparent background setting
+	- ID: 2026102409400705
+	- Type: Feature
+	- Status: Done
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+	- Parent ID: 2026102408304612
+	- Requirements:
+		- One global setting that makes the graph background transparent, over every theme's background colors.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Worked at medium effort rather than high, since it's one setting.
+		- A Transparent checkbox sits first on the Background sub-tab, at `graph.transparent`, off by default. On, the Top and Bottom colors aren't drawn and the panel shows through. The border, the graph and the hover line still are.
+		- `design.md` Theme has the details.
+		- Verified: in a test panel, the empty part of the graph showed the panel's own color with it on, and the theme's top color with it off.
+		- Verified, 2026-10-25, build deea9: in a test panel the panel's own gray showed through both graphs, with the border still drawn, and it stayed clear on Blue standard and Fire.
+	- Decisions:
+		- It's outside the theme group, so a theme pick, Randomize or Save as leaves it alone.
+		- It sits on the Background sub-tab, next to the colors it replaces, with a tip saying it goes for every theme.
+		- The Top and Bottom rows stay live while it's on, since knobs' gates only turn a row on with a checkbox, not off.
+	- Branch: round-1024
+	- Test case: `render::tests::a_transparent_background_lets_the_panel_through` (decdz), `config::tests::transparent_is_off_and_outlives_any_theme` (decdy) and `dialog::tests::transparent_stays_through_a_theme_pick_and_a_roll` (dece0). The first 2 fail with the setting left unread or the background drawn opaque, and pass with it.
+		- Swept: every reader of the Top and Bottom colors, which is only `render::Frame::draw`, and the hover line in `Graph::render`, which stays opaque.
+	- Closed: 20261025-190500
+
+- Turn each graph on or off, with a width each
+	- ID: 2026102508393152
+	- Type: Feature
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-25.
+	- Priority|Severity: High
+	- Opened: 20261025-083931
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+	- Parent ID: 2026102408304639
+	- Requirements:
+		- A setting per graph to show it or not, CPU included.
+		- A width per graph, in the same DPI-aware pixels as Width.
+		- The plugin lays the graphs out by their own widths.
+		- Saved configs with `mem.show` keep working.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Under Graphs on the Graph tab: CPU graph, CPU width px, Memory graph, and Memory width px. Each width is stepped in under its checkbox.
+		- The plugin asks the panel for the sum of the shown widths, and shares out what it gets by width. On a vertical panel they still share the height evenly.
+		- A hidden graph isn't read, and its history comes back with a gap for the hidden time, the same for CPU as for memory.
+		- `design.md` XFCE plugin has the details.
+		- Verified: in a test panel, CPU at 40 and memory at 100 drew 40 and 100 pixels wide. With CPU unticked only memory was left, and with both unticked CPU came back at Width.
+		- Verified, 2026-10-25, build deea9: in a test panel, CPU at 40 and memory at 100 drew 40 and 100 px wide. CPU unticked left only memory, and both unticked brought CPU back.
+	- Decisions:
+		- A graph's width of 0, the default, means the Width setting, so a saved `graph.width` still sets every graph, and one setting still resizes them all.
+		- `mem.show` is unchanged, and CPU got `cpu.show` beside it, default on.
+		- With every other graph off, CPU shows anyway. A panel item with nothing in it has no width, so its right-click menu, the only way to Settings, couldn't be reached.
+		- Widths are the panel's logical pixels, as Width already was, so they follow the screen scale.
+	- Branch: round-1025
+	- Test case: `graphs::tests::each_graph_takes_its_own_width_and_0_is_width` (dedqd), `cpu_can_be_hidden_but_not_with_nothing_else_shown` (dedqe), and `config::tests::each_graph_has_a_switch_and_a_width` (dedqf). dedqd fails with the widths ignored, and dedqe with CPU always shown.
+		- Swept: every `Graphs::count` and `Look::width` user (the plugin's fit and reload, the layout, the tip and the render), and every `show_memory` reader. `core/examples/preview.rs` draws one `Graph` and has no layout.
+	- Closed: 20261025-190500
+
+- Graph order
+	- ID: 2026102508393154
+	- Type: Feature
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-25.
+	- Priority|Severity: High
+	- Opened: 20261025-083931
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+	- Parent ID: 2026102408304639
+	- Prereq IDs: 2026102508393152
+	- Requirements:
+		- A saved order of the graphs, which the plugin lays them out in, left to right, or top to bottom on a vertical panel.
+		- A graph added later, such as network, goes at the end of a saved order that doesn't name it.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- Order, a text row under Graphs on the Graph tab, at `graph.order`, names the graphs first to last: `cpu` and `mem`. The default is `cpu mem`.
+		- The plugin lays them out in that order, and the pointer, the tip and the panel size follow it. A change takes effect at Apply.
+		- `design.md` XFCE plugin has the details.
+		- Verified: in a test panel, `mem cpu` with widths 100 and 40 drew memory 100 wide on the left and CPU on the right. With no order CPU came back first, and a hand-typed `order: mem, cpu` swapped them again.
+		- Verified, 2026-10-25, build deea9: in a test panel `mem cpu` and `mem, cpu` each put memory on the left, and no order put CPU first.
+	- Decisions:
+		- The names are the graphs' history section names, so a new graph brings its own.
+		- Spaces or commas both work, since shcl reads a bare `mem, cpu` as a list.
+		- A name it doesn't know is skipped, and a graph it doesn't name goes last, in the default order.
+		- A hidden graph keeps its place for when it's shown again.
+		- For 2026102508393161: the Order row is a stand-in. The list's grippers should write `graph.order` and the row should go.
+	- Branch: round-1025
+	- Test case: `graphs::tests::the_saved_order_lays_them_out_and_one_it_leaves_out_goes_last` (dedqp), `config::tests::the_graph_order_reads_with_spaces_or_commas` (dedqq), and `dialog::tests::the_graph_order_is_saved_as_typed_and_reads_back` (dedqr). dedqp fails with the order ignored, and dedqq with the setting left unread.
+		- Swept: every `Graphs::shown` user (count, widths, tiles, the pointer, the tip and the render), and the plugin's fit and reload, which go through `widths`.
+	- Closed: 20261025-190500
+
+- A time function per graph
+	- ID: 2026102508393156
+	- Type: Feature
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-25.
+	- Priority|Severity: High
+	- Opened: 20261025-083931
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304639
+	- Prereq IDs: 2026102508393152
+	- Related IDs: 2026102408304586
+	- Requirements:
+		- Each graph picks its own time function, from the Log curve choices, and maybe a plain linear one.
+		- Saved configs with `graph.log_axis` and `graph.log_curve` keep working.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- Under Graphs on the Graph tab, each graph has a time axis dropdown under its width: As set under Time, the default, then Linear, Smooth log, "Log A, fixed divisions" and "Log B, fixed divisions".
+		- As set under Time follows Log time axis and Log curve, so a saved file keeps its axis. The Log time axis tip now says a graph can pick its own.
+		- `design.md` Time axis has the details.
+		- Verified: the Graph tab shows each graph's time axis row under its width, and the full run passed.
+		- Verified, 2026-10-25, build deea9: in a test panel, with Log time axis off and Memory time axis on Log A, CPU scrolled plainly and memory stayed squeezed. CPU on Linear left memory on the log curve under As set under Time.
+	- Decisions:
+		- Saved as `cpu.time` and `mem.time`: `same`, `linear`, `smooth`, `fixed_a` or `fixed_b`. A file without them gets `same`.
+		- `same` follows the Time settings the way a width of 0 follows Width, so one setting still changes every graph with no pick of its own.
+		- Linear is in, since the Time settings already offer it.
+		- Spike emphasis stays under Log time axis. It still applies to a graph on its own log curve while Log time axis is off, though its slider is greyed then. The graph list can sort that out.
+		- For 2026102508393161: the list's time function dropdown should write `<graph>.time`, and these rows should go.
+	- Branch: round-1025b
+	- Test case: `graphs::tests::each_graph_takes_its_own_time_axis_or_the_time_settings` (deea2) and `config::tests::each_graph_has_a_time_axis_and_old_files_keep_theirs` (deea4). deea2 fails with the pick ignored, and deea4 with `cpu.time` left unread.
+		- Swept: every `Graph::axis` caller (the hover span and the render, which the plugin's tip and draw go through), and every `log_axis` and `curve` reader. `core/examples/preview.rs` builds its own log axis and is unchanged.
+	- Closed: 20261025-190500
+
+- CICD reset: standard flags
+	- ID: 2026102416252892
+	- Type: Task
+	- Status: Done
+		- It departs from the wording in one way. `--message` is taken but does nothing yet, since the pipeline has no publish step.
+		- `core.hooksPath` is set to `cicd/hooks` in b23's clone since 2026-10-25.
+	- Needs local test suite run?: No. `--backlog-run-full` passed on 2026-10-25.
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- `cicd.bash` takes the shared flags: none for the default run under about an hour, `--quick`, `--long` with `--slow` as another name, `--leakcheck`, `--no-leakcheck`, `--backlog-run-quick [<area>...]`, `--backlog-run-full`, `--merge-gate`, `--no-container`, `--no-remote`, `--no-sync`, `--keep-temp`, `--list`, `--help`, `--quiet`, and `--message`.
+		- `--gate` and `--ci` are other names for `--backlog-run-quick` and `--merge-gate`.
+		- The backlog and merge gate runs never dogfood, publish, commit, push, install, sync, rewrite a tracked file, or prompt.
+		- A pre-push hook runs `--merge-gate` on a push to `main` only. A push to `dev` or a feature branch isn't gated, and a docs-only push to `main` skips it, with the docs paths in one place the hook reads.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- `cicd/cicd.bash` takes every shared flag. `--quick` and `--long` run the same steps as the default run for now, since nothing is slow yet.
+		- `--backlog-run-quick` runs the format check, build, lint and tests, or only the areas named: format, build, lint, test, and release. `--backlog-run-full` and `--merge-gate` add the release build.
+		- The 3 hands-off runs don't sync, dogfood or prompt, only check the format, and build with `--locked`, so `Cargo.lock` stays as it is.
+		- `cicd/hooks/pre-push` runs `--merge-gate` on the commit pushed to `main`, in a worktree of its own when the checkout has other changes. A push that changes only the paths in `DOCS_PATHS` in `cicd/config.bash` skips it.
+		- Verified: the hook ran the gate on a push to `main`, let a docs-only push and a push to `dev` through, and refused a commit with a lint error. Uncommitted files didn't change what it gated.
+		- Verified, 2026-10-25: with the hook on, a push of e131b57 to a spare remote's `main` ran the merge gate first, which passed in 1m 59s, and then the push went on. A push to `dev` went straight through.
+	- Decisions:
+		- `--list` prints the steps and what's off. Test IDs come with 2026102416252895.
+		- The hook is turned on by a documented step, not by the pipeline, so nobody's pushes get gated without them knowing.
+	- Branch: round-1025
+	- Test case: None in the repo, since `cicd.bash` has no harness of its own yet. The gate was watched to fail on a planted format error and a planted lint error.
+	- Closed: 20261025-190500
+
+- CICD reset: CPU and priority
+	- ID: 2026102416252891
+	- Type: Task
+	- Status: Done
+		- It departs from the wording in one way. `CICD_MAX_JOBS` lets a caller set a lower cap.
+	- Needs local test suite run?: No. `--backlog-run-full` passed on 2026-10-25.
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Half the logical CPUs, or a quarter when the 1-minute load is over half the CPU count, checked at the start and before each step. The heavy steps, such as the leak checks, use a quarter, busy or not.
+		- The counts are worked out once and passed to cargo's `-j` and `--test-threads`. Now cargo takes every core.
+		- Everything runs under `nice -n 19`, plus `ionice -c 3`. Containers get `--cpus` and `--cpu-shares 256`, and `nice` inside.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Half the CPUs, or a quarter when the 1-minute load is over half the CPU count, worked out before each step and passed to cargo's `-j` and `--test-threads`. A quarter is kept for the heavy steps, for the leak checks to come.
+		- The pipeline sets nice 19 and ionice idle on itself at the start, so everything it starts inherits them.
+		- Verified: a run used 16 of 32 CPUs at a load of 10, and 8 with the cap set.
+		- Since 2026102416252889, containers get `--cpus` at the run's job count and `--cpu-shares 256`, and the steps in them run under `nice -n 19` and `ionice -c 3`.
+		- Verified: a container ran with 8 CPUs and a share of 256, with its cargo at nice 19.
+		- Verified, 2026-10-25: a merge gate on e131b57 used 8 of 32 CPUs with the cap set, at load 40, and said busy.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892.
+	- Closed: 20261025-190500
+
+- CICD reset: test IDs
+	- ID: 2026102416252895
+	- Type: Task
+	- Status: Done
+		- The knobs copy's test IDs now differ from SilkTerm's, until SilkTerm converts its own. The 2 copies match only if SilkTerm's other tests leave the same minutes free.
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Every test gets a unique ID, from when it was first committed: whole minutes since 2000-01-01 UTC, in lower-case Crockford base 32. 2 that come out the same take the next free minute, and an ID never changes.
+		- The run prints one line per test, such as `PASS decp8 empty input round-trips`, or `FAIL` or `SKIP`.
+		- `Test case` rows in the backlog name the IDs.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Every one of the 141 tests has a `// Test ID:` line above it. Ours come from the commit that added each test. The knobs tests came from SilkTerm with base 62 IDs in milliseconds, so theirs were converted from the times those stand for.
+		- The tests step prints `PASS`, `FAIL` or `SKIP`, the ID, and the test's name, in place of each of cargo's own test lines. A skipped test adds its reason.
+		- Lint runs the ID check, which fails on a test with no ID, a shared ID, one that isn't a sane time, or a test somewhere it doesn't look. `--list` prints every test's ID.
+		- `cicd/utility/test-ids.bash new` gives a new test its ID.
+		- The `Test case` rows name the IDs.
+		- Verified: the quick gate printed 141 lines with IDs. A failing test showed as `FAIL` and failed the step, and an ignored one as `SKIP` with its reason. A missing ID, a shared one, an upper-case one, and a test outside `src/` each failed the check.
+		- Verified, 2026-10-25: the full run on e131b57 printed a PASS or SKIP line with an ID for every test.
+	- Decisions:
+		- The name on each line is the test's path as cargo gives it, such as `when::tests::ago_reads_like_the_backlog_says`, so it can be found in the code.
+		- The tool is bash and awk, since the build image has no Python.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892. The check was watched to fail on each kind of bad ID.
+	- Closed: 20261025-190500
 
 - A theme per graph
 	- ID: 2026102508393159
@@ -1119,6 +1083,36 @@ Sorted per the notes in [Template](#template).
 	- Test case: `graphs::tests::every_graph_takes_its_colors_from_the_one_theme` (dee9p) and `bridge::tests::one_theme_on_top_recolors_every_sub_tab` (dee9q). Both fail with the memory mode moved to the Graph tab, and dee9q with every theme given the same background colors.
 		- Swept: every theme group member and every Themes sub-tab, through the rows qt.cpp gets.
 	- Closed: 20261025-183450
+
+- CICD reset: version line
+	- ID: 2026102416252897
+	- Type: Task
+	- Status: Done
+		- It departs from the wording in one way. Nothing has an About box yet, so only `--version` prints the line. One added later would show the same line.
+		- A build from a tree with changes to the program's sources, or from outside git, isn't any commit, so it takes the time it was built.
+	- Priority|Severity: Avg
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+	- Related IDs: 2026102408304652
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- It overrides how 2026102408304652 stamps the build, from the time of the build.
+		- `--version` and About print `tukzmon-settings v<version> build <build>`, then the copyright line. The build number is the commit's time in minutes since 2000, in lower-case Crockford base 32.
+		- A non-release build adds its date after the build number, from that same time, in the viewer's time zone.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `tukzmon-settings --version` prints `tukzmon-settings v0.1.0 build dedp0 (2026-10-25)`, then the copyright line.
+		- The build number is HEAD's commit time. `SOURCE_DATE_EPOCH` wins when set. A build with changes under `settings/`, `core/`, `knobs/` or the Cargo files, or with no git, takes the time it was built.
+		- A build with `TUKZMON_RELEASE=1` leaves the date off, as before.
+		- Verified: a clean build gave the commit's minute, `SOURCE_DATE_EPOCH` gave its own, a changed source file and a tree outside git each gave the time of the build, and a release build had no date. A time zone a day ahead showed the next day.
+		- Verified, 2026-10-25, build deea9: a release build of e131b57 printed `build deea9 (2026-10-25)`, the commit's minute.
+	- Decisions:
+		- A change only to docs, such as the backlog, still counts as the commit, since it doesn't change the program.
+	- Branch: round-1025
+	- Test case: `tests::the_version_line_has_the_build_and_a_dev_build_its_day` (dednz). It failed with the date left off a dev build, and passes now.
+	- Closed: 20261025-190500
 
 - CICD reset: profiler stage
 	- ID: 2026102506591288
@@ -1451,6 +1445,32 @@ Sorted per the notes in [Template](#template).
 		- A LAN and internet split is its own item, 2026101916274800.
 	- Test case: None, since it was a question. The network collector's tests will cover the answer.
 	- Closed: 20261019
+
+- A killed pipeline run leaves its container and temp folder
+	- ID: 2026102514470001
+	- Type: Bug
+	- Status: Done
+		- It departs from the wording in 2 ways. A run kept with `--keep-temp` still waits 2 days, with its containers, even if it was killed. And a container's run is found by a new `dev.pid` label, the run's process, with `dev.run` for its folder.
+		- Closed on the earlier test both ways. What departs from the wording is a technical call.
+	- Priority|Severity: Low
+	- Opened: 20261025-144700
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+	- Related IDs: 2026102416252890, 2026102416252896
+	- Steps to reproduce:
+		- Start `cicd/cicd.bash --backlog-run-full` and kill it with SIGKILL during a container step.
+	- Incorrect behavior: the container runs on to its end, and the temp folder stays until the 2-day sweep.
+	- Expected behavior: the next run stops containers whose run is gone, by the `dev.run` label, and sweeps its folder when no process from it is left.
+	- Reproduced: 2026-10-25 on b23. After the kill the tests container ran on and the folder stayed, and the old code's next run left both.
+	- Actual fix: a run folder whose run is gone goes at the next run's start once nothing runs from it. The image step stops and removes containers whose run is gone, then sweeps again, since a running container keeps its folder from the first sweep.
+	- Progress log:
+		- Verified: a run killed with SIGKILL as its tests container started had the container stopped and its folder removed by the next run, both with the container still running and after it had ended. A `--keep-temp` run's folder and containers stayed through 2 later runs.
+	- Decisions:
+		- `--keep-temp` writes a `keep` file in the folder at the start, so a kept run that was killed keeps the 2-day wait.
+		- A container's run is its `dev.pid` label, so a run with another temp root isn't taken for gone. One from before that label goes by its run folder.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
+	- Closed: 20261025-190500
 
 - Dogfood install and cicd build with different Rust versions
 	- ID: 2026102514130001
