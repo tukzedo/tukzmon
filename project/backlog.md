@@ -491,21 +491,6 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- b23's multiload-ng has `graph-mem-procps-compliant=true`, so it counts slab as cache. tukzmon counts `Cached` alone, per 2026102408512192, so its cache band is thinner and user thicker than multiload-ng showed.
 
-- tukzmon-settings --version aborts when its output can't be written
-	- ID: 2026102519030128
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261025-190301
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build deea9, and dedr4 on b23.
-	- Steps to reproduce:
-		- Run `tukzmon-settings --version > /dev/full`, or pipe it into `head -1`.
-	- Incorrect behavior: it panics with "failed printing to stdout" and aborts, with exit 134.
-	- Expected behavior: no panic. A closed pipe quits quietly, and a failed write gives one error line and a non-zero exit.
-	- Reproduced: 2026-10-25 on b23, 5 times out of 5 with `/dev/full`.
-	- Possible cause: `println!` in `settings/src/main.rs` panics on a failed write, and the release build aborts on a panic. `--help` likely does the same.
-
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
 	- Type: Feature
@@ -523,6 +508,32 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- tukzmon-settings --version aborts when its output can't be written
+	- ID: 2026102519030128
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261025-190301
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build deea9, and dedr4 on b23.
+	- Steps to reproduce:
+		- Run `tukzmon-settings --version > /dev/full`, or pipe it into `head -1`.
+	- Incorrect behavior: it panics with "failed printing to stdout" and aborts, with exit 134.
+	- Expected behavior: no panic. A closed pipe quits quietly, and a failed write gives one error line and a non-zero exit.
+	- Reproduced: 2026-10-25 on b23, 5 times out of 5 with `/dev/full`.
+	- Possible cause: `println!` in `settings/src/main.rs` panics on a failed write, and the release build aborts on a panic. `--help` likely does the same.
+	- Actual cause: `println!` and `eprintln!` panic on a failed write, and the release build aborts on a panic. `--help` did the same. The usage and error paths used them too.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Output now goes through `print_text` and `complain` in `settings/src/main.rs`. A closed pipe exits 0 quietly, a failed write gives one line on stderr and exit 1, and a closed stderr is ignored. The xfce plugin is a library with no stdout output.
+		- Verified: a release build gives exit 1 and one error line for `--version` and `--help` to `/dev/full`, and exit 0 with no message into `head -1`. The build before the fix aborted with 134 on both. `--backlog-run-full` passed on 2026-10-26, test `defks` included.
+		- Swept: every `println!` and `eprintln!` in the repo. The rest are build.rs cargo directives, examples, and the plugin's `eprintln!` for its own diagnostics.
+	- Actual fix: Writes to stdout go through one helper that returns an exit code instead of panicking.
+	- Branch: round-1026
+	- Test case: `defks`. It fails to build before the fix, and the binary checks above failed before it.
+	- Closed: 20261026-165700
 
 - Proof of concept: CPU graph in the XFCE panel, dogfooded on b23
 	- ID: 2026102319155124
