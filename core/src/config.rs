@@ -9,7 +9,7 @@ use std::sync::{Arc, OnceLock};
 
 use knobs::{Model, NoEnv, Spec};
 
-use crate::axis::Curve;
+use crate::axis::{Curve, Timing};
 use crate::render::Paint;
 use crate::when::Said;
 
@@ -370,10 +370,13 @@ pub struct Look {
 	pub show_cpu: bool,
 	/// 0 is `width`.
 	pub cpu_width: u32,
+	/// None follows `log_axis` and `curve`. See [`Look::timing`].
+	pub cpu_time: Option<Timing>,
 	/// Draw the memory graph, where the box has one.
 	pub show_memory: bool,
 	/// 0 is `width`.
 	pub mem_width: u32,
+	pub mem_time: Option<Timing>,
 	/// Graph names as saved, first drawn first. See [`graph_order`].
 	pub order: Vec<String>,
 	/// In `mem::MemoryReader::SERIES` order, bottom first.
@@ -430,8 +433,10 @@ impl Look {
 			cpu_gradient: [color("cpu_low"), color("cpu_medium"), color("cpu_high")],
 			show_cpu: m.value("show_cpu", &NoEnv).as_bool(),
 			cpu_width: num("cpu_width") as u32,
+			cpu_time: Timing::parse(m.value("cpu_time", &NoEnv).as_text()),
 			show_memory: m.value("show_memory", &NoEnv).as_bool(),
 			mem_width: num("mem_width") as u32,
+			mem_time: Timing::parse(m.value("mem_time", &NoEnv).as_text()),
 			order: graph_order(m.value("graph_order", &NoEnv).as_text()),
 			mem: [color("mem_user"), color("mem_buffers"), color("mem_cache")],
 			mem_mode: Mode::parse(m.value("mem_mode", &NoEnv).as_text()).unwrap_or_default(),
@@ -456,6 +461,16 @@ impl Look {
 			Mode::Detailed => Paint::Stack(&self.mem),
 			Mode::Gradient => Paint::Gradient(self.mem_gradient),
 		}
+	}
+
+	/// A graph's own pick, or else the Time settings, so a saved
+	/// `graph.log_axis` still sets every graph that has no pick of its own.
+	pub fn timing(&self, own: Option<Timing>) -> Timing {
+		own.unwrap_or(if self.log_axis {
+			Timing::Log(self.curve)
+		} else {
+			Timing::Linear
+		})
 	}
 
 	/// A missing or unreadable file gives the defaults, and a bad line gives
@@ -820,6 +835,43 @@ mod tests {
 		};
 		assert_eq!(gate("cpu_width").as_deref(), Some("show_cpu"));
 		assert_eq!(gate("mem_width").as_deref(), Some("show_memory"));
+	}
+
+	// Test ID: deea4
+	#[test]
+	fn each_graph_has_a_time_axis_and_old_files_keep_theirs() {
+		let d = Look::default();
+		assert_eq!((d.cpu_time, d.mem_time), (None, None));
+		let l = Look::from_model(&model("cpu:\n\ttime: linear\nmem:\n\ttime: Fixed_B\n"));
+		assert_eq!(l.cpu_time, Some(Timing::Linear));
+		assert_eq!(l.mem_time, Some(Timing::Log(Curve::FixedB)));
+		// a file from before has neither, and its Time settings still rule
+		let old = Look::from_model(&model("graph:\n\tlog_axis: false\n\tlog_curve: fixed_a\n"));
+		assert_eq!(old.timing(old.cpu_time), Timing::Linear);
+		let old = Look::from_model(&model("graph:\n\tlog_curve: fixed_a\n"));
+		assert_eq!(old.timing(old.mem_time), Timing::Log(Curve::FixedA));
+		assert_eq!(
+			Look::from_model(&model("cpu:\n\ttime: squiggly\n")).cpu_time,
+			None
+		);
+		let spec = spec();
+		for (id, gate) in [("cpu_time", "show_cpu"), ("mem_time", "show_memory")] {
+			let Some(s) = spec.get(id) else {
+				panic!("no {id} in settings.shcl");
+			};
+			assert_eq!(s.gate.as_deref(), Some(gate));
+			assert_eq!(s.default.as_text(), "same");
+			let picks: Vec<_> = s.options.iter().map(|(k, _)| Timing::parse(k)).collect();
+			assert_eq!(picks[0], None, "{id}: same comes first");
+			assert_eq!(picks.len(), 5, "{id}: linear and every curve");
+			for (i, p) in picks.iter().enumerate().skip(1) {
+				assert!(
+					p.is_some() && !picks[i + 1..].contains(p),
+					"{id}: {:?}",
+					s.options[i]
+				);
+			}
+		}
 	}
 
 	// Test ID: dedqq

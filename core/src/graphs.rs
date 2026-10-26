@@ -446,6 +446,59 @@ mod tests {
 		);
 	}
 
+	// Test ID: deea2
+	#[test]
+	fn each_graph_takes_its_own_time_axis_or_the_time_settings() {
+		use crate::axis::{Axis, Curve, Timing};
+		let mut g = both();
+		let total = 60.0;
+		let linear = Axis::linear(100.0 * 0.5);
+		let axes = |g: &Graphs| (g.cpu.axis(100), g.mem.as_ref().unwrap().axis(100));
+		assert_eq!(
+			axes(&g),
+			(
+				Axis::log(Curve::Smooth, total),
+				Axis::log(Curve::Smooth, total)
+			)
+		);
+		g.set_look(
+			Look {
+				cpu_time: Some(Timing::Linear),
+				mem_time: Some(Timing::Log(Curve::FixedB)),
+				..Look::default()
+			},
+			None,
+		)
+		.unwrap();
+		assert_eq!(axes(&g), (linear.clone(), Axis::log(Curve::FixedB, total)));
+		// one with no pick of its own follows Log time axis and Log curve
+		g.set_look(
+			Look {
+				log_axis: false,
+				mem_time: Some(Timing::Log(Curve::FixedA)),
+				..Look::default()
+			},
+			None,
+		)
+		.unwrap();
+		assert_eq!(axes(&g), (linear, Axis::log(Curve::FixedA, total)));
+		g.set_look(
+			Look {
+				curve: Curve::FixedB,
+				..Look::default()
+			},
+			None,
+		)
+		.unwrap();
+		assert_eq!(
+			axes(&g),
+			(
+				Axis::log(Curve::FixedB, total),
+				Axis::log(Curve::FixedB, total)
+			)
+		);
+	}
+
 	// Test ID: dedqd
 	#[test]
 	fn each_graph_takes_its_own_width_and_0_is_width() {

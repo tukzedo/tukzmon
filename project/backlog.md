@@ -512,6 +512,40 @@ Sorted per the notes in [Template](#template).
 	- Test case: `graphs::tests::the_saved_order_lays_them_out_and_one_it_leaves_out_goes_last` (dedqp), `config::tests::the_graph_order_reads_with_spaces_or_commas` (dedqq), and `dialog::tests::the_graph_order_is_saved_as_typed_and_reads_back` (dedqr). dedqp fails with the order ignored, and dedqq with the setting left unread.
 		- Swept: every `Graphs::shown` user (count, widths, tiles, the pointer, the tip and the render), and the plugin's fit and reload, which go through `widths`.
 
+- A time function per graph
+	- ID: 2026102508393156
+	- Type: Feature
+	- Status: Waiting on UAT
+		- Not on b23 yet. It needs a build with this and a panel restart.
+		- The labels, As set under Time in particular, and where the rows sit are for a person to judge.
+	- Needs local test suite run?: No. The full run passed on 2026-10-25.
+	- Needs hand testing: on b23, once a build with this is loaded, open Settings, set CPU time axis to Linear and Apply, and check the CPU graph scrolls plainly while memory stays squeezed. Then set Memory time axis to "Log A, fixed divisions", untick Log time axis, Apply, and check memory stays squeezed.
+	- Priority|Severity: High
+	- Opened: 20261025-083931
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304639
+	- Prereq IDs: 2026102508393152
+	- Related IDs: 2026102408304586
+	- Requirements:
+		- Each graph picks its own time function, from the Log curve choices, and maybe a plain linear one.
+		- Saved configs with `graph.log_axis` and `graph.log_curve` keep working.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- Under Graphs on the Graph tab, each graph has a time axis dropdown under its width: As set under Time, the default, then Linear, Smooth log, "Log A, fixed divisions" and "Log B, fixed divisions".
+		- As set under Time follows Log time axis and Log curve, so a saved file keeps its axis. The Log time axis tip now says a graph can pick its own.
+		- `design.md` Time axis has the details.
+		- Verified: the Graph tab shows each graph's time axis row under its width, and the full run passed.
+	- Decisions:
+		- Saved as `cpu.time` and `mem.time`: `same`, `linear`, `smooth`, `fixed_a` or `fixed_b`. A file without them gets `same`.
+		- `same` follows the Time settings the way a width of 0 follows Width, so one setting still changes every graph with no pick of its own.
+		- Linear is in, since the Time settings already offer it.
+		- Spike emphasis stays under Log time axis. It still applies to a graph on its own log curve while Log time axis is off, though its slider is greyed then. The graph list can sort that out.
+		- For 2026102508393161: the list's time function dropdown should write `<graph>.time`, and these rows should go.
+	- Branch: round-1025b
+	- Test case: `graphs::tests::each_graph_takes_its_own_time_axis_or_the_time_settings` (deea2) and `config::tests::each_graph_has_a_time_axis_and_old_files_keep_theirs` (deea4). deea2 fails with the pick ignored, and deea4 with `cpu.time` left unread.
+		- Swept: every `Graph::axis` caller (the hover span and the render, which the plugin's tip and draw go through), and every `log_axis` and `curve` reader. `core/examples/preview.rs` builds its own log axis and is unchanged.
+
 - CICD reset: standard flags
 	- ID: 2026102416252892
 	- Type: Task
@@ -891,20 +925,6 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Split into 6 children, in this order: 2026102508393152 (on or off and a width per graph), 2026102508393154 (order), 2026102508393156 (time function per graph), 2026102508393159 (theme per graph), 2026102508393161 (the list itself), and 2026102508393163 (live graphs in it).
 		- 2026-10-25: no theme dropdown per graph after all. One theme colors every graph, per the answer on 2026102508393159.
-
-- A time function per graph
-	- ID: 2026102508393156
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261025-083931
-	- Opened by: t00mietum
-	- Parent ID: 2026102408304639
-	- Prereq IDs: 2026102508393152
-	- Related IDs: 2026102408304586
-	- Requirements:
-		- Each graph picks its own time function, from the Log curve choices, and maybe a plain linear one.
-		- Saved configs with `graph.log_axis` and `graph.log_curve` keep working.
 
 - The graph list on the Graph tab
 	- ID: 2026102508393161

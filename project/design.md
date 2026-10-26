@@ -63,6 +63,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - The plugin draws its graphs in one drawing area, side by side, in the saved order. There's no gap between them, like multiload-ng's spacing of 0. On a vertical panel they're stacked, and share the height evenly. The graph under the pointer gets the hover line and the tip. `core/src/graphs.rs` has the layout.
 	- Under Graphs on the Graph tab, each graph has a checkbox, at `cpu.show` and `mem.show`, and a width, at `cpu.width` and `mem.width`. A width of 0, the default, is the Width setting. Widths are in the panel's own pixels, so they scale with it.
+	- Each graph also has a time axis, at `cpu.time` and `mem.time`. See [Time axis](#time-axis).
 	- A box where `/proc/meminfo` can't be read never shows the memory graph.
 	- With every other graph off, CPU shows anyway, so the item never shrinks to nothing, and its right-click menu stays in reach.
 	- A hidden graph isn't read. Its history is kept, and shows a gap for the time it was hidden.
@@ -244,6 +245,10 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 - There's no visible seam where one quarter meets the next. The curve between boundaries is a monotone cubic through them, in `ln(1 + age / 5 s)`, so a pixel covers the same time on both sides of a boundary. The move from 1 minute to 1 hour to 1 day to everything older looks like one smooth curve. Tests check both that and that time only ever runs older to the left.
 
 - A linear mode is there too, for anyone who wants a plain scrolling graph. A pixel is one sample there.
+
+- Each graph can pick its own time axis under Graphs: Linear, or one of the 3 log curves. The default, As set under Time, follows Log time axis and Log curve, so a settings file from before the pick keeps its axis, and one setting still changes every graph that has no pick of its own.
+	- A graph's pick is `cpu.time` or `mem.time`: `same`, `linear`, `smooth`, `fixed_a` or `fixed_b`.
+	- Spike emphasis sits under Log time axis, but it applies to any graph on a log curve.
 
 ## Drawing
 

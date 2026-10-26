@@ -18,7 +18,7 @@ use std::io;
 use std::path::Path;
 use std::time::{Instant, SystemTime};
 
-use axis::Axis;
+use axis::{Axis, Timing};
 use collect::Collector;
 use config::Look;
 use cpu::CpuReader;
@@ -35,6 +35,7 @@ pub trait Source<const N: usize>: Collector<N> {
 	const TITLE: &'static str;
 	fn text(v: &[f32; N]) -> String;
 	fn paint(look: &Look) -> Paint<'_, N>;
+	fn timing(look: &Look) -> Timing;
 }
 
 fn pc(x: f32) -> i32 {
@@ -60,6 +61,10 @@ impl Source<4> for CpuReader {
 	fn paint(look: &Look) -> Paint<'_, 4> {
 		look.cpu_paint()
 	}
+
+	fn timing(look: &Look) -> Timing {
+		look.timing(look.cpu_time)
+	}
 }
 
 impl Source<3> for MemoryReader {
@@ -77,6 +82,10 @@ impl Source<3> for MemoryReader {
 
 	fn paint(look: &Look) -> Paint<'_, 3> {
 		look.mem_paint()
+	}
+
+	fn timing(look: &Look) -> Timing {
+		look.timing(look.mem_time)
 	}
 }
 
@@ -206,14 +215,15 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 	}
 
 	pub fn axis(&self, columns: usize) -> Axis {
-		if self.look.log_axis {
-			let total = match (self.hist.first(), self.hist.last()) {
-				(Some(a), Some(b)) => b - a,
-				_ => 0.0,
-			};
-			Axis::log(self.look.curve, total)
-		} else {
-			Axis::linear(columns as f64 * self.look.sample_ms as f64 / 1000.0)
+		match S::timing(&self.look) {
+			Timing::Log(curve) => {
+				let total = match (self.hist.first(), self.hist.last()) {
+					(Some(a), Some(b)) => b - a,
+					_ => 0.0,
+				};
+				Axis::log(curve, total)
+			}
+			Timing::Linear => Axis::linear(columns as f64 * self.look.sample_ms as f64 / 1000.0),
 		}
 	}
 
