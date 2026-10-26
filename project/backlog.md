@@ -21,18 +21,6 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- Memory cache counts slab, the way b23's multiload-ng does
-	- ID: 2026102508354893
-	- Type: Enhancement
-	- Status: Queued
-		- Answered 2026-10-25: yes, count reclaimable slab as cache, always, like `free`.
-	- Priority|Severity: Avg
-	- Opened: 20261025-083548
-	- Opened by: t00mietum
-	- Related IDs: 2026102408512192, 2026102408304625
-	- Requirements:
-		- b23's multiload-ng has `graph-mem-procps-compliant=true`, so it counts slab as cache. tukzmon counts `Cached` alone, per 2026102408512192, so its cache band is thinner and user thicker than multiload-ng showed.
-
 - Theme presets, with a coordinated Default
 	- ID: 2026102409400679
 	- Type: Feature
@@ -173,6 +161,33 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: None in the repo, as for 2026102416252892. The gate was watched to fail on a planted format error.
 
+- CICD reset: CICD process gaps
+	- ID: 2026102416252898
+	- Type: Task
+	- Status: Waiting on UAT
+	- Needs hand testing: on b23, run `cicd/cicd.bash` with no options. It dogfoods, which restarts the live panel, so a round doesn't run it.
+	- Priority|Severity: Avg
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- A `cicd.bash` per the shared CICD rules, with remote sync first, format, build, lint, tests, release build, dogfood, and cleanup.
+		- `rust-toolchain.toml` pins the toolchain, and lint and audit tools are pinned in one place.
+		- Lint output rotated into `cicd/artifacts/lint/`, with a `--check` that prints only what's new.
+		- Leak checks: ASan, LSan, and UBSan over the Rust and the C++ shim, Miri, a soak test, clippy's `mem_forget` and `undocumented_unsafe_blocks`, and the known-advisory scan.
+		- `.deb` and `.rpm` packages, and a profiler stage.
+	- Progress log:
+		- `cicd/cicd.bash` runs remote sync, format, build, lint, tests, the release build and dogfood, then cleans up.
+		- `rust-toolchain.toml` pins Rust 1.96.0 with rustfmt and clippy. The lint tool versions are pinned in `cicd/config.bash`, and a run warns when the box has another.
+		- Lint output goes to `cicd/artifacts/lint/`, rotated. `cicd/utility/lint-report.bash --check` prints only what's new since the last look.
+		- The rest is split into children: leak checks 2026102506591278, packages 2026102506591283, and the profiler 2026102506591288.
+	- Decisions:
+		- Dogfood is `utility/dev-install.bash`. A panel plugin has to sit where the panel loads it, so the synced dogfood folder, which holds programs a person runs, doesn't fit.
+		- No `dogfood_tukzmon.ps1` launcher either. The panel starts the plugin and the plugin starts tukzmon-settings, so there's nothing for a person to launch.
+		- No publish step yet, since none was asked for here.
+	- Branch: round-1025
+	- 2026-10-25: every child is Done. Only the no-options run in the hand test row is left, which dogfoods.
+
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
@@ -195,33 +210,6 @@ Sorted per the notes in [Template](#template).
 		- No layer cache between runs, to keep it small. Each run builds the image first, which takes a few minutes.
 	- Branch: round-1025
 	- Test case: The workflow is its own test. Its first run is in the row above.
-
-- CICD reset: leak checks, Miri
-	- ID: 2026102516060729
-	- Type: Task
-	- Status: Done
-	- Needs local test suite run?: No. The full Miri step passed on 2026-10-25.
-	- Priority|Severity: Avg
-	- Opened: 20261025-160607
-	- Opened by: t00mietum
-	- Parent ID: 2026102506591278
-	- Prereq IDs: 2026102516060724
-	- Requirements:
-		- The test suite under Miri, on the nightly the sanitizers pin, on a quarter of the CPUs.
-		- A test that needs FFI or files Miri can't reach gets `cfg_attr(miri, ignore)` with a one-line reason.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- A Miri step runs the tests under Miri on the nightly the sanitizers use, which the image now gets with miri. Each test gets a Miri of its own, a quarter of the CPUs at a time, since Miri runs a whole test binary on one core.
-		- Miri can reach the host's files and clock, so the collector and history file tests run under it. 2 tests call C for the locale's time format, and 14 settings window tests save through shcl, which fsyncs the folder, which Miri can't. Those are ignored under Miri, each with its reason.
-		- Miri rounds `ln` and its kin a little differently on each call, so the step makes its floats deterministic, as they are on the box. Without that, the log axis test and a knobs slider test each saw the same value worked out twice come out unequal in the last digit. Both pass with it.
-		- `TUKZMON_MIRI_FILTER` runs only the tests with that in their name, such as to rerun one.
-		- Verified: a planted read past the end of a Vec, a `Box::leak`, and a failed assert each failed the step in the image, each on a FAIL line with its test ID. The other 8 axis tests passed.
-	- Decisions:
-		- It's a leak check that takes hours, so it runs only in `--long`, with `--leakcheck`, or as the `miri` area. The tests took about 7 hours of CPU under Miri one at a time, so nearly an hour at 8 at a time, which would push the default run past its hour. A test that parses the settings spec takes 3 to 11 minutes. One dice test ran past 20 minutes and wasn't waited for, so the step takes at least that long.
-	- Branch: round-1025b
-	- Test case: None in the repo, as for 2026102516060718. The step was watched to fail.
-	- Verified 2026-10-25: `cicd/cicd.bash --backlog-run-quick miri` on 5c996ac passed in 68m 51s, with 154 tests, 16 of them skipped by their ignore attributes. Log was in the round's run folder.
 
 - Core library and Linux collectors
 	- ID: 2026101916013884
@@ -491,49 +479,17 @@ Sorted per the notes in [Template](#template).
 		- Charge and state from `/sys/class/power_supply/BAT*`: charging, discharging, and the critical level.
 		- No collector on a box with no battery.
 
-- CICD reset: CICD process gaps
-	- ID: 2026102416252898
-	- Type: Task
-	- Status: Waiting on UAT
-	- Needs hand testing: on b23, run `cicd/cicd.bash` with no options. It dogfoods, which restarts the live panel, so a round doesn't run it.
+- Memory cache counts slab, the way b23's multiload-ng does
+	- ID: 2026102508354893
+	- Type: Enhancement
+	- Status: Queued
+		- Answered 2026-10-25: yes, count reclaimable slab as cache, always, like `free`.
 	- Priority|Severity: Avg
-	- Opened: 20261024-162528
+	- Opened: 20261025-083548
 	- Opened by: t00mietum
+	- Related IDs: 2026102408512192, 2026102408304625
 	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- A `cicd.bash` per the shared CICD rules, with remote sync first, format, build, lint, tests, release build, dogfood, and cleanup.
-		- `rust-toolchain.toml` pins the toolchain, and lint and audit tools are pinned in one place.
-		- Lint output rotated into `cicd/artifacts/lint/`, with a `--check` that prints only what's new.
-		- Leak checks: ASan, LSan, and UBSan over the Rust and the C++ shim, Miri, a soak test, clippy's `mem_forget` and `undocumented_unsafe_blocks`, and the known-advisory scan.
-		- `.deb` and `.rpm` packages, and a profiler stage.
-	- Progress log:
-		- `cicd/cicd.bash` runs remote sync, format, build, lint, tests, the release build and dogfood, then cleans up.
-		- `rust-toolchain.toml` pins Rust 1.96.0 with rustfmt and clippy. The lint tool versions are pinned in `cicd/config.bash`, and a run warns when the box has another.
-		- Lint output goes to `cicd/artifacts/lint/`, rotated. `cicd/utility/lint-report.bash --check` prints only what's new since the last look.
-		- The rest is split into children: leak checks 2026102506591278, packages 2026102506591283, and the profiler 2026102506591288.
-	- Decisions:
-		- Dogfood is `utility/dev-install.bash`. A panel plugin has to sit where the panel loads it, so the synced dogfood folder, which holds programs a person runs, doesn't fit.
-		- No `dogfood_tukzmon.ps1` launcher either. The panel starts the plugin and the plugin starts tukzmon-settings, so there's nothing for a person to launch.
-		- No publish step yet, since none was asked for here.
-	- Branch: round-1025
-	- 2026-10-25: every child is Done. Only the no-options run in the hand test row is left, which dogfoods.
-
-- CICD reset: leak checks
-	- ID: 2026102506591278
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261025-065912
-	- Opened by: t00mietum
-	- Parent ID: 2026102416252898
-	- Requirements:
-		- ASan, LSan and UBSan over the Rust and the C++ shim, Miri, a soak test, clippy's `mem_forget` and `undocumented_unsafe_blocks`, and the known-advisory scan.
-		- They run on a quarter of the CPUs, the heavy-step count `cicd.bash` already works out.
-	- Progress log:
-		- Split into children: clippy and the advisory scan 2026102516060718 (Done), sanitizers 2026102516060724, Miri 2026102516060729, and the soak test 2026102516060734.
-	- Branch: round-1025b
-	- All 4 children are Done as of 2026-10-25: clippy and advisories, sanitizers, Miri, and the soak test.
-	- Test case: Covered by its children's Test case rows.
+		- b23's multiload-ng has `graph-mem-procps-compliant=true`, so it counts slab as cache. tukzmon counts `Cached` alone, per 2026102408512192, so its cache band is thinner and user thicker than multiload-ng showed.
 
 - tukzmon-settings --version aborts when its output can't be written
 	- ID: 2026102519030128
@@ -1088,6 +1044,194 @@ Sorted per the notes in [Template](#template).
 		- Swept: every theme group member and every Themes sub-tab, through the rows qt.cpp gets.
 	- Closed: 20261025-183450
 
+- CICD reset: a test for every Done item
+	- ID: 2026102416252894
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- 4 Done items have no `Test case` row. The build date one needs a test. The 3 answered questions get a few words on why there's none.
+		- Every Done feature and bug from now on names its test's ID, or says why it has none.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The build date item names the version line's test, which checks the date in the viewer's time zone. The 3 questions each say why they have none.
+		- The test ID check in lint now fails on a Done item with no `Test case` row, and on an ID a `Test case` row names that no test has.
+		- Verified: the check failed on a planted Done item with no row, and on a row naming an unknown ID.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892. The check was watched to fail on both.
+	- Closed: 20261025-075906
+
+- CICD reset: container cleanup
+	- ID: 2026102416252890
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Prereq IDs: 2026102416252889
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Every container, image, and volume gets `dev.project=tukzmon` and `dev.run=<run folder name>`, and containers are named `tukzmon-<run folder name>-<step>`.
+		- Containers run with `--rm`, unless `--keep-temp` was passed. The run's containers are removed by label at its end, on failure and Ctrl+C too.
+		- The project's dangling images go, and older tags once a newer one has passed, keeping the current tag and the one before it. Then `docker builder prune -f --filter until=168h`.
+		- Nothing without the project's label is touched. The end of the run says what it removed and about what that freed.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Every container is named `tukzmon-<run folder name>-<step>` and has both labels, and so does the image. Containers run with `--rm` unless `--keep-temp` was passed, which keeps them and says how to list them.
+		- At the end, on failure and Ctrl+C too, the run's containers are stopped and removed by label. Then the project's dangling images go, and its older tags once this run's image has answered, keeping it and the one before. Then the build cache prune.
+		- Nothing is removed by force, and only what has the project's label. The end of the run names what went, about what it freed by `docker system df` before and after, and what the prune took.
+		- Verified: a Ctrl+C mid-build stopped its container at once, a container left running was removed by label, `--keep-temp` kept the run's 2, and 3 recipe changes in a row kept the current tag and the one before.
+	- Decisions:
+		- No volumes. The image's cargo home and target dir are folders under `target/container`, so `cargo clean` takes them too.
+		- Tags are ordered by a `dev.built` label set at build time, since a build from cache gives every tag the same creation time.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892.
+	- Closed: 20261025-073422
+
+- CICD reset: step output
+	- ID: 2026102416252893
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Each step prints the shared lines: a 79 character rule, `[ YYYYmmDD-HHMMSS.NN: Step 1 of 9; Starting Format ]`, its output, then `PASS Format` or `FAIL Format` in the same form.
+		- Steps turned off aren't counted, and the first section lists them with the flag or reason.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Each step prints the 79 character rule, `[ <time>: Step 1 of 5; Starting Format ]`, its output, and the `PASS` or `FAIL` line in the same form, then a blank line.
+		- The first section lists the steps, then every step that's off, with the flag or the reason.
+		- Verified: in a quick run, a full run, and runs that failed at Format and at Lint.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892.
+	- Closed: 20261025-071028
+
+- Update default colors to my current selection
+	- ID: 2026102408304559
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-082803
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304612
+	- Requirements:
+		- Update default colors to use my current selection.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The current selection is the colors in b23's `~/.config/tukzmon/tukzmon.shcl`. It changes 2 of them: system is `#c64600` and nice is `#205f40`. Those are the built-in defaults now. The other CPU and background colors were already the same.
+	- Decisions:
+		- The file also sets sample time to 1000 ms. That isn't a color, so the default stays 500 ms.
+	- Branch: round-1024
+	- Test case: `config::tests::defaults_are_the_multiload_colors` (debhj) and `config::tests::a_file_overrides_and_bad_lines_fall_back` (debhk). Both fail on the old defaults and pass now.
+		- 2026-10-24: both asserts got new values only. System went from `#008000` to `#c64600`, and nice from `#c000c0` to `#205f40`, in both tests.
+	- Closed: 20261024-090621
+
+- Collector trait, memory and swap
+	- ID: 2026102408512192
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Related IDs: 2026102408304625
+	- Requirements:
+		- One collector trait, which every source sits behind. CPU moves onto it.
+		- A source that isn't there gives no collector, so its graph can be hidden.
+		- Memory from `/proc/meminfo`, stacked user, buffers, cache.
+		- Swap from `/proc/meminfo`, as % used.
+	- Progress log:
+		- `core/src/collect.rs` has the `Collector` trait. `probe()` gives None when the source isn't there, and the graph is hidden off that. CPU is on it now.
+		- `core/src/mem.rs` reads memory and swap. A box with no swap gets no swap collector, and swap turned off later reads as a gap.
+		- Nothing draws them yet. That's the memory graph item and The graphs.
+	- Decisions:
+		- Cache is the `Cached` row alone, the way multiload-ng counts it by its base formula. `free` adds `SReclaimable`. Noted in `design.md`.
+	- Test case: `mem::tests` (6: decax, decay, decaz, decb0, decb1, decb2) and `collect::tests::slurp_reuses_and_misses` (decaw).
+	- Closed: 20261024-085549
+
+- Finish the requirement for moving between time spans
+	- ID: 2026101916013880
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013886
+	- Requirements:
+		- The log axis item has a sentence that stops partway: "The transition from 1m to 1h to 1d to "everything" should".
+	- Progress log:
+		- Finished: it should be smooth, with no obvious gate or line behind the scenes. `design.md` has how under Time axis.
+	- Test case: None, since it was a question. The log axis item's tests cover the answer.
+	- Closed: 20261019
+
+- Confirm the language split
+	- ID: 2026101916013881
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013889
+	- Requirements:
+		- OK or change the proposal in `design.md` under Code layout: a Rust core library, and a short C file per panel only where the panel API is C.
+	- Progress log:
+		- OK'd as proposed. `design.md` now lists it as settled.
+	- Test case: None, since it was a question about the code layout.
+	- Closed: 20261019
+
+- CICD reset: leak checks, Miri
+	- ID: 2026102516060729
+	- Type: Task
+	- Status: Done
+	- Needs local test suite run?: No. The full Miri step passed on 2026-10-25.
+	- Priority|Severity: Avg
+	- Opened: 20261025-160607
+	- Opened by: t00mietum
+	- Parent ID: 2026102506591278
+	- Prereq IDs: 2026102516060724
+	- Requirements:
+		- The test suite under Miri, on the nightly the sanitizers pin, on a quarter of the CPUs.
+		- A test that needs FFI or files Miri can't reach gets `cfg_attr(miri, ignore)` with a one-line reason.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A Miri step runs the tests under Miri on the nightly the sanitizers use, which the image now gets with miri. Each test gets a Miri of its own, a quarter of the CPUs at a time, since Miri runs a whole test binary on one core.
+		- Miri can reach the host's files and clock, so the collector and history file tests run under it. 2 tests call C for the locale's time format, and 14 settings window tests save through shcl, which fsyncs the folder, which Miri can't. Those are ignored under Miri, each with its reason.
+		- Miri rounds `ln` and its kin a little differently on each call, so the step makes its floats deterministic, as they are on the box. Without that, the log axis test and a knobs slider test each saw the same value worked out twice come out unequal in the last digit. Both pass with it.
+		- `TUKZMON_MIRI_FILTER` runs only the tests with that in their name, such as to rerun one.
+		- Verified: a planted read past the end of a Vec, a `Box::leak`, and a failed assert each failed the step in the image, each on a FAIL line with its test ID. The other 8 axis tests passed.
+	- Decisions:
+		- It's a leak check that takes hours, so it runs only in `--long`, with `--leakcheck`, or as the `miri` area. The tests took about 7 hours of CPU under Miri one at a time, so nearly an hour at 8 at a time, which would push the default run past its hour. A test that parses the settings spec takes 3 to 11 minutes. One dice test ran past 20 minutes and wasn't waited for, so the step takes at least that long.
+	- Branch: round-1025b
+	- Test case: None in the repo, as for 2026102516060718. The step was watched to fail.
+	- Verified 2026-10-25: `cicd/cicd.bash --backlog-run-quick miri` on 5c996ac passed in 68m 51s, with 154 tests, 16 of them skipped by their ignore attributes. Log was in the round's run folder.
+
+- CICD reset: leak checks
+	- ID: 2026102506591278
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261025-065912
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- ASan, LSan and UBSan over the Rust and the C++ shim, Miri, a soak test, clippy's `mem_forget` and `undocumented_unsafe_blocks`, and the known-advisory scan.
+		- They run on a quarter of the CPUs, the heavy-step count `cicd.bash` already works out.
+	- Progress log:
+		- Split into children: clippy and the advisory scan 2026102516060718 (Done), sanitizers 2026102516060724, Miri 2026102516060729, and the soak test 2026102516060734.
+	- Branch: round-1025b
+	- All 4 children are Done as of 2026-10-25: clippy and advisories, sanitizers, Miri, and the soak test.
+	- Test case: Covered by its children's Test case rows.
+
 - CICD reset: version line
 	- ID: 2026102416252897
 	- Type: Task
@@ -1245,150 +1389,6 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025b
 	- Test case: None in the repo, as for 2026102416252892. Each check was watched to fail.
 	- Closed: 20261025-160906
-
-- CICD reset: a test for every Done item
-	- ID: 2026102416252894
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- 4 Done items have no `Test case` row. The build date one needs a test. The 3 answered questions get a few words on why there's none.
-		- Every Done feature and bug from now on names its test's ID, or says why it has none.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- The build date item names the version line's test, which checks the date in the viewer's time zone. The 3 questions each say why they have none.
-		- The test ID check in lint now fails on a Done item with no `Test case` row, and on an ID a `Test case` row names that no test has.
-		- Verified: the check failed on a planted Done item with no row, and on a row naming an unknown ID.
-	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892. The check was watched to fail on both.
-	- Closed: 20261025-075906
-
-- CICD reset: container cleanup
-	- ID: 2026102416252890
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Prereq IDs: 2026102416252889
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- Every container, image, and volume gets `dev.project=tukzmon` and `dev.run=<run folder name>`, and containers are named `tukzmon-<run folder name>-<step>`.
-		- Containers run with `--rm`, unless `--keep-temp` was passed. The run's containers are removed by label at its end, on failure and Ctrl+C too.
-		- The project's dangling images go, and older tags once a newer one has passed, keeping the current tag and the one before it. Then `docker builder prune -f --filter until=168h`.
-		- Nothing without the project's label is touched. The end of the run says what it removed and about what that freed.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- Every container is named `tukzmon-<run folder name>-<step>` and has both labels, and so does the image. Containers run with `--rm` unless `--keep-temp` was passed, which keeps them and says how to list them.
-		- At the end, on failure and Ctrl+C too, the run's containers are stopped and removed by label. Then the project's dangling images go, and its older tags once this run's image has answered, keeping it and the one before. Then the build cache prune.
-		- Nothing is removed by force, and only what has the project's label. The end of the run names what went, about what it freed by `docker system df` before and after, and what the prune took.
-		- Verified: a Ctrl+C mid-build stopped its container at once, a container left running was removed by label, `--keep-temp` kept the run's 2, and 3 recipe changes in a row kept the current tag and the one before.
-	- Decisions:
-		- No volumes. The image's cargo home and target dir are folders under `target/container`, so `cargo clean` takes them too.
-		- Tags are ordered by a `dev.built` label set at build time, since a build from cache gives every tag the same creation time.
-	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892.
-	- Closed: 20261025-073422
-
-- CICD reset: step output
-	- ID: 2026102416252893
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- Each step prints the shared lines: a 79 character rule, `[ YYYYmmDD-HHMMSS.NN: Step 1 of 9; Starting Format ]`, its output, then `PASS Format` or `FAIL Format` in the same form.
-		- Steps turned off aren't counted, and the first section lists them with the flag or reason.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- Each step prints the 79 character rule, `[ <time>: Step 1 of 5; Starting Format ]`, its output, and the `PASS` or `FAIL` line in the same form, then a blank line.
-		- The first section lists the steps, then every step that's off, with the flag or the reason.
-		- Verified: in a quick run, a full run, and runs that failed at Format and at Lint.
-	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892.
-	- Closed: 20261025-071028
-
-- Update default colors to my current selection
-	- ID: 2026102408304559
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261024-082803
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304612
-	- Requirements:
-		- Update default colors to use my current selection.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- The current selection is the colors in b23's `~/.config/tukzmon/tukzmon.shcl`. It changes 2 of them: system is `#c64600` and nice is `#205f40`. Those are the built-in defaults now. The other CPU and background colors were already the same.
-	- Decisions:
-		- The file also sets sample time to 1000 ms. That isn't a color, so the default stays 500 ms.
-	- Branch: round-1024
-	- Test case: `config::tests::defaults_are_the_multiload_colors` (debhj) and `config::tests::a_file_overrides_and_bad_lines_fall_back` (debhk). Both fail on the old defaults and pass now.
-		- 2026-10-24: both asserts got new values only. System went from `#008000` to `#c64600`, and nice from `#c000c0` to `#205f40`, in both tests.
-	- Closed: 20261024-090621
-
-- Collector trait, memory and swap
-	- ID: 2026102408512192
-	- Type: Feature
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261024-085122
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013884
-	- Related IDs: 2026102408304625
-	- Requirements:
-		- One collector trait, which every source sits behind. CPU moves onto it.
-		- A source that isn't there gives no collector, so its graph can be hidden.
-		- Memory from `/proc/meminfo`, stacked user, buffers, cache.
-		- Swap from `/proc/meminfo`, as % used.
-	- Progress log:
-		- `core/src/collect.rs` has the `Collector` trait. `probe()` gives None when the source isn't there, and the graph is hidden off that. CPU is on it now.
-		- `core/src/mem.rs` reads memory and swap. A box with no swap gets no swap collector, and swap turned off later reads as a gap.
-		- Nothing draws them yet. That's the memory graph item and The graphs.
-	- Decisions:
-		- Cache is the `Cached` row alone, the way multiload-ng counts it by its base formula. `free` adds `SReclaimable`. Noted in `design.md`.
-	- Test case: `mem::tests` (6: decax, decay, decaz, decb0, decb1, decb2) and `collect::tests::slurp_reuses_and_misses` (decaw).
-	- Closed: 20261024-085549
-
-- Finish the requirement for moving between time spans
-	- ID: 2026101916013880
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261019-160138
-	- Opened by: t00mietum
-	- Related IDs: 2026101916013886
-	- Requirements:
-		- The log axis item has a sentence that stops partway: "The transition from 1m to 1h to 1d to "everything" should".
-	- Progress log:
-		- Finished: it should be smooth, with no obvious gate or line behind the scenes. `design.md` has how under Time axis.
-	- Test case: None, since it was a question. The log axis item's tests cover the answer.
-	- Closed: 20261019
-
-- Confirm the language split
-	- ID: 2026101916013881
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261019-160138
-	- Opened by: t00mietum
-	- Related IDs: 2026101916013889
-	- Requirements:
-		- OK or change the proposal in `design.md` under Code layout: a Rust core library, and a short C file per panel only where the panel API is C.
-	- Progress log:
-		- OK'd as proposed. `design.md` now lists it as settled.
-	- Test case: None, since it was a question about the code layout.
-	- Closed: 20261019
 
 - CICD reset: temp files and safe removal
 	- ID: 2026102416252896
