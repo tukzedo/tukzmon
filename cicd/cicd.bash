@@ -528,8 +528,10 @@ fStepMiri() {
 		((! handsOff)) || return 1
 		fEcho_Clean "WARNING: so nothing ran under Miri"; return 0
 	fi
-	## Its own sysroot, kept with the build, so a run doesn't rebuild it.
-	miriEnv=("MIRI_SYSROOT=${dir}/miri-sysroot" "MIRIFLAGS=-Zmiri-disable-isolation")
+	## Its own sysroot, kept with the build, so a run doesn't rebuild it. Miri
+	## rounds ln and friends a little differently each call, so the same axis
+	## worked out twice wouldn't compare equal, as it does on the box.
+	miriEnv=("MIRI_SYSROOT=${dir}/miri-sysroot" "MIRIFLAGS=-Zmiri-disable-isolation -Zmiri-deterministic-floats")
 	mkdir -p -- "${logs}" || return 1
 	fEcho_Clean "cargo +${RUST_NIGHTLY} miri setup, in ${dir#"${root}/"}/miri-sysroot"
 	env "${miriEnv[@]}" cargo "+${RUST_NIGHTLY}" miri setup > "${logs}/setup.log" 2>&1 || { cat -- "${logs}/setup.log"; return 1; }

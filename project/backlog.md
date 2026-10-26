@@ -723,7 +723,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102516060729
 	- Type: Task
 	- Status: Waiting on automated testing
-	- Needs local test suite run?: `cicd/cicd.bash --backlog-run-quick miri`, which takes hours. So far the step has run only on the axis tests, and each test has run on its own by hand.
+	- Needs local test suite run?: `cicd/cicd.bash --backlog-run-quick miri`, which takes hours. The step has run on the axis tests only. Every core test and some of the settings window tests ran under Miri one at a time, which found the ignores and the float rounding below.
 	- Priority|Severity: Avg
 	- Opened: 20261025-160607
 	- Opened by: t00mietum
@@ -736,7 +736,8 @@ Sorted per the notes in [Template](#template).
 	- Actual effort: Avg
 	- Progress log:
 		- A Miri step runs the tests under Miri on the nightly the sanitizers use, which the image now gets with miri. Each test gets a Miri of its own, a quarter of the CPUs at a time, since Miri runs a whole test binary on one core.
-		- Miri can reach the host's files and clock, so the collector and history file tests run under it. The hover clock test calls C for the locale's time format, so it's ignored under Miri, with that reason.
+		- Miri can reach the host's files and clock, so the collector and history file tests run under it. 2 tests call C for the locale's time format, and 14 settings window tests save through shcl, which fsyncs the folder, which Miri can't. Those are ignored under Miri, each with its reason.
+		- Miri rounds `ln` and its kin a little differently on each call, so the step makes its floats deterministic, as they are on the box. Without that, the log axis test saw the same axis come out unequal in the last digit.
 		- `TUKZMON_MIRI_FILTER` runs only the tests with that in their name, such as to rerun one.
 		- Verified: a planted read past the end of a Vec, a `Box::leak`, and a failed assert each failed the step in the image, each on a FAIL line with its test ID. The other 8 axis tests passed.
 	- Decisions:

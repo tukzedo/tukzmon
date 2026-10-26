@@ -344,6 +344,7 @@ mod tests {
 
 	// Test ID: decc6
 	#[test]
+	#[cfg_attr(miri, ignore = "the clock tip calls nl_langinfo, which is C")]
 	fn the_hover_tip_says_when_and_what() {
 		let mut g = two_hours();
 		// 130 px wide, 1 px border: 128 columns, as render would draw them
