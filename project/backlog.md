@@ -723,7 +723,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102516060729
 	- Type: Task
 	- Status: Waiting on automated testing
-	- Needs local test suite run?: `cicd/cicd.bash --backlog-run-quick miri`, which takes hours. The step has run on the axis tests only. Every core test and some of the settings window tests ran under Miri one at a time, which found the ignores and the float rounding below.
+	- Needs local test suite run?: `cicd/cicd.bash --backlog-run-quick miri`, which takes hours. The step has run on the axis tests only. Every test ran under Miri one at a time, before the ignores and the float flag, which they came from. All but the slow dice test finished.
 	- Priority|Severity: Avg
 	- Opened: 20261025-160607
 	- Opened by: t00mietum
