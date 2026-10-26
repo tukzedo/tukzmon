@@ -533,6 +533,7 @@ Sorted per the notes in [Template](#template).
 		- Split into children: clippy and the advisory scan 2026102516060718 (Done), sanitizers 2026102516060724, Miri 2026102516060729, and the soak test 2026102516060734.
 	- Branch: round-1025b
 	- All 4 children are Done as of 2026-10-25: clippy and advisories, sanitizers, Miri, and the soak test.
+	- Test case: Covered by its children's Test case rows.
 
 - tukzmon-settings --version aborts when its output can't be written
 	- ID: 2026102519030128
