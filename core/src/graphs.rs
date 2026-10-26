@@ -594,4 +594,25 @@ mod tests {
 		.unwrap();
 		assert_eq!(g.widths().collect::<Vec<_>>(), [100, 40]);
 	}
+
+	// Test ID: dee9p
+	#[test]
+	fn every_graph_takes_its_colors_from_the_one_theme() {
+		let spec = crate::config::spec();
+		let theme = spec.group(crate::config::THEME).unwrap();
+		let top = spec.get(&theme.chooser).unwrap().tab;
+		assert_eq!(spec.tabs[top].parent, None);
+		let under_themes = |tab: usize| tab == top || spec.tabs[tab].parent == Some(top);
+		// no graph gets a pick of its own
+		for g in &spec.groups {
+			let at = spec.get(&g.chooser).unwrap().tab;
+			assert!(g.id == theme.id || !under_themes(at), "{}", g.id);
+		}
+		for w in Which::ALL {
+			let mode = format!("{}_mode", w.name());
+			let s = spec.get(&mode).unwrap_or_else(|| panic!("no {mode}"));
+			assert_eq!(s.group.as_deref(), Some(theme.id.as_str()), "{mode}");
+			assert_eq!(spec.tabs[s.tab].parent, Some(top), "{mode}");
+		}
+	}
 }

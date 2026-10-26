@@ -21,22 +21,6 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- A theme per graph
-	- ID: 2026102508393159
-	- Type: Feature
-	- Status: Queued
-		- Answered 2026-10-25: one theme colors every graph, so no graph picks its own. The Themes tab may already work this way. Check it, add a test, and take the theme dropdown out of the graph list item.
-	- Priority|Severity: High
-	- Opened: 20261025-083931
-	- Opened by: t00mietum
-	- Parent ID: 2026102408304639
-	- Prereq IDs: 2026102508393152
-	- Related IDs: 2026102409400679, 2026102409400684
-	- Requirements:
-		- Each theme defines colors for all monitors.
-		- The CRUD controls for themes are at the top of the Themes tab, and stay in place on every per-monitor sub-tab.
-		- Changing the theme changes the colors that every sub-tab shows.
-
 - Memory cache counts slab, the way b23's multiload-ng does
 	- ID: 2026102508354893
 	- Type: Enhancement
@@ -1085,6 +1069,36 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- A theme per graph
+	- ID: 2026102508393159
+	- Type: Feature
+	- Status: Done
+		- Answered 2026-10-25: one theme colors every graph, so no graph picks its own. The Themes tab may already work this way. Check it, add a test, and take the theme dropdown out of the graph list item.
+	- Priority|Severity: High
+	- Opened: 20261025-083931
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304639
+	- Prereq IDs: 2026102508393152
+	- Related IDs: 2026102409400679, 2026102409400684
+	- Requirements:
+		- Each theme defines colors for all monitors.
+		- The CRUD controls for themes are at the top of the Themes tab, and stay in place on every per-monitor sub-tab.
+		- Changing the theme changes the colors that every sub-tab shows.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- The Themes tab already worked this way. One Name dropdown, with Save, Save as, Rename, Delete and Randomize, sits on top of the CPU, Memory and Background sub-tabs, and every built-in theme sets every graph's colors and mode.
+		- The graph list item, 2026102508393161, had no theme dropdown left to take out.
+		- `design.md` Theme says one theme colors every graph.
+		- Verified: the full run passed with both new tests.
+		- It departs from the title. No graph picks its own theme, per the answer.
+	- Decisions:
+		- The test walks every graph tukzmon draws, so a new graph fails it until its mode is in the theme and on a Themes sub-tab.
+	- Branch: round-1025b
+	- Test case: `graphs::tests::every_graph_takes_its_colors_from_the_one_theme` (dee9p) and `bridge::tests::one_theme_on_top_recolors_every_sub_tab` (dee9q). Both fail with the memory mode moved to the Graph tab, and dee9q with every theme given the same background colors.
+		- Swept: every theme group member and every Themes sub-tab, through the rows qt.cpp gets.
+	- Closed: 20261025-183450
 
 - CICD reset: profiler stage
 	- ID: 2026102506591288
