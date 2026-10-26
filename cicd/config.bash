@@ -57,6 +57,13 @@ MARKDOWNLINT_DISABLE_FOR=(
 ## version, gitignored.
 PACKAGE_DIR="cicd/artifacts/packages"
 
+## The profiler: core/examples/profile.rs, the panel's tick under pprof's
+## sampler, since perf can't record on b23. Its flamegraphs go here as
+## flame_<stamp>.svg, rotated, gitignored, and flame-report.py's summary of the
+## newest goes in the log. 20000 ticks are about 7 s of CPU (2026-10-25).
+PROFILE_DIR="cicd/artifacts/profiling"
+PROFILE_ROUNDS=20000
+
 ## The leak checks, "name|step function|length". The length is by measured
 ## time: fast ones run in every run, slow ones in all but --quick and
 ## --backlog-run-quick, and hours ones only in --long. --leakcheck adds every
@@ -113,3 +120,4 @@ CTR_NET_STEPS=(fStepAdvisories)
 ##		- 2026-10-25: Miri.
 ##		- 2026-10-25: The soak test.
 ##		- 2026-10-25: Packages: nfpm's pin, and where they go.
+##		- 2026-10-25: The profiler.

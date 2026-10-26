@@ -44,5 +44,11 @@ codegen-units = 1
 panic = "abort"
 strip = true
 
+# Release with the names kept, for the cicd profiler step.
+[profile.profiling]
+inherits = "release"
+strip = false
+debug = "limited"
+
 [profile.dev]
 debug = "line-tables-only"

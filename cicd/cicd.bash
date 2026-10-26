@@ -35,7 +35,11 @@
 ##	  12. Soak            a slow leak check: core/tests/soak.rs, the panel's
 ##	                      work over days of skipped clock, with the heap read at
 ##	                      round N and 2N. Its report goes to cicd/artifacts/soak/
-##	  13. Dogfood         utility/dev-install.bash, which installs the build to
+##	  13. Profiler        the panel's tick, core/examples/profile.rs, under
+##	                      pprof's sampler, on this box. The flamegraph goes to
+##	                      cicd/artifacts/profiling/, with a report on its hot
+##	                      spots from utility/flame-report.py
+##	  14. Dogfood         utility/dev-install.bash, which installs the build to
 ##	                      ~/.local/lib/tukzmon and restarts the panel
 ##	  A step that's off isn't counted, and the first section says why it's off.
 ##	  Cleanup comes last, on failure and Ctrl+C too.
@@ -43,8 +47,8 @@
 ##	  cicd/cicd.bash [options]
 ##	  Options:
 ##	   (none)              the default run: every step
-##	   --quick             the fast steps: the default run but the packages
-##	                       and the slow leak checks, so no Soak
+##	   --quick             the fast steps: the default run but the packages,
+##	                       the profiler and the slow leak checks, so no Soak
 ##	   --long              everything, Miri included, which only it runs. Also
 ##	                       --slow
 ##	   --leakcheck         add every leak check to any run
@@ -66,6 +70,7 @@
 ##	                         sanitizers  the Sanitizers leak check
 ##	                         miri    the Miri leak check, only when named
 ##	                         soak    the Soak leak check, only when named
+##	                         profile the profiler, only when named
 ##	   --gate [AREA...]    another name for --backlog-run-quick
 ##	   --backlog-run-full  what a backlog round runs once at its end: every
 ##	                       check of the default run, so not Miri
@@ -105,6 +110,8 @@
 ##	  live. The image step stops containers whose run is gone.
 ##	- Lint: utility/lint-report.bash reports on the newest lint log, and its
 ##	  --check prints only what's new since the last look.
+##	- Profiler: utility/flame-report.py reports on the newest flamegraph, and
+##	  its --check prints only when there's a newer one than at the last look.
 ##	- Test IDs: utility/test-ids.bash makes, reads and checks them. A new test
 ##	  takes one from its "new" command.
 ##	- The pre-push hook, hooks/pre-push, runs --merge-gate on a push to main.
@@ -202,7 +209,7 @@ esac; done
 
 handsOff=0
 case "${mode}" in backlog-run-quick|backlog-run-full|merge-gate) handsOff=1 ;; esac
-allAreas=(format build lint test advisories release package)
+allAreas=(format build lint test advisories release package profile)
 for entry in "${LEAK_CHECKS[@]}"; do entry="${entry%%|*}"; allAreas+=("${entry,,}"); done
 namedAreas="${#areas[@]}"
 if [[ "${mode}" == backlog-run-quick ]]; then
@@ -264,10 +271,12 @@ for entry in "${LEAK_CHECKS[@]}"; do
 	leakWhy="$(fLeakWhyOff "${leakName}" "${leakLength}")"
 	if [[ -n "${leakWhy}" ]]; then offLines+=("${leakName}: ${leakWhy}"); else fPlan "${leakName}" "${leakFn}" ""; fi
 done
+if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" profile "* ]]; then offLines+=("Profiler: --backlog-run-quick runs it only when the profile area is named")
+elif [[ "${mode}" == quick ]]; then offLines+=("Profiler: --quick")
+else fPlan "Profiler" fStepProfile ""; fi
 if ((handsOff)); then offLines+=("Dogfood: --${mode} never dogfoods")
 else fPlan "Dogfood" fStepDogfood ""; fi
 ## Off by name, until they're built.
-offLines+=("Profiler: not built yet (backlog 2026102506591288)")
 if ((noRemote)); then offLines+=("Other hosts: --no-remote")
 else offLines+=("Other hosts: none, since tukzmon is Linux only for now"); fi
 offLines+=("Publish: not part of this pipeline${cliMessage:+, so --message goes unused}")
@@ -383,8 +392,8 @@ fStepLint() {
 		esac
 	done
 
-	fEcho_Clean "clippy -D warnings -j ${jobs}"
-	if CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${root}/target}/clippy" fLintRun cargo clippy --workspace --all-targets "${locked[@]}" -j "${jobs}" -- -D warnings; then
+	fEcho_Clean "clippy -D warnings -j ${jobs}, the profiler's workload too"
+	if CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${root}/target}/clippy" fLintRun cargo clippy --workspace --all-targets --features tukzmon-core/profiling "${locked[@]}" -j "${jobs}" -- -D warnings; then
 		fEcho_Clean "clippy: clean"
 	else failed+=(clippy); fi
 	if ! command -v shellcheck > /dev/null 2>&1; then
@@ -612,6 +621,27 @@ fStepSoak() {
 	gfs_rotate "${art}" soak log > /dev/null 2>&1 || true
 	gfs_rotate "${art}" soak json > /dev/null 2>&1 || true
 	return "${rc}"
+}
+
+## The panel's tick under pprof's sampler, in a release build with the names
+## kept. On this box, not in the image, since the tick reads this box's /proc
+## and the report needs python3. The report is a summary, so it can't fail the
+## step. flame-report.py's --check marker is left alone.
+fStepProfile() {
+	local out="${TMPDIR}/profile" art="${root}/${PROFILE_DIR}" stamp=''
+	mkdir -p -- "${out}" "${art}" || return 1
+	fEcho_Clean "cargo build --profile profiling --features profiling -p tukzmon-core --example profile -j ${jobs}"
+	cargo build --profile profiling --features profiling -p tukzmon-core --example profile "${locked[@]}" -j "${jobs}" || return 1
+	fEcho_Clean "${PROFILE_ROUNDS} ticks under the sampler"
+	env -u DISPLAY -u WAYLAND_DISPLAY "${hostTarget}/profiling/examples/profile" "${out}/flame.svg" "${PROFILE_ROUNDS}" || return 1
+	stamp="$(printf '%(%Y%m%d-%H%M%S)T' -1)"
+	cp -- "${out}/flame.svg" "${art}/flame_${stamp}.svg" || return 1
+	gfs_rotate "${art}" flame svg > /dev/null 2>&1 || true
+	## The rotation may add a tag to the name, such as _first.
+	fEcho_Clean "flamegraph: ${PROFILE_DIR}/flame_${stamp}*.svg"
+	fEcho_Clean
+	if ! command -v python3 > /dev/null 2>&1; then fEcho_Clean "WARNING: no python3, so no report on the flamegraph"; return 0; fi
+	python3 -I "${here}/utility/flame-report.py" --dir "${art}" || fEcho_Clean "WARNING: flame-report.py couldn't read the flamegraph"
 }
 
 fStepDogfood() {
@@ -1013,3 +1043,4 @@ exit 0
 ##		- 2026-10-25: The Miri leak check.
 ##		- 2026-10-25: The Soak leak check.
 ##		- 2026-10-25: .deb and .rpm packages, with sha256 sums.
+##		- 2026-10-25: The profiler, with a report on each flamegraph.

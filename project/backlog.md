@@ -1068,17 +1068,6 @@ Sorted per the notes in [Template](#template).
 		- Split into children: clippy and the advisory scan 2026102516060718 (Done), sanitizers 2026102516060724, Miri 2026102516060729, and the soak test 2026102516060734.
 	- Branch: round-1025b
 
-- CICD reset: profiler stage
-	- ID: 2026102506591288
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261025-065912
-	- Opened by: t00mietum
-	- Parent ID: 2026102416252898
-	- Requirements:
-		- A profiler step in the default run, with flamegraphs rotated into `cicd/artifacts/profiling/` and a report on the hot spots after each one.
-
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
 	- Type: Feature
@@ -1096,6 +1085,30 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- CICD reset: profiler stage
+	- ID: 2026102506591288
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261025-065912
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- A profiler step in the default run, with flamegraphs rotated into `cicd/artifacts/profiling/` and a report on the hot spots after each one.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A Profiler step runs 20000 of the panel's ticks, CPU and memory, on a week of history, sampled in the process, since `perf` can't record here. It runs in the default run, `--long`, `--backlog-run-full` and `--merge-gate`, not in `--quick`.
+		- The flamegraph goes to `cicd/artifacts/profiling/`, rotated. `cicd/utility/flame-report.py` then prints the hot spots by part: history, axis, drawing, collectors, tips and the history file.
+		- `flame-report.py --check` prints only when there's a newer graph than at the last look. The step never touches its marker.
+		- The first report: about 400 us of CPU a tick. History lookups for the draw are about half of it, the drawing a quarter, and the `/proc` reads a fifth.
+		- Verified: the step passed and reported, and failed on a bad tick count.
+	- Decisions:
+		- The step runs on the host, not in the image, since the ticks read this box's `/proc`, as the panel does.
+	- Branch: round-1025b
+	- Test case: None in the repo. The step itself is the check, and was watched to fail.
+	- Closed: 20261025-182134
 
 - CICD reset: .deb and .rpm packages
 	- ID: 2026102506591283

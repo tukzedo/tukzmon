@@ -17,6 +17,18 @@ shcl.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.191"
+# The cicd profiler step's sampler, for examples/profile.rs only.
+pprof = { version = "0.15", default-features = false, optional = true }
+# Not through pprof's flamegraph feature, whose inferno 0.11 brings a
+# quick-xml with advisories.
+inferno = { version = "0.12", default-features = false, optional = true }
+
+[features]
+profiling = ["dep:pprof", "dep:inferno"]
+
+[[example]]
+name = "profile"
+required-features = ["profiling"]
 
 [lints]
 workspace = true
