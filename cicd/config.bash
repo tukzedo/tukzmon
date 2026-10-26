@@ -62,15 +62,20 @@ LEAK_CHECKS=(
 	"Sanitizers|fStepSanitizers|fast"
 	## The tests under Miri, one Miri per test. Hours, at 8 at a time.
 	"Miri|fStepMiri|hours"
+	## The soak test, core/tests/soak.rs. About 1 minute in a debug build.
+	"Soak|fStepSoak|slow"
 )
 ## Steps that get a quarter of the CPUs, busy or not.
-HEAVY_STEPS=(fStepSanitizers fStepMiri)
-## The test targets Miri runs, as "package target-option".
+HEAVY_STEPS=(fStepSanitizers fStepMiri fStepSoak)
+## The test targets Miri runs, as "package target-option". The soak test is
+## left out, since it's already ignored and its allocator is dhat's.
 MIRI_TARGETS=(
 	"tukzmon-core --lib"
 	"knobs --lib"
 	"tukzmon-settings --bins"
 )
+## The soak test's reports, and dhat's heap profile when it fails, rotated.
+SOAK_DIR="cicd/artifacts/soak"
 ## LeakSanitizer's suppressions. Prebuilt libraries only, by name.
 LSAN_SUPP="cicd/lsan.supp"
 
@@ -85,7 +90,7 @@ CTR_DIR="cicd/container"
 CTR_CONTEXT_EXTRA=(rust-toolchain.toml)
 ## NAME=value, passed to docker build and part of the tag's hash.
 CTR_BUILD_ARGS=("RUST_NIGHTLY=${RUST_NIGHTLY}")
-CTR_STEPS=(fStepFormat fStepBuild fStepLint fStepAdvisories fStepTests fStepRelease fStepSanitizers fStepMiri)
+CTR_STEPS=(fStepFormat fStepBuild fStepLint fStepAdvisories fStepTests fStepRelease fStepSanitizers fStepMiri fStepSoak)
 ## The image steps that get the network. The rest run with none.
 CTR_NET_STEPS=(fStepAdvisories)
 
@@ -97,3 +102,4 @@ CTR_NET_STEPS=(fStepAdvisories)
 ##		- 2026-10-25: The nightly pin, the leak checks and their lengths, and
 ##		  the image's build args.
 ##		- 2026-10-25: Miri.
+##		- 2026-10-25: The soak test.

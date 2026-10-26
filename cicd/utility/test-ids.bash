@@ -69,6 +69,38 @@ fMembers() {
 ## Every Rust test as "id<TAB>crate<TAB>name<TAB>file:line", with "-" for a
 ## missing ID. The module path comes from the file's place under src/ and the
 ## indent of each "mod x {", which rustfmt keeps exact.
+fScanFile() {   ## fScanFile CRATE MODULE_PATH FILE
+	local crate="$1" mods="$2" f="$3"
+	awk -v crate="${crate}" -v base="${mods}" -v file="${f#"${root}/"}" '
+		{ line[NR] = $0 }
+		END {
+			depth = 0
+			for (n = 1; n <= NR; n++) {
+				if (match(line[n], /^\t*(pub(\([^)]*\))? +)?mod +[A-Za-z0-9_]+ *\{/)) {
+					s = line[n]; ind = s; sub(/[^\t].*/, "", ind)
+					sub(/^\t*(pub(\([^)]*\))? +)?mod +/, "", s); sub(/[^A-Za-z0-9_].*/, "", s)
+					depth++; mind[depth] = ind; mname[depth] = s
+					continue
+				}
+				if (depth && index(line[n], mind[depth] "}") == 1) { depth--; continue }
+				if (line[n] !~ /^[ \t]*#\[test\][ \t]*$/) continue
+				top = n
+				while (top > 1 && line[top - 1] ~ /^[ \t]*#\[.*\][ \t]*$/) top--
+				id = "-"
+				if (top > 1 && line[top - 1] ~ /^[ \t]*\/\/[ \t]*Test ID:/) {
+					id = line[top - 1]; sub(/^[ \t]*\/\/[ \t]*Test ID:[ \t]*/, "", id); sub(/[ \t]+$/, "", id)
+					if (id == "") id = "-"
+				}
+				fn = "?"
+				for (k = n + 1; k <= n + 20 && k <= NR; k++) {
+					if (match(line[k], /fn +[A-Za-z0-9_]+/)) { fn = substr(line[k], RSTART, RLENGTH); sub(/fn +/, "", fn); break }
+				}
+				path = base
+				for (d = 1; d <= depth; d++) path = path mname[d] "::"
+				printf "%s\t%s\t%s%s\t%s:%d\n", id, crate, path, fn, file, n
+			}
+		}' "${f}"
+}
 fScan() {
 	local dir crate f rel mods
 	while IFS=$'\t' read -r dir crate; do
@@ -76,46 +108,27 @@ fScan() {
 		while IFS= read -r f; do
 			rel="${f#"${root}/${dir}/src/"}"; rel="${rel%.rs}"; rel="${rel%/mod}"
 			case "${rel}" in lib|main) mods="" ;; *) mods="${rel//\//::}::" ;; esac
-			awk -v crate="${crate}" -v base="${mods}" -v file="${f#"${root}/"}" '
-				{ line[NR] = $0 }
-				END {
-					depth = 0
-					for (n = 1; n <= NR; n++) {
-						if (match(line[n], /^\t*(pub(\([^)]*\))? +)?mod +[A-Za-z0-9_]+ *\{/)) {
-							s = line[n]; ind = s; sub(/[^\t].*/, "", ind)
-							sub(/^\t*(pub(\([^)]*\))? +)?mod +/, "", s); sub(/[^A-Za-z0-9_].*/, "", s)
-							depth++; mind[depth] = ind; mname[depth] = s
-							continue
-						}
-						if (depth && index(line[n], mind[depth] "}") == 1) { depth--; continue }
-						if (line[n] !~ /^[ \t]*#\[test\][ \t]*$/) continue
-						top = n
-						while (top > 1 && line[top - 1] ~ /^[ \t]*#\[.*\][ \t]*$/) top--
-						id = "-"
-						if (top > 1 && line[top - 1] ~ /^[ \t]*\/\/[ \t]*Test ID:/) {
-							id = line[top - 1]; sub(/^[ \t]*\/\/[ \t]*Test ID:[ \t]*/, "", id); sub(/[ \t]+$/, "", id)
-							if (id == "") id = "-"
-						}
-						fn = "?"
-						for (k = n + 1; k <= n + 20 && k <= NR; k++) {
-							if (match(line[k], /fn +[A-Za-z0-9_]+/)) { fn = substr(line[k], RSTART, RLENGTH); sub(/fn +/, "", fn); break }
-						}
-						path = base
-						for (d = 1; d <= depth; d++) path = path mname[d] "::"
-						printf "%s\t%s\t%s%s\t%s:%d\n", id, crate, path, fn, file, n
-					}
-				}' "${f}"
+			fScanFile "${crate}" "${mods}" "${f}"
 		done < <(find "${root}/${dir}/src" -name '*.rs' -type f | LC_ALL=C sort)
+		## Each file in tests/ is a test binary of its own, named after it.
+		[[ -d "${root}/${dir}/tests" ]] || continue
+		while IFS= read -r f; do
+			rel="${f##*/}"; fScanFile "${rel%.rs}" "" "${f}"
+		done < <(find "${root}/${dir}/tests" -maxdepth 1 -name '*.rs' -type f | LC_ALL=C sort)
 	done < <(fMembers)
 }
 
-## A #[test] in a tracked .rs file outside any member's src/, where fScan
-## doesn't look.
+## A #[test] in a tracked .rs file outside any member's src/ and the top of
+## its tests/, where fScan doesn't look.
 fStrays() {
 	local dir f; local -a srcs=()
 	while IFS=$'\t' read -r dir _; do srcs+=("${dir}/src/"); done < <(fMembers)
 	git -C "${root}" ls-files '*.rs' | while IFS= read -r f; do
 		for dir in "${srcs[@]}"; do [[ "${f}" != "${dir}"* ]] || continue 2; done
+		for dir in "${srcs[@]}"; do
+			dir="${dir%src/}tests/"
+			[[ "${f}" != "${dir}"* || "${f#"${dir}"}" == */* ]] || continue 2
+		done
 		awk -v file="${f}" '/^[ \t]*#\[test\]/{ printf "%s:%d: a test outside every src/, where nothing looks for its ID\n", file, NR }' "${root}/${f}"
 	done
 }
@@ -231,3 +244,4 @@ esac
 ##	History:
 ##		- 2026-10-25: Created, from silkterm's test-id.py, in Crockford base 32
 ##		  minutes. check also reads the backlog's Test case rows.
+##		- 2026-10-25: Tests in a member's tests/ folder too.

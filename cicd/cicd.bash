@@ -30,7 +30,10 @@
 ##	  10. Miri            a leak check that takes hours: the tests under Miri on
 ##	                      the same nightly, one Miri per test.
 ##	                      TUKZMON_MIRI_FILTER=<part of a name> runs only those
-##	  11. Dogfood         utility/dev-install.bash, which installs the build to
+##	  11. Soak            a slow leak check: core/tests/soak.rs, the panel's
+##	                      work over days of skipped clock, with the heap read at
+##	                      round N and 2N. Its report goes to cicd/artifacts/soak/
+##	  12. Dogfood         utility/dev-install.bash, which installs the build to
 ##	                      ~/.local/lib/tukzmon and restarts the panel
 ##	  A step that's off isn't counted, and the first section says why it's off.
 ##	  Cleanup comes last, on failure and Ctrl+C too.
@@ -39,7 +42,7 @@
 ##	  Options:
 ##	   (none)              the default run: every step
 ##	   --quick             the fast steps: the default run but the slow leak
-##	                       checks. None is slow yet
+##	                       checks, so no Soak
 ##	   --long              everything, Miri included, which only it runs. Also
 ##	                       --slow
 ##	   --leakcheck         add every leak check to any run
@@ -58,6 +61,7 @@
 ##	                         release the release build, only when named
 ##	                         sanitizers  the Sanitizers leak check
 ##	                         miri    the Miri leak check, only when named
+##	                         soak    the Soak leak check, only when named
 ##	   --gate [AREA...]    another name for --backlog-run-quick
 ##	   --backlog-run-full  what a backlog round runs once at its end: every
 ##	                       check of the default run, so not Miri
@@ -254,7 +258,6 @@ done
 if ((handsOff)); then offLines+=("Dogfood: --${mode} never dogfoods")
 else fPlan "Dogfood" fStepDogfood ""; fi
 ## Off by name, until they're built.
-offLines+=("Soak test: not built yet (backlog 2026102516060734)")
 offLines+=("Packages: not built yet (backlog 2026102506591283)")
 offLines+=("Profiler: not built yet (backlog 2026102506591288)")
 if ((noRemote)); then offLines+=("Other hosts: --no-remote")
@@ -558,6 +561,32 @@ fStepMiri() {
 		/^FAIL / { bad++ }
 		{ print }
 		END { printf "%d test(s) passed under Miri%s\n", n, bad ? ", " bad " failed" : "" }'
+	return "${rc}"
+}
+
+## The soak test, core/tests/soak.rs: the panel's work over days of skipped
+## clock, failing when the heap at round 2N is past round N's by more than its
+## margin. A plain debug build, since ASan's allocator would hide the heap from
+## dhat. Its report, and dhat's profile when it fails, are kept in SOAK_DIR.
+fStepSoak() {
+	local out="${TMPDIR}/soak" art="${root}/${SOAK_DIR}" stamp='' rc=0
+	mkdir -p -- "${out}" || return 1
+	fEcho_Clean "cargo test -p tukzmon-core --test soak -j ${jobs} -- --ignored"
+	env -u DISPLAY -u WAYLAND_DISPLAY -u CARGO_TERM_QUIET TUKZMON_SOAK_DIR="${out}" cargo test -p tukzmon-core --test soak "${locked[@]}" -j "${jobs}" \
+		-- --ignored --test-threads 1 2>&1 | "${here}/utility/test-ids.bash" annotate || rc=1
+	[[ -f "${out}/soak-heap.txt" ]] || { fEcho_Clean "the soak test wrote no report"; return 1; }
+	tail -n 1 -- "${out}/soak-heap.txt"
+	stamp="$(printf '%(%Y%m%d-%H%M%S)T' -1)"
+	mkdir -p -- "${art}" || return 1
+	cp -- "${out}/soak-heap.txt" "${art}/soak_${stamp}.log" || return 1
+	## The rotation may add a tag to the name, such as _first.
+	fEcho_Clean "report: ${SOAK_DIR}/soak_${stamp}*.log"
+	if [[ -f "${out}/soak-heap.json" ]]; then
+		cp -- "${out}/soak-heap.json" "${art}/soak_${stamp}.json" || return 1
+		fEcho_Clean "dhat's profile: ${SOAK_DIR}/soak_${stamp}*.json, for dh_view.html, sorted by At t-end"
+	fi
+	gfs_rotate "${art}" soak log > /dev/null 2>&1 || true
+	gfs_rotate "${art}" soak json > /dev/null 2>&1 || true
 	return "${rc}"
 }
 
@@ -952,3 +981,4 @@ exit 0
 ##		- 2026-10-25: The Sanitizers leak check on a pinned nightly, leak check
 ##		  lengths, and a quarter of the CPUs for heavy steps.
 ##		- 2026-10-25: The Miri leak check.
+##		- 2026-10-25: The Soak leak check.

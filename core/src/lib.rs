@@ -129,6 +129,12 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		self.epoch + self.clock.elapsed().as_secs_f64()
 	}
 
+	/// Moves the clock on, so the soak test can run days in seconds.
+	#[doc(hidden)]
+	pub fn skip(&mut self, secs: f64) {
+		self.epoch += secs;
+	}
+
 	/// Drops history older than the max age.
 	pub fn trim(&mut self) {
 		let max_age = f64::from(self.look.max_days) * 86400.0;

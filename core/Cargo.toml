@@ -20,3 +20,6 @@ libc = "0.2.191"
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+dhat = "0.3.3"

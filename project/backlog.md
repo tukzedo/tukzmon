@@ -1067,19 +1067,6 @@ Sorted per the notes in [Template](#template).
 		- Split into children: clippy and the advisory scan 2026102516060718 (Done), sanitizers 2026102516060724, Miri 2026102516060729, and the soak test 2026102516060734.
 	- Branch: round-1025b
 
-- CICD reset: leak checks, soak test
-	- ID: 2026102516060734
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261025-160607
-	- Opened by: t00mietum
-	- Parent ID: 2026102506591278
-	- Prereq IDs: 2026102516060724
-	- Requirements:
-		- A soak test that loops the main work headless: sample, draw, and save and load history. It fails when the heap at round 2N is past round N's by more than a set margin, and keeps the heap report as an artifact.
-		- One of the slow leak checks, in the default run and `--long`, on a quarter of the CPUs.
-
 - CICD reset: .deb and .rpm packages
 	- ID: 2026102506591283
 	- Type: Task
@@ -1119,6 +1106,33 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- CICD reset: leak checks, soak test
+	- ID: 2026102516060734
+	- Type: Task
+	- Status: Done
+	- Needs local test suite run?: No. `--backlog-run-full` passed on 2026-10-25.
+	- Priority|Severity: Avg
+	- Opened: 20261025-160607
+	- Opened by: t00mietum
+	- Parent ID: 2026102506591278
+	- Prereq IDs: 2026102516060724
+	- Requirements:
+		- A soak test that loops the main work headless: sample, draw, and save and load history. It fails when the heap at round 2N is past round N's by more than a set margin, and keeps the heap report as an artifact.
+		- One of the slow leak checks, in the default run and `--long`, on a quarter of the CPUs.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- `core/tests/soak.rs` runs what the panel item does, for both graphs: sample, trim, hover, draw, the tips, and every 100 rounds a save and load of the history file. Each round moves the clock on 20 s, so 18000 rounds are 100 hours. It reads the heap with dhat at round 9000 and 18000, right after a load, and fails past 8 KiB or 16 blocks of growth.
+		- The test sets a 1 day max age, so the history is full by round 9000. With the default of 365 days it would still be growing, and that growth is by design.
+		- A Soak leak check runs it on a quarter of the CPUs, in the default run, `--long` and `--backlog-run-full`. It's a slow one, at about 1 minute in a debug build. It keeps the round-by-round heap report in `cicd/artifacts/soak/`, rotated, plus dhat's profile when it fails.
+		- `test-ids.bash` reads the tests in a crate's `tests/` folder too.
+		- Verified: a planted static Vec that grew 8 bytes a round failed it, with dhat's profile kept. The clean tree passed in the image, at the same bytes in the same blocks at both reads.
+	- Decisions:
+		- dhat, as the CICD rules name for Rust, so the profile shows where the growth was allocated. Its crates are dev dependencies of the core crate only.
+	- Branch: round-1025b
+	- Test case: dee6p
+	- Closed: 20261025-172239
 
 - CICD reset: leak checks, sanitizers
 	- ID: 2026102516060724
