@@ -23,7 +23,16 @@ TOOL_PINS=(
 	"shellcheck|0.11.0|shellcheck --version"
 	## markdownlint-cli, the `markdownlint` command, not markdownlint-cli2.
 	"markdownlint|0.49.1|markdownlint --version"
+	## The known-advisory scan. Pinned in the image's Dockerfile too.
+	"cargo-deny|0.19.9|cargo deny --version"
+	## The .deb and .rpm. Pinned in the image's Dockerfile too. A go-installed
+	## one says it's version "dev", so a box with one gets the warning.
+	"nfpm|2.47.0|nfpm --version"
 )
+## The sanitizers and Miri need nightly, so they run on this dated one, beside
+## the stable toolchain rust-toolchain.toml pins. The image gets it as a build
+## arg, with rust-src and miri.
+RUST_NIGHTLY="nightly-2026-10-16"
 
 ## Paths that don't change the product. A push to main that changes only
 ## these skips the merge gate. Bash patterns, matched against the whole path.
@@ -44,6 +53,48 @@ MARKDOWNLINT_DISABLE_FOR=(
 	"project/backlog.md|MD036"
 )
 
+## The .deb, .rpm and sha256 sums from cicd/packaging/nfpm.yaml, one set per
+## version, gitignored.
+PACKAGE_DIR="cicd/artifacts/packages"
+
+## The profiler: core/examples/profile.rs, the panel's tick under pprof's
+## sampler, since perf can't record on b23. Its flamegraphs go here as
+## flame_<stamp>.svg, rotated, gitignored, and flame-report.py's summary of the
+## newest goes in the log. 20000 ticks are about 7 s of CPU (2026-10-25).
+PROFILE_DIR="cicd/artifacts/profiling"
+PROFILE_ROUNDS=20000
+
+## The leak checks, "name|step function|length". The length is by measured
+## time: fast ones run in every run, slow ones in all but --quick and
+## --backlog-run-quick, and hours ones only in --long. --leakcheck adds every
+## one to any run, and --no-leakcheck takes every one out. The name, in lower
+## case, is its --backlog-run-quick area.
+LEAK_CHECKS=(
+	## The tests under ASan and LSan, then tukzmon-settings --snapshot with
+	## its C++ under UBSan too. 1m 25s from a fresh target dir and about 5 s
+	## with nothing to rebuild, at 8 jobs and load 14 (2026-10-25).
+	"Sanitizers|fStepSanitizers|fast"
+	## The tests under Miri, one Miri per test. About 7 hours of CPU, so
+	## nearly an hour at 8 at a time, which would push the default run past
+	## its hour (2026-10-25).
+	"Miri|fStepMiri|hours"
+	## The soak test, core/tests/soak.rs. About 1 minute in a debug build.
+	"Soak|fStepSoak|slow"
+)
+## Steps that get a quarter of the CPUs, busy or not.
+HEAVY_STEPS=(fStepSanitizers fStepMiri fStepSoak)
+## The test targets Miri runs, as "package target-option". The soak test is
+## left out, since it's already ignored and its allocator is dhat's.
+MIRI_TARGETS=(
+	"tukzmon-core --lib"
+	"knobs --lib"
+	"tukzmon-settings --bins"
+)
+## The soak test's reports, and dhat's heap profile when it fails, rotated.
+SOAK_DIR="cicd/artifacts/soak"
+## LeakSanitizer's suppressions. Prebuilt libraries only, by name.
+LSAN_SUPP="cicd/lsan.supp"
+
 ## Rotated lint logs, gitignored. utility/lint-report.bash reads them.
 LINT_LOG_DIR="cicd/artifacts/lint"
 
@@ -53,9 +104,20 @@ LINT_LOG_DIR="cicd/artifacts/lint"
 CTR_IMAGE="tukzmon-cicd"
 CTR_DIR="cicd/container"
 CTR_CONTEXT_EXTRA=(rust-toolchain.toml)
-CTR_STEPS=(fStepFormat fStepBuild fStepLint fStepTests fStepRelease)
+## NAME=value, passed to docker build and part of the tag's hash.
+CTR_BUILD_ARGS=("RUST_NIGHTLY=${RUST_NIGHTLY}")
+CTR_STEPS=(fStepFormat fStepBuild fStepLint fStepAdvisories fStepTests fStepRelease fStepPackage fStepSanitizers fStepMiri fStepSoak)
+## The image steps that get the network. The rest run with none.
+CTR_NET_STEPS=(fStepAdvisories)
 
 
 ##	History:
 ##		- 2026-10-25: Created.
 ##		- 2026-10-25: The build image's settings.
+##		- 2026-10-25: cargo-deny pin, and the advisory step in the image.
+##		- 2026-10-25: The nightly pin, the leak checks and their lengths, and
+##		  the image's build args.
+##		- 2026-10-25: Miri.
+##		- 2026-10-25: The soak test.
+##		- 2026-10-25: Packages: nfpm's pin, and where they go.
+##		- 2026-10-25: The profiler.

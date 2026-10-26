@@ -46,7 +46,7 @@ settings:
 		control: checkbox
 		path: graph.log_axis
 		default: true
-		tip: "Squeeze older history to the left, so the last minute and the last day fit in one graph. Off gives a plain scrolling graph."
+		tip: "Squeeze older history to the left, so the last minute and the last day fit in one graph. Off gives a plain scrolling graph. A graph can pick its own under Graphs."
 
 	log_curve:
 		label: Log curve
@@ -132,6 +132,17 @@ settings:
 		gate: show_cpu
 		tip: "How wide the CPU graph is, in the same pixels as Width. 0 uses Width."
 
+	cpu_time:
+		label: CPU time axis
+		tab: Graph
+		control: dropdown
+		options: same, linear, smooth, fixed_a, fixed_b
+		option_labels: "As set under Time", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: cpu.time
+		default: same
+		gate: show_cpu
+		tip: "How the CPU graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
+
 	show_memory:
 		label: Memory graph
 		tab: Graph
@@ -150,6 +161,17 @@ settings:
 		default: 0
 		gate: show_memory
 		tip: "How wide the memory graph is, in the same pixels as Width. 0 uses Width."
+
+	mem_time:
+		label: Memory time axis
+		tab: Graph
+		control: dropdown
+		options: same, linear, smooth, fixed_a, fixed_b
+		option_labels: "As set under Time", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: mem.time
+		default: same
+		gate: show_memory
+		tip: "How the memory graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
 
 	graph_order:
 		label: Order

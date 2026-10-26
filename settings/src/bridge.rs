@@ -244,3 +244,67 @@ fn pick_close(d: &mut Dialog, keep: bool) {
 pub fn run(d: &mut Dialog, snapshot: &str) -> i32 {
 	ffi::run_dialog(d, snapshot)
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use tukzmon_core::config::THEME;
+
+	// Test ID: dee9q
+	#[test]
+	fn one_theme_on_top_recolors_every_sub_tab() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let tabs = dialog_tabs(&d);
+		let rows = dialog_rows(&d);
+		let choosers: Vec<&ffi::RowInfo> = rows.iter().filter(|r| r.chooser).collect();
+		assert_eq!(choosers.len(), 1);
+		assert_eq!(choosers[0].id, "theme");
+		// qt.cpp keeps a tab's own rows, the buttons with them, over its sub-tabs
+		let top = choosers[0].tab;
+		assert_eq!(tabs[top as usize].parent, -1);
+		let subs: Vec<i32> = (0..tabs.len())
+			.filter(|&i| tabs[i].parent == top)
+			.map(|i| i as i32)
+			.collect();
+		let names: Vec<&str> = subs
+			.iter()
+			.map(|&t| tabs[t as usize].label.as_str())
+			.collect();
+		for want in ["CPU", "Memory", "Background"] {
+			assert!(names.contains(&want), "{names:?}");
+		}
+		let tab_of = |id: &str| rows.iter().find(|r| r.id == id).unwrap().tab;
+		// owned, since the picks below borrow d mutably
+		let group = d.spec().group(THEME).unwrap().clone();
+		for r in rows
+			.iter()
+			.filter(|r| subs.contains(&r.tab) && r.control == "color")
+		{
+			assert!(group.members.contains(&r.id), "{}", r.id);
+		}
+		for id in &group.members {
+			assert!(subs.contains(&tab_of(id)), "{id}");
+		}
+		let before: Vec<String> = group.members.iter().map(|id| d.state(id).text).collect();
+		let mut moved: Vec<i32> = Vec::new();
+		for p in &group.presets {
+			assert!(d.set_text("theme", &p.key), "{}", p.key);
+			for (id, was) in group.members.iter().zip(&before) {
+				let want = p.values.get(id);
+				let want = want.unwrap_or_else(|| panic!("{} has no {id}", p.key));
+				let now = d.state(id).text;
+				assert_eq!(now, want.as_text(), "{} {id}", p.key);
+				if now != *was {
+					moved.push(tab_of(id));
+				}
+			}
+		}
+		for &t in &subs {
+			assert!(moved.contains(&t), "{}", tabs[t as usize].label);
+		}
+	}
+}

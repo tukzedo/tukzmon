@@ -42,6 +42,24 @@ impl Curve {
 	}
 }
 
+/// How one graph spreads time across its width.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Timing {
+	Linear,
+	Log(Curve),
+}
+
+impl Timing {
+	/// As a graph's own `<graph>_time` row spells it. None, for `same` or
+	/// anything else, means the graph follows the Time settings.
+	pub fn parse(key: &str) -> Option<Timing> {
+		match key {
+			"linear" => Some(Timing::Linear),
+			_ => Curve::parse(key).map(Timing::Log),
+		}
+	}
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Axis {
 	/// Knot values and slopes in g = ln(1 + age/A0), at u = 0, 1/4, 1/2, 3/4, 1.

@@ -1,10 +1,11 @@
 # The image cicd.bash builds and tests in: the Rust toolchain from
 # rust-toolchain.toml, Qt 6 Widgets for tukzmon-settings, the GTK 3 and panel
-# libraries the plugin links by soname, and the lint tools at the versions
-# cicd/config.bash pins.
+# libraries the plugin links by soname, and the lint and audit tools at the
+# versions cicd/config.bash pins.
 #
-# cicd.bash builds it from this dir plus rust-toolchain.toml, and tags it with
-# a hash of them, so an edit to any of them means a new image.
+# cicd.bash builds it from this dir plus rust-toolchain.toml and the build
+# args in cicd/config.bash, and tags it with a hash of them, so an edit to any
+# of them means a new image.
 # From tukfs-hash's and shcl's cicd/container/Dockerfile.
 #
 # Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
@@ -66,6 +67,40 @@ RUN curl -fsSLo /tmp/rustup-init "https://static.rust-lang.org/rustup/archive/${
 	&& /opt/cargo/bin/rustup toolchain install \
 	&& /opt/cargo/bin/rustup default "$(/opt/cargo/bin/rustup show active-toolchain | cut -d' ' -f1)" \
 	&& rm -rf /opt/cargo/registry /tmp/rustup-init
+
+# cargo-deny for the known-advisory scan. Its own layer, so a bump doesn't
+# rebuild the ones above.
+ARG CARGO_DENY_VER=0.19.9
+ARG CARGO_DENY_SHA256=f1f8eedc2a3ac297c540873f93785d4104b102c0079506b2a6b3221b7ec956af
+RUN curl -fsSLo /tmp/cd.tgz "https://github.com/EmbarkStudios/cargo-deny/releases/download/${CARGO_DENY_VER}/cargo-deny-${CARGO_DENY_VER}-x86_64-unknown-linux-musl.tar.gz" \
+	&& echo "${CARGO_DENY_SHA256}  /tmp/cd.tgz" | sha256sum -c - \
+	&& tar -C /usr/local/bin --strip-components=1 -xzf /tmp/cd.tgz "cargo-deny-${CARGO_DENY_VER}-x86_64-unknown-linux-musl/cargo-deny" \
+	&& rm -f /tmp/cd.tgz
+
+# The sanitizer and Miri steps. clang builds the C++ with the sanitizers,
+# since rustc's runtime is LLVM's, and llvm-symbolizer puts names in the
+# reports. Then the dated nightly cicd/config.bash pins, with rust-src for
+# -Zbuild-std and Miri's sysroot. It comes in as a build arg, so that way it's
+# pinned in one place.
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends clang-19 llvm-19 \
+	&& rm -rf /var/lib/apt/lists/*
+ARG RUST_NIGHTLY
+RUN test -n "${RUST_NIGHTLY}" \
+	&& CARGO_HOME=/opt/cargo /opt/cargo/bin/rustup toolchain install "${RUST_NIGHTLY}" --profile minimal --component rust-src,miri \
+	&& rm -rf /opt/cargo/registry
+
+# The .deb and .rpm. rpm is only here to list what nfpm wrote. Last, so a bump
+# rebuilds nothing above it.
+ARG NFPM_VER=2.47.0
+ARG NFPM_SHA256=0660ca602b2d2d2ae4781a06c692b3eeb9d437ffea05b831d76e41f4a3188783
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends rpm \
+	&& rm -rf /var/lib/apt/lists/* \
+	&& curl -fsSLo /tmp/nfpm.tgz "https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VER}/nfpm_${NFPM_VER}_Linux_x86_64.tar.gz" \
+	&& echo "${NFPM_SHA256}  /tmp/nfpm.tgz" | sha256sum -c - \
+	&& tar -C /usr/local/bin -xzf /tmp/nfpm.tgz nfpm \
+	&& rm -f /tmp/nfpm.tgz
 
 # Runs as the caller's uid, which has no passwd entry here. CARGO_HOME, HOME
 # and TMPDIR are set per run to dirs mounted from the host.

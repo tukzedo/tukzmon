@@ -1,0 +1,10 @@
+# cargo-deny's settings. cicd.bash runs only its advisories check: crates in
+# Cargo.lock that RustSec lists as vulnerable, unsound, unmaintained or
+# yanked. Any of them fails the run. An ignore here needs its reason.
+[graph]
+targets = ["x86_64-unknown-linux-gnu"]
+all-features = true
+
+[advisories]
+yanked = "deny"
+ignore = []

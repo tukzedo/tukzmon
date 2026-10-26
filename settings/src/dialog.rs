@@ -570,6 +570,7 @@ mod tests {
 
 	// Test ID: dedqr
 	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
 	fn the_graph_order_is_saved_as_typed_and_reads_back() {
 		let d = scratch("order");
 		let path = d.0.join("t.shcl");
@@ -585,6 +586,7 @@ mod tests {
 
 	// Test ID: debjd
 	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
 	fn apply_writes_only_what_changed() {
 		let d = scratch("apply");
 		let path = d.0.join("t.shcl");
@@ -605,6 +607,7 @@ mod tests {
 
 	// Test ID: debje
 	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
 	fn a_hand_edit_made_while_open_survives() {
 		let d = scratch("hand");
 		let path = d.0.join("t.shcl");
@@ -687,6 +690,7 @@ mod tests {
 
 	// Test ID: deccm
 	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
 	fn a_theme_and_the_changes_on_it_are_saved() {
 		let d = scratch("theme");
 		let path = d.0.join("t.shcl");
@@ -706,6 +710,7 @@ mod tests {
 
 	// Test ID: decdn
 	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
 	fn the_mode_swaps_the_rows_and_fire_is_a_gradient() {
 		let d = scratch("mode");
 		let path = d.0.join("t.shcl");
@@ -747,6 +752,7 @@ mod tests {
 
 	// Test ID: dece0
 	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
 	fn transparent_stays_through_a_theme_pick_and_a_roll() {
 		let d = scratch("clear");
 		let path = d.0.join("t.shcl");
@@ -772,6 +778,7 @@ mod tests {
 
 	// Test ID: decdq
 	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
 	fn randomize_changes_every_color_on_the_theme_and_turns_off_the_gradient() {
 		let d = scratch("dice");
 		let path = d.0.join("t.shcl");
@@ -805,6 +812,7 @@ mod tests {
 
 	// Test ID: deccn
 	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
 	fn custom_then_the_revert_arrow_is_default_again() {
 		let d = scratch("custom");
 		let path = d.0.join("t.shcl");
@@ -826,6 +834,7 @@ mod tests {
 
 	// Test ID: deccy
 	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
 	fn save_as_keeps_the_colors_whole_and_picks_the_new_theme() {
 		let d = scratch("save_as");
 		let path = d.0.join("t.shcl");
@@ -868,6 +877,7 @@ mod tests {
 
 	// Test ID: deccz
 	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
 	fn save_puts_the_changes_into_the_theme() {
 		let d = scratch("save");
 		let path = d.0.join("t.shcl");
@@ -893,6 +903,7 @@ mod tests {
 
 	// Test ID: decd0
 	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
 	fn rename_and_delete() {
 		let d = scratch("rename");
 		let path = d.0.join("t.shcl");
@@ -922,6 +933,7 @@ mod tests {
 
 	// Test ID: decd1
 	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
 	fn a_theme_saved_by_hand_meanwhile_survives() {
 		let d = scratch("merge");
 		let path = d.0.join("t.shcl");
@@ -960,6 +972,7 @@ mod tests {
 
 	// Test ID: decbz
 	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
 	fn the_log_curve_sits_under_the_log_switch() {
 		let d = scratch("curve");
 		let path = d.0.join("t.shcl");
@@ -1010,6 +1023,7 @@ mod tests {
 
 	// Test ID: decd4
 	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
 	fn the_picker_keeps_what_ok_was_pressed_on() {
 		let d = scratch("pick_ok");
 		let path = d.0.join("t.shcl");

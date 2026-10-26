@@ -18,10 +18,28 @@
 ##	   5. Lint            clippy -D warnings, shellcheck, markdownlint, and the
 ##	                      test ID check, with the output also rotated into
 ##	                      cicd/artifacts/lint/
-##	   6. Tests           cargo test, with TMPDIR in the run's temp folder. One
+##	   6. Advisories      cargo deny check advisories: the crates in Cargo.lock
+##	                      against RustSec's database, per deny.toml
+##	   7. Tests           cargo test, with TMPDIR in the run's temp folder. One
 ##	                      line per test: PASS, FAIL or SKIP, its ID, its name
-##	   7. Release build   the plugin and tukzmon-settings
-##	   8. Dogfood         utility/dev-install.bash, which installs the build to
+##	   8. Release build   the plugin and tukzmon-settings
+##	   9. Packages        a .deb and an .rpm of the release build through nfpm,
+##	                      with a sha256 sums file, in cicd/artifacts/packages/
+##	  10. Sanitizers      a leak check: the tests under ASan and LSan on the
+##	                      nightly config.bash pins, std included, then
+##	                      tukzmon-settings --snapshot, with its C++ under
+##	                      ASan, LSan and UBSan too
+##	  11. Miri            a leak check that takes hours: the tests under Miri on
+##	                      the same nightly, one Miri per test.
+##	                      TUKZMON_MIRI_FILTER=<part of a name> runs only those
+##	  12. Soak            a slow leak check: core/tests/soak.rs, the panel's
+##	                      work over days of skipped clock, with the heap read at
+##	                      round N and 2N. Its report goes to cicd/artifacts/soak/
+##	  13. Profiler        the panel's tick, core/examples/profile.rs, under
+##	                      pprof's sampler, on this box. The flamegraph goes to
+##	                      cicd/artifacts/profiling/, with a report on its hot
+##	                      spots from utility/flame-report.py
+##	  14. Dogfood         utility/dev-install.bash, which installs the build to
 ##	                      ~/.local/lib/tukzmon and restarts the panel
 ##	  A step that's off isn't counted, and the first section says why it's off.
 ##	  Cleanup comes last, on failure and Ctrl+C too.
@@ -29,25 +47,33 @@
 ##	  cicd/cicd.bash [options]
 ##	  Options:
 ##	   (none)              the default run: every step
-##	   --quick             the fast steps. Nothing here is slow yet, so the same
-##	                       as the default run
-##	   --long              everything. Nothing here takes hours yet, so the same
-##	                       as the default run. Also --slow
-##	   --leakcheck         add every leak check. There are none yet
-##	   --no-leakcheck      take every leak check out
+##	   --quick             the fast steps: the default run but the packages,
+##	                       the profiler and the slow leak checks, so no Soak
+##	   --long              everything, Miri included, which only it runs. Also
+##	                       --slow
+##	   --leakcheck         add every leak check to any run
+##	   --no-leakcheck      take every leak check out. The advisory scan and
+##	                       clippy's leak lints aren't leak check steps, and stay
 ##	   --backlog-run-quick [AREA...]
 ##	                       what a backlog worker runs before it commits: the
-##	                       format check, build, lint and tests, or only the
-##	                       areas named:
+##	                       format check, build, lint, tests and the fast leak
+##	                       checks, or only the areas named:
 ##	                         format  cargo fmt --check
 ##	                         build   the debug build
 ##	                         lint    clippy, shellcheck, markdownlint, and
 ##	                                 the test ID check
 ##	                         test    cargo test
+##	                         advisories  the advisory scan, only when named
 ##	                         release the release build, only when named
+##	                         package the packages and the release build they
+##	                                 come from, only when named
+##	                         sanitizers  the Sanitizers leak check
+##	                         miri    the Miri leak check, only when named
+##	                         soak    the Soak leak check, only when named
+##	                         profile the profiler, only when named
 ##	   --gate [AREA...]    another name for --backlog-run-quick
 ##	   --backlog-run-full  what a backlog round runs once at its end: every
-##	                       check of the default run
+##	                       check of the default run, so not Miri
 ##	   --merge-gate        the same checks, before a merge to main. The
 ##	                       pre-push hook runs it. Also --ci
 ##	                       None of those 3 syncs, dogfoods, installs, commits,
@@ -65,8 +91,9 @@
 ##	   -h, --help          show this help
 ##	- Jobs: half the logical CPUs, or a quarter when the 1-minute load is over
 ##	  half the CPU count, worked out before each step and passed to cargo's -j
-##	  and --test-threads. CICD_MAX_JOBS, when set, caps both. The whole run is
-##	  under nice 19 and ionice idle.
+##	  and --test-threads. The leak checks get a quarter either way.
+##	  CICD_MAX_JOBS, when set, caps them all. The whole run is under nice 19
+##	  and ionice idle.
 ##	- Temp: each run works in <HOST_TEMP>/tukzmon/<YYYYmmDD-HHMMSS>_<NNN>, with
 ##	  TMPDIR, TEMP and TMP pointed into it. It's removed at the end, along with
 ##	  anything still running from it. A run folder whose run is gone, such as
@@ -83,6 +110,8 @@
 ##	  live. The image step stops containers whose run is gone.
 ##	- Lint: utility/lint-report.bash reports on the newest lint log, and its
 ##	  --check prints only what's new since the last look.
+##	- Profiler: utility/flame-report.py reports on the newest flamegraph, and
+##	  its --check prints only when there's a newer one than at the last look.
 ##	- Test IDs: utility/test-ids.bash makes, reads and checks them. A new test
 ##	  takes one from its "new" command.
 ##	- The pre-push hook, hooks/pre-push, runs --merge-gate on a push to main.
@@ -111,8 +140,9 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "${here}/.." && pwd)"
 
 ## rustup's cargo has to win over Debian's /bin/cargo, which ignores
-## rust-toolchain.toml.
+## rust-toolchain.toml. A go-installed nfpm is a fallback for a host run.
 export PATH="${HOME}/.cargo/bin:${PATH}"
+[[ ! -d "${HOME}/.go/bin" ]] || PATH+=":${HOME}/.go/bin"
 
 source "${here}/config.bash"
 source "${here}/utility/include/gfs-rotate.bash"
@@ -179,7 +209,9 @@ esac; done
 
 handsOff=0
 case "${mode}" in backlog-run-quick|backlog-run-full|merge-gate) handsOff=1 ;; esac
-allAreas=(format build lint test release)
+allAreas=(format build lint test advisories release package profile)
+for entry in "${LEAK_CHECKS[@]}"; do entry="${entry%%|*}"; allAreas+=("${entry,,}"); done
+namedAreas="${#areas[@]}"
 if [[ "${mode}" == backlog-run-quick ]]; then
 	for a in "${areas[@]}"; do [[ " ${allAreas[*]} " == *" ${a} "* ]] || fUsage "no area '${a}'. Areas: ${allAreas[*]}"; done
 	((${#areas[@]})) || areas=(format build lint test)
@@ -205,16 +237,46 @@ else fPlan "Container image" fStepImage ""; fi
 fPlan "Format" fStepFormat format
 fPlan "Build (debug)" fStepBuild build
 fPlan "Lint" fStepLint lint
+## It needs the network, and finds what a dependency change brings in, so a
+## worker's quick run takes it only when it's named.
+if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" advisories "* ]]; then offLines+=("Advisories: --backlog-run-quick runs it only when the advisories area is named")
+else fPlan "Advisories" fStepAdvisories ""; fi
 fPlan "Tests" fStepTests test
-if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" release "* ]]; then offLines+=("Release build: --backlog-run-quick runs it only when the release area is named")
+## The packages are of the release build, so naming package brings it too.
+if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" release "* && " ${areas[*]} " != *" package "* ]]; then offLines+=("Release build: --backlog-run-quick runs it only when the release or package area is named")
 else fPlan "Release build" fStepRelease ""; fi
+if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" package "* ]]; then offLines+=("Packages: --backlog-run-quick runs it only when the package area is named")
+elif [[ "${mode}" == quick ]]; then offLines+=("Packages: --quick")
+else fPlan "Packages" fStepPackage ""; fi
+## A leak check's length says which runs take it, per LEAK_CHECKS. Prints why
+## when it's off.
+fLeakWhyOff() {   ## fLeakWhyOff NAME LENGTH
+	local area="${1,,}"
+	[[ "${leakOpt}" != --no-leakcheck ]] || { echo "--no-leakcheck"; return 0; }
+	[[ "${leakOpt}" != --leakcheck ]] || return 0
+	if [[ "${mode}" == backlog-run-quick ]]; then
+		[[ " ${areas[*]} " != *" ${area} "* ]] || return 0
+		[[ "${2}" != fast ]] || ((namedAreas)) || return 0
+		echo "--backlog-run-quick runs it only when the ${area} area is named, or with --leakcheck"; return 0
+	fi
+	case "${2}" in
+		fast) ;;
+		slow) [[ "${mode}" != quick ]] || echo "a slow leak check, so not in --quick without --leakcheck" ;;
+		hours) [[ "${mode}" == long ]] || echo "takes hours, so only in --long or with --leakcheck" ;;
+	esac
+}
+for entry in "${LEAK_CHECKS[@]}"; do
+	IFS='|' read -r leakName leakFn leakLength <<< "${entry}"
+	[[ " fast slow hours " == *" ${leakLength} "* ]] || fDie "LEAK_CHECKS: ${leakName} has no length fast, slow or hours"
+	leakWhy="$(fLeakWhyOff "${leakName}" "${leakLength}")"
+	if [[ -n "${leakWhy}" ]]; then offLines+=("${leakName}: ${leakWhy}"); else fPlan "${leakName}" "${leakFn}" ""; fi
+done
+if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" profile "* ]]; then offLines+=("Profiler: --backlog-run-quick runs it only when the profile area is named")
+elif [[ "${mode}" == quick ]]; then offLines+=("Profiler: --quick")
+else fPlan "Profiler" fStepProfile ""; fi
 if ((handsOff)); then offLines+=("Dogfood: --${mode} never dogfoods")
 else fPlan "Dogfood" fStepDogfood ""; fi
 ## Off by name, until they're built.
-if [[ "${leakOpt}" == --no-leakcheck ]]; then offLines+=("Leak checks: --no-leakcheck")
-else offLines+=("Leak checks: not built yet (backlog 2026102506591278)"); fi
-offLines+=("Packages: not built yet (backlog 2026102506591283)")
-offLines+=("Profiler: not built yet (backlog 2026102506591288)")
 if ((noRemote)); then offLines+=("Other hosts: --no-remote")
 else offLines+=("Other hosts: none, since tukzmon is Linux only for now"); fi
 offLines+=("Publish: not part of this pipeline${cliMessage:+, so --message goes unused}")
@@ -330,8 +392,8 @@ fStepLint() {
 		esac
 	done
 
-	fEcho_Clean "clippy -D warnings -j ${jobs}"
-	if CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${root}/target}/clippy" fLintRun cargo clippy --workspace --all-targets "${locked[@]}" -j "${jobs}" -- -D warnings; then
+	fEcho_Clean "clippy -D warnings -j ${jobs}, the profiler's workload too"
+	if CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${root}/target}/clippy" fLintRun cargo clippy --workspace --all-targets --features tukzmon-core/profiling "${locked[@]}" -j "${jobs}" -- -D warnings; then
 		fEcho_Clean "clippy: clean"
 	else failed+=(clippy); fi
 	if ! command -v shellcheck > /dev/null 2>&1; then
@@ -372,9 +434,214 @@ fStepTests() {
 		| "${here}/utility/test-ids.bash" annotate || return 1
 }
 
+## The fetch and the check are apart, so a database that can't be had isn't
+## read as a finding. With none at all the step warns and passes, like a sync
+## that can't reach the remote. cargo-deny's fetch passes with no network when
+## it has a copy, so the age of the copy's newest commit is what tells a stale
+## one. RustSec commits most days.
+fStepAdvisories() {
+	local out='' newest='' days=0
+	local -a dbs=()
+	if ! command -v cargo-deny > /dev/null 2>&1; then
+		fEcho_Clean "cargo-deny isn't installed (pinned in config.bash)"
+		((! handsOff)) || return 1
+		return 0
+	fi
+	fEcho_Clean "cargo deny fetch db"
+	out="$(cargo deny fetch db 2>&1)" || fEcho_Clean "${out}"
+	dbs=("${CARGO_HOME:-${HOME}/.cargo}"/advisory-dbs/advisory-db-*/)
+	newest="$(git -C "${dbs[0]}" log -1 --format=%ct 2> /dev/null || true)"
+	if ! [[ "${newest}" =~ ^[0-9]+$ ]]; then fEcho_Clean "WARNING: no advisory database (offline?), so nothing was scanned"; return 0; fi
+	days=$(( (EPOCHSECONDS - newest) / 86400 ))
+	fEcho_Clean "advisory database as of $(printf '%(%Y-%m-%d)T' "${newest}")"
+	((days <= 7)) || fEcho_Clean "WARNING: the advisory database is ${days} days old (offline?)"
+	fEcho_Clean "cargo deny check --disable-fetch advisories"
+	cargo deny --locked check --disable-fetch advisories || return 1
+}
+
 fStepRelease() {
 	fEcho_Clean "cargo build --release ${RELEASE_PACKAGES[*]} -j ${jobs}"
 	cargo build --release "${locked[@]}" "${RELEASE_PACKAGES[@]}" -j "${jobs}" || return 1
+}
+
+## A .deb and an .rpm of whichever release build the run made, which is the
+## host's in a run that dogfoods. The version is the workspace's, per the Rust
+## pipeline notes. Each version's set replaces the last one of that version.
+fStepPackage() {
+	local ver='' rel="${TUKZMON_RELEASE_DIR:-${CARGO_TARGET_DIR:-${root}/target}/release}" work="${TMPDIR}/packages"
+	ver="$(sed -n '/^\[workspace\.package\]/,/^\[/s/^version *= *"\(.*\)"/\1/p' "${root}/Cargo.toml")"
+	[[ -n "${ver}" ]] || { fEcho_Clean "no version under [workspace.package] in Cargo.toml"; return 1; }
+	[[ "${rel}" == /* ]] || rel="${root}/${rel}"
+	mkdir -p -- "${work}" "${root}/${PACKAGE_DIR}" || return 1
+	fEcho_Clean "cicd/utility/package.bash, v${ver}, from ${rel#"${root}/"}"
+	"${here}/utility/package.bash" "${rel}" "${ver}" "${root}/${PACKAGE_DIR}" "${work}" || return 1
+	fEcho_Clean "in ${PACKAGE_DIR}/"
+}
+
+## The tests under ASan and LSan on the pinned nightly, with std built too and
+## the target named, so the flags don't reach build scripts. clang builds the
+## C++ with UBSan and the libstdc++ assertions as well. No test reaches
+## qt.cpp, so tukzmon-settings --snapshot then runs it offscreen. LSan reports
+## at exit, so a leak fails a whole test binary: rerun that one with
+## --test-threads=1 and a name filter to find the test.
+fStepSanitizers() {
+	local dir="${CARGO_TARGET_DIR:-${root}/target}/asan" cxx='' gccDir='' sym='' flags='' lib='' syms='' snap="${TMPDIR}/snapshot" pics=0
+	local -a sanEnv=() runEnv=() target=(-Zbuild-std --target x86_64-unknown-linux-gnu)
+	## Asking cargo through rustup would install a missing toolchain then and
+	## there, so the list says whether it's here.
+	if [[ "$(rustup toolchain list 2> /dev/null || true)" != *"${RUST_NIGHTLY}-"* ]]; then
+		fEcho_Clean "${RUST_NIGHTLY} isn't here: rustup toolchain install ${RUST_NIGHTLY} --profile minimal --component rust-src"
+		((! handsOff)) || return 1
+		fEcho_Clean "WARNING: so nothing was sanitized"; return 0
+	fi
+	## rustc's ASan runtime has no UBSan C++ part, so the vptr check won't link.
+	flags="-fsanitize=address,undefined -fno-sanitize=vptr -fno-sanitize-recover=all -fno-omit-frame-pointer -D_GLIBCXX_ASSERTIONS -g"
+	for cxx in clang++-{30..14} clang++; do command -v "${cxx}" > /dev/null 2>&1 && break; done
+	## clang takes the newest GCC it finds, which can lack the C++ headers, so
+	## then it's pointed at g++'s.
+	if ! printf '#include <algorithm>\n' | "${cxx}" -x c++ -fsyntax-only - > /dev/null 2>&1; then
+		gccDir="$(g++ -print-libgcc-file-name 2> /dev/null || true)"
+		gccDir="--gcc-install-dir=${gccDir%/*}"
+		if ! printf '#include <algorithm>\n' | "${cxx}" "${gccDir}" -x c++ -fsyntax-only - > /dev/null 2>&1; then
+			fEcho_Clean "no clang++ here that builds C++ (tried ${cxx})"
+			((! handsOff)) || return 1
+			fEcho_Clean "WARNING: so nothing was sanitized"; return 0
+		fi
+		flags+=" ${gccDir}"
+	fi
+	for sym in llvm-symbolizer-{30..14} llvm-symbolizer; do command -v "${sym}" > /dev/null 2>&1 && break; done
+	sym="$(command -v "${sym}" 2> /dev/null || true)"
+	sanEnv=(RUSTFLAGS="-Zsanitizer=address -Cforce-frame-pointers=yes"
+		"CC_x86_64_unknown_linux_gnu=${cxx/clang++/clang}" "CXX_x86_64_unknown_linux_gnu=${cxx}"
+		"CFLAGS_x86_64_unknown_linux_gnu=${flags}" "CXXFLAGS_x86_64_unknown_linux_gnu=${flags}")
+	## exitcode 77 is no test's own, so a report can't pass for a failed test.
+	## The suppressions load for the tests too, so a planted leak shows they
+	## hide nothing of ours.
+	runEnv=(ASAN_OPTIONS="detect_leaks=1:exitcode=77:strict_string_checks=1:check_initialization_order=1${sym:+:external_symbolizer_path=${sym}}"
+		LSAN_OPTIONS="exitcode=77:suppressions=${root}/${LSAN_SUPP}:print_suppressions=0"
+		UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1" G_SLICE=always-malloc G_DEBUG=gc-friendly)
+	fEcho_Clean "cargo +${RUST_NIGHTLY} test --workspace ${target[*]} -j ${jobs} -- --test-threads ${jobs}, in ${dir#"${root}/"}"
+	## The tests step showed the passes, so only the rest shows here.
+	env -u DISPLAY -u WAYLAND_DISPLAY -u CARGO_TERM_QUIET "${sanEnv[@]}" "${runEnv[@]}" cargo "+${RUST_NIGHTLY}" test --workspace "${locked[@]}" "${target[@]}" \
+		--target-dir "${dir}" -j "${jobs}" -- --test-threads "${jobs}" 2>&1 \
+		| "${here}/utility/test-ids.bash" annotate | awk '/^PASS / { n++; next } { print } END { printf "%d test(s) passed under ASan\n", n }' || return 1
+
+	fEcho_Clean "tukzmon-settings --snapshot, offscreen"
+	env "${sanEnv[@]}" cargo "+${RUST_NIGHTLY}" build -p tukzmon-settings "${locked[@]}" "${target[@]}" --target-dir "${dir}" -j "${jobs}" || return 1
+	## Its C++ has to show the instrumentation, or it went unchecked.
+	lib="$(find "${dir}/x86_64-unknown-linux-gnu/debug/build" -name libtukzmon-settings-qt.a -printf '%T@ %p\n' 2> /dev/null | sort -n | tail -n 1)"
+	lib="${lib#* }"
+	syms="$(nm -u -- "${lib}" 2> /dev/null || true)"
+	if [[ "${syms}" != *__asan_report_* || "${syms}" != *__ubsan_handle_* ]]; then
+		fEcho_Clean "${lib:-libtukzmon-settings-qt.a} has no ASan or UBSan calls, so qt.cpp would go unchecked"; return 1
+	fi
+	mkdir -p -- "${snap}/config" "${snap}/data" || return 1
+	env -u DISPLAY -u WAYLAND_DISPLAY "${runEnv[@]}" QT_QPA_PLATFORM=offscreen XDG_CONFIG_HOME="${snap}/config" XDG_DATA_HOME="${snap}/data" \
+		"${dir}/x86_64-unknown-linux-gnu/debug/tukzmon-settings" --snapshot "${snap}/tab.png" 2>&1 || return 1
+	pics="$(find "${snap}" -maxdepth 1 -name 'tab-*.png' | wc -l)"
+	((pics > 0)) || { fEcho_Clean "--snapshot drew nothing, so qt.cpp went unchecked"; return 1; }
+	fEcho_Clean "sanitizers: nothing reported, and ${pics} snapshot(s) drawn"
+}
+
+## The tests under Miri, on the same nightly, with the host's files and clock
+## in reach, since the collectors and the history file are what's tested.
+## Miri runs a whole test binary on one core, so each test gets a Miri of its
+## own, the step's jobs at a time. A test Miri can't run, such as one that
+## calls C, carries cfg_attr(miri, ignore) with the reason.
+## TUKZMON_MIRI_FILTER, a part of a test's name, runs only the tests that have
+## it, such as to rerun one that failed.
+fStepMiri() {
+	local dir="${CARGO_TARGET_DIR:-${root}/target}" logs="${TMPDIR}/miri" sel pkg kind name n=0 rc=0
+	local -a miriEnv=()
+	if [[ "$(rustup toolchain list 2> /dev/null || true)" != *"${RUST_NIGHTLY}-"* ]] \
+		|| [[ "$(rustup component list --installed --toolchain "${RUST_NIGHTLY}" 2> /dev/null || true)" != *miri* ]]; then
+		fEcho_Clean "${RUST_NIGHTLY} with miri isn't here: rustup toolchain install ${RUST_NIGHTLY} --profile minimal --component rust-src,miri"
+		((! handsOff)) || return 1
+		fEcho_Clean "WARNING: so nothing ran under Miri"; return 0
+	fi
+	## Its own sysroot, kept with the build, so a run doesn't rebuild it. Miri
+	## rounds ln and friends a little differently each call, so the same axis
+	## worked out twice wouldn't compare equal, as it does on the box.
+	miriEnv=("MIRI_SYSROOT=${dir}/miri-sysroot" "MIRIFLAGS=-Zmiri-disable-isolation -Zmiri-deterministic-floats")
+	mkdir -p -- "${logs}" || return 1
+	fEcho_Clean "cargo +${RUST_NIGHTLY} miri setup, in ${dir#"${root}/"}/miri-sysroot"
+	env "${miriEnv[@]}" cargo "+${RUST_NIGHTLY}" miri setup > "${logs}/setup.log" 2>&1 || { cat -- "${logs}/setup.log"; return 1; }
+	fEcho_Clean "cargo +${RUST_NIGHTLY} miri test --no-run -j ${jobs}"
+	env -u DISPLAY -u WAYLAND_DISPLAY "${miriEnv[@]}" cargo "+${RUST_NIGHTLY}" miri test --workspace "${locked[@]}" --no-run -j "${jobs}" || return 1
+	: > "${logs}/list"
+	for sel in "${MIRI_TARGETS[@]}"; do
+		read -r pkg kind <<< "${sel}"
+		while IFS= read -r name; do
+			n=$((n + 1)); printf '%04d %s %s %s\n' "${n}" "${pkg}" "${kind}" "${name}" >> "${logs}/list"
+		done < <(env -u DISPLAY -u WAYLAND_DISPLAY "${miriEnv[@]}" cargo "+${RUST_NIGHTLY}" miri test -q "${locked[@]}" -p "${pkg}" "${kind}" -- --list --format terse 2> /dev/null \
+			| sed -n 's/: test$//p' | grep -F -- "${TUKZMON_MIRI_FILTER:-}" || true)
+	done
+	[[ -z "${TUKZMON_MIRI_FILTER:-}" ]] || fEcho_Clean "only the tests with '${TUKZMON_MIRI_FILTER}' in their name"
+	((n > 0)) || { fEcho_Clean "Miri found no tests"; return 1; }
+	fEcho_Clean "${n} test(s), one Miri each, ${jobs} at a time"
+	## A leak is found after the test's own ok line, so a Miri that failed has
+	## that line swapped for a FAILED one. The order's kept, so the IDs go on
+	## the right lines.
+	# shellcheck disable=2016  ## The inner bash expands them.
+	env -u DISPLAY -u WAYLAND_DISPLAY -u CARGO_TERM_QUIET "${miriEnv[@]}" MIRI_LOGS="${logs}" NIGHTLY="${RUST_NIGHTLY}" LOCKED="${locked[*]}" \
+		xargs -P "${jobs}" -L 1 bash -c 'log="${MIRI_LOGS}/$1.log"
+			cargo "+${NIGHTLY}" miri test ${LOCKED} -p "$2" "$3" -- --exact "$4" > "${log}" 2>&1 && exit 0
+			sed -i "/^test .* \.\.\. ok\$/d" "${log}"
+			grep -q "^test .* \.\.\. FAILED\$" "${log}" || printf "test %s ... FAILED\n" "$4" >> "${log}"; exit 1' _ < "${logs}/list" || rc=1
+	cat -- "${logs}"/[0-9]*.log | "${here}/utility/test-ids.bash" annotate | awk '
+		/^PASS / { n++; next }
+		/^ *(Running|Finished|Blocking waiting for file lock) |^running 1 test$|^test result: ok\.|has been running for over 60 seconds$|^$/ { next }
+		/^FAIL / { bad++ }
+		{ print }
+		END { printf "%d test(s) passed under Miri%s\n", n, bad ? ", " bad " failed" : "" }'
+	return "${rc}"
+}
+
+## The soak test, core/tests/soak.rs: the panel's work over days of skipped
+## clock, failing when the heap at round 2N is past round N's by more than its
+## margin. A plain debug build, since ASan's allocator would hide the heap from
+## dhat. Its report, and dhat's profile when it fails, are kept in SOAK_DIR.
+fStepSoak() {
+	local out="${TMPDIR}/soak" art="${root}/${SOAK_DIR}" stamp='' rc=0
+	mkdir -p -- "${out}" || return 1
+	fEcho_Clean "cargo test -p tukzmon-core --test soak -j ${jobs} -- --ignored"
+	env -u DISPLAY -u WAYLAND_DISPLAY -u CARGO_TERM_QUIET TUKZMON_SOAK_DIR="${out}" cargo test -p tukzmon-core --test soak "${locked[@]}" -j "${jobs}" \
+		-- --ignored --test-threads 1 2>&1 | "${here}/utility/test-ids.bash" annotate || rc=1
+	[[ -f "${out}/soak-heap.txt" ]] || { fEcho_Clean "the soak test wrote no report"; return 1; }
+	tail -n 1 -- "${out}/soak-heap.txt"
+	stamp="$(printf '%(%Y%m%d-%H%M%S)T' -1)"
+	mkdir -p -- "${art}" || return 1
+	cp -- "${out}/soak-heap.txt" "${art}/soak_${stamp}.log" || return 1
+	## The rotation may add a tag to the name, such as _first.
+	fEcho_Clean "report: ${SOAK_DIR}/soak_${stamp}*.log"
+	if [[ -f "${out}/soak-heap.json" ]]; then
+		cp -- "${out}/soak-heap.json" "${art}/soak_${stamp}.json" || return 1
+		fEcho_Clean "dhat's profile: ${SOAK_DIR}/soak_${stamp}*.json, for dh_view.html, sorted by At t-end"
+	fi
+	gfs_rotate "${art}" soak log > /dev/null 2>&1 || true
+	gfs_rotate "${art}" soak json > /dev/null 2>&1 || true
+	return "${rc}"
+}
+
+## The panel's tick under pprof's sampler, in a release build with the names
+## kept. On this box, not in the image, since the tick reads this box's /proc
+## and the report needs python3. The report is a summary, so it can't fail the
+## step. flame-report.py's --check marker is left alone.
+fStepProfile() {
+	local out="${TMPDIR}/profile" art="${root}/${PROFILE_DIR}" stamp=''
+	mkdir -p -- "${out}" "${art}" || return 1
+	fEcho_Clean "cargo build --profile profiling --features profiling -p tukzmon-core --example profile -j ${jobs}"
+	cargo build --profile profiling --features profiling -p tukzmon-core --example profile "${locked[@]}" -j "${jobs}" || return 1
+	fEcho_Clean "${PROFILE_ROUNDS} ticks under the sampler"
+	env -u DISPLAY -u WAYLAND_DISPLAY "${hostTarget}/profiling/examples/profile" "${out}/flame.svg" "${PROFILE_ROUNDS}" || return 1
+	stamp="$(printf '%(%Y%m%d-%H%M%S)T' -1)"
+	cp -- "${out}/flame.svg" "${art}/flame_${stamp}.svg" || return 1
+	gfs_rotate "${art}" flame svg > /dev/null 2>&1 || true
+	## The rotation may add a tag to the name, such as _first.
+	fEcho_Clean "flamegraph: ${PROFILE_DIR}/flame_${stamp}*.svg"
+	fEcho_Clean
+	if ! command -v python3 > /dev/null 2>&1; then fEcho_Clean "WARNING: no python3, so no report on the flamegraph"; return 0; fi
+	python3 -I "${here}/utility/flame-report.py" --dir "${art}" || fEcho_Clean "WARNING: flame-report.py couldn't read the flamegraph"
 }
 
 fStepDogfood() {
@@ -406,7 +673,8 @@ renice -n 19 -p "$$" > /dev/null 2>&1 || true
 if command -v ionice > /dev/null 2>&1; then ionice -c 3 -p "$$" > /dev/null 2>&1 || true; fi
 
 ## Half the CPUs, a quarter when the box is busy, and a quarter for the heavy
-## steps either way. Never under 1. Sets jobs, heavyJobs and loadNote.
+## steps either way. Never under 1. Sets jobs, heavyJobs and loadNote, and
+## jobs to heavyJobs when given "heavy".
 cores="$(nproc 2> /dev/null || echo 2)"
 jobs=1; heavyJobs=1; loadNote=""
 fJobs() {
@@ -423,8 +691,10 @@ fJobs() {
 		((jobs <= CICD_MAX_JOBS)) || jobs="${CICD_MAX_JOBS}"
 		((heavyJobs <= CICD_MAX_JOBS)) || heavyJobs="${CICD_MAX_JOBS}"
 	fi
+	[[ "${1:-}" != heavy ]] || jobs="${heavyJobs}"
 	printf -v loadNote '%s of %s CPUs, load %d.%02d' "${jobs}" "${cores}" $((10#${load} / 100)) $((10#${load} % 100))
 	if ((busy)); then loadNote+=", busy"; fi
+	if [[ "${1:-}" == heavy ]]; then loadNote+=", a heavy step"; fi
 	export CARGO_BUILD_JOBS="${jobs}" RUST_TEST_THREADS="${jobs}"
 }
 
@@ -476,9 +746,9 @@ ctrOn=0; ctrPassed=0; ctrTag=""
 ## Its own target and cargo home. The paths inside differ from the host's, so
 ## sharing target/ would rebuild everything each time a run switched sides.
 ## docker reads a relative -v source as a named volume.
-ctrBase="${CARGO_TARGET_DIR:-${root}/target}"
-[[ "${ctrBase}" == /* ]] || ctrBase="${root}/${ctrBase}"
-ctrBase+="/container"
+hostTarget="${CARGO_TARGET_DIR:-${root}/target}"
+[[ "${hostTarget}" == /* ]] || hostTarget="${root}/${hostTarget}"
+ctrBase="${hostTarget}/container"
 ## dev.pid is the run's "<pid> <start time>", so a later run can tell it's gone.
 ctrLabels=(--label "dev.project=${projectName}" --label "dev.run=${runName}" --label "dev.pid=${runStamp}")
 
@@ -549,8 +819,8 @@ fOtherRun() {
 	done < <(fCtrOthers)
 }
 
-## Copies the recipe to DIR and sets ctrTag from a hash of it, so an edit to
-## any of it means a new image.
+## Copies the recipe to DIR and sets ctrTag from a hash of it and the build
+## args, so an edit to any of them means a new image.
 fCtrContext() {   ## fCtrContext DIR
 	local ctx="$1" f
 	local -a ctxFiles=()
@@ -558,7 +828,7 @@ fCtrContext() {   ## fCtrContext DIR
 	cp -p -- "${root}/${CTR_DIR}"/* "${ctx}/" || return 1
 	for f in "${CTR_CONTEXT_EXTRA[@]}"; do cp -p -- "${root}/${f}" "${ctx}/" || return 1; done
 	mapfile -t ctxFiles < <(cd "${ctx}" && find . -type f | LC_ALL=C sort)
-	ctrTag="${CTR_IMAGE}:$(cd "${ctx}" && for f in "${ctxFiles[@]}"; do echo "${f}"; cat "${f}"; done | git hash-object --stdin | cut -c1-12)"
+	ctrTag="${CTR_IMAGE}:$({ (cd "${ctx}" && for f in "${ctxFiles[@]}"; do echo "${f}"; cat "${f}"; done); printf 'build-arg %s\n' "${CTR_BUILD_ARGS[@]}"; } | git hash-object --stdin | cut -c1-12)"
 }
 
 ## Every container goes through here. nice on the client doesn't reach a
@@ -578,8 +848,8 @@ fCtrRun() {   ## fCtrRun STEP DOCKER_RUN_ARG...
 ## its cargo home for the offline steps. Anything that goes wrong is one line,
 ## and the run goes on on the host.
 fStepImage() {
-	local why='' have='' want='' got='' ch="${ctrBase}/cargo-home" i
-	local -a inside=()
+	local why='' have='' want='' got='' ch="${ctrBase}/cargo-home" i arg
+	local -a inside=() buildArgs=()
 	why="$(fCtrWhyNot)"
 	if [[ -n "${why}" ]]; then fEcho_Clean "${why}, so this run is on the host"; return 0; fi
 	ctrTouched=1
@@ -591,7 +861,8 @@ fStepImage() {
 		fEcho_Clean "building ${ctrTag}, which takes several minutes the first time"
 		## dev.built orders the tags for cleanup. Created can't, since a build
 		## from cache gives every tag the same one.
-		if ! docker build --progress=plain "${ctrLabels[@]}" --label "dev.built=${EPOCHSECONDS}" -t "${ctrTag}" "${runTmp}/ctx" > "${runTmp}/image-build.log" 2>&1; then
+		buildArgs=(); for arg in "${CTR_BUILD_ARGS[@]}"; do buildArgs+=(--build-arg "${arg}"); done
+		if ! docker build --progress=plain "${ctrLabels[@]}" --label "dev.built=${EPOCHSECONDS}" "${buildArgs[@]}" -t "${ctrTag}" "${runTmp}/ctx" > "${runTmp}/image-build.log" 2>&1; then
 			tail -n 25 "${runTmp}/image-build.log"
 			fEcho_Clean "could not build ${ctrTag}, so this run is on the host"
 			return 0
@@ -609,9 +880,12 @@ fStepImage() {
 	want="$(sha256sum < "${root}/Cargo.lock" | cut -c1-16) ${ctrTag}"
 	{ read -r got < "${ch}/.fetched"; } 2> /dev/null || true
 	if [[ "${got}" != "${want}" ]]; then
-		fEcho_Clean "cargo fetch --locked, for the steps, which run offline"
+		## -Zbuild-std needs std's own crates too, from its Cargo.lock in rust-src.
+		fEcho_Clean "cargo fetch --locked, for the steps, which run offline, and for std's build on ${RUST_NIGHTLY}"
 		if fCtrRun fetch -v "${root}:${root}:ro" -v "${ch}:${ch}" -w "${root}" -e "HOME=${ch}" -e "CARGO_HOME=${ch}" \
-			"${ctrTag}" nice -n 19 cargo fetch --locked --quiet; then
+			"${ctrTag}" nice -n 19 cargo fetch --locked --quiet \
+			&& fCtrRun fetch-std -v "${ch}:${ch}" -e "HOME=${ch}" -e "CARGO_HOME=${ch}" "${ctrTag}" nice -n 19 cargo "+${RUST_NIGHTLY}" fetch --locked --quiet \
+				--manifest-path "/opt/rustup/toolchains/${RUST_NIGHTLY}-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/Cargo.toml"; then
 			printf '%s\n' "${want}" > "${ch}/.fetched"
 		else
 			fEcho_Clean "WARNING: could not fetch crates (offline?); going on with what's cached"
@@ -627,7 +901,7 @@ fStepImage() {
 ## own paths, so every path reads the same inside.
 fCtrStep() {   ## fCtrStep FUNCTION
 	local fn="$1" step='' common=''
-	local -a mounts=() env=()
+	local -a mounts=() env=() net=()
 	step="${fn#fStep}"; step="${step,,}"
 	mounts=(-v "${root}:${root}" -v "${runTmp}:${runTmp}" -v "${ctrBase}:${ctrBase}")
 	## A linked worktree's git dir is outside it, and lint lists files with git.
@@ -636,10 +910,18 @@ fCtrStep() {   ## fCtrStep FUNCTION
 	env=(-e "TUKZMON_IN_IMAGE=${fn}" -e "TUKZMON_JOBS=${jobs}" -e "HOME=${runTmp}/home"
 		-e "TMPDIR=${runTmp}" -e "TEMP=${runTmp}" -e "TMP=${runTmp}"
 		-e "CARGO_HOME=${ctrBase}/cargo-home" -e "CARGO_TARGET_DIR=${ctrBase}/target" -e CARGO_NET_OFFLINE=true
-		-e CARGO_TERM_QUIET -e SOURCE_DATE_EPOCH -e TUKZMON_RELEASE)
+		-e CARGO_TERM_QUIET -e SOURCE_DATE_EPOCH -e TUKZMON_RELEASE -e TUKZMON_MIRI_FILTER)
 	[[ ! -t 1 ]] || env+=(-e CARGO_TERM_COLOR=always)
+	## A run that dogfoods built the release here, so the packages come from
+	## that one.
+	if [[ "${fn}" == fStepPackage ]] && ! fInImage fStepRelease; then
+		env+=(-e "TUKZMON_RELEASE_DIR=${hostTarget}/release")
+		[[ "${hostTarget}" == "${root}"/* ]] || mounts+=(-v "${hostTarget}/release:${hostTarget}/release:ro")
+	fi
+	net=(--network none)
+	if [[ " ${CTR_NET_STEPS[*]} " == *" ${fn} "* ]]; then net=(); fi
 	fEcho_Clean "in ${projectName}-${runName}-${step}"
-	fCtrRun "${step}" --network none "${mounts[@]}" -w "${root}" "${env[@]}" \
+	fCtrRun "${step}" "${net[@]}" "${mounts[@]}" -w "${root}" "${env[@]}" \
 		"${ctrTag}" nice -n 19 ionice -c 3 bash "${root}/cicd/cicd.bash" "${cliArgs[@]}"
 }
 
@@ -719,7 +1001,7 @@ fEcho_Clean
 stepCount="${#planNames[@]}"; lastNote=""
 for i in "${!planNames[@]}"; do
 	n=$((i + 1)); name="${planNames[i]}"
-	fJobs
+	if [[ " ${HEAVY_STEPS[*]} " == *" ${planFns[i]} "* ]]; then fJobs heavy; else fJobs; fi
 	fEcho_Clean; fEcho_Clean "${__letterbox}"
 	fEcho "$(fNow): Step ${n} of ${stepCount}; Starting ${name}"
 	if [[ "${loadNote}" != "${lastNote}" ]]; then fEcho_Clean "jobs: ${loadNote}"; lastNote="${loadNote}"; fi
@@ -755,3 +1037,10 @@ exit 0
 ##		  --list.
 ##		- 2026-10-25: Containers and run folders a killed run left are cleaned
 ##		  up by the next run, and no image goes while another run is live.
+##		- 2026-10-25: The known-advisory scan, in the image with the network.
+##		- 2026-10-25: The Sanitizers leak check on a pinned nightly, leak check
+##		  lengths, and a quarter of the CPUs for heavy steps.
+##		- 2026-10-25: The Miri leak check.
+##		- 2026-10-25: The Soak leak check.
+##		- 2026-10-25: .deb and .rpm packages, with sha256 sums.
+##		- 2026-10-25: The profiler, with a report on each flamegraph.
