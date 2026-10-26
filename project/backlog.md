@@ -1068,17 +1068,6 @@ Sorted per the notes in [Template](#template).
 		- Split into children: clippy and the advisory scan 2026102516060718 (Done), sanitizers 2026102516060724, Miri 2026102516060729, and the soak test 2026102516060734.
 	- Branch: round-1025b
 
-- CICD reset: .deb and .rpm packages
-	- ID: 2026102506591283
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261025-065912
-	- Opened by: t00mietum
-	- Parent ID: 2026102416252898
-	- Requirements:
-		- `.deb` and `.rpm` packages of the release build in the default run, with a sha256 sums file beside them.
-
 - CICD reset: profiler stage
 	- ID: 2026102506591288
 	- Type: Task
@@ -1107,6 +1096,31 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- CICD reset: .deb and .rpm packages
+	- ID: 2026102506591283
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261025-065912
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- `.deb` and `.rpm` packages of the release build in the default run, with a sha256 sums file beside them.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A Packages step after the release build makes `tukzmon-<version>-linux-x86_64.deb` and `.rpm`, plus `tukzmon-<version>-sha256sums.txt`, in `cicd/artifacts/packages/`. It runs in the default run, `--long`, `--backlog-run-full` and `--merge-gate`, not in `--quick`.
+		- They hold the plugin in the panel's plugin folder, its `.desktop` file, `tukzmon-settings` in `/usr/bin`, and the license. The plugin's folder is Debian's for the `.deb` and Fedora's for the `.rpm`.
+		- The `.deb` names Debian's packages, and the step fails when a linked library comes from a package it doesn't name. The `.rpm` asks for each linked library by soname.
+		- Two builds of one commit give the same bytes.
+		- Verified: the step passed in the image and on the host, and with a release built on the host and packaged in the image, as in a run that dogfoods. A dropped depend failed it.
+	- Decisions:
+		- One package for both parts, since the plugin starts `tukzmon-settings`.
+		- x86_64 only for now, since the pipeline has no arm64 build.
+	- Branch: round-1025b
+	- Test case: None in the repo. The step checks each package's files and depends every run, and was watched to fail on a dropped depend.
+	- Closed: 20261025-180719
 
 - CICD reset: leak checks, soak test
 	- ID: 2026102516060734

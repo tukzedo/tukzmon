@@ -90,6 +90,18 @@ RUN test -n "${RUST_NIGHTLY}" \
 	&& CARGO_HOME=/opt/cargo /opt/cargo/bin/rustup toolchain install "${RUST_NIGHTLY}" --profile minimal --component rust-src,miri \
 	&& rm -rf /opt/cargo/registry
 
+# The .deb and .rpm. rpm is only here to list what nfpm wrote. Last, so a bump
+# rebuilds nothing above it.
+ARG NFPM_VER=2.47.0
+ARG NFPM_SHA256=0660ca602b2d2d2ae4781a06c692b3eeb9d437ffea05b831d76e41f4a3188783
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends rpm \
+	&& rm -rf /var/lib/apt/lists/* \
+	&& curl -fsSLo /tmp/nfpm.tgz "https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VER}/nfpm_${NFPM_VER}_Linux_x86_64.tar.gz" \
+	&& echo "${NFPM_SHA256}  /tmp/nfpm.tgz" | sha256sum -c - \
+	&& tar -C /usr/local/bin -xzf /tmp/nfpm.tgz nfpm \
+	&& rm -f /tmp/nfpm.tgz
+
 # Runs as the caller's uid, which has no passwd entry here. CARGO_HOME, HOME
 # and TMPDIR are set per run to dirs mounted from the host.
 ENV PATH=/opt/cargo/bin:/opt/node/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \

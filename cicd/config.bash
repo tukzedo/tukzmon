@@ -25,6 +25,9 @@ TOOL_PINS=(
 	"markdownlint|0.49.1|markdownlint --version"
 	## The known-advisory scan. Pinned in the image's Dockerfile too.
 	"cargo-deny|0.19.9|cargo deny --version"
+	## The .deb and .rpm. Pinned in the image's Dockerfile too. A go-installed
+	## one says it's version "dev", so a box with one gets the warning.
+	"nfpm|2.47.0|nfpm --version"
 )
 ## The sanitizers and Miri need nightly, so they run on this dated one, beside
 ## the stable toolchain rust-toolchain.toml pins. The image gets it as a build
@@ -49,6 +52,10 @@ MARKDOWNLINT_DISABLE=(MD013)
 MARKDOWNLINT_DISABLE_FOR=(
 	"project/backlog.md|MD036"
 )
+
+## The .deb, .rpm and sha256 sums from cicd/packaging/nfpm.yaml, one set per
+## version, gitignored.
+PACKAGE_DIR="cicd/artifacts/packages"
 
 ## The leak checks, "name|step function|length". The length is by measured
 ## time: fast ones run in every run, slow ones in all but --quick and
@@ -92,7 +99,7 @@ CTR_DIR="cicd/container"
 CTR_CONTEXT_EXTRA=(rust-toolchain.toml)
 ## NAME=value, passed to docker build and part of the tag's hash.
 CTR_BUILD_ARGS=("RUST_NIGHTLY=${RUST_NIGHTLY}")
-CTR_STEPS=(fStepFormat fStepBuild fStepLint fStepAdvisories fStepTests fStepRelease fStepSanitizers fStepMiri fStepSoak)
+CTR_STEPS=(fStepFormat fStepBuild fStepLint fStepAdvisories fStepTests fStepRelease fStepPackage fStepSanitizers fStepMiri fStepSoak)
 ## The image steps that get the network. The rest run with none.
 CTR_NET_STEPS=(fStepAdvisories)
 
@@ -105,3 +112,4 @@ CTR_NET_STEPS=(fStepAdvisories)
 ##		  the image's build args.
 ##		- 2026-10-25: Miri.
 ##		- 2026-10-25: The soak test.
+##		- 2026-10-25: Packages: nfpm's pin, and where they go.

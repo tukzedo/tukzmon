@@ -23,17 +23,19 @@
 ##	   7. Tests           cargo test, with TMPDIR in the run's temp folder. One
 ##	                      line per test: PASS, FAIL or SKIP, its ID, its name
 ##	   8. Release build   the plugin and tukzmon-settings
-##	   9. Sanitizers      a leak check: the tests under ASan and LSan on the
+##	   9. Packages        a .deb and an .rpm of the release build through nfpm,
+##	                      with a sha256 sums file, in cicd/artifacts/packages/
+##	  10. Sanitizers      a leak check: the tests under ASan and LSan on the
 ##	                      nightly config.bash pins, std included, then
 ##	                      tukzmon-settings --snapshot, with its C++ under
 ##	                      ASan, LSan and UBSan too
-##	  10. Miri            a leak check that takes hours: the tests under Miri on
+##	  11. Miri            a leak check that takes hours: the tests under Miri on
 ##	                      the same nightly, one Miri per test.
 ##	                      TUKZMON_MIRI_FILTER=<part of a name> runs only those
-##	  11. Soak            a slow leak check: core/tests/soak.rs, the panel's
+##	  12. Soak            a slow leak check: core/tests/soak.rs, the panel's
 ##	                      work over days of skipped clock, with the heap read at
 ##	                      round N and 2N. Its report goes to cicd/artifacts/soak/
-##	  12. Dogfood         utility/dev-install.bash, which installs the build to
+##	  13. Dogfood         utility/dev-install.bash, which installs the build to
 ##	                      ~/.local/lib/tukzmon and restarts the panel
 ##	  A step that's off isn't counted, and the first section says why it's off.
 ##	  Cleanup comes last, on failure and Ctrl+C too.
@@ -41,8 +43,8 @@
 ##	  cicd/cicd.bash [options]
 ##	  Options:
 ##	   (none)              the default run: every step
-##	   --quick             the fast steps: the default run but the slow leak
-##	                       checks, so no Soak
+##	   --quick             the fast steps: the default run but the packages
+##	                       and the slow leak checks, so no Soak
 ##	   --long              everything, Miri included, which only it runs. Also
 ##	                       --slow
 ##	   --leakcheck         add every leak check to any run
@@ -59,6 +61,8 @@
 ##	                         test    cargo test
 ##	                         advisories  the advisory scan, only when named
 ##	                         release the release build, only when named
+##	                         package the packages and the release build they
+##	                                 come from, only when named
 ##	                         sanitizers  the Sanitizers leak check
 ##	                         miri    the Miri leak check, only when named
 ##	                         soak    the Soak leak check, only when named
@@ -129,8 +133,9 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "${here}/.." && pwd)"
 
 ## rustup's cargo has to win over Debian's /bin/cargo, which ignores
-## rust-toolchain.toml.
+## rust-toolchain.toml. A go-installed nfpm is a fallback for a host run.
 export PATH="${HOME}/.cargo/bin:${PATH}"
+[[ ! -d "${HOME}/.go/bin" ]] || PATH+=":${HOME}/.go/bin"
 
 source "${here}/config.bash"
 source "${here}/utility/include/gfs-rotate.bash"
@@ -197,7 +202,7 @@ esac; done
 
 handsOff=0
 case "${mode}" in backlog-run-quick|backlog-run-full|merge-gate) handsOff=1 ;; esac
-allAreas=(format build lint test advisories release)
+allAreas=(format build lint test advisories release package)
 for entry in "${LEAK_CHECKS[@]}"; do entry="${entry%%|*}"; allAreas+=("${entry,,}"); done
 namedAreas="${#areas[@]}"
 if [[ "${mode}" == backlog-run-quick ]]; then
@@ -230,8 +235,12 @@ fPlan "Lint" fStepLint lint
 if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" advisories "* ]]; then offLines+=("Advisories: --backlog-run-quick runs it only when the advisories area is named")
 else fPlan "Advisories" fStepAdvisories ""; fi
 fPlan "Tests" fStepTests test
-if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" release "* ]]; then offLines+=("Release build: --backlog-run-quick runs it only when the release area is named")
+## The packages are of the release build, so naming package brings it too.
+if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" release "* && " ${areas[*]} " != *" package "* ]]; then offLines+=("Release build: --backlog-run-quick runs it only when the release or package area is named")
 else fPlan "Release build" fStepRelease ""; fi
+if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" package "* ]]; then offLines+=("Packages: --backlog-run-quick runs it only when the package area is named")
+elif [[ "${mode}" == quick ]]; then offLines+=("Packages: --quick")
+else fPlan "Packages" fStepPackage ""; fi
 ## A leak check's length says which runs take it, per LEAK_CHECKS. Prints why
 ## when it's off.
 fLeakWhyOff() {   ## fLeakWhyOff NAME LENGTH
@@ -258,7 +267,6 @@ done
 if ((handsOff)); then offLines+=("Dogfood: --${mode} never dogfoods")
 else fPlan "Dogfood" fStepDogfood ""; fi
 ## Off by name, until they're built.
-offLines+=("Packages: not built yet (backlog 2026102506591283)")
 offLines+=("Profiler: not built yet (backlog 2026102506591288)")
 if ((noRemote)); then offLines+=("Other hosts: --no-remote")
 else offLines+=("Other hosts: none, since tukzmon is Linux only for now"); fi
@@ -445,6 +453,20 @@ fStepAdvisories() {
 fStepRelease() {
 	fEcho_Clean "cargo build --release ${RELEASE_PACKAGES[*]} -j ${jobs}"
 	cargo build --release "${locked[@]}" "${RELEASE_PACKAGES[@]}" -j "${jobs}" || return 1
+}
+
+## A .deb and an .rpm of whichever release build the run made, which is the
+## host's in a run that dogfoods. The version is the workspace's, per the Rust
+## pipeline notes. Each version's set replaces the last one of that version.
+fStepPackage() {
+	local ver='' rel="${TUKZMON_RELEASE_DIR:-${CARGO_TARGET_DIR:-${root}/target}/release}" work="${TMPDIR}/packages"
+	ver="$(sed -n '/^\[workspace\.package\]/,/^\[/s/^version *= *"\(.*\)"/\1/p' "${root}/Cargo.toml")"
+	[[ -n "${ver}" ]] || { fEcho_Clean "no version under [workspace.package] in Cargo.toml"; return 1; }
+	[[ "${rel}" == /* ]] || rel="${root}/${rel}"
+	mkdir -p -- "${work}" "${root}/${PACKAGE_DIR}" || return 1
+	fEcho_Clean "cicd/utility/package.bash, v${ver}, from ${rel#"${root}/"}"
+	"${here}/utility/package.bash" "${rel}" "${ver}" "${root}/${PACKAGE_DIR}" "${work}" || return 1
+	fEcho_Clean "in ${PACKAGE_DIR}/"
 }
 
 ## The tests under ASan and LSan on the pinned nightly, with std built too and
@@ -694,9 +716,9 @@ ctrOn=0; ctrPassed=0; ctrTag=""
 ## Its own target and cargo home. The paths inside differ from the host's, so
 ## sharing target/ would rebuild everything each time a run switched sides.
 ## docker reads a relative -v source as a named volume.
-ctrBase="${CARGO_TARGET_DIR:-${root}/target}"
-[[ "${ctrBase}" == /* ]] || ctrBase="${root}/${ctrBase}"
-ctrBase+="/container"
+hostTarget="${CARGO_TARGET_DIR:-${root}/target}"
+[[ "${hostTarget}" == /* ]] || hostTarget="${root}/${hostTarget}"
+ctrBase="${hostTarget}/container"
 ## dev.pid is the run's "<pid> <start time>", so a later run can tell it's gone.
 ctrLabels=(--label "dev.project=${projectName}" --label "dev.run=${runName}" --label "dev.pid=${runStamp}")
 
@@ -860,6 +882,12 @@ fCtrStep() {   ## fCtrStep FUNCTION
 		-e "CARGO_HOME=${ctrBase}/cargo-home" -e "CARGO_TARGET_DIR=${ctrBase}/target" -e CARGO_NET_OFFLINE=true
 		-e CARGO_TERM_QUIET -e SOURCE_DATE_EPOCH -e TUKZMON_RELEASE -e TUKZMON_MIRI_FILTER)
 	[[ ! -t 1 ]] || env+=(-e CARGO_TERM_COLOR=always)
+	## A run that dogfoods built the release here, so the packages come from
+	## that one.
+	if [[ "${fn}" == fStepPackage ]] && ! fInImage fStepRelease; then
+		env+=(-e "TUKZMON_RELEASE_DIR=${hostTarget}/release")
+		[[ "${hostTarget}" == "${root}"/* ]] || mounts+=(-v "${hostTarget}/release:${hostTarget}/release:ro")
+	fi
 	net=(--network none)
 	if [[ " ${CTR_NET_STEPS[*]} " == *" ${fn} "* ]]; then net=(); fi
 	fEcho_Clean "in ${projectName}-${runName}-${step}"
@@ -984,3 +1012,4 @@ exit 0
 ##		  lengths, and a quarter of the CPUs for heavy steps.
 ##		- 2026-10-25: The Miri leak check.
 ##		- 2026-10-25: The Soak leak check.
+##		- 2026-10-25: .deb and .rpm packages, with sha256 sums.

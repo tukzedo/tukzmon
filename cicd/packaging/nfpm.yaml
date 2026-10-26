@@ -1,0 +1,76 @@
+# nfpm config for the .deb and .rpm (https://nfpm.goreleaser.com), from
+# tukfs-hash's. cicd/utility/package.bash fills the ${TUKZMON_*} names, since
+# nfpm doesn't expand env vars in a src path.
+#
+# Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
+# Licensed under The MIT License (MIT). Full text at:
+#   https://mit-license.org/
+# SPDX-License-Identifier: MIT
+name: tukzmon
+arch: ${TUKZMON_ARCH}
+platform: linux
+version: ${TUKZMON_VERSION}
+section: x11
+priority: optional
+maintainer: t00mietum <73576036+t00mietum@users.noreply.github.com>
+homepage: https://github.com/tukzedo/tukzmon
+description: |
+  A system monitor that lives in the XFCE panel
+  Small CPU and memory graphs on a logarithmic time axis, so one graph shows
+  the last few seconds and the last few weeks at once. History is kept
+  across restarts.
+license: LGPL-2.1-or-later
+# The commit's time, so two builds of one commit give the same bytes.
+mtime: ${TUKZMON_MTIME}
+overrides:
+  # Debian's names. package.bash checks that every library the two binaries
+  # link comes from one of these, where dpkg can say who owns it.
+  deb:
+    depends:
+      - libc6 (>= ${TUKZMON_GLIBC})
+      - libgcc-s1
+      - libstdc++6
+      - libglib2.0-0t64 | libglib2.0-0
+      - libcairo2
+      - libgtk-3-0t64 | libgtk-3-0
+      - libxfce4panel-2.0-4
+      - libqt6core6t64 | libqt6core6
+      - libqt6gui6t64 | libqt6gui6
+      - libqt6widgets6t64 | libqt6widgets6
+      - xfce4-panel
+  # By soname, since distros name the packages differently. package.bash
+  # reads them off the binaries.
+  rpm:
+    depends:
+      - glibc >= ${TUKZMON_GLIBC}
+      - xfce4-panel${TUKZMON_RPM_SONAMES}
+rpm:
+  # rpm puts the build host's name in the package.
+  buildhost: localhost
+# XFCE 4.20 reads plugins only from its own folders, which differ by distro
+# family for the library.
+contents:
+  - src: ${TUKZMON_RELEASE_DIR}/libtukzmon.so
+    dst: /usr/lib/x86_64-linux-gnu/xfce4/panel/plugins/libtukzmon.so
+    packager: deb
+    file_info: { mode: 0644, mtime: "${TUKZMON_MTIME}" }
+  - src: ${TUKZMON_RELEASE_DIR}/libtukzmon.so
+    dst: /usr/lib64/xfce4/panel/plugins/libtukzmon.so
+    packager: rpm
+    file_info: { mode: 0755, mtime: "${TUKZMON_MTIME}" }
+  - src: xfce/tukzmon.desktop
+    dst: /usr/share/xfce4/panel/plugins/tukzmon.desktop
+    file_info: { mode: 0644, mtime: "${TUKZMON_MTIME}" }
+  # The plugin looks beside its library first, then on PATH.
+  - src: ${TUKZMON_RELEASE_DIR}/tukzmon-settings
+    dst: /usr/bin/tukzmon-settings
+    file_info: { mode: 0755, mtime: "${TUKZMON_MTIME}" }
+  - src: license.txt
+    dst: /usr/share/doc/tukzmon/copyright
+    packager: deb
+    file_info: { mode: 0644, mtime: "${TUKZMON_MTIME}" }
+  - src: license.txt
+    dst: /usr/share/licenses/tukzmon/license.txt
+    packager: rpm
+    type: license
+    file_info: { mode: 0644, mtime: "${TUKZMON_MTIME}" }
