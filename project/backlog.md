@@ -737,11 +737,11 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- A Miri step runs the tests under Miri on the nightly the sanitizers use, which the image now gets with miri. Each test gets a Miri of its own, a quarter of the CPUs at a time, since Miri runs a whole test binary on one core.
 		- Miri can reach the host's files and clock, so the collector and history file tests run under it. 2 tests call C for the locale's time format, and 14 settings window tests save through shcl, which fsyncs the folder, which Miri can't. Those are ignored under Miri, each with its reason.
-		- Miri rounds `ln` and its kin a little differently on each call, so the step makes its floats deterministic, as they are on the box. Without that, the log axis test saw the same axis come out unequal in the last digit.
+		- Miri rounds `ln` and its kin a little differently on each call, so the step makes its floats deterministic, as they are on the box. Without that, the log axis test and a knobs slider test each saw the same value worked out twice come out unequal in the last digit. Both pass with it.
 		- `TUKZMON_MIRI_FILTER` runs only the tests with that in their name, such as to rerun one.
 		- Verified: a planted read past the end of a Vec, a `Box::leak`, and a failed assert each failed the step in the image, each on a FAIL line with its test ID. The other 8 axis tests passed.
 	- Decisions:
-		- It's a leak check that takes hours, so it runs only in `--long`, with `--leakcheck`, or as the `miri` area. A test that parses the settings spec takes about 4 to 7 minutes under Miri, and the settings window tests longer.
+		- It's a leak check that takes hours, so it runs only in `--long`, with `--leakcheck`, or as the `miri` area. The tests took about 7 hours of CPU under Miri one at a time, so nearly an hour at 8 at a time, which would push the default run past its hour. A test that parses the settings spec takes 3 to 11 minutes, and the slowest took 18, so the step is never quicker than that.
 	- Branch: round-1025b
 	- Test case: None in the repo, as for 2026102516060718. The step was watched to fail.
 

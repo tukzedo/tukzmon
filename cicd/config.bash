@@ -60,7 +60,9 @@ LEAK_CHECKS=(
 	## its C++ under UBSan too. 1m 25s from a fresh target dir and about 5 s
 	## with nothing to rebuild, at 8 jobs and load 14 (2026-10-25).
 	"Sanitizers|fStepSanitizers|fast"
-	## The tests under Miri, one Miri per test. Hours, at 8 at a time.
+	## The tests under Miri, one Miri per test. About 7 hours of CPU, so
+	## nearly an hour at 8 at a time, which would push the default run past
+	## its hour (2026-10-25).
 	"Miri|fStepMiri|hours"
 	## The soak test, core/tests/soak.rs. About 1 minute in a debug build.
 	"Soak|fStepSoak|slow"
