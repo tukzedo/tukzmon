@@ -719,6 +719,31 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: The workflow is its own test. Its first run is in the row above.
 
+- CICD reset: leak checks, Miri
+	- ID: 2026102516060729
+	- Type: Task
+	- Status: Waiting on automated testing
+	- Needs local test suite run?: `cicd/cicd.bash --backlog-run-quick miri`, which takes hours. So far the step has run only on the axis tests, and each test has run on its own by hand.
+	- Priority|Severity: Avg
+	- Opened: 20261025-160607
+	- Opened by: t00mietum
+	- Parent ID: 2026102506591278
+	- Prereq IDs: 2026102516060724
+	- Requirements:
+		- The test suite under Miri, on the nightly the sanitizers pin, on a quarter of the CPUs.
+		- A test that needs FFI or files Miri can't reach gets `cfg_attr(miri, ignore)` with a one-line reason.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A Miri step runs the tests under Miri on the nightly the sanitizers use, which the image now gets with miri. Each test gets a Miri of its own, a quarter of the CPUs at a time, since Miri runs a whole test binary on one core.
+		- Miri can reach the host's files and clock, so the collector and history file tests run under it. The hover clock test calls C for the locale's time format, so it's ignored under Miri, with that reason.
+		- `TUKZMON_MIRI_FILTER` runs only the tests with that in their name, such as to rerun one.
+		- Verified: a planted read past the end of a Vec, a `Box::leak`, and a failed assert each failed the step in the image, each on a FAIL line with its test ID. The other 8 axis tests passed.
+	- Decisions:
+		- It's a leak check that takes hours, so it runs only in `--long`, with `--leakcheck`, or as the `miri` area. A test that parses the settings spec takes about 4 to 7 minutes under Miri, and the settings window tests longer.
+	- Branch: round-1025b
+	- Test case: None in the repo, as for 2026102516060718. The step was watched to fail.
+
 - Core library and Linux collectors
 	- ID: 2026101916013884
 	- Type: Feature
@@ -1041,19 +1066,6 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Split into children: clippy and the advisory scan 2026102516060718 (Done), sanitizers 2026102516060724, Miri 2026102516060729, and the soak test 2026102516060734.
 	- Branch: round-1025b
-
-- CICD reset: leak checks, Miri
-	- ID: 2026102516060729
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261025-160607
-	- Opened by: t00mietum
-	- Parent ID: 2026102506591278
-	- Prereq IDs: 2026102516060724
-	- Requirements:
-		- The test suite under Miri, on the nightly the sanitizers pin, on a quarter of the CPUs.
-		- A test that needs FFI or files Miri can't reach gets `cfg_attr(miri, ignore)` with a one-line reason.
 
 - CICD reset: leak checks, soak test
 	- ID: 2026102516060734

@@ -161,6 +161,7 @@ mod tests {
 	// Test ID: deccc
 	#[cfg(unix)]
 	#[test]
+	#[cfg_attr(miri, ignore = "nl_langinfo and strftime are C, which Miri can't call")]
 	fn clock_gives_the_date_only_before_today() {
 		let now = std::time::SystemTime::now()
 			.duration_since(std::time::UNIX_EPOCH)

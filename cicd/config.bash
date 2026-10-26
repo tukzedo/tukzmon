@@ -26,8 +26,9 @@ TOOL_PINS=(
 	## The known-advisory scan. Pinned in the image's Dockerfile too.
 	"cargo-deny|0.19.9|cargo deny --version"
 )
-## The sanitizers need -Z flags, so they run on this dated nightly, beside the
-## stable toolchain rust-toolchain.toml pins. The image gets it as a build arg.
+## The sanitizers and Miri need nightly, so they run on this dated one, beside
+## the stable toolchain rust-toolchain.toml pins. The image gets it as a build
+## arg, with rust-src and miri.
 RUST_NIGHTLY="nightly-2026-10-16"
 
 ## Paths that don't change the product. A push to main that changes only
@@ -59,9 +60,17 @@ LEAK_CHECKS=(
 	## its C++ under UBSan too. 1m 25s from a fresh target dir and about 5 s
 	## with nothing to rebuild, at 8 jobs and load 14 (2026-10-25).
 	"Sanitizers|fStepSanitizers|fast"
+	## The tests under Miri, one Miri per test. Hours, at 8 at a time.
+	"Miri|fStepMiri|hours"
 )
 ## Steps that get a quarter of the CPUs, busy or not.
-HEAVY_STEPS=(fStepSanitizers)
+HEAVY_STEPS=(fStepSanitizers fStepMiri)
+## The test targets Miri runs, as "package target-option".
+MIRI_TARGETS=(
+	"tukzmon-core --lib"
+	"knobs --lib"
+	"tukzmon-settings --bins"
+)
 ## LeakSanitizer's suppressions. Prebuilt libraries only, by name.
 LSAN_SUPP="cicd/lsan.supp"
 
@@ -76,7 +85,7 @@ CTR_DIR="cicd/container"
 CTR_CONTEXT_EXTRA=(rust-toolchain.toml)
 ## NAME=value, passed to docker build and part of the tag's hash.
 CTR_BUILD_ARGS=("RUST_NIGHTLY=${RUST_NIGHTLY}")
-CTR_STEPS=(fStepFormat fStepBuild fStepLint fStepAdvisories fStepTests fStepRelease fStepSanitizers)
+CTR_STEPS=(fStepFormat fStepBuild fStepLint fStepAdvisories fStepTests fStepRelease fStepSanitizers fStepMiri)
 ## The image steps that get the network. The rest run with none.
 CTR_NET_STEPS=(fStepAdvisories)
 
@@ -87,3 +96,4 @@ CTR_NET_STEPS=(fStepAdvisories)
 ##		- 2026-10-25: cargo-deny pin, and the advisory step in the image.
 ##		- 2026-10-25: The nightly pin, the leak checks and their lengths, and
 ##		  the image's build args.
+##		- 2026-10-25: Miri.

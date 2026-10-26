@@ -27,7 +27,10 @@
 ##	                      nightly config.bash pins, std included, then
 ##	                      tukzmon-settings --snapshot, with its C++ under
 ##	                      ASan, LSan and UBSan too
-##	  10. Dogfood         utility/dev-install.bash, which installs the build to
+##	  10. Miri            a leak check that takes hours: the tests under Miri on
+##	                      the same nightly, one Miri per test.
+##	                      TUKZMON_MIRI_FILTER=<part of a name> runs only those
+##	  11. Dogfood         utility/dev-install.bash, which installs the build to
 ##	                      ~/.local/lib/tukzmon and restarts the panel
 ##	  A step that's off isn't counted, and the first section says why it's off.
 ##	  Cleanup comes last, on failure and Ctrl+C too.
@@ -37,8 +40,8 @@
 ##	   (none)              the default run: every step
 ##	   --quick             the fast steps: the default run but the slow leak
 ##	                       checks. None is slow yet
-##	   --long              everything. Nothing here takes hours yet, so the same
-##	                       as the default run. Also --slow
+##	   --long              everything, Miri included, which only it runs. Also
+##	                       --slow
 ##	   --leakcheck         add every leak check to any run
 ##	   --no-leakcheck      take every leak check out. The advisory scan and
 ##	                       clippy's leak lints aren't leak check steps, and stay
@@ -54,9 +57,10 @@
 ##	                         advisories  the advisory scan, only when named
 ##	                         release the release build, only when named
 ##	                         sanitizers  the Sanitizers leak check
+##	                         miri    the Miri leak check, only when named
 ##	   --gate [AREA...]    another name for --backlog-run-quick
 ##	   --backlog-run-full  what a backlog round runs once at its end: every
-##	                       check of the default run
+##	                       check of the default run, so not Miri
 ##	   --merge-gate        the same checks, before a merge to main. The
 ##	                       pre-push hook runs it. Also --ci
 ##	                       None of those 3 syncs, dogfoods, installs, commits,
@@ -250,7 +254,7 @@ done
 if ((handsOff)); then offLines+=("Dogfood: --${mode} never dogfoods")
 else fPlan "Dogfood" fStepDogfood ""; fi
 ## Off by name, until they're built.
-offLines+=("Miri and the soak test: not built yet (backlog 2026102516060729, 2026102516060734)")
+offLines+=("Soak test: not built yet (backlog 2026102516060734)")
 offLines+=("Packages: not built yet (backlog 2026102506591283)")
 offLines+=("Profiler: not built yet (backlog 2026102506591288)")
 if ((noRemote)); then offLines+=("Other hosts: --no-remote")
@@ -503,6 +507,58 @@ fStepSanitizers() {
 	pics="$(find "${snap}" -maxdepth 1 -name 'tab-*.png' | wc -l)"
 	((pics > 0)) || { fEcho_Clean "--snapshot drew nothing, so qt.cpp went unchecked"; return 1; }
 	fEcho_Clean "sanitizers: nothing reported, and ${pics} snapshot(s) drawn"
+}
+
+## The tests under Miri, on the same nightly, with the host's files and clock
+## in reach, since the collectors and the history file are what's tested.
+## Miri runs a whole test binary on one core, so each test gets a Miri of its
+## own, the step's jobs at a time. A test Miri can't run, such as one that
+## calls C, carries cfg_attr(miri, ignore) with the reason.
+## TUKZMON_MIRI_FILTER, a part of a test's name, runs only the tests that have
+## it, such as to rerun one that failed.
+fStepMiri() {
+	local dir="${CARGO_TARGET_DIR:-${root}/target}" logs="${TMPDIR}/miri" sel pkg kind name n=0 rc=0
+	local -a miriEnv=()
+	if [[ "$(rustup toolchain list 2> /dev/null || true)" != *"${RUST_NIGHTLY}-"* ]] \
+		|| [[ "$(rustup component list --installed --toolchain "${RUST_NIGHTLY}" 2> /dev/null || true)" != *miri* ]]; then
+		fEcho_Clean "${RUST_NIGHTLY} with miri isn't here: rustup toolchain install ${RUST_NIGHTLY} --profile minimal --component rust-src,miri"
+		((! handsOff)) || return 1
+		fEcho_Clean "WARNING: so nothing ran under Miri"; return 0
+	fi
+	## Its own sysroot, kept with the build, so a run doesn't rebuild it.
+	miriEnv=("MIRI_SYSROOT=${dir}/miri-sysroot" "MIRIFLAGS=-Zmiri-disable-isolation")
+	mkdir -p -- "${logs}" || return 1
+	fEcho_Clean "cargo +${RUST_NIGHTLY} miri setup, in ${dir#"${root}/"}/miri-sysroot"
+	env "${miriEnv[@]}" cargo "+${RUST_NIGHTLY}" miri setup > "${logs}/setup.log" 2>&1 || { cat -- "${logs}/setup.log"; return 1; }
+	fEcho_Clean "cargo +${RUST_NIGHTLY} miri test --no-run -j ${jobs}"
+	env -u DISPLAY -u WAYLAND_DISPLAY "${miriEnv[@]}" cargo "+${RUST_NIGHTLY}" miri test --workspace "${locked[@]}" --no-run -j "${jobs}" || return 1
+	: > "${logs}/list"
+	for sel in "${MIRI_TARGETS[@]}"; do
+		read -r pkg kind <<< "${sel}"
+		while IFS= read -r name; do
+			n=$((n + 1)); printf '%04d %s %s %s\n' "${n}" "${pkg}" "${kind}" "${name}" >> "${logs}/list"
+		done < <(env -u DISPLAY -u WAYLAND_DISPLAY "${miriEnv[@]}" cargo "+${RUST_NIGHTLY}" miri test -q "${locked[@]}" -p "${pkg}" "${kind}" -- --list --format terse 2> /dev/null \
+			| sed -n 's/: test$//p' | grep -F -- "${TUKZMON_MIRI_FILTER:-}" || true)
+	done
+	[[ -z "${TUKZMON_MIRI_FILTER:-}" ]] || fEcho_Clean "only the tests with '${TUKZMON_MIRI_FILTER}' in their name"
+	((n > 0)) || { fEcho_Clean "Miri found no tests"; return 1; }
+	fEcho_Clean "${n} test(s), one Miri each, ${jobs} at a time"
+	## A leak is found after the test's own ok line, so a Miri that failed has
+	## that line swapped for a FAILED one. The order's kept, so the IDs go on
+	## the right lines.
+	# shellcheck disable=2016  ## The inner bash expands them.
+	env -u DISPLAY -u WAYLAND_DISPLAY -u CARGO_TERM_QUIET "${miriEnv[@]}" MIRI_LOGS="${logs}" NIGHTLY="${RUST_NIGHTLY}" LOCKED="${locked[*]}" \
+		xargs -P "${jobs}" -L 1 bash -c 'log="${MIRI_LOGS}/$1.log"
+			cargo "+${NIGHTLY}" miri test ${LOCKED} -p "$2" "$3" -- --exact "$4" > "${log}" 2>&1 && exit 0
+			sed -i "/^test .* \.\.\. ok\$/d" "${log}"
+			grep -q "^test .* \.\.\. FAILED\$" "${log}" || printf "test %s ... FAILED\n" "$4" >> "${log}"; exit 1' _ < "${logs}/list" || rc=1
+	cat -- "${logs}"/[0-9]*.log | "${here}/utility/test-ids.bash" annotate | awk '
+		/^PASS / { n++; next }
+		/^ *(Running|Finished|Blocking waiting for file lock) |^running 1 test$|^test result: ok\.|has been running for over 60 seconds$|^$/ { next }
+		/^FAIL / { bad++ }
+		{ print }
+		END { printf "%d test(s) passed under Miri%s\n", n, bad ? ", " bad " failed" : "" }'
+	return "${rc}"
 }
 
 fStepDogfood() {
@@ -771,7 +827,7 @@ fCtrStep() {   ## fCtrStep FUNCTION
 	env=(-e "TUKZMON_IN_IMAGE=${fn}" -e "TUKZMON_JOBS=${jobs}" -e "HOME=${runTmp}/home"
 		-e "TMPDIR=${runTmp}" -e "TEMP=${runTmp}" -e "TMP=${runTmp}"
 		-e "CARGO_HOME=${ctrBase}/cargo-home" -e "CARGO_TARGET_DIR=${ctrBase}/target" -e CARGO_NET_OFFLINE=true
-		-e CARGO_TERM_QUIET -e SOURCE_DATE_EPOCH -e TUKZMON_RELEASE)
+		-e CARGO_TERM_QUIET -e SOURCE_DATE_EPOCH -e TUKZMON_RELEASE -e TUKZMON_MIRI_FILTER)
 	[[ ! -t 1 ]] || env+=(-e CARGO_TERM_COLOR=always)
 	net=(--network none)
 	if [[ " ${CTR_NET_STEPS[*]} " == *" ${fn} "* ]]; then net=(); fi
@@ -895,3 +951,4 @@ exit 0
 ##		- 2026-10-25: The known-advisory scan, in the image with the network.
 ##		- 2026-10-25: The Sanitizers leak check on a pinned nightly, leak check
 ##		  lengths, and a quarter of the CPUs for heavy steps.
+##		- 2026-10-25: The Miri leak check.

@@ -77,16 +77,17 @@ RUN curl -fsSLo /tmp/cd.tgz "https://github.com/EmbarkStudios/cargo-deny/release
 	&& tar -C /usr/local/bin --strip-components=1 -xzf /tmp/cd.tgz "cargo-deny-${CARGO_DENY_VER}-x86_64-unknown-linux-musl/cargo-deny" \
 	&& rm -f /tmp/cd.tgz
 
-# The sanitizer step. clang builds the C++ with the sanitizers, since rustc's
-# runtime is LLVM's, and llvm-symbolizer puts names in the reports. Then the
-# dated nightly cicd/config.bash pins, with rust-src for -Zbuild-std. It
-# comes in as a build arg, so that way it's pinned in one place.
+# The sanitizer and Miri steps. clang builds the C++ with the sanitizers,
+# since rustc's runtime is LLVM's, and llvm-symbolizer puts names in the
+# reports. Then the dated nightly cicd/config.bash pins, with rust-src for
+# -Zbuild-std and Miri's sysroot. It comes in as a build arg, so that way it's
+# pinned in one place.
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends clang-19 llvm-19 \
 	&& rm -rf /var/lib/apt/lists/*
 ARG RUST_NIGHTLY
 RUN test -n "${RUST_NIGHTLY}" \
-	&& CARGO_HOME=/opt/cargo /opt/cargo/bin/rustup toolchain install "${RUST_NIGHTLY}" --profile minimal --component rust-src \
+	&& CARGO_HOME=/opt/cargo /opt/cargo/bin/rustup toolchain install "${RUST_NIGHTLY}" --profile minimal --component rust-src,miri \
 	&& rm -rf /opt/cargo/registry
 
 # Runs as the caller's uid, which has no passwd entry here. CARGO_HOME, HOME
