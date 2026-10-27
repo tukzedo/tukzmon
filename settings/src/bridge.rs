@@ -115,6 +115,8 @@ pub mod ffi {
 			scale: usize,
 		) -> &'a [u32];
 		fn live_tip(l: &Live, name: &str) -> String;
+		/// A tip broken into lines of at most `TIP_CHARS` characters.
+		fn wrap_tip(text: &str) -> String;
 		/// True while the graph's time axis eases in, so it wants drawing again soon.
 		fn live_easing(l: &Live, name: &str) -> bool;
 	}
@@ -320,6 +322,44 @@ fn live_tip(l: &Live, name: &str) -> String {
 	l.tip(name)
 }
 
+/// GTK's own tooltips wrap at 70 characters, so the panel's and these match.
+pub const TIP_CHARS: usize = 70;
+
+fn wrap_tip(text: &str) -> String {
+	wrapped(text, TIP_CHARS)
+}
+
+/// Breaks each line of `text` longer than `width` characters between words.
+/// Shorter lines, adn the breaks already there, are kept as they are, so a
+/// wrapped text wraps to itself. A word longer than `width` gets a line of
+/// its own.
+pub fn wrapped(text: &str, width: usize) -> String {
+	let mut out = String::with_capacity(text.len() + text.len() / width.max(1));
+	for (i, line) in text.split('\n').enumerate() {
+		if i > 0 {
+			out.push('\n');
+		}
+		if line.chars().count() <= width {
+			out.push_str(line);
+			continue;
+		}
+		let mut used = 0;
+		for word in line.split_whitespace() {
+			let n = word.chars().count();
+			if used > 0 && used + 1 + n > width {
+				out.push('\n');
+				used = 0;
+			} else if used > 0 {
+				out.push(' ');
+				used += 1;
+			}
+			out.push_str(word);
+			used += n;
+		}
+	}
+	out
+}
+
 fn live_easing(l: &Live, name: &str) -> bool {
 	l.easing(name)
 }
@@ -338,6 +378,44 @@ mod tests {
 
 	fn qt_turn() -> std::sync::MutexGuard<'static, ()> {
 		QT.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+	}
+
+	// Test ID: defw3
+	#[test]
+	fn every_tip_wraps_at_a_readable_width_and_keeps_its_words() {
+		let short = "User 30%  System 10%\nNice 0%";
+		assert_eq!(wrapped(short, 70), short);
+		assert_eq!(wrapped("aa bb cc", 5), "aa bb\ncc");
+		assert_eq!(wrapped("a\n\nbb cc dd", 5), "a\n\nbb cc\ndd");
+		assert_eq!(wrapped("abcdefgh ij", 5), "abcdefgh\nij");
+		assert_eq!(wrapped("", 5), "");
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_tips_never_written.shcl",
+			std::process::id()
+		));
+		let d = Dialog::open(path);
+		let mut long = 0;
+		for r in dialog_rows(&d) {
+			let tip = row_state(&d, &r.id).tip;
+			let w = wrap_tip(&tip);
+			long += usize::from(tip.lines().any(|l| l.chars().count() > TIP_CHARS));
+			assert!(
+				w.lines()
+					.all(|l| l.chars().count() <= TIP_CHARS || !l.contains(' ')),
+				"{}: {w}",
+				r.id
+			);
+			let words = |t: &str| t.split_whitespace().map(str::to_owned).collect::<Vec<_>>();
+			assert_eq!(words(&w), words(&tip), "{}", r.id);
+			assert_eq!(
+				w.matches("\n\n").count(),
+				tip.matches("\n\n").count(),
+				"{}",
+				r.id
+			);
+			assert_eq!(wrap_tip(&w), w, "{}", r.id);
+		}
+		assert!(long > 10, "only {long} tips needed wrapping");
 	}
 
 	// Test ID: defm1

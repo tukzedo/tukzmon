@@ -75,6 +75,28 @@ void softenSelection(QWidget *w) {
 	w->setPalette(pal);
 }
 
+QString wrapped(const QString &tip) {
+	const QByteArray u = tip.toUtf8();
+	return qs(wrap_tip(rust::Str(u.constData(), size_t(u.size()))));
+}
+
+// Qt shows a plain text tip as one line however long, so every tip in the
+// window goes through here first.
+class TipWrap : public QObject {
+protected:
+	bool eventFilter(QObject *o, QEvent *e) override {
+		if (e->type() != QEvent::ToolTip || !o->isWidgetType())
+			return false;
+		auto *w = static_cast<QWidget *>(o);
+		// none of its own, so the widget passes it on to its parent
+		if (w->toolTip().isEmpty())
+			return false;
+		QToolTip::showText(static_cast<QHelpEvent *>(e)->globalPos(), wrapped(w->toolTip()), w, QRect(),
+			w->toolTipDuration());
+		return true;
+	}
+};
+
 constexpr int SLIDER_STEPS = 1000;
 constexpr int HEAD_GAP = 10;
 
@@ -401,7 +423,7 @@ protected:
 	bool event(QEvent *e) override {
 		if (e->type() != QEvent::ToolTip)
 			return QWidget::event(e);
-		QToolTip::showText(static_cast<QHelpEvent *>(e)->globalPos(), qs(live_tip(live, name)), this);
+		QToolTip::showText(static_cast<QHelpEvent *>(e)->globalPos(), qs(wrap_tip(live_tip(live, name))), this);
 		return true;
 	}
 
@@ -1097,6 +1119,8 @@ std::int32_t run_dialog(Dialog &d, rust::Str snapshot) {
 	static char *argv[] = {name, nullptr};
 	QApplication app(argc, argv);
 	QApplication::setApplicationName("tukzmon-settings");
+	TipWrap tipWrap;
+	app.installEventFilter(&tipWrap);
 	Window w(d);
 	QSize size = w.sizeHint().expandedTo(QSize(560, 420));
 	if (const QScreen *screen = w.screen())

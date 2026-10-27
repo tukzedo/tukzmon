@@ -2,7 +2,7 @@
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
 //! Every graph one panel item shows, side by side, or stacked on a vertical
-//! panel. No gap between them, the way multiload-ng's spacing of 0 has it.
+//! panel, with a little room across the panel and twice that between them.
 
 use std::io;
 use std::path::Path;
@@ -29,6 +29,13 @@ pub struct Graphs {
 
 /// A graph's place in the area: x, y, width, height.
 type Tile = (usize, usize, usize, usize);
+
+/// Logical pixels left clear across the panel, above and below the graphs on
+/// a horizontal one, or either side of them on a vertical one.
+pub const EDGE: u32 = 2;
+
+/// Logical pixels left clear between 2 graphs.
+pub const GAP: u32 = 2 * EDGE;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Which {
@@ -250,14 +257,18 @@ impl Graphs {
 	}
 
 	/// The size to ask a panel of `size` logical pixels for. Side by side it's
-	/// the widths' sum by the panel's height. Stacked, it's the panel's width,
-	/// and half that for each graph's height.
+	/// the widths' sum and the gaps by the panel's height. Stacked, it's the
+	/// panel's width, and half that for each graph's height, plus the gaps.
 	pub fn wanted(&self, size: u32) -> (u32, u32) {
+		let n = u32::try_from(self.count()).unwrap_or(u32::MAX);
+		let gaps = GAP.saturating_mul(n.saturating_sub(1));
 		if self.stacked {
-			let n = u32::try_from(self.count()).unwrap_or(u32::MAX);
-			(size, (size / 2).max(16).saturating_mul(n))
+			(
+				size,
+				(size / 2).max(16).saturating_mul(n).saturating_add(gaps),
+			)
 		} else {
-			(self.widths().sum(), size)
+			(self.widths().sum::<u32>().saturating_add(gaps), size)
 		}
 	}
 
@@ -379,20 +390,29 @@ impl Graphs {
 		}
 	}
 
-	// side by side, the area is shared out by width, since the panel may
-	// not give exactly what was asked for. Stacked, they share it evenly.
-	fn tiles(&self, w: usize, h: usize) -> impl Iterator<Item = (Which, Tile)> + '_ {
+	// side by side, what the gaps leave is shared out by width, since the
+	// panel may not give exactly what was asked for. Stacked, they share it
+	// evenly. A panel too thin for the edges keeps most of itself for graphs.
+	fn tiles(&self, w: usize, h: usize, scale: usize) -> impl Iterator<Item = (Which, Tile)> + '_ {
 		let (n, stacked) = (self.count(), self.stacked);
 		let total = self.widths().map(|x| x as usize).sum::<usize>().max(1);
+		let (along, across) = if stacked { (h, w) } else { (w, h) };
+		let gap = GAP as usize * scale;
+		let edge = (EDGE as usize * scale).min(across / 4);
+		let left = along.saturating_sub(gap * n.saturating_sub(1));
 		let (mut i, mut done) = (0, 0);
 		self.shown().map(move |which| {
 			let own = self.width_of(which) as usize;
-			let tile = if stacked {
-				let (a, b) = (i * h / n, (i + 1) * h / n);
-				(0, a, w, b - a)
+			let (a, b) = if stacked {
+				(i * left / n, (i + 1) * left / n)
 			} else {
-				let (a, b) = (done * w / total, (done + own) * w / total);
-				(a, 0, b - a, h)
+				(done * left / total, (done + own) * left / total)
+			};
+			let (at, long, thick) = (a + i * gap, b - a, across - 2 * edge);
+			let tile = if stacked {
+				(edge, at, thick, long)
+			} else {
+				(at, edge, long, thick)
 			};
 			i += 1;
 			done += own;
@@ -400,19 +420,33 @@ impl Graphs {
 		})
 	}
 
-	// which graph holds device pixel (x, y), and where it is in it
-	fn find(&self, x: usize, y: usize, w: usize, h: usize) -> Option<(Which, Tile)> {
-		self.tiles(w, h)
-			.find(|&(_, (tx, ty, tw, th))| x < tx + tw && y < ty + th)
+	// which graph holds device pixel (x, y), and the column in it. The edges
+	// count as the graph beside them, so a pointer pushed to the screen's edge
+	// still finds it. A gap between 2 finds neither.
+	fn find(
+		&self,
+		x: usize,
+		y: usize,
+		w: usize,
+		h: usize,
+		scale: usize,
+	) -> Option<(Which, Tile, usize)> {
+		let stacked = self.stacked;
+		self.tiles(w, h, scale)
+			.find(|&(_, (tx, ty, tw, th))| {
+				let (from, long, at) = if stacked { (ty, th, y) } else { (tx, tw, x) };
+				tw > 0 && th > 0 && (from..from + long).contains(&at)
+			})
+			.map(|(which, t)| (which, t, x.clamp(t.0, t.0 + t.2 - 1) - t.0))
 	}
 
 	/// Puts the hover line under device pixel (x, y), or takes it away. True
 	/// when that changed what's drawn.
-	pub fn hover(&mut self, at: Option<(usize, usize)>, w: usize, h: usize) -> bool {
-		let hit = at.and_then(|(x, y)| Some((x, self.find(x, y, w, h)?)));
+	pub fn hover(&mut self, at: Option<(usize, usize)>, w: usize, h: usize, scale: usize) -> bool {
+		let hit = at.and_then(|(x, y)| self.find(x, y, w, h, scale));
 		let mut changed = false;
 		for which in Which::ALL {
-			let want = hit.and_then(|(x, (j, (tx, ..)))| (which == j).then(|| x - tx));
+			let want = hit.and_then(|(j, _, cx)| (which == j).then_some(cx));
 			if let Some(g) = self.slot_mut(which)
 				&& g.hover() != want
 			{
@@ -437,9 +471,9 @@ impl Graphs {
 
 	/// The tip for the pointer at device pixel (x, y).
 	pub fn hover_tip(&self, x: usize, y: usize, w: usize, h: usize, scale: usize) -> String {
-		self.find(x, y, w, h)
-			.and_then(|(which, (tx, _, tw, th))| {
-				Some(self.slot(which)?.hover_tip(x - tx, tw, th, scale))
+		self.find(x, y, w, h, scale)
+			.and_then(|(which, (_, _, tw, th), cx)| {
+				Some(self.slot(which)?.hover_tip(cx, tw, th, scale))
 			})
 			.unwrap_or_else(|| self.tooltip())
 	}
@@ -458,7 +492,7 @@ impl Graphs {
 		let mut px = std::mem::take(&mut self.px);
 		px.clear();
 		px.resize(w * h, 0);
-		let tiles: Vec<(Which, Tile)> = self.tiles(w, h).collect();
+		let tiles: Vec<(Which, Tile)> = self.tiles(w, h, scale).collect();
 		for &(which, (tx, ty, tw, th)) in &tiles {
 			if tw == 0 || th == 0 {
 				continue;
@@ -488,6 +522,21 @@ mod tests {
 		let m = g.mem.as_mut().unwrap();
 		m.hist.add(now - 60.0, now, &[0.25, 0.25, 0.25]);
 		g
+	}
+
+	const E: usize = EDGE as usize;
+	const G: usize = GAP as usize;
+
+	// one graph's own pixels sit at its tile in the whole area's
+	fn sits(px: &[u32], w: usize, one: &[u32], (x, y, tw, th): Tile) {
+		for r in 0..th {
+			let at = (y + r) * w + x;
+			assert_eq!(
+				&px[at..at + tw],
+				&one[r * tw..(r + 1) * tw],
+				"row {r} of the tile at {x},{y}"
+			);
+		}
 	}
 
 	fn scratch(name: &str) -> std::path::PathBuf {
@@ -526,35 +575,79 @@ mod tests {
 	fn graphs_sit_side_by_side_and_the_pointer_finds_its_own() {
 		let mut g = both();
 		assert_eq!(g.count(), 2);
-		let (w, h) = (40, 10);
-		let left = g.cpu.render(20, h, 1).to_vec();
-		let right = g.mem.as_mut().unwrap().render(20, h, 1).to_vec();
+		let (w, h) = (40 + G, 10 + 2 * E);
+		let left = g.cpu.render(20, 10, 1).to_vec();
+		let right = g.mem.as_mut().unwrap().render(20, 10, 1).to_vec();
 		let px = g.render(w, h, 1).to_vec();
-		for r in 0..h {
-			assert_eq!(&px[r * w..r * w + 20], &left[r * 20..(r + 1) * 20], "{r}");
-			assert_eq!(
-				&px[r * w + 20..(r + 1) * w],
-				&right[r * 20..(r + 1) * 20],
-				"{r}"
-			);
-		}
-		assert!(g.hover(Some((25, 3)), w, h));
+		sits(&px, w, &left, (0, E, 20, 10));
+		sits(&px, w, &right, (20 + G, E, 20, 10));
+		assert!(g.hover(Some((25 + G, 3)), w, h, 1));
 		assert_eq!(g.cpu.hover, None);
 		assert_eq!(g.mem.as_ref().unwrap().hover, Some(5));
-		assert!(!g.hover(Some((25, 4)), w, h), "same column");
-		assert!(g.hover_tip(25, 3, w, h, 1).contains("Memory 25% in use"));
+		assert!(!g.hover(Some((25 + G, 4)), w, h, 1), "same column");
+		assert!(
+			g.hover_tip(25 + G, 3, w, h, 1)
+				.contains("Memory 25% in use")
+		);
 		assert!(g.hover_tip(5, 3, w, h, 1).contains("CPU 50%"));
-		assert!(g.hover(None, 0, 0));
+		assert!(g.hover(None, 0, 0, 1));
 		assert!(!g.hovered());
 		// on a vertical panel the second is under the first
 		g.stacked = true;
-		assert!(g.hover(Some((5, 7)), 10, 10));
+		assert!(g.hover(Some((5 + E, 17)), 14, 24, 1));
 		assert_eq!(g.mem.as_ref().unwrap().hover, Some(5));
-		assert!(g.hover(Some((5, 2)), 10, 10));
+		assert!(g.hover(Some((5 + E, 2)), 14, 24, 1));
 		assert_eq!(g.cpu.hover, Some(5));
 		assert_eq!(g.mem.as_ref().unwrap().hover, None);
-		assert_eq!(g.render(10, 10, 1).len(), 100);
+		assert_eq!(g.render(14, 24, 1).len(), 14 * 24);
 		assert!(g.tooltip().starts_with("CPU\n\nMemory"));
+	}
+
+	// Test ID: defw2
+	#[test]
+	fn the_edges_and_gaps_stay_clear_and_an_edge_still_finds_its_graph() {
+		let mut g = both();
+		for (stacked, w, h) in [(false, 40 + G, 10 + 2 * E), (true, 10 + 2 * E, 40 + G)] {
+			g.stacked = stacked;
+			let px = g.render(w, h, 1).to_vec();
+			let clear = |x: usize, y: usize| px[y * w + x] == 0;
+			let (along, across) = if stacked { (h, w) } else { (w, h) };
+			let at = |a: usize, c: usize| if stacked { (c, a) } else { (a, c) };
+			for a in 0..along {
+				for c in (0..E).chain(across - E..across) {
+					let (x, y) = at(a, c);
+					assert!(clear(x, y), "edge {x},{y} stacked {stacked}");
+				}
+			}
+			for a in 20..20 + G {
+				for c in 0..across {
+					let (x, y) = at(a, c);
+					assert!(clear(x, y), "gap {x},{y} stacked {stacked}");
+				}
+			}
+			let (x, y) = at(5, E);
+			assert_ne!(px[y * w + x], 0, "stacked {stacked}");
+			// the screen's edge, past the graph's, still finds the graph
+			let (x, y) = at(25 + G, 0);
+			assert!(g.hover(Some((x, y)), w, h, 1));
+			assert!(g.mem.as_ref().unwrap().hover.is_some());
+			let (x, y) = at(5, across - 1);
+			assert!(g.hover(Some((x, y)), w, h, 1));
+			assert!(g.cpu.hover.is_some());
+			// a gap finds neither, and its tip is every graph's latest
+			let (x, y) = at(21, E + 1);
+			assert!(g.hover(Some((x, y)), w, h, 1));
+			assert!(!g.hovered());
+			assert_eq!(g.hover_tip(x, y, w, h, 1), g.tooltip());
+		}
+		// at 2x the edges and gaps are twice as many device pixels
+		g.stacked = false;
+		let (w, h) = (2 * (40 + G), 2 * (10 + 2 * E));
+		let px = g.render(w, h, 2).to_vec();
+		assert_eq!(px[(2 * E - 1) * w + 5], 0);
+		assert_ne!(px[2 * E * w + 5], 0);
+		assert_eq!(px[(2 * E + 1) * w + 2 * 20 + 2 * G - 1], 0);
+		assert_ne!(px[(2 * E + 1) * w + 2 * (20 + G)], 0);
 	}
 
 	// Test ID: dedq3
@@ -736,25 +829,23 @@ mod tests {
 		)
 		.unwrap();
 		assert_eq!(g.widths().collect::<Vec<_>>(), [40, 100]);
-		let h = 10;
+		let th = 10;
 		for scale in [1, 2] {
-			let (cw, mw) = (40 * scale, 100 * scale);
-			let w = cw + mw;
-			let left = g.cpu.render(cw, h, scale).to_vec();
-			let right = g.mem.as_mut().unwrap().render(mw, h, scale).to_vec();
+			let (cw, mw, gap, edge) = (40 * scale, 100 * scale, G * scale, E * scale);
+			let (w, h) = (cw + gap + mw, th + 2 * edge);
+			let left = g.cpu.render(cw, th, scale).to_vec();
+			let right = g.mem.as_mut().unwrap().render(mw, th, scale).to_vec();
 			let px = g.render(w, h, scale).to_vec();
-			for r in 0..h {
-				assert_eq!(&px[r * w..r * w + cw], &left[r * cw..(r + 1) * cw]);
-				assert_eq!(&px[r * w + cw..(r + 1) * w], &right[r * mw..(r + 1) * mw]);
-			}
-			assert!(g.hover(Some((cw + 5, 3)), w, h));
+			sits(&px, w, &left, (0, edge, cw, th));
+			sits(&px, w, &right, (cw + gap, edge, mw, th));
+			assert!(g.hover(Some((cw + gap + 5, 3)), w, h, scale));
 			assert_eq!(g.mem.as_ref().unwrap().hover, Some(5));
-			assert!(g.hover(Some((cw - 1, 3)), w, h));
+			assert!(g.hover(Some((cw - 1, 3)), w, h, scale));
 			assert_eq!(g.cpu.hover, Some(cw - 1));
 		}
 		// stacked, they share the height evenly whatever their widths
 		g.stacked = true;
-		assert!(g.hover(Some((5, 6)), 10, 10));
+		assert!(g.hover(Some((5 + E, 17)), 14, 24, 1));
 		assert_eq!(g.mem.as_ref().unwrap().hover, Some(5));
 	}
 
@@ -771,12 +862,12 @@ mod tests {
 		)
 		.unwrap();
 		let cpu = g.width_of(Which::Cpu);
-		assert_eq!(g.wanted(26), (cpu + 30, 26));
-		assert_eq!(g.wanted(60), (cpu + 30, 60));
+		assert_eq!(g.wanted(26), (cpu + 30 + GAP, 26));
+		assert_eq!(g.wanted(60), (cpu + 30 + GAP, 60));
 		// a vertical panel ignores the widths, and has a floor
 		g.stacked = true;
-		assert_eq!(g.wanted(48), (48, 48));
-		assert_eq!(g.wanted(20), (20, 32));
+		assert_eq!(g.wanted(48), (48, 48 + GAP));
+		assert_eq!(g.wanted(20), (20, 32 + GAP));
 		g.set_look(
 			Look {
 				show_memory: false,
@@ -792,7 +883,7 @@ mod tests {
 	#[test]
 	fn cpu_can_be_hidden_but_not_with_nothing_else_shown() {
 		let mut g = both();
-		assert!(g.hover(Some((5, 3)), 40, 10));
+		assert!(g.hover(Some((5, 3)), 40, 10, 1));
 		let had = g.cpu.hist.last();
 		let no_cpu = Look {
 			show_cpu: false,
@@ -804,8 +895,9 @@ mod tests {
 		assert_eq!(g.count(), 1);
 		assert_eq!(g.widths().collect::<Vec<_>>(), [30]);
 		let alone = g.mem.as_mut().unwrap().render(30, 10, 1).to_vec();
-		assert_eq!(g.render(30, 10, 1), alone.as_slice());
-		assert!(g.hover(Some((5, 3)), 30, 10));
+		let px = g.render(30, 10 + 2 * E, 1).to_vec();
+		sits(&px, 30, &alone, (0, E, 30, 10));
+		assert!(g.hover(Some((5, 3)), 30, 10, 1));
 		assert_eq!(g.cpu.hover, None);
 		assert_eq!(g.mem.as_ref().unwrap().hover, Some(5));
 		assert!(g.tooltip().starts_with("Memory"), "{}", g.tooltip());
@@ -840,32 +932,22 @@ mod tests {
 		)
 		.unwrap();
 		assert_eq!(g.widths().collect::<Vec<_>>(), [100, 40]);
-		let (w, h) = (140, 10);
-		let left = g.mem.as_mut().unwrap().render(100, h, 1).to_vec();
-		let right = g.cpu.render(40, h, 1).to_vec();
+		let (w, h) = (140 + G, 10 + 2 * E);
+		let left = g.mem.as_mut().unwrap().render(100, 10, 1).to_vec();
+		let right = g.cpu.render(40, 10, 1).to_vec();
 		let px = g.render(w, h, 1).to_vec();
-		for r in 0..h {
-			assert_eq!(
-				&px[r * w..r * w + 100],
-				&left[r * 100..(r + 1) * 100],
-				"{r}"
-			);
-			assert_eq!(
-				&px[r * w + 100..(r + 1) * w],
-				&right[r * 40..(r + 1) * 40],
-				"{r}"
-			);
-		}
-		assert!(g.hover(Some((5, 3)), w, h));
+		sits(&px, w, &left, (0, E, 100, 10));
+		sits(&px, w, &right, (100 + G, E, 40, 10));
+		assert!(g.hover(Some((5, 3)), w, h, 1));
 		assert_eq!(g.mem.as_ref().unwrap().hover, Some(5));
 		assert_eq!(g.cpu.hover, None);
-		assert!(g.hover_tip(105, 3, w, h, 1).contains("CPU 50%"));
+		assert!(g.hover_tip(105 + G, 3, w, h, 1).contains("CPU 50%"));
 		assert!(g.tooltip().starts_with("Memory"), "{}", g.tooltip());
 		// stacked, the first is on top
 		g.stacked = true;
-		assert!(g.hover(Some((6, 7)), 10, 10));
+		assert!(g.hover(Some((6 + E, 17)), 14, 24, 1));
 		assert_eq!(g.cpu.hover, Some(6));
-		assert!(g.hover(Some((6, 2)), 10, 10));
+		assert!(g.hover(Some((6 + E, 2)), 14, 24, 1));
 		assert_eq!(g.mem.as_ref().unwrap().hover, Some(6));
 		g.stacked = false;
 		// a name it doesn't know is skipped, and a graph it doesn't name goes last
@@ -966,24 +1048,24 @@ mod tests {
 	#[test]
 	fn three_sit_side_by_side_and_the_pointer_finds_swap() {
 		let mut g = three();
-		let (w, h) = (60, 10);
+		let (w, h) = (60 + 2 * G, 10 + 2 * E);
 		let tiles: Vec<Vec<u32>> = vec![
-			g.cpu.render(20, h, 1).to_vec(),
-			g.mem.as_mut().unwrap().render(20, h, 1).to_vec(),
-			g.swap.as_mut().unwrap().render(20, h, 1).to_vec(),
+			g.cpu.render(20, 10, 1).to_vec(),
+			g.mem.as_mut().unwrap().render(20, 10, 1).to_vec(),
+			g.swap.as_mut().unwrap().render(20, 10, 1).to_vec(),
 		];
 		let px = g.render(w, h, 1).to_vec();
-		for r in 0..h {
-			for (i, t) in tiles.iter().enumerate() {
-				let at = r * w + i * 20;
-				assert_eq!(&px[at..at + 20], &t[r * 20..(r + 1) * 20], "{r} {i}");
-			}
+		for (i, t) in tiles.iter().enumerate() {
+			sits(&px, w, t, (i * (20 + G), E, 20, 10));
 		}
-		assert!(g.hover(Some((45, 3)), w, h));
+		assert!(g.hover(Some((45 + 2 * G, 3)), w, h, 1));
 		assert_eq!(g.swap.as_ref().unwrap().hover, Some(5));
 		assert_eq!((g.cpu.hover, g.mem.as_ref().unwrap().hover), (None, None));
 		assert!(g.hovered());
-		assert!(g.hover_tip(45, 3, w, h, 1).contains("Swap 100% used"));
+		assert!(
+			g.hover_tip(45 + 2 * G, 3, w, h, 1)
+				.contains("Swap 100% used")
+		);
 		// nothing read yet, so each says its title
 		assert_eq!(g.tooltip(), "CPU\n\nMemory\n\nSwap");
 		// first in a saved order
@@ -995,7 +1077,7 @@ mod tests {
 		g.set_look(look, None).unwrap();
 		let w0 = g.look().width;
 		assert_eq!(g.widths().collect::<Vec<_>>(), [30, w0, w0]);
-		assert!(g.hover(Some((7, 3)), 30 + 2 * w0 as usize, h));
+		assert!(g.hover(Some((7, 3)), 30 + 2 * w0 as usize + 2 * G, h, 1));
 		assert_eq!(g.swap.as_ref().unwrap().hover, Some(7));
 		// swap alone hides CPU, as memory alone does
 		let alone = Look {
@@ -1092,20 +1174,14 @@ mod tests {
 		b.hist.add(now - 60.0, now, &[0.5, 0.0, 0.0]);
 		let had = b.hist.last();
 		assert_eq!(g.count(), 4);
-		let (w, h) = (80, 10);
-		let right = g.battery.as_mut().unwrap().render(20, h, 1).to_vec();
+		let (w, h) = (80 + 3 * G, 10 + 2 * E);
+		let right = g.battery.as_mut().unwrap().render(20, 10, 1).to_vec();
 		let px = g.render(w, h, 1).to_vec();
-		for r in 0..h {
-			assert_eq!(
-				&px[r * w + 60..(r + 1) * w],
-				&right[r * 20..(r + 1) * 20],
-				"{r}"
-			);
-		}
-		assert!(g.hover(Some((65, 3)), w, h));
+		sits(&px, w, &right, (60 + 3 * G, E, 20, 10));
+		assert!(g.hover(Some((65 + 3 * G, 3)), w, h, 1));
 		assert_eq!(g.battery.as_ref().unwrap().hover, Some(5));
 		assert!(
-			g.hover_tip(65, 3, w, h, 1)
+			g.hover_tip(65 + 3 * G, 3, w, h, 1)
 				.contains("Battery 50%, plugged in")
 		);
 		g.save(&path).unwrap();

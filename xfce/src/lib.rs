@@ -203,7 +203,9 @@ extern "C" fn motion(widget: *mut c_void, event: *mut c_void, data: *mut c_void)
 	if got {
 		p.moved_at = Instant::now();
 		let px = |v: f64| v.max(0.0).floor() as usize * scale;
-		if p.graphs.hover(Some((px(x), px(y))), w * scale, h * scale) {
+		if p.graphs
+			.hover(Some((px(x), px(y))), w * scale, h * scale, scale)
+		{
 			// SAFETY: widget is live for this event.
 			unsafe { gtk_widget_queue_draw(widget) };
 		}
@@ -214,7 +216,7 @@ extern "C" fn motion(widget: *mut c_void, event: *mut c_void, data: *mut c_void)
 extern "C" fn leave(widget: *mut c_void, _event: *mut c_void, data: *mut c_void) -> Gboolean {
 	// SAFETY: data is the connected Plugin.
 	let p = unsafe { &mut *data.cast::<Plugin>() };
-	if p.graphs.hover(None, 0, 0) {
+	if p.graphs.hover(None, 0, 0, 1) {
 		// SAFETY: widget is live for this event.
 		unsafe { gtk_widget_queue_draw(widget) };
 	}

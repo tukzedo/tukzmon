@@ -437,24 +437,63 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Padding above, below, and between the graphs
 	- ID: 2026102620162197
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- How the room looks in the panel is for a person to judge.
+		- It departs from the wording in one way. On a vertical panel or a deskbar the 2 px go either side of the graphs, across the panel, rather than above and below.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, after an install and a panel restart, look at the graphs in the panel and judge the 2 px above and below and the 4 px between.
 	- Priority|Severity: High
 	- Opened: 20261026-201621
 	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
 	- Related IDs: 2026102408304625
 	- Requirements:
 		- Add a couple of virtual px above and below the graphs, and double that in-between.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The graphs have 2 logical px clear above and below, and 4 between each pair, so the panel shows through. The item asks the panel for the gaps on top of the widths.
+		- A pointer on the 2 px edge still finds the graph beside it, so one pushed against the screen's edge gets the hover line and the tip. One in a gap between 2 finds neither, and the tip gives every graph's latest read.
+		- `design.md` XFCE plugin has the details.
+		- Verified: in a test panel 30 px high, 2 graphs 128 px wide drew with 2 rows clear above, 2 below and 4 columns clear between, and the pointer at the panel's top row drew the hover line. On a vertical panel 40 px wide they stacked with 4 rows between and 2 columns clear each side.
+	- Decisions:
+		- 2 px at the edges and 4 between, as logical px, so a 2x screen gets 4 and 8 device px.
+		- On a vertical panel the edges go across the panel, either side of the graphs, since that's where above and below sit on a horizontal one.
+		- No room at the 2 ends along the panel, since the item asks only for above, below and between, and the panel spaces its items itself.
+		- On a panel too thin for the edges, they shrink to a quarter of its thickness, so the graphs keep most of it.
+	- Branch: round-1027
+	- Test case: `graphs::tests::the_edges_and_gaps_stay_clear_and_an_edge_still_finds_its_graph` (defw2). It fails with the gap or the edge set to 0.
+		- 2026-10-26: new values only. dedq2, dedqd, defvs, dedqe, dedqp, defq6 and defqd place the graphs past the 2 px edge and the 4 px gaps, and their areas grow to match. defvs asks for 4 px more per gap. The stacked checks in dedq2, dedqd and dedqp use a 14 by 24 area, not 10 by 10, so each graph is still 10 rows. `Graphs::hover` takes the scale too.
+		- Swept: every caller of `Graphs::hover`, `hover_tip` and `wanted` (the plugin, `core/examples/profile.rs`, `core/tests/soak.rs` and the tests). The settings window's graph list draws each graph with `Graph::render`, not `Graphs`, so it has no gaps to add.
 
 - Pre-next-cut: Wrap tip text at a readable width
 	- ID: 2026102620162198
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- Whether 70 characters reads well is for a person to judge.
+		- It departs from the wording in one way. Only the settings window's tips changed. GTK already wraps the panel's tips at 70 characters, and theirs are short lines anyway.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, after an install, open Settings and rest the pointer on Log curve, Spike emphasis % and a greyed row in the graph list, and judge how the tips wrap.
 	- Priority|Severity: High
 	- Opened: 20261026-201621
 	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
 	- Related IDs: 2026102408304599
 	- Requirements:
 		- Tip text should wrap at a readable width, rather than one long line of text.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Every tip in the settings window is broken into lines of at most 70 characters, between words. Its own line breaks are kept.
+		- `design.md` Settings window has the details.
+		- Verified: in a test window, Log curve's tip showed as 11 lines in 2 paragraphs, and a greyed time axis box's tip as 3 lines.
+	- Decisions:
+		- 70 characters, the width GTK wraps its own tips at, so the panel's tips and the window's read alike.
+		- The wrap is in Rust, `wrap_tip` in `settings/src/bridge.rs`, so it has a plain test. An event filter in `qt.cpp` sends every tip in the window through it, the fixed texts in `qt.cpp` included, rather than each `setToolTip` call.
+		- Hard breaks rather than a rich text tip, since Qt picks a rich tip's width itself, by its length.
+	- Branch: round-1027
+	- Test case: `bridge::tests::every_tip_wraps_at_a_readable_width_and_keeps_its_words` (defw3), which walks every row's tip in the spec. It fails with the wrap taken out.
+		- Swept: every `setToolTip` and `QToolTip::showText` in `qt.cpp`. The graph list's live tips go through `wrap_tip` directly, since that widget shows its own.
 
 - Pre-next-cut: Hover line on the graphs in the Settings dialog
 	- ID: 2026102620162199
