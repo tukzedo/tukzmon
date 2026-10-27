@@ -574,6 +574,54 @@ mod tests {
 		std::fs::remove_file(&path).unwrap();
 	}
 
+	// Test ID: defv4
+	#[test]
+	fn a_file_the_5_tier_plugin_wrote_still_loads() {
+		// saved at a panel restart by the plugin built from 6753a2b's parent,
+		// before the 50 ms tier
+		let old = include_bytes!("../tests/data/plugin-5-tiers.hist");
+		let path = scratch("five");
+		std::fs::write(&path, old).unwrap();
+		let sections = keep::read(&path).unwrap();
+		let ends = |name: &str| {
+			let body = &sections.iter().find(|(n, _)| n == name).unwrap().1;
+			let f = |at: usize| f64::from_le_bytes(body[at..at + 8].try_into().unwrap());
+			assert_eq!(u32::from_le_bytes(body[16..20].try_into().unwrap()), 5);
+			(Some(f(0)), Some(f(8)))
+		};
+		let (cpu, mem) = (ends("cpu"), ends("mem"));
+		// so it never ages out
+		let look = Look {
+			max_days: 36500,
+			..Look::default()
+		};
+		let mut g = Graphs::new(look.clone());
+		g.load(&path).unwrap();
+		let got = |g: &Graphs| {
+			let m = &g.mem.as_ref().unwrap().hist;
+			(
+				(g.cpu.hist.first(), g.cpu.hist.last()),
+				(m.first(), m.last()),
+			)
+		};
+		assert_eq!(got(&g), (cpu, mem));
+		let (a, b) = (cpu.0.unwrap(), cpu.1.unwrap());
+		assert!(g.cpu.hist.span(a, b).covered > 0.9);
+		// and the next restart reads what this one saves
+		g.save(&path).unwrap();
+		let tiers = (crate::history::TIERS.len() as u32).to_le_bytes();
+		assert!(
+			keep::read(&path)
+				.unwrap()
+				.iter()
+				.all(|(_, body)| body[16..20] == tiers)
+		);
+		let mut back = Graphs::new(look);
+		back.load(&path).unwrap();
+		assert_eq!(got(&back), (cpu, mem));
+		std::fs::remove_file(&path).unwrap();
+	}
+
 	// Test ID: dedq4
 	#[test]
 	fn hiding_memory_drops_it_and_showing_brings_its_history_back() {

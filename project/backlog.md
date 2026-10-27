@@ -369,13 +369,34 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Graphs aren't remembering history between restarts
 	- ID: 2026102620162195
 	- Type: Bug
-	- Status: Queued
+	- Status: Can't reproduce
+		- Saving and loading work in build defqn. What's left is to see it on b23 at the next panel restart.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, at the next panel restart, check that the graphs come back with their history since 2026-10-26 19:43, with a gap for the time the panel was down.
 	- Priority|Severity: High
 	- Opened: 20261026-201621
 	- Opened by: t00mietum
+	- Test environment: b23, XFCE 4.20.7, X11.
 	- Version and build: v0.1.0 build defqn, on b23 as of 2026-10-26 20:16.
-	- Related IDs: 2026101916013885, 2026102408304572
+	- Related IDs: 2026101916013885, 2026102408304572, 2026102620162202, 2026102620523642
 	- Incorrect behavior: Graphs aren't remembering history between restarts.
+	- Reproduced: No. In a test panel, history came back after `xfce4-panel --restart`, the way the install restarts it.
+	- Actual cause:
+		- Nothing had been saved before the 19:43 restart that put defqn on b23. `~/.local/share/tukzmon` was first made at 19:52:48, so the panel before it never wrote a history file.
+		- The installs since 2026-10-23 were all `--no-restart`, or had the restart stubbed, so that panel was most likely still on the 2026-10-23 build, which came before saving.
+		- Since 19:43 the live panel saves on its 15 minute timer, seen at 20:23:52 and 20:38:52.
+	- Actual effort: Low
+	- Progress log:
+		- Verified, build defqn in a test panel: a restart saves on the way out, the panel that comes back loads it, and 2 restarts in a row keep the first run's start. The new plugin starts about 5 s after the old one has saved, so the two don't race.
+		- Verified: a file saved at a restart by the 5-tier build from before the 50 ms tier loads in defqn, and its next save has 6 tiers.
+		- That file is now a test fixture, `core/tests/data/plugin-5-tiers.hist`.
+		- A restarted panel's stdout and stderr are `/dev/null`, so a failed load or save shows nothing. Filed as 2026102620523642.
+	- Decisions:
+		- Can't reproduce, with no code change, since nothing in the save or load path was wrong.
+		- The fixture is a real file from the old plugin, not one cut down from today's encoder like defp7's, since only that catches a change made to both encode and decode.
+	- Branch: round-1027
+	- Test case: `graphs::tests::a_file_the_5_tier_plugin_wrote_still_loads` (defv4). It fails with decode taking only today's tier count, and with `lo` and `hi` swapped in both encode and decode, which defp7 and decbg miss. Restarts are also covered by decbp, dedq3 and defp7.
+		- Swept: every load path (start, a graph added, keep turned back on) and every save path (the 15 minute timer, quit, keep turned off, a graph dropped) in `xfce/src/lib.rs` and `Graphs`. Nothing else reads or writes the history file.
 
 - Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
 	- ID: 2026102620162196
@@ -636,6 +657,18 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- The profiler's tick went from about 275 us to about 385 us on b23 on 2026-10-26, starting with the run for the finer history tiers (commit `6753a2b`). `History::span` went from about 28% to 38% of self time.
 		- Measure it against `dev` before that commit at the same load first. If it holds, make `span` cheaper over the new tier, or say why the cost is fine.
+
+- Plugin errors go nowhere after a panel restart
+	- ID: 2026102620523642
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261026-205236
+	- Opened by: t00mietum
+	- Related IDs: 2026102620162195
+	- Requirements:
+		- A panel started by `xfce4-panel --restart` runs with stdout and stderr on `/dev/null`, and so does the plugin. Its "can't read" and "can't save" lines for the history file are lost.
+		- Show a failed history load or save where a person can find it, such as in the tooltip or the journal.
 
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
