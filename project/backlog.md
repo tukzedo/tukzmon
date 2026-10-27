@@ -498,13 +498,32 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Hover line on the graphs in the Settings dialog
 	- ID: 2026102620162199
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- How the line and tip feel in the window is for a person to judge.
+		- It departs from the wording in one way. The row's tip now gives the time under the line and the values there, as the panel's does, in place of the latest read.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, after an install, open Settings, move the pointer across each graph in the graph list, rest it there, and judge the line and the tip against the panel's.
 	- Priority|Severity: High
 	- Opened: 20261026-201621
 	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
 	- Related IDs: 2026102408304599, 2026102508393163
 	- Requirements:
 		- The mouse hover black line should work on the graphs in the Settings dialog too.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The graph list's row under the pointer draws the hover line where the pointer is, and only that row. It goes away when the pointer leaves.
+		- The row's tip is the panel's hover tip: the time under the line, then the values there. A tip left up follows each sample.
+		- `design.md` XFCE plugin has the details.
+		- Verified: in a test window the memory row drew a one-pixel black line under the pointer, with the tip "2 sec ago", then its use, buffers and cache, and both went away when the pointer left.
+	- Decisions:
+		- The window's graphs aren't a `Graphs`, since a hidden graph is still drawn there. So the part of `Graphs::hover` that sets one graph's line and clears the rest moved out as `graphs::point`, and both use it.
+		- The tip follows the line, as in the panel, so the line and the tip never disagree.
+		- On a row squeezed to 512 px, the line goes at the pointer's place in the whole graph, so it marks the same time the tip gives.
+	- Branch: round-1027
+	- Test case: `live::tests::the_hover_line_follows_the_pointer_in_its_row_as_in_the_panel` (defwm). It fails with the line never set. The Qt pointer events have no test.
+		- Swept: every `Graphs::hover` caller (the plugin's motion and leave, `core/examples/profile.rs`, `core/tests/soak.rs`, the graphs tests), every `live_tip` caller (only `LiveGraph` in `qt.cpp`), and every place the graph list repaints on a sample.
 
 - Pre-next-cut: Sub-tabs nested under their parent tab
 	- ID: 2026102620162200

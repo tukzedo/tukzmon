@@ -13,6 +13,7 @@
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QCursor>
 #include <QDialog>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
@@ -50,6 +51,7 @@
 #include <cmath>
 #include <functional>
 #include <string>
+#include <tuple>
 #include <memory>
 #include <vector>
 
@@ -387,6 +389,7 @@ class LiveGraph : public QWidget {
 public:
 	LiveGraph(Live &live, std::string name) : live(live), name(std::move(name)) {
 		setFixedSize(0, fontMetrics().height() * 3 / 2);
+		setMouseTracking(true);
 	}
 
 	// The graph's own width, as in the panel. A very wide one is squeezed to
@@ -398,14 +401,19 @@ public:
 		update();
 	}
 
+	// after a read, so a tip left up keeps up, as the panel's does
+	void tick() {
+		update();
+		if (underMouse() && QToolTip::isVisible())
+			showTip(QCursor::pos());
+	}
+
 protected:
 	void paintEvent(QPaintEvent *) override {
-		const double dpr = devicePixelRatioF();
-		const int w = int(std::lround(own * dpr));
-		const int h = int(std::lround(height() * dpr));
+		const auto [w, h, scale] = drawn();
 		if (w <= 0 || h <= 0)
 			return;
-		auto px = live_draw(live, name, size_t(w), size_t(h), size_t(std::max(1L, std::lround(dpr))));
+		auto px = live_draw(live, name, size_t(w), size_t(h), size_t(scale));
 		if (px.size() != size_t(w) * size_t(h))
 			return;
 		// cairo's ARGB32 is Qt's premultiplied one
@@ -420,14 +428,44 @@ protected:
 			});
 		}
 	}
+	void mouseMoveEvent(QMouseEvent *e) override {
+		point(e->position().x());
+		if (QToolTip::isVisible())
+			showTip(e->globalPosition().toPoint());
+	}
+	void leaveEvent(QEvent *) override {
+		if (live_leave(live))
+			update();
+	}
 	bool event(QEvent *e) override {
 		if (e->type() != QEvent::ToolTip)
 			return QWidget::event(e);
-		QToolTip::showText(static_cast<QHelpEvent *>(e)->globalPos(), qs(wrap_tip(live_tip(live, name))), this);
+		auto *help = static_cast<QHelpEvent *>(e);
+		point(help->pos().x());
+		showTip(help->globalPos());
 		return true;
 	}
 
 private:
+	// device pixels, as drawn before a squeeze to fit the window
+	std::tuple<int, int, int> drawn() const {
+		const double dpr = devicePixelRatioF();
+		return {int(std::lround(own * dpr)), int(std::lround(height() * dpr)), int(std::max(1L, std::lround(dpr)))};
+	}
+	// the hover line goes where the pointer is in the drawn graph, squeezed or not
+	void point(double x) {
+		const int w = std::get<0>(drawn());
+		if (w <= 0 || width() <= 0)
+			return;
+		const auto col = size_t(std::max(0.0, std::floor(x * w / width())));
+		if (live_hover(live, name, col, size_t(w)))
+			update();
+	}
+	void showTip(QPoint at) {
+		const auto [w, h, scale] = drawn();
+		QToolTip::showText(at, qs(wrap_tip(live_tip(live, name, size_t(w), size_t(h), size_t(scale)))), this);
+	}
+
 	Live &live;
 	std::string name;
 	int own = 0;
@@ -561,7 +599,7 @@ public:
 			connect(tick, &QTimer::timeout, this, [this, tick] {
 				tick->setInterval(int(live_sample(*live)));
 				for (auto &l : listRows)
-					l.space->update();
+					l.space->tick();
 			});
 			// the first read only primes, and a second one ms later is noise
 			tick->start(int(live_sample(*live)));

@@ -114,7 +114,13 @@ pub mod ffi {
 			h: usize,
 			scale: usize,
 		) -> &'a [u32];
-		fn live_tip(l: &Live, name: &str) -> String;
+		/// The tip at the graph's hover line, as the panel gives it.
+		fn live_tip(l: &Live, name: &str, w: usize, h: usize, scale: usize) -> String;
+		/// Puts the hover line at device column `x` of the graph drawn `w`
+		/// wide. True when it moved.
+		fn live_hover(l: &mut Live, name: &str, x: usize, w: usize) -> bool;
+		/// Takes the hover line off every graph. True when one had it.
+		fn live_leave(l: &mut Live) -> bool;
 		/// A tip broken into lines of at most `TIP_CHARS` characters.
 		fn wrap_tip(text: &str) -> String;
 		/// True while the graph's time axis eases in, so it wants drawing again soon.
@@ -318,8 +324,16 @@ fn live_draw<'a>(l: &'a mut Live, name: &str, w: usize, h: usize, scale: usize) 
 	l.render(name, w, h, scale)
 }
 
-fn live_tip(l: &Live, name: &str) -> String {
-	l.tip(name)
+fn live_tip(l: &Live, name: &str, w: usize, h: usize, scale: usize) -> String {
+	l.hover_tip(name, w, h, scale)
+}
+
+fn live_hover(l: &mut Live, name: &str, x: usize, w: usize) -> bool {
+	l.hover(name, Some(x), w)
+}
+
+fn live_leave(l: &mut Live) -> bool {
+	l.hover("", None, 0)
 }
 
 /// GTK's own tooltips wrap at 70 characters, so the panel's and these match.

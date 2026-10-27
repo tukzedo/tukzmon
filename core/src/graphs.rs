@@ -157,6 +157,24 @@ pub fn draw_order(saved: &[String]) -> Vec<&'static str> {
 	order_of(saved).into_iter().map(Which::name).collect()
 }
 
+/// Puts the hover line on the graph `hit` names, at its device column, and
+/// takes it off every other one. True when that changed what's drawn. The
+/// settings window's graph list goes through this too.
+pub fn point<'a, K: PartialEq + Copy>(
+	all: impl IntoIterator<Item = (K, &'a mut dyn Drawn)>,
+	hit: Option<(K, usize)>,
+) -> bool {
+	let mut changed = false;
+	for (k, g) in all {
+		let want = hit.and_then(|(j, x)| (j == k).then_some(x));
+		if g.hover() != want {
+			g.set_hover(want);
+			changed = true;
+		}
+	}
+	changed
+}
+
 // drops a graph turned off and makes one turned on. True when one was made.
 fn switch<G>(slot: &mut Option<G>, show: bool, make: impl FnOnce() -> Option<G>) -> bool {
 	if !show {
@@ -440,21 +458,26 @@ impl Graphs {
 			.map(|(which, t)| (which, t, x.clamp(t.0, t.0 + t.2 - 1) - t.0))
 	}
 
+	fn all_mut(&mut self) -> impl Iterator<Item = (Which, &mut dyn Drawn)> {
+		let optional = [
+			(Which::Mem, self.mem.as_mut().map(|g| g as &mut dyn Drawn)),
+			(Which::Swap, self.swap.as_mut().map(|g| g as &mut dyn Drawn)),
+			(
+				Which::Battery,
+				self.battery.as_mut().map(|g| g as &mut dyn Drawn),
+			),
+		];
+		std::iter::once((Which::Cpu, &mut self.cpu as &mut dyn Drawn))
+			.chain(optional.into_iter().filter_map(|(w, g)| Some((w, g?))))
+	}
+
 	/// Puts the hover line under device pixel (x, y), or takes it away. True
 	/// when that changed what's drawn.
 	pub fn hover(&mut self, at: Option<(usize, usize)>, w: usize, h: usize, scale: usize) -> bool {
-		let hit = at.and_then(|(x, y)| self.find(x, y, w, h, scale));
-		let mut changed = false;
-		for which in Which::ALL {
-			let want = hit.and_then(|(j, _, cx)| (which == j).then_some(cx));
-			if let Some(g) = self.slot_mut(which)
-				&& g.hover() != want
-			{
-				g.set_hover(want);
-				changed = true;
-			}
-		}
-		changed
+		let hit = at
+			.and_then(|(x, y)| self.find(x, y, w, h, scale))
+			.map(|(which, _, cx)| (which, cx));
+		point(self.all_mut(), hit)
 	}
 
 	/// True while a shown graph's axis is easing in.

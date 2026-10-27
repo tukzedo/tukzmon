@@ -7,7 +7,7 @@
 use tukzmon_core::battery::BatteryReader;
 use tukzmon_core::config::Look;
 use tukzmon_core::cpu::CpuReader;
-use tukzmon_core::graphs::Drawn;
+use tukzmon_core::graphs::{self, Drawn};
 use tukzmon_core::mem::{MemoryReader, SwapReader};
 use tukzmon_core::{Graph, Source};
 
@@ -51,17 +51,27 @@ impl Live {
 		}
 	}
 
-	fn all_mut(&mut self) -> impl Iterator<Item = &mut dyn Drawn> {
+	fn all_mut(&mut self) -> impl Iterator<Item = (&'static str, &mut dyn Drawn)> {
 		let optional = [
-			self.mem.as_mut().map(|g| g as &mut dyn Drawn),
-			self.swap.as_mut().map(|g| g as &mut dyn Drawn),
-			self.battery.as_mut().map(|g| g as &mut dyn Drawn),
+			(
+				MemoryReader::SECTION,
+				self.mem.as_mut().map(|g| g as &mut dyn Drawn),
+			),
+			(
+				SwapReader::SECTION,
+				self.swap.as_mut().map(|g| g as &mut dyn Drawn),
+			),
+			(
+				BatteryReader::SECTION,
+				self.battery.as_mut().map(|g| g as &mut dyn Drawn),
+			),
 		];
-		std::iter::once(&mut self.cpu as &mut dyn Drawn).chain(optional.into_iter().flatten())
+		std::iter::once((CpuReader::SECTION, &mut self.cpu as &mut dyn Drawn))
+			.chain(optional.into_iter().filter_map(|(n, g)| Some((n, g?))))
 	}
 
 	pub fn set_look(&mut self, look: &Look) {
-		for g in self.all_mut() {
+		for (_, g) in self.all_mut() {
 			g.set_look(look);
 		}
 	}
@@ -69,7 +79,7 @@ impl Live {
 	/// A hidden graph is read too, since its row still draws it. The first
 	/// call only primes them.
 	pub fn sample(&mut self) {
-		for g in self.all_mut() {
+		for (_, g) in self.all_mut() {
 			g.sample();
 		}
 	}
@@ -110,6 +120,23 @@ impl Live {
 
 	pub fn tip(&self, name: &str) -> String {
 		self.get(name).map(Drawn::tooltip).unwrap_or_default()
+	}
+
+	/// Puts the hover line on the named graph at device column `x` of its
+	/// `w`, as the panel does, or with None takes it off every graph. True
+	/// when that changed what's drawn.
+	pub fn hover(&mut self, name: &str, x: Option<usize>, w: usize) -> bool {
+		let hit = x.zip(w.checked_sub(1)).map(|(x, last)| (name, x.min(last)));
+		graphs::point(self.all_mut().map(|(n, g)| (n as &str, g)), hit)
+	}
+
+	/// The panel's tip for the named graph's hover line, drawn `w` by `h`, or
+	/// its latest read with no line on it.
+	pub fn hover_tip(&self, name: &str, w: usize, h: usize, scale: usize) -> String {
+		match self.get(name).and_then(|g| Some((g, g.hover()?))) {
+			Some((g, x)) => g.hover_tip(x, w, h, scale),
+			None => self.tip(name),
+		}
 	}
 }
 
@@ -158,6 +185,61 @@ mod tests {
 				live.tip("mem")
 			);
 		}
+	}
+
+	// Test ID: defwm
+	#[test]
+	fn the_hover_line_follows_the_pointer_in_its_row_as_in_the_panel() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_live_hover_never_written.shcl",
+			std::process::id()
+		));
+		let d = Dialog::open(path);
+		let mut look = d.look();
+		look.hover = tukzmon_core::config::Rgb(1, 2, 3);
+		let mut live = Live::new(look);
+		live.sample();
+		std::thread::sleep(std::time::Duration::from_millis(30));
+		live.sample();
+		let (w, h) = (40, 24);
+		// the columns drawn in the hover color, with rows `w` wide
+		let lit = |px: &[u32], w: usize| -> Vec<usize> {
+			let mut cols: Vec<usize> = (0..px.len())
+				.filter(|&i| px[i] == 0xff01_0203)
+				.map(|i| i % w)
+				.collect();
+			cols.sort_unstable();
+			cols.dedup();
+			cols
+		};
+		assert!(lit(live.render("cpu", w, h, 1), w).is_empty());
+		assert!(live.tip("cpu").starts_with("CPU "));
+		assert_eq!(live.hover_tip("cpu", w, h, 1), live.tip("cpu"));
+
+		assert!(live.hover("cpu", Some(17), w));
+		assert!(!live.hover("cpu", Some(17), w), "the same column again");
+		assert_eq!(lit(live.render("cpu", w, h, 1), w), [17]);
+		let tip = live.hover_tip("cpu", w, h, 1);
+		let mut lines = tip.lines();
+		let when = lines.next().unwrap_or_default();
+		assert!(when == "just now" || when.ends_with(" ago"), "{tip}");
+		let what = lines.next().unwrap_or_default();
+		assert!(what.starts_with("CPU ") || what == "No data", "{tip}");
+
+		// past the right edge it stays on the graph's last column
+		assert!(live.hover("cpu", Some(500), w));
+		assert_eq!(live.cpu.hover, Some(w - 1));
+		if live.mem.is_some() {
+			assert!(live.hover("mem", Some(5), 100));
+			assert_eq!(live.cpu.hover, None, "one row has the line at a time");
+			assert!(lit(live.render("cpu", w, h, 1), w).is_empty());
+			assert_eq!(lit(live.render("mem", 100, h, 1), 100), [5]);
+		}
+		assert!(live.hover("", None, 0));
+		assert!(!live.hover("", None, 0));
+		assert!(live.all_mut().all(|(_, g)| g.hover().is_none()));
+		assert!(lit(live.render("cpu", w, h, 1), w).is_empty());
+		assert!(!live.hover("nope", Some(3), w));
 	}
 
 	// Test ID: defps
