@@ -62,7 +62,8 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- The panel runs external plugins in a separate wrapper process, so a crash takes down the plugin adn not the panel.
 
 - The plugin draws its graphs in one drawing area, side by side, in the saved order. There's no gap between them, like multiload-ng's spacing of 0. On a vertical panel they're stacked, and share the height evenly. The graph under the pointer gets the hover line and the tip. `core/src/graphs.rs` has the layout.
-	- Under Graphs on the Graph tab is the graph list, a row per graph in the saved order. Each row has a checkbox, at `cpu.show` and `mem.show`, a space for the live graph, a width, at `cpu.width` and `mem.width`, a time axis, a revert arrow and a gripper. A width of 0, the default, is the Width setting. Widths are in the panel's own pixels, so they scale with it.
+	- Under Graphs on the Graph tab is the graph list, a row per graph in the saved order. Each row has a checkbox, at `cpu.show` and `mem.show`, the live graph, a width, at `cpu.width` and `mem.width`, a time axis, a revert arrow and a gripper. A width of 0, the default, is the Width setting. Widths are in the panel's own pixels, so they scale with it.
+	- Each row draws its graph live, at its own width, with the window's settings, so a change shows there before Apply. The window reads the graphs itself from when it opens, so a row starts empty. A hidden graph is drawn too. The widest graph sets the column, so the boxes after it line up, and one wider than 512 px is squeezed to that.
 	- The time axis is at `cpu.time` and `mem.time`. See [Time axis](#time-axis).
 	- A graph gets a row once `core/src/settings.shcl` has its `<name>.show`, `.width` and `.time` settings.
 	- A box where `/proc/meminfo` can't be read never shows the memory graph.

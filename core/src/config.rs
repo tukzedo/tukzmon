@@ -473,6 +473,12 @@ impl Look {
 		})
 	}
 
+	/// A graph's own width, or else Width, the way a time axis falls back to
+	/// the Time settings.
+	pub fn width_or(&self, own: u32) -> u32 {
+		if own == 0 { self.width } else { own }
+	}
+
 	/// A missing or unreadable file gives the defaults, and a bad line gives
 	/// that setting's default.
 	pub fn load(path: &Path) -> Look {

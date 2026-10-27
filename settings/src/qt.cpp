@@ -19,6 +19,7 @@
 #include <QFrame>
 #include <QKeyEvent>
 #include <QGridLayout>
+#include <QImage>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
@@ -40,7 +41,9 @@
 #include <QStackedWidget>
 #include <QStyle>
 #include <QTabWidget>
+#include <QTimer>
 #include <QToolButton>
+#include <QToolTip>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -356,6 +359,51 @@ protected:
 	}
 };
 
+// A graph list row's graph, read and drawn here with the window's look, so a
+// change shows before Apply.
+class LiveGraph : public QWidget {
+public:
+	LiveGraph(Live &live, std::string name) : live(live), name(std::move(name)) {
+		setFixedSize(0, fontMetrics().height() * 3 / 2);
+	}
+
+	// The graph's own width, as in the panel. A very wide one is squeezed to
+	// fit the window, so its whole time span still shows.
+	void fit() {
+		own = int(live_width(live, name));
+		const int most = 512;
+		setFixedWidth(std::min(own, most));
+		update();
+	}
+
+protected:
+	void paintEvent(QPaintEvent *) override {
+		const double dpr = devicePixelRatioF();
+		const int w = int(std::lround(own * dpr));
+		const int h = int(std::lround(height() * dpr));
+		if (w <= 0 || h <= 0)
+			return;
+		auto px = live_draw(live, name, size_t(w), size_t(h), size_t(std::max(1L, std::lround(dpr))));
+		if (px.size() != size_t(w) * size_t(h))
+			return;
+		// cairo's ARGB32 is Qt's premultiplied one
+		QImage img(reinterpret_cast<const uchar *>(px.data()), w, h, w * 4, QImage::Format_ARGB32_Premultiplied);
+		QPainter p(this);
+		p.drawImage(rect(), img);
+	}
+	bool event(QEvent *e) override {
+		if (e->type() != QEvent::ToolTip)
+			return QWidget::event(e);
+		QToolTip::showText(static_cast<QHelpEvent *>(e)->globalPos(), qs(live_tip(live, name)), this);
+		return true;
+	}
+
+private:
+	Live &live;
+	std::string name;
+	int own = 0;
+};
+
 struct Row {
 	RowInfo info;
 	QLabel *label = nullptr;
@@ -379,7 +427,7 @@ struct Row {
 
 class Window : public QDialog {
 public:
-	explicit Window(Dialog &d) : d(d) {
+	explicit Window(Dialog &d) : d(d), live(live_new(d)) {
 		setWindowTitle(qs(dialog_title(d)));
 		auto tabs = dialog_tabs(d);
 		for (auto &r : dialog_rows(d)) {
@@ -478,6 +526,16 @@ public:
 		tabList->setCurrentRow(0);
 		refresh();
 		qApp->installEventFilter(this);
+		if (list) {
+			auto *tick = new QTimer(this);
+			connect(tick, &QTimer::timeout, this, [this, tick] {
+				tick->setInterval(int(live_sample(*live)));
+				for (auto &l : listRows)
+					l.space->update();
+			});
+			// the first read only primes, and a second one ms later is noise
+			tick->start(int(live_sample(*live)));
+		}
 	}
 
 	// Enter is OK and Esc is Cancel, even from inside a field or on a checkbox.
@@ -521,8 +579,18 @@ public:
 		return ids;
 	}
 
+	// graph width and x, and the width box's x, per graph list row
+	std::vector<int> listPlaces() const {
+		std::vector<int> out;
+		for (auto &l : listRows)
+			for (int v : {l.space->width(), l.space->x(), l.width->control->x()})
+				out.push_back(v);
+		return out;
+	}
+
 private:
 	Dialog &d;
+	rust::Box<Live> live;
 	std::vector<std::unique_ptr<Row>> rows;
 	std::vector<int> tabPage;
 	std::vector<QTabWidget *> subTabs;
@@ -539,8 +607,7 @@ private:
 		Row *show = nullptr;
 		Row *width = nullptr;
 		Row *time = nullptr;
-		// where 2026102508393163 draws the graph
-		QFrame *space = nullptr;
+		LiveGraph *space = nullptr;
 		QToolButton *revert = nullptr;
 		Gripper *grip = nullptr;
 	};
@@ -637,7 +704,6 @@ private:
 		listGrid = new QGridLayout(list);
 		listGrid->setContentsMargins(0, 0, 0, 0);
 		listGrid->setColumnStretch(4, 1);
-		const int line = fontMetrics().height();
 		for (auto &g : graph_rows(d)) {
 			ListRow lr{std::string(g.name), rowFor(g.show), rowFor(g.width), rowFor(g.time)};
 			if (!lr.show || !lr.width || !lr.time)
@@ -645,10 +711,8 @@ private:
 			for (Row *r : {lr.show, lr.width, lr.time})
 				r->control = buildControl(*r);
 			lr.show->check->setText(qs(lr.show->info.label));
-			lr.space = new QFrame;
-			lr.space->setFrameShape(QFrame::StyledPanel);
-			lr.space->setFrameShadow(QFrame::Sunken);
-			lr.space->setFixedSize(line * 5, line * 3 / 2);
+			lr.space = new LiveGraph(*live, lr.name);
+			lr.space->fit();
 			lr.revert = new QToolButton;
 			lr.revert->setIcon(QIcon::fromTheme("edit-undo", style()->standardIcon(QStyle::SP_BrowserReload)));
 			lr.revert->setAutoRaise(true);
@@ -685,7 +749,8 @@ private:
 			const int cols[] = {0, 1, 2, 3, 5, 6};
 			for (int k = 0; k < 6; k++) {
 				listGrid->removeWidget(cells[k]);
-				listGrid->addWidget(cells[k], at, cols[k]);
+				// narrower graphs sit left, so the column is the widest's
+				listGrid->addWidget(cells[k], at, cols[k], k == 1 ? Qt::AlignLeft | Qt::AlignVCenter : Qt::Alignment());
 			}
 		}
 		// the next drag event reads the new places
@@ -734,7 +799,9 @@ private:
 			listRows = sorted;
 			placeList();
 		}
+		live_look(*live, d);
 		for (auto &l : listRows) {
+			l.space->fit();
 			bool changed = false;
 			for (Row *r : {l.show, l.width, l.time})
 				changed |= row_state(d, r->id()).can_reset;
@@ -1071,6 +1138,21 @@ rust::Vec<rust::String> greyed_rows(Dialog &d) {
 	for (auto &id : w.greyed())
 		ids.push_back(rust::String(id));
 	return ids;
+}
+
+rust::Vec<std::int32_t> graph_list_places(Dialog &d) {
+	static int argc = 1;
+	static char name[] = "tukzmon-settings";
+	static char *argv[] = {name, nullptr};
+	qputenv("QT_QPA_PLATFORM", "offscreen");
+	QApplication app(argc, argv);
+	Window w(d);
+	w.show();
+	app.processEvents();
+	rust::Vec<std::int32_t> out;
+	for (int v : w.listPlaces())
+		out.push_back(v);
+	return out;
 }
 
 } // namespace tukzmon

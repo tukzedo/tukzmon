@@ -192,6 +192,11 @@ impl Dialog {
 		&self.spec
 	}
 
+	/// The graphs' look as the window has it now, applied or not.
+	pub fn look(&self) -> config::Look {
+		config::Look::from_model(&self.model)
+	}
+
 	pub fn dirty(&self) -> bool {
 		self.model != self.saved || self.themes != self.saved_themes
 	}

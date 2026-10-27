@@ -413,15 +413,38 @@ Sorted per the notes in [Template](#template).
 - Live graphs in the graph list
 	- ID: 2026102508393163
 	- Type: Feature
-	- Status: Queued
+	- Status: Waiting on UAT
+		- How the graphs look in the list is for a person to judge.
+		- It departs from the wording in 2 ways. A graph wider than 512 px is squeezed to that, so the window stays on screen. And a hidden graph's row still draws it.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, after an install, open Settings, watch the graph list for a minute, then change a width, a theme and a time axis, and judge whether each row follows before Apply.
 	- Priority|Severity: High
 	- Opened: 20261025-083931
 	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
 	- Parent ID: 2026102408304639
 	- Prereq IDs: 2026102508393161
 	- Requirements:
 		- Each row of the graph list draws its graph live.
 		- The longest graph sets the column's width, so the columns after it line up.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- Each row of the graph list draws its graph live, at its own width and the row's height, at the Sample every ms rate. Its tip is the latest read.
+		- It draws with the window's settings, applied or not, so a width, theme, color or time axis change shows in the row at once.
+		- The widest graph sets the column, and the width boxes after it line up.
+		- `design.md` XFCE plugin has the details.
+		- Verified: in a test window, CPU at 40 and memory at 100 drew 40 and 100 px wide, both from the same x, with the width boxes lined up past the wider one, and the CPU graph filled in as it ran.
+	- Decisions:
+		- The window reads the graphs itself, from when it opens, rather than the panel's history file. The panel doesn't tell it which file is its own, and it saves that file every 15 minutes, so the last of them would be a gap.
+		- The graphs are drawn by the same core code as the panel's, `Graph::render`, so the row is what the panel would draw.
+		- A hidden graph is still read and drawn, so its row shows what showing it would give.
+		- Past 512 px a graph is squeezed rather than cut, so its whole time span still shows.
+		- `Look::width_or` is the one rule for a width of 0, used by the panel's layout and the list.
+	- Branch: round-1026
+	- Test case: `live::tests::each_graph_draws_at_its_width_with_the_windows_look` (defmj) and `bridge::tests::the_longest_graph_sets_the_column_so_the_rest_line_up` (defmk). defmj fails with the window's changes not reaching the graphs, and defmk with every graph at the old fixed width.
+		- 2026-10-26: `bridge::tests::a_row_is_greyed_while_its_switch_is_off` (defma) now takes a lock shared with defmk, since 2 Qt windows at once crash, and is ignored under Miri, which can't call C++. Its checks are unchanged.
+		- Swept: every reader of a graph's own width (`Graphs::width_of`, now through `width_or`), and every test that builds the Qt window (defma and defmk).
 
 - Zswap and zram collector
 	- ID: 2026102408512197

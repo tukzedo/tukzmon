@@ -109,11 +109,10 @@ impl Graphs {
 
 	fn width_of(&self, which: Which) -> u32 {
 		let l = &self.cpu.look;
-		let own = match which {
+		l.width_or(match which {
 			Which::Cpu => l.cpu_width,
 			Which::Mem => l.mem_width,
-		};
-		if own == 0 { l.width } else { own }
+		})
 	}
 
 	/// Each shown graph's width in logical pixels, in the order drawn.
