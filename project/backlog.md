@@ -691,14 +691,30 @@ Sorted per the notes in [Template](#template).
 - XFCE on Wayland
 	- ID: 2026102621053720
 	- Type: Feature
-	- Status: Queued
+	- Status: Waiting on UAT
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: a look at the plugin in a real XFCE 4.20 session on Wayland, such as on labwc: the graphs, the tip, the hover line, the right-click menu and Properties.
 	- Priority|Severity: High
 	- Opened: 20261026-210537
 	- Opened by: t00mietum
 	- Parent ID: 2026101916013889
+	- Related IDs: 2026102622434311, 2026102519030128, 2026102620523642
+	- Test environment: XFCE 4.20.7 panel on sway 1.10.1, Wayland only.
 	- Requirements:
 		- Works on XFCE 4.20 on Wayland, with the drawing, the tip, the hover line, the right-click menu and Properties.
 		- Fix what doesn't, such as anything that assumes X11.
+	- Actual effort: Low
+	- Progress log:
+		- It already worked. Verified on Wayland: the graphs draw, the hover line and the tip follow the pointer, the right-click menu shows, and Properties opens tukzmon-settings as a Wayland window for that instance. The same at scale 2, and with 2 instances. Removing one instance, then the last, leaves the panel running.
+		- On Wayland the panel loads the plugin into its own process, not a wrapper. So a panic in the plugin takes the whole panel down.
+		- Found: when stderr can't be written, a failed settings start or history save or load aborted the panel, from `eprintln!`. Verified: Properties with stderr on `/dev/full` and no tukzmon-settings aborted the panel before the fix, and not after. The message still reaches a working stderr.
+		- `design.md` XFCE plugin has the Wayland notes.
+	- Decisions:
+		- Messages go through one `complain` helper that ignores a failed write, as tukzmon-settings did in 2026102519030128.
+		- Catching any panic, so a plugin bug can't take the panel down, is 2026102622434311. It needs unwinding in the release build.
+	- Branch: round-1027
+	- Test case: `tests::nothing_the_panel_loads_can_panic_on_a_failed_print` (defyn). It walks the code of the plugin, core and knobs for print macros, and failed on the plugin's 6 `eprintln!` calls before the fix.
+		- Swept: every print macro in `xfce/src`, `core/src` and `knobs/src`. Only the plugin had any. tukzmon-settings runs in its own process and has its own helpers.
 
 - Nix package for tukzedo-linux's NixOS edition
 	- ID: 2026102621053725
@@ -903,6 +919,19 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- A panel started by `xfce4-panel --restart` runs with stdout and stderr on `/dev/null`, and so does the plugin. Its "can't read" and "can't save" lines for the history file are lost.
 		- Show a failed history load or save where a person can find it, such as in the tooltip or the journal.
+
+- A panic in the plugin takes the whole panel down on Wayland
+	- ID: 2026102622434311
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261026-224343
+	- Opened by: t00mietum
+	- Related IDs: 2026102621053720
+	- Requirements:
+		- On Wayland, XFCE 4.20 runs the plugin in the panel's own process, and the release build aborts on a panic. So a plugin bug takes down the panel and every other plugin in it. On X11 only the plugin's wrapper goes.
+		- A panic in the plugin stops only that item, with one line on stderr.
+	- Note: one way is `panic = "unwind"` in the release profile, and `catch_unwind` in each callback the panel calls, which then marks the item dead and stops its timers. Cargo can't set `panic` per package, so tukzmon-settings would unwind too. Measure what both binaries grow by first.
 
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
