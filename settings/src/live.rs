@@ -6,36 +6,64 @@
 
 use tukzmon_core::config::Look;
 use tukzmon_core::cpu::CpuReader;
-use tukzmon_core::mem::MemoryReader;
+use tukzmon_core::graphs::Drawn;
+use tukzmon_core::mem::{MemoryReader, SwapReader};
 use tukzmon_core::{Graph, Source};
 
 pub struct Live {
 	cpu: Graph,
 	/// None on a box where memory can't be read.
 	mem: Option<Graph<MemoryReader, 3>>,
+	/// None on a box with no swap.
+	swap: Option<Graph<SwapReader, 1>>,
 }
 
 impl Live {
 	pub fn new(look: Look) -> Live {
 		Live {
 			mem: Graph::memory(look.clone()),
+			swap: Graph::swap(look.clone()),
 			cpu: Graph::new(look),
 		}
 	}
 
-	pub fn set_look(&mut self, look: &Look) {
-		if let Some(m) = &mut self.mem {
-			m.look = look.clone();
+	fn get(&self, name: &str) -> Option<&dyn Drawn> {
+		match name {
+			CpuReader::SECTION => Some(&self.cpu),
+			MemoryReader::SECTION => self.mem.as_ref().map(|g| g as &dyn Drawn),
+			SwapReader::SECTION => self.swap.as_ref().map(|g| g as &dyn Drawn),
+			_ => None,
 		}
-		self.cpu.look = look.clone();
+	}
+
+	fn get_mut(&mut self, name: &str) -> Option<&mut dyn Drawn> {
+		match name {
+			CpuReader::SECTION => Some(&mut self.cpu),
+			MemoryReader::SECTION => self.mem.as_mut().map(|g| g as &mut dyn Drawn),
+			SwapReader::SECTION => self.swap.as_mut().map(|g| g as &mut dyn Drawn),
+			_ => None,
+		}
+	}
+
+	fn all_mut(&mut self) -> impl Iterator<Item = &mut dyn Drawn> {
+		let optional = [
+			self.mem.as_mut().map(|g| g as &mut dyn Drawn),
+			self.swap.as_mut().map(|g| g as &mut dyn Drawn),
+		];
+		std::iter::once(&mut self.cpu as &mut dyn Drawn).chain(optional.into_iter().flatten())
+	}
+
+	pub fn set_look(&mut self, look: &Look) {
+		for g in self.all_mut() {
+			g.set_look(look);
+		}
 	}
 
 	/// A hidden graph is read too, since its row still draws it. The first
 	/// call only primes them.
 	pub fn sample(&mut self) {
-		self.cpu.sample();
-		if let Some(m) = &mut self.mem {
-			m.sample();
+		for g in self.all_mut() {
+			g.sample();
 		}
 	}
 
@@ -47,36 +75,33 @@ impl Live {
 	/// isn't drawn here.
 	pub fn width(&self, name: &str) -> u32 {
 		let l = &self.cpu.look;
-		match name {
-			CpuReader::SECTION => l.width_or(l.cpu_width),
-			MemoryReader::SECTION if self.mem.is_some() => l.width_or(l.mem_width),
-			_ => 0,
+		let own = match name {
+			CpuReader::SECTION => l.cpu_width,
+			MemoryReader::SECTION => l.mem_width,
+			SwapReader::SECTION => l.swap_width,
+			_ => return 0,
+		};
+		if self.get(name).is_some() {
+			l.width_or(own)
+		} else {
+			0
 		}
 	}
 
 	/// Cairo ARGB32 pixels, `w` by `h`, or none for a name that isn't drawn.
 	pub fn render(&mut self, name: &str, w: usize, h: usize, scale: usize) -> &[u32] {
-		match (name, &mut self.mem) {
-			(CpuReader::SECTION, _) => self.cpu.render(w, h, scale),
-			(MemoryReader::SECTION, Some(m)) => m.render(w, h, scale),
-			_ => &[],
+		match self.get_mut(name) {
+			Some(g) => g.render(w, h, scale),
+			None => &[],
 		}
 	}
 
 	pub fn easing(&self, name: &str) -> bool {
-		match (name, &self.mem) {
-			(CpuReader::SECTION, _) => self.cpu.easing(),
-			(MemoryReader::SECTION, Some(m)) => m.easing(),
-			_ => false,
-		}
+		self.get(name).is_some_and(Drawn::easing)
 	}
 
 	pub fn tip(&self, name: &str) -> String {
-		match (name, &self.mem) {
-			(CpuReader::SECTION, _) => self.cpu.tooltip(),
-			(MemoryReader::SECTION, Some(m)) => m.tooltip(),
-			_ => String::new(),
-		}
+		self.get(name).map(Drawn::tooltip).unwrap_or_default()
 	}
 }
 
@@ -146,5 +171,35 @@ mod tests {
 		live.render("cpu", 40, 24, 1);
 		assert!(live.easing("cpu"));
 		assert!(!live.easing("nope"));
+	}
+
+	// Test ID: defq8
+	#[test]
+	fn the_swap_row_draws_at_its_own_width() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_live_swap_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let mut live = Live::new(d.look());
+		if live.swap.is_none() {
+			assert_eq!(live.width("swap"), 0);
+			return;
+		}
+		live.sample();
+		std::thread::sleep(std::time::Duration::from_millis(30));
+		live.sample();
+		// off by default, and its row still draws it
+		assert!(!d.look().show_swap);
+		assert_eq!(live.width("swap"), 128);
+		d.set("swap_width", &Value::Float(60.0));
+		live.set_look(&d.look());
+		assert_eq!(live.width("swap"), 60);
+		assert_eq!(live.render("swap", 60, 24, 1).len(), 60 * 24);
+		assert!(
+			live.tip("swap").starts_with("Swap "),
+			"{}",
+			live.tip("swap")
+		);
 	}
 }

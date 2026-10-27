@@ -97,7 +97,7 @@ impl Plugin {
 		if look != *self.graphs.look() {
 			let widths: Vec<u32> = self.graphs.widths().collect();
 			let keep = (self.graphs.look().keep, look.keep);
-			let dropped = !look.show_memory && self.graphs.mem.is_some();
+			let dropped = self.graphs.drops(&look);
 			// what came in while it was on still counts
 			if keep.0 && (!keep.1 || dropped) {
 				self.save_history();

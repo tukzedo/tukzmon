@@ -257,6 +257,40 @@ Sorted per the notes in [Template](#template).
 	- Test case: `axis::tests::a_jump_eases_in_from_what_was_drawn` (defpn), `time_going_on_is_no_jump_but_a_gap_or_new_axis_is` (defpp), `a_jump_while_easing_starts_from_what_is_on_screen` (defpq), `tests::a_new_time_axis_eases_in_and_then_stops` (defpr), and `live::tests::a_time_axis_picked_in_the_window_eases_into_its_row` (defps). defpn to defpr fail with jumps not seen, and defpn and defpq with the ease starting from the new axis. The rest of the requirements: debh9, debha to debhe in `axis::tests`, and `render::tests::spike_reach_fades_with_time` (debj9).
 		- Swept: every `Frame` built (render tests, the preview example, `Graph::render`), every `age` caller (`Frame::draw`, `Graph::span_at`), both places a graph is drawn on screen (the plugin's draw, the settings window's `LiveGraph`), and every place a look or history is swapped in (`Graphs::set_look`, `Live::set_look`, `Graph::adopt`), which the jump check covers without a call of its own.
 
+- Swap graph
+	- ID: 2026102618353000
+	- Type: Feature
+	- Status: Waiting on UAT
+		- How it looks, in each theme, is for a person to judge.
+		- It departs from the wording in one way. It's off by default, so an existing panel doesn't grow wider. Turn it on in the graph list.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, after an install, turn on Swap graph in the graph list, Apply, and judge how it looks beside CPU and memory in Default and Fire.
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026101916013887
+	- Related IDs: 2026102408512192
+	- Requirements:
+		- Swap; % used, from the swap collector.
+		- No swap graph on a box with no swap.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The swap graph draws % used, with its tip as "Swap 33% used". It has a row in the graph list, at `swap.show`, `swap.width` and `swap.time`, and a Themes/Swap sub-tab with In use, or Low, Medium and High.
+		- `Graphs` and the settings window's `Live` now reach every graph through one `Drawn` trait, so a new graph is a slot and a `Which` entry, not a match arm in every method.
+		- `graph.order` defaults to `cpu mem swap`.
+		- `design.md` XFCE plugin, Theme and Data sources on Linux have the details.
+		- Verified: the full run passed. With the swap slot taken out of `Graphs`, defq6 and defq7 fail.
+	- Decisions:
+		- Off by default, so a panel doesn't widen on upgrade.
+		- In use is each theme's user color, and its gradient is the theme's CPU one, so Fire draws swap as a gradient. Randomize gives In use the lead role.
+		- One color, with no heading over it on the sub-tab, since there's one series.
+	- Branch: round-1026
+	- Test case: `graphs::tests::swap_is_off_by_default_and_draws_its_own_color_when_on` (defq5), `three_sit_side_by_side_and_the_pointer_finds_swap` (defq6), `hiding_swap_keeps_its_history_for_when_its_back` (defq7), and `live::tests::the_swap_row_draws_at_its_own_width` (defq8). defq6 and defq7 fail with swap left out of `Graphs`' slots.
+		- 2026-10-26: new values only. `config::tests::the_default_theme_is_the_row_defaults` (deccf) and `saved_themes_write_whole_and_read_back` count 24 theme members, not 19. `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme` counts 21 colors, not 17. `the_graph_order_reads_with_spaces_or_commas` (dedqq) has the default order `cpu mem swap`, not `cpu mem`. defkz's typed order reads back with `swap` at the end, and defm0's past-the-end move is 3, not 2, with `swap` in its orders. defma's rows greyed at defaults are `swap_width` and `swap_time`, not none, since Swap graph is off by default.
+		- Swept: every user of `Graphs.mem` (the plugin, `Live`, the profiler, the soak test), every `Which` match, the 6 built-in themes, and `dice::ROLES`, which the role test walks. The profiler and soak test run with the defaults, so they don't draw swap.
+
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
@@ -319,6 +353,95 @@ Sorted per the notes in [Template](#template).
 			- Can choose all disks, or specific drives.
 		- CPU Temperature; normal, critical on top of that when normal maxes out
 		- Battery; charging, discharging, discharging and critical level
+	- Progress log:
+		- CPU and memory draw. Every other source has a collector since round-1026.
+		- 2026-10-26: The swap graph is in, 2026102618353000.
+		- 2026-10-26: Split into one child per graph not yet drawn: 2026102618353000 (swap), 2026102618353002 (zswap or zram), 2026102618353004 (network), 2026102618353006 (load), 2026102618353008 (disk), 2026102618353011 (temperature) and 2026102618353013 (battery). This closes with the last of them.
+
+- Zswap or zram graph
+	- ID: 2026102618353002
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353000
+	- Related IDs: 2026102408512197
+	- Requirements:
+		- % used, and a text number overlay for the compression ratio, e.g. "2.1x".
+		- No graph on a box with neither.
+
+- Network graph
+	- ID: 2026102618353004
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353000
+	- Related IDs: 2026102408512202, 2026101916013883
+	- Requirements:
+		- Local, sending, receiving, from the network collector.
+		- A peak level that adjusts itself, since bytes per second has no fixed top.
+
+- Load graph
+	- ID: 2026102618353006
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353004
+		- Shares the peak level the network graph brings, since load has no fixed top either.
+	- Related IDs: 2026102408512207
+	- Requirements:
+		- The 1 minute load, from the load collector.
+
+- Disk graph
+	- ID: 2026102618353008
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353004
+		- Shares the peak level the network graph brings.
+	- Related IDs: 2026102408512212
+	- Requirements:
+		- Write, read, from the disk collector.
+		- Auto-adjusts peak level.
+		- With optional logarithmic Y axis.
+		- Can choose all disks, or specific drives.
+
+- CPU temperature graph
+	- ID: 2026102618353011
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353000
+	- Related IDs: 2026102408512217
+	- Requirements:
+		- Normal, with critical on top of that when normal maxes out, from the temperature collector.
+
+- Battery graph
+	- ID: 2026102618353013
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353000
+	- Related IDs: 2026102408512223
+	- Requirements:
+		- Charging, discharging, and discharging at the critical level, from the battery collector.
 
 - Color themes tab
 	- ID: 2026102408304612

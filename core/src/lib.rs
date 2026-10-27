@@ -29,7 +29,7 @@ use collect::Collector;
 use config::Look;
 use cpu::CpuReader;
 use history::History;
-use mem::MemoryReader;
+use mem::{MemoryReader, SwapReader};
 use render::{Frame, Paint};
 use when::Said;
 
@@ -95,6 +95,23 @@ impl Source<3> for MemoryReader {
 	}
 }
 
+impl Source<1> for SwapReader {
+	const SECTION: &'static str = "swap";
+	const TITLE: &'static str = "Swap";
+
+	fn text(v: &[f32; 1]) -> String {
+		format!("Swap {}% used", pc(v[0]))
+	}
+
+	fn paint(look: &Look) -> Paint<'_, 1> {
+		look.swap_paint()
+	}
+
+	fn timing(look: &Look) -> Timing {
+		look.timing(look.swap_time)
+	}
+}
+
 /// One graph: reads, history, and drawing. CPU unless said otherwise.
 pub struct Graph<S: Source<N> = CpuReader, const N: usize = 4> {
 	pub look: Look,
@@ -121,6 +138,13 @@ impl Graph<MemoryReader, 3> {
 	/// None where memory can't be read, so the graph is left out.
 	pub fn memory(look: Look) -> Option<Self> {
 		MemoryReader::probe().map(|src| Graph::with(look, src))
+	}
+}
+
+impl Graph<SwapReader, 1> {
+	/// None on a box with no swap.
+	pub fn swap(look: Look) -> Option<Self> {
+		SwapReader::probe().map(|src| Graph::with(look, src))
 	}
 }
 
