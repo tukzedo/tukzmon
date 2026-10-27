@@ -16,6 +16,12 @@ pub mod ffi {
 		parent: i32,
 	}
 
+	/// A line of the window's tab list, as drawn, and the rows it shows.
+	struct TabShown {
+		label: String,
+		rows: Vec<String>,
+	}
+
 	struct RowInfo {
 		id: String,
 		label: String,
@@ -135,6 +141,10 @@ pub mod ffi {
 		/// Each graph list row's graph width and x, and its width box's x.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn graph_list_places(d: &mut Dialog) -> Vec<i32>;
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn tabs_shown(d: &mut Dialog) -> Vec<TabShown>;
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn bottom_buttons(d: &mut Dialog) -> Vec<String>;
 	}
 }
 
@@ -595,5 +605,62 @@ mod tests {
 		for &t in &subs {
 			assert!(moved.contains(&t), "{}", tabs[t as usize].label);
 		}
+	}
+
+	// Test ID: defwx
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn sub_tabs_sit_in_the_tab_list_under_their_parent() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_tabs_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let tabs = dialog_tabs(&d);
+		let rows = dialog_rows(&d);
+		let shown = ffi::tabs_shown(&mut d);
+		let lines: Vec<&str> = shown.iter().map(|t| t.label.trim_start()).collect();
+		let want: Vec<&str> = tabs.iter().map(|t| t.label.as_str()).collect();
+		assert_eq!(lines, want);
+		let indent = |i: usize| shown[i].label.len() - shown[i].label.trim_start().len();
+		let top = rows.iter().find(|r| r.chooser).unwrap().tab;
+		let subs: Vec<usize> = (0..tabs.len()).filter(|&i| tabs[i].parent == top).collect();
+		assert!(subs.len() > 1, "{want:?}");
+		// Themes on its own shows its first tab
+		assert_eq!(shown[top as usize].rows, shown[subs[0]].rows);
+		for &s in &subs {
+			assert!(
+				s > top as usize && indent(s) > indent(top as usize),
+				"{}",
+				shown[s].label
+			);
+			let on = &shown[s].rows;
+			// the theme's own row stays on top of every sub-tab
+			assert!(on.iter().any(|id| id == "theme"), "{}", tabs[s].label);
+			let tab_of = |id: &str| rows.iter().find(|r| r.id == id).unwrap().tab;
+			assert!(
+				on.iter().any(|id| tab_of(id) == s as i32),
+				"{}",
+				tabs[s].label
+			);
+			for id in on {
+				let t = tab_of(id) as usize;
+				assert!(t == s || t == top as usize, "{} shows {id}", tabs[s].label);
+			}
+		}
+	}
+
+	// Test ID: defwy
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn the_buttons_are_cancel_apply_and_ok() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_buttons_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		assert_eq!(ffi::bottom_buttons(&mut d), ["Cancel", "&Apply", "OK"]);
 	}
 }

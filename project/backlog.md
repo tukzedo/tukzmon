@@ -528,13 +528,30 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Sub-tabs nested under their parent tab
 	- ID: 2026102620162200
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- How the list and the page look is for a person to judge.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, after an install, open Settings, pick Themes and each tab under it, and judge the list and the Name row over each page.
 	- Priority|Severity: High
 	- Opened: 20261026-201621
 	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
 	- Related IDs: 2026102408304546, 2026102409400684
 	- Requirements:
 		- Subtabs as nested indented tabs under its parent tab on left tab list.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- CPU, Memory, Swap, Battery and Background are now lines in the tab list, stepped in under Themes. The row of tabs across the Themes page is gone.
+		- The Name row with its buttons stays on top of each of them, with a rule under it.
+		- `design.md` Settings window has the details.
+		- Verified: in a test window each tab under Themes showed the Name row over its own colors, and Themes on its own showed CPU's.
+	- Decisions:
+		- Picking Themes shows its first tab, CPU, the same as a tab with nothing of its own already did. The list keeps Themes picked.
+		- The indent is 4 spaces per level, as the list already used.
+	- Branch: round-1027
+	- Test case: `bridge::tests::sub_tabs_sit_in_the_tab_list_under_their_parent` (defwx). It fails on the old layout, where the list had only Graph and Themes, and passes now.
+		- Swept: the one `QTabWidget` in qt.cpp, now gone, the `--snapshot` loop, which still gives one picture per tab, and every doc that names the sub-tabs.
 
 - Pre-next-cut: Generic theme names, and distinct colors per monitor
 	- ID: 2026102620162201
@@ -562,17 +579,6 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- A button on the left side of the bottom button strip (e.g. more or less aligned with "Keep across restarts"), for "Reset history", that does that and starts the graph over.
 		- If "Keep across restarts" is checked, warn user that it will delete all past history.
-
-- Pre-next-cut: Rename the "Apply and close" button to "OK"
-	- ID: 2026102620162203
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261026-201621
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304546
-	- Requirements:
-		- Button name: "Apply and close" -> "OK" (a reversal).
 
 - A settings file per plugin instance
 	- ID: 2026102621053715
@@ -808,6 +814,29 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Pre-next-cut: Rename the "Apply and close" button to "OK"
+	- ID: 2026102620162203
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Related IDs: 2026102408304546
+	- Requirements:
+		- Button name: "Apply and close" -> "OK" (a reversal).
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The buttons are Cancel, Apply and OK. OK is still the Enter default, with the same tip.
+	- Decisions:
+		- OK gets no underlined key, since Enter already presses it.
+	- Branch: round-1027
+	- Test case: `bridge::tests::the_buttons_are_cancel_apply_and_ok` (defwy). It fails with the old label and passes now.
+		- Swept: qt.cpp's header comment and `design.md` Settings window. README.md doesn't name the buttons.
+	- Closed: 20261026-215021
 
 - Vertical and deskbar panels
 	- ID: 2026102621053709

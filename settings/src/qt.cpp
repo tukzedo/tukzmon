@@ -4,7 +4,7 @@
 // The settings window in Qt Widgets. Rows come from settings.shcl through the
 // Rust side, and every change goes back there, so this file only lays out
 // controls and copies state onto them. Same model as SilkTerm's dialog: tabs
-// down the left, a revert arrow per row, and Cancel, Apply, Apply and close.
+// down the left, a revert arrow per row, and Cancel, Apply, OK.
 
 #include "tukzmon-settings/src/qt.h"
 #include "tukzmon-settings/src/bridge.rs.h"
@@ -41,7 +41,6 @@
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QStyle>
-#include <QTabWidget>
 #include <QTimer>
 #include <QToolButton>
 #include <QToolTip>
@@ -510,39 +509,47 @@ public:
 		auto hasRows = [this](int tab) {
 			return std::any_of(rows.begin(), rows.end(), [tab](auto &r) { return r->info.tab == tab; });
 		};
+		// knobs lists a parent before its tabs, so one pass finds every stack
+		std::vector<QStackedWidget *> stackOf(tabs.size(), nullptr);
 		for (size_t i = 0; i < tabs.size(); i++) {
-			// a tab with rows of its own keeps them on top, over its sub-tabs
-			if (tabs[i].parent >= 0 && hasRows(tabs[i].parent))
-				continue;
 			bool parent = false;
 			for (auto &t : tabs)
 				parent |= t.parent == int(i);
 			int depth = 0;
 			for (int p = tabs[i].parent; p >= 0; p = tabs[size_t(p)].parent)
 				depth++;
-			auto *item = new QListWidgetItem(QString(depth * 4, ' ') + qs(tabs[i].label));
-			tabList->addItem(item);
-			if (parent && !hasRows(int(i))) {
-				tabPage.push_back(-1);
-				subTabs.push_back(nullptr);
+			tabList->addItem(new QListWidgetItem(QString(depth * 4, ' ') + qs(tabs[i].label)));
+			leaf.push_back(!parent);
+			// a tab with rows of its own keeps them on top of the tabs under it
+			const int up = tabs[i].parent;
+			if (up >= 0 && stackOf[size_t(up)]) {
+				QStackedWidget *stack = stackOf[size_t(up)];
+				tabPage.push_back(tabPage[size_t(up)]);
+				subPage.push_back({stack, stack->addWidget(buildPage(int(i), tabs[i], true))});
 				continue;
 			}
-			QTabWidget *sub = nullptr;
+			if (parent && !hasRows(int(i))) {
+				tabPage.push_back(-1);
+				subPage.push_back({});
+				continue;
+			}
 			QWidget *page = buildPage(int(i), tabs[i], !parent);
+			subPage.push_back({});
 			if (parent) {
-				sub = new QTabWidget;
-				for (size_t j = 0; j < tabs.size(); j++)
-					if (tabs[j].parent == int(i))
-						sub->addTab(buildPage(int(j), tabs[j], true), qs(tabs[j].label));
+				stackOf[i] = new QStackedWidget;
+				subPage.back() = {stackOf[i], 0};
+				auto *rule = new QFrame;
+				rule->setFrameShape(QFrame::HLine);
+				rule->setFrameShadow(QFrame::Sunken);
 				auto *holder = new QWidget;
 				auto *v = new QVBoxLayout(holder);
 				v->setContentsMargins(0, 0, 0, 0);
 				v->addWidget(page);
-				v->addWidget(sub, 1);
+				v->addWidget(rule);
+				v->addWidget(stackOf[i], 1);
 				page = holder;
 			}
 			tabPage.push_back(pages->addWidget(page));
-			subTabs.push_back(sub);
 		}
 		const int tabWidth = tabList->sizeHintForColumn(0);
 		tabList->setFixedWidth(tabWidth + 2 * tabList->frameWidth() + 24);
@@ -561,7 +568,7 @@ public:
 		// Cancel stands a little apart from the 2 that save
 		auto *cancel = new QPushButton("Cancel");
 		applyButton = new QPushButton("&Apply");
-		auto *closeButton = new QPushButton("Apply and &close");
+		auto *closeButton = new QPushButton("OK");
 		cancel->setToolTip("Discard every change and close Settings.");
 		applyButton->setToolTip("Save changes now, without closing Settings.");
 		closeButton->setToolTip("Save changes and close Settings.");
@@ -583,6 +590,7 @@ public:
 		buttons->addWidget(applyButton);
 		buttons->addSpacing(gap);
 		buttons->addWidget(closeButton);
+		bottom = {cancel, applyButton, closeButton};
 
 		auto *body = new QHBoxLayout;
 		body->addWidget(tabList);
@@ -629,10 +637,24 @@ public:
 	}
 
 	int tabCount() const { return tabList->count(); }
-	bool isLeaf(int i) const { return tabPage[size_t(i)] >= 0; }
+	std::string tabText(int i) const { return tabList->item(i)->text().toStdString(); }
+	std::vector<std::string> shownRows() const {
+		std::vector<std::string> ids;
+		for (auto &r : rows) {
+			QWidget *w = r->control ? r->control : r->label;
+			if (w && w->isVisible())
+				ids.push_back(r->id());
+		}
+		return ids;
+	}
+	std::vector<std::string> buttonTexts() const {
+		std::vector<std::string> out;
+		for (auto *b : bottom)
+			out.push_back(b->text().toStdString());
+		return out;
+	}
+	bool isLeaf(int i) const { return leaf[size_t(i)]; }
 	void select(int i) { tabList->setCurrentRow(i); }
-	int subCount(int i) const { return subTabs[size_t(i)] ? subTabs[size_t(i)]->count() : 0; }
-	void selectSub(int i, int j) { subTabs[size_t(i)]->setCurrentIndex(j); }
 	std::unique_ptr<ColorPicker> firstPicker() {
 		for (auto &r : rows)
 			if (r->chip)
@@ -660,14 +682,21 @@ private:
 	Dialog &d;
 	rust::Box<Live> live;
 	std::vector<std::unique_ptr<Row>> rows;
+	// per line of the tab list
 	std::vector<int> tabPage;
-	std::vector<QTabWidget *> subTabs;
+	std::vector<bool> leaf;
+	struct SubPage {
+		QStackedWidget *stack = nullptr;
+		int index = 0;
+	};
+	std::vector<SubPage> subPage;
 	QPushButton *saveTheme = nullptr;
 	QPushButton *renameTheme = nullptr;
 	QPushButton *deleteTheme = nullptr;
 	QListWidget *tabList = nullptr;
 	QStackedWidget *pages = nullptr;
 	QPushButton *applyButton = nullptr;
+	std::vector<QPushButton *> bottom;
 
 	// One graph per row, first drawn first, in the order they're placed.
 	struct ListRow {
@@ -690,6 +719,8 @@ private:
 		for (int j = i; j < tabList->count(); j++) {
 			if (tabPage[size_t(j)] >= 0) {
 				pages->setCurrentIndex(tabPage[size_t(j)]);
+				if (auto &s = subPage[size_t(j)]; s.stack)
+					s.stack->setCurrentIndex(s.index);
 				return;
 			}
 		}
@@ -1178,13 +1209,9 @@ std::int32_t run_dialog(Dialog &d, rust::Str snapshot) {
 		if (!w.isLeaf(i))
 			continue;
 		w.select(i);
-		for (int j = 0; j < std::max(1, w.subCount(i)); j++) {
-			if (w.subCount(i) > 0)
-				w.selectSub(i, j);
-			app.processEvents();
-			if (!w.grab().save(QString("%1-%2.png").arg(base).arg(++n)))
-				return 3;
-		}
+		app.processEvents();
+		if (!w.grab().save(QString("%1-%2.png").arg(base).arg(++n)))
+			return 3;
 	}
 	if (auto pick = w.firstPicker()) {
 		pick->show();
@@ -1222,6 +1249,40 @@ rust::Vec<std::int32_t> graph_list_places(Dialog &d) {
 	rust::Vec<std::int32_t> out;
 	for (int v : w.listPlaces())
 		out.push_back(v);
+	return out;
+}
+
+rust::Vec<TabShown> tabs_shown(Dialog &d) {
+	static int argc = 1;
+	static char name[] = "tukzmon-settings";
+	static char *argv[] = {name, nullptr};
+	qputenv("QT_QPA_PLATFORM", "offscreen");
+	QApplication app(argc, argv);
+	Window w(d);
+	w.show();
+	rust::Vec<TabShown> out;
+	for (int i = 0; i < w.tabCount(); i++) {
+		w.select(i);
+		app.processEvents();
+		TabShown t;
+		t.label = rust::String(w.tabText(i));
+		for (auto &id : w.shownRows())
+			t.rows.push_back(rust::String(id));
+		out.push_back(std::move(t));
+	}
+	return out;
+}
+
+rust::Vec<rust::String> bottom_buttons(Dialog &d) {
+	static int argc = 1;
+	static char name[] = "tukzmon-settings";
+	static char *argv[] = {name, nullptr};
+	qputenv("QT_QPA_PLATFORM", "offscreen");
+	QApplication app(argc, argv);
+	Window w(d);
+	rust::Vec<rust::String> out;
+	for (auto &t : w.buttonTexts())
+		out.push_back(rust::String(t));
 	return out;
 }
 
