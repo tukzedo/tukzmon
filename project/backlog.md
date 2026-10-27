@@ -657,17 +657,36 @@ Sorted per the notes in [Template](#template).
 - A settings file per plugin instance
 	- ID: 2026102621053715
 	- Type: Feature
-	- Status: Queued
+	- Status: Waiting on UAT
+		- Properties on 2 items, and b23's item keeping its look after the switch, are for a person to check.
+	- Needs hand testing: on b23, after an install and a panel restart, check the tukzmon item looks as it did, and `~/.config/tukzmon/plugin-<id>.shcl` is there. Add a second tukzmon item, change the graphs in one item's Properties, Apply, and check only that item changes.
 	- Priority|Severity: High
 	- Opened: 20261026-210537
 	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
 	- Parent ID: 2026101916013889
+	- Related IDs: 2026102622311676
 	- Requirements:
 		- One plugin instance can show one or more graphs side by side, picked in its settings dialog.
 		- Each instance's Properties edits that instance only, so 2 items on a panel can show different graphs.
 		- An existing `~/.config/tukzmon/tukzmon.shcl` isn't lost.
+	- Estimated effort: Avg
+	- Actual effort: Low
 	- Progress log:
 		- Today every instance reads and writes the one file, per `design.md` Settings window.
+		- 2026-10-26: each item reads `~/.config/tukzmon/plugin-<id>.shcl`, by the panel's unique id, and its Properties opens that file. `design.md` Settings window has the details.
+		- An item with no file yet starts from a copy of `tukzmon.shcl`, which is left as it is. tukzmon-settings with no `--config` still edits that one, so it sets what a new item starts from.
+		- Verified: the full run passed. In a test panel with 2 items and a shared file, both started from copies of it, and the shared file was unchanged. With item 1's file set to width 120, item 1 went from 84 to 244 px, and item 2 stayed at 84.
+		- Unverified: Properties on a running item, since the item menu doesn't draw in the test panel. It passes the item's own file, as it passed the shared one before.
+	- Decisions:
+		- The file is `plugin-<id>.shcl` in tukzmon's config folder, named like the item's `plugin-<id>.hist`. The panel's own save location would be an `.rc` under `xfce4/panel/`, but the settings are shcl, for other panels later too.
+		- The shared file is copied, not moved, so it isn't lost, a downgrade still finds it, and a new item starts from the user's setup rather than the defaults.
+		- Copied at the item's first start rather than read through until a save, so the file Properties opens is the one the item draws.
+		- Reset history stays one button for every item, as 2026102620162202 has it.
+		- Deleting an item's files when it's removed from the panel is its own item, 2026102622311676.
+	- Branch: round-1027
+	- Test case: `config::tests::an_item_with_no_file_starts_from_the_shared_one_and_leaves_it` (defy3) and `a_save_for_one_item_leaves_the_other_alone` (defy4). defy3 fails with an existing file overwritten from the shared one.
+		- Swept: every `config_file` caller (the plugin, and tukzmon-settings' default), every `xfce_panel_plugin_get_unique_id` use, and every doc line naming `tukzmon.shcl` (design.md and the usage text). The profiler, soak test and `--snapshot` don't read an item's file.
 
 - XFCE on Wayland
 	- ID: 2026102621053720
@@ -846,6 +865,20 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Split into 6 children, in this order: 2026102508393152 (on or off and a width per graph), 2026102508393154 (order), 2026102508393156 (time function per graph), 2026102508393159 (theme per graph), 2026102508393161 (the list itself), and 2026102508393163 (live graphs in it).
 		- 2026-10-25: no theme dropdown per graph after all. One theme colors every graph, per the answer on 2026102508393159.
+
+- An item's files go when it's removed from the panel
+	- ID: 2026102622311676
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261026-223116
+	- Opened by: t00mietum
+	- Related IDs: 2026102621053715
+	- Requirements:
+		- Removing a tukzmon item from the panel deletes its `plugin-<id>.shcl` and `plugin-<id>.hist`, as the panel's Remove dialog says ("its configuration will be lost").
+		- A later item that gets the same id starts fresh, not with the removed one's settings and history.
+	- Progress log:
+		- Today both files stay. The plugin doesn't connect the panel's `remove` signal, and free-data saves history after it.
 
 - The panel's tick costs about a third more since the 50 ms history tier
 	- ID: 2026102618573801

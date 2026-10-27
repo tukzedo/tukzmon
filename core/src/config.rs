@@ -565,10 +565,37 @@ pub fn config_dir() -> PathBuf {
 	base.join("tukzmon")
 }
 
-/// One file for every graph, for now. A file per plugin instance comes with
-/// more than one kind of graph.
+/// The shared file: what tukzmon-settings edits with no `--config`, and what
+/// a new panel item starts from. See [`instance_file`].
 pub fn config_file() -> PathBuf {
 	config_dir().join("tukzmon.shcl")
+}
+
+/// One panel item's own settings file in `dir`, by its unique id, named like
+/// its history file.
+pub fn instance_file(dir: &Path, id: i32) -> PathBuf {
+	dir.join(format!("plugin-{id}.shcl"))
+}
+
+/// Gives `own` a copy of `shared` when it has no file yet, so an item set up
+/// before each one had its own keeps its look, and a new one starts from it.
+/// With neither, nothing is written, and the item has the defaults.
+///
+/// # Errors
+///
+/// Whatever reading `shared` or writing `own` hit.
+pub fn start_from(own: &Path, shared: &Path) -> std::io::Result<()> {
+	if own.exists() {
+		return Ok(());
+	}
+	let text = match std::fs::read(shared) {
+		Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+		r => r?,
+	};
+	// renamed in whole, so a crash can't leave half a file that then wins
+	let tmp = own.with_extension("shcl.tmp");
+	std::fs::write(&tmp, text)?;
+	std::fs::rename(&tmp, own)
 }
 
 #[cfg(test)]
@@ -1143,6 +1170,61 @@ mod tests {
 		assert_eq!(l.sample_ms, 500);
 		assert_eq!(l.cpu[2], Rgb(0x12, 0x34, 0x56));
 		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x40));
+	}
+
+	fn scratch(name: &str) -> PathBuf {
+		let dir =
+			std::env::temp_dir().join(format!("test_tukzmon_config_{}_{name}", std::process::id()));
+		let _ = std::fs::remove_dir_all(&dir);
+		std::fs::create_dir_all(&dir).unwrap();
+		dir
+	}
+
+	// Test ID: defy3
+	#[test]
+	fn an_item_with_no_file_starts_from_the_shared_one_and_leaves_it() {
+		let dir = scratch("start");
+		let shared = dir.join("tukzmon.shcl");
+		let text = "graph:\n\twidth: 77\n\ncpu:\n\tcolors:\n\t\tuser: \"#123456\"\n";
+		std::fs::write(&shared, text).unwrap();
+		let own = instance_file(&dir, 7);
+		assert_eq!(own, dir.join("plugin-7.shcl"));
+		start_from(&own, &shared).unwrap();
+		assert_eq!(std::fs::read_to_string(&own).unwrap(), text);
+		assert_eq!(std::fs::read_to_string(&shared).unwrap(), text);
+		assert_eq!(Look::load(&own), Look::load(&shared));
+		assert_ne!(Look::load(&own), Look::default());
+		assert!(!dir.join("plugin-7.shcl.tmp").exists());
+
+		// its own file wins from then on
+		std::fs::write(&own, "cpu:\n\tcolors:\n\t\tuser: \"#654321\"\n").unwrap();
+		start_from(&own, &shared).unwrap();
+		assert!(std::fs::read_to_string(&own).unwrap().contains("#654321"));
+
+		// with no shared file there's nothing to copy, and it has the defaults
+		let fresh = instance_file(&dir, 8);
+		start_from(&fresh, &dir.join("missing.shcl")).unwrap();
+		assert!(!fresh.exists());
+		assert_eq!(Look::load(&fresh), Look::default());
+		let _ = std::fs::remove_dir_all(&dir);
+	}
+
+	// Test ID: defy4
+	#[test]
+	fn a_save_for_one_item_leaves_the_other_alone() {
+		let dir = scratch("two");
+		let shared = dir.join("tukzmon.shcl");
+		std::fs::write(&shared, "graph:\n\twidth: 77\n").unwrap();
+		let (one, two) = (instance_file(&dir, 1), instance_file(&dir, 2));
+		assert_ne!(one, two);
+		start_from(&one, &shared).unwrap();
+		start_from(&two, &shared).unwrap();
+		std::fs::write(&one, "mem:\n\tshow: false\n").unwrap();
+		assert!(!Look::load(&one).show_memory);
+		assert!(Look::load(&two).show_memory);
+		assert_eq!(Look::load(&two).width, 77);
+		assert_eq!(Look::load(&two), Look::load(&shared));
+		let _ = std::fs::remove_dir_all(&dir);
 	}
 
 	// Test ID: debhm

@@ -345,7 +345,15 @@ extern "C" fn free_data(_plugin: *mut c_void, data: *mut c_void) {
 }
 
 fn construct(plugin: *mut c_void) {
-	let config = config::config_file();
+	// SAFETY: plugin is a live XfcePanelPlugin.
+	let id = unsafe { xfce_panel_plugin_get_unique_id(plugin) };
+	let config = config::instance_file(&config::config_dir(), id);
+	if let Err(e) = config::start_from(&config, &config::config_file()) {
+		eprintln!(
+			"tukzmon: can't start {} from the shared file: {e}",
+			config.display()
+		);
+	}
 	let data = keep::data_dir();
 	let mut p = Box::new(Plugin {
 		xpp: plugin,
@@ -357,8 +365,7 @@ fn construct(plugin: *mut c_void) {
 		config_time: modified(&config),
 		config,
 		settings: None,
-		// SAFETY: plugin is a live XfcePanelPlugin.
-		history: keep::history_file(&data, unsafe { xfce_panel_plugin_get_unique_id(plugin) }),
+		history: keep::history_file(&data, id),
 		reset: keep::ResetWatch::new(&data),
 		saved_at: Instant::now(),
 		moved_at: Instant::now(),

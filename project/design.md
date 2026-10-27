@@ -94,7 +94,10 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - It's Qt 6 Widgets. Widgets is the lightest Qt that's cross-platform and maintained, and Qt Quick would add QML and a scene graph for a form with a dozen rows. Rust reaches it through the [cxx](https://cxx.rs) crate, and `settings/src/qt.cpp` only builds widgets and copies state onto them. The model, the rules, and the file are all in Rust.
 
-- Qt doesn't need a file format of its own for this, so settings stay in shcl, at `~/.config/tukzmon/tukzmon.shcl`. One file serves every graph for now. A file per plugin instance comes with more than one kind of graph.
+- Qt doesn't need a file format of its own for this, so settings stay in shcl, under `~/.config/tukzmon/`.
+	- Each panel item has its own file, `plugin-<id>.shcl` by the panel's unique id, named like its history file. Its Properties opens that file, so 2 items on a panel can show different graphs.
+	- `tukzmon.shcl` is the shared file. An item with no file of its own yet starts from a copy of it, so a panel set up before items had their own keeps its look. The shared file is never changed by an item, and `tukzmon-settings` with no `--config` edits it, which sets what a new item starts from.
+	- With no shared file either, a new item starts at the defaults, and writes no file until a save.
 
 - It follows SilkTerm's settings dialog, on top of knobs:
 	- Tabs down the left, groups with a rule under the title, and a sub-group stepped in under the switch it depends on. A row is greyed while that switch is off, but its revert arrow still works.
@@ -110,7 +113,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- The file gets only what was changed in the window, applied to the file as it is at save time, so a hand edit made meanwhile isn't lost.
 	- A save that would drop a line it can't read, or a setting it doesn't know, is refused, and the error names the lines.
 
-- Reset history sits on the left of the bottom strip, under the pages, and starts every graph over. With Keep across restarts on, it asks first, since that deletes the saved history too. Like the theme buttons it takes effect at Apply, but the window's own graphs start over at once.
+- Reset history sits on the left of the bottom strip, under the pages, and starts every graph over, in every panel item. With Keep across restarts on, it asks first, since that deletes the saved history too. Like the theme buttons it takes effect at Apply, but the window's own graphs start over at once.
 	- At Apply the window writes `reset` in the history folder. When Keep across restarts is on, it deletes every `plugin-*.hist` there first, so an item that isn't running doesn't bring old history back.
 	- A running plugin checks that file's modified time at each sample, as it does the settings file's. It drops what it holds, and when history is kept it deletes its own file again, since it may have saved in between.
 	- With Keep across restarts off, the file is left as it is, the same as Off always does.
