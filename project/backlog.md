@@ -594,7 +594,10 @@ Sorted per the notes in [Template](#template).
 - Randomize: a hue of its own for each graph
 	- ID: 2026102621562349
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- Whether the 4 hues of a roll look good together is for a person to judge.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, after an install, with swap on, press Randomize a few times with Apply, and judge whether CPU, memory and swap read apart and look good together.
 	- Priority|Severity: High
 	- Opened: 20261026-215623
 	- Opened by: t00mietum
@@ -603,6 +606,22 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- A roll gives CPU, memory, swap and the battery each a lead hue of its own, all kept off red and orange, with their quiet colors and gradients from those, the way the built-ins now do.
 	- Note: `dice::tests::buffers_and_cache_are_muted_and_told_apart` (dedq0) asserts memory's lead is CPU's. It changes with this.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A roll gives each graph a lead hue of its own, from yellow-green round to magenta as before, at least 45 degrees from the others, in a random order. Each graph's quiet colors, buffers and gradient come from its own hue.
+		- I/O wait and system stay red and orange, and so do the battery's critical and on battery.
+		- `design.md` Theme has the details.
+		- Verified: the full run passed with the new test.
+	- Decisions:
+		- 45 degrees apart, which leaves 90 degrees of the range to roll in, and keeps clear of defx7's 30 for the built-ins.
+		- All 4 share one saturation and brightness, so a roll reads as one set, the way each built-in does.
+		- The background still takes CPU's hue, or nice's, since it's one set of colors under every graph.
+		- `dice::ROLES` now names each member's graph as well as its role.
+	- Branch: round-1027
+	- Test case: `dice::tests::each_graph_leads_with_a_hue_of_its_own` (defxd), and dedq0. Both fail with every graph given CPU's hue, and defxd with the order left unshuffled. Both pass now.
+		- 2026-10-26: dedq0 checked memory's lead equal to CPU's user, and cache equal to nice. It now checks they differ, and cache equal to memory's Low. decdt, decdv and decdw now check each graph's colors, not CPU's alone.
+		- Swept: every `dice::ROLES` and `dice::theme` user (`dialog.rs` and its decdq test), and every graph in `ROLES`.
 
 - Pre-next-cut: Reset history button
 	- ID: 2026102620162202

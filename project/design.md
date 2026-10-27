@@ -152,10 +152,10 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 - Transparent, on the Background sub-tab at `graph.transparent`, leaves out the Top and Bottom colors so the panel shows through. It's one setting for every theme, outside the `theme` group, so a theme pick, a roll or Save as doesn't touch it. The border, the series and the hover line stay opaque. Pixels are premultiplied, so a row a column only half fills is half clear.
 
 - Randomize rolls colors for every graph and sets them as changes on the theme in force, so the dropdown says "Name *". Save as keeps a roll, and picking a theme drops it. The rules are in `settings/src/dice.rs`.
-	- The user share leads, at any hue from yellow-green round to magenta, which keeps it off red and orange. Nice and a gradient's Low are that hue muted, or one up to 30 degrees from it. The border and background are the lead hue or nice's, darker and grayer.
+	- Each graph leads with a hue of its own, the user share for CPU, at any hue from yellow-green round to magenta, which keeps it off red and orange. The 4 lead hues are at least 45 degrees apart, in a random order. A graph's quiet colors and its gradient's Low are its hue muted, or one up to 30 degrees from it. The border and background are CPU's lead hue or nice's, darker and grayer.
 	- I/O wait stays red and system orange, as in the built-ins, since those are the ones to watch. Every color softens together, from as bright as Primary to as pale as Pastel.
-	- A roll still gives every graph the lead hue. Its own hue per graph is backlog 2026102621562349.
-	- A roll is always Detailed. Its gradient runs from nice through the user color to a pale tint, like the built-ins', so it's ready if Gradient is picked. The hover line stays black.
+	- Every graph shares one saturation and brightness, so a roll reads as one set and only the hues differ.
+	- A roll is always Detailed. Each graph's gradient runs from its quiet color through its lead to a pale tint, like the built-ins', so it's ready if Gradient is picked. The hover line stays black.
 	- Buffers has a role of its own. It's muted like cache, but on the other side of the lead hue and at least 30 degrees from cache, so that way the 2 are told apart.
 	- Every theme member needs a role in `dice::ROLES`. A new graph's members fail `dice::tests::every_theme_member_has_a_role` until they get one, such as buffers and cache as muted ones.
 
