@@ -21,6 +21,40 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
+	- ID: 2026102620162196
+	- Type: Bug
+	- Status: Waiting for answers
+		- Waits on the 2026102620162196 question in questions.md: should a still pointer's tip hold the column under it, as now, or the moment it first pointed at.
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build defqn, on b23 as of 2026-10-26 20:16.
+	- Related IDs: 2026102408304599
+	- Incorrect behavior: Mouseover tip text: "x seconds ago" doesn't update with ticks, it seems to be stuck at whatever it was at first flyover.
+	- Note: Regular time format works though.
+	- Reproduced: 2026-10-26, in core with 2 days of history. A still pointer read "32 sec ago" over 4 ticks while its clock time went 20:59:13, :14, :15, :16, on a linear axis and on Smooth log.
+	- Actual cause:
+		- Each column of the graph is a fixed age, since the right edge is always now and the graph moves left under the pointer. So a still pointer's age holds, and its clock time moves on by a sample each tick. Both say the same thing about the column under the line.
+		- The tip is asked again each tick, so nothing is stale. The round-1024 test panel saw the age count, likely because its history was only seconds old, and a log axis stretches as its history grows.
+	- Progress log:
+		- No code change yet, since a fix means picking what the line and tip follow.
+
+- Graph sizes on a vertical panel
+	- ID: 2026102621105420
+	- Type: Enhancement
+	- Status: Waiting for answers
+		- Waits on the question about the Width settings on a vertical panel.
+	- Priority|Severity: Avg
+	- Opened: 20261026-211054
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013889
+	- Related IDs: 2026102621053709, 2026102508393152
+	- Requirements:
+		- On a vertical panel, the Width settings either do something, or say they don't.
+	- Progress log:
+		- Each graph there is as wide as the panel and half that tall, and the Width tip still says "Its height follows the panel".
+
 - Theme presets, with a coordinated Default
 	- ID: 2026102409400679
 	- Type: Feature
@@ -167,115 +201,6 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-26: new values only. deccf and `saved_themes_write_whole_and_read_back` count 31 theme members, not 24. `save_as_keeps_the_colors_whole_and_picks_the_new_theme` counts 27 colors, not 21. dedqq, defkz and defm0 have `battery` after `swap` in their orders, and defm0's past-the-end move is 4, not 3. defma's rows greyed at defaults add `battery_width` and `battery_time`.
 		- Swept: every `Which` match, the slots in `Graphs` and `Live`, the 6 built-in themes, and `dice::ROLES`.
 
-- Hosted workflow for the merge gate
-	- ID: 2026102513560001
-	- Type: Task
-	- Status: Waiting on automated testing
-		- 2026-10-26: still waits for the workflow file to reach `main`, which a round never pushes to.
-	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
-	- Priority|Severity: Avg
-	- Opened: 20261025-135600
-	- Opened by: t00mietum
-	- Prereq IDs: 2026102416252892
-	- Related IDs: 2026102416252889
-	- Requirements:
-		- One small GitHub workflow on push and pull request against `main`, plus a manual trigger so any branch can be run by hand.
-		- It runs `cicd.bash --merge-gate`, as far as the runner can. No matrix, and no macOS runner, since it's Linux only for now.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- `.github/workflows/merge-gate.yml` runs `cicd/cicd.bash --merge-gate` on a push or pull request against `main`, and by hand on any branch. It's one job on `ubuntu-24.04`, which builds the image from `cicd/container/` and runs the checks in it.
-	- Decisions:
-		- Asked for on 2026-10-25, in answer to the round settings question about a hosted workflow.
-		- No layer cache between runs, to keep it small. Each run builds the image first, which takes a few minutes.
-	- Branch: round-1025
-	- Test case: The workflow is its own test. Its first run is in the row above.
-
-- XFCE panel plugin
-	- ID: 2026101916013889
-	- Type: Feature
-	- Status: Started
-	- Priority|Severity: High
-	- Opened: 20261019-160138
-	- Opened by: t00mietum
-	- Prereq IDs: 2026101916013881, 2026101916013884
-	- Requirements:
-		- Start first with an XFCE4 panel plugin.
-		- Works on XFCE 4.20, on X11 and on Wayland.
-		- One plugin instance can show one or more graphs side by side, picked in its settings dialog.
-		- Follows the panel's size and orientation, including a vertical panel.
-		- Packaged for Debian, and as a Nix package for tukzedo-linux's NixOS edition.
-	- Progress log:
-		- One CPU graph in the panel, with a tooltip and Properties opening tukzmon-settings. Tried on X11 only so far.
-		- 2026-10-26: Several graphs side by side, and the graph list that picks them, are in since round-1025. The `.deb` is in since 2026102506591283.
-		- 2026-10-26: Split what's left into children: 2026102621053709 (vertical and deskbar panels), 2026102621053715 (a settings file per plugin instance), 2026102621053720 (Wayland), 2026102621053725 (Nix package), and 2026102621105420 (graph sizes on a vertical panel). This closes with the last of them.
-
-- Graph sizes on a vertical panel
-	- ID: 2026102621105420
-	- Type: Enhancement
-	- Status: Waiting for answers
-		- Waits on the question about the Width settings on a vertical panel.
-	- Priority|Severity: Avg
-	- Opened: 20261026-211054
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013889
-	- Related IDs: 2026102621053709, 2026102508393152
-	- Requirements:
-		- On a vertical panel, the Width settings either do something, or say they don't.
-	- Progress log:
-		- Each graph there is as wide as the panel and half that tall, and the Width tip still says "Its height follows the panel".
-
-- Pre-next-cut: Graphs aren't remembering history between restarts
-	- ID: 2026102620162195
-	- Type: Bug
-	- Status: Can't reproduce
-		- Saving and loading work in build defqn. What's left is to see it on b23 at the next panel restart.
-	- Needs local test suite run?: No. The full run passed on 2026-10-26.
-	- Needs hand testing: on b23, at the next panel restart, check that the graphs come back with their history since 2026-10-26 19:43, with a gap for the time the panel was down.
-	- Priority|Severity: High
-	- Opened: 20261026-201621
-	- Opened by: t00mietum
-	- Test environment: b23, XFCE 4.20.7, X11.
-	- Version and build: v0.1.0 build defqn, on b23 as of 2026-10-26 20:16.
-	- Related IDs: 2026101916013885, 2026102408304572, 2026102620162202, 2026102620523642
-	- Incorrect behavior: Graphs aren't remembering history between restarts.
-	- Reproduced: No. In a test panel, history came back after `xfce4-panel --restart`, the way the install restarts it.
-	- Actual cause:
-		- Nothing had been saved before the 19:43 restart that put defqn on b23. `~/.local/share/tukzmon` was first made at 19:52:48, so the panel before it never wrote a history file.
-		- The installs since 2026-10-23 were all `--no-restart`, or had the restart stubbed, so that panel was most likely still on the 2026-10-23 build, which came before saving.
-		- Since 19:43 the live panel saves on its 15 minute timer, seen at 20:23:52 and 20:38:52.
-	- Actual effort: Low
-	- Progress log:
-		- Verified, build defqn in a test panel: a restart saves on the way out, the panel that comes back loads it, and 2 restarts in a row keep the first run's start. The new plugin starts about 5 s after the old one has saved, so the two don't race.
-		- Verified: a file saved at a restart by the 5-tier build from before the 50 ms tier loads in defqn, and its next save has 6 tiers.
-		- That file is now a test fixture, `core/tests/data/plugin-5-tiers.hist`.
-		- A restarted panel's stdout and stderr are `/dev/null`, so a failed load or save shows nothing. Filed as 2026102620523642.
-	- Decisions:
-		- Can't reproduce, with no code change, since nothing in the save or load path was wrong.
-		- The fixture is a real file from the old plugin, not one cut down from today's encoder like defp7's, since only that catches a change made to both encode and decode.
-	- Branch: round-1027
-	- Test case: `graphs::tests::a_file_the_5_tier_plugin_wrote_still_loads` (defv4). It fails with decode taking only today's tier count, and with `lo` and `hi` swapped in both encode and decode, which defp7 and decbg miss. Restarts are also covered by decbp, dedq3 and defp7.
-		- Swept: every load path (start, a graph added, keep turned back on) and every save path (the 15 minute timer, quit, keep turned off, a graph dropped) in `xfce/src/lib.rs` and `Graphs`. Nothing else reads or writes the history file.
-
-- Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
-	- ID: 2026102620162196
-	- Type: Bug
-	- Status: Waiting for answers
-		- Waits on the 2026102620162196 question in questions.md: should a still pointer's tip hold the column under it, as now, or the moment it first pointed at.
-	- Priority|Severity: High
-	- Opened: 20261026-201621
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build defqn, on b23 as of 2026-10-26 20:16.
-	- Related IDs: 2026102408304599
-	- Incorrect behavior: Mouseover tip text: "x seconds ago" doesn't update with ticks, it seems to be stuck at whatever it was at first flyover.
-	- Note: Regular time format works though.
-	- Reproduced: 2026-10-26, in core with 2 days of history. A still pointer read "32 sec ago" over 4 ticks while its clock time went 20:59:13, :14, :15, :16, on a linear axis and on Smooth log.
-	- Actual cause:
-		- Each column of the graph is a fixed age, since the right edge is always now and the graph moves left under the pointer. So a still pointer's age holds, and its clock time moves on by a sample each tick. Both say the same thing about the column under the line.
-		- The tip is asked again each tick, so nothing is stale. The round-1024 test panel saw the age count, likely because its history was only seconds old, and a log axis stretches as its history grows.
-	- Progress log:
-		- No code change yet, since a fix means picking what the line and tip follow.
-
 - Pre-next-cut: Generic theme names, and distinct colors per monitor
 	- ID: 2026102620162201
 	- Type: Enhancement
@@ -348,6 +273,81 @@ Sorted per the notes in [Template](#template).
 	- Test case: `dice::tests::each_graph_leads_with_a_hue_of_its_own` (defxd), and dedq0. Both fail with every graph given CPU's hue, and defxd with the order left unshuffled. Both pass now.
 		- 2026-10-26: dedq0 checked memory's lead equal to CPU's user, and cache equal to nice. It now checks they differ, and cache equal to memory's Low. decdt, decdv and decdw now check each graph's colors, not CPU's alone.
 		- Swept: every `dice::ROLES` and `dice::theme` user (`dialog.rs` and its decdq test), and every graph in `ROLES`.
+
+- Hosted workflow for the merge gate
+	- ID: 2026102513560001
+	- Type: Task
+	- Status: Waiting on automated testing
+		- 2026-10-26: still waits for the workflow file to reach `main`, which a round never pushes to.
+	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
+	- Priority|Severity: Avg
+	- Opened: 20261025-135600
+	- Opened by: t00mietum
+	- Prereq IDs: 2026102416252892
+	- Related IDs: 2026102416252889
+	- Requirements:
+		- One small GitHub workflow on push and pull request against `main`, plus a manual trigger so any branch can be run by hand.
+		- It runs `cicd.bash --merge-gate`, as far as the runner can. No matrix, and no macOS runner, since it's Linux only for now.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `.github/workflows/merge-gate.yml` runs `cicd/cicd.bash --merge-gate` on a push or pull request against `main`, and by hand on any branch. It's one job on `ubuntu-24.04`, which builds the image from `cicd/container/` and runs the checks in it.
+	- Decisions:
+		- Asked for on 2026-10-25, in answer to the round settings question about a hosted workflow.
+		- No layer cache between runs, to keep it small. Each run builds the image first, which takes a few minutes.
+	- Branch: round-1025
+	- Test case: The workflow is its own test. Its first run is in the row above.
+
+- Pre-next-cut: Graphs aren't remembering history between restarts
+	- ID: 2026102620162195
+	- Type: Bug
+	- Status: Can't reproduce
+		- Saving and loading work in build defqn. What's left is to see it on b23 at the next panel restart.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, at the next panel restart, check that the graphs come back with their history since 2026-10-26 19:43, with a gap for the time the panel was down.
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Test environment: b23, XFCE 4.20.7, X11.
+	- Version and build: v0.1.0 build defqn, on b23 as of 2026-10-26 20:16.
+	- Related IDs: 2026101916013885, 2026102408304572, 2026102620162202, 2026102620523642
+	- Incorrect behavior: Graphs aren't remembering history between restarts.
+	- Reproduced: No. In a test panel, history came back after `xfce4-panel --restart`, the way the install restarts it.
+	- Actual cause:
+		- Nothing had been saved before the 19:43 restart that put defqn on b23. `~/.local/share/tukzmon` was first made at 19:52:48, so the panel before it never wrote a history file.
+		- The installs since 2026-10-23 were all `--no-restart`, or had the restart stubbed, so that panel was most likely still on the 2026-10-23 build, which came before saving.
+		- Since 19:43 the live panel saves on its 15 minute timer, seen at 20:23:52 and 20:38:52.
+	- Actual effort: Low
+	- Progress log:
+		- Verified, build defqn in a test panel: a restart saves on the way out, the panel that comes back loads it, and 2 restarts in a row keep the first run's start. The new plugin starts about 5 s after the old one has saved, so the two don't race.
+		- Verified: a file saved at a restart by the 5-tier build from before the 50 ms tier loads in defqn, and its next save has 6 tiers.
+		- That file is now a test fixture, `core/tests/data/plugin-5-tiers.hist`.
+		- A restarted panel's stdout and stderr are `/dev/null`, so a failed load or save shows nothing. Filed as 2026102620523642.
+	- Decisions:
+		- Can't reproduce, with no code change, since nothing in the save or load path was wrong.
+		- The fixture is a real file from the old plugin, not one cut down from today's encoder like defp7's, since only that catches a change made to both encode and decode.
+	- Branch: round-1027
+	- Test case: `graphs::tests::a_file_the_5_tier_plugin_wrote_still_loads` (defv4). It fails with decode taking only today's tier count, and with `lo` and `hi` swapped in both encode and decode, which defp7 and decbg miss. Restarts are also covered by decbp, dedq3 and defp7.
+		- Swept: every load path (start, a graph added, keep turned back on) and every save path (the 15 minute timer, quit, keep turned off, a graph dropped) in `xfce/src/lib.rs` and `Graphs`. Nothing else reads or writes the history file.
+
+- XFCE panel plugin
+	- ID: 2026101916013889
+	- Type: Feature
+	- Status: Started
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Prereq IDs: 2026101916013881, 2026101916013884
+	- Requirements:
+		- Start first with an XFCE4 panel plugin.
+		- Works on XFCE 4.20, on X11 and on Wayland.
+		- One plugin instance can show one or more graphs side by side, picked in its settings dialog.
+		- Follows the panel's size and orientation, including a vertical panel.
+		- Packaged for Debian, and as a Nix package for tukzedo-linux's NixOS edition.
+	- Progress log:
+		- One CPU graph in the panel, with a tooltip and Properties opening tukzmon-settings. Tried on X11 only so far.
+		- 2026-10-26: Several graphs side by side, and the graph list that picks them, are in since round-1025. The `.deb` is in since 2026102506591283.
+		- 2026-10-26: Split what's left into children: 2026102621053709 (vertical and deskbar panels), 2026102621053715 (a settings file per plugin instance), 2026102621053720 (Wayland), 2026102621053725 (Nix package), and 2026102621105420 (graph sizes on a vertical panel). This closes with the last of them.
 
 - Nix package for tukzedo-linux's NixOS edition
 	- ID: 2026102621053725
