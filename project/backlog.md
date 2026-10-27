@@ -203,36 +203,18 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-26: `bridge::tests::a_row_is_greyed_while_its_switch_is_off` (defma) now takes a lock shared with defmk, since 2 Qt windows at once crash, and is ignored under Miri, which can't call C++. Its checks are unchanged.
 		- Swept: every reader of a graph's own width (`Graphs::width_of`, now through `width_or`), and every test that builds the Qt window (defma and defmk).
 
-- Hosted workflow for the merge gate
-	- ID: 2026102513560001
-	- Type: Task
-	- Status: Waiting on automated testing
-	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
-	- Priority|Severity: Avg
-	- Opened: 20261025-135600
-	- Opened by: t00mietum
-	- Prereq IDs: 2026102416252892
-	- Related IDs: 2026102416252889
-	- Requirements:
-		- One small GitHub workflow on push and pull request against `main`, plus a manual trigger so any branch can be run by hand.
-		- It runs `cicd.bash --merge-gate`, as far as the runner can. No matrix, and no macOS runner, since it's Linux only for now.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- `.github/workflows/merge-gate.yml` runs `cicd/cicd.bash --merge-gate` on a push or pull request against `main`, and by hand on any branch. It's one job on `ubuntu-24.04`, which builds the image from `cicd/container/` and runs the checks in it.
-	- Decisions:
-		- Asked for on 2026-10-25, in answer to the round settings question about a hosted workflow.
-		- No layer cache between runs, to keep it small. Each run builds the image first, which takes a few minutes.
-	- Branch: round-1025
-	- Test case: The workflow is its own test. Its first run is in the row above.
-
 - Graphs with an optional (default) log X axis
 	- ID: 2026101916013886
 	- Type: Feature
-	- Status: Started
+	- Status: Waiting on UAT
+		- How the easing looks is for a person to judge.
+		- It departs from the progress log's wording in one way. A width change eases only a linear graph, since a log graph's divisions stay at the same fractions of the width.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, after an install and a panel restart, watch the graph as it comes up with saved history, then pick another time axis for a graph in Settings, before and after Apply, and judge whether each move looks smooth.
 	- Priority|Severity: High
 	- Opened: 20261019-160138
 	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
 	- Prereq IDs: 2026101916013885
 	- Related IDs: 2026101916013880
 	- Requirements:
@@ -257,9 +239,46 @@ Sorted per the notes in [Template](#template).
 			- The transition from 1m to 1h to 1d to "everything" should be smooth, with no obvious gate or line there behind the scenes.
 			- The graph should be averaged and antialiased, so that it doesn't shimmer or look weird while animating.
 				- The averaging should be very small and possibly even variable over time - being able to represent single-pixel spikes is important, e.g. when on the farther left, to show for example that the CPU was spiked for a very long time. (But eventually far enough left, it gets averaged into a background level.)
+	- Actual effort: Avg
 	- Progress log:
 		- Log and linear modes work, with the caps and no seams. `design.md` has how.
 		- Still needs easing when the width changes or old history is loaded. While running, the boundaries move smoothly by themselves.
+		- 2026-10-26: A jump in the time axis now eases in over half a second, from what was on screen. That covers history loaded, the first sample after a gap, a new curve or time axis, and a linear graph's span changing.
+		- The panel and the settings window's graph list draw about 30 times a second while an axis eases, then go back to once a sample.
+		- `design.md` Time axis has the details.
+		- Verified: the full run passed, and the new tests failed with jumps going unseen, or with the ease starting from the new axis.
+	- Decisions:
+		- A jump is told from time going on by what the axis is built from: the curve, the history's first and last times, or the linear span. The last time may move up to 2 sample periods plus 0.25 s past the clock before it counts as a gap, so a late or missed tick isn't one.
+		- The old and new axis are mixed in `ln(1 + age / 5 s)` with a smoothstep, so time still only runs older to the left. What was on screen is kept as 65 points, so a jump part way through starts from there.
+		- History loaded before the first draw isn't eased, since nothing was drawn yet. The gap up to now eases in at the first sample after the priming one.
+		- The ease runs on the graph's own clock, so the soak test's skipped days end one at once.
+		- The panel's extra frames come from a one-shot 33 ms timer, started in draw only while a graph eases, so an idle panel still draws once a sample.
+	- Branch: round-1026
+	- Test case: `axis::tests::a_jump_eases_in_from_what_was_drawn` (defpn), `time_going_on_is_no_jump_but_a_gap_or_new_axis_is` (defpp), `a_jump_while_easing_starts_from_what_is_on_screen` (defpq), `tests::a_new_time_axis_eases_in_and_then_stops` (defpr), and `live::tests::a_time_axis_picked_in_the_window_eases_into_its_row` (defps). defpn to defpr fail with jumps not seen, and defpn and defpq with the ease starting from the new axis. The rest of the requirements: debh9, debha to debhe in `axis::tests`, and `render::tests::spike_reach_fades_with_time` (debj9).
+		- Swept: every `Frame` built (render tests, the preview example, `Graph::render`), every `age` caller (`Frame::draw`, `Graph::span_at`), both places a graph is drawn on screen (the plugin's draw, the settings window's `LiveGraph`), and every place a look or history is swapped in (`Graphs::set_look`, `Live::set_look`, `Graph::adopt`), which the jump check covers without a call of its own.
+
+- Hosted workflow for the merge gate
+	- ID: 2026102513560001
+	- Type: Task
+	- Status: Waiting on automated testing
+	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
+	- Priority|Severity: Avg
+	- Opened: 20261025-135600
+	- Opened by: t00mietum
+	- Prereq IDs: 2026102416252892
+	- Related IDs: 2026102416252889
+	- Requirements:
+		- One small GitHub workflow on push and pull request against `main`, plus a manual trigger so any branch can be run by hand.
+		- It runs `cicd.bash --merge-gate`, as far as the runner can. No matrix, and no macOS runner, since it's Linux only for now.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `.github/workflows/merge-gate.yml` runs `cicd/cicd.bash --merge-gate` on a push or pull request against `main`, and by hand on any branch. It's one job on `ubuntu-24.04`, which builds the image from `cicd/container/` and runs the checks in it.
+	- Decisions:
+		- Asked for on 2026-10-25, in answer to the round settings question about a hosted workflow.
+		- No layer cache between runs, to keep it small. Each run builds the image first, which takes a few minutes.
+	- Branch: round-1025
+	- Test case: The workflow is its own test. Its first run is in the row above.
 
 - XFCE panel plugin
 	- ID: 2026101916013889

@@ -63,6 +63,14 @@ impl Live {
 		}
 	}
 
+	pub fn easing(&self, name: &str) -> bool {
+		match (name, &self.mem) {
+			(CpuReader::SECTION, _) => self.cpu.easing(),
+			(MemoryReader::SECTION, Some(m)) => m.easing(),
+			_ => false,
+		}
+	}
+
 	pub fn tip(&self, name: &str) -> String {
 		match (name, &self.mem) {
 			(CpuReader::SECTION, _) => self.cpu.tooltip(),
@@ -117,5 +125,26 @@ mod tests {
 				live.tip("mem")
 			);
 		}
+	}
+
+	// Test ID: defps
+	#[test]
+	fn a_time_axis_picked_in_the_window_eases_into_its_row() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_live_ease_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let mut live = Live::new(d.look());
+		live.sample();
+		std::thread::sleep(std::time::Duration::from_millis(30));
+		live.sample();
+		live.render("cpu", 40, 24, 1);
+		assert!(!live.easing("cpu"));
+		d.set_text("cpu_time", "linear");
+		live.set_look(&d.look());
+		live.render("cpu", 40, 24, 1);
+		assert!(live.easing("cpu"));
+		assert!(!live.easing("nope"));
 	}
 }

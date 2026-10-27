@@ -23,6 +23,8 @@ struct Plugin {
 	graphs: Graphs,
 	timer: c_uint,
 	timer_ms: u32,
+	/// A one-shot redraw while an axis eases in, or 0.
+	frame: c_uint,
 	config: PathBuf,
 	config_time: Option<SystemTime>,
 	settings: Option<Child>,
@@ -30,6 +32,9 @@ struct Plugin {
 	saved_at: Instant,
 	moved_at: Instant,
 }
+
+/// How often to draw while an axis eases in.
+const FRAME_MS: c_uint = 33;
 
 /// A crash loses at most this much history.
 const SAVE_EVERY: Duration = Duration::from_secs(15 * 60);
@@ -167,8 +172,21 @@ extern "C" fn draw(widget: *mut c_void, cr: *mut c_void, data: *mut c_void) -> G
 		cairo_set_source_surface(cr, surf, 0.0, 0.0);
 		cairo_paint(cr);
 		cairo_surface_destroy(surf);
+		if p.frame == 0 && p.graphs.easing() {
+			// SAFETY: as start_timer, and free-data stops this one too.
+			p.frame = g_timeout_add(FRAME_MS, frame, std::ptr::from_mut(p).cast());
+		}
 	}
 	1
+}
+
+extern "C" fn frame(data: *mut c_void) -> Gboolean {
+	// SAFETY: data is the Plugin the timer was started with, still alive.
+	let p = unsafe { &mut *data.cast::<Plugin>() };
+	p.frame = 0;
+	// SAFETY: area is a child of the live plugin.
+	unsafe { gtk_widget_queue_draw(p.area) };
+	0
 }
 
 extern "C" fn motion(widget: *mut c_void, event: *mut c_void, data: *mut c_void) -> Gboolean {
@@ -306,6 +324,10 @@ extern "C" fn free_data(_plugin: *mut c_void, data: *mut c_void) {
 		// SAFETY: the timer id is ours and still running.
 		unsafe { g_source_remove(p.timer) };
 	}
+	if p.frame != 0 {
+		// SAFETY: as above.
+		unsafe { g_source_remove(p.frame) };
+	}
 }
 
 fn construct(plugin: *mut c_void) {
@@ -316,6 +338,7 @@ fn construct(plugin: *mut c_void) {
 		graphs: Graphs::new(Look::load(&config)),
 		timer: 0,
 		timer_ms: 0,
+		frame: 0,
 		config_time: modified(&config),
 		config,
 		settings: None,

@@ -5,7 +5,7 @@
 //! premultiplied, native-endian `0xAARRGGBB`. Only a transparent background
 //! is less than opaque.
 
-use crate::axis::Axis;
+use crate::axis::Ages;
 use crate::config::{Look, Rgb};
 use crate::history::History;
 
@@ -79,7 +79,7 @@ pub fn blend(stops: [Rgb; 3], t: f32) -> [f32; 3] {
 
 pub struct Frame<'a, const N: usize> {
 	pub hist: &'a History<N>,
-	pub axis: &'a Axis,
+	pub axis: &'a dyn Ages,
 	/// Time at the right edge.
 	pub now: f64,
 	pub look: &'a Look,
@@ -185,7 +185,7 @@ impl<const N: usize> Frame<'_, N> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::axis::Curve;
+	use crate::axis::{Axis, Curve};
 
 	fn pack(c: [f32; 3]) -> u32 {
 		pack_alpha(c, 1.0)

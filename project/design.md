@@ -247,7 +247,10 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - Within a quarter, time is still log scaled.
 
-- While running, the boundaries move smoothly by themselves, since each is a smooth function of the run's length. Easing over about half a second is still needed for jumps, such as a width change or history loaded from disk.
+- While running, the boundaries move smoothly by themselves, since each is a smooth function of the run's length. A jump eases in over half a second instead, from what was on screen to where the axis should be.
+	- A jump is anything but time going on: history loaded from disk, the first sample after a gap, a new curve or time axis, or a linear graph's span changing with its width or sample rate. A log axis is in fractions of the width, so a width change only stretches it.
+	- The two are mixed in `ln(1 + age / 5 s)`, so time still only runs older to the left. A jump part way through an ease starts from what's on screen.
+	- While an axis eases, the panel and the settings window's graph list draw about 30 times a second, then go back to once a sample.
 
 - There's no visible seam where one quarter meets the next. The curve between boundaries is a monotone cubic through them, in `ln(1 + age / 5 s)`, so a pixel covers the same time on both sides of a boundary. The move from 1 minute to 1 hour to 1 day to everything older looks like one smooth curve. Tests check both that and that time only ever runs older to the left.
 

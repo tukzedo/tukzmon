@@ -115,6 +115,8 @@ pub mod ffi {
 			scale: usize,
 		) -> &'a [u32];
 		fn live_tip(l: &Live, name: &str) -> String;
+		/// True while the graph's time axis eases in, so it wants drawing again soon.
+		fn live_easing(l: &Live, name: &str) -> bool;
 	}
 
 	unsafe extern "C++" {
@@ -316,6 +318,10 @@ fn live_draw<'a>(l: &'a mut Live, name: &str, w: usize, h: usize, scale: usize) 
 
 fn live_tip(l: &Live, name: &str) -> String {
 	l.tip(name)
+}
+
+fn live_easing(l: &Live, name: &str) -> bool {
+	l.easing(name)
 }
 
 pub fn run(d: &mut Dialog, snapshot: &str) -> i32 {

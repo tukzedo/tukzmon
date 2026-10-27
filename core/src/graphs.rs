@@ -259,6 +259,11 @@ impl Graphs {
 		changed
 	}
 
+	/// True while a shown graph's axis is easing in.
+	pub fn easing(&self) -> bool {
+		(self.cpu_shown() && self.cpu.easing()) || self.mem.as_ref().is_some_and(Graph::easing)
+	}
+
 	pub fn hovered(&self) -> bool {
 		self.cpu.hover.is_some() || self.mem.as_ref().is_some_and(|m| m.hover.is_some())
 	}

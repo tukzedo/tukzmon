@@ -390,6 +390,13 @@ protected:
 		QImage img(reinterpret_cast<const uchar *>(px.data()), w, h, w * 4, QImage::Format_ARGB32_Premultiplied);
 		QPainter p(this);
 		p.drawImage(rect(), img);
+		if (!framePending && live_easing(live, name)) {
+			framePending = true;
+			QTimer::singleShot(33, this, [this] {
+				framePending = false;
+				update();
+			});
+		}
 	}
 	bool event(QEvent *e) override {
 		if (e->type() != QEvent::ToolTip)
@@ -402,6 +409,7 @@ private:
 	Live &live;
 	std::string name;
 	int own = 0;
+	bool framePending = false;
 };
 
 struct Row {
