@@ -1330,6 +1330,7 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- 2026-10-25: every child is Done. Only the no-options run in the hand test row is left, which dogfoods.
 	- Verified 2026-10-26: `cicd/cicd.bash` with no options passed all 13 steps in 2m08s on b23, Dogfood included, with `xfce4-panel` on PATH as a stand-in that logged `--restart` instead of restarting the live panel. b23 now has build defnz installed, and the panel loads it at its next restart.
+	- Test case: none in the repo. `cicd/cicd.bash` with no options, all 13 steps at PASS, is the check.
 
 - Memory cache counts slab, the way b23's multiload-ng does
 	- ID: 2026102508354893
@@ -1811,19 +1812,19 @@ Template:
 	- Requirements  [Feature]:
 		- Hierarchical bulleted list.
 	- Steps to reproduce [Bug]:
-		- …
+		- ...
 	- Incorrect behavior [Bug]:
 	- Expected behavior [Bug]:
 	- Reproduced [Bug]: [No, or when, where and how]
 	- Possible cause [Bug]:
 	- Actual cause [Bug]:
-		- …
+		- ...
 	- Estimated effort: [High|Avg|Low]
 	- Actual effort: [High|Avg|Low]
 	- Progress log:
-		- …
+		- ...
 	- Decisions:
-		- …
+		- ...
 	- Actual fix [Bug]:
 	- Branch:
 	- Commit:
