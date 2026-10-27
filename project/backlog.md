@@ -518,6 +518,18 @@ Sorted per the notes in [Template](#template).
 		- Split into 6 children, in this order: 2026102508393152 (on or off and a width per graph), 2026102508393154 (order), 2026102508393156 (time function per graph), 2026102508393159 (theme per graph), 2026102508393161 (the list itself), and 2026102508393163 (live graphs in it).
 		- 2026-10-25: no theme dropdown per graph after all. One theme colors every graph, per the answer on 2026102508393159.
 
+- The panel's tick costs about a third more since the 50 ms history tier
+	- ID: 2026102618573801
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261026-185738
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013885
+	- Requirements:
+		- The profiler's tick went from about 275 us to about 385 us on b23 on 2026-10-26, starting with the run for the finer history tiers (commit `6753a2b`). `History::span` went from about 28% to 38% of self time.
+		- Measure it against `dev` before that commit at the same load first. If it holds, make `span` cheaper over the new tier, or say why the cost is fine.
+
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
 	- Type: Feature
