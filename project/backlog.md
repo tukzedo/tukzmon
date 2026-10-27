@@ -401,7 +401,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
 	- ID: 2026102620162196
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting for answers
+		- Waits on the 2026102620162196 question in questions.md: should a still pointer's tip hold the column under it, as now, or the moment it first pointed at.
 	- Priority|Severity: High
 	- Opened: 20261026-201621
 	- Opened by: t00mietum
@@ -409,6 +410,12 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026102408304599
 	- Incorrect behavior: Mouseover tip text: "x seconds ago" doesn't update with ticks, it seems to be stuck at whatever it was at first flyover.
 	- Note: Regular time format works though.
+	- Reproduced: 2026-10-26, in core with 2 days of history. A still pointer read "32 sec ago" over 4 ticks while its clock time went 20:59:13, :14, :15, :16, on a linear axis and on Smooth log.
+	- Actual cause:
+		- Each column of the graph is a fixed age, since the right edge is always now and the graph moves left under the pointer. So a still pointer's age holds, and its clock time moves on by a sample each tick. Both say the same thing about the column under the line.
+		- The tip is asked again each tick, so nothing is stale. The round-1024 test panel saw the age count, likely because its history was only seconds old, and a log axis stretches as its history grows.
+	- Progress log:
+		- No code change yet, since a fix means picking what the line and tip follow.
 
 - Pre-next-cut: Padding above, below, and between the graphs
 	- ID: 2026102620162197
