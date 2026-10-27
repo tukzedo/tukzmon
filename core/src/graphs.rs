@@ -1057,7 +1057,7 @@ mod tests {
 		let fire = Look::from_model(&crate::config::model("theme:\n\tname: fire\n"));
 		assert_eq!(
 			fire.swap_paint(),
-			crate::render::Paint::Gradient(fire.cpu_gradient)
+			crate::render::Paint::Gradient(fire.swap_gradient)
 		);
 		if let Some(mut live) = Graph::swap(Look::default()) {
 			live.sample();
@@ -1177,7 +1177,7 @@ mod tests {
 		let fire = Look::from_model(&crate::config::model("theme:\n\tname: fire\n"));
 		assert_eq!(
 			fire.battery_paint(),
-			crate::render::Paint::Gradient(fire.cpu_gradient)
+			crate::render::Paint::Gradient(fire.battery_gradient)
 		);
 	}
 

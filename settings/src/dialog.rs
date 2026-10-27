@@ -838,15 +838,15 @@ mod tests {
 		let mut dlg = Dialog::open(path.clone());
 		assert_eq!(dlg.state("theme").choice, "Default");
 		assert!(dlg.state("width").choice.is_empty());
-		assert!(dlg.set_text("theme", "blue_standard"));
-		assert_eq!(dlg.state("user").text, "#0080ff");
+		assert!(dlg.set_text("theme", "neon"));
+		assert_eq!(dlg.state("user").text, "#39ff14");
 		assert!(dlg.set_text("user", "#111111"));
-		assert_eq!(dlg.state("theme").choice, "Blue standard *");
+		assert_eq!(dlg.state("theme").choice, "Neon *");
 		dlg.apply().unwrap();
 		let dlg = Dialog::open(path.clone());
-		assert_eq!(dlg.state("theme").choice, "Blue standard *");
+		assert_eq!(dlg.state("theme").choice, "Neon *");
 		assert_eq!(dlg.state("user").text, "#111111");
-		assert_eq!(dlg.state("nice").text, "#20405f");
+		assert_eq!(dlg.state("nice").text, "#1f6a10");
 	}
 
 	// Test ID: decdn
@@ -902,9 +902,9 @@ mod tests {
 		assert!(dlg.set_text("transparent", "on"));
 		assert!(dlg.set_text("theme", "fire"));
 		dlg.randomize_from(7);
-		assert!(dlg.set_text("theme", "blue_pastel"));
+		assert!(dlg.set_text("theme", "pastel"));
 		assert!(dlg.state("transparent").on);
-		assert_eq!(dlg.state("theme").choice, "Blue pastel");
+		assert_eq!(dlg.state("theme").choice, "Pastel");
 		dlg.apply().unwrap();
 		let mut dlg = Dialog::open(path.clone());
 		assert!(dlg.state("transparent").on);
@@ -981,15 +981,15 @@ mod tests {
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone());
 		assert_eq!(dlg.theme_buttons(), ThemeButtons::default());
-		assert!(dlg.set_text("theme", "blue_standard"));
+		assert!(dlg.set_text("theme", "neon"));
 		assert!(dlg.set_text("user", "#111111"));
 		assert!(dlg.save_theme_as("  ").is_err());
-		assert!(dlg.save_theme_as("blue Standard").is_err());
+		assert!(dlg.save_theme_as("nEon").is_err());
 		assert!(dlg.save_theme_as("Custom").is_err());
 		dlg.save_theme_as(" Night ").unwrap();
 		assert_eq!(dlg.state("theme").choice, "Night");
 		assert_eq!(dlg.state("user").text, "#111111");
-		assert_eq!(dlg.state("nice").text, "#20405f");
+		assert_eq!(dlg.state("nice").text, "#1f6a10");
 		assert!(!dlg.state("user").can_reset);
 		assert_eq!(
 			dlg.state("theme")

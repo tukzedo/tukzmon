@@ -466,7 +466,7 @@ settings:
 		tab: Themes/Swap
 		control: color
 		path: swap.colors.used
-		default: "#00ff80"
+		default: "#40a0ff"
 		group: theme
 		shown_when: "swap_mode = detailed"
 
@@ -481,7 +481,7 @@ settings:
 		tab: Themes/Swap
 		control: color
 		path: swap.colors.low
-		default: "#205f40"
+		default: "#204a6a"
 		group: theme
 		shown_when: "swap_mode = gradient"
 		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
@@ -491,7 +491,7 @@ settings:
 		tab: Themes/Swap
 		control: color
 		path: swap.colors.medium
-		default: "#00ff80"
+		default: "#40a0ff"
 		group: theme
 		shown_when: "swap_mode = gradient"
 		tip: "The color halfway up."
@@ -501,7 +501,7 @@ settings:
 		tab: Themes/Swap
 		control: color
 		path: swap.colors.high
-		default: "#c0ffe0"
+		default: "#d0e8ff"
 		group: theme
 		shown_when: "swap_mode = gradient"
 		tip: "The color at the top."
@@ -529,7 +529,7 @@ settings:
 		tab: Themes/Battery
 		control: color
 		path: battery.colors.charging
-		default: "#00ff80"
+		default: "#b080ff"
 		group: theme
 		shown_when: "battery_mode = detailed"
 		tip: "Charging, or full with the power in."
@@ -564,7 +564,7 @@ settings:
 		tab: Themes/Battery
 		control: color
 		path: battery.colors.low
-		default: "#205f40"
+		default: "#483468"
 		group: theme
 		shown_when: "battery_mode = gradient"
 		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
@@ -574,7 +574,7 @@ settings:
 		tab: Themes/Battery
 		control: color
 		path: battery.colors.medium
-		default: "#00ff80"
+		default: "#b080ff"
 		group: theme
 		shown_when: "battery_mode = gradient"
 		tip: "The color halfway up."
@@ -584,7 +584,7 @@ settings:
 		tab: Themes/Battery
 		control: color
 		path: battery.colors.high
-		default: "#c0ffe0"
+		default: "#ece0ff"
 		group: theme
 		shown_when: "battery_mode = gradient"
 		tip: "The color at the top."
@@ -635,12 +635,11 @@ settings:
 		group: theme
 		tip: "The line under the pointer."
 
-## Themes are named for the color that leads, the user share, which sets the
-## hue. Fire is the exception, named for its gradient: dim red, yellow-white,
-## then light blue, like a hot flame. Nice, the border and the background are that hue muted. I/O wait and
-## system stay red and orange in every theme, so trouble reads the same.
-## Default's memory colors are multiload-ng's as they were. Buffers and cache
-## are muted in the others, cache as nice and buffers a step round from it.
+## Theme names say nothing of color. Each graph has hues of its own in every
+## theme, so the graphs are told apart side by side. I/O wait and system stay
+## red and orange in every theme, so trouble reads the same, and the battery's
+## on battery and critical take those 2. Fire's graphs each burn a flame of
+## their own. Default's CPU and memory colors are multiload-ng's.
 
 groups:
 
@@ -667,23 +666,23 @@ groups:
 				mem_buffers: "#804080"
 				mem_cache: "#408060"
 				swap_mode: detailed
-				swap_low: "#205f40"
-				swap_medium: "#00ff80"
-				swap_high: "#c0ffe0"
-				swap_used: "#00ff80"
+				swap_low: "#204a6a"
+				swap_medium: "#40a0ff"
+				swap_high: "#d0e8ff"
+				swap_used: "#40a0ff"
 				battery_mode: detailed
-				battery_low: "#205f40"
-				battery_medium: "#00ff80"
-				battery_high: "#c0ffe0"
-				battery_charging: "#00ff80"
+				battery_low: "#483468"
+				battery_medium: "#b080ff"
+				battery_high: "#ece0ff"
+				battery_charging: "#b080ff"
 				battery_discharging: "#c64200"
 				battery_critical: "#ff0000"
 				border_color: "#408060"
 				back_top: "#2a543f"
 				back_bottom: "#000000"
 				hover_color: "#000000"
-			green_standard:
-				label: Green standard
+			primary:
+				label: Primary
 				cpu_mode: detailed
 				cpu_low: "#205f20"
 				cpu_medium: "#00ff00"
@@ -693,96 +692,30 @@ groups:
 				user: "#00ff00"
 				nice: "#205f20"
 				mem_mode: detailed
-				mem_low: "#205f20"
-				mem_medium: "#00ff00"
-				mem_high: "#c0ffc0"
-				mem_user: "#00ff00"
-				mem_buffers: "#2f6f5f"
-				mem_cache: "#205f20"
+				mem_low: "#5f5f20"
+				mem_medium: "#ffff00"
+				mem_high: "#ffffc0"
+				mem_user: "#ffff00"
+				mem_buffers: "#604a20"
+				mem_cache: "#5f5f20"
 				swap_mode: detailed
-				swap_low: "#205f20"
-				swap_medium: "#00ff00"
-				swap_high: "#c0ffc0"
-				swap_used: "#00ff00"
+				swap_low: "#20305f"
+				swap_medium: "#0060ff"
+				swap_high: "#c0d0ff"
+				swap_used: "#0060ff"
 				battery_mode: detailed
-				battery_low: "#205f20"
-				battery_medium: "#00ff00"
-				battery_high: "#c0ffc0"
-				battery_charging: "#00ff00"
+				battery_low: "#205f5f"
+				battery_medium: "#00ffff"
+				battery_high: "#c0ffff"
+				battery_charging: "#00ffff"
 				battery_discharging: "#c64200"
 				battery_critical: "#ff0000"
-				border_color: "#408040"
-				back_top: "#2a542a"
+				border_color: "#606060"
+				back_top: "#2a2a2a"
 				back_bottom: "#000000"
 				hover_color: "#000000"
-			green_pastel:
-				label: Green pastel
-				cpu_mode: detailed
-				cpu_low: "#6a8a6a"
-				cpu_medium: "#a1f0a1"
-				cpu_high: "#e0ffe0"
-				iowait: "#ff6161"
-				system: "#f09b71"
-				user: "#a1f0a1"
-				nice: "#6a8a6a"
-				mem_mode: detailed
-				mem_low: "#6a8a6a"
-				mem_medium: "#a1f0a1"
-				mem_high: "#e0ffe0"
-				mem_user: "#a1f0a1"
-				mem_buffers: "#7a9a92"
-				mem_cache: "#6a8a6a"
-				swap_mode: detailed
-				swap_low: "#6a8a6a"
-				swap_medium: "#a1f0a1"
-				swap_high: "#e0ffe0"
-				swap_used: "#a1f0a1"
-				battery_mode: detailed
-				battery_low: "#6a8a6a"
-				battery_medium: "#a1f0a1"
-				battery_high: "#e0ffe0"
-				battery_charging: "#a1f0a1"
-				battery_discharging: "#f09b71"
-				battery_critical: "#ff6161"
-				border_color: "#7fa17f"
-				back_top: "#3a4a3a"
-				back_bottom: "#0f140f"
-				hover_color: "#000000"
-			blue_standard:
-				label: Blue standard
-				cpu_mode: detailed
-				cpu_low: "#20405f"
-				cpu_medium: "#0080ff"
-				cpu_high: "#c0e0ff"
-				iowait: "#ff0000"
-				system: "#c64200"
-				user: "#0080ff"
-				nice: "#20405f"
-				mem_mode: detailed
-				mem_low: "#20405f"
-				mem_medium: "#0080ff"
-				mem_high: "#c0e0ff"
-				mem_user: "#0080ff"
-				mem_buffers: "#40407f"
-				mem_cache: "#20405f"
-				swap_mode: detailed
-				swap_low: "#20405f"
-				swap_medium: "#0080ff"
-				swap_high: "#c0e0ff"
-				swap_used: "#0080ff"
-				battery_mode: detailed
-				battery_low: "#20405f"
-				battery_medium: "#0080ff"
-				battery_high: "#c0e0ff"
-				battery_charging: "#0080ff"
-				battery_discharging: "#c64200"
-				battery_critical: "#ff0000"
-				border_color: "#406080"
-				back_top: "#2a3f54"
-				back_bottom: "#000000"
-				hover_color: "#000000"
-			blue_pastel:
-				label: Blue pastel
+			pastel:
+				label: Pastel
 				cpu_mode: detailed
 				cpu_low: "#6a7a8a"
 				cpu_medium: "#a1c8f0"
@@ -792,27 +725,93 @@ groups:
 				user: "#a1c8f0"
 				nice: "#6a7a8a"
 				mem_mode: detailed
-				mem_low: "#6a7a8a"
-				mem_medium: "#a1c8f0"
-				mem_high: "#e0f0ff"
-				mem_user: "#a1c8f0"
-				mem_buffers: "#8a8aa8"
-				mem_cache: "#6a7a8a"
+				mem_low: "#8a856a"
+				mem_medium: "#f0e0a1"
+				mem_high: "#fff8e0"
+				mem_user: "#f0e0a1"
+				mem_buffers: "#8a786a"
+				mem_cache: "#8a856a"
 				swap_mode: detailed
-				swap_low: "#6a7a8a"
-				swap_medium: "#a1c8f0"
-				swap_high: "#e0f0ff"
-				swap_used: "#a1c8f0"
+				swap_low: "#6a8a72"
+				swap_medium: "#a1f0b8"
+				swap_high: "#e0ffe8"
+				swap_used: "#a1f0b8"
 				battery_mode: detailed
-				battery_low: "#6a7a8a"
-				battery_medium: "#a1c8f0"
-				battery_high: "#e0f0ff"
-				battery_charging: "#a1c8f0"
+				battery_low: "#7e6a8a"
+				battery_medium: "#d0b0f0"
+				battery_high: "#f4e8ff"
+				battery_charging: "#d0b0f0"
 				battery_discharging: "#f09b71"
 				battery_critical: "#ff6161"
 				border_color: "#7f90a1"
 				back_top: "#3a424a"
 				back_bottom: "#0f1214"
+				hover_color: "#000000"
+			neon:
+				label: Neon
+				cpu_mode: detailed
+				cpu_low: "#1f6a10"
+				cpu_medium: "#39ff14"
+				cpu_high: "#d0ffc4"
+				iowait: "#ff0000"
+				system: "#ff6a00"
+				user: "#39ff14"
+				nice: "#1f6a10"
+				mem_mode: detailed
+				mem_low: "#106a70"
+				mem_medium: "#00f0ff"
+				mem_high: "#c4fcff"
+				mem_user: "#00f0ff"
+				mem_buffers: "#10406a"
+				mem_cache: "#106a70"
+				swap_mode: detailed
+				swap_low: "#4a1070"
+				swap_medium: "#b026ff"
+				swap_high: "#ecc8ff"
+				swap_used: "#b026ff"
+				battery_mode: detailed
+				battery_low: "#6a6400"
+				battery_medium: "#ffee00"
+				battery_high: "#fffac4"
+				battery_charging: "#ffee00"
+				battery_discharging: "#ff6a00"
+				battery_critical: "#ff0000"
+				border_color: "#3a2a6a"
+				back_top: "#120a24"
+				back_bottom: "#000000"
+				hover_color: "#000000"
+			earth:
+				label: Earth
+				cpu_mode: detailed
+				cpu_low: "#4a5f20"
+				cpu_medium: "#9acd32"
+				cpu_high: "#e8f4cc"
+				iowait: "#d02818"
+				system: "#d2691e"
+				user: "#9acd32"
+				nice: "#4a5f20"
+				mem_mode: detailed
+				mem_low: "#5f5a3a"
+				mem_medium: "#e0c080"
+				mem_high: "#f8ecd4"
+				mem_user: "#e0c080"
+				mem_buffers: "#6a4a3a"
+				mem_cache: "#5f5a3a"
+				swap_mode: detailed
+				swap_low: "#34505a"
+				swap_medium: "#6aa0b4"
+				swap_high: "#dceaf0"
+				swap_used: "#6aa0b4"
+				battery_mode: detailed
+				battery_low: "#4a4060"
+				battery_medium: "#a08ad0"
+				battery_high: "#ece6f8"
+				battery_charging: "#a08ad0"
+				battery_discharging: "#d2691e"
+				battery_critical: "#d02818"
+				border_color: "#6a5a40"
+				back_top: "#2e261a"
+				back_bottom: "#0e0b07"
 				hover_color: "#000000"
 			fire:
 				label: Fire
@@ -825,22 +824,22 @@ groups:
 				user: "#ffa000"
 				nice: "#7f4a10"
 				mem_mode: gradient
-				mem_low: "#8b1a00"
-				mem_medium: "#fff4c8"
-				mem_high: "#7fd4ff"
-				mem_user: "#ffa000"
-				mem_buffers: "#7f2a10"
-				mem_cache: "#7f4a10"
+				mem_low: "#3a0a4a"
+				mem_medium: "#c060ff"
+				mem_high: "#ffe0ff"
+				mem_user: "#c060ff"
+				mem_buffers: "#5a2a4a"
+				mem_cache: "#4a2a6a"
 				swap_mode: gradient
-				swap_low: "#8b1a00"
-				swap_medium: "#fff4c8"
-				swap_high: "#7fd4ff"
-				swap_used: "#ffa000"
+				swap_low: "#0a1050"
+				swap_medium: "#2060ff"
+				swap_high: "#d0f0ff"
+				swap_used: "#4080ff"
 				battery_mode: gradient
-				battery_low: "#8b1a00"
-				battery_medium: "#fff4c8"
-				battery_high: "#7fd4ff"
-				battery_charging: "#ffa000"
+				battery_low: "#0a3a10"
+				battery_medium: "#20d040"
+				battery_high: "#e0ffd0"
+				battery_charging: "#20d040"
 				battery_discharging: "#c64200"
 				battery_critical: "#ff0000"
 				border_color: "#80401a"

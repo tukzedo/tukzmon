@@ -556,7 +556,11 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Generic theme names, and distinct colors per monitor
 	- ID: 2026102620162201
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- How each theme looks, and whether the graphs read apart side by side, is for a person to judge.
+		- It departs from the wording in one way. Randomize still gives every graph the same lead hue. That part is child 2026102621562349.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, after an install, with swap on, pick each built-in theme on the Themes tab, Apply, and judge whether CPU, memory and swap read apart and look good together, Fire most of all.
 	- Priority|Severity: High
 	- Opened: 20261026-201621
 	- Opened by: t00mietum
@@ -567,6 +571,38 @@ Sorted per the notes in [Template](#template).
 		- Theme names shouldn't have colors in the names. They should be more generic, "Pastel", "Primary", etc. (E.g. some different common themes)
 		- The different monitors should have their own unique and distinct colors, which is why every theme name has subtabs for per-monitor colors.
 		- "Fire"-themes should have different color combos per monitor.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- The built-in themes are now Default, Primary, Pastel, Neon, Earth and Fire.
+		- Every theme gives CPU, memory, swap and the battery each a hue and gradient of their own. I/O wait and system stay red and orange, and the battery's on battery and critical stay those 2.
+		- Default keeps its CPU, memory and background colors. Swap is now sky blue, `#40a0ff`, and the battery's plugged in lavender, `#b080ff`.
+		- Fire's graphs each burn their own flame: CPU red, yellow-white and light blue as before, memory violet, swap a blue gas flame, and the battery a green copper one.
+		- `design.md` Theme has the details.
+		- Verified: the full run passed with the new test.
+	- Decisions:
+		- 6 built-ins, as before, so the theme list doesn't grow. Primary keeps Green standard's CPU colors and Pastel Blue pastel's CPU and background, so a pick of the old ones looks close to the new one.
+		- The old keys, such as `green_standard`, aren't kept as aliases. They were never in a release, and b23's file names `default`.
+		- Backgrounds are neutral, or lean to the theme's mood, since no single graph's hue leads any more.
+		- No graph's own color is red or orange, outside Fire's and Earth's warm ones, so the alarms stay apart.
+	- Branch: round-1027
+	- Test case: `config::tests::no_theme_is_named_for_a_color_and_each_graph_has_its_own` (defx7). It fails on the old themes, where Default's swap was CPU's color, and with a color word put in a label, and passes now.
+		- 2026-10-26: new values only, for the renamed themes. deccg reads `pastel`, not `blue_pastel`. deccj reads `primary` and "Primary *", not Green standard. decct lists `primary`, `pastel`, `neon` and `earth` in place of the 4 color-named keys. decdg reads `neon`, with a gradient Medium of `#39ff14`, not `#0080ff`. deccx's built-in clash is `Earth` -> `earth_2`, not `Blue pastel` -> `blue_pastel_2`. In `dialog::tests`, deccm and deccy pick `neon`, with user `#39ff14` and nice `#1f6a10`, not `#0080ff` and `#20405f`, and deccy's clash is `nEon`. dece0 picks `pastel`.
+		- 2026-10-26: dedpz, defq5 and defqc had Fire's memory, swap and battery gradients equal to its CPU one. They now check each graph's own gradient, and dedpz that memory's differs from CPU's.
+		- Swept: every built-in key and label in the Rust tests, qt.cpp and the docs, every swap and battery row default, and the `dice` tests, which don't read the built-ins.
+
+- Randomize: a hue of its own for each graph
+	- ID: 2026102621562349
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-215623
+	- Opened by: t00mietum
+	- Parent ID: 2026102620162201
+	- Related IDs: 2026102409400700
+	- Requirements:
+		- A roll gives CPU, memory, swap and the battery each a lead hue of its own, all kept off red and orange, with their quiet colors and gradients from those, the way the built-ins now do.
+	- Note: `dice::tests::buffers_and_cache_are_muted_and_told_apart` (dedq0) asserts memory's lead is CPU's. It changes with this.
 
 - Pre-next-cut: Reset history button
 	- ID: 2026102620162202
