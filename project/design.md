@@ -110,6 +110,11 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- The file gets only what was changed in the window, applied to the file as it is at save time, so a hand edit made meanwhile isn't lost.
 	- A save that would drop a line it can't read, or a setting it doesn't know, is refused, and the error names the lines.
 
+- Reset history sits on the left of the bottom strip, under the pages, and starts every graph over. With Keep across restarts on, it asks first, since that deletes the saved history too. Like the theme buttons it takes effect at Apply, but the window's own graphs start over at once.
+	- At Apply the window writes `reset` in the history folder. When Keep across restarts is on, it deletes every `plugin-*.hist` there first, so an item that isn't running doesn't bring old history back.
+	- A running plugin checks that file's modified time at each sample, as it does the settings file's. It drops what it holds, and when history is kept it deletes its own file again, since it may have saved in between.
+	- With Keep across restarts off, the file is left as it is, the same as Off always does.
+
 - Not there yet: a live preview in the panel before Apply, and the search box.
 
 ### Theme
@@ -238,6 +243,7 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 	- Times are Unix seconds, so runs line up. A clock set back to before the saved history is moved up to its end, so new samples aren't dropped as old.
 	- "Keep across restarts" turns it off. Off stops saving and loading, and leaves the file as it is. Turned back on, the file is loaded again, so what was seen while it was off is a gap.
 	- History older than the max age, 365 days by default, is dropped at each save and load.
+	- Reset history in the settings window drops all of it, or only what's on screen while Keep across restarts is off. See [Settings window](#settings-window).
 
 ## Time axis
 

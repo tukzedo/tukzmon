@@ -88,6 +88,7 @@ impl Which {
 pub trait Drawn {
 	fn sample(&mut self);
 	fn trim(&mut self);
+	fn clear(&mut self);
 	fn section(&self) -> (&'static str, Vec<u8>);
 	fn adopt(&mut self, sections: &[(String, Vec<u8>)]) -> bool;
 	fn hover(&self) -> Option<usize>;
@@ -105,6 +106,9 @@ impl<S: Source<N>, const N: usize> Drawn for Graph<S, N> {
 	}
 	fn trim(&mut self) {
 		Graph::trim(self);
+	}
+	fn clear(&mut self) {
+		Graph::clear(self);
 	}
 	fn section(&self) -> (&'static str, Vec<u8>) {
 		Graph::section(self)
@@ -363,6 +367,21 @@ impl Graphs {
 				g.trim();
 			}
 		}
+	}
+
+	/// Starts every graph over. With `saved`, that file goes too, a hidden
+	/// graph's history and all.
+	///
+	/// # Errors
+	///
+	/// As [`keep::remove`]. The graphs start over anyway.
+	pub fn reset(&mut self, saved: Option<&Path>) -> io::Result<()> {
+		for w in Which::ALL {
+			if let Some(g) = self.slot_mut(w) {
+				g.clear();
+			}
+		}
+		saved.map_or(Ok(()), keep::remove)
 	}
 
 	/// Every graph's history, plus any section in the file that none of them
@@ -700,6 +719,29 @@ mod tests {
 		keep::write(&path, &[("net", b"x")]).unwrap();
 		assert!(back.load(&path).is_err());
 		std::fs::remove_file(&path).unwrap();
+	}
+
+	// Test ID: defxr
+	#[test]
+	fn a_reset_starts_every_graph_over_and_drops_the_file_only_when_kept() {
+		let path = scratch("reset");
+		keep::write(&path, &[("net", b"later")]).unwrap();
+		let mut g = both();
+		g.save(&path).unwrap();
+		g.reset(None).unwrap();
+		assert_eq!(g.cpu.hist.last(), None);
+		assert_eq!(g.mem.as_ref().unwrap().hist.last(), None);
+		assert!(path.exists());
+		let mut g = both();
+		g.reset(Some(&path)).unwrap();
+		assert_eq!(g.cpu.hist.last(), None);
+		assert!(!path.exists());
+		// and it goes on from there
+		g.cpu.sample();
+		std::thread::sleep(std::time::Duration::from_millis(20));
+		g.cpu.sample();
+		assert!(g.cpu.hist.last().is_some());
+		assert!(g.reset(Some(&path)).is_ok());
 	}
 
 	// Test ID: defv4

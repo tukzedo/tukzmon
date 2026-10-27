@@ -6,6 +6,7 @@
 
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 const MAGIC: &[u8; 8] = b"tukzhist";
 const VERSION: u32 = 1;
@@ -94,6 +95,89 @@ pub fn read(path: &Path) -> io::Result<Vec<(String, Vec<u8>)>> {
 	Ok(sections)
 }
 
+/// One panel item's history file in `dir`, by its unique id.
+pub fn history_file(dir: &Path, id: i32) -> PathBuf {
+	dir.join(format!("plugin-{id}.hist"))
+}
+
+fn is_history_file(name: &str) -> bool {
+	name.strip_prefix("plugin-")
+		.and_then(|n| n.strip_suffix(".hist"))
+		.is_some_and(|id| id.parse::<i32>().is_ok())
+}
+
+/// The file whose modified time tells every running panel item to start its
+/// graphs over. See [`reset`].
+pub fn reset_mark(dir: &Path) -> PathBuf {
+	dir.join("reset")
+}
+
+/// A missing file is already gone.
+///
+/// # Errors
+///
+/// Whatever else removing it hit.
+pub fn remove(path: &Path) -> io::Result<()> {
+	match std::fs::remove_file(path) {
+		Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+		r => r,
+	}
+}
+
+/// Asks every panel item to start its graphs over. With `saved_too`, every
+/// history file in `dir` goes as well, so an item that isn't running
+/// doesn't bring it back. A running one deletes its own again, since it may
+/// save in between.
+///
+/// # Errors
+///
+/// Whatever reading `dir`, deleting, or writing the mark hit.
+pub fn reset(dir: &Path, saved_too: bool) -> io::Result<()> {
+	std::fs::create_dir_all(dir)?;
+	if saved_too {
+		for entry in std::fs::read_dir(dir)? {
+			let entry = entry?;
+			if entry.file_name().to_str().is_some_and(is_history_file) {
+				remove(&entry.path())?;
+			}
+		}
+	}
+	let now = SystemTime::now()
+		.duration_since(UNIX_EPOCH)
+		.map_or(0, |d| d.as_secs());
+	std::fs::write(reset_mark(dir), format!("{now}\n"))
+}
+
+/// Notices a [`reset`] made by the settings window.
+#[derive(Debug)]
+pub struct ResetWatch {
+	mark: PathBuf,
+	seen: Option<SystemTime>,
+}
+
+impl ResetWatch {
+	/// A reset made before this doesn't count.
+	pub fn new(dir: &Path) -> ResetWatch {
+		let mark = reset_mark(dir);
+		let seen = modified(&mark);
+		ResetWatch { mark, seen }
+	}
+
+	/// True once for each reset since the last call.
+	pub fn asked(&mut self) -> bool {
+		let t = modified(&self.mark);
+		if t == self.seen {
+			return false;
+		}
+		self.seen = t;
+		t.is_some()
+	}
+}
+
+fn modified(p: &Path) -> Option<SystemTime> {
+	std::fs::metadata(p).and_then(|m| m.modified()).ok()
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -146,5 +230,35 @@ mod tests {
 	fn a_missing_file_is_not_found() {
 		let e = read(Path::new("/nonexistent/tukzmon/plugin-1.hist")).unwrap_err();
 		assert_eq!(e.kind(), io::ErrorKind::NotFound);
+	}
+
+	// Test ID: defxq
+	#[test]
+	fn a_reset_is_seen_once_and_deletes_saved_history_only_when_asked() {
+		let dir = scratch("reset");
+		let hist = [history_file(&dir, 1), history_file(&dir, 22)];
+		let other = [dir.join("plugin-x.hist"), dir.join("notes")];
+		for p in hist.iter().chain(&other) {
+			write(p, &[("cpu", b"abc")]).unwrap();
+		}
+		let mut watch = ResetWatch::new(&dir);
+		assert!(!watch.asked());
+		reset(&dir, false).unwrap();
+		assert!(watch.asked());
+		assert!(!watch.asked());
+		assert!(hist.iter().chain(&other).all(|p| p.exists()));
+		// timestamps are coarse, so the next reset must be told apart
+		std::thread::sleep(std::time::Duration::from_millis(50));
+		reset(&dir, true).unwrap();
+		assert!(watch.asked());
+		assert!(hist.iter().all(|p| !p.exists()));
+		assert!(other.iter().all(|p| p.exists()));
+		// one made before the watch started doesn't count
+		assert!(!ResetWatch::new(&dir).asked());
+		assert!(remove(&hist[0]).is_ok());
+		for p in other.iter().chain([&reset_mark(&dir)]) {
+			std::fs::remove_file(p).unwrap();
+		}
+		std::fs::remove_dir(&dir).unwrap();
 	}
 }

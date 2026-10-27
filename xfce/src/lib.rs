@@ -29,6 +29,7 @@ struct Plugin {
 	config_time: Option<SystemTime>,
 	settings: Option<Child>,
 	history: PathBuf,
+	reset: keep::ResetWatch,
 	saved_at: Instant,
 	moved_at: Instant,
 }
@@ -113,6 +114,19 @@ impl Plugin {
 			}
 		}
 	}
+
+	/// Reset history in the settings window starts the graphs over, and
+	/// deletes the file when it's kept.
+	fn reset_if_asked(&mut self) {
+		if !self.reset.asked() {
+			return;
+		}
+		let saved = self.graphs.look().keep.then_some(self.history.as_path());
+		if let Err(e) = self.graphs.reset(saved) {
+			eprintln!("tukzmon: can't delete {}: {e}", self.history.display());
+		}
+		self.saved_at = Instant::now();
+	}
 }
 
 extern "C" fn tick(data: *mut c_void) -> Gboolean {
@@ -126,6 +140,7 @@ extern "C" fn tick(data: *mut c_void) -> Gboolean {
 		p.settings = None;
 	}
 	p.reload_if_changed();
+	p.reset_if_asked();
 	p.graphs.sample();
 	if p.graphs.look().keep && p.saved_at.elapsed() >= SAVE_EVERY {
 		p.save_history();
@@ -331,6 +346,7 @@ extern "C" fn free_data(_plugin: *mut c_void, data: *mut c_void) {
 
 fn construct(plugin: *mut c_void) {
 	let config = config::config_file();
+	let data = keep::data_dir();
 	let mut p = Box::new(Plugin {
 		xpp: plugin,
 		area: std::ptr::null_mut(),
@@ -342,9 +358,8 @@ fn construct(plugin: *mut c_void) {
 		config,
 		settings: None,
 		// SAFETY: plugin is a live XfcePanelPlugin.
-		history: keep::data_dir().join(format!("plugin-{}.hist", unsafe {
-			xfce_panel_plugin_get_unique_id(plugin)
-		})),
+		history: keep::history_file(&data, unsafe { xfce_panel_plugin_get_unique_id(plugin) }),
+		reset: keep::ResetWatch::new(&data),
 		saved_at: Instant::now(),
 		moved_at: Instant::now(),
 	});

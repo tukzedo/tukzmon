@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 use knobs::{Control, Kind, Model, NoEnv, Setting, Spec, Value};
 use tukzmon_core::config::{self, Rgb, SavedTheme, THEME};
+use tukzmon_core::keep;
 
 use crate::pick::{self, Field, Hsv};
 
@@ -72,6 +73,10 @@ pub struct Dialog {
 	/// As the file had them when it was last read or written.
 	saved_themes: Vec<SavedTheme>,
 	picker: Option<Picker>,
+	/// Where the panel keeps history, for Reset history.
+	history_dir: PathBuf,
+	/// Reset history was pressed, and it goes at Apply like everything else.
+	reset_pending: bool,
 }
 
 /// An open color picker. Its row follows every change, and Cancel puts back
@@ -173,6 +178,8 @@ impl Dialog {
 			saved_themes: themes.clone(),
 			themes,
 			picker: None,
+			history_dir: keep::data_dir(),
+			reset_pending: false,
 		}
 	}
 
@@ -198,7 +205,17 @@ impl Dialog {
 	}
 
 	pub fn dirty(&self) -> bool {
-		self.model != self.saved || self.themes != self.saved_themes
+		self.model != self.saved || self.themes != self.saved_themes || self.reset_pending
+	}
+
+	/// Every graph starts over at Apply, and with Keep across restarts on
+	/// then, the saved history is deleted too.
+	pub fn reset_history(&mut self) {
+		self.reset_pending = true;
+	}
+
+	pub fn reset_pending(&self) -> bool {
+		self.reset_pending
 	}
 
 	// the saved theme in force, if it's one
@@ -608,6 +625,15 @@ impl Dialog {
 		self.saved_themes = themes.clone();
 		self.themes = themes;
 		self.touched.clear();
+		if self.reset_pending {
+			keep::reset(&self.history_dir, self.look().keep).map_err(|e| {
+				format!(
+					"History in {} wasn't reset: {e}",
+					self.history_dir.display()
+				)
+			})?;
+			self.reset_pending = false;
+		}
 		Ok(())
 	}
 }
@@ -631,6 +657,37 @@ mod tests {
 		));
 		std::fs::create_dir_all(&base).unwrap();
 		Dir(base)
+	}
+
+	// Test ID: defxs
+	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
+	fn reset_history_waits_for_apply_and_deletes_saved_history_only_when_kept() {
+		let d = scratch("reset");
+		let data = d.0.join("data");
+		let hist = keep::history_file(&data, 3);
+		keep::write(&hist, &[("cpu", b"x")]).unwrap();
+		let mut dlg = Dialog::open(d.0.join("t.shcl"));
+		dlg.history_dir.clone_from(&data);
+		dlg.reset_history();
+		assert!(dlg.dirty());
+		assert!(!keep::reset_mark(&data).exists());
+		dlg.apply().unwrap();
+		assert!(!dlg.dirty() && !dlg.reset_pending());
+		assert!(!hist.exists());
+		let mut watch = keep::ResetWatch::new(&data);
+		assert!(keep::reset_mark(&data).exists());
+		// with history not kept, only what's on screen goes
+		keep::write(&hist, &[("cpu", b"x")]).unwrap();
+		std::thread::sleep(std::time::Duration::from_millis(50));
+		dlg.set("keep_history", &Value::Bool(false));
+		dlg.reset_history();
+		dlg.apply().unwrap();
+		assert!(hist.exists());
+		assert!(watch.asked());
+		std::fs::remove_file(&hist).unwrap();
+		std::fs::remove_file(keep::reset_mark(&data)).unwrap();
+		std::fs::remove_dir(&data).unwrap();
 	}
 
 	// Test ID: debjc

@@ -104,10 +104,13 @@ pub mod ffi {
 		fn pick_close(d: &mut Dialog, keep: bool);
 		fn graph_rows(d: &Dialog) -> Vec<GraphRow>;
 		fn move_graph(d: &mut Dialog, from: usize, to: usize) -> bool;
+		fn reset_history(d: &mut Dialog);
+		fn reset_pending(d: &Dialog) -> bool;
 
 		type Live;
 		fn live_new(d: &Dialog) -> Box<Live>;
 		fn live_look(l: &mut Live, d: &Dialog);
+		fn live_clear(l: &mut Live);
 		/// Reads every graph, and gives the ms to the next read.
 		fn live_sample(l: &mut Live) -> u32;
 		fn live_width(l: &Live, name: &str) -> u32;
@@ -311,6 +314,18 @@ fn graph_rows(d: &Dialog) -> Vec<ffi::GraphRow> {
 
 fn move_graph(d: &mut Dialog, from: usize, to: usize) -> bool {
 	d.move_graph(from, to)
+}
+
+fn reset_history(d: &mut Dialog) {
+	d.reset_history();
+}
+
+fn reset_pending(d: &Dialog) -> bool {
+	d.reset_pending()
+}
+
+fn live_clear(l: &mut Live) {
+	l.clear();
 }
 
 fn live_new(d: &Dialog) -> Box<Live> {
@@ -661,6 +676,9 @@ mod tests {
 			std::process::id()
 		));
 		let mut d = Dialog::open(path);
-		assert_eq!(ffi::bottom_buttons(&mut d), ["Cancel", "&Apply", "OK"]);
+		assert_eq!(
+			ffi::bottom_buttons(&mut d),
+			["Reset history", "Cancel", "&Apply", "OK"]
+		);
 	}
 }

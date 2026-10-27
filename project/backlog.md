@@ -627,14 +627,32 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Reset history button
 	- ID: 2026102620162202
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- It departs from the wording in one way. The reset goes at Apply, the same as theme Delete, so Cancel drops it. The window's own graphs start over when it's pressed.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, after a panel restart, press Reset history with Keep across restarts on, read the question, press Apply, and check the panel's graphs start over. Judge where the button sits.
 	- Priority|Severity: High
 	- Opened: 20261026-201621
 	- Opened by: t00mietum
-	- Related IDs: 2026102408304572
+	- Related IDs: 2026102408304572, 2026101916013885
 	- Requirements:
 		- A button on the left side of the bottom button strip (e.g. more or less aligned with "Keep across restarts"), for "Reset history", that does that and starts the graph over.
 		- If "Keep across restarts" is checked, warn user that it will delete all past history.
+	- Actual effort: Low
+	- Progress log:
+		- Reset history is on the left of the bottom strip, under the pages, roughly in line with Keep across restarts. With that on, it asks first, since saved history goes too.
+		- At Apply the window writes a `reset` file in the history folder. With Keep across restarts on, it first deletes every `plugin-*.hist` there. Each running plugin watches that file, starts its graphs over, and deletes its own file again when history is kept.
+		- `design.md` Settings window and History have the details.
+		- Verified: in a test panel with history kept, a reset file made the plugin delete its history file, and the history saved at quit started at the reset. With history not kept, the file was left as it was. The window drew the button under the pages, left of Cancel.
+	- Decisions:
+		- The reset waits for Apply, like theme Delete, so Cancel takes it back. The window's own graphs start over at once, since they show changes before Apply.
+		- The window reaches the plugin through a file in the history folder, whose modified time the plugin checks each sample, as it does the settings file's. It needs no plugin id, reaches every panel item, and costs one stat a sample.
+		- With Keep across restarts off, only what's on screen goes, and the file is left as it is, the same as Off always does. So there's no question then, as the requirement says.
+		- Once pressed, the button is greyed until Apply.
+	- Branch: round-1027
+	- Test case: `keep::tests::a_reset_is_seen_once_and_deletes_saved_history_only_when_asked` (defxq), `graphs::tests::a_reset_starts_every_graph_over_and_drops_the_file_only_when_kept` (defxr), `dialog::tests::reset_history_waits_for_apply_and_deletes_saved_history_only_when_kept` (defxs), and defwy for the button. defxq fails with no file matched, defxr with the file left at a reset, and defxs with saved history deleted while it's off.
+		- 2026-10-26: new value only. `bridge::tests::the_buttons_are_cancel_apply_and_ok` (defwy) now lists Reset history before Cancel, Apply and OK.
+		- Swept: every history file path (the plugin's, now through `keep::history_file`), every `Drawn` graph (`Graph`, through `Graphs` and `Live`), and every load and save of history in `xfce/src/lib.rs`.
 
 - A settings file per plugin instance
 	- ID: 2026102621053715

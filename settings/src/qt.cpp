@@ -565,6 +565,12 @@ public:
 				r->spin->setFixedWidth(numberWidth);
 		connect(tabList, &QListWidget::currentRowChanged, this, [this](int i) { showTab(i); });
 
+		resetButton = new QPushButton("Reset history");
+		resetButton->setAutoDefault(false);
+		resetButton->setToolTip("Start every graph over, at Apply. With Keep across restarts on, the history "
+								"saved across restarts is deleted too.");
+		connect(resetButton, &QPushButton::clicked, this, [this] { resetHistory(); });
+
 		// Cancel stands a little apart from the 2 that save
 		auto *cancel = new QPushButton("Cancel");
 		applyButton = new QPushButton("&Apply");
@@ -584,13 +590,16 @@ public:
 			gap = 6;
 		auto *buttons = new QHBoxLayout;
 		buttons->setSpacing(0);
+		// under the pages, where Keep across restarts is
+		buttons->addSpacing(tabList->minimumWidth() + gap);
+		buttons->addWidget(resetButton);
 		buttons->addStretch(1);
 		buttons->addWidget(cancel);
 		buttons->addSpacing(2 * gap);
 		buttons->addWidget(applyButton);
 		buttons->addSpacing(gap);
 		buttons->addWidget(closeButton);
-		bottom = {cancel, applyButton, closeButton};
+		bottom = {resetButton, cancel, applyButton, closeButton};
 
 		auto *body = new QHBoxLayout;
 		body->addWidget(tabList);
@@ -696,6 +705,7 @@ private:
 	QListWidget *tabList = nullptr;
 	QStackedWidget *pages = nullptr;
 	QPushButton *applyButton = nullptr;
+	QPushButton *resetButton = nullptr;
 	std::vector<QPushButton *> bottom;
 
 	// One graph per row, first drawn first, in the order they're placed.
@@ -1081,6 +1091,18 @@ private:
 			pick->exec();
 	}
 
+	// the window's own graphs start over now, the panel's at Apply
+	void resetHistory() {
+		if (row_state(d, "keep_history").on &&
+			QMessageBox::question(this, "Reset history",
+								  "Keep across restarts is on, so this deletes all past history, not only what's "
+								  "on screen. It goes at Apply.\n\nReset history?") != QMessageBox::Yes)
+			return;
+		reset_history(d);
+		live_clear(*live);
+		refresh();
+	}
+
 	bool save() {
 		if (!is_dirty(d))
 			return true;
@@ -1177,6 +1199,7 @@ private:
 			deleteTheme->setEnabled(b.remove);
 		}
 		applyButton->setEnabled(is_dirty(d));
+		resetButton->setEnabled(!reset_pending(d));
 	}
 };
 

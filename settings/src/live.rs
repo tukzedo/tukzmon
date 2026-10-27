@@ -76,6 +76,12 @@ impl Live {
 		}
 	}
 
+	pub fn clear(&mut self) {
+		for (_, g) in self.all_mut() {
+			g.clear();
+		}
+	}
+
 	/// A hidden graph is read too, since its row still draws it. The first
 	/// call only primes them.
 	pub fn sample(&mut self) {
