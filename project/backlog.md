@@ -131,63 +131,6 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-25: new values only. `config::tests::the_default_theme_is_the_row_defaults` and `saved_themes_write_whole_and_read_back` count 19 theme members, not 12. `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme` counts 17 colors, not 11.
 		- Swept: every `Graph` use (the plugin, now through `Graphs`, and the lib tests), every `cpu_paint` caller, every `keep::write` caller, and every theme member, which the role and row-default tests walk.
 
-- CICD reset: containers
-	- ID: 2026102416252889
-	- Type: Task
-	- Status: Waiting on UAT
-		- It departs from the wording in one way. GTK 3 is in the image as its runtime libraries, not the dev package, since the plugin links GTK, cairo and the panel library by soname. The Debian snapshot the image reads pins them, as it does Qt.
-		- Stand-in, 2026-10-25: `--list` for the default run shows Release build and Dogfood on the host, and the merge gate on e131b57 passed in the image. Only the run that dogfoods is left, which a round may not do.
-	- Needs hand testing: on b23, run `cicd/cicd.bash` with no options, as on 2026102416252898. It builds the release on the host, installs it and restarts the panel.
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-	- Related IDs: 2026102416252898
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- There's no pipeline yet, and every check runs on the host. Build and test in a pinned image from a recipe in the repo, with the Rust toolchain, Qt 6 and GTK 3 pinned.
-		- A missing docker falls back to the host with one line, and never fails a run. `--no-container` runs on the host on purpose.
-		- Tests that need a real panel or display run on the host.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- `cicd/container/` holds the recipe: Debian trixie by digest, apt from a dated snapshot, Qt 6 Widgets dev, the GTK 3 and panel libraries, the Rust toolchain from `rust-toolchain.toml`, and shellcheck and markdownlint at the `cicd/config.bash` pins. The tag is a hash of the recipe, so an edit means a new image.
-		- `cicd.bash` builds the image when its tag is missing, checks it has the pinned Rust, and fetches the crates. Format, build, lint, tests and the release build then run in it offline, as the caller's uid, into `target/container`.
-		- Remote sync and dogfood stay on the host, and so does the release build in a run that dogfoods, since that build is what gets installed. A test that needs a real panel or display gets a step left out of `CTR_STEPS` in `cicd/config.bash`. None does yet.
-		- No docker, a docker that doesn't answer, or an image that won't build is one line, and the run goes on on the host.
-		- Verified: `--backlog-run-full` passed in the image, and so did a run in a linked worktree building into `target/gate`, as the pre-push hook does. A planted format error failed it. A docker that didn't answer and an image that failed to build each fell back to the host with one line, and passed.
-	- Decisions:
-		- The image has its own target dir. The paths inside differ from the host's, so a shared `target/` would rebuild everything each time a run switched sides.
-	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892. The gate was watched to fail on a planted format error.
-
-- CICD reset: CICD process gaps
-	- ID: 2026102416252898
-	- Type: Task
-	- Status: Waiting on UAT
-	- Needs hand testing: on b23, run `cicd/cicd.bash` with no options. It dogfoods, which restarts the live panel, so a round doesn't run it.
-	- Priority|Severity: Avg
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- A `cicd.bash` per the shared CICD rules, with remote sync first, format, build, lint, tests, release build, dogfood, and cleanup.
-		- `rust-toolchain.toml` pins the toolchain, and lint and audit tools are pinned in one place.
-		- Lint output rotated into `cicd/artifacts/lint/`, with a `--check` that prints only what's new.
-		- Leak checks: ASan, LSan, and UBSan over the Rust and the C++ shim, Miri, a soak test, clippy's `mem_forget` and `undocumented_unsafe_blocks`, and the known-advisory scan.
-		- `.deb` and `.rpm` packages, and a profiler stage.
-	- Progress log:
-		- `cicd/cicd.bash` runs remote sync, format, build, lint, tests, the release build and dogfood, then cleans up.
-		- `rust-toolchain.toml` pins Rust 1.96.0 with rustfmt and clippy. The lint tool versions are pinned in `cicd/config.bash`, and a run warns when the box has another.
-		- Lint output goes to `cicd/artifacts/lint/`, rotated. `cicd/utility/lint-report.bash --check` prints only what's new since the last look.
-		- The rest is split into children: leak checks 2026102506591278, packages 2026102506591283, and the profiler 2026102506591288.
-	- Decisions:
-		- Dogfood is `utility/dev-install.bash`. A panel plugin has to sit where the panel loads it, so the synced dogfood folder, which holds programs a person runs, doesn't fit.
-		- No `dogfood_tukzmon.ps1` launcher either. The panel starts the plugin and the plugin starts tukzmon-settings, so there's nothing for a person to launch.
-		- No publish step yet, since none was asked for here.
-	- Branch: round-1025
-	- 2026-10-25: every child is Done. Only the no-options run in the hand test row is left, which dogfoods.
-
 - The graph list on the Graph tab
 	- ID: 2026102508393161
 	- Type: Feature
@@ -224,39 +167,41 @@ Sorted per the notes in [Template](#template).
 	- Test case: `dialog::tests::the_graph_list_has_a_row_per_graph_in_the_saved_order` (defkz), `dragging_a_graph_saves_the_order_and_keeps_names_it_doesnt_know` (defm0), and `bridge::tests::the_graph_list_sits_under_graphs_and_takes_its_rows` (defm1). defkz fails with the saved order ignored, defm0 with that or with unknown names dropped, and defm1 with no row marked as the list's. The drag itself has no test in the suite.
 		- Swept: every `Graphs::order` user (now through `order_of`), every reader of `graph_order` (`Look::from_model` and the window), and every `Row` field `refresh` reads, for the list's rows with no label or revert of their own.
 
-- Battery collector
-	- ID: 2026102408512223
+- Live graphs in the graph list
+	- ID: 2026102508393163
 	- Type: Feature
-	- Status: Waiting on automated testing
-		- Verified on file layouts only. This box has no `BAT*` battery, so defny returned early and the live path hasn't run on real hardware.
+	- Status: Waiting on UAT
+		- How the graphs look in the list is for a person to judge.
+		- It departs from the wording in 2 ways. A graph wider than 512 px is squeezed to that, so the window stays on screen. And a hidden graph's row still draws it.
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
-	- Needs external testing: defny (`battery::tests::live_power_supply_reads`), in a plain `cargo test -p tukzmon-core battery` on a laptop with a battery in, once on AC and once on battery.
+	- Needs hand testing: on b23, after an install, open Settings, watch the graph list for a minute, then change a width, a theme and a time axis, and judge whether each row follows before Apply.
 	- Priority|Severity: High
-	- Opened: 20261024-085122
+	- Opened: 20261025-083931
 	- Opened by: t00mietum
-	- Parent ID: 2026101916013884
-	- Prereq IDs: 2026102408512192
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026102408304639
+	- Prereq IDs: 2026102508393161
 	- Requirements:
-		- Charge and state from `/sys/class/power_supply/BAT*`: charging, discharging, and the critical level.
-		- No collector on a box with no battery.
+		- Each row of the graph list draws its graph live.
+		- The longest graph sets the column's width, so the columns after it line up.
 	- Estimated effort: Avg
 	- Actual effort: Low
 	- Progress log:
-		- `core/src/battery.rs` has `BatteryReader`, with series charging, discharging and critical. The charge, as a share of full, goes in the one for the state, the way multiload-ng does it.
-		- The charge is `energy_now / energy_full`, or else `charge_now / charge_full`, or else `capacity`. Critical is `capacity_level` at `Critical`, or 4% or less when there's no level.
-		- A mouse's battery, an empty slot, or a `BAT*` whose `type` isn't `Battery` gives no collector.
-		- Nothing draws it yet. That's The graphs, 2026101916013887.
-		- `design.md` Data sources on Linux has the details.
-		- Verified: the full run passed, with made-up `power_supply` trees for one battery, two, an empty slot and a mouse's.
+		- Each row of the graph list draws its graph live, at its own width and the row's height, at the Sample every ms rate. Its tip is the latest read.
+		- It draws with the window's settings, applied or not, so a width, theme, color or time axis change shows in the row at once.
+		- The widest graph sets the column, and the width boxes after it line up.
+		- `design.md` XFCE plugin has the details.
+		- Verified: in a test window, CPU at 40 and memory at 100 drew 40 and 100 px wide, both from the same x, with the width boxes lined up past the wider one, and the CPU graph filled in as it ran.
 	- Decisions:
-		- Every `BAT*` battery is read as one, not just the first as in multiload-ng, so a laptop with 2 shows its whole charge. Their energy or charge adds up, or their shares are averaged when they count in different units.
-		- Discharging is any battery's `status` saying so. Full, `Not charging` and `Unknown` count as charging, since the power's in. multiload-ng counts `Not charging` as discharging.
-		- With 2 batteries, critical needs both at `Critical`, since a laptop drains one first.
-		- No `current_now` check, unlike multiload-ng. `status` is what the kernel says the state is.
-		- A battery taken out drops out. With none left it's a gap. A battery put in after start isn't seen until the next start, like the temperature sensors.
+		- The window reads the graphs itself, from when it opens, rather than the panel's history file. The panel doesn't tell it which file is its own, and it saves that file every 15 minutes, so the last of them would be a gap.
+		- The graphs are drawn by the same core code as the panel's, `Graph::render`, so the row is what the panel would draw.
+		- A hidden graph is still read and drawn, so its row shows what showing it would give.
+		- Past 512 px a graph is squeezed rather than cut, so its whole time span still shows.
+		- `Look::width_or` is the one rule for a width of 0, used by the panel's layout and the list.
 	- Branch: round-1026
-	- Test case: `battery::tests` (5: defnt, defnv, defnw, defnx, defny). defnx fails with the `BAT` name check taken out, defnw with one battery at `Critical` enough, defnv with the 4% rule taken out, and defnw and defnx with `present` ignored.
-		- Swept: the temperature collector, the other `/sys` reader, which also skips what it can't read and gives no collector when nothing reads at start.
+	- Test case: `live::tests::each_graph_draws_at_its_width_with_the_windows_look` (defmj) and `bridge::tests::the_longest_graph_sets_the_column_so_the_rest_line_up` (defmk). defmj fails with the window's changes not reaching the graphs, and defmk with every graph at the old fixed width.
+		- 2026-10-26: `bridge::tests::a_row_is_greyed_while_its_switch_is_off` (defma) now takes a lock shared with defmk, since 2 Qt windows at once crash, and is ignored under Miri, which can't call C++. Its checks are unchanged.
+		- Swept: every reader of a graph's own width (`Graphs::width_of`, now through `width_or`), and every test that builds the Qt window (defma and defmk).
 
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
@@ -280,22 +225,6 @@ Sorted per the notes in [Template](#template).
 		- No layer cache between runs, to keep it small. Each run builds the image first, which takes a few minutes.
 	- Branch: round-1025
 	- Test case: The workflow is its own test. Its first run is in the row above.
-
-- Core library and Linux collectors
-	- ID: 2026101916013884
-	- Type: Feature
-	- Status: Started
-	- Priority|Severity: High
-	- Opened: 20261019-160138
-	- Opened by: t00mietum
-	- Prereq IDs: 2026101916013881
-	- Requirements:
-		- A Rust library with no GUI toolkit in it.
-		- Reads every graph's numbers on Linux, from the sources listed in `design.md`.
-		- A graph whose source is missing, like a desktop with no battery, is hidden.
-	- Progress log:
-		- CPU from `/proc/stat` works. The other graphs aren't started.
-		- 2026-10-24: Split into one child per source: 2026102408512192 (the collector trait, memory and swap), 2026102408512197 (zswap and zram), 2026102408512202 (network), 2026102408512207 (load), 2026102408512212 (disk), 2026102408512217 (temperature), and 2026102408512223 (battery). This closes with the last of them.
 
 - History store
 	- ID: 2026101916013885
@@ -444,42 +373,6 @@ Sorted per the notes in [Template](#template).
 		- Split into 6 children, in this order: 2026102508393152 (on or off and a width per graph), 2026102508393154 (order), 2026102508393156 (time function per graph), 2026102508393159 (theme per graph), 2026102508393161 (the list itself), and 2026102508393163 (live graphs in it).
 		- 2026-10-25: no theme dropdown per graph after all. One theme colors every graph, per the answer on 2026102508393159.
 
-- Live graphs in the graph list
-	- ID: 2026102508393163
-	- Type: Feature
-	- Status: Waiting on UAT
-		- How the graphs look in the list is for a person to judge.
-		- It departs from the wording in 2 ways. A graph wider than 512 px is squeezed to that, so the window stays on screen. And a hidden graph's row still draws it.
-	- Needs local test suite run?: No. The full run passed on 2026-10-26.
-	- Needs hand testing: on b23, after an install, open Settings, watch the graph list for a minute, then change a width, a theme and a time axis, and judge whether each row follows before Apply.
-	- Priority|Severity: High
-	- Opened: 20261025-083931
-	- Opened by: t00mietum
-	- Version and build: v0.1.0, not on b23 yet.
-	- Parent ID: 2026102408304639
-	- Prereq IDs: 2026102508393161
-	- Requirements:
-		- Each row of the graph list draws its graph live.
-		- The longest graph sets the column's width, so the columns after it line up.
-	- Estimated effort: Avg
-	- Actual effort: Low
-	- Progress log:
-		- Each row of the graph list draws its graph live, at its own width and the row's height, at the Sample every ms rate. Its tip is the latest read.
-		- It draws with the window's settings, applied or not, so a width, theme, color or time axis change shows in the row at once.
-		- The widest graph sets the column, and the width boxes after it line up.
-		- `design.md` XFCE plugin has the details.
-		- Verified: in a test window, CPU at 40 and memory at 100 drew 40 and 100 px wide, both from the same x, with the width boxes lined up past the wider one, and the CPU graph filled in as it ran.
-	- Decisions:
-		- The window reads the graphs itself, from when it opens, rather than the panel's history file. The panel doesn't tell it which file is its own, and it saves that file every 15 minutes, so the last of them would be a gap.
-		- The graphs are drawn by the same core code as the panel's, `Graph::render`, so the row is what the panel would draw.
-		- A hidden graph is still read and drawn, so its row shows what showing it would give.
-		- Past 512 px a graph is squeezed rather than cut, so its whole time span still shows.
-		- `Look::width_or` is the one rule for a width of 0, used by the panel's layout and the list.
-	- Branch: round-1026
-	- Test case: `live::tests::each_graph_draws_at_its_width_with_the_windows_look` (defmj) and `bridge::tests::the_longest_graph_sets_the_column_so_the_rest_line_up` (defmk). defmj fails with the window's changes not reaching the graphs, and defmk with every graph at the old fixed width.
-		- 2026-10-26: `bridge::tests::a_row_is_greyed_while_its_switch_is_off` (defma) now takes a lock shared with defmk, since 2 Qt windows at once crash, and is ignored under Miri, which can't call C++. Its checks are unchanged.
-		- Swept: every reader of a graph's own width (`Graphs::width_of`, now through `width_or`), and every test that builds the Qt window (defma and defmk).
-
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
 	- Type: Feature
@@ -497,6 +390,88 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- CICD reset: containers
+	- ID: 2026102416252889
+	- Type: Task
+	- Status: Done
+		- It departs from the wording in one way. GTK 3 is in the image as its runtime libraries, not the dev package, since the plugin links GTK, cairo and the panel library by soname. The Debian snapshot the image reads pins them, as it does Qt.
+		- Stand-in, 2026-10-25: `--list` for the default run shows Release build and Dogfood on the host, and the merge gate on e131b57 passed in the image. Only the run that dogfoods is left, which a round may not do.
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+	- Related IDs: 2026102416252898
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- There's no pipeline yet, and every check runs on the host. Build and test in a pinned image from a recipe in the repo, with the Rust toolchain, Qt 6 and GTK 3 pinned.
+		- A missing docker falls back to the host with one line, and never fails a run. `--no-container` runs on the host on purpose.
+		- Tests that need a real panel or display run on the host.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- `cicd/container/` holds the recipe: Debian trixie by digest, apt from a dated snapshot, Qt 6 Widgets dev, the GTK 3 and panel libraries, the Rust toolchain from `rust-toolchain.toml`, and shellcheck and markdownlint at the `cicd/config.bash` pins. The tag is a hash of the recipe, so an edit means a new image.
+		- `cicd.bash` builds the image when its tag is missing, checks it has the pinned Rust, and fetches the crates. Format, build, lint, tests and the release build then run in it offline, as the caller's uid, into `target/container`.
+		- Remote sync and dogfood stay on the host, and so does the release build in a run that dogfoods, since that build is what gets installed. A test that needs a real panel or display gets a step left out of `CTR_STEPS` in `cicd/config.bash`. None does yet.
+		- No docker, a docker that doesn't answer, or an image that won't build is one line, and the run goes on on the host.
+		- Verified: `--backlog-run-full` passed in the image, and so did a run in a linked worktree building into `target/gate`, as the pre-push hook does. A planted format error failed it. A docker that didn't answer and an image that failed to build each fell back to the host with one line, and passed.
+	- Decisions:
+		- The image has its own target dir. The paths inside differ from the host's, so a shared `target/` would rebuild everything each time a run switched sides.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892. The gate was watched to fail on a planted format error.
+	- Verified 2026-10-26: `cicd/cicd.bash` with no options passed all 13 steps in 2m08s on b23, Dogfood included, with `xfce4-panel` on PATH as a stand-in that logged `--restart` instead of restarting the live panel. b23 now has build defnz installed, and the panel loads it at its next restart.
+
+- Battery collector
+	- ID: 2026102408512223
+	- Type: Feature
+	- Status: Done
+		- Verified on file layouts only. This box has no `BAT*` battery, so defny returned early and the live path hasn't run on real hardware.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Requirements:
+		- Charge and state from `/sys/class/power_supply/BAT*`: charging, discharging, and the critical level.
+		- No collector on a box with no battery.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- `core/src/battery.rs` has `BatteryReader`, with series charging, discharging and critical. The charge, as a share of full, goes in the one for the state, the way multiload-ng does it.
+		- The charge is `energy_now / energy_full`, or else `charge_now / charge_full`, or else `capacity`. Critical is `capacity_level` at `Critical`, or 4% or less when there's no level.
+		- A mouse's battery, an empty slot, or a `BAT*` whose `type` isn't `Battery` gives no collector.
+		- Nothing draws it yet. That's The graphs, 2026101916013887.
+		- `design.md` Data sources on Linux has the details.
+		- Verified: the full run passed, with made-up `power_supply` trees for one battery, two, an empty slot and a mouse's.
+	- Decisions:
+		- Every `BAT*` battery is read as one, not just the first as in multiload-ng, so a laptop with 2 shows its whole charge. Their energy or charge adds up, or their shares are averaged when they count in different units.
+		- Discharging is any battery's `status` saying so. Full, `Not charging` and `Unknown` count as charging, since the power's in. multiload-ng counts `Not charging` as discharging.
+		- With 2 batteries, critical needs both at `Critical`, since a laptop drains one first.
+		- No `current_now` check, unlike multiload-ng. `status` is what the kernel says the state is.
+		- A battery taken out drops out. With none left it's a gap. A battery put in after start isn't seen until the next start, like the temperature sensors.
+	- Branch: round-1026
+	- Test case: `battery::tests` (5: defnt, defnv, defnw, defnx, defny). defnx fails with the `BAT` name check taken out, defnw with one battery at `Critical` enough, defnv with the 4% rule taken out, and defnw and defnx with `present` ignored.
+		- Swept: the temperature collector, the other `/sys` reader, which also skips what it can't read and gives no collector when nothing reads at start.
+	- Verified 2026-10-26: on b28l, a laptop on AC with BAT0 full, the 5 battery tests passed from a b23 build of the core test binary, and strace showed defny reading 13 BAT0 files, so it didn't skip. The on-battery path is covered by the made-up trees in defnv and defnw only.
+
+- Core library and Linux collectors
+	- ID: 2026101916013884
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Prereq IDs: 2026101916013881
+	- Requirements:
+		- A Rust library with no GUI toolkit in it.
+		- Reads every graph's numbers on Linux, from the sources listed in `design.md`.
+		- A graph whose source is missing, like a desktop with no battery, is hidden.
+	- Progress log:
+		- CPU from `/proc/stat` works. The other graphs aren't started.
+		- 2026-10-24: Split into one child per source: 2026102408512192 (the collector trait, memory and swap), 2026102408512197 (zswap and zram), 2026102408512202 (network), 2026102408512207 (load), 2026102408512212 (disk), 2026102408512217 (temperature), and 2026102408512223 (battery). This closes with the last of them.
+	- Test case: its children's tests: memory and swap on 2026102408512192, zswap defmz to defn3, slab defmy, network and disk on 2026102408512202 and 2026102408512212, load defnj and defnk, temperature defnm to defnr, battery defnt to defny
+	- 2026-10-26: every child is Done. Each collector's probe gives none when its source is missing, which is what hides its graph. Drawing them is The graphs, 2026101916013887.
 
 - Load collector
 	- ID: 2026102408512207
@@ -645,85 +620,6 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-26: `mem::tests::reads_the_rows` (decax) now checks the 3 new rows too, at `SReclaimable` 0, `Zswap` 0 and no `Zswapped`. `odd_counts_stay_in_range` (decb1) leaves them at their defaults. Nothing else in either changed.
 		- Swept: the only `/proc/meminfo` parser, `mem::parse_meminfo`, which both readers share.
 	- Closed: 20261026-173826
-
-- Memory cache counts slab, the way b23's multiload-ng does
-	- ID: 2026102508354893
-	- Type: Enhancement
-	- Status: Done
-		- Answered 2026-10-25: yes, count reclaimable slab as cache, always, like `free`.
-	- Priority|Severity: Avg
-	- Opened: 20261025-083548
-	- Opened by: t00mietum
-	- Related IDs: 2026102408512192, 2026102408304625
-	- Requirements:
-		- b23's multiload-ng has `graph-mem-procps-compliant=true`, so it counts slab as cache. tukzmon counts `Cached` alone, per 2026102408512192, so its cache band is thinner and user thicker than multiload-ng showed.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- Cache is `Cached` plus `SReclaimable` now. Slab that can't be reclaimed stays in user. `design.md` Data sources on Linux says so.
-	- Decisions:
-		- This replaces the `Cached` alone decision on 2026102408512192.
-		- No setting for it, per the answer.
-	- Branch: round-1026
-	- Test case: `mem::tests::cache_takes_in_reclaimable_slab_and_user_keeps_the_rest` (defmy). It fails with cache as `Cached` alone, and passes with the fix.
-		- Swept: `memory_shares` is the one place cache is worked out. The other `mem::tests` pass unchanged, since their rows have no `SReclaimable`.
-	- Closed: 20261026-173826
-
-- Settings rows that depend on a switch are never greyed
-	- ID: 2026102617084201
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261026-170842
-	- Opened by: t00mietum
-	- Related IDs: 2026102508393161
-	- Steps to reproduce:
-		- In the settings window, turn off a switch that other rows depend on.
-	- Incorrect behavior: the rows that depend on it stay enabled. `qt.cpp` ignores the knobs `counts` state.
-	- Expected behavior: they grey out, the way the graph list greys a hidden graph's width and time axis.
-	- Reproduced: yes, 2026-10-26: with every switch off, the window greyed none of the rows under them.
-	- Actual cause: `refresh` in `qt.cpp` never read `counts`. Only the graph list's own refresh did, for its width and time axis.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- A row's label and control are greyed while a switch above it is off: Log curve and Spike emphasis under Log time axis, Max age in days under Keep across restarts, and a hidden graph's width and time axis.
-		- The graph list now greys through the same code as every other row.
-		- `design.md` Settings window says so.
-		- Verified: the full run passed, and defma failed with the fix taken out.
-	- Decisions:
-		- The revert arrow stays live on a greyed row, as it does in the graph list, so a value can still be put back while its switch is off.
-		- One place greys rows, `refresh`, rather than a second copy in the list's refresh.
-	- Actual fix: `refresh` sets each row's label and control enabled from `counts`.
-	- Branch: round-1026
-	- Test case: `bridge::tests::a_row_is_greyed_while_its_switch_is_off` (defma). It builds the window off screen and checks the greyed rows match the gated ones, with every switch on and then off. It fails without the fix.
-		- Swept: every `setEnabled` in `qt.cpp`, the graph list's refresh, and every `gate:` in `core/src/settings.shcl`, which the test walks.
-	- Closed: 20261026-171422
-
-- tukzmon-settings --version aborts when its output can't be written
-	- ID: 2026102519030128
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261025-190301
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build deea9, and dedr4 on b23.
-	- Steps to reproduce:
-		- Run `tukzmon-settings --version > /dev/full`, or pipe it into `head -1`.
-	- Incorrect behavior: it panics with "failed printing to stdout" and aborts, with exit 134.
-	- Expected behavior: no panic. A closed pipe quits quietly, and a failed write gives one error line and a non-zero exit.
-	- Reproduced: 2026-10-25 on b23, 5 times out of 5 with `/dev/full`.
-	- Possible cause: `println!` in `settings/src/main.rs` panics on a failed write, and the release build aborts on a panic. `--help` likely does the same.
-	- Actual cause: `println!` and `eprintln!` panic on a failed write, and the release build aborts on a panic. `--help` did the same. The usage and error paths used them too.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- Output now goes through `print_text` and `complain` in `settings/src/main.rs`. A closed pipe exits 0 quietly, a failed write gives one line on stderr and exit 1, and a closed stderr is ignored. The xfce plugin is a library with no stdout output.
-		- Verified: a release build gives exit 1 and one error line for `--version` and `--help` to `/dev/full`, and exit 0 with no message into `head -1`. The build before the fix aborted with 134 on both. `--backlog-run-full` passed on 2026-10-26, test `defks` included.
-		- Swept: every `println!` and `eprintln!` in the repo. The rest are build.rs cargo directives, examples, and the plugin's `eprintln!` for its own diagnostics.
-	- Actual fix: Writes to stdout go through one helper that returns an exit code instead of panicking.
-	- Branch: round-1026
-	- Test case: `defks`. It fails to build before the fix, and the binary checks above failed before it.
-	- Closed: 20261026-165700
 
 - Proof of concept: CPU graph in the XFCE panel, dogfooded on b23
 	- ID: 2026102319155124
@@ -1389,6 +1285,56 @@ Sorted per the notes in [Template](#template).
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019
 
+- CICD reset: CICD process gaps
+	- ID: 2026102416252898
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- A `cicd.bash` per the shared CICD rules, with remote sync first, format, build, lint, tests, release build, dogfood, and cleanup.
+		- `rust-toolchain.toml` pins the toolchain, and lint and audit tools are pinned in one place.
+		- Lint output rotated into `cicd/artifacts/lint/`, with a `--check` that prints only what's new.
+		- Leak checks: ASan, LSan, and UBSan over the Rust and the C++ shim, Miri, a soak test, clippy's `mem_forget` and `undocumented_unsafe_blocks`, and the known-advisory scan.
+		- `.deb` and `.rpm` packages, and a profiler stage.
+	- Progress log:
+		- `cicd/cicd.bash` runs remote sync, format, build, lint, tests, the release build and dogfood, then cleans up.
+		- `rust-toolchain.toml` pins Rust 1.96.0 with rustfmt and clippy. The lint tool versions are pinned in `cicd/config.bash`, and a run warns when the box has another.
+		- Lint output goes to `cicd/artifacts/lint/`, rotated. `cicd/utility/lint-report.bash --check` prints only what's new since the last look.
+		- The rest is split into children: leak checks 2026102506591278, packages 2026102506591283, and the profiler 2026102506591288.
+	- Decisions:
+		- Dogfood is `utility/dev-install.bash`. A panel plugin has to sit where the panel loads it, so the synced dogfood folder, which holds programs a person runs, doesn't fit.
+		- No `dogfood_tukzmon.ps1` launcher either. The panel starts the plugin and the plugin starts tukzmon-settings, so there's nothing for a person to launch.
+		- No publish step yet, since none was asked for here.
+	- Branch: round-1025
+	- 2026-10-25: every child is Done. Only the no-options run in the hand test row is left, which dogfoods.
+	- Verified 2026-10-26: `cicd/cicd.bash` with no options passed all 13 steps in 2m08s on b23, Dogfood included, with `xfce4-panel` on PATH as a stand-in that logged `--restart` instead of restarting the live panel. b23 now has build defnz installed, and the panel loads it at its next restart.
+
+- Memory cache counts slab, the way b23's multiload-ng does
+	- ID: 2026102508354893
+	- Type: Enhancement
+	- Status: Done
+		- Answered 2026-10-25: yes, count reclaimable slab as cache, always, like `free`.
+	- Priority|Severity: Avg
+	- Opened: 20261025-083548
+	- Opened by: t00mietum
+	- Related IDs: 2026102408512192, 2026102408304625
+	- Requirements:
+		- b23's multiload-ng has `graph-mem-procps-compliant=true`, so it counts slab as cache. tukzmon counts `Cached` alone, per 2026102408512192, so its cache band is thinner and user thicker than multiload-ng showed.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Cache is `Cached` plus `SReclaimable` now. Slab that can't be reclaimed stays in user. `design.md` Data sources on Linux says so.
+	- Decisions:
+		- This replaces the `Cached` alone decision on 2026102408512192.
+		- No setting for it, per the answer.
+	- Branch: round-1026
+	- Test case: `mem::tests::cache_takes_in_reclaimable_slab_and_user_keeps_the_rest` (defmy). It fails with cache as `Cached` alone, and passes with the fix.
+		- Swept: `memory_shares` is the one place cache is worked out. The other `mem::tests` pass unchanged, since their rows have no `SReclaimable`.
+	- Closed: 20261026-173826
+
 - CICD reset: leak checks, Miri
 	- ID: 2026102516060729
 	- Type: Task
@@ -1650,6 +1596,62 @@ Sorted per the notes in [Template](#template).
 		- A LAN and internet split is its own item, 2026101916274800.
 	- Test case: None, since it was a question. The network collector's tests will cover the answer.
 	- Closed: 20261019
+
+- Settings rows that depend on a switch are never greyed
+	- ID: 2026102617084201
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261026-170842
+	- Opened by: t00mietum
+	- Related IDs: 2026102508393161
+	- Steps to reproduce:
+		- In the settings window, turn off a switch that other rows depend on.
+	- Incorrect behavior: the rows that depend on it stay enabled. `qt.cpp` ignores the knobs `counts` state.
+	- Expected behavior: they grey out, the way the graph list greys a hidden graph's width and time axis.
+	- Reproduced: yes, 2026-10-26: with every switch off, the window greyed none of the rows under them.
+	- Actual cause: `refresh` in `qt.cpp` never read `counts`. Only the graph list's own refresh did, for its width and time axis.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A row's label and control are greyed while a switch above it is off: Log curve and Spike emphasis under Log time axis, Max age in days under Keep across restarts, and a hidden graph's width and time axis.
+		- The graph list now greys through the same code as every other row.
+		- `design.md` Settings window says so.
+		- Verified: the full run passed, and defma failed with the fix taken out.
+	- Decisions:
+		- The revert arrow stays live on a greyed row, as it does in the graph list, so a value can still be put back while its switch is off.
+		- One place greys rows, `refresh`, rather than a second copy in the list's refresh.
+	- Actual fix: `refresh` sets each row's label and control enabled from `counts`.
+	- Branch: round-1026
+	- Test case: `bridge::tests::a_row_is_greyed_while_its_switch_is_off` (defma). It builds the window off screen and checks the greyed rows match the gated ones, with every switch on and then off. It fails without the fix.
+		- Swept: every `setEnabled` in `qt.cpp`, the graph list's refresh, and every `gate:` in `core/src/settings.shcl`, which the test walks.
+	- Closed: 20261026-171422
+
+- tukzmon-settings --version aborts when its output can't be written
+	- ID: 2026102519030128
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261025-190301
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build deea9, and dedr4 on b23.
+	- Steps to reproduce:
+		- Run `tukzmon-settings --version > /dev/full`, or pipe it into `head -1`.
+	- Incorrect behavior: it panics with "failed printing to stdout" and aborts, with exit 134.
+	- Expected behavior: no panic. A closed pipe quits quietly, and a failed write gives one error line and a non-zero exit.
+	- Reproduced: 2026-10-25 on b23, 5 times out of 5 with `/dev/full`.
+	- Possible cause: `println!` in `settings/src/main.rs` panics on a failed write, and the release build aborts on a panic. `--help` likely does the same.
+	- Actual cause: `println!` and `eprintln!` panic on a failed write, and the release build aborts on a panic. `--help` did the same. The usage and error paths used them too.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Output now goes through `print_text` and `complain` in `settings/src/main.rs`. A closed pipe exits 0 quietly, a failed write gives one line on stderr and exit 1, and a closed stderr is ignored. The xfce plugin is a library with no stdout output.
+		- Verified: a release build gives exit 1 and one error line for `--version` and `--help` to `/dev/full`, and exit 0 with no message into `head -1`. The build before the fix aborted with 134 on both. `--backlog-run-full` passed on 2026-10-26, test `defks` included.
+		- Swept: every `println!` and `eprintln!` in the repo. The rest are build.rs cargo directives, examples, and the plugin's `eprintln!` for its own diagnostics.
+	- Actual fix: Writes to stdout go through one helper that returns an exit code instead of panicking.
+	- Branch: round-1026
+	- Test case: `defks`. It fails to build before the fix, and the binary checks above failed before it.
+	- Closed: 20261026-165700
 
 - A killed pipeline run leaves its container and temp folder
 	- ID: 2026102514470001
