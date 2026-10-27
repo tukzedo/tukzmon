@@ -5,6 +5,7 @@
 //! with hand-declared calls instead of headers.
 
 use std::ffi::{CStr, CString, c_char, c_int, c_uint, c_ulong, c_void};
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::time::{Duration, Instant, SystemTime};
@@ -29,6 +30,7 @@ struct Plugin {
 	config_time: Option<SystemTime>,
 	settings: Option<Child>,
 	history: PathBuf,
+	reset: keep::ResetWatch,
 	saved_at: Instant,
 	moved_at: Instant,
 }
@@ -43,6 +45,13 @@ const SAVE_EVERY: Duration = Duration::from_secs(15 * 60);
 /// again restarts that wait. So the tick leaves the tip alone until then.
 const TIP_SHOWN: Duration = Duration::from_secs(1);
 
+/// eprintln! panics on a failed write, such as to /dev/full or a hung-up tty,
+/// and on Wayland the panel runs the plugin in its own process, so that abort
+/// takes the whole panel down.
+fn complain(what: std::fmt::Arguments) {
+	let _ = writeln!(std::io::stderr().lock(), "tukzmon: {what}");
+}
+
 fn modified(p: &Path) -> Option<SystemTime> {
 	std::fs::metadata(p).and_then(|m| m.modified()).ok()
 }
@@ -52,14 +61,11 @@ impl Plugin {
 		// SAFETY: plugin is the live XfcePanelPlugin this state belongs to.
 		unsafe {
 			let size = xfce_panel_plugin_get_size(self.xpp);
-			let n = self.graphs.count() as c_int;
+			// a deskbar is a vertical panel too
 			self.graphs.stacked = xfce_panel_plugin_get_mode(self.xpp) != MODE_HORIZONTAL;
-			if self.graphs.stacked {
-				gtk_widget_set_size_request(self.xpp, size, (size / 2).max(16) * n);
-			} else {
-				let w = self.graphs.widths().sum::<u32>() as c_int;
-				gtk_widget_set_size_request(self.xpp, w, size);
-			}
+			let (w, h) = self.graphs.wanted(u32::try_from(size).unwrap_or(0));
+			let px = |v: u32| c_int::try_from(v).unwrap_or(c_int::MAX);
+			gtk_widget_set_size_request(self.xpp, px(w), px(h));
 		}
 	}
 
@@ -73,7 +79,7 @@ impl Plugin {
 		match self.graphs.load(&self.history) {
 			Ok(()) => {}
 			Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-			Err(e) => eprintln!("tukzmon: can't read {}: {e}", self.history.display()),
+			Err(e) => complain(format_args!("can't read {}: {e}", self.history.display())),
 		}
 		self.saved_at = Instant::now();
 	}
@@ -81,7 +87,7 @@ impl Plugin {
 	fn save_history(&mut self) {
 		self.graphs.trim();
 		if let Err(e) = self.graphs.save(&self.history) {
-			eprintln!("tukzmon: can't save {}: {e}", self.history.display());
+			complain(format_args!("can't save {}: {e}", self.history.display()));
 		}
 		self.saved_at = Instant::now();
 	}
@@ -104,7 +110,7 @@ impl Plugin {
 			}
 			let from = keep.1.then_some(self.history.as_path());
 			if let Err(e) = self.graphs.set_look(look, from) {
-				eprintln!("tukzmon: can't read {}: {e}", self.history.display());
+				complain(format_args!("can't read {}: {e}", self.history.display()));
 			}
 			let refit = !self.graphs.widths().eq(widths);
 			if keep == (false, true) {
@@ -115,6 +121,19 @@ impl Plugin {
 				self.fit();
 			}
 		}
+	}
+
+	/// Reset history in the settings window starts the graphs over, and
+	/// deletes the file when it's kept.
+	fn reset_if_asked(&mut self) {
+		if !self.reset.asked() {
+			return;
+		}
+		let saved = self.graphs.look().keep.then_some(self.history.as_path());
+		if let Err(e) = self.graphs.reset(saved) {
+			complain(format_args!("can't delete {}: {e}", self.history.display()));
+		}
+		self.saved_at = Instant::now();
 	}
 }
 
@@ -129,6 +148,7 @@ extern "C" fn tick(data: *mut c_void) -> Gboolean {
 		p.settings = None;
 	}
 	p.reload_if_changed();
+	p.reset_if_asked();
 	p.graphs.sample();
 	if p.graphs.look().keep && p.saved_at.elapsed() >= SAVE_EVERY {
 		p.save_history();
@@ -206,7 +226,9 @@ extern "C" fn motion(widget: *mut c_void, event: *mut c_void, data: *mut c_void)
 	if got {
 		p.moved_at = Instant::now();
 		let px = |v: f64| v.max(0.0).floor() as usize * scale;
-		if p.graphs.hover(Some((px(x), px(y))), w * scale, h * scale) {
+		if p.graphs
+			.hover(Some((px(x), px(y))), w * scale, h * scale, scale)
+		{
 			// SAFETY: widget is live for this event.
 			unsafe { gtk_widget_queue_draw(widget) };
 		}
@@ -217,7 +239,7 @@ extern "C" fn motion(widget: *mut c_void, event: *mut c_void, data: *mut c_void)
 extern "C" fn leave(widget: *mut c_void, _event: *mut c_void, data: *mut c_void) -> Gboolean {
 	// SAFETY: data is the connected Plugin.
 	let p = unsafe { &mut *data.cast::<Plugin>() };
-	if p.graphs.hover(None, 0, 0) {
+	if p.graphs.hover(None, 0, 0, 1) {
 		// SAFETY: widget is live for this event.
 		unsafe { gtk_widget_queue_draw(widget) };
 	}
@@ -310,7 +332,7 @@ extern "C" fn configure(_plugin: *mut c_void, data: *mut c_void) {
 		.spawn()
 	{
 		Ok(child) => p.settings = Some(child),
-		Err(e) => eprintln!("tukzmon: can't start {}: {e}", program.display()),
+		Err(e) => complain(format_args!("can't start {}: {e}", program.display())),
 	}
 }
 
@@ -331,7 +353,16 @@ extern "C" fn free_data(_plugin: *mut c_void, data: *mut c_void) {
 }
 
 fn construct(plugin: *mut c_void) {
-	let config = config::config_file();
+	// SAFETY: plugin is a live XfcePanelPlugin.
+	let id = unsafe { xfce_panel_plugin_get_unique_id(plugin) };
+	let config = config::instance_file(&config::config_dir(), id);
+	if let Err(e) = config::start_from(&config, &config::config_file()) {
+		complain(format_args!(
+			"can't start {} from the shared file: {e}",
+			config.display()
+		));
+	}
+	let data = keep::data_dir();
 	let mut p = Box::new(Plugin {
 		xpp: plugin,
 		area: std::ptr::null_mut(),
@@ -342,10 +373,8 @@ fn construct(plugin: *mut c_void) {
 		config_time: modified(&config),
 		config,
 		settings: None,
-		// SAFETY: plugin is a live XfcePanelPlugin.
-		history: keep::data_dir().join(format!("plugin-{}.hist", unsafe {
-			xfce_panel_plugin_get_unique_id(plugin)
-		})),
+		history: keep::history_file(&data, id),
+		reset: keep::ResetWatch::new(&data),
 		saved_at: Instant::now(),
 		moved_at: Instant::now(),
 	});
@@ -474,5 +503,47 @@ pub unsafe extern "C" fn xfce_panel_module_construct(
 			G_CONNECT_AFTER,
 		);
 		plugin
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use std::path::Path;
+
+	// Test ID: defyn
+	#[test]
+	fn nothing_the_panel_loads_can_panic_on_a_failed_print() {
+		let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+		let macros = ["print", "println", "eprint", "eprintln", "dbg"].map(|m| format!("{m}!("));
+		let mut seen = 0;
+		let mut hits = Vec::new();
+		for dir in ["xfce/src", "core/src", "knobs/src"] {
+			for entry in std::fs::read_dir(root.join(dir)).unwrap() {
+				let path = entry.unwrap().path();
+				if path.extension().is_none_or(|e| e != "rs") || path.ends_with("tests.rs") {
+					continue;
+				}
+				let text = std::fs::read_to_string(&path).unwrap();
+				let code = text
+					.split("#[cfg(test)]\nmod tests")
+					.next()
+					.unwrap_or_default();
+				seen += 1;
+				for (n, line) in code.lines().enumerate() {
+					if macros.iter().any(|m| {
+						line.match_indices(m.as_str()).any(|(i, _)| {
+							!line[..i].ends_with(|c: char| c.is_alphanumeric() || c == '_')
+						})
+					}) {
+						hits.push(format!("{}:{}", path.display(), n + 1));
+					}
+				}
+			}
+		}
+		assert!(seen > 10, "only {seen} files read");
+		assert!(
+			hits.is_empty(),
+			"print macros panic on a failed write: {hits:?}"
+		);
 	}
 }

@@ -11,4 +11,7 @@ std::int32_t run_dialog(Dialog &d, rust::Str snapshot);
 // builds the window off screen and says which rows it greys, for the tests
 rust::Vec<rust::String> greyed_rows(Dialog &d);
 rust::Vec<std::int32_t> graph_list_places(Dialog &d);
+struct TabShown;
+rust::Vec<TabShown> tabs_shown(Dialog &d);
+rust::Vec<rust::String> bottom_buttons(Dialog &d);
 }

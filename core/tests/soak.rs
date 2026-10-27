@@ -65,7 +65,7 @@ fn the_heap_stops_growing_once_the_history_is_full() {
 		g.sample();
 		g.trim();
 		let x = round % w;
-		g.hover(Some((x, h / 2)), w, h);
+		g.hover(Some((x, h / 2)), w, h, scale);
 		std::hint::black_box(g.render(w, h, scale));
 		std::hint::black_box(g.hover_tip(x, h / 2, w, h, scale));
 		std::hint::black_box(g.tooltip());

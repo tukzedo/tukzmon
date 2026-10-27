@@ -56,7 +56,7 @@ fn tick(g: &mut Graphs, round: usize, w: usize, h: usize, scale: usize) {
 	g.sample();
 	g.trim();
 	let x = round % w;
-	g.hover(Some((x, h / 2)), w, h);
+	g.hover(Some((x, h / 2)), w, h, scale);
 	black_box(g.render(w, h, scale));
 	black_box(g.hover_tip(x, h / 2, w, h, scale));
 	black_box(g.tooltip());

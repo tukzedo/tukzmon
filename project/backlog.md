@@ -21,6 +21,40 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
+	- ID: 2026102620162196
+	- Type: Bug
+	- Status: Waiting for answers
+		- Waits on the 2026102620162196 question in questions.md: should a still pointer's tip hold the column under it, as now, or the moment it first pointed at.
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build defqn, on b23 as of 2026-10-26 20:16.
+	- Related IDs: 2026102408304599
+	- Incorrect behavior: Mouseover tip text: "x seconds ago" doesn't update with ticks, it seems to be stuck at whatever it was at first flyover.
+	- Note: Regular time format works though.
+	- Reproduced: 2026-10-26, in core with 2 days of history. A still pointer read "32 sec ago" over 4 ticks while its clock time went 20:59:13, :14, :15, :16, on a linear axis and on Smooth log.
+	- Actual cause:
+		- Each column of the graph is a fixed age, since the right edge is always now and the graph moves left under the pointer. So a still pointer's age holds, and its clock time moves on by a sample each tick. Both say the same thing about the column under the line.
+		- The tip is asked again each tick, so nothing is stale. The round-1024 test panel saw the age count, likely because its history was only seconds old, and a log axis stretches as its history grows.
+	- Progress log:
+		- No code change yet, since a fix means picking what the line and tip follow.
+
+- Graph sizes on a vertical panel
+	- ID: 2026102621105420
+	- Type: Enhancement
+	- Status: Waiting for answers
+		- Waits on the question about the Width settings on a vertical panel.
+	- Priority|Severity: Avg
+	- Opened: 20261026-211054
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013889
+	- Related IDs: 2026102621053709, 2026102508393152
+	- Requirements:
+		- On a vertical panel, the Width settings either do something, or say they don't.
+	- Progress log:
+		- Each graph there is as wide as the panel and half that tall, and the Width tip still says "Its height follows the panel".
+
 - Theme presets, with a coordinated Default
 	- ID: 2026102409400679
 	- Type: Feature
@@ -132,172 +166,13 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-25: new values only. `config::tests::the_default_theme_is_the_row_defaults` and `saved_themes_write_whole_and_read_back` count 19 theme members, not 12. `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme` counts 17 colors, not 11.
 		- Swept: every `Graph` use (the plugin, now through `Graphs`, and the lib tests), every `cpu_paint` caller, every `keep::write` caller, and every theme member, which the role and row-default tests walk.
 
-- The graph list on the Graph tab
-	- ID: 2026102508393161
-	- Type: Feature
-	- Status: Waiting on UAT
-		- How the list looks, and how a drag feels, is for a person to judge.
-		- It departs from the wording in 2 ways. The width is a number box, with arrows, like every other number in the window. And each row also has a revert arrow, left of the gripper.
-	- Needs local test suite run?: No. The full run passed on 2026-10-26.
-	- Needs hand testing: on b23, after an install and a panel restart, open Settings, look at the graph list under Graphs, drag a row by its gripper, Apply, and judge how it looks and feels.
-	- Priority|Severity: High
-	- Opened: 20261025-083931
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build defm2. Not on b23 yet.
-	- Parent ID: 2026102408304639
-	- Prereq IDs: 2026102508393152, 2026102508393154, 2026102508393156, 2026102508393159
-	- Requirements:
-		- A row per graph on the first tab, in columns: a checkbox to show it, a space for its live graph, its width as a text box, a time function dropdown, and a gripper on the right to drag it up or down.
-		- It replaces the per-graph rows under the Graphs heading.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- Under Graphs on the Graph tab, a row per graph in the saved order: the checkbox with the graph's name, an empty space for its live graph, Width px, Time axis, a revert arrow and a gripper. The 6 rows and the Order row are gone.
-		- Dragging a gripper moves the row and writes `graph.order`, and so do Up and Down while the gripper has focus. A hidden graph's width and time axis are greyed.
-		- `design.md` XFCE plugin and Settings window have the details.
-		- Verified: in a test window, dragging CPU's gripper below memory saved `order: "mem cpu"`. Down on the top gripper put back the default, with no order line, and Up on the second saved `mem cpu` again.
-	- Decisions:
-		- The list's rows come from the spec by path: a graph with `<name>.show`, `.width` and `.time` settings gets a row, so a new graph brings its own.
-		- The window and the plugin share one order function, `graphs::draw_order`, so the list always shows the panel's order.
-		- A name in `graph.order` that this build doesn't know stays at the end after a drag, so a file from a newer tukzmon keeps it.
-		- The row's revert arrow resets its checkbox, width and time axis. The order has none, since dragging back undoes it.
-		- Column heads over the width and time axis, since those boxes lost their labels.
-		- The space is an empty framed box, 5 lines wide, for 2026102508393163 to draw in.
-		- Spike emphasis stays under Time, as 2026102508393156 left it.
-	- Branch: round-1026
-	- Test case: `dialog::tests::the_graph_list_has_a_row_per_graph_in_the_saved_order` (defkz), `dragging_a_graph_saves_the_order_and_keeps_names_it_doesnt_know` (defm0), and `bridge::tests::the_graph_list_sits_under_graphs_and_takes_its_rows` (defm1). defkz fails with the saved order ignored, defm0 with that or with unknown names dropped, and defm1 with no row marked as the list's. The drag itself has no test in the suite.
-		- Swept: every `Graphs::order` user (now through `order_of`), every reader of `graph_order` (`Look::from_model` and the window), and every `Row` field `refresh` reads, for the list's rows with no label or revert of their own.
-
-- Live graphs in the graph list
-	- ID: 2026102508393163
-	- Type: Feature
-	- Status: Waiting on UAT
-		- How the graphs look in the list is for a person to judge.
-		- It departs from the wording in 2 ways. A graph wider than 512 px is squeezed to that, so the window stays on screen. And a hidden graph's row still draws it.
-	- Needs local test suite run?: No. The full run passed on 2026-10-26.
-	- Needs hand testing: on b23, after an install, open Settings, watch the graph list for a minute, then change a width, a theme and a time axis, and judge whether each row follows before Apply.
-	- Priority|Severity: High
-	- Opened: 20261025-083931
-	- Opened by: t00mietum
-	- Version and build: v0.1.0, not on b23 yet.
-	- Parent ID: 2026102408304639
-	- Prereq IDs: 2026102508393161
-	- Requirements:
-		- Each row of the graph list draws its graph live.
-		- The longest graph sets the column's width, so the columns after it line up.
-	- Estimated effort: Avg
-	- Actual effort: Low
-	- Progress log:
-		- Each row of the graph list draws its graph live, at its own width and the row's height, at the Sample every ms rate. Its tip is the latest read.
-		- It draws with the window's settings, applied or not, so a width, theme, color or time axis change shows in the row at once.
-		- The widest graph sets the column, and the width boxes after it line up.
-		- `design.md` XFCE plugin has the details.
-		- Verified: in a test window, CPU at 40 and memory at 100 drew 40 and 100 px wide, both from the same x, with the width boxes lined up past the wider one, and the CPU graph filled in as it ran.
-	- Decisions:
-		- The window reads the graphs itself, from when it opens, rather than the panel's history file. The panel doesn't tell it which file is its own, and it saves that file every 15 minutes, so the last of them would be a gap.
-		- The graphs are drawn by the same core code as the panel's, `Graph::render`, so the row is what the panel would draw.
-		- A hidden graph is still read and drawn, so its row shows what showing it would give.
-		- Past 512 px a graph is squeezed rather than cut, so its whole time span still shows.
-		- `Look::width_or` is the one rule for a width of 0, used by the panel's layout and the list.
-	- Branch: round-1026
-	- Test case: `live::tests::each_graph_draws_at_its_width_with_the_windows_look` (defmj) and `bridge::tests::the_longest_graph_sets_the_column_so_the_rest_line_up` (defmk). defmj fails with the window's changes not reaching the graphs, and defmk with every graph at the old fixed width.
-		- 2026-10-26: `bridge::tests::a_row_is_greyed_while_its_switch_is_off` (defma) now takes a lock shared with defmk, since 2 Qt windows at once crash, and is ignored under Miri, which can't call C++. Its checks are unchanged.
-		- Swept: every reader of a graph's own width (`Graphs::width_of`, now through `width_or`), and every test that builds the Qt window (defma and defmk).
-
-- Graphs with an optional (default) log X axis
-	- ID: 2026101916013886
-	- Type: Feature
-	- Status: Waiting on UAT
-		- How the easing looks is for a person to judge.
-		- It departs from the progress log's wording in one way. A width change eases only a linear graph, since a log graph's divisions stay at the same fractions of the width.
-	- Needs local test suite run?: No. The full run passed on 2026-10-26.
-	- Needs hand testing: on b23, after an install and a panel restart, watch the graph as it comes up with saved history, then pick another time axis for a graph in Settings, before and after Apply, and judge whether each move looks smooth.
-	- Priority|Severity: High
-	- Opened: 20261019-160138
-	- Opened by: t00mietum
-	- Version and build: v0.1.0, not on b23 yet.
-	- Prereq IDs: 2026101916013885
-	- Related IDs: 2026101916013880
-	- Requirements:
-		- In log mode, squeezes all data from start to now, across the whole thing, right away.
-		- On very long sessions:
-			- Four quarters of the graph:
-				- The rightmost quarter area covers no more than 1 minute.
-				- The second quarter covers no more than the next 59 minutes.
-				- The third quarter covers no more than the next 23 hours.
-				- The last quarter covers everything else.
-			- But if the graph hasn't been running long enough:
-				- x <= 1m: The entire graph is an ever-compressing log plot of all available time continuously.
-				- 1m < x <= 1h:
-					- If rightmost quarter shows <= 1m, then still log plot of all available time.
-					- Else [rightmost quarter is therefore > 1m], then (smoothly) adjust the graph so that rightmost covers exactly 1m, and the remaining three quarters plot all of remaining time continuously.
-				- 1h < x <= 1d:
-					- Rightmost quarter shows <= 1m and second quarter <= 1h, then still log plot of all available time continuously.
-					- Rightmost quarter = 1m and second quarter <= 1h, then the leftmost three quarters plot of all remaining time continuously.
-					- Rightmost quarter = 1m and second > 1h, then (smoothly) adjust the second quarter to cover only the next 59 minutes, and remaining left two quarters plot of all remaining time continuously.
-				- And so on.
-			- All adjustments to time divisions should be animated smoothly.
-			- The transition from 1m to 1h to 1d to "everything" should be smooth, with no obvious gate or line there behind the scenes.
-			- The graph should be averaged and antialiased, so that it doesn't shimmer or look weird while animating.
-				- The averaging should be very small and possibly even variable over time - being able to represent single-pixel spikes is important, e.g. when on the farther left, to show for example that the CPU was spiked for a very long time. (But eventually far enough left, it gets averaged into a background level.)
-	- Actual effort: Avg
-	- Progress log:
-		- Log and linear modes work, with the caps and no seams. `design.md` has how.
-		- Still needs easing when the width changes or old history is loaded. While running, the boundaries move smoothly by themselves.
-		- 2026-10-26: A jump in the time axis now eases in over half a second, from what was on screen. That covers history loaded, the first sample after a gap, a new curve or time axis, and a linear graph's span changing.
-		- The panel and the settings window's graph list draw about 30 times a second while an axis eases, then go back to once a sample.
-		- `design.md` Time axis has the details.
-		- Verified: the full run passed, and the new tests failed with jumps going unseen, or with the ease starting from the new axis.
-	- Decisions:
-		- A jump is told from time going on by what the axis is built from: the curve, the history's first and last times, or the linear span. The last time may move up to 2 sample periods plus 0.25 s past the clock before it counts as a gap, so a late or missed tick isn't one.
-		- The old and new axis are mixed in `ln(1 + age / 5 s)` with a smoothstep, so time still only runs older to the left. What was on screen is kept as 65 points, so a jump part way through starts from there.
-		- History loaded before the first draw isn't eased, since nothing was drawn yet. The gap up to now eases in at the first sample after the priming one.
-		- The ease runs on the graph's own clock, so the soak test's skipped days end one at once.
-		- The panel's extra frames come from a one-shot 33 ms timer, started in draw only while a graph eases, so an idle panel still draws once a sample.
-	- Branch: round-1026
-	- Test case: `axis::tests::a_jump_eases_in_from_what_was_drawn` (defpn), `time_going_on_is_no_jump_but_a_gap_or_new_axis_is` (defpp), `a_jump_while_easing_starts_from_what_is_on_screen` (defpq), `tests::a_new_time_axis_eases_in_and_then_stops` (defpr), and `live::tests::a_time_axis_picked_in_the_window_eases_into_its_row` (defps). defpn to defpr fail with jumps not seen, and defpn and defpq with the ease starting from the new axis. The rest of the requirements: debh9, debha to debhe in `axis::tests`, and `render::tests::spike_reach_fades_with_time` (debj9).
-		- Swept: every `Frame` built (render tests, the preview example, `Graph::render`), every `age` caller (`Frame::draw`, `Graph::span_at`), both places a graph is drawn on screen (the plugin's draw, the settings window's `LiveGraph`), and every place a look or history is swapped in (`Graphs::set_look`, `Live::set_look`, `Graph::adopt`), which the jump check covers without a call of its own.
-
-- Swap graph
-	- ID: 2026102618353000
-	- Type: Feature
-	- Status: Waiting on UAT
-		- How it looks, in each theme, is for a person to judge.
-		- It departs from the wording in one way. It's off by default, so an existing panel doesn't grow wider. Turn it on in the graph list.
-	- Needs local test suite run?: No. The full run passed on 2026-10-26.
-	- Needs hand testing: on b23, after an install, turn on Swap graph in the graph list, Apply, and judge how it looks beside CPU and memory in Default and Fire.
-	- Priority|Severity: High
-	- Opened: 20261026-183530
-	- Opened by: t00mietum
-	- Version and build: v0.1.0, not on b23 yet.
-	- Parent ID: 2026101916013887
-	- Related IDs: 2026102408512192
-	- Requirements:
-		- Swap; % used, from the swap collector.
-		- No swap graph on a box with no swap.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- The swap graph draws % used, with its tip as "Swap 33% used". It has a row in the graph list, at `swap.show`, `swap.width` and `swap.time`, and a Themes/Swap sub-tab with In use, or Low, Medium and High.
-		- `Graphs` and the settings window's `Live` now reach every graph through one `Drawn` trait, so a new graph is a slot and a `Which` entry, not a match arm in every method.
-		- `graph.order` defaults to `cpu mem swap`.
-		- `design.md` XFCE plugin, Theme and Data sources on Linux have the details.
-		- Verified: the full run passed. With the swap slot taken out of `Graphs`, defq6 and defq7 fail.
-	- Decisions:
-		- Off by default, so a panel doesn't widen on upgrade.
-		- In use is each theme's user color, and its gradient is the theme's CPU one, so Fire draws swap as a gradient. Randomize gives In use the lead role.
-		- One color, with no heading over it on the sub-tab, since there's one series.
-	- Branch: round-1026
-	- Test case: `graphs::tests::swap_is_off_by_default_and_draws_its_own_color_when_on` (defq5), `three_sit_side_by_side_and_the_pointer_finds_swap` (defq6), `hiding_swap_keeps_its_history_for_when_its_back` (defq7), and `live::tests::the_swap_row_draws_at_its_own_width` (defq8). defq6 and defq7 fail with swap left out of `Graphs`' slots.
-		- 2026-10-26: new values only. `config::tests::the_default_theme_is_the_row_defaults` (deccf) and `saved_themes_write_whole_and_read_back` count 24 theme members, not 19. `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme` counts 21 colors, not 17. `the_graph_order_reads_with_spaces_or_commas` (dedqq) has the default order `cpu mem swap`, not `cpu mem`. defkz's typed order reads back with `swap` at the end, and defm0's past-the-end move is 3, not 2, with `swap` in its orders. defma's rows greyed at defaults are `swap_width` and `swap_time`, not none, since Swap graph is off by default.
-		- Swept: every user of `Graphs.mem` (the plugin, `Live`, the profiler, the soak test), every `Which` match, the 6 built-in themes, and `dice::ROLES`, which the role test walks. The profiler and soak test run with the defaults, so they don't draw swap.
-
 - Battery graph
 	- ID: 2026102618353013
 	- Type: Feature
 	- Status: Waiting on UAT
 		- How it looks, in each theme, is for a person to judge, and b23 has no battery, so a laptop has to show it.
 		- It departs from the wording in one way. It's off by default, like swap. Turn it on in the graph list.
+		- Stand-in, 2026-10-26, build defyt: with a made-up battery in a test window, the row drew plugged in at 80% in lavender, on battery at 60% in orange and critical at 4% in red on Default, and Fire colored the charge by its gradient. Only the look on a real laptop is left.
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Needs hand testing: on a laptop, after an install, turn on Battery graph in the graph list, Apply, and judge how plugged in, on battery and critical look in Default and Fire.
 	- Priority|Severity: High
@@ -326,10 +201,84 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-26: new values only. deccf and `saved_themes_write_whole_and_read_back` count 31 theme members, not 24. `save_as_keeps_the_colors_whole_and_picks_the_new_theme` counts 27 colors, not 21. dedqq, defkz and defm0 have `battery` after `swap` in their orders, and defm0's past-the-end move is 4, not 3. defma's rows greyed at defaults add `battery_width` and `battery_time`.
 		- Swept: every `Which` match, the slots in `Graphs` and `Live`, the 6 built-in themes, and `dice::ROLES`.
 
+- Pre-next-cut: Generic theme names, and distinct colors per monitor
+	- ID: 2026102620162201
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- How each theme looks, and whether the graphs read apart side by side, is for a person to judge.
+		- It departs from the wording in one way. Randomize still gives every graph the same lead hue. That part is child 2026102621562349.
+		- Stand-in, 2026-10-26, build defyt: in the window Fire drew CPU red and brown, memory violet and swap blue, and with b23's settings a test panel drew CPU, memory and swap apart on Default. Only the look is left.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, after an install, with swap on, pick each built-in theme on the Themes tab, Apply, and judge whether CPU, memory and swap read apart and look good together, Fire most of all.
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304612
+	- Related IDs: 2026102409400679, 2026102409400695, 2026102508393159
+	- Note: The earlier instructions on theme colors were mixed up with a new theme design. These clarify them, and win over the color-named themes in 2026102408304612 and 2026102409400679.
+	- Requirements:
+		- Theme names shouldn't have colors in the names. They should be more generic, "Pastel", "Primary", etc. (E.g. some different common themes)
+		- The different monitors should have their own unique and distinct colors, which is why every theme name has subtabs for per-monitor colors.
+		- "Fire"-themes should have different color combos per monitor.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- The built-in themes are now Default, Primary, Pastel, Neon, Earth and Fire.
+		- Every theme gives CPU, memory, swap and the battery each a hue and gradient of their own. I/O wait and system stay red and orange, and the battery's on battery and critical stay those 2.
+		- Default keeps its CPU, memory and background colors. Swap is now sky blue, `#40a0ff`, and the battery's plugged in lavender, `#b080ff`.
+		- Fire's graphs each burn their own flame: CPU red, yellow-white and light blue as before, memory violet, swap a blue gas flame, and the battery a green copper one.
+		- `design.md` Theme has the details.
+		- Verified: the full run passed with the new test.
+	- Decisions:
+		- 6 built-ins, as before, so the theme list doesn't grow. Primary keeps Green standard's CPU colors and Pastel Blue pastel's CPU and background, so a pick of the old ones looks close to the new one.
+		- The old keys, such as `green_standard`, aren't kept as aliases. They were never in a release, and b23's file names `default`.
+		- Backgrounds are neutral, or lean to the theme's mood, since no single graph's hue leads any more.
+		- No graph's own color is red or orange, outside Fire's and Earth's warm ones, so the alarms stay apart.
+	- Branch: round-1027
+	- Test case: `config::tests::no_theme_is_named_for_a_color_and_each_graph_has_its_own` (defx7). It fails on the old themes, where Default's swap was CPU's color, and with a color word put in a label, and passes now.
+		- 2026-10-26: new values only, for the renamed themes. deccg reads `pastel`, not `blue_pastel`. deccj reads `primary` and "Primary *", not Green standard. decct lists `primary`, `pastel`, `neon` and `earth` in place of the 4 color-named keys. decdg reads `neon`, with a gradient Medium of `#39ff14`, not `#0080ff`. deccx's built-in clash is `Earth` -> `earth_2`, not `Blue pastel` -> `blue_pastel_2`. In `dialog::tests`, deccm and deccy pick `neon`, with user `#39ff14` and nice `#1f6a10`, not `#0080ff` and `#20405f`, and deccy's clash is `nEon`. dece0 picks `pastel`.
+		- 2026-10-26: dedpz, defq5 and defqc had Fire's memory, swap and battery gradients equal to its CPU one. They now check each graph's own gradient, and dedpz that memory's differs from CPU's.
+		- Swept: every built-in key and label in the Rust tests, qt.cpp and the docs, every swap and battery row default, and the `dice` tests, which don't read the built-ins.
+	- 2026-10-27: the Randomize part is done in child 2026102621562349 (commit 9e35514).
+
+- Randomize: a hue of its own for each graph
+	- ID: 2026102621562349
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- Whether the 4 hues of a roll look good together is for a person to judge.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, after an install, with swap on, press Randomize a few times with Apply, and judge whether CPU, memory and swap read apart and look good together.
+	- Stand-in: none. Whether a roll's hues look good together is for a person, and defxd already checks they sit apart.
+	- Priority|Severity: High
+	- Opened: 20261026-215623
+	- Opened by: t00mietum
+	- Parent ID: 2026102620162201
+	- Related IDs: 2026102409400700
+	- Requirements:
+		- A roll gives CPU, memory, swap and the battery each a lead hue of its own, all kept off red and orange, with their quiet colors and gradients from those, the way the built-ins now do.
+	- Note: `dice::tests::buffers_and_cache_are_muted_and_told_apart` (dedq0) asserts memory's lead is CPU's. It changes with this.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A roll gives each graph a lead hue of its own, from yellow-green round to magenta as before, at least 45 degrees from the others, in a random order. Each graph's quiet colors, buffers and gradient come from its own hue.
+		- I/O wait and system stay red and orange, and so do the battery's critical and on battery.
+		- `design.md` Theme has the details.
+		- Verified: the full run passed with the new test.
+	- Decisions:
+		- 45 degrees apart, which leaves 90 degrees of the range to roll in, and keeps clear of defx7's 30 for the built-ins.
+		- All 4 share one saturation and brightness, so a roll reads as one set, the way each built-in does.
+		- The background still takes CPU's hue, or nice's, since it's one set of colors under every graph.
+		- `dice::ROLES` now names each member's graph as well as its role.
+	- Branch: round-1027
+	- Test case: `dice::tests::each_graph_leads_with_a_hue_of_its_own` (defxd), and dedq0. Both fail with every graph given CPU's hue, and defxd with the order left unshuffled. Both pass now.
+		- 2026-10-26: dedq0 checked memory's lead equal to CPU's user, and cache equal to nice. It now checks they differ, and cache equal to memory's Low. decdt, decdv and decdw now check each graph's colors, not CPU's alone.
+		- Swept: every `dice::ROLES` and `dice::theme` user (`dialog.rs` and its decdq test), and every graph in `ROLES`.
+
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
 	- Status: Waiting on automated testing
+		- 2026-10-26: still waits for the workflow file to reach `main`, which a round never pushes to.
 	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
 	- Priority|Severity: Avg
 	- Opened: 20261025-135600
@@ -349,6 +298,38 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: The workflow is its own test. Its first run is in the row above.
 
+- Pre-next-cut: Graphs aren't remembering history between restarts
+	- ID: 2026102620162195
+	- Type: Bug
+	- Status: Can't reproduce
+		- Saving and loading work in build defqn. What's left is to see it on b23 at the next panel restart.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, at the next panel restart, check that the graphs come back with their history since 2026-10-26 19:43, with a gap for the time the panel was down.
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Test environment: b23, XFCE 4.20.7, X11.
+	- Version and build: v0.1.0 build defqn, on b23 as of 2026-10-26 20:16.
+	- Related IDs: 2026101916013885, 2026102408304572, 2026102620162202, 2026102620523642
+	- Incorrect behavior: Graphs aren't remembering history between restarts.
+	- Reproduced: No. In a test panel, history came back after `xfce4-panel --restart`, the way the install restarts it.
+	- Actual cause:
+		- Nothing had been saved before the 19:43 restart that put defqn on b23. `~/.local/share/tukzmon` was first made at 19:52:48, so the panel before it never wrote a history file.
+		- The installs since 2026-10-23 were all `--no-restart`, or had the restart stubbed, so that panel was most likely still on the 2026-10-23 build, which came before saving.
+		- Since 19:43 the live panel saves on its 15 minute timer, seen at 20:23:52 and 20:38:52.
+	- Actual effort: Low
+	- Progress log:
+		- Verified, build defqn in a test panel: a restart saves on the way out, the panel that comes back loads it, and 2 restarts in a row keep the first run's start. The new plugin starts about 5 s after the old one has saved, so the two don't race.
+		- Verified: a file saved at a restart by the 5-tier build from before the 50 ms tier loads in defqn, and its next save has 6 tiers.
+		- That file is now a test fixture, `core/tests/data/plugin-5-tiers.hist`.
+		- A restarted panel's stdout and stderr are `/dev/null`, so a failed load or save shows nothing. Filed as 2026102620523642.
+	- Decisions:
+		- Can't reproduce, with no code change, since nothing in the save or load path was wrong.
+		- The fixture is a real file from the old plugin, not one cut down from today's encoder like defp7's, since only that catches a change made to both encode and decode.
+	- Branch: round-1027
+	- Test case: `graphs::tests::a_file_the_5_tier_plugin_wrote_still_loads` (defv4). It fails with decode taking only today's tier count, and with `lo` and `hi` swapped in both encode and decode, which defp7 and decbg miss. Restarts are also covered by decbp, dedq3 and defp7.
+		- Swept: every load path (start, a graph added, keep turned back on) and every save path (the 15 minute timer, quit, keep turned off, a graph dropped) in `xfce/src/lib.rs` and `Graphs`. Nothing else reads or writes the history file.
+
 - XFCE panel plugin
 	- ID: 2026101916013889
 	- Type: Feature
@@ -365,111 +346,20 @@ Sorted per the notes in [Template](#template).
 		- Packaged for Debian, and as a Nix package for tukzedo-linux's NixOS edition.
 	- Progress log:
 		- One CPU graph in the panel, with a tooltip and Properties opening tukzmon-settings. Tried on X11 only so far.
+		- 2026-10-26: Several graphs side by side, and the graph list that picks them, are in since round-1025. The `.deb` is in since 2026102506591283.
+		- 2026-10-26: Split what's left into children: 2026102621053709 (vertical and deskbar panels), 2026102621053715 (a settings file per plugin instance), 2026102621053720 (Wayland), 2026102621053725 (Nix package), and 2026102621105420 (graph sizes on a vertical panel). This closes with the last of them.
 
-- Pre-next-cut: Graphs aren't remembering history between restarts
-	- ID: 2026102620162195
-	- Type: Bug
+- Nix package for tukzedo-linux's NixOS edition
+	- ID: 2026102621053725
+	- Type: Feature
 	- Status: Queued
 	- Priority|Severity: High
-	- Opened: 20261026-201621
+	- Opened: 20261026-210537
 	- Opened by: t00mietum
-	- Version and build: v0.1.0 build defqn, on b23 as of 2026-10-26 20:16.
-	- Related IDs: 2026101916013885, 2026102408304572
-	- Incorrect behavior: Graphs aren't remembering history between restarts.
-
-- Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
-	- ID: 2026102620162196
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261026-201621
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build defqn, on b23 as of 2026-10-26 20:16.
-	- Related IDs: 2026102408304599
-	- Incorrect behavior: Mouseover tip text: "x seconds ago" doesn't update with ticks, it seems to be stuck at whatever it was at first flyover.
-	- Note: Regular time format works though.
-
-- Pre-next-cut: Padding above, below, and between the graphs
-	- ID: 2026102620162197
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261026-201621
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304625
+	- Parent ID: 2026101916013889
 	- Requirements:
-		- Add a couple of virtual px above and below the graphs, and double that in-between.
-
-- Pre-next-cut: Wrap tip text at a readable width
-	- ID: 2026102620162198
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261026-201621
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304599
-	- Requirements:
-		- Tip text should wrap at a readable width, rather than one long line of text.
-
-- Pre-next-cut: Hover line on the graphs in the Settings dialog
-	- ID: 2026102620162199
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261026-201621
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304599, 2026102508393163
-	- Requirements:
-		- The mouse hover black line should work on the graphs in the Settings dialog too.
-
-- Pre-next-cut: Sub-tabs nested under their parent tab
-	- ID: 2026102620162200
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261026-201621
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304546, 2026102409400684
-	- Requirements:
-		- Subtabs as nested indented tabs under its parent tab on left tab list.
-
-- Pre-next-cut: Generic theme names, and distinct colors per monitor
-	- ID: 2026102620162201
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261026-201621
-	- Opened by: t00mietum
-	- Parent ID: 2026102408304612
-	- Related IDs: 2026102409400679, 2026102409400695, 2026102508393159
-	- Note: The earlier instructions on theme colors were mixed up with a new theme design. These clarify them, and win over the color-named themes in 2026102408304612 and 2026102409400679.
-	- Requirements:
-		- Theme names shouldn't have colors in the names. They should be more generic, "Pastel", "Primary", etc. (E.g. some different common themes)
-		- The different monitors should have their own unique and distinct colors, which is why every theme name has subtabs for per-monitor colors.
-		- "Fire"-themes should have different color combos per monitor.
-
-- Pre-next-cut: Reset history button
-	- ID: 2026102620162202
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261026-201621
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304572
-	- Requirements:
-		- A button on the left side of the bottom button strip (e.g. more or less aligned with "Keep across restarts"), for "Reset history", that does that and starts the graph over.
-		- If "Keep across restarts" is checked, warn user that it will delete all past history.
-
-- Pre-next-cut: Rename the "Apply and close" button to "OK"
-	- ID: 2026102620162203
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261026-201621
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304546
-	- Requirements:
-		- Button name: "Apply and close" -> "OK" (a reversal).
+		- A Nix package of the plugin and `tukzmon-settings`, for tukzedo-linux's NixOS edition.
+		- The panel finds the plugin, given NixOS's plugin paths.
 
 - The graphs
 	- ID: 2026101916013887
@@ -625,6 +515,20 @@ Sorted per the notes in [Template](#template).
 		- Split into 6 children, in this order: 2026102508393152 (on or off and a width per graph), 2026102508393154 (order), 2026102508393156 (time function per graph), 2026102508393159 (theme per graph), 2026102508393161 (the list itself), and 2026102508393163 (live graphs in it).
 		- 2026-10-25: no theme dropdown per graph after all. One theme colors every graph, per the answer on 2026102508393159.
 
+- An item's files go when it's removed from the panel
+	- ID: 2026102622311676
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261026-223116
+	- Opened by: t00mietum
+	- Related IDs: 2026102621053715
+	- Requirements:
+		- Removing a tukzmon item from the panel deletes its `plugin-<id>.shcl` and `plugin-<id>.hist`, as the panel's Remove dialog says ("its configuration will be lost").
+		- A later item that gets the same id starts fresh, not with the removed one's settings and history.
+	- Progress log:
+		- Today both files stay. The plugin doesn't connect the panel's `remove` signal, and free-data saves history after it.
+
 - The panel's tick costs about a third more since the 50 ms history tier
 	- ID: 2026102618573801
 	- Type: Enhancement
@@ -636,6 +540,31 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- The profiler's tick went from about 275 us to about 385 us on b23 on 2026-10-26, starting with the run for the finer history tiers (commit `6753a2b`). `History::span` went from about 28% to 38% of self time.
 		- Measure it against `dev` before that commit at the same load first. If it holds, make `span` cheaper over the new tier, or say why the cost is fine.
+
+- Plugin errors go nowhere after a panel restart
+	- ID: 2026102620523642
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261026-205236
+	- Opened by: t00mietum
+	- Related IDs: 2026102620162195
+	- Requirements:
+		- A panel started by `xfce4-panel --restart` runs with stdout and stderr on `/dev/null`, and so does the plugin. Its "can't read" and "can't save" lines for the history file are lost.
+		- Show a failed history load or save where a person can find it, such as in the tooltip or the journal.
+
+- A panic in the plugin takes the whole panel down on Wayland
+	- ID: 2026102622434311
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261026-224343
+	- Opened by: t00mietum
+	- Related IDs: 2026102621053720
+	- Requirements:
+		- On Wayland, XFCE 4.20 runs the plugin in the panel's own process, and the release build aborts on a panic. So a plugin bug takes down the panel and every other plugin in it. On X11 only the plugin's wrapper goes.
+		- A panic in the plugin stops only that item, with one line on stderr.
+	- Note: one way is `panic = "unwind"` in the release profile, and `catch_unwind` in each callback the panel calls, which then marks the item dead and stops its timers. Cargo can't set `panic` per package, so tukzmon-settings would unwind too. Measure what both binaries grow by first.
 
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
@@ -654,6 +583,428 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- The graph list on the Graph tab
+	- ID: 2026102508393161
+	- Type: Feature
+	- Status: Done
+		- It departs from the wording in 2 ways. The width is a number box, with arrows, like every other number in the window. And each row also has a revert arrow, left of the gripper.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Priority|Severity: High
+	- Opened: 20261025-083931
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build defm2. Not on b23 yet.
+	- Parent ID: 2026102408304639
+	- Prereq IDs: 2026102508393152, 2026102508393154, 2026102508393156, 2026102508393159
+	- Requirements:
+		- A row per graph on the first tab, in columns: a checkbox to show it, a space for its live graph, its width as a text box, a time function dropdown, and a gripper on the right to drag it up or down.
+		- It replaces the per-graph rows under the Graphs heading.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Under Graphs on the Graph tab, a row per graph in the saved order: the checkbox with the graph's name, an empty space for its live graph, Width px, Time axis, a revert arrow and a gripper. The 6 rows and the Order row are gone.
+		- Dragging a gripper moves the row and writes `graph.order`, and so do Up and Down while the gripper has focus. A hidden graph's width and time axis are greyed.
+		- `design.md` XFCE plugin and Settings window have the details.
+		- Verified: in a test window, dragging CPU's gripper below memory saved `order: "mem cpu"`. Down on the top gripper put back the default, with no order line, and Up on the second saved `mem cpu` again.
+	- Decisions:
+		- The list's rows come from the spec by path: a graph with `<name>.show`, `.width` and `.time` settings gets a row, so a new graph brings its own.
+		- The window and the plugin share one order function, `graphs::draw_order`, so the list always shows the panel's order.
+		- A name in `graph.order` that this build doesn't know stays at the end after a drag, so a file from a newer tukzmon keeps it.
+		- The row's revert arrow resets its checkbox, width and time axis. The order has none, since dragging back undoes it.
+		- Column heads over the width and time axis, since those boxes lost their labels.
+		- The space is an empty framed box, 5 lines wide, for 2026102508393163 to draw in.
+		- Spike emphasis stays under Time, as 2026102508393156 left it.
+	- Branch: round-1026
+	- Test case: `dialog::tests::the_graph_list_has_a_row_per_graph_in_the_saved_order` (defkz), `dragging_a_graph_saves_the_order_and_keeps_names_it_doesnt_know` (defm0), and `bridge::tests::the_graph_list_sits_under_graphs_and_takes_its_rows` (defm1). defkz fails with the saved order ignored, defm0 with that or with unknown names dropped, and defm1 with no row marked as the list's. The drag itself has no test in the suite.
+		- Swept: every `Graphs::order` user (now through `order_of`), every reader of `graph_order` (`Look::from_model` and the window), and every `Row` field `refresh` reads, for the list's rows with no label or revert of their own.
+	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: in a test window the list showed a row per graph with its live graph, width and time axis, and dragging CPU's gripper below memory saved `order: "mem cpu swap battery"`.
+	- Closed: 20261026-230215
+
+- Live graphs in the graph list
+	- ID: 2026102508393163
+	- Type: Feature
+	- Status: Done
+		- It departs from the wording in 2 ways. A graph wider than 512 px is squeezed to that, so the window stays on screen. And a hidden graph's row still draws it.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Priority|Severity: High
+	- Opened: 20261025-083931
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026102408304639
+	- Prereq IDs: 2026102508393161
+	- Requirements:
+		- Each row of the graph list draws its graph live.
+		- The longest graph sets the column's width, so the columns after it line up.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- Each row of the graph list draws its graph live, at its own width and the row's height, at the Sample every ms rate. Its tip is the latest read.
+		- It draws with the window's settings, applied or not, so a width, theme, color or time axis change shows in the row at once.
+		- The widest graph sets the column, and the width boxes after it line up.
+		- `design.md` XFCE plugin has the details.
+		- Verified: in a test window, CPU at 40 and memory at 100 drew 40 and 100 px wide, both from the same x, with the width boxes lined up past the wider one, and the CPU graph filled in as it ran.
+	- Decisions:
+		- The window reads the graphs itself, from when it opens, rather than the panel's history file. The panel doesn't tell it which file is its own, and it saves that file every 15 minutes, so the last of them would be a gap.
+		- The graphs are drawn by the same core code as the panel's, `Graph::render`, so the row is what the panel would draw.
+		- A hidden graph is still read and drawn, so its row shows what showing it would give.
+		- Past 512 px a graph is squeezed rather than cut, so its whole time span still shows.
+		- `Look::width_or` is the one rule for a width of 0, used by the panel's layout and the list.
+	- Branch: round-1026
+	- Test case: `live::tests::each_graph_draws_at_its_width_with_the_windows_look` (defmj) and `bridge::tests::the_longest_graph_sets_the_column_so_the_rest_line_up` (defmk). defmj fails with the window's changes not reaching the graphs, and defmk with every graph at the old fixed width.
+		- 2026-10-26: `bridge::tests::a_row_is_greyed_while_its_switch_is_off` (defma) now takes a lock shared with defmk, since 2 Qt windows at once crash, and is ignored under Miri, which can't call C++. Its checks are unchanged.
+		- Swept: every reader of a graph's own width (`Graphs::width_of`, now through `width_or`), and every test that builds the Qt window (defma and defmk).
+	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: in a test window, CPU's width set to 60 narrowed its row's graph at once, Linear for memory redrew its row, and Fire recolored every row, all before Apply.
+	- Closed: 20261026-230215
+
+- Graphs with an optional (default) log X axis
+	- ID: 2026101916013886
+	- Type: Feature
+	- Status: Done
+		- It departs from the progress log's wording in one way. A width change eases only a linear graph, since a log graph's divisions stay at the same fractions of the width.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Prereq IDs: 2026101916013885
+	- Related IDs: 2026101916013880
+	- Requirements:
+		- In log mode, squeezes all data from start to now, across the whole thing, right away.
+		- On very long sessions:
+			- Four quarters of the graph:
+				- The rightmost quarter area covers no more than 1 minute.
+				- The second quarter covers no more than the next 59 minutes.
+				- The third quarter covers no more than the next 23 hours.
+				- The last quarter covers everything else.
+			- But if the graph hasn't been running long enough:
+				- x <= 1m: The entire graph is an ever-compressing log plot of all available time continuously.
+				- 1m < x <= 1h:
+					- If rightmost quarter shows <= 1m, then still log plot of all available time.
+					- Else [rightmost quarter is therefore > 1m], then (smoothly) adjust the graph so that rightmost covers exactly 1m, and the remaining three quarters plot all of remaining time continuously.
+				- 1h < x <= 1d:
+					- Rightmost quarter shows <= 1m and second quarter <= 1h, then still log plot of all available time continuously.
+					- Rightmost quarter = 1m and second quarter <= 1h, then the leftmost three quarters plot of all remaining time continuously.
+					- Rightmost quarter = 1m and second > 1h, then (smoothly) adjust the second quarter to cover only the next 59 minutes, and remaining left two quarters plot of all remaining time continuously.
+				- And so on.
+			- All adjustments to time divisions should be animated smoothly.
+			- The transition from 1m to 1h to 1d to "everything" should be smooth, with no obvious gate or line there behind the scenes.
+			- The graph should be averaged and antialiased, so that it doesn't shimmer or look weird while animating.
+				- The averaging should be very small and possibly even variable over time - being able to represent single-pixel spikes is important, e.g. when on the farther left, to show for example that the CPU was spiked for a very long time. (But eventually far enough left, it gets averaged into a background level.)
+	- Actual effort: Avg
+	- Progress log:
+		- Log and linear modes work, with the caps and no seams. `design.md` has how.
+		- Still needs easing when the width changes or old history is loaded. While running, the boundaries move smoothly by themselves.
+		- 2026-10-26: A jump in the time axis now eases in over half a second, from what was on screen. That covers history loaded, the first sample after a gap, a new curve or time axis, and a linear graph's span changing.
+		- The panel and the settings window's graph list draw about 30 times a second while an axis eases, then go back to once a sample.
+		- `design.md` Time axis has the details.
+		- Verified: the full run passed, and the new tests failed with jumps going unseen, or with the ease starting from the new axis.
+	- Decisions:
+		- A jump is told from time going on by what the axis is built from: the curve, the history's first and last times, or the linear span. The last time may move up to 2 sample periods plus 0.25 s past the clock before it counts as a gap, so a late or missed tick isn't one.
+		- The old and new axis are mixed in `ln(1 + age / 5 s)` with a smoothstep, so time still only runs older to the left. What was on screen is kept as 65 points, so a jump part way through starts from there.
+		- History loaded before the first draw isn't eased, since nothing was drawn yet. The gap up to now eases in at the first sample after the priming one.
+		- The ease runs on the graph's own clock, so the soak test's skipped days end one at once.
+		- The panel's extra frames come from a one-shot 33 ms timer, started in draw only while a graph eases, so an idle panel still draws once a sample.
+	- Branch: round-1026
+	- Test case: `axis::tests::a_jump_eases_in_from_what_was_drawn` (defpn), `time_going_on_is_no_jump_but_a_gap_or_new_axis_is` (defpp), `a_jump_while_easing_starts_from_what_is_on_screen` (defpq), `tests::a_new_time_axis_eases_in_and_then_stops` (defpr), and `live::tests::a_time_axis_picked_in_the_window_eases_into_its_row` (defps). defpn to defpr fail with jumps not seen, and defpn and defpq with the ease starting from the new axis. The rest of the requirements: debh9, debha to debhe in `axis::tests`, and `render::tests::spike_reach_fades_with_time` (debj9).
+		- Swept: every `Frame` built (render tests, the preview example, `Graph::render`), every `age` caller (`Frame::draw`, `Graph::span_at`), both places a graph is drawn on screen (the plugin's draw, the settings window's `LiveGraph`), and every place a look or history is swapped in (`Graphs::set_look`, `Live::set_look`, `Graph::adopt`), which the jump check covers without a call of its own.
+	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: in a test window, picking Linear for memory eased its row in over about half a second, each frame closer to the end than the last, with no jump. A test panel came up drawing its saved history.
+	- Closed: 20261026-230215
+
+- Swap graph
+	- ID: 2026102618353000
+	- Type: Feature
+	- Status: Done
+		- It departs from the wording in one way. It's off by default, so an existing panel doesn't grow wider. Turn it on in the graph list.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026101916013887
+	- Related IDs: 2026102408512192
+	- Requirements:
+		- Swap; % used, from the swap collector.
+		- No swap graph on a box with no swap.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The swap graph draws % used, with its tip as "Swap 33% used". It has a row in the graph list, at `swap.show`, `swap.width` and `swap.time`, and a Themes/Swap sub-tab with In use, or Low, Medium and High.
+		- `Graphs` and the settings window's `Live` now reach every graph through one `Drawn` trait, so a new graph is a slot and a `Which` entry, not a match arm in every method.
+		- `graph.order` defaults to `cpu mem swap`.
+		- `design.md` XFCE plugin, Theme and Data sources on Linux have the details.
+		- Verified: the full run passed. With the swap slot taken out of `Graphs`, defq6 and defq7 fail.
+	- Decisions:
+		- Off by default, so a panel doesn't widen on upgrade.
+		- In use is each theme's user color, and its gradient is the theme's CPU one, so Fire draws swap as a gradient. Randomize gives In use the lead role.
+		- One color, with no heading over it on the sub-tab, since there's one series.
+	- Branch: round-1026
+	- Test case: `graphs::tests::swap_is_off_by_default_and_draws_its_own_color_when_on` (defq5), `three_sit_side_by_side_and_the_pointer_finds_swap` (defq6), `hiding_swap_keeps_its_history_for_when_its_back` (defq7), and `live::tests::the_swap_row_draws_at_its_own_width` (defq8). defq6 and defq7 fail with swap left out of `Graphs`' slots.
+		- 2026-10-26: new values only. `config::tests::the_default_theme_is_the_row_defaults` (deccf) and `saved_themes_write_whole_and_read_back` count 24 theme members, not 19. `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme` counts 21 colors, not 17. `the_graph_order_reads_with_spaces_or_commas` (dedqq) has the default order `cpu mem swap`, not `cpu mem`. defkz's typed order reads back with `swap` at the end, and defm0's past-the-end move is 3, not 2, with `swap` in its orders. defma's rows greyed at defaults are `swap_width` and `swap_time`, not none, since Swap graph is off by default.
+		- Swept: every user of `Graphs.mem` (the plugin, `Live`, the profiler, the soak test), every `Which` match, the 6 built-in themes, and `dice::ROLES`, which the role test walks. The profiler and soak test run with the defaults, so they don't draw swap.
+	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: with b23's settings, which turn swap on at 64 px, a test panel drew swap beside CPU and memory in each of 2 items, and the window drew its row in Default and Fire. How the themes look together stays on 2026102620162201.
+	- Closed: 20261026-230215
+
+- Pre-next-cut: Padding above, below, and between the graphs
+	- ID: 2026102620162197
+	- Type: Enhancement
+	- Status: Done
+		- It departs from the wording in one way. On a vertical panel or a deskbar the 2 px go either side of the graphs, across the panel, rather than above and below.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Related IDs: 2026102408304625
+	- Requirements:
+		- Add a couple of virtual px above and below the graphs, and double that in-between.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The graphs have 2 logical px clear above and below, and 4 between each pair, so the panel shows through. The item asks the panel for the gaps on top of the widths.
+		- A pointer on the 2 px edge still finds the graph beside it, so one pushed against the screen's edge gets the hover line and the tip. One in a gap between 2 finds neither, and the tip gives every graph's latest read.
+		- `design.md` XFCE plugin has the details.
+		- Verified: in a test panel 30 px high, 2 graphs 128 px wide drew with 2 rows clear above, 2 below and 4 columns clear between, and the pointer at the panel's top row drew the hover line. On a vertical panel 40 px wide they stacked with 4 rows between and 2 columns clear each side.
+	- Decisions:
+		- 2 px at the edges and 4 between, as logical px, so a 2x screen gets 4 and 8 device px.
+		- On a vertical panel the edges go across the panel, either side of the graphs, since that's where above and below sit on a horizontal one.
+		- No room at the 2 ends along the panel, since the item asks only for above, below and between, and the panel spaces its items itself.
+		- On a panel too thin for the edges, they shrink to a quarter of its thickness, so the graphs keep most of it.
+	- Branch: round-1027
+	- Test case: `graphs::tests::the_edges_and_gaps_stay_clear_and_an_edge_still_finds_its_graph` (defw2). It fails with the gap or the edge set to 0.
+		- 2026-10-26: new values only. dedq2, dedqd, defvs, dedqe, dedqp, defq6 and defqd place the graphs past the 2 px edge and the 4 px gaps, and their areas grow to match. defvs asks for 4 px more per gap. The stacked checks in dedq2, dedqd and dedqp use a 14 by 24 area, not 10 by 10, so each graph is still 10 rows. `Graphs::hover` takes the scale too.
+		- Swept: every caller of `Graphs::hover`, `hover_tip` and `wanted` (the plugin, `core/examples/profile.rs`, `core/tests/soak.rs` and the tests). The settings window's graph list draws each graph with `Graph::render`, not `Graphs`, so it has no gaps to add.
+	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: in a test panel 26 px high, 2 graphs 128 px wide drew from row 2 to row 23, so 2 rows clear above and 2 below, with 4 columns clear between.
+	- Closed: 20261026-230215
+
+- Pre-next-cut: Wrap tip text at a readable width
+	- ID: 2026102620162198
+	- Type: Enhancement
+	- Status: Done
+		- It departs from the wording in one way. Only the settings window's tips changed. GTK already wraps the panel's tips at 70 characters, and theirs are short lines anyway.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Related IDs: 2026102408304599
+	- Requirements:
+		- Tip text should wrap at a readable width, rather than one long line of text.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Every tip in the settings window is broken into lines of at most 70 characters, between words. Its own line breaks are kept.
+		- `design.md` Settings window has the details.
+		- Verified: in a test window, Log curve's tip showed as 11 lines in 2 paragraphs, and a greyed time axis box's tip as 3 lines.
+	- Decisions:
+		- 70 characters, the width GTK wraps its own tips at, so the panel's tips and the window's read alike.
+		- The wrap is in Rust, `wrap_tip` in `settings/src/bridge.rs`, so it has a plain test. An event filter in `qt.cpp` sends every tip in the window through it, the fixed texts in `qt.cpp` included, rather than each `setToolTip` call.
+		- Hard breaks rather than a rich text tip, since Qt picks a rich tip's width itself, by its length.
+	- Branch: round-1027
+	- Test case: `bridge::tests::every_tip_wraps_at_a_readable_width_and_keeps_its_words` (defw3), which walks every row's tip in the spec. It fails with the wrap taken out.
+		- Swept: every `setToolTip` and `QToolTip::showText` in `qt.cpp`. The graph list's live tips go through `wrap_tip` directly, since that widget shows its own.
+	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: in a test window, Log curve's tip wrapped to 9 lines in 2 paragraphs, Spike emphasis %'s to 5, and a greyed swap width box showed its one short line.
+	- Closed: 20261026-230215
+
+- Pre-next-cut: Hover line on the graphs in the Settings dialog
+	- ID: 2026102620162199
+	- Type: Enhancement
+	- Status: Done
+		- It departs from the wording in one way. The row's tip now gives the time under the line and the values there, as the panel's does, in place of the latest read.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Related IDs: 2026102408304599, 2026102508393163
+	- Requirements:
+		- The mouse hover black line should work on the graphs in the Settings dialog too.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The graph list's row under the pointer draws the hover line where the pointer is, and only that row. It goes away when the pointer leaves.
+		- The row's tip is the panel's hover tip: the time under the line, then the values there. A tip left up follows each sample.
+		- `design.md` XFCE plugin has the details.
+		- Verified: in a test window the memory row drew a one-pixel black line under the pointer, with the tip "2 sec ago", then its use, buffers and cache, and both went away when the pointer left.
+	- Decisions:
+		- The window's graphs aren't a `Graphs`, since a hidden graph is still drawn there. So the part of `Graphs::hover` that sets one graph's line and clears the rest moved out as `graphs::point`, and both use it.
+		- The tip follows the line, as in the panel, so the line and the tip never disagree.
+		- On a row squeezed to 512 px, the line goes at the pointer's place in the whole graph, so it marks the same time the tip gives.
+	- Branch: round-1027
+	- Test case: `live::tests::the_hover_line_follows_the_pointer_in_its_row_as_in_the_panel` (defwm). It fails with the line never set. The Qt pointer events have no test.
+		- Swept: every `Graphs::hover` caller (the plugin's motion and leave, `core/examples/profile.rs`, `core/tests/soak.rs`, the graphs tests), every `live_tip` caller (only `LiveGraph` in `qt.cpp`), and every place the graph list repaints on a sample.
+	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: in a test window the pointer on CPU's and then memory's graph drew the line in that row only, with the tips "3 sec ago" and "6 sec ago" and the values there, and both went when the pointer left.
+	- Closed: 20261026-230215
+
+- Pre-next-cut: Sub-tabs nested under their parent tab
+	- ID: 2026102620162200
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Related IDs: 2026102408304546, 2026102409400684
+	- Requirements:
+		- Subtabs as nested indented tabs under its parent tab on left tab list.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- CPU, Memory, Swap, Battery and Background are now lines in the tab list, stepped in under Themes. The row of tabs across the Themes page is gone.
+		- The Name row with its buttons stays on top of each of them, with a rule under it.
+		- `design.md` Settings window has the details.
+		- Verified: in a test window each tab under Themes showed the Name row over its own colors, and Themes on its own showed CPU's.
+	- Decisions:
+		- Picking Themes shows its first tab, CPU, the same as a tab with nothing of its own already did. The list keeps Themes picked.
+		- The indent is 4 spaces per level, as the list already used.
+	- Branch: round-1027
+	- Test case: `bridge::tests::sub_tabs_sit_in_the_tab_list_under_their_parent` (defwx). It fails on the old layout, where the list had only Graph and Themes, and passes now.
+		- Swept: the one `QTabWidget` in qt.cpp, now gone, the `--snapshot` loop, which still gives one picture per tab, and every doc that names the sub-tabs.
+	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: the window showed CPU, Memory, Swap, Battery and Background stepped in under Themes, with the Name row and a rule over each page.
+	- Closed: 20261026-230215
+
+- Pre-next-cut: Reset history button
+	- ID: 2026102620162202
+	- Type: Enhancement
+	- Status: Done
+		- It departs from the wording in one way. The reset goes at Apply, the same as theme Delete, so Cancel drops it. The window's own graphs start over when it's pressed.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304572, 2026101916013885
+	- Requirements:
+		- A button on the left side of the bottom button strip (e.g. more or less aligned with "Keep across restarts"), for "Reset history", that does that and starts the graph over.
+		- If "Keep across restarts" is checked, warn user that it will delete all past history.
+	- Actual effort: Low
+	- Progress log:
+		- Reset history is on the left of the bottom strip, under the pages, roughly in line with Keep across restarts. With that on, it asks first, since saved history goes too.
+		- At Apply the window writes a `reset` file in the history folder. With Keep across restarts on, it first deletes every `plugin-*.hist` there. Each running plugin watches that file, starts its graphs over, and deletes its own file again when history is kept.
+		- `design.md` Settings window and History have the details.
+		- Verified: in a test panel with history kept, a reset file made the plugin delete its history file, and the history saved at quit started at the reset. With history not kept, the file was left as it was. The window drew the button under the pages, left of Cancel.
+	- Decisions:
+		- The reset waits for Apply, like theme Delete, so Cancel takes it back. The window's own graphs start over at once, since they show changes before Apply.
+		- The window reaches the plugin through a file in the history folder, whose modified time the plugin checks each sample, as it does the settings file's. It needs no plugin id, reaches every panel item, and costs one stat a sample.
+		- With Keep across restarts off, only what's on screen goes, and the file is left as it is, the same as Off always does. So there's no question then, as the requirement says.
+		- Once pressed, the button is greyed until Apply.
+	- Branch: round-1027
+	- Test case: `keep::tests::a_reset_is_seen_once_and_deletes_saved_history_only_when_asked` (defxq), `graphs::tests::a_reset_starts_every_graph_over_and_drops_the_file_only_when_kept` (defxr), `dialog::tests::reset_history_waits_for_apply_and_deletes_saved_history_only_when_kept` (defxs), and defwy for the button. defxq fails with no file matched, defxr with the file left at a reset, and defxs with saved history deleted while it's off.
+		- 2026-10-26: new value only. `bridge::tests::the_buttons_are_cancel_apply_and_ok` (defwy) now lists Reset history before Cancel, Apply and OK.
+		- Swept: every history file path (the plugin's, now through `keep::history_file`), every `Drawn` graph (`Graph`, through `Graphs` and `Live`), and every load and save of history in `xfce/src/lib.rs`.
+	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: in a test panel with history kept, Reset history asked first, with No as the default. Yes and then Apply wrote the reset, the running item deleted its saved history, and the history it saved at quit started at the reset. Nothing went before Apply. The button sits left under the pages, in line with Keep across restarts.
+	- Closed: 20261026-230215
+
+- A settings file per plugin instance
+	- ID: 2026102621053715
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261026-210537
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026101916013889
+	- Related IDs: 2026102622311676
+	- Requirements:
+		- One plugin instance can show one or more graphs side by side, picked in its settings dialog.
+		- Each instance's Properties edits that instance only, so 2 items on a panel can show different graphs.
+		- An existing `~/.config/tukzmon/tukzmon.shcl` isn't lost.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- Today every instance reads and writes the one file, per `design.md` Settings window.
+		- 2026-10-26: each item reads `~/.config/tukzmon/plugin-<id>.shcl`, by the panel's unique id, and its Properties opens that file. `design.md` Settings window has the details.
+		- An item with no file yet starts from a copy of `tukzmon.shcl`, which is left as it is. tukzmon-settings with no `--config` still edits that one, so it sets what a new item starts from.
+		- Verified: the full run passed. In a test panel with 2 items and a shared file, both started from copies of it, and the shared file was unchanged. With item 1's file set to width 120, item 1 went from 84 to 244 px, and item 2 stayed at 84.
+		- Unverified: Properties on a running item, since the item menu doesn't draw in the test panel. It passes the item's own file, as it passed the shared one before.
+	- Decisions:
+		- The file is `plugin-<id>.shcl` in tukzmon's config folder, named like the item's `plugin-<id>.hist`. The panel's own save location would be an `.rc` under `xfce4/panel/`, but the settings are shcl, for other panels later too.
+		- The shared file is copied, not moved, so it isn't lost, a downgrade still finds it, and a new item starts from the user's setup rather than the defaults.
+		- Copied at the item's first start rather than read through until a save, so the file Properties opens is the one the item draws.
+		- Reset history stays one button for every item, as 2026102620162202 has it.
+		- Deleting an item's files when it's removed from the panel is its own item, 2026102622311676.
+	- Branch: round-1027
+	- Test case: `config::tests::an_item_with_no_file_starts_from_the_shared_one_and_leaves_it` (defy3) and `a_save_for_one_item_leaves_the_other_alone` (defy4). defy3 fails with an existing file overwritten from the shared one.
+		- Swept: every `config_file` caller (the plugin, and tukzmon-settings' default), every `xfce_panel_plugin_get_unique_id` use, and every doc line naming `tukzmon.shcl` (design.md and the usage text). The profiler, soak test and `--snapshot` don't read an item's file.
+	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: in a test panel with b23's `tukzmon.shcl` and 2 items, each item started from its own copy, `plugin-1.shcl` and `plugin-2.shcl`, both drew b23's setup, and the shared file was unchanged. Properties on item 1 opened its own `plugin-1.shcl`.
+	- Closed: 20261026-230215
+
+- XFCE on Wayland
+	- ID: 2026102621053720
+	- Type: Feature
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Priority|Severity: High
+	- Opened: 20261026-210537
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013889
+	- Related IDs: 2026102622434311, 2026102519030128, 2026102620523642
+	- Test environment: XFCE 4.20.7 panel on sway 1.10.1, Wayland only.
+	- Requirements:
+		- Works on XFCE 4.20 on Wayland, with the drawing, the tip, the hover line, the right-click menu and Properties.
+		- Fix what doesn't, such as anything that assumes X11.
+	- Actual effort: Low
+	- Progress log:
+		- It already worked. Verified on Wayland: the graphs draw, the hover line and the tip follow the pointer, the right-click menu shows, and Properties opens tukzmon-settings as a Wayland window for that instance. The same at scale 2, and with 2 instances. Removing one instance, then the last, leaves the panel running.
+		- On Wayland the panel loads the plugin into its own process, not a wrapper. So a panic in the plugin takes the whole panel down.
+		- Found: when stderr can't be written, a failed settings start or history save or load aborted the panel, from `eprintln!`. Verified: Properties with stderr on `/dev/full` and no tukzmon-settings aborted the panel before the fix, and not after. The message still reaches a working stderr.
+		- `design.md` XFCE plugin has the Wayland notes.
+	- Decisions:
+		- Messages go through one `complain` helper that ignores a failed write, as tukzmon-settings did in 2026102519030128.
+		- Catching any panic, so a plugin bug can't take the panel down, is 2026102622434311. It needs unwinding in the release build.
+	- Branch: round-1027
+	- Test case: `tests::nothing_the_panel_loads_can_panic_on_a_failed_print` (defyn). It walks the code of the plugin, core and knobs for print macros, and failed on the plugin's 6 `eprintln!` calls before the fix.
+		- Swept: every print macro in `xfce/src`, `core/src` and `knobs/src`. Only the plugin had any. tukzmon-settings runs in its own process and has its own helpers.
+	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: the earlier checks covered every part on the XFCE 4.20.7 panel under Wayland, and the right-click menu and Properties on one of 2 items worked again.
+	- Closed: 20261026-230215
+
+- Pre-next-cut: Rename the "Apply and close" button to "OK"
+	- ID: 2026102620162203
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Related IDs: 2026102408304546
+	- Requirements:
+		- Button name: "Apply and close" -> "OK" (a reversal).
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The buttons are Cancel, Apply and OK. OK is still the Enter default, with the same tip.
+	- Decisions:
+		- OK gets no underlined key, since Enter already presses it.
+	- Branch: round-1027
+	- Test case: `bridge::tests::the_buttons_are_cancel_apply_and_ok` (defwy). It fails with the old label and passes now.
+		- Swept: qt.cpp's header comment and `design.md` Settings window. README.md doesn't name the buttons.
+	- Closed: 20261026-215021
+
+- Vertical and deskbar panels
+	- ID: 2026102621053709
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261026-210537
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013889
+	- Related IDs: 2026102621105420
+	- Test environment: XFCE 4.20.7 panel, X11.
+	- Requirements:
+		- Follows the panel's size and orientation, including a vertical panel and a deskbar.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- It already did. The size the plugin asks for is now worked out in `Graphs::wanted`, so it has a test.
+		- Verified: in a test panel, a vertical panel of 48 px stacked CPU over memory at 48 by 24 each, and a deskbar of 64 px at 64 by 32. A panel of 2 rows gave the graphs its full height. Switched live from horizontal to vertical, deskbar and back, and between sizes, the item asked for 48x48, 20x32 and 256x30, as `wanted` says.
+		- `design.md` XFCE plugin says how tall each graph is on a vertical panel.
+	- Decisions:
+		- A deskbar lays out as a vertical panel, since it's one.
+		- Graph sizes on a vertical panel stay as decided in 2026102508393152. Whether the widths should apply there is 2026102621105420.
+	- Test case: `graphs::tests::the_ask_follows_the_panels_size_and_orientation` (defvs), which fails with the 16 px floor taken out. dedq2 covers the stacked layout.
+		- Swept: `fit` was the only place the plugin asked for a size, and `size-changed` and `mode-changed` both call it.
+	- Branch: round-1027
+	- Closed: 20261026-211423
 
 - History store
 	- ID: 2026101916013885

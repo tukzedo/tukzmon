@@ -21,7 +21,8 @@ const USAGE: &str = "Usage: tukzmon-settings [--config FILE]
 
 Opens the settings window for tukzmon's graphs.
 
-  --config FILE    Settings file to edit. Default: ~/.config/tukzmon/tukzmon.shcl
+  --config FILE    Settings file to edit. A panel item passes its own. Default:
+                   ~/.config/tukzmon/tukzmon.shcl, what a new item starts from.
   --snapshot PNG   Save a picture of each tab and the color picker, and quit, for
                    checking the layout.
   --help           Show this and quit.

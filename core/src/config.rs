@@ -565,10 +565,37 @@ pub fn config_dir() -> PathBuf {
 	base.join("tukzmon")
 }
 
-/// One file for every graph, for now. A file per plugin instance comes with
-/// more than one kind of graph.
+/// The shared file: what tukzmon-settings edits with no `--config`, and what
+/// a new panel item starts from. See [`instance_file`].
 pub fn config_file() -> PathBuf {
 	config_dir().join("tukzmon.shcl")
+}
+
+/// One panel item's own settings file in `dir`, by its unique id, named like
+/// its history file.
+pub fn instance_file(dir: &Path, id: i32) -> PathBuf {
+	dir.join(format!("plugin-{id}.shcl"))
+}
+
+/// Gives `own` a copy of `shared` when it has no file yet, so an item set up
+/// before each one had its own keeps its look, and a new one starts from it.
+/// With neither, nothing is written, and the item has the defaults.
+///
+/// # Errors
+///
+/// Whatever reading `shared` or writing `own` hit.
+pub fn start_from(own: &Path, shared: &Path) -> std::io::Result<()> {
+	if own.exists() {
+		return Ok(());
+	}
+	let text = match std::fs::read(shared) {
+		Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+		r => r?,
+	};
+	// renamed in whole, so a crash can't leave half a file that then wins
+	let tmp = own.with_extension("shcl.tmp");
+	std::fs::write(&tmp, text)?;
+	std::fs::rename(&tmp, own)
 }
 
 #[cfg(test)]
@@ -666,7 +693,7 @@ mod tests {
 	// Test ID: deccg
 	#[test]
 	fn a_theme_sets_every_color() {
-		let l = Look::from_model(&model("theme:\n\tname: blue_pastel\n"));
+		let l = Look::from_model(&model("theme:\n\tname: pastel\n"));
 		assert_eq!(l.cpu[2], Rgb(0xa1, 0xc8, 0xf0));
 		assert_eq!(l.bottom, Rgb(0x0f, 0x12, 0x14));
 		assert_eq!(l.width, 128);
@@ -715,12 +742,12 @@ mod tests {
 	// Test ID: deccj
 	#[test]
 	fn a_change_on_a_theme_is_kept_with_it() {
-		let mut m = model("theme:\n\tname: green_standard\n");
+		let mut m = model("theme:\n\tname: primary\n");
 		m.set("user", &knobs::Value::Text("#abcdef".into()), &NoEnv);
-		assert_eq!(m.shown_choice(THEME, &NoEnv), "Green standard *");
+		assert_eq!(m.shown_choice(THEME, &NoEnv), "Primary *");
 		name_the_theme(&mut m);
 		let back = model(&m.save(&NoEnv).0);
-		assert_eq!(back.shown_choice(THEME, &NoEnv), "Green standard *");
+		assert_eq!(back.shown_choice(THEME, &NoEnv), "Primary *");
 		let l = Look::from_model(&back);
 		assert_eq!(l.cpu[2], Rgb(0xab, 0xcd, 0xef));
 		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x20));
@@ -760,10 +787,10 @@ mod tests {
 			keys,
 			[
 				"default",
-				"green_standard",
-				"green_pastel",
-				"blue_standard",
-				"blue_pastel",
+				"primary",
+				"pastel",
+				"neon",
+				"earth",
 				"fire",
 				"mine",
 				knobs::CUSTOM
@@ -819,13 +846,13 @@ mod tests {
 		assert_eq!(d.cpu_mode, Mode::Detailed);
 		assert_eq!(d.cpu_paint(), crate::render::Paint::Stack(&d.cpu));
 		// a mode set by hand is a change on the theme, like a color
-		let mut m = model("theme:\n\tname: blue_standard\n");
+		let mut m = model("theme:\n\tname: neon\n");
 		m.set("cpu_mode", &knobs::Value::Text("Gradient".into()), &NoEnv);
-		assert_eq!(m.shown_choice(THEME, &NoEnv), "Blue standard *");
+		assert_eq!(m.shown_choice(THEME, &NoEnv), "Neon *");
 		name_the_theme(&mut m);
 		let l = Look::from_model(&model(&m.save(&NoEnv).0));
 		assert_eq!(l.cpu_mode, Mode::Gradient);
-		assert_eq!(l.cpu_gradient[1], Rgb(0, 0x80, 0xff));
+		assert_eq!(l.cpu_gradient[1], Rgb(0x39, 0xff, 0x14));
 		assert_eq!(Mode::parse("plaid"), None);
 	}
 
@@ -854,8 +881,9 @@ mod tests {
 		let fire = Look::from_model(&model("theme:\n\tname: fire\n"));
 		assert_eq!(
 			fire.mem_paint(),
-			crate::render::Paint::Gradient(fire.cpu_gradient)
+			crate::render::Paint::Gradient(fire.mem_gradient)
 		);
+		assert_ne!(fire.mem_gradient, fire.cpu_gradient);
 		assert_eq!(shown_when("mem_buffers"), Some(("mem_mode", "detailed")));
 		assert_eq!(shown_when("mem_high"), Some(("mem_mode", "gradient")));
 		assert!(shown_as_radio("mem_mode"));
@@ -866,6 +894,49 @@ mod tests {
 		assert!(!l.show_memory);
 		assert_eq!(l.mem[2], Rgb(1, 2, 3));
 		assert_eq!(l.cpu, d.cpu);
+	}
+
+	// Test ID: defx7
+	#[test]
+	fn no_theme_is_named_for_a_color_and_each_graph_has_its_own() {
+		fn hue(c: Rgb) -> f64 {
+			let [r, g, b] = [c.0, c.1, c.2].map(|v| f64::from(v) / 255.0);
+			let (hi, lo) = (r.max(g).max(b), r.min(g).min(b));
+			let d = hi - lo;
+			let h = if d == 0.0 {
+				0.0
+			} else if hi == r {
+				((g - b) / d).rem_euclid(6.0)
+			} else if hi == g {
+				(b - r) / d + 2.0
+			} else {
+				(r - g) / d + 4.0
+			};
+			h * 60.0
+		}
+		let colors = [
+			"red", "orange", "yellow", "green", "blue", "purple", "violet", "pink", "cyan",
+			"magenta", "teal", "brown", "gray", "grey",
+		];
+		let spec = spec();
+		let presets = &spec.group(THEME).unwrap().presets;
+		assert!(presets.len() > 2);
+		for p in presets {
+			let label = p.label.to_lowercase();
+			assert!(!colors.iter().any(|c| label.contains(c)), "{label}");
+			let rgb = |id: &str| Rgb::parse(p.values[id].as_text()).unwrap();
+			let ramp = |g: &str| ["low", "medium", "high"].map(|s| rgb(&format!("{g}_{s}")));
+			let leads = ["user", "mem_user", "swap_used", "battery_charging"].map(rgb);
+			let ramps = ["cpu", "mem", "swap", "battery"].map(ramp);
+			for a in 0..4 {
+				for b in a + 1..4 {
+					let gap = (hue(leads[a]) - hue(leads[b])).abs();
+					assert!(gap.min(360.0 - gap) >= 30.0, "{} {a} {b}", p.key);
+					assert_ne!(ramps[a], ramps[b], "{} {a} {b}", p.key);
+					assert_ne!(ramps[a][1], ramps[b][1], "{} {a} {b}", p.key);
+				}
+			}
+		}
 	}
 
 	// Test ID: dedqf
@@ -1046,7 +1117,7 @@ mod tests {
 		assert_eq!(theme_key("1984", &[]), "theme_1984");
 		assert_eq!(theme_key("Gr\u{fc}n", &[]), "gr_n");
 		assert_eq!(theme_key("custom", &[]), "custom_2");
-		assert_eq!(theme_key("Blue pastel", &[]), "blue_pastel_2");
+		assert_eq!(theme_key("Earth", &[]), "earth_2");
 	}
 
 	// Test ID: decc5
@@ -1099,6 +1170,61 @@ mod tests {
 		assert_eq!(l.sample_ms, 500);
 		assert_eq!(l.cpu[2], Rgb(0x12, 0x34, 0x56));
 		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x40));
+	}
+
+	fn scratch(name: &str) -> PathBuf {
+		let dir =
+			std::env::temp_dir().join(format!("test_tukzmon_config_{}_{name}", std::process::id()));
+		let _ = std::fs::remove_dir_all(&dir);
+		std::fs::create_dir_all(&dir).unwrap();
+		dir
+	}
+
+	// Test ID: defy3
+	#[test]
+	fn an_item_with_no_file_starts_from_the_shared_one_and_leaves_it() {
+		let dir = scratch("start");
+		let shared = dir.join("tukzmon.shcl");
+		let text = "graph:\n\twidth: 77\n\ncpu:\n\tcolors:\n\t\tuser: \"#123456\"\n";
+		std::fs::write(&shared, text).unwrap();
+		let own = instance_file(&dir, 7);
+		assert_eq!(own, dir.join("plugin-7.shcl"));
+		start_from(&own, &shared).unwrap();
+		assert_eq!(std::fs::read_to_string(&own).unwrap(), text);
+		assert_eq!(std::fs::read_to_string(&shared).unwrap(), text);
+		assert_eq!(Look::load(&own), Look::load(&shared));
+		assert_ne!(Look::load(&own), Look::default());
+		assert!(!dir.join("plugin-7.shcl.tmp").exists());
+
+		// its own file wins from then on
+		std::fs::write(&own, "cpu:\n\tcolors:\n\t\tuser: \"#654321\"\n").unwrap();
+		start_from(&own, &shared).unwrap();
+		assert!(std::fs::read_to_string(&own).unwrap().contains("#654321"));
+
+		// with no shared file there's nothing to copy, and it has the defaults
+		let fresh = instance_file(&dir, 8);
+		start_from(&fresh, &dir.join("missing.shcl")).unwrap();
+		assert!(!fresh.exists());
+		assert_eq!(Look::load(&fresh), Look::default());
+		let _ = std::fs::remove_dir_all(&dir);
+	}
+
+	// Test ID: defy4
+	#[test]
+	fn a_save_for_one_item_leaves_the_other_alone() {
+		let dir = scratch("two");
+		let shared = dir.join("tukzmon.shcl");
+		std::fs::write(&shared, "graph:\n\twidth: 77\n").unwrap();
+		let (one, two) = (instance_file(&dir, 1), instance_file(&dir, 2));
+		assert_ne!(one, two);
+		start_from(&one, &shared).unwrap();
+		start_from(&two, &shared).unwrap();
+		std::fs::write(&one, "mem:\n\tshow: false\n").unwrap();
+		assert!(!Look::load(&one).show_memory);
+		assert!(Look::load(&two).show_memory);
+		assert_eq!(Look::load(&two).width, 77);
+		assert_eq!(Look::load(&two), Look::load(&shared));
+		let _ = std::fs::remove_dir_all(&dir);
 	}
 
 	// Test ID: debhm

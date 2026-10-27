@@ -215,6 +215,12 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		self.hist.trim(self.now() - max_age);
 	}
 
+	/// Drops every sample, so the graph starts over from the next read.
+	pub fn clear(&mut self) {
+		self.hist = History::default();
+		self.latest = None;
+	}
+
 	/// Swaps in the saved history, if there is one that reads. The time since
 	/// it was saved is a gap.
 	///

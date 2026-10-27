@@ -16,6 +16,12 @@ pub mod ffi {
 		parent: i32,
 	}
 
+	/// A line of the window's tab list, as drawn, and the rows it shows.
+	struct TabShown {
+		label: String,
+		rows: Vec<String>,
+	}
+
 	struct RowInfo {
 		id: String,
 		label: String,
@@ -98,10 +104,13 @@ pub mod ffi {
 		fn pick_close(d: &mut Dialog, keep: bool);
 		fn graph_rows(d: &Dialog) -> Vec<GraphRow>;
 		fn move_graph(d: &mut Dialog, from: usize, to: usize) -> bool;
+		fn reset_history(d: &mut Dialog);
+		fn reset_pending(d: &Dialog) -> bool;
 
 		type Live;
 		fn live_new(d: &Dialog) -> Box<Live>;
 		fn live_look(l: &mut Live, d: &Dialog);
+		fn live_clear(l: &mut Live);
 		/// Reads every graph, and gives the ms to the next read.
 		fn live_sample(l: &mut Live) -> u32;
 		fn live_width(l: &Live, name: &str) -> u32;
@@ -114,7 +123,15 @@ pub mod ffi {
 			h: usize,
 			scale: usize,
 		) -> &'a [u32];
-		fn live_tip(l: &Live, name: &str) -> String;
+		/// The tip at the graph's hover line, as the panel gives it.
+		fn live_tip(l: &Live, name: &str, w: usize, h: usize, scale: usize) -> String;
+		/// Puts the hover line at device column `x` of the graph drawn `w`
+		/// wide. True when it moved.
+		fn live_hover(l: &mut Live, name: &str, x: usize, w: usize) -> bool;
+		/// Takes the hover line off every graph. True when one had it.
+		fn live_leave(l: &mut Live) -> bool;
+		/// A tip broken into lines of at most `TIP_CHARS` characters.
+		fn wrap_tip(text: &str) -> String;
 		/// True while the graph's time axis eases in, so it wants drawing again soon.
 		fn live_easing(l: &Live, name: &str) -> bool;
 	}
@@ -127,6 +144,10 @@ pub mod ffi {
 		/// Each graph list row's graph width and x, and its width box's x.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn graph_list_places(d: &mut Dialog) -> Vec<i32>;
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn tabs_shown(d: &mut Dialog) -> Vec<TabShown>;
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn bottom_buttons(d: &mut Dialog) -> Vec<String>;
 	}
 }
 
@@ -295,6 +316,18 @@ fn move_graph(d: &mut Dialog, from: usize, to: usize) -> bool {
 	d.move_graph(from, to)
 }
 
+fn reset_history(d: &mut Dialog) {
+	d.reset_history();
+}
+
+fn reset_pending(d: &Dialog) -> bool {
+	d.reset_pending()
+}
+
+fn live_clear(l: &mut Live) {
+	l.clear();
+}
+
 fn live_new(d: &Dialog) -> Box<Live> {
 	Box::new(Live::new(d.look()))
 }
@@ -316,8 +349,54 @@ fn live_draw<'a>(l: &'a mut Live, name: &str, w: usize, h: usize, scale: usize) 
 	l.render(name, w, h, scale)
 }
 
-fn live_tip(l: &Live, name: &str) -> String {
-	l.tip(name)
+fn live_tip(l: &Live, name: &str, w: usize, h: usize, scale: usize) -> String {
+	l.hover_tip(name, w, h, scale)
+}
+
+fn live_hover(l: &mut Live, name: &str, x: usize, w: usize) -> bool {
+	l.hover(name, Some(x), w)
+}
+
+fn live_leave(l: &mut Live) -> bool {
+	l.hover("", None, 0)
+}
+
+/// GTK's own tooltips wrap at 70 characters, so the panel's and these match.
+pub const TIP_CHARS: usize = 70;
+
+fn wrap_tip(text: &str) -> String {
+	wrapped(text, TIP_CHARS)
+}
+
+/// Breaks each line of `text` longer than `width` characters between words.
+/// Shorter lines, adn the breaks already there, are kept as they are, so a
+/// wrapped text wraps to itself. A word longer than `width` gets a line of
+/// its own.
+pub fn wrapped(text: &str, width: usize) -> String {
+	let mut out = String::with_capacity(text.len() + text.len() / width.max(1));
+	for (i, line) in text.split('\n').enumerate() {
+		if i > 0 {
+			out.push('\n');
+		}
+		if line.chars().count() <= width {
+			out.push_str(line);
+			continue;
+		}
+		let mut used = 0;
+		for word in line.split_whitespace() {
+			let n = word.chars().count();
+			if used > 0 && used + 1 + n > width {
+				out.push('\n');
+				used = 0;
+			} else if used > 0 {
+				out.push(' ');
+				used += 1;
+			}
+			out.push_str(word);
+			used += n;
+		}
+	}
+	out
 }
 
 fn live_easing(l: &Live, name: &str) -> bool {
@@ -338,6 +417,44 @@ mod tests {
 
 	fn qt_turn() -> std::sync::MutexGuard<'static, ()> {
 		QT.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+	}
+
+	// Test ID: defw3
+	#[test]
+	fn every_tip_wraps_at_a_readable_width_and_keeps_its_words() {
+		let short = "User 30%  System 10%\nNice 0%";
+		assert_eq!(wrapped(short, 70), short);
+		assert_eq!(wrapped("aa bb cc", 5), "aa bb\ncc");
+		assert_eq!(wrapped("a\n\nbb cc dd", 5), "a\n\nbb cc\ndd");
+		assert_eq!(wrapped("abcdefgh ij", 5), "abcdefgh\nij");
+		assert_eq!(wrapped("", 5), "");
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_tips_never_written.shcl",
+			std::process::id()
+		));
+		let d = Dialog::open(path);
+		let mut long = 0;
+		for r in dialog_rows(&d) {
+			let tip = row_state(&d, &r.id).tip;
+			let w = wrap_tip(&tip);
+			long += usize::from(tip.lines().any(|l| l.chars().count() > TIP_CHARS));
+			assert!(
+				w.lines()
+					.all(|l| l.chars().count() <= TIP_CHARS || !l.contains(' ')),
+				"{}: {w}",
+				r.id
+			);
+			let words = |t: &str| t.split_whitespace().map(str::to_owned).collect::<Vec<_>>();
+			assert_eq!(words(&w), words(&tip), "{}", r.id);
+			assert_eq!(
+				w.matches("\n\n").count(),
+				tip.matches("\n\n").count(),
+				"{}",
+				r.id
+			);
+			assert_eq!(wrap_tip(&w), w, "{}", r.id);
+		}
+		assert!(long > 10, "only {long} tips needed wrapping");
 	}
 
 	// Test ID: defm1
@@ -503,5 +620,65 @@ mod tests {
 		for &t in &subs {
 			assert!(moved.contains(&t), "{}", tabs[t as usize].label);
 		}
+	}
+
+	// Test ID: defwx
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn sub_tabs_sit_in_the_tab_list_under_their_parent() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_tabs_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let tabs = dialog_tabs(&d);
+		let rows = dialog_rows(&d);
+		let shown = ffi::tabs_shown(&mut d);
+		let lines: Vec<&str> = shown.iter().map(|t| t.label.trim_start()).collect();
+		let want: Vec<&str> = tabs.iter().map(|t| t.label.as_str()).collect();
+		assert_eq!(lines, want);
+		let indent = |i: usize| shown[i].label.len() - shown[i].label.trim_start().len();
+		let top = rows.iter().find(|r| r.chooser).unwrap().tab;
+		let subs: Vec<usize> = (0..tabs.len()).filter(|&i| tabs[i].parent == top).collect();
+		assert!(subs.len() > 1, "{want:?}");
+		// Themes on its own shows its first tab
+		assert_eq!(shown[top as usize].rows, shown[subs[0]].rows);
+		for &s in &subs {
+			assert!(
+				s > top as usize && indent(s) > indent(top as usize),
+				"{}",
+				shown[s].label
+			);
+			let on = &shown[s].rows;
+			// the theme's own row stays on top of every sub-tab
+			assert!(on.iter().any(|id| id == "theme"), "{}", tabs[s].label);
+			let tab_of = |id: &str| rows.iter().find(|r| r.id == id).unwrap().tab;
+			assert!(
+				on.iter().any(|id| tab_of(id) == s as i32),
+				"{}",
+				tabs[s].label
+			);
+			for id in on {
+				let t = tab_of(id) as usize;
+				assert!(t == s || t == top as usize, "{} shows {id}", tabs[s].label);
+			}
+		}
+	}
+
+	// Test ID: defwy
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn the_buttons_are_cancel_apply_and_ok() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_buttons_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		assert_eq!(
+			ffi::bottom_buttons(&mut d),
+			["Reset history", "Cancel", "&Apply", "OK"]
+		);
 	}
 }

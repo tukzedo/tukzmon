@@ -4,7 +4,7 @@
 // The settings window in Qt Widgets. Rows come from settings.shcl through the
 // Rust side, and every change goes back there, so this file only lays out
 // controls and copies state onto them. Same model as SilkTerm's dialog: tabs
-// down the left, a revert arrow per row, and Cancel, Apply, Apply and close.
+// down the left, a revert arrow per row, and Cancel, Apply, OK.
 
 #include "tukzmon-settings/src/qt.h"
 #include "tukzmon-settings/src/bridge.rs.h"
@@ -13,6 +13,7 @@
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QCursor>
 #include <QDialog>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
@@ -40,7 +41,6 @@
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QStyle>
-#include <QTabWidget>
 #include <QTimer>
 #include <QToolButton>
 #include <QToolTip>
@@ -50,6 +50,7 @@
 #include <cmath>
 #include <functional>
 #include <string>
+#include <tuple>
 #include <memory>
 #include <vector>
 
@@ -74,6 +75,28 @@ void softenSelection(QWidget *w) {
 	}
 	w->setPalette(pal);
 }
+
+QString wrapped(const QString &tip) {
+	const QByteArray u = tip.toUtf8();
+	return qs(wrap_tip(rust::Str(u.constData(), size_t(u.size()))));
+}
+
+// Qt shows a plain text tip as one line however long, so every tip in the
+// window goes through here first.
+class TipWrap : public QObject {
+protected:
+	bool eventFilter(QObject *o, QEvent *e) override {
+		if (e->type() != QEvent::ToolTip || !o->isWidgetType())
+			return false;
+		auto *w = static_cast<QWidget *>(o);
+		// none of its own, so the widget passes it on to its parent
+		if (w->toolTip().isEmpty())
+			return false;
+		QToolTip::showText(static_cast<QHelpEvent *>(e)->globalPos(), wrapped(w->toolTip()), w, QRect(),
+			w->toolTipDuration());
+		return true;
+	}
+};
 
 constexpr int SLIDER_STEPS = 1000;
 constexpr int HEAD_GAP = 10;
@@ -365,6 +388,7 @@ class LiveGraph : public QWidget {
 public:
 	LiveGraph(Live &live, std::string name) : live(live), name(std::move(name)) {
 		setFixedSize(0, fontMetrics().height() * 3 / 2);
+		setMouseTracking(true);
 	}
 
 	// The graph's own width, as in the panel. A very wide one is squeezed to
@@ -376,14 +400,19 @@ public:
 		update();
 	}
 
+	// after a read, so a tip left up keeps up, as the panel's does
+	void tick() {
+		update();
+		if (underMouse() && QToolTip::isVisible())
+			showTip(QCursor::pos());
+	}
+
 protected:
 	void paintEvent(QPaintEvent *) override {
-		const double dpr = devicePixelRatioF();
-		const int w = int(std::lround(own * dpr));
-		const int h = int(std::lround(height() * dpr));
+		const auto [w, h, scale] = drawn();
 		if (w <= 0 || h <= 0)
 			return;
-		auto px = live_draw(live, name, size_t(w), size_t(h), size_t(std::max(1L, std::lround(dpr))));
+		auto px = live_draw(live, name, size_t(w), size_t(h), size_t(scale));
 		if (px.size() != size_t(w) * size_t(h))
 			return;
 		// cairo's ARGB32 is Qt's premultiplied one
@@ -398,14 +427,44 @@ protected:
 			});
 		}
 	}
+	void mouseMoveEvent(QMouseEvent *e) override {
+		point(e->position().x());
+		if (QToolTip::isVisible())
+			showTip(e->globalPosition().toPoint());
+	}
+	void leaveEvent(QEvent *) override {
+		if (live_leave(live))
+			update();
+	}
 	bool event(QEvent *e) override {
 		if (e->type() != QEvent::ToolTip)
 			return QWidget::event(e);
-		QToolTip::showText(static_cast<QHelpEvent *>(e)->globalPos(), qs(live_tip(live, name)), this);
+		auto *help = static_cast<QHelpEvent *>(e);
+		point(help->pos().x());
+		showTip(help->globalPos());
 		return true;
 	}
 
 private:
+	// device pixels, as drawn before a squeeze to fit the window
+	std::tuple<int, int, int> drawn() const {
+		const double dpr = devicePixelRatioF();
+		return {int(std::lround(own * dpr)), int(std::lround(height() * dpr)), int(std::max(1L, std::lround(dpr)))};
+	}
+	// the hover line goes where the pointer is in the drawn graph, squeezed or not
+	void point(double x) {
+		const int w = std::get<0>(drawn());
+		if (w <= 0 || width() <= 0)
+			return;
+		const auto col = size_t(std::max(0.0, std::floor(x * w / width())));
+		if (live_hover(live, name, col, size_t(w)))
+			update();
+	}
+	void showTip(QPoint at) {
+		const auto [w, h, scale] = drawn();
+		QToolTip::showText(at, qs(wrap_tip(live_tip(live, name, size_t(w), size_t(h), size_t(scale)))), this);
+	}
+
 	Live &live;
 	std::string name;
 	int own = 0;
@@ -450,39 +509,47 @@ public:
 		auto hasRows = [this](int tab) {
 			return std::any_of(rows.begin(), rows.end(), [tab](auto &r) { return r->info.tab == tab; });
 		};
+		// knobs lists a parent before its tabs, so one pass finds every stack
+		std::vector<QStackedWidget *> stackOf(tabs.size(), nullptr);
 		for (size_t i = 0; i < tabs.size(); i++) {
-			// a tab with rows of its own keeps them on top, over its sub-tabs
-			if (tabs[i].parent >= 0 && hasRows(tabs[i].parent))
-				continue;
 			bool parent = false;
 			for (auto &t : tabs)
 				parent |= t.parent == int(i);
 			int depth = 0;
 			for (int p = tabs[i].parent; p >= 0; p = tabs[size_t(p)].parent)
 				depth++;
-			auto *item = new QListWidgetItem(QString(depth * 4, ' ') + qs(tabs[i].label));
-			tabList->addItem(item);
-			if (parent && !hasRows(int(i))) {
-				tabPage.push_back(-1);
-				subTabs.push_back(nullptr);
+			tabList->addItem(new QListWidgetItem(QString(depth * 4, ' ') + qs(tabs[i].label)));
+			leaf.push_back(!parent);
+			// a tab with rows of its own keeps them on top of the tabs under it
+			const int up = tabs[i].parent;
+			if (up >= 0 && stackOf[size_t(up)]) {
+				QStackedWidget *stack = stackOf[size_t(up)];
+				tabPage.push_back(tabPage[size_t(up)]);
+				subPage.push_back({stack, stack->addWidget(buildPage(int(i), tabs[i], true))});
 				continue;
 			}
-			QTabWidget *sub = nullptr;
+			if (parent && !hasRows(int(i))) {
+				tabPage.push_back(-1);
+				subPage.push_back({});
+				continue;
+			}
 			QWidget *page = buildPage(int(i), tabs[i], !parent);
+			subPage.push_back({});
 			if (parent) {
-				sub = new QTabWidget;
-				for (size_t j = 0; j < tabs.size(); j++)
-					if (tabs[j].parent == int(i))
-						sub->addTab(buildPage(int(j), tabs[j], true), qs(tabs[j].label));
+				stackOf[i] = new QStackedWidget;
+				subPage.back() = {stackOf[i], 0};
+				auto *rule = new QFrame;
+				rule->setFrameShape(QFrame::HLine);
+				rule->setFrameShadow(QFrame::Sunken);
 				auto *holder = new QWidget;
 				auto *v = new QVBoxLayout(holder);
 				v->setContentsMargins(0, 0, 0, 0);
 				v->addWidget(page);
-				v->addWidget(sub, 1);
+				v->addWidget(rule);
+				v->addWidget(stackOf[i], 1);
 				page = holder;
 			}
 			tabPage.push_back(pages->addWidget(page));
-			subTabs.push_back(sub);
 		}
 		const int tabWidth = tabList->sizeHintForColumn(0);
 		tabList->setFixedWidth(tabWidth + 2 * tabList->frameWidth() + 24);
@@ -498,10 +565,16 @@ public:
 				r->spin->setFixedWidth(numberWidth);
 		connect(tabList, &QListWidget::currentRowChanged, this, [this](int i) { showTab(i); });
 
+		resetButton = new QPushButton("Reset history");
+		resetButton->setAutoDefault(false);
+		resetButton->setToolTip("Start every graph over, at Apply. With Keep across restarts on, the history "
+								"saved across restarts is deleted too.");
+		connect(resetButton, &QPushButton::clicked, this, [this] { resetHistory(); });
+
 		// Cancel stands a little apart from the 2 that save
 		auto *cancel = new QPushButton("Cancel");
 		applyButton = new QPushButton("&Apply");
-		auto *closeButton = new QPushButton("Apply and &close");
+		auto *closeButton = new QPushButton("OK");
 		cancel->setToolTip("Discard every change and close Settings.");
 		applyButton->setToolTip("Save changes now, without closing Settings.");
 		closeButton->setToolTip("Save changes and close Settings.");
@@ -517,12 +590,16 @@ public:
 			gap = 6;
 		auto *buttons = new QHBoxLayout;
 		buttons->setSpacing(0);
+		// under the pages, where Keep across restarts is
+		buttons->addSpacing(tabList->minimumWidth() + gap);
+		buttons->addWidget(resetButton);
 		buttons->addStretch(1);
 		buttons->addWidget(cancel);
 		buttons->addSpacing(2 * gap);
 		buttons->addWidget(applyButton);
 		buttons->addSpacing(gap);
 		buttons->addWidget(closeButton);
+		bottom = {resetButton, cancel, applyButton, closeButton};
 
 		auto *body = new QHBoxLayout;
 		body->addWidget(tabList);
@@ -539,7 +616,7 @@ public:
 			connect(tick, &QTimer::timeout, this, [this, tick] {
 				tick->setInterval(int(live_sample(*live)));
 				for (auto &l : listRows)
-					l.space->update();
+					l.space->tick();
 			});
 			// the first read only primes, and a second one ms later is noise
 			tick->start(int(live_sample(*live)));
@@ -569,10 +646,24 @@ public:
 	}
 
 	int tabCount() const { return tabList->count(); }
-	bool isLeaf(int i) const { return tabPage[size_t(i)] >= 0; }
+	std::string tabText(int i) const { return tabList->item(i)->text().toStdString(); }
+	std::vector<std::string> shownRows() const {
+		std::vector<std::string> ids;
+		for (auto &r : rows) {
+			QWidget *w = r->control ? r->control : r->label;
+			if (w && w->isVisible())
+				ids.push_back(r->id());
+		}
+		return ids;
+	}
+	std::vector<std::string> buttonTexts() const {
+		std::vector<std::string> out;
+		for (auto *b : bottom)
+			out.push_back(b->text().toStdString());
+		return out;
+	}
+	bool isLeaf(int i) const { return leaf[size_t(i)]; }
 	void select(int i) { tabList->setCurrentRow(i); }
-	int subCount(int i) const { return subTabs[size_t(i)] ? subTabs[size_t(i)]->count() : 0; }
-	void selectSub(int i, int j) { subTabs[size_t(i)]->setCurrentIndex(j); }
 	std::unique_ptr<ColorPicker> firstPicker() {
 		for (auto &r : rows)
 			if (r->chip)
@@ -600,14 +691,22 @@ private:
 	Dialog &d;
 	rust::Box<Live> live;
 	std::vector<std::unique_ptr<Row>> rows;
+	// per line of the tab list
 	std::vector<int> tabPage;
-	std::vector<QTabWidget *> subTabs;
+	std::vector<bool> leaf;
+	struct SubPage {
+		QStackedWidget *stack = nullptr;
+		int index = 0;
+	};
+	std::vector<SubPage> subPage;
 	QPushButton *saveTheme = nullptr;
 	QPushButton *renameTheme = nullptr;
 	QPushButton *deleteTheme = nullptr;
 	QListWidget *tabList = nullptr;
 	QStackedWidget *pages = nullptr;
 	QPushButton *applyButton = nullptr;
+	QPushButton *resetButton = nullptr;
+	std::vector<QPushButton *> bottom;
 
 	// One graph per row, first drawn first, in the order they're placed.
 	struct ListRow {
@@ -630,6 +729,8 @@ private:
 		for (int j = i; j < tabList->count(); j++) {
 			if (tabPage[size_t(j)] >= 0) {
 				pages->setCurrentIndex(tabPage[size_t(j)]);
+				if (auto &s = subPage[size_t(j)]; s.stack)
+					s.stack->setCurrentIndex(s.index);
 				return;
 			}
 		}
@@ -990,6 +1091,18 @@ private:
 			pick->exec();
 	}
 
+	// the window's own graphs start over now, the panel's at Apply
+	void resetHistory() {
+		if (row_state(d, "keep_history").on &&
+			QMessageBox::question(this, "Reset history",
+								  "Keep across restarts is on, so this deletes all past history, not only what's "
+								  "on screen. It goes at Apply.\n\nReset history?") != QMessageBox::Yes)
+			return;
+		reset_history(d);
+		live_clear(*live);
+		refresh();
+	}
+
 	bool save() {
 		if (!is_dirty(d))
 			return true;
@@ -1086,6 +1199,7 @@ private:
 			deleteTheme->setEnabled(b.remove);
 		}
 		applyButton->setEnabled(is_dirty(d));
+		resetButton->setEnabled(!reset_pending(d));
 	}
 };
 
@@ -1097,6 +1211,8 @@ std::int32_t run_dialog(Dialog &d, rust::Str snapshot) {
 	static char *argv[] = {name, nullptr};
 	QApplication app(argc, argv);
 	QApplication::setApplicationName("tukzmon-settings");
+	TipWrap tipWrap;
+	app.installEventFilter(&tipWrap);
 	Window w(d);
 	QSize size = w.sizeHint().expandedTo(QSize(560, 420));
 	if (const QScreen *screen = w.screen())
@@ -1116,13 +1232,9 @@ std::int32_t run_dialog(Dialog &d, rust::Str snapshot) {
 		if (!w.isLeaf(i))
 			continue;
 		w.select(i);
-		for (int j = 0; j < std::max(1, w.subCount(i)); j++) {
-			if (w.subCount(i) > 0)
-				w.selectSub(i, j);
-			app.processEvents();
-			if (!w.grab().save(QString("%1-%2.png").arg(base).arg(++n)))
-				return 3;
-		}
+		app.processEvents();
+		if (!w.grab().save(QString("%1-%2.png").arg(base).arg(++n)))
+			return 3;
 	}
 	if (auto pick = w.firstPicker()) {
 		pick->show();
@@ -1160,6 +1272,40 @@ rust::Vec<std::int32_t> graph_list_places(Dialog &d) {
 	rust::Vec<std::int32_t> out;
 	for (int v : w.listPlaces())
 		out.push_back(v);
+	return out;
+}
+
+rust::Vec<TabShown> tabs_shown(Dialog &d) {
+	static int argc = 1;
+	static char name[] = "tukzmon-settings";
+	static char *argv[] = {name, nullptr};
+	qputenv("QT_QPA_PLATFORM", "offscreen");
+	QApplication app(argc, argv);
+	Window w(d);
+	w.show();
+	rust::Vec<TabShown> out;
+	for (int i = 0; i < w.tabCount(); i++) {
+		w.select(i);
+		app.processEvents();
+		TabShown t;
+		t.label = rust::String(w.tabText(i));
+		for (auto &id : w.shownRows())
+			t.rows.push_back(rust::String(id));
+		out.push_back(std::move(t));
+	}
+	return out;
+}
+
+rust::Vec<rust::String> bottom_buttons(Dialog &d) {
+	static int argc = 1;
+	static char name[] = "tukzmon-settings";
+	static char *argv[] = {name, nullptr};
+	qputenv("QT_QPA_PLATFORM", "offscreen");
+	QApplication app(argc, argv);
+	Window w(d);
+	rust::Vec<rust::String> out;
+	for (auto &t : w.buttonTexts())
+		out.push_back(rust::String(t));
 	return out;
 }
 

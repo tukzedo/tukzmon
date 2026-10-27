@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
-// Randomize on the Themes tab. One scheme from one seed: a lead hue for the
-// user share, the quiet series that hue muted, and the ones to watch kept
-// red and orange like every built-in. See design.md Theme.
+// Randomize on the Themes tab. One scheme from one seed: a lead hue of its
+// own for each graph, the quiet series that hue muted, and the ones to watch
+// kept red and orange like every built-in. See design.md Theme.
 
 use crate::pick::{self, Hsv};
 
 /// What a theme member is for, which sets how its color is picked.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Role {
-	/// The lead color, the user share.
+	/// The graph's lead color, such as the user share.
 	Lead,
 	/// Nice, cache: the lead hue, muted.
 	Calm,
@@ -31,46 +31,63 @@ pub enum Role {
 	Mode,
 }
 
-/// Every member of the theme group, by role. A member missing here gets no
-/// random value, and `dice::tests::every_theme_member_has_a_role` fails.
-pub const ROLES: &[(&str, Role)] = &[
-	("cpu_mode", Role::Mode),
-	("iowait", Role::Alarm),
-	("system", Role::Warn),
-	("user", Role::Lead),
-	("nice", Role::Calm),
-	("cpu_low", Role::Calm),
-	("cpu_medium", Role::Lead),
-	("cpu_high", Role::Tint),
-	("mem_mode", Role::Mode),
-	("mem_user", Role::Lead),
-	("mem_buffers", Role::Hush),
-	("mem_cache", Role::Calm),
-	("mem_low", Role::Calm),
-	("mem_medium", Role::Lead),
-	("mem_high", Role::Tint),
-	("swap_mode", Role::Mode),
-	("swap_used", Role::Lead),
-	("swap_low", Role::Calm),
-	("swap_medium", Role::Lead),
-	("swap_high", Role::Tint),
-	("battery_mode", Role::Mode),
-	("battery_charging", Role::Lead),
-	("battery_discharging", Role::Warn),
-	("battery_critical", Role::Alarm),
-	("battery_low", Role::Calm),
-	("battery_medium", Role::Lead),
-	("battery_high", Role::Tint),
-	("border_color", Role::Border),
-	("back_top", Role::Top),
-	("back_bottom", Role::Bottom),
-	("hover_color", Role::Hover),
+/// Which graph a member colors. Each graph gets its own lead hue, and the
+/// background rows, shared by all, go with CPU's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Part {
+	Cpu = 0,
+	Mem = 1,
+	Swap = 2,
+	Battery = 3,
+	Back = 4,
+}
+
+const GRAPHS: usize = 4;
+
+/// Every member of the theme group, by graph and role. A member missing here
+/// gets no random value, and `dice::tests::every_theme_member_has_a_role`
+/// fails.
+pub const ROLES: &[(&str, Part, Role)] = &[
+	("cpu_mode", Part::Cpu, Role::Mode),
+	("iowait", Part::Cpu, Role::Alarm),
+	("system", Part::Cpu, Role::Warn),
+	("user", Part::Cpu, Role::Lead),
+	("nice", Part::Cpu, Role::Calm),
+	("cpu_low", Part::Cpu, Role::Calm),
+	("cpu_medium", Part::Cpu, Role::Lead),
+	("cpu_high", Part::Cpu, Role::Tint),
+	("mem_mode", Part::Mem, Role::Mode),
+	("mem_user", Part::Mem, Role::Lead),
+	("mem_buffers", Part::Mem, Role::Hush),
+	("mem_cache", Part::Mem, Role::Calm),
+	("mem_low", Part::Mem, Role::Calm),
+	("mem_medium", Part::Mem, Role::Lead),
+	("mem_high", Part::Mem, Role::Tint),
+	("swap_mode", Part::Swap, Role::Mode),
+	("swap_used", Part::Swap, Role::Lead),
+	("swap_low", Part::Swap, Role::Calm),
+	("swap_medium", Part::Swap, Role::Lead),
+	("swap_high", Part::Swap, Role::Tint),
+	("battery_mode", Part::Battery, Role::Mode),
+	("battery_charging", Part::Battery, Role::Lead),
+	("battery_discharging", Part::Battery, Role::Warn),
+	("battery_critical", Part::Battery, Role::Alarm),
+	("battery_low", Part::Battery, Role::Calm),
+	("battery_medium", Part::Battery, Role::Lead),
+	("battery_high", Part::Battery, Role::Tint),
+	("border_color", Part::Back, Role::Border),
+	("back_top", Part::Back, Role::Top),
+	("back_bottom", Part::Back, Role::Bottom),
+	("hover_color", Part::Back, Role::Hover),
 ];
 
 // Lead hues stay out of the red and orange the alarms use, in turns.
 const LEAD_HUES: (f64, f64) = (75.0 / 360.0, 300.0 / 360.0);
 const ALARM_HUES: (f64, f64) = (-10.0 / 360.0, 2.0 / 360.0);
 const WARN_HUES: (f64, f64) = (18.0 / 360.0, 32.0 / 360.0);
+// The least gap between 2 graphs' lead hues. 4 of them at this gap leave
+// 90 degrees of the lead range to roll in.
+const LEAD_GAP: f64 = 45.0 / 360.0;
 
 // splitmix64, so a seed always rolls the same theme
 struct Roll(u64);
@@ -91,45 +108,102 @@ impl Roll {
 	fn within(&mut self, (lo, hi): (f64, f64)) -> f64 {
 		lo + (hi - lo) * self.unit()
 	}
+
+	fn below(&mut self, n: usize) -> usize {
+		((self.unit() * n as f64) as usize).min(n - 1)
+	}
 }
 
 fn lerp(a: f64, b: f64, t: f64) -> f64 {
 	a + (b - a) * t
 }
 
-/// The colors of one scheme, before they're handed out by role.
+// One lead hue per graph, at least LEAD_GAP apart, in a random order. Sorted
+// draws over the room left after the gaps, with a gap added back after each,
+// spread every allowed set evenly.
+fn lead_hues(r: &mut Roll) -> [f64; GRAPHS] {
+	let room = (LEAD_HUES.1 - LEAD_HUES.0) - LEAD_GAP * (GRAPHS - 1) as f64;
+	let mut h = [0.0; GRAPHS];
+	for x in &mut h {
+		*x = room * r.unit();
+	}
+	h.sort_by(f64::total_cmp);
+	for (i, x) in h.iter_mut().enumerate() {
+		*x += LEAD_HUES.0 + LEAD_GAP * i as f64;
+	}
+	for i in (1..GRAPHS).rev() {
+		h.swap(i, r.below(i + 1));
+	}
+	h
+}
+
+/// One graph's colors.
 #[derive(Clone, Copy, Debug)]
-struct Scheme {
+struct Hues {
 	lead: Hsv,
 	calm: Hsv,
 	hush: Hsv,
+	tint: Hsv,
+}
+
+/// The colors of one scheme, before they're handed out by role.
+#[derive(Clone, Copy, Debug)]
+struct Scheme {
+	graphs: [Hues; GRAPHS],
 	alarm: Hsv,
 	warn: Hsv,
-	tint: Hsv,
 	border: Hsv,
 	top: Hsv,
 	bottom: Hsv,
 }
 
+impl Scheme {
+	fn of(&self, p: Part) -> &Hues {
+		match p {
+			Part::Back => &self.graphs[Part::Cpu as usize],
+			p => &self.graphs[p as usize],
+		}
+	}
+}
+
 // `soft` runs from the standard themes at 0 to the pastel ones at 1, and the
-// numbers at each end are the built-ins'.
+// numbers at each end are the built-ins'. Every graph shares the saturation
+// and brightness, so they read as one set, and only the hues differ.
 fn scheme(seed: u64) -> Scheme {
 	let mut r = Roll(seed);
 	let soft = r.unit();
-	let h = r.within(LEAD_HUES);
 	let s = lerp(1.0, 0.33, soft) * r.within((0.85, 1.0));
-	let lead = Hsv {
-		h,
-		s,
-		v: r.within((0.85, 1.0)),
-	};
-	// analogous, up to 30 degrees off the lead
-	let calm_h = h + r.within((-1.0 / 12.0, 1.0 / 12.0));
-	let calm = Hsv {
-		h: calm_h,
-		s: s * r.within((0.55, 0.75)),
-		v: lerp(0.37, 0.54, soft) * r.within((0.9, 1.1)),
-	};
+	let v = r.within((0.85, 1.0));
+	let calm_s = s * r.within((0.55, 0.75));
+	let calm_v = lerp(0.37, 0.54, soft) * r.within((0.9, 1.1));
+	let hues = lead_hues(&mut r);
+	let mut calm_hs = [0.0; GRAPHS];
+	let graphs = std::array::from_fn(|i| {
+		let h = hues[i];
+		// analogous, up to 30 degrees off the lead
+		let calm_h = h + r.within((-1.0 / 12.0, 1.0 / 12.0));
+		calm_hs[i] = calm_h;
+		// mirrored, and pushed out so it's 30 degrees or more from calm
+		let off = calm_h - h;
+		Hues {
+			lead: Hsv { h, s, v },
+			calm: Hsv {
+				h: calm_h,
+				s: calm_s,
+				v: calm_v,
+			},
+			hush: Hsv {
+				h: (h - off.signum() * (1.0 / 12.0 - off.abs() / 2.0)).rem_euclid(1.0),
+				s: calm_s,
+				v: (calm_v * 1.2).min(v * 0.7),
+			},
+			tint: Hsv {
+				h,
+				s: s * 0.25,
+				v: 1.0,
+			},
+		}
+	});
 	let alarm = Hsv {
 		h: r.within(ALARM_HUES).rem_euclid(1.0),
 		s: lerp(1.0, 0.62, soft) * r.within((0.95, 1.0)),
@@ -140,26 +214,17 @@ fn scheme(seed: u64) -> Scheme {
 		s: lerp(1.0, 0.53, soft) * r.within((0.95, 1.0)),
 		v: lerp(0.78, 0.94, soft) * r.within((0.95, 1.05)),
 	};
-	// the background takes the calm hue or the lead's
-	let back_h = if r.unit() < 0.5 { h } else { calm_h };
-	// mirrored, and pushed out so it's 30 degrees or more from calm
-	let off = calm_h - h;
-	let hush = Hsv {
-		h: (h - off.signum() * (1.0 / 12.0 - off.abs() / 2.0)).rem_euclid(1.0),
-		s: calm.s,
-		v: (calm.v * 1.2).min(lead.v * 0.7),
+	// the background takes CPU's lead hue or its calm one
+	let cpu = Part::Cpu as usize;
+	let back_h = if r.unit() < 0.5 {
+		hues[cpu]
+	} else {
+		calm_hs[cpu]
 	};
 	Scheme {
-		lead,
-		calm,
-		hush,
+		graphs,
 		alarm,
 		warn,
-		tint: Hsv {
-			h,
-			s: s * 0.25,
-			v: 1.0,
-		},
 		border: Hsv {
 			h: back_h,
 			s: s * 0.5,
@@ -188,15 +253,16 @@ pub fn theme(seed: u64) -> Vec<(&'static str, String)> {
 	let k = scheme(seed);
 	ROLES
 		.iter()
-		.map(|&(id, role)| {
+		.map(|&(id, part, role)| {
+			let g = k.of(part);
 			let v = match role {
 				Role::Mode => "detailed".to_string(),
-				Role::Lead => hex(k.lead),
-				Role::Calm => hex(k.calm),
-				Role::Hush => hex(k.hush),
+				Role::Lead => hex(g.lead),
+				Role::Calm => hex(g.calm),
+				Role::Hush => hex(g.hush),
 				Role::Alarm => hex(k.alarm),
 				Role::Warn => hex(k.warn),
-				Role::Tint => hex(k.tint),
+				Role::Tint => hex(g.tint),
 				Role::Border => hex(k.border),
 				Role::Top => hex(k.top),
 				Role::Bottom => hex(k.bottom),
@@ -224,13 +290,23 @@ mod tests {
 	use knobs::Value;
 	use tukzmon_core::config::{self, Rgb, THEME};
 
+	const PARTS: [Part; GRAPHS] = [Part::Cpu, Part::Mem, Part::Swap, Part::Battery];
+
 	fn hsv_of(text: &str) -> Hsv {
 		pick::from_rgb(Rgb::parse(text).unwrap(), Hsv::default())
 	}
 
-	fn role_of(t: &[(&str, String)], role: Role) -> Hsv {
-		let (id, _) = ROLES.iter().find(|(_, r)| *r == role).unwrap();
-		hsv_of(&t.iter().find(|(i, _)| i == id).unwrap().1)
+	// every member of one graph with one role
+	fn all_of<'a>(t: &'a [(&str, String)], part: Part, role: Role) -> Vec<&'a str> {
+		ROLES
+			.iter()
+			.filter(|(_, p, r)| *p == part && *r == role)
+			.map(|(id, _, _)| t.iter().find(|(i, _)| i == id).unwrap().1.as_str())
+			.collect()
+	}
+
+	fn role_of(t: &[(&str, String)], part: Part, role: Role) -> Hsv {
+		hsv_of(all_of(t, part, role)[0])
 	}
 
 	// distance round the hue circle, 0 to 0.5
@@ -247,9 +323,9 @@ mod tests {
 		let spec = config::spec();
 		let members = &spec.group(THEME).unwrap().members;
 		for id in members {
-			assert!(ROLES.iter().any(|(r, _)| r == id), "{id} has no role");
+			assert!(ROLES.iter().any(|(r, _, _)| r == id), "{id} has no role");
 		}
-		for (id, _) in ROLES {
+		for (id, _, _) in ROLES {
 			assert!(members.iter().any(|m| m == id), "{id} isn't in the theme");
 		}
 	}
@@ -277,23 +353,33 @@ mod tests {
 	fn the_lead_rules_and_the_alarms_stay_red_and_orange() {
 		for seed in SEEDS {
 			let t = theme(seed);
-			let lead = role_of(&t, Role::Lead);
-			let alarm = role_of(&t, Role::Alarm);
-			let warn = role_of(&t, Role::Warn);
+			let alarm = role_of(&t, Part::Cpu, Role::Alarm);
+			let warn = role_of(&t, Part::Cpu, Role::Warn);
+			assert_eq!(
+				all_of(&t, Part::Battery, Role::Alarm),
+				all_of(&t, Part::Cpu, Role::Alarm)
+			);
+			assert_eq!(
+				all_of(&t, Part::Battery, Role::Warn),
+				all_of(&t, Part::Cpu, Role::Warn)
+			);
 			assert!(hue_gap(alarm.h, 0.0) <= 11.0 / 360.0, "{seed} {alarm:?}");
 			assert!(
 				(17.0 / 360.0..=33.0 / 360.0).contains(&warn.h),
 				"{seed} {warn:?}"
 			);
-			for a in [alarm, warn] {
-				assert!(a.s >= 0.45 && a.v >= 0.7, "{seed} {a:?}");
-				assert!(
-					hue_gap(a.h, lead.h) >= 40.0 / 360.0,
-					"{seed} {lead:?} {a:?}"
-				);
-			}
 			assert!(hue_gap(alarm.h, warn.h) >= 15.0 / 360.0, "{seed}");
-			assert!(lead.v >= 0.84, "{seed} {lead:?}");
+			for part in PARTS {
+				let lead = role_of(&t, part, Role::Lead);
+				for a in [alarm, warn] {
+					assert!(a.s >= 0.45 && a.v >= 0.7, "{seed} {a:?}");
+					assert!(
+						hue_gap(a.h, lead.h) >= 40.0 / 360.0,
+						"{seed} {part:?} {lead:?} {a:?}"
+					);
+				}
+				assert!(lead.v >= 0.84, "{seed} {part:?} {lead:?}");
+			}
 		}
 	}
 
@@ -302,17 +388,20 @@ mod tests {
 	fn the_quiet_ones_are_muted_and_near_the_lead() {
 		for seed in SEEDS {
 			let t = theme(seed);
-			let lead = role_of(&t, Role::Lead);
-			let calm = role_of(&t, Role::Calm);
-			let border = role_of(&t, Role::Border);
-			let top = role_of(&t, Role::Top);
-			let bottom = role_of(&t, Role::Bottom);
-			assert!(
-				calm.v < lead.v * 0.75 && calm.s <= lead.s,
-				"{seed} {lead:?} {calm:?}"
-			);
-			// a dark gray-ish calm reads its hue back a few degrees off
-			assert!(hue_gap(calm.h, lead.h) <= 36.0 / 360.0, "{seed}");
+			for part in PARTS {
+				let lead = role_of(&t, part, Role::Lead);
+				let calm = role_of(&t, part, Role::Calm);
+				assert!(
+					calm.v < lead.v * 0.75 && calm.s <= lead.s,
+					"{seed} {part:?} {lead:?} {calm:?}"
+				);
+				// a dark gray-ish calm reads its hue back a few degrees off
+				assert!(hue_gap(calm.h, lead.h) <= 36.0 / 360.0, "{seed} {part:?}");
+			}
+			let lead = role_of(&t, Part::Cpu, Role::Lead);
+			let border = role_of(&t, Part::Back, Role::Border);
+			let top = role_of(&t, Part::Back, Role::Top);
+			let bottom = role_of(&t, Part::Back, Role::Bottom);
 			assert!(
 				bottom.v < top.v && top.v < border.v && border.v < lead.v,
 				"{seed}"
@@ -328,10 +417,16 @@ mod tests {
 			let get = |id: &str| t.iter().find(|(i, _)| *i == id).unwrap().1.clone();
 			assert_eq!(get("cpu_low"), get("nice"));
 			assert_eq!(get("cpu_medium"), get("user"));
-			assert!(
-				hsv_of(&get("cpu_high")).s < hsv_of(&get("user")).s,
-				"{seed}"
-			);
+			for part in PARTS {
+				for role in [Role::Lead, Role::Calm] {
+					let all = all_of(&t, part, role);
+					assert!(all.iter().all(|c| *c == all[0]), "{seed} {part:?} {all:?}");
+				}
+				assert!(
+					role_of(&t, part, Role::Tint).s < role_of(&t, part, Role::Lead).s,
+					"{seed} {part:?}"
+				);
+			}
 		}
 	}
 
@@ -343,8 +438,8 @@ mod tests {
 			let get = |id: &str| t.iter().find(|(i, _)| *i == id).unwrap().1.clone();
 			let lead = hsv_of(&get("mem_user"));
 			let buffers = hsv_of(&get("mem_buffers"));
-			assert_eq!(get("mem_user"), get("user"), "{seed}");
-			assert_eq!(get("mem_cache"), get("nice"), "{seed}");
+			assert_ne!(get("mem_user"), get("user"), "{seed}");
+			assert_eq!(get("mem_cache"), get("mem_low"), "{seed}");
 			assert_ne!(get("mem_buffers"), get("mem_cache"), "{seed}");
 			assert!(
 				buffers.v < lead.v * 0.75 && buffers.s <= lead.s,
@@ -352,12 +447,31 @@ mod tests {
 			);
 			// a dark gray-ish one reads its hue back a few degrees off
 			assert!(hue_gap(buffers.h, lead.h) <= 36.0 / 360.0, "{seed}");
-			let calm = scheme(seed);
+			let mem = scheme(seed).graphs[Part::Mem as usize];
 			assert!(
-				hue_gap(calm.hush.h, calm.calm.h) >= 30.0 / 360.0 - 1e-9,
+				hue_gap(mem.hush.h, mem.calm.h) >= 30.0 / 360.0 - 1e-9,
 				"{seed}"
 			);
 		}
+	}
+
+	// Test ID: defxd
+	#[test]
+	fn each_graph_leads_with_a_hue_of_its_own() {
+		let mut cpu = (1.0_f64, 0.0_f64);
+		for seed in SEEDS {
+			let t = theme(seed);
+			let leads = PARTS.map(|p| role_of(&t, p, Role::Lead).h);
+			for (i, a) in leads.iter().enumerate() {
+				for b in &leads[i + 1..] {
+					// 45 apart as rolled, less a little for the hex round trip
+					assert!(hue_gap(*a, *b) >= 40.0 / 360.0, "{seed} {leads:?}");
+				}
+			}
+			cpu = (cpu.0.min(leads[0]), cpu.1.max(leads[0]));
+		}
+		// the order is shuffled, so CPU isn't stuck at one end of the range
+		assert!(cpu.0 < 90.0 / 360.0 && cpu.1 > 285.0 / 360.0, "{cpu:?}");
 	}
 
 	// Test ID: decdx

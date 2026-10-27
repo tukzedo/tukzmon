@@ -60,10 +60,14 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- Every widget is an opaque pointer, so no C struct layouts are copied, and a header change can't break it quietly.
 	- The other way, a short C file built against the headers, needs `libxfce4panel-2.0-dev`. On b23 that would pull the panel library back from 4.20.7 to Debian's 4.20.4.
 	- The panel runs external plugins in a separate wrapper process, so a crash takes down the plugin adn not the panel.
+	- That's on X11. On Wayland, XFCE 4.20 loads the plugin into the panel's own process, since XEmbed is X11 only, so a panic in the plugin aborts the whole panel. Every instance shares that process too. That's safe, since the plugin's only globals are read-only caches of the settings spec, and it starts no threads.
+	- So the plugin's messages go through `complain` in `xfce/src/lib.rs`, since `eprintln!` panics when stderr can't be written, such as to a full disk or a closed terminal. Test `defyn` keeps the print macros out of all the code the panel loads.
+	- Nothing else in the plugin assumes X11. The drawing, the tip, the hover line, the right-click menu and Properties work the same on Wayland, and tukzmon-settings opens as a Wayland window.
 
-- The plugin draws its graphs in one drawing area, side by side, in the saved order. There's no gap between them, like multiload-ng's spacing of 0. On a vertical panel they're stacked, and share the height evenly. The graph under the pointer gets the hover line and the tip. `core/src/graphs.rs` has the layout.
+- The plugin draws its graphs in one drawing area, side by side, in the saved order. They have 2 px clear above and below, and 4 px between each pair, in logical pixels, so the panel shows through. On a vertical panel or a deskbar they're stacked, and share the height evenly, with the 2 px either side instead. Each asks for half the panel's width in height, at least 16 px, so the widths don't apply there. The graph under the pointer gets the hover line and the tip. The 2 px edges count as the graph beside them, so a pointer pushed against the screen's edge still finds it, and a gap between 2 graphs finds neither. `core/src/graphs.rs` has the layout.
 	- Under Graphs on the Graph tab is the graph list, a row per graph in the saved order. Each row has a checkbox, at `cpu.show`, `mem.show`, `swap.show` and `battery.show`, the live graph, a width, at `cpu.width`, `mem.width`, `swap.width` and `battery.width`, a time axis, a revert arrow and a gripper. A width of 0, the default, is the Width setting. Widths are in the panel's own pixels, so they scale with it.
 	- Each row draws its graph live, at its own width, with the window's settings, so a change shows there before Apply. The window reads the graphs itself from when it opens, so a row starts empty. A hidden graph is drawn too. The widest graph sets the column, so the boxes after it line up, and one wider than 512 px is squeezed to that.
+	- The row under the pointer gets the hover line and the tip, the same as in the panel, through the panel's own `graphs::point`. On a squeezed row the line goes at the pointer's place in the whole graph. A tip left up follows each sample.
 	- The time axis is at `cpu.time`, `mem.time`, `swap.time` and `battery.time`. See [Time axis](#time-axis).
 	- A graph gets a row once `core/src/settings.shcl` has its `<name>.show`, `.width` and `.time` settings.
 	- A box where `/proc/meminfo` can't be read never shows the memory graph.
@@ -93,20 +97,29 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - It's Qt 6 Widgets. Widgets is the lightest Qt that's cross-platform and maintained, and Qt Quick would add QML and a scene graph for a form with a dozen rows. Rust reaches it through the [cxx](https://cxx.rs) crate, and `settings/src/qt.cpp` only builds widgets and copies state onto them. The model, the rules, and the file are all in Rust.
 
-- Qt doesn't need a file format of its own for this, so settings stay in shcl, at `~/.config/tukzmon/tukzmon.shcl`. One file serves every graph for now. A file per plugin instance comes with more than one kind of graph.
+- Qt doesn't need a file format of its own for this, so settings stay in shcl, under `~/.config/tukzmon/`.
+	- Each panel item has its own file, `plugin-<id>.shcl` by the panel's unique id, named like its history file. Its Properties opens that file, so 2 items on a panel can show different graphs.
+	- `tukzmon.shcl` is the shared file. An item with no file of its own yet starts from a copy of it, so a panel set up before items had their own keeps its look. The shared file is never changed by an item, and `tukzmon-settings` with no `--config` edits it, which sets what a new item starts from.
+	- With no shared file either, a new item starts at the defaults, and writes no file until a save.
 
 - It follows SilkTerm's settings dialog, on top of knobs:
 	- Tabs down the left, groups with a rule under the title, and a sub-group stepped in under the switch it depends on. A row is greyed while that switch is off, but its revert arrow still works.
 	- A revert arrow on every row, live when the value isn't its default.
-	- Cancel, Apply, and Apply and close, with Cancel set a little apart. Enter is Apply and close and Esc is Cancel, even from inside a field.
+	- Cancel, Apply, and OK, with Cancel set a little apart. Enter is OK and Esc is Cancel, even from inside a field.
 	- A slider can reach less far than its number box takes. The box takes any sane value, and `slider_range` in `core/src/settings.shcl` sets how far the slider goes.
 	- The selected tab is a tint of the theme's highlight under the normal text color, so it reads in a dark theme too.
-	- A tab with rows of its own and tabs under it, which is Themes, keeps those rows on top and shows its tabs as sub-tabs below them. Themes has the Name dropdown with Save, Save as, Rename, Delete and Randomize, and a sub-tab per graph's colors, plus Background for the colors they share. Like every other change, the theme buttons take effect at Apply.
+	- A tab with rows of its own and tabs under it, which is Themes, keeps those rows on top of whichever of its sub-tabs is picked. The sub-tabs are listed under it in the tab list, stepped in, and picking Themes itself shows the first one. Themes has the Name dropdown with Save, Save as, Rename, Delete and Randomize, and a sub-tab per graph's colors, plus Background for the colors they share. Like every other change, the theme buttons take effect at Apply.
 	- Two keys in `core/src/settings.shcl` are tukzmon's, not knobs'. `shown_as: radio` draws a dropdown as radio buttons, and `shown_when: "id = key"` shows a row only while that dropdown is on that key. knobs' gates only take a checkbox.
 	- Graphs on the Graph tab is a list with a row per graph, not a row per setting. See [XFCE plugin](#xfce-plugin).
 	- A color chip opens a picker, and the hex value can be typed beside it. The picker is SilkTerm's, not the toolkit's: a saturation and brightness square, a hue strip, and boxes for red, green, blue, brightness, saturation and hex. The row behind it follows every change, and Cancel puts back all of it, the theme's "*" included. The color model is in `settings/src/pick.rs`.
+	- A tip is broken into lines of at most 70 characters, the width GTK wraps its own tips at, so the panel's and the window's read alike. Qt would show a plain tip as one line. `wrap_tip` in `settings/src/bridge.rs` does it, and an event filter in `qt.cpp` sends every tip in the window through it.
 	- The file gets only what was changed in the window, applied to the file as it is at save time, so a hand edit made meanwhile isn't lost.
 	- A save that would drop a line it can't read, or a setting it doesn't know, is refused, and the error names the lines.
+
+- Reset history sits on the left of the bottom strip, under the pages, and starts every graph over, in every panel item. With Keep across restarts on, it asks first, since that deletes the saved history too. Like the theme buttons it takes effect at Apply, but the window's own graphs start over at once.
+	- At Apply the window writes `reset` in the history folder. When Keep across restarts is on, it deletes every `plugin-*.hist` there first, so an item that isn't running doesn't bring old history back.
+	- A running plugin checks that file's modified time at each sample, as it does the settings file's. It drops what it holds, and when history is kept it deletes its own file again, since it may have saved in between.
+	- With Keep across restarts off, the file is left as it is, the same as Off always does.
 
 - Not there yet: a live preview in the panel before Apply, and the search box.
 
@@ -116,9 +129,10 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - Each color can be overridden in the settings window.
 
-- Every color is in one knobs preset group, `theme`, picked with the Name dropdown on the Themes tab, at `theme.name`, and so is each graph's mode. The built-in themes are in `core/src/settings.shcl`: Default, then Green and Blue, each standard and pastel, then Fire.
+- Every color is in one knobs preset group, `theme`, picked with the Name dropdown on the Themes tab, at `theme.name`, and so is each graph's mode. The built-in themes are in `core/src/settings.shcl`: Default, Primary, Pastel, Neon, Earth and Fire.
 	- One theme colors every graph, so no graph picks its own. A theme has a value for every graph's colors and mode, and picking one changes every sub-tab.
-	- A theme is named for the color that leads, the user share. Nice, the border and the background are that hue, muted. I/O wait and system stay red and orange in every theme, so trouble reads the same whichever is picked.
+	- A theme's name says nothing of color. Each graph has a hue of its own in every theme, so graphs side by side are told apart. A graph's quiet series and its gradient's Low are its hue, muted. The border and background are neutral, or lean to the theme's mood.
+	- I/O wait and system stay red and orange in every theme, so trouble reads the same whichever is picked. No graph's own hue is red or orange, except in Fire and Earth, where they're warm but not the alarms'.
 	- Default is the earlier multiload-ng colors moved onto one hue, 150 degrees. System went from `#c64600` to `#c64200`, the border from `#40806a` to `#408060`, and the top from `#2a5446` to `#2a543f`.
 	- Each color row's default is Default's color, so Custom starts from it. `config::tests::the_default_theme_is_the_row_defaults` holds the two together.
 	- A color changed on a theme is kept apart from it, and the dropdown says "Name *", the way SilkTerm's does. Picking another theme drops those changes.
@@ -128,16 +142,16 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- Detailed stacks a color per series, as before.
 	- Gradient draws the column in one blend of Low, Medium and High. A pixel takes the blend at its height in the plot, Low at the bottom, Medium halfway and High at the top, so a busier column reaches further up the ramp and the colors stay put as it grows. The column's height is the same as the stack's.
 	- Only the rows for the mode picked are shown. A mode changed by hand is a change on the theme, like a color.
-	- Fire is a Gradient theme: dim red, yellow-white, then light blue, like a hot flame. Every other built-in is Detailed, with a gradient from its nice color through its user color to a pale tint of it.
+	- Fire is a Gradient theme, and each graph burns a flame of its own. CPU is dim red, yellow-white, then light blue, like a hot flame. Memory is a violet flame, swap a blue gas flame, and the battery a green copper one. Every other built-in is Detailed, and each graph's gradient runs from its muted color through its own lead to a pale tint of it.
 
 - The memory graph's colors are on the Memory sub-tab: Programs, Buffers and Cache, at `mem.colors.user`, `.buffers` and `.cache`, plus its own Low, Medium and High.
 	- Default's are multiload-ng's memory colors as they were, `#ffff80`, `#804080` and `#408060`, not moved onto Default's hue.
-	- In the other built-ins, cache is the theme's nice color and buffers a muted color a step round the hue from it. Fire draws memory as a gradient too.
+	- In the other built-ins, programs take memory's own hue, cache is that hue muted, and buffers a muted color a step round from it. Fire draws memory as a gradient too.
 	- multiload-ng's memory border and background aren't used, since every graph shares the Background sub-tab.
 
-- The swap graph's colors are on the Swap sub-tab: In use, at `swap.colors.used`, plus its own Low, Medium and High. In every built-in they're the theme's user color and its CPU gradient, so Fire draws swap as a gradient too.
+- The swap graph's colors are on the Swap sub-tab: In use, at `swap.colors.used`, plus its own Low, Medium and High. Every built-in gives swap a hue and gradient of its own. Default's is sky blue, `#40a0ff`, and Fire draws swap as a gradient too.
 
-- The battery graph's colors are on the Battery sub-tab: Plugged in, On battery and Critical, at `battery.colors.charging`, `.discharging` and `.critical`, plus its own Low, Medium and High. In every built-in they're the theme's user, system and I/O wait colors, so on battery reads as a warning and critical as an alarm. The gradient is the theme's CPU one.
+- The battery graph's colors are on the Battery sub-tab: Plugged in, On battery and Critical, at `battery.colors.charging`, `.discharging` and `.critical`, plus its own Low, Medium and High. In every built-in, plugged in is a hue of the battery's own, and on battery and critical are the theme's system and I/O wait colors, so on battery reads as a warning and critical as an alarm. The gradient is the battery's own. Default's plugged in is lavender, `#b080ff`.
 	- The tip says plugged in rather than charging, since a full battery with the power in counts as charging.
 
 - Saved themes are kept whole in the config file, under `themes.<key>`, with a `name` and every color and mode by its setting id, the same shape as a built-in in settings.shcl. The dropdown lists them after the built-ins, and before Custom.
@@ -149,9 +163,10 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 - Transparent, on the Background sub-tab at `graph.transparent`, leaves out the Top and Bottom colors so the panel shows through. It's one setting for every theme, outside the `theme` group, so a theme pick, a roll or Save as doesn't touch it. The border, the series and the hover line stay opaque. Pixels are premultiplied, so a row a column only half fills is half clear.
 
 - Randomize rolls colors for every graph and sets them as changes on the theme in force, so the dropdown says "Name *". Save as keeps a roll, and picking a theme drops it. The rules are in `settings/src/dice.rs`.
-	- The user share leads, at any hue from yellow-green round to magenta, which keeps it off red and orange. Nice and a gradient's Low are that hue muted, or one up to 30 degrees from it. The border and background are the lead hue or nice's, darker and grayer.
-	- I/O wait stays red and system orange, as in the built-ins, since those are the ones to watch. Every color softens together, from as bright as Green standard to as pale as Green pastel.
-	- A roll is always Detailed. Its gradient runs from nice through the user color to a pale tint, like the built-ins', so it's ready if Gradient is picked. The hover line stays black.
+	- Each graph leads with a hue of its own, the user share for CPU, at any hue from yellow-green round to magenta, which keeps it off red and orange. The 4 lead hues are at least 45 degrees apart, in a random order. A graph's quiet colors and its gradient's Low are its hue muted, or one up to 30 degrees from it. The border and background are CPU's lead hue or nice's, darker and grayer.
+	- I/O wait stays red and system orange, as in the built-ins, since those are the ones to watch. Every color softens together, from as bright as Primary to as pale as Pastel.
+	- Every graph shares one saturation and brightness, so a roll reads as one set and only the hues differ.
+	- A roll is always Detailed. Each graph's gradient runs from its quiet color through its lead to a pale tint, like the built-ins', so it's ready if Gradient is picked. The hover line stays black.
 	- Buffers has a role of its own. It's muted like cache, but on the other side of the lead hue and at least 30 degrees from cache, so that way the 2 are told apart.
 	- Every theme member needs a role in `dice::ROLES`. A new graph's members fail `dice::tests::every_theme_member_has_a_role` until they get one, such as buffers and cache as muted ones.
 
@@ -234,6 +249,7 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 	- Times are Unix seconds, so runs line up. A clock set back to before the saved history is moved up to its end, so new samples aren't dropped as old.
 	- "Keep across restarts" turns it off. Off stops saving and loading, and leaves the file as it is. Turned back on, the file is loaded again, so what was seen while it was off is a gap.
 	- History older than the max age, 365 days by default, is dropped at each save and load.
+	- Reset history in the settings window drops all of it, or only what's on screen while Keep across restarts is off. See [Settings window](#settings-window).
 
 ## Time axis
 
