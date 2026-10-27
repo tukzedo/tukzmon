@@ -513,6 +513,13 @@ public:
 				return picker(*r);
 		return nullptr;
 	}
+	std::vector<std::string> greyed() const {
+		std::vector<std::string> ids;
+		for (auto &r : rows)
+			if (r->control && !r->control->isEnabled())
+				ids.push_back(r->id());
+		return ids;
+	}
 
 private:
 	Dialog &d;
@@ -733,9 +740,6 @@ private:
 				changed |= row_state(d, r->id()).can_reset;
 			l.revert->setEnabled(changed);
 			l.revert->setToolTip(changed ? "Back to the defaults." : "");
-			const bool on = row_state(d, l.width->id()).counts;
-			l.width->control->setEnabled(on);
-			l.time->control->setEnabled(on);
 		}
 	}
 
@@ -939,6 +943,10 @@ private:
 			for (QWidget *w : {static_cast<QWidget *>(r.label), r.control, static_cast<QWidget *>(r.revert)})
 				if (w)
 					w->setVisible(st.shown);
+			// greyed while a switch above it is off, but its revert still works
+			for (QWidget *w : {static_cast<QWidget *>(r.label), r.control})
+				if (w)
+					w->setEnabled(st.counts);
 			QString tip = qs(st.tip);
 			QString text = qs(st.text);
 			if (r.label) {
@@ -1050,6 +1058,19 @@ std::int32_t run_dialog(Dialog &d, rust::Str snapshot) {
 			return 3;
 	}
 	return 0;
+}
+
+rust::Vec<rust::String> greyed_rows(Dialog &d) {
+	static int argc = 1;
+	static char name[] = "tukzmon-settings";
+	static char *argv[] = {name, nullptr};
+	qputenv("QT_QPA_PLATFORM", "offscreen");
+	QApplication app(argc, argv);
+	Window w(d);
+	rust::Vec<rust::String> ids;
+	for (auto &id : w.greyed())
+		ids.push_back(rust::String(id));
+	return ids;
 }
 
 } // namespace tukzmon

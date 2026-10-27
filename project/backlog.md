@@ -514,20 +514,6 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- b23's multiload-ng has `graph-mem-procps-compliant=true`, so it counts slab as cache. tukzmon counts `Cached` alone, per 2026102408512192, so its cache band is thinner and user thicker than multiload-ng showed.
 
-- Settings rows that depend on a switch are never greyed
-	- ID: 2026102617084201
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261026-170842
-	- Opened by: t00mietum
-	- Related IDs: 2026102508393161
-	- Steps to reproduce:
-		- In the settings window, turn off a switch that other rows depend on.
-	- Incorrect behavior: the rows that depend on it stay enabled. `qt.cpp` ignores the knobs `counts` state.
-	- Expected behavior: they grey out, the way the graph list greys a hidden graph's width and time axis.
-	- Reproduced: no. Found while building the graph list, 2026-10-26.
-
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
 	- Type: Feature
@@ -545,6 +531,36 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Settings rows that depend on a switch are never greyed
+	- ID: 2026102617084201
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261026-170842
+	- Opened by: t00mietum
+	- Related IDs: 2026102508393161
+	- Steps to reproduce:
+		- In the settings window, turn off a switch that other rows depend on.
+	- Incorrect behavior: the rows that depend on it stay enabled. `qt.cpp` ignores the knobs `counts` state.
+	- Expected behavior: they grey out, the way the graph list greys a hidden graph's width and time axis.
+	- Reproduced: yes, 2026-10-26: with every switch off, the window greyed none of the rows under them.
+	- Actual cause: `refresh` in `qt.cpp` never read `counts`. Only the graph list's own refresh did, for its width and time axis.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A row's label and control are greyed while a switch above it is off: Log curve and Spike emphasis under Log time axis, Max age in days under Keep across restarts, and a hidden graph's width and time axis.
+		- The graph list now greys through the same code as every other row.
+		- `design.md` Settings window says so.
+		- Verified: the full run passed, and defma failed with the fix taken out.
+	- Decisions:
+		- The revert arrow stays live on a greyed row, as it does in the graph list, so a value can still be put back while its switch is off.
+		- One place greys rows, `refresh`, rather than a second copy in the list's refresh.
+	- Actual fix: `refresh` sets each row's label and control enabled from `counts`.
+	- Branch: round-1026
+	- Test case: `bridge::tests::a_row_is_greyed_while_its_switch_is_off` (defma). It builds the window off screen and checks the greyed rows match the gated ones, with every switch on and then off. It fails without the fix.
+		- Swept: every `setEnabled` in `qt.cpp`, the graph list's refresh, and every `gate:` in `core/src/settings.shcl`, which the test walks.
+	- Closed: 20261026-171422
 
 - tukzmon-settings --version aborts when its output can't be written
 	- ID: 2026102519030128

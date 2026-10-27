@@ -102,6 +102,8 @@ pub mod ffi {
 	unsafe extern "C++" {
 		include!("tukzmon-settings/src/qt.h");
 		fn run_dialog(d: &mut Dialog, snapshot: &str) -> i32;
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn greyed_rows(d: &mut Dialog) -> Vec<String>;
 	}
 }
 
@@ -307,6 +309,44 @@ mod tests {
 				.filter(|r| r.in_list)
 				.all(|r| r.tab == rows[first].tab)
 		);
+	}
+
+	// Test ID: defma
+	#[test]
+	fn a_row_is_greyed_while_its_switch_is_off() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_greyed_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let shown: Vec<String> = dialog_rows(&d)
+			.into_iter()
+			.filter(|r| !matches!(r.control.as_str(), "heading" | "none"))
+			.map(|r| r.id)
+			.collect();
+		let gates: Vec<String> = d
+			.spec()
+			.settings
+			.iter()
+			.filter_map(|s| s.gate.clone())
+			.collect();
+		let want = |d: &Dialog| -> Vec<String> {
+			shown
+				.iter()
+				.filter(|id| !d.state(id).counts)
+				.cloned()
+				.collect()
+		};
+		assert!(want(&d).is_empty());
+		assert!(ffi::greyed_rows(&mut d).is_empty());
+		for g in &gates {
+			d.set(g, &Value::Bool(false));
+		}
+		let off = want(&d);
+		for id in ["log_curve", "spikes", "max_days", "cpu_width", "mem_time"] {
+			assert!(off.iter().any(|o| o == id), "{id}");
+		}
+		assert_eq!(ffi::greyed_rows(&mut d), off);
 	}
 
 	// Test ID: dee9q

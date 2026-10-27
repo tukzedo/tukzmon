@@ -94,7 +94,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 - Qt doesn't need a file format of its own for this, so settings stay in shcl, at `~/.config/tukzmon/tukzmon.shcl`. One file serves every graph for now. A file per plugin instance comes with more than one kind of graph.
 
 - It follows SilkTerm's settings dialog, on top of knobs:
-	- Tabs down the left, groups with a rule under the title, and a sub-group stepped in under the switch it depends on.
+	- Tabs down the left, groups with a rule under the title, and a sub-group stepped in under the switch it depends on. A row is greyed while that switch is off, but its revert arrow still works.
 	- A revert arrow on every row, live when the value isn't its default.
 	- Cancel, Apply, and Apply and close, with Cancel set a little apart. Enter is Apply and close and Esc is Cancel, even from inside a field.
 	- A slider can reach less far than its number box takes. The box takes any sane value, and `slider_range` in `core/src/settings.shcl` sets how far the slider goes.
