@@ -52,14 +52,11 @@ impl Plugin {
 		// SAFETY: plugin is the live XfcePanelPlugin this state belongs to.
 		unsafe {
 			let size = xfce_panel_plugin_get_size(self.xpp);
-			let n = self.graphs.count() as c_int;
+			// a deskbar is a vertical panel too
 			self.graphs.stacked = xfce_panel_plugin_get_mode(self.xpp) != MODE_HORIZONTAL;
-			if self.graphs.stacked {
-				gtk_widget_set_size_request(self.xpp, size, (size / 2).max(16) * n);
-			} else {
-				let w = self.graphs.widths().sum::<u32>() as c_int;
-				gtk_widget_set_size_request(self.xpp, w, size);
-			}
+			let (w, h) = self.graphs.wanted(u32::try_from(size).unwrap_or(0));
+			let px = |v: u32| c_int::try_from(v).unwrap_or(c_int::MAX);
+			gtk_widget_set_size_request(self.xpp, px(w), px(h));
 		}
 	}
 

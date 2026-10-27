@@ -365,6 +365,23 @@ Sorted per the notes in [Template](#template).
 		- Packaged for Debian, and as a Nix package for tukzedo-linux's NixOS edition.
 	- Progress log:
 		- One CPU graph in the panel, with a tooltip and Properties opening tukzmon-settings. Tried on X11 only so far.
+		- 2026-10-26: Several graphs side by side, and the graph list that picks them, are in since round-1025. The `.deb` is in since 2026102506591283.
+		- 2026-10-26: Split what's left into children: 2026102621053709 (vertical and deskbar panels), 2026102621053715 (a settings file per plugin instance), 2026102621053720 (Wayland), 2026102621053725 (Nix package), and 2026102621105420 (graph sizes on a vertical panel). This closes with the last of them.
+
+- Graph sizes on a vertical panel
+	- ID: 2026102621105420
+	- Type: Enhancement
+	- Status: Waiting for answers
+		- Waits on the question about the Width settings on a vertical panel.
+	- Priority|Severity: Avg
+	- Opened: 20261026-211054
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013889
+	- Related IDs: 2026102621053709, 2026102508393152
+	- Requirements:
+		- On a vertical panel, the Width settings either do something, or say they don't.
+	- Progress log:
+		- Each graph there is as wide as the panel and half that tall, and the Width tip still says "Its height follows the panel".
 
 - Pre-next-cut: Graphs aren't remembering history between restarts
 	- ID: 2026102620162195
@@ -498,6 +515,45 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026102408304546
 	- Requirements:
 		- Button name: "Apply and close" -> "OK" (a reversal).
+
+- A settings file per plugin instance
+	- ID: 2026102621053715
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-210537
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013889
+	- Requirements:
+		- One plugin instance can show one or more graphs side by side, picked in its settings dialog.
+		- Each instance's Properties edits that instance only, so 2 items on a panel can show different graphs.
+		- An existing `~/.config/tukzmon/tukzmon.shcl` isn't lost.
+	- Progress log:
+		- Today every instance reads and writes the one file, per `design.md` Settings window.
+
+- XFCE on Wayland
+	- ID: 2026102621053720
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-210537
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013889
+	- Requirements:
+		- Works on XFCE 4.20 on Wayland, with the drawing, the tip, the hover line, the right-click menu and Properties.
+		- Fix what doesn't, such as anything that assumes X11.
+
+- Nix package for tukzedo-linux's NixOS edition
+	- ID: 2026102621053725
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-210537
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013889
+	- Requirements:
+		- A Nix package of the plugin and `tukzmon-settings`, for tukzedo-linux's NixOS edition.
+		- The panel finds the plugin, given NixOS's plugin paths.
 
 - The graphs
 	- ID: 2026101916013887
@@ -694,6 +750,32 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Vertical and deskbar panels
+	- ID: 2026102621053709
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261026-210537
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013889
+	- Related IDs: 2026102621105420
+	- Test environment: XFCE 4.20.7 panel, X11.
+	- Requirements:
+		- Follows the panel's size and orientation, including a vertical panel and a deskbar.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- It already did. The size the plugin asks for is now worked out in `Graphs::wanted`, so it has a test.
+		- Verified: in a test panel, a vertical panel of 48 px stacked CPU over memory at 48 by 24 each, and a deskbar of 64 px at 64 by 32. A panel of 2 rows gave the graphs its full height. Switched live from horizontal to vertical, deskbar and back, and between sizes, the item asked for 48x48, 20x32 and 256x30, as `wanted` says.
+		- `design.md` XFCE plugin says how tall each graph is on a vertical panel.
+	- Decisions:
+		- A deskbar lays out as a vertical panel, since it's one.
+		- Graph sizes on a vertical panel stay as decided in 2026102508393152. Whether the widths should apply there is 2026102621105420.
+	- Test case: `graphs::tests::the_ask_follows_the_panels_size_and_orientation` (defvs), which fails with the 16 px floor taken out. dedq2 covers the stacked layout.
+		- Swept: `fit` was the only place the plugin asked for a size, and `size-changed` and `mode-changed` both call it.
+	- Branch: round-1027
+	- Closed: 20261026-211423
 
 - History store
 	- ID: 2026101916013885

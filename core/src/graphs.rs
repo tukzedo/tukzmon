@@ -249,6 +249,18 @@ impl Graphs {
 		self.shown().map(|w| self.width_of(w))
 	}
 
+	/// The size to ask a panel of `size` logical pixels for. Side by side it's
+	/// the widths' sum by the panel's height. Stacked, it's the panel's width,
+	/// and half that for each graph's height.
+	pub fn wanted(&self, size: u32) -> (u32, u32) {
+		if self.stacked {
+			let n = u32::try_from(self.count()).unwrap_or(u32::MAX);
+			(size, (size / 2).max(16).saturating_mul(n))
+		} else {
+			(self.widths().sum(), size)
+		}
+	}
+
 	/// True when `look` would hide a graph that's drawn now, so what it read
 	/// should be saved first.
 	pub fn drops(&self, look: &Look) -> bool {
@@ -744,6 +756,36 @@ mod tests {
 		g.stacked = true;
 		assert!(g.hover(Some((5, 6)), 10, 10));
 		assert_eq!(g.mem.as_ref().unwrap().hover, Some(5));
+	}
+
+	// Test ID: defvs
+	#[test]
+	fn the_ask_follows_the_panels_size_and_orientation() {
+		let mut g = both();
+		g.set_look(
+			Look {
+				mem_width: 30,
+				..Look::default()
+			},
+			None,
+		)
+		.unwrap();
+		let cpu = g.width_of(Which::Cpu);
+		assert_eq!(g.wanted(26), (cpu + 30, 26));
+		assert_eq!(g.wanted(60), (cpu + 30, 60));
+		// a vertical panel ignores the widths, and has a floor
+		g.stacked = true;
+		assert_eq!(g.wanted(48), (48, 48));
+		assert_eq!(g.wanted(20), (20, 32));
+		g.set_look(
+			Look {
+				show_memory: false,
+				..Look::default()
+			},
+			None,
+		)
+		.unwrap();
+		assert_eq!(g.wanted(48), (48, 24));
 	}
 
 	// Test ID: dedqe
