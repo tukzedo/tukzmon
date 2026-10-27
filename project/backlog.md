@@ -226,24 +226,6 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: The workflow is its own test. Its first run is in the row above.
 
-- History store
-	- ID: 2026101916013885
-	- Type: Feature
-	- Status: Started
-	- Priority|Severity: High
-	- Opened: 20261019-160138
-	- Opened by: t00mietum
-	- Prereq IDs: 2026101916013884
-	- Requirements:
-		- These requirements suggest that all data points should be kept across all time, to continuously recalculate optimal averaging and antialiasing. But that would be impractical for year-long runs. The data will necessarily have to be more temporally compressed as it gets older. But the data will always necessarily need to be at a higher fidelity than the graph, so that:
-			- The user can widen the existing graph and not lose resolution.
-			- Averaging and antialiasing has enough higher-detailed data to work with.
-		- If the graph is closed and then re-opened, it should (optionally) re-load previous data - just with a blank representing the time it was not active. (That doesn't eventually get averaged as values of "0".)
-		- If the computer is off or rebooted, the graph should (optionally) re-load previous data, going back indefinitely - just with blank spaces representing the time it was not active. (That doesn't eventually get averaged as values of "0".)
-	- Note: the proposed tiers are in `design.md` under History.
-	- Progress log:
-		- The tiers are in and keep gaps as gaps. Saving and reloading across restarts isn't done yet.
-
 - Graphs with an optional (default) log X axis
 	- ID: 2026101916013886
 	- Type: Feature
@@ -390,6 +372,43 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- History store
+	- ID: 2026101916013885
+	- Type: Feature
+	- Status: Done
+	- Needs local test suite run?: No. The full run's steps passed on 2026-10-26, Soak included. Its Lint step failed only on the test ID check, for 2026102416252898, which this didn't touch. Clippy, shellcheck and markdownlint passed.
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Prereq IDs: 2026101916013884
+	- Related IDs: 2026102408304572
+	- Requirements:
+		- These requirements suggest that all data points should be kept across all time, to continuously recalculate optimal averaging and antialiasing. But that would be impractical for year-long runs. The data will necessarily have to be more temporally compressed as it gets older. But the data will always necessarily need to be at a higher fidelity than the graph, so that:
+			- The user can widen the existing graph and not lose resolution.
+			- Averaging and antialiasing has enough higher-detailed data to work with.
+		- If the graph is closed and then re-opened, it should (optionally) re-load previous data - just with a blank representing the time it was not active. (That doesn't eventually get averaged as values of "0".)
+		- If the computer is off or rebooted, the graph should (optionally) re-load previous data, going back indefinitely - just with blank spaces representing the time it was not active. (That doesn't eventually get averaged as values of "0".)
+	- Note: the proposed tiers are in `design.md` under History.
+	- Estimated effort: High
+	- Actual effort: Low
+	- Progress log:
+		- The tiers are in and keep gaps as gaps. Saving and reloading across restarts isn't done yet.
+		- 2026-10-26: Saving and reloading was done in 2026102408304572, Keep across restarts, with a gap for the time it was down. Max age goes up to 36,500 days.
+		- What was left: a linear graph wider than 600 px at 500 ms, or at any rate under 250 ms, drew its left end from buckets coarser than a pixel.
+		- Tier 0 is now 50 ms buckets for 256 s, and the 250 ms tier is kept for 2048 s. A linear graph at the Width slider's top keeps a sample a pixel at every rate down to 50 ms.
+		- A history file from before, with 5 tiers, still loads, with the 50 ms tier empty.
+		- `design.md` History has the details.
+	- Decisions:
+		- Each fine tier is kept for 1024 times the next tier's bucket, from the Width slider's top. A wider typed width, or a 2x screen at a slow rate, can still reach a coarser tier at the left end. Covering 4096 px would take about 4 times as much.
+		- A full history takes about 0.8 MB more per CPU graph, on disk and in memory, about a quarter more than before.
+		- Decode takes today's tiers, or today's less the finest ones, not any mix, so a stale file still starts fresh.
+		- An older build refuses a file with the new tier and starts fresh. Only an upgrade keeps history.
+	- Branch: round-1026
+	- Test case: `history::tests::a_linear_graph_as_wide_as_the_slider_goes_keeps_a_sample_a_column` (defp6) and `a_file_from_before_the_finest_tier_still_loads` (defp7). Gaps: `gaps_are_left_out_not_zero` (debj0) and `a_long_gap_resets_a_tier_instead_of_filling_it` (debj2). Across restarts: 2026102408304572's tests, decbf to decbr. defp6 fails at 500 ms with the fine tier kept 5 minutes, and at 50 ms with 250 ms buckets. defp7 fails with decode taking only today's tier count.
+		- 2026-10-26: new values only. `old_buckets_age_out_of_the_fine_tier` (debj1) runs 10,000 samples, not 2,000, and bounds the 250 ms tier at 2048 s, not 300, so it still ages out. `decode_refuses_what_encode_wouldnt_write` (decbh) sets a bucket count of 9,000, not 5,000, to stay past the cap. debj0 and debj2 read tier indexes one higher, for the same tiers and values.
+		- Swept: every `TIERS` and `tiers[...]` use, all in `history.rs`, the one `History::decode` caller (`Graph::adopt`), and the soak test, which held flat at 4,899,278 bytes from round 9,000 to 18,000.
+	- Closed: 20261026-181900
 
 - CICD reset: containers
 	- ID: 2026102416252889
