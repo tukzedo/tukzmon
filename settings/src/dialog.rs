@@ -36,6 +36,19 @@ pub struct RowState {
 	pub shown: bool,
 }
 
+/// A row of the graph list on the Graph tab: a graph's history name, and the
+/// ids of the settings it shows.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GraphRow {
+	pub name: String,
+	pub show: String,
+	pub width: String,
+	pub time: String,
+}
+
+/// The setting the graph list's grippers write.
+pub const ORDER: &str = "graph_order";
+
 /// Which theme buttons do anything right now.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ThemeButtons {
@@ -427,6 +440,65 @@ impl Dialog {
 		}
 	}
 
+	fn id_at(&self, path: &str) -> Option<&str> {
+		self.spec
+			.settings
+			.iter()
+			.find(|s| s.path == path)
+			.map(|s| s.id.as_str())
+	}
+
+	fn saved_order(&self) -> Vec<String> {
+		config::graph_order(self.model.value(ORDER, &NoEnv).as_text())
+	}
+
+	/// The graph list, first drawn first. A graph is in it once the spec has
+	/// its `<name>.show`, `.width` and `.time` rows, so a new graph brings its
+	/// own row.
+	pub fn graph_rows(&self) -> Vec<GraphRow> {
+		tukzmon_core::graphs::draw_order(&self.saved_order())
+			.into_iter()
+			.filter_map(|name| {
+				let id = |what: &str| self.id_at(&format!("{name}.{what}")).map(str::to_string);
+				Some(GraphRow {
+					name: name.to_string(),
+					show: id("show")?,
+					width: id("width")?,
+					time: id("time")?,
+				})
+			})
+			.collect()
+	}
+
+	/// Drawn in the graph list rather than as a row of its own, the order
+	/// included.
+	pub fn in_graph_list(&self, id: &str) -> bool {
+		id == ORDER
+			|| self
+				.graph_rows()
+				.iter()
+				.any(|r| [r.show.as_str(), r.width.as_str(), r.time.as_str()].contains(&id))
+	}
+
+	/// Moves the graph list's row `from` to `to`, and keeps that as the order.
+	/// False when either is past the end.
+	pub fn move_graph(&mut self, from: usize, to: usize) -> bool {
+		let mut names: Vec<String> = self.graph_rows().into_iter().map(|r| r.name).collect();
+		if from >= names.len() || to >= names.len() {
+			return false;
+		}
+		let moved = names.remove(from);
+		names.insert(to, moved);
+		// a name only a newer tukzmon knows stays, after these
+		let known = tukzmon_core::graphs::draw_order(&[]);
+		for name in self.saved_order() {
+			if !known.contains(&name.as_str()) {
+				names.push(name);
+			}
+		}
+		self.set_text(ORDER, &names.join(" "))
+	}
+
 	/// Opens the picker on a color row. False for any other row.
 	pub fn pick_open(&mut self, id: &str) -> bool {
 		if self.spec.get(id).is_none_or(|s| s.kind != Kind::Color) {
@@ -582,6 +654,67 @@ mod tests {
 			// and the window takes the file back without a complaint
 			assert!(Dialog::open(path.clone()).apply().is_ok(), "{typed}");
 		}
+	}
+
+	// Test ID: defkz
+	#[test]
+	fn the_graph_list_has_a_row_per_graph_in_the_saved_order() {
+		let d = scratch("list");
+		let mut dlg = Dialog::open(d.0.join("t.shcl"));
+		let names = |dlg: &Dialog| -> Vec<String> {
+			dlg.graph_rows().into_iter().map(|r| r.name).collect()
+		};
+		assert_eq!(
+			dlg.graph_rows()[1],
+			GraphRow {
+				name: "mem".into(),
+				show: "show_memory".into(),
+				width: "mem_width".into(),
+				time: "mem_time".into(),
+			}
+		);
+		// every graph the panel draws, so a new one can't be left off the list
+		assert_eq!(names(&dlg), tukzmon_core::graphs::draw_order(&[]));
+		assert!(dlg.set_text(ORDER, "mem, cpu"));
+		assert_eq!(names(&dlg), ["mem", "cpu"]);
+		for id in [
+			"show_cpu",
+			"cpu_width",
+			"cpu_time",
+			"show_memory",
+			"mem_width",
+			"mem_time",
+			ORDER,
+		] {
+			assert!(dlg.in_graph_list(id), "{id}");
+		}
+		for id in ["width", "log_axis", "graphshead", "theme"] {
+			assert!(!dlg.in_graph_list(id), "{id}");
+		}
+		// the list greys a hidden graph's width and time axis by this
+		assert!(dlg.set(&dlg.graph_rows()[0].show.clone(), &Value::Bool(false)));
+		assert!(!dlg.state("mem_width").counts && !dlg.state("mem_time").counts);
+		assert!(dlg.state("cpu_width").counts);
+	}
+
+	// Test ID: defm0
+	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
+	fn dragging_a_graph_saves_the_order_and_keeps_names_it_doesnt_know() {
+		let d = scratch("drag");
+		let path = d.0.join("t.shcl");
+		let mut dlg = Dialog::open(path.clone());
+		assert!(!dlg.move_graph(0, 2));
+		assert!(!dlg.dirty());
+		assert!(dlg.move_graph(0, 1));
+		assert_eq!(dlg.state(ORDER).text, "mem cpu");
+		dlg.apply().unwrap();
+		assert_eq!(config::Look::load(&path).order, ["mem", "cpu"]);
+		assert!(dlg.move_graph(1, 0));
+		assert!(!dlg.state(ORDER).can_reset);
+		assert!(dlg.set_text(ORDER, "net mem cpu"));
+		assert!(dlg.move_graph(0, 1));
+		assert_eq!(dlg.state(ORDER).text, "cpu mem net");
 	}
 
 	// Test ID: debjd

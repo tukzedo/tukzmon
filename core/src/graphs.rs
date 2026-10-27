@@ -44,6 +44,28 @@ impl Which {
 	}
 }
 
+// the saved order, unknown names skipped, then any it doesn't name
+fn order_of(saved: &[String]) -> [Which; 2] {
+	let mut out = Which::ALL;
+	let mut n = 0;
+	let named = saved
+		.iter()
+		.filter_map(|name| Which::ALL.into_iter().find(|w| w.name() == name.as_str()));
+	for w in named.chain(Which::ALL) {
+		if !out[..n].contains(&w) {
+			out[n] = w;
+			n += 1;
+		}
+	}
+	out
+}
+
+/// Every graph's name, first drawn first, from a saved `graph.order`. The
+/// settings window's graph list goes by this too, so it shows the panel's order.
+pub fn draw_order(saved: &[String]) -> Vec<&'static str> {
+	order_of(saved).into_iter().map(Which::name).collect()
+}
+
 impl Graphs {
 	pub fn new(look: Look) -> Graphs {
 		let mem = if look.show_memory {
@@ -69,23 +91,8 @@ impl Graphs {
 		self.cpu.look.show_cpu || self.mem.is_none()
 	}
 
-	// the saved order, unknown names skipped, then any it doesn't name
 	fn order(&self) -> [Which; 2] {
-		let mut out = Which::ALL;
-		let mut n = 0;
-		let named = self
-			.cpu
-			.look
-			.order
-			.iter()
-			.filter_map(|name| Which::ALL.into_iter().find(|w| w.name() == name.as_str()));
-		for w in named.chain(Which::ALL) {
-			if !out[..n].contains(&w) {
-				out[n] = w;
-				n += 1;
-			}
-		}
-		out
+		order_of(&self.cpu.look.order)
 	}
 
 	/// In the order drawn.

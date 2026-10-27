@@ -62,16 +62,18 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- The panel runs external plugins in a separate wrapper process, so a crash takes down the plugin adn not the panel.
 
 - The plugin draws its graphs in one drawing area, side by side, in the saved order. There's no gap between them, like multiload-ng's spacing of 0. On a vertical panel they're stacked, and share the height evenly. The graph under the pointer gets the hover line and the tip. `core/src/graphs.rs` has the layout.
-	- Under Graphs on the Graph tab, each graph has a checkbox, at `cpu.show` and `mem.show`, and a width, at `cpu.width` and `mem.width`. A width of 0, the default, is the Width setting. Widths are in the panel's own pixels, so they scale with it.
-	- Each graph also has a time axis, at `cpu.time` and `mem.time`. See [Time axis](#time-axis).
+	- Under Graphs on the Graph tab is the graph list, a row per graph in the saved order. Each row has a checkbox, at `cpu.show` and `mem.show`, a space for the live graph, a width, at `cpu.width` and `mem.width`, a time axis, a revert arrow and a gripper. A width of 0, the default, is the Width setting. Widths are in the panel's own pixels, so they scale with it.
+	- The time axis is at `cpu.time` and `mem.time`. See [Time axis](#time-axis).
+	- A graph gets a row once `core/src/settings.shcl` has its `<name>.show`, `.width` and `.time` settings.
 	- A box where `/proc/meminfo` can't be read never shows the memory graph.
 	- With every other graph off, CPU shows anyway, so the item never shrinks to nothing, and its right-click menu stays in reach.
 	- A hidden graph isn't read. Its history is kept, and shows a gap for the time it was hidden.
-	- Order on the Graph tab, at `graph.order`, names the graphs first to last, left to right or top to bottom: `cpu` and `mem`, by their history section names. The default is `cpu mem`.
+	- Dragging a row's gripper, or Up and Down on it, sets the order. It's saved at `graph.order`, which names the graphs first to last, left to right or top to bottom: `cpu` and `mem`, by their history section names. The default is `cpu mem`.
 		- Spaces or commas both work, since a hand edit like `order: mem, cpu` is a list to shcl.
 		- A name it doesn't know is skipped. A graph it doesn't name goes at the end, in the default order, so that way a graph added later, such as network, shows up last in a saved order.
 		- A hidden graph keeps its place for when it's shown again.
-	- The live graph list, backlog 2026102408304639, takes over these rows. Its grippers set the order.
+	- A name the list doesn't know stays in `graph.order` after a drag, at the end, so a file from a newer tukzmon keeps it.
+	- The row's revert arrow puts its checkbox, width and time axis back. The order has no arrow, since dragging back undoes it.
 
 - The drawing area has a window of its own, so it has to take button events and be an action widget, or a right-click never reaches the panel's menu.
 
@@ -99,6 +101,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- The selected tab is a tint of the theme's highlight under the normal text color, so it reads in a dark theme too.
 	- A tab with rows of its own and tabs under it, which is Themes, keeps those rows on top and shows its tabs as sub-tabs below them. Themes has the Name dropdown with Save, Save as, Rename, Delete and Randomize, and a sub-tab per graph's colors, plus Background for the colors they share. Like every other change, the theme buttons take effect at Apply.
 	- Two keys in `core/src/settings.shcl` are tukzmon's, not knobs'. `shown_as: radio` draws a dropdown as radio buttons, and `shown_when: "id = key"` shows a row only while that dropdown is on that key. knobs' gates only take a checkbox.
+	- Graphs on the Graph tab is a list with a row per graph, not a row per setting. See [XFCE plugin](#xfce-plugin).
 	- A color chip opens a picker, and the hex value can be typed beside it. The picker is SilkTerm's, not the toolkit's: a saturation and brightness square, a hue strip, and boxes for red, green, blue, brightness, saturation and hex. The row behind it follows every change, and Cancel puts back all of it, the theme's "*" included. The color model is in `settings/src/pick.rs`.
 	- The file gets only what was changed in the window, applied to the file as it is at save time, so a hand edit made meanwhile isn't lost.
 	- A save that would drop a line it can't read, or a setting it doesn't know, is refused, and the error names the lines.

@@ -173,6 +173,7 @@ settings:
 		gate: show_memory
 		tip: "How the memory graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
 
+	## The graph list's grippers write this, and it has no row of its own.
 	graph_order:
 		label: Order
 		tab: Graph

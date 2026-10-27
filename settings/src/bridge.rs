@@ -28,6 +28,16 @@ pub mod ffi {
 		indent: i32,
 		/// It picks a theme, so the theme buttons go beside it.
 		chooser: bool,
+		/// The graph list draws it, so it gets no row of its own.
+		in_list: bool,
+	}
+
+	/// The graph list's row for one graph: the ids of the settings it shows.
+	struct GraphRow {
+		name: String,
+		show: String,
+		width: String,
+		time: String,
 	}
 
 	struct RowState {
@@ -85,6 +95,8 @@ pub mod ffi {
 		fn pick_set(d: &mut Dialog, h: f64, s: f64, v: f64);
 		fn pick_type(d: &mut Dialog, field: usize, text: &str) -> bool;
 		fn pick_close(d: &mut Dialog, keep: bool);
+		fn graph_rows(d: &Dialog) -> Vec<GraphRow>;
+		fn move_graph(d: &mut Dialog, from: usize, to: usize) -> bool;
 	}
 
 	unsafe extern "C++" {
@@ -131,6 +143,7 @@ fn dialog_rows(d: &Dialog) -> Vec<ffi::RowInfo> {
 			option_labels: s.options.iter().map(|(_, l)| l.clone()).collect(),
 			indent: s.indent as i32,
 			chooser: d.spec().chooser_of(&s.id).is_some(),
+			in_list: d.in_graph_list(&s.id),
 		})
 		.collect()
 }
@@ -241,6 +254,22 @@ fn pick_close(d: &mut Dialog, keep: bool) {
 	d.pick_close(keep);
 }
 
+fn graph_rows(d: &Dialog) -> Vec<ffi::GraphRow> {
+	d.graph_rows()
+		.into_iter()
+		.map(|r| ffi::GraphRow {
+			name: r.name,
+			show: r.show,
+			width: r.width,
+			time: r.time,
+		})
+		.collect()
+}
+
+fn move_graph(d: &mut Dialog, from: usize, to: usize) -> bool {
+	d.move_graph(from, to)
+}
+
 pub fn run(d: &mut Dialog, snapshot: &str) -> i32 {
 	ffi::run_dialog(d, snapshot)
 }
@@ -249,6 +278,36 @@ pub fn run(d: &mut Dialog, snapshot: &str) -> i32 {
 mod tests {
 	use super::*;
 	use tukzmon_core::config::THEME;
+
+	// Test ID: defm1
+	#[test]
+	fn the_graph_list_sits_under_graphs_and_takes_its_rows() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_list_never_written.shcl",
+			std::process::id()
+		));
+		let d = Dialog::open(path);
+		let rows = dialog_rows(&d);
+		let listed: Vec<&str> = rows
+			.iter()
+			.filter(|r| r.in_list)
+			.map(|r| r.id.as_str())
+			.collect();
+		let mut want: Vec<String> = graph_rows(&d)
+			.into_iter()
+			.flat_map(|g| [g.show, g.width, g.time])
+			.collect();
+		want.push(crate::dialog::ORDER.to_string());
+		assert_eq!(listed, want);
+		// qt.cpp puts the list where its first row would be
+		let first = rows.iter().position(|r| r.in_list).unwrap();
+		assert_eq!(rows[first - 1].id, "graphshead");
+		assert!(
+			rows.iter()
+				.filter(|r| r.in_list)
+				.all(|r| r.tab == rows[first].tab)
+		);
+	}
 
 	// Test ID: dee9q
 	#[test]

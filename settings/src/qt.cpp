@@ -304,6 +304,58 @@ private:
 	}
 };
 
+// The handle at the right end of a graph list row. Dragging it moves the row,
+// and so do Up and Down while it has focus.
+class Gripper : public QWidget {
+public:
+	std::function<void(QPoint)> dragged;
+	std::function<void(int)> stepped;
+
+	Gripper() {
+		setFocusPolicy(Qt::StrongFocus);
+		setCursor(Qt::OpenHandCursor);
+		const int line = fontMetrics().height();
+		setFixedSize(line, line * 3 / 2);
+	}
+
+protected:
+	void mousePressEvent(QMouseEvent *e) override {
+		if (e->button() != Qt::LeftButton)
+			return;
+		setCursor(Qt::ClosedHandCursor);
+		setFocus(Qt::MouseFocusReason);
+	}
+	void mouseMoveEvent(QMouseEvent *e) override {
+		if (e->buttons() & Qt::LeftButton)
+			dragged(e->globalPosition().toPoint());
+	}
+	void mouseReleaseEvent(QMouseEvent *) override { setCursor(Qt::OpenHandCursor); }
+	void keyPressEvent(QKeyEvent *e) override {
+		switch (e->key()) {
+		case Qt::Key_Up: stepped(-1); break;
+		case Qt::Key_Down: stepped(1); break;
+		default: QWidget::keyPressEvent(e);
+		}
+	}
+	void focusInEvent(QFocusEvent *) override { update(); }
+	void focusOutEvent(QFocusEvent *) override { update(); }
+	// 2 columns of 3 dots, the usual drag handle
+	void paintEvent(QPaintEvent *) override {
+		QPainter p(this);
+		p.setRenderHint(QPainter::Antialiasing);
+		p.setPen(Qt::NoPen);
+		// Mid all but vanishes in some light styles
+		QColor ink = palette().color(QPalette::WindowText);
+		ink.setAlphaF(0.45f);
+		p.setBrush(hasFocus() ? palette().color(QPalette::Highlight) : ink);
+		const double dot = std::max(2.0, width() / 6.0);
+		const QPointF mid(width() / 2.0, height() / 2.0);
+		for (int col : {-1, 1})
+			for (int row : {-1, 0, 1})
+				p.drawEllipse(mid + QPointF(col * dot, row * dot * 2), dot / 2, dot / 2);
+	}
+};
+
 struct Row {
 	RowInfo info;
 	QLabel *label = nullptr;
@@ -474,6 +526,21 @@ private:
 	QStackedWidget *pages = nullptr;
 	QPushButton *applyButton = nullptr;
 
+	// One graph per row, first drawn first, in the order they're placed.
+	struct ListRow {
+		std::string name;
+		Row *show = nullptr;
+		Row *width = nullptr;
+		Row *time = nullptr;
+		// where 2026102508393163 draws the graph
+		QFrame *space = nullptr;
+		QToolButton *revert = nullptr;
+		Gripper *grip = nullptr;
+	};
+	QWidget *list = nullptr;
+	QGridLayout *listGrid = nullptr;
+	std::vector<ListRow> listRows;
+
 	// a tab with tabs under it shows its first one
 	void showTab(int i) {
 		if (i < 0)
@@ -496,6 +563,11 @@ private:
 			Row &r = *rp;
 			if (r.info.tab != tab)
 				continue;
+			if (r.info.in_list) {
+				if (!list)
+					grid->addWidget(buildList(), line++, 0, 1, 3);
+				continue;
+			}
 			QString label = qs(r.info.label);
 			if (std::string(r.info.control) == "heading") {
 				// a heading that only repeats the tab's name says nothing
@@ -542,6 +614,129 @@ private:
 		scroll->setWidgetResizable(true);
 		scroll->setFrameShape(QFrame::NoFrame);
 		return scroll;
+	}
+
+	Row *rowFor(const rust::String &id) {
+		for (auto &r : rows)
+			if (r->info.id == id)
+				return r.get();
+		return nullptr;
+	}
+
+	// The rows under Graphs as one list: show, a space for the graph, width,
+	// time axis, revert and a gripper. The grippers write the order.
+	QWidget *buildList() {
+		list = new QWidget;
+		listGrid = new QGridLayout(list);
+		listGrid->setContentsMargins(0, 0, 0, 0);
+		listGrid->setColumnStretch(4, 1);
+		const int line = fontMetrics().height();
+		for (auto &g : graph_rows(d)) {
+			ListRow lr{std::string(g.name), rowFor(g.show), rowFor(g.width), rowFor(g.time)};
+			if (!lr.show || !lr.width || !lr.time)
+				continue;
+			for (Row *r : {lr.show, lr.width, lr.time})
+				r->control = buildControl(*r);
+			lr.show->check->setText(qs(lr.show->info.label));
+			lr.space = new QFrame;
+			lr.space->setFrameShape(QFrame::StyledPanel);
+			lr.space->setFrameShadow(QFrame::Sunken);
+			lr.space->setFixedSize(line * 5, line * 3 / 2);
+			lr.revert = new QToolButton;
+			lr.revert->setIcon(QIcon::fromTheme("edit-undo", style()->standardIcon(QStyle::SP_BrowserReload)));
+			lr.revert->setAutoRaise(true);
+			lr.grip = new Gripper;
+			lr.grip->setToolTip("Drag up or down to move this graph, or use Up and Down here. The top one is "
+								"drawn first: on the left in a horizontal panel, on top in a vertical one.");
+			const std::string name = lr.name;
+			connect(lr.revert, &QToolButton::clicked, this, [this, name] {
+				for (auto &l : listRows)
+					if (l.name == name)
+						for (Row *r : {l.show, l.width, l.time})
+							reset_row(d, r->id());
+				refresh();
+			});
+			lr.grip->dragged = [this, name](QPoint at) { dragTo(name, list->mapFromGlobal(at).y()); };
+			lr.grip->stepped = [this, name](int by) { moveBy(name, by); };
+			listRows.push_back(lr);
+		}
+		auto *widthHead = new QLabel("Width px");
+		auto *timeHead = new QLabel("Time axis");
+		widthHead->setToolTip(listRows.empty() ? "" : qs(row_state(d, listRows[0].width->id()).tip));
+		listGrid->addWidget(widthHead, 0, 2);
+		listGrid->addWidget(timeHead, 0, 3);
+		placeList();
+		return list;
+	}
+
+	// puts each row's widgets on its grid line, in listRows' order
+	void placeList() {
+		for (size_t i = 0; i < listRows.size(); i++) {
+			const ListRow &l = listRows[i];
+			const int at = int(i) + 1;
+			QWidget *cells[] = {l.show->control, l.space, l.width->control, l.time->control, l.revert, l.grip};
+			const int cols[] = {0, 1, 2, 3, 5, 6};
+			for (int k = 0; k < 6; k++) {
+				listGrid->removeWidget(cells[k]);
+				listGrid->addWidget(cells[k], at, cols[k]);
+			}
+		}
+		// the next drag event reads the new places
+		listGrid->activate();
+	}
+
+	int listIndex(const std::string &name) const {
+		for (size_t i = 0; i < listRows.size(); i++)
+			if (listRows[i].name == name)
+				return int(i);
+		return -1;
+	}
+
+	void moveTo(int from, int to) {
+		if (from < 0 || to < 0 || from == to || !move_graph(d, size_t(from), size_t(to)))
+			return;
+		refresh();
+	}
+
+	void moveBy(const std::string &name, int by) {
+		const int from = listIndex(name);
+		moveTo(from, std::clamp(from + by, 0, int(listRows.size()) - 1));
+	}
+
+	// `y` is in the list's own coordinates
+	void dragTo(const std::string &name, int y) {
+		int to = 0;
+		for (size_t i = 1; i < listRows.size(); i++)
+			if (y >= listGrid->cellRect(int(i) + 1, 0).top())
+				to = int(i);
+		moveTo(listIndex(name), to);
+	}
+
+	// after a drag, a revert or a reload of the order
+	void refreshList() {
+		std::vector<ListRow> sorted;
+		for (auto &g : graph_rows(d)) {
+			const int i = listIndex(std::string(g.name));
+			if (i >= 0)
+				sorted.push_back(listRows[size_t(i)]);
+		}
+		bool moved = sorted.size() != listRows.size();
+		for (size_t i = 0; !moved && i < sorted.size(); i++)
+			moved = sorted[i].name != listRows[i].name;
+		if (moved) {
+			listRows = sorted;
+			placeList();
+		}
+		for (auto &l : listRows) {
+			bool changed = false;
+			for (Row *r : {l.show, l.width, l.time})
+				changed |= row_state(d, r->id()).can_reset;
+			l.revert->setEnabled(changed);
+			l.revert->setToolTip(changed ? "Back to the defaults." : "");
+			const bool on = row_state(d, l.width->id()).counts;
+			l.width->control->setEnabled(on);
+			l.time->control->setEnabled(on);
+		}
 	}
 
 	QDoubleSpinBox *numberBox(Row &r) {
@@ -737,16 +932,20 @@ private:
 				if (r.grid)
 					r.grid->setRowMinimumHeight(r.gap, shown ? HEAD_GAP : 0);
 			}
-			if (!r.label)
+			// the graph list's rows have a control and no label or revert
+			if (!r.control)
 				continue;
 			auto st = row_state(d, r.id());
 			for (QWidget *w : {static_cast<QWidget *>(r.label), r.control, static_cast<QWidget *>(r.revert)})
-				w->setVisible(st.shown);
+				if (w)
+					w->setVisible(st.shown);
 			QString tip = qs(st.tip);
 			QString text = qs(st.text);
-			r.label->setToolTip(tip);
-			r.revert->setEnabled(st.can_reset);
-			r.revert->setToolTip(st.can_reset ? "Back to the default." : "");
+			if (r.label) {
+				r.label->setToolTip(tip);
+				r.revert->setEnabled(st.can_reset);
+				r.revert->setToolTip(st.can_reset ? "Back to the default." : "");
+			}
 			if (r.check) {
 				QSignalBlocker b(r.check);
 				r.check->setChecked(st.on);
@@ -795,6 +994,8 @@ private:
 			if (r.chip)
 				r.chip->setStyleSheet(QString("background-color: %1; border: 1px solid palette(mid);").arg(text));
 		}
+		if (list)
+			refreshList();
 		if (saveTheme) {
 			auto b = theme_buttons(d);
 			saveTheme->setEnabled(b.save);

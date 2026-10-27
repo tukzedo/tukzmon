@@ -188,6 +188,42 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- 2026-10-25: every child is Done. Only the no-options run in the hand test row is left, which dogfoods.
 
+- The graph list on the Graph tab
+	- ID: 2026102508393161
+	- Type: Feature
+	- Status: Waiting on UAT
+		- How the list looks, and how a drag feels, is for a person to judge.
+		- It departs from the wording in 2 ways. The width is a number box, with arrows, like every other number in the window. And each row also has a revert arrow, left of the gripper.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, after an install and a panel restart, open Settings, look at the graph list under Graphs, drag a row by its gripper, Apply, and judge how it looks and feels.
+	- Priority|Severity: High
+	- Opened: 20261025-083931
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build defm2. Not on b23 yet.
+	- Parent ID: 2026102408304639
+	- Prereq IDs: 2026102508393152, 2026102508393154, 2026102508393156, 2026102508393159
+	- Requirements:
+		- A row per graph on the first tab, in columns: a checkbox to show it, a space for its live graph, its width as a text box, a time function dropdown, and a gripper on the right to drag it up or down.
+		- It replaces the per-graph rows under the Graphs heading.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Under Graphs on the Graph tab, a row per graph in the saved order: the checkbox with the graph's name, an empty space for its live graph, Width px, Time axis, a revert arrow and a gripper. The 6 rows and the Order row are gone.
+		- Dragging a gripper moves the row and writes `graph.order`, and so do Up and Down while the gripper has focus. A hidden graph's width and time axis are greyed.
+		- `design.md` XFCE plugin and Settings window have the details.
+		- Verified: in a test window, dragging CPU's gripper below memory saved `order: "mem cpu"`. Down on the top gripper put back the default, with no order line, and Up on the second saved `mem cpu` again.
+	- Decisions:
+		- The list's rows come from the spec by path: a graph with `<name>.show`, `.width` and `.time` settings gets a row, so a new graph brings its own.
+		- The window and the plugin share one order function, `graphs::draw_order`, so the list always shows the panel's order.
+		- A name in `graph.order` that this build doesn't know stays at the end after a drag, so a file from a newer tukzmon keeps it.
+		- The row's revert arrow resets its checkbox, width and time axis. The order has none, since dragging back undoes it.
+		- Column heads over the width and time axis, since those boxes lost their labels.
+		- The space is an empty framed box, 5 lines wide, for 2026102508393163 to draw in.
+		- Spike emphasis stays under Time, as 2026102508393156 left it.
+	- Branch: round-1026
+	- Test case: `dialog::tests::the_graph_list_has_a_row_per_graph_in_the_saved_order` (defkz), `dragging_a_graph_saves_the_order_and_keeps_names_it_doesnt_know` (defm0), and `bridge::tests::the_graph_list_sits_under_graphs_and_takes_its_rows` (defm1). defkz fails with the saved order ignored, defm0 with that or with unknown names dropped, and defm1 with no row marked as the list's. The drag itself has no test in the suite.
+		- Swept: every `Graphs::order` user (now through `order_of`), every reader of `graph_order` (`Look::from_model` and the window), and every `Row` field `refresh` reads, for the list's rows with no label or revert of their own.
+
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
@@ -373,19 +409,6 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Split into 6 children, in this order: 2026102508393152 (on or off and a width per graph), 2026102508393154 (order), 2026102508393156 (time function per graph), 2026102508393159 (theme per graph), 2026102508393161 (the list itself), and 2026102508393163 (live graphs in it).
 		- 2026-10-25: no theme dropdown per graph after all. One theme colors every graph, per the answer on 2026102508393159.
-
-- The graph list on the Graph tab
-	- ID: 2026102508393161
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261025-083931
-	- Opened by: t00mietum
-	- Parent ID: 2026102408304639
-	- Prereq IDs: 2026102508393152, 2026102508393154, 2026102508393156, 2026102508393159
-	- Requirements:
-		- A row per graph on the first tab, in columns: a checkbox to show it, a space for its live graph, its width as a text box, a time function dropdown, and a gripper on the right to drag it up or down.
-		- It replaces the per-graph rows under the Graphs heading.
 
 - Live graphs in the graph list
 	- ID: 2026102508393163
