@@ -41,6 +41,7 @@ Sorted per the notes in [Template](#template).
 		- A Theme dropdown that picks a named set of every graph color, backgrounds included, from the parent's requirements.
 		- "Default" is the current colors, moved onto one coordinated scheme close to them.
 		- A few built-in themes named by the color that dominates, such as "Green standard" and "Green pastel".
+			- Superseded by 2026102620162201: theme names are generic, with no color in them, and each monitor gets its own distinct colors.
 		- A color changed by hand sits on top of the theme as a change, the way SilkTerm's do.
 	- Estimated effort: Avg
 	- Actual effort: Avg
@@ -365,6 +366,111 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- One CPU graph in the panel, with a tooltip and Properties opening tukzmon-settings. Tried on X11 only so far.
 
+- Pre-next-cut: Graphs aren't remembering history between restarts
+	- ID: 2026102620162195
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build defqn, on b23 as of 2026-10-26 20:16.
+	- Related IDs: 2026101916013885, 2026102408304572
+	- Incorrect behavior: Graphs aren't remembering history between restarts.
+
+- Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
+	- ID: 2026102620162196
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build defqn, on b23 as of 2026-10-26 20:16.
+	- Related IDs: 2026102408304599
+	- Incorrect behavior: Mouseover tip text: "x seconds ago" doesn't update with ticks, it seems to be stuck at whatever it was at first flyover.
+	- Note: Regular time format works though.
+
+- Pre-next-cut: Padding above, below, and between the graphs
+	- ID: 2026102620162197
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304625
+	- Requirements:
+		- Add a couple of virtual px above and below the graphs, and double that in-between.
+
+- Pre-next-cut: Wrap tip text at a readable width
+	- ID: 2026102620162198
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304599
+	- Requirements:
+		- Tip text should wrap at a readable width, rather than one long line of text.
+
+- Pre-next-cut: Hover line on the graphs in the Settings dialog
+	- ID: 2026102620162199
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304599, 2026102508393163
+	- Requirements:
+		- The mouse hover black line should work on the graphs in the Settings dialog too.
+
+- Pre-next-cut: Sub-tabs nested under their parent tab
+	- ID: 2026102620162200
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304546, 2026102409400684
+	- Requirements:
+		- Subtabs as nested indented tabs under its parent tab on left tab list.
+
+- Pre-next-cut: Generic theme names, and distinct colors per monitor
+	- ID: 2026102620162201
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304612
+	- Related IDs: 2026102409400679, 2026102409400695, 2026102508393159
+	- Note: The earlier instructions on theme colors were mixed up with a new theme design. These clarify them, and win over the color-named themes in 2026102408304612 and 2026102409400679.
+	- Requirements:
+		- Theme names shouldn't have colors in the names. They should be more generic, "Pastel", "Primary", etc. (E.g. some different common themes)
+		- The different monitors should have their own unique and distinct colors, which is why every theme name has subtabs for per-monitor colors.
+		- "Fire"-themes should have different color combos per monitor.
+
+- Pre-next-cut: Reset history button
+	- ID: 2026102620162202
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304572
+	- Requirements:
+		- A button on the left side of the bottom button strip (e.g. more or less aligned with "Keep across restarts"), for "Reset history", that does that and starts the graph over.
+		- If "Keep across restarts" is checked, warn user that it will delete all past history.
+
+- Pre-next-cut: Rename the "Apply and close" button to "OK"
+	- ID: 2026102620162203
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304546
+	- Requirements:
+		- Button name: "Apply and close" -> "OK" (a reversal).
+
 - The graphs
 	- ID: 2026101916013887
 	- Type: Feature
@@ -475,6 +581,7 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- A tab to define color themes. Similar to silkterm's model.
 		- Themes are named starting with whatever color will wind up dominating the monitor, with other colors oriented around that with pleasing color theory. Like "Green standard" (e.g. #00ff00), "Green pastel", etc.
+			- Superseded by 2026102620162201: theme names are generic, with no color in them, and each monitor gets its own distinct colors.
 		- Don't use the GTK color dialog. Use something more like silkterm's.
 		- The theme tab has a top area that stays, even as sub-tabs change:
 			- Name [Dropdown]    [Save] [Save as...] [Rename...] [Delete] [Randomize]
@@ -859,6 +966,7 @@ Sorted per the notes in [Template](#template).
 		- Spike emphasis % flyover tip text: Explain what 0% and 100% would do.
 		- Buttons:
 			- [Cancel] <double space> [Apply] <single space> [Apply and close]
+				- Reversed by 2026102620162203: the last button is "OK" again.
 	- Estimated effort: Avg
 	- Actual effort: Avg
 	- Progress log:
