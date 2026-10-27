@@ -185,62 +185,13 @@ impl Collector<1> for ZswapReader {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::path::{Path, PathBuf};
+	use crate::collect::Tree;
 
-	/// A made-up /proc and /sys, removed file by file when dropped.
-	struct Tree {
-		root: PathBuf,
-		made: Vec<PathBuf>,
-	}
-
-	impl Tree {
-		fn new(name: &str, files: &[(&str, &str)]) -> Tree {
-			let root = std::env::temp_dir()
-				.join(format!("test_tukzmon_zswap_{}_{name}", std::process::id()));
-			std::fs::create_dir(&root).unwrap();
-			let mut t = Tree {
-				root,
-				made: Vec::new(),
-			};
-			for (rel, text) in files {
-				let path = t.root.join(rel);
-				let is_dir = rel.ends_with('/');
-				let missing: Vec<PathBuf> = path
-					.ancestors()
-					.skip(usize::from(!is_dir))
-					.take_while(|d| *d != t.root && !d.exists())
-					.map(Path::to_path_buf)
-					.collect();
-				for dir in missing.into_iter().rev() {
-					std::fs::create_dir(&dir).unwrap();
-					t.made.push(dir);
-				}
-				if !is_dir {
-					std::fs::write(&path, text).unwrap();
-					t.made.push(path);
-				}
-			}
-			t
-		}
-
-		fn roots(&self) -> Roots {
-			let at = |rel: &str| self.root.join(rel).to_string_lossy().into_owned();
-			Roots {
-				meminfo: at("meminfo"),
-				zswap: at("zswap"),
-				block: at("block"),
-			}
-		}
-	}
-
-	impl Drop for Tree {
-		fn drop(&mut self) {
-			self.made
-				.sort_by_key(|p| std::cmp::Reverse(p.components().count()));
-			for p in &self.made {
-				let _ = std::fs::remove_file(p).or_else(|_| std::fs::remove_dir(p));
-			}
-			let _ = std::fs::remove_dir(&self.root);
+	fn roots(t: &Tree) -> Roots {
+		Roots {
+			meminfo: t.at("meminfo"),
+			zswap: t.at("zswap"),
+			block: t.at("block"),
 		}
 	}
 
@@ -302,7 +253,7 @@ mod tests {
 	#[test]
 	fn zswap_wins_and_zram_sums_its_devices() {
 		let on = Tree::new(
-			"on",
+			"zswap_on",
 			&[
 				("meminfo", MEMINFO_ZSWAP),
 				("zswap/enabled", "Y\n"),
@@ -311,7 +262,7 @@ mod tests {
 				("block/zram0/disksize", "1200\n"),
 			],
 		);
-		let mut r = ZswapReader::probe_at(&on.roots()).unwrap();
+		let mut r = ZswapReader::probe_at(&roots(&on)).unwrap();
 		assert_eq!(
 			(r.name(), r.read(), r.ratio()),
 			("Zswap", Some([0.25]), Some(4.2))
@@ -321,7 +272,7 @@ mod tests {
 		for (name, enabled, meminfo) in [("off", "N\n", MEMINFO_ZSWAP), ("old", "Y\n", MEMINFO_OLD)]
 		{
 			let t = Tree::new(
-				name,
+				&format!("zswap_{name}"),
 				&[
 					("meminfo", meminfo),
 					("zswap/enabled", enabled),
@@ -335,7 +286,7 @@ mod tests {
 					("block/sda/", ""),
 				],
 			);
-			let mut r = ZswapReader::probe_at(&t.roots()).unwrap();
+			let mut r = ZswapReader::probe_at(&roots(&t)).unwrap();
 			assert_eq!(
 				(r.name(), r.read(), r.ratio()),
 				("Zram", Some([0.25]), Some(4.0)),
@@ -348,24 +299,24 @@ mod tests {
 	#[test]
 	fn neither_gives_no_collector() {
 		let none = Tree::new(
-			"none",
+			"zswap_none",
 			&[
 				("meminfo", MEMINFO_ZSWAP),
 				("zswap/enabled", "N\n"),
 				("block/sda/", ""),
 			],
 		);
-		assert!(ZswapReader::probe_at(&none.roots()).is_none());
+		assert!(ZswapReader::probe_at(&roots(&none)).is_none());
 		// zram loaded but never given a size
 		let unset = Tree::new(
-			"unset",
+			"zswap_unset",
 			&[
 				("meminfo", MEMINFO_OLD),
 				("block/zram0/mm_stat", "0 0 0 0 0 0 0 0 0\n"),
 				("block/zram0/disksize", "0\n"),
 			],
 		);
-		assert!(ZswapReader::probe_at(&unset.roots()).is_none());
+		assert!(ZswapReader::probe_at(&roots(&unset)).is_none());
 		assert!(
 			ZswapReader::probe_at(&Roots {
 				meminfo: "/proc/no/such".into(),

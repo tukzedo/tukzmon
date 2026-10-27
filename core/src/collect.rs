@@ -133,6 +133,61 @@ impl<const K: usize> Climb<K> {
 	}
 }
 
+/// A made-up /proc or /sys for tests, removed file by file when dropped. A
+/// path ending in `/` is a folder.
+#[cfg(test)]
+pub(crate) struct Tree {
+	root: std::path::PathBuf,
+	made: Vec<std::path::PathBuf>,
+}
+
+#[cfg(test)]
+impl Tree {
+	pub(crate) fn new(name: &str, files: &[(&str, &str)]) -> Tree {
+		let root = std::env::temp_dir().join(format!("test_tukzmon_{}_{name}", std::process::id()));
+		std::fs::create_dir(&root).unwrap();
+		let mut t = Tree {
+			root,
+			made: Vec::new(),
+		};
+		for (rel, text) in files {
+			let path = t.root.join(rel);
+			let is_dir = rel.ends_with('/');
+			let missing: Vec<std::path::PathBuf> = path
+				.ancestors()
+				.skip(usize::from(!is_dir))
+				.take_while(|d| *d != t.root && !d.exists())
+				.map(std::path::Path::to_path_buf)
+				.collect();
+			for dir in missing.into_iter().rev() {
+				std::fs::create_dir(&dir).unwrap();
+				t.made.push(dir);
+			}
+			if !is_dir {
+				std::fs::write(&path, text).unwrap();
+				t.made.push(path);
+			}
+		}
+		t
+	}
+
+	pub(crate) fn at(&self, rel: &str) -> String {
+		self.root.join(rel).to_string_lossy().into_owned()
+	}
+}
+
+#[cfg(test)]
+impl Drop for Tree {
+	fn drop(&mut self) {
+		self.made
+			.sort_by_key(|p| std::cmp::Reverse(p.components().count()));
+		for p in &self.made {
+			let _ = std::fs::remove_file(p).or_else(|_| std::fs::remove_dir(p));
+		}
+		let _ = std::fs::remove_dir(&self.root);
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;

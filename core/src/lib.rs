@@ -11,9 +11,11 @@ pub mod disk;
 pub mod graphs;
 pub mod history;
 pub mod keep;
+pub mod load;
 pub mod mem;
 pub mod net;
 pub mod render;
+pub mod temp;
 pub mod when;
 pub mod zswap;
 

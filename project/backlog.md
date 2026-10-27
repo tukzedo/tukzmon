@@ -446,31 +446,6 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-26: `bridge::tests::a_row_is_greyed_while_its_switch_is_off` (defma) now takes a lock shared with defmk, since 2 Qt windows at once crash, and is ignored under Miri, which can't call C++. Its checks are unchanged.
 		- Swept: every reader of a graph's own width (`Graphs::width_of`, now through `width_or`), and every test that builds the Qt window (defma and defmk).
 
-- Load collector
-	- ID: 2026102408512207
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-085122
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013884
-	- Prereq IDs: 2026102408512192
-	- Requirements:
-		- The 1 minute load from `/proc/loadavg`.
-
-- CPU temperature collector
-	- ID: 2026102408512217
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-085122
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013884
-	- Prereq IDs: 2026102408512192
-	- Requirements:
-		- The CPU package sensor under `/sys/class/hwmon`, with `temp*_crit` as the critical level where the sensor has one.
-		- No collector when no CPU sensor is found.
-
 - Battery collector
 	- ID: 2026102408512223
 	- Type: Feature
@@ -501,6 +476,61 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Load collector
+	- ID: 2026102408512207
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Related IDs: 2026102408512217
+	- Requirements:
+		- The 1 minute load from `/proc/loadavg`.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `core/src/load.rs` has `LoadReader`, with one series, load, as the kernel gives it. Junk, or a value below 0, reads as a gap.
+		- Nothing draws it yet. That's The graphs, 2026101916013887.
+		- Verified: the full run passed, with a live read of this box's `/proc/loadavg`.
+	- Decisions:
+		- Load stays as the kernel's number, not a share of the CPU count. Scaling it is the graph's call.
+	- Branch: round-1026
+	- Test case: `load::tests::the_first_column_is_the_load` (defnj) and `live_proc_loadavg_reads` (defnk). defnj fails with the range check taken out.
+	- Closed: 20261026-175458
+
+- CPU temperature collector
+	- ID: 2026102408512217
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Related IDs: 2026102408512207
+	- Requirements:
+		- The CPU package sensor under `/sys/class/hwmon`, with `temp*_crit` as the critical level where the sensor has one.
+		- No collector when no CPU sensor is found.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- `core/src/temp.rs` has `TempReader`, with one series, temp, in degrees C, and `crit()` for the critical level. Both are read off the sensors found at start.
+		- The package sensor is `Package id` on Intel's `coretemp`, `Tdie` or else `Tctl` on AMD's `k10temp` and `zenpower`, and the first sensor on Arm's `cpu_thermal`. Other drivers, such as `acpitz`, `nvme` and the board's, give no collector.
+		- The test tree for made-up `/sys` files moved from zswap's tests to `collect::Tree`, so both share it.
+		- Nothing draws it yet. That's The graphs, 2026101916013887.
+		- `design.md` Data sources on Linux has the details.
+		- Verified: the full run passed. This box has `k10temp` with `Tctl` and no crit, and the tests mirror that layout.
+	- Decisions:
+		- With more than one socket it's the hottest package, and the lowest crit, since either one getting hot is what matters.
+		- `acpitz` is left out. It's a board zone, often fixed or far from the CPU, and reads as CPU only on some laptops.
+		- A sensor that stops reading drops out. When all have, it's a gap.
+	- Branch: round-1026
+	- Test case: `temp::tests` (5: defnm, defnn, defnp, defnq, defnr). defnm and defnp fail with every labeled `coretemp` sensor taken, and defnp with the coolest package taken.
+		- Swept: zswap's tests, which now use the shared `collect::Tree`, and pass.
+	- Closed: 20261026-175458
 
 - Network collector
 	- ID: 2026102408512202

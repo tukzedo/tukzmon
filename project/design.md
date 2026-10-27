@@ -180,9 +180,9 @@ On panels without a native plugin, tukzmon falls back to a tray icon with one sm
 | Swap        | `/proc/meminfo`.
 | Zswap       | `Zswap` and `Zswapped` in `/proc/meminfo`, on kernels new enough to have them. Used is the pool, `Zswap`, against the cap zswap stops taking pages at, `max_pool_percent` of `MemTotal`. The ratio is `Zswapped / Zswap`. `/sys/kernel/debug/zswap` needs root, so it isn't used.
 | Zram        | `/sys/block/zram*/mm_stat`, summed over every device there at start, when zswap is off. Used is `orig_data_size` against `disksize`, and the ratio is `orig_data_size / compr_data_size`. A box with neither, or with zram devices that have no size, has no Zswap graph.
-| Load        | `/proc/loadavg`.
+| Load        | `/proc/loadavg`, its first column, the 1 minute load.
 | Disk        | `/proc/diskstats`, one row per device, as 512 byte sectors read and written. All disks means each device with a `device` link under `/sys/block`. That leaves out partitions and what's stacked on a disk, such as LVM, LUKS, RAID, loop and zram, so nothing is counted twice. A chosen list counts just the names on it. A counted drive coming or going, or a counter that went down, makes a gap.
-| Temperature | `hwmon` under `/sys/class/hwmon`, picking the CPU package sensor. `temp*_crit` gives the critical level when the sensor has one.
+| Temperature | `hwmon` under `/sys/class/hwmon`, picking the CPU package sensor: `Package id` on `coretemp`, `Tdie` or else `Tctl` on `k10temp` and `zenpower`, and the first sensor on an Arm board's `cpu_thermal`. With more than one socket it's the hottest. `temp*_crit` gives the critical level when the sensor has one, the lowest of them with more than one. Other drivers, such as `acpitz`, `nvme` and the board's, aren't the CPU's, so a box with none of these has no Temperature graph.
 | Battery     | `/sys/class/power_supply/BAT*`.
 
 Splitting network traffic into LAN and internet is optional, backlog item 2026101916274800. It's off by default, and the user picks the way in settings. `/proc/net/dev` counts per interface, not per destination, so it needs one of these:
