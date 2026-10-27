@@ -14,8 +14,13 @@ pub struct Meminfo {
 	pub free: u64,
 	pub buffers: u64,
 	pub cached: u64,
+	pub sreclaimable: u64,
 	pub swap_total: u64,
 	pub swap_free: u64,
+	/// zswap's pool, compressed. None on a kernel without the row.
+	pub zswap: Option<u64>,
+	/// What the pool holds, before compression.
+	pub zswapped: Option<u64>,
 }
 
 /// None without `MemTotal` and `MemFree`, or with junk in a row used here.
@@ -38,8 +43,11 @@ pub fn parse_meminfo(text: &str) -> Option<Meminfo> {
 			}
 			"Buffers" => &mut m.buffers,
 			"Cached" => &mut m.cached,
+			"SReclaimable" => &mut m.sreclaimable,
 			"SwapTotal" => &mut m.swap_total,
 			"SwapFree" => &mut m.swap_free,
+			"Zswap" => m.zswap.insert(0),
+			"Zswapped" => m.zswapped.insert(0),
 			_ => continue,
 		};
 		*slot = rest.split_ascii_whitespace().next()?.parse().ok()?;
@@ -48,18 +56,20 @@ pub fn parse_meminfo(text: &str) -> Option<Meminfo> {
 }
 
 /// User, buffers and cache, as shares of all memory. User is what's left
-/// once free, buffers and cache are taken out, the way multiload-ng counts it.
+/// once free, buffers and cache are taken out. Cache takes in reclaimable
+/// slab, as `free` counts it (backlog 2026102508354893).
 pub fn memory_shares(m: &Meminfo) -> Option<[f32; 3]> {
 	if m.total == 0 {
 		return None;
 	}
+	let cache = m.cached + m.sreclaimable;
 	let user = m
 		.total
 		.saturating_sub(m.free)
-		.saturating_sub(m.buffers + m.cached);
+		.saturating_sub(m.buffers + cache);
 	let t = m.total as f64;
 	let f = |x: u64| (x as f64 / t).clamp(0.0, 1.0) as f32;
-	Some([f(user), f(m.buffers), f(m.cached)])
+	Some([f(user), f(m.buffers), f(cache)])
 }
 
 /// Share of swap in use. None with no swap.
@@ -142,8 +152,11 @@ Hugepagesize:       2048 kB
 				free: 4_000_000,
 				buffers: 1_000_000,
 				cached: 3_000_000,
+				sreclaimable: 0,
 				swap_total: 8_000_000,
 				swap_free: 6_000_000,
+				zswap: Some(0),
+				zswapped: None,
 			}
 		);
 	}
@@ -185,10 +198,22 @@ Hugepagesize:       2048 kB
 			cached: 20,
 			swap_total: 10,
 			swap_free: 20,
+			..Meminfo::default()
 		};
 		assert_eq!(memory_shares(&m), Some([0.0, 0.2, 0.2]));
 		assert_eq!(swap_share(&m), Some([0.0]));
 		assert_eq!(memory_shares(&Meminfo::default()), None);
+	}
+
+	// Test ID: defmy
+	#[test]
+	fn cache_takes_in_reclaimable_slab_and_user_keeps_the_rest() {
+		let text = "MemTotal: 1000 kB\nMemFree: 100 kB\nBuffers: 50 kB\nCached: 200 kB\n\
+			Slab: 300 kB\nSReclaimable: 250 kB\nSUnreclaim: 50 kB\n";
+		let m = parse_meminfo(text).unwrap();
+		assert_eq!(m.sreclaimable, 250);
+		// user 400 holds the 50 of slab that can't be reclaimed
+		assert_eq!(memory_shares(&m), Some([0.4, 0.05, 0.45]));
 	}
 
 	// Test ID: decb2

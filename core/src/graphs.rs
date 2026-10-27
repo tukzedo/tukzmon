@@ -7,16 +7,21 @@
 use std::io;
 use std::path::Path;
 
+use crate::battery::BatteryReader;
 use crate::config::Look;
 use crate::cpu::CpuReader;
 use crate::keep;
-use crate::mem::MemoryReader;
+use crate::mem::{MemoryReader, SwapReader};
 use crate::{Graph, Source};
 
 pub struct Graphs {
 	pub cpu: Graph,
 	/// None when hidden, or on a box where memory can't be read.
 	pub mem: Option<Graph<MemoryReader, 3>>,
+	/// None when hidden, or on a box with no swap.
+	pub swap: Option<Graph<SwapReader, 1>>,
+	/// None when hidden, or on a box with no battery in.
+	pub battery: Option<Graph<BatteryReader, 3>>,
 	/// Top to bottom, for a vertical panel.
 	pub stacked: bool,
 	px: Vec<u32>,
@@ -29,19 +34,133 @@ type Tile = (usize, usize, usize, usize);
 enum Which {
 	Cpu,
 	Mem,
+	Swap,
+	Battery,
 }
 
 impl Which {
 	/// The order with nothing saved. Graphs a saved order leaves out go
 	/// last, in this order.
-	const ALL: [Which; 2] = [Which::Cpu, Which::Mem];
+	const ALL: [Which; 4] = [Which::Cpu, Which::Mem, Which::Swap, Which::Battery];
 
 	fn name(self) -> &'static str {
 		match self {
 			Which::Cpu => CpuReader::SECTION,
 			Which::Mem => MemoryReader::SECTION,
+			Which::Swap => SwapReader::SECTION,
+			Which::Battery => BatteryReader::SECTION,
 		}
 	}
+
+	fn wanted(self, look: &Look) -> bool {
+		match self {
+			Which::Cpu => look.show_cpu,
+			Which::Mem => look.show_memory,
+			Which::Swap => look.show_swap,
+			Which::Battery => look.show_battery,
+		}
+	}
+
+	/// Every graph but CPU, which is always there.
+	fn optional() -> impl Iterator<Item = Which> {
+		Which::ALL.into_iter().filter(|&w| w != Which::Cpu)
+	}
+
+	fn own_width(self, look: &Look) -> u32 {
+		match self {
+			Which::Cpu => look.cpu_width,
+			Which::Mem => look.mem_width,
+			Which::Swap => look.swap_width,
+			Which::Battery => look.battery_width,
+		}
+	}
+}
+
+/// What [`Graphs`] needs of a graph, whatever it reads, so each one isn't
+/// handled by hand everywhere.
+pub trait Drawn {
+	fn sample(&mut self);
+	fn trim(&mut self);
+	fn section(&self) -> (&'static str, Vec<u8>);
+	fn adopt(&mut self, sections: &[(String, Vec<u8>)]) -> bool;
+	fn hover(&self) -> Option<usize>;
+	fn set_hover(&mut self, x: Option<usize>);
+	fn easing(&self) -> bool;
+	fn hover_tip(&self, x: usize, w: usize, h: usize, scale: usize) -> String;
+	fn tooltip(&self) -> String;
+	fn render(&mut self, w: usize, h: usize, scale: usize) -> &[u32];
+	fn set_look(&mut self, look: &Look);
+}
+
+impl<S: Source<N>, const N: usize> Drawn for Graph<S, N> {
+	fn sample(&mut self) {
+		Graph::sample(self);
+	}
+	fn trim(&mut self) {
+		Graph::trim(self);
+	}
+	fn section(&self) -> (&'static str, Vec<u8>) {
+		Graph::section(self)
+	}
+	fn adopt(&mut self, sections: &[(String, Vec<u8>)]) -> bool {
+		Graph::adopt(self, sections)
+	}
+	fn hover(&self) -> Option<usize> {
+		self.hover
+	}
+	fn set_hover(&mut self, x: Option<usize>) {
+		self.hover = x;
+	}
+	fn easing(&self) -> bool {
+		Graph::easing(self)
+	}
+	fn hover_tip(&self, x: usize, w: usize, h: usize, scale: usize) -> String {
+		Graph::hover_tip(self, x, w, h, scale)
+	}
+	fn tooltip(&self) -> String {
+		Graph::tooltip(self)
+	}
+	fn render(&mut self, w: usize, h: usize, scale: usize) -> &[u32] {
+		Graph::render(self, w, h, scale)
+	}
+	fn set_look(&mut self, look: &Look) {
+		look.clone_into(&mut self.look);
+	}
+}
+
+// the saved order, unknown names skipped, then any it doesn't name
+fn order_of(saved: &[String]) -> [Which; Which::ALL.len()] {
+	let mut out = Which::ALL;
+	let mut n = 0;
+	let named = saved
+		.iter()
+		.filter_map(|name| Which::ALL.into_iter().find(|w| w.name() == name.as_str()));
+	for w in named.chain(Which::ALL) {
+		if !out[..n].contains(&w) {
+			out[n] = w;
+			n += 1;
+		}
+	}
+	out
+}
+
+/// Every graph's name, first drawn first, from a saved `graph.order`. The
+/// settings window's graph list goes by this too, so it shows the panel's order.
+pub fn draw_order(saved: &[String]) -> Vec<&'static str> {
+	order_of(saved).into_iter().map(Which::name).collect()
+}
+
+// drops a graph turned off and makes one turned on. True when one was made.
+fn switch<G>(slot: &mut Option<G>, show: bool, make: impl FnOnce() -> Option<G>) -> bool {
+	if !show {
+		*slot = None;
+		return false;
+	}
+	if slot.is_some() {
+		return false;
+	}
+	*slot = make();
+	slot.is_some()
 }
 
 impl Graphs {
@@ -51,9 +170,21 @@ impl Graphs {
 		} else {
 			None
 		};
+		let swap = if look.show_swap {
+			Graph::swap(look.clone())
+		} else {
+			None
+		};
+		let battery = if look.show_battery {
+			Graph::battery(look.clone())
+		} else {
+			None
+		};
 		Graphs {
 			cpu: Graph::new(look),
 			mem,
+			swap,
+			battery,
 			stacked: false,
 			px: Vec::new(),
 		}
@@ -63,37 +194,45 @@ impl Graphs {
 		&self.cpu.look
 	}
 
+	// CPU always has one, shown or not
+	fn slot(&self, which: Which) -> Option<&dyn Drawn> {
+		match which {
+			Which::Cpu => Some(&self.cpu),
+			Which::Mem => self.mem.as_ref().map(|g| g as &dyn Drawn),
+			Which::Swap => self.swap.as_ref().map(|g| g as &dyn Drawn),
+			Which::Battery => self.battery.as_ref().map(|g| g as &dyn Drawn),
+		}
+	}
+
+	fn slot_mut(&mut self, which: Which) -> Option<&mut dyn Drawn> {
+		match which {
+			Which::Cpu => Some(&mut self.cpu),
+			Which::Mem => self.mem.as_mut().map(|g| g as &mut dyn Drawn),
+			Which::Swap => self.swap.as_mut().map(|g| g as &mut dyn Drawn),
+			Which::Battery => self.battery.as_mut().map(|g| g as &mut dyn Drawn),
+		}
+	}
+
 	/// CPU is drawn whenever no other graph is, so the panel item never
 	/// shrinks to nothing and its menu stays in reach.
 	pub fn cpu_shown(&self) -> bool {
-		self.cpu.look.show_cpu || self.mem.is_none()
+		self.cpu.look.show_cpu || Which::optional().all(|w| self.slot(w).is_none())
 	}
 
-	// the saved order, unknown names skipped, then any it doesn't name
-	fn order(&self) -> [Which; 2] {
-		let mut out = Which::ALL;
-		let mut n = 0;
-		let named = self
-			.cpu
-			.look
-			.order
-			.iter()
-			.filter_map(|name| Which::ALL.into_iter().find(|w| w.name() == name.as_str()));
-		for w in named.chain(Which::ALL) {
-			if !out[..n].contains(&w) {
-				out[n] = w;
-				n += 1;
-			}
+	fn is_shown(&self, which: Which) -> bool {
+		match which {
+			Which::Cpu => self.cpu_shown(),
+			_ => self.slot(which).is_some(),
 		}
-		out
+	}
+
+	fn order(&self) -> [Which; Which::ALL.len()] {
+		order_of(&self.cpu.look.order)
 	}
 
 	/// In the order drawn.
 	fn shown(&self) -> impl Iterator<Item = Which> + '_ {
-		self.order().into_iter().filter(|w| match w {
-			Which::Cpu => self.cpu_shown(),
-			Which::Mem => self.mem.is_some(),
-		})
+		self.order().into_iter().filter(|&w| self.is_shown(w))
 	}
 
 	pub fn count(&self) -> usize {
@@ -102,11 +241,7 @@ impl Graphs {
 
 	fn width_of(&self, which: Which) -> u32 {
 		let l = &self.cpu.look;
-		let own = match which {
-			Which::Cpu => l.cpu_width,
-			Which::Mem => l.mem_width,
-		};
-		if own == 0 { l.width } else { own }
+		l.width_or(which.own_width(l))
 	}
 
 	/// Each shown graph's width in logical pixels, in the order drawn.
@@ -114,31 +249,52 @@ impl Graphs {
 		self.shown().map(|w| self.width_of(w))
 	}
 
-	/// Takes a new look, adding or dropping the memory graph to match. One
-	/// added loads its history from `history`, when that's given.
+	/// True when `look` would hide a graph that's drawn now, so what it read
+	/// should be saved first.
+	pub fn drops(&self, look: &Look) -> bool {
+		Which::optional().any(|w| self.slot(w).is_some() && !w.wanted(look))
+	}
+
+	/// Takes a new look, adding or dropping graphs to match. One added loads
+	/// its history from `history`, when that's given.
 	///
 	/// # Errors
 	///
 	/// As [`keep::read`], but not for a file that isn't there. The look is
 	/// taken anyway.
 	pub fn set_look(&mut self, look: Look, history: Option<&Path>) -> io::Result<()> {
+		let mut added = Vec::new();
+		if switch(&mut self.mem, look.show_memory, || {
+			Graph::memory(look.clone())
+		}) {
+			added.push(Which::Mem);
+		}
+		if switch(&mut self.swap, look.show_swap, || Graph::swap(look.clone())) {
+			added.push(Which::Swap);
+		}
+		if switch(&mut self.battery, look.show_battery, || {
+			Graph::battery(look.clone())
+		}) {
+			added.push(Which::Battery);
+		}
 		let mut res = Ok(());
-		if !look.show_memory {
-			self.mem = None;
-		} else if self.mem.is_none() {
-			self.mem = Graph::memory(look.clone());
-			if let (Some(m), Some(path)) = (&mut self.mem, history) {
-				match keep::read(path) {
-					Ok(sections) => {
-						m.adopt(&sections);
+		if let Some(path) = history.filter(|_| !added.is_empty()) {
+			match keep::read(path) {
+				Ok(sections) => {
+					for &w in &added {
+						if let Some(g) = self.slot_mut(w) {
+							g.adopt(&sections);
+						}
 					}
-					Err(e) if e.kind() == io::ErrorKind::NotFound => {}
-					Err(e) => res = Err(e),
 				}
+				Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+				Err(e) => res = Err(e),
 			}
 		}
-		if let Some(m) = &mut self.mem {
-			m.look = look.clone();
+		for w in Which::optional() {
+			if let Some(g) = self.slot_mut(w) {
+				g.set_look(&look);
+			}
 		}
 		self.cpu.look = look;
 		if !self.cpu_shown() {
@@ -149,20 +305,22 @@ impl Graphs {
 
 	/// A hidden graph isn't read, so it shows a gap when it's back.
 	pub fn sample(&mut self) {
-		if self.cpu_shown() {
-			self.cpu.sample();
-		}
-		if let Some(m) = &mut self.mem {
-			m.sample();
+		for w in Which::ALL {
+			if self.is_shown(w)
+				&& let Some(g) = self.slot_mut(w)
+			{
+				g.sample();
+			}
 		}
 	}
 
 	pub fn trim(&mut self) {
-		if self.cpu_shown() {
-			self.cpu.trim();
-		}
-		if let Some(m) = &mut self.mem {
-			m.trim();
+		for w in Which::ALL {
+			if self.is_shown(w)
+				&& let Some(g) = self.slot_mut(w)
+			{
+				g.trim();
+			}
 		}
 	}
 
@@ -173,10 +331,10 @@ impl Graphs {
 	///
 	/// As [`keep::write`].
 	pub fn save(&self, path: &Path) -> io::Result<()> {
-		let mut ours = vec![self.cpu.section()];
-		if let Some(m) = &self.mem {
-			ours.push(m.section());
-		}
+		let ours: Vec<(&str, Vec<u8>)> = Which::ALL
+			.into_iter()
+			.filter_map(|w| self.slot(w).map(Drawn::section))
+			.collect();
 		let kept: Vec<(String, Vec<u8>)> = keep::read(path)
 			.unwrap_or_default()
 			.into_iter()
@@ -196,9 +354,13 @@ impl Graphs {
 	/// reads. A graph with none in the file keeps what it has.
 	pub fn load(&mut self, path: &Path) -> io::Result<()> {
 		let sections = keep::read(path)?;
-		let cpu = self.cpu.adopt(&sections);
-		let mem = self.mem.as_mut().is_some_and(|m| m.adopt(&sections));
-		if cpu || mem {
+		let mut any = false;
+		for w in Which::ALL {
+			if let Some(g) = self.slot_mut(w) {
+				any |= g.adopt(&sections);
+			}
+		}
+		if any {
 			Ok(())
 		} else {
 			Err(io::Error::new(io::ErrorKind::InvalidData, "no history"))
@@ -236,44 +398,45 @@ impl Graphs {
 	/// when that changed what's drawn.
 	pub fn hover(&mut self, at: Option<(usize, usize)>, w: usize, h: usize) -> bool {
 		let hit = at.and_then(|(x, y)| Some((x, self.find(x, y, w, h)?)));
-		let want = |w: Which| hit.and_then(|(x, (j, (tx, ..)))| (w == j).then(|| x - tx));
 		let mut changed = false;
-		let cpu = want(Which::Cpu);
-		if self.cpu.hover != cpu {
-			self.cpu.hover = cpu;
-			changed = true;
-		}
-		let mem = want(Which::Mem);
-		if let Some(m) = &mut self.mem
-			&& m.hover != mem
-		{
-			m.hover = mem;
-			changed = true;
+		for which in Which::ALL {
+			let want = hit.and_then(|(x, (j, (tx, ..)))| (which == j).then(|| x - tx));
+			if let Some(g) = self.slot_mut(which)
+				&& g.hover() != want
+			{
+				g.set_hover(want);
+				changed = true;
+			}
 		}
 		changed
 	}
 
+	/// True while a shown graph's axis is easing in.
+	pub fn easing(&self) -> bool {
+		self.shown()
+			.any(|w| self.slot(w).is_some_and(Drawn::easing))
+	}
+
 	pub fn hovered(&self) -> bool {
-		self.cpu.hover.is_some() || self.mem.as_ref().is_some_and(|m| m.hover.is_some())
+		Which::ALL
+			.into_iter()
+			.any(|w| self.slot(w).is_some_and(|g| g.hover().is_some()))
 	}
 
 	/// The tip for the pointer at device pixel (x, y).
 	pub fn hover_tip(&self, x: usize, y: usize, w: usize, h: usize, scale: usize) -> String {
-		match (self.find(x, y, w, h), &self.mem) {
-			(Some((Which::Mem, (tx, _, tw, th))), Some(m)) => m.hover_tip(x - tx, tw, th, scale),
-			(Some((_, (tx, _, tw, th))), _) => self.cpu.hover_tip(x - tx, tw, th, scale),
-			(None, _) => self.tooltip(),
-		}
+		self.find(x, y, w, h)
+			.and_then(|(which, (tx, _, tw, th))| {
+				Some(self.slot(which)?.hover_tip(x - tx, tw, th, scale))
+			})
+			.unwrap_or_else(|| self.tooltip())
 	}
 
 	/// The latest reads of every graph shown.
 	pub fn tooltip(&self) -> String {
 		let tips: Vec<String> = self
 			.shown()
-			.map(|w| match (w, &self.mem) {
-				(Which::Mem, Some(m)) => m.tooltip(),
-				_ => self.cpu.tooltip(),
-			})
+			.filter_map(|w| self.slot(w).map(Drawn::tooltip))
 			.collect();
 		tips.join("\n\n")
 	}
@@ -288,10 +451,10 @@ impl Graphs {
 			if tw == 0 || th == 0 {
 				continue;
 			}
-			let one = match (which, &mut self.mem) {
-				(Which::Mem, Some(m)) => m.render(tw, th, scale),
-				_ => self.cpu.render(tw, th, scale),
+			let Some(g) = self.slot_mut(which) else {
+				continue;
 			};
+			let one = g.render(tw, th, scale);
 			for (r, row) in one.chunks_exact(tw).enumerate() {
 				let at = (ty + r) * w + tx;
 				px[at..at + tw].copy_from_slice(row);
@@ -667,5 +830,214 @@ mod tests {
 			assert_eq!(s.group.as_deref(), Some(theme.id.as_str()), "{mode}");
 			assert_eq!(spec.tabs[s.tab].parent, Some(top), "{mode}");
 		}
+	}
+
+	// all 3, with swap made by hand so a box with no swap runs it too
+	fn three() -> Graphs {
+		let mut g = both();
+		let look = Look {
+			show_swap: true,
+			..Look::default()
+		};
+		g.swap = Some(Graph::with(look.clone(), SwapReader::default()));
+		g.set_look(look, None).unwrap();
+		let now = g.cpu.now();
+		g.swap.as_mut().unwrap().hist.add(now - 60.0, now, &[1.0]);
+		g
+	}
+
+	// Test ID: defq5
+	#[test]
+	fn swap_is_off_by_default_and_draws_its_own_color_when_on() {
+		assert!(!Look::default().show_swap);
+		assert!(Graphs::new(Look::default()).swap.is_none());
+		let mut g = three();
+		assert_eq!(g.count(), 3);
+		let s = g.swap.as_mut().unwrap();
+		let px = s.render(64, 20, 1);
+		assert_eq!(px[10 * 64 + 60], Look::default().swap[0].argb());
+		let tip = s.hover_tip(60, 64, 20, 1);
+		assert!(tip.ends_with("\nSwap 100% used"), "{tip}");
+		// Fire draws it as a gradient
+		let fire = Look::from_model(&crate::config::model("theme:\n\tname: fire\n"));
+		assert_eq!(
+			fire.swap_paint(),
+			crate::render::Paint::Gradient(fire.cpu_gradient)
+		);
+		if let Some(mut live) = Graph::swap(Look::default()) {
+			live.sample();
+			std::thread::sleep(std::time::Duration::from_millis(20));
+			live.sample();
+			assert!(live.tooltip().starts_with("Swap "), "{}", live.tooltip());
+		}
+	}
+
+	// Test ID: defq6
+	#[test]
+	fn three_sit_side_by_side_and_the_pointer_finds_swap() {
+		let mut g = three();
+		let (w, h) = (60, 10);
+		let tiles: Vec<Vec<u32>> = vec![
+			g.cpu.render(20, h, 1).to_vec(),
+			g.mem.as_mut().unwrap().render(20, h, 1).to_vec(),
+			g.swap.as_mut().unwrap().render(20, h, 1).to_vec(),
+		];
+		let px = g.render(w, h, 1).to_vec();
+		for r in 0..h {
+			for (i, t) in tiles.iter().enumerate() {
+				let at = r * w + i * 20;
+				assert_eq!(&px[at..at + 20], &t[r * 20..(r + 1) * 20], "{r} {i}");
+			}
+		}
+		assert!(g.hover(Some((45, 3)), w, h));
+		assert_eq!(g.swap.as_ref().unwrap().hover, Some(5));
+		assert_eq!((g.cpu.hover, g.mem.as_ref().unwrap().hover), (None, None));
+		assert!(g.hovered());
+		assert!(g.hover_tip(45, 3, w, h, 1).contains("Swap 100% used"));
+		// nothing read yet, so each says its title
+		assert_eq!(g.tooltip(), "CPU\n\nMemory\n\nSwap");
+		// first in a saved order
+		let look = Look {
+			order: vec!["swap".into()],
+			swap_width: 30,
+			..g.look().clone()
+		};
+		g.set_look(look, None).unwrap();
+		let w0 = g.look().width;
+		assert_eq!(g.widths().collect::<Vec<_>>(), [30, w0, w0]);
+		assert!(g.hover(Some((7, 3)), 30 + 2 * w0 as usize, h));
+		assert_eq!(g.swap.as_ref().unwrap().hover, Some(7));
+		// swap alone hides CPU, as memory alone does
+		let alone = Look {
+			show_cpu: false,
+			show_memory: false,
+			..g.look().clone()
+		};
+		g.set_look(alone, None).unwrap();
+		assert!(!g.cpu_shown());
+		assert_eq!(g.widths().collect::<Vec<_>>(), [30]);
+	}
+
+	// Test ID: defq7
+	#[test]
+	fn hiding_swap_keeps_its_history_for_when_its_back() {
+		let path = scratch("swap");
+		let mut g = three();
+		let had = g.swap.as_ref().unwrap().hist.last();
+		g.save(&path).unwrap();
+		let names: Vec<String> = keep::read(&path)
+			.unwrap()
+			.into_iter()
+			.map(|(n, _)| n)
+			.collect();
+		assert_eq!(names, ["cpu", "mem", "swap"]);
+		let on = g.look().clone();
+		let off = Look {
+			show_swap: false,
+			..on.clone()
+		};
+		assert!(g.drops(&off));
+		assert!(!g.drops(&on));
+		g.set_look(off, Some(&path)).unwrap();
+		assert!(g.swap.is_none());
+		g.save(&path).unwrap();
+		let mut back = Graphs::new(Look::default());
+		back.load(&path).unwrap();
+		assert!(back.swap.is_none(), "off by default");
+		// a box with no swap can't bring it back, so the rest is for one with it
+		if <SwapReader as crate::collect::Collector<1>>::probe().is_some() {
+			g.set_look(on, Some(&path)).unwrap();
+			assert_eq!(g.swap.as_ref().unwrap().hist.last(), had);
+		}
+		std::fs::remove_file(&path).unwrap();
+	}
+
+	// Test ID: defqc
+	#[test]
+	fn the_battery_graph_colors_the_charge_by_state() {
+		assert!(!Look::default().show_battery);
+		assert!(Graphs::new(Look::default()).battery.is_none());
+		let look = Look {
+			show_battery: true,
+			..Look::default()
+		};
+		let mut b = Graph::with(look.clone(), BatteryReader::default());
+		let now = b.now();
+		b.hist.add(now - 60.0, now, &[0.0, 0.8, 0.0]);
+		let px = b.render(64, 20, 1);
+		assert_eq!(px[10 * 64 + 60], look.battery[1].argb());
+		let tip = b.hover_tip(60, 64, 20, 1);
+		assert!(tip.ends_with("\nBattery 80%, on battery"), "{tip}");
+		for (v, want) in [
+			([1.0, 0.0, 0.0], "Battery 100%, plugged in"),
+			([0.0, 0.0, 0.03], "Battery 3%, critical"),
+			([0.0, 0.0, 0.0], "Battery 0%, plugged in"),
+		] {
+			assert_eq!(<BatteryReader as Source<3>>::text(&v), want);
+		}
+		// one with none in reads as a gap
+		b.sample();
+		b.sample();
+		assert_eq!(b.tooltip(), "Battery");
+		let fire = Look::from_model(&crate::config::model("theme:\n\tname: fire\n"));
+		assert_eq!(
+			fire.battery_paint(),
+			crate::render::Paint::Gradient(fire.cpu_gradient)
+		);
+	}
+
+	// Test ID: defqd
+	#[test]
+	fn four_sit_side_by_side_and_battery_keeps_its_history_hidden() {
+		let path = scratch("battery");
+		let mut g = three();
+		let look = Look {
+			show_battery: true,
+			..g.look().clone()
+		};
+		g.battery = Some(Graph::with(look.clone(), BatteryReader::default()));
+		g.set_look(look.clone(), None).unwrap();
+		let now = g.cpu.now();
+		let b = g.battery.as_mut().unwrap();
+		b.hist.add(now - 60.0, now, &[0.5, 0.0, 0.0]);
+		let had = b.hist.last();
+		assert_eq!(g.count(), 4);
+		let (w, h) = (80, 10);
+		let right = g.battery.as_mut().unwrap().render(20, h, 1).to_vec();
+		let px = g.render(w, h, 1).to_vec();
+		for r in 0..h {
+			assert_eq!(
+				&px[r * w + 60..(r + 1) * w],
+				&right[r * 20..(r + 1) * 20],
+				"{r}"
+			);
+		}
+		assert!(g.hover(Some((65, 3)), w, h));
+		assert_eq!(g.battery.as_ref().unwrap().hover, Some(5));
+		assert!(
+			g.hover_tip(65, 3, w, h, 1)
+				.contains("Battery 50%, plugged in")
+		);
+		g.save(&path).unwrap();
+		let names: Vec<String> = keep::read(&path)
+			.unwrap()
+			.into_iter()
+			.map(|(n, _)| n)
+			.collect();
+		assert_eq!(names, ["cpu", "mem", "swap", "battery"]);
+		let off = Look {
+			show_battery: false,
+			..look
+		};
+		assert!(g.drops(&off));
+		g.set_look(off, Some(&path)).unwrap();
+		assert!(g.battery.is_none());
+		assert_eq!(g.count(), 3);
+		g.save(&path).unwrap();
+		let back = keep::read(&path).unwrap();
+		let mut again = Graph::with(Look::default(), BatteryReader::default());
+		assert!(again.adopt(&back));
+		assert_eq!(again.hist.last(), had);
+		std::fs::remove_file(&path).unwrap();
 	}
 }

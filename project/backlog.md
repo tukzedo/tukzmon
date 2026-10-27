@@ -21,18 +21,6 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- Memory cache counts slab, the way b23's multiload-ng does
-	- ID: 2026102508354893
-	- Type: Enhancement
-	- Status: Queued
-		- Answered 2026-10-25: yes, count reclaimable slab as cache, always, like `free`.
-	- Priority|Severity: Avg
-	- Opened: 20261025-083548
-	- Opened by: t00mietum
-	- Related IDs: 2026102408512192, 2026102408304625
-	- Requirements:
-		- b23's multiload-ng has `graph-mem-procps-compliant=true`, so it counts slab as cache. tukzmon counts `Cached` alone, per 2026102408512192, so its cache band is thinner and user thicker than multiload-ng showed.
-
 - Theme presets, with a coordinated Default
 	- ID: 2026102409400679
 	- Type: Feature
@@ -143,127 +131,90 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-25: new values only. `config::tests::the_default_theme_is_the_row_defaults` and `saved_themes_write_whole_and_read_back` count 19 theme members, not 12. `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme` counts 17 colors, not 11.
 		- Swept: every `Graph` use (the plugin, now through `Graphs`, and the lib tests), every `cpu_paint` caller, every `keep::write` caller, and every theme member, which the role and row-default tests walk.
 
-- CICD reset: containers
-	- ID: 2026102416252889
-	- Type: Task
+- The graph list on the Graph tab
+	- ID: 2026102508393161
+	- Type: Feature
 	- Status: Waiting on UAT
-		- It departs from the wording in one way. GTK 3 is in the image as its runtime libraries, not the dev package, since the plugin links GTK, cairo and the panel library by soname. The Debian snapshot the image reads pins them, as it does Qt.
-		- Stand-in, 2026-10-25: `--list` for the default run shows Release build and Dogfood on the host, and the merge gate on e131b57 passed in the image. Only the run that dogfoods is left, which a round may not do.
-	- Needs hand testing: on b23, run `cicd/cicd.bash` with no options, as on 2026102416252898. It builds the release on the host, installs it and restarts the panel.
+		- How the list looks, and how a drag feels, is for a person to judge.
+		- It departs from the wording in 2 ways. The width is a number box, with arrows, like every other number in the window. And each row also has a revert arrow, left of the gripper.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, after an install and a panel restart, open Settings, look at the graph list under Graphs, drag a row by its gripper, Apply, and judge how it looks and feels.
 	- Priority|Severity: High
-	- Opened: 20261024-162528
+	- Opened: 20261025-083931
 	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-	- Related IDs: 2026102416252898
+	- Version and build: v0.1.0 build defm2. Not on b23 yet.
+	- Parent ID: 2026102408304639
+	- Prereq IDs: 2026102508393152, 2026102508393154, 2026102508393156, 2026102508393159
 	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- There's no pipeline yet, and every check runs on the host. Build and test in a pinned image from a recipe in the repo, with the Rust toolchain, Qt 6 and GTK 3 pinned.
-		- A missing docker falls back to the host with one line, and never fails a run. `--no-container` runs on the host on purpose.
-		- Tests that need a real panel or display run on the host.
+		- A row per graph on the first tab, in columns: a checkbox to show it, a space for its live graph, its width as a text box, a time function dropdown, and a gripper on the right to drag it up or down.
+		- It replaces the per-graph rows under the Graphs heading.
 	- Estimated effort: Avg
 	- Actual effort: Avg
 	- Progress log:
-		- `cicd/container/` holds the recipe: Debian trixie by digest, apt from a dated snapshot, Qt 6 Widgets dev, the GTK 3 and panel libraries, the Rust toolchain from `rust-toolchain.toml`, and shellcheck and markdownlint at the `cicd/config.bash` pins. The tag is a hash of the recipe, so an edit means a new image.
-		- `cicd.bash` builds the image when its tag is missing, checks it has the pinned Rust, and fetches the crates. Format, build, lint, tests and the release build then run in it offline, as the caller's uid, into `target/container`.
-		- Remote sync and dogfood stay on the host, and so does the release build in a run that dogfoods, since that build is what gets installed. A test that needs a real panel or display gets a step left out of `CTR_STEPS` in `cicd/config.bash`. None does yet.
-		- No docker, a docker that doesn't answer, or an image that won't build is one line, and the run goes on on the host.
-		- Verified: `--backlog-run-full` passed in the image, and so did a run in a linked worktree building into `target/gate`, as the pre-push hook does. A planted format error failed it. A docker that didn't answer and an image that failed to build each fell back to the host with one line, and passed.
+		- Under Graphs on the Graph tab, a row per graph in the saved order: the checkbox with the graph's name, an empty space for its live graph, Width px, Time axis, a revert arrow and a gripper. The 6 rows and the Order row are gone.
+		- Dragging a gripper moves the row and writes `graph.order`, and so do Up and Down while the gripper has focus. A hidden graph's width and time axis are greyed.
+		- `design.md` XFCE plugin and Settings window have the details.
+		- Verified: in a test window, dragging CPU's gripper below memory saved `order: "mem cpu"`. Down on the top gripper put back the default, with no order line, and Up on the second saved `mem cpu` again.
 	- Decisions:
-		- The image has its own target dir. The paths inside differ from the host's, so a shared `target/` would rebuild everything each time a run switched sides.
-	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892. The gate was watched to fail on a planted format error.
+		- The list's rows come from the spec by path: a graph with `<name>.show`, `.width` and `.time` settings gets a row, so a new graph brings its own.
+		- The window and the plugin share one order function, `graphs::draw_order`, so the list always shows the panel's order.
+		- A name in `graph.order` that this build doesn't know stays at the end after a drag, so a file from a newer tukzmon keeps it.
+		- The row's revert arrow resets its checkbox, width and time axis. The order has none, since dragging back undoes it.
+		- Column heads over the width and time axis, since those boxes lost their labels.
+		- The space is an empty framed box, 5 lines wide, for 2026102508393163 to draw in.
+		- Spike emphasis stays under Time, as 2026102508393156 left it.
+	- Branch: round-1026
+	- Test case: `dialog::tests::the_graph_list_has_a_row_per_graph_in_the_saved_order` (defkz), `dragging_a_graph_saves_the_order_and_keeps_names_it_doesnt_know` (defm0), and `bridge::tests::the_graph_list_sits_under_graphs_and_takes_its_rows` (defm1). defkz fails with the saved order ignored, defm0 with that or with unknown names dropped, and defm1 with no row marked as the list's. The drag itself has no test in the suite.
+		- Swept: every `Graphs::order` user (now through `order_of`), every reader of `graph_order` (`Look::from_model` and the window), and every `Row` field `refresh` reads, for the list's rows with no label or revert of their own.
 
-- Hosted workflow for the merge gate
-	- ID: 2026102513560001
-	- Type: Task
-	- Status: Waiting on automated testing
-	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
-	- Priority|Severity: Avg
-	- Opened: 20261025-135600
+- Live graphs in the graph list
+	- ID: 2026102508393163
+	- Type: Feature
+	- Status: Waiting on UAT
+		- How the graphs look in the list is for a person to judge.
+		- It departs from the wording in 2 ways. A graph wider than 512 px is squeezed to that, so the window stays on screen. And a hidden graph's row still draws it.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, after an install, open Settings, watch the graph list for a minute, then change a width, a theme and a time axis, and judge whether each row follows before Apply.
+	- Priority|Severity: High
+	- Opened: 20261025-083931
 	- Opened by: t00mietum
-	- Prereq IDs: 2026102416252892
-	- Related IDs: 2026102416252889
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026102408304639
+	- Prereq IDs: 2026102508393161
 	- Requirements:
-		- One small GitHub workflow on push and pull request against `main`, plus a manual trigger so any branch can be run by hand.
-		- It runs `cicd.bash --merge-gate`, as far as the runner can. No matrix, and no macOS runner, since it's Linux only for now.
-	- Estimated effort: Low
+		- Each row of the graph list draws its graph live.
+		- The longest graph sets the column's width, so the columns after it line up.
+	- Estimated effort: Avg
 	- Actual effort: Low
 	- Progress log:
-		- `.github/workflows/merge-gate.yml` runs `cicd/cicd.bash --merge-gate` on a push or pull request against `main`, and by hand on any branch. It's one job on `ubuntu-24.04`, which builds the image from `cicd/container/` and runs the checks in it.
+		- Each row of the graph list draws its graph live, at its own width and the row's height, at the Sample every ms rate. Its tip is the latest read.
+		- It draws with the window's settings, applied or not, so a width, theme, color or time axis change shows in the row at once.
+		- The widest graph sets the column, and the width boxes after it line up.
+		- `design.md` XFCE plugin has the details.
+		- Verified: in a test window, CPU at 40 and memory at 100 drew 40 and 100 px wide, both from the same x, with the width boxes lined up past the wider one, and the CPU graph filled in as it ran.
 	- Decisions:
-		- Asked for on 2026-10-25, in answer to the round settings question about a hosted workflow.
-		- No layer cache between runs, to keep it small. Each run builds the image first, which takes a few minutes.
-	- Branch: round-1025
-	- Test case: The workflow is its own test. Its first run is in the row above.
-
-- CICD reset: leak checks, Miri
-	- ID: 2026102516060729
-	- Type: Task
-	- Status: Done
-	- Needs local test suite run?: No. The full Miri step passed on 2026-10-25.
-	- Priority|Severity: Avg
-	- Opened: 20261025-160607
-	- Opened by: t00mietum
-	- Parent ID: 2026102506591278
-	- Prereq IDs: 2026102516060724
-	- Requirements:
-		- The test suite under Miri, on the nightly the sanitizers pin, on a quarter of the CPUs.
-		- A test that needs FFI or files Miri can't reach gets `cfg_attr(miri, ignore)` with a one-line reason.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- A Miri step runs the tests under Miri on the nightly the sanitizers use, which the image now gets with miri. Each test gets a Miri of its own, a quarter of the CPUs at a time, since Miri runs a whole test binary on one core.
-		- Miri can reach the host's files and clock, so the collector and history file tests run under it. 2 tests call C for the locale's time format, and 14 settings window tests save through shcl, which fsyncs the folder, which Miri can't. Those are ignored under Miri, each with its reason.
-		- Miri rounds `ln` and its kin a little differently on each call, so the step makes its floats deterministic, as they are on the box. Without that, the log axis test and a knobs slider test each saw the same value worked out twice come out unequal in the last digit. Both pass with it.
-		- `TUKZMON_MIRI_FILTER` runs only the tests with that in their name, such as to rerun one.
-		- Verified: a planted read past the end of a Vec, a `Box::leak`, and a failed assert each failed the step in the image, each on a FAIL line with its test ID. The other 8 axis tests passed.
-	- Decisions:
-		- It's a leak check that takes hours, so it runs only in `--long`, with `--leakcheck`, or as the `miri` area. The tests took about 7 hours of CPU under Miri one at a time, so nearly an hour at 8 at a time, which would push the default run past its hour. A test that parses the settings spec takes 3 to 11 minutes. One dice test ran past 20 minutes and wasn't waited for, so the step takes at least that long.
-	- Branch: round-1025b
-	- Test case: None in the repo, as for 2026102516060718. The step was watched to fail.
-	- Verified 2026-10-25: `cicd/cicd.bash --backlog-run-quick miri` on 5c996ac passed in 68m 51s, with 154 tests, 16 of them skipped by their ignore attributes. Log was in the round's run folder.
-
-- Core library and Linux collectors
-	- ID: 2026101916013884
-	- Type: Feature
-	- Status: Started
-	- Priority|Severity: High
-	- Opened: 20261019-160138
-	- Opened by: t00mietum
-	- Prereq IDs: 2026101916013881
-	- Requirements:
-		- A Rust library with no GUI toolkit in it.
-		- Reads every graph's numbers on Linux, from the sources listed in `design.md`.
-		- A graph whose source is missing, like a desktop with no battery, is hidden.
-	- Progress log:
-		- CPU from `/proc/stat` works. The other graphs aren't started.
-		- 2026-10-24: Split into one child per source: 2026102408512192 (the collector trait, memory and swap), 2026102408512197 (zswap and zram), 2026102408512202 (network), 2026102408512207 (load), 2026102408512212 (disk), 2026102408512217 (temperature), and 2026102408512223 (battery). This closes with the last of them.
-
-- History store
-	- ID: 2026101916013885
-	- Type: Feature
-	- Status: Started
-	- Priority|Severity: High
-	- Opened: 20261019-160138
-	- Opened by: t00mietum
-	- Prereq IDs: 2026101916013884
-	- Requirements:
-		- These requirements suggest that all data points should be kept across all time, to continuously recalculate optimal averaging and antialiasing. But that would be impractical for year-long runs. The data will necessarily have to be more temporally compressed as it gets older. But the data will always necessarily need to be at a higher fidelity than the graph, so that:
-			- The user can widen the existing graph and not lose resolution.
-			- Averaging and antialiasing has enough higher-detailed data to work with.
-		- If the graph is closed and then re-opened, it should (optionally) re-load previous data - just with a blank representing the time it was not active. (That doesn't eventually get averaged as values of "0".)
-		- If the computer is off or rebooted, the graph should (optionally) re-load previous data, going back indefinitely - just with blank spaces representing the time it was not active. (That doesn't eventually get averaged as values of "0".)
-	- Note: the proposed tiers are in `design.md` under History.
-	- Progress log:
-		- The tiers are in and keep gaps as gaps. Saving and reloading across restarts isn't done yet.
+		- The window reads the graphs itself, from when it opens, rather than the panel's history file. The panel doesn't tell it which file is its own, and it saves that file every 15 minutes, so the last of them would be a gap.
+		- The graphs are drawn by the same core code as the panel's, `Graph::render`, so the row is what the panel would draw.
+		- A hidden graph is still read and drawn, so its row shows what showing it would give.
+		- Past 512 px a graph is squeezed rather than cut, so its whole time span still shows.
+		- `Look::width_or` is the one rule for a width of 0, used by the panel's layout and the list.
+	- Branch: round-1026
+	- Test case: `live::tests::each_graph_draws_at_its_width_with_the_windows_look` (defmj) and `bridge::tests::the_longest_graph_sets_the_column_so_the_rest_line_up` (defmk). defmj fails with the window's changes not reaching the graphs, and defmk with every graph at the old fixed width.
+		- 2026-10-26: `bridge::tests::a_row_is_greyed_while_its_switch_is_off` (defma) now takes a lock shared with defmk, since 2 Qt windows at once crash, and is ignored under Miri, which can't call C++. Its checks are unchanged.
+		- Swept: every reader of a graph's own width (`Graphs::width_of`, now through `width_or`), and every test that builds the Qt window (defma and defmk).
 
 - Graphs with an optional (default) log X axis
 	- ID: 2026101916013886
 	- Type: Feature
-	- Status: Started
+	- Status: Waiting on UAT
+		- How the easing looks is for a person to judge.
+		- It departs from the progress log's wording in one way. A width change eases only a linear graph, since a log graph's divisions stay at the same fractions of the width.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, after an install and a panel restart, watch the graph as it comes up with saved history, then pick another time axis for a graph in Settings, before and after Apply, and judge whether each move looks smooth.
 	- Priority|Severity: High
 	- Opened: 20261019-160138
 	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
 	- Prereq IDs: 2026101916013885
 	- Related IDs: 2026101916013880
 	- Requirements:
@@ -288,9 +239,114 @@ Sorted per the notes in [Template](#template).
 			- The transition from 1m to 1h to 1d to "everything" should be smooth, with no obvious gate or line there behind the scenes.
 			- The graph should be averaged and antialiased, so that it doesn't shimmer or look weird while animating.
 				- The averaging should be very small and possibly even variable over time - being able to represent single-pixel spikes is important, e.g. when on the farther left, to show for example that the CPU was spiked for a very long time. (But eventually far enough left, it gets averaged into a background level.)
+	- Actual effort: Avg
 	- Progress log:
 		- Log and linear modes work, with the caps and no seams. `design.md` has how.
 		- Still needs easing when the width changes or old history is loaded. While running, the boundaries move smoothly by themselves.
+		- 2026-10-26: A jump in the time axis now eases in over half a second, from what was on screen. That covers history loaded, the first sample after a gap, a new curve or time axis, and a linear graph's span changing.
+		- The panel and the settings window's graph list draw about 30 times a second while an axis eases, then go back to once a sample.
+		- `design.md` Time axis has the details.
+		- Verified: the full run passed, and the new tests failed with jumps going unseen, or with the ease starting from the new axis.
+	- Decisions:
+		- A jump is told from time going on by what the axis is built from: the curve, the history's first and last times, or the linear span. The last time may move up to 2 sample periods plus 0.25 s past the clock before it counts as a gap, so a late or missed tick isn't one.
+		- The old and new axis are mixed in `ln(1 + age / 5 s)` with a smoothstep, so time still only runs older to the left. What was on screen is kept as 65 points, so a jump part way through starts from there.
+		- History loaded before the first draw isn't eased, since nothing was drawn yet. The gap up to now eases in at the first sample after the priming one.
+		- The ease runs on the graph's own clock, so the soak test's skipped days end one at once.
+		- The panel's extra frames come from a one-shot 33 ms timer, started in draw only while a graph eases, so an idle panel still draws once a sample.
+	- Branch: round-1026
+	- Test case: `axis::tests::a_jump_eases_in_from_what_was_drawn` (defpn), `time_going_on_is_no_jump_but_a_gap_or_new_axis_is` (defpp), `a_jump_while_easing_starts_from_what_is_on_screen` (defpq), `tests::a_new_time_axis_eases_in_and_then_stops` (defpr), and `live::tests::a_time_axis_picked_in_the_window_eases_into_its_row` (defps). defpn to defpr fail with jumps not seen, and defpn and defpq with the ease starting from the new axis. The rest of the requirements: debh9, debha to debhe in `axis::tests`, and `render::tests::spike_reach_fades_with_time` (debj9).
+		- Swept: every `Frame` built (render tests, the preview example, `Graph::render`), every `age` caller (`Frame::draw`, `Graph::span_at`), both places a graph is drawn on screen (the plugin's draw, the settings window's `LiveGraph`), and every place a look or history is swapped in (`Graphs::set_look`, `Live::set_look`, `Graph::adopt`), which the jump check covers without a call of its own.
+
+- Swap graph
+	- ID: 2026102618353000
+	- Type: Feature
+	- Status: Waiting on UAT
+		- How it looks, in each theme, is for a person to judge.
+		- It departs from the wording in one way. It's off by default, so an existing panel doesn't grow wider. Turn it on in the graph list.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, after an install, turn on Swap graph in the graph list, Apply, and judge how it looks beside CPU and memory in Default and Fire.
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026101916013887
+	- Related IDs: 2026102408512192
+	- Requirements:
+		- Swap; % used, from the swap collector.
+		- No swap graph on a box with no swap.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The swap graph draws % used, with its tip as "Swap 33% used". It has a row in the graph list, at `swap.show`, `swap.width` and `swap.time`, and a Themes/Swap sub-tab with In use, or Low, Medium and High.
+		- `Graphs` and the settings window's `Live` now reach every graph through one `Drawn` trait, so a new graph is a slot and a `Which` entry, not a match arm in every method.
+		- `graph.order` defaults to `cpu mem swap`.
+		- `design.md` XFCE plugin, Theme and Data sources on Linux have the details.
+		- Verified: the full run passed. With the swap slot taken out of `Graphs`, defq6 and defq7 fail.
+	- Decisions:
+		- Off by default, so a panel doesn't widen on upgrade.
+		- In use is each theme's user color, and its gradient is the theme's CPU one, so Fire draws swap as a gradient. Randomize gives In use the lead role.
+		- One color, with no heading over it on the sub-tab, since there's one series.
+	- Branch: round-1026
+	- Test case: `graphs::tests::swap_is_off_by_default_and_draws_its_own_color_when_on` (defq5), `three_sit_side_by_side_and_the_pointer_finds_swap` (defq6), `hiding_swap_keeps_its_history_for_when_its_back` (defq7), and `live::tests::the_swap_row_draws_at_its_own_width` (defq8). defq6 and defq7 fail with swap left out of `Graphs`' slots.
+		- 2026-10-26: new values only. `config::tests::the_default_theme_is_the_row_defaults` (deccf) and `saved_themes_write_whole_and_read_back` count 24 theme members, not 19. `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme` counts 21 colors, not 17. `the_graph_order_reads_with_spaces_or_commas` (dedqq) has the default order `cpu mem swap`, not `cpu mem`. defkz's typed order reads back with `swap` at the end, and defm0's past-the-end move is 3, not 2, with `swap` in its orders. defma's rows greyed at defaults are `swap_width` and `swap_time`, not none, since Swap graph is off by default.
+		- Swept: every user of `Graphs.mem` (the plugin, `Live`, the profiler, the soak test), every `Which` match, the 6 built-in themes, and `dice::ROLES`, which the role test walks. The profiler and soak test run with the defaults, so they don't draw swap.
+
+- Battery graph
+	- ID: 2026102618353013
+	- Type: Feature
+	- Status: Waiting on UAT
+		- How it looks, in each theme, is for a person to judge, and b23 has no battery, so a laptop has to show it.
+		- It departs from the wording in one way. It's off by default, like swap. Turn it on in the graph list.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on a laptop, after an install, turn on Battery graph in the graph list, Apply, and judge how plugged in, on battery and critical look in Default and Fire.
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on any box yet.
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353000
+	- Related IDs: 2026102408512223
+	- Requirements:
+		- Charging, discharging, and discharging at the critical level, from the battery collector.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- The battery graph draws the charge in the color for its state, with its tip as "Battery 80%, on battery". It has a row in the graph list, at `battery.show`, `battery.width` and `battery.time`, and a Themes/Battery sub-tab with Plugged in, On battery and Critical, or Low, Medium and High.
+		- `graph.order` defaults to `cpu mem swap battery`.
+		- `design.md` XFCE plugin and Theme have the details.
+		- Verified: the full run passed. The tip test fails with its states swapped, and defqd with battery left out of `Graphs`' slots.
+	- Decisions:
+		- Off by default, as swap is.
+		- Plugged in is the theme's user color, on battery its system color and critical its I/O wait color, so on battery reads as a warning and critical as an alarm. Randomize gives them the lead, warn and alarm roles.
+		- The tip and the color say plugged in, not charging, since a full battery with the power in counts as charging.
+		- A default `BatteryReader` has no battery and reads as a gap, so tests can build the graph on a box with none.
+	- Branch: round-1026
+	- Test case: `graphs::tests::the_battery_graph_colors_the_charge_by_state` (defqc), `four_sit_side_by_side_and_battery_keeps_its_history_hidden` (defqd), and `live::tests::the_battery_row_is_there_only_with_a_battery_in` (defqe), which takes its no-battery branch on b23.
+		- 2026-10-26: new values only. deccf and `saved_themes_write_whole_and_read_back` count 31 theme members, not 24. `save_as_keeps_the_colors_whole_and_picks_the_new_theme` counts 27 colors, not 21. dedqq, defkz and defm0 have `battery` after `swap` in their orders, and defm0's past-the-end move is 4, not 3. defma's rows greyed at defaults add `battery_width` and `battery_time`.
+		- Swept: every `Which` match, the slots in `Graphs` and `Live`, the 6 built-in themes, and `dice::ROLES`.
+
+- Hosted workflow for the merge gate
+	- ID: 2026102513560001
+	- Type: Task
+	- Status: Waiting on automated testing
+	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
+	- Priority|Severity: Avg
+	- Opened: 20261025-135600
+	- Opened by: t00mietum
+	- Prereq IDs: 2026102416252892
+	- Related IDs: 2026102416252889
+	- Requirements:
+		- One small GitHub workflow on push and pull request against `main`, plus a manual trigger so any branch can be run by hand.
+		- It runs `cicd.bash --merge-gate`, as far as the runner can. No matrix, and no macOS runner, since it's Linux only for now.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `.github/workflows/merge-gate.yml` runs `cicd/cicd.bash --merge-gate` on a push or pull request against `main`, and by hand on any branch. It's one job on `ubuntu-24.04`, which builds the image from `cicd/container/` and runs the checks in it.
+	- Decisions:
+		- Asked for on 2026-10-25, in answer to the round settings question about a hosted workflow.
+		- No layer cache between runs, to keep it small. Each run builds the image first, which takes a few minutes.
+	- Branch: round-1025
+	- Test case: The workflow is its own test. Its first run is in the row above.
 
 - XFCE panel plugin
 	- ID: 2026101916013889
@@ -331,6 +387,82 @@ Sorted per the notes in [Template](#template).
 			- Can choose all disks, or specific drives.
 		- CPU Temperature; normal, critical on top of that when normal maxes out
 		- Battery; charging, discharging, discharging and critical level
+	- Progress log:
+		- CPU and memory draw. Every other source has a collector since round-1026.
+		- 2026-10-26: The swap and battery graphs are in, 2026102618353000 and 2026102618353013.
+		- 2026-10-26: Split into one child per graph not yet drawn: 2026102618353000 (swap), 2026102618353002 (zswap or zram), 2026102618353004 (network), 2026102618353006 (load), 2026102618353008 (disk), 2026102618353011 (temperature) and 2026102618353013 (battery). This closes with the last of them.
+
+- Zswap or zram graph
+	- ID: 2026102618353002
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353000
+	- Related IDs: 2026102408512197
+	- Requirements:
+		- % used, and a text number overlay for the compression ratio, e.g. "2.1x".
+		- No graph on a box with neither.
+
+- Network graph
+	- ID: 2026102618353004
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353000
+	- Related IDs: 2026102408512202, 2026101916013883
+	- Requirements:
+		- Local, sending, receiving, from the network collector.
+		- A peak level that adjusts itself, since bytes per second has no fixed top.
+
+- Load graph
+	- ID: 2026102618353006
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353004
+		- Shares the peak level the network graph brings, since load has no fixed top either.
+	- Related IDs: 2026102408512207
+	- Requirements:
+		- The 1 minute load, from the load collector.
+
+- Disk graph
+	- ID: 2026102618353008
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353004
+		- Shares the peak level the network graph brings.
+	- Related IDs: 2026102408512212
+	- Requirements:
+		- Write, read, from the disk collector.
+		- Auto-adjusts peak level.
+		- With optional logarithmic Y axis.
+		- Can choose all disks, or specific drives.
+
+- CPU temperature graph
+	- ID: 2026102618353011
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353000
+	- Related IDs: 2026102408512217
+	- Requirements:
+		- Normal, with critical on top of that when normal maxes out, from the temperature collector.
 
 - Color themes tab
 	- ID: 2026102408304612
@@ -386,169 +518,17 @@ Sorted per the notes in [Template](#template).
 		- Split into 6 children, in this order: 2026102508393152 (on or off and a width per graph), 2026102508393154 (order), 2026102508393156 (time function per graph), 2026102508393159 (theme per graph), 2026102508393161 (the list itself), and 2026102508393163 (live graphs in it).
 		- 2026-10-25: no theme dropdown per graph after all. One theme colors every graph, per the answer on 2026102508393159.
 
-- The graph list on the Graph tab
-	- ID: 2026102508393161
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261025-083931
-	- Opened by: t00mietum
-	- Parent ID: 2026102408304639
-	- Prereq IDs: 2026102508393152, 2026102508393154, 2026102508393156, 2026102508393159
-	- Requirements:
-		- A row per graph on the first tab, in columns: a checkbox to show it, a space for its live graph, its width as a text box, a time function dropdown, and a gripper on the right to drag it up or down.
-		- It replaces the per-graph rows under the Graphs heading.
-
-- Live graphs in the graph list
-	- ID: 2026102508393163
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261025-083931
-	- Opened by: t00mietum
-	- Parent ID: 2026102408304639
-	- Prereq IDs: 2026102508393161
-	- Requirements:
-		- Each row of the graph list draws its graph live.
-		- The longest graph sets the column's width, so the columns after it line up.
-
-- Zswap and zram collector
-	- ID: 2026102408512197
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-085122
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013884
-	- Prereq IDs: 2026102408512192
-	- Requirements:
-		- Zswap from `Zswap` and `Zswapped` in `/proc/meminfo`, as % used, plus the compression ratio for the text overlay.
-		- Zram from `/sys/block/zram*/mm_stat`, the same way, when there's no zswap.
-		- No collector on a kernel or box with neither.
-
-- Network collector
-	- ID: 2026102408512202
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-085122
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013884
-	- Prereq IDs: 2026102408512192
-	- Requirements:
-		- Bytes per second from `/proc/net/dev`: local (`lo`), sent, and received.
-		- Counters that wrap or reset, as when an interface goes away, make a gap, not a spike.
-
-- Load collector
-	- ID: 2026102408512207
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-085122
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013884
-	- Prereq IDs: 2026102408512192
-	- Requirements:
-		- The 1 minute load from `/proc/loadavg`.
-
-- Disk collector
-	- ID: 2026102408512212
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-085122
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013884
-	- Prereq IDs: 2026102408512192
-	- Requirements:
-		- Read and write bytes per second from `/proc/diskstats`, per device.
-		- Partitions left out of the total, so nothing is counted twice.
-		- All disks, or a chosen list of drives.
-
-- CPU temperature collector
-	- ID: 2026102408512217
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-085122
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013884
-	- Prereq IDs: 2026102408512192
-	- Requirements:
-		- The CPU package sensor under `/sys/class/hwmon`, with `temp*_crit` as the critical level where the sensor has one.
-		- No collector when no CPU sensor is found.
-
-- Battery collector
-	- ID: 2026102408512223
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-085122
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013884
-	- Prereq IDs: 2026102408512192
-	- Requirements:
-		- Charge and state from `/sys/class/power_supply/BAT*`: charging, discharging, and the critical level.
-		- No collector on a box with no battery.
-
-- CICD reset: CICD process gaps
-	- ID: 2026102416252898
-	- Type: Task
-	- Status: Waiting on UAT
-	- Needs hand testing: on b23, run `cicd/cicd.bash` with no options. It dogfoods, which restarts the live panel, so a round doesn't run it.
-	- Priority|Severity: Avg
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- A `cicd.bash` per the shared CICD rules, with remote sync first, format, build, lint, tests, release build, dogfood, and cleanup.
-		- `rust-toolchain.toml` pins the toolchain, and lint and audit tools are pinned in one place.
-		- Lint output rotated into `cicd/artifacts/lint/`, with a `--check` that prints only what's new.
-		- Leak checks: ASan, LSan, and UBSan over the Rust and the C++ shim, Miri, a soak test, clippy's `mem_forget` and `undocumented_unsafe_blocks`, and the known-advisory scan.
-		- `.deb` and `.rpm` packages, and a profiler stage.
-	- Progress log:
-		- `cicd/cicd.bash` runs remote sync, format, build, lint, tests, the release build and dogfood, then cleans up.
-		- `rust-toolchain.toml` pins Rust 1.96.0 with rustfmt and clippy. The lint tool versions are pinned in `cicd/config.bash`, and a run warns when the box has another.
-		- Lint output goes to `cicd/artifacts/lint/`, rotated. `cicd/utility/lint-report.bash --check` prints only what's new since the last look.
-		- The rest is split into children: leak checks 2026102506591278, packages 2026102506591283, and the profiler 2026102506591288.
-	- Decisions:
-		- Dogfood is `utility/dev-install.bash`. A panel plugin has to sit where the panel loads it, so the synced dogfood folder, which holds programs a person runs, doesn't fit.
-		- No `dogfood_tukzmon.ps1` launcher either. The panel starts the plugin and the plugin starts tukzmon-settings, so there's nothing for a person to launch.
-		- No publish step yet, since none was asked for here.
-	- Branch: round-1025
-	- 2026-10-25: every child is Done. Only the no-options run in the hand test row is left, which dogfoods.
-
-- CICD reset: leak checks
-	- ID: 2026102506591278
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261025-065912
-	- Opened by: t00mietum
-	- Parent ID: 2026102416252898
-	- Requirements:
-		- ASan, LSan and UBSan over the Rust and the C++ shim, Miri, a soak test, clippy's `mem_forget` and `undocumented_unsafe_blocks`, and the known-advisory scan.
-		- They run on a quarter of the CPUs, the heavy-step count `cicd.bash` already works out.
-	- Progress log:
-		- Split into children: clippy and the advisory scan 2026102516060718 (Done), sanitizers 2026102516060724, Miri 2026102516060729, and the soak test 2026102516060734.
-	- Branch: round-1025b
-	- All 4 children are Done as of 2026-10-25: clippy and advisories, sanitizers, Miri, and the soak test.
-	- Test case: Covered by its children's Test case rows.
-
-- tukzmon-settings --version aborts when its output can't be written
-	- ID: 2026102519030128
-	- Type: Bug
+- The panel's tick costs about a third more since the 50 ms history tier
+	- ID: 2026102618573801
+	- Type: Enhancement
 	- Status: Queued
 	- Priority|Severity: Low
-	- Opened: 20261025-190301
+	- Opened: 20261026-185738
 	- Opened by: t00mietum
-	- Version and build: v0.1.0 build deea9, and dedr4 on b23.
-	- Steps to reproduce:
-		- Run `tukzmon-settings --version > /dev/full`, or pipe it into `head -1`.
-	- Incorrect behavior: it panics with "failed printing to stdout" and aborts, with exit 134.
-	- Expected behavior: no panic. A closed pipe quits quietly, and a failed write gives one error line and a non-zero exit.
-	- Reproduced: 2026-10-25 on b23, 5 times out of 5 with `/dev/full`.
-	- Possible cause: `println!` in `settings/src/main.rs` panics on a failed write, and the release build aborts on a panic. `--help` likely does the same.
+	- Related IDs: 2026101916013885
+	- Requirements:
+		- The profiler's tick went from about 275 us to about 385 us on b23 on 2026-10-26, starting with the run for the finer history tiers (commit `6753a2b`). `History::span` went from about 28% to 38% of self time.
+		- Measure it against `dev` before that commit at the same load first. If it holds, make `span` cheaper over the new tier, or say why the cost is fine.
 
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
@@ -567,6 +547,273 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- History store
+	- ID: 2026101916013885
+	- Type: Feature
+	- Status: Done
+	- Needs local test suite run?: No. The full run's steps passed on 2026-10-26, Soak included. Its Lint step failed only on the test ID check, for 2026102416252898, which this didn't touch. Clippy, shellcheck and markdownlint passed.
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Prereq IDs: 2026101916013884
+	- Related IDs: 2026102408304572
+	- Requirements:
+		- These requirements suggest that all data points should be kept across all time, to continuously recalculate optimal averaging and antialiasing. But that would be impractical for year-long runs. The data will necessarily have to be more temporally compressed as it gets older. But the data will always necessarily need to be at a higher fidelity than the graph, so that:
+			- The user can widen the existing graph and not lose resolution.
+			- Averaging and antialiasing has enough higher-detailed data to work with.
+		- If the graph is closed and then re-opened, it should (optionally) re-load previous data - just with a blank representing the time it was not active. (That doesn't eventually get averaged as values of "0".)
+		- If the computer is off or rebooted, the graph should (optionally) re-load previous data, going back indefinitely - just with blank spaces representing the time it was not active. (That doesn't eventually get averaged as values of "0".)
+	- Note: the proposed tiers are in `design.md` under History.
+	- Estimated effort: High
+	- Actual effort: Low
+	- Progress log:
+		- The tiers are in and keep gaps as gaps. Saving and reloading across restarts isn't done yet.
+		- 2026-10-26: Saving and reloading was done in 2026102408304572, Keep across restarts, with a gap for the time it was down. Max age goes up to 36,500 days.
+		- What was left: a linear graph wider than 600 px at 500 ms, or at any rate under 250 ms, drew its left end from buckets coarser than a pixel.
+		- Tier 0 is now 50 ms buckets for 256 s, and the 250 ms tier is kept for 2048 s. A linear graph at the Width slider's top keeps a sample a pixel at every rate down to 50 ms.
+		- A history file from before, with 5 tiers, still loads, with the 50 ms tier empty.
+		- `design.md` History has the details.
+	- Decisions:
+		- Each fine tier is kept for 1024 times the next tier's bucket, from the Width slider's top. A wider typed width, or a 2x screen at a slow rate, can still reach a coarser tier at the left end. Covering 4096 px would take about 4 times as much.
+		- A full history takes about 0.8 MB more per CPU graph, on disk and in memory, about a quarter more than before.
+		- Decode takes today's tiers, or today's less the finest ones, not any mix, so a stale file still starts fresh.
+		- An older build refuses a file with the new tier and starts fresh. Only an upgrade keeps history.
+	- Branch: round-1026
+	- Test case: `history::tests::a_linear_graph_as_wide_as_the_slider_goes_keeps_a_sample_a_column` (defp6) and `a_file_from_before_the_finest_tier_still_loads` (defp7). Gaps: `gaps_are_left_out_not_zero` (debj0) and `a_long_gap_resets_a_tier_instead_of_filling_it` (debj2). Across restarts: 2026102408304572's tests, decbf to decbr. defp6 fails at 500 ms with the fine tier kept 5 minutes, and at 50 ms with 250 ms buckets. defp7 fails with decode taking only today's tier count.
+		- 2026-10-26: new values only. `old_buckets_age_out_of_the_fine_tier` (debj1) runs 10,000 samples, not 2,000, and bounds the 250 ms tier at 2048 s, not 300, so it still ages out. `decode_refuses_what_encode_wouldnt_write` (decbh) sets a bucket count of 9,000, not 5,000, to stay past the cap. debj0 and debj2 read tier indexes one higher, for the same tiers and values.
+		- Swept: every `TIERS` and `tiers[...]` use, all in `history.rs`, the one `History::decode` caller (`Graph::adopt`), and the soak test, which held flat at 4,899,278 bytes from round 9,000 to 18,000.
+	- Closed: 20261026-181900
+
+- CICD reset: containers
+	- ID: 2026102416252889
+	- Type: Task
+	- Status: Done
+		- It departs from the wording in one way. GTK 3 is in the image as its runtime libraries, not the dev package, since the plugin links GTK, cairo and the panel library by soname. The Debian snapshot the image reads pins them, as it does Qt.
+		- Stand-in, 2026-10-25: `--list` for the default run shows Release build and Dogfood on the host, and the merge gate on e131b57 passed in the image. Only the run that dogfoods is left, which a round may not do.
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+	- Related IDs: 2026102416252898
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- There's no pipeline yet, and every check runs on the host. Build and test in a pinned image from a recipe in the repo, with the Rust toolchain, Qt 6 and GTK 3 pinned.
+		- A missing docker falls back to the host with one line, and never fails a run. `--no-container` runs on the host on purpose.
+		- Tests that need a real panel or display run on the host.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- `cicd/container/` holds the recipe: Debian trixie by digest, apt from a dated snapshot, Qt 6 Widgets dev, the GTK 3 and panel libraries, the Rust toolchain from `rust-toolchain.toml`, and shellcheck and markdownlint at the `cicd/config.bash` pins. The tag is a hash of the recipe, so an edit means a new image.
+		- `cicd.bash` builds the image when its tag is missing, checks it has the pinned Rust, and fetches the crates. Format, build, lint, tests and the release build then run in it offline, as the caller's uid, into `target/container`.
+		- Remote sync and dogfood stay on the host, and so does the release build in a run that dogfoods, since that build is what gets installed. A test that needs a real panel or display gets a step left out of `CTR_STEPS` in `cicd/config.bash`. None does yet.
+		- No docker, a docker that doesn't answer, or an image that won't build is one line, and the run goes on on the host.
+		- Verified: `--backlog-run-full` passed in the image, and so did a run in a linked worktree building into `target/gate`, as the pre-push hook does. A planted format error failed it. A docker that didn't answer and an image that failed to build each fell back to the host with one line, and passed.
+	- Decisions:
+		- The image has its own target dir. The paths inside differ from the host's, so a shared `target/` would rebuild everything each time a run switched sides.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892. The gate was watched to fail on a planted format error.
+	- Verified 2026-10-26: `cicd/cicd.bash` with no options passed all 13 steps in 2m08s on b23, Dogfood included, with `xfce4-panel` on PATH as a stand-in that logged `--restart` instead of restarting the live panel. b23 now has build defnz installed, and the panel loads it at its next restart.
+
+- Battery collector
+	- ID: 2026102408512223
+	- Type: Feature
+	- Status: Done
+		- Verified on file layouts only. This box has no `BAT*` battery, so defny returned early and the live path hasn't run on real hardware.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Requirements:
+		- Charge and state from `/sys/class/power_supply/BAT*`: charging, discharging, and the critical level.
+		- No collector on a box with no battery.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- `core/src/battery.rs` has `BatteryReader`, with series charging, discharging and critical. The charge, as a share of full, goes in the one for the state, the way multiload-ng does it.
+		- The charge is `energy_now / energy_full`, or else `charge_now / charge_full`, or else `capacity`. Critical is `capacity_level` at `Critical`, or 4% or less when there's no level.
+		- A mouse's battery, an empty slot, or a `BAT*` whose `type` isn't `Battery` gives no collector.
+		- Nothing draws it yet. That's The graphs, 2026101916013887.
+		- `design.md` Data sources on Linux has the details.
+		- Verified: the full run passed, with made-up `power_supply` trees for one battery, two, an empty slot and a mouse's.
+	- Decisions:
+		- Every `BAT*` battery is read as one, not just the first as in multiload-ng, so a laptop with 2 shows its whole charge. Their energy or charge adds up, or their shares are averaged when they count in different units.
+		- Discharging is any battery's `status` saying so. Full, `Not charging` and `Unknown` count as charging, since the power's in. multiload-ng counts `Not charging` as discharging.
+		- With 2 batteries, critical needs both at `Critical`, since a laptop drains one first.
+		- No `current_now` check, unlike multiload-ng. `status` is what the kernel says the state is.
+		- A battery taken out drops out. With none left it's a gap. A battery put in after start isn't seen until the next start, like the temperature sensors.
+	- Branch: round-1026
+	- Test case: `battery::tests` (5: defnt, defnv, defnw, defnx, defny). defnx fails with the `BAT` name check taken out, defnw with one battery at `Critical` enough, defnv with the 4% rule taken out, and defnw and defnx with `present` ignored.
+		- Swept: the temperature collector, the other `/sys` reader, which also skips what it can't read and gives no collector when nothing reads at start.
+	- Verified 2026-10-26: on b28l, a laptop on AC with BAT0 full, the 5 battery tests passed from a b23 build of the core test binary, and strace showed defny reading 13 BAT0 files, so it didn't skip. The on-battery path is covered by the made-up trees in defnv and defnw only.
+
+- Core library and Linux collectors
+	- ID: 2026101916013884
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Prereq IDs: 2026101916013881
+	- Requirements:
+		- A Rust library with no GUI toolkit in it.
+		- Reads every graph's numbers on Linux, from the sources listed in `design.md`.
+		- A graph whose source is missing, like a desktop with no battery, is hidden.
+	- Progress log:
+		- CPU from `/proc/stat` works. The other graphs aren't started.
+		- 2026-10-24: Split into one child per source: 2026102408512192 (the collector trait, memory and swap), 2026102408512197 (zswap and zram), 2026102408512202 (network), 2026102408512207 (load), 2026102408512212 (disk), 2026102408512217 (temperature), and 2026102408512223 (battery). This closes with the last of them.
+	- Test case: its children's tests: memory and swap on 2026102408512192, zswap defmz to defn3, slab defmy, network and disk on 2026102408512202 and 2026102408512212, load defnj and defnk, temperature defnm to defnr, battery defnt to defny
+	- 2026-10-26: every child is Done. Each collector's probe gives none when its source is missing, which is what hides its graph. Drawing them is The graphs, 2026101916013887.
+
+- Load collector
+	- ID: 2026102408512207
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Related IDs: 2026102408512217
+	- Requirements:
+		- The 1 minute load from `/proc/loadavg`.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `core/src/load.rs` has `LoadReader`, with one series, load, as the kernel gives it. Junk, or a value below 0, reads as a gap.
+		- Nothing draws it yet. That's The graphs, 2026101916013887.
+		- Verified: the full run passed, with a live read of this box's `/proc/loadavg`.
+	- Decisions:
+		- Load stays as the kernel's number, not a share of the CPU count. Scaling it is the graph's call.
+	- Branch: round-1026
+	- Test case: `load::tests::the_first_column_is_the_load` (defnj) and `live_proc_loadavg_reads` (defnk). defnj fails with the range check taken out.
+	- Closed: 20261026-175458
+
+- CPU temperature collector
+	- ID: 2026102408512217
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Related IDs: 2026102408512207
+	- Requirements:
+		- The CPU package sensor under `/sys/class/hwmon`, with `temp*_crit` as the critical level where the sensor has one.
+		- No collector when no CPU sensor is found.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- `core/src/temp.rs` has `TempReader`, with one series, temp, in degrees C, and `crit()` for the critical level. Both are read off the sensors found at start.
+		- The package sensor is `Package id` on Intel's `coretemp`, `Tdie` or else `Tctl` on AMD's `k10temp` and `zenpower`, and the first sensor on Arm's `cpu_thermal`. Other drivers, such as `acpitz`, `nvme` and the board's, give no collector.
+		- The test tree for made-up `/sys` files moved from zswap's tests to `collect::Tree`, so both share it.
+		- Nothing draws it yet. That's The graphs, 2026101916013887.
+		- `design.md` Data sources on Linux has the details.
+		- Verified: the full run passed. This box has `k10temp` with `Tctl` and no crit, and the tests mirror that layout.
+	- Decisions:
+		- With more than one socket it's the hottest package, and the lowest crit, since either one getting hot is what matters.
+		- `acpitz` is left out. It's a board zone, often fixed or far from the CPU, and reads as CPU only on some laptops.
+		- A sensor that stops reading drops out. When all have, it's a gap.
+	- Branch: round-1026
+	- Test case: `temp::tests` (5: defnm, defnn, defnp, defnq, defnr). defnm and defnp fail with every labeled `coretemp` sensor taken, and defnp with the coolest package taken.
+		- Swept: zswap's tests, which now use the shared `collect::Tree`, and pass.
+	- Closed: 20261026-175458
+
+- Network collector
+	- ID: 2026102408512202
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Related IDs: 2026102408512212, 2026101916013883
+	- Requirements:
+		- Bytes per second from `/proc/net/dev`: local (`lo`), sent, and received.
+		- Counters that wrap or reset, as when an interface goes away, make a gap, not a spike.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- `core/src/net.rs` has `NetReader`, with series local, sent and received, in bytes per second. The first read only primes it.
+		- `Climb` in `core/src/collect.rs` turns named counters into rates, and the disk collector shares it. It keeps each interface's counters, so one coming or going, or one going down, makes that sample a gap.
+		- Nothing draws it yet. That's The graphs, 2026101916013887.
+		- `design.md` Data sources on Linux has the details.
+		- Verified: the full run passed. A live read on this box gave finite rates of 0 or more.
+	- Decisions:
+		- Local is what `lo` received, not received plus sent, since loopback receives everything it sends.
+		- Any interface coming or going makes a gap, not just one going away. Its bytes for that stretch aren't known either way.
+		- Every interface but `lo` adds to sent and received, bridges and container veths too, so traffic through a bridge counts on both sides. Leaving out the virtual ones is easy to add if it shows.
+	- Branch: round-1026
+	- Test case: `net::tests` (4: defn9, defna, defnb, defnc) and `collect::tests::climb_primes_then_gives_rates_and_gaps` (defnd). defnb and defnd fail with the row and counter checks taken out of `Counts::rise_since`.
+		- Swept: the other counter collector, CPU's `shares`, which already gaps on a counter going down.
+	- Closed: 20261026-174806
+
+- Disk collector
+	- ID: 2026102408512212
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Related IDs: 2026102408512202
+	- Requirements:
+		- Read and write bytes per second from `/proc/diskstats`, per device.
+		- Partitions left out of the total, so nothing is counted twice.
+		- All disks, or a chosen list of drives.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- `core/src/disk.rs` has `DiskReader`, with series write and read, in bytes per second, over each device's counters. `probe()` counts all disks, and `DiskReader::new(Drives::Only(..))` takes a list of names.
+		- All disks is each device with a `device` link under `/sys/block`, which leaves out partitions and what's stacked on a disk, such as LUKS, LVM, RAID, loop and zram.
+		- A counted drive coming or going, or a counter going down, makes a gap. A partition or loop device coming or going doesn't.
+		- Nothing draws it, and settings has no drive list yet. That's The graphs, 2026101916013887.
+		- `design.md` Data sources on Linux has the details.
+		- Verified: the full run passed. On this box no partition was taken as a disk, and dm-0, the LUKS device on sdd2, was left out.
+	- Decisions:
+		- Stacked devices are left out of all disks too, not just partitions, since each of their reads is counted again on the disk below.
+		- No disk at all, as in a container, gives no collector for all disks. A chosen list always gets one, and a drive on it that isn't plugged in reads as 0.
+		- A chosen list counts what's on it as is, so picking a disk and its partition counts both.
+	- Branch: round-1026
+	- Test case: `disk::tests` (4: defne, defnf, defng, defnh), plus defnd for the shared gaps. defnf fails with partitions and stacked devices taken as disks, and defng with the gap checks taken out.
+		- Swept: the network collector, which shares `Climb`.
+	- Closed: 20261026-174806
+
+- Zswap and zram collector
+	- ID: 2026102408512197
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Requirements:
+		- Zswap from `Zswap` and `Zswapped` in `/proc/meminfo`, as % used, plus the compression ratio for the text overlay.
+		- Zram from `/sys/block/zram*/mm_stat`, the same way, when there's no zswap.
+		- No collector on a kernel or box with neither.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- `core/src/zswap.rs` has `ZswapReader`. It reads zswap when it's on, and every zram device there at start when it isn't. `ratio()` gives the last read's ratio for the overlay, and `name()` says which it is.
+		- Nothing draws it yet. That's The graphs, 2026101916013887.
+		- `design.md` Data sources on Linux has the details.
+		- Verified: on this box, with zswap on and no zram, the live read gives a share in range.
+	- Decisions:
+		- Zswap's % used is the pool against `max_pool_percent` of all memory, the point it stops taking pages. Zram's is what it holds, before compression, against `disksize`. Both read as how close it is to full.
+		- The ratio isn't a series, so it stays out of the history file. The overlay shows the latest.
+		- Zswap on with no rows to read, as on an old kernel, falls to zram.
+		- zram devices are summed, and one added after start is missed until the panel restarts.
+	- Branch: round-1026
+	- Test case: `zswap::tests` (5: defmz, defn0, defn1, defn2, defn3). defn1 fails with zswap taken whenever it's on, rows or not.
+		- 2026-10-26: `mem::tests::reads_the_rows` (decax) now checks the 3 new rows too, at `SReclaimable` 0, `Zswap` 0 and no `Zswapped`. `odd_counts_stay_in_range` (decb1) leaves them at their defaults. Nothing else in either changed.
+		- Swept: the only `/proc/meminfo` parser, `mem::parse_meminfo`, which both readers share.
+	- Closed: 20261026-173826
 
 - Proof of concept: CPU graph in the XFCE panel, dogfooded on b23
 	- ID: 2026102319155124
@@ -1088,6 +1335,245 @@ Sorted per the notes in [Template](#template).
 		- Swept: every theme group member and every Themes sub-tab, through the rows qt.cpp gets.
 	- Closed: 20261025-183450
 
+- CICD reset: a test for every Done item
+	- ID: 2026102416252894
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- 4 Done items have no `Test case` row. The build date one needs a test. The 3 answered questions get a few words on why there's none.
+		- Every Done feature and bug from now on names its test's ID, or says why it has none.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The build date item names the version line's test, which checks the date in the viewer's time zone. The 3 questions each say why they have none.
+		- The test ID check in lint now fails on a Done item with no `Test case` row, and on an ID a `Test case` row names that no test has.
+		- Verified: the check failed on a planted Done item with no row, and on a row naming an unknown ID.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892. The check was watched to fail on both.
+	- Closed: 20261025-075906
+
+- CICD reset: container cleanup
+	- ID: 2026102416252890
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Prereq IDs: 2026102416252889
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Every container, image, and volume gets `dev.project=tukzmon` and `dev.run=<run folder name>`, and containers are named `tukzmon-<run folder name>-<step>`.
+		- Containers run with `--rm`, unless `--keep-temp` was passed. The run's containers are removed by label at its end, on failure and Ctrl+C too.
+		- The project's dangling images go, and older tags once a newer one has passed, keeping the current tag and the one before it. Then `docker builder prune -f --filter until=168h`.
+		- Nothing without the project's label is touched. The end of the run says what it removed and about what that freed.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Every container is named `tukzmon-<run folder name>-<step>` and has both labels, and so does the image. Containers run with `--rm` unless `--keep-temp` was passed, which keeps them and says how to list them.
+		- At the end, on failure and Ctrl+C too, the run's containers are stopped and removed by label. Then the project's dangling images go, and its older tags once this run's image has answered, keeping it and the one before. Then the build cache prune.
+		- Nothing is removed by force, and only what has the project's label. The end of the run names what went, about what it freed by `docker system df` before and after, and what the prune took.
+		- Verified: a Ctrl+C mid-build stopped its container at once, a container left running was removed by label, `--keep-temp` kept the run's 2, and 3 recipe changes in a row kept the current tag and the one before.
+	- Decisions:
+		- No volumes. The image's cargo home and target dir are folders under `target/container`, so `cargo clean` takes them too.
+		- Tags are ordered by a `dev.built` label set at build time, since a build from cache gives every tag the same creation time.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892.
+	- Closed: 20261025-073422
+
+- CICD reset: step output
+	- ID: 2026102416252893
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Each step prints the shared lines: a 79 character rule, `[ YYYYmmDD-HHMMSS.NN: Step 1 of 9; Starting Format ]`, its output, then `PASS Format` or `FAIL Format` in the same form.
+		- Steps turned off aren't counted, and the first section lists them with the flag or reason.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Each step prints the 79 character rule, `[ <time>: Step 1 of 5; Starting Format ]`, its output, and the `PASS` or `FAIL` line in the same form, then a blank line.
+		- The first section lists the steps, then every step that's off, with the flag or the reason.
+		- Verified: in a quick run, a full run, and runs that failed at Format and at Lint.
+	- Branch: round-1025
+	- Test case: None in the repo, as for 2026102416252892.
+	- Closed: 20261025-071028
+
+- Update default colors to my current selection
+	- ID: 2026102408304559
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-082803
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304612
+	- Requirements:
+		- Update default colors to use my current selection.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The current selection is the colors in b23's `~/.config/tukzmon/tukzmon.shcl`. It changes 2 of them: system is `#c64600` and nice is `#205f40`. Those are the built-in defaults now. The other CPU and background colors were already the same.
+	- Decisions:
+		- The file also sets sample time to 1000 ms. That isn't a color, so the default stays 500 ms.
+	- Branch: round-1024
+	- Test case: `config::tests::defaults_are_the_multiload_colors` (debhj) and `config::tests::a_file_overrides_and_bad_lines_fall_back` (debhk). Both fail on the old defaults and pass now.
+		- 2026-10-24: both asserts got new values only. System went from `#008000` to `#c64600`, and nice from `#c000c0` to `#205f40`, in both tests.
+	- Closed: 20261024-090621
+
+- Collector trait, memory and swap
+	- ID: 2026102408512192
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Related IDs: 2026102408304625
+	- Requirements:
+		- One collector trait, which every source sits behind. CPU moves onto it.
+		- A source that isn't there gives no collector, so its graph can be hidden.
+		- Memory from `/proc/meminfo`, stacked user, buffers, cache.
+		- Swap from `/proc/meminfo`, as % used.
+	- Progress log:
+		- `core/src/collect.rs` has the `Collector` trait. `probe()` gives None when the source isn't there, and the graph is hidden off that. CPU is on it now.
+		- `core/src/mem.rs` reads memory and swap. A box with no swap gets no swap collector, and swap turned off later reads as a gap.
+		- Nothing draws them yet. That's the memory graph item and The graphs.
+	- Decisions:
+		- Cache is the `Cached` row alone, the way multiload-ng counts it by its base formula. `free` adds `SReclaimable`. Noted in `design.md`.
+	- Test case: `mem::tests` (6: decax, decay, decaz, decb0, decb1, decb2) and `collect::tests::slurp_reuses_and_misses` (decaw).
+	- Closed: 20261024-085549
+
+- Finish the requirement for moving between time spans
+	- ID: 2026101916013880
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013886
+	- Requirements:
+		- The log axis item has a sentence that stops partway: "The transition from 1m to 1h to 1d to "everything" should".
+	- Progress log:
+		- Finished: it should be smooth, with no obvious gate or line behind the scenes. `design.md` has how under Time axis.
+	- Test case: None, since it was a question. The log axis item's tests cover the answer.
+	- Closed: 20261019
+
+- Confirm the language split
+	- ID: 2026101916013881
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013889
+	- Requirements:
+		- OK or change the proposal in `design.md` under Code layout: a Rust core library, and a short C file per panel only where the panel API is C.
+	- Progress log:
+		- OK'd as proposed. `design.md` now lists it as settled.
+	- Test case: None, since it was a question about the code layout.
+	- Closed: 20261019
+
+- CICD reset: CICD process gaps
+	- ID: 2026102416252898
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261024-162528
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- A `cicd.bash` per the shared CICD rules, with remote sync first, format, build, lint, tests, release build, dogfood, and cleanup.
+		- `rust-toolchain.toml` pins the toolchain, and lint and audit tools are pinned in one place.
+		- Lint output rotated into `cicd/artifacts/lint/`, with a `--check` that prints only what's new.
+		- Leak checks: ASan, LSan, and UBSan over the Rust and the C++ shim, Miri, a soak test, clippy's `mem_forget` and `undocumented_unsafe_blocks`, and the known-advisory scan.
+		- `.deb` and `.rpm` packages, and a profiler stage.
+	- Progress log:
+		- `cicd/cicd.bash` runs remote sync, format, build, lint, tests, the release build and dogfood, then cleans up.
+		- `rust-toolchain.toml` pins Rust 1.96.0 with rustfmt and clippy. The lint tool versions are pinned in `cicd/config.bash`, and a run warns when the box has another.
+		- Lint output goes to `cicd/artifacts/lint/`, rotated. `cicd/utility/lint-report.bash --check` prints only what's new since the last look.
+		- The rest is split into children: leak checks 2026102506591278, packages 2026102506591283, and the profiler 2026102506591288.
+	- Decisions:
+		- Dogfood is `utility/dev-install.bash`. A panel plugin has to sit where the panel loads it, so the synced dogfood folder, which holds programs a person runs, doesn't fit.
+		- No `dogfood_tukzmon.ps1` launcher either. The panel starts the plugin and the plugin starts tukzmon-settings, so there's nothing for a person to launch.
+		- No publish step yet, since none was asked for here.
+	- Branch: round-1025
+	- 2026-10-25: every child is Done. Only the no-options run in the hand test row is left, which dogfoods.
+	- Verified 2026-10-26: `cicd/cicd.bash` with no options passed all 13 steps in 2m08s on b23, Dogfood included, with `xfce4-panel` on PATH as a stand-in that logged `--restart` instead of restarting the live panel. b23 now has build defnz installed, and the panel loads it at its next restart.
+	- Test case: none in the repo. `cicd/cicd.bash` with no options, all 13 steps at PASS, is the check.
+
+- Memory cache counts slab, the way b23's multiload-ng does
+	- ID: 2026102508354893
+	- Type: Enhancement
+	- Status: Done
+		- Answered 2026-10-25: yes, count reclaimable slab as cache, always, like `free`.
+	- Priority|Severity: Avg
+	- Opened: 20261025-083548
+	- Opened by: t00mietum
+	- Related IDs: 2026102408512192, 2026102408304625
+	- Requirements:
+		- b23's multiload-ng has `graph-mem-procps-compliant=true`, so it counts slab as cache. tukzmon counts `Cached` alone, per 2026102408512192, so its cache band is thinner and user thicker than multiload-ng showed.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Cache is `Cached` plus `SReclaimable` now. Slab that can't be reclaimed stays in user. `design.md` Data sources on Linux says so.
+	- Decisions:
+		- This replaces the `Cached` alone decision on 2026102408512192.
+		- No setting for it, per the answer.
+	- Branch: round-1026
+	- Test case: `mem::tests::cache_takes_in_reclaimable_slab_and_user_keeps_the_rest` (defmy). It fails with cache as `Cached` alone, and passes with the fix.
+		- Swept: `memory_shares` is the one place cache is worked out. The other `mem::tests` pass unchanged, since their rows have no `SReclaimable`.
+	- Closed: 20261026-173826
+
+- CICD reset: leak checks, Miri
+	- ID: 2026102516060729
+	- Type: Task
+	- Status: Done
+	- Needs local test suite run?: No. The full Miri step passed on 2026-10-25.
+	- Priority|Severity: Avg
+	- Opened: 20261025-160607
+	- Opened by: t00mietum
+	- Parent ID: 2026102506591278
+	- Prereq IDs: 2026102516060724
+	- Requirements:
+		- The test suite under Miri, on the nightly the sanitizers pin, on a quarter of the CPUs.
+		- A test that needs FFI or files Miri can't reach gets `cfg_attr(miri, ignore)` with a one-line reason.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A Miri step runs the tests under Miri on the nightly the sanitizers use, which the image now gets with miri. Each test gets a Miri of its own, a quarter of the CPUs at a time, since Miri runs a whole test binary on one core.
+		- Miri can reach the host's files and clock, so the collector and history file tests run under it. 2 tests call C for the locale's time format, and 14 settings window tests save through shcl, which fsyncs the folder, which Miri can't. Those are ignored under Miri, each with its reason.
+		- Miri rounds `ln` and its kin a little differently on each call, so the step makes its floats deterministic, as they are on the box. Without that, the log axis test and a knobs slider test each saw the same value worked out twice come out unequal in the last digit. Both pass with it.
+		- `TUKZMON_MIRI_FILTER` runs only the tests with that in their name, such as to rerun one.
+		- Verified: a planted read past the end of a Vec, a `Box::leak`, and a failed assert each failed the step in the image, each on a FAIL line with its test ID. The other 8 axis tests passed.
+	- Decisions:
+		- It's a leak check that takes hours, so it runs only in `--long`, with `--leakcheck`, or as the `miri` area. The tests took about 7 hours of CPU under Miri one at a time, so nearly an hour at 8 at a time, which would push the default run past its hour. A test that parses the settings spec takes 3 to 11 minutes. One dice test ran past 20 minutes and wasn't waited for, so the step takes at least that long.
+	- Branch: round-1025b
+	- Test case: None in the repo, as for 2026102516060718. The step was watched to fail.
+	- Verified 2026-10-25: `cicd/cicd.bash --backlog-run-quick miri` on 5c996ac passed in 68m 51s, with 154 tests, 16 of them skipped by their ignore attributes. Log was in the round's run folder.
+
+- CICD reset: leak checks
+	- ID: 2026102506591278
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261025-065912
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- ASan, LSan and UBSan over the Rust and the C++ shim, Miri, a soak test, clippy's `mem_forget` and `undocumented_unsafe_blocks`, and the known-advisory scan.
+		- They run on a quarter of the CPUs, the heavy-step count `cicd.bash` already works out.
+	- Progress log:
+		- Split into children: clippy and the advisory scan 2026102516060718 (Done), sanitizers 2026102516060724, Miri 2026102516060729, and the soak test 2026102516060734.
+	- Branch: round-1025b
+	- All 4 children are Done as of 2026-10-25: clippy and advisories, sanitizers, Miri, and the soak test.
+	- Test case: Covered by its children's Test case rows.
+
 - CICD reset: version line
 	- ID: 2026102416252897
 	- Type: Task
@@ -1246,150 +1732,6 @@ Sorted per the notes in [Template](#template).
 	- Test case: None in the repo, as for 2026102416252892. Each check was watched to fail.
 	- Closed: 20261025-160906
 
-- CICD reset: a test for every Done item
-	- ID: 2026102416252894
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- 4 Done items have no `Test case` row. The build date one needs a test. The 3 answered questions get a few words on why there's none.
-		- Every Done feature and bug from now on names its test's ID, or says why it has none.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- The build date item names the version line's test, which checks the date in the viewer's time zone. The 3 questions each say why they have none.
-		- The test ID check in lint now fails on a Done item with no `Test case` row, and on an ID a `Test case` row names that no test has.
-		- Verified: the check failed on a planted Done item with no row, and on a row naming an unknown ID.
-	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892. The check was watched to fail on both.
-	- Closed: 20261025-075906
-
-- CICD reset: container cleanup
-	- ID: 2026102416252890
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Prereq IDs: 2026102416252889
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- Every container, image, and volume gets `dev.project=tukzmon` and `dev.run=<run folder name>`, and containers are named `tukzmon-<run folder name>-<step>`.
-		- Containers run with `--rm`, unless `--keep-temp` was passed. The run's containers are removed by label at its end, on failure and Ctrl+C too.
-		- The project's dangling images go, and older tags once a newer one has passed, keeping the current tag and the one before it. Then `docker builder prune -f --filter until=168h`.
-		- Nothing without the project's label is touched. The end of the run says what it removed and about what that freed.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- Every container is named `tukzmon-<run folder name>-<step>` and has both labels, and so does the image. Containers run with `--rm` unless `--keep-temp` was passed, which keeps them and says how to list them.
-		- At the end, on failure and Ctrl+C too, the run's containers are stopped and removed by label. Then the project's dangling images go, and its older tags once this run's image has answered, keeping it and the one before. Then the build cache prune.
-		- Nothing is removed by force, and only what has the project's label. The end of the run names what went, about what it freed by `docker system df` before and after, and what the prune took.
-		- Verified: a Ctrl+C mid-build stopped its container at once, a container left running was removed by label, `--keep-temp` kept the run's 2, and 3 recipe changes in a row kept the current tag and the one before.
-	- Decisions:
-		- No volumes. The image's cargo home and target dir are folders under `target/container`, so `cargo clean` takes them too.
-		- Tags are ordered by a `dev.built` label set at build time, since a build from cache gives every tag the same creation time.
-	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892.
-	- Closed: 20261025-073422
-
-- CICD reset: step output
-	- ID: 2026102416252893
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261024-162528
-	- Opened by: t00mietum
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- Each step prints the shared lines: a 79 character rule, `[ YYYYmmDD-HHMMSS.NN: Step 1 of 9; Starting Format ]`, its output, then `PASS Format` or `FAIL Format` in the same form.
-		- Steps turned off aren't counted, and the first section lists them with the flag or reason.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- Each step prints the 79 character rule, `[ <time>: Step 1 of 5; Starting Format ]`, its output, and the `PASS` or `FAIL` line in the same form, then a blank line.
-		- The first section lists the steps, then every step that's off, with the flag or the reason.
-		- Verified: in a quick run, a full run, and runs that failed at Format and at Lint.
-	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892.
-	- Closed: 20261025-071028
-
-- Update default colors to my current selection
-	- ID: 2026102408304559
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261024-082803
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304612
-	- Requirements:
-		- Update default colors to use my current selection.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- The current selection is the colors in b23's `~/.config/tukzmon/tukzmon.shcl`. It changes 2 of them: system is `#c64600` and nice is `#205f40`. Those are the built-in defaults now. The other CPU and background colors were already the same.
-	- Decisions:
-		- The file also sets sample time to 1000 ms. That isn't a color, so the default stays 500 ms.
-	- Branch: round-1024
-	- Test case: `config::tests::defaults_are_the_multiload_colors` (debhj) and `config::tests::a_file_overrides_and_bad_lines_fall_back` (debhk). Both fail on the old defaults and pass now.
-		- 2026-10-24: both asserts got new values only. System went from `#008000` to `#c64600`, and nice from `#c000c0` to `#205f40`, in both tests.
-	- Closed: 20261024-090621
-
-- Collector trait, memory and swap
-	- ID: 2026102408512192
-	- Type: Feature
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261024-085122
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013884
-	- Related IDs: 2026102408304625
-	- Requirements:
-		- One collector trait, which every source sits behind. CPU moves onto it.
-		- A source that isn't there gives no collector, so its graph can be hidden.
-		- Memory from `/proc/meminfo`, stacked user, buffers, cache.
-		- Swap from `/proc/meminfo`, as % used.
-	- Progress log:
-		- `core/src/collect.rs` has the `Collector` trait. `probe()` gives None when the source isn't there, and the graph is hidden off that. CPU is on it now.
-		- `core/src/mem.rs` reads memory and swap. A box with no swap gets no swap collector, and swap turned off later reads as a gap.
-		- Nothing draws them yet. That's the memory graph item and The graphs.
-	- Decisions:
-		- Cache is the `Cached` row alone, the way multiload-ng counts it by its base formula. `free` adds `SReclaimable`. Noted in `design.md`.
-	- Test case: `mem::tests` (6: decax, decay, decaz, decb0, decb1, decb2) and `collect::tests::slurp_reuses_and_misses` (decaw).
-	- Closed: 20261024-085549
-
-- Finish the requirement for moving between time spans
-	- ID: 2026101916013880
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261019-160138
-	- Opened by: t00mietum
-	- Related IDs: 2026101916013886
-	- Requirements:
-		- The log axis item has a sentence that stops partway: "The transition from 1m to 1h to 1d to "everything" should".
-	- Progress log:
-		- Finished: it should be smooth, with no obvious gate or line behind the scenes. `design.md` has how under Time axis.
-	- Test case: None, since it was a question. The log axis item's tests cover the answer.
-	- Closed: 20261019
-
-- Confirm the language split
-	- ID: 2026101916013881
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261019-160138
-	- Opened by: t00mietum
-	- Related IDs: 2026101916013889
-	- Requirements:
-		- OK or change the proposal in `design.md` under Code layout: a Rust core library, and a short C file per panel only where the panel API is C.
-	- Progress log:
-		- OK'd as proposed. `design.md` now lists it as settled.
-	- Test case: None, since it was a question about the code layout.
-	- Closed: 20261019
-
 - CICD reset: temp files and safe removal
 	- ID: 2026102416252896
 	- Type: Task
@@ -1449,6 +1791,62 @@ Sorted per the notes in [Template](#template).
 		- A LAN and internet split is its own item, 2026101916274800.
 	- Test case: None, since it was a question. The network collector's tests will cover the answer.
 	- Closed: 20261019
+
+- Settings rows that depend on a switch are never greyed
+	- ID: 2026102617084201
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261026-170842
+	- Opened by: t00mietum
+	- Related IDs: 2026102508393161
+	- Steps to reproduce:
+		- In the settings window, turn off a switch that other rows depend on.
+	- Incorrect behavior: the rows that depend on it stay enabled. `qt.cpp` ignores the knobs `counts` state.
+	- Expected behavior: they grey out, the way the graph list greys a hidden graph's width and time axis.
+	- Reproduced: yes, 2026-10-26: with every switch off, the window greyed none of the rows under them.
+	- Actual cause: `refresh` in `qt.cpp` never read `counts`. Only the graph list's own refresh did, for its width and time axis.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A row's label and control are greyed while a switch above it is off: Log curve and Spike emphasis under Log time axis, Max age in days under Keep across restarts, and a hidden graph's width and time axis.
+		- The graph list now greys through the same code as every other row.
+		- `design.md` Settings window says so.
+		- Verified: the full run passed, and defma failed with the fix taken out.
+	- Decisions:
+		- The revert arrow stays live on a greyed row, as it does in the graph list, so a value can still be put back while its switch is off.
+		- One place greys rows, `refresh`, rather than a second copy in the list's refresh.
+	- Actual fix: `refresh` sets each row's label and control enabled from `counts`.
+	- Branch: round-1026
+	- Test case: `bridge::tests::a_row_is_greyed_while_its_switch_is_off` (defma). It builds the window off screen and checks the greyed rows match the gated ones, with every switch on and then off. It fails without the fix.
+		- Swept: every `setEnabled` in `qt.cpp`, the graph list's refresh, and every `gate:` in `core/src/settings.shcl`, which the test walks.
+	- Closed: 20261026-171422
+
+- tukzmon-settings --version aborts when its output can't be written
+	- ID: 2026102519030128
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261025-190301
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build deea9, and dedr4 on b23.
+	- Steps to reproduce:
+		- Run `tukzmon-settings --version > /dev/full`, or pipe it into `head -1`.
+	- Incorrect behavior: it panics with "failed printing to stdout" and aborts, with exit 134.
+	- Expected behavior: no panic. A closed pipe quits quietly, and a failed write gives one error line and a non-zero exit.
+	- Reproduced: 2026-10-25 on b23, 5 times out of 5 with `/dev/full`.
+	- Possible cause: `println!` in `settings/src/main.rs` panics on a failed write, and the release build aborts on a panic. `--help` likely does the same.
+	- Actual cause: `println!` and `eprintln!` panic on a failed write, and the release build aborts on a panic. `--help` did the same. The usage and error paths used them too.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Output now goes through `print_text` and `complain` in `settings/src/main.rs`. A closed pipe exits 0 quietly, a failed write gives one line on stderr and exit 1, and a closed stderr is ignored. The xfce plugin is a library with no stdout output.
+		- Verified: a release build gives exit 1 and one error line for `--version` and `--help` to `/dev/full`, and exit 0 with no message into `head -1`. The build before the fix aborted with 134 on both. `--backlog-run-full` passed on 2026-10-26, test `defks` included.
+		- Swept: every `println!` and `eprintln!` in the repo. The rest are build.rs cargo directives, examples, and the plugin's `eprintln!` for its own diagnostics.
+	- Actual fix: Writes to stdout go through one helper that returns an exit code instead of panicking.
+	- Branch: round-1026
+	- Test case: `defks`. It fails to build before the fix, and the binary checks above failed before it.
+	- Closed: 20261026-165700
 
 - A killed pipeline run leaves its container and temp folder
 	- ID: 2026102514470001
@@ -1589,19 +1987,19 @@ Template:
 	- Requirements  [Feature]:
 		- Hierarchical bulleted list.
 	- Steps to reproduce [Bug]:
-		- …
+		- ...
 	- Incorrect behavior [Bug]:
 	- Expected behavior [Bug]:
 	- Reproduced [Bug]: [No, or when, where and how]
 	- Possible cause [Bug]:
 	- Actual cause [Bug]:
-		- …
+		- ...
 	- Estimated effort: [High|Avg|Low]
 	- Actual effort: [High|Avg|Low]
 	- Progress log:
-		- …
+		- ...
 	- Decisions:
-		- …
+		- ...
 	- Actual fix [Bug]:
 	- Branch:
 	- Commit:

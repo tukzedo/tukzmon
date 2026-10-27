@@ -377,12 +377,29 @@ pub struct Look {
 	/// 0 is `width`.
 	pub mem_width: u32,
 	pub mem_time: Option<Timing>,
+	/// Draw the swap graph, where the box has swap.
+	pub show_swap: bool,
+	/// 0 is `width`.
+	pub swap_width: u32,
+	pub swap_time: Option<Timing>,
+	/// Draw the battery graph, where the box has a battery in.
+	pub show_battery: bool,
+	/// 0 is `width`.
+	pub battery_width: u32,
+	pub battery_time: Option<Timing>,
 	/// Graph names as saved, first drawn first. See [`graph_order`].
 	pub order: Vec<String>,
 	/// In `mem::MemoryReader::SERIES` order, bottom first.
 	pub mem: [Rgb; 3],
 	pub mem_mode: Mode,
 	pub mem_gradient: [Rgb; 3],
+	pub swap: [Rgb; 1],
+	pub swap_mode: Mode,
+	pub swap_gradient: [Rgb; 3],
+	/// In `battery::BatteryReader::SERIES` order.
+	pub battery: [Rgb; 3],
+	pub battery_mode: Mode,
+	pub battery_gradient: [Rgb; 3],
 	pub border_color: Rgb,
 	/// No background, so the panel shows through, whatever the theme.
 	pub transparent: bool,
@@ -437,10 +454,31 @@ impl Look {
 			show_memory: m.value("show_memory", &NoEnv).as_bool(),
 			mem_width: num("mem_width") as u32,
 			mem_time: Timing::parse(m.value("mem_time", &NoEnv).as_text()),
+			show_swap: m.value("show_swap", &NoEnv).as_bool(),
+			swap_width: num("swap_width") as u32,
+			swap_time: Timing::parse(m.value("swap_time", &NoEnv).as_text()),
+			show_battery: m.value("show_battery", &NoEnv).as_bool(),
+			battery_width: num("battery_width") as u32,
+			battery_time: Timing::parse(m.value("battery_time", &NoEnv).as_text()),
 			order: graph_order(m.value("graph_order", &NoEnv).as_text()),
 			mem: [color("mem_user"), color("mem_buffers"), color("mem_cache")],
 			mem_mode: Mode::parse(m.value("mem_mode", &NoEnv).as_text()).unwrap_or_default(),
 			mem_gradient: [color("mem_low"), color("mem_medium"), color("mem_high")],
+			swap: [color("swap_used")],
+			swap_mode: Mode::parse(m.value("swap_mode", &NoEnv).as_text()).unwrap_or_default(),
+			swap_gradient: [color("swap_low"), color("swap_medium"), color("swap_high")],
+			battery: [
+				color("battery_charging"),
+				color("battery_discharging"),
+				color("battery_critical"),
+			],
+			battery_mode: Mode::parse(m.value("battery_mode", &NoEnv).as_text())
+				.unwrap_or_default(),
+			battery_gradient: [
+				color("battery_low"),
+				color("battery_medium"),
+				color("battery_high"),
+			],
 			border_color: color("border_color"),
 			transparent: m.value("transparent", &NoEnv).as_bool(),
 			top: color("back_top"),
@@ -463,6 +501,20 @@ impl Look {
 		}
 	}
 
+	pub fn swap_paint(&self) -> Paint<'_, 1> {
+		match self.swap_mode {
+			Mode::Detailed => Paint::Stack(&self.swap),
+			Mode::Gradient => Paint::Gradient(self.swap_gradient),
+		}
+	}
+
+	pub fn battery_paint(&self) -> Paint<'_, 3> {
+		match self.battery_mode {
+			Mode::Detailed => Paint::Stack(&self.battery),
+			Mode::Gradient => Paint::Gradient(self.battery_gradient),
+		}
+	}
+
 	/// A graph's own pick, or else the Time settings, so a saved
 	/// `graph.log_axis` still sets every graph that has no pick of its own.
 	pub fn timing(&self, own: Option<Timing>) -> Timing {
@@ -471,6 +523,12 @@ impl Look {
 		} else {
 			Timing::Linear
 		})
+	}
+
+	/// A graph's own width, or else Width, the way a time axis falls back to
+	/// the Time settings.
+	pub fn width_or(&self, own: u32) -> u32 {
+		if own == 0 { self.width } else { own }
 	}
 
 	/// A missing or unreadable file gives the defaults, and a bad line gives
@@ -583,7 +641,7 @@ mod tests {
 	fn the_default_theme_is_the_row_defaults() {
 		let spec = spec();
 		let g = spec.group(THEME).unwrap();
-		assert_eq!(g.members.len(), 19);
+		assert_eq!(g.members.len(), 31);
 		let default = g.preset("default").unwrap();
 		assert_eq!(default.label, "Default");
 		for id in &g.members {
@@ -877,7 +935,7 @@ mod tests {
 	// Test ID: dedqq
 	#[test]
 	fn the_graph_order_reads_with_spaces_or_commas() {
-		assert_eq!(Look::default().order, ["cpu", "mem"]);
+		assert_eq!(Look::default().order, ["cpu", "mem", "swap", "battery"]);
 		for text in [
 			"graph:\n\torder: mem cpu\n",
 			"graph:\n\torder: mem, cpu\n",
@@ -968,7 +1026,7 @@ mod tests {
 			"themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n",
 		));
 		assert_eq!(t[0].name, "Say \"hi\"");
-		assert_eq!(t[0].colors.len(), 19);
+		assert_eq!(t[0].colors.len(), 31);
 		t.push(SavedTheme {
 			key: theme_key("Default", &t),
 			name: "Default".into(),

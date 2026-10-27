@@ -11,8 +11,11 @@
 use std::collections::VecDeque;
 
 /// Bucket length and how long it's kept, in seconds, finest first.
-pub const TIERS: [(f64, f64); 5] = [
-	(0.25, 300.0),
+/// Each fine tier holds a linear graph at the width slider's top, at any rate
+/// the next tier is too coarse for.
+pub const TIERS: [(f64, f64); 6] = [
+	(0.05, 256.0),
+	(0.25, 2048.0),
 	(2.0, 3.0 * 3600.0),
 	(30.0, 3.0 * 86400.0),
 	(300.0, 90.0 * 86400.0),
@@ -275,7 +278,8 @@ impl<const N: usize> History<N> {
 	}
 
 	/// None for anything [`History::encode`] wouldn't have written with
-	/// today's tiers, so a stale or broken file starts fresh.
+	/// today's tiers, or with today's less the finest ones, so a stale or
+	/// broken file starts fresh.
 	pub fn decode(bytes: &[u8]) -> Option<History<N>> {
 		let mut rd = Reader(bytes);
 		let first = Some(rd.f64()?).filter(|x| x.is_finite());
@@ -285,10 +289,10 @@ impl<const N: usize> History<N> {
 			last,
 			..History::default()
 		};
-		if rd.u32()? as usize != h.tiers.len() {
-			return None;
-		}
-		for tier in &mut h.tiers {
+		// a file from before a finer tier went in has none of it
+		let count = rd.u32()? as usize;
+		let skip = h.tiers.len().checked_sub(count)?;
+		for tier in &mut h.tiers[skip..] {
 			if rd.f64()? != tier.len {
 				return None;
 			}
@@ -409,7 +413,7 @@ mod tests {
 		assert!(s.covered < 0.1);
 		assert_eq!(h.span(3.0, 4.0).covered, 0.0);
 		// the 2 s tier has a bucket with a hole in it, read as thin
-		let s = h.tiers[1].buckets.len();
+		let s = h.tiers[2].buckets.len();
 		assert_eq!(s, 5);
 	}
 
@@ -417,11 +421,11 @@ mod tests {
 	#[test]
 	fn old_buckets_age_out_of_the_fine_tier() {
 		let mut h = History::<1>::default();
-		for i in 0..2000 {
+		for i in 0..10000 {
 			let t = i as f64 * 0.25;
 			h.add(t, t + 0.25, &[0.5]);
 		}
-		assert!(h.tiers[0].buckets.len() as f64 <= 300.0 / 0.25 + 1.0);
+		assert!(h.tiers[1].buckets.len() as f64 <= 2048.0 / 0.25 + 1.0);
 		// an old span falls through to the 2 s tier and still reads
 		let s = h.span(1.0, 3.0);
 		assert!(close(s.mean[0], 0.5));
@@ -435,10 +439,10 @@ mod tests {
 		h.add(0.0, 0.5, &[0.1]);
 		let t = 86400.0 * 10.0;
 		h.add(t, t + 0.5, &[0.9]);
-		assert_eq!(h.tiers[0].buckets.len(), 2);
-		assert_eq!(h.tiers[2].buckets.len(), 1);
+		assert_eq!(h.tiers[1].buckets.len(), 2);
+		assert_eq!(h.tiers[3].buckets.len(), 1);
 		// the 1 hour tier keeps the gap as empty buckets
-		assert_eq!(h.tiers[4].buckets.len(), 241);
+		assert_eq!(h.tiers[5].buckets.len(), 241);
 		assert_eq!(h.first(), Some(0.0));
 	}
 
@@ -452,6 +456,26 @@ mod tests {
 		h.add(4.5, 5.5, &[0.9]);
 		assert!(close(h.span(4.0, 5.0).max[0], 0.1));
 		assert!(close(h.span(5.0, 5.5).mean[0], 0.9));
+	}
+
+	// Test ID: defp6
+	#[test]
+	fn a_linear_graph_as_wide_as_the_slider_goes_keeps_a_sample_a_column() {
+		let (_, widest) = crate::config::slider_range("width").unwrap();
+		let columns = widest as usize;
+		// up to the rate where the 2 s tier would do anyway
+		for rate in [0.05, 0.1, 0.2, 0.5, 1.0, 1.75] {
+			let mut h = History::<1>::default();
+			for i in 0..columns {
+				let t = i as f64 * rate;
+				h.add(t, t + rate, &[(i % 2) as f32]);
+			}
+			for i in [0, 1, 2, columns / 2] {
+				let t = i as f64 * rate;
+				let s = h.span(t, t + rate);
+				assert!(close(s.mean[0], (i % 2) as f32), "{rate} s, column {i}");
+			}
+		}
 	}
 
 	fn a_day_of_samples() -> History<2> {
@@ -509,8 +533,32 @@ mod tests {
 		assert!(History::<2>::decode(&other).is_none());
 		// a bucket count past what the fine tier keeps
 		let mut over = bytes.clone();
-		over[36..40].copy_from_slice(&5000u32.to_le_bytes());
+		over[36..40].copy_from_slice(&9000u32.to_le_bytes());
 		assert!(History::<2>::decode(&over).is_none());
+	}
+
+	// Test ID: defp7
+	#[test]
+	fn a_file_from_before_the_finest_tier_still_loads() {
+		let h = a_day_of_samples();
+		let mut bytes = Vec::new();
+		h.encode(&mut bytes);
+		// cut tier 0 out, as a file from when there was one less
+		let count = u32::from_le_bytes(bytes[36..40].try_into().unwrap()) as usize;
+		let mut old = bytes[..16].to_vec();
+		old.extend_from_slice(&(TIERS.len() as u32 - 1).to_le_bytes());
+		old.extend_from_slice(&bytes[40 + count * 44..]);
+		let back = History::<2>::decode(&old).unwrap();
+		assert!(back.tiers[0].buckets.is_empty());
+		assert_eq!((back.first(), back.last()), (h.first(), h.last()));
+		let t0 = 1.76e9;
+		for (a, b) in [(100.0, 400.0), (0.0, 90002.0), (4000.0, 5000.0)] {
+			assert_eq!(back.span(t0 + a, t0 + b), h.span(t0 + a, t0 + b));
+		}
+		// a tier more than today's isn't
+		let mut more = bytes.clone();
+		more[16..20].copy_from_slice(&(TIERS.len() as u32 + 1).to_le_bytes());
+		assert!(History::<2>::decode(&more).is_none());
 	}
 
 	// Test ID: decbj

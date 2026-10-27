@@ -140,6 +140,144 @@ impl Axis {
 			}
 		}
 	}
+
+	pub fn of(basis: &Basis) -> Axis {
+		match *basis {
+			Basis::Log { curve, span } => Axis::log(curve, span.map_or(0.0, |(a, b)| b - a)),
+			Basis::Linear(s) => Axis::linear(s),
+		}
+	}
+}
+
+/// Seconds a jump in the axis takes to ease in.
+pub const EASE: f64 = 0.5;
+
+/// How finely the axis drawn when a jump came is kept, in steps of `u`.
+const STEPS: usize = 64;
+
+/// Anything that says how old the data at `u` is: an axis, or one easing in.
+pub trait Ages {
+	fn age(&self, u: f64) -> f64;
+}
+
+impl Ages for Axis {
+	fn age(&self, u: f64) -> f64 {
+		Axis::age(self, u)
+	}
+}
+
+/// What an axis is built from. A change that isn't just time going on is a
+/// jump, such as history loaded, a gap ending, or a new curve or width.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Basis {
+	/// A log curve over history from its first to its last time, if any.
+	Log {
+		curve: Curve,
+		span: Option<(f64, f64)>,
+	},
+	/// The whole width covers this many seconds.
+	Linear(f64),
+}
+
+impl Basis {
+	/// `dt` is how far the clock moved since `self`, and `slack` how far the
+	/// newest sample may trail it.
+	fn jumps_to(&self, next: &Basis, dt: f64, slack: f64) -> bool {
+		match (self, next) {
+			(Basis::Linear(a), Basis::Linear(b)) => a != b,
+			(
+				Basis::Log {
+					curve: c0,
+					span: Some((f0, l0)),
+				},
+				Basis::Log {
+					curve: c1,
+					span: Some((f1, l1)),
+				},
+			) => c0 != c1 || f0 != f1 || l1 < l0 || l1 - l0 > dt + slack,
+			// the first sample isn't a jump, there was nothing drawn
+			(Basis::Log { curve: c0, .. }, Basis::Log { curve: c1, .. }) => c0 != c1,
+			(Basis::Linear(_), Basis::Log { .. }) | (Basis::Log { .. }, Basis::Linear(_)) => true,
+		}
+	}
+}
+
+fn smoothstep(x: f64) -> f64 {
+	let x = x.clamp(0.0, 1.0);
+	x * x * (3.0 - 2.0 * x)
+}
+
+#[derive(Clone, Debug)]
+struct Drawn {
+	basis: Basis,
+	axis: Axis,
+	at: f64,
+}
+
+/// Eases a graph's axis over [`EASE`] after a jump, from what was on screen
+/// to where it should be. Time going on needs none, since the axis already
+/// moves smoothly then. See design.md, Time axis.
+#[derive(Clone, Debug, Default)]
+pub struct Ease {
+	/// `g` at even steps of `u`, as drawn when the jump came, and when.
+	from: Option<(Box<[f64; STEPS + 1]>, f64)>,
+	drawn: Option<Drawn>,
+}
+
+impl Ease {
+	/// Takes the axis about to be drawn at time `t`, and starts easing if it
+	/// jumped from the last one.
+	pub fn update(&mut self, axis: &Axis, basis: Basis, t: f64, slack: f64) {
+		if let Some(d) = &self.drawn
+			&& d.basis.jumps_to(&basis, t - d.at, slack)
+		{
+			let was = self.view(&d.axis, d.at);
+			let g = std::array::from_fn(|i| to_g(was.age(i as f64 / STEPS as f64)));
+			self.from = Some((Box::new(g), t));
+		}
+		if self.from.as_ref().is_some_and(|(_, at)| t - at >= EASE) {
+			self.from = None;
+		}
+		self.drawn = Some(Drawn {
+			basis,
+			axis: axis.clone(),
+			at: t,
+		});
+	}
+
+	/// The axis to draw at time `t`, with `to` where it's headed.
+	pub fn view<'a>(&'a self, to: &'a Axis, t: f64) -> Eased<'a> {
+		let from = self.from.as_ref().and_then(|(g, at)| {
+			let s = smoothstep((t - at) / EASE);
+			(s < 1.0).then_some((&**g, s))
+		});
+		Eased { from, to }
+	}
+
+	pub fn easing(&self, t: f64) -> bool {
+		self.from.as_ref().is_some_and(|(_, at)| t - at < EASE)
+	}
+}
+
+/// An axis part way from a jump, mixed in `ln(1 + age / A0)`, so time still
+/// only runs older to the left.
+#[derive(Clone, Copy, Debug)]
+pub struct Eased<'a> {
+	from: Option<(&'a [f64; STEPS + 1], f64)>,
+	to: &'a Axis,
+}
+
+impl Ages for Eased<'_> {
+	fn age(&self, u: f64) -> f64 {
+		let Some((g, s)) = self.from else {
+			return self.to.age(u);
+		};
+		let x = u.clamp(0.0, 1.0) * STEPS as f64;
+		let i = (x as usize).min(STEPS - 1);
+		let was = g[i] + (g[i + 1] - g[i]) * (x - i as f64);
+		let mixed = was + (to_g(self.to.age(u)) - was) * s;
+		(A0 * mixed.exp_m1()).max(0.0)
+	}
 }
 
 // Fritsch-Carlson slopes for a monotone cubic through evenly spaced knots, so
@@ -357,5 +495,117 @@ mod tests {
 		let a = Axis::linear(64.0);
 		assert_eq!(a.age(0.5), 32.0);
 		assert_eq!(a.age(2.0), 64.0);
+	}
+
+	const SLACK: f64 = 1.25;
+
+	fn log(curve: Curve, first: f64, last: f64) -> Basis {
+		Basis::Log {
+			curve,
+			span: Some((first, last)),
+		}
+	}
+
+	fn step(e: &mut Ease, b: Basis, t: f64) {
+		e.update(&Axis::of(&b), b, t, SLACK);
+	}
+
+	// Test ID: defpn
+	#[test]
+	fn a_jump_eases_in_from_what_was_drawn() {
+		for curve in CURVES {
+			let mut e = Ease::default();
+			let short = log(curve, 0.0, 10.0);
+			let was = Axis::of(&short);
+			step(&mut e, short, 10.0);
+			assert!(!e.easing(10.0));
+			// days of history from disk
+			let long = log(curve, -3.0 * DAY, 10.2);
+			let to = Axis::of(&long);
+			step(&mut e, long, 10.2);
+			assert!(e.easing(10.2), "{curve:?}");
+			let v = e.view(&to, 10.2);
+			for u in [0.1, 0.3, 0.5, 0.8, 1.0] {
+				assert!(near(v.age(u), was.age(u), 1e-3), "{curve:?} at {u}");
+			}
+			let v = e.view(&to, 10.2 + EASE / 2.0);
+			let mut older = 0.0;
+			for i in 0..=400 {
+				let age = v.age(f64::from(i) / 400.0);
+				assert!(age >= older, "{curve:?} went back at {i}");
+				older = age;
+			}
+			assert!(
+				older > was.age(1.0) * 2.0 && older < to.age(1.0) / 2.0,
+				"{curve:?}"
+			);
+			let done = 10.2 + EASE;
+			step(&mut e, long, done);
+			assert!(!e.easing(done));
+			assert_eq!(e.view(&to, done).age(0.7), to.age(0.7));
+		}
+	}
+
+	// Test ID: defpp
+	#[test]
+	fn time_going_on_is_no_jump_but_a_gap_or_new_axis_is() {
+		let mut e = Ease::default();
+		step(
+			&mut e,
+			Basis::Log {
+				curve: Curve::Smooth,
+				span: None,
+			},
+			0.0,
+		);
+		let mut t = 0.0;
+		while t < 100.0 {
+			t += 0.5;
+			step(&mut e, log(Curve::Smooth, 0.0, t), t);
+			assert!(!e.easing(t), "{t}");
+		}
+		// a draw for the pointer between ticks, a late tick, a missed one
+		for (last, at) in [(100.0, 100.4), (100.9, 100.9), (101.9, 101.9)] {
+			step(&mut e, log(Curve::Smooth, 0.0, last), at);
+			assert!(!e.easing(at), "{at}");
+		}
+		step(&mut e, log(Curve::FixedA, 0.0, 102.0), 102.0);
+		assert!(e.easing(102.0), "a new curve");
+		step(&mut e, Basis::Linear(64.0), 103.0);
+		assert!(e.easing(103.0), "to linear");
+		step(&mut e, Basis::Linear(64.0), 104.0);
+		assert!(!e.easing(104.0));
+		step(&mut e, Basis::Linear(100.0), 104.5);
+		assert!(e.easing(104.5), "a new width");
+
+		// loaded, with the clock well past it, then the priming sample, then a gap
+		let mut e = Ease::default();
+		step(&mut e, log(Curve::Smooth, -50.0, 100.0), 1000.0);
+		step(&mut e, log(Curve::Smooth, -50.0, 100.0), 1000.5);
+		assert!(!e.easing(1000.5));
+		step(&mut e, log(Curve::Smooth, -50.0, 1001.0), 1001.0);
+		assert!(e.easing(1001.0), "a gap");
+	}
+
+	// Test ID: defpq
+	#[test]
+	fn a_jump_while_easing_starts_from_what_is_on_screen() {
+		let mut e = Ease::default();
+		step(&mut e, log(Curve::Smooth, 0.0, 10.0), 10.0);
+		let b = log(Curve::FixedA, -DAY, 10.1);
+		step(&mut e, b, 10.1);
+		step(&mut e, b, 10.3);
+		let mid = Axis::of(&b);
+		let on_screen: Vec<f64> = (0..=20)
+			.map(|i| e.view(&mid, 10.3).age(f64::from(i) / 20.0))
+			.collect();
+		let c = Basis::Linear(64.0);
+		step(&mut e, c, 10.3);
+		let to = Axis::of(&c);
+		for (i, was) in on_screen.iter().enumerate() {
+			let age = e.view(&to, 10.3).age(i as f64 / 20.0);
+			// as kept, in steps of u along ln(1 + age / A0)
+			assert!(near(to_g(age), to_g(*was), 1e-3), "at {i}: {age} vs {was}");
+		}
 	}
 }

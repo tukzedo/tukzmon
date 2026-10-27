@@ -62,16 +62,20 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- The panel runs external plugins in a separate wrapper process, so a crash takes down the plugin adn not the panel.
 
 - The plugin draws its graphs in one drawing area, side by side, in the saved order. There's no gap between them, like multiload-ng's spacing of 0. On a vertical panel they're stacked, and share the height evenly. The graph under the pointer gets the hover line and the tip. `core/src/graphs.rs` has the layout.
-	- Under Graphs on the Graph tab, each graph has a checkbox, at `cpu.show` and `mem.show`, and a width, at `cpu.width` and `mem.width`. A width of 0, the default, is the Width setting. Widths are in the panel's own pixels, so they scale with it.
-	- Each graph also has a time axis, at `cpu.time` and `mem.time`. See [Time axis](#time-axis).
+	- Under Graphs on the Graph tab is the graph list, a row per graph in the saved order. Each row has a checkbox, at `cpu.show`, `mem.show`, `swap.show` and `battery.show`, the live graph, a width, at `cpu.width`, `mem.width`, `swap.width` and `battery.width`, a time axis, a revert arrow and a gripper. A width of 0, the default, is the Width setting. Widths are in the panel's own pixels, so they scale with it.
+	- Each row draws its graph live, at its own width, with the window's settings, so a change shows there before Apply. The window reads the graphs itself from when it opens, so a row starts empty. A hidden graph is drawn too. The widest graph sets the column, so the boxes after it line up, and one wider than 512 px is squeezed to that.
+	- The time axis is at `cpu.time`, `mem.time`, `swap.time` and `battery.time`. See [Time axis](#time-axis).
+	- A graph gets a row once `core/src/settings.shcl` has its `<name>.show`, `.width` and `.time` settings.
 	- A box where `/proc/meminfo` can't be read never shows the memory graph.
+	- The swap and battery graphs are off by default, so an existing panel doesn't grow wider. A box with no swap, or no battery in, never shows that one.
 	- With every other graph off, CPU shows anyway, so the item never shrinks to nothing, and its right-click menu stays in reach.
 	- A hidden graph isn't read. Its history is kept, and shows a gap for the time it was hidden.
-	- Order on the Graph tab, at `graph.order`, names the graphs first to last, left to right or top to bottom: `cpu` and `mem`, by their history section names. The default is `cpu mem`.
+	- Dragging a row's gripper, or Up and Down on it, sets the order. It's saved at `graph.order`, which names the graphs first to last, left to right or top to bottom: `cpu`, `mem`, `swap` and `battery`, by their history section names. The default is `cpu mem swap battery`.
 		- Spaces or commas both work, since a hand edit like `order: mem, cpu` is a list to shcl.
 		- A name it doesn't know is skipped. A graph it doesn't name goes at the end, in the default order, so that way a graph added later, such as network, shows up last in a saved order.
 		- A hidden graph keeps its place for when it's shown again.
-	- The live graph list, backlog 2026102408304639, takes over these rows. Its grippers set the order.
+	- A name the list doesn't know stays in `graph.order` after a drag, at the end, so a file from a newer tukzmon keeps it.
+	- The row's revert arrow puts its checkbox, width and time axis back. The order has no arrow, since dragging back undoes it.
 
 - The drawing area has a window of its own, so it has to take button events and be an action widget, or a right-click never reaches the panel's menu.
 
@@ -92,13 +96,14 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 - Qt doesn't need a file format of its own for this, so settings stay in shcl, at `~/.config/tukzmon/tukzmon.shcl`. One file serves every graph for now. A file per plugin instance comes with more than one kind of graph.
 
 - It follows SilkTerm's settings dialog, on top of knobs:
-	- Tabs down the left, groups with a rule under the title, and a sub-group stepped in under the switch it depends on.
+	- Tabs down the left, groups with a rule under the title, and a sub-group stepped in under the switch it depends on. A row is greyed while that switch is off, but its revert arrow still works.
 	- A revert arrow on every row, live when the value isn't its default.
 	- Cancel, Apply, and Apply and close, with Cancel set a little apart. Enter is Apply and close and Esc is Cancel, even from inside a field.
 	- A slider can reach less far than its number box takes. The box takes any sane value, and `slider_range` in `core/src/settings.shcl` sets how far the slider goes.
 	- The selected tab is a tint of the theme's highlight under the normal text color, so it reads in a dark theme too.
 	- A tab with rows of its own and tabs under it, which is Themes, keeps those rows on top and shows its tabs as sub-tabs below them. Themes has the Name dropdown with Save, Save as, Rename, Delete and Randomize, and a sub-tab per graph's colors, plus Background for the colors they share. Like every other change, the theme buttons take effect at Apply.
 	- Two keys in `core/src/settings.shcl` are tukzmon's, not knobs'. `shown_as: radio` draws a dropdown as radio buttons, and `shown_when: "id = key"` shows a row only while that dropdown is on that key. knobs' gates only take a checkbox.
+	- Graphs on the Graph tab is a list with a row per graph, not a row per setting. See [XFCE plugin](#xfce-plugin).
 	- A color chip opens a picker, and the hex value can be typed beside it. The picker is SilkTerm's, not the toolkit's: a saturation and brightness square, a hue strip, and boxes for red, green, blue, brightness, saturation and hex. The row behind it follows every change, and Cancel puts back all of it, the theme's "*" included. The color model is in `settings/src/pick.rs`.
 	- The file gets only what was changed in the window, applied to the file as it is at save time, so a hand edit made meanwhile isn't lost.
 	- A save that would drop a line it can't read, or a setting it doesn't know, is refused, and the error names the lines.
@@ -119,7 +124,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- A color changed on a theme is kept apart from it, and the dropdown says "Name *", the way SilkTerm's does. Picking another theme drops those changes.
 	- knobs reads a color line at its own path as the Custom set. A file with colors and no theme line reads as Custom, so a hand edit or an older file isn't hidden under Default. A save names the theme whenever Custom colors are stored, even Default, or the file would read back as Custom.
 
-- Each graph's sub-tab starts with its mode, Detailed or Gradient, at `cpu.mode` for the CPU graph and `mem.mode` for memory.
+- Each graph's sub-tab starts with its mode, Detailed or Gradient, at `cpu.mode` for the CPU graph, `mem.mode` for memory, `swap.mode` for swap and `battery.mode` for the battery.
 	- Detailed stacks a color per series, as before.
 	- Gradient draws the column in one blend of Low, Medium and High. A pixel takes the blend at its height in the plot, Low at the bottom, Medium halfway and High at the top, so a busier column reaches further up the ramp and the colors stay put as it grows. The column's height is the same as the stack's.
 	- Only the rows for the mode picked are shown. A mode changed by hand is a change on the theme, like a color.
@@ -129,6 +134,11 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- Default's are multiload-ng's memory colors as they were, `#ffff80`, `#804080` and `#408060`, not moved onto Default's hue.
 	- In the other built-ins, cache is the theme's nice color and buffers a muted color a step round the hue from it. Fire draws memory as a gradient too.
 	- multiload-ng's memory border and background aren't used, since every graph shares the Background sub-tab.
+
+- The swap graph's colors are on the Swap sub-tab: In use, at `swap.colors.used`, plus its own Low, Medium and High. In every built-in they're the theme's user color and its CPU gradient, so Fire draws swap as a gradient too.
+
+- The battery graph's colors are on the Battery sub-tab: Plugged in, On battery and Critical, at `battery.colors.charging`, `.discharging` and `.critical`, plus its own Low, Medium and High. In every built-in they're the theme's user, system and I/O wait colors, so on battery reads as a warning and critical as an alarm. The gradient is the theme's CPU one.
+	- The tip says plugged in rather than charging, since a full battery with the power in counts as charging.
 
 - Saved themes are kept whole in the config file, under `themes.<key>`, with a `name` and every color and mode by its setting id, the same shape as a built-in in settings.shcl. The dropdown lists them after the built-ins, and before Custom.
 	- They join the `theme` group as presets on a copy of the spec, through knobs' `Spec::finish`. The plugin reads them the same way, so knobs is unchanged.
@@ -171,15 +181,15 @@ On panels without a native plugin, tukzmon falls back to a tray icon with one sm
 | Graph       | Source
 | :---        | :---
 | CPU         | `/proc/stat`. The I/O wait, system, user, and nice columns.
-| Memory      | `/proc/meminfo`. User is total minus free, buffers, and cache. Cache is the `Cached` row alone, as multiload-ng counts it, so slab is in user.
-| Network     | `/proc/net/dev`. Local is the loopback device, `lo`.
-| Swap        | `/proc/meminfo`.
-| Zswap       | `Zswap` and `Zswapped` in `/proc/meminfo`, on kernels new enough to have them. The ratio is `Zswapped / Zswap`. `/sys/kernel/debug/zswap` needs root, so it isn't used.
-| Zram        | `/sys/block/zram*/mm_stat`.
-| Load        | `/proc/loadavg`.
-| Disk        | `/proc/diskstats`, one row per device, with partitions left out of the total.
-| Temperature | `hwmon` under `/sys/class/hwmon`, picking the CPU package sensor. `temp*_crit` gives the critical level when the sensor has one.
-| Battery     | `/sys/class/power_supply/BAT*`.
+| Memory      | `/proc/meminfo`. User is total minus free, buffers, and cache. Cache is `Cached` plus `SReclaimable`, as `free` counts it and as multiload-ng does with `graph-mem-procps-compliant` on. Slab that can't be reclaimed is in user.
+| Network     | `/proc/net/dev`, in bytes per second. Local is what the loopback device, `lo`, received, since it receives all it sends. Sent and received add up every other interface. An interface coming or going, or a counter that went down, makes that sample a gap.
+| Swap        | `/proc/meminfo`. Used is `SwapTotal` less `SwapFree`, against `SwapTotal`. A box with no swap at start has no Swap graph, and swap turned off later is a gap.
+| Zswap       | `Zswap` and `Zswapped` in `/proc/meminfo`, on kernels new enough to have them. Used is the pool, `Zswap`, against the cap zswap stops taking pages at, `max_pool_percent` of `MemTotal`. The ratio is `Zswapped / Zswap`. `/sys/kernel/debug/zswap` needs root, so it isn't used.
+| Zram        | `/sys/block/zram*/mm_stat`, summed over every device there at start, when zswap is off. Used is `orig_data_size` against `disksize`, and the ratio is `orig_data_size / compr_data_size`. A box with neither, or with zram devices that have no size, has no Zswap graph.
+| Load        | `/proc/loadavg`, its first column, the 1 minute load.
+| Disk        | `/proc/diskstats`, one row per device, as 512 byte sectors read and written. All disks means each device with a `device` link under `/sys/block`. That leaves out partitions and what's stacked on a disk, such as LVM, LUKS, RAID, loop and zram, so nothing is counted twice. A chosen list counts just the names on it. A counted drive coming or going, or a counter that went down, makes a gap.
+| Temperature | `hwmon` under `/sys/class/hwmon`, picking the CPU package sensor: `Package id` on `coretemp`, `Tdie` or else `Tctl` on `k10temp` and `zenpower`, and the first sensor on an Arm board's `cpu_thermal`. With more than one socket it's the hottest. `temp*_crit` gives the critical level when the sensor has one, the lowest of them with more than one. Other drivers, such as `acpitz`, `nvme` and the board's, aren't the CPU's, so a box with none of these has no Temperature graph.
+| Battery     | `/sys/class/power_supply/BAT*`. A mouse's or a headset's battery has another name, so it isn't counted, and neither is a `BAT*` whose `type` isn't `Battery`, or one with `present` at 0. The charge is `energy_now / energy_full`, or else `charge_now / charge_full`, or else `capacity`. More than one battery adds up as one, or gives the mean of their shares when they count in different units. The charge goes in one series by state. It's discharging when any battery's `status` says so, and Full, `Not charging` and `Unknown` count as charging. Critical is discharging with every battery's `capacity_level` at `Critical`, or at 4% or less when a battery has no level, as multiload-ng does. A box with no battery in has no Battery graph.
 
 Splitting network traffic into LAN and internet is optional, backlog item 2026101916274800. It's off by default, and the user picks the way in settings. `/proc/net/dev` counts per interface, not per destination, so it needs one of these:
 
@@ -199,13 +209,16 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 	| Tier | Bucket | Kept for
 	| :--- | :---   | :---
-	| 0    | 250 ms | 5 minutes
-	| 1    | 2 s    | 3 hours
-	| 2    | 30 s   | 3 days
-	| 3    | 5 min  | 90 days
-	| 4    | 1 hour | Forever
+	| 0    | 50 ms  | 256 seconds
+	| 1    | 250 ms | 2048 seconds, about 34 minutes
+	| 2    | 2 s    | 3 hours
+	| 3    | 30 s   | 3 days
+	| 4    | 5 min  | 90 days
+	| 5    | 1 hour | Forever
 
 - Every tier gets every sample, so there's no roll-up step.
+
+- Tiers 0 and 1 are each kept for 1024 times the next tier's bucket. 1024 px is the top of the Width slider, so a linear graph that wide keeps one sample a pixel at any rate down to 50 ms. Past that width, or on a 2x screen at a slow rate, the left end can reach a coarser tier.
 
 - A sample is a share of the time since the read before it, so it's added over that whole stretch, to every bucket it covers. Half-second reads on quarter-second buckets would otherwise leave every other bucket empty.
 
@@ -213,11 +226,11 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - A bucket with no samples is a gap. Gaps are never counted as zero. A gap is drawn as blank, and it stays out of every average.
 
-- Rough size at tier 4: 8,760 buckets a year, times about 25 series, times 12 bytes, so that way it comes to about 2.6 MB a year. Each bucket adds 20 bytes for its seconds and its start and end.
+- Rough size at tier 5: 8,760 buckets a year, times about 25 series, times 12 bytes, so that way it comes to about 2.6 MB a year. Each bucket adds 20 bytes for its seconds and its start and end.
 
 - History is saved under `$XDG_DATA_HOME/tukzmon/`, as `plugin-<id>.hist`, one file per plugin instance. On start the file is read back, and the time since the last sample becomes a gap.
 	- It's written every 15 minutes and when the panel quits, to a temp file renamed over the old one. A crash loses at most the 15 minutes.
-	- The file holds a named section per graph. A section that no graph shown owns, such as a hidden graph's, is kept at each save, so showing the graph again brings its history back. A file from other tiers, or one that doesn't read whole, is skipped. The graph starts fresh, and the next save replaces it.
+	- The file holds a named section per graph. A section that no graph shown owns, such as a hidden graph's, is kept at each save, so showing the graph again brings its history back. A file from other tiers, or one that doesn't read whole, is skipped. A file from before tier 0 went in, which has one tier less, still reads, with tier 0 empty. The graph starts fresh, and the next save replaces it.
 	- Times are Unix seconds, so runs line up. A clock set back to before the saved history is moved up to its end, so new samples aren't dropped as old.
 	- "Keep across restarts" turns it off. Off stops saving and loading, and leaves the file as it is. Turned back on, the file is loaded again, so what was seen while it was off is a gap.
 	- History older than the max age, 365 days by default, is dropped at each save and load.
@@ -240,14 +253,17 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - Within a quarter, time is still log scaled.
 
-- While running, the boundaries move smoothly by themselves, since each is a smooth function of the run's length. Easing over about half a second is still needed for jumps, such as a width change or history loaded from disk.
+- While running, the boundaries move smoothly by themselves, since each is a smooth function of the run's length. A jump eases in over half a second instead, from what was on screen to where the axis should be.
+	- A jump is anything but time going on: history loaded from disk, the first sample after a gap, a new curve or time axis, or a linear graph's span changing with its width or sample rate. A log axis is in fractions of the width, so a width change only stretches it.
+	- The two are mixed in `ln(1 + age / 5 s)`, so time still only runs older to the left. A jump part way through an ease starts from what's on screen.
+	- While an axis eases, the panel and the settings window's graph list draw about 30 times a second, then go back to once a sample.
 
 - There's no visible seam where one quarter meets the next. The curve between boundaries is a monotone cubic through them, in `ln(1 + age / 5 s)`, so a pixel covers the same time on both sides of a boundary. The move from 1 minute to 1 hour to 1 day to everything older looks like one smooth curve. Tests check both that and that time only ever runs older to the left.
 
 - A linear mode is there too, for anyone who wants a plain scrolling graph. A pixel is one sample there.
 
 - Each graph can pick its own time axis under Graphs: Linear, or one of the 3 log curves. The default, As set under Time, follows Log time axis and Log curve, so a settings file from before the pick keeps its axis, and one setting still changes every graph that has no pick of its own.
-	- A graph's pick is `cpu.time` or `mem.time`: `same`, `linear`, `smooth`, `fixed_a` or `fixed_b`.
+	- A graph's pick is `cpu.time`, `mem.time`, `swap.time` or `battery.time`: `same`, `linear`, `smooth`, `fixed_a` or `fixed_b`.
 	- Spike emphasis sits under Log time axis, but it applies to any graph on a log curve.
 
 ## Drawing

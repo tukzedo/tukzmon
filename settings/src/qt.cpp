@@ -19,6 +19,7 @@
 #include <QFrame>
 #include <QKeyEvent>
 #include <QGridLayout>
+#include <QImage>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
@@ -40,7 +41,9 @@
 #include <QStackedWidget>
 #include <QStyle>
 #include <QTabWidget>
+#include <QTimer>
 #include <QToolButton>
+#include <QToolTip>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -304,6 +307,111 @@ private:
 	}
 };
 
+// The handle at the right end of a graph list row. Dragging it moves the row,
+// and so do Up and Down while it has focus.
+class Gripper : public QWidget {
+public:
+	std::function<void(QPoint)> dragged;
+	std::function<void(int)> stepped;
+
+	Gripper() {
+		setFocusPolicy(Qt::StrongFocus);
+		setCursor(Qt::OpenHandCursor);
+		const int line = fontMetrics().height();
+		setFixedSize(line, line * 3 / 2);
+	}
+
+protected:
+	void mousePressEvent(QMouseEvent *e) override {
+		if (e->button() != Qt::LeftButton)
+			return;
+		setCursor(Qt::ClosedHandCursor);
+		setFocus(Qt::MouseFocusReason);
+	}
+	void mouseMoveEvent(QMouseEvent *e) override {
+		if (e->buttons() & Qt::LeftButton)
+			dragged(e->globalPosition().toPoint());
+	}
+	void mouseReleaseEvent(QMouseEvent *) override { setCursor(Qt::OpenHandCursor); }
+	void keyPressEvent(QKeyEvent *e) override {
+		switch (e->key()) {
+		case Qt::Key_Up: stepped(-1); break;
+		case Qt::Key_Down: stepped(1); break;
+		default: QWidget::keyPressEvent(e);
+		}
+	}
+	void focusInEvent(QFocusEvent *) override { update(); }
+	void focusOutEvent(QFocusEvent *) override { update(); }
+	// 2 columns of 3 dots, the usual drag handle
+	void paintEvent(QPaintEvent *) override {
+		QPainter p(this);
+		p.setRenderHint(QPainter::Antialiasing);
+		p.setPen(Qt::NoPen);
+		// Mid all but vanishes in some light styles
+		QColor ink = palette().color(QPalette::WindowText);
+		ink.setAlphaF(0.45f);
+		p.setBrush(hasFocus() ? palette().color(QPalette::Highlight) : ink);
+		const double dot = std::max(2.0, width() / 6.0);
+		const QPointF mid(width() / 2.0, height() / 2.0);
+		for (int col : {-1, 1})
+			for (int row : {-1, 0, 1})
+				p.drawEllipse(mid + QPointF(col * dot, row * dot * 2), dot / 2, dot / 2);
+	}
+};
+
+// A graph list row's graph, read and drawn here with the window's look, so a
+// change shows before Apply.
+class LiveGraph : public QWidget {
+public:
+	LiveGraph(Live &live, std::string name) : live(live), name(std::move(name)) {
+		setFixedSize(0, fontMetrics().height() * 3 / 2);
+	}
+
+	// The graph's own width, as in the panel. A very wide one is squeezed to
+	// fit the window, so its whole time span still shows.
+	void fit() {
+		own = int(live_width(live, name));
+		const int most = 512;
+		setFixedWidth(std::min(own, most));
+		update();
+	}
+
+protected:
+	void paintEvent(QPaintEvent *) override {
+		const double dpr = devicePixelRatioF();
+		const int w = int(std::lround(own * dpr));
+		const int h = int(std::lround(height() * dpr));
+		if (w <= 0 || h <= 0)
+			return;
+		auto px = live_draw(live, name, size_t(w), size_t(h), size_t(std::max(1L, std::lround(dpr))));
+		if (px.size() != size_t(w) * size_t(h))
+			return;
+		// cairo's ARGB32 is Qt's premultiplied one
+		QImage img(reinterpret_cast<const uchar *>(px.data()), w, h, w * 4, QImage::Format_ARGB32_Premultiplied);
+		QPainter p(this);
+		p.drawImage(rect(), img);
+		if (!framePending && live_easing(live, name)) {
+			framePending = true;
+			QTimer::singleShot(33, this, [this] {
+				framePending = false;
+				update();
+			});
+		}
+	}
+	bool event(QEvent *e) override {
+		if (e->type() != QEvent::ToolTip)
+			return QWidget::event(e);
+		QToolTip::showText(static_cast<QHelpEvent *>(e)->globalPos(), qs(live_tip(live, name)), this);
+		return true;
+	}
+
+private:
+	Live &live;
+	std::string name;
+	int own = 0;
+	bool framePending = false;
+};
+
 struct Row {
 	RowInfo info;
 	QLabel *label = nullptr;
@@ -327,7 +435,7 @@ struct Row {
 
 class Window : public QDialog {
 public:
-	explicit Window(Dialog &d) : d(d) {
+	explicit Window(Dialog &d) : d(d), live(live_new(d)) {
 		setWindowTitle(qs(dialog_title(d)));
 		auto tabs = dialog_tabs(d);
 		for (auto &r : dialog_rows(d)) {
@@ -426,6 +534,16 @@ public:
 		tabList->setCurrentRow(0);
 		refresh();
 		qApp->installEventFilter(this);
+		if (list) {
+			auto *tick = new QTimer(this);
+			connect(tick, &QTimer::timeout, this, [this, tick] {
+				tick->setInterval(int(live_sample(*live)));
+				for (auto &l : listRows)
+					l.space->update();
+			});
+			// the first read only primes, and a second one ms later is noise
+			tick->start(int(live_sample(*live)));
+		}
 	}
 
 	// Enter is OK and Esc is Cancel, even from inside a field or on a checkbox.
@@ -461,9 +579,26 @@ public:
 				return picker(*r);
 		return nullptr;
 	}
+	std::vector<std::string> greyed() const {
+		std::vector<std::string> ids;
+		for (auto &r : rows)
+			if (r->control && !r->control->isEnabled())
+				ids.push_back(r->id());
+		return ids;
+	}
+
+	// graph width and x, and the width box's x, per graph list row
+	std::vector<int> listPlaces() const {
+		std::vector<int> out;
+		for (auto &l : listRows)
+			for (int v : {l.space->width(), l.space->x(), l.width->control->x()})
+				out.push_back(v);
+		return out;
+	}
 
 private:
 	Dialog &d;
+	rust::Box<Live> live;
 	std::vector<std::unique_ptr<Row>> rows;
 	std::vector<int> tabPage;
 	std::vector<QTabWidget *> subTabs;
@@ -473,6 +608,20 @@ private:
 	QListWidget *tabList = nullptr;
 	QStackedWidget *pages = nullptr;
 	QPushButton *applyButton = nullptr;
+
+	// One graph per row, first drawn first, in the order they're placed.
+	struct ListRow {
+		std::string name;
+		Row *show = nullptr;
+		Row *width = nullptr;
+		Row *time = nullptr;
+		LiveGraph *space = nullptr;
+		QToolButton *revert = nullptr;
+		Gripper *grip = nullptr;
+	};
+	QWidget *list = nullptr;
+	QGridLayout *listGrid = nullptr;
+	std::vector<ListRow> listRows;
 
 	// a tab with tabs under it shows its first one
 	void showTab(int i) {
@@ -496,6 +645,11 @@ private:
 			Row &r = *rp;
 			if (r.info.tab != tab)
 				continue;
+			if (r.info.in_list) {
+				if (!list)
+					grid->addWidget(buildList(), line++, 0, 1, 3);
+				continue;
+			}
 			QString label = qs(r.info.label);
 			if (std::string(r.info.control) == "heading") {
 				// a heading that only repeats the tab's name says nothing
@@ -542,6 +696,126 @@ private:
 		scroll->setWidgetResizable(true);
 		scroll->setFrameShape(QFrame::NoFrame);
 		return scroll;
+	}
+
+	Row *rowFor(const rust::String &id) {
+		for (auto &r : rows)
+			if (r->info.id == id)
+				return r.get();
+		return nullptr;
+	}
+
+	// The rows under Graphs as one list: show, a space for the graph, width,
+	// time axis, revert and a gripper. The grippers write the order.
+	QWidget *buildList() {
+		list = new QWidget;
+		listGrid = new QGridLayout(list);
+		listGrid->setContentsMargins(0, 0, 0, 0);
+		listGrid->setColumnStretch(4, 1);
+		for (auto &g : graph_rows(d)) {
+			ListRow lr{std::string(g.name), rowFor(g.show), rowFor(g.width), rowFor(g.time)};
+			if (!lr.show || !lr.width || !lr.time)
+				continue;
+			for (Row *r : {lr.show, lr.width, lr.time})
+				r->control = buildControl(*r);
+			lr.show->check->setText(qs(lr.show->info.label));
+			lr.space = new LiveGraph(*live, lr.name);
+			lr.space->fit();
+			lr.revert = new QToolButton;
+			lr.revert->setIcon(QIcon::fromTheme("edit-undo", style()->standardIcon(QStyle::SP_BrowserReload)));
+			lr.revert->setAutoRaise(true);
+			lr.grip = new Gripper;
+			lr.grip->setToolTip("Drag up or down to move this graph, or use Up and Down here. The top one is "
+								"drawn first: on the left in a horizontal panel, on top in a vertical one.");
+			const std::string name = lr.name;
+			connect(lr.revert, &QToolButton::clicked, this, [this, name] {
+				for (auto &l : listRows)
+					if (l.name == name)
+						for (Row *r : {l.show, l.width, l.time})
+							reset_row(d, r->id());
+				refresh();
+			});
+			lr.grip->dragged = [this, name](QPoint at) { dragTo(name, list->mapFromGlobal(at).y()); };
+			lr.grip->stepped = [this, name](int by) { moveBy(name, by); };
+			listRows.push_back(lr);
+		}
+		auto *widthHead = new QLabel("Width px");
+		auto *timeHead = new QLabel("Time axis");
+		widthHead->setToolTip(listRows.empty() ? "" : qs(row_state(d, listRows[0].width->id()).tip));
+		listGrid->addWidget(widthHead, 0, 2);
+		listGrid->addWidget(timeHead, 0, 3);
+		placeList();
+		return list;
+	}
+
+	// puts each row's widgets on its grid line, in listRows' order
+	void placeList() {
+		for (size_t i = 0; i < listRows.size(); i++) {
+			const ListRow &l = listRows[i];
+			const int at = int(i) + 1;
+			QWidget *cells[] = {l.show->control, l.space, l.width->control, l.time->control, l.revert, l.grip};
+			const int cols[] = {0, 1, 2, 3, 5, 6};
+			for (int k = 0; k < 6; k++) {
+				listGrid->removeWidget(cells[k]);
+				// narrower graphs sit left, so the column is the widest's
+				listGrid->addWidget(cells[k], at, cols[k], k == 1 ? Qt::AlignLeft | Qt::AlignVCenter : Qt::Alignment());
+			}
+		}
+		// the next drag event reads the new places
+		listGrid->activate();
+	}
+
+	int listIndex(const std::string &name) const {
+		for (size_t i = 0; i < listRows.size(); i++)
+			if (listRows[i].name == name)
+				return int(i);
+		return -1;
+	}
+
+	void moveTo(int from, int to) {
+		if (from < 0 || to < 0 || from == to || !move_graph(d, size_t(from), size_t(to)))
+			return;
+		refresh();
+	}
+
+	void moveBy(const std::string &name, int by) {
+		const int from = listIndex(name);
+		moveTo(from, std::clamp(from + by, 0, int(listRows.size()) - 1));
+	}
+
+	// `y` is in the list's own coordinates
+	void dragTo(const std::string &name, int y) {
+		int to = 0;
+		for (size_t i = 1; i < listRows.size(); i++)
+			if (y >= listGrid->cellRect(int(i) + 1, 0).top())
+				to = int(i);
+		moveTo(listIndex(name), to);
+	}
+
+	// after a drag, a revert or a reload of the order
+	void refreshList() {
+		std::vector<ListRow> sorted;
+		for (auto &g : graph_rows(d)) {
+			const int i = listIndex(std::string(g.name));
+			if (i >= 0)
+				sorted.push_back(listRows[size_t(i)]);
+		}
+		bool moved = sorted.size() != listRows.size();
+		for (size_t i = 0; !moved && i < sorted.size(); i++)
+			moved = sorted[i].name != listRows[i].name;
+		if (moved) {
+			listRows = sorted;
+			placeList();
+		}
+		live_look(*live, d);
+		for (auto &l : listRows) {
+			l.space->fit();
+			bool changed = false;
+			for (Row *r : {l.show, l.width, l.time})
+				changed |= row_state(d, r->id()).can_reset;
+			l.revert->setEnabled(changed);
+			l.revert->setToolTip(changed ? "Back to the defaults." : "");
+		}
 	}
 
 	QDoubleSpinBox *numberBox(Row &r) {
@@ -737,16 +1011,24 @@ private:
 				if (r.grid)
 					r.grid->setRowMinimumHeight(r.gap, shown ? HEAD_GAP : 0);
 			}
-			if (!r.label)
+			// the graph list's rows have a control and no label or revert
+			if (!r.control)
 				continue;
 			auto st = row_state(d, r.id());
 			for (QWidget *w : {static_cast<QWidget *>(r.label), r.control, static_cast<QWidget *>(r.revert)})
-				w->setVisible(st.shown);
+				if (w)
+					w->setVisible(st.shown);
+			// greyed while a switch above it is off, but its revert still works
+			for (QWidget *w : {static_cast<QWidget *>(r.label), r.control})
+				if (w)
+					w->setEnabled(st.counts);
 			QString tip = qs(st.tip);
 			QString text = qs(st.text);
-			r.label->setToolTip(tip);
-			r.revert->setEnabled(st.can_reset);
-			r.revert->setToolTip(st.can_reset ? "Back to the default." : "");
+			if (r.label) {
+				r.label->setToolTip(tip);
+				r.revert->setEnabled(st.can_reset);
+				r.revert->setToolTip(st.can_reset ? "Back to the default." : "");
+			}
 			if (r.check) {
 				QSignalBlocker b(r.check);
 				r.check->setChecked(st.on);
@@ -795,6 +1077,8 @@ private:
 			if (r.chip)
 				r.chip->setStyleSheet(QString("background-color: %1; border: 1px solid palette(mid);").arg(text));
 		}
+		if (list)
+			refreshList();
 		if (saveTheme) {
 			auto b = theme_buttons(d);
 			saveTheme->setEnabled(b.save);
@@ -849,6 +1133,34 @@ std::int32_t run_dialog(Dialog &d, rust::Str snapshot) {
 			return 3;
 	}
 	return 0;
+}
+
+rust::Vec<rust::String> greyed_rows(Dialog &d) {
+	static int argc = 1;
+	static char name[] = "tukzmon-settings";
+	static char *argv[] = {name, nullptr};
+	qputenv("QT_QPA_PLATFORM", "offscreen");
+	QApplication app(argc, argv);
+	Window w(d);
+	rust::Vec<rust::String> ids;
+	for (auto &id : w.greyed())
+		ids.push_back(rust::String(id));
+	return ids;
+}
+
+rust::Vec<std::int32_t> graph_list_places(Dialog &d) {
+	static int argc = 1;
+	static char name[] = "tukzmon-settings";
+	static char *argv[] = {name, nullptr};
+	qputenv("QT_QPA_PLATFORM", "offscreen");
+	QApplication app(argc, argv);
+	Window w(d);
+	w.show();
+	app.processEvents();
+	rust::Vec<std::int32_t> out;
+	for (int v : w.listPlaces())
+		out.push_back(v);
+	return out;
 }
 
 } // namespace tukzmon

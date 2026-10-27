@@ -5,6 +5,7 @@
 //! and platform can share it.
 
 use std::fmt::Write as _;
+use std::io::{self, ErrorKind, Write as _};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -12,6 +13,8 @@ use std::process::ExitCode;
 mod bridge;
 mod dialog;
 mod dice;
+#[cfg(feature = "qt")]
+mod live;
 mod pick;
 
 const USAGE: &str = "Usage: tukzmon-settings [--config FILE]
@@ -32,7 +35,7 @@ fn main() -> ExitCode {
 		match a.as_str() {
 			"--config" | "--snapshot" => {
 				let Some(v) = args.next() else {
-					eprintln!("{a} needs a value.\n\n{USAGE}");
+					complain(&format!("{a} needs a value.\n\n{USAGE}"));
 					return ExitCode::from(2);
 				};
 				if a == "--config" {
@@ -42,15 +45,16 @@ fn main() -> ExitCode {
 				}
 			}
 			"--help" | "-h" => {
-				println!("{USAGE}");
-				return ExitCode::SUCCESS;
+				return print_text(&mut io::stdout().lock(), USAGE);
 			}
 			"--version" => {
-				println!("{}\n{COPYRIGHT}", version());
-				return ExitCode::SUCCESS;
+				return print_text(
+					&mut io::stdout().lock(),
+					&format!("{}\n{COPYRIGHT}", version()),
+				);
 			}
 			_ => {
-				eprintln!("Unknown option: {a}\n\n{USAGE}");
+				complain(&format!("Unknown option: {a}\n\n{USAGE}"));
 				return ExitCode::from(2);
 			}
 		}
@@ -58,6 +62,26 @@ fn main() -> ExitCode {
 	let path = config.unwrap_or_else(tukzmon_core::config::config_file);
 	let mut d = dialog::Dialog::open(path);
 	run(&mut d, &snapshot)
+}
+
+// Writes a line to stdout without println!, which panics (and aborts in a
+// release build) when the write fails. A closed pipe quits quietly, as `head`
+// expects, and any other failure gets one line on stderr and a failure code.
+fn print_text(out: &mut impl io::Write, text: &str) -> ExitCode {
+	match writeln!(out, "{text}").and_then(|()| out.flush()) {
+		Ok(()) => ExitCode::SUCCESS,
+		Err(e) if e.kind() == ErrorKind::BrokenPipe => ExitCode::SUCCESS,
+		Err(e) => {
+			complain(&format!("tukzmon-settings: can't write the output: {e}"));
+			ExitCode::FAILURE
+		}
+	}
+}
+
+// eprintln! panics on a failed write too, and a closed stderr is no reason to
+// hide the exit code.
+fn complain(text: &str) {
+	let _ = writeln!(io::stderr().lock(), "{text}");
 }
 
 const COPYRIGHT: &str = "Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)";
@@ -123,7 +147,7 @@ fn run(d: &mut dialog::Dialog, snapshot: &str) -> ExitCode {
 
 #[cfg(not(feature = "qt"))]
 fn run(_d: &mut dialog::Dialog, _snapshot: &str) -> ExitCode {
-	eprintln!("This tukzmon-settings was built without Qt, so it has no window.");
+	complain("This tukzmon-settings was built without Qt, so it has no window.");
 	ExitCode::FAILURE
 }
 
@@ -148,5 +172,29 @@ mod tests {
 		);
 		assert!(version_line(0, true).ends_with(" build 0"));
 		assert!(version().starts_with(&format!("tukzmon-settings v{v} build ")));
+	}
+
+	struct Failing(ErrorKind);
+
+	impl io::Write for Failing {
+		fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+			Err(self.0.into())
+		}
+		fn flush(&mut self) -> io::Result<()> {
+			Err(self.0.into())
+		}
+	}
+
+	// Test ID: defks
+	#[test]
+	fn a_failed_write_of_the_output_is_no_panic() {
+		let ok = |c: ExitCode| format!("{c:?}") == format!("{:?}", ExitCode::SUCCESS);
+		let mut out = Vec::new();
+		assert!(ok(print_text(&mut out, "x")));
+		assert_eq!(out, b"x\n");
+		// A closed pipe quits quietly.
+		assert!(ok(print_text(&mut Failing(ErrorKind::BrokenPipe), "x")));
+		// Anything else, such as /dev/full, is a failure.
+		assert!(!ok(print_text(&mut Failing(ErrorKind::StorageFull), "x")));
 	}
 }

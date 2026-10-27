@@ -6,6 +6,7 @@
 use knobs::{Control, Value};
 
 use crate::dialog::Dialog;
+use crate::live::Live;
 use crate::pick::{Field, Hsv};
 
 #[cxx::bridge(namespace = "tukzmon")]
@@ -28,6 +29,16 @@ pub mod ffi {
 		indent: i32,
 		/// It picks a theme, so the theme buttons go beside it.
 		chooser: bool,
+		/// The graph list draws it, so it gets no row of its own.
+		in_list: bool,
+	}
+
+	/// The graph list's row for one graph: the ids of the settings it shows.
+	struct GraphRow {
+		name: String,
+		show: String,
+		width: String,
+		time: String,
 	}
 
 	struct RowState {
@@ -85,11 +96,37 @@ pub mod ffi {
 		fn pick_set(d: &mut Dialog, h: f64, s: f64, v: f64);
 		fn pick_type(d: &mut Dialog, field: usize, text: &str) -> bool;
 		fn pick_close(d: &mut Dialog, keep: bool);
+		fn graph_rows(d: &Dialog) -> Vec<GraphRow>;
+		fn move_graph(d: &mut Dialog, from: usize, to: usize) -> bool;
+
+		type Live;
+		fn live_new(d: &Dialog) -> Box<Live>;
+		fn live_look(l: &mut Live, d: &Dialog);
+		/// Reads every graph, and gives the ms to the next read.
+		fn live_sample(l: &mut Live) -> u32;
+		fn live_width(l: &Live, name: &str) -> u32;
+		/// The pixels live until the next call on `l`. cxx asks for `unsafe`
+		/// to name the lifetime, and the body is safe.
+		unsafe fn live_draw<'a>(
+			l: &'a mut Live,
+			name: &str,
+			w: usize,
+			h: usize,
+			scale: usize,
+		) -> &'a [u32];
+		fn live_tip(l: &Live, name: &str) -> String;
+		/// True while the graph's time axis eases in, so it wants drawing again soon.
+		fn live_easing(l: &Live, name: &str) -> bool;
 	}
 
 	unsafe extern "C++" {
 		include!("tukzmon-settings/src/qt.h");
 		fn run_dialog(d: &mut Dialog, snapshot: &str) -> i32;
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn greyed_rows(d: &mut Dialog) -> Vec<String>;
+		/// Each graph list row's graph width and x, and its width box's x.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn graph_list_places(d: &mut Dialog) -> Vec<i32>;
 	}
 }
 
@@ -131,6 +168,7 @@ fn dialog_rows(d: &Dialog) -> Vec<ffi::RowInfo> {
 			option_labels: s.options.iter().map(|(_, l)| l.clone()).collect(),
 			indent: s.indent as i32,
 			chooser: d.spec().chooser_of(&s.id).is_some(),
+			in_list: d.in_graph_list(&s.id),
 		})
 		.collect()
 }
@@ -241,6 +279,51 @@ fn pick_close(d: &mut Dialog, keep: bool) {
 	d.pick_close(keep);
 }
 
+fn graph_rows(d: &Dialog) -> Vec<ffi::GraphRow> {
+	d.graph_rows()
+		.into_iter()
+		.map(|r| ffi::GraphRow {
+			name: r.name,
+			show: r.show,
+			width: r.width,
+			time: r.time,
+		})
+		.collect()
+}
+
+fn move_graph(d: &mut Dialog, from: usize, to: usize) -> bool {
+	d.move_graph(from, to)
+}
+
+fn live_new(d: &Dialog) -> Box<Live> {
+	Box::new(Live::new(d.look()))
+}
+
+fn live_look(l: &mut Live, d: &Dialog) {
+	l.set_look(&d.look());
+}
+
+fn live_sample(l: &mut Live) -> u32 {
+	l.sample();
+	l.sample_ms()
+}
+
+fn live_width(l: &Live, name: &str) -> u32 {
+	l.width(name)
+}
+
+fn live_draw<'a>(l: &'a mut Live, name: &str, w: usize, h: usize, scale: usize) -> &'a [u32] {
+	l.render(name, w, h, scale)
+}
+
+fn live_tip(l: &Live, name: &str) -> String {
+	l.tip(name)
+}
+
+fn live_easing(l: &Live, name: &str) -> bool {
+	l.easing(name)
+}
+
 pub fn run(d: &mut Dialog, snapshot: &str) -> i32 {
 	ffi::run_dialog(d, snapshot)
 }
@@ -249,6 +332,120 @@ pub fn run(d: &mut Dialog, snapshot: &str) -> i32 {
 mod tests {
 	use super::*;
 	use tukzmon_core::config::THEME;
+
+	// One QApplication at a time, or 2 tests' windows crash each other.
+	static QT: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+	fn qt_turn() -> std::sync::MutexGuard<'static, ()> {
+		QT.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+	}
+
+	// Test ID: defm1
+	#[test]
+	fn the_graph_list_sits_under_graphs_and_takes_its_rows() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_list_never_written.shcl",
+			std::process::id()
+		));
+		let d = Dialog::open(path);
+		let rows = dialog_rows(&d);
+		let listed: Vec<&str> = rows
+			.iter()
+			.filter(|r| r.in_list)
+			.map(|r| r.id.as_str())
+			.collect();
+		let mut want: Vec<String> = graph_rows(&d)
+			.into_iter()
+			.flat_map(|g| [g.show, g.width, g.time])
+			.collect();
+		want.push(crate::dialog::ORDER.to_string());
+		assert_eq!(listed, want);
+		// qt.cpp puts the list where its first row would be
+		let first = rows.iter().position(|r| r.in_list).unwrap();
+		assert_eq!(rows[first - 1].id, "graphshead");
+		assert!(
+			rows.iter()
+				.filter(|r| r.in_list)
+				.all(|r| r.tab == rows[first].tab)
+		);
+	}
+
+	// Test ID: defmk
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn the_longest_graph_sets_the_column_so_the_rest_line_up() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_places_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		d.set("cpu_width", &Value::Float(40.0));
+		d.set("mem_width", &Value::Float(100.0));
+		let rows = graph_rows(&d);
+		let places = ffi::graph_list_places(&mut d);
+		assert_eq!(places.len(), rows.len() * 3);
+		let at = |i: usize| &places[i * 3..i * 3 + 3];
+		let width_of = |name: &str| at(rows.iter().position(|r| r.name == name).unwrap())[0];
+		assert_eq!(width_of("cpu"), 40);
+		if tukzmon_core::Graph::memory(tukzmon_core::config::Look::default()).is_some() {
+			assert_eq!(width_of("mem"), 100);
+		}
+		let widest = (0..rows.len()).map(|i| at(i)[0]).max().unwrap();
+		for (i, row) in rows.iter().enumerate() {
+			assert_eq!(at(i)[1], at(0)[1], "{}", row.name);
+			assert_eq!(at(i)[2], at(0)[2], "{}", row.name);
+			assert!(at(i)[2] >= at(i)[1] + widest, "{places:?}");
+		}
+		// past the window's room it's squeezed, not cut
+		d.set("cpu_width", &Value::Float(4096.0));
+		let places = ffi::graph_list_places(&mut d);
+		let cpu = rows.iter().position(|r| r.name == "cpu").unwrap();
+		assert_eq!(places[cpu * 3], 512);
+	}
+
+	// Test ID: defma
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn a_row_is_greyed_while_its_switch_is_off() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_greyed_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let shown: Vec<String> = dialog_rows(&d)
+			.into_iter()
+			.filter(|r| !matches!(r.control.as_str(), "heading" | "none"))
+			.map(|r| r.id)
+			.collect();
+		let gates: Vec<String> = d
+			.spec()
+			.settings
+			.iter()
+			.filter_map(|s| s.gate.clone())
+			.collect();
+		let want = |d: &Dialog| -> Vec<String> {
+			shown
+				.iter()
+				.filter(|id| !d.state(id).counts)
+				.cloned()
+				.collect()
+		};
+		assert_eq!(
+			want(&d),
+			["swap_width", "swap_time", "battery_width", "battery_time"]
+		);
+		assert_eq!(ffi::greyed_rows(&mut d), want(&d));
+		for g in &gates {
+			d.set(g, &Value::Bool(false));
+		}
+		let off = want(&d);
+		for id in ["log_curve", "spikes", "max_days", "cpu_width", "mem_time"] {
+			assert!(off.iter().any(|o| o == id), "{id}");
+		}
+		assert_eq!(ffi::greyed_rows(&mut d), off);
+	}
 
 	// Test ID: dee9q
 	#[test]

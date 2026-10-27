@@ -4,26 +4,33 @@
 //! The part of tukzmon every panel shares. No GUI toolkit in here.
 
 pub mod axis;
+pub mod battery;
 pub mod collect;
 pub mod config;
 pub mod cpu;
+pub mod disk;
 pub mod graphs;
 pub mod history;
 pub mod keep;
+pub mod load;
 pub mod mem;
+pub mod net;
 pub mod render;
+pub mod temp;
 pub mod when;
+pub mod zswap;
 
 use std::io;
 use std::path::Path;
 use std::time::{Instant, SystemTime};
 
-use axis::{Axis, Timing};
+use axis::{Ages, Axis, Basis, Ease, Timing};
+use battery::BatteryReader;
 use collect::Collector;
 use config::Look;
 use cpu::CpuReader;
 use history::History;
-use mem::MemoryReader;
+use mem::{MemoryReader, SwapReader};
 use render::{Frame, Paint};
 use when::Said;
 
@@ -89,6 +96,48 @@ impl Source<3> for MemoryReader {
 	}
 }
 
+impl Source<1> for SwapReader {
+	const SECTION: &'static str = "swap";
+	const TITLE: &'static str = "Swap";
+
+	fn text(v: &[f32; 1]) -> String {
+		format!("Swap {}% used", pc(v[0]))
+	}
+
+	fn paint(look: &Look) -> Paint<'_, 1> {
+		look.swap_paint()
+	}
+
+	fn timing(look: &Look) -> Timing {
+		look.timing(look.swap_time)
+	}
+}
+
+impl Source<3> for BatteryReader {
+	const SECTION: &'static str = "battery";
+	const TITLE: &'static str = "Battery";
+
+	// full counts as charging, so the tip says what the power is doing
+	fn text(v: &[f32; 3]) -> String {
+		let state = if v[2] > 0.0 {
+			"critical"
+		} else if v[1] > 0.0 {
+			"on battery"
+		} else {
+			"plugged in"
+		};
+		format!("Battery {}%, {state}", pc(v.iter().sum()))
+	}
+
+	fn paint(look: &Look) -> Paint<'_, 3> {
+		look.battery_paint()
+	}
+
+	fn timing(look: &Look) -> Timing {
+		look.timing(look.battery_time)
+	}
+}
+
 /// One graph: reads, history, and drawing. CPU unless said otherwise.
 pub struct Graph<S: Source<N> = CpuReader, const N: usize = 4> {
 	pub look: Look,
@@ -100,6 +149,7 @@ pub struct Graph<S: Source<N> = CpuReader, const N: usize = 4> {
 	read_at: Option<f64>,
 	latest: Option<[f32; N]>,
 	px: Vec<u32>,
+	ease: Ease,
 	/// Where the pointer is, in device pixels from the left, for the hover line.
 	pub hover: Option<usize>,
 }
@@ -117,6 +167,20 @@ impl Graph<MemoryReader, 3> {
 	}
 }
 
+impl Graph<SwapReader, 1> {
+	/// None on a box with no swap.
+	pub fn swap(look: Look) -> Option<Self> {
+		SwapReader::probe().map(|src| Graph::with(look, src))
+	}
+}
+
+impl Graph<BatteryReader, 3> {
+	/// None on a box with no battery in.
+	pub fn battery(look: Look) -> Option<Self> {
+		BatteryReader::probe().map(|src| Graph::with(look, src))
+	}
+}
+
 impl<S: Source<N>, const N: usize> Graph<S, N> {
 	fn with(look: Look, src: S) -> Self {
 		Graph {
@@ -130,6 +194,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 			read_at: None,
 			latest: None,
 			px: Vec::new(),
+			ease: Ease::default(),
 			hover: None,
 		}
 	}
@@ -215,16 +280,23 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 	}
 
 	pub fn axis(&self, columns: usize) -> Axis {
+		Axis::of(&self.basis(columns))
+	}
+
+	fn basis(&self, columns: usize) -> Basis {
 		match S::timing(&self.look) {
-			Timing::Log(curve) => {
-				let total = match (self.hist.first(), self.hist.last()) {
-					(Some(a), Some(b)) => b - a,
-					_ => 0.0,
-				};
-				Axis::log(curve, total)
-			}
-			Timing::Linear => Axis::linear(columns as f64 * self.look.sample_ms as f64 / 1000.0),
+			Timing::Log(curve) => Basis::Log {
+				curve,
+				span: self.hist.first().zip(self.hist.last()),
+			},
+			Timing::Linear => Basis::Linear(columns as f64 * self.look.sample_ms as f64 / 1000.0),
 		}
+	}
+
+	/// True while the axis is still easing in after a jump, so the panel
+	/// should draw again soon.
+	pub fn easing(&self) -> bool {
+		self.ease.easing(self.now())
 	}
 
 	fn columns(&self, w: usize, scale: usize) -> usize {
@@ -248,6 +320,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		let thick = scale.clamp(1, pw);
 		let x0 = x.clamp(bw, bw + pw - thick) - bw;
 		let axis = self.axis(self.columns(w, scale));
+		let axis = self.ease.view(&axis, self.now());
 		let u = |cx: usize| (pw - cx) as f64 / pw as f64;
 		Some((now - axis.age(u(x0)), now - axis.age(u(x0 + thick))))
 	}
@@ -273,12 +346,16 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 
 	/// The graph as cairo ARGB32 pixels, `w` by `h`.
 	pub fn render(&mut self, w: usize, h: usize, scale: usize) -> &[u32] {
-		let columns = self.columns(w, scale);
-		let axis = self.axis(columns);
+		let basis = self.basis(self.columns(w, scale));
+		let axis = Axis::of(&basis);
+		let t = self.now();
+		// a sample may come late by most of a tick, and a tick may be missed
+		let slack = 2.0 * f64::from(self.look.sample_ms.max(50)) / 1000.0 + 0.25;
+		self.ease.update(&axis, basis, t, slack);
 		let mut px = std::mem::take(&mut self.px);
 		Frame {
 			hist: &self.hist,
-			axis: &axis,
+			axis: &self.ease.view(&axis, t),
 			now: self.hist.last().unwrap_or(0.0),
 			look: &self.look,
 			paint: S::paint(&self.look),
@@ -317,6 +394,25 @@ mod tests {
 		assert_eq!(px.len(), 128 * 26);
 		assert!(px.iter().all(|p| p >> 24 == 0xff));
 		assert!(g.tooltip().starts_with("CPU "));
+	}
+
+	// Test ID: defpr
+	#[test]
+	fn a_new_time_axis_eases_in_and_then_stops() {
+		let mut g = Graph::new(Look::default());
+		g.sample();
+		std::thread::sleep(std::time::Duration::from_millis(40));
+		g.sample();
+		g.render(64, 20, 1);
+		assert!(!g.easing());
+		g.look.log_axis = false;
+		g.render(64, 20, 1);
+		assert!(g.easing());
+		g.skip(axis::EASE);
+		assert!(!g.easing());
+		// so the panel stops drawing extra frames
+		g.render(64, 20, 1);
+		assert!(!g.easing());
 	}
 
 	// Test ID: debj5
