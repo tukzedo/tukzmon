@@ -4,6 +4,7 @@
 //! The part of tukzmon every panel shares. No GUI toolkit in here.
 
 pub mod axis;
+pub mod battery;
 pub mod collect;
 pub mod config;
 pub mod cpu;

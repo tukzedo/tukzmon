@@ -224,6 +224,40 @@ Sorted per the notes in [Template](#template).
 	- Test case: `dialog::tests::the_graph_list_has_a_row_per_graph_in_the_saved_order` (defkz), `dragging_a_graph_saves_the_order_and_keeps_names_it_doesnt_know` (defm0), and `bridge::tests::the_graph_list_sits_under_graphs_and_takes_its_rows` (defm1). defkz fails with the saved order ignored, defm0 with that or with unknown names dropped, and defm1 with no row marked as the list's. The drag itself has no test in the suite.
 		- Swept: every `Graphs::order` user (now through `order_of`), every reader of `graph_order` (`Look::from_model` and the window), and every `Row` field `refresh` reads, for the list's rows with no label or revert of their own.
 
+- Battery collector
+	- ID: 2026102408512223
+	- Type: Feature
+	- Status: Waiting on automated testing
+		- Verified on file layouts only. This box has no `BAT*` battery, so defny returned early and the live path hasn't run on real hardware.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs external testing: defny (`battery::tests::live_power_supply_reads`), in a plain `cargo test -p tukzmon-core battery` on a laptop with a battery in, once on AC and once on battery.
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Requirements:
+		- Charge and state from `/sys/class/power_supply/BAT*`: charging, discharging, and the critical level.
+		- No collector on a box with no battery.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- `core/src/battery.rs` has `BatteryReader`, with series charging, discharging and critical. The charge, as a share of full, goes in the one for the state, the way multiload-ng does it.
+		- The charge is `energy_now / energy_full`, or else `charge_now / charge_full`, or else `capacity`. Critical is `capacity_level` at `Critical`, or 4% or less when there's no level.
+		- A mouse's battery, an empty slot, or a `BAT*` whose `type` isn't `Battery` gives no collector.
+		- Nothing draws it yet. That's The graphs, 2026101916013887.
+		- `design.md` Data sources on Linux has the details.
+		- Verified: the full run passed, with made-up `power_supply` trees for one battery, two, an empty slot and a mouse's.
+	- Decisions:
+		- Every `BAT*` battery is read as one, not just the first as in multiload-ng, so a laptop with 2 shows its whole charge. Their energy or charge adds up, or their shares are averaged when they count in different units.
+		- Discharging is any battery's `status` saying so. Full, `Not charging` and `Unknown` count as charging, since the power's in. multiload-ng counts `Not charging` as discharging.
+		- With 2 batteries, critical needs both at `Critical`, since a laptop drains one first.
+		- No `current_now` check, unlike multiload-ng. `status` is what the kernel says the state is.
+		- A battery taken out drops out. With none left it's a gap. A battery put in after start isn't seen until the next start, like the temperature sensors.
+	- Branch: round-1026
+	- Test case: `battery::tests` (5: defnt, defnv, defnw, defnx, defny). defnx fails with the `BAT` name check taken out, defnw with one battery at `Critical` enough, defnv with the 4% rule taken out, and defnw and defnx with `present` ignored.
+		- Swept: the temperature collector, the other `/sys` reader, which also skips what it can't read and gives no collector when nothing reads at start.
+
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
@@ -445,19 +479,6 @@ Sorted per the notes in [Template](#template).
 	- Test case: `live::tests::each_graph_draws_at_its_width_with_the_windows_look` (defmj) and `bridge::tests::the_longest_graph_sets_the_column_so_the_rest_line_up` (defmk). defmj fails with the window's changes not reaching the graphs, and defmk with every graph at the old fixed width.
 		- 2026-10-26: `bridge::tests::a_row_is_greyed_while_its_switch_is_off` (defma) now takes a lock shared with defmk, since 2 Qt windows at once crash, and is ignored under Miri, which can't call C++. Its checks are unchanged.
 		- Swept: every reader of a graph's own width (`Graphs::width_of`, now through `width_or`), and every test that builds the Qt window (defma and defmk).
-
-- Battery collector
-	- ID: 2026102408512223
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-085122
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013884
-	- Prereq IDs: 2026102408512192
-	- Requirements:
-		- Charge and state from `/sys/class/power_supply/BAT*`: charging, discharging, and the critical level.
-		- No collector on a box with no battery.
 
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
