@@ -13,6 +13,7 @@ pub mod keep;
 pub mod mem;
 pub mod render;
 pub mod when;
+pub mod zswap;
 
 use std::io;
 use std::path::Path;

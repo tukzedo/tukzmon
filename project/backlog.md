@@ -446,20 +446,6 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-26: `bridge::tests::a_row_is_greyed_while_its_switch_is_off` (defma) now takes a lock shared with defmk, since 2 Qt windows at once crash, and is ignored under Miri, which can't call C++. Its checks are unchanged.
 		- Swept: every reader of a graph's own width (`Graphs::width_of`, now through `width_or`), and every test that builds the Qt window (defma and defmk).
 
-- Zswap and zram collector
-	- ID: 2026102408512197
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-085122
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013884
-	- Prereq IDs: 2026102408512192
-	- Requirements:
-		- Zswap from `Zswap` and `Zswapped` in `/proc/meminfo`, as % used, plus the compression ratio for the text overlay.
-		- Zram from `/sys/block/zram*/mm_stat`, the same way, when there's no zswap.
-		- No collector on a kernel or box with neither.
-
 - Network collector
 	- ID: 2026102408512202
 	- Type: Feature
@@ -525,18 +511,6 @@ Sorted per the notes in [Template](#template).
 		- Charge and state from `/sys/class/power_supply/BAT*`: charging, discharging, and the critical level.
 		- No collector on a box with no battery.
 
-- Memory cache counts slab, the way b23's multiload-ng does
-	- ID: 2026102508354893
-	- Type: Enhancement
-	- Status: Queued
-		- Answered 2026-10-25: yes, count reclaimable slab as cache, always, like `free`.
-	- Priority|Severity: Avg
-	- Opened: 20261025-083548
-	- Opened by: t00mietum
-	- Related IDs: 2026102408512192, 2026102408304625
-	- Requirements:
-		- b23's multiload-ng has `graph-mem-procps-compliant=true`, so it counts slab as cache. tukzmon counts `Cached` alone, per 2026102408512192, so its cache band is thinner and user thicker than multiload-ng showed.
-
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
 	- Type: Feature
@@ -554,6 +528,60 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Zswap and zram collector
+	- ID: 2026102408512197
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Requirements:
+		- Zswap from `Zswap` and `Zswapped` in `/proc/meminfo`, as % used, plus the compression ratio for the text overlay.
+		- Zram from `/sys/block/zram*/mm_stat`, the same way, when there's no zswap.
+		- No collector on a kernel or box with neither.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- `core/src/zswap.rs` has `ZswapReader`. It reads zswap when it's on, and every zram device there at start when it isn't. `ratio()` gives the last read's ratio for the overlay, and `name()` says which it is.
+		- Nothing draws it yet. That's The graphs, 2026101916013887.
+		- `design.md` Data sources on Linux has the details.
+		- Verified: on this box, with zswap on and no zram, the live read gives a share in range.
+	- Decisions:
+		- Zswap's % used is the pool against `max_pool_percent` of all memory, the point it stops taking pages. Zram's is what it holds, before compression, against `disksize`. Both read as how close it is to full.
+		- The ratio isn't a series, so it stays out of the history file. The overlay shows the latest.
+		- Zswap on with no rows to read, as on an old kernel, falls to zram.
+		- zram devices are summed, and one added after start is missed until the panel restarts.
+	- Branch: round-1026
+	- Test case: `zswap::tests` (5: defmz, defn0, defn1, defn2, defn3). defn1 fails with zswap taken whenever it's on, rows or not.
+		- 2026-10-26: `mem::tests::reads_the_rows` (decax) now checks the 3 new rows too, at `SReclaimable` 0, `Zswap` 0 and no `Zswapped`. `odd_counts_stay_in_range` (decb1) leaves them at their defaults. Nothing else in either changed.
+		- Swept: the only `/proc/meminfo` parser, `mem::parse_meminfo`, which both readers share.
+	- Closed: 20261026-173826
+
+- Memory cache counts slab, the way b23's multiload-ng does
+	- ID: 2026102508354893
+	- Type: Enhancement
+	- Status: Done
+		- Answered 2026-10-25: yes, count reclaimable slab as cache, always, like `free`.
+	- Priority|Severity: Avg
+	- Opened: 20261025-083548
+	- Opened by: t00mietum
+	- Related IDs: 2026102408512192, 2026102408304625
+	- Requirements:
+		- b23's multiload-ng has `graph-mem-procps-compliant=true`, so it counts slab as cache. tukzmon counts `Cached` alone, per 2026102408512192, so its cache band is thinner and user thicker than multiload-ng showed.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Cache is `Cached` plus `SReclaimable` now. Slab that can't be reclaimed stays in user. `design.md` Data sources on Linux says so.
+	- Decisions:
+		- This replaces the `Cached` alone decision on 2026102408512192.
+		- No setting for it, per the answer.
+	- Branch: round-1026
+	- Test case: `mem::tests::cache_takes_in_reclaimable_slab_and_user_keeps_the_rest` (defmy). It fails with cache as `Cached` alone, and passes with the fix.
+		- Swept: `memory_shares` is the one place cache is worked out. The other `mem::tests` pass unchanged, since their rows have no `SReclaimable`.
+	- Closed: 20261026-173826
 
 - Settings rows that depend on a switch are never greyed
 	- ID: 2026102617084201

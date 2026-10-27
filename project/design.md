@@ -175,11 +175,11 @@ On panels without a native plugin, tukzmon falls back to a tray icon with one sm
 | Graph       | Source
 | :---        | :---
 | CPU         | `/proc/stat`. The I/O wait, system, user, and nice columns.
-| Memory      | `/proc/meminfo`. User is total minus free, buffers, and cache. Cache is the `Cached` row alone, as multiload-ng counts it, so slab is in user.
+| Memory      | `/proc/meminfo`. User is total minus free, buffers, and cache. Cache is `Cached` plus `SReclaimable`, as `free` counts it and as multiload-ng does with `graph-mem-procps-compliant` on. Slab that can't be reclaimed is in user.
 | Network     | `/proc/net/dev`. Local is the loopback device, `lo`.
 | Swap        | `/proc/meminfo`.
-| Zswap       | `Zswap` and `Zswapped` in `/proc/meminfo`, on kernels new enough to have them. The ratio is `Zswapped / Zswap`. `/sys/kernel/debug/zswap` needs root, so it isn't used.
-| Zram        | `/sys/block/zram*/mm_stat`.
+| Zswap       | `Zswap` and `Zswapped` in `/proc/meminfo`, on kernels new enough to have them. Used is the pool, `Zswap`, against the cap zswap stops taking pages at, `max_pool_percent` of `MemTotal`. The ratio is `Zswapped / Zswap`. `/sys/kernel/debug/zswap` needs root, so it isn't used.
+| Zram        | `/sys/block/zram*/mm_stat`, summed over every device there at start, when zswap is off. Used is `orig_data_size` against `disksize`, and the ratio is `orig_data_size / compr_data_size`. A box with neither, or with zram devices that have no size, has no Zswap graph.
 | Load        | `/proc/loadavg`.
 | Disk        | `/proc/diskstats`, one row per device, with partitions left out of the total.
 | Temperature | `hwmon` under `/sys/class/hwmon`, picking the CPU package sensor. `temp*_crit` gives the critical level when the sensor has one.
