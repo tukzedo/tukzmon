@@ -176,12 +176,12 @@ On panels without a native plugin, tukzmon falls back to a tray icon with one sm
 | :---        | :---
 | CPU         | `/proc/stat`. The I/O wait, system, user, and nice columns.
 | Memory      | `/proc/meminfo`. User is total minus free, buffers, and cache. Cache is `Cached` plus `SReclaimable`, as `free` counts it and as multiload-ng does with `graph-mem-procps-compliant` on. Slab that can't be reclaimed is in user.
-| Network     | `/proc/net/dev`. Local is the loopback device, `lo`.
+| Network     | `/proc/net/dev`, in bytes per second. Local is what the loopback device, `lo`, received, since it receives all it sends. Sent and received add up every other interface. An interface coming or going, or a counter that went down, makes that sample a gap.
 | Swap        | `/proc/meminfo`.
 | Zswap       | `Zswap` and `Zswapped` in `/proc/meminfo`, on kernels new enough to have them. Used is the pool, `Zswap`, against the cap zswap stops taking pages at, `max_pool_percent` of `MemTotal`. The ratio is `Zswapped / Zswap`. `/sys/kernel/debug/zswap` needs root, so it isn't used.
 | Zram        | `/sys/block/zram*/mm_stat`, summed over every device there at start, when zswap is off. Used is `orig_data_size` against `disksize`, and the ratio is `orig_data_size / compr_data_size`. A box with neither, or with zram devices that have no size, has no Zswap graph.
 | Load        | `/proc/loadavg`.
-| Disk        | `/proc/diskstats`, one row per device, with partitions left out of the total.
+| Disk        | `/proc/diskstats`, one row per device, as 512 byte sectors read and written. All disks means each device with a `device` link under `/sys/block`. That leaves out partitions and what's stacked on a disk, such as LVM, LUKS, RAID, loop and zram, so nothing is counted twice. A chosen list counts just the names on it. A counted drive coming or going, or a counter that went down, makes a gap.
 | Temperature | `hwmon` under `/sys/class/hwmon`, picking the CPU package sensor. `temp*_crit` gives the critical level when the sensor has one.
 | Battery     | `/sys/class/power_supply/BAT*`.
 

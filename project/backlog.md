@@ -446,19 +446,6 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-26: `bridge::tests::a_row_is_greyed_while_its_switch_is_off` (defma) now takes a lock shared with defmk, since 2 Qt windows at once crash, and is ignored under Miri, which can't call C++. Its checks are unchanged.
 		- Swept: every reader of a graph's own width (`Graphs::width_of`, now through `width_or`), and every test that builds the Qt window (defma and defmk).
 
-- Network collector
-	- ID: 2026102408512202
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-085122
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013884
-	- Prereq IDs: 2026102408512192
-	- Requirements:
-		- Bytes per second from `/proc/net/dev`: local (`lo`), sent, and received.
-		- Counters that wrap or reset, as when an interface goes away, make a gap, not a spike.
-
 - Load collector
 	- ID: 2026102408512207
 	- Type: Feature
@@ -470,20 +457,6 @@ Sorted per the notes in [Template](#template).
 	- Prereq IDs: 2026102408512192
 	- Requirements:
 		- The 1 minute load from `/proc/loadavg`.
-
-- Disk collector
-	- ID: 2026102408512212
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-085122
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013884
-	- Prereq IDs: 2026102408512192
-	- Requirements:
-		- Read and write bytes per second from `/proc/diskstats`, per device.
-		- Partitions left out of the total, so nothing is counted twice.
-		- All disks, or a chosen list of drives.
 
 - CPU temperature collector
 	- ID: 2026102408512217
@@ -528,6 +501,68 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Network collector
+	- ID: 2026102408512202
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Related IDs: 2026102408512212, 2026101916013883
+	- Requirements:
+		- Bytes per second from `/proc/net/dev`: local (`lo`), sent, and received.
+		- Counters that wrap or reset, as when an interface goes away, make a gap, not a spike.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- `core/src/net.rs` has `NetReader`, with series local, sent and received, in bytes per second. The first read only primes it.
+		- `Climb` in `core/src/collect.rs` turns named counters into rates, and the disk collector shares it. It keeps each interface's counters, so one coming or going, or one going down, makes that sample a gap.
+		- Nothing draws it yet. That's The graphs, 2026101916013887.
+		- `design.md` Data sources on Linux has the details.
+		- Verified: the full run passed. A live read on this box gave finite rates of 0 or more.
+	- Decisions:
+		- Local is what `lo` received, not received plus sent, since loopback receives everything it sends.
+		- Any interface coming or going makes a gap, not just one going away. Its bytes for that stretch aren't known either way.
+		- Every interface but `lo` adds to sent and received, bridges and container veths too, so traffic through a bridge counts on both sides. Leaving out the virtual ones is easy to add if it shows.
+	- Branch: round-1026
+	- Test case: `net::tests` (4: defn9, defna, defnb, defnc) and `collect::tests::climb_primes_then_gives_rates_and_gaps` (defnd). defnb and defnd fail with the row and counter checks taken out of `Counts::rise_since`.
+		- Swept: the other counter collector, CPU's `shares`, which already gaps on a counter going down.
+	- Closed: 20261026-174806
+
+- Disk collector
+	- ID: 2026102408512212
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-085122
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013884
+	- Prereq IDs: 2026102408512192
+	- Related IDs: 2026102408512202
+	- Requirements:
+		- Read and write bytes per second from `/proc/diskstats`, per device.
+		- Partitions left out of the total, so nothing is counted twice.
+		- All disks, or a chosen list of drives.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- `core/src/disk.rs` has `DiskReader`, with series write and read, in bytes per second, over each device's counters. `probe()` counts all disks, and `DiskReader::new(Drives::Only(..))` takes a list of names.
+		- All disks is each device with a `device` link under `/sys/block`, which leaves out partitions and what's stacked on a disk, such as LUKS, LVM, RAID, loop and zram.
+		- A counted drive coming or going, or a counter going down, makes a gap. A partition or loop device coming or going doesn't.
+		- Nothing draws it, and settings has no drive list yet. That's The graphs, 2026101916013887.
+		- `design.md` Data sources on Linux has the details.
+		- Verified: the full run passed. On this box no partition was taken as a disk, and dm-0, the LUKS device on sdd2, was left out.
+	- Decisions:
+		- Stacked devices are left out of all disks too, not just partitions, since each of their reads is counted again on the disk below.
+		- No disk at all, as in a container, gives no collector for all disks. A chosen list always gets one, and a drive on it that isn't plugged in reads as 0.
+		- A chosen list counts what's on it as is, so picking a disk and its partition counts both.
+	- Branch: round-1026
+	- Test case: `disk::tests` (4: defne, defnf, defng, defnh), plus defnd for the shared gaps. defnf fails with partitions and stacked devices taken as disks, and defng with the gap checks taken out.
+		- Swept: the network collector, which shares `Climb`.
+	- Closed: 20261026-174806
 
 - Zswap and zram collector
 	- ID: 2026102408512197
