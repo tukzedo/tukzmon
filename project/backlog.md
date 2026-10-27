@@ -590,6 +590,7 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-26: new values only, for the renamed themes. deccg reads `pastel`, not `blue_pastel`. deccj reads `primary` and "Primary *", not Green standard. decct lists `primary`, `pastel`, `neon` and `earth` in place of the 4 color-named keys. decdg reads `neon`, with a gradient Medium of `#39ff14`, not `#0080ff`. deccx's built-in clash is `Earth` -> `earth_2`, not `Blue pastel` -> `blue_pastel_2`. In `dialog::tests`, deccm and deccy pick `neon`, with user `#39ff14` and nice `#1f6a10`, not `#0080ff` and `#20405f`, and deccy's clash is `nEon`. dece0 picks `pastel`.
 		- 2026-10-26: dedpz, defq5 and defqc had Fire's memory, swap and battery gradients equal to its CPU one. They now check each graph's own gradient, and dedpz that memory's differs from CPU's.
 		- Swept: every built-in key and label in the Rust tests, qt.cpp and the docs, every swap and battery row default, and the `dice` tests, which don't read the built-ins.
+	- 2026-10-27: the Randomize part is done in child 2026102621562349 (commit 9e35514).
 
 - Randomize: a hue of its own for each graph
 	- ID: 2026102621562349
