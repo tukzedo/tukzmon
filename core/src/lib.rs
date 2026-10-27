@@ -25,6 +25,7 @@ use std::path::Path;
 use std::time::{Instant, SystemTime};
 
 use axis::{Ages, Axis, Basis, Ease, Timing};
+use battery::BatteryReader;
 use collect::Collector;
 use config::Look;
 use cpu::CpuReader;
@@ -112,6 +113,31 @@ impl Source<1> for SwapReader {
 	}
 }
 
+impl Source<3> for BatteryReader {
+	const SECTION: &'static str = "battery";
+	const TITLE: &'static str = "Battery";
+
+	// full counts as charging, so the tip says what the power is doing
+	fn text(v: &[f32; 3]) -> String {
+		let state = if v[2] > 0.0 {
+			"critical"
+		} else if v[1] > 0.0 {
+			"on battery"
+		} else {
+			"plugged in"
+		};
+		format!("Battery {}%, {state}", pc(v.iter().sum()))
+	}
+
+	fn paint(look: &Look) -> Paint<'_, 3> {
+		look.battery_paint()
+	}
+
+	fn timing(look: &Look) -> Timing {
+		look.timing(look.battery_time)
+	}
+}
+
 /// One graph: reads, history, and drawing. CPU unless said otherwise.
 pub struct Graph<S: Source<N> = CpuReader, const N: usize = 4> {
 	pub look: Look,
@@ -145,6 +171,13 @@ impl Graph<SwapReader, 1> {
 	/// None on a box with no swap.
 	pub fn swap(look: Look) -> Option<Self> {
 		SwapReader::probe().map(|src| Graph::with(look, src))
+	}
+}
+
+impl Graph<BatteryReader, 3> {
+	/// None on a box with no battery in.
+	pub fn battery(look: Look) -> Option<Self> {
+		BatteryReader::probe().map(|src| Graph::with(look, src))
 	}
 }
 

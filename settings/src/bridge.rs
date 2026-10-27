@@ -432,7 +432,10 @@ mod tests {
 				.cloned()
 				.collect()
 		};
-		assert_eq!(want(&d), ["swap_width", "swap_time"]);
+		assert_eq!(
+			want(&d),
+			["swap_width", "swap_time", "battery_width", "battery_time"]
+		);
 		assert_eq!(ffi::greyed_rows(&mut d), want(&d));
 		for g in &gates {
 			d.set(g, &Value::Bool(false));

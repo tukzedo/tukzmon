@@ -4,6 +4,7 @@
 // The graph list's live graphs. The window reads them itself from when it
 // opens, and draws them with its own look, Apply or not.
 
+use tukzmon_core::battery::BatteryReader;
 use tukzmon_core::config::Look;
 use tukzmon_core::cpu::CpuReader;
 use tukzmon_core::graphs::Drawn;
@@ -16,6 +17,8 @@ pub struct Live {
 	mem: Option<Graph<MemoryReader, 3>>,
 	/// None on a box with no swap.
 	swap: Option<Graph<SwapReader, 1>>,
+	/// None on a box with no battery in.
+	battery: Option<Graph<BatteryReader, 3>>,
 }
 
 impl Live {
@@ -23,6 +26,7 @@ impl Live {
 		Live {
 			mem: Graph::memory(look.clone()),
 			swap: Graph::swap(look.clone()),
+			battery: Graph::battery(look.clone()),
 			cpu: Graph::new(look),
 		}
 	}
@@ -32,6 +36,7 @@ impl Live {
 			CpuReader::SECTION => Some(&self.cpu),
 			MemoryReader::SECTION => self.mem.as_ref().map(|g| g as &dyn Drawn),
 			SwapReader::SECTION => self.swap.as_ref().map(|g| g as &dyn Drawn),
+			BatteryReader::SECTION => self.battery.as_ref().map(|g| g as &dyn Drawn),
 			_ => None,
 		}
 	}
@@ -41,6 +46,7 @@ impl Live {
 			CpuReader::SECTION => Some(&mut self.cpu),
 			MemoryReader::SECTION => self.mem.as_mut().map(|g| g as &mut dyn Drawn),
 			SwapReader::SECTION => self.swap.as_mut().map(|g| g as &mut dyn Drawn),
+			BatteryReader::SECTION => self.battery.as_mut().map(|g| g as &mut dyn Drawn),
 			_ => None,
 		}
 	}
@@ -49,6 +55,7 @@ impl Live {
 		let optional = [
 			self.mem.as_mut().map(|g| g as &mut dyn Drawn),
 			self.swap.as_mut().map(|g| g as &mut dyn Drawn),
+			self.battery.as_mut().map(|g| g as &mut dyn Drawn),
 		];
 		std::iter::once(&mut self.cpu as &mut dyn Drawn).chain(optional.into_iter().flatten())
 	}
@@ -79,6 +86,7 @@ impl Live {
 			CpuReader::SECTION => l.cpu_width,
 			MemoryReader::SECTION => l.mem_width,
 			SwapReader::SECTION => l.swap_width,
+			BatteryReader::SECTION => l.battery_width,
 			_ => return 0,
 		};
 		if self.get(name).is_some() {
@@ -200,6 +208,32 @@ mod tests {
 			live.tip("swap").starts_with("Swap "),
 			"{}",
 			live.tip("swap")
+		);
+	}
+
+	// Test ID: defqe
+	#[test]
+	fn the_battery_row_is_there_only_with_a_battery_in() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_live_battery_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let mut live = Live::new(d.look());
+		let Some(_) = &live.battery else {
+			assert_eq!(live.width("battery"), 0);
+			assert!(live.render("battery", 10, 10, 1).is_empty());
+			assert_eq!(live.tip("battery"), "");
+			return;
+		};
+		d.set("battery_width", &Value::Float(50.0));
+		live.set_look(&d.look());
+		assert_eq!(live.width("battery"), 50);
+		assert_eq!(live.render("battery", 50, 24, 1).len(), 50 * 24);
+		assert!(
+			live.tip("battery").starts_with("Battery"),
+			"{}",
+			live.tip("battery")
 		);
 	}
 }

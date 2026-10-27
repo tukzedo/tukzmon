@@ -111,7 +111,8 @@ fn combine(fills: &[Fill]) -> Option<[f32; 3]> {
 
 /// Every `BAT*` battery's charge, as a share of full, in the series for
 /// its state.
-#[derive(Debug)]
+// a default one has no battery, so it reads as a gap
+#[derive(Debug, Default)]
 pub struct BatteryReader {
 	batteries: Vec<Battery>,
 	fills: Vec<Fill>,

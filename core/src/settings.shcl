@@ -13,7 +13,7 @@
 ## default is the Default theme's value, and config::tests holds the two to
 ## each other.
 
-tabs: "Graph", "Themes", "Themes/CPU", "Themes/Memory", "Themes/Swap", "Themes/Background"
+tabs: "Graph", "Themes", "Themes/CPU", "Themes/Memory", "Themes/Swap", "Themes/Battery", "Themes/Background"
 
 settings:
 
@@ -203,14 +203,44 @@ settings:
 		gate: show_swap
 		tip: "How the swap graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
 
+	show_battery:
+		label: Battery graph
+		tab: Graph
+		control: checkbox
+		path: battery.show
+		default: false
+		tip: "Show the battery's charge, in one color while plugged in, another on battery, and a third once it's critical. It's left out on a box with no battery in."
+
+	battery_width:
+		label: Battery width px
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 4096
+		path: battery.width
+		default: 0
+		gate: show_battery
+		tip: "How wide the battery graph is, in the same pixels as Width. 0 uses Width."
+
+	battery_time:
+		label: Battery time axis
+		tab: Graph
+		control: dropdown
+		options: same, linear, smooth, fixed_a, fixed_b
+		option_labels: "As set under Time", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: battery.time
+		default: same
+		gate: show_battery
+		tip: "How the battery graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
+
 	## The graph list's grippers write this, and it has no row of its own.
 	graph_order:
 		label: Order
 		tab: Graph
 		control: text
 		path: graph.order
-		default: "cpu mem swap"
-		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory and swap for swap. One left out goes at the end."
+		default: "cpu mem swap battery"
+		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, swap and battery. One left out goes at the end."
 
 	HistoryHead:
 		label: History
@@ -476,6 +506,89 @@ settings:
 		shown_when: "swap_mode = gradient"
 		tip: "The color at the top."
 
+	battery_mode:
+		label: Colors
+		tab: Themes/Battery
+		control: dropdown
+		shown_as: radio
+		options: detailed, gradient
+		option_labels: "Detailed", "Gradient"
+		path: battery.mode
+		default: detailed
+		group: theme
+		tip: "Detailed colors the charge by what the battery is doing. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	BatteryHead:
+		label: "Battery, by state"
+		tab: Themes/Battery
+		control: heading
+		shown_when: "battery_mode = detailed"
+
+	battery_charging:
+		label: Plugged in
+		tab: Themes/Battery
+		control: color
+		path: battery.colors.charging
+		default: "#00ff80"
+		group: theme
+		shown_when: "battery_mode = detailed"
+		tip: "Charging, or full with the power in."
+
+	battery_discharging:
+		label: On battery
+		tab: Themes/Battery
+		control: color
+		path: battery.colors.discharging
+		default: "#c64200"
+		group: theme
+		shown_when: "battery_mode = detailed"
+
+	battery_critical:
+		label: Critical
+		tab: Themes/Battery
+		control: color
+		path: battery.colors.critical
+		default: "#ff0000"
+		group: theme
+		shown_when: "battery_mode = detailed"
+		tip: "On battery, with the charge at the critical level."
+
+	BatteryGradHead:
+		label: "Battery, by height"
+		tab: Themes/Battery
+		control: heading
+		shown_when: "battery_mode = gradient"
+
+	battery_low:
+		label: Low
+		tab: Themes/Battery
+		control: color
+		path: battery.colors.low
+		default: "#205f40"
+		group: theme
+		shown_when: "battery_mode = gradient"
+		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
+
+	battery_medium:
+		label: Medium
+		tab: Themes/Battery
+		control: color
+		path: battery.colors.medium
+		default: "#00ff80"
+		group: theme
+		shown_when: "battery_mode = gradient"
+		tip: "The color halfway up."
+
+	battery_high:
+		label: High
+		tab: Themes/Battery
+		control: color
+		path: battery.colors.high
+		default: "#c0ffe0"
+		group: theme
+		shown_when: "battery_mode = gradient"
+		tip: "The color at the top."
+
 	BackHead:
 		label: Background
 		tab: Themes/Background
@@ -558,6 +671,13 @@ groups:
 				swap_medium: "#00ff80"
 				swap_high: "#c0ffe0"
 				swap_used: "#00ff80"
+				battery_mode: detailed
+				battery_low: "#205f40"
+				battery_medium: "#00ff80"
+				battery_high: "#c0ffe0"
+				battery_charging: "#00ff80"
+				battery_discharging: "#c64200"
+				battery_critical: "#ff0000"
 				border_color: "#408060"
 				back_top: "#2a543f"
 				back_bottom: "#000000"
@@ -584,6 +704,13 @@ groups:
 				swap_medium: "#00ff00"
 				swap_high: "#c0ffc0"
 				swap_used: "#00ff00"
+				battery_mode: detailed
+				battery_low: "#205f20"
+				battery_medium: "#00ff00"
+				battery_high: "#c0ffc0"
+				battery_charging: "#00ff00"
+				battery_discharging: "#c64200"
+				battery_critical: "#ff0000"
 				border_color: "#408040"
 				back_top: "#2a542a"
 				back_bottom: "#000000"
@@ -610,6 +737,13 @@ groups:
 				swap_medium: "#a1f0a1"
 				swap_high: "#e0ffe0"
 				swap_used: "#a1f0a1"
+				battery_mode: detailed
+				battery_low: "#6a8a6a"
+				battery_medium: "#a1f0a1"
+				battery_high: "#e0ffe0"
+				battery_charging: "#a1f0a1"
+				battery_discharging: "#f09b71"
+				battery_critical: "#ff6161"
 				border_color: "#7fa17f"
 				back_top: "#3a4a3a"
 				back_bottom: "#0f140f"
@@ -636,6 +770,13 @@ groups:
 				swap_medium: "#0080ff"
 				swap_high: "#c0e0ff"
 				swap_used: "#0080ff"
+				battery_mode: detailed
+				battery_low: "#20405f"
+				battery_medium: "#0080ff"
+				battery_high: "#c0e0ff"
+				battery_charging: "#0080ff"
+				battery_discharging: "#c64200"
+				battery_critical: "#ff0000"
 				border_color: "#406080"
 				back_top: "#2a3f54"
 				back_bottom: "#000000"
@@ -662,6 +803,13 @@ groups:
 				swap_medium: "#a1c8f0"
 				swap_high: "#e0f0ff"
 				swap_used: "#a1c8f0"
+				battery_mode: detailed
+				battery_low: "#6a7a8a"
+				battery_medium: "#a1c8f0"
+				battery_high: "#e0f0ff"
+				battery_charging: "#a1c8f0"
+				battery_discharging: "#f09b71"
+				battery_critical: "#ff6161"
 				border_color: "#7f90a1"
 				back_top: "#3a424a"
 				back_bottom: "#0f1214"
@@ -688,6 +836,13 @@ groups:
 				swap_medium: "#fff4c8"
 				swap_high: "#7fd4ff"
 				swap_used: "#ffa000"
+				battery_mode: gradient
+				battery_low: "#8b1a00"
+				battery_medium: "#fff4c8"
+				battery_high: "#7fd4ff"
+				battery_charging: "#ffa000"
+				battery_discharging: "#c64200"
+				battery_critical: "#ff0000"
 				border_color: "#80401a"
 				back_top: "#3a1c0c"
 				back_bottom: "#000000"

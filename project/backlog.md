@@ -291,6 +291,40 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-26: new values only. `config::tests::the_default_theme_is_the_row_defaults` (deccf) and `saved_themes_write_whole_and_read_back` count 24 theme members, not 19. `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme` counts 21 colors, not 17. `the_graph_order_reads_with_spaces_or_commas` (dedqq) has the default order `cpu mem swap`, not `cpu mem`. defkz's typed order reads back with `swap` at the end, and defm0's past-the-end move is 3, not 2, with `swap` in its orders. defma's rows greyed at defaults are `swap_width` and `swap_time`, not none, since Swap graph is off by default.
 		- Swept: every user of `Graphs.mem` (the plugin, `Live`, the profiler, the soak test), every `Which` match, the 6 built-in themes, and `dice::ROLES`, which the role test walks. The profiler and soak test run with the defaults, so they don't draw swap.
 
+- Battery graph
+	- ID: 2026102618353013
+	- Type: Feature
+	- Status: Waiting on UAT
+		- How it looks, in each theme, is for a person to judge, and b23 has no battery, so a laptop has to show it.
+		- It departs from the wording in one way. It's off by default, like swap. Turn it on in the graph list.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on a laptop, after an install, turn on Battery graph in the graph list, Apply, and judge how plugged in, on battery and critical look in Default and Fire.
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on any box yet.
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353000
+	- Related IDs: 2026102408512223
+	- Requirements:
+		- Charging, discharging, and discharging at the critical level, from the battery collector.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- The battery graph draws the charge in the color for its state, with its tip as "Battery 80%, on battery". It has a row in the graph list, at `battery.show`, `battery.width` and `battery.time`, and a Themes/Battery sub-tab with Plugged in, On battery and Critical, or Low, Medium and High.
+		- `graph.order` defaults to `cpu mem swap battery`.
+		- `design.md` XFCE plugin and Theme have the details.
+		- Verified: the full run passed. The tip test fails with its states swapped, and defqd with battery left out of `Graphs`' slots.
+	- Decisions:
+		- Off by default, as swap is.
+		- Plugged in is the theme's user color, on battery its system color and critical its I/O wait color, so on battery reads as a warning and critical as an alarm. Randomize gives them the lead, warn and alarm roles.
+		- The tip and the color say plugged in, not charging, since a full battery with the power in counts as charging.
+		- A default `BatteryReader` has no battery and reads as a gap, so tests can build the graph on a box with none.
+	- Branch: round-1026
+	- Test case: `graphs::tests::the_battery_graph_colors_the_charge_by_state` (defqc), `four_sit_side_by_side_and_battery_keeps_its_history_hidden` (defqd), and `live::tests::the_battery_row_is_there_only_with_a_battery_in` (defqe), which takes its no-battery branch on b23.
+		- 2026-10-26: new values only. deccf and `saved_themes_write_whole_and_read_back` count 31 theme members, not 24. `save_as_keeps_the_colors_whole_and_picks_the_new_theme` counts 27 colors, not 21. dedqq, defkz and defm0 have `battery` after `swap` in their orders, and defm0's past-the-end move is 4, not 3. defma's rows greyed at defaults add `battery_width` and `battery_time`.
+		- Swept: every `Which` match, the slots in `Graphs` and `Live`, the 6 built-in themes, and `dice::ROLES`.
+
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
@@ -355,7 +389,7 @@ Sorted per the notes in [Template](#template).
 		- Battery; charging, discharging, discharging and critical level
 	- Progress log:
 		- CPU and memory draw. Every other source has a collector since round-1026.
-		- 2026-10-26: The swap graph is in, 2026102618353000.
+		- 2026-10-26: The swap and battery graphs are in, 2026102618353000 and 2026102618353013.
 		- 2026-10-26: Split into one child per graph not yet drawn: 2026102618353000 (swap), 2026102618353002 (zswap or zram), 2026102618353004 (network), 2026102618353006 (load), 2026102618353008 (disk), 2026102618353011 (temperature) and 2026102618353013 (battery). This closes with the last of them.
 
 - Zswap or zram graph
@@ -429,19 +463,6 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026102408512217
 	- Requirements:
 		- Normal, with critical on top of that when normal maxes out, from the temperature collector.
-
-- Battery graph
-	- ID: 2026102618353013
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261026-183530
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013887
-	- Prereq IDs: 2026102618353000
-	- Related IDs: 2026102408512223
-	- Requirements:
-		- Charging, discharging, and discharging at the critical level, from the battery collector.
 
 - Color themes tab
 	- ID: 2026102408304612

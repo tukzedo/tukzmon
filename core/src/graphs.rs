@@ -7,6 +7,7 @@
 use std::io;
 use std::path::Path;
 
+use crate::battery::BatteryReader;
 use crate::config::Look;
 use crate::cpu::CpuReader;
 use crate::keep;
@@ -19,6 +20,8 @@ pub struct Graphs {
 	pub mem: Option<Graph<MemoryReader, 3>>,
 	/// None when hidden, or on a box with no swap.
 	pub swap: Option<Graph<SwapReader, 1>>,
+	/// None when hidden, or on a box with no battery in.
+	pub battery: Option<Graph<BatteryReader, 3>>,
 	/// Top to bottom, for a vertical panel.
 	pub stacked: bool,
 	px: Vec<u32>,
@@ -32,18 +35,20 @@ enum Which {
 	Cpu,
 	Mem,
 	Swap,
+	Battery,
 }
 
 impl Which {
 	/// The order with nothing saved. Graphs a saved order leaves out go
 	/// last, in this order.
-	const ALL: [Which; 3] = [Which::Cpu, Which::Mem, Which::Swap];
+	const ALL: [Which; 4] = [Which::Cpu, Which::Mem, Which::Swap, Which::Battery];
 
 	fn name(self) -> &'static str {
 		match self {
 			Which::Cpu => CpuReader::SECTION,
 			Which::Mem => MemoryReader::SECTION,
 			Which::Swap => SwapReader::SECTION,
+			Which::Battery => BatteryReader::SECTION,
 		}
 	}
 
@@ -52,6 +57,7 @@ impl Which {
 			Which::Cpu => look.show_cpu,
 			Which::Mem => look.show_memory,
 			Which::Swap => look.show_swap,
+			Which::Battery => look.show_battery,
 		}
 	}
 
@@ -65,6 +71,7 @@ impl Which {
 			Which::Cpu => look.cpu_width,
 			Which::Mem => look.mem_width,
 			Which::Swap => look.swap_width,
+			Which::Battery => look.battery_width,
 		}
 	}
 }
@@ -122,7 +129,7 @@ impl<S: Source<N>, const N: usize> Drawn for Graph<S, N> {
 }
 
 // the saved order, unknown names skipped, then any it doesn't name
-fn order_of(saved: &[String]) -> [Which; 3] {
+fn order_of(saved: &[String]) -> [Which; Which::ALL.len()] {
 	let mut out = Which::ALL;
 	let mut n = 0;
 	let named = saved
@@ -168,10 +175,16 @@ impl Graphs {
 		} else {
 			None
 		};
+		let battery = if look.show_battery {
+			Graph::battery(look.clone())
+		} else {
+			None
+		};
 		Graphs {
 			cpu: Graph::new(look),
 			mem,
 			swap,
+			battery,
 			stacked: false,
 			px: Vec::new(),
 		}
@@ -187,6 +200,7 @@ impl Graphs {
 			Which::Cpu => Some(&self.cpu),
 			Which::Mem => self.mem.as_ref().map(|g| g as &dyn Drawn),
 			Which::Swap => self.swap.as_ref().map(|g| g as &dyn Drawn),
+			Which::Battery => self.battery.as_ref().map(|g| g as &dyn Drawn),
 		}
 	}
 
@@ -195,6 +209,7 @@ impl Graphs {
 			Which::Cpu => Some(&mut self.cpu),
 			Which::Mem => self.mem.as_mut().map(|g| g as &mut dyn Drawn),
 			Which::Swap => self.swap.as_mut().map(|g| g as &mut dyn Drawn),
+			Which::Battery => self.battery.as_mut().map(|g| g as &mut dyn Drawn),
 		}
 	}
 
@@ -211,7 +226,7 @@ impl Graphs {
 		}
 	}
 
-	fn order(&self) -> [Which; 3] {
+	fn order(&self) -> [Which; Which::ALL.len()] {
 		order_of(&self.cpu.look.order)
 	}
 
@@ -256,6 +271,11 @@ impl Graphs {
 		}
 		if switch(&mut self.swap, look.show_swap, || Graph::swap(look.clone())) {
 			added.push(Which::Swap);
+		}
+		if switch(&mut self.battery, look.show_battery, || {
+			Graph::battery(look.clone())
+		}) {
+			added.push(Which::Battery);
 		}
 		let mut res = Ok(());
 		if let Some(path) = history.filter(|_| !added.is_empty()) {
@@ -929,6 +949,95 @@ mod tests {
 			g.set_look(on, Some(&path)).unwrap();
 			assert_eq!(g.swap.as_ref().unwrap().hist.last(), had);
 		}
+		std::fs::remove_file(&path).unwrap();
+	}
+
+	// Test ID: defqc
+	#[test]
+	fn the_battery_graph_colors_the_charge_by_state() {
+		assert!(!Look::default().show_battery);
+		assert!(Graphs::new(Look::default()).battery.is_none());
+		let look = Look {
+			show_battery: true,
+			..Look::default()
+		};
+		let mut b = Graph::with(look.clone(), BatteryReader::default());
+		let now = b.now();
+		b.hist.add(now - 60.0, now, &[0.0, 0.8, 0.0]);
+		let px = b.render(64, 20, 1);
+		assert_eq!(px[10 * 64 + 60], look.battery[1].argb());
+		let tip = b.hover_tip(60, 64, 20, 1);
+		assert!(tip.ends_with("\nBattery 80%, on battery"), "{tip}");
+		for (v, want) in [
+			([1.0, 0.0, 0.0], "Battery 100%, plugged in"),
+			([0.0, 0.0, 0.03], "Battery 3%, critical"),
+			([0.0, 0.0, 0.0], "Battery 0%, plugged in"),
+		] {
+			assert_eq!(<BatteryReader as Source<3>>::text(&v), want);
+		}
+		// one with none in reads as a gap
+		b.sample();
+		b.sample();
+		assert_eq!(b.tooltip(), "Battery");
+		let fire = Look::from_model(&crate::config::model("theme:\n\tname: fire\n"));
+		assert_eq!(
+			fire.battery_paint(),
+			crate::render::Paint::Gradient(fire.cpu_gradient)
+		);
+	}
+
+	// Test ID: defqd
+	#[test]
+	fn four_sit_side_by_side_and_battery_keeps_its_history_hidden() {
+		let path = scratch("battery");
+		let mut g = three();
+		let look = Look {
+			show_battery: true,
+			..g.look().clone()
+		};
+		g.battery = Some(Graph::with(look.clone(), BatteryReader::default()));
+		g.set_look(look.clone(), None).unwrap();
+		let now = g.cpu.now();
+		let b = g.battery.as_mut().unwrap();
+		b.hist.add(now - 60.0, now, &[0.5, 0.0, 0.0]);
+		let had = b.hist.last();
+		assert_eq!(g.count(), 4);
+		let (w, h) = (80, 10);
+		let right = g.battery.as_mut().unwrap().render(20, h, 1).to_vec();
+		let px = g.render(w, h, 1).to_vec();
+		for r in 0..h {
+			assert_eq!(
+				&px[r * w + 60..(r + 1) * w],
+				&right[r * 20..(r + 1) * 20],
+				"{r}"
+			);
+		}
+		assert!(g.hover(Some((65, 3)), w, h));
+		assert_eq!(g.battery.as_ref().unwrap().hover, Some(5));
+		assert!(
+			g.hover_tip(65, 3, w, h, 1)
+				.contains("Battery 50%, plugged in")
+		);
+		g.save(&path).unwrap();
+		let names: Vec<String> = keep::read(&path)
+			.unwrap()
+			.into_iter()
+			.map(|(n, _)| n)
+			.collect();
+		assert_eq!(names, ["cpu", "mem", "swap", "battery"]);
+		let off = Look {
+			show_battery: false,
+			..look
+		};
+		assert!(g.drops(&off));
+		g.set_look(off, Some(&path)).unwrap();
+		assert!(g.battery.is_none());
+		assert_eq!(g.count(), 3);
+		g.save(&path).unwrap();
+		let back = keep::read(&path).unwrap();
+		let mut again = Graph::with(Look::default(), BatteryReader::default());
+		assert!(again.adopt(&back));
+		assert_eq!(again.hist.last(), had);
 		std::fs::remove_file(&path).unwrap();
 	}
 }

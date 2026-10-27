@@ -62,15 +62,15 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- The panel runs external plugins in a separate wrapper process, so a crash takes down the plugin adn not the panel.
 
 - The plugin draws its graphs in one drawing area, side by side, in the saved order. There's no gap between them, like multiload-ng's spacing of 0. On a vertical panel they're stacked, and share the height evenly. The graph under the pointer gets the hover line and the tip. `core/src/graphs.rs` has the layout.
-	- Under Graphs on the Graph tab is the graph list, a row per graph in the saved order. Each row has a checkbox, at `cpu.show`, `mem.show` and `swap.show`, the live graph, a width, at `cpu.width`, `mem.width` and `swap.width`, a time axis, a revert arrow and a gripper. A width of 0, the default, is the Width setting. Widths are in the panel's own pixels, so they scale with it.
+	- Under Graphs on the Graph tab is the graph list, a row per graph in the saved order. Each row has a checkbox, at `cpu.show`, `mem.show`, `swap.show` and `battery.show`, the live graph, a width, at `cpu.width`, `mem.width`, `swap.width` and `battery.width`, a time axis, a revert arrow and a gripper. A width of 0, the default, is the Width setting. Widths are in the panel's own pixels, so they scale with it.
 	- Each row draws its graph live, at its own width, with the window's settings, so a change shows there before Apply. The window reads the graphs itself from when it opens, so a row starts empty. A hidden graph is drawn too. The widest graph sets the column, so the boxes after it line up, and one wider than 512 px is squeezed to that.
-	- The time axis is at `cpu.time`, `mem.time` and `swap.time`. See [Time axis](#time-axis).
+	- The time axis is at `cpu.time`, `mem.time`, `swap.time` and `battery.time`. See [Time axis](#time-axis).
 	- A graph gets a row once `core/src/settings.shcl` has its `<name>.show`, `.width` and `.time` settings.
 	- A box where `/proc/meminfo` can't be read never shows the memory graph.
-	- The swap graph is off by default, so an existing panel doesn't grow wider. A box with no swap never shows it.
+	- The swap and battery graphs are off by default, so an existing panel doesn't grow wider. A box with no swap, or no battery in, never shows that one.
 	- With every other graph off, CPU shows anyway, so the item never shrinks to nothing, and its right-click menu stays in reach.
 	- A hidden graph isn't read. Its history is kept, and shows a gap for the time it was hidden.
-	- Dragging a row's gripper, or Up and Down on it, sets the order. It's saved at `graph.order`, which names the graphs first to last, left to right or top to bottom: `cpu`, `mem` and `swap`, by their history section names. The default is `cpu mem swap`.
+	- Dragging a row's gripper, or Up and Down on it, sets the order. It's saved at `graph.order`, which names the graphs first to last, left to right or top to bottom: `cpu`, `mem`, `swap` and `battery`, by their history section names. The default is `cpu mem swap battery`.
 		- Spaces or commas both work, since a hand edit like `order: mem, cpu` is a list to shcl.
 		- A name it doesn't know is skipped. A graph it doesn't name goes at the end, in the default order, so that way a graph added later, such as network, shows up last in a saved order.
 		- A hidden graph keeps its place for when it's shown again.
@@ -124,7 +124,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- A color changed on a theme is kept apart from it, and the dropdown says "Name *", the way SilkTerm's does. Picking another theme drops those changes.
 	- knobs reads a color line at its own path as the Custom set. A file with colors and no theme line reads as Custom, so a hand edit or an older file isn't hidden under Default. A save names the theme whenever Custom colors are stored, even Default, or the file would read back as Custom.
 
-- Each graph's sub-tab starts with its mode, Detailed or Gradient, at `cpu.mode` for the CPU graph, `mem.mode` for memory and `swap.mode` for swap.
+- Each graph's sub-tab starts with its mode, Detailed or Gradient, at `cpu.mode` for the CPU graph, `mem.mode` for memory, `swap.mode` for swap and `battery.mode` for the battery.
 	- Detailed stacks a color per series, as before.
 	- Gradient draws the column in one blend of Low, Medium and High. A pixel takes the blend at its height in the plot, Low at the bottom, Medium halfway and High at the top, so a busier column reaches further up the ramp and the colors stay put as it grows. The column's height is the same as the stack's.
 	- Only the rows for the mode picked are shown. A mode changed by hand is a change on the theme, like a color.
@@ -136,6 +136,9 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- multiload-ng's memory border and background aren't used, since every graph shares the Background sub-tab.
 
 - The swap graph's colors are on the Swap sub-tab: In use, at `swap.colors.used`, plus its own Low, Medium and High. In every built-in they're the theme's user color and its CPU gradient, so Fire draws swap as a gradient too.
+
+- The battery graph's colors are on the Battery sub-tab: Plugged in, On battery and Critical, at `battery.colors.charging`, `.discharging` and `.critical`, plus its own Low, Medium and High. In every built-in they're the theme's user, system and I/O wait colors, so on battery reads as a warning and critical as an alarm. The gradient is the theme's CPU one.
+	- The tip says plugged in rather than charging, since a full battery with the power in counts as charging.
 
 - Saved themes are kept whole in the config file, under `themes.<key>`, with a `name` and every color and mode by its setting id, the same shape as a built-in in settings.shcl. The dropdown lists them after the built-ins, and before Custom.
 	- They join the `theme` group as presets on a copy of the spec, through knobs' `Spec::finish`. The plugin reads them the same way, so knobs is unchanged.
@@ -260,7 +263,7 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 - A linear mode is there too, for anyone who wants a plain scrolling graph. A pixel is one sample there.
 
 - Each graph can pick its own time axis under Graphs: Linear, or one of the 3 log curves. The default, As set under Time, follows Log time axis and Log curve, so a settings file from before the pick keeps its axis, and one setting still changes every graph that has no pick of its own.
-	- A graph's pick is `cpu.time`, `mem.time` or `swap.time`: `same`, `linear`, `smooth`, `fixed_a` or `fixed_b`.
+	- A graph's pick is `cpu.time`, `mem.time`, `swap.time` or `battery.time`: `same`, `linear`, `smooth`, `fixed_a` or `fixed_b`.
 	- Spike emphasis sits under Log time axis, but it applies to any graph on a log curve.
 
 ## Drawing
