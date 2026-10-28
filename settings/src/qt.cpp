@@ -776,6 +776,7 @@ private:
 		std::string name;
 		Row *show = nullptr;
 		Row *width = nullptr;
+		Row *sample = nullptr;
 		Row *time = nullptr;
 		LiveGraph *space = nullptr;
 		QToolButton *revert = nullptr;
@@ -870,19 +871,22 @@ private:
 	}
 
 	// The rows under Graphs as one list: show, a space for the graph, width,
-	// time axis, revert and a gripper. The grippers write the order.
+	// sample rate, time axis, revert and a gripper. The grippers write the
+	// order.
 	QWidget *buildList() {
 		list = new QWidget;
 		listGrid = new QGridLayout(list);
 		listGrid->setContentsMargins(0, 0, 0, 0);
-		listGrid->setColumnStretch(4, 1);
+		listGrid->setColumnStretch(5, 1);
 		for (auto &g : graph_rows(d)) {
-			ListRow lr{std::string(g.name), rowFor(g.show), rowFor(g.width), rowFor(g.time)};
-			if (!lr.show || !lr.width || !lr.time)
+			ListRow lr{std::string(g.name), rowFor(g.show), rowFor(g.width), rowFor(g.sample), rowFor(g.time)};
+			if (!lr.show || !lr.width || !lr.sample || !lr.time)
 				continue;
-			for (Row *r : {lr.show, lr.width, lr.time})
+			for (Row *r : {lr.show, lr.width, lr.sample, lr.time})
 				r->control = buildControl(*r);
 			lr.show->check->setText(qs(lr.show->info.label));
+			// 0 follows Sample ms default, as Default does in the time axis column
+			lr.sample->spin->setSpecialValueText("Default");
 			lr.space = new LiveGraph(*live, lr.name);
 			lr.space->fit();
 			lr.revert = new QToolButton;
@@ -895,7 +899,7 @@ private:
 			connect(lr.revert, &QToolButton::clicked, this, [this, name] {
 				for (auto &l : listRows)
 					if (l.name == name)
-						for (Row *r : {l.show, l.width, l.time})
+						for (Row *r : {l.show, l.width, l.sample, l.time})
 							reset_row(d, r->id());
 				refresh();
 			});
@@ -904,10 +908,13 @@ private:
 			listRows.push_back(lr);
 		}
 		auto *widthHead = new QLabel("Width %");
+		auto *sampleHead = new QLabel("Sample ms");
 		auto *timeHead = new QLabel("Time axis");
 		widthHead->setToolTip(listRows.empty() ? "" : qs(row_state(d, listRows[0].width->id()).tip));
+		sampleHead->setToolTip(listRows.empty() ? "" : qs(row_state(d, listRows[0].sample->id()).tip));
 		listGrid->addWidget(widthHead, 0, 2);
-		listGrid->addWidget(timeHead, 0, 3);
+		listGrid->addWidget(sampleHead, 0, 3);
+		listGrid->addWidget(timeHead, 0, 4);
 		placeList();
 		return list;
 	}
@@ -917,9 +924,10 @@ private:
 		for (size_t i = 0; i < listRows.size(); i++) {
 			const ListRow &l = listRows[i];
 			const int at = int(i) + 1;
-			QWidget *cells[] = {l.show->control, l.space, l.width->control, l.time->control, l.revert, l.grip};
-			const int cols[] = {0, 1, 2, 3, 5, 6};
-			for (int k = 0; k < 6; k++) {
+			QWidget *cells[] = {
+				l.show->control, l.space, l.width->control, l.sample->control, l.time->control, l.revert, l.grip};
+			const int cols[] = {0, 1, 2, 3, 4, 6, 7};
+			for (int k = 0; k < 7; k++) {
 				listGrid->removeWidget(cells[k]);
 				// narrower graphs sit left, so the column is the widest's
 				listGrid->addWidget(cells[k], at, cols[k], k == 1 ? Qt::AlignLeft | Qt::AlignVCenter : Qt::Alignment());
@@ -975,7 +983,7 @@ private:
 		for (auto &l : listRows) {
 			l.space->fit();
 			bool changed = false;
-			for (Row *r : {l.show, l.width, l.time})
+			for (Row *r : {l.show, l.width, l.sample, l.time})
 				changed |= row_state(d, r->id()).can_reset;
 			l.revert->setEnabled(changed);
 			l.revert->setToolTip(changed ? "Back to the defaults." : "");
@@ -1174,7 +1182,14 @@ private:
 		for (auto &r : rows) {
 			if (r->line && r->line->isModified())
 				return true;
-			if (r->spin && r->spin->text() != r->spin->textFromValue(r->spin->value()))
+			if (!r->spin)
+				continue;
+			// a sample rate of 0 shows as Default
+			const bool special =
+				!r->spin->specialValueText().isEmpty() && r->spin->value() == r->spin->minimum();
+			const QString shows =
+				special ? r->spin->specialValueText() : r->spin->textFromValue(r->spin->value());
+			if (r->spin->text() != shows)
 				return true;
 		}
 		return false;

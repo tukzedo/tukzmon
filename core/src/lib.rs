@@ -39,6 +39,29 @@ use temp::TempReader;
 use when::Said;
 use zswap::ZswapReader;
 
+/// No graph is read more often than this, the finest history tier.
+pub const FASTEST_MS: u32 = 50;
+
+/// A read due this soon counts as due now, since a timer may fire a little
+/// early.
+const EARLY_MS: f64 = 10.0;
+
+/// Milliseconds on one clock that every graph's beats go by. See
+/// [`Graph::tick`].
+pub fn clock_ms() -> f64 {
+	static START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+	START.get_or_init(Instant::now).elapsed().as_secs_f64() * 1000.0
+}
+
+/// Milliseconds to the next graph's read, from the least of
+/// [`Graph::tick`]'s answers, for a one-shot timer.
+pub fn wait_ms(next: f64) -> u32 {
+	if next.is_nan() {
+		return FASTEST_MS;
+	}
+	next.ceil().clamp(1.0, f64::from(u32::MAX)) as u32
+}
+
 /// A collector as one graph draws and names it.
 pub trait Source<const N: usize>: Collector<N> {
 	/// The graph's section in the history file.
@@ -48,6 +71,8 @@ pub trait Source<const N: usize>: Collector<N> {
 	fn text(&self, v: &[f32; N]) -> String;
 	fn paint(look: &Look) -> Paint<'_, N>;
 	fn timing(look: &Look) -> Timing;
+	/// How often the graph is read, in ms. See [`Look::rate`].
+	fn sample_ms(look: &Look) -> u32;
 
 	/// Text written over the graph from the latest read, and its color.
 	fn overlay(&self, _look: &Look) -> Option<(String, Rgb)> {
@@ -97,6 +122,10 @@ impl Source<4> for CpuReader {
 	fn timing(look: &Look) -> Timing {
 		look.timing(look.cpu_time)
 	}
+
+	fn sample_ms(look: &Look) -> u32 {
+		look.rate(look.cpu_sample_ms)
+	}
 }
 
 impl Source<3> for MemoryReader {
@@ -119,6 +148,10 @@ impl Source<3> for MemoryReader {
 	fn timing(look: &Look) -> Timing {
 		look.timing(look.mem_time)
 	}
+
+	fn sample_ms(look: &Look) -> u32 {
+		look.rate(look.mem_sample_ms)
+	}
 }
 
 impl Source<1> for SwapReader {
@@ -135,6 +168,10 @@ impl Source<1> for SwapReader {
 
 	fn timing(look: &Look) -> Timing {
 		look.timing(look.swap_time)
+	}
+
+	fn sample_ms(look: &Look) -> u32 {
+		look.rate(look.swap_sample_ms)
 	}
 }
 
@@ -161,6 +198,10 @@ impl Source<3> for BatteryReader {
 	fn timing(look: &Look) -> Timing {
 		look.timing(look.battery_time)
 	}
+
+	fn sample_ms(look: &Look) -> u32 {
+		look.rate(look.battery_sample_ms)
+	}
 }
 
 impl Source<1> for ZswapReader {
@@ -177,6 +218,10 @@ impl Source<1> for ZswapReader {
 
 	fn timing(look: &Look) -> Timing {
 		look.timing(look.zswap_time)
+	}
+
+	fn sample_ms(look: &Look) -> u32 {
+		look.rate(look.zswap_sample_ms)
 	}
 
 	fn overlay(&self, look: &Look) -> Option<(String, Rgb)> {
@@ -224,6 +269,10 @@ impl Source<3> for NetReader {
 	fn timing(look: &Look) -> Timing {
 		look.timing(look.net_time)
 	}
+
+	fn sample_ms(look: &Look) -> u32 {
+		look.rate(look.net_sample_ms)
+	}
 }
 
 impl Source<1> for LoadReader {
@@ -240,6 +289,10 @@ impl Source<1> for LoadReader {
 
 	fn timing(look: &Look) -> Timing {
 		look.timing(look.load_time)
+	}
+
+	fn sample_ms(look: &Look) -> u32 {
+		look.rate(look.load_sample_ms)
 	}
 
 	// full at a load of one a CPU, as the CPU graph is at 100%
@@ -267,6 +320,10 @@ impl Source<2> for DiskReader {
 
 	fn timing(look: &Look) -> Timing {
 		look.timing(look.disk_time)
+	}
+
+	fn sample_ms(look: &Look) -> u32 {
+		look.rate(look.disk_sample_ms)
 	}
 
 	// so a log file's odd flush doesn't fill the graph
@@ -308,6 +365,10 @@ impl Source<2> for TempReader {
 		look.timing(look.temp_time)
 	}
 
+	fn sample_ms(look: &Look) -> u32 {
+		look.rate(look.temp_sample_ms)
+	}
+
 	// full at the critical level, and higher once it's over
 	fn peak_floor(&self) -> Option<f32> {
 		Some(self.limit())
@@ -330,6 +391,9 @@ pub struct Graph<S: Source<N> = CpuReader, const N: usize = 4> {
 	peak: Peak,
 	/// Where the pointer is, in device pixels from the left, for the hover line.
 	pub hover: Option<usize>,
+	/// The beat of the last read from [`Graph::tick`], and its time on
+	/// [`clock_ms`].
+	beat: Option<(f64, f64)>,
 }
 
 impl Graph {
@@ -411,6 +475,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 			ease: Ease::default(),
 			peak: Peak::default(),
 			hover: None,
+			beat: None,
 		}
 	}
 
@@ -501,6 +566,29 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		self.read_at = Some(now);
 	}
 
+	/// How often this graph is read, in ms.
+	pub fn sample_ms(&self) -> u32 {
+		S::sample_ms(&self.look)
+	}
+
+	/// Reads the source when its next beat has come, and gives the ms from
+	/// `at` to the beat after. Beats are whole multiples of the sample rate on
+	/// [`clock_ms`], so graphs whose rates divide each other read on the same
+	/// timer tick. The first call only primes it, as [`Self::sample`] does.
+	pub fn tick(&mut self, at: f64) -> f64 {
+		let rate = f64::from(self.sample_ms());
+		let beat = ((at + EARLY_MS) / rate).floor();
+		// a span much shorter than a beat is mostly noise, as after a new rate
+		let due = self
+			.beat
+			.is_none_or(|(b, was)| b != beat && at - was >= rate / 2.0);
+		if due {
+			self.sample();
+			self.beat = Some((beat, at));
+		}
+		(beat + 1.0) * rate - at
+	}
+
 	pub fn axis(&self, columns: usize) -> Axis {
 		Axis::of(&self.basis(columns))
 	}
@@ -511,7 +599,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 				curve,
 				span: self.hist.first().zip(self.hist.last()),
 			},
-			Timing::Linear => Basis::Linear(columns as f64 * self.look.sample_ms as f64 / 1000.0),
+			Timing::Linear => Basis::Linear(columns as f64 * f64::from(self.sample_ms()) / 1000.0),
 		}
 	}
 
@@ -572,7 +660,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		let axis = Axis::of(&basis);
 		let t = self.now();
 		// a sample may come late by most of a tick, and a tick may be missed
-		let slack = 2.0 * f64::from(self.look.sample_ms.max(50)) / 1000.0 + 0.25;
+		let slack = 2.0 * f64::from(self.sample_ms()) / 1000.0 + 0.25;
 		self.ease.update(&axis, basis, t, slack);
 		let mut px = std::mem::take(&mut self.px);
 		let log = S::log_y(&self.look);
@@ -727,6 +815,54 @@ mod tests {
 			..Look::default()
 		});
 		assert_eq!(g.axis(100), Axis::linear(25.0));
+		// a graph's own rate rules its own axis
+		let g = Graph::new(Look {
+			time: Timing::Linear,
+			sample_ms: 250,
+			cpu_sample_ms: 1000,
+			..Look::default()
+		});
+		assert_eq!(g.axis(100), Axis::linear(100.0));
+	}
+
+	// Test ID: dej9z
+	#[test]
+	fn a_graph_reads_on_the_beats_of_its_own_rate() {
+		let mut g = Graph::new(Look {
+			sample_ms: 500,
+			..Look::default()
+		});
+		assert_eq!(g.sample_ms(), 500);
+		// the first call primes it, wherever it falls
+		assert_eq!(g.tick(1230.0), 270.0);
+		assert_eq!(g.beat, Some((2.0, 1230.0)));
+		// a timer a little early still reads, and the next beat is a whole one on
+		assert_eq!(g.tick(1495.0), 505.0);
+		assert_eq!(g.beat, Some((3.0, 1495.0)));
+		// a wake for another graph's beat reads nothing here
+		assert_eq!(g.tick(1700.0), 300.0);
+		assert_eq!(g.beat, Some((3.0, 1495.0)));
+		// a late one reads, and the beat after stays on the grid
+		assert_eq!(g.tick(2040.0), 460.0);
+		assert_eq!(g.beat, Some((4.0, 2040.0)));
+
+		// its own rate over Sample ms default, and a gap under half a beat
+		// after the change is too short to read
+		g.look.cpu_sample_ms = 2000;
+		assert_eq!(g.sample_ms(), 2000);
+		assert_eq!(g.tick(2500.0), 1500.0);
+		assert_eq!(g.beat, Some((4.0, 2040.0)));
+		assert_eq!(g.tick(4000.0), 2000.0);
+		assert_eq!(g.beat, Some((2.0, 4000.0)));
+		// as fast as the finest history tier, and no faster
+		g.look.cpu_sample_ms = 10;
+		assert_eq!(g.sample_ms(), FASTEST_MS);
+		g.look.cpu_sample_ms = 0;
+		assert_eq!(g.sample_ms(), 500);
+		assert_eq!(
+			(wait_ms(0.2), wait_ms(504.1), wait_ms(f64::NAN)),
+			(1, 505, 50)
+		);
 	}
 
 	// Test ID: decby

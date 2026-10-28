@@ -18,7 +18,7 @@ use crate::net::NetReader;
 use crate::render::Overlay;
 use crate::temp::TempReader;
 use crate::zswap::ZswapReader;
-use crate::{Graph, Source};
+use crate::{Graph, Source, clock_ms, wait_ms};
 
 pub struct Graphs {
 	pub cpu: Graph,
@@ -133,6 +133,7 @@ impl Which {
 /// handled by hand everywhere.
 pub trait Drawn {
 	fn sample(&mut self);
+	fn tick(&mut self, at: f64) -> f64;
 	fn trim(&mut self);
 	fn clear(&mut self);
 	fn section(&self) -> (&'static str, Vec<u8>);
@@ -150,6 +151,9 @@ pub trait Drawn {
 impl<S: Source<N>, const N: usize> Drawn for Graph<S, N> {
 	fn sample(&mut self) {
 		Graph::sample(self);
+	}
+	fn tick(&mut self, at: f64) -> f64 {
+		Graph::tick(self, at)
 	}
 	fn trim(&mut self) {
 		Graph::trim(self);
@@ -228,6 +232,17 @@ pub fn point<'a, K: PartialEq + Copy>(
 		}
 	}
 	changed
+}
+
+/// Reads each graph whose beat has come, at `at` on [`clock_ms`], and gives
+/// the ms to the next one's, for a one-shot timer. The settings window's graph
+/// list goes through this too.
+pub fn tick<'a>(all: impl IntoIterator<Item = &'a mut dyn Drawn>, at: f64) -> u32 {
+	wait_ms(
+		all.into_iter()
+			.map(|g| g.tick(at))
+			.fold(f64::INFINITY, f64::min),
+	)
 }
 
 // drops a graph turned off and makes one turned on. True when one was made.
@@ -467,6 +482,23 @@ impl Graphs {
 				g.sample();
 			}
 		}
+	}
+
+	/// Reads each shown graph whose beat has come, and gives the ms to the
+	/// next one's. See [`Graph::tick`].
+	pub fn tick(&mut self) -> u32 {
+		self.tick_at(clock_ms())
+	}
+
+	fn tick_at(&mut self, at: f64) -> u32 {
+		// ALL is in declaration order, so a Which is its own index
+		let shown = Which::ALL.map(|w| self.is_shown(w));
+		tick(
+			self.all_mut()
+				.filter(|&(w, _)| shown[w as usize])
+				.map(|(_, g)| g),
+			at,
+		)
 	}
 
 	pub fn trim(&mut self) {
@@ -712,6 +744,43 @@ mod tests {
 		let m = g.mem.as_mut().unwrap();
 		m.hist.add(now - 60.0, now, &[0.25, 0.25, 0.25]);
 		g
+	}
+
+	// Test ID: deja0
+	#[test]
+	fn each_shown_graph_reads_at_its_own_rate_on_one_timer() {
+		let mut g = Graphs::new(Look {
+			mem_sample_ms: 1000,
+			..two()
+		});
+		let beats = |g: &Graphs| {
+			(
+				g.cpu.beat.map(|b| b.0),
+				g.mem.as_ref().unwrap().beat.map(|b| b.0),
+			)
+		};
+		// both primed, and the timer wakes for CPU's next beat
+		assert_eq!(g.tick_at(1200.0), 300);
+		assert_eq!(beats(&g), (Some(2.0), Some(1.0)));
+		assert_eq!(g.tick_at(1500.0), 500);
+		assert_eq!(beats(&g), (Some(3.0), Some(1.0)));
+		// a beat they share is one wake for both
+		assert_eq!(g.tick_at(2000.0), 500);
+		assert_eq!(beats(&g), (Some(4.0), Some(2.0)));
+		// a hidden graph isn't read
+		g.set_look(
+			Look {
+				show_cpu: false,
+				mem_sample_ms: 1000,
+				..two()
+			},
+			None,
+		)
+		.unwrap();
+		assert_eq!(g.tick_at(2500.0), 500);
+		assert_eq!(beats(&g), (Some(4.0), Some(2.0)));
+		assert_eq!(g.tick_at(3000.0), 1000);
+		assert_eq!(beats(&g), (Some(4.0), Some(3.0)));
 	}
 
 	const E: usize = EDGE as usize;

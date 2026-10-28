@@ -44,6 +44,7 @@ pub struct GraphRow {
 	pub name: String,
 	pub show: String,
 	pub width: String,
+	pub sample: String,
 	pub time: String,
 }
 
@@ -475,8 +476,8 @@ impl Dialog {
 	}
 
 	/// The graph list, first drawn first. A graph is in it once the spec has
-	/// its `<name>.show`, `.width` and `.time` rows, so a new graph brings its
-	/// own row.
+	/// its `<name>.show`, `.width`, `.sample_ms` and `.time` rows, so a new
+	/// graph brings its own row.
 	pub fn graph_rows(&self) -> Vec<GraphRow> {
 		tukzmon_core::graphs::draw_order(&self.saved_order())
 			.into_iter()
@@ -486,6 +487,7 @@ impl Dialog {
 					name: name.to_string(),
 					show: id("show")?,
 					width: id("width")?,
+					sample: id("sample_ms")?,
 					time: id("time")?,
 				})
 			})
@@ -496,10 +498,11 @@ impl Dialog {
 	/// included.
 	pub fn in_graph_list(&self, id: &str) -> bool {
 		id == ORDER
-			|| self
-				.graph_rows()
-				.iter()
-				.any(|r| [r.show.as_str(), r.width.as_str(), r.time.as_str()].contains(&id))
+			|| self.graph_rows().iter().any(|r| {
+				[&r.show, &r.width, &r.sample, &r.time]
+					.iter()
+					.any(|s| *s == id)
+			})
 	}
 
 	/// Moves the graph list's row `from` to `to`, and keeps that as the order.
@@ -732,6 +735,7 @@ mod tests {
 				name: "mem".into(),
 				show: "show_memory".into(),
 				width: "mem_width".into(),
+				sample: "mem_sample_ms".into(),
 				time: "mem_time".into(),
 			}
 		);

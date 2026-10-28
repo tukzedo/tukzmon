@@ -395,17 +395,6 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- The current config is b23's `~/.config/tukzmon/tukzmon.shcl`, read by build defqn.
 
-- Pre-next-cut: Sample ms override per graph
-	- ID: 2026102814061806
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-140618
-	- Opened by: t00mietum
-	- Related IDs: 2026102508393161, 2026102814061800
-	- Requirements:
-		- Add a "Sample ms" override column, to the right of "Width px".
-
 - Pre-next-cut: Reset history clears the panel's graphs at once
 	- ID: 2026102814061807
 	- Type: Enhancement
@@ -2274,6 +2263,35 @@ Sorted per the notes in [Template](#template).
 		- OK'd as proposed. `design.md` now lists it as settled.
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019
+
+- Pre-next-cut: Sample ms override per graph
+	- ID: 2026102814061806
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102508393161, 2026102814061800, 2026102814061812
+	- Requirements:
+		- Add a "Sample ms" override column, to the right of "Width px".
+	- Progress log:
+		- The graph list has a Sample ms column between Width % and Time axis, at `cpu.sample_ms` and the like. Default follows Sample ms default, under Time.
+		- Each graph reads at its own rate, in the panel and in the settings window's graph list. One one-shot timer wakes for whichever graph is due next.
+		- A graph's linear time axis and its ease follow its own rate.
+		- Verified: the Graph tab drew the new column, with Default in each box but CPU's, which showed its saved 250. Apply was off at open.
+	- Decisions:
+		- A number box, where 0 shows as Default, rather than a dropdown of rates. Any rate Sample ms default takes can be typed, and Default reads the same as in the time axis column.
+		- Sample every ms is now Sample ms default, to match Time axis default. Its path, `graph.sample_ms`, is unchanged, so saved files keep their rate.
+		- A rate under 50 counts as 50, the finest history tier. The box takes 1 to 49, since 0 has to be in its range for Default.
+		- A graph reads on whole multiples of its rate on one shared clock, so graphs whose rates divide each other share a tick. A read under half a rate after the one before is skipped, so a rate change doesn't leave a short noisy span.
+		- The timer is one-shot and set again each tick, which wakes the panel only when some graph is due. With every graph on the default rate it wakes as often as before.
+	- Branch: sample-ms
+	- Test case: `tests::a_graph_reads_on_the_beats_of_its_own_rate` (dej9z) checks the beats, an early and a late timer, a rate change, and the 50 ms floor. `graphs::tests::each_shown_graph_reads_at_its_own_rate_on_one_timer` (deja0) checks 2 rates on one timer and that a hidden graph isn't read. `config::tests::each_graph_has_a_sample_rate_and_old_files_keep_the_default` (deja1) checks the rows and the fallback. `live::tests::a_rows_sample_rate_picked_in_the_window_sets_when_it_reads` (deja2) checks the window's graphs follow an unapplied rate. Each fails with its fix taken out.
+		- `tests::linear_axis_follows_the_sample_rate` (debj5) also checks a graph's own rate.
+		- 2026-10-28: new values only. defkz's memory row and defm1's list rows include the sample rate row.
+		- `bridge::tests::apply_turns_on_while_a_box_is_typed_in` (dej8s) caught Apply lit at open while a box showed Default. Fixed.
+		- Swept: `Look::rate` is the one place a graph's rate is picked, through `Source::sample_ms`. `Graph::basis`, `Graph::render`'s ease slack, `Graphs::tick`, `Live::tick` and the plugin's timer all read it. Nothing outside it reads `look.sample_ms`.
+	- Closed: 20261028-145647
 
 - Pre-next-cut: Graph tab, Graphs section names, widths, order, and defaults
 	- ID: 2026102814061800
