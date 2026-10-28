@@ -69,6 +69,35 @@ impl<const N: usize> Bucket<N> {
 	}
 }
 
+/// Buckets a total in [`Tier::blocks`] covers.
+const BLOCK: i64 = 32;
+
+/// What [`History::span`] adds up over buckets it covers whole.
+#[derive(Clone, Copy, Debug)]
+struct Total<const N: usize> {
+	weight: f64,
+	sums: [f64; N],
+	max: [f32; N],
+}
+
+impl<const N: usize> Total<N> {
+	fn zero() -> Total<N> {
+		Total {
+			weight: 0.0,
+			sums: [0.0; N],
+			max: [f32::NEG_INFINITY; N],
+		}
+	}
+
+	fn join(&mut self, other: &Total<N>) {
+		self.weight += other.weight;
+		for s in 0..N {
+			self.sums[s] += other.sums[s];
+			self.max[s] = self.max[s].max(other.max[s]);
+		}
+	}
+}
+
 #[derive(Clone, Debug)]
 struct Tier<const N: usize> {
 	len: f64,
@@ -76,9 +105,99 @@ struct Tier<const N: usize> {
 	/// Bucket number of `buckets[0]`, counted from time 0.
 	first: i64,
 	buckets: VecDeque<Bucket<N>>,
+	/// The total of each block of [`BLOCK`] buckets, so a wide span reads a
+	/// block at a time. Only a block whose buckets are all still kept is read.
+	blocks: VecDeque<Total<N>>,
+	/// Block number of `blocks[0]`, counted from time 0.
+	block_first: i64,
 }
 
 impl<const N: usize> Tier<N> {
+	fn new(len: f64, keep: f64) -> Tier<N> {
+		Tier {
+			len,
+			keep,
+			first: 0,
+			buckets: VecDeque::new(),
+			blocks: VecDeque::new(),
+			block_first: 0,
+		}
+	}
+
+	/// The buckets from `i0` to `i1`, one by one, each over its whole data.
+	/// Absolute times, as a span works them out.
+	fn total(&self, i0: usize, i1: usize) -> Total<N> {
+		let mut out = Total::zero();
+		for i in i0..i1 {
+			let bk = &self.buckets[i];
+			if bk.secs <= 0.0 {
+				continue;
+			}
+			let start = (self.first + i as i64) as f64 * self.len;
+			let (lo, hi) = (start + bk.lo, start + bk.hi);
+			if hi <= lo {
+				continue;
+			}
+			let w = (hi - lo) * (bk.secs as f64 / (hi - lo)).min(1.0);
+			out.weight += w;
+			for s in 0..N {
+				out.sums[s] += w * bk.mean(s) as f64;
+				out.max[s] = out.max[s].max(bk.max[s]);
+			}
+		}
+		out
+	}
+
+	/// As [`Self::total`], whole blocks read from `blocks`.
+	fn total_over(&self, i0: usize, i1: usize) -> Total<N> {
+		let (a0, a1) = (self.first + i0 as i64, self.first + i1 as i64);
+		let (b0, b1) = ((a0 + BLOCK - 1).div_euclid(BLOCK), a1.div_euclid(BLOCK));
+		if b1 <= b0 {
+			return self.total(i0, i1);
+		}
+		let at = |a: i64| (a - self.first) as usize;
+		let mut out = self.total(i0, at(b0 * BLOCK));
+		for b in self
+			.blocks
+			.range((b0 - self.block_first) as usize..(b1 - self.block_first) as usize)
+		{
+			out.join(b);
+		}
+		out.join(&self.total(at(b1 * BLOCK), i1));
+		out
+	}
+
+	/// Works out the blocks again from the one holding bucket `from` on.
+	fn reindex(&mut self, from: usize) {
+		if self.buckets.is_empty() {
+			self.blocks.clear();
+			return;
+		}
+		let mut b0 = (self.first + from as i64).div_euclid(BLOCK);
+		if from == 0 || self.blocks.is_empty() {
+			self.blocks.clear();
+			self.block_first = b0;
+		}
+		// buckets pushed for a gap come before the ones a sample touched
+		b0 = b0.min(self.block_first + self.blocks.len() as i64);
+		self.blocks.truncate((b0 - self.block_first) as usize);
+		let end = self.first + self.buckets.len() as i64;
+		for b in b0..=(end - 1).div_euclid(BLOCK) {
+			let lo = (b * BLOCK).max(self.first) - self.first;
+			let hi = ((b + 1) * BLOCK).min(end) - self.first;
+			self.blocks.push_back(self.total(lo as usize, hi as usize));
+		}
+	}
+
+	fn pop_front(&mut self) {
+		self.buckets.pop_front();
+		self.first += 1;
+		while !self.blocks.is_empty() && (self.block_first + 1) * BLOCK <= self.first {
+			self.blocks.pop_front();
+			self.block_first += 1;
+		}
+	}
+
 	fn cap(&self) -> i64 {
 		if self.keep.is_finite() {
 			(self.keep / self.len).ceil() as i64 + 1
@@ -109,9 +228,9 @@ impl<const N: usize> Tier<N> {
 				self.buckets[(at - self.first) as usize].add(lo, hi, v);
 			}
 		}
+		self.reindex((at0.max(self.first) - self.first) as usize);
 		while self.buckets.len() as i64 > cap {
-			self.buckets.pop_front();
-			self.first += 1;
+			self.pop_front();
 		}
 	}
 
@@ -141,12 +260,7 @@ impl<const N: usize> Default for History<N> {
 		History {
 			tiers: TIERS
 				.iter()
-				.map(|&(len, keep)| Tier {
-					len,
-					keep,
-					first: 0,
-					buckets: VecDeque::new(),
-				})
+				.map(|&(len, keep)| Tier::new(len, keep))
 				.collect(),
 			first: None,
 			last: None,
@@ -207,7 +321,13 @@ impl<const N: usize> History<N> {
 		let mut weight = 0.0f64;
 		let mut sums = [0.0f64; N];
 		let mut max = [f32::NEG_INFINITY; N];
-		for i in i0..i1 {
+		// only the end buckets can be cut by the span
+		if i1 - i0 > 2 {
+			let whole = tier.total_over(i0 as usize + 1, i1 as usize - 1);
+			(weight, sums, max) = (whole.weight, whole.sums, whole.max);
+		}
+		let ends = if i1 - i0 > 1 { [i0, i1 - 1] } else { [i0, i1] };
+		for i in ends.into_iter().filter(|&i| i < i1) {
 			let bk = &tier.buckets[i as usize];
 			if bk.secs <= 0.0 {
 				continue;
@@ -244,8 +364,7 @@ impl<const N: usize> History<N> {
 		}
 		for tier in &mut self.tiers {
 			while !tier.buckets.is_empty() && tier.start() + tier.len <= before {
-				tier.buckets.pop_front();
-				tier.first += 1;
+				tier.pop_front();
 			}
 		}
 		self.first = self.first.map(|f| f.max(before));
@@ -312,6 +431,7 @@ impl<const N: usize> History<N> {
 				};
 				tier.buckets.push_back(b);
 			}
+			tier.reindex(0);
 		}
 		(rd.0.is_empty() && first.is_some() == last.is_some()).then_some(h)
 	}
@@ -349,6 +469,178 @@ mod tests {
 
 	fn close(a: f32, b: f32) -> bool {
 		(a - b).abs() < 1e-5
+	}
+
+	impl<const N: usize> History<N> {
+		/// The span read bucket by bucket, as before the running totals.
+		fn span_old(&self, a: f64, b: f64) -> Span<N> {
+			let mut out = Span {
+				mean: [0.0; N],
+				max: [0.0; N],
+				covered: 0.0,
+			};
+			if b <= a {
+				return out;
+			}
+			let tier = self.tier_for(a);
+			if tier.buckets.is_empty() {
+				return out;
+			}
+			let i0 = ((a / tier.len).floor() as i64 - tier.first).max(0);
+			let i1 = ((b / tier.len).ceil() as i64 - tier.first).min(tier.buckets.len() as i64);
+			let mut weight = 0.0f64;
+			let mut sums = [0.0f64; N];
+			let mut max = [f32::NEG_INFINITY; N];
+			for i in i0..i1 {
+				let bk = &tier.buckets[i as usize];
+				if bk.secs <= 0.0 {
+					continue;
+				}
+				let start = (tier.first + i) as f64 * tier.len;
+				let (lo, hi) = (start + bk.lo, start + bk.hi);
+				let overlap = b.min(hi) - a.max(lo);
+				if overlap <= 0.0 {
+					continue;
+				}
+				let w = overlap * (bk.secs as f64 / (hi - lo)).min(1.0);
+				weight += w;
+				for s in 0..N {
+					sums[s] += w * bk.mean(s) as f64;
+					max[s] = max[s].max(bk.max[s]);
+				}
+			}
+			if weight > 0.0 {
+				for s in 0..N {
+					out.mean[s] = (sums[s] / weight) as f32;
+					out.max[s] = max[s];
+				}
+				out.covered = (weight / (b - a)).min(1.0) as f32;
+			}
+			out
+		}
+	}
+
+	/// xorshift, so a seed gives the same history every run.
+	struct Dice(u64);
+
+	impl Dice {
+		fn next(&mut self) -> f64 {
+			self.0 ^= self.0 << 13;
+			self.0 ^= self.0 >> 7;
+			self.0 ^= self.0 << 17;
+			(self.0 >> 11) as f64 / (1u64 << 53) as f64
+		}
+		/// From `lo` to `hi`, even on a log scale.
+		fn log(&mut self, lo: f64, hi: f64) -> f64 {
+			lo * (hi / lo).powf(self.next())
+		}
+	}
+
+	fn same(new: &Span<3>, old: &Span<3>) -> bool {
+		let near = |x: f32, y: f32| (x - y).abs() <= 1e-5 * x.abs().max(1.0);
+		(0..3).all(|s| near(new.mean[s], old.mean[s]) && new.max[s] == old.max[s])
+			&& near(new.covered, old.covered)
+	}
+
+	// Test ID: dejcn
+	#[test]
+	fn span_reads_as_it_did_bucket_by_bucket() {
+		for seed in 1..=12u64 {
+			let mut d = Dice(seed.wrapping_mul(0x9e37_79b9_7f4a_7c15));
+			let mut h = History::<3>::default();
+			let mut t = 1.76e9 + d.next() * 1000.0;
+			for k in 0..4000 {
+				let rate = [0.05, 0.1, 0.5, 2.0, 30.0][(d.next() * 5.0) as usize];
+				let roll = d.next();
+				if roll < 0.002 {
+					// past what the fine tiers keep
+					t += d.log(300.0, 400_000.0);
+				} else if roll < 0.02 {
+					t += d.log(0.01, 60.0);
+				}
+				let v = [d.next() as f32, (d.next() * 4.0) as f32, 0.5];
+				h.add(t, t + rate, &v);
+				t += rate;
+				if k % 997 == 996 {
+					h.trim(h.first().unwrap() + d.next() * (t - h.first().unwrap()) * 0.3);
+				}
+			}
+			let mut bytes = Vec::new();
+			h.encode(&mut bytes);
+			let back = History::<3>::decode(&bytes).unwrap();
+			let (first, last) = (h.first().unwrap(), h.last().unwrap());
+			for _ in 0..3000 {
+				let a = first - 5.0 + d.next() * (last - first + 10.0);
+				let b = a + d.log(0.001, 2e6);
+				for g in [&h, &back] {
+					let (new, old) = (g.span(a, b), g.span_old(a, b));
+					assert!(
+						same(&new, &old),
+						"seed {seed}, {a} to {b}: {new:?} against {old:?}"
+					);
+				}
+			}
+			// side by side columns, as a draw asks
+			let mut a = first;
+			while a < last {
+				let b = a + d.log(0.02, 4000.0);
+				let (new, old) = (h.span(a, b), h.span_old(a, b));
+				assert!(
+					same(&new, &old),
+					"seed {seed}, {a} to {b}: {new:?} against {old:?}"
+				);
+				a = b;
+			}
+		}
+	}
+
+	// Test ID: dejcp
+	#[test]
+	fn a_spike_reads_in_a_wide_span_only_while_its_bucket_is_kept() {
+		let mut h = History::<1>::default();
+		let t0 = 1000.0;
+		let spike = t0 + 100.0;
+		let mut t = t0;
+		let step = |h: &mut History<1>, t: &mut f64| {
+			let v = if (*t - spike).abs() < 0.01 { 0.9 } else { 0.1 };
+			h.add(*t, *t + 0.05, &[v]);
+			*t += 0.05;
+		};
+		while t < t0 + 200.0 {
+			step(&mut h, &mut t);
+		}
+		assert!(close(h.span(t0 + 10.0, t0 + 190.0).max[0], 0.9));
+		assert!(close(h.span(t0 + 101.0, t0 + 190.0).max[0], 0.1));
+		// partway into the blocks at either end
+		assert!(close(h.span(t0 + 10.0, spike + 0.2).max[0], 0.9));
+		assert!(close(h.span(spike - 0.2, t0 + 190.0).max[0], 0.9));
+		// the fine tier lets the spike go, but keeps the rest of its block
+		let block = (spike / 0.05).round() as i64 / BLOCK;
+		while h.tiers[0].first <= (spike / 0.05).round() as i64 {
+			step(&mut h, &mut t);
+		}
+		assert_eq!(h.tiers[0].first.div_euclid(BLOCK), block);
+		// what the tier lets go, its blocks go with
+		let kept = h.tiers[0].buckets.len() as i64;
+		assert!(h.tiers[0].blocks.len() as i64 <= kept / BLOCK + 2);
+		let a = h.tiers[0].start();
+		assert!(close(h.span(a, a + 60.0).max[0], 0.1));
+		let mut bytes = Vec::new();
+		h.encode(&mut bytes);
+		let back = History::<1>::decode(&bytes).unwrap();
+		assert!(close(back.span(a, a + 60.0).max[0], 0.1));
+		assert!(close(back.span(a, a + 60.0).mean[0], 0.1));
+		// a new spike after a gap the fine tier can't keep
+		t += 1000.0;
+		let spike = t + 30.0;
+		for _ in 0..1200 {
+			let v = if (t - spike).abs() < 0.01 { 0.9 } else { 0.1 };
+			h.add(t, t + 0.05, &[v]);
+			t += 0.05;
+		}
+		let a = h.tiers[0].start();
+		assert!(close(h.span(a, a + 50.0).max[0], 0.9));
+		assert!(close(h.span(a, a + 29.0).max[0], 0.1));
 	}
 
 	// Test ID: debhw
