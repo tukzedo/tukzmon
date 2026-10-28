@@ -214,6 +214,7 @@ Sorted per the notes in [Template](#template).
 		- Picked colors are kept exactly, and colors nobody picked moved instead. Memory's programs was never changed by hand, so it moved rather than temperature's Medium. It was also the smaller move, 4.8 against 7.7, and the other way put temperature on the network's local yellow, 2.3 apart.
 		- That replaces "Default's memory colors stay as multiload-ng had them" from 2026102408304625 for programs. Buffers and cache are as they were.
 		- Swap's and zswap's gradients run through `#a45f00` and `#4a8e54`, the colors picked for them, rather than staying blue and magenta. Temperature's normal follows its Medium the same way. So switching one of them to Detailed keeps its color, and Default's earlier normal, green `#40ff48`, was 6.5 from CPU.
+			- Confirmed 2026-10-28.
 		- tukzmon's color was picked by search: the most distant from every other lead, I/O wait, system and on battery, at a lightness that reads on `#313131`. It's 22.4 from CPU, the closest.
 	- Branch: theme-colors
 	- Test case: `config::tests::the_default_theme_keeps_the_colors_picked_on_it` (dejbq). It fails on the old Default and passes now.
@@ -2408,6 +2409,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: with history kept, Yes in the question cleared every graph in the panel within about 160 ms of the key press. The panel kept reading for over a minute, with the disk graph at 2000 ms stepping about every 2 s and the rest about every half second.
 	- Decisions:
 		- The button acts at once. That departs from 2026102620162202, where it waited for Apply like theme Delete, so Cancel could take it back. A reset is an action rather than a setting, and the question already guards the one case that deletes saved history, which is how a clear history button usually works.
+			- Confirmed 2026-10-28.
 		- It asks when Keep across restarts is on, as the window shows it or as applied, since a running item that keeps history deletes its own file either way.
 		- The plugin uses a GIO file monitor rather than a shorter timer, so it wakes only when a file changes. The check at each read stays, for a file system the watch can't follow.
 		- A settings file change is told by its modified time and size, since a watch can wake while a write is still going.
@@ -2522,6 +2524,7 @@ Sorted per the notes in [Template](#template).
 		- Spike emphasis is never greyed now, since a graph can pick a log curve of its own.
 	- Decisions:
 		- `graph.log_axis` and `graph.log_curve` are dropped, not read as aliases. They were never in a release, and b23's files have neither, as with the old theme keys in 2026102620162201. This replaces 2026102408304586's "Saved configs with `graph.log_axis` and `graph.log_curve` keep working".
+			- Confirmed 2026-10-28.
 		- `Look` has one `time`, and `Look::timing` is a graph's own pick or else that.
 	- Branch: graph-tab
 	- Test case: `config::tests::the_time_axis_default_comes_from_the_file` (decbx) and `dialog::tests::the_time_axis_default_is_a_dropdown_with_linear_first` (decbz), renamed from the log curve ones, and `axis::tests::curves_parse_as_the_spec_spells_them` (decbw), which now wants Linear first.
