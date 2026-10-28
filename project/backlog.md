@@ -411,20 +411,6 @@ Sorted per the notes in [Template](#template).
 			- Global background colors override
 				- Global transparent override.
 
-- Pre-next-cut: Less CPU used by tukzmon
-	- ID: 2026102814061812
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-140618
-	- Opened by: t00mietum
-	- Related IDs: 2026102618573801, 2026102814061811
-	- Requirements:
-		- Figure out how to minimize CPU overhead used by tukzmon
-	- Progress log:
-		- The profile from 2026-10-28 puts 67% of a tick in history lookups while drawing (`History::span`), and 15% in the /proc reads.
-		- 2026-10-28: the tukzmon graph, 2026102814061811, shows the CPU use in the panel. Before any change here, b23's plugin took 0.46% of one CPU.
-
 - An item's files go when it's removed from the panel
 	- ID: 2026102622311676
 	- Type: Enhancement
@@ -449,18 +435,6 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Related IDs: 2026102621053725
 	- Requirements: design.md XFCE plugin and README say XDG_DATA_DIRS and ~/.local aren't searched, so dev-install.bash needs sudo once. The 4.20.4 and 4.20.7 panel source pairs each XDG_DATA_DIRS entry and ~/.local/share with the lib dir under the same prefix, which on Debian is lib/x86_64-linux-gnu. Try ~/.local/share/xfce4/panel/plugins with ~/.local/lib/x86_64-linux-gnu/xfce4/panel/plugins on b23, and if it works, drop the sudo step and fix both docs.
-
-- The panel's tick costs about a third more since the 50 ms history tier
-	- ID: 2026102618573801
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261026-185738
-	- Opened by: t00mietum
-	- Related IDs: 2026101916013885
-	- Requirements:
-		- The profiler's tick went from about 275 us to about 385 us on b23 on 2026-10-26, starting with the run for the finer history tiers (commit `6753a2b`). `History::span` went from about 28% to 38% of self time.
-		- Measure it against `dev` before that commit at the same load first. If it holds, make `span` cheaper over the new tier, or say why the cost is fine.
 
 - Plugin errors go nowhere after a panel restart
 	- ID: 2026102620523642
@@ -2304,6 +2278,36 @@ Sorted per the notes in [Template](#template).
 		- Swept: defx7 and defxd, the only checks on leads, every built-in in `settings.shcl`, and every role in `dice::ROLES` that follows its graph's lead.
 	- Closed: 20261028-161000
 
+- Pre-next-cut: Less CPU used by tukzmon
+	- ID: 2026102814061812
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102618573801, 2026102814061811
+	- Requirements:
+		- Figure out how to minimize CPU overhead used by tukzmon
+	- Progress log:
+		- The profile from 2026-10-28 puts 67% of a tick in history lookups while drawing (`History::span`), and 15% in the /proc reads.
+		- 2026-10-28: the tukzmon graph, 2026102814061811, shows the CPU use in the panel. Before any change here, b23's plugin took 0.46% of one CPU.
+		- Before, at a load of about 13 to 15: 354 to 390 us a tick, with `span` 41% of self time and history lookups 61% in all.
+		- Each tier now keeps a total per block of 32 buckets, so a wide column reads whole blocks and only its end buckets one at a time. `design.md` History has it.
+		- After, at the same load and run side by side with `dev`: 137 to 142 us a tick, about 2.7 times less. History lookups went to 14%. The /proc reads are now 46% of the tick and drawing 30%.
+		- The live plugin's own CPU use wasn't measured again. b23 runs an older build.
+		- Not done, for later if the self graph says it's worth it:
+			- Keep `/proc/stat` and `/proc/meminfo` open and read them again from the start, which saves an open and a close a read. Most of the read's time is the kernel writing the file, so it's a small win.
+			- Draw only the graphs read this wake, or that ease or have the pointer moving. Each wake draws every graph today. It saves nothing while every graph reads at the same rate.
+			- The pixel loop in `Frame::draw_to` is most of the drawing, mostly the clamp and the packing per pixel.
+	- Decisions:
+		- Block totals over running totals per bucket. Both measured the same, and running totals would take about 40 bytes more per bucket, about half again the history's memory.
+		- The results match the old bucket by bucket sum to float rounding, and a column's max is the same.
+	- Branch: less-cpu
+	- Test case: `history::tests::a_spike_reads_in_a_wide_span_only_while_its_bucket_is_kept` (dejcp). It checks a spike in a whole block and in the part blocks at either end, a block that's lost its spike to age, a reload, a reset after a gap, and that blocks go with their buckets. Each fails with its part of the upkeep taken out.
+		- A test that drove the old and new `span` over 12 seeded histories with gaps, resets and trims checked they matched, then went out with the old one.
+		- Swept: `History::span` is the only reader of the buckets for a column, and the hover tip, the settings window's live graphs and the plugin all go through it. Every place that adds, drops or loads buckets keeps the blocks: `Tier::add`, `History::trim` and `History::decode`.
+	- Closed: 20261028-162800
+
 - Pre-next-cut: A graph of tukzmon's own CPU use
 	- ID: 2026102814061811
 	- Type: Feature
@@ -3056,6 +3060,25 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
 	- Closed: 20261025-081952
+
+- The panel's tick costs about a third more since the 50 ms history tier
+	- ID: 2026102618573801
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261026-185738
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013885, 2026102814061812
+	- Requirements:
+		- The profiler's tick went from about 275 us to about 385 us on b23 on 2026-10-26, starting with the run for the finer history tiers (commit `6753a2b`). `History::span` went from about 28% to 38% of self time.
+		- Measure it against `dev` before that commit at the same load first. If it holds, make `span` cheaper over the new tier, or say why the cost is fine.
+	- Progress log:
+		- It held. On 2026-10-28 at a load of about 14, run in turn: 274 and 289 us a tick at `6753a2b^`, and 383 and 385 us at `6753a2b`. A log axis column over the newest 256 s reads 5 times as many buckets at 50 ms as at 250 ms.
+		- Fixed under 2026102814061812 with block totals per tier. The tick is now 137 to 142 us at the same load, well under the 275 us from before the finer tier.
+	- Branch: less-cpu
+	- Test case: see 2026102814061812, test dejcp.
+		- Swept: as in 2026102814061812.
+	- Closed: 20261028-162800
 
 - Nix package build as a pipeline area
 	- ID: 2026102808222810
