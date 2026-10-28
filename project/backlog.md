@@ -22,40 +22,6 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
-	- ID: 2026102620162196
-	- Type: Bug
-	- Status: Waiting for answers
-		- Waits on the 2026102620162196 question in questions.md: should a still pointer's tip hold the column under it, as now, or the moment it first pointed at.
-	- Priority|Severity: High
-	- Opened: 20261026-201621
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build defqn, on b23 as of 2026-10-26 20:16.
-	- Related IDs: 2026102408304599
-	- Incorrect behavior: Mouseover tip text: "x seconds ago" doesn't update with ticks, it seems to be stuck at whatever it was at first flyover.
-	- Note: Regular time format works though.
-	- Reproduced: 2026-10-26, in core with 2 days of history. A still pointer read "32 sec ago" over 4 ticks while its clock time went 20:59:13, :14, :15, :16, on a linear axis and on Smooth log.
-	- Actual cause:
-		- Each column of the graph is a fixed age, since the right edge is always now and the graph moves left under the pointer. So a still pointer's age holds, and its clock time moves on by a sample each tick. Both say the same thing about the column under the line.
-		- The tip is asked again each tick, so nothing is stale. The round-1024 test panel saw the age count, likely because its history was only seconds old, and a log axis stretches as its history grows.
-	- Progress log:
-		- No code change yet, since a fix means picking what the line and tip follow.
-
-- Graph sizes on a vertical panel
-	- ID: 2026102621105420
-	- Type: Enhancement
-	- Status: Waiting for answers
-		- Waits on the question about the Width settings on a vertical panel.
-	- Priority|Severity: Avg
-	- Opened: 20261026-211054
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013889
-	- Related IDs: 2026102621053709, 2026102508393152
-	- Requirements:
-		- On a vertical panel, the Width settings either do something, or say they don't.
-	- Progress log:
-		- Each graph there is as wide as the panel and half that tall, and the Width tip still says "Its height follows the panel".
-
 - Theme presets, with a coordinated Default
 	- ID: 2026102409400679
 	- Type: Feature
@@ -64,8 +30,11 @@ Sorted per the notes in [Template](#template).
 		- How the built-in themes look is for a person to judge.
 		- It departs from the wording in one way. b23's file sets 2 colors with no theme line, so it opens as Custom, with exactly the colors it has now. Picking Default there gives the coordinated set.
 		- Stand-in, 2026-10-25, build deea9: each built-in theme drew both graphs in a test panel, and a pick took effect at once. Only the look is left.
+		- Measured 2026-10-28, round-1028 at 17d3d9d, as CIEDE2000: in every built-in, a graph's own colors sit 10.8 or more apart, I/O wait and system 24 or more from every graph's lead, and every color 16.6 or more from the background, except one. Default's nice and Low, `#205f40`, sit 5.1 from the top, `#2a543f`. They were 7.1 from multiload-ng's top, `#2a5446`, before Default moved it. That and the look are left for a person.
+		- How far apart the graphs' leads sit is child 2026102810142725 of 2026102620162201.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
 	- Needs hand testing: on b23, after a panel restart, pick each theme on the Themes tab, Apply, and judge how it looks on the panel graph, Default most of all.
+	- Stand-in: none (20261028). Turns on how the themes look, and the numbers are in the status row.
 	- Priority|Severity: High
 	- Opened: 20261024-094007
 	- Opened by: t00mietum
@@ -102,8 +71,10 @@ Sorted per the notes in [Template](#template).
 		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
 		- Whether the rolls look good together is for a person to judge.
 		- Stand-in, 2026-10-25, build deea9: in the window a roll changed every color as "Default *", Save as kept it, and the panel graph took it at Apply. Only the look is left.
+		- Measured 2026-10-28 over 2000 seeds, round-1028 at 17d3d9d, as CIEDE2000: I/O wait and system roll 23.5 or more from every lead, and each gradient step 11.0 or more. A graph's own colors roll as close as 4.8, buffers and cache, and 9.1 or more in 9 rolls of 10. CPU's Low rolls as close as 1.9 to the background top, which takes CPU's hue, and 5.6 or more in 9 of 10. Default's own nice sits 5.1 from its top, so that matches the built-in. Leads that nearly match are 2026102810142725.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
 	- Needs hand testing: on b23, after a panel restart, press Randomize a few times with Apply, and judge whether the rolls look good together.
+	- Stand-in: none (20261028). Turns on whether a roll looks good, and the numbers are in the status row.
 	- Priority|Severity: High
 	- Opened: 20261024-094007
 	- Opened by: t00mietum
@@ -128,80 +99,6 @@ Sorted per the notes in [Template](#template).
 	- Test case: `dice::tests::every_theme_member_has_a_role` (decdr), `every_roll_is_a_value_its_setting_takes_and_never_a_gradient` (decds), `the_lead_rules_and_the_alarms_stay_red_and_orange` (decdt), `the_quiet_ones_are_muted_and_near_the_lead` (decdv), `the_gradient_runs_from_calm_through_the_lead` (decdw) and `a_seed_rolls_the_same_theme_and_seeds_differ` (decdx), over 2000 seeds each, and `dialog::tests::randomize_changes_every_color_on_the_theme_and_turns_off_the_gradient` (decdq). Each fails with its rule broken: the mode set to gradient, the lead hue let into red, a member left out, nice as bright as user, and Randomize doing nothing.
 		- Swept: every member of the theme group, which the role test walks, and the one theme button row in qt.cpp.
 
-- Memory graph
-	- ID: 2026102408304625
-	- Type: Feature
-	- Status: Waiting on UAT
-		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
-		- How the 2 graphs look side by side is for a person to judge. On Default, cache is `#408060`, close to the shared top color `#2a543f`.
-		- It departs from the wording in one way. multiload-ng's memory border and background, `#404020` and `#13261d`, aren't used, since every graph shares the Background sub-tab.
-		- Stand-in, 2026-10-25, build deea9: in a test panel the memory graph drew beside CPU, its tip read "Memory 33% in use", every built-in theme recolored it, and with Memory graph off the item narrowed to CPU alone. Only the look is left.
-	- Needs local test suite run?: No. The full run passed on 2026-10-25.
-	- Needs hand testing: on b23, after a panel restart, look at the memory graph beside CPU on Default, and judge whether cache (`#408060`) stands apart from the top color (`#2a543f`).
-	- Priority|Severity: High
-	- Opened: 20261024-082803
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-	- Prereq IDs: 2026102408512192, 2026102409400679
-		- Was the collectors parent. Only its memory collector child is needed, and that's done.
-		- Its colors join the theme presets, so it waits on those.
-	- Related IDs: 2026101916013887, 2026102508354893
-	- Requirements:
-		- Memory, using my current color definitions from multiload-ng.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- The plugin draws a memory graph right of the CPU graph, at the same width with no gap, stacked from the bottom: programs, buffers, cache. On a vertical panel it goes under the CPU graph.
-		- Default's memory colors are b23's multiload-ng ones: `#ffff80`, `#804080` and `#408060`. Every built-in theme has its own, and Fire draws memory as a gradient.
-		- Themes has a Memory sub-tab, with Detailed or Gradient like CPU's. The Graph tab has a Memory graph checkbox, on by default.
-		- Its history is saved in the same file as CPU's. A hidden graph's history is kept in the file, and comes back when it's shown again.
-		- `design.md` XFCE plugin, Theme and History have the details.
-		- Verified: in a test panel the memory graph drew beside the CPU graph in Default's colors, and its history was saved at quit. The settings window showed the Memory sub-tab and the checkbox.
-	- Decisions:
-		- One plugin shows both, the way multiload-ng does, rather than a plugin per graph. The live graph list, 2026102408304639, adds turning graphs on and off, order and a width each.
-		- The sample rate, width, axis and border are shared for now.
-		- Randomize gives buffers a muted color of its own, a step round the hue from cache, so the 2 never roll the same.
-		- Default's memory colors stay as multiload-ng had them, rather than moved onto Default's hue, since the requirement names them.
-	- Branch: round-1025
-	- Test case: `graphs::tests::the_memory_graph_samples_draws_and_tips` (dedq1), `graphs_sit_side_by_side_and_the_pointer_finds_its_own` (dedq2), `a_save_keeps_every_graph_and_a_hidden_ones_history` (dedq3) and `hiding_memory_drops_it_and_showing_brings_its_history_back` (dedq4), `config::tests::memory_colors_are_multiload_ngs_and_every_theme_has_them` (dedpz) and `dice::tests::buffers_and_cache_are_muted_and_told_apart` (dedq0). dedq2 fails with the memory tile drawn as CPU, dedq3 with other sections dropped at save, and dedq0 with buffers rolled as cache.
-		- 2026-10-25: new values only. `config::tests::the_default_theme_is_the_row_defaults` and `saved_themes_write_whole_and_read_back` count 19 theme members, not 12. `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme` counts 17 colors, not 11.
-		- Swept: every `Graph` use (the plugin, now through `Graphs`, and the lib tests), every `cpu_paint` caller, every `keep::write` caller, and every theme member, which the role and row-default tests walk.
-
-- Battery graph
-	- ID: 2026102618353013
-	- Type: Feature
-	- Status: Waiting on UAT
-		- How it looks, in each theme, is for a person to judge, and b23 has no battery, so a laptop has to show it.
-		- It departs from the wording in one way. It's off by default, like swap. Turn it on in the graph list.
-		- Stand-in, 2026-10-26, build defyt: with a made-up battery in a test window, the row drew plugged in at 80% in lavender, on battery at 60% in orange and critical at 4% in red on Default, and Fire colored the charge by its gradient. Only the look on a real laptop is left.
-	- Needs local test suite run?: No. The full run passed on 2026-10-26.
-	- Needs hand testing: on a laptop, after an install, turn on Battery graph in the graph list, Apply, and judge how plugged in, on battery and critical look in Default and Fire.
-	- Priority|Severity: High
-	- Opened: 20261026-183530
-	- Opened by: t00mietum
-	- Version and build: v0.1.0, not on any box yet.
-	- Parent ID: 2026101916013887
-	- Prereq IDs: 2026102618353000
-	- Related IDs: 2026102408512223
-	- Requirements:
-		- Charging, discharging, and discharging at the critical level, from the battery collector.
-	- Estimated effort: Avg
-	- Actual effort: Low
-	- Progress log:
-		- The battery graph draws the charge in the color for its state, with its tip as "Battery 80%, on battery". It has a row in the graph list, at `battery.show`, `battery.width` and `battery.time`, and a Themes/Battery sub-tab with Plugged in, On battery and Critical, or Low, Medium and High.
-		- `graph.order` defaults to `cpu mem swap battery`.
-		- `design.md` XFCE plugin and Theme have the details.
-		- Verified: the full run passed. The tip test fails with its states swapped, and defqd with battery left out of `Graphs`' slots.
-	- Decisions:
-		- Off by default, as swap is.
-		- Plugged in is the theme's user color, on battery its system color and critical its I/O wait color, so on battery reads as a warning and critical as an alarm. Randomize gives them the lead, warn and alarm roles.
-		- The tip and the color say plugged in, not charging, since a full battery with the power in counts as charging.
-		- A default `BatteryReader` has no battery and reads as a gap, so tests can build the graph on a box with none.
-	- Branch: round-1026
-	- Test case: `graphs::tests::the_battery_graph_colors_the_charge_by_state` (defqc), `four_sit_side_by_side_and_battery_keeps_its_history_hidden` (defqd), and `live::tests::the_battery_row_is_there_only_with_a_battery_in` (defqe), which takes its no-battery branch on b23.
-		- 2026-10-26: new values only. deccf and `saved_themes_write_whole_and_read_back` count 31 theme members, not 24. `save_as_keeps_the_colors_whole_and_picks_the_new_theme` counts 27 colors, not 21. dedqq, defkz and defm0 have `battery` after `swap` in their orders, and defm0's past-the-end move is 4, not 3. defma's rows greyed at defaults add `battery_width` and `battery_time`.
-		- Swept: every `Which` match, the slots in `Graphs` and `Live`, the 6 built-in themes, and `dice::ROLES`.
-
 - Pre-next-cut: Generic theme names, and distinct colors per monitor
 	- ID: 2026102620162201
 	- Type: Enhancement
@@ -209,8 +106,10 @@ Sorted per the notes in [Template](#template).
 		- How each theme looks, and whether the graphs read apart side by side, is for a person to judge.
 		- It departs from the wording in one way. Randomize still gives every graph the same lead hue. That part is child 2026102621562349.
 		- Stand-in, 2026-10-26, build defyt: in the window Fire drew CPU red and brown, memory violet and swap blue, and with b23's settings a test panel drew CPU, memory and swap apart on Default. Only the look is left.
+		- 2026-10-28: with 9 graphs now, some leads nearly match in every built-in but Fire, and in most rolls. That part is child 2026102810142725, a Bug.
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Needs hand testing: on b23, after an install, with swap on, pick each built-in theme on the Themes tab, Apply, and judge whether CPU, memory and swap read apart and look good together, Fire most of all.
+	- Stand-in: none (20261028). Turns on how it looks. What can be measured is in child 2026102810142725.
 	- Priority|Severity: High
 	- Opened: 20261026-201621
 	- Opened by: t00mietum
@@ -242,44 +141,12 @@ Sorted per the notes in [Template](#template).
 		- Swept: every built-in key and label in the Rust tests, qt.cpp and the docs, every swap and battery row default, and the `dice` tests, which don't read the built-ins.
 	- 2026-10-27: the Randomize part is done in child 2026102621562349 (commit 9e35514).
 
-- Randomize: a hue of its own for each graph
-	- ID: 2026102621562349
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- Whether the 4 hues of a roll look good together is for a person to judge.
-	- Needs local test suite run?: No. The full run passed on 2026-10-26.
-	- Needs hand testing: on b23, after an install, with swap on, press Randomize a few times with Apply, and judge whether CPU, memory and swap read apart and look good together.
-	- Stand-in: none. Whether a roll's hues look good together is for a person, and defxd already checks they sit apart.
-	- Priority|Severity: High
-	- Opened: 20261026-215623
-	- Opened by: t00mietum
-	- Parent ID: 2026102620162201
-	- Related IDs: 2026102409400700
-	- Requirements:
-		- A roll gives CPU, memory, swap and the battery each a lead hue of its own, all kept off red and orange, with their quiet colors and gradients from those, the way the built-ins now do.
-	- Note: `dice::tests::buffers_and_cache_are_muted_and_told_apart` (dedq0) asserts memory's lead is CPU's. It changes with this.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- A roll gives each graph a lead hue of its own, from yellow-green round to magenta as before, at least 45 degrees from the others, in a random order. Each graph's quiet colors, buffers and gradient come from its own hue.
-		- I/O wait and system stay red and orange, and so do the battery's critical and on battery.
-		- `design.md` Theme has the details.
-		- Verified: the full run passed with the new test.
-	- Decisions:
-		- 45 degrees apart, which leaves 90 degrees of the range to roll in, and keeps clear of defx7's 30 for the built-ins.
-		- All 4 share one saturation and brightness, so a roll reads as one set, the way each built-in does.
-		- The background still takes CPU's hue, or nice's, since it's one set of colors under every graph.
-		- `dice::ROLES` now names each member's graph as well as its role.
-	- Branch: round-1027
-	- Test case: `dice::tests::each_graph_leads_with_a_hue_of_its_own` (defxd), and dedq0. Both fail with every graph given CPU's hue, and defxd with the order left unshuffled. Both pass now.
-		- 2026-10-26: dedq0 checked memory's lead equal to CPU's user, and cache equal to nice. It now checks they differ, and cache equal to memory's Low. decdt, decdv and decdw now check each graph's colors, not CPU's alone.
-		- Swept: every `dice::ROLES` and `dice::theme` user (`dialog.rs` and its decdq test), and every graph in `ROLES`.
-
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
 	- Status: Waiting on automated testing
 		- 2026-10-26: still waits for the workflow file to reach `main`, which a round never pushes to.
+		- 2026-10-28: round-1028 doesn't reach `main` either.
 	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
 	- Priority|Severity: Avg
 	- Opened: 20261025-135600
@@ -331,6 +198,41 @@ Sorted per the notes in [Template](#template).
 	- Test case: `graphs::tests::a_file_the_5_tier_plugin_wrote_still_loads` (defv4). It fails with decode taking only today's tier count, and with `lo` and `hi` swapped in both encode and decode, which defp7 and decbg miss. Restarts are also covered by decbp, dedq3 and defp7.
 		- Swept: every load path (start, a graph added, keep turned back on) and every save path (the 15 minute timer, quit, keep turned off, a graph dropped) in `xfce/src/lib.rs` and `Graphs`. Nothing else reads or writes the history file.
 
+- Randomize: a hue of its own for each graph
+	- ID: 2026102621562349
+	- Type: Enhancement
+	- Status: Stalled
+		- Held for 2026102810142725. Over 2000 seeds the closest 2 leads of a roll sit 5.4 apart at the median, as CIEDE2000, and 1.8 at worst, so the rolls change with that fix.
+		- Whether the 4 hues of a roll look good together is for a person to judge.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, after an install, with swap on, press Randomize a few times with Apply, and judge whether CPU, memory and swap read apart and look good together.
+	- Stand-in: none (20261028). Whether a roll's hues look good together is for a person. defxd checks hue angle only, which 2026102810142725 covers.
+	- Priority|Severity: High
+	- Opened: 20261026-215623
+	- Opened by: t00mietum
+	- Parent ID: 2026102620162201
+	- Prereq IDs: 2026102810142725
+	- Related IDs: 2026102409400700
+	- Requirements:
+		- A roll gives CPU, memory, swap and the battery each a lead hue of its own, all kept off red and orange, with their quiet colors and gradients from those, the way the built-ins now do.
+	- Note: `dice::tests::buffers_and_cache_are_muted_and_told_apart` (dedq0) asserts memory's lead is CPU's. It changes with this.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A roll gives each graph a lead hue of its own, from yellow-green round to magenta as before, at least 45 degrees from the others, in a random order. Each graph's quiet colors, buffers and gradient come from its own hue.
+		- I/O wait and system stay red and orange, and so do the battery's critical and on battery.
+		- `design.md` Theme has the details.
+		- Verified: the full run passed with the new test.
+	- Decisions:
+		- 45 degrees apart, which leaves 90 degrees of the range to roll in, and keeps clear of defx7's 30 for the built-ins.
+		- All 4 share one saturation and brightness, so a roll reads as one set, the way each built-in does.
+		- The background still takes CPU's hue, or nice's, since it's one set of colors under every graph.
+		- `dice::ROLES` now names each member's graph as well as its role.
+	- Branch: round-1027
+	- Test case: `dice::tests::each_graph_leads_with_a_hue_of_its_own` (defxd), and dedq0. Both fail with every graph given CPU's hue, and defxd with the order left unshuffled. Both pass now.
+		- 2026-10-26: dedq0 checked memory's lead equal to CPU's user, and cache equal to nice. It now checks they differ, and cache equal to memory's Low. decdt, decdv and decdw now check each graph's colors, not CPU's alone.
+		- Swept: every `dice::ROLES` and `dice::theme` user (`dialog.rs` and its decdq test), and every graph in `ROLES`.
+
 - XFCE panel plugin
 	- ID: 2026101916013889
 	- Type: Feature
@@ -349,117 +251,6 @@ Sorted per the notes in [Template](#template).
 		- One CPU graph in the panel, with a tooltip and Properties opening tukzmon-settings. Tried on X11 only so far.
 		- 2026-10-26: Several graphs side by side, and the graph list that picks them, are in since round-1025. The `.deb` is in since 2026102506591283.
 		- 2026-10-26: Split what's left into children: 2026102621053709 (vertical and deskbar panels), 2026102621053715 (a settings file per plugin instance), 2026102621053720 (Wayland), 2026102621053725 (Nix package), and 2026102621105420 (graph sizes on a vertical panel). This closes with the last of them.
-
-- Nix package for tukzedo-linux's NixOS edition
-	- ID: 2026102621053725
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261026-210537
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013889
-	- Requirements:
-		- A Nix package of the plugin and `tukzmon-settings`, for tukzedo-linux's NixOS edition.
-		- The panel finds the plugin, given NixOS's plugin paths.
-
-- The graphs
-	- ID: 2026101916013887
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261019-160138
-	- Opened by: t00mietum
-	- Prereq IDs: 2026101916013884
-	- Related IDs: 2026101916013883
-	- Requirements:
-		- CPU; with detail stacked from bottom to top: I/O wait, system, user, nice.
-		- Memory; with detail stacked from bottom to top: User, Buffer, Cache
-		- Network; Local, Sending, Receiving
-		- Swap; % used
-		- Zswap (or Zram etc.); % used, and a text number overlay for compression ratio, e.g. "2.1x"
-		- Load
-		- Disk; write, read
-			- Auto-adjusts peak level
-			- With optional logarithmic Y axis
-			- Can choose all disks, or specific drives.
-		- CPU Temperature; normal, critical on top of that when normal maxes out
-		- Battery; charging, discharging, discharging and critical level
-	- Progress log:
-		- CPU and memory draw. Every other source has a collector since round-1026.
-		- 2026-10-26: The swap and battery graphs are in, 2026102618353000 and 2026102618353013.
-		- 2026-10-26: Split into one child per graph not yet drawn: 2026102618353000 (swap), 2026102618353002 (zswap or zram), 2026102618353004 (network), 2026102618353006 (load), 2026102618353008 (disk), 2026102618353011 (temperature) and 2026102618353013 (battery). This closes with the last of them.
-
-- Zswap or zram graph
-	- ID: 2026102618353002
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261026-183530
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013887
-	- Prereq IDs: 2026102618353000
-	- Related IDs: 2026102408512197
-	- Requirements:
-		- % used, and a text number overlay for the compression ratio, e.g. "2.1x".
-		- No graph on a box with neither.
-
-- Network graph
-	- ID: 2026102618353004
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261026-183530
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013887
-	- Prereq IDs: 2026102618353000
-	- Related IDs: 2026102408512202, 2026101916013883
-	- Requirements:
-		- Local, sending, receiving, from the network collector.
-		- A peak level that adjusts itself, since bytes per second has no fixed top.
-
-- Load graph
-	- ID: 2026102618353006
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261026-183530
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013887
-	- Prereq IDs: 2026102618353004
-		- Shares the peak level the network graph brings, since load has no fixed top either.
-	- Related IDs: 2026102408512207
-	- Requirements:
-		- The 1 minute load, from the load collector.
-
-- Disk graph
-	- ID: 2026102618353008
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261026-183530
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013887
-	- Prereq IDs: 2026102618353004
-		- Shares the peak level the network graph brings.
-	- Related IDs: 2026102408512212
-	- Requirements:
-		- Write, read, from the disk collector.
-		- Auto-adjusts peak level.
-		- With optional logarithmic Y axis.
-		- Can choose all disks, or specific drives.
-
-- CPU temperature graph
-	- ID: 2026102618353011
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261026-183530
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013887
-	- Prereq IDs: 2026102618353000
-	- Related IDs: 2026102408512217
-	- Requirements:
-		- Normal, with critical on top of that when normal maxes out, from the temperature collector.
 
 - Color themes tab
 	- ID: 2026102408304612
@@ -496,25 +287,45 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Split into 6 children, in this order: 2026102409400679 (theme presets and Default), 2026102409400684 (Themes tab and its top row), 2026102409400689 (color picker), 2026102409400695 (Gradient mode and Fire), 2026102409400700 (Randomize), and 2026102409400705 (transparent background).
 
-- Live graph list on the first settings tab
-	- ID: 2026102408304639
-	- Type: Feature
+- Some graphs' lead colors nearly match
+	- ID: 2026102810142725
+	- Type: Bug
 	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261024-082803
+	- Priority|Severity: Avg
+	- Opened: 20261028-101427
 	- Opened by: t00mietum
-	- Related IDs: 2026102408304586, 2026102408304612
+	- Parent ID: 2026102620162201
+	- Related IDs: 2026102621562349, 2026102409400700
+	- Steps to reproduce:
+		- On Default, turn on the network and temperature graphs, or press Randomize a few times with 9 graphs on.
+	- Incorrect behavior: 2 graphs' lead colors can be close enough to read as one. As CIEDE2000, where 10 or more reads clearly apart:
+		- Default: network `#90ff40` and temperature `#40ff48` 5.8, and CPU `#00ff80` and temperature 6.5.
+		- Primary: CPU `#00ff00` and disk `#80ff00` 5.2.
+		- Pastel: zswap `#f0a1d0` and temperature `#eca1f0` 7.8, and temperature and the battery 7.8.
+		- Neon: CPU `#39ff14` and temperature `#a0ff00` 7.7.
+		- Earth: network `#b06a9a` and temperature `#a76bb5` 7.6.
+		- Fire: memory and temperature 10.3, the only built-in clear of it.
+		- Randomize, over 2000 seeds: the closest 2 leads of a roll are 5.4 apart at the median, 4.0 in the worst tenth, and 1.8 at worst.
+	- Expected behavior: Each graph's lead reads apart from every other's, per the parent's "unique and distinct colors" for each monitor.
+	- Reproduced: 2026-10-28, round-1028 at 17d3d9d, from the built-ins in `core/src/settings.shcl` and `dice::theme` seeds 0 to 1999.
+	- Possible cause: defx7 and defxd check hue angle only, at 25 and 17 degrees. An equal step in hue is far smaller to the eye among the greens than among the blues, and 9 graphs share the 225 degrees kept off red and orange, about 25 each.
+	- Test case: None yet. A check on a perceptual distance between every pair of leads, over each built-in and the roll seeds, would catch it.
+
+- Graph sizes on a vertical panel
+	- ID: 2026102621105420
+	- Type: Enhancement
+	- Status: Queued
+		- Waits on the question about the Width settings on a vertical panel.
+	- Priority|Severity: Avg
+	- Opened: 20261026-211054
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013889
+	- Related IDs: 2026102621053709, 2026102508393152
 	- Requirements:
-		- Show a list of live graphs in the first tab of settings, arranged in vertical columns (even though the live graphs will be arranged horizontally if in a horizontal bar). With these columns:
-			- Checkmarks to enable/disable the monitor.
-			- A live graph. The longest graph defines the width of this column, so that the next elements are aligned.
-			- Virtual pixel width of the monitor (DPI-aware), text input box.
-			- Dropdown to select the time function.
-			- Dropdown to select the named theme.
-			- Grippers on the right to vertically reorder monitors with the mouse.
+		- On a vertical panel, the Width settings either do something, or say they don't.
 	- Progress log:
-		- Split into 6 children, in this order: 2026102508393152 (on or off and a width per graph), 2026102508393154 (order), 2026102508393156 (time function per graph), 2026102508393159 (theme per graph), 2026102508393161 (the list itself), and 2026102508393163 (live graphs in it).
-		- 2026-10-25: no theme dropdown per graph after all. One theme colors every graph, per the answer on 2026102508393159.
+		- Each graph there is as wide as the panel and half that tall, and the Width tip still says "Its height follows the panel".
+	- 2026-10-28 answer: B. On a vertical panel or a deskbar, a graph's width setting is its height, as multiload-ng's Size does. The time axis still runs across the panel. dedq2's even-share line changes.
 
 - Pre-next-cut: Empty checkboxes need to be more visible
 	- ID: 2026102807585000
@@ -594,6 +405,17 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Today both files stay. The plugin doesn't connect the panel's `remove` signal, and free-data saves history after it.
 
+- Check whether XFCE 4.20 finds plugins under ~/.local
+	- ID: 2026102808222920
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261028-082229
+	- Opened: 20261028-082229
+	- Opened by: t00mietum
+	- Related IDs: 2026102621053725
+	- Requirements: design.md XFCE plugin and README say XDG_DATA_DIRS and ~/.local aren't searched, so dev-install.bash needs sudo once. The 4.20.4 and 4.20.7 panel source pairs each XDG_DATA_DIRS entry and ~/.local/share with the lib dir under the same prefix, which on Debian is lib/x86_64-linux-gnu. Try ~/.local/share/xfce4/panel/plugins with ~/.local/lib/x86_64-linux-gnu/xfce4/panel/plugins on b23, and if it works, drop the sudo step and fix both docs.
+
 - The panel's tick costs about a third more since the 50 ms history tier
 	- ID: 2026102618573801
 	- Type: Enhancement
@@ -648,6 +470,395 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
+	- ID: 2026102620162196
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build defqn, on b23 as of 2026-10-26 20:16.
+	- Related IDs: 2026102408304599
+	- Incorrect behavior: Mouseover tip text: "x seconds ago" doesn't update with ticks, it seems to be stuck at whatever it was at first flyover.
+	- Note: Regular time format works though.
+	- Reproduced: 2026-10-26, in core with 2 days of history. A still pointer read "32 sec ago" over 4 ticks while its clock time went 20:59:13, :14, :15, :16, on a linear axis and on Smooth log.
+	- Actual cause:
+		- Each column of the graph is a fixed age, since the right edge is always now and the graph moves left under the pointer. So a still pointer's age holds, and its clock time moves on by a sample each tick. Both say the same thing about the column under the line.
+		- The tip is asked again each tick, so nothing is stale. The round-1024 test panel saw the age count, likely because its history was only seconds old, and a log axis stretches as its history grows.
+	- Progress log:
+		- Answered 2026-10-28: the line and tip stay on the column under the pointer. No behavior change. design.md Drawing says why a still pointer's age holds, and a test pins it.
+		- Verified: the quick gate passed, with the new test.
+	- Decisions:
+		- Not a bug: each column is a fixed age, so the age holds while the clock time moves on. Both describe the column under the line.
+	- Branch: round-1028
+	- Test case: `tests::a_still_pointer_keeps_its_age_while_its_clock_time_moves_on` (defz1). It pins existing behavior, so it passes before and after. No code changed.
+		- Swept: `hover_tip` and `span_at` are the only places the tip's time is made, and the settings window's live tip goes through the same `Graph::hover_tip`.
+	- Closed: 20261028-080400
+
+- Memory graph
+	- ID: 2026102408304625
+	- Type: Feature
+	- Status: Done
+		- Self-closed 2026-10-28. As CIEDE2000, Default's cache `#408060` sits 15.2 from the top `#2a543f`, clearly apart, and 40.6 from buffers. Every built-in keeps cache 15.2 or more from its top. Cache is also Default's border color, as in multiload-ng.
+		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
+		- How the 2 graphs look side by side is for a person to judge. On Default, cache is `#408060`, close to the shared top color `#2a543f`.
+		- It departs from the wording in one way. multiload-ng's memory border and background, `#404020` and `#13261d`, aren't used, since every graph shares the Background sub-tab.
+		- Stand-in, 2026-10-25, build deea9: in a test panel the memory graph drew beside CPU, its tip read "Memory 33% in use", every built-in theme recolored it, and with Memory graph off the item narrowed to CPU alone. Only the look is left.
+	- Needs local test suite run?: No. The full run passed on 2026-10-25.
+	- Needs hand testing: on b23, after a panel restart, look at the memory graph beside CPU on Default, and judge whether cache (`#408060`) stands apart from the top color (`#2a543f`).
+	- Priority|Severity: High
+	- Opened: 20261024-082803
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+	- Prereq IDs: 2026102408512192, 2026102409400679
+		- Was the collectors parent. Only its memory collector child is needed, and that's done.
+		- Its colors join the theme presets, so it waits on those.
+	- Related IDs: 2026101916013887, 2026102508354893
+	- Requirements:
+		- Memory, using my current color definitions from multiload-ng.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The plugin draws a memory graph right of the CPU graph, at the same width with no gap, stacked from the bottom: programs, buffers, cache. On a vertical panel it goes under the CPU graph.
+		- Default's memory colors are b23's multiload-ng ones: `#ffff80`, `#804080` and `#408060`. Every built-in theme has its own, and Fire draws memory as a gradient.
+		- Themes has a Memory sub-tab, with Detailed or Gradient like CPU's. The Graph tab has a Memory graph checkbox, on by default.
+		- Its history is saved in the same file as CPU's. A hidden graph's history is kept in the file, and comes back when it's shown again.
+		- `design.md` XFCE plugin, Theme and History have the details.
+		- Verified: in a test panel the memory graph drew beside the CPU graph in Default's colors, and its history was saved at quit. The settings window showed the Memory sub-tab and the checkbox.
+	- Decisions:
+		- One plugin shows both, the way multiload-ng does, rather than a plugin per graph. The live graph list, 2026102408304639, adds turning graphs on and off, order and a width each.
+		- The sample rate, width, axis and border are shared for now.
+		- Randomize gives buffers a muted color of its own, a step round the hue from cache, so the 2 never roll the same.
+		- Default's memory colors stay as multiload-ng had them, rather than moved onto Default's hue, since the requirement names them.
+	- Branch: round-1025
+	- Test case: `graphs::tests::the_memory_graph_samples_draws_and_tips` (dedq1), `graphs_sit_side_by_side_and_the_pointer_finds_its_own` (dedq2), `a_save_keeps_every_graph_and_a_hidden_ones_history` (dedq3) and `hiding_memory_drops_it_and_showing_brings_its_history_back` (dedq4), `config::tests::memory_colors_are_multiload_ngs_and_every_theme_has_them` (dedpz) and `dice::tests::buffers_and_cache_are_muted_and_told_apart` (dedq0). dedq2 fails with the memory tile drawn as CPU, dedq3 with other sections dropped at save, and dedq0 with buffers rolled as cache.
+		- 2026-10-25: new values only. `config::tests::the_default_theme_is_the_row_defaults` and `saved_themes_write_whole_and_read_back` count 19 theme members, not 12. `dialog::tests::save_as_keeps_the_colors_whole_and_picks_the_new_theme` counts 17 colors, not 11.
+		- Swept: every `Graph` use (the plugin, now through `Graphs`, and the lib tests), every `cpu_paint` caller, every `keep::write` caller, and every theme member, which the role and row-default tests walk.
+	- Acceptance signoff: Self-closed: dedq1, dedq2, dedq3, dedq4, dedpz and dedq0 passed in round-1028's full run at 17d3d9d, and cache measured 15.2 from the top on Default.
+	- Closed: 20261028-101427
+
+- Battery graph
+	- ID: 2026102618353013
+	- Type: Feature
+	- Status: Done
+		- Self-closed 2026-10-28. As CIEDE2000, plugged in, on battery and critical sit 11.1 or more apart in every built-in, and 32.8 or more where plugged in is one of the pair. The stand-in below drew all 3 states, and a real battery changes only what's read, not how it's drawn.
+		- How it looks, in each theme, is for a person to judge, and b23 has no battery, so a laptop has to show it.
+		- It departs from the wording in one way. It's off by default, like swap. Turn it on in the graph list.
+		- Stand-in, 2026-10-26, build defyt: with a made-up battery in a test window, the row drew plugged in at 80% in lavender, on battery at 60% in orange and critical at 4% in red on Default, and Fire colored the charge by its gradient. Only the look on a real laptop is left.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on a laptop, after an install, turn on Battery graph in the graph list, Apply, and judge how plugged in, on battery and critical look in Default and Fire.
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on any box yet.
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353000
+	- Related IDs: 2026102408512223
+	- Requirements:
+		- Charging, discharging, and discharging at the critical level, from the battery collector.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- The battery graph draws the charge in the color for its state, with its tip as "Battery 80%, on battery". It has a row in the graph list, at `battery.show`, `battery.width` and `battery.time`, and a Themes/Battery sub-tab with Plugged in, On battery and Critical, or Low, Medium and High.
+		- `graph.order` defaults to `cpu mem swap battery`.
+		- `design.md` XFCE plugin and Theme have the details.
+		- Verified: the full run passed. The tip test fails with its states swapped, and defqd with battery left out of `Graphs`' slots.
+	- Decisions:
+		- Off by default, as swap is.
+		- Plugged in is the theme's user color, on battery its system color and critical its I/O wait color, so on battery reads as a warning and critical as an alarm. Randomize gives them the lead, warn and alarm roles.
+		- The tip and the color say plugged in, not charging, since a full battery with the power in counts as charging.
+		- A default `BatteryReader` has no battery and reads as a gap, so tests can build the graph on a box with none.
+	- Branch: round-1026
+	- Test case: `graphs::tests::the_battery_graph_colors_the_charge_by_state` (defqc), `four_sit_side_by_side_and_battery_keeps_its_history_hidden` (defqd), and `live::tests::the_battery_row_is_there_only_with_a_battery_in` (defqe), which takes its no-battery branch on b23.
+		- 2026-10-26: new values only. deccf and `saved_themes_write_whole_and_read_back` count 31 theme members, not 24. `save_as_keeps_the_colors_whole_and_picks_the_new_theme` counts 27 colors, not 21. dedqq, defkz and defm0 have `battery` after `swap` in their orders, and defm0's past-the-end move is 4, not 3. defma's rows greyed at defaults add `battery_width` and `battery_time`.
+		- Swept: every `Which` match, the slots in `Graphs` and `Live`, the 6 built-in themes, and `dice::ROLES`.
+	- Acceptance signoff: Self-closed: defqc, defqd and defqe passed in round-1028's full run at 17d3d9d, and the 3 states measured 11.1 or more apart in every built-in.
+	- Closed: 20261028-101427
+
+- The graphs
+	- ID: 2026101916013887
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Prereq IDs: 2026101916013884
+	- Related IDs: 2026101916013883
+	- Requirements:
+		- CPU; with detail stacked from bottom to top: I/O wait, system, user, nice.
+		- Memory; with detail stacked from bottom to top: User, Buffer, Cache
+		- Network; Local, Sending, Receiving
+		- Swap; % used
+		- Zswap (or Zram etc.); % used, and a text number overlay for compression ratio, e.g. "2.1x"
+		- Load
+		- Disk; write, read
+			- Auto-adjusts peak level
+			- With optional logarithmic Y axis
+			- Can choose all disks, or specific drives.
+		- CPU Temperature; normal, critical on top of that when normal maxes out
+		- Battery; charging, discharging, discharging and critical level
+	- Progress log:
+		- CPU and memory draw. Every other source has a collector since round-1026.
+		- 2026-10-26: The swap and battery graphs are in, 2026102618353000 and 2026102618353013.
+		- 2026-10-28: The zswap graph is in, 2026102618353002.
+		- 2026-10-26: Split into one child per graph not yet drawn: 2026102618353000 (swap), 2026102618353002 (zswap or zram), 2026102618353004 (network), 2026102618353006 (load), 2026102618353008 (disk), 2026102618353011 (temperature) and 2026102618353013 (battery). This closes with the last of them.
+	- Test case: its children's tests, as each child lists them: swap 2026102618353000, zswap 2026102618353002, network 2026102618353004, load 2026102618353006, disk 2026102618353008, temperature 2026102618353011 and battery 2026102618353013.
+	- 2026-10-28: the zswap and network graphs are in.
+	- 2026-10-28: the load and disk graphs are in, 2026102618353006 and 2026102618353008.
+	- 2026-10-28: the temperature graph is in, 2026102618353011. It was the last child.
+	- 2026-10-28: closed, since every graph it lists draws and all 7 children are closed. How the colors look stays on 2026102620162201.
+
+- Live graph list on the first settings tab
+	- ID: 2026102408304639
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-082803
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304586, 2026102408304612
+	- Requirements:
+		- Show a list of live graphs in the first tab of settings, arranged in vertical columns (even though the live graphs will be arranged horizontally if in a horizontal bar). With these columns:
+			- Checkmarks to enable/disable the monitor.
+			- A live graph. The longest graph defines the width of this column, so that the next elements are aligned.
+			- Virtual pixel width of the monitor (DPI-aware), text input box.
+			- Dropdown to select the time function.
+			- Dropdown to select the named theme.
+			- Grippers on the right to vertically reorder monitors with the mouse.
+	- Progress log:
+		- Split into 6 children, in this order: 2026102508393152 (on or off and a width per graph), 2026102508393154 (order), 2026102508393156 (time function per graph), 2026102508393159 (theme per graph), 2026102508393161 (the list itself), and 2026102508393163 (live graphs in it).
+		- 2026-10-25: no theme dropdown per graph after all. One theme colors every graph, per the answer on 2026102508393159.
+	- Test case: its children's tests: dedqd, dedqe, dedqp, dedqq, deea2, deea4, dee9p, dee9q, defkz, defm0, defmj and defmk.
+	- 2026-10-28: closed, since all 6 children are Done.
+
+- CPU temperature graph
+	- ID: 2026102618353011
+	- Type: Feature
+	- Status: Done
+		- It departs from the wording in one way. It's off by default, so an existing panel doesn't grow wider. Turn it on in the graph list.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353000
+	- Related IDs: 2026102408512217
+	- Requirements:
+		- Normal, with critical on top of that when normal maxes out, from the temperature collector.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- The temperature graph draws normal up to the critical level, and what's over it in a critical color on top. It fills to the top at the critical level, and the top rises once it's over. The tip gives the reading over the level it turns critical at, in whole degrees C.
+		- It has a row in the graph list, at `temp.show`, `temp.width` and `temp.time`, and a Themes/Temperature sub-tab with Normal and Critical, and Low, Medium and High.
+		- The temperature collector now gives 2 series, normal and critical, that add up to the reading.
+		- `graph.order` defaults to `cpu mem net swap zswap load disk temp battery`. Each built-in theme gives temperature a hue of its own, and Randomize rolls 9 lead hues.
+		- `design.md` XFCE plugin, Theme, Data sources on Linux and Drawing have the details.
+		- Verified: the full run passed. A test panel drew the temperature graph after CPU and memory, at 73 of 95 degrees, with its tip.
+	- Decisions:
+		- Off by default, like the other graphs since memory.
+		- After disk and before battery in the default order, as in multiload-ng.
+		- The split is multiload-ng's: normal up to the crit, critical over it, so both stack to the reading. The top is a peak with the crit as its floor, so normal fills the graph at the crit and critical shows once it's over.
+		- A sensor with no `temp*_crit`, such as `k10temp` on this box, turns critical at 95 degrees C, Zen's own limit. Without one, critical would never show there. A Check in questions.md has it.
+		- The collector does the split, as the battery's does by state, so the history holds both series.
+		- Critical is each theme's I/O wait red, and Randomize gives it the Alarm role, so going over reads as an alarm, as the battery's critical does.
+		- Built-in temperature leads sit in each theme's widest gap, at least 25 degrees from the others, so defx7 keeps its 25. Randomize's least gap is 22 degrees, down from 25, which leaves 49 degrees of play for 9 leads.
+	- Branch: round-1028
+	- Test case: `temp::tests::over_the_crit_is_the_critical_part` (dej0s), `tests::temperature_reads_in_degrees_up_to_its_crit` (dej0t), `graphs::tests::temp_sits_after_swap_and_goes_critical_on_top` (dej0v) and `live::tests::the_temp_row_draws_at_its_own_width` (dej0w). dej0s fails with the reading unsplit, dej0t and dej0v with no peak floor.
+		- 2026-10-28: new values only. deccf and deccw count 61 theme members, not 55. deccy counts 52 saved colors, not 47. dedqq's default order, and defkz's and defm0's orders, have `temp` before `battery`, and defm0's past-the-end move is 9, not 8. defma's rows greyed at defaults add `temp_width` and `temp_time`. defx7 checks 9 lead colors, not 8. defxd's `PARTS` takes temperature too, and its least gap is 17 degrees, not 20, for the 22 degree roll. decdt also checks temperature's alarm is CPU's.
+		- 2026-10-28: the temperature collector's tests defnn, defnp and defnr read 2 series, with critical at 0, where they read one.
+		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 6 built-in themes, `dice::ROLES`, and every `TempReader` use. The profiler and soak test run with the defaults, so they don't draw temperature.
+	- Acceptance signoff: Self-closed, 2026-10-28: a test panel drew the temperature graph. How the themes look together stays on 2026102620162201.
+	- Closed: 20261028-100637
+
+- Load graph
+	- ID: 2026102618353006
+	- Type: Feature
+	- Status: Done
+		- It departs from the wording in one way. It's off by default, so an existing panel doesn't grow wider. Turn it on in the graph list.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353004
+		- Shares the peak level the network graph brings, since load has no fixed top either.
+	- Related IDs: 2026102408512207, 2026102618353008
+	- Requirements:
+		- The 1 minute load, from the load collector.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The load graph draws the 1 minute load in one color. Its tip reads "Load 1.25". It has a row in the graph list, at `load.show`, `load.width` and `load.time`, and a Themes/Load sub-tab with Load, and Low, Medium and High.
+		- Its top is the highest load in view, eased down like the network's, and never under the number of CPUs.
+		- `graph.order` defaults to `cpu mem net swap zswap load disk battery`. Each built-in theme gives load a hue of its own, and Randomize rolls 8 lead hues, with disk's.
+		- `design.md` XFCE plugin, Theme and Drawing have the details.
+		- Verified: the full run passed. A test panel drew the load graph after CPU and memory.
+	- Decisions:
+		- Off by default, like the other graphs since memory.
+		- After zswap in the default order, as multiload-ng has load after swap.
+		- The floor is the CPU count, so a full graph means more work queued than CPUs, as a full CPU graph means every CPU busy. A floor of 1 fills the graph on any busy box with many CPUs.
+		- `Source::PEAK_FLOOR` is now `Source::peak_floor(&self)`, since the CPU count isn't a constant. Network's is unchanged.
+		- Built-in lead hues are at least 25 degrees apart, down from 30. 8 leads beside red and orange didn't fit at 30 without moving colors already there. Randomize's least gap is 25 degrees, down from 36, which leaves 50 degrees of play. Colors and the rest are in a Check in questions.md.
+	- Branch: round-1028
+	- Test case: `graphs::tests::load_and_disk_sit_after_swap_and_fill_to_their_peak` (dej05), `tests::load_reads_as_a_number_and_disk_in_rates` (dej07) and `live::tests::the_load_and_disk_rows_draw_at_their_own_width` (dej08). dej05 and dej07 fail with the floor at 1.
+		- 2026-10-28: new values only, for both graphs. deccf and deccw count 55 theme members, not 44. deccy counts 47 saved colors, not 38. dedqq's default order, and defkz's and defm0's orders, have `load disk` after `zswap`, and defm0's past-the-end move is 8, not 6. defma's rows greyed at defaults add `load_width`, `load_time`, `disk_width`, `disk_time`, `disk_drives` and `disk_log`. defx7 checks 8 lead colors at least 25 degrees apart, not 6 at 30. defxd's `PARTS` takes load and disk too, and its least gap is 20 degrees, not 31, for the 25 degree roll.
+		- 2026-10-28: dehzm's helper builds a `render::Scale` in place of the `(peak, floor)` pair. Its values are unchanged.
+		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 6 built-in themes, `dice::ROLES`, every `draw_to` caller, and every `PEAK_FLOOR` use. The profiler and soak test run with the defaults, so they don't draw load or disk.
+	- Acceptance signoff: Self-closed, 2026-10-28: a test panel drew the load graph. How the themes look together stays on 2026102620162201.
+	- Closed: 20261028-094724
+
+- Disk graph
+	- ID: 2026102618353008
+	- Type: Feature
+	- Status: Done
+		- It departs from the wording in one way. It's off by default, so an existing panel doesn't grow wider. Turn it on in the graph list.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353004
+		- Shares the peak level the network graph brings.
+	- Related IDs: 2026102408512212, 2026102618353006
+	- Requirements:
+		- Write, read, from the disk collector.
+		- Auto-adjusts peak level.
+		- With optional logarithmic Y axis.
+		- Can choose all disks, or specific drives.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The disk graph stacks written and read, from the bottom up, in bytes a second. Its tip reads "Disk", then "Read 1.5 MB/s  Write 30 kB/s". It has a row in the graph list, at `disk.show`, `disk.width` and `disk.time`, and a Themes/Disk sub-tab with Written, Read, and Low, Medium and High.
+		- Its top is the tallest stack in view, like the network's, and never under 100 kB/s.
+		- Under a Disk graph heading on the Graph tab, Disk drives at `disk.drives` takes `all`, the default, or drive names such as `sda nvme0n1`. Disk log scale, at `disk.log`, draws it on a log scale.
+		- `design.md` XFCE plugin, Theme and Drawing have the details.
+		- Verified: the full run passed. A test panel drew the disk graph after load on a log scale, and a 200 MB write showed as written. The settings window showed the Disk graph heading, its 2 rows and the Disk sub-tab.
+	- Decisions:
+		- Drives are typed as names in a text box, not ticked in a list, since the settings window has no list control. Check in questions.md.
+		- A new pick of drives takes a new reader at Apply and keeps the history, so the graph doesn't go blank.
+		- The log scale runs from a thousandth of the floor, 100 B/s, to the top, so 1 kB/s under a 4 MB/s top is about a fifth of the height. Written and read keep their shares of the column's log height.
+		- A floor of 100 kB/s, 10 times the network's, so a log file's flush doesn't fill the graph.
+		- Read leads with the disk's hue and written is its pale tint, like the network's received and sent.
+		- The test value changes and the hue gap are on 2026102618353006, since both graphs went in together.
+	- Branch: round-1028
+	- Test case: `render::tests::a_log_scale_lifts_a_trickle_and_keeps_the_shares` (dej06), `config::tests::the_disk_graph_counts_every_disk_or_the_ones_named` (dej09), and dej05, dej07 and dej08, shared with load. dej06 fails with the log scale ignored, dej05 with a new pick of drives ignored, and dej09 with `all` not read as every disk.
+		- Swept: as 2026102618353006. `Source::follow` is called from the one `Drawn::set_look`, which both `Graphs` and `Live` go through.
+	- Acceptance signoff: Self-closed, 2026-10-28: a test panel drew the disk graph on a log scale. How the themes look together stays on 2026102620162201.
+	- Closed: 20261028-094724
+
+- Network graph
+	- ID: 2026102618353004
+	- Type: Feature
+	- Status: Done
+		- It departs from the wording in one way. It's off by default, so an existing panel doesn't grow wider. Turn it on in the graph list.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353000
+	- Related IDs: 2026102408512202, 2026101916013883
+	- Requirements:
+		- Local, sending, receiving, from the network collector.
+		- A peak level that adjusts itself, since bytes per second has no fixed top.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The network graph stacks local, sent and received, from the bottom up, in bytes a second. Its tip reads "Network", then "Received 1.5 MB/s  Sent 30 kB/s", then "Local 2.0 kB/s". It has a row in the graph list, at `net.show`, `net.width` and `net.time`, and a Themes/Network sub-tab with Local, Sent, Received, and Low, Medium and High.
+		- The top is the tallest stack in view. It jumps up at once and eases down over about 2 s, and never goes under 10 kB/s. `render::Peak` and `Source::PEAK_FLOOR` have it, so the load and disk graphs only need a floor.
+		- `graph.order` defaults to `cpu mem net swap zswap battery`. Each built-in theme gives received a hue of its own, and Randomize rolls 6 lead hues.
+		- `design.md` XFCE plugin, Theme, Time axis and Drawing have the details.
+		- Verified: the full run passed. A test panel drew the network graph after CPU and memory, filled to its peak, and a burst of loopback traffic showed as local and filled the plot as it aged left.
+	- Decisions:
+		- Off by default, like swap and zswap, so a panel doesn't widen on upgrade.
+		- After memory in the default order, as multiload-ng has it.
+		- Up at once and down eased, so a new peak is never cut off. The fall goes by the newest sample's time, so it costs no extra frames.
+		- A floor of 10 kB/s, so the odd packet on a quiet line doesn't fill the graph.
+		- Decimal units, as a download usually shows them.
+		- Sent is the pale tint and local the muted color, like the gradient's High and Low, so Randomize needs no new role.
+		- Randomize's least gap between lead hues is 36 degrees, down from 45, since 6 hues at 45 leave no play in the range. Colors and the rest are in a Check in questions.md.
+		- The LAN and internet split stays on 2026101916274800.
+	- Branch: round-1028
+	- Test case: `render::tests::a_peak_jumps_up_and_eases_down_to_whats_in_view` (dehzk), `a_graph_with_no_fixed_top_fills_to_its_peak_or_floor` (dehzm), `tests::network_rates_read_in_decimal_units` (dehzn), `graphs::tests::net_sits_after_memory_and_fills_to_its_peak` (dehzp), and `live::tests::the_net_row_draws_at_its_own_width` (dehzq). dehzm and dehzp fail with the peak ignored and the top left at 1.
+		- 2026-10-28: new values only. deccf and deccw count 44 theme members, not 37. deccy counts 38 saved colors, not 32. dedqq's default order, and defkz's and defm0's orders, have `net` after `mem`, and defm0's past-the-end move is 6, not 5. defma's rows greyed at defaults add `net_width` and `net_time`. defx7 checks 6 lead colors, not 5. defxd's `PARTS` takes net too, and its least gap is 31 degrees, not 40, for the 36 degree roll.
+		- 2026-10-28: defm0 used `net` as a name it doesn't know. That's a graph now, so it uses `nope`.
+		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 6 built-in themes, `dice::ROLES`, and every `Frame` user. The profiler and soak test run with the defaults, so they don't draw network.
+	- Acceptance signoff: Self-closed, 2026-10-28: a test panel drew the network graph, filled to its peak. How the themes look together stays on 2026102620162201.
+	- Closed: 20261028-092801
+
+- Zswap or zram graph
+	- ID: 2026102618353002
+	- Type: Feature
+	- Status: Done
+		- It departs from the wording in one way. It's off by default, so an existing panel doesn't grow wider. Turn it on in the graph list.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353000
+	- Related IDs: 2026102408512197
+	- Requirements:
+		- % used, and a text number overlay for the compression ratio, e.g. "2.1x".
+		- No graph on a box with neither.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The zswap graph draws the pool's % used, or zram's on a box with zram and no zswap, with its tip as "Zswap 25% used" or "Zram 25% used". It has a row in the graph list, at `zswap.show`, `zswap.width` and `zswap.time`, and a Themes/Zswap sub-tab with In use, Ratio, and Low, Medium and High.
+		- The latest ratio, such as "4.7x", is written at the plot's top left in the panel's own font, with a rim of the background's Bottom. The plugin writes it with Pango and the settings window with Qt. The core says what and where through `render::Overlay`, so the next graph with an overlay only needs a `Source::overlay`.
+		- `graph.order` defaults to `cpu mem swap zswap battery`. Each built-in theme gives zswap a hue of its own, and Randomize rolls 5 lead hues.
+		- The .deb depends on Pango now, and the Nix package takes it too.
+		- `design.md` Code layout, XFCE plugin, Theme and Time axis have the details.
+		- Verified: the full run passed. A test panel drew "4.7x" over the zswap graph beside CPU and memory, and the settings window drew it on the graph list's row.
+	- Decisions:
+		- Off by default, like the swap graph, so a panel doesn't widen on upgrade.
+		- A lead hue of its own in each theme, not CPU's user color as the swap Check said, since every graph has had its own since round-1027. The colors are in a Check in questions.md.
+		- The ratio has a color of its own, Ratio, since High is hidden in Detailed mode. Its rim is the background's Bottom, so it reads over the pool too.
+		- Text that doesn't fit the plot, as on a very short panel, is left out rather than cut.
+		- `Source::text` takes the reader, so the tip can say Zswap or Zram.
+	- Branch: round-1028
+	- Test case: `zswap::tests::the_graph_gives_the_ratio_to_write_over_the_pool` (dehy3), `graphs::tests::zswap_sits_after_swap_and_keeps_its_history_hidden` (dehy4), and `live::tests::the_zswap_row_is_there_only_with_zswap_or_zram` (dehy5). dehy3 and dehy4 fail with zswap's overlay taken out, and dehy4 with the overlay left at its graph's own place rather than its tile's.
+		- 2026-10-28: new values only. deccf and deccw count 37 theme members, not 31. deccy counts 32 saved colors, not 27. dedqq's default order, and defkz's and defm0's orders, have `zswap` after `swap`, and defm0's past-the-end move is 5, not 4. defma's rows greyed at defaults add `zswap_width` and `zswap_time`, since Zswap graph is off by default. defx7 checks 5 lead colors, not 4, and defxd's `PARTS` takes zswap too.
+		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 6 built-in themes, `dice::ROLES`, every `Source::text` caller, and both front ends' draw paths. The profiler and soak test run with the defaults, so they don't draw zswap.
+	- Acceptance signoff: Self-closed, 2026-10-28: a test panel drew the ratio in the panel's font. How the themes look together stays on 2026102620162201.
+	- Closed: 20261028-084635
+
+- Nix package for tukzedo-linux's NixOS edition
+	- ID: 2026102621053725
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261026-210537
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013889
+	- Related IDs: 2026102808222810, 2026102808222920
+	- Requirements:
+		- A Nix package of the plugin and `tukzmon-settings`, for tukzedo-linux's NixOS edition.
+		- The panel finds the plugin, given NixOS's plugin paths.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- `flake.nix` has the package, an overlay, and a NixOS module, `programs.tukzmon.enable`. `nix/package.nix` builds the plugin and `tukzmon-settings`, and runs the workspace tests.
+		- The package puts the `.desktop` file in `share/xfce4/panel/plugins` and the library in `lib/xfce4/panel/plugins`, which XFCE 4.20 pairs for each `XDG_DATA_DIRS` entry. The module links both into the system path. README and `design.md` XFCE plugin have the rest.
+		- Verified 2026-10-28, on nixpkgs nixos-26.05: the package built and its tests passed, every library the plugin links resolved through its rpath, and `tukzmon-settings --version` ran. A NixOS system with the module, with and without the XFCE desktop, had the package and both links. nixpkgs' own xfce4-panel 4.20.7, given that system's `share` in `XDG_DATA_DIRS`, listed tukzmon from the system path, and a panel holding it loaded and embedded the plugin. `nix flake check` passed.
+		- Not tried on a real NixOS install, since tukzedo-linux's NixOS edition doesn't exist yet.
+	- Decisions:
+		- The flake follows nixos-26.05, the current stable, since it has Rust 1.95 and xfce4-panel 4.20.7. tukzedo-linux can make it follow its own nixpkgs.
+		- x86_64 only, as for the `.deb` and `.rpm`.
+		- The `.nix` files are in nixfmt's style, 2 spaces, since that's the Nix formatter nixpkgs uses and tabs aren't an option there.
+		- The rpath to the panel, GTK, cairo and GLib is passed to the linker, since Nix's linker wrapper adds none for a library named by soname. Without it the plugin's tests didn't start.
+		- A link to `tukzmon-settings` sits beside the library, so the plugin runs its own package's settings window before one on PATH.
+		- The build number is the flake's `lastModified`, since Nix's default `SOURCE_DATE_EPOCH` is 1980.
+		- The module also adds the 2 links, which the XFCE desktop module already does, so a panel under another desktop finds the plugin too.
+		- Swept: every place that installs the plugin, `cicd/packaging/nfpm.yaml` and `utility/dev-install.bash`, needed no change. The plugin's lookup of `tukzmon-settings` is unchanged.
+	- Branch: round-1028
+	- Test case: none in the repo. A pipeline step for it is 2026102808222810.
+	- Closed: 20261028-082255
 
 - The graph list on the Graph tab
 	- ID: 2026102508393161
@@ -2441,6 +2652,36 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
 	- Closed: 20261025-081952
+
+- Nix package build as a pipeline area
+	- ID: 2026102808222810
+	- Type: Task
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-28. It doesn't take the Nix step.
+	- Priority|Severity: Low
+	- Opened: 20261028-082228
+	- Opened: 20261028-082228
+	- Opened by: t00mietum
+	- Related IDs: 2026102621053725
+	- Requirements: an opt-in cicd area, such as `nix`, that builds the flake's package in a nixos/nix container and runs the panel check, so a new system library or a build.rs change that breaks it is caught. It fetches about 5 GB the first time, so it stays out of the default run unless a kept store makes it cheap.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- `cicd/cicd.bash --backlog-run-quick nix`, or `--long`, runs a Nix package step. `cicd/nix/check.bash` runs in `nixos/nix:2.35.4` and builds the flake's package with the workspace tests. It checks every library the plugin links resolves, and runs `tukzmon-settings --version`. Then it builds a NixOS system with the module, and nixpkgs' xfce4-panel has to load and embed the plugin from that system's path, on Xvfb.
+		- The store is a docker volume, `tukzmon-nix-<hash of the image pin>`, kept between runs. Past `NIX_STORE_CAP_MB` (12000) in `config.bash`, a run collects it down to what it used.
+		- `design.md` XFCE plugin has a line on it.
+		- Verified: the first run fetched about 5 GB and passed in 2m 40s. Later runs took about 1m 40s, mostly the package's own rebuild. With xfce4-panel left out of the rpath, the step failed at the plugin's tests. With the panel's config naming another plugin, it failed at the embed check. With the cap set to 1000 MB, it collected 5239 MB down to 4812, and the next run built only the package, fetching nothing else.
+	- Decisions:
+		- Opt-in, like Miri: only `--long` or the `nix` area. Even with a kept store each run rebuilds the package, about 1.5 minutes, and a fresh box fetches 5 GB.
+		- One volume, named for the image pin, so a new pin starts a fresh store and the old one is removed. The cap collects with keep-outputs and the last run's builds as roots, so what built the package stays and a collection doesn't mean another 5 GB.
+		- The container runs as its root, as nix there needs, so it gets a read-only copy of the tracked files and writes nothing to the run folder. The image stays between runs, like the volume.
+		- The step is skipped with a warning when there's no docker, as the other container steps fall back.
+		- The source is a path flake of the tracked files, so its `lastModified` follows file times, and any edit rebuilds the package. A git flake would cost a `.git` in the container. Left as is.
+		- The panel check uses the nixpkgs the flake locks, not a pinned revision as the first rig did, so it tests what the package was built with.
+		- Swept: the help's step and area lists, `--list` in each mode, the area check, and cleanup, which removes the run's labeled containers. Nothing else calls the step.
+	- Branch: round-1028
+	- Test case: the `nix` area of cicd.bash, run with `--backlog-run-quick nix`. It has no test ID, since it isn't a cargo test.
+	- Closed: 20261028-091315
 
 **Stop here for a next release**
 

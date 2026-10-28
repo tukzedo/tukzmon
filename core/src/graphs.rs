@@ -10,16 +10,32 @@ use std::path::Path;
 use crate::battery::BatteryReader;
 use crate::config::Look;
 use crate::cpu::CpuReader;
+use crate::disk::DiskReader;
 use crate::keep;
+use crate::load::LoadReader;
 use crate::mem::{MemoryReader, SwapReader};
+use crate::net::NetReader;
+use crate::render::Overlay;
+use crate::temp::TempReader;
+use crate::zswap::ZswapReader;
 use crate::{Graph, Source};
 
 pub struct Graphs {
 	pub cpu: Graph,
 	/// None when hidden, or on a box where memory can't be read.
 	pub mem: Option<Graph<MemoryReader, 3>>,
+	/// None when hidden.
+	pub net: Option<Graph<NetReader, 3>>,
 	/// None when hidden, or on a box with no swap.
 	pub swap: Option<Graph<SwapReader, 1>>,
+	/// None when hidden, or on a box with neither zswap on nor zram set up.
+	pub zswap: Option<Graph<ZswapReader, 1>>,
+	/// None when hidden.
+	pub load: Option<Graph<LoadReader, 1>>,
+	/// None when hidden, or on a box with no disk.
+	pub disk: Option<Graph<DiskReader, 2>>,
+	/// None when hidden, or on a box with no CPU sensor it knows.
+	pub temp: Option<Graph<TempReader, 2>>,
 	/// None when hidden, or on a box with no battery in.
 	pub battery: Option<Graph<BatteryReader, 3>>,
 	/// Top to bottom, for a vertical panel.
@@ -41,20 +57,40 @@ pub const GAP: u32 = 2 * EDGE;
 enum Which {
 	Cpu,
 	Mem,
+	Net,
 	Swap,
+	Zswap,
+	Load,
+	Disk,
+	Temp,
 	Battery,
 }
 
 impl Which {
 	/// The order with nothing saved. Graphs a saved order leaves out go
 	/// last, in this order.
-	const ALL: [Which; 4] = [Which::Cpu, Which::Mem, Which::Swap, Which::Battery];
+	const ALL: [Which; 9] = [
+		Which::Cpu,
+		Which::Mem,
+		Which::Net,
+		Which::Swap,
+		Which::Zswap,
+		Which::Load,
+		Which::Disk,
+		Which::Temp,
+		Which::Battery,
+	];
 
 	fn name(self) -> &'static str {
 		match self {
 			Which::Cpu => CpuReader::SECTION,
 			Which::Mem => MemoryReader::SECTION,
+			Which::Net => NetReader::SECTION,
 			Which::Swap => SwapReader::SECTION,
+			Which::Zswap => ZswapReader::SECTION,
+			Which::Load => LoadReader::SECTION,
+			Which::Disk => DiskReader::SECTION,
+			Which::Temp => TempReader::SECTION,
 			Which::Battery => BatteryReader::SECTION,
 		}
 	}
@@ -63,7 +99,12 @@ impl Which {
 		match self {
 			Which::Cpu => look.show_cpu,
 			Which::Mem => look.show_memory,
+			Which::Net => look.show_net,
 			Which::Swap => look.show_swap,
+			Which::Zswap => look.show_zswap,
+			Which::Load => look.show_load,
+			Which::Disk => look.show_disk,
+			Which::Temp => look.show_temp,
 			Which::Battery => look.show_battery,
 		}
 	}
@@ -77,7 +118,12 @@ impl Which {
 		match self {
 			Which::Cpu => look.cpu_width,
 			Which::Mem => look.mem_width,
+			Which::Net => look.net_width,
 			Which::Swap => look.swap_width,
+			Which::Zswap => look.zswap_width,
+			Which::Load => look.load_width,
+			Which::Disk => look.disk_width,
+			Which::Temp => look.temp_width,
 			Which::Battery => look.battery_width,
 		}
 	}
@@ -97,6 +143,7 @@ pub trait Drawn {
 	fn hover_tip(&self, x: usize, w: usize, h: usize, scale: usize) -> String;
 	fn tooltip(&self) -> String;
 	fn render(&mut self, w: usize, h: usize, scale: usize) -> &[u32];
+	fn overlay(&self, w: usize, h: usize, scale: usize) -> Option<Overlay>;
 	fn set_look(&mut self, look: &Look);
 }
 
@@ -134,7 +181,11 @@ impl<S: Source<N>, const N: usize> Drawn for Graph<S, N> {
 	fn render(&mut self, w: usize, h: usize, scale: usize) -> &[u32] {
 		Graph::render(self, w, h, scale)
 	}
+	fn overlay(&self, w: usize, h: usize, scale: usize) -> Option<Overlay> {
+		Graph::overlay(self, w, h, scale)
+	}
 	fn set_look(&mut self, look: &Look) {
+		self.src.follow(look);
 		look.clone_into(&mut self.look);
 	}
 }
@@ -204,6 +255,31 @@ impl Graphs {
 		} else {
 			None
 		};
+		let net = if look.show_net {
+			Graph::net(look.clone())
+		} else {
+			None
+		};
+		let load = if look.show_load {
+			Graph::load_avg(look.clone())
+		} else {
+			None
+		};
+		let disk = if look.show_disk {
+			Graph::disk(look.clone())
+		} else {
+			None
+		};
+		let temp = if look.show_temp {
+			Graph::temp(look.clone())
+		} else {
+			None
+		};
+		let zswap = if look.show_zswap {
+			Graph::zswap(look.clone())
+		} else {
+			None
+		};
 		let battery = if look.show_battery {
 			Graph::battery(look.clone())
 		} else {
@@ -212,7 +288,12 @@ impl Graphs {
 		Graphs {
 			cpu: Graph::new(look),
 			mem,
+			net,
 			swap,
+			zswap,
+			load,
+			disk,
+			temp,
 			battery,
 			stacked: false,
 			px: Vec::new(),
@@ -228,7 +309,12 @@ impl Graphs {
 		match which {
 			Which::Cpu => Some(&self.cpu),
 			Which::Mem => self.mem.as_ref().map(|g| g as &dyn Drawn),
+			Which::Net => self.net.as_ref().map(|g| g as &dyn Drawn),
 			Which::Swap => self.swap.as_ref().map(|g| g as &dyn Drawn),
+			Which::Zswap => self.zswap.as_ref().map(|g| g as &dyn Drawn),
+			Which::Load => self.load.as_ref().map(|g| g as &dyn Drawn),
+			Which::Disk => self.disk.as_ref().map(|g| g as &dyn Drawn),
+			Which::Temp => self.temp.as_ref().map(|g| g as &dyn Drawn),
 			Which::Battery => self.battery.as_ref().map(|g| g as &dyn Drawn),
 		}
 	}
@@ -237,7 +323,12 @@ impl Graphs {
 		match which {
 			Which::Cpu => Some(&mut self.cpu),
 			Which::Mem => self.mem.as_mut().map(|g| g as &mut dyn Drawn),
+			Which::Net => self.net.as_mut().map(|g| g as &mut dyn Drawn),
 			Which::Swap => self.swap.as_mut().map(|g| g as &mut dyn Drawn),
+			Which::Zswap => self.zswap.as_mut().map(|g| g as &mut dyn Drawn),
+			Which::Load => self.load.as_mut().map(|g| g as &mut dyn Drawn),
+			Which::Disk => self.disk.as_mut().map(|g| g as &mut dyn Drawn),
+			Which::Temp => self.temp.as_mut().map(|g| g as &mut dyn Drawn),
 			Which::Battery => self.battery.as_mut().map(|g| g as &mut dyn Drawn),
 		}
 	}
@@ -314,8 +405,27 @@ impl Graphs {
 		}) {
 			added.push(Which::Mem);
 		}
+		if switch(&mut self.net, look.show_net, || Graph::net(look.clone())) {
+			added.push(Which::Net);
+		}
 		if switch(&mut self.swap, look.show_swap, || Graph::swap(look.clone())) {
 			added.push(Which::Swap);
+		}
+		if switch(&mut self.zswap, look.show_zswap, || {
+			Graph::zswap(look.clone())
+		}) {
+			added.push(Which::Zswap);
+		}
+		if switch(&mut self.load, look.show_load, || {
+			Graph::load_avg(look.clone())
+		}) {
+			added.push(Which::Load);
+		}
+		if switch(&mut self.disk, look.show_disk, || Graph::disk(look.clone())) {
+			added.push(Which::Disk);
+		}
+		if switch(&mut self.temp, look.show_temp, || Graph::temp(look.clone())) {
+			added.push(Which::Temp);
 		}
 		if switch(&mut self.battery, look.show_battery, || {
 			Graph::battery(look.clone())
@@ -430,6 +540,20 @@ impl Graphs {
 	// side by side, what the gaps leave is shared out by width, since the
 	// panel may not give exactly what was asked for. Stacked, they share it
 	// evenly. A panel too thin for the edges keeps most of itself for graphs.
+	/// Each graph's overlay, placed in the whole drawing `w` by `h`.
+	pub fn overlays(&self, w: usize, h: usize, scale: usize) -> Vec<Overlay> {
+		self.tiles(w, h, scale)
+			.filter_map(|(which, (tx, ty, tw, th))| {
+				let o = self.slot(which)?.overlay(tw, th, scale)?;
+				Some(Overlay {
+					x: tx + o.x,
+					y: ty + o.y,
+					..o
+				})
+			})
+			.collect()
+	}
+
 	fn tiles(&self, w: usize, h: usize, scale: usize) -> impl Iterator<Item = (Which, Tile)> + '_ {
 		let (n, stacked) = (self.count(), self.stacked);
 		let total = self.widths().map(|x| x as usize).sum::<usize>().max(1);
@@ -480,7 +604,15 @@ impl Graphs {
 	fn all_mut(&mut self) -> impl Iterator<Item = (Which, &mut dyn Drawn)> {
 		let optional = [
 			(Which::Mem, self.mem.as_mut().map(|g| g as &mut dyn Drawn)),
+			(Which::Net, self.net.as_mut().map(|g| g as &mut dyn Drawn)),
 			(Which::Swap, self.swap.as_mut().map(|g| g as &mut dyn Drawn)),
+			(
+				Which::Zswap,
+				self.zswap.as_mut().map(|g| g as &mut dyn Drawn),
+			),
+			(Which::Load, self.load.as_mut().map(|g| g as &mut dyn Drawn)),
+			(Which::Disk, self.disk.as_mut().map(|g| g as &mut dyn Drawn)),
+			(Which::Temp, self.temp.as_mut().map(|g| g as &mut dyn Drawn)),
 			(
 				Which::Battery,
 				self.battery.as_mut().map(|g| g as &mut dyn Drawn),
@@ -1210,7 +1342,7 @@ mod tests {
 			([0.0, 0.0, 0.03], "Battery 3%, critical"),
 			([0.0, 0.0, 0.0], "Battery 0%, plugged in"),
 		] {
-			assert_eq!(<BatteryReader as Source<3>>::text(&v), want);
+			assert_eq!(BatteryReader::default().text(&v), want);
 		}
 		// one with none in reads as a gap
 		b.sample();
@@ -1221,6 +1353,234 @@ mod tests {
 			fire.battery_paint(),
 			crate::render::Paint::Gradient(fire.battery_gradient)
 		);
+	}
+
+	// Test ID: dehzp
+	#[test]
+	fn net_sits_after_memory_and_fills_to_its_peak() {
+		let path = scratch("net");
+		let mut g = three();
+		let look = Look {
+			show_net: true,
+			..g.look().clone()
+		};
+		assert!(Graphs::new(Look::default()).net.is_none());
+		g.net = Some(Graph::with(look.clone(), NetReader::default()));
+		g.set_look(look.clone(), None).unwrap();
+		let now = g.cpu.now();
+		// 1 MB/s local and 2 MB/s received, steady for a minute
+		g.net
+			.as_mut()
+			.unwrap()
+			.hist
+			.add(now - 60.0, now, &[1e6, 0.0, 2e6]);
+		assert_eq!(g.count(), 4);
+		let (w, h) = (80 + 3 * G, 10 + 2 * E);
+		let net = g.net.as_mut().unwrap().render(20, 10, 1).to_vec();
+		let px = g.render(w, h, 1).to_vec();
+		sits(&px, w, &net, (40 + 2 * G, E, 20, 10));
+		let top = g.net.as_ref().unwrap().peak.top();
+		assert!((top - 3e6).abs() < 1.0, "{top}");
+		// local is the bottom third, and received the rest, up to the top
+		let bw = look.border as usize;
+		let ph = 10 - 2 * bw;
+		let row = |up: usize| net[(bw + ph - 1 - up) * 20 + 10];
+		assert_eq!(row(0), look.net[0].argb());
+		assert_eq!(row(ph * 2 / 5), look.net[2].argb());
+		assert_eq!(row(ph - 1), look.net[2].argb());
+		assert!(g.hover(Some((45 + 2 * G, 3)), w, h, 1));
+		assert!(
+			g.hover_tip(45 + 2 * G, 3, w, h, 1)
+				.contains("Received 2.0 MB/s")
+		);
+		g.save(&path).unwrap();
+		let names: Vec<String> = keep::read(&path)
+			.unwrap()
+			.into_iter()
+			.map(|(n, _)| n)
+			.collect();
+		assert_eq!(names, ["cpu", "mem", "net", "swap"]);
+		std::fs::remove_file(&path).unwrap();
+	}
+
+	// Test ID: dej05
+	#[test]
+	fn load_and_disk_sit_after_swap_and_fill_to_their_peak() {
+		use crate::disk::Drives;
+		let path = scratch("load-disk");
+		let mut g = three();
+		let look = Look {
+			show_load: true,
+			show_disk: true,
+			disk_drives: vec!["nope".into()],
+			..g.look().clone()
+		};
+		let fresh = Graphs::new(Look::default());
+		assert!(fresh.load.is_none() && fresh.disk.is_none());
+		g.load = Some(Graph::with(look.clone(), LoadReader::default()));
+		let disk = DiskReader::new(look.drives()).unwrap();
+		g.disk = Some(Graph::with(look.clone(), disk));
+		g.set_look(look.clone(), None).unwrap();
+		let now = g.cpu.now();
+		g.load.as_mut().unwrap().hist.add(now - 60.0, now, &[0.5]);
+		// 1 MB/s written and 3 MB/s read, steady for a minute
+		g.disk
+			.as_mut()
+			.unwrap()
+			.hist
+			.add(now - 60.0, now, &[1e6, 3e6]);
+		assert_eq!(g.count(), 5);
+		let (w, h) = (100 + 4 * G, 10 + 2 * E);
+		let load = g.load.as_mut().unwrap().render(20, 10, 1).to_vec();
+		let disk = g.disk.as_mut().unwrap().render(20, 10, 1).to_vec();
+		let px = g.render(w, h, 1).to_vec();
+		sits(&px, w, &load, (60 + 3 * G, E, 20, 10));
+		sits(&px, w, &disk, (80 + 4 * G, E, 20, 10));
+		// a load of 0.5 never fills it, since the floor is the CPU count
+		let cpus = std::thread::available_parallelism().unwrap().get() as f32;
+		assert_eq!(g.load.as_ref().unwrap().peak.top(), cpus);
+		let top = g.disk.as_ref().unwrap().peak.top();
+		assert!((top - 4e6).abs() < 1.0, "{top}");
+		let bw = look.border as usize;
+		let ph = 10 - 2 * bw;
+		let row = |up: usize| disk[(bw + ph - 1 - up) * 20 + 10];
+		assert_eq!(row(0), look.disk[0].argb());
+		assert_eq!(row(ph - 1), look.disk[1].argb());
+		assert!(g.hover_tip(65 + 3 * G, 3, w, h, 1).contains("Load 0.50"));
+		assert!(
+			g.hover_tip(85 + 4 * G, 3, w, h, 1)
+				.contains("Read 3.0 MB/s  Write 1.0 MB/s")
+		);
+		g.save(&path).unwrap();
+		let names: Vec<String> = keep::read(&path)
+			.unwrap()
+			.into_iter()
+			.map(|(n, _)| n)
+			.collect();
+		assert_eq!(names, ["cpu", "mem", "swap", "load", "disk"]);
+		std::fs::remove_file(&path).unwrap();
+		// a new pick of drives takes a new reader, and the history stays
+		let picked = Look {
+			disk_drives: vec!["sda".into(), "nvme0n1".into()],
+			..look
+		};
+		g.set_look(picked, None).unwrap();
+		let disk = g.disk.as_ref().unwrap();
+		assert_eq!(
+			*disk.src.drives(),
+			Drives::Only(vec!["sda".into(), "nvme0n1".into()])
+		);
+		assert!(disk.hist.last().is_some());
+	}
+
+	// Test ID: dej0v
+	#[test]
+	fn temp_sits_after_swap_and_goes_critical_on_top() {
+		let path = scratch("temp");
+		let mut g = three();
+		let look = Look {
+			show_temp: true,
+			..g.look().clone()
+		};
+		assert!(Graphs::new(Look::default()).temp.is_none());
+		g.temp = Some(Graph::with(look.clone(), TempReader::default()));
+		g.set_look(look.clone(), None).unwrap();
+		let now = g.cpu.now();
+		// 5 over the 95 a sensor with no crit gets
+		g.temp
+			.as_mut()
+			.unwrap()
+			.hist
+			.add(now - 60.0, now, &[95.0, 5.0]);
+		assert_eq!(g.count(), 4);
+		let (w, h) = (80 + 3 * G, 40 + 2 * E);
+		let temp = g.temp.as_mut().unwrap().render(20, 40, 1).to_vec();
+		let px = g.render(w, h, 1).to_vec();
+		sits(&px, w, &temp, (60 + 3 * G, E, 20, 40));
+		let top = g.temp.as_ref().unwrap().peak.top();
+		assert!((top - 100.0).abs() < 1e-3, "{top}");
+		let bw = look.border as usize;
+		let ph = 40 - 2 * bw;
+		let row = |up: usize| temp[(bw + ph - 1 - up) * 20 + 10];
+		assert_eq!(row(0), look.temp[0].argb());
+		assert_eq!(row(ph / 2), look.temp[0].argb());
+		assert_eq!(row(ph - 1), look.temp[1].argb());
+		let tip = g.hover_tip(65 + 3 * G, 3, w, h, 1);
+		assert!(
+			tip.contains("Temperature 100 \u{b0}C\nCritical at 95"),
+			"{tip}"
+		);
+		g.save(&path).unwrap();
+		let names: Vec<String> = keep::read(&path)
+			.unwrap()
+			.into_iter()
+			.map(|(n, _)| n)
+			.collect();
+		assert_eq!(names, ["cpu", "mem", "swap", "temp"]);
+		std::fs::remove_file(&path).unwrap();
+		let fire = Look::from_model(&crate::config::model("theme:\n\tname: fire\n"));
+		assert_eq!(
+			fire.temp_paint(),
+			crate::render::Paint::Gradient(fire.temp_gradient)
+		);
+	}
+
+	// Test ID: dehy4
+	#[test]
+	fn zswap_sits_after_swap_and_keeps_its_history_hidden() {
+		let path = scratch("zswap");
+		let mut g = three();
+		let look = Look {
+			show_zswap: true,
+			..g.look().clone()
+		};
+		assert!(Graphs::new(Look::default()).zswap.is_none());
+		g.zswap = Some(Graph::with(look.clone(), ZswapReader::squeezed(2.1)));
+		g.set_look(look.clone(), None).unwrap();
+		let now = g.cpu.now();
+		let z = g.zswap.as_mut().unwrap();
+		z.hist.add(now - 60.0, now, &[0.5]);
+		let had = z.hist.last();
+		assert_eq!(g.count(), 4);
+		let (w, h) = (80 + 3 * G, 10 + 2 * E);
+		let right = g.zswap.as_mut().unwrap().render(20, 10, 1).to_vec();
+		let px = g.render(w, h, 1).to_vec();
+		sits(&px, w, &right, (60 + 3 * G, E, 20, 10));
+		assert!(g.hover(Some((65 + 3 * G, 3)), w, h, 1));
+		assert_eq!(g.zswap.as_ref().unwrap().hover, Some(5));
+		assert!(
+			g.hover_tip(65 + 3 * G, 3, w, h, 1)
+				.contains("Zram 50% used")
+		);
+		let bw = look.border as usize;
+		let o = g.overlays(w, h, 1);
+		assert_eq!(o.len(), 1);
+		assert_eq!(o[0].text, "2.1x");
+		assert_eq!(
+			(o[0].x, o[0].y, o[0].w, o[0].h),
+			(60 + 3 * G + bw, E + bw, 20 - 2 * bw, 10 - 2 * bw)
+		);
+		g.save(&path).unwrap();
+		let names: Vec<String> = keep::read(&path)
+			.unwrap()
+			.into_iter()
+			.map(|(n, _)| n)
+			.collect();
+		assert_eq!(names, ["cpu", "mem", "swap", "zswap"]);
+		let off = Look {
+			show_zswap: false,
+			..look
+		};
+		assert!(g.drops(&off));
+		g.set_look(off, Some(&path)).unwrap();
+		assert!(g.zswap.is_none());
+		assert_eq!(g.count(), 3);
+		g.save(&path).unwrap();
+		let back = keep::read(&path).unwrap();
+		let mut again = Graph::with(Look::default(), ZswapReader::default());
+		assert!(again.adopt(&back));
+		assert_eq!(again.hist.last(), had);
+		std::fs::remove_file(&path).unwrap();
 	}
 
 	// Test ID: defqd

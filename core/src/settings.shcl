@@ -13,7 +13,7 @@
 ## default is the Default theme's value, and config::tests holds the two to
 ## each other.
 
-tabs: "Graph", "Themes", "Themes/CPU", "Themes/Memory", "Themes/Swap", "Themes/Battery", "Themes/Background"
+tabs: "Graph", "Themes", "Themes/CPU", "Themes/Memory", "Themes/Network", "Themes/Swap", "Themes/Zswap", "Themes/Load", "Themes/Disk", "Themes/Temperature", "Themes/Battery", "Themes/Background"
 
 settings:
 
@@ -173,6 +173,36 @@ settings:
 		gate: show_memory
 		tip: "How the memory graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
 
+	show_net:
+		label: Network graph
+		tab: Graph
+		control: checkbox
+		path: net.show
+		default: false
+		tip: "Show network traffic in bytes a second: local, which is the box talking to itself, then sent, then received, from the bottom up. The top follows the busiest moment in view, so the graph has no fixed scale. The tip gives the rates."
+
+	net_width:
+		label: Network width px
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 4096
+		path: net.width
+		default: 0
+		gate: show_net
+		tip: "How wide the network graph is, in the same pixels as Width. 0 uses Width."
+
+	net_time:
+		label: Network time axis
+		tab: Graph
+		control: dropdown
+		options: same, linear, smooth, fixed_a, fixed_b
+		option_labels: "As set under Time", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: net.time
+		default: same
+		gate: show_net
+		tip: "How the network graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
+
 	show_swap:
 		label: Swap graph
 		tab: Graph
@@ -202,6 +232,126 @@ settings:
 		default: same
 		gate: show_swap
 		tip: "How the swap graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
+
+	show_zswap:
+		label: Zswap graph
+		tab: Graph
+		control: checkbox
+		path: zswap.show
+		default: false
+		tip: "Show how full the compressed swap pool is, zswap's or else zram's, with how far it squeezes what it holds written over it, such as 2.1x. It's left out on a box with neither."
+
+	zswap_width:
+		label: Zswap width px
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 4096
+		path: zswap.width
+		default: 0
+		gate: show_zswap
+		tip: "How wide the zswap graph is, in the same pixels as Width. 0 uses Width."
+
+	zswap_time:
+		label: Zswap time axis
+		tab: Graph
+		control: dropdown
+		options: same, linear, smooth, fixed_a, fixed_b
+		option_labels: "As set under Time", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: zswap.time
+		default: same
+		gate: show_zswap
+		tip: "How the zswap graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
+
+	show_load:
+		label: Load graph
+		tab: Graph
+		control: checkbox
+		path: load.show
+		default: false
+		tip: "Show the 1 minute load average, the number of tasks running or waiting to run. The top follows the highest load in view, but never goes under the number of CPUs, so a full graph means every CPU had work queued."
+
+	load_width:
+		label: Load width px
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 4096
+		path: load.width
+		default: 0
+		gate: show_load
+		tip: "How wide the load graph is, in the same pixels as Width. 0 uses Width."
+
+	load_time:
+		label: Load time axis
+		tab: Graph
+		control: dropdown
+		options: same, linear, smooth, fixed_a, fixed_b
+		option_labels: "As set under Time", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: load.time
+		default: same
+		gate: show_load
+		tip: "How the load graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
+
+	show_disk:
+		label: Disk graph
+		tab: Graph
+		control: checkbox
+		path: disk.show
+		default: false
+		tip: "Show disk traffic in bytes a second: written, then read, from the bottom up. The top follows the busiest moment in view, so the graph has no fixed scale. The tip gives the rates. Disk drives and Disk log scale, further down, set what it counts and how it's drawn."
+
+	disk_width:
+		label: Disk width px
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 4096
+		path: disk.width
+		default: 0
+		gate: show_disk
+		tip: "How wide the disk graph is, in the same pixels as Width. 0 uses Width."
+
+	disk_time:
+		label: Disk time axis
+		tab: Graph
+		control: dropdown
+		options: same, linear, smooth, fixed_a, fixed_b
+		option_labels: "As set under Time", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: disk.time
+		default: same
+		gate: show_disk
+		tip: "How the disk graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
+
+	show_temp:
+		label: Temperature graph
+		tab: Graph
+		control: checkbox
+		path: temp.show
+		default: false
+		tip: "Show the CPU's temperature. It fills to the top at the sensor's critical level, or 95 degrees C when the sensor gives none, and anything over that is drawn on top in the critical color. It's left out on a box with no CPU sensor it knows."
+
+	temp_width:
+		label: Temperature width px
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 4096
+		path: temp.width
+		default: 0
+		gate: show_temp
+		tip: "How wide the temperature graph is, in the same pixels as Width. 0 uses Width."
+
+	temp_time:
+		label: Temperature time axis
+		tab: Graph
+		control: dropdown
+		options: same, linear, smooth, fixed_a, fixed_b
+		option_labels: "As set under Time", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: temp.time
+		default: same
+		gate: show_temp
+		tip: "How the temperature graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
 
 	show_battery:
 		label: Battery graph
@@ -239,8 +389,31 @@ settings:
 		tab: Graph
 		control: text
 		path: graph.order
-		default: "cpu mem swap battery"
-		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, swap and battery. One left out goes at the end."
+		default: "cpu mem net swap zswap load disk temp battery"
+		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, net for network, swap, zswap, load, disk, temp for temperature, and battery. One left out goes at the end."
+
+	DiskHead:
+		label: Disk graph
+		tab: Graph
+		control: heading
+
+	disk_drives:
+		label: Disk drives
+		tab: Graph
+		control: text
+		path: disk.drives
+		default: all
+		gate: show_disk
+		tip: "Which drives the disk graph counts: all, or names as /proc/diskstats gives them, such as sda nvme0n1. All is every disk with hardware behind it, and leaves out partitions and what sits on a disk, such as LUKS, LVM and RAID, so nothing is counted twice. A named drive is counted as is, partitions too."
+
+	disk_log:
+		label: Disk log scale
+		tab: Graph
+		control: checkbox
+		path: disk.log
+		default: false
+		gate: show_disk
+		tip: "Draw the disk graph on a log scale, so a trickle still shows next to a big copy. Off, the height is in proportion to the rate."
 
 	HistoryHead:
 		label: History
@@ -449,6 +622,88 @@ settings:
 		shown_when: "mem_mode = gradient"
 		tip: "The color at the top."
 
+	net_mode:
+		label: Colors
+		tab: Themes/Network
+		control: dropdown
+		shown_as: radio
+		options: detailed, gradient
+		option_labels: "Detailed", "Gradient"
+		path: net.mode
+		default: detailed
+		group: theme
+		tip: "Detailed gives local, sent and received a color each. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	NetHead:
+		label: "Network, from the bottom up"
+		tab: Themes/Network
+		control: heading
+		shown_when: "net_mode = detailed"
+
+	net_local:
+		label: Local
+		tab: Themes/Network
+		control: color
+		path: net.colors.local
+		default: "#406020"
+		group: theme
+		shown_when: "net_mode = detailed"
+		tip: "Traffic the box sends itself, on the loopback device."
+
+	net_sent:
+		label: Sent
+		tab: Themes/Network
+		control: color
+		path: net.colors.sent
+		default: "#e0ffc0"
+		group: theme
+		shown_when: "net_mode = detailed"
+
+	net_received:
+		label: Received
+		tab: Themes/Network
+		control: color
+		path: net.colors.received
+		default: "#90ff40"
+		group: theme
+		shown_when: "net_mode = detailed"
+
+	NetGradHead:
+		label: "Network, by height"
+		tab: Themes/Network
+		control: heading
+		shown_when: "net_mode = gradient"
+
+	net_low:
+		label: Low
+		tab: Themes/Network
+		control: color
+		path: net.colors.low
+		default: "#406020"
+		group: theme
+		shown_when: "net_mode = gradient"
+		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
+
+	net_medium:
+		label: Medium
+		tab: Themes/Network
+		control: color
+		path: net.colors.medium
+		default: "#90ff40"
+		group: theme
+		shown_when: "net_mode = gradient"
+		tip: "The color halfway up."
+
+	net_high:
+		label: High
+		tab: Themes/Network
+		control: color
+		path: net.colors.high
+		default: "#e0ffc0"
+		group: theme
+		shown_when: "net_mode = gradient"
+		tip: "The color at the top."
+
 	swap_mode:
 		label: Colors
 		tab: Themes/Swap
@@ -504,6 +759,275 @@ settings:
 		default: "#d0e8ff"
 		group: theme
 		shown_when: "swap_mode = gradient"
+		tip: "The color at the top."
+
+	zswap_mode:
+		label: Colors
+		tab: Themes/Zswap
+		control: dropdown
+		shown_as: radio
+		options: detailed, gradient
+		option_labels: "Detailed", "Gradient"
+		path: zswap.mode
+		default: detailed
+		group: theme
+		tip: "Detailed draws the pool in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top. Zram shows here too, on a box that has it and no zswap."
+
+	zswap_used:
+		label: In use
+		tab: Themes/Zswap
+		control: color
+		path: zswap.colors.used
+		default: "#ff80ff"
+		group: theme
+		shown_when: "zswap_mode = detailed"
+
+	zswap_ratio:
+		label: Ratio
+		tab: Themes/Zswap
+		control: color
+		path: zswap.colors.ratio
+		default: "#ffe0ff"
+		group: theme
+		tip: "The compression ratio written over the graph, such as 2.1x. It gets a Bottom colored edge, so it reads over the graph too."
+
+	ZswapGradHead:
+		label: "Zswap, by height"
+		tab: Themes/Zswap
+		control: heading
+		shown_when: "zswap_mode = gradient"
+
+	zswap_low:
+		label: Low
+		tab: Themes/Zswap
+		control: color
+		path: zswap.colors.low
+		default: "#6a2a6a"
+		group: theme
+		shown_when: "zswap_mode = gradient"
+		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
+
+	zswap_medium:
+		label: Medium
+		tab: Themes/Zswap
+		control: color
+		path: zswap.colors.medium
+		default: "#ff80ff"
+		group: theme
+		shown_when: "zswap_mode = gradient"
+		tip: "The color halfway up."
+
+	zswap_high:
+		label: High
+		tab: Themes/Zswap
+		control: color
+		path: zswap.colors.high
+		default: "#ffe0ff"
+		group: theme
+		shown_when: "zswap_mode = gradient"
+		tip: "The color at the top."
+
+	load_mode:
+		label: Colors
+		tab: Themes/Load
+		control: dropdown
+		shown_as: radio
+		options: detailed, gradient
+		option_labels: "Detailed", "Gradient"
+		path: load.mode
+		default: detailed
+		group: theme
+		tip: "Detailed draws the load in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	load_used:
+		label: Load
+		tab: Themes/Load
+		control: color
+		path: load.colors.load
+		default: "#40ffff"
+		group: theme
+		shown_when: "load_mode = detailed"
+
+	LoadGradHead:
+		label: "Load, by height"
+		tab: Themes/Load
+		control: heading
+		shown_when: "load_mode = gradient"
+
+	load_low:
+		label: Low
+		tab: Themes/Load
+		control: color
+		path: load.colors.low
+		default: "#1a6666"
+		group: theme
+		shown_when: "load_mode = gradient"
+		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
+
+	load_medium:
+		label: Medium
+		tab: Themes/Load
+		control: color
+		path: load.colors.medium
+		default: "#40ffff"
+		group: theme
+		shown_when: "load_mode = gradient"
+		tip: "The color halfway up."
+
+	load_high:
+		label: High
+		tab: Themes/Load
+		control: color
+		path: load.colors.high
+		default: "#cfffff"
+		group: theme
+		shown_when: "load_mode = gradient"
+		tip: "The color at the top."
+
+	disk_mode:
+		label: Colors
+		tab: Themes/Disk
+		control: dropdown
+		shown_as: radio
+		options: detailed, gradient
+		option_labels: "Detailed", "Gradient"
+		path: disk.mode
+		default: detailed
+		group: theme
+		tip: "Detailed gives written and read a color each. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	DiskColorHead:
+		label: "Disk, from the bottom up"
+		tab: Themes/Disk
+		control: heading
+		shown_when: "disk_mode = detailed"
+
+	disk_write:
+		label: Written
+		tab: Themes/Disk
+		control: color
+		path: disk.colors.write
+		default: "#ffcfdf"
+		group: theme
+		shown_when: "disk_mode = detailed"
+
+	disk_read:
+		label: Read
+		tab: Themes/Disk
+		control: color
+		path: disk.colors.read
+		default: "#ff4080"
+		group: theme
+		shown_when: "disk_mode = detailed"
+
+	DiskGradHead:
+		label: "Disk, by height"
+		tab: Themes/Disk
+		control: heading
+		shown_when: "disk_mode = gradient"
+
+	disk_low:
+		label: Low
+		tab: Themes/Disk
+		control: color
+		path: disk.colors.low
+		default: "#661a33"
+		group: theme
+		shown_when: "disk_mode = gradient"
+		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
+
+	disk_medium:
+		label: Medium
+		tab: Themes/Disk
+		control: color
+		path: disk.colors.medium
+		default: "#ff4080"
+		group: theme
+		shown_when: "disk_mode = gradient"
+		tip: "The color halfway up."
+
+	disk_high:
+		label: High
+		tab: Themes/Disk
+		control: color
+		path: disk.colors.high
+		default: "#ffcfdf"
+		group: theme
+		shown_when: "disk_mode = gradient"
+		tip: "The color at the top."
+
+	temp_mode:
+		label: Colors
+		tab: Themes/Temperature
+		control: dropdown
+		shown_as: radio
+		options: detailed, gradient
+		option_labels: "Detailed", "Gradient"
+		path: temp.mode
+		default: detailed
+		group: theme
+		tip: "Detailed draws the temperature in one color, with any part over the critical level in another. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	TempColorHead:
+		label: "Temperature, from the bottom up"
+		tab: Themes/Temperature
+		control: heading
+		shown_when: "temp_mode = detailed"
+
+	temp_normal:
+		label: Normal
+		tab: Themes/Temperature
+		control: color
+		path: temp.colors.normal
+		default: "#40ff48"
+		group: theme
+		shown_when: "temp_mode = detailed"
+		tip: "Up to the critical level."
+
+	temp_critical:
+		label: Critical
+		tab: Themes/Temperature
+		control: color
+		path: temp.colors.critical
+		default: "#ff0000"
+		group: theme
+		shown_when: "temp_mode = detailed"
+		tip: "Over the critical level, on top of Normal."
+
+	TempGradHead:
+		label: "Temperature, by height"
+		tab: Themes/Temperature
+		control: heading
+		shown_when: "temp_mode = gradient"
+
+	temp_low:
+		label: Low
+		tab: Themes/Temperature
+		control: color
+		path: temp.colors.low
+		default: "#1a661d"
+		group: theme
+		shown_when: "temp_mode = gradient"
+		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
+
+	temp_medium:
+		label: Medium
+		tab: Themes/Temperature
+		control: color
+		path: temp.colors.medium
+		default: "#40ff48"
+		group: theme
+		shown_when: "temp_mode = gradient"
+		tip: "The color halfway up."
+
+	temp_high:
+		label: High
+		tab: Themes/Temperature
+		control: color
+		path: temp.colors.high
+		default: "#cfffd1"
+		group: theme
+		shown_when: "temp_mode = gradient"
 		tip: "The color at the top."
 
 	battery_mode:
@@ -638,8 +1162,9 @@ settings:
 ## Theme names say nothing of color. Each graph has hues of its own in every
 ## theme, so the graphs are told apart side by side. I/O wait and system stay
 ## red and orange in every theme, so trouble reads the same, and the battery's
-## on battery and critical take those 2. Fire's graphs each burn a flame of
-## their own. Default's CPU and memory colors are multiload-ng's.
+## on battery and critical take those 2, as temperature's critical takes red.
+## Fire's graphs each burn a flame of their own. Default's CPU and memory
+## colors are multiload-ng's.
 
 groups:
 
@@ -665,11 +1190,41 @@ groups:
 				mem_user: "#ffff80"
 				mem_buffers: "#804080"
 				mem_cache: "#408060"
+				net_mode: detailed
+				net_low: "#406020"
+				net_medium: "#90ff40"
+				net_high: "#e0ffc0"
+				net_local: "#406020"
+				net_sent: "#e0ffc0"
+				net_received: "#90ff40"
 				swap_mode: detailed
 				swap_low: "#204a6a"
 				swap_medium: "#40a0ff"
 				swap_high: "#d0e8ff"
 				swap_used: "#40a0ff"
+				zswap_mode: detailed
+				zswap_low: "#6a2a6a"
+				zswap_medium: "#ff80ff"
+				zswap_high: "#ffe0ff"
+				zswap_used: "#ff80ff"
+				zswap_ratio: "#ffe0ff"
+				load_mode: detailed
+				load_low: "#1a6666"
+				load_medium: "#40ffff"
+				load_high: "#cfffff"
+				load_used: "#40ffff"
+				disk_mode: detailed
+				disk_low: "#661a33"
+				disk_medium: "#ff4080"
+				disk_high: "#ffcfdf"
+				disk_write: "#ffcfdf"
+				disk_read: "#ff4080"
+				temp_mode: detailed
+				temp_low: "#1a661d"
+				temp_medium: "#40ff48"
+				temp_high: "#cfffd1"
+				temp_normal: "#40ff48"
+				temp_critical: "#ff0000"
 				battery_mode: detailed
 				battery_low: "#483468"
 				battery_medium: "#b080ff"
@@ -698,11 +1253,41 @@ groups:
 				mem_user: "#ffff00"
 				mem_buffers: "#604a20"
 				mem_cache: "#5f5f20"
+				net_mode: detailed
+				net_low: "#30205f"
+				net_medium: "#6000ff"
+				net_high: "#d0c0ff"
+				net_local: "#30205f"
+				net_sent: "#d0c0ff"
+				net_received: "#6000ff"
 				swap_mode: detailed
 				swap_low: "#20305f"
 				swap_medium: "#0060ff"
 				swap_high: "#c0d0ff"
 				swap_used: "#0060ff"
+				zswap_mode: detailed
+				zswap_low: "#5f205f"
+				zswap_medium: "#ff00ff"
+				zswap_high: "#ffc0ff"
+				zswap_used: "#ff00ff"
+				zswap_ratio: "#ffc0ff"
+				load_mode: detailed
+				load_low: "#660033"
+				load_medium: "#ff0080"
+				load_high: "#ffbfdf"
+				load_used: "#ff0080"
+				disk_mode: detailed
+				disk_low: "#336600"
+				disk_medium: "#80ff00"
+				disk_high: "#dfffbf"
+				disk_write: "#dfffbf"
+				disk_read: "#80ff00"
+				temp_mode: detailed
+				temp_low: "#006633"
+				temp_medium: "#00ff80"
+				temp_high: "#bfffdf"
+				temp_normal: "#00ff80"
+				temp_critical: "#ff0000"
 				battery_mode: detailed
 				battery_low: "#205f5f"
 				battery_medium: "#00ffff"
@@ -731,11 +1316,41 @@ groups:
 				mem_user: "#f0e0a1"
 				mem_buffers: "#8a786a"
 				mem_cache: "#8a856a"
+				net_mode: detailed
+				net_low: "#7a8a6a"
+				net_medium: "#c8f0a1"
+				net_high: "#f0ffe0"
+				net_local: "#7a8a6a"
+				net_sent: "#f0ffe0"
+				net_received: "#c8f0a1"
 				swap_mode: detailed
 				swap_low: "#6a8a72"
 				swap_medium: "#a1f0b8"
 				swap_high: "#e0ffe8"
 				swap_used: "#a1f0b8"
+				zswap_mode: detailed
+				zswap_low: "#8a6a7a"
+				zswap_medium: "#f0a1d0"
+				zswap_high: "#ffe0f0"
+				zswap_used: "#f0a1d0"
+				zswap_ratio: "#ffe0f0"
+				load_mode: detailed
+				load_low: "#5c8985"
+				load_medium: "#a1f0e9"
+				load_high: "#e8fbfa"
+				load_used: "#a1f0e9"
+				disk_mode: detailed
+				disk_low: "#5c5c89"
+				disk_medium: "#a1a1f0"
+				disk_high: "#e8e8fb"
+				disk_write: "#e8e8fb"
+				disk_read: "#a1a1f0"
+				temp_mode: detailed
+				temp_low: "#875c89"
+				temp_medium: "#eca1f0"
+				temp_high: "#fae8fb"
+				temp_normal: "#eca1f0"
+				temp_critical: "#ff6161"
 				battery_mode: detailed
 				battery_low: "#7e6a8a"
 				battery_medium: "#d0b0f0"
@@ -764,11 +1379,41 @@ groups:
 				mem_user: "#00f0ff"
 				mem_buffers: "#10406a"
 				mem_cache: "#106a70"
+				net_mode: detailed
+				net_low: "#6a1040"
+				net_medium: "#ff1090"
+				net_high: "#ffc0e0"
+				net_local: "#6a1040"
+				net_sent: "#ffc0e0"
+				net_received: "#ff1090"
 				swap_mode: detailed
 				swap_low: "#4a1070"
 				swap_medium: "#b026ff"
 				swap_high: "#ecc8ff"
 				swap_used: "#b026ff"
+				zswap_mode: detailed
+				zswap_low: "#142a70"
+				zswap_medium: "#3060ff"
+				zswap_high: "#c8d4ff"
+				zswap_used: "#3060ff"
+				zswap_ratio: "#c8d4ff"
+				load_mode: detailed
+				load_low: "#006633"
+				load_medium: "#00ff80"
+				load_high: "#bfffdf"
+				load_used: "#00ff80"
+				disk_mode: detailed
+				disk_low: "#140066"
+				disk_medium: "#3300ff"
+				disk_high: "#ccbfff"
+				disk_write: "#ccbfff"
+				disk_read: "#3300ff"
+				temp_mode: detailed
+				temp_low: "#406600"
+				temp_medium: "#a0ff00"
+				temp_high: "#e8ffbf"
+				temp_normal: "#a0ff00"
+				temp_critical: "#ff0000"
 				battery_mode: detailed
 				battery_low: "#6a6400"
 				battery_medium: "#ffee00"
@@ -797,11 +1442,41 @@ groups:
 				mem_user: "#e0c080"
 				mem_buffers: "#6a4a3a"
 				mem_cache: "#5f5a3a"
+				net_mode: detailed
+				net_low: "#5a3a50"
+				net_medium: "#b06a9a"
+				net_high: "#f0dce8"
+				net_local: "#5a3a50"
+				net_sent: "#f0dce8"
+				net_received: "#b06a9a"
 				swap_mode: detailed
 				swap_low: "#34505a"
 				swap_medium: "#6aa0b4"
 				swap_high: "#dceaf0"
 				swap_used: "#6aa0b4"
+				zswap_mode: detailed
+				zswap_low: "#34503c"
+				zswap_medium: "#6fa07a"
+				zswap_high: "#dcf0e0"
+				zswap_used: "#6fa07a"
+				zswap_ratio: "#dcf0e0"
+				load_mode: detailed
+				load_low: "#335b52"
+				load_medium: "#5aa090"
+				load_high: "#d6e7e3"
+				load_used: "#5aa090"
+				disk_mode: detailed
+				disk_low: "#3c4467"
+				disk_medium: "#6a78b4"
+				disk_high: "#daddec"
+				disk_write: "#daddec"
+				disk_read: "#6a78b4"
+				temp_mode: detailed
+				temp_low: "#5f3d67"
+				temp_medium: "#a76bb5"
+				temp_high: "#e9daec"
+				temp_normal: "#a76bb5"
+				temp_critical: "#d02818"
 				battery_mode: detailed
 				battery_low: "#4a4060"
 				battery_medium: "#a08ad0"
@@ -830,11 +1505,41 @@ groups:
 				mem_user: "#c060ff"
 				mem_buffers: "#5a2a4a"
 				mem_cache: "#4a2a6a"
+				net_mode: gradient
+				net_low: "#48102a"
+				net_medium: "#ff40a0"
+				net_high: "#ffd0e8"
+				net_local: "#48102a"
+				net_sent: "#ffd0e8"
+				net_received: "#ff40a0"
 				swap_mode: gradient
 				swap_low: "#0a1050"
 				swap_medium: "#2060ff"
 				swap_high: "#d0f0ff"
 				swap_used: "#4080ff"
+				zswap_mode: gradient
+				zswap_low: "#0a4048"
+				zswap_medium: "#20e0d0"
+				zswap_high: "#d0fff8"
+				zswap_used: "#20e0d0"
+				zswap_ratio: "#d0fff8"
+				load_mode: gradient
+				load_low: "#46660d"
+				load_medium: "#b0ff20"
+				load_high: "#ebffc7"
+				load_used: "#b0ff20"
+				disk_mode: gradient
+				disk_low: "#201366"
+				disk_medium: "#5030ff"
+				disk_high: "#d3cbff"
+				disk_write: "#d3cbff"
+				disk_read: "#5030ff"
+				temp_mode: gradient
+				temp_low: "#661a62"
+				temp_medium: "#ff40f5"
+				temp_high: "#ffcffc"
+				temp_normal: "#ff40f5"
+				temp_critical: "#ff0000"
 				battery_mode: gradient
 				battery_low: "#0a3a10"
 				battery_medium: "#20d040"

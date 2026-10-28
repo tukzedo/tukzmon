@@ -26,13 +26,24 @@ fn pack_alpha(c: [f32; 3], alpha: f32) -> u32 {
 	q(alpha * 255.0) << 24 | q(c[0]) << 16 | q(c[1]) << 8 | q(c[2])
 }
 
+/// Seconds for a falling peak to come most of the way down to what's in view.
+const PEAK_FALL: f64 = 2.0;
+
+// mean plus part of the way to max, in the source's own unit
+fn reach<const N: usize>(mean: &[f32; N], max: &[f32; N], secs: f64, spikes: f32) -> [f32; N] {
+	let reach = spikes * (1.0 / (1.0 + secs / SPIKE_FADE)) as f32;
+	std::array::from_fn(|i| mean[i] + (max[i] - mean[i]).max(0.0) * reach)
+}
+
 /// Heights of each series in a column, 0 to 1, bottom first. Squeezed columns
 /// reach part way from their mean to their peak, less the more time they
 /// cover. A stack over 1 is scaled down to fit.
 pub fn column<const N: usize>(mean: &[f32; N], max: &[f32; N], secs: f64, spikes: f32) -> [f32; N] {
-	let reach = spikes * (1.0 / (1.0 + secs / SPIKE_FADE)) as f32;
-	let mut v: [f32; N] =
-		std::array::from_fn(|i| (mean[i] + (max[i] - mean[i]).max(0.0) * reach).clamp(0.0, 1.0));
+	fit(reach(mean, max, secs, spikes), 1.0)
+}
+
+fn fit<const N: usize>(v: [f32; N], top: f32) -> [f32; N] {
+	let mut v = v.map(|x| (x / top).clamp(0.0, 1.0));
 	let total: f32 = v.iter().sum();
 	if total > 1.0 {
 		for x in &mut v {
@@ -40,6 +51,61 @@ pub fn column<const N: usize>(mean: &[f32; N], max: &[f32; N], secs: f64, spikes
 		}
 	}
 	v
+}
+
+/// The top of a graph with no fixed one, such as bytes per second. It jumps
+/// up to the highest column in view, so nothing is cut off, and eases down
+/// once that has gone. See design.md Drawing.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Peak {
+	top: f32,
+	/// Graph time of the last fit.
+	at: Option<f64>,
+}
+
+impl Peak {
+	/// The top to draw to at time `t`, with `highest` the tallest stack in
+	/// view. It never goes under `floor`, so a quiet line isn't blown up to
+	/// fill the graph.
+	pub fn fit(&mut self, highest: f32, floor: f32, t: f64) -> f32 {
+		let want = highest.max(floor);
+		self.top = match self.at {
+			Some(was) if want < self.top => {
+				let keep = (-(t - was).max(0.0) / PEAK_FALL).exp() as f32;
+				want + (self.top - want) * keep
+			}
+			_ => want,
+		};
+		self.at = Some(t);
+		self.top
+	}
+
+	/// The last top fitted, or 0 before any.
+	pub fn top(&self) -> f32 {
+		self.top
+	}
+}
+
+/// How a graph with no fixed top is scaled.
+#[derive(Debug)]
+pub struct Scale<'a> {
+	pub peak: &'a mut Peak,
+	/// The least the top goes down to, in the source's own unit.
+	pub floor: f32,
+	/// Log up the graph, from a thousandth of the floor to the top. A stack
+	/// keeps its shares of the column's log height.
+	pub log: bool,
+}
+
+// measured up from a thousandth of the floor, so a disk's idle trickle shows
+fn fit_log<const N: usize>(v: [f32; N], top: f32, floor: f32) -> [f32; N] {
+	let unit = floor / 1000.0;
+	let total: f32 = v.iter().map(|x| x.max(0.0)).sum();
+	if total <= 0.0 {
+		return [0.0; N];
+	}
+	let height = ((total / unit).ln_1p() / (top / unit).ln_1p()).clamp(0.0, 1.0);
+	v.map(|x| x.max(0.0) / total * height)
 }
 
 /// A vertical line `thick` pixels wide from column `x`, over the plot only, so
@@ -55,6 +121,22 @@ pub fn line(px: &mut [u32], w: usize, h: usize, bw: usize, x: usize, thick: usiz
 	for row in px[bw * w..(bw + ph) * w].chunks_exact_mut(w) {
 		row[x0..x0 + thick].fill(c);
 	}
+}
+
+/// Text a front end writes over a graph in the panel's own font, at the
+/// plot's top left. See design.md Code layout.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Overlay {
+	pub text: String,
+	pub color: Rgb,
+	/// A rim round each letter, so it reads over any column.
+	pub edge: Rgb,
+	/// The plot, in device pixels from the drawing's top left. Text that
+	/// doesn't fit in it is left out.
+	pub x: usize,
+	pub y: usize,
+	pub w: usize,
+	pub h: usize,
 }
 
 /// How a column is colored.
@@ -90,6 +172,19 @@ impl<const N: usize> Frame<'_, N> {
 	/// Draw into `px`, `w` by `h`, rows top first. `scale` multiplies the
 	/// border for high-DPI screens.
 	pub fn draw(&self, px: &mut Vec<u32>, w: usize, h: usize, scale: usize) {
+		self.draw_to(px, w, h, scale, None);
+	}
+
+	/// As [`Self::draw`], for a source with no fixed top: `scaled` sets the
+	/// top, in the source's own unit, instead of 1.
+	pub fn draw_to(
+		&self,
+		px: &mut Vec<u32>,
+		w: usize,
+		h: usize,
+		scale: usize,
+		scaled: Option<Scale<'_>>,
+	) {
 		px.clear();
 		px.resize(w * h, self.look.border_color.argb());
 		let bw = (self.look.border as usize * scale).min(w / 2).min(h / 2);
@@ -127,19 +222,35 @@ impl<const N: usize> Frame<'_, N> {
 				.collect(),
 			Paint::Stack(_) => Vec::new(),
 		};
-		for cx in 0..pw {
-			let u_new = (pw - cx - 1) as f64 / pw as f64;
-			let u_old = (pw - cx) as f64 / pw as f64;
-			let (a, b) = (
-				self.now - self.axis.age(u_old),
-				self.now - self.axis.age(u_new),
-			);
-			let span = self.hist.span(a, b);
-			let heights = if span.covered >= MIN_COVER {
-				Some(column(&span.mean, &span.max, b - a, self.look.spikes))
-			} else {
-				None
-			};
+		let reached: Vec<Option<[f32; N]>> = (0..pw)
+			.map(|cx| {
+				let u_new = (pw - cx - 1) as f64 / pw as f64;
+				let u_old = (pw - cx) as f64 / pw as f64;
+				let (a, b) = (
+					self.now - self.axis.age(u_old),
+					self.now - self.axis.age(u_new),
+				);
+				let span = self.hist.span(a, b);
+				(span.covered >= MIN_COVER)
+					.then(|| reach(&span.mean, &span.max, b - a, self.look.spikes))
+			})
+			.collect();
+		let (top, log) = match scaled {
+			Some(Scale { peak, floor, log }) => {
+				let highest = reached
+					.iter()
+					.flatten()
+					.map(|v| v.iter().map(|x| x.max(0.0)).sum::<f32>())
+					.fold(0.0, f32::max);
+				(peak.fit(highest, floor, self.now), log.then_some(floor))
+			}
+			None => (1.0, None),
+		};
+		for (cx, v) in reached.into_iter().enumerate() {
+			let heights = v.map(|v| match log {
+				Some(floor) => fit_log(v, top, floor),
+				None => fit(v, top),
+			});
 			for r in 0..ph {
 				let mut c = back[r];
 				let mut alpha = back_alpha;
@@ -473,5 +584,106 @@ mod tests {
 		let mut px = Vec::new();
 		f.draw(&mut px, 4, 4, 1);
 		assert_eq!(px[3 * 4 + 2], 0xffff_0000);
+	}
+
+	// Test ID: dehzk
+	#[test]
+	fn a_peak_jumps_up_and_eases_down_to_whats_in_view() {
+		let mut p = Peak::default();
+		assert_eq!(p.fit(0.0, 10.0, 0.0), 10.0);
+		assert_eq!(p.fit(500.0, 10.0, 1.0), 500.0);
+		// no time gone, so no fall
+		assert_eq!(p.fit(100.0, 10.0, 1.0), 500.0);
+		let t = p.fit(100.0, 10.0, 1.0 + PEAK_FALL);
+		assert!(
+			(t - (100.0 + 400.0 / std::f32::consts::E)).abs() < 0.01,
+			"{t}"
+		);
+		let t = p.fit(100.0, 10.0, 1.0 + 10.0 * PEAK_FALL);
+		assert!(t > 100.0 && t < 100.1, "{t}");
+		// a clock set back still lets it jump up
+		assert_eq!(p.fit(2000.0, 10.0, 0.5), 2000.0);
+		assert_eq!(p.top(), 2000.0);
+	}
+
+	// Test ID: dej06
+	#[test]
+	fn a_log_scale_lifts_a_trickle_and_keeps_the_shares() {
+		assert_eq!(fit_log([0.0, 0.0], 4e6, 1e5), [0.0, 0.0]);
+		let [a, b] = fit_log([1e6, 3e6], 4e6, 1e5);
+		assert!((a + b - 1.0).abs() < 1e-6 && (b - 3.0 * a).abs() < 1e-6);
+		// 1 kB/s under a 4 MB/s top is a 4000th as a line, a fifth as a log
+		let [lo, _] = fit_log([1000.0, 0.0], 4e6, 1e5);
+		assert!(lo > 0.2 && lo < 0.3, "{lo}");
+		assert_eq!(fit_log([-5.0, 8e6], 4e6, 1e5), [0.0, 1.0]);
+		let axis = Axis::log(Curve::FixedA, 120.0);
+		let l = look();
+		let h = steady([1000.0, 0.0], 120.0);
+		let red = |log: bool| {
+			let mut px = Vec::new();
+			let mut peak = Peak::default();
+			Frame {
+				hist: &h,
+				axis: &axis,
+				now: h.last().unwrap_or(0.0),
+				look: &l,
+				paint: Paint::Stack(&COLORS),
+			}
+			.draw_to(
+				&mut px,
+				22,
+				12,
+				1,
+				Some(Scale {
+					peak: &mut peak,
+					floor: 1e5,
+					log,
+				}),
+			);
+			px.iter().filter(|&&p| p == COLORS[0].argb()).count()
+		};
+		assert_eq!(red(false), 0);
+		assert!(red(true) >= 3 * 20, "{}", red(true));
+	}
+
+	// Test ID: dehzm
+	#[test]
+	fn a_graph_with_no_fixed_top_fills_to_its_peak_or_floor() {
+		let axis = Axis::log(Curve::FixedA, 120.0);
+		let l = look();
+		let drawn = |h: &History<2>, peak: Option<(&mut Peak, f32)>| {
+			let peak = peak.map(|(peak, floor)| Scale {
+				peak,
+				floor,
+				log: false,
+			});
+			let mut px = Vec::new();
+			Frame {
+				hist: h,
+				axis: &axis,
+				now: h.last().unwrap_or(0.0),
+				look: &l,
+				paint: Paint::Stack(&COLORS),
+			}
+			.draw_to(&mut px, 22, 12, 1, peak);
+			px
+		};
+		let rates = steady([100.0, 300.0], 120.0);
+		let mut p = Peak::default();
+		assert_eq!(
+			drawn(&rates, Some((&mut p, 1.0))),
+			draw(&steady([0.25, 0.75], 120.0), &axis, 22, 12)
+		);
+		assert_eq!(p.top(), 400.0);
+		let mut p = Peak::default();
+		assert_eq!(
+			drawn(&rates, Some((&mut p, 800.0))),
+			draw(&steady([0.125, 0.375], 120.0), &axis, 22, 12)
+		);
+		// shares, as every other graph
+		assert_eq!(
+			drawn(&steady([0.25, 0.75], 120.0), None),
+			draw(&steady([0.25, 0.75], 120.0), &axis, 22, 12)
+		);
 	}
 }

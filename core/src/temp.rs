@@ -82,8 +82,13 @@ fn sensors_in(dir: &str, buf: &mut String) -> Vec<(u32, Option<String>)> {
 		.collect()
 }
 
-/// The CPU package in degrees C, the hottest one on a box with more than one socket.
-#[derive(Debug)]
+/// Where the graph turns critical on a sensor with no `temp*_crit`, such as
+/// `k10temp`. Zen's own limit is 95 C.
+pub const CRIT_UNKNOWN: f32 = 95.0;
+
+/// The CPU package in degrees C, the hottest one on a box with more than one
+/// socket, split at the critical level.
+#[derive(Debug, Default)]
 pub struct TempReader {
 	inputs: Vec<String>,
 	crit: Option<f32>,
@@ -95,6 +100,12 @@ impl TempReader {
 	/// none of them has one.
 	pub fn crit(&self) -> Option<f32> {
 		self.crit
+	}
+
+	/// Where normal ends and critical starts: [`Self::crit`], or else
+	/// [`CRIT_UNKNOWN`].
+	pub fn limit(&self) -> f32 {
+		self.crit.unwrap_or(CRIT_UNKNOWN)
 	}
 
 	fn probe_at(class: &str) -> Option<Self> {
@@ -123,8 +134,9 @@ impl TempReader {
 	}
 }
 
-impl Collector<1> for TempReader {
-	const SERIES: [&'static str; 1] = ["temp"];
+impl Collector<2> for TempReader {
+	/// Up to the limit, and what's over it, so the 2 add up to the reading.
+	const SERIES: [&'static str; 2] = ["normal", "critical"];
 
 	/// None when no CPU sensor is found.
 	fn probe() -> Option<Self> {
@@ -132,13 +144,14 @@ impl Collector<1> for TempReader {
 	}
 
 	/// A sensor that stops reading drops out. None when all of them have.
-	fn read(&mut self) -> Option<[f32; 1]> {
+	fn read(&mut self) -> Option<[f32; 2]> {
 		let buf = &mut self.buf;
+		let limit = self.crit.unwrap_or(CRIT_UNKNOWN);
 		self.inputs
 			.iter()
 			.filter_map(|path| slurp(path, buf).and_then(degrees))
 			.reduce(f32::max)
-			.map(|x| [x])
+			.map(|x| [x.min(limit), (x - limit).max(0.0)])
 	}
 }
 
@@ -192,7 +205,8 @@ mod tests {
 			],
 		);
 		let mut r = TempReader::probe_at(&t.at("hwmon")).unwrap();
-		assert_eq!((r.read(), r.crit()), (Some([48.25]), None));
+		assert_eq!((r.read(), r.crit()), (Some([48.25, 0.0]), None));
+		assert_eq!(r.limit(), CRIT_UNKNOWN);
 	}
 
 	// Test ID: defnp
@@ -214,10 +228,10 @@ mod tests {
 			],
 		);
 		let mut r = TempReader::probe_at(&t.at("hwmon")).unwrap();
-		assert_eq!((r.read(), r.crit()), (Some([57.5]), Some(95.0)));
+		assert_eq!((r.read(), r.crit()), (Some([57.5, 0.0]), Some(95.0)));
 		// one socket's sensor going away leaves the other
 		std::fs::write(t.at("hwmon/hwmon10/temp1_input"), "junk\n").unwrap();
-		assert_eq!(r.read(), Some([41.0]));
+		assert_eq!(r.read(), Some([41.0, 0.0]));
 		std::fs::write(t.at("hwmon/hwmon2/temp1_input"), "\n").unwrap();
 		assert_eq!(r.read(), None);
 	}
@@ -249,6 +263,30 @@ mod tests {
 		assert!(TempReader::probe_at("/proc/no/such").is_none());
 	}
 
+	// Test ID: dej0s
+	#[test]
+	fn over_the_crit_is_the_critical_part() {
+		let t = Tree::new(
+			"temp_hot",
+			&[
+				("hwmon/hwmon0/name", "coretemp\n"),
+				("hwmon/hwmon0/temp1_input", "103500\n"),
+				("hwmon/hwmon0/temp1_label", "Package id 0\n"),
+				("hwmon/hwmon0/temp1_crit", "100000\n"),
+			],
+		);
+		let mut r = TempReader::probe_at(&t.at("hwmon")).unwrap();
+		assert_eq!((r.read(), r.limit()), (Some([100.0, 3.5]), 100.0));
+		std::fs::write(t.at("hwmon/hwmon0/temp1_input"), "100000\n").unwrap();
+		assert_eq!(r.read(), Some([100.0, 0.0]));
+		// no crit, so it's over at Zen's own limit
+		std::fs::remove_file(t.at("hwmon/hwmon0/temp1_crit")).unwrap();
+		std::fs::write(t.at("hwmon/hwmon0/temp1_input"), "97000\n").unwrap();
+		let mut r = TempReader::probe_at(&t.at("hwmon")).unwrap();
+		assert_eq!(r.read(), Some([CRIT_UNKNOWN, 2.0]));
+		assert_eq!(TempReader::default().read(), None);
+	}
+
 	// Test ID: defnr
 	#[test]
 	fn live_hwmon_reads() {
@@ -256,7 +294,10 @@ mod tests {
 			// the box, or a container, may have no CPU sensor
 			return;
 		};
-		assert!(r.read().is_some_and(|[x]| (-40.0..=150.0).contains(&x)));
+		assert!(
+			r.read()
+				.is_some_and(|[n, c]| (-40.0..=150.0).contains(&(n + c)) && c >= 0.0)
+		);
 		assert!(r.crit().is_none_or(|c| c > 0.0));
 	}
 }

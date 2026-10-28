@@ -7,16 +7,30 @@
 use tukzmon_core::battery::BatteryReader;
 use tukzmon_core::config::Look;
 use tukzmon_core::cpu::CpuReader;
+use tukzmon_core::disk::DiskReader;
 use tukzmon_core::graphs::{self, Drawn};
+use tukzmon_core::load::LoadReader;
 use tukzmon_core::mem::{MemoryReader, SwapReader};
+use tukzmon_core::net::NetReader;
+use tukzmon_core::render::Overlay;
+use tukzmon_core::temp::TempReader;
+use tukzmon_core::zswap::ZswapReader;
 use tukzmon_core::{Graph, Source};
 
 pub struct Live {
 	cpu: Graph,
 	/// None on a box where memory can't be read.
 	mem: Option<Graph<MemoryReader, 3>>,
+	net: Option<Graph<NetReader, 3>>,
 	/// None on a box with no swap.
 	swap: Option<Graph<SwapReader, 1>>,
+	/// None on a box with neither zswap on nor zram set up.
+	zswap: Option<Graph<ZswapReader, 1>>,
+	load: Option<Graph<LoadReader, 1>>,
+	/// None on a box with no disk.
+	disk: Option<Graph<DiskReader, 2>>,
+	/// None on a box with no CPU sensor it knows.
+	temp: Option<Graph<TempReader, 2>>,
 	/// None on a box with no battery in.
 	battery: Option<Graph<BatteryReader, 3>>,
 }
@@ -25,7 +39,12 @@ impl Live {
 	pub fn new(look: Look) -> Live {
 		Live {
 			mem: Graph::memory(look.clone()),
+			net: Graph::net(look.clone()),
 			swap: Graph::swap(look.clone()),
+			zswap: Graph::zswap(look.clone()),
+			load: Graph::load_avg(look.clone()),
+			disk: Graph::disk(look.clone()),
+			temp: Graph::temp(look.clone()),
 			battery: Graph::battery(look.clone()),
 			cpu: Graph::new(look),
 		}
@@ -35,7 +54,12 @@ impl Live {
 		match name {
 			CpuReader::SECTION => Some(&self.cpu),
 			MemoryReader::SECTION => self.mem.as_ref().map(|g| g as &dyn Drawn),
+			NetReader::SECTION => self.net.as_ref().map(|g| g as &dyn Drawn),
 			SwapReader::SECTION => self.swap.as_ref().map(|g| g as &dyn Drawn),
+			ZswapReader::SECTION => self.zswap.as_ref().map(|g| g as &dyn Drawn),
+			LoadReader::SECTION => self.load.as_ref().map(|g| g as &dyn Drawn),
+			DiskReader::SECTION => self.disk.as_ref().map(|g| g as &dyn Drawn),
+			TempReader::SECTION => self.temp.as_ref().map(|g| g as &dyn Drawn),
 			BatteryReader::SECTION => self.battery.as_ref().map(|g| g as &dyn Drawn),
 			_ => None,
 		}
@@ -45,7 +69,12 @@ impl Live {
 		match name {
 			CpuReader::SECTION => Some(&mut self.cpu),
 			MemoryReader::SECTION => self.mem.as_mut().map(|g| g as &mut dyn Drawn),
+			NetReader::SECTION => self.net.as_mut().map(|g| g as &mut dyn Drawn),
 			SwapReader::SECTION => self.swap.as_mut().map(|g| g as &mut dyn Drawn),
+			ZswapReader::SECTION => self.zswap.as_mut().map(|g| g as &mut dyn Drawn),
+			LoadReader::SECTION => self.load.as_mut().map(|g| g as &mut dyn Drawn),
+			DiskReader::SECTION => self.disk.as_mut().map(|g| g as &mut dyn Drawn),
+			TempReader::SECTION => self.temp.as_mut().map(|g| g as &mut dyn Drawn),
 			BatteryReader::SECTION => self.battery.as_mut().map(|g| g as &mut dyn Drawn),
 			_ => None,
 		}
@@ -58,8 +87,28 @@ impl Live {
 				self.mem.as_mut().map(|g| g as &mut dyn Drawn),
 			),
 			(
+				NetReader::SECTION,
+				self.net.as_mut().map(|g| g as &mut dyn Drawn),
+			),
+			(
 				SwapReader::SECTION,
 				self.swap.as_mut().map(|g| g as &mut dyn Drawn),
+			),
+			(
+				ZswapReader::SECTION,
+				self.zswap.as_mut().map(|g| g as &mut dyn Drawn),
+			),
+			(
+				LoadReader::SECTION,
+				self.load.as_mut().map(|g| g as &mut dyn Drawn),
+			),
+			(
+				DiskReader::SECTION,
+				self.disk.as_mut().map(|g| g as &mut dyn Drawn),
+			),
+			(
+				TempReader::SECTION,
+				self.temp.as_mut().map(|g| g as &mut dyn Drawn),
 			),
 			(
 				BatteryReader::SECTION,
@@ -101,7 +150,12 @@ impl Live {
 		let own = match name {
 			CpuReader::SECTION => l.cpu_width,
 			MemoryReader::SECTION => l.mem_width,
+			NetReader::SECTION => l.net_width,
 			SwapReader::SECTION => l.swap_width,
+			ZswapReader::SECTION => l.zswap_width,
+			LoadReader::SECTION => l.load_width,
+			DiskReader::SECTION => l.disk_width,
+			TempReader::SECTION => l.temp_width,
 			BatteryReader::SECTION => l.battery_width,
 			_ => return 0,
 		};
@@ -118,6 +172,10 @@ impl Live {
 			Some(g) => g.render(w, h, scale),
 			None => &[],
 		}
+	}
+
+	pub fn overlay(&self, name: &str, w: usize, h: usize, scale: usize) -> Option<Overlay> {
+		self.get(name)?.overlay(w, h, scale)
 	}
 
 	pub fn easing(&self, name: &str) -> bool {
@@ -323,5 +381,101 @@ mod tests {
 			"{}",
 			live.tip("battery")
 		);
+	}
+
+	// Test ID: dehy5
+	#[test]
+	fn the_zswap_row_is_there_only_with_zswap_or_zram() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_live_zswap_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let mut live = Live::new(d.look());
+		let Some(_) = &live.zswap else {
+			assert_eq!(live.width("zswap"), 0);
+			assert!(live.render("zswap", 10, 10, 1).is_empty());
+			assert_eq!(live.tip("zswap"), "");
+			return;
+		};
+		d.set("zswap_width", &Value::Float(50.0));
+		live.set_look(&d.look());
+		assert_eq!(live.width("zswap"), 50);
+		assert_eq!(live.render("zswap", 50, 24, 1).len(), 50 * 24);
+		let tip = live.tip("zswap");
+		assert!(tip.starts_with("Zswap") || tip.starts_with("Zram"), "{tip}");
+	}
+
+	// Test ID: dej08
+	#[test]
+	fn the_load_and_disk_rows_draw_at_their_own_width() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_live_load_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let mut live = Live::new(d.look());
+		assert!(live.load.is_some(), "every Linux box has /proc/loadavg");
+		live.sample();
+		std::thread::sleep(std::time::Duration::from_millis(30));
+		live.sample();
+		assert!(!d.look().show_load && !d.look().show_disk);
+		d.set("load_width", &Value::Float(60.0));
+		d.set("disk_width", &Value::Float(50.0));
+		live.set_look(&d.look());
+		assert_eq!(live.width("load"), 60);
+		assert_eq!(live.render("load", 60, 24, 1).len(), 60 * 24);
+		let tip = live.tip("load");
+		assert!(tip.starts_with("Load"), "{tip}");
+		// a container has no disk, so no disk row
+		if live.disk.is_some() {
+			assert_eq!(live.width("disk"), 50);
+			assert_eq!(live.render("disk", 50, 24, 1).len(), 50 * 24);
+			assert!(live.tip("disk").starts_with("Disk"));
+		}
+	}
+
+	// Test ID: dej0w
+	#[test]
+	fn the_temp_row_draws_at_its_own_width() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_live_temp_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let mut live = Live::new(d.look());
+		assert!(!d.look().show_temp);
+		d.set("temp_width", &Value::Float(40.0));
+		live.set_look(&d.look());
+		assert_eq!(live.width("temp"), 40);
+		// the box, or a container, may have no CPU sensor
+		if live.temp.is_some() {
+			live.sample();
+			assert_eq!(live.render("temp", 40, 24, 1).len(), 40 * 24);
+			let tip = live.tip("temp");
+			assert!(tip.starts_with("Temperature"), "{tip}");
+		}
+	}
+
+	// Test ID: dehzq
+	#[test]
+	fn the_net_row_draws_at_its_own_width() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_live_net_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let mut live = Live::new(d.look());
+		assert!(live.net.is_some(), "every Linux box has /proc/net/dev");
+		live.sample();
+		std::thread::sleep(std::time::Duration::from_millis(30));
+		live.sample();
+		assert!(!d.look().show_net);
+		d.set("net_width", &Value::Float(60.0));
+		live.set_look(&d.look());
+		assert_eq!(live.width("net"), 60);
+		assert_eq!(live.render("net", 60, 24, 1).len(), 60 * 24);
+		let tip = live.tip("net");
+		assert!(tip.starts_with("Network"), "{tip}");
 	}
 }

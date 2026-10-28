@@ -10,6 +10,7 @@ use std::sync::{Arc, OnceLock};
 use knobs::{Model, NoEnv, Spec};
 
 use crate::axis::{Curve, Timing};
+use crate::disk::Drives;
 use crate::render::Paint;
 use crate::when::Said;
 
@@ -382,6 +383,35 @@ pub struct Look {
 	/// 0 is `width`.
 	pub swap_width: u32,
 	pub swap_time: Option<Timing>,
+	/// Draw the zswap graph, where the box has zswap on or zram set up.
+	pub show_zswap: bool,
+	/// 0 is `width`.
+	pub zswap_width: u32,
+	pub zswap_time: Option<Timing>,
+	/// Draw the network graph.
+	pub show_net: bool,
+	/// 0 is `width`.
+	pub net_width: u32,
+	pub net_time: Option<Timing>,
+	/// Draw the load graph.
+	pub show_load: bool,
+	/// 0 is `width`.
+	pub load_width: u32,
+	pub load_time: Option<Timing>,
+	/// Draw the disk graph, where the box has a disk.
+	pub show_disk: bool,
+	/// 0 is `width`.
+	pub disk_width: u32,
+	pub disk_time: Option<Timing>,
+	/// A log scale up the disk graph.
+	pub disk_log: bool,
+	/// `/proc/diskstats` names, or `all`. See [`Look::drives`].
+	pub disk_drives: Vec<String>,
+	/// Draw the CPU temperature graph, where the box has a sensor for it.
+	pub show_temp: bool,
+	/// 0 is `width`.
+	pub temp_width: u32,
+	pub temp_time: Option<Timing>,
 	/// Draw the battery graph, where the box has a battery in.
 	pub show_battery: bool,
 	/// 0 is `width`.
@@ -396,6 +426,26 @@ pub struct Look {
 	pub swap: [Rgb; 1],
 	pub swap_mode: Mode,
 	pub swap_gradient: [Rgb; 3],
+	pub zswap: [Rgb; 1],
+	pub zswap_mode: Mode,
+	pub zswap_gradient: [Rgb; 3],
+	/// The compression ratio written over the zswap graph.
+	pub zswap_ratio: Rgb,
+	/// In `net::NetReader::SERIES` order.
+	pub net: [Rgb; 3],
+	pub net_mode: Mode,
+	pub net_gradient: [Rgb; 3],
+	pub load: [Rgb; 1],
+	pub load_mode: Mode,
+	pub load_gradient: [Rgb; 3],
+	/// In `disk::DiskReader::SERIES` order.
+	pub disk: [Rgb; 2],
+	pub disk_mode: Mode,
+	pub disk_gradient: [Rgb; 3],
+	/// In `temp::TempReader::SERIES` order.
+	pub temp: [Rgb; 2],
+	pub temp_mode: Mode,
+	pub temp_gradient: [Rgb; 3],
 	/// In `battery::BatteryReader::SERIES` order.
 	pub battery: [Rgb; 3],
 	pub battery_mode: Mode,
@@ -457,6 +507,23 @@ impl Look {
 			show_swap: m.value("show_swap", &NoEnv).as_bool(),
 			swap_width: num("swap_width") as u32,
 			swap_time: Timing::parse(m.value("swap_time", &NoEnv).as_text()),
+			show_zswap: m.value("show_zswap", &NoEnv).as_bool(),
+			zswap_width: num("zswap_width") as u32,
+			zswap_time: Timing::parse(m.value("zswap_time", &NoEnv).as_text()),
+			show_net: m.value("show_net", &NoEnv).as_bool(),
+			net_width: num("net_width") as u32,
+			net_time: Timing::parse(m.value("net_time", &NoEnv).as_text()),
+			show_load: m.value("show_load", &NoEnv).as_bool(),
+			load_width: num("load_width") as u32,
+			load_time: Timing::parse(m.value("load_time", &NoEnv).as_text()),
+			show_disk: m.value("show_disk", &NoEnv).as_bool(),
+			disk_width: num("disk_width") as u32,
+			disk_time: Timing::parse(m.value("disk_time", &NoEnv).as_text()),
+			disk_log: m.value("disk_log", &NoEnv).as_bool(),
+			disk_drives: graph_order(m.value("disk_drives", &NoEnv).as_text()),
+			show_temp: m.value("show_temp", &NoEnv).as_bool(),
+			temp_width: num("temp_width") as u32,
+			temp_time: Timing::parse(m.value("temp_time", &NoEnv).as_text()),
 			show_battery: m.value("show_battery", &NoEnv).as_bool(),
 			battery_width: num("battery_width") as u32,
 			battery_time: Timing::parse(m.value("battery_time", &NoEnv).as_text()),
@@ -467,6 +534,26 @@ impl Look {
 			swap: [color("swap_used")],
 			swap_mode: Mode::parse(m.value("swap_mode", &NoEnv).as_text()).unwrap_or_default(),
 			swap_gradient: [color("swap_low"), color("swap_medium"), color("swap_high")],
+			zswap: [color("zswap_used")],
+			zswap_mode: Mode::parse(m.value("zswap_mode", &NoEnv).as_text()).unwrap_or_default(),
+			zswap_gradient: [
+				color("zswap_low"),
+				color("zswap_medium"),
+				color("zswap_high"),
+			],
+			zswap_ratio: color("zswap_ratio"),
+			net: [color("net_local"), color("net_sent"), color("net_received")],
+			net_mode: Mode::parse(m.value("net_mode", &NoEnv).as_text()).unwrap_or_default(),
+			net_gradient: [color("net_low"), color("net_medium"), color("net_high")],
+			load: [color("load_used")],
+			load_mode: Mode::parse(m.value("load_mode", &NoEnv).as_text()).unwrap_or_default(),
+			load_gradient: [color("load_low"), color("load_medium"), color("load_high")],
+			disk: [color("disk_write"), color("disk_read")],
+			disk_mode: Mode::parse(m.value("disk_mode", &NoEnv).as_text()).unwrap_or_default(),
+			disk_gradient: [color("disk_low"), color("disk_medium"), color("disk_high")],
+			temp: [color("temp_normal"), color("temp_critical")],
+			temp_mode: Mode::parse(m.value("temp_mode", &NoEnv).as_text()).unwrap_or_default(),
+			temp_gradient: [color("temp_low"), color("temp_medium"), color("temp_high")],
 			battery: [
 				color("battery_charging"),
 				color("battery_discharging"),
@@ -505,6 +592,50 @@ impl Look {
 		match self.swap_mode {
 			Mode::Detailed => Paint::Stack(&self.swap),
 			Mode::Gradient => Paint::Gradient(self.swap_gradient),
+		}
+	}
+
+	pub fn zswap_paint(&self) -> Paint<'_, 1> {
+		match self.zswap_mode {
+			Mode::Detailed => Paint::Stack(&self.zswap),
+			Mode::Gradient => Paint::Gradient(self.zswap_gradient),
+		}
+	}
+
+	pub fn net_paint(&self) -> Paint<'_, 3> {
+		match self.net_mode {
+			Mode::Detailed => Paint::Stack(&self.net),
+			Mode::Gradient => Paint::Gradient(self.net_gradient),
+		}
+	}
+
+	pub fn load_paint(&self) -> Paint<'_, 1> {
+		match self.load_mode {
+			Mode::Detailed => Paint::Stack(&self.load),
+			Mode::Gradient => Paint::Gradient(self.load_gradient),
+		}
+	}
+
+	pub fn disk_paint(&self) -> Paint<'_, 2> {
+		match self.disk_mode {
+			Mode::Detailed => Paint::Stack(&self.disk),
+			Mode::Gradient => Paint::Gradient(self.disk_gradient),
+		}
+	}
+
+	/// The drives the disk graph counts.
+	pub fn drives(&self) -> Drives {
+		if self.disk_drives.is_empty() || self.disk_drives.iter().any(|d| d == "all") {
+			Drives::All
+		} else {
+			Drives::Only(self.disk_drives.clone())
+		}
+	}
+
+	pub fn temp_paint(&self) -> Paint<'_, 2> {
+		match self.temp_mode {
+			Mode::Detailed => Paint::Stack(&self.temp),
+			Mode::Gradient => Paint::Gradient(self.temp_gradient),
 		}
 	}
 
@@ -668,7 +799,7 @@ mod tests {
 	fn the_default_theme_is_the_row_defaults() {
 		let spec = spec();
 		let g = spec.group(THEME).unwrap();
-		assert_eq!(g.members.len(), 31);
+		assert_eq!(g.members.len(), 61);
 		let default = g.preset("default").unwrap();
 		assert_eq!(default.label, "Default");
 		for id in &g.members {
@@ -926,12 +1057,26 @@ mod tests {
 			assert!(!colors.iter().any(|c| label.contains(c)), "{label}");
 			let rgb = |id: &str| Rgb::parse(p.values[id].as_text()).unwrap();
 			let ramp = |g: &str| ["low", "medium", "high"].map(|s| rgb(&format!("{g}_{s}")));
-			let leads = ["user", "mem_user", "swap_used", "battery_charging"].map(rgb);
-			let ramps = ["cpu", "mem", "swap", "battery"].map(ramp);
-			for a in 0..4 {
-				for b in a + 1..4 {
+			let leads = [
+				"user",
+				"mem_user",
+				"swap_used",
+				"zswap_used",
+				"net_received",
+				"load_used",
+				"disk_read",
+				"temp_normal",
+				"battery_charging",
+			]
+			.map(rgb);
+			let ramps = [
+				"cpu", "mem", "swap", "zswap", "net", "load", "disk", "temp", "battery",
+			]
+			.map(ramp);
+			for a in 0..leads.len() {
+				for b in a + 1..leads.len() {
 					let gap = (hue(leads[a]) - hue(leads[b])).abs();
-					assert!(gap.min(360.0 - gap) >= 30.0, "{} {a} {b}", p.key);
+					assert!(gap.min(360.0 - gap) >= 25.0, "{} {a} {b}", p.key);
 					assert_ne!(ramps[a], ramps[b], "{} {a} {b}", p.key);
 					assert_ne!(ramps[a][1], ramps[b][1], "{} {a} {b}", p.key);
 				}
@@ -1003,10 +1148,33 @@ mod tests {
 		}
 	}
 
+	// Test ID: dej09
+	#[test]
+	fn the_disk_graph_counts_every_disk_or_the_ones_named() {
+		assert_eq!(Look::default().drives(), Drives::All);
+		assert!(!Look::default().disk_log);
+		for text in ["disk:\n\tdrives: all\n", "disk:\n\tdrives: \"\"\n"] {
+			assert_eq!(
+				Look::from_model(&model(text)).drives(),
+				Drives::All,
+				"{text}"
+			);
+		}
+		assert_eq!(
+			Look::from_model(&model("disk:\n\tdrives: sda, nvme0n1\n\tlog: true\n")).drives(),
+			Drives::Only(vec!["sda".into(), "nvme0n1".into()])
+		);
+	}
+
 	// Test ID: dedqq
 	#[test]
 	fn the_graph_order_reads_with_spaces_or_commas() {
-		assert_eq!(Look::default().order, ["cpu", "mem", "swap", "battery"]);
+		assert_eq!(
+			Look::default().order,
+			[
+				"cpu", "mem", "net", "swap", "zswap", "load", "disk", "temp", "battery"
+			]
+		);
 		for text in [
 			"graph:\n\torder: mem cpu\n",
 			"graph:\n\torder: mem, cpu\n",
@@ -1097,7 +1265,7 @@ mod tests {
 			"themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n",
 		));
 		assert_eq!(t[0].name, "Say \"hi\"");
-		assert_eq!(t[0].colors.len(), 31);
+		assert_eq!(t[0].colors.len(), 61);
 		t.push(SavedTheme {
 			key: theme_key("Default", &t),
 			name: "Default".into(),

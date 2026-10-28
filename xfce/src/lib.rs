@@ -10,9 +10,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::time::{Duration, Instant, SystemTime};
 
-use tukzmon_core::config::{self, Look};
+use tukzmon_core::config::{self, Look, Rgb};
 use tukzmon_core::graphs::Graphs;
 use tukzmon_core::keep;
+use tukzmon_core::render::Overlay;
 
 mod sys;
 #[allow(clippy::wildcard_imports, reason = "sys is only the C declarations")]
@@ -192,12 +193,48 @@ extern "C" fn draw(widget: *mut c_void, cr: *mut c_void, data: *mut c_void) -> G
 		cairo_set_source_surface(cr, surf, 0.0, 0.0);
 		cairo_paint(cr);
 		cairo_surface_destroy(surf);
+		for o in p.graphs.overlays(w as usize, h as usize, scale as usize) {
+			overlay(widget, cr, &o, f64::from(scale));
+		}
 		if p.frame == 0 && p.graphs.easing() {
 			// SAFETY: as start_timer, and free-data stops this one too.
 			p.frame = g_timeout_add(FRAME_MS, frame, std::ptr::from_mut(p).cast());
 		}
 	}
 	1
+}
+
+// In the panel's own font, with a rim, at the plot's top left.
+//
+// SAFETY: widget and cr as in draw.
+unsafe fn overlay(widget: *mut c_void, cr: *mut c_void, o: &Overlay, scale: f64) {
+	let Ok(text) = CString::new(o.text.as_str()) else {
+		return;
+	};
+	let pad = 1.0;
+	let rgb = |c: Rgb| [c.0, c.1, c.2].map(|v| f64::from(v) / 255.0);
+	// SAFETY: the layout is ours until the unref.
+	unsafe {
+		let layout = gtk_widget_create_pango_layout(widget, text.as_ptr());
+		if layout.is_null() {
+			return;
+		}
+		let (mut lw, mut lh) = (0, 0);
+		pango_layout_get_pixel_size(layout, &raw mut lw, &raw mut lh);
+		let (room_w, room_h) = (o.w as f64 / scale, o.h as f64 / scale);
+		if f64::from(lw) + 2.0 * pad <= room_w && f64::from(lh) <= room_h {
+			cairo_move_to(cr, o.x as f64 / scale + pad, o.y as f64 / scale);
+			pango_cairo_layout_path(cr, layout);
+			let [r, g, b] = rgb(o.edge);
+			cairo_set_source_rgb(cr, r, g, b);
+			cairo_set_line_width(cr, 2.0);
+			cairo_stroke_preserve(cr);
+			let [r, g, b] = rgb(o.color);
+			cairo_set_source_rgb(cr, r, g, b);
+			cairo_fill(cr);
+		}
+		g_object_unref(layout);
+	}
 }
 
 extern "C" fn frame(data: *mut c_void) -> Gboolean {

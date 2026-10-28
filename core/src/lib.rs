@@ -27,12 +27,17 @@ use std::time::{Instant, SystemTime};
 use axis::{Ages, Axis, Basis, Ease, Timing};
 use battery::BatteryReader;
 use collect::Collector;
-use config::Look;
+use config::{Look, Rgb};
 use cpu::CpuReader;
+use disk::DiskReader;
 use history::History;
+use load::LoadReader;
 use mem::{MemoryReader, SwapReader};
-use render::{Frame, Paint};
+use net::NetReader;
+use render::{Frame, Paint, Peak, Scale};
+use temp::TempReader;
 use when::Said;
+use zswap::ZswapReader;
 
 /// A collector as one graph draws and names it.
 pub trait Source<const N: usize>: Collector<N> {
@@ -40,9 +45,29 @@ pub trait Source<const N: usize>: Collector<N> {
 	const SECTION: &'static str;
 	/// The tip before there's anything read.
 	const TITLE: &'static str;
-	fn text(v: &[f32; N]) -> String;
+	fn text(&self, v: &[f32; N]) -> String;
 	fn paint(look: &Look) -> Paint<'_, N>;
 	fn timing(look: &Look) -> Timing;
+
+	/// Text written over the graph from the latest read, and its color.
+	fn overlay(&self, _look: &Look) -> Option<(String, Rgb)> {
+		None
+	}
+
+	/// Some for a source with no fixed top, such as bytes per second: the
+	/// least its peak goes down to. See [`render::Peak`].
+	fn peak_floor(&self) -> Option<f32> {
+		None
+	}
+
+	/// A log scale up the graph, for a source with a peak floor.
+	fn log_y(_look: &Look) -> bool {
+		false
+	}
+
+	/// Takes up a new look's settings for the reader itself, such as which
+	/// drives to count.
+	fn follow(&mut self, _look: &Look) {}
 }
 
 fn pc(x: f32) -> i32 {
@@ -53,7 +78,7 @@ impl Source<4> for CpuReader {
 	const SECTION: &'static str = "cpu";
 	const TITLE: &'static str = "CPU";
 
-	fn text(v: &[f32; 4]) -> String {
+	fn text(&self, v: &[f32; 4]) -> String {
 		let busy: f32 = v.iter().sum();
 		format!(
 			"CPU {}%\nUser {}%  System {}%\nNice {}%  I/O wait {}%",
@@ -78,7 +103,7 @@ impl Source<3> for MemoryReader {
 	const SECTION: &'static str = "mem";
 	const TITLE: &'static str = "Memory";
 
-	fn text(v: &[f32; 3]) -> String {
+	fn text(&self, v: &[f32; 3]) -> String {
 		format!(
 			"Memory {}% in use\nBuffers {}%  Cache {}%",
 			pc(v[0]),
@@ -100,7 +125,7 @@ impl Source<1> for SwapReader {
 	const SECTION: &'static str = "swap";
 	const TITLE: &'static str = "Swap";
 
-	fn text(v: &[f32; 1]) -> String {
+	fn text(&self, v: &[f32; 1]) -> String {
 		format!("Swap {}% used", pc(v[0]))
 	}
 
@@ -118,7 +143,7 @@ impl Source<3> for BatteryReader {
 	const TITLE: &'static str = "Battery";
 
 	// full counts as charging, so the tip says what the power is doing
-	fn text(v: &[f32; 3]) -> String {
+	fn text(&self, v: &[f32; 3]) -> String {
 		let state = if v[2] > 0.0 {
 			"critical"
 		} else if v[1] > 0.0 {
@@ -138,6 +163,157 @@ impl Source<3> for BatteryReader {
 	}
 }
 
+impl Source<1> for ZswapReader {
+	const SECTION: &'static str = "zswap";
+	const TITLE: &'static str = "Zswap";
+
+	fn text(&self, v: &[f32; 1]) -> String {
+		format!("{} {}% used", self.name(), pc(v[0]))
+	}
+
+	fn paint(look: &Look) -> Paint<'_, 1> {
+		look.zswap_paint()
+	}
+
+	fn timing(look: &Look) -> Timing {
+		look.timing(look.zswap_time)
+	}
+
+	fn overlay(&self, look: &Look) -> Option<(String, Rgb)> {
+		Some((format!("{:.1}x", self.ratio()?), look.zswap_ratio))
+	}
+}
+
+// decimal, as a download is usually shown
+fn per_sec(bytes: f32) -> String {
+	const UNITS: [&str; 5] = ["B/s", "kB/s", "MB/s", "GB/s", "TB/s"];
+	let (mut v, mut unit) = (bytes.max(0.0), 0);
+	while v >= 999.5 && unit < UNITS.len() - 1 {
+		v /= 1000.0;
+		unit += 1;
+	}
+	if unit > 0 && v < 9.95 {
+		format!("{v:.1} {}", UNITS[unit])
+	} else {
+		format!("{v:.0} {}", UNITS[unit])
+	}
+}
+
+impl Source<3> for NetReader {
+	const SECTION: &'static str = "net";
+	const TITLE: &'static str = "Network";
+
+	// so a quiet line's odd packet doesn't fill the graph
+	fn peak_floor(&self) -> Option<f32> {
+		Some(10_000.0)
+	}
+
+	fn text(&self, v: &[f32; 3]) -> String {
+		format!(
+			"Network\nReceived {}  Sent {}\nLocal {}",
+			per_sec(v[2]),
+			per_sec(v[1]),
+			per_sec(v[0])
+		)
+	}
+
+	fn paint(look: &Look) -> Paint<'_, 3> {
+		look.net_paint()
+	}
+
+	fn timing(look: &Look) -> Timing {
+		look.timing(look.net_time)
+	}
+}
+
+impl Source<1> for LoadReader {
+	const SECTION: &'static str = "load";
+	const TITLE: &'static str = "Load";
+
+	fn text(&self, v: &[f32; 1]) -> String {
+		format!("Load {:.2}", v[0].max(0.0))
+	}
+
+	fn paint(look: &Look) -> Paint<'_, 1> {
+		look.load_paint()
+	}
+
+	fn timing(look: &Look) -> Timing {
+		look.timing(look.load_time)
+	}
+
+	// full at a load of one a CPU, as the CPU graph is at 100%
+	fn peak_floor(&self) -> Option<f32> {
+		static CPUS: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
+		Some(
+			*CPUS.get_or_init(|| {
+				std::thread::available_parallelism().map_or(1.0, |n| n.get() as f32)
+			}),
+		)
+	}
+}
+
+impl Source<2> for DiskReader {
+	const SECTION: &'static str = "disk";
+	const TITLE: &'static str = "Disk";
+
+	fn text(&self, v: &[f32; 2]) -> String {
+		format!("Disk\nRead {}  Write {}", per_sec(v[1]), per_sec(v[0]))
+	}
+
+	fn paint(look: &Look) -> Paint<'_, 2> {
+		look.disk_paint()
+	}
+
+	fn timing(look: &Look) -> Timing {
+		look.timing(look.disk_time)
+	}
+
+	// so a log file's odd flush doesn't fill the graph
+	fn peak_floor(&self) -> Option<f32> {
+		Some(100_000.0)
+	}
+
+	fn log_y(look: &Look) -> bool {
+		look.disk_log
+	}
+
+	fn follow(&mut self, look: &Look) {
+		let want = look.drives();
+		if *self.drives() != want
+			&& let Some(r) = DiskReader::new(want)
+		{
+			*self = r;
+		}
+	}
+}
+
+impl Source<2> for TempReader {
+	const SECTION: &'static str = "temp";
+	const TITLE: &'static str = "Temperature";
+
+	fn text(&self, v: &[f32; 2]) -> String {
+		format!(
+			"Temperature {:.0} \u{b0}C\nCritical at {:.0} \u{b0}C",
+			v[0] + v[1],
+			self.limit()
+		)
+	}
+
+	fn paint(look: &Look) -> Paint<'_, 2> {
+		look.temp_paint()
+	}
+
+	fn timing(look: &Look) -> Timing {
+		look.timing(look.temp_time)
+	}
+
+	// full at the critical level, and higher once it's over
+	fn peak_floor(&self) -> Option<f32> {
+		Some(self.limit())
+	}
+}
+
 /// One graph: reads, history, and drawing. CPU unless said otherwise.
 pub struct Graph<S: Source<N> = CpuReader, const N: usize = 4> {
 	pub look: Look,
@@ -150,6 +326,8 @@ pub struct Graph<S: Source<N> = CpuReader, const N: usize = 4> {
 	latest: Option<[f32; N]>,
 	px: Vec<u32>,
 	ease: Ease,
+	/// The top, for a source with no fixed one.
+	peak: Peak,
 	/// Where the pointer is, in device pixels from the left, for the hover line.
 	pub hover: Option<usize>,
 }
@@ -174,6 +352,42 @@ impl Graph<SwapReader, 1> {
 	}
 }
 
+impl Graph<ZswapReader, 1> {
+	/// None on a box with neither zswap on nor zram set up.
+	pub fn zswap(look: Look) -> Option<Self> {
+		ZswapReader::probe().map(|src| Graph::with(look, src))
+	}
+}
+
+impl Graph<NetReader, 3> {
+	/// None where `/proc/net/dev` can't be read.
+	pub fn net(look: Look) -> Option<Self> {
+		NetReader::probe().map(|src| Graph::with(look, src))
+	}
+}
+
+impl Graph<LoadReader, 1> {
+	/// None where `/proc/loadavg` can't be read.
+	pub fn load_avg(look: Look) -> Option<Self> {
+		LoadReader::probe().map(|src| Graph::with(look, src))
+	}
+}
+
+impl Graph<DiskReader, 2> {
+	/// None where `/proc/diskstats` can't be read, or with all disks picked
+	/// on a box that has none.
+	pub fn disk(look: Look) -> Option<Self> {
+		DiskReader::new(look.drives()).map(|src| Graph::with(look, src))
+	}
+}
+
+impl Graph<TempReader, 2> {
+	/// None on a box with no CPU sensor it knows.
+	pub fn temp(look: Look) -> Option<Self> {
+		TempReader::probe().map(|src| Graph::with(look, src))
+	}
+}
+
 impl Graph<BatteryReader, 3> {
 	/// None on a box with no battery in.
 	pub fn battery(look: Look) -> Option<Self> {
@@ -195,6 +409,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 			latest: None,
 			px: Vec::new(),
 			ease: Ease::default(),
+			peak: Peak::default(),
 			hover: None,
 		}
 	}
@@ -219,6 +434,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 	pub fn clear(&mut self) {
 		self.hist = History::default();
 		self.latest = None;
+		self.peak = Peak::default();
 	}
 
 	/// Swaps in the saved history, if there is one that reads. The time since
@@ -347,7 +563,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		if span.covered < render::MIN_COVER {
 			return format!("{when}\nNo data");
 		}
-		format!("{when}\n{}", S::text(&span.mean))
+		format!("{when}\n{}", self.src.text(&span.mean))
 	}
 
 	/// The graph as cairo ARGB32 pixels, `w` by `h`.
@@ -359,6 +575,12 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		let slack = 2.0 * f64::from(self.look.sample_ms.max(50)) / 1000.0 + 0.25;
 		self.ease.update(&axis, basis, t, slack);
 		let mut px = std::mem::take(&mut self.px);
+		let log = S::log_y(&self.look);
+		let peak = self.src.peak_floor().map(|floor| Scale {
+			peak: &mut self.peak,
+			floor,
+			log,
+		});
 		Frame {
 			hist: &self.hist,
 			axis: &self.ease.view(&axis, t),
@@ -366,7 +588,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 			look: &self.look,
 			paint: S::paint(&self.look),
 		}
-		.draw(&mut px, w, h, scale);
+		.draw_to(&mut px, w, h, scale, peak);
 		if let Some(x) = self.hover {
 			let bw = self.border_px(w, h, scale);
 			render::line(&mut px, w, h, bw, x, scale, self.look.hover);
@@ -375,12 +597,31 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		&self.px
 	}
 
+	/// The text to write over the graph drawn `w` by `h`, if its source has
+	/// any. Its edge is the background's bottom color.
+	pub fn overlay(&self, w: usize, h: usize, scale: usize) -> Option<render::Overlay> {
+		let bw = self.border_px(w, h, scale);
+		if w <= 2 * bw || h <= 2 * bw {
+			return None;
+		}
+		let (text, color) = self.src.overlay(&self.look)?;
+		Some(render::Overlay {
+			text,
+			color,
+			edge: self.look.bottom,
+			x: bw,
+			y: bw,
+			w: w - 2 * bw,
+			h: h - 2 * bw,
+		})
+	}
+
 	/// The latest read, as the panel's tooltip.
 	pub fn tooltip(&self) -> String {
 		let Some(v) = self.latest else {
 			return S::TITLE.into();
 		};
-		S::text(&v)
+		self.src.text(&v)
 	}
 }
 
@@ -400,6 +641,62 @@ mod tests {
 		assert_eq!(px.len(), 128 * 26);
 		assert!(px.iter().all(|p| p >> 24 == 0xff));
 		assert!(g.tooltip().starts_with("CPU "));
+	}
+
+	// Test ID: dehzn
+	#[test]
+	fn network_rates_read_in_decimal_units() {
+		for (bytes, want) in [
+			(0.0, "0 B/s"),
+			(-3.0, "0 B/s"),
+			(f32::NAN, "0 B/s"),
+			(999.0, "999 B/s"),
+			(999.6, "1.0 kB/s"),
+			(1234.0, "1.2 kB/s"),
+			(12_345.0, "12 kB/s"),
+			(3e6, "3.0 MB/s"),
+			(5e15, "5000 TB/s"),
+		] {
+			assert_eq!(per_sec(bytes), want, "{bytes}");
+		}
+		assert_eq!(
+			NetReader::default().text(&[2000.0, 30_000.0, 1.5e6]),
+			"Network\nReceived 1.5 MB/s  Sent 30 kB/s\nLocal 2.0 kB/s"
+		);
+	}
+
+	// Test ID: dej07
+	#[test]
+	fn load_reads_as_a_number_and_disk_in_rates() {
+		let load = LoadReader::default();
+		assert_eq!(load.text(&[1.254]), "Load 1.25");
+		assert_eq!(load.text(&[-1.0]), "Load 0.00");
+		let cpus = std::thread::available_parallelism().unwrap().get() as f32;
+		assert_eq!(load.peak_floor(), Some(cpus));
+		let disk = DiskReader::new(disk::Drives::Only(Vec::new())).unwrap();
+		assert_eq!(
+			disk.text(&[30_000.0, 1.5e6]),
+			"Disk\nRead 1.5 MB/s  Write 30 kB/s"
+		);
+		assert_eq!(disk.peak_floor(), Some(100_000.0));
+		let log = Look {
+			disk_log: true,
+			..Look::default()
+		};
+		assert!(DiskReader::log_y(&log) && !DiskReader::log_y(&Look::default()));
+		assert!(!LoadReader::log_y(&log) && NetReader::default().peak_floor().is_some());
+	}
+
+	// Test ID: dej0t
+	#[test]
+	fn temperature_reads_in_degrees_up_to_its_crit() {
+		let t = TempReader::default();
+		assert_eq!(
+			t.text(&[95.0, 3.4]),
+			"Temperature 98 \u{b0}C\nCritical at 95 \u{b0}C"
+		);
+		assert_eq!(t.peak_floor(), Some(temp::CRIT_UNKNOWN));
+		assert!(!TempReader::log_y(&Look::default()));
 	}
 
 	// Test ID: defpr
@@ -482,6 +779,43 @@ mod tests {
 		assert_eq!(tip.lines().next().map(str::len), Some(8), "{tip}");
 		// device columns on a scale 2 screen land on the same times
 		assert_eq!(g.span_at(2, 2 * w, 2 * h, 2), g.span_at(1, w, h, 1));
+	}
+
+	// Test ID: defz1
+	#[test]
+	fn a_still_pointer_keeps_its_age_while_its_clock_time_moves_on() {
+		let mut g = Graph::new(Look {
+			log_axis: false,
+			..Look::default()
+		});
+		let now = g.now();
+		g.hist.add(now - 300.0, now, &[0.1; 4]);
+		// 128 columns of 0.5 s: column 65 is 31.75 s back, clear of a rounding edge
+		let (w, h) = (130, 20);
+		let age = |g: &Graph| {
+			let (a, b) = g.span_at(65, w, h, 1).unwrap();
+			(
+				f64::midpoint(a, b),
+				g.hist.last().unwrap() - f64::midpoint(a, b),
+			)
+		};
+		let (t0, age0) = age(&g);
+		let tip0 = g.hover_tip(65, w, h, 1);
+		assert!(tip0.starts_with("31 sec ago\n"), "{tip0}");
+		for _ in 0..4 {
+			let from = g.hist.last().unwrap();
+			g.skip(1.0);
+			g.hist.add(from, from + 1.0, &[0.1; 4]);
+			assert!(
+				near_secs(age(&g).1, age0),
+				"the column under the line is a fixed age"
+			);
+			assert!(g.hover_tip(65, w, h, 1).starts_with("31 sec ago\n"));
+		}
+		assert!(
+			near_secs(age(&g).0 - t0, 4.0),
+			"the clock time under the line moves on with each sample"
+		);
 	}
 
 	fn near_secs(a: f64, b: f64) -> bool {

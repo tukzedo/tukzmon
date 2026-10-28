@@ -122,6 +122,12 @@ impl DiskReader {
 	}
 }
 
+impl DiskReader {
+	pub fn drives(&self) -> &Drives {
+		&self.picker.drives
+	}
+}
+
 impl Collector<2> for DiskReader {
 	const SERIES: [&'static str; 2] = ["write", "read"];
 

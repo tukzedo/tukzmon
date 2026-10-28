@@ -39,6 +39,19 @@ pub mod ffi {
 		in_list: bool,
 	}
 
+	/// Text to write over a live graph, from `render::Overlay`. Colors are
+	/// opaque ARGB, and the place and room are device pixels.
+	struct OverlayInfo {
+		shown: bool,
+		text: String,
+		color: u32,
+		edge: u32,
+		x: usize,
+		y: usize,
+		w: usize,
+		h: usize,
+	}
+
 	/// The graph list's row for one graph: the ids of the settings it shows.
 	struct GraphRow {
 		name: String,
@@ -134,6 +147,8 @@ pub mod ffi {
 		fn wrap_tip(text: &str) -> String;
 		/// True while the graph's time axis eases in, so it wants drawing again soon.
 		fn live_easing(l: &Live, name: &str) -> bool;
+		/// What to write over the graph drawn at that size, if anything.
+		fn live_overlay(l: &Live, name: &str, w: usize, h: usize, scale: usize) -> OverlayInfo;
 	}
 
 	unsafe extern "C++" {
@@ -349,6 +364,31 @@ fn live_draw<'a>(l: &'a mut Live, name: &str, w: usize, h: usize, scale: usize) 
 	l.render(name, w, h, scale)
 }
 
+fn live_overlay(l: &Live, name: &str, w: usize, h: usize, scale: usize) -> ffi::OverlayInfo {
+	match l.overlay(name, w, h, scale) {
+		Some(o) => ffi::OverlayInfo {
+			shown: true,
+			text: o.text,
+			color: o.color.argb(),
+			edge: o.edge.argb(),
+			x: o.x,
+			y: o.y,
+			w: o.w,
+			h: o.h,
+		},
+		None => ffi::OverlayInfo {
+			shown: false,
+			text: String::new(),
+			color: 0,
+			edge: 0,
+			x: 0,
+			y: 0,
+			w: 0,
+			h: 0,
+		},
+	}
+}
+
 fn live_tip(l: &Live, name: &str, w: usize, h: usize, scale: usize) -> String {
 	l.hover_tip(name, w, h, scale)
 }
@@ -551,7 +591,24 @@ mod tests {
 		};
 		assert_eq!(
 			want(&d),
-			["swap_width", "swap_time", "battery_width", "battery_time"]
+			[
+				"net_width",
+				"net_time",
+				"swap_width",
+				"swap_time",
+				"zswap_width",
+				"zswap_time",
+				"load_width",
+				"load_time",
+				"disk_width",
+				"disk_time",
+				"temp_width",
+				"temp_time",
+				"battery_width",
+				"battery_time",
+				"disk_drives",
+				"disk_log"
+			]
 		);
 		assert_eq!(ffi::greyed_rows(&mut d), want(&d));
 		for g in &gates {

@@ -85,6 +85,28 @@ pub struct ZswapReader {
 	ratio: Option<f32>,
 }
 
+// a default one has no devices, so it reads as a gap
+impl Default for ZswapReader {
+	fn default() -> Self {
+		ZswapReader {
+			meminfo: String::new(),
+			pool: Pool::Zram(Vec::new()),
+			buf: String::new(),
+			ratio: None,
+		}
+	}
+}
+
+#[cfg(test)]
+impl ZswapReader {
+	pub(crate) fn squeezed(ratio: f32) -> Self {
+		ZswapReader {
+			ratio: Some(ratio),
+			..ZswapReader::default()
+		}
+	}
+}
+
 impl ZswapReader {
 	/// "Zswap" or "Zram", for the tip.
 	pub fn name(&self) -> &'static str {
@@ -340,5 +362,60 @@ mod tests {
 			r.name()
 		);
 		assert!(r.ratio().is_none_or(|x| x > 0.0));
+	}
+
+	// Test ID: dehy3
+	#[test]
+	fn the_graph_gives_the_ratio_to_write_over_the_pool() {
+		use crate::Source;
+		use crate::config::Look;
+		use crate::render::Overlay;
+		let on = Tree::new(
+			"zswap_graph",
+			&[
+				("meminfo", MEMINFO_ZSWAP),
+				("zswap/enabled", "Y\n"),
+				("zswap/max_pool_percent", "20\n"),
+			],
+		);
+		assert!(!Look::default().show_zswap);
+		let look = Look {
+			show_zswap: true,
+			border: 1,
+			..Look::default()
+		};
+		let src = ZswapReader::probe_at(&roots(&on)).unwrap();
+		let mut g = crate::Graph::with(look.clone(), src);
+		let now = g.now();
+		g.hist.add(now - 60.0, now, &[0.25]);
+		assert_eq!(
+			g.overlay(64, 20, 1),
+			Some(Overlay {
+				text: "4.2x".into(),
+				color: look.zswap_ratio,
+				edge: look.bottom,
+				x: 1,
+				y: 1,
+				w: 62,
+				h: 18,
+			})
+		);
+		let o = g.overlay(128, 40, 2).unwrap();
+		assert_eq!((o.x, o.y, o.w, o.h), (2, 2, 124, 36));
+		assert_eq!(g.overlay(2, 20, 1), None);
+		let px = g.render(64, 20, 1).to_vec();
+		assert_eq!(px[18 * 64 + 60], look.zswap[0].argb());
+		let tip = g.hover_tip(60, 64, 20, 1);
+		assert!(tip.ends_with("\nZswap 25% used"), "{tip}");
+		let fire = Look::from_model(&crate::config::model("theme:\n\tname: fire\n"));
+		assert_eq!(
+			fire.zswap_paint(),
+			crate::render::Paint::Gradient(fire.zswap_gradient)
+		);
+		// an empty pool has no ratio to write
+		let empty = crate::Graph::with(look, ZswapReader::default());
+		assert_eq!(empty.tooltip(), "Zswap");
+		assert_eq!(empty.src.text(&[0.5]), "Zram 50% used");
+		assert_eq!(empty.overlay(64, 20, 1), None);
 	}
 }

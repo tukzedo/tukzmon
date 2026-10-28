@@ -39,10 +39,15 @@ pub enum Part {
 	Mem = 1,
 	Swap = 2,
 	Battery = 3,
-	Back = 4,
+	Zswap = 4,
+	Net = 5,
+	Load = 6,
+	Disk = 7,
+	Temp = 8,
+	Back = 9,
 }
 
-const GRAPHS: usize = 4;
+const GRAPHS: usize = 9;
 
 /// Every member of the theme group, by graph and role. A member missing here
 /// gets no random value, and `dice::tests::every_theme_member_has_a_role`
@@ -68,6 +73,36 @@ pub const ROLES: &[(&str, Part, Role)] = &[
 	("swap_low", Part::Swap, Role::Calm),
 	("swap_medium", Part::Swap, Role::Lead),
 	("swap_high", Part::Swap, Role::Tint),
+	("zswap_mode", Part::Zswap, Role::Mode),
+	("zswap_used", Part::Zswap, Role::Lead),
+	("zswap_ratio", Part::Zswap, Role::Tint),
+	("zswap_low", Part::Zswap, Role::Calm),
+	("zswap_medium", Part::Zswap, Role::Lead),
+	("zswap_high", Part::Zswap, Role::Tint),
+	("net_mode", Part::Net, Role::Mode),
+	("net_local", Part::Net, Role::Calm),
+	("net_sent", Part::Net, Role::Tint),
+	("net_received", Part::Net, Role::Lead),
+	("net_low", Part::Net, Role::Calm),
+	("net_medium", Part::Net, Role::Lead),
+	("net_high", Part::Net, Role::Tint),
+	("load_mode", Part::Load, Role::Mode),
+	("load_used", Part::Load, Role::Lead),
+	("load_low", Part::Load, Role::Calm),
+	("load_medium", Part::Load, Role::Lead),
+	("load_high", Part::Load, Role::Tint),
+	("disk_mode", Part::Disk, Role::Mode),
+	("disk_write", Part::Disk, Role::Tint),
+	("disk_read", Part::Disk, Role::Lead),
+	("disk_low", Part::Disk, Role::Calm),
+	("disk_medium", Part::Disk, Role::Lead),
+	("disk_high", Part::Disk, Role::Tint),
+	("temp_mode", Part::Temp, Role::Mode),
+	("temp_normal", Part::Temp, Role::Lead),
+	("temp_critical", Part::Temp, Role::Alarm),
+	("temp_low", Part::Temp, Role::Calm),
+	("temp_medium", Part::Temp, Role::Lead),
+	("temp_high", Part::Temp, Role::Tint),
 	("battery_mode", Part::Battery, Role::Mode),
 	("battery_charging", Part::Battery, Role::Lead),
 	("battery_discharging", Part::Battery, Role::Warn),
@@ -85,9 +120,9 @@ pub const ROLES: &[(&str, Part, Role)] = &[
 const LEAD_HUES: (f64, f64) = (75.0 / 360.0, 300.0 / 360.0);
 const ALARM_HUES: (f64, f64) = (-10.0 / 360.0, 2.0 / 360.0);
 const WARN_HUES: (f64, f64) = (18.0 / 360.0, 32.0 / 360.0);
-// The least gap between 2 graphs' lead hues. 4 of them at this gap leave
-// 90 degrees of the lead range to roll in.
-const LEAD_GAP: f64 = 45.0 / 360.0;
+// The least gap between 2 graphs' lead hues. 9 of them at this gap leave
+// 49 degrees of the lead range to roll in.
+const LEAD_GAP: f64 = 22.0 / 360.0;
 
 // splitmix64, so a seed always rolls the same theme
 struct Roll(u64);
@@ -290,7 +325,17 @@ mod tests {
 	use knobs::Value;
 	use tukzmon_core::config::{self, Rgb, THEME};
 
-	const PARTS: [Part; GRAPHS] = [Part::Cpu, Part::Mem, Part::Swap, Part::Battery];
+	const PARTS: [Part; GRAPHS] = [
+		Part::Cpu,
+		Part::Mem,
+		Part::Swap,
+		Part::Battery,
+		Part::Zswap,
+		Part::Net,
+		Part::Load,
+		Part::Disk,
+		Part::Temp,
+	];
 
 	fn hsv_of(text: &str) -> Hsv {
 		pick::from_rgb(Rgb::parse(text).unwrap(), Hsv::default())
@@ -357,6 +402,10 @@ mod tests {
 			let warn = role_of(&t, Part::Cpu, Role::Warn);
 			assert_eq!(
 				all_of(&t, Part::Battery, Role::Alarm),
+				all_of(&t, Part::Cpu, Role::Alarm)
+			);
+			assert_eq!(
+				all_of(&t, Part::Temp, Role::Alarm),
 				all_of(&t, Part::Cpu, Role::Alarm)
 			);
 			assert_eq!(
@@ -464,8 +513,8 @@ mod tests {
 			let leads = PARTS.map(|p| role_of(&t, p, Role::Lead).h);
 			for (i, a) in leads.iter().enumerate() {
 				for b in &leads[i + 1..] {
-					// 45 apart as rolled, less a little for the hex round trip
-					assert!(hue_gap(*a, *b) >= 40.0 / 360.0, "{seed} {leads:?}");
+					// 22 apart as rolled, less a little for the hex round trip
+					assert!(hue_gap(*a, *b) >= 17.0 / 360.0, "{seed} {leads:?}");
 				}
 			}
 			cpu = (cpu.0.min(leads[0]), cpu.1.max(leads[0]));

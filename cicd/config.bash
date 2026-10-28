@@ -95,6 +95,13 @@ SOAK_DIR="cicd/artifacts/soak"
 ## LeakSanitizer's suppressions. Prebuilt libraries only, by name.
 LSAN_SUPP="cicd/lsan.supp"
 
+## The Nix step: cicd/nix/check.bash in this image, as its root. The store is
+## a docker volume named for the image, kept between runs, since the first
+## build fetches about 5 GB. Past NIX_STORE_CAP_MB a run collects it down to
+## what it used.
+NIX_IMAGE="nixos/nix:2.35.4"
+NIX_STORE_CAP_MB=12000
+
 ## Rotated lint logs, gitignored. utility/lint-report.bash reads them.
 LINT_LOG_DIR="cicd/artifacts/lint"
 
@@ -121,3 +128,4 @@ CTR_NET_STEPS=(fStepAdvisories)
 ##		- 2026-10-25: The soak test.
 ##		- 2026-10-25: Packages: nfpm's pin, and where they go.
 ##		- 2026-10-25: The profiler.
+##		- 2026-10-28: The Nix step's image and store cap.

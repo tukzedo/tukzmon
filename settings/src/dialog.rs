@@ -738,7 +738,12 @@ mod tests {
 		// every graph the panel draws, so a new one can't be left off the list
 		assert_eq!(names(&dlg), tukzmon_core::graphs::draw_order(&[]));
 		assert!(dlg.set_text(ORDER, "mem, cpu"));
-		assert_eq!(names(&dlg), ["mem", "cpu", "swap", "battery"]);
+		assert_eq!(
+			names(&dlg),
+			[
+				"mem", "cpu", "net", "swap", "zswap", "load", "disk", "temp", "battery"
+			]
+		);
 		for id in [
 			"show_cpu",
 			"cpu_width",
@@ -766,20 +771,28 @@ mod tests {
 		let d = scratch("drag");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone());
-		assert!(!dlg.move_graph(0, 4));
+		assert!(!dlg.move_graph(0, 9));
 		assert!(!dlg.dirty());
 		assert!(dlg.move_graph(0, 1));
-		assert_eq!(dlg.state(ORDER).text, "mem cpu swap battery");
+		assert_eq!(
+			dlg.state(ORDER).text,
+			"mem cpu net swap zswap load disk temp battery"
+		);
 		dlg.apply().unwrap();
 		assert_eq!(
 			config::Look::load(&path).order,
-			["mem", "cpu", "swap", "battery"]
+			[
+				"mem", "cpu", "net", "swap", "zswap", "load", "disk", "temp", "battery"
+			]
 		);
 		assert!(dlg.move_graph(1, 0));
 		assert!(!dlg.state(ORDER).can_reset);
-		assert!(dlg.set_text(ORDER, "net mem cpu"));
+		assert!(dlg.set_text(ORDER, "nope mem cpu"));
 		assert!(dlg.move_graph(0, 1));
-		assert_eq!(dlg.state(ORDER).text, "cpu mem swap battery net");
+		assert_eq!(
+			dlg.state(ORDER).text,
+			"cpu mem net swap zswap load disk temp battery nope"
+		);
 	}
 
 	// Test ID: debjd
@@ -1062,7 +1075,7 @@ mod tests {
 		dlg.apply().unwrap();
 		let text = std::fs::read_to_string(&path).unwrap();
 		assert!(text.contains("name: night"), "{text}");
-		assert_eq!(text.matches("\"#").count(), 27, "{text}");
+		assert_eq!(text.matches("\"#").count(), 52, "{text}");
 		assert!(!text.contains("kept"), "{text}");
 		let dlg = Dialog::open(path.clone());
 		assert_eq!(dlg.state("theme").choice, "Night");
