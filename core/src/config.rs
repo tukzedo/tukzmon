@@ -344,6 +344,41 @@ impl Rgb {
 	}
 }
 
+/// Each graph's section and its main series, the color it reads as in
+/// Detailed. In Gradient that's its Medium. See design.md Theme.
+pub const LEADS: [(&str, &str); 10] = [
+	("cpu", "user"),
+	("mem", "mem_user"),
+	("net", "net_received"),
+	("swap", "swap_used"),
+	("zswap", "zswap_used"),
+	("load", "load_used"),
+	("disk", "disk_read"),
+	("temp", "temp_normal"),
+	("battery", "battery_charging"),
+	("self", "self_used"),
+];
+
+/// I/O wait and system, which every lead keeps clear of.
+pub const ALARMS: [&str; 2] = ["iowait", "system"];
+
+/// A theme's leads, in `LEADS` order, each in the mode the theme draws its
+/// graph in. `get` gives a theme member's value by its setting id.
+pub fn leads<'a>(get: impl Fn(&str) -> Option<&'a str>) -> Vec<Rgb> {
+	LEADS
+		.iter()
+		.filter_map(|(g, main)| {
+			let gradient = get(&format!("{g}_mode")).and_then(Mode::parse) == Some(Mode::Gradient);
+			let id = if gradient {
+				format!("{g}_medium")
+			} else {
+				(*main).to_string()
+			};
+			get(&id).and_then(Rgb::parse)
+		})
+		.collect()
+}
+
 #[derive(Clone, Debug, PartialEq)]
 #[allow(
 	clippy::struct_excessive_bools,
@@ -1137,6 +1172,44 @@ mod tests {
 				}
 			}
 		}
+	}
+
+	// Test ID: dejbr
+	#[test]
+	fn every_graph_leads_with_a_color_that_reads_apart() {
+		use crate::color::{APART, apart, closest};
+		let spec = spec();
+		for p in &spec.group(THEME).unwrap().presets {
+			let get = |id: &str| p.values.get(id).map(knobs::Value::as_text);
+			let leads = leads(get);
+			assert_eq!(leads.len(), LEADS.len(), "{}", p.key);
+			let (d, a, b) = closest(&leads).unwrap();
+			assert!(
+				d >= APART,
+				"{}: {} and {} are {d:.1} apart",
+				p.key,
+				LEADS[a].0,
+				LEADS[b].0
+			);
+			for alarm in ALARMS {
+				let c = Rgb::parse(get(alarm).unwrap()).unwrap();
+				for (lead, (g, _)) in leads.iter().zip(LEADS) {
+					let d = apart(*lead, c);
+					assert!(d >= APART, "{}: {g} is {d:.1} from {alarm}", p.key);
+				}
+			}
+		}
+		// a gradient's lead is its Medium
+		let one = |mode: &'static str| {
+			move |id: &str| match id {
+				"cpu_mode" => Some(mode),
+				"cpu_medium" => Some("#010203"),
+				"user" => Some("#040506"),
+				_ => Some("#000000"),
+			}
+		};
+		assert_eq!(leads(one("gradient"))[0], Rgb(1, 2, 3));
+		assert_eq!(leads(one("detailed"))[0], Rgb(4, 5, 6));
 	}
 
 	// Test ID: dedqf

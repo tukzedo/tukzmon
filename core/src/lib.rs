@@ -6,6 +6,7 @@
 pub mod axis;
 pub mod battery;
 pub mod collect;
+pub mod color;
 pub mod config;
 pub mod cpu;
 pub mod disk;

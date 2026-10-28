@@ -146,7 +146,11 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - Every color is in one knobs preset group, `theme`, picked with the Name dropdown on the Themes tab, at `theme.name`, and so is each graph's mode. The built-in themes are in `core/src/settings.shcl`: Default, Primary, Pastel, Neon, Earth and Fire.
 	- One theme colors every graph, so no graph picks its own. A theme has a value for every graph's colors and mode, and picking one changes every sub-tab.
-	- A theme's name says nothing of color. Each graph has a hue of its own in every theme, so graphs side by side are told apart. A graph's quiet series and its gradient's Low are its hue, muted. The border and background are neutral, or lean to the theme's mood.
+	- A theme's name says nothing of color. Each graph has a lead color of its own in every theme, so graphs side by side are told apart. A graph's quiet series and its gradient's Low are its hue, muted. The border and background are neutral, or lean to the theme's mood.
+	- A graph's lead is the color it reads as from across the room: its main series in Detailed, such as user for CPU or received for the network, or its Medium in Gradient. `config::LEADS` lists them.
+		- In every built-in, any 2 graphs' leads are 10 or more apart as CIEDE2000, and every lead is 10 or more from I/O wait and system. At 10 or more 2 colors read apart at a glance.
+		- Hue angle alone doesn't do it. An equal step in hue looks far smaller among the greens than among the blues, and 10 graphs share what's left of the circle off red and orange. So leads also differ by lightness and saturation.
+		- The measure is in `core/src/color.rs`, checked against the test pairs Sharma, Wu and Dalal published with the formula. Randomize uses the same one.
 	- I/O wait and system stay red and orange in every theme but Default, so trouble reads the same whichever is picked. No graph's own hue is red or orange, except in Fire and Earth, where they're warm but not the alarms', and in Default.
 	- Default is b23's colors as of 2026-10-28: the earlier multiload-ng ones, with the changes made on them since. Where those break a rule the other built-ins keep, Default follows the colors picked.
 		- System is pink, `#fa72f0`, and the battery's on battery is copper, `#c46e43`, not system's color.
@@ -191,7 +195,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 - The battery graph's colors are on the Battery sub-tab: Plugged in, On battery and Critical, at `battery.colors.charging`, `.discharging` and `.critical`, plus its own Low, Medium and High. In every built-in, plugged in is a hue of the battery's own, and on battery and critical are the theme's system and I/O wait colors, except Default's on battery, so on battery reads as a warning and critical as an alarm. The gradient is the battery's own. Default's plugged in is lavender, `#b080ff`.
 	- The tip says plugged in rather than charging, since a full battery with the power in counts as charging.
 
-- The tukzmon graph's colors are on the tukzmon sub-tab: CPU use, at `self.colors.used`, plus its own Low, Medium and High. Default's is `#00ccb8`. Every built-in's lead for it is provisional, until backlog 2026102810142725 spaces all 10 graphs' leads apart.
+- The tukzmon graph's colors are on the tukzmon sub-tab: CPU use, at `self.colors.used`, plus its own Low, Medium and High. Default's is `#00ccb8`.
 	- The tip gives the share of all CPUs, then of one CPU, as top shows it, such as "tukzmon 0.014% of all CPUs" over "0.46% of one CPU". The share is often under 0.1%, so it has 2 figures or so, not whole percents.
 
 - Saved themes are kept whole in the config file, under `themes.<key>`, with a `name` and every color and mode by its setting id, the same shape as a built-in in settings.shcl. The dropdown lists them after the built-ins, and before Custom.
@@ -203,9 +207,11 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 - Transparent, on the Background sub-tab at `graph.transparent`, leaves out the Top and Bottom colors so the panel shows through. It's one setting for every theme, outside the `theme` group, so a theme pick, a roll or Save as doesn't touch it. The border, the series and the hover line stay opaque. Pixels are premultiplied, so a row a column only half fills is half clear.
 
 - Randomize rolls colors for every graph and sets them as changes on the theme in force, so the dropdown says "Name *". Save as keeps a roll, and picking a theme drops it. The rules are in `settings/src/dice.rs`.
-	- Each graph leads with a hue of its own, the user share for CPU, at any hue from yellow-green round to magenta, which keeps it off red and orange. The 9 lead hues are at least 22 degrees apart, in a random order. A graph's quiet colors and its gradient's Low are its hue muted, or one up to 30 degrees from it. The border and background are CPU's lead hue or nice's, darker and grayer.
+	- Each graph leads with a hue of its own, the user share for CPU, at any hue from yellow-green round to magenta, which keeps it off red and orange. The 10 lead hues are at least 22 degrees apart, in a random order. A graph's quiet colors and its gradient's Low are its hue muted, or one up to 30 degrees from it. The border and background are CPU's lead hue or nice's, darker and grayer.
 	- I/O wait stays red and system orange, as in the built-ins, since those are the ones to watch. Every color softens together, from as bright as Primary to as pale as Pastel.
-	- Every graph shares one saturation and brightness, so a roll reads as one set and only the hues differ.
+	- Every graph leads at one saturation and brightness, so a roll reads as one set.
+		- Where 2 leads would still look alike, or a lead would look like I/O wait or system, one of them steps darker or paler, until every 2 are 10 or more apart as the built-ins are. CPU's lead never steps, since the rest fit round it. A graph that steps paler takes its quiet colors and tint along, and one that steps darker keeps its quiet colors clear of the background.
+		- A roll tries up to 16 hue draws for that, the same ones for the same seed. Over 10,000 seeds every roll found one.
 	- A roll is always Detailed. Each graph's gradient runs from its quiet color through its lead to a pale tint, like the built-ins', so it's ready if Gradient is picked. The hover line stays black.
 	- Buffers has a role of its own. It's muted like cache, but on the other side of the lead hue and at least 30 degrees from cache, so that way the 2 are told apart.
 	- Every theme member needs a role in `dice::ROLES`. A new graph's members fail `dice::tests::every_theme_member_has_a_role` until they get one, such as buffers and cache as muted ones.

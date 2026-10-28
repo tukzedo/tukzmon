@@ -6,6 +6,7 @@
 // kept red and orange like every built-in. See design.md Theme.
 
 use crate::pick::{self, Hsv};
+use tukzmon_core::color::{APART, Lab, ciede2000};
 
 /// What a theme member is for, which sets how its color is picked.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -128,6 +129,8 @@ const WARN_HUES: (f64, f64) = (18.0 / 360.0, 32.0 / 360.0);
 // The least gap between 2 graphs' lead hues. 10 of them at this gap leave
 // 27 degrees of the lead range to roll in.
 const LEAD_GAP: f64 = 22.0 / 360.0;
+// Hue draws tried for leads that all read apart, before settling for the last.
+const TRIES: usize = 16;
 
 // splitmix64, so a seed always rolls the same theme
 struct Roll(u64);
@@ -177,6 +180,65 @@ fn lead_hues(r: &mut Roll) -> [f64; GRAPHS] {
 	h
 }
 
+// Where 2 leads would look alike, one of them steps darker or paler, tried
+// in this order. 10 hues share too little of the circle to read apart by hue
+// alone, most of all when pale.
+fn step(n: usize, s: f64, v: f64) -> (f64, f64) {
+	match n {
+		0 => (s, v),
+		1 => ((s * 1.1).min(1.0), v * 0.72),
+		_ => (s * 0.6, 1.0),
+	}
+}
+
+const STEPS: usize = 3;
+
+// Depth first over the graphs in `Part` order, CPU first.
+fn place(
+	g: usize,
+	pick: &mut [usize; GRAPHS],
+	fits: &dyn Fn(&[usize; GRAPHS], usize, usize) -> bool,
+) -> bool {
+	if g == GRAPHS {
+		return true;
+	}
+	let choices = if g == Part::Cpu as usize { 1 } else { STEPS };
+	for n in 0..choices {
+		if fits(pick, g, n) {
+			pick[g] = n;
+			if place(g + 1, pick, fits) {
+				return true;
+			}
+		}
+	}
+	false
+}
+
+// Each graph's step, or None when no choice reads apart from the rest and
+// from the alarms. CPU's lead is the roll's own, and the rest fit round it.
+fn steps(hues: &[f64; GRAPHS], s: f64, v: f64, alarms: &[Lab]) -> Option<[usize; GRAPHS]> {
+	let lab = |g: usize, n: usize| {
+		let (s, v) = step(n, s, v);
+		Lab::of(pick::to_rgb(Hsv { h: hues[g], s, v }))
+	};
+	let labs: Vec<Lab> = (0..GRAPHS * STEPS)
+		.map(|i| lab(i / STEPS, i % STEPS))
+		.collect();
+	let clear: Vec<bool> = labs
+		.iter()
+		.map(|c| alarms.iter().all(|a| ciede2000(*c, *a) >= APART))
+		.collect();
+	let near: Vec<bool> = (0..labs.len() * labs.len())
+		.map(|i| ciede2000(labs[i / labs.len()], labs[i % labs.len()]) < APART)
+		.collect();
+	let at = |g: usize, n: usize| g * STEPS + n;
+	let fits = |pick: &[usize; GRAPHS], g: usize, n: usize| {
+		clear[at(g, n)] && (0..g).all(|o| !near[at(g, n) * labs.len() + at(o, pick[o])])
+	};
+	let mut pick = [0; GRAPHS];
+	place(0, &mut pick, &fits).then_some(pick)
+}
+
 /// One graph's colors.
 #[derive(Clone, Copy, Debug)]
 struct Hues {
@@ -207,8 +269,9 @@ impl Scheme {
 }
 
 // `soft` runs from the standard themes at 0 to the pastel ones at 1, and the
-// numbers at each end are the built-ins'. Every graph shares the saturation
-// and brightness, so they read as one set, and only the hues differ.
+// numbers at each end are the built-ins'. Every graph leads at one saturation
+// and brightness, so they read as one set, unless it steps darker or paler to
+// read apart.
 fn scheme(seed: u64) -> Scheme {
 	let mut r = Roll(seed);
 	let soft = r.unit();
@@ -216,34 +279,6 @@ fn scheme(seed: u64) -> Scheme {
 	let v = r.within((0.85, 1.0));
 	let calm_s = s * r.within((0.55, 0.75));
 	let calm_v = lerp(0.37, 0.54, soft) * r.within((0.9, 1.1));
-	let hues = lead_hues(&mut r);
-	let mut calm_hs = [0.0; GRAPHS];
-	let graphs = std::array::from_fn(|i| {
-		let h = hues[i];
-		// analogous, up to 30 degrees off the lead
-		let calm_h = h + r.within((-1.0 / 12.0, 1.0 / 12.0));
-		calm_hs[i] = calm_h;
-		// mirrored, and pushed out so it's 30 degrees or more from calm
-		let off = calm_h - h;
-		Hues {
-			lead: Hsv { h, s, v },
-			calm: Hsv {
-				h: calm_h,
-				s: calm_s,
-				v: calm_v,
-			},
-			hush: Hsv {
-				h: (h - off.signum() * (1.0 / 12.0 - off.abs() / 2.0)).rem_euclid(1.0),
-				s: calm_s,
-				v: (calm_v * 1.2).min(v * 0.7),
-			},
-			tint: Hsv {
-				h,
-				s: s * 0.25,
-				v: 1.0,
-			},
-		}
-	});
 	let alarm = Hsv {
 		h: r.within(ALARM_HUES).rem_euclid(1.0),
 		s: lerp(1.0, 0.62, soft) * r.within((0.95, 1.0)),
@@ -254,6 +289,52 @@ fn scheme(seed: u64) -> Scheme {
 		s: lerp(1.0, 0.53, soft) * r.within((0.95, 1.0)),
 		v: lerp(0.78, 0.94, soft) * r.within((0.95, 1.05)),
 	};
+	let alarms = [alarm, warn].map(|c| Lab::of(pick::to_rgb(c)));
+	let mut hues = lead_hues(&mut r);
+	let mut picked = steps(&hues, s, v, &alarms);
+	for _ in 1..TRIES {
+		if picked.is_some() {
+			break;
+		}
+		hues = lead_hues(&mut r);
+		picked = steps(&hues, s, v, &alarms);
+	}
+	let picked = picked.unwrap_or_default();
+	let mut calm_hs = [0.0; GRAPHS];
+	let graphs = std::array::from_fn(|i| {
+		let h = hues[i];
+		let (lead_s, lead_v) = step(picked[i], s, v);
+		// a graph that stepped paler takes its other colors along, and one
+		// that stepped darker keeps its quiet ones clear of the background
+		let (ks, kv) = (lead_s / s, (lead_v / v).max(1.0));
+		// analogous, up to 30 degrees off the lead
+		let calm_h = h + r.within((-1.0 / 12.0, 1.0 / 12.0));
+		calm_hs[i] = calm_h;
+		// mirrored, and pushed out so it's 30 degrees or more from calm
+		let off = calm_h - h;
+		Hues {
+			lead: Hsv {
+				h,
+				s: lead_s,
+				v: lead_v,
+			},
+			calm: Hsv {
+				h: calm_h,
+				s: calm_s * ks,
+				v: (calm_v * kv).min(lead_v * 0.62),
+			},
+			hush: Hsv {
+				h: (h - off.signum() * (1.0 / 12.0 - off.abs() / 2.0)).rem_euclid(1.0),
+				s: calm_s * ks,
+				v: (calm_v * 1.2 * kv).min(lead_v * 0.72),
+			},
+			tint: Hsv {
+				h,
+				s: lead_s * 0.25,
+				v: 1.0,
+			},
+		}
+	});
 	// the background takes CPU's lead hue or its calm one
 	let cpu = Part::Cpu as usize;
 	let back_h = if r.unit() < 0.5 {
@@ -433,7 +514,8 @@ mod tests {
 						"{seed} {part:?} {lead:?} {a:?}"
 					);
 				}
-				assert!(lead.v >= 0.84, "{seed} {part:?} {lead:?}");
+				// 0.85 at least, or 0.72 of that where a lead steps darker
+				assert!(lead.v >= 0.6, "{seed} {part:?} {lead:?}");
 			}
 		}
 	}
@@ -527,6 +609,26 @@ mod tests {
 		}
 		// the order is shuffled, so CPU isn't stuck at one end of the range
 		assert!(cpu.0 < 90.0 / 360.0 && cpu.1 > 285.0 / 360.0, "{cpu:?}");
+	}
+
+	// Test ID: dejbv
+	#[test]
+	fn every_roll_leads_each_graph_with_a_color_that_reads_apart() {
+		use tukzmon_core::color::{apart, closest};
+		for seed in SEEDS {
+			let t = theme(seed);
+			let get = |id: &str| t.iter().find(|(i, _)| *i == id).map(|(_, v)| v.as_str());
+			let leads = config::leads(get);
+			assert_eq!(leads.len(), GRAPHS);
+			let (d, a, b) = closest(&leads).unwrap();
+			assert!(d >= APART, "{seed}: {a} and {b} are {d:.1} apart");
+			for alarm in config::ALARMS {
+				let c = Rgb::parse(get(alarm).unwrap()).unwrap();
+				for lead in &leads {
+					assert!(apart(*lead, c) >= APART, "{seed} {alarm} {lead:?}");
+				}
+			}
+		}
 	}
 
 	// Test ID: decdx
