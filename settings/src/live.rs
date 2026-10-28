@@ -337,16 +337,18 @@ mod tests {
 		));
 		let mut d = Dialog::open(path);
 		let mut live = Live::new(d.look());
-		assert!(live.tick() <= 500);
+		// a beat due a little early counts as now, so the next is a rate on
+		let within = |rate: u32| f64::from(rate) + tukzmon_core::EARLY_MS;
+		assert!(f64::from(live.tick()) <= within(500));
 		// not applied, and still read that way
 		d.set("sample_ms", &Value::Float(5000.0));
 		live.set_look(&d.look());
 		assert_eq!(live.cpu.sample_ms(), 5000);
-		assert!(live.tick() <= 5000);
+		assert!(f64::from(live.tick()) <= within(5000));
 		d.set("cpu_sample_ms", &Value::Float(100.0));
 		live.set_look(&d.look());
 		assert_eq!(live.cpu.sample_ms(), 100);
-		assert!(live.tick() <= 100);
+		assert!(f64::from(live.tick()) <= within(100));
 		// back to Default
 		d.set("cpu_sample_ms", &Value::Float(0.0));
 		live.set_look(&d.look());
