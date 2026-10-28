@@ -25,7 +25,7 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
 	- ID: 2026102620162196
 	- Type: Bug
-	- Status: Waiting for answers
+	- Status: Queued
 		- Waits on the 2026102620162196 question in questions.md: should a still pointer's tip hold the column under it, as now, or the moment it first pointed at.
 	- Priority|Severity: High
 	- Opened: 20261026-201621
@@ -40,11 +40,12 @@ Sorted per the notes in [Template](#template).
 		- The tip is asked again each tick, so nothing is stale. The round-1024 test panel saw the age count, likely because its history was only seconds old, and a log axis stretches as its history grows.
 	- Progress log:
 		- No code change yet, since a fix means picking what the line and tip follow.
+	- 2026-10-28 answer: A. Keep the line and tip on the column under the pointer. Add a line to design.md, Drawing, on why a still pointer's age holds, and a test that pins it.
 
 - Graph sizes on a vertical panel
 	- ID: 2026102621105420
 	- Type: Enhancement
-	- Status: Waiting for answers
+	- Status: Queued
 		- Waits on the question about the Width settings on a vertical panel.
 	- Priority|Severity: Avg
 	- Opened: 20261026-211054
@@ -55,6 +56,7 @@ Sorted per the notes in [Template](#template).
 		- On a vertical panel, the Width settings either do something, or say they don't.
 	- Progress log:
 		- Each graph there is as wide as the panel and half that tall, and the Width tip still says "Its height follows the panel".
+	- 2026-10-28 answer: B. On a vertical panel or a deskbar, a graph's width setting is its height, as multiload-ng's Size does. The time axis still runs across the panel. dedq2's even-share line changes.
 
 - Theme presets, with a coordinated Default
 	- ID: 2026102409400679
@@ -499,7 +501,7 @@ Sorted per the notes in [Template](#template).
 - Live graph list on the first settings tab
 	- ID: 2026102408304639
 	- Type: Feature
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: High
 	- Opened: 20261024-082803
 	- Opened by: t00mietum
@@ -515,6 +517,8 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Split into 6 children, in this order: 2026102508393152 (on or off and a width per graph), 2026102508393154 (order), 2026102508393156 (time function per graph), 2026102508393159 (theme per graph), 2026102508393161 (the list itself), and 2026102508393163 (live graphs in it).
 		- 2026-10-25: no theme dropdown per graph after all. One theme colors every graph, per the answer on 2026102508393159.
+	- Test case: its children's tests: dedqd, dedqe, dedqp, dedqq, deea2, deea4, dee9p, dee9q, defkz, defm0, defmj and defmk.
+	- 2026-10-28: closed, since all 6 children are Done.
 
 - Pre-next-cut: Empty checkboxes need to be more visible
 	- ID: 2026102807585000
