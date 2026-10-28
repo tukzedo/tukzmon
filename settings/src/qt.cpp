@@ -32,6 +32,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
+#include <QProxyStyle>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QScreen>
@@ -99,8 +100,33 @@ protected:
 	}
 };
 
+// Some dark themes draw an empty checkbox with an edge close to the window
+// color, so it all but vanishes. An edge in the text color, a little faded,
+// shows in a light theme and a dark one.
+class BoxStyle : public QProxyStyle {
+public:
+	void drawPrimitive(PrimitiveElement pe, const QStyleOption *opt, QPainter *p, const QWidget *w) const override {
+		QProxyStyle::drawPrimitive(pe, opt, p, w);
+		if (pe != PE_IndicatorCheckBox && pe != PE_IndicatorRadioButton)
+			return;
+		QColor edge = opt->palette.color(QPalette::WindowText);
+		edge.setAlphaF(0.6f);
+		p->save();
+		p->setRenderHint(QPainter::Antialiasing);
+		p->setPen(QPen(edge, 1));
+		p->setBrush(Qt::NoBrush);
+		const QRectF r = QRectF(opt->rect).adjusted(0.5, 0.5, -0.5, -0.5);
+		if (pe == PE_IndicatorRadioButton)
+			p->drawEllipse(r);
+		else
+			p->drawRoundedRect(r, 2, 2);
+		p->restore();
+	}
+};
+
 constexpr int SLIDER_STEPS = 1000;
-constexpr int HEAD_GAP = 10;
+constexpr int HEAD_GAP = 22;
+constexpr int BUTTON_GROW = 8;
 
 // QScrollArea's own hint stops at about 24 lines, so a tall tab opened with a
 // scroll bar it had no need for.
@@ -621,12 +647,15 @@ public:
 		buttons->addSpacing(gap);
 		buttons->addWidget(closeButton);
 		bottom = {resetButton, cancel, applyButton, closeButton};
+		for (auto *b : bottom)
+			b->setMinimumHeight(b->sizeHint().height() + BUTTON_GROW);
 
 		auto *body = new QHBoxLayout;
 		body->addWidget(tabList);
 		body->addWidget(pages, 1);
 		auto *outer = new QVBoxLayout(this);
 		outer->addLayout(body, 1);
+		outer->addSpacing(HEAD_GAP / 2);
 		outer->addLayout(buttons);
 
 		tabList->setCurrentRow(0);
@@ -683,6 +712,19 @@ public:
 			out.push_back(b->text().toStdString());
 		return out;
 	}
+	// the first color box, or the first whole number box at 10 or more that
+	// isn't greyed
+	QWidget *firstBox(bool number) const {
+		for (auto &r : rows) {
+			if (number && r->spin && r->spin->isEnabled() && r->info.whole && r->spin->value() >= 10)
+				return r->spin;
+			if (!number && r->chip)
+				return r->line;
+		}
+		return nullptr;
+	}
+	bool applyOn() const { return applyButton->isEnabled(); }
+	void commitTyped() { takeTyped(); }
 	bool isLeaf(int i) const { return leaf[size_t(i)]; }
 	void select(int i) { tabList->setCurrentRow(i); }
 	std::unique_ptr<ColorPicker> firstPicker() {
@@ -949,6 +991,8 @@ private:
 			set_number(d, r.id(), v);
 			refresh();
 		});
+		// with keyboard tracking off, the box itself says nothing until it's left
+		connect(spin->findChild<QLineEdit *>(), &QLineEdit::textEdited, this, [this] { updateApply(); });
 		return spin;
 	}
 
@@ -1021,6 +1065,7 @@ private:
 			set_text(d, r.id(), r.line->text().toStdString());
 			refresh();
 		});
+		connect(r.line, &QLineEdit::textEdited, this, [this] { updateApply(); });
 		if (c != "color")
 			return r.line;
 
@@ -1124,7 +1169,43 @@ private:
 		refresh();
 	}
 
+	// a box still being typed in, which counts as a change before it's left
+	bool typing() const {
+		for (auto &r : rows) {
+			if (r->line && r->line->isModified())
+				return true;
+			if (r->spin && r->spin->text() != r->spin->textFromValue(r->spin->value()))
+				return true;
+		}
+		return false;
+	}
+
+	void updateApply() {
+		// the number boxes set their range before the button is made
+		if (applyButton)
+			applyButton->setEnabled(is_dirty(d) || typing());
+	}
+
+	// Alt+A clicks Apply with the focus left in the box, so nothing else
+	// would take what was typed there.
+	void takeTyped() {
+		bool took = false;
+		for (auto &r : rows) {
+			if (r->line && r->line->isModified()) {
+				r->line->setModified(false);
+				set_text(d, r->id(), r->line->text().toStdString());
+				took = true;
+			}
+			// a changed value refreshes through valueChanged
+			if (r->spin)
+				r->spin->interpretText();
+		}
+		if (took)
+			refresh();
+	}
+
 	bool save() {
+		takeTyped();
 		if (!is_dirty(d))
 			return true;
 		auto err = apply(d);
@@ -1219,7 +1300,7 @@ private:
 			renameTheme->setEnabled(b.rename);
 			deleteTheme->setEnabled(b.remove);
 		}
-		applyButton->setEnabled(is_dirty(d));
+		updateApply();
 		resetButton->setEnabled(!reset_pending(d));
 	}
 };
@@ -1234,6 +1315,7 @@ std::int32_t run_dialog(Dialog &d, rust::Str snapshot) {
 	QApplication::setApplicationName("tukzmon-settings");
 	TipWrap tipWrap;
 	app.installEventFilter(&tipWrap);
+	app.setStyle(new BoxStyle);
 	Window w(d);
 	QSize size = w.sizeHint().expandedTo(QSize(560, 420));
 	if (const QScreen *screen = w.screen())
@@ -1328,6 +1410,73 @@ rust::Vec<rust::String> bottom_buttons(Dialog &d) {
 	for (auto &t : w.buttonTexts())
 		out.push_back(rust::String(t));
 	return out;
+}
+
+namespace {
+void press(QWidget *w, int key, const QString &text = QString()) {
+	QKeyEvent down(QEvent::KeyPress, key, Qt::NoModifier, text);
+	QKeyEvent up(QEvent::KeyRelease, key, Qt::NoModifier, text);
+	QApplication::sendEvent(w, &down);
+	QApplication::sendEvent(w, &up);
+}
+} // namespace
+
+rust::Vec<bool> apply_while_typing(Dialog &d, bool number) {
+	static int argc = 1;
+	static char name[] = "tukzmon-settings";
+	static char *argv[] = {name, nullptr};
+	qputenv("QT_QPA_PLATFORM", "offscreen");
+	QApplication app(argc, argv);
+	Window w(d);
+	QWidget *box = w.firstBox(number);
+	if (!box)
+		return {};
+	rust::Vec<bool> out;
+	out.push_back(w.applyOn());
+	// the last digit typed over with another, which stays in range
+	auto *spin = qobject_cast<QDoubleSpinBox *>(box);
+	const QString text = spin ? spin->text() : static_cast<QLineEdit *>(box)->text();
+	const QChar digit = text.back() == '1' ? '2' : '1';
+	press(box, Qt::Key_End);
+	press(box, Qt::Key_Backspace);
+	press(box, digit == '1' ? Qt::Key_1 : Qt::Key_2, digit);
+	out.push_back(w.applyOn());
+	w.commitTyped();
+	out.push_back(is_dirty(d));
+	return out;
+}
+
+double empty_box_contrast(bool dark) {
+	static int argc = 1;
+	static char name[] = "tukzmon-settings";
+	static char *argv[] = {name, nullptr};
+	qputenv("QT_QPA_PLATFORM", "offscreen");
+	QApplication app(argc, argv);
+	app.setStyle(new BoxStyle);
+	QPalette pal = app.palette();
+	// close to the dark themes where the box went missing
+	if (dark) {
+		pal.setColor(QPalette::Window, QColor("#2b2b2b"));
+		pal.setColor(QPalette::WindowText, QColor("#dcdcdc"));
+		pal.setColor(QPalette::Base, QColor("#2f2f2f"));
+		pal.setColor(QPalette::Text, QColor("#dcdcdc"));
+		pal.setColor(QPalette::Button, QColor("#353535"));
+	}
+	app.setPalette(pal);
+	QCheckBox box;
+	const QImage img = box.grab().toImage();
+	auto lum = [](QColor c) {
+		auto lin = [](double v) { return v <= 0.04045 ? v / 12.92 : std::pow((v + 0.055) / 1.055, 2.4); };
+		return 0.2126 * lin(c.redF()) + 0.7152 * lin(c.greenF()) + 0.0722 * lin(c.blueF());
+	};
+	const double back = lum(pal.color(QPalette::Window));
+	double best = 1;
+	for (int y = 0; y < img.height(); y++)
+		for (int x = 0; x < img.width(); x++) {
+			const double l = lum(img.pixelColor(x, y));
+			best = std::max(best, (std::max(l, back) + 0.05) / (std::min(l, back) + 0.05));
+		}
+	return best;
 }
 
 } // namespace tukzmon

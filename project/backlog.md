@@ -327,16 +327,6 @@ Sorted per the notes in [Template](#template).
 		- Each graph there is as wide as the panel and half that tall, and the Width tip still says "Its height follows the panel".
 	- 2026-10-28 answer: B. On a vertical panel or a deskbar, a graph's width setting is its height, as multiload-ng's Size does. The time axis still runs across the panel. dedq2's even-share line changes.
 
-- Pre-next-cut: Empty checkboxes need to be more visible
-	- ID: 2026102807585000
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-075850
-	- Opened by: t00mietum
-	- Requirements:
-		- Empty checkboxes need to be more visible (e.g. in dark mode).
-
 - Pre-next-cut: All monitor colors on one tab
 	- ID: 2026102807585010
 	- Type: Enhancement
@@ -393,17 +383,6 @@ Sorted per the notes in [Template](#template).
 		- Default enabled monitors: CPU, Memory, Swap
 	- Progress log:
 		- The current config is b23's `~/.config/tukzmon/tukzmon.shcl`, read by build defqn.
-
-- Pre-next-cut: Apply turns on while typing in a text box
-	- ID: 2026102814061801
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-140618
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304546
-	- Requirements:
-		- Enable "Apply" button after editing values in a text box, without having to tab out of it.
 
 - Pre-next-cut: Tab order follows the graph order
 	- ID: 2026102814061802
@@ -481,29 +460,6 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026102620162202
 	- Requirements:
 		- Reset history: Affect the live graphs in the taskbar immediately.
-
-- Pre-next-cut: More space between settings sections
-	- ID: 2026102814061808
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-140618
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304546, 2026102814061809
-	- Requirements:
-		- Add more vertical space between per-tab sections (between the bottom of the previous section and top of the next section's title).
-			- Also between the bottom of the last section, and the bottom buttons
-
-- Pre-next-cut: Taller bottom buttons
-	- ID: 2026102814061809
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-140618
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304546, 2026102814061808
-	- Requirements:
-		- Make the bottom buttons a little vertically taller.
 
 - Pre-next-cut: Zswap ratio moves to the tip
 	- ID: 2026102814061810
@@ -2362,6 +2318,79 @@ Sorted per the notes in [Template](#template).
 		- OK'd as proposed. `design.md` now lists it as settled.
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019
+
+- Pre-next-cut: Empty checkboxes need to be more visible
+	- ID: 2026102807585000
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261028-075850
+	- Opened by: t00mietum
+	- Requirements:
+		- Empty checkboxes need to be more visible (e.g. in dark mode).
+	- Progress log:
+		- An empty checkbox or radio button now gets an edge in the text color, a little faded, over what the style draws.
+		- Measured: an empty checkbox had a contrast of 1.65 with the window in the default light theme, under WCAG's 3 for a control's edge. It passes 3 now in a light theme and a dark one.
+	- Decisions:
+		- Radio buttons get the same edge, since they had the same faint one.
+		- Drawn over the style's own box, so the theme's look stays and only the edge is added.
+	- Branch: ui-batch
+	- Test case: `bridge::tests::an_empty_checkbox_stands_out_in_a_light_or_dark_theme` (dej8t). It fails with the edge taken out, at 1.65, and passes with it.
+		- Swept: every checkbox and radio button in the window goes through the one app style, the graph list's included.
+	- Closed: 20261028-142000
+
+- Pre-next-cut: Apply turns on while typing in a text box
+	- ID: 2026102814061801
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304546
+	- Requirements:
+		- Enable "Apply" button after editing values in a text box, without having to tab out of it.
+	- Progress log:
+		- Apply turns on at the first key typed into a text, color or number box. Apply, OK and Alt+A take what's typed.
+	- Decisions:
+		- The value still takes effect when the box is left, or at Apply. Taking it at every key would refresh the window and the live graphs on half-typed values.
+		- Alt+A leaves the focus in the box, so Apply reads every box still being typed in before it saves.
+	- Branch: ui-batch
+	- Test case: `bridge::tests::apply_turns_on_while_a_box_is_typed_in` (dej8s), for a color box and a number box. It fails with Apply left on the saved state alone, and passes now.
+		- Swept: every `QLineEdit` and `QDoubleSpinBox` row. The color picker's own boxes take effect at each key already.
+	- Closed: 20261028-142000
+
+- Pre-next-cut: More space between settings sections
+	- ID: 2026102814061808
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304546, 2026102814061809
+	- Requirements:
+		- Add more vertical space between per-tab sections (between the bottom of the previous section and top of the next section's title).
+			- Also between the bottom of the last section, and the bottom buttons
+	- Progress log:
+		- The gap above a section's title went from 10 px to 22, and the pages sit 11 px further from the bottom buttons.
+	- Branch: ui-batch
+	- Test case: None. It's a spacing. The Graph tab was checked in a snapshot.
+	- Closed: 20261028-142000
+
+- Pre-next-cut: Taller bottom buttons
+	- ID: 2026102814061809
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304546, 2026102814061808
+	- Requirements:
+		- Make the bottom buttons a little vertically taller.
+	- Progress log:
+		- The 4 bottom buttons are 8 px taller than the style draws them.
+	- Branch: ui-batch
+	- Test case: None. It's a size. The Graph tab was checked in a snapshot.
+	- Closed: 20261028-142000
 
 - CICD reset: CICD process gaps
 	- ID: 2026102416252898
