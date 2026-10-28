@@ -43,8 +43,8 @@ use zswap::ZswapReader;
 pub const FASTEST_MS: u32 = 50;
 
 /// A read due this soon counts as due now, since a timer may fire a little
-/// early.
-const EARLY_MS: f64 = 10.0;
+/// early. So the wait to the next read can be up to this much over the rate.
+pub const EARLY_MS: f64 = 10.0;
 
 /// Milliseconds on one clock that every graph's beats go by. See
 /// [`Graph::tick`].

@@ -422,20 +422,6 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Today both files stay. The plugin doesn't connect the panel's `remove` signal, and free-data saves history after it.
 
-- Bug: deja2 fails now and then
-	- ID: 2026102815185131
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261028-151851
-	- Opened by: t00mietum
-	- Related IDs: 2026102814061806
-	- Steps to reproduce:
-		- Run `live::tests::a_rows_sample_rate_picked_in_the_window_sets_when_it_reads` (deja2) a few times.
-	- Incorrect behavior: It failed once in the Nix package check, at `assert!(live.tick() <= 100)`, and passed on the next run.
-	- Expected behavior: It passes every time.
-	- Possible cause: `Graph::tick` counts a beat due within `EARLY_MS` (10 ms) as now, so the wait it gives can be up to the rate plus 10 ms. The test expects at most the rate.
-
 - Check whether XFCE 4.20 finds plugins under ~/.local
 	- ID: 2026102808222920
 	- Type: Task
@@ -2817,6 +2803,25 @@ Sorted per the notes in [Template](#template).
 		- A LAN and internet split is its own item, 2026101916274800.
 	- Test case: None, since it was a question. The network collector's tests will cover the answer.
 	- Closed: 20261019
+
+- Bug: deja2 fails now and then
+	- ID: 2026102815185131
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261028-151851
+	- Opened by: t00mietum
+	- Related IDs: 2026102814061806
+	- Steps to reproduce:
+		- Run `live::tests::a_rows_sample_rate_picked_in_the_window_sets_when_it_reads` (deja2) a few times.
+	- Incorrect behavior: It failed once in the Nix package check, at `assert!(live.tick() <= 100)`, and passed on the next run.
+	- Expected behavior: It passes every time.
+	- Possible cause: `Graph::tick` counts a beat due within `EARLY_MS` (10 ms) as now, so the wait it gives can be up to the rate plus 10 ms. The test expects at most the rate.
+	- Actual cause: the test, not the code. A beat due within `EARLY_MS` is read now, so the next is a whole rate after that beat, which is up to 10 ms more than the rate from now. The 500 and 5000 checks had the same gap.
+	- Actual fix: deja2 allows the rate plus `EARLY_MS`, now public in `tukzmon_core`, at all 3 checks.
+	- Branch: flaky-rate
+	- Test case: deja2 itself. It passed 8 runs in a row. `Graph::tick`'s early-timer case is pinned in dej9z.
+	- Closed: 20261028-154500
 
 - Settings rows that depend on a switch are never greyed
 	- ID: 2026102617084201
