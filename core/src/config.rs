@@ -1041,6 +1041,9 @@ mod tests {
 				"neon",
 				"earth",
 				"fire",
+				"terminal",
+				"vintage",
+				"frost",
 				"mine",
 				knobs::CUSTOM
 			]
@@ -1165,6 +1168,10 @@ mod tests {
 			]
 			.map(ramp);
 			// how far apart the leads look is dejbr's, by CIEDE2000, not hue angle
+			if ramps.iter().all(|r| *r == ramps[0]) {
+				// one color, like dejbw's
+				continue;
+			}
 			for a in 0..ramps.len() {
 				for b in a + 1..ramps.len() {
 					assert_ne!(ramps[a], ramps[b], "{} {a} {b}", p.key);
@@ -1184,8 +1191,9 @@ mod tests {
 			let leads = leads(get);
 			assert_eq!(leads.len(), LEADS.len(), "{}", p.key);
 			let (d, a, b) = closest(&leads).unwrap();
+			// a one-color theme leads every graph alike, on purpose (dejbw)
 			assert!(
-				d >= APART,
+				d >= APART || leads.iter().all(|c| *c == leads[0]),
 				"{}: {} and {} are {d:.1} apart",
 				p.key,
 				LEADS[a].0,
@@ -1210,6 +1218,50 @@ mod tests {
 		};
 		assert_eq!(leads(one("gradient"))[0], Rgb(1, 2, 3));
 		assert_eq!(leads(one("detailed"))[0], Rgb(4, 5, 6));
+	}
+
+	// Test ID: dejbw
+	#[test]
+	fn the_one_color_themes_lead_alike_and_keep_the_alarms() {
+		use crate::color::{APART, apart, closest};
+		let spec = spec();
+		let g = spec.group(THEME).unwrap();
+		let mut one_color = vec![];
+		for p in &g.presets {
+			let get = |id: &str| p.values.get(id).map(knobs::Value::as_text);
+			let leads = leads(get);
+			if leads.iter().any(|c| *c != leads[0]) {
+				continue;
+			}
+			one_color.push(p.key.as_str());
+			let rgb = |id: &str| Rgb::parse(get(id).unwrap()).unwrap();
+			let alarms = ALARMS.map(rgb);
+			assert!(apart(alarms[0], alarms[1]) >= APART, "{}", p.key);
+			for alarm in alarms {
+				assert!(apart(leads[0], alarm) >= APART, "{}", p.key);
+			}
+			// each graph's own colors read apart, and every color shows on the top
+			for ids in [
+				&["iowait", "system", "user", "nice"][..],
+				&["mem_user", "mem_buffers", "mem_cache"],
+				&["net_local", "net_sent", "net_received"],
+				&["disk_write", "disk_read"],
+				&["temp_normal", "temp_critical"],
+				&[
+					"battery_charging",
+					"battery_discharging",
+					"battery_critical",
+				],
+			] {
+				let colors: Vec<Rgb> = ids.iter().map(|id| rgb(id)).collect();
+				let (d, a, b) = closest(&colors).unwrap();
+				assert!(d >= APART, "{}: {} {} {d:.1}", p.key, ids[a], ids[b]);
+				for c in colors {
+					assert!(apart(c, rgb("back_top")) >= APART, "{} {c:?}", p.key);
+				}
+			}
+		}
+		assert_eq!(one_color, ["terminal", "vintage", "frost"]);
 	}
 
 	// Test ID: dedqf

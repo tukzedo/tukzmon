@@ -144,14 +144,14 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - Each color can be overridden in the settings window.
 
-- Every color is in one knobs preset group, `theme`, picked with the Name dropdown on the Themes tab, at `theme.name`, and so is each graph's mode. The built-in themes are in `core/src/settings.shcl`: Default, Primary, Pastel, Neon, Earth and Fire.
+- Every color is in one knobs preset group, `theme`, picked with the Name dropdown on the Themes tab, at `theme.name`, and so is each graph's mode. The built-in themes are in `core/src/settings.shcl`: Default, Primary, Pastel, Neon, Earth, Fire, Terminal, Vintage and Frost.
 	- One theme colors every graph, so no graph picks its own. A theme has a value for every graph's colors and mode, and picking one changes every sub-tab.
-	- A theme's name says nothing of color. Each graph has a lead color of its own in every theme, so graphs side by side are told apart. A graph's quiet series and its gradient's Low are its hue, muted. The border and background are neutral, or lean to the theme's mood.
+	- A theme's name says nothing of color. Each graph has a lead color of its own in every theme but the one-color ones, so graphs side by side are told apart. A graph's quiet series and its gradient's Low are its hue, muted. The border and background are neutral, or lean to the theme's mood.
 	- A graph's lead is the color it reads as from across the room: its main series in Detailed, such as user for CPU or received for the network, or its Medium in Gradient. `config::LEADS` lists them.
-		- In every built-in, any 2 graphs' leads are 10 or more apart as CIEDE2000, and every lead is 10 or more from I/O wait and system. At 10 or more 2 colors read apart at a glance.
+		- In every built-in but the one-color ones, any 2 graphs' leads are 10 or more apart as CIEDE2000. In every built-in, every lead is 10 or more from I/O wait and system. At 10 or more 2 colors read apart at a glance.
 		- Hue angle alone doesn't do it. An equal step in hue looks far smaller among the greens than among the blues, and 10 graphs share what's left of the circle off red and orange. So leads also differ by lightness and saturation.
 		- The measure is in `core/src/color.rs`, checked against the test pairs Sharma, Wu and Dalal published with the formula. Randomize uses the same one.
-	- I/O wait and system stay red and orange in every theme but Default, so trouble reads the same whichever is picked. No graph's own hue is red or orange, except in Fire and Earth, where they're warm but not the alarms', and in Default.
+	- I/O wait and system stay red and orange in every theme but Default, so trouble reads the same whichever is picked. No graph's own hue is red or orange, except in Fire, Earth and Vintage, where they're warm but not the alarms', and in Default.
 	- Default is b23's colors as of 2026-10-28: the earlier multiload-ng ones, with the changes made on them since. Where those break a rule the other built-ins keep, Default follows the colors picked.
 		- System is pink, `#fa72f0`, and the battery's on battery is copper, `#c46e43`, not system's color.
 		- Swap, zswap, load and temperature draw as gradients. Load's is dark red, and temperature's runs from teal through yellow to red.
@@ -159,6 +159,9 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 		- The network's local and sent, and the disk's written, are colors of their own, not shades of the lead.
 		- The border and the top are gray, `#8b8b8b` and `#313131`.
 		- Programs on the memory graph moved from `#ffff80` to `#ffffa3`, the least change that reads apart from temperature's yellow.
+	- Terminal, Vintage and Frost are one-color themes: a green phosphor screen, an amber one, and pale ice. Every graph has the same colors in them, so graphs are told apart by place and by the gap between them, as on a one-color multiload-ng setup.
+		- 10 graphs can't sit 10 apart by lightness alone, so these are let off the check on leads. A theme whose graphs all lead with one color is one of them, and only that lets a theme off.
+		- I/O wait and system stay red and orange, 10 or more from the lead and from each other, so trouble still reads. Each graph's own colors are 10 or more apart, and from the top.
 	- Each color row's default is Default's color, so Custom starts from it. `config::tests::the_default_theme_is_the_row_defaults` holds the two together.
 	- A color changed on a theme is kept apart from it, and the dropdown says "Name *", the way SilkTerm's does. Picking another theme drops those changes.
 	- knobs reads a color line at its own path as the Custom set. A file with colors and no theme line reads as Custom, so a hand edit or an older file isn't hidden under Default. A save names the theme whenever Custom colors are stored, even Default, or the file would read back as Custom.

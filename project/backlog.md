@@ -31,7 +31,7 @@ Sorted per the notes in [Template](#template).
 		- It departs from the wording in one way. b23's file sets 2 colors with no theme line, so it opens as Custom, with exactly the colors it has now. Picking Default there gives the coordinated set.
 		- Stand-in, 2026-10-25, build deea9: each built-in theme drew both graphs in a test panel, and a pick took effect at once. Only the look is left.
 		- Measured 2026-10-28, round-1028 at 17d3d9d, as CIEDE2000: in every built-in, a graph's own colors sit 10.8 or more apart, I/O wait and system 24 or more from every graph's lead, and every color 16.6 or more from the background, except one. Default's nice and Low, `#205f40`, sit 5.1 from the top, `#2a543f`. They were 7.1 from multiload-ng's top, `#2a5446`, before Default moved it. That and the look are left for a person.
-		- Measured again 2026-10-28, branch theme-colors, after 2026102814061803 and 2026102810142725: in every built-in, any 2 graphs' leads sit 10.4 or more apart, a graph's own colors 10.8 or more, I/O wait and system 14.2 or more from every lead, 21.7 outside Default, every color 15.8 or more from the background, and each gradient step 11.4 or more. Default's nice now sits 24.4 from its gray top, `#313131`. Only the look is left.
+		- Measured again 2026-10-28, branch theme-colors, after 2026102814061803, 2026102810142725 and 2026102807585040: any 2 graphs' leads sit 10.4 or more apart in every built-in but the one-color ones, where all are alike on purpose. In every built-in, a graph's own colors sit 10.6 or more apart, I/O wait and system 14.2 or more from every lead, 21.7 outside Default, every color 15.8 or more from the background, and each gradient step 10.6 or more. Default's nice now sits 24.4 from its gray top, `#313131`. Only the look is left.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
 	- Needs hand testing: on b23, after a panel restart, pick each theme on the Themes tab, Apply, and judge how it looks on the panel graph, Default most of all.
 	- Stand-in: none (20261028). Turns on how the themes look, and the numbers are in the status row.
@@ -108,7 +108,7 @@ Sorted per the notes in [Template](#template).
 		- It departs from the wording in one way. Randomize still gives every graph the same lead hue. That part is child 2026102621562349.
 		- Stand-in, 2026-10-26, build defyt: in the window Fire drew CPU red and brown, memory violet and swap blue, and with b23's settings a test panel drew CPU, memory and swap apart on Default. Only the look is left.
 		- 2026-10-28: with 9 graphs now, some leads nearly match in every built-in but Fire, and in most rolls. That part is child 2026102810142725, a Bug.
-		- 2026-10-28: 2026102810142725 is fixed. As CIEDE2000, any 2 leads sit 10.4 or more apart in every built-in, and 10.0 or more in every roll over 10,000 seeds.
+		- 2026-10-28: 2026102810142725 is fixed. As CIEDE2000, any 2 leads sit 10.4 or more apart in every built-in, and 10.0 or more in every roll over 10,000 seeds. The one-color themes from 2026102807585040 give every graph one color on purpose.
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Needs hand testing: on b23, after an install, with swap on, pick each built-in theme on the Themes tab, Apply, and judge whether CPU, memory and swap read apart and look good together, Fire most of all.
 	- Stand-in: none (20261028). Turns on how it looks. What can be measured is checked by dejbr and dejbv, from child 2026102810142725.
@@ -221,6 +221,39 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: defq5, dej0v and dejab read swap's, temperature's and zswap's series colors, which Default now draws as gradients, so their looks set those graphs to Detailed.
 		- 2026-10-28: defx7 no longer checks the hue angle between leads. dejbr, from 2026102810142725, checks how far apart they look instead.
 		- Swept: every test that reads a Default color or mode, in core, settings and xfce, every row default, which deccf holds to Default, and every mention of Default's colors in `design.md` and `settings.shcl`.
+
+- Pre-next-cut: Monochromatic themes
+	- ID: 2026102807585040
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- How the 3 themes look on the panel is for a person to judge.
+		- Measured 2026-10-28 as CIEDE2000: in all 3, I/O wait and system sit 13.0 or more apart and 24.9 or more from the lead, each graph's own colors 10.6 or more apart, and every color 21.0 or more from the top. Vintage's I/O wait and system are the closest pair.
+	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
+	- Needs hand testing: on b23, after an install and a panel restart, pick Terminal, Vintage and Frost on the Themes tab in turn, Apply, and judge each on the panel.
+	- Priority|Severity: Avg
+	- Opened: 20261028-075850
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304612, 2026102620162201, 2026102810142725
+	- Requirements:
+		- Themes: include some monochromatic themes.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- 3 one-color built-ins, after Fire in the list: Terminal, a green phosphor `#33ff33` on near black, Vintage, an amber `#ffae00` on dark brown, and Frost, a pale ice `#bfeaff` on blue-gray.
+		- In each, every graph has the same colors: the lead, a dark shade of it for nice, cache, local and Low, a middle shade for buffers, and a pale tint for sent, written and High.
+		- I/O wait and system stay red and orange. Vintage's system is a redder orange, `#ff6000`, so that way it stays clear of the amber.
+		- `design.md` Theme has the details.
+		- Verified: the settings window showed Terminal's CPU sub-tab with its colors.
+	- Decisions:
+		- 3 themes, one per classic screen color plus a cool one, so the list grows from 6 to 9.
+		- Names with no color word, which defx7 checks: Terminal, Vintage and Frost. "Amber" and "Phosphor" were passed over, the first being a color.
+		- One color for every graph, rather than 10 shades of it. 10 shades can't sit 10 apart as CIEDE2000 by lightness alone, and shades a little apart would only look like a mistake. Graphs are told apart by place, as on a one-color multiload-ng setup.
+		- So these themes are let off dejbr's check on leads, and defx7's on distinct gradients. What lets a theme off is that all 10 of its leads are one color, so no list of names is kept, and a theme with only some leads alike still fails.
+		- They still keep every lead 10 or more from I/O wait and system, as every built-in does.
+	- Branch: theme-colors
+	- Test case: `config::tests::the_one_color_themes_lead_alike_and_keep_the_alarms` (dejbw). It fails with the 3 themes left out, and passes now.
+		- 2026-10-28: new values only. decct lists `terminal`, `vintage` and `frost` after `fire`. In `dialog::tests`, deccy finds a saved theme after 9 built-ins, not 6, and decd0 and decd1 count 11 and 12 themes, not 8 and 9.
+		- Swept: every test that counts or lists the built-ins, and every list of built-in names in `design.md`, `settings.shcl` and qt.cpp, which has none.
 
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
@@ -377,17 +410,6 @@ Sorted per the notes in [Template](#template).
 			- Global outline color override
 			- Global background colors override
 				- Global transparent override.
-
-- Pre-next-cut: Monochromatic themes
-	- ID: 2026102807585040
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-075850
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304612, 2026102620162201
-	- Requirements:
-		- Themes: include some monochromatic themes.
 
 - Pre-next-cut: Less CPU used by tukzmon
 	- ID: 2026102814061812
