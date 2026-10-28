@@ -16,6 +16,7 @@ use crate::load::LoadReader;
 use crate::mem::{MemoryReader, SwapReader};
 use crate::net::NetReader;
 use crate::render::Overlay;
+use crate::temp::TempReader;
 use crate::zswap::ZswapReader;
 use crate::{Graph, Source};
 
@@ -33,6 +34,8 @@ pub struct Graphs {
 	pub load: Option<Graph<LoadReader, 1>>,
 	/// None when hidden, or on a box with no disk.
 	pub disk: Option<Graph<DiskReader, 2>>,
+	/// None when hidden, or on a box with no CPU sensor it knows.
+	pub temp: Option<Graph<TempReader, 2>>,
 	/// None when hidden, or on a box with no battery in.
 	pub battery: Option<Graph<BatteryReader, 3>>,
 	/// Top to bottom, for a vertical panel.
@@ -59,13 +62,14 @@ enum Which {
 	Zswap,
 	Load,
 	Disk,
+	Temp,
 	Battery,
 }
 
 impl Which {
 	/// The order with nothing saved. Graphs a saved order leaves out go
 	/// last, in this order.
-	const ALL: [Which; 8] = [
+	const ALL: [Which; 9] = [
 		Which::Cpu,
 		Which::Mem,
 		Which::Net,
@@ -73,6 +77,7 @@ impl Which {
 		Which::Zswap,
 		Which::Load,
 		Which::Disk,
+		Which::Temp,
 		Which::Battery,
 	];
 
@@ -85,6 +90,7 @@ impl Which {
 			Which::Zswap => ZswapReader::SECTION,
 			Which::Load => LoadReader::SECTION,
 			Which::Disk => DiskReader::SECTION,
+			Which::Temp => TempReader::SECTION,
 			Which::Battery => BatteryReader::SECTION,
 		}
 	}
@@ -98,6 +104,7 @@ impl Which {
 			Which::Zswap => look.show_zswap,
 			Which::Load => look.show_load,
 			Which::Disk => look.show_disk,
+			Which::Temp => look.show_temp,
 			Which::Battery => look.show_battery,
 		}
 	}
@@ -116,6 +123,7 @@ impl Which {
 			Which::Zswap => look.zswap_width,
 			Which::Load => look.load_width,
 			Which::Disk => look.disk_width,
+			Which::Temp => look.temp_width,
 			Which::Battery => look.battery_width,
 		}
 	}
@@ -262,6 +270,11 @@ impl Graphs {
 		} else {
 			None
 		};
+		let temp = if look.show_temp {
+			Graph::temp(look.clone())
+		} else {
+			None
+		};
 		let zswap = if look.show_zswap {
 			Graph::zswap(look.clone())
 		} else {
@@ -280,6 +293,7 @@ impl Graphs {
 			zswap,
 			load,
 			disk,
+			temp,
 			battery,
 			stacked: false,
 			px: Vec::new(),
@@ -300,6 +314,7 @@ impl Graphs {
 			Which::Zswap => self.zswap.as_ref().map(|g| g as &dyn Drawn),
 			Which::Load => self.load.as_ref().map(|g| g as &dyn Drawn),
 			Which::Disk => self.disk.as_ref().map(|g| g as &dyn Drawn),
+			Which::Temp => self.temp.as_ref().map(|g| g as &dyn Drawn),
 			Which::Battery => self.battery.as_ref().map(|g| g as &dyn Drawn),
 		}
 	}
@@ -313,6 +328,7 @@ impl Graphs {
 			Which::Zswap => self.zswap.as_mut().map(|g| g as &mut dyn Drawn),
 			Which::Load => self.load.as_mut().map(|g| g as &mut dyn Drawn),
 			Which::Disk => self.disk.as_mut().map(|g| g as &mut dyn Drawn),
+			Which::Temp => self.temp.as_mut().map(|g| g as &mut dyn Drawn),
 			Which::Battery => self.battery.as_mut().map(|g| g as &mut dyn Drawn),
 		}
 	}
@@ -407,6 +423,9 @@ impl Graphs {
 		}
 		if switch(&mut self.disk, look.show_disk, || Graph::disk(look.clone())) {
 			added.push(Which::Disk);
+		}
+		if switch(&mut self.temp, look.show_temp, || Graph::temp(look.clone())) {
+			added.push(Which::Temp);
 		}
 		if switch(&mut self.battery, look.show_battery, || {
 			Graph::battery(look.clone())
@@ -593,6 +612,7 @@ impl Graphs {
 			),
 			(Which::Load, self.load.as_mut().map(|g| g as &mut dyn Drawn)),
 			(Which::Disk, self.disk.as_mut().map(|g| g as &mut dyn Drawn)),
+			(Which::Temp, self.temp.as_mut().map(|g| g as &mut dyn Drawn)),
 			(
 				Which::Battery,
 				self.battery.as_mut().map(|g| g as &mut dyn Drawn),
@@ -1451,6 +1471,58 @@ mod tests {
 			Drives::Only(vec!["sda".into(), "nvme0n1".into()])
 		);
 		assert!(disk.hist.last().is_some());
+	}
+
+	// Test ID: dej0v
+	#[test]
+	fn temp_sits_after_swap_and_goes_critical_on_top() {
+		let path = scratch("temp");
+		let mut g = three();
+		let look = Look {
+			show_temp: true,
+			..g.look().clone()
+		};
+		assert!(Graphs::new(Look::default()).temp.is_none());
+		g.temp = Some(Graph::with(look.clone(), TempReader::default()));
+		g.set_look(look.clone(), None).unwrap();
+		let now = g.cpu.now();
+		// 5 over the 95 a sensor with no crit gets
+		g.temp
+			.as_mut()
+			.unwrap()
+			.hist
+			.add(now - 60.0, now, &[95.0, 5.0]);
+		assert_eq!(g.count(), 4);
+		let (w, h) = (80 + 3 * G, 40 + 2 * E);
+		let temp = g.temp.as_mut().unwrap().render(20, 40, 1).to_vec();
+		let px = g.render(w, h, 1).to_vec();
+		sits(&px, w, &temp, (60 + 3 * G, E, 20, 40));
+		let top = g.temp.as_ref().unwrap().peak.top();
+		assert!((top - 100.0).abs() < 1e-3, "{top}");
+		let bw = look.border as usize;
+		let ph = 40 - 2 * bw;
+		let row = |up: usize| temp[(bw + ph - 1 - up) * 20 + 10];
+		assert_eq!(row(0), look.temp[0].argb());
+		assert_eq!(row(ph / 2), look.temp[0].argb());
+		assert_eq!(row(ph - 1), look.temp[1].argb());
+		let tip = g.hover_tip(65 + 3 * G, 3, w, h, 1);
+		assert!(
+			tip.contains("Temperature 100 \u{b0}C\nCritical at 95"),
+			"{tip}"
+		);
+		g.save(&path).unwrap();
+		let names: Vec<String> = keep::read(&path)
+			.unwrap()
+			.into_iter()
+			.map(|(n, _)| n)
+			.collect();
+		assert_eq!(names, ["cpu", "mem", "swap", "temp"]);
+		std::fs::remove_file(&path).unwrap();
+		let fire = Look::from_model(&crate::config::model("theme:\n\tname: fire\n"));
+		assert_eq!(
+			fire.temp_paint(),
+			crate::render::Paint::Gradient(fire.temp_gradient)
+		);
 	}
 
 	// Test ID: dehy4

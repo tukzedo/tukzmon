@@ -13,6 +13,7 @@ use tukzmon_core::load::LoadReader;
 use tukzmon_core::mem::{MemoryReader, SwapReader};
 use tukzmon_core::net::NetReader;
 use tukzmon_core::render::Overlay;
+use tukzmon_core::temp::TempReader;
 use tukzmon_core::zswap::ZswapReader;
 use tukzmon_core::{Graph, Source};
 
@@ -28,6 +29,8 @@ pub struct Live {
 	load: Option<Graph<LoadReader, 1>>,
 	/// None on a box with no disk.
 	disk: Option<Graph<DiskReader, 2>>,
+	/// None on a box with no CPU sensor it knows.
+	temp: Option<Graph<TempReader, 2>>,
 	/// None on a box with no battery in.
 	battery: Option<Graph<BatteryReader, 3>>,
 }
@@ -41,6 +44,7 @@ impl Live {
 			zswap: Graph::zswap(look.clone()),
 			load: Graph::load_avg(look.clone()),
 			disk: Graph::disk(look.clone()),
+			temp: Graph::temp(look.clone()),
 			battery: Graph::battery(look.clone()),
 			cpu: Graph::new(look),
 		}
@@ -55,6 +59,7 @@ impl Live {
 			ZswapReader::SECTION => self.zswap.as_ref().map(|g| g as &dyn Drawn),
 			LoadReader::SECTION => self.load.as_ref().map(|g| g as &dyn Drawn),
 			DiskReader::SECTION => self.disk.as_ref().map(|g| g as &dyn Drawn),
+			TempReader::SECTION => self.temp.as_ref().map(|g| g as &dyn Drawn),
 			BatteryReader::SECTION => self.battery.as_ref().map(|g| g as &dyn Drawn),
 			_ => None,
 		}
@@ -69,6 +74,7 @@ impl Live {
 			ZswapReader::SECTION => self.zswap.as_mut().map(|g| g as &mut dyn Drawn),
 			LoadReader::SECTION => self.load.as_mut().map(|g| g as &mut dyn Drawn),
 			DiskReader::SECTION => self.disk.as_mut().map(|g| g as &mut dyn Drawn),
+			TempReader::SECTION => self.temp.as_mut().map(|g| g as &mut dyn Drawn),
 			BatteryReader::SECTION => self.battery.as_mut().map(|g| g as &mut dyn Drawn),
 			_ => None,
 		}
@@ -99,6 +105,10 @@ impl Live {
 			(
 				DiskReader::SECTION,
 				self.disk.as_mut().map(|g| g as &mut dyn Drawn),
+			),
+			(
+				TempReader::SECTION,
+				self.temp.as_mut().map(|g| g as &mut dyn Drawn),
 			),
 			(
 				BatteryReader::SECTION,
@@ -145,6 +155,7 @@ impl Live {
 			ZswapReader::SECTION => l.zswap_width,
 			LoadReader::SECTION => l.load_width,
 			DiskReader::SECTION => l.disk_width,
+			TempReader::SECTION => l.temp_width,
 			BatteryReader::SECTION => l.battery_width,
 			_ => return 0,
 		};
@@ -421,6 +432,28 @@ mod tests {
 			assert_eq!(live.width("disk"), 50);
 			assert_eq!(live.render("disk", 50, 24, 1).len(), 50 * 24);
 			assert!(live.tip("disk").starts_with("Disk"));
+		}
+	}
+
+	// Test ID: dej0w
+	#[test]
+	fn the_temp_row_draws_at_its_own_width() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_live_temp_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let mut live = Live::new(d.look());
+		assert!(!d.look().show_temp);
+		d.set("temp_width", &Value::Float(40.0));
+		live.set_look(&d.look());
+		assert_eq!(live.width("temp"), 40);
+		// the box, or a container, may have no CPU sensor
+		if live.temp.is_some() {
+			live.sample();
+			assert_eq!(live.render("temp", 40, 24, 1).len(), 40 * 24);
+			let tip = live.tip("temp");
+			assert!(tip.starts_with("Temperature"), "{tip}");
 		}
 	}
 

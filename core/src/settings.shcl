@@ -13,7 +13,7 @@
 ## default is the Default theme's value, and config::tests holds the two to
 ## each other.
 
-tabs: "Graph", "Themes", "Themes/CPU", "Themes/Memory", "Themes/Network", "Themes/Swap", "Themes/Zswap", "Themes/Load", "Themes/Disk", "Themes/Battery", "Themes/Background"
+tabs: "Graph", "Themes", "Themes/CPU", "Themes/Memory", "Themes/Network", "Themes/Swap", "Themes/Zswap", "Themes/Load", "Themes/Disk", "Themes/Temperature", "Themes/Battery", "Themes/Background"
 
 settings:
 
@@ -323,6 +323,36 @@ settings:
 		gate: show_disk
 		tip: "How the disk graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
 
+	show_temp:
+		label: Temperature graph
+		tab: Graph
+		control: checkbox
+		path: temp.show
+		default: false
+		tip: "Show the CPU's temperature. It fills to the top at the sensor's critical level, or 95 degrees C when the sensor gives none, and anything over that is drawn on top in the critical color. It's left out on a box with no CPU sensor it knows."
+
+	temp_width:
+		label: Temperature width px
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 4096
+		path: temp.width
+		default: 0
+		gate: show_temp
+		tip: "How wide the temperature graph is, in the same pixels as Width. 0 uses Width."
+
+	temp_time:
+		label: Temperature time axis
+		tab: Graph
+		control: dropdown
+		options: same, linear, smooth, fixed_a, fixed_b
+		option_labels: "As set under Time", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: temp.time
+		default: same
+		gate: show_temp
+		tip: "How the temperature graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
+
 	show_battery:
 		label: Battery graph
 		tab: Graph
@@ -359,8 +389,8 @@ settings:
 		tab: Graph
 		control: text
 		path: graph.order
-		default: "cpu mem net swap zswap load disk battery"
-		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, net for network, swap, zswap, load, disk and battery. One left out goes at the end."
+		default: "cpu mem net swap zswap load disk temp battery"
+		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, net for network, swap, zswap, load, disk, temp for temperature, and battery. One left out goes at the end."
 
 	DiskHead:
 		label: Disk graph
@@ -926,6 +956,80 @@ settings:
 		shown_when: "disk_mode = gradient"
 		tip: "The color at the top."
 
+	temp_mode:
+		label: Colors
+		tab: Themes/Temperature
+		control: dropdown
+		shown_as: radio
+		options: detailed, gradient
+		option_labels: "Detailed", "Gradient"
+		path: temp.mode
+		default: detailed
+		group: theme
+		tip: "Detailed draws the temperature in one color, with any part over the critical level in another. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	TempColorHead:
+		label: "Temperature, from the bottom up"
+		tab: Themes/Temperature
+		control: heading
+		shown_when: "temp_mode = detailed"
+
+	temp_normal:
+		label: Normal
+		tab: Themes/Temperature
+		control: color
+		path: temp.colors.normal
+		default: "#40ff48"
+		group: theme
+		shown_when: "temp_mode = detailed"
+		tip: "Up to the critical level."
+
+	temp_critical:
+		label: Critical
+		tab: Themes/Temperature
+		control: color
+		path: temp.colors.critical
+		default: "#ff0000"
+		group: theme
+		shown_when: "temp_mode = detailed"
+		tip: "Over the critical level, on top of Normal."
+
+	TempGradHead:
+		label: "Temperature, by height"
+		tab: Themes/Temperature
+		control: heading
+		shown_when: "temp_mode = gradient"
+
+	temp_low:
+		label: Low
+		tab: Themes/Temperature
+		control: color
+		path: temp.colors.low
+		default: "#1a661d"
+		group: theme
+		shown_when: "temp_mode = gradient"
+		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
+
+	temp_medium:
+		label: Medium
+		tab: Themes/Temperature
+		control: color
+		path: temp.colors.medium
+		default: "#40ff48"
+		group: theme
+		shown_when: "temp_mode = gradient"
+		tip: "The color halfway up."
+
+	temp_high:
+		label: High
+		tab: Themes/Temperature
+		control: color
+		path: temp.colors.high
+		default: "#cfffd1"
+		group: theme
+		shown_when: "temp_mode = gradient"
+		tip: "The color at the top."
+
 	battery_mode:
 		label: Colors
 		tab: Themes/Battery
@@ -1058,8 +1162,9 @@ settings:
 ## Theme names say nothing of color. Each graph has hues of its own in every
 ## theme, so the graphs are told apart side by side. I/O wait and system stay
 ## red and orange in every theme, so trouble reads the same, and the battery's
-## on battery and critical take those 2. Fire's graphs each burn a flame of
-## their own. Default's CPU and memory colors are multiload-ng's.
+## on battery and critical take those 2, as temperature's critical takes red.
+## Fire's graphs each burn a flame of their own. Default's CPU and memory
+## colors are multiload-ng's.
 
 groups:
 
@@ -1114,6 +1219,12 @@ groups:
 				disk_high: "#ffcfdf"
 				disk_write: "#ffcfdf"
 				disk_read: "#ff4080"
+				temp_mode: detailed
+				temp_low: "#1a661d"
+				temp_medium: "#40ff48"
+				temp_high: "#cfffd1"
+				temp_normal: "#40ff48"
+				temp_critical: "#ff0000"
 				battery_mode: detailed
 				battery_low: "#483468"
 				battery_medium: "#b080ff"
@@ -1171,6 +1282,12 @@ groups:
 				disk_high: "#dfffbf"
 				disk_write: "#dfffbf"
 				disk_read: "#80ff00"
+				temp_mode: detailed
+				temp_low: "#006633"
+				temp_medium: "#00ff80"
+				temp_high: "#bfffdf"
+				temp_normal: "#00ff80"
+				temp_critical: "#ff0000"
 				battery_mode: detailed
 				battery_low: "#205f5f"
 				battery_medium: "#00ffff"
@@ -1228,6 +1345,12 @@ groups:
 				disk_high: "#e8e8fb"
 				disk_write: "#e8e8fb"
 				disk_read: "#a1a1f0"
+				temp_mode: detailed
+				temp_low: "#875c89"
+				temp_medium: "#eca1f0"
+				temp_high: "#fae8fb"
+				temp_normal: "#eca1f0"
+				temp_critical: "#ff6161"
 				battery_mode: detailed
 				battery_low: "#7e6a8a"
 				battery_medium: "#d0b0f0"
@@ -1285,6 +1408,12 @@ groups:
 				disk_high: "#ccbfff"
 				disk_write: "#ccbfff"
 				disk_read: "#3300ff"
+				temp_mode: detailed
+				temp_low: "#406600"
+				temp_medium: "#a0ff00"
+				temp_high: "#e8ffbf"
+				temp_normal: "#a0ff00"
+				temp_critical: "#ff0000"
 				battery_mode: detailed
 				battery_low: "#6a6400"
 				battery_medium: "#ffee00"
@@ -1342,6 +1471,12 @@ groups:
 				disk_high: "#daddec"
 				disk_write: "#daddec"
 				disk_read: "#6a78b4"
+				temp_mode: detailed
+				temp_low: "#5f3d67"
+				temp_medium: "#a76bb5"
+				temp_high: "#e9daec"
+				temp_normal: "#a76bb5"
+				temp_critical: "#d02818"
 				battery_mode: detailed
 				battery_low: "#4a4060"
 				battery_medium: "#a08ad0"
@@ -1399,6 +1534,12 @@ groups:
 				disk_high: "#d3cbff"
 				disk_write: "#d3cbff"
 				disk_read: "#5030ff"
+				temp_mode: gradient
+				temp_low: "#661a62"
+				temp_medium: "#ff40f5"
+				temp_high: "#ffcffc"
+				temp_normal: "#ff40f5"
+				temp_critical: "#ff0000"
 				battery_mode: gradient
 				battery_low: "#0a3a10"
 				battery_medium: "#20d040"

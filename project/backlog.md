@@ -397,19 +397,7 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-26: Split into one child per graph not yet drawn: 2026102618353000 (swap), 2026102618353002 (zswap or zram), 2026102618353004 (network), 2026102618353006 (load), 2026102618353008 (disk), 2026102618353011 (temperature) and 2026102618353013 (battery). This closes with the last of them.
 	- 2026-10-28: the zswap and network graphs are in.
 	- 2026-10-28: the load and disk graphs are in, 2026102618353006 and 2026102618353008.
-
-- CPU temperature graph
-	- ID: 2026102618353011
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261026-183530
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013887
-	- Prereq IDs: 2026102618353000
-	- Related IDs: 2026102408512217
-	- Requirements:
-		- Normal, with critical on top of that when normal maxes out, from the temperature collector.
+	- 2026-10-28: the temperature graph is in, 2026102618353011. It was the last child.
 
 - Color themes tab
 	- ID: 2026102408304612
@@ -600,6 +588,46 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- CPU temperature graph
+	- ID: 2026102618353011
+	- Type: Feature
+	- Status: Done
+		- It departs from the wording in one way. It's off by default, so an existing panel doesn't grow wider. Turn it on in the graph list.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353000
+	- Related IDs: 2026102408512217
+	- Requirements:
+		- Normal, with critical on top of that when normal maxes out, from the temperature collector.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- The temperature graph draws normal up to the critical level, and what's over it in a critical color on top. It fills to the top at the critical level, and the top rises once it's over. The tip gives the reading over the level it turns critical at, in whole degrees C.
+		- It has a row in the graph list, at `temp.show`, `temp.width` and `temp.time`, and a Themes/Temperature sub-tab with Normal and Critical, and Low, Medium and High.
+		- The temperature collector now gives 2 series, normal and critical, that add up to the reading.
+		- `graph.order` defaults to `cpu mem net swap zswap load disk temp battery`. Each built-in theme gives temperature a hue of its own, and Randomize rolls 9 lead hues.
+		- `design.md` XFCE plugin, Theme, Data sources on Linux and Drawing have the details.
+		- Verified: the full run passed. A test panel drew the temperature graph after CPU and memory, at 73 of 95 degrees, with its tip.
+	- Decisions:
+		- Off by default, like the other graphs since memory.
+		- After disk and before battery in the default order, as in multiload-ng.
+		- The split is multiload-ng's: normal up to the crit, critical over it, so both stack to the reading. The top is a peak with the crit as its floor, so normal fills the graph at the crit and critical shows once it's over.
+		- A sensor with no `temp*_crit`, such as `k10temp` on this box, turns critical at 95 degrees C, Zen's own limit. Without one, critical would never show there. A Check in questions.md has it.
+		- The collector does the split, as the battery's does by state, so the history holds both series.
+		- Critical is each theme's I/O wait red, and Randomize gives it the Alarm role, so going over reads as an alarm, as the battery's critical does.
+		- Built-in temperature leads sit in each theme's widest gap, at least 25 degrees from the others, so defx7 keeps its 25. Randomize's least gap is 22 degrees, down from 25, which leaves 49 degrees of play for 9 leads.
+	- Branch: round-1028
+	- Test case: `temp::tests::over_the_crit_is_the_critical_part` (dej0s), `tests::temperature_reads_in_degrees_up_to_its_crit` (dej0t), `graphs::tests::temp_sits_after_swap_and_goes_critical_on_top` (dej0v) and `live::tests::the_temp_row_draws_at_its_own_width` (dej0w). dej0s fails with the reading unsplit, dej0t and dej0v with no peak floor.
+		- 2026-10-28: new values only. deccf and deccw count 61 theme members, not 55. deccy counts 52 saved colors, not 47. dedqq's default order, and defkz's and defm0's orders, have `temp` before `battery`, and defm0's past-the-end move is 9, not 8. defma's rows greyed at defaults add `temp_width` and `temp_time`. defx7 checks 9 lead colors, not 8. defxd's `PARTS` takes temperature too, and its least gap is 17 degrees, not 20, for the 22 degree roll. decdt also checks temperature's alarm is CPU's.
+		- 2026-10-28: the temperature collector's tests defnn, defnp and defnr read 2 series, with critical at 0, where they read one.
+		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 6 built-in themes, `dice::ROLES`, and every `TempReader` use. The profiler and soak test run with the defaults, so they don't draw temperature.
+	- Acceptance signoff: Self-closed, 2026-10-28: a test panel drew the temperature graph. How the themes look together stays on 2026102620162201.
+	- Closed: 20261028-100637
 
 - Load graph
 	- ID: 2026102618353006

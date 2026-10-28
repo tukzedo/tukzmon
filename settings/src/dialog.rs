@@ -741,7 +741,7 @@ mod tests {
 		assert_eq!(
 			names(&dlg),
 			[
-				"mem", "cpu", "net", "swap", "zswap", "load", "disk", "battery"
+				"mem", "cpu", "net", "swap", "zswap", "load", "disk", "temp", "battery"
 			]
 		);
 		for id in [
@@ -771,18 +771,18 @@ mod tests {
 		let d = scratch("drag");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone());
-		assert!(!dlg.move_graph(0, 8));
+		assert!(!dlg.move_graph(0, 9));
 		assert!(!dlg.dirty());
 		assert!(dlg.move_graph(0, 1));
 		assert_eq!(
 			dlg.state(ORDER).text,
-			"mem cpu net swap zswap load disk battery"
+			"mem cpu net swap zswap load disk temp battery"
 		);
 		dlg.apply().unwrap();
 		assert_eq!(
 			config::Look::load(&path).order,
 			[
-				"mem", "cpu", "net", "swap", "zswap", "load", "disk", "battery"
+				"mem", "cpu", "net", "swap", "zswap", "load", "disk", "temp", "battery"
 			]
 		);
 		assert!(dlg.move_graph(1, 0));
@@ -791,7 +791,7 @@ mod tests {
 		assert!(dlg.move_graph(0, 1));
 		assert_eq!(
 			dlg.state(ORDER).text,
-			"cpu mem net swap zswap load disk battery nope"
+			"cpu mem net swap zswap load disk temp battery nope"
 		);
 	}
 
@@ -1075,7 +1075,7 @@ mod tests {
 		dlg.apply().unwrap();
 		let text = std::fs::read_to_string(&path).unwrap();
 		assert!(text.contains("name: night"), "{text}");
-		assert_eq!(text.matches("\"#").count(), 47, "{text}");
+		assert_eq!(text.matches("\"#").count(), 52, "{text}");
 		assert!(!text.contains("kept"), "{text}");
 		let dlg = Dialog::open(path.clone());
 		assert_eq!(dlg.state("theme").choice, "Night");

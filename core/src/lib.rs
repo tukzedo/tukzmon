@@ -35,6 +35,7 @@ use load::LoadReader;
 use mem::{MemoryReader, SwapReader};
 use net::NetReader;
 use render::{Frame, Paint, Peak, Scale};
+use temp::TempReader;
 use when::Said;
 use zswap::ZswapReader;
 
@@ -287,6 +288,32 @@ impl Source<2> for DiskReader {
 	}
 }
 
+impl Source<2> for TempReader {
+	const SECTION: &'static str = "temp";
+	const TITLE: &'static str = "Temperature";
+
+	fn text(&self, v: &[f32; 2]) -> String {
+		format!(
+			"Temperature {:.0} \u{b0}C\nCritical at {:.0} \u{b0}C",
+			v[0] + v[1],
+			self.limit()
+		)
+	}
+
+	fn paint(look: &Look) -> Paint<'_, 2> {
+		look.temp_paint()
+	}
+
+	fn timing(look: &Look) -> Timing {
+		look.timing(look.temp_time)
+	}
+
+	// full at the critical level, and higher once it's over
+	fn peak_floor(&self) -> Option<f32> {
+		Some(self.limit())
+	}
+}
+
 /// One graph: reads, history, and drawing. CPU unless said otherwise.
 pub struct Graph<S: Source<N> = CpuReader, const N: usize = 4> {
 	pub look: Look,
@@ -351,6 +378,13 @@ impl Graph<DiskReader, 2> {
 	/// on a box that has none.
 	pub fn disk(look: Look) -> Option<Self> {
 		DiskReader::new(look.drives()).map(|src| Graph::with(look, src))
+	}
+}
+
+impl Graph<TempReader, 2> {
+	/// None on a box with no CPU sensor it knows.
+	pub fn temp(look: Look) -> Option<Self> {
+		TempReader::probe().map(|src| Graph::with(look, src))
 	}
 }
 
@@ -651,6 +685,18 @@ mod tests {
 		};
 		assert!(DiskReader::log_y(&log) && !DiskReader::log_y(&Look::default()));
 		assert!(!LoadReader::log_y(&log) && NetReader::default().peak_floor().is_some());
+	}
+
+	// Test ID: dej0t
+	#[test]
+	fn temperature_reads_in_degrees_up_to_its_crit() {
+		let t = TempReader::default();
+		assert_eq!(
+			t.text(&[95.0, 3.4]),
+			"Temperature 98 \u{b0}C\nCritical at 95 \u{b0}C"
+		);
+		assert_eq!(t.peak_floor(), Some(temp::CRIT_UNKNOWN));
+		assert!(!TempReader::log_y(&Look::default()));
 	}
 
 	// Test ID: defpr

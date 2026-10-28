@@ -602,6 +602,8 @@ mod tests {
 				"load_time",
 				"disk_width",
 				"disk_time",
+				"temp_width",
+				"temp_time",
 				"battery_width",
 				"battery_time",
 				"disk_drives",

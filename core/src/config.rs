@@ -407,6 +407,11 @@ pub struct Look {
 	pub disk_log: bool,
 	/// `/proc/diskstats` names, or `all`. See [`Look::drives`].
 	pub disk_drives: Vec<String>,
+	/// Draw the CPU temperature graph, where the box has a sensor for it.
+	pub show_temp: bool,
+	/// 0 is `width`.
+	pub temp_width: u32,
+	pub temp_time: Option<Timing>,
 	/// Draw the battery graph, where the box has a battery in.
 	pub show_battery: bool,
 	/// 0 is `width`.
@@ -437,6 +442,10 @@ pub struct Look {
 	pub disk: [Rgb; 2],
 	pub disk_mode: Mode,
 	pub disk_gradient: [Rgb; 3],
+	/// In `temp::TempReader::SERIES` order.
+	pub temp: [Rgb; 2],
+	pub temp_mode: Mode,
+	pub temp_gradient: [Rgb; 3],
 	/// In `battery::BatteryReader::SERIES` order.
 	pub battery: [Rgb; 3],
 	pub battery_mode: Mode,
@@ -512,6 +521,9 @@ impl Look {
 			disk_time: Timing::parse(m.value("disk_time", &NoEnv).as_text()),
 			disk_log: m.value("disk_log", &NoEnv).as_bool(),
 			disk_drives: graph_order(m.value("disk_drives", &NoEnv).as_text()),
+			show_temp: m.value("show_temp", &NoEnv).as_bool(),
+			temp_width: num("temp_width") as u32,
+			temp_time: Timing::parse(m.value("temp_time", &NoEnv).as_text()),
 			show_battery: m.value("show_battery", &NoEnv).as_bool(),
 			battery_width: num("battery_width") as u32,
 			battery_time: Timing::parse(m.value("battery_time", &NoEnv).as_text()),
@@ -539,6 +551,9 @@ impl Look {
 			disk: [color("disk_write"), color("disk_read")],
 			disk_mode: Mode::parse(m.value("disk_mode", &NoEnv).as_text()).unwrap_or_default(),
 			disk_gradient: [color("disk_low"), color("disk_medium"), color("disk_high")],
+			temp: [color("temp_normal"), color("temp_critical")],
+			temp_mode: Mode::parse(m.value("temp_mode", &NoEnv).as_text()).unwrap_or_default(),
+			temp_gradient: [color("temp_low"), color("temp_medium"), color("temp_high")],
 			battery: [
 				color("battery_charging"),
 				color("battery_discharging"),
@@ -614,6 +629,13 @@ impl Look {
 			Drives::All
 		} else {
 			Drives::Only(self.disk_drives.clone())
+		}
+	}
+
+	pub fn temp_paint(&self) -> Paint<'_, 2> {
+		match self.temp_mode {
+			Mode::Detailed => Paint::Stack(&self.temp),
+			Mode::Gradient => Paint::Gradient(self.temp_gradient),
 		}
 	}
 
@@ -777,7 +799,7 @@ mod tests {
 	fn the_default_theme_is_the_row_defaults() {
 		let spec = spec();
 		let g = spec.group(THEME).unwrap();
-		assert_eq!(g.members.len(), 55);
+		assert_eq!(g.members.len(), 61);
 		let default = g.preset("default").unwrap();
 		assert_eq!(default.label, "Default");
 		for id in &g.members {
@@ -1043,11 +1065,12 @@ mod tests {
 				"net_received",
 				"load_used",
 				"disk_read",
+				"temp_normal",
 				"battery_charging",
 			]
 			.map(rgb);
 			let ramps = [
-				"cpu", "mem", "swap", "zswap", "net", "load", "disk", "battery",
+				"cpu", "mem", "swap", "zswap", "net", "load", "disk", "temp", "battery",
 			]
 			.map(ramp);
 			for a in 0..leads.len() {
@@ -1149,7 +1172,7 @@ mod tests {
 		assert_eq!(
 			Look::default().order,
 			[
-				"cpu", "mem", "net", "swap", "zswap", "load", "disk", "battery"
+				"cpu", "mem", "net", "swap", "zswap", "load", "disk", "temp", "battery"
 			]
 		);
 		for text in [
@@ -1242,7 +1265,7 @@ mod tests {
 			"themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n",
 		));
 		assert_eq!(t[0].name, "Say \"hi\"");
-		assert_eq!(t[0].colors.len(), 55);
+		assert_eq!(t[0].colors.len(), 61);
 		t.push(SavedTheme {
 			key: theme_key("Default", &t),
 			name: "Default".into(),
