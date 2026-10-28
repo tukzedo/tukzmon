@@ -33,31 +33,22 @@ settings:
 		path: graph.width
 		default: 128
 		detents: 64, 128, 256
-		tip: "How wide each graph is in the panel, unless it has a width of its own under Graphs. Its height follows the panel."
+		tip: "How wide a graph is in the panel at 100%. Each graph under Graphs takes a percentage of it. Its height follows the panel."
 
 	TimeHead:
 		label: Time
 		tab: Graph
 		control: heading
 
-	log_axis:
-		label: Log time axis
-		tab: Graph
-		control: checkbox
-		path: graph.log_axis
-		default: true
-		tip: "Squeeze older history to the left, so the last minute and the last day fit in one graph. Off gives a plain scrolling graph. A graph can pick its own under Graphs."
-
-	log_curve:
-		label: Log curve
+	time_axis:
+		label: Time axis default
 		tab: Graph
 		control: dropdown
-		options: smooth, fixed_a, fixed_b
-		option_labels: "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
-		path: graph.log_curve
+		options: linear, smooth, fixed_a, fixed_b
+		option_labels: "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: graph.time
 		default: smooth
-		gate: log_axis
-		tip: "How older history is squeezed. Smooth log is one log curve across the whole run, with each pixel covering a little more time than the one to its right.\n\nLog A and Log B split the graph into 4 fixed divisions. From the right, they cover at most the last minute, the next 59 minutes, the next 23 hours, and everything older. Log A fills them early: the first after about half an hour of history, and all 3 within a week. Log B follows Smooth log until a division fills, after about a day and a half for the first and 4 months for all 3."
+		tip: "How a graph spreads time across its width, unless it picks its own under Graphs. Linear is a plain scrolling graph. The log curves squeeze older history to the left, so the last minute and the last day fit in one graph.\n\nSmooth log is one log curve across the whole run, with each pixel covering a little more time than the one to its right.\n\nLog A and Log B split the graph into 4 fixed divisions. From the right, they cover at most the last minute, the next 59 minutes, the next 23 hours, and everything older. Log A fills them early: the first after about half an hour of history, and all 3 within a week. Log B follows Smooth log until a division fills, after about a day and a half for the first and 4 months for all 3."
 
 	sample_ms:
 		label: Sample every ms
@@ -80,7 +71,6 @@ settings:
 		range: 0, 100
 		path: graph.spikes
 		default: 50
-		gate: log_axis
 		tip: "How far a squeezed column reaches from its average toward its peak. At 0% every column shows only its average, so short spikes in older history are smoothed away. At 100% a column covering a few seconds shows its full peak. The reach fades as a column covers more time, so on the far left spikes melt into the background even at 100%."
 
 	hover_time:
@@ -114,7 +104,7 @@ settings:
 		control: heading
 
 	show_cpu:
-		label: CPU graph
+		label: CPU
 		tab: Graph
 		control: checkbox
 		path: cpu.show
@@ -122,29 +112,27 @@ settings:
 		tip: "Show CPU use: I/O wait, system, user and nice, from the bottom up. With every other graph off, it shows anyway, so the panel item never goes away."
 
 	cpu_width:
-		label: CPU width px
+		label: CPU width %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 4096
+		range: 1, 1000
 		path: cpu.width
-		default: 0
-		gate: show_cpu
-		tip: "How wide the CPU graph is, in the same pixels as Width. 0 uses Width."
+		default: 100
+		tip: "How wide the CPU graph is, as a percentage of Width."
 
 	cpu_time:
 		label: CPU time axis
 		tab: Graph
 		control: dropdown
 		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "As set under Time", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: cpu.time
 		default: same
-		gate: show_cpu
-		tip: "How the CPU graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
+		tip: "How the CPU graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
 
 	show_memory:
-		label: Memory graph
+		label: Memory
 		tab: Graph
 		control: checkbox
 		path: mem.show
@@ -152,29 +140,27 @@ settings:
 		tip: "Show memory use beside the CPU graph: what programs use, then buffers, then cache, from the bottom up. It's left out on a box where memory can't be read."
 
 	mem_width:
-		label: Memory width px
+		label: Memory width %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 4096
+		range: 1, 1000
 		path: mem.width
-		default: 0
-		gate: show_memory
-		tip: "How wide the memory graph is, in the same pixels as Width. 0 uses Width."
+		default: 100
+		tip: "How wide the memory graph is, as a percentage of Width."
 
 	mem_time:
 		label: Memory time axis
 		tab: Graph
 		control: dropdown
 		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "As set under Time", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: mem.time
 		default: same
-		gate: show_memory
-		tip: "How the memory graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
+		tip: "How the memory graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
 
 	show_net:
-		label: Network graph
+		label: Network
 		tab: Graph
 		control: checkbox
 		path: net.show
@@ -182,119 +168,27 @@ settings:
 		tip: "Show network traffic in bytes a second: local, which is the box talking to itself, then sent, then received, from the bottom up. The top follows the busiest moment in view, so the graph has no fixed scale. The tip gives the rates."
 
 	net_width:
-		label: Network width px
+		label: Network width %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 4096
+		range: 1, 1000
 		path: net.width
-		default: 0
-		gate: show_net
-		tip: "How wide the network graph is, in the same pixels as Width. 0 uses Width."
+		default: 50
+		tip: "How wide the network graph is, as a percentage of Width."
 
 	net_time:
 		label: Network time axis
 		tab: Graph
 		control: dropdown
 		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "As set under Time", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: net.time
 		default: same
-		gate: show_net
-		tip: "How the network graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
-
-	show_swap:
-		label: Swap graph
-		tab: Graph
-		control: checkbox
-		path: swap.show
-		default: false
-		tip: "Show how much swap is in use. It's left out on a box with no swap."
-
-	swap_width:
-		label: Swap width px
-		tab: Graph
-		control: number
-		whole: true
-		range: 0, 4096
-		path: swap.width
-		default: 0
-		gate: show_swap
-		tip: "How wide the swap graph is, in the same pixels as Width. 0 uses Width."
-
-	swap_time:
-		label: Swap time axis
-		tab: Graph
-		control: dropdown
-		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "As set under Time", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
-		path: swap.time
-		default: same
-		gate: show_swap
-		tip: "How the swap graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
-
-	show_zswap:
-		label: Zswap graph
-		tab: Graph
-		control: checkbox
-		path: zswap.show
-		default: false
-		tip: "Show how full the compressed swap pool is, zswap's or else zram's, with how far it squeezes what it holds written over it, such as 2.1x. It's left out on a box with neither."
-
-	zswap_width:
-		label: Zswap width px
-		tab: Graph
-		control: number
-		whole: true
-		range: 0, 4096
-		path: zswap.width
-		default: 0
-		gate: show_zswap
-		tip: "How wide the zswap graph is, in the same pixels as Width. 0 uses Width."
-
-	zswap_time:
-		label: Zswap time axis
-		tab: Graph
-		control: dropdown
-		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "As set under Time", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
-		path: zswap.time
-		default: same
-		gate: show_zswap
-		tip: "How the zswap graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
-
-	show_load:
-		label: Load graph
-		tab: Graph
-		control: checkbox
-		path: load.show
-		default: false
-		tip: "Show the 1 minute load average, the number of tasks running or waiting to run. The top follows the highest load in view, but never goes under the number of CPUs, so a full graph means every CPU had work queued."
-
-	load_width:
-		label: Load width px
-		tab: Graph
-		control: number
-		whole: true
-		range: 0, 4096
-		path: load.width
-		default: 0
-		gate: show_load
-		tip: "How wide the load graph is, in the same pixels as Width. 0 uses Width."
-
-	load_time:
-		label: Load time axis
-		tab: Graph
-		control: dropdown
-		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "As set under Time", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
-		path: load.time
-		default: same
-		gate: show_load
-		tip: "How the load graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
+		tip: "How the network graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
 
 	show_disk:
-		label: Disk graph
+		label: Disk
 		tab: Graph
 		control: checkbox
 		path: disk.show
@@ -302,29 +196,27 @@ settings:
 		tip: "Show disk traffic in bytes a second: written, then read, from the bottom up. The top follows the busiest moment in view, so the graph has no fixed scale. The tip gives the rates. Disk drives and Disk log scale, further down, set what it counts and how it's drawn."
 
 	disk_width:
-		label: Disk width px
+		label: Disk width %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 4096
+		range: 1, 1000
 		path: disk.width
-		default: 0
-		gate: show_disk
-		tip: "How wide the disk graph is, in the same pixels as Width. 0 uses Width."
+		default: 50
+		tip: "How wide the disk graph is, as a percentage of Width."
 
 	disk_time:
 		label: Disk time axis
 		tab: Graph
 		control: dropdown
 		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "As set under Time", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: disk.time
 		default: same
-		gate: show_disk
-		tip: "How the disk graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
+		tip: "How the disk graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
 
 	show_temp:
-		label: Temperature graph
+		label: Temperature
 		tab: Graph
 		control: checkbox
 		path: temp.show
@@ -332,29 +224,111 @@ settings:
 		tip: "Show the CPU's temperature. It fills to the top at the sensor's critical level, or 95 degrees C when the sensor gives none, and anything over that is drawn on top in the critical color. It's left out on a box with no CPU sensor it knows."
 
 	temp_width:
-		label: Temperature width px
+		label: Temperature width %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 4096
+		range: 1, 1000
 		path: temp.width
-		default: 0
-		gate: show_temp
-		tip: "How wide the temperature graph is, in the same pixels as Width. 0 uses Width."
+		default: 50
+		tip: "How wide the temperature graph is, as a percentage of Width."
 
 	temp_time:
 		label: Temperature time axis
 		tab: Graph
 		control: dropdown
 		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "As set under Time", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: temp.time
 		default: same
-		gate: show_temp
-		tip: "How the temperature graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
+		tip: "How the temperature graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
+
+	show_swap:
+		label: Swap
+		tab: Graph
+		control: checkbox
+		path: swap.show
+		default: true
+		tip: "Show how much swap is in use. It's left out on a box with no swap."
+
+	swap_width:
+		label: Swap width %
+		tab: Graph
+		control: number
+		whole: true
+		range: 1, 1000
+		path: swap.width
+		default: 25
+		tip: "How wide the swap graph is, as a percentage of Width."
+
+	swap_time:
+		label: Swap time axis
+		tab: Graph
+		control: dropdown
+		options: same, linear, smooth, fixed_a, fixed_b
+		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: swap.time
+		default: same
+		tip: "How the swap graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
+
+	show_zswap:
+		label: Zswap
+		tab: Graph
+		control: checkbox
+		path: zswap.show
+		default: false
+		tip: "Show how full the compressed swap pool is, zswap's or else zram's, with how far it squeezes what it holds written over it, such as 2.1x. It's left out on a box with neither."
+
+	zswap_width:
+		label: Zswap width %
+		tab: Graph
+		control: number
+		whole: true
+		range: 1, 1000
+		path: zswap.width
+		default: 25
+		tip: "How wide the zswap graph is, as a percentage of Width."
+
+	zswap_time:
+		label: Zswap time axis
+		tab: Graph
+		control: dropdown
+		options: same, linear, smooth, fixed_a, fixed_b
+		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: zswap.time
+		default: same
+		tip: "How the zswap graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
+
+	show_load:
+		label: Load
+		tab: Graph
+		control: checkbox
+		path: load.show
+		default: false
+		tip: "Show the 1 minute load average, the number of tasks running or waiting to run. The top follows the highest load in view, but never goes under the number of CPUs, so a full graph means every CPU had work queued."
+
+	load_width:
+		label: Load width %
+		tab: Graph
+		control: number
+		whole: true
+		range: 1, 1000
+		path: load.width
+		default: 25
+		tip: "How wide the load graph is, as a percentage of Width."
+
+	load_time:
+		label: Load time axis
+		tab: Graph
+		control: dropdown
+		options: same, linear, smooth, fixed_a, fixed_b
+		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: load.time
+		default: same
+		tip: "How the load graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
 
 	show_battery:
-		label: Battery graph
+		label: Battery
 		tab: Graph
 		control: checkbox
 		path: battery.show
@@ -362,26 +336,24 @@ settings:
 		tip: "Show the battery's charge, in one color while plugged in, another on battery, and a third once it's critical. It's left out on a box with no battery in."
 
 	battery_width:
-		label: Battery width px
+		label: Battery width %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 4096
+		range: 1, 1000
 		path: battery.width
-		default: 0
-		gate: show_battery
-		tip: "How wide the battery graph is, in the same pixels as Width. 0 uses Width."
+		default: 100
+		tip: "How wide the battery graph is, as a percentage of Width."
 
 	battery_time:
 		label: Battery time axis
 		tab: Graph
 		control: dropdown
 		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "As set under Time", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: battery.time
 		default: same
-		gate: show_battery
-		tip: "How the battery graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
+		tip: "How the battery graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
 
 	## The graph list's grippers write this, and it has no row of its own.
 	graph_order:
@@ -389,7 +361,7 @@ settings:
 		tab: Graph
 		control: text
 		path: graph.order
-		default: "cpu mem net swap zswap load disk temp battery"
+		default: "cpu mem net disk temp swap zswap load battery"
 		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, net for network, swap, zswap, load, disk, temp for temperature, and battery. One left out goes at the end."
 
 	DiskHead:

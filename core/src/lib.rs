@@ -708,7 +708,7 @@ mod tests {
 		g.sample();
 		g.render(64, 20, 1);
 		assert!(!g.easing());
-		g.look.log_axis = false;
+		g.look.time = Timing::Linear;
 		g.render(64, 20, 1);
 		assert!(g.easing());
 		g.skip(axis::EASE);
@@ -722,7 +722,7 @@ mod tests {
 	#[test]
 	fn linear_axis_follows_the_sample_rate() {
 		let g = Graph::new(Look {
-			log_axis: false,
+			time: Timing::Linear,
 			sample_ms: 250,
 			..Look::default()
 		});
@@ -736,7 +736,7 @@ mod tests {
 		g.hist.add(0.0, 1.0, &[0.1; 4]);
 		g.hist.add(7200.0, 7201.0, &[0.1; 4]);
 		assert_eq!(g.axis(100), Axis::log(axis::Curve::Smooth, 7201.0));
-		g.look.curve = axis::Curve::FixedA;
+		g.look.time = Timing::Log(axis::Curve::FixedA);
 		assert_eq!(g.axis(100), Axis::log(axis::Curve::FixedA, 7201.0));
 		assert_ne!(g.axis(100), Axis::log(axis::Curve::Smooth, 7201.0));
 	}
@@ -785,7 +785,7 @@ mod tests {
 	#[test]
 	fn a_still_pointer_keeps_its_age_while_its_clock_time_moves_on() {
 		let mut g = Graph::new(Look {
-			log_axis: false,
+			time: Timing::Linear,
 			..Look::default()
 		});
 		let now = g.now();
@@ -829,7 +829,7 @@ mod tests {
 		assert_eq!(g.span_at(5, 130, 20, 1), None);
 		assert_eq!(g.hover_tip(5, 130, 20, 1), "CPU");
 		let mut g = Graph::new(Look {
-			log_axis: false,
+			time: Timing::Linear,
 			..Look::default()
 		});
 		let now = g.now();

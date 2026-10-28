@@ -160,7 +160,7 @@ impl Live {
 			_ => return 0,
 		};
 		if self.get(name).is_some() {
-			l.width_or(own)
+			l.share(own)
 		} else {
 			0
 		}
@@ -228,6 +228,8 @@ mod tests {
 		assert!(live.tip("cpu").starts_with("CPU "), "{}", live.tip("cpu"));
 
 		// not applied, and still drawn that way
+		// at 100 px, a width in percent is the same number
+		d.set("width", &Value::Float(100.0));
 		d.set("cpu_width", &Value::Float(40.0));
 		d.set("show_cpu", &Value::Bool(false));
 		live.set_look(&d.look());
@@ -343,9 +345,11 @@ mod tests {
 		live.sample();
 		std::thread::sleep(std::time::Duration::from_millis(30));
 		live.sample();
-		// off by default, and its row still draws it
-		assert!(!d.look().show_swap);
-		assert_eq!(live.width("swap"), 128);
+		// on by default, at a quarter of Width
+		assert!(d.look().show_swap);
+		assert_eq!(live.width("swap"), 32);
+		// at 100 px, a width in percent is the same number
+		d.set("width", &Value::Float(100.0));
 		d.set("swap_width", &Value::Float(60.0));
 		live.set_look(&d.look());
 		assert_eq!(live.width("swap"), 60);
@@ -398,6 +402,8 @@ mod tests {
 			assert_eq!(live.tip("zswap"), "");
 			return;
 		};
+		// at 100 px, a width in percent is the same number
+		d.set("width", &Value::Float(100.0));
 		d.set("zswap_width", &Value::Float(50.0));
 		live.set_look(&d.look());
 		assert_eq!(live.width("zswap"), 50);
@@ -420,6 +426,8 @@ mod tests {
 		std::thread::sleep(std::time::Duration::from_millis(30));
 		live.sample();
 		assert!(!d.look().show_load && !d.look().show_disk);
+		// at 100 px, a width in percent is the same number
+		d.set("width", &Value::Float(100.0));
 		d.set("load_width", &Value::Float(60.0));
 		d.set("disk_width", &Value::Float(50.0));
 		live.set_look(&d.look());
@@ -445,6 +453,8 @@ mod tests {
 		let mut d = Dialog::open(path);
 		let mut live = Live::new(d.look());
 		assert!(!d.look().show_temp);
+		// at 100 px, a width in percent is the same number
+		d.set("width", &Value::Float(100.0));
 		d.set("temp_width", &Value::Float(40.0));
 		live.set_look(&d.look());
 		assert_eq!(live.width("temp"), 40);
@@ -471,6 +481,8 @@ mod tests {
 		std::thread::sleep(std::time::Duration::from_millis(30));
 		live.sample();
 		assert!(!d.look().show_net);
+		// at 100 px, a width in percent is the same number
+		d.set("width", &Value::Float(100.0));
 		d.set("net_width", &Value::Float(60.0));
 		live.set_look(&d.look());
 		assert_eq!(live.width("net"), 60);

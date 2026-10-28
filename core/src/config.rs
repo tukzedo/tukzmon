@@ -351,8 +351,8 @@ impl Rgb {
 )]
 pub struct Look {
 	pub width: u32,
-	pub log_axis: bool,
-	pub curve: Curve,
+	/// What a graph with no time axis of its own follows.
+	pub time: Timing,
 	pub sample_ms: u32,
 	/// What the hover tip says about the time under the pointer.
 	pub said: Said,
@@ -369,38 +369,38 @@ pub struct Look {
 	pub cpu_gradient: [Rgb; 3],
 	/// Draw the CPU graph. It's drawn anyway when no other graph is.
 	pub show_cpu: bool,
-	/// 0 is `width`.
+	/// A percentage of `width`. See [`Look::share`].
 	pub cpu_width: u32,
-	/// None follows `log_axis` and `curve`. See [`Look::timing`].
+	/// None follows `time`. See [`Look::timing`].
 	pub cpu_time: Option<Timing>,
 	/// Draw the memory graph, where the box has one.
 	pub show_memory: bool,
-	/// 0 is `width`.
+	/// A percentage of `width`. See [`Look::share`].
 	pub mem_width: u32,
 	pub mem_time: Option<Timing>,
 	/// Draw the swap graph, where the box has swap.
 	pub show_swap: bool,
-	/// 0 is `width`.
+	/// A percentage of `width`. See [`Look::share`].
 	pub swap_width: u32,
 	pub swap_time: Option<Timing>,
 	/// Draw the zswap graph, where the box has zswap on or zram set up.
 	pub show_zswap: bool,
-	/// 0 is `width`.
+	/// A percentage of `width`. See [`Look::share`].
 	pub zswap_width: u32,
 	pub zswap_time: Option<Timing>,
 	/// Draw the network graph.
 	pub show_net: bool,
-	/// 0 is `width`.
+	/// A percentage of `width`. See [`Look::share`].
 	pub net_width: u32,
 	pub net_time: Option<Timing>,
 	/// Draw the load graph.
 	pub show_load: bool,
-	/// 0 is `width`.
+	/// A percentage of `width`. See [`Look::share`].
 	pub load_width: u32,
 	pub load_time: Option<Timing>,
 	/// Draw the disk graph, where the box has a disk.
 	pub show_disk: bool,
-	/// 0 is `width`.
+	/// A percentage of `width`. See [`Look::share`].
 	pub disk_width: u32,
 	pub disk_time: Option<Timing>,
 	/// A log scale up the disk graph.
@@ -409,12 +409,12 @@ pub struct Look {
 	pub disk_drives: Vec<String>,
 	/// Draw the CPU temperature graph, where the box has a sensor for it.
 	pub show_temp: bool,
-	/// 0 is `width`.
+	/// A percentage of `width`. See [`Look::share`].
 	pub temp_width: u32,
 	pub temp_time: Option<Timing>,
 	/// Draw the battery graph, where the box has a battery in.
 	pub show_battery: bool,
-	/// 0 is `width`.
+	/// A percentage of `width`. See [`Look::share`].
 	pub battery_width: u32,
 	pub battery_time: Option<Timing>,
 	/// Graph names as saved, first drawn first. See [`graph_order`].
@@ -482,8 +482,8 @@ impl Look {
 		let color = |id: &str| Rgb::parse(m.value(id, &NoEnv).as_text()).unwrap_or(Rgb(0, 0, 0));
 		Look {
 			width: num("width") as u32,
-			log_axis: m.value("log_axis", &NoEnv).as_bool(),
-			curve: Curve::parse(m.value("log_curve", &NoEnv).as_text()).unwrap_or_default(),
+			time: Timing::parse(m.value("time_axis", &NoEnv).as_text())
+				.unwrap_or(Timing::Log(Curve::Smooth)),
 			sample_ms: num("sample_ms") as u32,
 			said: Said::parse(m.value("hover_time", &NoEnv).as_text()).unwrap_or_default(),
 			spikes: (num("spikes") / 100.0) as f32,
@@ -646,20 +646,15 @@ impl Look {
 		}
 	}
 
-	/// A graph's own pick, or else the Time settings, so a saved
-	/// `graph.log_axis` still sets every graph that has no pick of its own.
+	/// A graph's own pick, or else Time axis default.
 	pub fn timing(&self, own: Option<Timing>) -> Timing {
-		own.unwrap_or(if self.log_axis {
-			Timing::Log(self.curve)
-		} else {
-			Timing::Linear
-		})
+		own.unwrap_or(self.time)
 	}
 
-	/// A graph's own width, or else Width, the way a time axis falls back to
-	/// the Time settings.
-	pub fn width_or(&self, own: u32) -> u32 {
-		if own == 0 { self.width } else { own }
+	/// A graph's width from its percentage of Width, rounded, and never 0.
+	pub fn share(&self, percent: u32) -> u32 {
+		let px = (u64::from(self.width) * u64::from(percent) + 50) / 100;
+		u32::try_from(px).unwrap_or(u32::MAX).max(1)
 	}
 
 	/// A missing or unreadable file gives the defaults, and a bad line gives
@@ -787,8 +782,7 @@ mod tests {
 		assert_eq!(l.top, Rgb(0x2a, 0x54, 0x3f));
 		assert_eq!(l.bottom, Rgb(0, 0, 0));
 		assert_eq!((l.width, l.sample_ms, l.border), (128, 500, 1));
-		assert!(l.log_axis);
-		assert_eq!(l.curve, Curve::Smooth);
+		assert_eq!(l.time, Timing::Log(Curve::Smooth));
 		assert_eq!(l.spikes, 0.5);
 		assert_eq!(l.hover, Rgb(0, 0, 0));
 		assert_eq!(l.said, Said::Ago);
@@ -1088,15 +1082,18 @@ mod tests {
 	#[test]
 	fn each_graph_has_a_switch_and_a_width() {
 		let d = Look::default();
-		assert!(d.show_cpu && d.show_memory);
-		assert_eq!((d.cpu_width, d.mem_width), (0, 0));
+		assert!(d.show_cpu && d.show_memory && d.show_swap);
+		assert_eq!((d.cpu_width, d.mem_width, d.net_width), (100, 100, 50));
 		let l = Look::from_model(&model(
-			"graph:\n\twidth: 90\ncpu:\n\tshow: false\n\twidth: 64\nmem:\n\twidth: 4096\n",
+			"graph:\n\twidth: 90\ncpu:\n\tshow: false\n\twidth: 64\nmem:\n\twidth: 1000\n",
 		));
 		assert_eq!(
 			(l.show_cpu, l.cpu_width, l.mem_width, l.width),
-			(false, 64, 4096, 90)
+			(false, 64, 1000, 90)
 		);
+		// a percentage of Width, rounded, and never 0
+		assert_eq!((l.share(64), l.share(1000), l.share(50)), (58, 900, 45));
+		assert_eq!(Look { width: 16, ..l }.share(1), 1);
 		assert!(l.show_memory);
 		let spec = spec();
 		let gate = |id: &str| {
@@ -1107,8 +1104,9 @@ mod tests {
 				.gate
 				.clone()
 		};
-		assert_eq!(gate("cpu_width").as_deref(), Some("show_cpu"));
-		assert_eq!(gate("mem_width").as_deref(), Some("show_memory"));
+		// a hidden graph's width can be set before it's turned on
+		assert_eq!(gate("cpu_width"), None);
+		assert_eq!(gate("mem_width"), None);
 	}
 
 	// Test ID: deea4
@@ -1119,21 +1117,22 @@ mod tests {
 		let l = Look::from_model(&model("cpu:\n\ttime: linear\nmem:\n\ttime: Fixed_B\n"));
 		assert_eq!(l.cpu_time, Some(Timing::Linear));
 		assert_eq!(l.mem_time, Some(Timing::Log(Curve::FixedB)));
-		// a file from before has neither, and its Time settings still rule
-		let old = Look::from_model(&model("graph:\n\tlog_axis: false\n\tlog_curve: fixed_a\n"));
+		// a file from before has neither, and Time axis default rules
+		let old = Look::from_model(&model("graph:\n\ttime: linear\n"));
 		assert_eq!(old.timing(old.cpu_time), Timing::Linear);
-		let old = Look::from_model(&model("graph:\n\tlog_curve: fixed_a\n"));
+		let old = Look::from_model(&model("graph:\n\ttime: fixed_a\n"));
 		assert_eq!(old.timing(old.mem_time), Timing::Log(Curve::FixedA));
 		assert_eq!(
 			Look::from_model(&model("cpu:\n\ttime: squiggly\n")).cpu_time,
 			None
 		);
 		let spec = spec();
-		for (id, gate) in [("cpu_time", "show_cpu"), ("mem_time", "show_memory")] {
+		for id in ["cpu_time", "mem_time"] {
 			let Some(s) = spec.get(id) else {
 				panic!("no {id} in settings.shcl");
 			};
-			assert_eq!(s.gate.as_deref(), Some(gate));
+			// set while its graph is off
+			assert_eq!(s.gate, None);
 			assert_eq!(s.default.as_text(), "same");
 			let picks: Vec<_> = s.options.iter().map(|(k, _)| Timing::parse(k)).collect();
 			assert_eq!(picks[0], None, "{id}: same comes first");
@@ -1172,7 +1171,7 @@ mod tests {
 		assert_eq!(
 			Look::default().order,
 			[
-				"cpu", "mem", "net", "swap", "zswap", "load", "disk", "temp", "battery"
+				"cpu", "mem", "net", "disk", "temp", "swap", "zswap", "load", "battery"
 			]
 		);
 		for text in [
@@ -1301,17 +1300,18 @@ mod tests {
 
 	// Test ID: decbx
 	#[test]
-	fn the_log_curve_comes_from_the_file() {
+	fn the_time_axis_default_comes_from_the_file() {
 		let pick = |v: &str| {
-			let text = format!("graph:\n\tlog_curve: {v}\n");
-			Look::from_model(&Model::load(spec(), &text, "")).curve
+			let text = format!("graph:\n\ttime: {v}\n");
+			Look::from_model(&Model::load(spec(), &text, "")).time
 		};
-		assert_eq!(pick("fixed_a"), Curve::FixedA);
-		assert_eq!(pick("Fixed_B"), Curve::FixedB);
-		assert_eq!(pick("wobbly"), Curve::Smooth);
+		assert_eq!(pick("fixed_a"), Timing::Log(Curve::FixedA));
+		assert_eq!(pick("Fixed_B"), Timing::Log(Curve::FixedB));
+		assert_eq!(pick("linear"), Timing::Linear);
+		assert_eq!(pick("wobbly"), Timing::Log(Curve::Smooth));
 		// the tip's paragraph break is a real one
 		let tip = spec()
-			.get("log_curve")
+			.get("time_axis")
 			.map(|s| s.tip.clone())
 			.unwrap_or_default();
 		assert!(tip.contains("\n\nLog A") && !tip.contains("\\n"), "{tip}");

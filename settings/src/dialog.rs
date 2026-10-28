@@ -736,7 +736,13 @@ mod tests {
 			}
 		);
 		// every graph the panel draws, so a new one can't be left off the list
-		assert_eq!(names(&dlg), tukzmon_core::graphs::draw_order(&[]));
+		let default = tukzmon_core::config::Look::default().order;
+		assert_eq!(names(&dlg), tukzmon_core::graphs::draw_order(&default));
+		assert_eq!(
+			names(&dlg).len(),
+			tukzmon_core::graphs::draw_order(&[]).len()
+		);
+		// the rest follow in the order the graphs were added
 		assert!(dlg.set_text(ORDER, "mem, cpu"));
 		assert_eq!(
 			names(&dlg),
@@ -755,12 +761,12 @@ mod tests {
 		] {
 			assert!(dlg.in_graph_list(id), "{id}");
 		}
-		for id in ["width", "log_axis", "graphshead", "theme"] {
+		for id in ["width", "time_axis", "graphshead", "theme"] {
 			assert!(!dlg.in_graph_list(id), "{id}");
 		}
-		// the list greys a hidden graph's width and time axis by this
+		// a hidden graph's width and time axis can still be set
 		assert!(dlg.set(&dlg.graph_rows()[0].show.clone(), &Value::Bool(false)));
-		assert!(!dlg.state("mem_width").counts && !dlg.state("mem_time").counts);
+		assert!(dlg.state("mem_width").counts && dlg.state("mem_time").counts);
 		assert!(dlg.state("cpu_width").counts);
 	}
 
@@ -776,13 +782,13 @@ mod tests {
 		assert!(dlg.move_graph(0, 1));
 		assert_eq!(
 			dlg.state(ORDER).text,
-			"mem cpu net swap zswap load disk temp battery"
+			"mem cpu net disk temp swap zswap load battery"
 		);
 		dlg.apply().unwrap();
 		assert_eq!(
 			config::Look::load(&path).order,
 			[
-				"mem", "cpu", "net", "swap", "zswap", "load", "disk", "temp", "battery"
+				"mem", "cpu", "net", "disk", "temp", "swap", "zswap", "load", "battery"
 			]
 		);
 		assert!(dlg.move_graph(1, 0));
@@ -892,11 +898,11 @@ mod tests {
 		let s = dlg.slider("width").unwrap().clone();
 		dlg.set_slider("width", s.to_t(130.0));
 		assert_eq!(dlg.state("width").number, 128.0);
-		assert!(dlg.set_text("log_axis", "off"));
-		assert!(!dlg.state("spikes").counts);
+		assert!(dlg.set_text("keep_history", "off"));
+		assert!(!dlg.state("max_days").counts);
 		// changing a row under a switch turns the switch back on
-		assert!(dlg.set_text("spikes", "20"));
-		assert!(dlg.state("log_axis").on);
+		assert!(dlg.set_text("max_days", "20"));
+		assert!(dlg.state("keep_history").on);
 	}
 
 	// Test ID: deccm
@@ -1184,19 +1190,18 @@ mod tests {
 	// Test ID: decbz
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn the_log_curve_sits_under_the_log_switch() {
+	fn the_time_axis_default_is_a_dropdown_with_linear_first() {
 		let d = scratch("curve");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone());
-		assert_eq!(dlg.state("log_curve").text, "smooth");
-		assert!(dlg.set_text("log_axis", "off"));
-		assert!(!dlg.state("log_curve").counts);
-		assert!(!dlg.set_text("log_curve", "squiggly"));
-		assert!(dlg.set_text("log_curve", "fixed_b"));
-		assert!(dlg.state("log_axis").on);
+		assert_eq!(dlg.state("time_axis").text, "smooth");
+		assert!(!dlg.set_text("time_axis", "squiggly"));
+		assert!(dlg.set_text("time_axis", "linear"));
+		// spike emphasis still counts, for a graph with a log axis of its own
+		assert!(dlg.state("spikes").counts);
 		dlg.apply().unwrap();
 		let text = std::fs::read_to_string(&path).unwrap();
-		assert!(text.contains("log_curve: fixed_b"), "{text}");
+		assert!(text.contains("time: linear"), "{text}");
 	}
 
 	// Test ID: decd3

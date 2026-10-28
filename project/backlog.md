@@ -367,23 +367,6 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- Themes: include some monochromatic themes.
 
-- Pre-next-cut: Graph tab, Graphs section names, widths, order, and defaults
-	- ID: 2026102814061800
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-140618
-	- Opened by: t00mietum
-	- Related IDs: 2026102508393161, 2026102508393152, 2026102508393154
-	- Requirements:
-		- Remove " graph" from monitor names.
-		- Change "Width px" to "Width %" (of the default px width defined at the top).
-			- And use my relative %s for each monitor as default settings, as defined in my current config. (E.g. CPU=100%, Network=50%.)
-		- Use my current order of monitors as defined in my current config.
-		- Default enabled monitors: CPU, Memory, Swap
-	- Progress log:
-		- The current config is b23's `~/.config/tukzmon/tukzmon.shcl`, read by build defqn.
-
 - Pre-next-cut: Tab order follows the graph order
 	- ID: 2026102814061802
 	- Type: Enhancement
@@ -411,33 +394,6 @@ Sorted per the notes in [Template](#template).
 				- Across all monitors taken as a whole
 	- Progress log:
 		- The current config is b23's `~/.config/tukzmon/tukzmon.shcl`, read by build defqn.
-
-- Pre-next-cut: Time subsection, a default time axis
-	- ID: 2026102814061804
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-140618
-	- Opened by: t00mietum
-	- Related IDs: 2026101916013886, 2026102408304586, 2026102508393156
-	- Requirements:
-		- "Time" subsection:
-			- Remove "Log time axis" checkbox.
-			- Rename "Log curve" -> "Time axis default"
-				- Same dropdown options as the individual graph dropdowns.
-
-- Pre-next-cut: Time axis dropdowns in the Graphs section
-	- ID: 2026102814061805
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-140618
-	- Opened by: t00mietum
-	- Related IDs: 2026102508393156, 2026102508393161, 2026102814061804
-	- Requirements:
-		- Time axis dropdown boxes in the "Graphs" section:
-			- Don't disable the dropdown when the graph is not enabled.
-			- "As set under Time" -> "Default".
 
 - Pre-next-cut: Sample ms override per graph
 	- ID: 2026102814061806
@@ -2318,6 +2274,84 @@ Sorted per the notes in [Template](#template).
 		- OK'd as proposed. `design.md` now lists it as settled.
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019
+
+- Pre-next-cut: Graph tab, Graphs section names, widths, order, and defaults
+	- ID: 2026102814061800
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102508393161, 2026102508393152, 2026102508393154
+	- Requirements:
+		- Remove " graph" from monitor names.
+		- Change "Width px" to "Width %" (of the default px width defined at the top).
+			- And use my relative %s for each monitor as default settings, as defined in my current config. (E.g. CPU=100%, Network=50%.)
+		- Use my current order of monitors as defined in my current config.
+		- Default enabled monitors: CPU, Memory, Swap
+	- Progress log:
+		- The current config is b23's `~/.config/tukzmon/tukzmon.shcl`, read by build defqn.
+			- b23's panel item reads `plugin-16.shcl` since round-1027, so its widths and order come from there.
+		- The graph list names each graph without " graph", and its width column is Width %.
+		- Widths default to 100% for CPU, memory and battery, 50% for network, disk and temperature, and 25% for swap, zswap and load, as on b23's item at a Width of 100.
+		- The order defaults to `cpu mem net disk temp swap zswap load battery`, and CPU, memory and swap are on.
+		- Verified: the Graph tab drew the new names, percentages, order and checkboxes in a snapshot.
+	- Decisions:
+		- Saved at the same `<graph>.width` paths. b23's item had Width at 100, so its saved pixel widths read the same as percentages.
+		- A width runs from 1% to 1000%, rounded to a whole pixel, and is never 0 px.
+		- The spec's graph rows are in the new default order, so the list and its revert arrows agree with it.
+		- A graph left out of a saved order still goes at the end in the order graphs were added, not the new default. Only a hand-edited order meets that.
+	- Branch: graph-tab
+	- Test case: `config::tests::each_graph_has_a_switch_and_a_width` (dedqf) now checks the defaults and how a percentage turns into pixels. It fails with widths still in pixels.
+		- 2026-10-28: new values only, for the new defaults. dedqq, defkz and defm0 read the new default order. `graphs::tests` lay out a `two()` look with the old defaults, swap off, every width 100% and the old order, so their tiles still check the layout. defq5 is now `swap_is_on_by_default_and_draws_its_own_color`. defvs, the hidden CPU test, the saved order test, defmk and the live row tests set Width to 100, so a percentage reads as pixels.
+		- Swept: `Look::share` is the one place a percentage becomes pixels, used by `Graphs::width_of` and the settings window's `Live::width`.
+	- Closed: 20261028-143000
+
+- Pre-next-cut: Time subsection, a default time axis
+	- ID: 2026102814061804
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013886, 2026102408304586, 2026102508393156
+	- Requirements:
+		- "Time" subsection:
+			- Remove "Log time axis" checkbox.
+			- Rename "Log curve" -> "Time axis default"
+				- Same dropdown options as the individual graph dropdowns.
+	- Progress log:
+		- Under Time, Time axis default picks Linear, Smooth log, Log A or Log B, at `graph.time`. Smooth log is still the default.
+		- Spike emphasis is never greyed now, since a graph can pick a log curve of its own.
+	- Decisions:
+		- `graph.log_axis` and `graph.log_curve` are dropped, not read as aliases. They were never in a release, and b23's files have neither, as with the old theme keys in 2026102620162201. This replaces 2026102408304586's "Saved configs with `graph.log_axis` and `graph.log_curve` keep working".
+		- `Look` has one `time`, and `Look::timing` is a graph's own pick or else that.
+	- Branch: graph-tab
+	- Test case: `config::tests::the_time_axis_default_comes_from_the_file` (decbx) and `dialog::tests::the_time_axis_default_is_a_dropdown_with_linear_first` (decbz), renamed from the log curve ones, and `axis::tests::curves_parse_as_the_spec_spells_them` (decbw), which now wants Linear first.
+		- 2026-10-28: debjh's switch is Keep across restarts over Max age, since Log time axis is gone. deea4's old-file part reads `graph.time`. defma no longer finds Log curve or Spike emphasis greyed.
+		- Swept: every `log_axis`, `log_curve` and `curve` reader, `core/examples/preview.rs` included, and the tips that named Log time axis or Log curve.
+	- Closed: 20261028-143000
+
+- Pre-next-cut: Time axis dropdowns in the Graphs section
+	- ID: 2026102814061805
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102508393156, 2026102508393161, 2026102814061804
+	- Requirements:
+		- Time axis dropdown boxes in the "Graphs" section:
+			- Don't disable the dropdown when the graph is not enabled.
+			- "As set under Time" -> "Default".
+	- Progress log:
+		- A hidden graph's time axis and width are live, and the first choice reads Default.
+	- Decisions:
+		- The width box isn't greyed either, so a hidden graph's row reads one way across.
+		- The saved key stays `same`, so only the label changed.
+	- Branch: graph-tab
+	- Test case: deea4 and dedqf check the time and width rows have no gate, and both fail with the gates put back. dedqq checks a hidden graph's still count, and defma that the window greys neither.
+	- Closed: 20261028-143000
 
 - Pre-next-cut: Empty checkboxes need to be more visible
 	- ID: 2026102807585000

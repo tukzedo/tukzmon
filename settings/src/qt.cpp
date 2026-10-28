@@ -903,7 +903,7 @@ private:
 			lr.grip->stepped = [this, name](int by) { moveBy(name, by); };
 			listRows.push_back(lr);
 		}
-		auto *widthHead = new QLabel("Width px");
+		auto *widthHead = new QLabel("Width %");
 		auto *timeHead = new QLabel("Time axis");
 		widthHead->setToolTip(listRows.empty() ? "" : qs(row_state(d, listRows[0].width->id()).tip));
 		listGrid->addWidget(widthHead, 0, 2);
