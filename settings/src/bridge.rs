@@ -39,19 +39,6 @@ pub mod ffi {
 		in_list: bool,
 	}
 
-	/// Text to write over a live graph, from `render::Overlay`. Colors are
-	/// opaque ARGB, and the place and room are device pixels.
-	struct OverlayInfo {
-		shown: bool,
-		text: String,
-		color: u32,
-		edge: u32,
-		x: usize,
-		y: usize,
-		w: usize,
-		h: usize,
-	}
-
 	/// The graph list's row for one graph: the ids of the settings it shows.
 	struct GraphRow {
 		name: String,
@@ -118,8 +105,9 @@ pub mod ffi {
 		fn pick_close(d: &mut Dialog, keep: bool);
 		fn graph_rows(d: &Dialog) -> Vec<GraphRow>;
 		fn move_graph(d: &mut Dialog, from: usize, to: usize) -> bool;
-		fn reset_history(d: &mut Dialog);
-		fn reset_pending(d: &Dialog) -> bool;
+		fn tab_order(d: &Dialog) -> Vec<usize>;
+		fn reset_history(d: &Dialog) -> String;
+		fn reset_deletes_saved(d: &Dialog) -> bool;
 
 		type Live;
 		fn live_new(d: &Dialog) -> Box<Live>;
@@ -149,8 +137,6 @@ pub mod ffi {
 		fn wrap_tip(text: &str) -> String;
 		/// True while the graph's time axis eases in, so it wants drawing again soon.
 		fn live_easing(l: &Live, name: &str) -> bool;
-		/// What to write over the graph drawn at that size, if anything.
-		fn live_overlay(l: &Live, name: &str, w: usize, h: usize, scale: usize) -> OverlayInfo;
 	}
 
 	unsafe extern "C++" {
@@ -163,6 +149,11 @@ pub mod ffi {
 		fn graph_list_places(d: &mut Dialog) -> Vec<i32>;
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn tabs_shown(d: &mut Dialog) -> Vec<TabShown>;
+		/// Picks the tab named `pick`, moves graph list row `from` to `to`, and
+		/// gives the tab picked then, followed by each tab as `tabs_shown`
+		/// does.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn tabs_after_move(d: &mut Dialog, pick: &str, from: usize, to: usize) -> Vec<TabShown>;
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn bottom_buttons(d: &mut Dialog) -> Vec<String>;
 		/// Whether Apply is on before and after typing into the first color
@@ -343,12 +334,16 @@ fn move_graph(d: &mut Dialog, from: usize, to: usize) -> bool {
 	d.move_graph(from, to)
 }
 
-fn reset_history(d: &mut Dialog) {
-	d.reset_history();
+fn tab_order(d: &Dialog) -> Vec<usize> {
+	d.tab_order()
 }
 
-fn reset_pending(d: &Dialog) -> bool {
-	d.reset_pending()
+fn reset_history(d: &Dialog) -> String {
+	d.reset_history().err().unwrap_or_default()
+}
+
+fn reset_deletes_saved(d: &Dialog) -> bool {
+	d.reset_deletes_saved()
 }
 
 fn live_clear(l: &mut Live) {
@@ -373,31 +368,6 @@ fn live_width(l: &Live, name: &str) -> u32 {
 
 fn live_draw<'a>(l: &'a mut Live, name: &str, w: usize, h: usize, scale: usize) -> &'a [u32] {
 	l.render(name, w, h, scale)
-}
-
-fn live_overlay(l: &Live, name: &str, w: usize, h: usize, scale: usize) -> ffi::OverlayInfo {
-	match l.overlay(name, w, h, scale) {
-		Some(o) => ffi::OverlayInfo {
-			shown: true,
-			text: o.text,
-			color: o.color.argb(),
-			edge: o.edge.argb(),
-			x: o.x,
-			y: o.y,
-			w: o.w,
-			h: o.h,
-		},
-		None => ffi::OverlayInfo {
-			shown: false,
-			text: String::new(),
-			color: 0,
-			edge: 0,
-			x: 0,
-			y: 0,
-			w: 0,
-			h: 0,
-		},
-	}
 }
 
 fn live_tip(l: &Live, name: &str, w: usize, h: usize, scale: usize) -> String {
@@ -716,6 +686,38 @@ mod tests {
 				assert!(t == s || t == top as usize, "{} shows {id}", tabs[s].label);
 			}
 		}
+	}
+
+	// Test ID: dejad
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn a_moved_graph_moves_its_tab_and_the_picked_tab_stays_picked() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_tab_move_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let tabs = dialog_tabs(&d);
+		let last = graph_rows(&d).len() - 1;
+		let shown = ffi::tabs_after_move(&mut d, "Memory", last, 0);
+		assert_eq!(shown[0].label.trim_start(), "Memory");
+		let lines: Vec<&str> = shown[1..].iter().map(|t| t.label.trim_start()).collect();
+		let at = |name: &str| lines.iter().position(|l| *l == name).unwrap();
+		let model: Vec<&str> = d
+			.tab_order()
+			.iter()
+			.map(|&t| tabs[t].label.as_str())
+			.collect();
+		assert_eq!(lines, model);
+		assert_eq!(at("Battery") + 1, at("CPU"));
+		assert_eq!(at("Themes") + 1, at("Battery"));
+		assert_eq!(lines.last(), Some(&"Background"));
+		assert_eq!(lines.len(), tabs.len());
+		assert_eq!(shown[0].rows, shown[1 + at("Memory")].rows);
+		// Themes on its own shows the first tab under it, as listed now
+		assert_eq!(shown[1 + at("Themes")].rows, shown[1 + at("Battery")].rows);
+		assert_ne!(shown[1 + at("Themes")].rows, shown[1 + at("CPU")].rows);
 	}
 
 	// Test ID: defwy

@@ -27,7 +27,7 @@ use std::time::{Instant, SystemTime};
 use axis::{Ages, Axis, Basis, Ease, Timing};
 use battery::BatteryReader;
 use collect::Collector;
-use config::{Look, Rgb};
+use config::Look;
 use cpu::CpuReader;
 use disk::DiskReader;
 use history::History;
@@ -73,11 +73,6 @@ pub trait Source<const N: usize>: Collector<N> {
 	fn timing(look: &Look) -> Timing;
 	/// How often the graph is read, in ms. See [`Look::rate`].
 	fn sample_ms(look: &Look) -> u32;
-
-	/// Text written over the graph from the latest read, and its color.
-	fn overlay(&self, _look: &Look) -> Option<(String, Rgb)> {
-		None
-	}
 
 	/// Some for a source with no fixed top, such as bytes per second: the
 	/// least its peak goes down to. See [`render::Peak`].
@@ -208,8 +203,13 @@ impl Source<1> for ZswapReader {
 	const SECTION: &'static str = "zswap";
 	const TITLE: &'static str = "Zswap";
 
+	// the ratio isn't in the history, so it's the latest whatever time is hovered
 	fn text(&self, v: &[f32; 1]) -> String {
-		format!("{} {}% used", self.name(), pc(v[0]))
+		let used = format!("{} {}% used", self.name(), pc(v[0]));
+		match self.ratio() {
+			Some(r) => format!("{used}\nCompressed {r:.1}x now"),
+			None => used,
+		}
 	}
 
 	fn paint(look: &Look) -> Paint<'_, 1> {
@@ -222,10 +222,6 @@ impl Source<1> for ZswapReader {
 
 	fn sample_ms(look: &Look) -> u32 {
 		look.rate(look.zswap_sample_ms)
-	}
-
-	fn overlay(&self, look: &Look) -> Option<(String, Rgb)> {
-		Some((format!("{:.1}x", self.ratio()?), look.zswap_ratio))
 	}
 }
 
@@ -683,25 +679,6 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		}
 		self.px = px;
 		&self.px
-	}
-
-	/// The text to write over the graph drawn `w` by `h`, if its source has
-	/// any. Its edge is the background's bottom color.
-	pub fn overlay(&self, w: usize, h: usize, scale: usize) -> Option<render::Overlay> {
-		let bw = self.border_px(w, h, scale);
-		if w <= 2 * bw || h <= 2 * bw {
-			return None;
-		}
-		let (text, color) = self.src.overlay(&self.look)?;
-		Some(render::Overlay {
-			text,
-			color,
-			edge: self.look.bottom,
-			x: bw,
-			y: bw,
-			w: w - 2 * bw,
-			h: h - 2 * bw,
-		})
 	}
 
 	/// The latest read, as the panel's tooltip.

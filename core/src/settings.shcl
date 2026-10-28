@@ -16,7 +16,7 @@
 ## default is the Default theme's value, and config::tests holds the two to
 ## each other.
 
-tabs: "Graph", "Themes", "Themes/CPU", "Themes/Memory", "Themes/Network", "Themes/Swap", "Themes/Zswap", "Themes/Load", "Themes/Disk", "Themes/Temperature", "Themes/Battery", "Themes/Background"
+tabs: "Graph", "Themes", "Themes/CPU", "Themes/Memory", "Themes/Network", "Themes/Disk", "Themes/Temperature", "Themes/Swap", "Themes/Zswap", "Themes/Load", "Themes/Battery", "Themes/Background"
 
 settings:
 
@@ -847,15 +847,6 @@ settings:
 		group: theme
 		shown_when: "zswap_mode = detailed"
 
-	zswap_ratio:
-		label: Ratio
-		tab: Themes/Zswap
-		control: color
-		path: zswap.colors.ratio
-		default: "#ffe0ff"
-		group: theme
-		tip: "The compression ratio written over the graph, such as 2.1x. It gets a Bottom colored edge, so it reads over the graph too."
-
 	ZswapGradHead:
 		label: "Zswap, by height"
 		tab: Themes/Zswap
@@ -1272,7 +1263,6 @@ groups:
 				zswap_medium: "#ff80ff"
 				zswap_high: "#ffe0ff"
 				zswap_used: "#ff80ff"
-				zswap_ratio: "#ffe0ff"
 				load_mode: detailed
 				load_low: "#1a6666"
 				load_medium: "#40ffff"
@@ -1335,7 +1325,6 @@ groups:
 				zswap_medium: "#ff00ff"
 				zswap_high: "#ffc0ff"
 				zswap_used: "#ff00ff"
-				zswap_ratio: "#ffc0ff"
 				load_mode: detailed
 				load_low: "#660033"
 				load_medium: "#ff0080"
@@ -1398,7 +1387,6 @@ groups:
 				zswap_medium: "#f0a1d0"
 				zswap_high: "#ffe0f0"
 				zswap_used: "#f0a1d0"
-				zswap_ratio: "#ffe0f0"
 				load_mode: detailed
 				load_low: "#5c8985"
 				load_medium: "#a1f0e9"
@@ -1461,7 +1449,6 @@ groups:
 				zswap_medium: "#3060ff"
 				zswap_high: "#c8d4ff"
 				zswap_used: "#3060ff"
-				zswap_ratio: "#c8d4ff"
 				load_mode: detailed
 				load_low: "#006633"
 				load_medium: "#00ff80"
@@ -1524,7 +1511,6 @@ groups:
 				zswap_medium: "#6fa07a"
 				zswap_high: "#dcf0e0"
 				zswap_used: "#6fa07a"
-				zswap_ratio: "#dcf0e0"
 				load_mode: detailed
 				load_low: "#335b52"
 				load_medium: "#5aa090"
@@ -1587,7 +1573,6 @@ groups:
 				zswap_medium: "#20e0d0"
 				zswap_high: "#d0fff8"
 				zswap_used: "#20e0d0"
-				zswap_ratio: "#d0fff8"
 				load_mode: gradient
 				load_low: "#46660d"
 				load_medium: "#b0ff20"

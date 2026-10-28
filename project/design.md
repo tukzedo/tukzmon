@@ -49,9 +49,6 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - Each front end is as small as it can be. It creates the panel widget, runs a timer, and copies the library's pixel buffer onto the screen. A pixel buffer is the one thing every host can show: a cairo image surface on GTK, a `QImage` on Qt, a DIB on Windows, and a `CGImage` on macOS.
 
-- Text overlays, such as the zswap ratio, are drawn by the front end with the panel's own font, so they match the rest of the panel.
-	- The core says what to write, in which colors, and the room it has, which is the plot. The front end leaves it out when it doesn't fit, as on a short panel.
-
 ### XFCE plugin
 
 - XFCE 4.20 is still GTK3, and its plugin API is C macros around `libxfce4panel-2.0`.
@@ -87,7 +84,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - The drawing area has a window of its own, so it has to take button events and be an action widget, or a right-click never reaches the panel's menu.
 
-- The plugin reads the settings file again when its modified time changes, checked at every timer tick. That's how a save in the settings window shows up.
+- The plugin watches the settings file, and reads it again when its modified time or size changes. That's how a save in the settings window shows up, at once rather than at the next graph's read, which can be a minute away. Each timer tick checks it too, in case the watch couldn't be set up.
 
 - Each graph reads at its own rate, on one timer. A graph reads on whole multiples of its rate, counted on one clock every graph shares, so graphs whose rates divide each other read on the same tick and the panel draws once for them. The timer is one-shot, set again each tick for the next graph due, so a mix of rates wakes the panel no more than it has to. `Graph::tick` in `core/src/lib.rs` has the beats.
 	- A read that would come less than half its rate after the one before is skipped, such as right after the rate changes. A very short span is mostly noise.
@@ -125,7 +122,8 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- An empty checkbox or radio button gets an edge in the text color, a little faded, over what the style draws. Some dark themes draw that edge close to the window color, and it all but vanished. `BoxStyle` in `qt.cpp` does it.
 	- A slider can reach less far than its number box takes. The box takes any sane value, and `slider_range` in `core/src/settings.shcl` sets how far the slider goes.
 	- The selected tab is a tint of the theme's highlight under the normal text color, so it reads in a dark theme too.
-	- A tab with rows of its own and tabs under it, which is Themes, keeps those rows on top of whichever of its sub-tabs is picked. The sub-tabs are listed under it in the tab list, stepped in, and picking Themes itself shows the first one. Themes has the Name dropdown with Save, Save as, Rename, Delete and Randomize, and a sub-tab per graph's colors, plus Background for the colors they share. Like every other change, the theme buttons take effect at Apply.
+	- A tab with rows of its own and tabs under it, which is Themes, keeps those rows on top of whichever of its sub-tabs is picked. The sub-tabs are listed under it in the tab list, stepped in, and picking Themes itself shows the first one.
+		- The graphs' sub-tabs are in the graph order, and move when a graph is moved in the graph list, before Apply. Background stays last, and the tab that's picked stays picked. A graph's sub-tab is the one with its mode. Themes has the Name dropdown with Save, Save as, Rename, Delete and Randomize, and a sub-tab per graph's colors, plus Background for the colors they share. Like every other change, the theme buttons take effect at Apply.
 	- Two keys in `core/src/settings.shcl` are tukzmon's, not knobs'. `shown_as: radio` draws a dropdown as radio buttons, and `shown_when: "id = key"` shows a row only while that dropdown is on that key. knobs' gates only take a checkbox.
 	- Graphs on the Graph tab is a list with a row per graph, not a row per setting. See [XFCE plugin](#xfce-plugin).
 	- A color chip opens a picker, and the hex value can be typed beside it. The picker is SilkTerm's, not the toolkit's: a saturation and brightness square, a hue strip, and boxes for red, green, blue, brightness, saturation and hex. The row behind it follows every change, and Cancel puts back all of it, the theme's "*" included. The color model is in `settings/src/pick.rs`.
@@ -133,9 +131,9 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- The file gets only what was changed in the window, applied to the file as it is at save time, so a hand edit made meanwhile isn't lost.
 	- A save that would drop a line it can't read, or a setting it doesn't know, is refused, and the error names the lines.
 
-- Reset history sits on the left of the bottom strip, under the pages, and starts every graph over, in every panel item. With Keep across restarts on, it asks first, since that deletes the saved history too. Like the theme buttons it takes effect at Apply, but the window's own graphs start over at once.
-	- At Apply the window writes `reset` in the history folder. When Keep across restarts is on, it deletes every `plugin-*.hist` there first, so an item that isn't running doesn't bring old history back.
-	- A running plugin checks that file's modified time at each sample, as it does the settings file's. It drops what it holds, and when history is kept it deletes its own file again, since it may have saved in between.
+- Reset history sits on the left of the bottom strip, under the pages, and starts every graph over at once, in the window and in every panel item. With Keep across restarts on, as the window shows it or as last applied, it asks first, since that deletes the saved history too. It's an action, not a setting, so it doesn't wait for Apply, and Cancel doesn't take it back.
+	- It writes `reset` in the history folder. When the saved history goes too, it deletes every `plugin-*.hist` there first, so an item that isn't running doesn't bring old history back.
+	- A running plugin watches that file, as it does the settings file, and checks its modified time at each sample too. It drops what it holds, and when history is kept it deletes its own file again, since it may have saved in between.
 	- With Keep across restarts off, the file is left as it is, the same as Off always does.
 
 - Not there yet: a live preview in the panel before Apply, and the search box.
@@ -179,9 +177,10 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 - The temperature graph's colors are on the Temperature sub-tab: Normal and Critical, at `temp.colors.normal` and `.critical`, plus its own Low, Medium and High. Normal is a hue of its own, and critical is the theme's I/O wait color, so going over reads as an alarm, as the battery's critical does. Default's normal is green, `#40ff48`.
 	- The tip gives the reading and the level it turns critical at, in whole degrees C.
 
-- The zswap graph's colors are on the Zswap sub-tab: In use, at `zswap.colors.used`, and Ratio, at `zswap.colors.ratio`, plus its own Low, Medium and High. Every built-in gives zswap a hue and gradient of its own, and Ratio is a pale tint of it. Default's is magenta, `#ff80ff`.
+- The zswap graph's colors are on the Zswap sub-tab: In use, at `zswap.colors.used`, plus its own Low, Medium and High. Every built-in gives zswap a hue and gradient of its own. Default's is magenta, `#ff80ff`.
 	- The graph is zram's on a box with zram and no zswap, and its tip says which, such as "Zram 40% used".
-	- The ratio from the latest read is written at the plot's top left, such as `4.7x`, in Ratio with a rim of the background's Bottom, so it reads over the pool's own color too. An empty pool has no ratio, so nothing is written.
+	- The tip gives the compression ratio from the latest read on a second line, such as "Compressed 4.7x now". The ratio isn't kept in the history, so it's the latest one wherever the pointer is, and the line says so. An empty pool has no ratio, so the line is left out.
+	- Nothing is written over the graph. The ratio was, until backlog 2026102814061810 moved it to the tip.
 
 - The battery graph's colors are on the Battery sub-tab: Plugged in, On battery and Critical, at `battery.colors.charging`, `.discharging` and `.critical`, plus its own Low, Medium and High. In every built-in, plugged in is a hue of the battery's own, and on battery and critical are the theme's system and I/O wait colors, so on battery reads as a warning and critical as an alarm. The gradient is the battery's own. Default's plugged in is lavender, `#b080ff`.
 	- The tip says plugged in rather than charging, since a full battery with the power in counts as charging.

@@ -12,7 +12,6 @@ use tukzmon_core::graphs::{self, Drawn};
 use tukzmon_core::load::LoadReader;
 use tukzmon_core::mem::{MemoryReader, SwapReader};
 use tukzmon_core::net::NetReader;
-use tukzmon_core::render::Overlay;
 use tukzmon_core::temp::TempReader;
 use tukzmon_core::zswap::ZswapReader;
 use tukzmon_core::{Graph, Source};
@@ -176,10 +175,6 @@ impl Live {
 			Some(g) => g.render(w, h, scale),
 			None => &[],
 		}
-	}
-
-	pub fn overlay(&self, name: &str, w: usize, h: usize, scale: usize) -> Option<Overlay> {
-		self.get(name)?.overlay(w, h, scale)
 	}
 
 	pub fn easing(&self, name: &str) -> bool {

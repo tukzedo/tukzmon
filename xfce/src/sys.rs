@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
-// The few GLib, GTK 3, cairo, Pango, and libxfce4panel calls the plugin makes, by
+// The few GLib, GIO, GTK 3, cairo, and libxfce4panel calls the plugin makes, by
 // hand. Every widget is an opaque pointer, so no struct layouts are copied.
 
 use std::ffi::{c_char, c_int, c_uint, c_ulong, c_void};
@@ -67,6 +67,17 @@ unsafe extern "C" {
 	) -> c_uint;
 	pub fn g_source_remove(id: c_uint) -> Gboolean;
 
+	pub fn g_file_new_for_path(path: *const c_char) -> *mut c_void;
+	pub fn g_file_monitor_file(
+		file: *mut c_void,
+		flags: c_uint,
+		cancellable: *mut c_void,
+		error: *mut *mut c_void,
+	) -> *mut c_void;
+	pub fn g_file_monitor_cancel(monitor: *mut c_void) -> Gboolean;
+	#[cfg(test)]
+	pub fn g_main_context_iteration(context: *mut c_void, may_block: Gboolean) -> Gboolean;
+
 	pub fn gtk_drawing_area_new() -> *mut c_void;
 	pub fn gtk_container_add(container: *mut c_void, widget: *mut c_void);
 	pub fn gtk_widget_show_all(widget: *mut c_void);
@@ -94,15 +105,6 @@ unsafe extern "C" {
 	pub fn cairo_set_source_surface(cr: *mut c_void, surface: *mut c_void, x: f64, y: f64);
 	pub fn cairo_paint(cr: *mut c_void);
 	pub fn cairo_surface_destroy(surface: *mut c_void);
-	pub fn cairo_move_to(cr: *mut c_void, x: f64, y: f64);
-	pub fn cairo_set_source_rgb(cr: *mut c_void, r: f64, g: f64, b: f64);
-	pub fn cairo_set_line_width(cr: *mut c_void, width: f64);
-	pub fn cairo_stroke_preserve(cr: *mut c_void);
-	pub fn cairo_fill(cr: *mut c_void);
-
-	pub fn gtk_widget_create_pango_layout(widget: *mut c_void, text: *const c_char) -> *mut c_void;
-	pub fn pango_layout_get_pixel_size(layout: *mut c_void, w: *mut c_int, h: *mut c_int);
-	pub fn pango_cairo_layout_path(cr: *mut c_void, layout: *mut c_void);
 
 	pub fn xfce_panel_plugin_get_type() -> GType;
 	pub fn xfce_panel_plugin_get_size(plugin: *mut c_void) -> c_int;

@@ -367,17 +367,6 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- Themes: include some monochromatic themes.
 
-- Pre-next-cut: Tab order follows the graph order
-	- ID: 2026102814061802
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-140618
-	- Opened by: t00mietum
-	- Related IDs: 2026102508393154, 2026102508393161
-	- Requirements:
-		- Tab order should be updated when monitors are rearranged.
-
 - Pre-next-cut: Default per-monitor colors from my current settings
 	- ID: 2026102814061803
 	- Type: Enhancement
@@ -394,28 +383,6 @@ Sorted per the notes in [Template](#template).
 				- Across all monitors taken as a whole
 	- Progress log:
 		- The current config is b23's `~/.config/tukzmon/tukzmon.shcl`, read by build defqn.
-
-- Pre-next-cut: Reset history clears the panel's graphs at once
-	- ID: 2026102814061807
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-140618
-	- Opened by: t00mietum
-	- Related IDs: 2026102620162202
-	- Requirements:
-		- Reset history: Affect the live graphs in the taskbar immediately.
-
-- Pre-next-cut: Zswap ratio moves to the tip
-	- ID: 2026102814061810
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-140618
-	- Opened by: t00mietum
-	- Related IDs: 2026102618353002
-	- Requirements:
-		- Remove the ratio text from the zswap monitor, and put it in the flyover tip text.
 
 - Pre-next-cut: A graph of tukzmon's own CPU use
 	- ID: 2026102814061811
@@ -454,6 +421,20 @@ Sorted per the notes in [Template](#template).
 		- A later item that gets the same id starts fresh, not with the removed one's settings and history.
 	- Progress log:
 		- Today both files stay. The plugin doesn't connect the panel's `remove` signal, and free-data saves history after it.
+
+- Bug: deja2 fails now and then
+	- ID: 2026102815185131
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261028-151851
+	- Opened by: t00mietum
+	- Related IDs: 2026102814061806
+	- Steps to reproduce:
+		- Run `live::tests::a_rows_sample_rate_picked_in_the_window_sets_when_it_reads` (deja2) a few times.
+	- Incorrect behavior: It failed once in the Nix package check, at `assert!(live.tick() <= 100)`, and passed on the next run.
+	- Expected behavior: It passes every time.
+	- Possible cause: `Graph::tick` counts a beat due within `EARLY_MS` (10 ms) as now, so the wait it gives can be up to the rate plus 10 ms. The test expects at most the rate.
 
 - Check whether XFCE 4.20 finds plugins under ~/.local
 	- ID: 2026102808222920
@@ -2263,6 +2244,86 @@ Sorted per the notes in [Template](#template).
 		- OK'd as proposed. `design.md` now lists it as settled.
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019
+
+- Pre-next-cut: Tab order follows the graph order
+	- ID: 2026102814061802
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102508393154, 2026102508393161
+	- Requirements:
+		- Tab order should be updated when monitors are rearranged.
+	- Actual effort: Low
+	- Progress log:
+		- The graphs' sub-tabs under Themes follow the graph order, and move as soon as a graph is moved in the Graph tab's list, before Apply. Background stays last, and the tab that's picked stays picked.
+		- The `tabs:` line in `core/src/settings.shcl` is in the default graph order now, so the spec and a new window agree.
+		- `design.md` Settings window has it.
+		- Verified: moving Zswap up 2 rows in the graph list moved its sub-tab to between Disk and Temperature, with Graph still picked.
+	- Decisions:
+		- A graph's sub-tab is the one with its `<name>.mode` row, so a new graph's tab follows the order with no list to keep up. Tabs that aren't a graph's keep their places.
+		- The tabs follow the order as the window shows it, before Apply, the same as the graph list's rows.
+		- Picking Themes shows the first sub-tab as listed now, rather than CPU's.
+	- Branch: small-trio
+	- Test case: `dialog::tests::the_graph_tabs_follow_the_graph_order_and_background_stays_last` (dejac) and `bridge::tests::a_moved_graph_moves_its_tab_and_the_picked_tab_stays_picked` (dejad). dejac fails with the order ignored, and with the old `tabs:` line. dejad fails with the tab list left as built.
+		- `bridge::tests::sub_tabs_sit_in_the_tab_list_under_their_parent` (defwx) fails with the old `tabs:` line too.
+		- Swept: every use of a tab list line in qt.cpp (`showTab`, `isLeaf`, the `--snapshot` loop and `tabs_shown`), which now go through that line's tab in the spec. A drag, Up and Down all reach the tab list through `refresh`.
+	- Closed: 20261028-151851
+
+- Pre-next-cut: Reset history clears the panel's graphs at once
+	- ID: 2026102814061807
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102620162202
+	- Requirements:
+		- Reset history: Affect the live graphs in the taskbar immediately.
+	- Actual effort: Avg
+	- Progress log:
+		- 2 things held the panel back. Reset history waited for Apply, and after Apply a running item saw the reset only at its next read. Since each graph reads at its own rate, that can be up to a minute away. With history kept, an item took 200 to 500 ms to drop its history at the default rate, and 2.2 to 3.2 s with every graph at 5000 ms.
+		- Reset history now acts when it's pressed, after its question when saved history goes too. Each panel item watches the reset file and its settings file, so either shows at once. The same check gave 1 to 3 ms at both rates.
+		- So a save in the settings window shows in the panel at once too.
+		- `design.md` Settings window and XFCE plugin have the details.
+		- Verified: with history kept, Yes in the question cleared every graph in the panel within about 160 ms of the key press. The panel kept reading for over a minute, with the disk graph at 2000 ms stepping about every 2 s and the rest about every half second.
+	- Decisions:
+		- The button acts at once. That departs from 2026102620162202, where it waited for Apply like theme Delete, so Cancel could take it back. A reset is an action rather than a setting, and the question already guards the one case that deletes saved history, which is how a clear history button usually works.
+		- It asks when Keep across restarts is on, as the window shows it or as applied, since a running item that keeps history deletes its own file either way.
+		- The plugin uses a GIO file monitor rather than a shorter timer, so it wakes only when a file changes. The check at each read stays, for a file system the watch can't follow.
+		- A settings file change is told by its modified time and size, since a watch can wake while a write is still going.
+	- Branch: small-trio
+	- Test case: `dialog::tests::reset_history_goes_at_once_and_deletes_saved_history_only_when_kept` (dejaf) and the plugin's `tests::a_reset_mark_written_calls_back_at_once` (dejae). dejaf fails with the reset left for later, and dejae with the watch not connected.
+		- 2026-10-28: defxs is commented out, since Reset history no longer waits for Apply. dejaf has what's left of it. `cicd/utility/test-ids.bash` still counts a commented-out test's ID, so the closed items that name it pass the check.
+		- Swept: every caller of `keep::reset`, now only the window, every file the plugin checks by modified time, now both watched, and the plugin's one-shot timer, which a watch event sets again.
+	- Closed: 20261028-151851
+
+- Pre-next-cut: Zswap ratio moves to the tip
+	- ID: 2026102814061810
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102618353002
+	- Requirements:
+		- Remove the ratio text from the zswap monitor, and put it in the flyover tip text.
+	- Actual effort: Low
+	- Progress log:
+		- Nothing is written over the zswap graph now. The tip has the ratio on a second line under the use, such as "Compressed 3.5x now", in the panel and in the settings window's graph list.
+		- The text overlay went with it, since no other graph used one, and so did the Ratio color on the Zswap sub-tab. The plugin no longer links Pango.
+		- `design.md` Theme has it.
+		- Verified: the zswap tip in the panel read "Zswap 35% used" over "Compressed 3.5x now", and nothing was drawn over the graph. The packages and the Nix package built and passed without Pango.
+	- Decisions:
+		- The ratio isn't in the history, so the tip says "now", which keeps it true with the pointer on an older time.
+		- The overlay and the `zswap_ratio` color are removed rather than kept unused. `design.md` planned nothing else for them. No release or installed build had the color, so no saved file should have it.
+	- Branch: small-trio
+	- Test case: `zswap::tests::the_tip_gives_the_latest_ratio` (dejab). It fails with the ratio left out of the tip.
+		- 2026-10-28: dehy3 is commented out, since there's no overlay left to check. dejab keeps its other checks.
+		- 2026-10-28: new values only. dehy4 checks the ratio in the tip in place of the overlay. The theme member count in deccf and deccw is 60, and deccy's saved color count is 51.
+		- Swept: every caller of `Source::overlay`, `Graph::overlay`, `Graphs::overlays`, `Live::overlay` and `live_overlay`, both front ends' drawing, the link list in `xfce/build.rs` with `nix/package.nix` and `nfpm.yaml`, every preset in `settings.shcl`, `dice::ROLES`, and every doc that named the color.
+	- Closed: 20261028-151851
 
 - Pre-next-cut: Sample ms override per graph
 	- ID: 2026102814061806

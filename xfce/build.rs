@@ -10,8 +10,7 @@ fn main() {
 		"libgtk-3.so.0",
 		"libgdk-3.so.0",
 		"libcairo.so.2",
-		"libpango-1.0.so.0",
-		"libpangocairo-1.0.so.0",
+		"libgio-2.0.so.0",
 		"libgobject-2.0.so.0",
 		"libglib-2.0.so.0",
 	] {
