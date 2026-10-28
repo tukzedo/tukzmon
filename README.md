@@ -15,6 +15,8 @@ Early. CPU, memory, swap and battery graphs run as an XFCE panel plugin, with a 
 
 To try it from a checkout you need Rust, XFCE 4.20, and Qt 6 (`qt6-base-dev` on Debian). Run `utility/dev-install.bash`. The panel only loads plugins from its system folders, so the first run links them there with sudo. Each run restarts the panel to load the new build.
 
+On NixOS, add `tukzmon.url = "github:tukzedo/tukzmon";` to your flake's inputs, put `tukzmon.nixosModules.default` in the system's modules, and set `programs.tukzmon.enable = true;`. After a rebuild, tukzmon is in the panel's Add New Items list. There's also `tukzmon.packages.x86_64-linux.default` and `tukzmon.overlays.default` if you'd rather add the package yourself, but then `environment.pathsToLink` needs `/share/xfce4` and `/lib/xfce4` unless the XFCE desktop is on.
+
 The first version is an XFCE panel plugin. Other desktops come after that, and later Windows, macOS, and the BSDs.
 
 ## Graphs

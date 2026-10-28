@@ -89,6 +89,12 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - A `.desktop` file tells the panel where the plugin is. XFCE 4.20 reads them only from `/usr/share/xfce4/panel/plugins`, and the library only from `xfce4/panel/plugins` under the system lib dir. `XDG_DATA_DIRS` and `~/.local` aren't searched, so even a build for one user needs root once. `utility/dev-install.bash` installs to `~/.local/lib/tukzmon`, makes the 2 symlinks with sudo when they're missing, and restarts the panel.
 
+- The Nix package is for tukzedo-linux's NixOS edition. `flake.nix` has it, an overlay, and a NixOS module, `programs.tukzmon.enable`. `nix/package.nix` builds it.
+	- XFCE 4.20 built with its own prefix, as Nix builds it, pairs each `XDG_DATA_DIRS` entry `<p>/share` with `<p>/lib`. It reads `.desktop` files from `<p>/share/xfce4/panel/plugins`, and the library from `<p>/lib/xfce4/panel/plugins`. So the package puts them there, and NixOS links both into `/run/current-system/sw`. Its XFCE desktop module does that already, and the tukzmon module does it too, for a panel run under some other desktop.
+	- The plugin links its libraries by soname, which Nix's linker wrapper gives no rpath for, so the package passes the rpath itself.
+	- A link to `tukzmon-settings` sits beside the library, so the plugin runs the one from its own package rather than whatever is first on PATH.
+	- The build number is the flake's commit time, since Nix's default `SOURCE_DATE_EPOCH` is 1980.
+
 - If Rust can't be used for some reason, the fallback is the same split, with the C file growing into the whole plugin.
 
 ### Settings window

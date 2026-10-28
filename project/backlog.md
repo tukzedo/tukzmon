@@ -22,6 +22,28 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- Check whether XFCE 4.20 finds plugins under ~/.local
+	- ID: 2026102808222920
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261028-082229
+	- Opened: 20261028-082229
+	- Opened by: t00mietum
+	- Related IDs: 2026102621053725
+	- Requirements: design.md XFCE plugin and README say XDG_DATA_DIRS and ~/.local aren't searched, so dev-install.bash needs sudo once. The 4.20.4 and 4.20.7 panel source pairs each XDG_DATA_DIRS entry and ~/.local/share with the lib dir under the same prefix, which on Debian is lib/x86_64-linux-gnu. Try ~/.local/share/xfce4/panel/plugins with ~/.local/lib/x86_64-linux-gnu/xfce4/panel/plugins on b23, and if it works, drop the sudo step and fix both docs.
+
+- Nix package build as a pipeline area
+	- ID: 2026102808222810
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261028-082228
+	- Opened: 20261028-082228
+	- Opened by: t00mietum
+	- Related IDs: 2026102621053725
+	- Requirements: an opt-in cicd area, such as `nix`, that builds the flake's package in a nixos/nix container and runs the panel check, so a new system library or a build.rs change that breaks it is caught. It fetches about 5 GB the first time, so it stays out of the default run unless a kept store makes it cheap.
+
 - Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
 	- ID: 2026102620162196
 	- Type: Bug
@@ -357,18 +379,6 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-26: Several graphs side by side, and the graph list that picks them, are in since round-1025. The `.deb` is in since 2026102506591283.
 		- 2026-10-26: Split what's left into children: 2026102621053709 (vertical and deskbar panels), 2026102621053715 (a settings file per plugin instance), 2026102621053720 (Wayland), 2026102621053725 (Nix package), and 2026102621105420 (graph sizes on a vertical panel). This closes with the last of them.
 
-- Nix package for tukzedo-linux's NixOS edition
-	- ID: 2026102621053725
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261026-210537
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013889
-	- Requirements:
-		- A Nix package of the plugin and `tukzmon-settings`, for tukzedo-linux's NixOS edition.
-		- The panel finds the plugin, given NixOS's plugin paths.
-
 - The graphs
 	- ID: 2026101916013887
 	- Type: Feature
@@ -657,6 +667,38 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Nix package for tukzedo-linux's NixOS edition
+	- ID: 2026102621053725
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261026-210537
+	- Opened by: t00mietum
+	- Parent ID: 2026101916013889
+	- Related IDs: 2026102808222810, 2026102808222920
+	- Requirements:
+		- A Nix package of the plugin and `tukzmon-settings`, for tukzedo-linux's NixOS edition.
+		- The panel finds the plugin, given NixOS's plugin paths.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- `flake.nix` has the package, an overlay, and a NixOS module, `programs.tukzmon.enable`. `nix/package.nix` builds the plugin and `tukzmon-settings`, and runs the workspace tests.
+		- The package puts the `.desktop` file in `share/xfce4/panel/plugins` and the library in `lib/xfce4/panel/plugins`, which XFCE 4.20 pairs for each `XDG_DATA_DIRS` entry. The module links both into the system path. README and `design.md` XFCE plugin have the rest.
+		- Verified 2026-10-28, on nixpkgs nixos-26.05: the package built and its tests passed, every library the plugin links resolved through its rpath, and `tukzmon-settings --version` ran. A NixOS system with the module, with and without the XFCE desktop, had the package and both links. nixpkgs' own xfce4-panel 4.20.7, given that system's `share` in `XDG_DATA_DIRS`, listed tukzmon from the system path, and a panel holding it loaded and embedded the plugin. `nix flake check` passed.
+		- Not tried on a real NixOS install, since tukzedo-linux's NixOS edition doesn't exist yet.
+	- Decisions:
+		- The flake follows nixos-26.05, the current stable, since it has Rust 1.95 and xfce4-panel 4.20.7. tukzedo-linux can make it follow its own nixpkgs.
+		- x86_64 only, as for the `.deb` and `.rpm`.
+		- The `.nix` files are in nixfmt's style, 2 spaces, since that's the Nix formatter nixpkgs uses and tabs aren't an option there.
+		- The rpath to the panel, GTK, cairo and GLib is passed to the linker, since Nix's linker wrapper adds none for a library named by soname. Without it the plugin's tests didn't start.
+		- A link to `tukzmon-settings` sits beside the library, so the plugin runs its own package's settings window before one on PATH.
+		- The build number is the flake's `lastModified`, since Nix's default `SOURCE_DATE_EPOCH` is 1980.
+		- The module also adds the 2 links, which the XFCE desktop module already does, so a panel under another desktop finds the plugin too.
+		- Swept: every place that installs the plugin, `cicd/packaging/nfpm.yaml` and `utility/dev-install.bash`, needed no change. The plugin's lookup of `tukzmon-settings` is unchanged.
+	- Branch: round-1028
+	- Test case: none in the repo. A pipeline step for it is 2026102808222810.
+	- Closed: 20261028-082255
 
 - The graph list on the Graph tab
 	- ID: 2026102508393161
