@@ -75,7 +75,6 @@ pub const ROLES: &[(&str, Part, Role)] = &[
 	("swap_high", Part::Swap, Role::Tint),
 	("zswap_mode", Part::Zswap, Role::Mode),
 	("zswap_used", Part::Zswap, Role::Lead),
-	("zswap_ratio", Part::Zswap, Role::Tint),
 	("zswap_low", Part::Zswap, Role::Calm),
 	("zswap_medium", Part::Zswap, Role::Lead),
 	("zswap_high", Part::Zswap, Role::Tint),

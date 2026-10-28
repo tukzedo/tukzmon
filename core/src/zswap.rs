@@ -116,7 +116,7 @@ impl ZswapReader {
 		}
 	}
 
-	/// The compression ratio at the last read, for the text overlay.
+	/// The compression ratio at the last read, for the tip.
 	pub fn ratio(&self) -> Option<f32> {
 		self.ratio
 	}
@@ -364,21 +364,77 @@ mod tests {
 		assert!(r.ratio().is_none_or(|x| x > 0.0));
 	}
 
-	// Test ID: dehy3
+	// Out since 2026-10-28: the ratio moved from text over the graph to the
+	// tip, per backlog 2026102814061810, so there's no overlay to check. dejab
+	// has the rest.
+	// // Test ID: dehy3
+	// #[test]
+	// fn the_graph_gives_the_ratio_to_write_over_the_pool() {
+	// 	use crate::Source;
+	// 	use crate::config::Look;
+	// 	use crate::render::Overlay;
+	// 	let on = Tree::new(
+	// 		"zswap_graph",
+	// 		&[
+	// 			("meminfo", MEMINFO_ZSWAP),
+	// 			("zswap/enabled", "Y\n"),
+	// 			("zswap/max_pool_percent", "20\n"),
+	// 		],
+	// 	);
+	// 	assert!(!Look::default().show_zswap);
+	// 	let look = Look {
+	// 		show_zswap: true,
+	// 		border: 1,
+	// 		..Look::default()
+	// 	};
+	// 	let src = ZswapReader::probe_at(&roots(&on)).unwrap();
+	// 	let mut g = crate::Graph::with(look.clone(), src);
+	// 	let now = g.now();
+	// 	g.hist.add(now - 60.0, now, &[0.25]);
+	// 	assert_eq!(
+	// 		g.overlay(64, 20, 1),
+	// 		Some(Overlay {
+	// 			text: "4.2x".into(),
+	// 			color: look.zswap_ratio,
+	// 			edge: look.bottom,
+	// 			x: 1,
+	// 			y: 1,
+	// 			w: 62,
+	// 			h: 18,
+	// 		})
+	// 	);
+	// 	let o = g.overlay(128, 40, 2).unwrap();
+	// 	assert_eq!((o.x, o.y, o.w, o.h), (2, 2, 124, 36));
+	// 	assert_eq!(g.overlay(2, 20, 1), None);
+	// 	let px = g.render(64, 20, 1).to_vec();
+	// 	assert_eq!(px[18 * 64 + 60], look.zswap[0].argb());
+	// 	let tip = g.hover_tip(60, 64, 20, 1);
+	// 	assert!(tip.ends_with("\nZswap 25% used"), "{tip}");
+	// 	let fire = Look::from_model(&crate::config::model("theme:\n\tname: fire\n"));
+	// 	assert_eq!(
+	// 		fire.zswap_paint(),
+	// 		crate::render::Paint::Gradient(fire.zswap_gradient)
+	// 	);
+	// 	// an empty pool has no ratio to write
+	// 	let empty = crate::Graph::with(look, ZswapReader::default());
+	// 	assert_eq!(empty.tooltip(), "Zswap");
+	// 	assert_eq!(empty.src.text(&[0.5]), "Zram 50% used");
+	// 	assert_eq!(empty.overlay(64, 20, 1), None);
+	// }
+
+	// Test ID: dejab
 	#[test]
-	fn the_graph_gives_the_ratio_to_write_over_the_pool() {
+	fn the_tip_gives_the_latest_ratio() {
 		use crate::Source;
 		use crate::config::Look;
-		use crate::render::Overlay;
 		let on = Tree::new(
-			"zswap_graph",
+			"zswap_tip",
 			&[
 				("meminfo", MEMINFO_ZSWAP),
 				("zswap/enabled", "Y\n"),
 				("zswap/max_pool_percent", "20\n"),
 			],
 		);
-		assert!(!Look::default().show_zswap);
 		let look = Look {
 			show_zswap: true,
 			border: 1,
@@ -388,34 +444,24 @@ mod tests {
 		let mut g = crate::Graph::with(look.clone(), src);
 		let now = g.now();
 		g.hist.add(now - 60.0, now, &[0.25]);
-		assert_eq!(
-			g.overlay(64, 20, 1),
-			Some(Overlay {
-				text: "4.2x".into(),
-				color: look.zswap_ratio,
-				edge: look.bottom,
-				x: 1,
-				y: 1,
-				w: 62,
-				h: 18,
-			})
-		);
-		let o = g.overlay(128, 40, 2).unwrap();
-		assert_eq!((o.x, o.y, o.w, o.h), (2, 2, 124, 36));
-		assert_eq!(g.overlay(2, 20, 1), None);
 		let px = g.render(64, 20, 1).to_vec();
 		assert_eq!(px[18 * 64 + 60], look.zswap[0].argb());
 		let tip = g.hover_tip(60, 64, 20, 1);
-		assert!(tip.ends_with("\nZswap 25% used"), "{tip}");
+		assert!(
+			tip.ends_with("\nZswap 25% used\nCompressed 4.2x now"),
+			"{tip}"
+		);
+		g.sample();
+		g.sample();
+		assert_eq!(g.tooltip(), "Zswap 25% used\nCompressed 4.2x now");
 		let fire = Look::from_model(&crate::config::model("theme:\n\tname: fire\n"));
 		assert_eq!(
 			fire.zswap_paint(),
 			crate::render::Paint::Gradient(fire.zswap_gradient)
 		);
-		// an empty pool has no ratio to write
+		// an empty pool has no ratio to give
 		let empty = crate::Graph::with(look, ZswapReader::default());
 		assert_eq!(empty.tooltip(), "Zswap");
 		assert_eq!(empty.src.text(&[0.5]), "Zram 50% used");
-		assert_eq!(empty.overlay(64, 20, 1), None);
 	}
 }

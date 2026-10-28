@@ -76,8 +76,6 @@ pub struct Dialog {
 	picker: Option<Picker>,
 	/// Where the panel keeps history, for Reset history.
 	history_dir: PathBuf,
-	/// Reset history was pressed, and it goes at Apply like everything else.
-	reset_pending: bool,
 }
 
 /// An open color picker. Its row follows every change, and Cancel puts back
@@ -180,7 +178,6 @@ impl Dialog {
 			themes,
 			picker: None,
 			history_dir: keep::data_dir(),
-			reset_pending: false,
 		}
 	}
 
@@ -206,17 +203,28 @@ impl Dialog {
 	}
 
 	pub fn dirty(&self) -> bool {
-		self.model != self.saved || self.themes != self.saved_themes || self.reset_pending
+		self.model != self.saved || self.themes != self.saved_themes
 	}
 
-	/// Every graph starts over at Apply, and with Keep across restarts on
-	/// then, the saved history is deleted too.
-	pub fn reset_history(&mut self) {
-		self.reset_pending = true;
+	/// Whether Reset history deletes the saved history too: Keep across
+	/// restarts is on, as shown or as the panel has it.
+	pub fn reset_deletes_saved(&self) -> bool {
+		self.look().keep || config::Look::from_model(&self.saved).keep
 	}
 
-	pub fn reset_pending(&self) -> bool {
-		self.reset_pending
+	/// Starts every graph in every panel item over now. See
+	/// [`Self::reset_deletes_saved`] for when the saved history goes too.
+	///
+	/// # Errors
+	///
+	/// Why the panel wasn't told.
+	pub fn reset_history(&self) -> Result<(), String> {
+		keep::reset(&self.history_dir, self.reset_deletes_saved()).map_err(|e| {
+			format!(
+				"History in {} wasn't reset: {e}",
+				self.history_dir.display()
+			)
+		})
 	}
 
 	// the saved theme in force, if it's one
@@ -494,6 +502,27 @@ impl Dialog {
 			.collect()
 	}
 
+	/// The spec's tabs as the tab list shows them. A graph's tab, the one with
+	/// its mode, follows the graph order, in the places graph tabs have in the
+	/// spec, so the tabs that aren't a graph's, such as Background, stay put.
+	pub fn tab_order(&self) -> Vec<usize> {
+		let graph_tabs: Vec<usize> = self
+			.graph_rows()
+			.iter()
+			.filter_map(|r| Some(self.spec.get(self.id_at(&format!("{}.mode", r.name))?)?.tab))
+			.collect();
+		let mut order: Vec<usize> = (0..self.spec.tabs.len()).collect();
+		let places: Vec<usize> = order
+			.iter()
+			.copied()
+			.filter(|t| graph_tabs.contains(t))
+			.collect();
+		for (at, tab) in places.into_iter().zip(graph_tabs) {
+			order[at] = tab;
+		}
+		order
+	}
+
 	/// Drawn in the graph list rather than as a row of its own, the order
 	/// included.
 	pub fn in_graph_list(&self, id: &str) -> bool {
@@ -628,15 +657,6 @@ impl Dialog {
 		self.saved_themes = themes.clone();
 		self.themes = themes;
 		self.touched.clear();
-		if self.reset_pending {
-			keep::reset(&self.history_dir, self.look().keep).map_err(|e| {
-				format!(
-					"History in {} wasn't reset: {e}",
-					self.history_dir.display()
-				)
-			})?;
-			self.reset_pending = false;
-		}
 		Ok(())
 	}
 }
@@ -662,32 +682,69 @@ mod tests {
 		Dir(base)
 	}
 
-	// Test ID: defxs
+	// Out since 2026-10-28: Reset history acts at once rather than at Apply,
+	// per backlog 2026102814061807. dejaf checks it now.
+	// // Test ID: defxs
+	// #[test]
+	// #[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
+	// fn reset_history_waits_for_apply_and_deletes_saved_history_only_when_kept() {
+	// 	let d = scratch("reset");
+	// 	let data = d.0.join("data");
+	// 	let hist = keep::history_file(&data, 3);
+	// 	keep::write(&hist, &[("cpu", b"x")]).unwrap();
+	// 	let mut dlg = Dialog::open(d.0.join("t.shcl"));
+	// 	dlg.history_dir.clone_from(&data);
+	// 	dlg.reset_history();
+	// 	assert!(dlg.dirty());
+	// 	assert!(!keep::reset_mark(&data).exists());
+	// 	dlg.apply().unwrap();
+	// 	assert!(!dlg.dirty() && !dlg.reset_pending());
+	// 	assert!(!hist.exists());
+	// 	let mut watch = keep::ResetWatch::new(&data);
+	// 	assert!(keep::reset_mark(&data).exists());
+	// 	// with history not kept, only what's on screen goes
+	// 	keep::write(&hist, &[("cpu", b"x")]).unwrap();
+	// 	std::thread::sleep(std::time::Duration::from_millis(50));
+	// 	dlg.set("keep_history", &Value::Bool(false));
+	// 	dlg.reset_history();
+	// 	dlg.apply().unwrap();
+	// 	assert!(hist.exists());
+	// 	assert!(watch.asked());
+	// 	std::fs::remove_file(&hist).unwrap();
+	// 	std::fs::remove_file(keep::reset_mark(&data)).unwrap();
+	// 	std::fs::remove_dir(&data).unwrap();
+	// }
+
+	// Test ID: dejaf
 	#[test]
-	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn reset_history_waits_for_apply_and_deletes_saved_history_only_when_kept() {
-		let d = scratch("reset");
+	fn reset_history_goes_at_once_and_deletes_saved_history_only_when_kept() {
+		let d = scratch("reset_now");
 		let data = d.0.join("data");
 		let hist = keep::history_file(&data, 3);
 		keep::write(&hist, &[("cpu", b"x")]).unwrap();
 		let mut dlg = Dialog::open(d.0.join("t.shcl"));
 		dlg.history_dir.clone_from(&data);
-		dlg.reset_history();
-		assert!(dlg.dirty());
-		assert!(!keep::reset_mark(&data).exists());
-		dlg.apply().unwrap();
-		assert!(!dlg.dirty() && !dlg.reset_pending());
+		assert!(dlg.reset_deletes_saved());
+		dlg.reset_history().unwrap();
+		assert!(!dlg.dirty());
+		assert!(keep::reset_mark(&data).exists());
 		assert!(!hist.exists());
 		let mut watch = keep::ResetWatch::new(&data);
-		assert!(keep::reset_mark(&data).exists());
-		// with history not kept, only what's on screen goes
+		// off in the window but not yet applied: the panel still keeps it
+		keep::write(&hist, &[("cpu", b"x")]).unwrap();
+		dlg.set("keep_history", &Value::Bool(false));
+		assert!(dlg.reset_deletes_saved());
+		// timestamps are coarse, so the next reset must be told apart
+		std::thread::sleep(std::time::Duration::from_millis(50));
+		dlg.reset_history().unwrap();
+		assert!(watch.asked() && !hist.exists());
+		// off and applied: only what's on screen goes
+		dlg.saved = dlg.model.clone();
+		assert!(!dlg.reset_deletes_saved());
 		keep::write(&hist, &[("cpu", b"x")]).unwrap();
 		std::thread::sleep(std::time::Duration::from_millis(50));
-		dlg.set("keep_history", &Value::Bool(false));
-		dlg.reset_history();
-		dlg.apply().unwrap();
-		assert!(hist.exists());
-		assert!(watch.asked());
+		dlg.reset_history().unwrap();
+		assert!(watch.asked() && hist.exists());
 		std::fs::remove_file(&hist).unwrap();
 		std::fs::remove_file(keep::reset_mark(&data)).unwrap();
 		std::fs::remove_dir(&data).unwrap();
@@ -703,6 +760,59 @@ mod tests {
 		assert_eq!(s.text, "#00ff80");
 		assert!(!s.can_reset);
 		assert_eq!(dlg.state("width").number, 128.0);
+	}
+
+	// Test ID: dejac
+	#[test]
+	fn the_graph_tabs_follow_the_graph_order_and_background_stays_last() {
+		let d = scratch("tab_order");
+		let mut dlg = Dialog::open(d.0.join("t.shcl"));
+		let labels = |dlg: &Dialog| -> Vec<String> {
+			dlg.tab_order()
+				.iter()
+				.map(|&t| dlg.spec.tabs[t].label.clone())
+				.collect()
+		};
+		let spec_order: Vec<usize> = (0..dlg.spec.tabs.len()).collect();
+		// the spec lists them in the default graph order
+		assert_eq!(dlg.tab_order(), spec_order);
+		let graphs = [
+			"CPU",
+			"Memory",
+			"Network",
+			"Disk",
+			"Temperature",
+			"Swap",
+			"Zswap",
+			"Load",
+			"Battery",
+		];
+		let with = |graphs: &[&str]| -> Vec<String> {
+			["Graph", "Themes"]
+				.iter()
+				.chain(graphs)
+				.chain(&["Background"])
+				.map(|s| (*s).to_string())
+				.collect()
+		};
+		assert_eq!(labels(&dlg), with(&graphs));
+		let last = dlg.graph_rows().len() - 1;
+		assert!(dlg.move_graph(last, 0));
+		assert!(dlg.move_graph(2, 4));
+		let moved = [
+			"Battery",
+			"CPU",
+			"Network",
+			"Disk",
+			"Memory",
+			"Temperature",
+			"Swap",
+			"Zswap",
+			"Load",
+		];
+		assert_eq!(labels(&dlg), with(&moved));
+		dlg.reset(ORDER);
+		assert_eq!(dlg.tab_order(), spec_order);
 	}
 
 	// Test ID: dedqr
@@ -1085,7 +1195,7 @@ mod tests {
 		dlg.apply().unwrap();
 		let text = std::fs::read_to_string(&path).unwrap();
 		assert!(text.contains("name: night"), "{text}");
-		assert_eq!(text.matches("\"#").count(), 52, "{text}");
+		assert_eq!(text.matches("\"#").count(), 51, "{text}");
 		assert!(!text.contains("kept"), "{text}");
 		let dlg = Dialog::open(path.clone());
 		assert_eq!(dlg.state("theme").choice, "Night");

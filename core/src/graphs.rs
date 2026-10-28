@@ -15,7 +15,6 @@ use crate::keep;
 use crate::load::LoadReader;
 use crate::mem::{MemoryReader, SwapReader};
 use crate::net::NetReader;
-use crate::render::Overlay;
 use crate::temp::TempReader;
 use crate::zswap::ZswapReader;
 use crate::{Graph, Source, clock_ms, wait_ms};
@@ -144,7 +143,6 @@ pub trait Drawn {
 	fn hover_tip(&self, x: usize, w: usize, h: usize, scale: usize) -> String;
 	fn tooltip(&self) -> String;
 	fn render(&mut self, w: usize, h: usize, scale: usize) -> &[u32];
-	fn overlay(&self, w: usize, h: usize, scale: usize) -> Option<Overlay>;
 	fn set_look(&mut self, look: &Look);
 }
 
@@ -184,9 +182,6 @@ impl<S: Source<N>, const N: usize> Drawn for Graph<S, N> {
 	}
 	fn render(&mut self, w: usize, h: usize, scale: usize) -> &[u32] {
 		Graph::render(self, w, h, scale)
-	}
-	fn overlay(&self, w: usize, h: usize, scale: usize) -> Option<Overlay> {
-		Graph::overlay(self, w, h, scale)
 	}
 	fn set_look(&mut self, look: &Look) {
 		self.src.follow(look);
@@ -572,20 +567,6 @@ impl Graphs {
 	// side by side, what the gaps leave is shared out by width, since the
 	// panel may not give exactly what was asked for. Stacked, they share it
 	// evenly. A panel too thin for the edges keeps most of itself for graphs.
-	/// Each graph's overlay, placed in the whole drawing `w` by `h`.
-	pub fn overlays(&self, w: usize, h: usize, scale: usize) -> Vec<Overlay> {
-		self.tiles(w, h, scale)
-			.filter_map(|(which, (tx, ty, tw, th))| {
-				let o = self.slot(which)?.overlay(tw, th, scale)?;
-				Some(Overlay {
-					x: tx + o.x,
-					y: ty + o.y,
-					..o
-				})
-			})
-			.collect()
-	}
-
 	fn tiles(&self, w: usize, h: usize, scale: usize) -> impl Iterator<Item = (Which, Tile)> + '_ {
 		let (n, stacked) = (self.count(), self.stacked);
 		let total = self.widths().map(|x| x as usize).sum::<usize>().max(1);
@@ -1639,15 +1620,7 @@ mod tests {
 		assert_eq!(g.zswap.as_ref().unwrap().hover, Some(5));
 		assert!(
 			g.hover_tip(65 + 3 * G, 3, w, h, 1)
-				.contains("Zram 50% used")
-		);
-		let bw = look.border as usize;
-		let o = g.overlays(w, h, 1);
-		assert_eq!(o.len(), 1);
-		assert_eq!(o[0].text, "2.1x");
-		assert_eq!(
-			(o[0].x, o[0].y, o[0].w, o[0].h),
-			(60 + 3 * G + bw, E + bw, 20 - 2 * bw, 10 - 2 * bw)
+				.ends_with("Zram 50% used\nCompressed 2.1x now")
 		);
 		g.save(&path).unwrap();
 		let names: Vec<String> = keep::read(&path)

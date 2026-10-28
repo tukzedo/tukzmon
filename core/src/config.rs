@@ -439,8 +439,6 @@ pub struct Look {
 	pub zswap: [Rgb; 1],
 	pub zswap_mode: Mode,
 	pub zswap_gradient: [Rgb; 3],
-	/// The compression ratio written over the zswap graph.
-	pub zswap_ratio: Rgb,
 	/// In `net::NetReader::SERIES` order.
 	pub net: [Rgb; 3],
 	pub net_mode: Mode,
@@ -560,7 +558,6 @@ impl Look {
 				color("zswap_medium"),
 				color("zswap_high"),
 			],
-			zswap_ratio: color("zswap_ratio"),
 			net: [color("net_local"), color("net_sent"), color("net_received")],
 			net_mode: Mode::parse(m.value("net_mode", &NoEnv).as_text()).unwrap_or_default(),
 			net_gradient: [color("net_low"), color("net_medium"), color("net_high")],
@@ -818,7 +815,7 @@ mod tests {
 	fn the_default_theme_is_the_row_defaults() {
 		let spec = spec();
 		let g = spec.group(THEME).unwrap();
-		assert_eq!(g.members.len(), 61);
+		assert_eq!(g.members.len(), 60);
 		let default = g.preset("default").unwrap();
 		assert_eq!(default.label, "Default");
 		for id in &g.members {
@@ -1319,7 +1316,7 @@ mod tests {
 			"themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n",
 		));
 		assert_eq!(t[0].name, "Say \"hi\"");
-		assert_eq!(t[0].colors.len(), 61);
+		assert_eq!(t[0].colors.len(), 60);
 		t.push(SavedTheme {
 			key: theme_key("Default", &t),
 			name: "Default".into(),

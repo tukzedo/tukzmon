@@ -133,9 +133,24 @@ fStrays() {
 	done
 }
 
+## IDs of tests commented out once a decision made them wrong, on a
+## "// // Test ID: dehy3" line. A closed item may still name one, and a new
+## test mustn't take it.
+fRetired() {
+	local dir
+	while IFS=$'\t' read -r dir _; do
+		[[ -d "${root}/${dir}/src" ]] || continue
+		find "${root}/${dir}/src" "${root}/${dir}/tests" -name '*.rs' -type f -exec awk '
+			match($0, /^[ \t]*\/\/[ \t]*\/\/[ \t]*Test ID:[ \t]*[0-9a-z]+/) {
+				s = substr($0, RSTART, RLENGTH); sub(/.*Test ID:[ \t]*/, "", s); print s
+			}' {} + 2>/dev/null || true
+	done < <(fMembers)
+}
+
 fNew() {   ## fNew MINUTES COUNT
 	local -i at="$1" count="$2"; local -A taken=(); local id
 	while IFS=$'\t' read -r id _; do taken["${id}"]=1; done < <(fScan)
+	while IFS= read -r id; do taken["${id}"]=1; done < <(fRetired)
 	while ((count)); do
 		id="$(fEncode "${at}")"; at+=1
 		[[ -z "${taken["${id}"]:-}" ]] || continue
@@ -186,7 +201,7 @@ fCheck() {
 		[[ -z "${prob}" ]] || { printf 'test-ids: %s\n' "${prob}" >&2; bad+=1; }
 	done < <(fScan)
 	while IFS= read -r prob; do printf 'test-ids: %s\n' "${prob}" >&2; bad+=1; done < <(fStrays)
-	while IFS= read -r prob; do printf 'test-ids: %s\n' "${prob}" >&2; bad+=1; done < <(fBacklog "${first}" "${now}" <(printf '%s\n' "${!seen[@]}"))
+	while IFS= read -r prob; do printf 'test-ids: %s\n' "${prob}" >&2; bad+=1; done < <(fBacklog "${first}" "${now}" <(printf '%s\n' "${!seen[@]}"; fRetired))
 	if ((bad)); then
 		printf 'test-ids: %d problem(s). A new test takes its ID from cicd/utility/test-ids.bash new\n' "${bad}" >&2
 		return 1
@@ -245,3 +260,5 @@ esac
 ##		- 2026-10-25: Created, from silkterm's test-id.py, in Crockford base 32
 ##		  minutes. check also reads the backlog's Test case rows.
 ##		- 2026-10-25: Tests in a member's tests/ folder too.
+##		- 2026-10-28: A commented-out test's ID still counts for the backlog,
+##		  and isn't handed out again.

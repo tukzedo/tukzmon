@@ -10,10 +10,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::time::{Duration, Instant, SystemTime};
 
-use tukzmon_core::config::{self, Look, Rgb};
+use tukzmon_core::config::{self, Look};
 use tukzmon_core::graphs::Graphs;
 use tukzmon_core::keep;
-use tukzmon_core::render::Overlay;
 
 mod sys;
 #[allow(clippy::wildcard_imports, reason = "sys is only the C declarations")]
@@ -28,10 +27,12 @@ struct Plugin {
 	/// A one-shot redraw while an axis eases in, or 0.
 	frame: c_uint,
 	config: PathBuf,
-	config_time: Option<SystemTime>,
+	config_time: Option<(SystemTime, u64)>,
 	settings: Option<Child>,
 	history: PathBuf,
 	reset: keep::ResetWatch,
+	/// File monitors on the settings file and the reset mark.
+	watches: Vec<*mut c_void>,
 	saved_at: Instant,
 	moved_at: Instant,
 }
@@ -53,8 +54,11 @@ fn complain(what: std::fmt::Arguments) {
 	let _ = writeln!(std::io::stderr().lock(), "tukzmon: {what}");
 }
 
-fn modified(p: &Path) -> Option<SystemTime> {
-	std::fs::metadata(p).and_then(|m| m.modified()).ok()
+// with the size, since a file watch can wake on a write still under way, and
+// the rest of it may come within the same tick of the file clock
+fn modified(p: &Path) -> Option<(SystemTime, u64)> {
+	let m = std::fs::metadata(p).ok()?;
+	Some((m.modified().ok()?, m.len()))
 }
 
 impl Plugin {
@@ -139,6 +143,67 @@ impl Plugin {
 	}
 }
 
+/// Calls `changed` with `data` whenever `path` is written, made, or removed.
+/// Null where it can't be watched, and the tick still checks it then.
+///
+/// # Safety
+///
+/// `data` must outlive the monitor, which [`unwatch`] ends.
+unsafe fn watch(
+	path: &Path,
+	changed: unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, c_int, *mut c_void),
+	data: *mut c_void,
+) -> *mut c_void {
+	use std::os::unix::ffi::OsStrExt as _;
+	let Ok(c) = CString::new(path.as_os_str().as_bytes()) else {
+		return std::ptr::null_mut();
+	};
+	// SAFETY: c is a path, the file is ours until the unref, and a null
+	// error is allowed.
+	unsafe {
+		let file = g_file_new_for_path(c.as_ptr());
+		let monitor = g_file_monitor_file(file, 0, std::ptr::null_mut(), std::ptr::null_mut());
+		g_object_unref(file);
+		if !monitor.is_null() {
+			connect(monitor, c"changed", changed as *const c_void, data);
+		}
+		monitor
+	}
+}
+
+/// # Safety
+///
+/// `monitor` is from [`watch`], or null, and isn't used again.
+unsafe fn unwatch(monitor: *mut c_void) {
+	if !monitor.is_null() {
+		// SAFETY: as said above.
+		unsafe {
+			g_file_monitor_cancel(monitor);
+			g_object_unref(monitor);
+		}
+	}
+}
+
+/// A save in the settings window, or Reset history, shows at once rather than
+/// at the next graph's read, which can be a minute away.
+unsafe extern "C" fn changed(
+	_monitor: *mut c_void,
+	_file: *mut c_void,
+	_other: *mut c_void,
+	_event: c_int,
+	data: *mut c_void,
+) {
+	// SAFETY: data is the Plugin the monitor was made for, still alive.
+	let p = unsafe { &mut *data.cast::<Plugin>() };
+	if p.timer != 0 {
+		// SAFETY: the timer id is ours and still running, since tick sets a
+		// new one each time it runs.
+		unsafe { g_source_remove(p.timer) };
+		p.timer = 0;
+	}
+	tick(data);
+}
+
 extern "C" fn tick(data: *mut c_void) -> Gboolean {
 	// SAFETY: data is the Plugin the timer was started with, still alive.
 	let p = unsafe { &mut *data.cast::<Plugin>() };
@@ -191,48 +256,12 @@ extern "C" fn draw(widget: *mut c_void, cr: *mut c_void, data: *mut c_void) -> G
 		cairo_set_source_surface(cr, surf, 0.0, 0.0);
 		cairo_paint(cr);
 		cairo_surface_destroy(surf);
-		for o in p.graphs.overlays(w as usize, h as usize, scale as usize) {
-			overlay(widget, cr, &o, f64::from(scale));
-		}
 		if p.frame == 0 && p.graphs.easing() {
 			// SAFETY: as start_timer, and free-data stops this one too.
 			p.frame = g_timeout_add(FRAME_MS, frame, std::ptr::from_mut(p).cast());
 		}
 	}
 	1
-}
-
-// In the panel's own font, with a rim, at the plot's top left.
-//
-// SAFETY: widget and cr as in draw.
-unsafe fn overlay(widget: *mut c_void, cr: *mut c_void, o: &Overlay, scale: f64) {
-	let Ok(text) = CString::new(o.text.as_str()) else {
-		return;
-	};
-	let pad = 1.0;
-	let rgb = |c: Rgb| [c.0, c.1, c.2].map(|v| f64::from(v) / 255.0);
-	// SAFETY: the layout is ours until the unref.
-	unsafe {
-		let layout = gtk_widget_create_pango_layout(widget, text.as_ptr());
-		if layout.is_null() {
-			return;
-		}
-		let (mut lw, mut lh) = (0, 0);
-		pango_layout_get_pixel_size(layout, &raw mut lw, &raw mut lh);
-		let (room_w, room_h) = (o.w as f64 / scale, o.h as f64 / scale);
-		if f64::from(lw) + 2.0 * pad <= room_w && f64::from(lh) <= room_h {
-			cairo_move_to(cr, o.x as f64 / scale + pad, o.y as f64 / scale);
-			pango_cairo_layout_path(cr, layout);
-			let [r, g, b] = rgb(o.edge);
-			cairo_set_source_rgb(cr, r, g, b);
-			cairo_set_line_width(cr, 2.0);
-			cairo_stroke_preserve(cr);
-			let [r, g, b] = rgb(o.color);
-			cairo_set_source_rgb(cr, r, g, b);
-			cairo_fill(cr);
-		}
-		g_object_unref(layout);
-	}
 }
 
 extern "C" fn frame(data: *mut c_void) -> Gboolean {
@@ -385,6 +414,10 @@ extern "C" fn free_data(_plugin: *mut c_void, data: *mut c_void) {
 		// SAFETY: as above.
 		unsafe { g_source_remove(p.frame) };
 	}
+	for w in p.watches.drain(..) {
+		// SAFETY: each is from watch, and the plugin goes with this call.
+		unsafe { unwatch(w) };
+	}
 }
 
 fn construct(plugin: *mut c_void) {
@@ -398,6 +431,11 @@ fn construct(plugin: *mut c_void) {
 		));
 	}
 	let data = keep::data_dir();
+	// so the reset mark's folder can be watched from the start
+	if let Err(e) = std::fs::create_dir_all(&data) {
+		complain(format_args!("can't make {}: {e}", data.display()));
+	}
+	let mark = keep::reset_mark(&data);
 	let mut p = Box::new(Plugin {
 		xpp: plugin,
 		area: std::ptr::null_mut(),
@@ -409,6 +447,7 @@ fn construct(plugin: *mut c_void) {
 		settings: None,
 		history: keep::history_file(&data, id),
 		reset: keep::ResetWatch::new(&data),
+		watches: Vec::new(),
 		saved_at: Instant::now(),
 		moved_at: Instant::now(),
 	});
@@ -455,6 +494,7 @@ fn construct(plugin: *mut c_void) {
 			data,
 		);
 		xfce_panel_plugin_menu_show_configure(plugin);
+		p.watches = vec![watch(&p.config, changed, data), watch(&mark, changed, data)];
 		let first = p.graphs.tick();
 		p.fit();
 		p.start_timer(first);
@@ -542,7 +582,48 @@ pub unsafe extern "C" fn xfce_panel_module_construct(
 
 #[cfg(test)]
 mod tests {
+	use std::ffi::{c_int, c_void};
 	use std::path::Path;
+	use std::sync::atomic::{AtomicUsize, Ordering};
+	use std::time::{Duration, Instant};
+
+	use tukzmon_core::keep;
+
+	// Test ID: dejae
+	#[test]
+	#[cfg_attr(miri, ignore = "GIO is C")]
+	fn a_reset_mark_written_calls_back_at_once() {
+		static HITS: AtomicUsize = AtomicUsize::new(0);
+		unsafe extern "C" fn hit(
+			_: *mut c_void,
+			_: *mut c_void,
+			_: *mut c_void,
+			_: c_int,
+			_: *mut c_void,
+		) {
+			HITS.fetch_add(1, Ordering::SeqCst);
+		}
+		let dir =
+			std::env::temp_dir().join(format!("test_tukzmon_xfce_{}_watch", std::process::id()));
+		std::fs::create_dir_all(&dir).unwrap();
+		// SAFETY: hit takes no data.
+		let w = unsafe { super::watch(&keep::reset_mark(&dir), hit, std::ptr::null_mut()) };
+		assert!(!w.is_null());
+		keep::reset(&dir, false).unwrap();
+		let t0 = Instant::now();
+		while HITS.load(Ordering::SeqCst) == 0 && t0.elapsed() < Duration::from_secs(5) {
+			// SAFETY: the default context, which only this test runs.
+			unsafe { super::sys::g_main_context_iteration(std::ptr::null_mut(), 0) };
+			std::thread::sleep(Duration::from_millis(2));
+		}
+		let took = t0.elapsed();
+		// SAFETY: from watch, and not used again.
+		unsafe { super::unwatch(w) };
+		std::fs::remove_file(keep::reset_mark(&dir)).unwrap();
+		std::fs::remove_dir(&dir).unwrap();
+		assert!(HITS.load(Ordering::SeqCst) > 0, "no call in {took:?}");
+		assert!(took < Duration::from_millis(500), "{took:?}");
+	}
 
 	// Test ID: defyn
 	#[test]

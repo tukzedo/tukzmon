@@ -32,8 +32,6 @@ overrides:
       - libstdc++6
       - libglib2.0-0t64 | libglib2.0-0
       - libcairo2
-      - libpango-1.0-0
-      - libpangocairo-1.0-0
       - libgtk-3-0t64 | libgtk-3-0
       - libxfce4panel-2.0-4
       - libqt6core6t64 | libqt6core6

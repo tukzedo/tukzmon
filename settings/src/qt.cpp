@@ -30,7 +30,6 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainter>
-#include <QPainterPath>
 #include <QPixmap>
 #include <QProxyStyle>
 #include <QPushButton>
@@ -446,7 +445,6 @@ protected:
 		QImage img(reinterpret_cast<const uchar *>(px.data()), w, h, w * 4, QImage::Format_ARGB32_Premultiplied);
 		QPainter p(this);
 		p.drawImage(rect(), img);
-		overlay(p, size_t(w), size_t(h), scale);
 		if (!framePending && live_easing(live, name)) {
 			framePending = true;
 			QTimer::singleShot(33, this, [this] {
@@ -475,25 +473,6 @@ protected:
 
 private:
 	// device pixels, as drawn before a squeeze to fit the window
-	// as the panel writes it, in the window's font, with a rim. The image may
-	// be squeezed into the row, but the text isn't.
-	void overlay(QPainter &p, size_t w, size_t h, int scale) const {
-		const OverlayInfo o = live_overlay(live, name, w, h, size_t(scale));
-		if (!o.shown)
-			return;
-		const QString text = QString::fromStdString(std::string(o.text));
-		const QFontMetrics fm = fontMetrics();
-		const double fx = double(width()) / double(w), fy = double(height()) / double(h);
-		const double pad = 1;
-		if (fm.horizontalAdvance(text) + 2 * pad > double(o.w) * fx || fm.height() > double(o.h) * fy)
-			return;
-		QPainterPath path;
-		path.addText(double(o.x) * fx + pad, double(o.y) * fy + fm.ascent(), font(), text);
-		p.setRenderHint(QPainter::Antialiasing);
-		p.strokePath(path, QPen(QColor::fromRgb(o.edge), 2));
-		p.fillPath(path, QColor::fromRgb(o.color));
-	}
-
 	std::tuple<int, int, int> drawn() const {
 		const double dpr = devicePixelRatioF();
 		return {int(std::lround(own * dpr)), int(std::lround(height() * dpr)), int(std::max(1L, std::lround(dpr)))};
@@ -565,7 +544,8 @@ public:
 			int depth = 0;
 			for (int p = tabs[i].parent; p >= 0; p = tabs[size_t(p)].parent)
 				depth++;
-			tabList->addItem(new QListWidgetItem(QString(depth * 4, ' ') + qs(tabs[i].label)));
+			tabItem.push_back(new QListWidgetItem(QString(depth * 4, ' ') + qs(tabs[i].label)));
+			tabList->addItem(tabItem.back());
 			leaf.push_back(!parent);
 			// a tab with rows of its own keeps them on top of the tabs under it
 			const int up = tabs[i].parent;
@@ -598,6 +578,7 @@ public:
 			}
 			tabPage.push_back(pages->addWidget(page));
 		}
+		orderTabs();
 		const int tabWidth = tabList->sizeHintForColumn(0);
 		tabList->setFixedWidth(tabWidth + 2 * tabList->frameWidth() + 24);
 		for (int i = 0; i < tabList->count(); i++)
@@ -614,8 +595,8 @@ public:
 
 		resetButton = new QPushButton("Reset history");
 		resetButton->setAutoDefault(false);
-		resetButton->setToolTip("Start every graph over, at Apply. With Keep across restarts on, the history "
-								"saved across restarts is deleted too.");
+		resetButton->setToolTip("Start every graph over now, in the panel too. With Keep across restarts on, the "
+								"history saved across restarts is deleted too.");
 		connect(resetButton, &QPushButton::clicked, this, [this] { resetHistory(); });
 
 		// Cancel stands a little apart from the 2 that save
@@ -725,8 +706,10 @@ public:
 	}
 	bool applyOn() const { return applyButton->isEnabled(); }
 	void commitTyped() { takeTyped(); }
-	bool isLeaf(int i) const { return leaf[size_t(i)]; }
+	bool isLeaf(int i) const { return leaf[size_t(lineTab[size_t(i)])]; }
 	void select(int i) { tabList->setCurrentRow(i); }
+	std::string selectedText() const { return tabList->currentItem()->text().toStdString(); }
+	void moveGraph(int from, int to) { moveTo(from, to); }
 	std::unique_ptr<ColorPicker> firstPicker() {
 		for (auto &r : rows)
 			if (r->chip)
@@ -754,9 +737,12 @@ private:
 	Dialog &d;
 	rust::Box<Live> live;
 	std::vector<std::unique_ptr<Row>> rows;
-	// per line of the tab list
+	// per tab of the spec
+	std::vector<QListWidgetItem *> tabItem;
 	std::vector<int> tabPage;
 	std::vector<bool> leaf;
+	// the spec's tab on each line of the tab list
+	std::vector<int> lineTab;
 	struct SubPage {
 		QStackedWidget *stack = nullptr;
 		int index = 0;
@@ -786,18 +772,42 @@ private:
 	QGridLayout *listGrid = nullptr;
 	std::vector<ListRow> listRows;
 
-	// a tab with tabs under it shows its first one
+	// a tab with tabs under it shows its first one, as listed
 	void showTab(int i) {
 		if (i < 0)
 			return;
 		for (int j = i; j < tabList->count(); j++) {
-			if (tabPage[size_t(j)] >= 0) {
-				pages->setCurrentIndex(tabPage[size_t(j)]);
-				if (auto &s = subPage[size_t(j)]; s.stack)
-					s.stack->setCurrentIndex(s.index);
-				return;
-			}
+			const auto t = size_t(lineTab[size_t(j)]);
+			if (tabPage[t] < 0)
+				continue;
+			pages->setCurrentIndex(tabPage[t]);
+			SubPage s = subPage[t];
+			if (!leaf[t] && j + 1 < tabList->count())
+				if (const SubPage &next = subPage[size_t(lineTab[size_t(j) + 1])]; s.stack && next.stack == s.stack)
+					s = next;
+			if (s.stack)
+				s.stack->setCurrentIndex(s.index);
+			return;
 		}
+	}
+
+	// Graph tabs follow the graph order, and the one picked stays picked.
+	void orderTabs() {
+		std::vector<int> want;
+		for (auto t : tab_order(d))
+			want.push_back(int(t));
+		if (want == lineTab)
+			return;
+		QListWidgetItem *picked = tabList->currentItem();
+		QSignalBlocker b(tabList);
+		while (tabList->count())
+			tabList->takeItem(0);
+		for (int t : want)
+			tabList->addItem(tabItem[size_t(t)]);
+		lineTab = want;
+		if (picked)
+			tabList->setCurrentItem(picked);
+		showTab(tabList->currentRow());
 	}
 
 	QWidget *buildPage(int tab, const TabInfo &info, bool scrolls) {
@@ -1165,16 +1175,17 @@ private:
 			pick->exec();
 	}
 
-	// the window's own graphs start over now, the panel's at Apply
+	// an action rather than a setting, so it doesn't wait for Apply
 	void resetHistory() {
-		if (row_state(d, "keep_history").on &&
+		if (reset_deletes_saved(d) &&
 			QMessageBox::question(this, "Reset history",
 								  "Keep across restarts is on, so this deletes all past history, not only what's "
-								  "on screen. It goes at Apply.\n\nReset history?") != QMessageBox::Yes)
+								  "on screen.\n\nReset history?") != QMessageBox::Yes)
 			return;
-		reset_history(d);
 		live_clear(*live);
 		refresh();
+		if (auto err = reset_history(d); !err.empty())
+			QMessageBox::warning(this, "History wasn't reset", qs(err));
 	}
 
 	// a box still being typed in, which counts as a change before it's left
@@ -1309,6 +1320,7 @@ private:
 		}
 		if (list)
 			refreshList();
+		orderTabs();
 		if (saveTheme) {
 			auto b = theme_buttons(d);
 			saveTheme->setEnabled(b.save);
@@ -1316,7 +1328,6 @@ private:
 			deleteTheme->setEnabled(b.remove);
 		}
 		updateApply();
-		resetButton->setEnabled(!reset_pending(d));
 	}
 };
 
@@ -1393,6 +1404,24 @@ rust::Vec<std::int32_t> graph_list_places(Dialog &d) {
 	return out;
 }
 
+namespace {
+TabShown shownNow(Window &w, const std::string &label) {
+	TabShown t;
+	t.label = rust::String(label);
+	for (auto &id : w.shownRows())
+		t.rows.push_back(rust::String(id));
+	return t;
+}
+
+void eachTab(QApplication &app, Window &w, rust::Vec<TabShown> &out) {
+	for (int i = 0; i < w.tabCount(); i++) {
+		w.select(i);
+		app.processEvents();
+		out.push_back(shownNow(w, w.tabText(i)));
+	}
+}
+} // namespace
+
 rust::Vec<TabShown> tabs_shown(Dialog &d) {
 	static int argc = 1;
 	static char name[] = "tukzmon-settings";
@@ -1402,15 +1431,28 @@ rust::Vec<TabShown> tabs_shown(Dialog &d) {
 	Window w(d);
 	w.show();
 	rust::Vec<TabShown> out;
-	for (int i = 0; i < w.tabCount(); i++) {
-		w.select(i);
-		app.processEvents();
-		TabShown t;
-		t.label = rust::String(w.tabText(i));
-		for (auto &id : w.shownRows())
-			t.rows.push_back(rust::String(id));
-		out.push_back(std::move(t));
-	}
+	eachTab(app, w, out);
+	return out;
+}
+
+rust::Vec<TabShown> tabs_after_move(Dialog &d, rust::Str pick, std::size_t from, std::size_t to) {
+	static int argc = 1;
+	static char name[] = "tukzmon-settings";
+	static char *argv[] = {name, nullptr};
+	qputenv("QT_QPA_PLATFORM", "offscreen");
+	QApplication app(argc, argv);
+	Window w(d);
+	w.show();
+	const QString want = QString::fromUtf8(pick.data(), int(pick.size()));
+	for (int i = 0; i < w.tabCount(); i++)
+		if (QString::fromStdString(w.tabText(i)).trimmed() == want)
+			w.select(i);
+	app.processEvents();
+	w.moveGraph(int(from), int(to));
+	app.processEvents();
+	rust::Vec<TabShown> out;
+	out.push_back(shownNow(w, w.selectedText()));
+	eachTab(app, w, out);
 	return out;
 }
 
