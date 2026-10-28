@@ -95,6 +95,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- The plugin links its libraries by soname, which Nix's linker wrapper gives no rpath for, so the package passes the rpath itself.
 	- A link to `tukzmon-settings` sits beside the library, so the plugin runs the one from its own package rather than whatever is first on PATH.
 	- The build number is the flake's commit time, since Nix's default `SOURCE_DATE_EPOCH` is 1980.
+	- `cicd/cicd.bash --long`, or its `nix` area, builds the package in a nixos/nix container, then has nixpkgs' xfce4-panel load and embed the plugin from a NixOS system with the module. `cicd/nix/check.bash` is the check. Its store is a docker volume kept between runs, since the first build fetches about 5 GB. It's left out of the other runs for that reason.
 
 - If Rust can't be used for some reason, the fallback is the same split, with the C file growing into the whole plugin.
 

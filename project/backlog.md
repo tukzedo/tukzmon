@@ -33,17 +33,6 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026102621053725
 	- Requirements: design.md XFCE plugin and README say XDG_DATA_DIRS and ~/.local aren't searched, so dev-install.bash needs sudo once. The 4.20.4 and 4.20.7 panel source pairs each XDG_DATA_DIRS entry and ~/.local/share with the lib dir under the same prefix, which on Debian is lib/x86_64-linux-gnu. Try ~/.local/share/xfce4/panel/plugins with ~/.local/lib/x86_64-linux-gnu/xfce4/panel/plugins on b23, and if it works, drop the sudo step and fix both docs.
 
-- Nix package build as a pipeline area
-	- ID: 2026102808222810
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261028-082228
-	- Opened: 20261028-082228
-	- Opened by: t00mietum
-	- Related IDs: 2026102621053725
-	- Requirements: an opt-in cicd area, such as `nix`, that builds the flake's package in a nixos/nix container and runs the panel check, so a new system library or a build.rs change that breaks it is caught. It fetches about 5 GB the first time, so it stays out of the default run unless a kept store makes it cheap.
-
 - Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
 	- ID: 2026102620162196
 	- Type: Bug
@@ -654,6 +643,36 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Nix package build as a pipeline area
+	- ID: 2026102808222810
+	- Type: Task
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-28. It doesn't take the Nix step.
+	- Priority|Severity: Low
+	- Opened: 20261028-082228
+	- Opened: 20261028-082228
+	- Opened by: t00mietum
+	- Related IDs: 2026102621053725
+	- Requirements: an opt-in cicd area, such as `nix`, that builds the flake's package in a nixos/nix container and runs the panel check, so a new system library or a build.rs change that breaks it is caught. It fetches about 5 GB the first time, so it stays out of the default run unless a kept store makes it cheap.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- `cicd/cicd.bash --backlog-run-quick nix`, or `--long`, runs a Nix package step. `cicd/nix/check.bash` runs in `nixos/nix:2.35.4` and builds the flake's package with the workspace tests. It checks every library the plugin links resolves, and runs `tukzmon-settings --version`. Then it builds a NixOS system with the module, and nixpkgs' xfce4-panel has to load and embed the plugin from that system's path, on Xvfb.
+		- The store is a docker volume, `tukzmon-nix-<hash of the image pin>`, kept between runs. Past `NIX_STORE_CAP_MB` (12000) in `config.bash`, a run collects it down to what it used.
+		- `design.md` XFCE plugin has a line on it.
+		- Verified: the first run fetched about 5 GB and passed in 2m 40s. Later runs took about 1m 40s, mostly the package's own rebuild. With xfce4-panel left out of the rpath, the step failed at the plugin's tests. With the panel's config naming another plugin, it failed at the embed check. With the cap set to 1000 MB, it collected 5239 MB down to 4812, and the next run built only the package, fetching nothing else.
+	- Decisions:
+		- Opt-in, like Miri: only `--long` or the `nix` area. Even with a kept store each run rebuilds the package, about 1.5 minutes, and a fresh box fetches 5 GB.
+		- One volume, named for the image pin, so a new pin starts a fresh store and the old one is removed. The cap collects with keep-outputs and the last run's builds as roots, so what built the package stays and a collection doesn't mean another 5 GB.
+		- The container runs as its root, as nix there needs, so it gets a read-only copy of the tracked files and writes nothing to the run folder. The image stays between runs, like the volume.
+		- The step is skipped with a warning when there's no docker, as the other container steps fall back.
+		- The source is a path flake of the tracked files, so its `lastModified` follows file times, and any edit rebuilds the package. A git flake would cost a `.git` in the container. Left as is.
+		- The panel check uses the nixpkgs the flake locks, not a pinned revision as the first rig did, so it tests what the package was built with.
+		- Swept: the help's step and area lists, `--list` in each mode, the area check, and cleanup, which removes the run's labeled containers. Nothing else calls the step.
+	- Branch: round-1028
+	- Test case: the `nix` area of cicd.bash, run with `--backlog-run-quick nix`. It has no test ID, since it isn't a cargo test.
+	- Closed: 20261028-091315
 
 - Zswap or zram graph
 	- ID: 2026102618353002

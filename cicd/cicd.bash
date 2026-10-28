@@ -35,11 +35,15 @@
 ##	  12. Soak            a slow leak check: core/tests/soak.rs, the panel's
 ##	                      work over days of skipped clock, with the heap read at
 ##	                      round N and 2N. Its report goes to cicd/artifacts/soak/
-##	  13. Profiler        the panel's tick, core/examples/profile.rs, under
+##	  13. Nix package     the flake's package, with the workspace tests, in a
+##	                      nixos/nix container, then nixpkgs' xfce4-panel loads
+##	                      it from a NixOS system with the module, on Xvfb. Its
+##	                      store is a docker volume kept between runs
+##	  14. Profiler        the panel's tick, core/examples/profile.rs, under
 ##	                      pprof's sampler, on this box. The flamegraph goes to
 ##	                      cicd/artifacts/profiling/, with a report on its hot
 ##	                      spots from utility/flame-report.py
-##	  14. Dogfood         utility/dev-install.bash, which installs the build to
+##	  15. Dogfood         utility/dev-install.bash, which installs the build to
 ##	                      ~/.local/lib/tukzmon and restarts the panel
 ##	  A step that's off isn't counted, and the first section says why it's off.
 ##	  Cleanup comes last, on failure and Ctrl+C too.
@@ -49,8 +53,8 @@
 ##	   (none)              the default run: every step
 ##	   --quick             the fast steps: the default run but the packages,
 ##	                       the profiler and the slow leak checks, so no Soak
-##	   --long              everything, Miri included, which only it runs. Also
-##	                       --slow
+##	   --long              everything, Miri and the Nix package included, which
+##	                       only it runs. Also --slow
 ##	   --leakcheck         add every leak check to any run
 ##	   --no-leakcheck      take every leak check out. The advisory scan and
 ##	                       clippy's leak lints aren't leak check steps, and stay
@@ -71,6 +75,8 @@
 ##	                         miri    the Miri leak check, only when named
 ##	                         soak    the Soak leak check, only when named
 ##	                         profile the profiler, only when named
+##	                         nix     the Nix package, only when named. The
+##	                                 first one fetches about 5 GB
 ##	   --gate [AREA...]    another name for --backlog-run-quick
 ##	   --backlog-run-full  what a backlog round runs once at its end: every
 ##	                       check of the default run, so not Miri
@@ -209,7 +215,7 @@ esac; done
 
 handsOff=0
 case "${mode}" in backlog-run-quick|backlog-run-full|merge-gate) handsOff=1 ;; esac
-allAreas=(format build lint test advisories release package profile)
+allAreas=(format build lint test advisories release package profile nix)
 for entry in "${LEAK_CHECKS[@]}"; do entry="${entry%%|*}"; allAreas+=("${entry,,}"); done
 namedAreas="${#areas[@]}"
 if [[ "${mode}" == backlog-run-quick ]]; then
@@ -271,6 +277,12 @@ for entry in "${LEAK_CHECKS[@]}"; do
 	leakWhy="$(fLeakWhyOff "${leakName}" "${leakLength}")"
 	if [[ -n "${leakWhy}" ]]; then offLines+=("${leakName}: ${leakWhy}"); else fPlan "${leakName}" "${leakFn}" ""; fi
 done
+## The first build fetches about 5 GB, so only a run that asks for it.
+if [[ "${mode}" == backlog-run-quick ]]; then
+	if [[ " ${areas[*]} " == *" nix "* ]]; then fPlan "Nix package" fStepNix ""
+	else offLines+=("Nix package: --backlog-run-quick runs it only when the nix area is named"); fi
+elif [[ "${mode}" == long ]]; then fPlan "Nix package" fStepNix ""
+else offLines+=("Nix package: fetches about 5 GB the first time, so only in --long or the nix area"); fi
 if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" profile "* ]]; then offLines+=("Profiler: --backlog-run-quick runs it only when the profile area is named")
 elif [[ "${mode}" == quick ]]; then offLines+=("Profiler: --quick")
 else fPlan "Profiler" fStepProfile ""; fi
@@ -296,7 +308,8 @@ fShowPlan() {
 	fEcho_Clean "Steps:"
 	for i in "${!planNames[@]}"; do
 		where=''
-		if ((! noContainer)) && [[ "${planFns[i]}" != fStepImage ]] && ! fInImage "${planFns[i]}"; then where=" (host)"; fi
+		if [[ "${planFns[i]}" == fStepNix ]]; then where=" (${NIX_IMAGE})"
+		elif ((! noContainer)) && [[ "${planFns[i]}" != fStepImage ]] && ! fInImage "${planFns[i]}"; then where=" (host)"; fi
 		fEcho_Clean "	$((i + 1)). ${planNames[i]}${where}"
 	done
 	fEcho_Clean "Off:"
@@ -621,6 +634,38 @@ fStepSoak() {
 	gfs_rotate "${art}" soak log > /dev/null 2>&1 || true
 	gfs_rotate "${art}" soak json > /dev/null 2>&1 || true
 	return "${rc}"
+}
+
+## The flake's package, checked by cicd/nix/check.bash in NIX_IMAGE, as its
+## root, so it's given a copy of the tracked files, read-only, and writes
+## nothing here. The store is a volume named for the image, so a run reuses
+## what the last one fetched, and a new pin starts a new one and drops the
+## old. With no docker it's skipped with a warning.
+fStepNix() {
+	local why='' vol='' src="${runTmp}/nix-src" old=''
+	local -a rm=(--rm)
+	why="$(fCtrWhyNot)"
+	if [[ -n "${why}" ]]; then fEcho_Clean "WARNING: ${why}, so the Nix package went unchecked"; return 0; fi
+	ctrTouched=1
+	vol="${projectName}-nix-$(printf '%s' "${NIX_IMAGE}" | git hash-object --stdin | cut -c1-12)"
+	## What nix takes from a git checkout: the tracked files, as they are now.
+	mkdir -p -- "${src}" || return 1
+	git ls-files -z | while IFS= read -r -d '' f; do [[ ! -e "${f}" ]] || printf '%s\0' "${f}"; done \
+		| tar --null -T - -cf - | tar -xpf - -C "${src}" || return 1
+	while IFS= read -r old; do
+		[[ -n "${old}" && "${old}" != "${vol}" ]] || continue
+		if docker volume rm "${old}" > /dev/null 2>&1; then fEcho_Clean "removed ${old}, the store of an older image"; fi
+	done < <(docker volume ls -q --filter "label=dev.project=${projectName}" 2> /dev/null || true)
+	if ! docker volume inspect "${vol}" > /dev/null 2>&1; then
+		fEcho_Clean "a new store, ${vol}: the first build fetches about 5 GB"
+		docker volume create --label "dev.project=${projectName}" "${vol}" > /dev/null || return 1
+	fi
+	((! keepTemp)) || rm=()
+	fEcho_Clean "in ${projectName}-${runName}-nix, from ${NIX_IMAGE}"
+	docker run "${rm[@]}" --init -e TINI_KILL_PROCESS_GROUP=1 --name "${projectName}-${runName}-nix" "${ctrLabels[@]}" \
+		--cpus "${jobs}" --cpu-shares 256 -v "${vol}:/nix" -v "${src}:/src:ro" \
+		-e "TUKZMON_JOBS=${jobs}" -e "TUKZMON_NIX_CAP_MB=${NIX_STORE_CAP_MB}" \
+		"${NIX_IMAGE}" nice -n 19 bash /src/cicd/nix/check.bash || return 1
 }
 
 ## The panel's tick under pprof's sampler, in a release build with the names
@@ -1044,3 +1089,4 @@ exit 0
 ##		- 2026-10-25: The Soak leak check.
 ##		- 2026-10-25: .deb and .rpm packages, with sha256 sums.
 ##		- 2026-10-25: The profiler, with a report on each flamegraph.
+##		- 2026-10-28: The Nix package, in --long and the nix area.
