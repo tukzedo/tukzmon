@@ -382,6 +382,11 @@ pub struct Look {
 	/// 0 is `width`.
 	pub swap_width: u32,
 	pub swap_time: Option<Timing>,
+	/// Draw the zswap graph, where the box has zswap on or zram set up.
+	pub show_zswap: bool,
+	/// 0 is `width`.
+	pub zswap_width: u32,
+	pub zswap_time: Option<Timing>,
 	/// Draw the battery graph, where the box has a battery in.
 	pub show_battery: bool,
 	/// 0 is `width`.
@@ -396,6 +401,11 @@ pub struct Look {
 	pub swap: [Rgb; 1],
 	pub swap_mode: Mode,
 	pub swap_gradient: [Rgb; 3],
+	pub zswap: [Rgb; 1],
+	pub zswap_mode: Mode,
+	pub zswap_gradient: [Rgb; 3],
+	/// The compression ratio written over the zswap graph.
+	pub zswap_ratio: Rgb,
 	/// In `battery::BatteryReader::SERIES` order.
 	pub battery: [Rgb; 3],
 	pub battery_mode: Mode,
@@ -457,6 +467,9 @@ impl Look {
 			show_swap: m.value("show_swap", &NoEnv).as_bool(),
 			swap_width: num("swap_width") as u32,
 			swap_time: Timing::parse(m.value("swap_time", &NoEnv).as_text()),
+			show_zswap: m.value("show_zswap", &NoEnv).as_bool(),
+			zswap_width: num("zswap_width") as u32,
+			zswap_time: Timing::parse(m.value("zswap_time", &NoEnv).as_text()),
 			show_battery: m.value("show_battery", &NoEnv).as_bool(),
 			battery_width: num("battery_width") as u32,
 			battery_time: Timing::parse(m.value("battery_time", &NoEnv).as_text()),
@@ -467,6 +480,14 @@ impl Look {
 			swap: [color("swap_used")],
 			swap_mode: Mode::parse(m.value("swap_mode", &NoEnv).as_text()).unwrap_or_default(),
 			swap_gradient: [color("swap_low"), color("swap_medium"), color("swap_high")],
+			zswap: [color("zswap_used")],
+			zswap_mode: Mode::parse(m.value("zswap_mode", &NoEnv).as_text()).unwrap_or_default(),
+			zswap_gradient: [
+				color("zswap_low"),
+				color("zswap_medium"),
+				color("zswap_high"),
+			],
+			zswap_ratio: color("zswap_ratio"),
 			battery: [
 				color("battery_charging"),
 				color("battery_discharging"),
@@ -505,6 +526,13 @@ impl Look {
 		match self.swap_mode {
 			Mode::Detailed => Paint::Stack(&self.swap),
 			Mode::Gradient => Paint::Gradient(self.swap_gradient),
+		}
+	}
+
+	pub fn zswap_paint(&self) -> Paint<'_, 1> {
+		match self.zswap_mode {
+			Mode::Detailed => Paint::Stack(&self.zswap),
+			Mode::Gradient => Paint::Gradient(self.zswap_gradient),
 		}
 	}
 
@@ -668,7 +696,7 @@ mod tests {
 	fn the_default_theme_is_the_row_defaults() {
 		let spec = spec();
 		let g = spec.group(THEME).unwrap();
-		assert_eq!(g.members.len(), 31);
+		assert_eq!(g.members.len(), 37);
 		let default = g.preset("default").unwrap();
 		assert_eq!(default.label, "Default");
 		for id in &g.members {
@@ -926,10 +954,17 @@ mod tests {
 			assert!(!colors.iter().any(|c| label.contains(c)), "{label}");
 			let rgb = |id: &str| Rgb::parse(p.values[id].as_text()).unwrap();
 			let ramp = |g: &str| ["low", "medium", "high"].map(|s| rgb(&format!("{g}_{s}")));
-			let leads = ["user", "mem_user", "swap_used", "battery_charging"].map(rgb);
-			let ramps = ["cpu", "mem", "swap", "battery"].map(ramp);
-			for a in 0..4 {
-				for b in a + 1..4 {
+			let leads = [
+				"user",
+				"mem_user",
+				"swap_used",
+				"zswap_used",
+				"battery_charging",
+			]
+			.map(rgb);
+			let ramps = ["cpu", "mem", "swap", "zswap", "battery"].map(ramp);
+			for a in 0..leads.len() {
+				for b in a + 1..leads.len() {
 					let gap = (hue(leads[a]) - hue(leads[b])).abs();
 					assert!(gap.min(360.0 - gap) >= 30.0, "{} {a} {b}", p.key);
 					assert_ne!(ramps[a], ramps[b], "{} {a} {b}", p.key);
@@ -1006,7 +1041,10 @@ mod tests {
 	// Test ID: dedqq
 	#[test]
 	fn the_graph_order_reads_with_spaces_or_commas() {
-		assert_eq!(Look::default().order, ["cpu", "mem", "swap", "battery"]);
+		assert_eq!(
+			Look::default().order,
+			["cpu", "mem", "swap", "zswap", "battery"]
+		);
 		for text in [
 			"graph:\n\torder: mem cpu\n",
 			"graph:\n\torder: mem, cpu\n",
@@ -1097,7 +1135,7 @@ mod tests {
 			"themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n",
 		));
 		assert_eq!(t[0].name, "Say \"hi\"");
-		assert_eq!(t[0].colors.len(), 31);
+		assert_eq!(t[0].colors.len(), 37);
 		t.push(SavedTheme {
 			key: theme_key("Default", &t),
 			name: "Default".into(),

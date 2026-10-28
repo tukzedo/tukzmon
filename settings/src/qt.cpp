@@ -30,6 +30,7 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPixmap>
 #include <QPushButton>
 #include <QRadioButton>
@@ -419,6 +420,7 @@ protected:
 		QImage img(reinterpret_cast<const uchar *>(px.data()), w, h, w * 4, QImage::Format_ARGB32_Premultiplied);
 		QPainter p(this);
 		p.drawImage(rect(), img);
+		overlay(p, size_t(w), size_t(h), scale);
 		if (!framePending && live_easing(live, name)) {
 			framePending = true;
 			QTimer::singleShot(33, this, [this] {
@@ -447,6 +449,25 @@ protected:
 
 private:
 	// device pixels, as drawn before a squeeze to fit the window
+	// as the panel writes it, in the window's font, with a rim. The image may
+	// be squeezed into the row, but the text isn't.
+	void overlay(QPainter &p, size_t w, size_t h, int scale) const {
+		const OverlayInfo o = live_overlay(live, name, w, h, size_t(scale));
+		if (!o.shown)
+			return;
+		const QString text = QString::fromStdString(std::string(o.text));
+		const QFontMetrics fm = fontMetrics();
+		const double fx = double(width()) / double(w), fy = double(height()) / double(h);
+		const double pad = 1;
+		if (fm.horizontalAdvance(text) + 2 * pad > double(o.w) * fx || fm.height() > double(o.h) * fy)
+			return;
+		QPainterPath path;
+		path.addText(double(o.x) * fx + pad, double(o.y) * fy + fm.ascent(), font(), text);
+		p.setRenderHint(QPainter::Antialiasing);
+		p.strokePath(path, QPen(QColor::fromRgb(o.edge), 2));
+		p.fillPath(path, QColor::fromRgb(o.color));
+	}
+
 	std::tuple<int, int, int> drawn() const {
 		const double dpr = devicePixelRatioF();
 		return {int(std::lround(own * dpr)), int(std::lround(height() * dpr)), int(std::max(1L, std::lround(dpr)))};

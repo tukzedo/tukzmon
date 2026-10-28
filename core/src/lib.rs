@@ -27,12 +27,13 @@ use std::time::{Instant, SystemTime};
 use axis::{Ages, Axis, Basis, Ease, Timing};
 use battery::BatteryReader;
 use collect::Collector;
-use config::Look;
+use config::{Look, Rgb};
 use cpu::CpuReader;
 use history::History;
 use mem::{MemoryReader, SwapReader};
 use render::{Frame, Paint};
 use when::Said;
+use zswap::ZswapReader;
 
 /// A collector as one graph draws and names it.
 pub trait Source<const N: usize>: Collector<N> {
@@ -40,9 +41,14 @@ pub trait Source<const N: usize>: Collector<N> {
 	const SECTION: &'static str;
 	/// The tip before there's anything read.
 	const TITLE: &'static str;
-	fn text(v: &[f32; N]) -> String;
+	fn text(&self, v: &[f32; N]) -> String;
 	fn paint(look: &Look) -> Paint<'_, N>;
 	fn timing(look: &Look) -> Timing;
+
+	/// Text written over the graph from the latest read, and its color.
+	fn overlay(&self, _look: &Look) -> Option<(String, Rgb)> {
+		None
+	}
 }
 
 fn pc(x: f32) -> i32 {
@@ -53,7 +59,7 @@ impl Source<4> for CpuReader {
 	const SECTION: &'static str = "cpu";
 	const TITLE: &'static str = "CPU";
 
-	fn text(v: &[f32; 4]) -> String {
+	fn text(&self, v: &[f32; 4]) -> String {
 		let busy: f32 = v.iter().sum();
 		format!(
 			"CPU {}%\nUser {}%  System {}%\nNice {}%  I/O wait {}%",
@@ -78,7 +84,7 @@ impl Source<3> for MemoryReader {
 	const SECTION: &'static str = "mem";
 	const TITLE: &'static str = "Memory";
 
-	fn text(v: &[f32; 3]) -> String {
+	fn text(&self, v: &[f32; 3]) -> String {
 		format!(
 			"Memory {}% in use\nBuffers {}%  Cache {}%",
 			pc(v[0]),
@@ -100,7 +106,7 @@ impl Source<1> for SwapReader {
 	const SECTION: &'static str = "swap";
 	const TITLE: &'static str = "Swap";
 
-	fn text(v: &[f32; 1]) -> String {
+	fn text(&self, v: &[f32; 1]) -> String {
 		format!("Swap {}% used", pc(v[0]))
 	}
 
@@ -118,7 +124,7 @@ impl Source<3> for BatteryReader {
 	const TITLE: &'static str = "Battery";
 
 	// full counts as charging, so the tip says what the power is doing
-	fn text(v: &[f32; 3]) -> String {
+	fn text(&self, v: &[f32; 3]) -> String {
 		let state = if v[2] > 0.0 {
 			"critical"
 		} else if v[1] > 0.0 {
@@ -135,6 +141,27 @@ impl Source<3> for BatteryReader {
 
 	fn timing(look: &Look) -> Timing {
 		look.timing(look.battery_time)
+	}
+}
+
+impl Source<1> for ZswapReader {
+	const SECTION: &'static str = "zswap";
+	const TITLE: &'static str = "Zswap";
+
+	fn text(&self, v: &[f32; 1]) -> String {
+		format!("{} {}% used", self.name(), pc(v[0]))
+	}
+
+	fn paint(look: &Look) -> Paint<'_, 1> {
+		look.zswap_paint()
+	}
+
+	fn timing(look: &Look) -> Timing {
+		look.timing(look.zswap_time)
+	}
+
+	fn overlay(&self, look: &Look) -> Option<(String, Rgb)> {
+		Some((format!("{:.1}x", self.ratio()?), look.zswap_ratio))
 	}
 }
 
@@ -171,6 +198,13 @@ impl Graph<SwapReader, 1> {
 	/// None on a box with no swap.
 	pub fn swap(look: Look) -> Option<Self> {
 		SwapReader::probe().map(|src| Graph::with(look, src))
+	}
+}
+
+impl Graph<ZswapReader, 1> {
+	/// None on a box with neither zswap on nor zram set up.
+	pub fn zswap(look: Look) -> Option<Self> {
+		ZswapReader::probe().map(|src| Graph::with(look, src))
 	}
 }
 
@@ -347,7 +381,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		if span.covered < render::MIN_COVER {
 			return format!("{when}\nNo data");
 		}
-		format!("{when}\n{}", S::text(&span.mean))
+		format!("{when}\n{}", self.src.text(&span.mean))
 	}
 
 	/// The graph as cairo ARGB32 pixels, `w` by `h`.
@@ -375,12 +409,31 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		&self.px
 	}
 
+	/// The text to write over the graph drawn `w` by `h`, if its source has
+	/// any. Its edge is the background's bottom color.
+	pub fn overlay(&self, w: usize, h: usize, scale: usize) -> Option<render::Overlay> {
+		let bw = self.border_px(w, h, scale);
+		if w <= 2 * bw || h <= 2 * bw {
+			return None;
+		}
+		let (text, color) = self.src.overlay(&self.look)?;
+		Some(render::Overlay {
+			text,
+			color,
+			edge: self.look.bottom,
+			x: bw,
+			y: bw,
+			w: w - 2 * bw,
+			h: h - 2 * bw,
+		})
+	}
+
 	/// The latest read, as the panel's tooltip.
 	pub fn tooltip(&self) -> String {
 		let Some(v) = self.latest else {
 			return S::TITLE.into();
 		};
-		S::text(&v)
+		self.src.text(&v)
 	}
 }
 

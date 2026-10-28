@@ -39,10 +39,11 @@ pub enum Part {
 	Mem = 1,
 	Swap = 2,
 	Battery = 3,
-	Back = 4,
+	Zswap = 4,
+	Back = 5,
 }
 
-const GRAPHS: usize = 4;
+const GRAPHS: usize = 5;
 
 /// Every member of the theme group, by graph and role. A member missing here
 /// gets no random value, and `dice::tests::every_theme_member_has_a_role`
@@ -68,6 +69,12 @@ pub const ROLES: &[(&str, Part, Role)] = &[
 	("swap_low", Part::Swap, Role::Calm),
 	("swap_medium", Part::Swap, Role::Lead),
 	("swap_high", Part::Swap, Role::Tint),
+	("zswap_mode", Part::Zswap, Role::Mode),
+	("zswap_used", Part::Zswap, Role::Lead),
+	("zswap_ratio", Part::Zswap, Role::Tint),
+	("zswap_low", Part::Zswap, Role::Calm),
+	("zswap_medium", Part::Zswap, Role::Lead),
+	("zswap_high", Part::Zswap, Role::Tint),
 	("battery_mode", Part::Battery, Role::Mode),
 	("battery_charging", Part::Battery, Role::Lead),
 	("battery_discharging", Part::Battery, Role::Warn),
@@ -85,8 +92,8 @@ pub const ROLES: &[(&str, Part, Role)] = &[
 const LEAD_HUES: (f64, f64) = (75.0 / 360.0, 300.0 / 360.0);
 const ALARM_HUES: (f64, f64) = (-10.0 / 360.0, 2.0 / 360.0);
 const WARN_HUES: (f64, f64) = (18.0 / 360.0, 32.0 / 360.0);
-// The least gap between 2 graphs' lead hues. 4 of them at this gap leave
-// 90 degrees of the lead range to roll in.
+// The least gap between 2 graphs' lead hues. 5 of them at this gap leave
+// 45 degrees of the lead range to roll in.
 const LEAD_GAP: f64 = 45.0 / 360.0;
 
 // splitmix64, so a seed always rolls the same theme
@@ -290,7 +297,7 @@ mod tests {
 	use knobs::Value;
 	use tukzmon_core::config::{self, Rgb, THEME};
 
-	const PARTS: [Part; GRAPHS] = [Part::Cpu, Part::Mem, Part::Swap, Part::Battery];
+	const PARTS: [Part; GRAPHS] = [Part::Cpu, Part::Mem, Part::Swap, Part::Battery, Part::Zswap];
 
 	fn hsv_of(text: &str) -> Hsv {
 		pick::from_rgb(Rgb::parse(text).unwrap(), Hsv::default())

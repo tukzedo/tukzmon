@@ -11,7 +11,7 @@ The time axis is logarithmic by default. The last minute gets the most room, and
 
 ## Status
 
-Early. CPU, memory, swap and battery graphs run as an XFCE panel plugin, with a settings window, and keep their history across restarts, but there's no package yet. The plan is in [project/design.md](project/design.md) and the work list in [project/backlog.md](project/backlog.md).
+Early. CPU, memory, swap, zswap and battery graphs run as an XFCE panel plugin, with a settings window, and keep their history across restarts, but there's no package yet. The plan is in [project/design.md](project/design.md) and the work list in [project/backlog.md](project/backlog.md).
 
 To try it from a checkout you need Rust, XFCE 4.20, and Qt 6 (`qt6-base-dev` on Debian). Run `utility/dev-install.bash`. The panel only loads plugins from its system folders, so the first run links them there with sudo. Each run restarts the panel to load the new build.
 

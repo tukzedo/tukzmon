@@ -9,6 +9,7 @@
   qt6,
   glib,
   cairo,
+  pango,
   gtk3,
   xfce4-panel,
   # The build number is this time. Nix's own default is 1980.
@@ -41,6 +42,7 @@ rustPlatform.buildRustPackage {
     qt6.qtwayland
     glib
     cairo
+    pango
     gtk3
     xfce4-panel
   ];
@@ -60,6 +62,7 @@ rustPlatform.buildRustPackage {
         xfce4-panel
         gtk3
         cairo
+        pango
         glib
       ]
     }";

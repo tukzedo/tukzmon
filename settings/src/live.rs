@@ -9,6 +9,8 @@ use tukzmon_core::config::Look;
 use tukzmon_core::cpu::CpuReader;
 use tukzmon_core::graphs::{self, Drawn};
 use tukzmon_core::mem::{MemoryReader, SwapReader};
+use tukzmon_core::render::Overlay;
+use tukzmon_core::zswap::ZswapReader;
 use tukzmon_core::{Graph, Source};
 
 pub struct Live {
@@ -17,6 +19,8 @@ pub struct Live {
 	mem: Option<Graph<MemoryReader, 3>>,
 	/// None on a box with no swap.
 	swap: Option<Graph<SwapReader, 1>>,
+	/// None on a box with neither zswap on nor zram set up.
+	zswap: Option<Graph<ZswapReader, 1>>,
 	/// None on a box with no battery in.
 	battery: Option<Graph<BatteryReader, 3>>,
 }
@@ -26,6 +30,7 @@ impl Live {
 		Live {
 			mem: Graph::memory(look.clone()),
 			swap: Graph::swap(look.clone()),
+			zswap: Graph::zswap(look.clone()),
 			battery: Graph::battery(look.clone()),
 			cpu: Graph::new(look),
 		}
@@ -36,6 +41,7 @@ impl Live {
 			CpuReader::SECTION => Some(&self.cpu),
 			MemoryReader::SECTION => self.mem.as_ref().map(|g| g as &dyn Drawn),
 			SwapReader::SECTION => self.swap.as_ref().map(|g| g as &dyn Drawn),
+			ZswapReader::SECTION => self.zswap.as_ref().map(|g| g as &dyn Drawn),
 			BatteryReader::SECTION => self.battery.as_ref().map(|g| g as &dyn Drawn),
 			_ => None,
 		}
@@ -46,6 +52,7 @@ impl Live {
 			CpuReader::SECTION => Some(&mut self.cpu),
 			MemoryReader::SECTION => self.mem.as_mut().map(|g| g as &mut dyn Drawn),
 			SwapReader::SECTION => self.swap.as_mut().map(|g| g as &mut dyn Drawn),
+			ZswapReader::SECTION => self.zswap.as_mut().map(|g| g as &mut dyn Drawn),
 			BatteryReader::SECTION => self.battery.as_mut().map(|g| g as &mut dyn Drawn),
 			_ => None,
 		}
@@ -60,6 +67,10 @@ impl Live {
 			(
 				SwapReader::SECTION,
 				self.swap.as_mut().map(|g| g as &mut dyn Drawn),
+			),
+			(
+				ZswapReader::SECTION,
+				self.zswap.as_mut().map(|g| g as &mut dyn Drawn),
 			),
 			(
 				BatteryReader::SECTION,
@@ -102,6 +113,7 @@ impl Live {
 			CpuReader::SECTION => l.cpu_width,
 			MemoryReader::SECTION => l.mem_width,
 			SwapReader::SECTION => l.swap_width,
+			ZswapReader::SECTION => l.zswap_width,
 			BatteryReader::SECTION => l.battery_width,
 			_ => return 0,
 		};
@@ -118,6 +130,10 @@ impl Live {
 			Some(g) => g.render(w, h, scale),
 			None => &[],
 		}
+	}
+
+	pub fn overlay(&self, name: &str, w: usize, h: usize, scale: usize) -> Option<Overlay> {
+		self.get(name)?.overlay(w, h, scale)
 	}
 
 	pub fn easing(&self, name: &str) -> bool {
@@ -323,5 +339,28 @@ mod tests {
 			"{}",
 			live.tip("battery")
 		);
+	}
+
+	// Test ID: dehy5
+	#[test]
+	fn the_zswap_row_is_there_only_with_zswap_or_zram() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_live_zswap_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let mut live = Live::new(d.look());
+		let Some(_) = &live.zswap else {
+			assert_eq!(live.width("zswap"), 0);
+			assert!(live.render("zswap", 10, 10, 1).is_empty());
+			assert_eq!(live.tip("zswap"), "");
+			return;
+		};
+		d.set("zswap_width", &Value::Float(50.0));
+		live.set_look(&d.look());
+		assert_eq!(live.width("zswap"), 50);
+		assert_eq!(live.render("zswap", 50, 24, 1).len(), 50 * 24);
+		let tip = live.tip("zswap");
+		assert!(tip.starts_with("Zswap") || tip.starts_with("Zram"), "{tip}");
 	}
 }

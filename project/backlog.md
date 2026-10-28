@@ -404,21 +404,8 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- CPU and memory draw. Every other source has a collector since round-1026.
 		- 2026-10-26: The swap and battery graphs are in, 2026102618353000 and 2026102618353013.
+		- 2026-10-28: The zswap graph is in, 2026102618353002.
 		- 2026-10-26: Split into one child per graph not yet drawn: 2026102618353000 (swap), 2026102618353002 (zswap or zram), 2026102618353004 (network), 2026102618353006 (load), 2026102618353008 (disk), 2026102618353011 (temperature) and 2026102618353013 (battery). This closes with the last of them.
-
-- Zswap or zram graph
-	- ID: 2026102618353002
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261026-183530
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013887
-	- Prereq IDs: 2026102618353000
-	- Related IDs: 2026102408512197
-	- Requirements:
-		- % used, and a text number overlay for the compression ratio, e.g. "2.1x".
-		- No graph on a box with neither.
 
 - Network graph
 	- ID: 2026102618353004
@@ -667,6 +654,44 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Zswap or zram graph
+	- ID: 2026102618353002
+	- Type: Feature
+	- Status: Done
+		- It departs from the wording in one way. It's off by default, so an existing panel doesn't grow wider. Turn it on in the graph list.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353000
+	- Related IDs: 2026102408512197
+	- Requirements:
+		- % used, and a text number overlay for the compression ratio, e.g. "2.1x".
+		- No graph on a box with neither.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The zswap graph draws the pool's % used, or zram's on a box with zram and no zswap, with its tip as "Zswap 25% used" or "Zram 25% used". It has a row in the graph list, at `zswap.show`, `zswap.width` and `zswap.time`, and a Themes/Zswap sub-tab with In use, Ratio, and Low, Medium and High.
+		- The latest ratio, such as "4.7x", is written at the plot's top left in the panel's own font, with a rim of the background's Bottom. The plugin writes it with Pango and the settings window with Qt. The core says what and where through `render::Overlay`, so the next graph with an overlay only needs a `Source::overlay`.
+		- `graph.order` defaults to `cpu mem swap zswap battery`. Each built-in theme gives zswap a hue of its own, and Randomize rolls 5 lead hues.
+		- The .deb depends on Pango now, and the Nix package takes it too.
+		- `design.md` Code layout, XFCE plugin, Theme and Time axis have the details.
+		- Verified: the full run passed. A test panel drew "4.7x" over the zswap graph beside CPU and memory, and the settings window drew it on the graph list's row.
+	- Decisions:
+		- Off by default, like the swap graph, so a panel doesn't widen on upgrade.
+		- A lead hue of its own in each theme, not CPU's user color as the swap Check said, since every graph has had its own since round-1027. The colors are in a Check in questions.md.
+		- The ratio has a color of its own, Ratio, since High is hidden in Detailed mode. Its rim is the background's Bottom, so it reads over the pool too.
+		- Text that doesn't fit the plot, as on a very short panel, is left out rather than cut.
+		- `Source::text` takes the reader, so the tip can say Zswap or Zram.
+	- Branch: round-1028
+	- Test case: `zswap::tests::the_graph_gives_the_ratio_to_write_over_the_pool` (dehy3), `graphs::tests::zswap_sits_after_swap_and_keeps_its_history_hidden` (dehy4), and `live::tests::the_zswap_row_is_there_only_with_zswap_or_zram` (dehy5). dehy3 and dehy4 fail with zswap's overlay taken out, and dehy4 with the overlay left at its graph's own place rather than its tile's.
+		- 2026-10-28: new values only. deccf and deccw count 37 theme members, not 31. deccy counts 32 saved colors, not 27. dedqq's default order, and defkz's and defm0's orders, have `zswap` after `swap`, and defm0's past-the-end move is 5, not 4. defma's rows greyed at defaults add `zswap_width` and `zswap_time`, since Zswap graph is off by default. defx7 checks 5 lead colors, not 4, and defxd's `PARTS` takes zswap too.
+		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 6 built-in themes, `dice::ROLES`, every `Source::text` caller, and both front ends' draw paths. The profiler and soak test run with the defaults, so they don't draw zswap.
+	- Acceptance signoff: Self-closed, 2026-10-28: a test panel drew the ratio in the panel's font. How the themes look together stays on 2026102620162201.
+	- Closed: 20261028-084635
 
 - Nix package for tukzedo-linux's NixOS edition
 	- ID: 2026102621053725

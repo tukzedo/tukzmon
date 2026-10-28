@@ -50,6 +50,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 - Each front end is as small as it can be. It creates the panel widget, runs a timer, and copies the library's pixel buffer onto the screen. A pixel buffer is the one thing every host can show: a cairo image surface on GTK, a `QImage` on Qt, a DIB on Windows, and a `CGImage` on macOS.
 
 - Text overlays, such as the zswap ratio, are drawn by the front end with the panel's own font, so they match the rest of the panel.
+	- The core says what to write, in which colors, and the room it has, which is the plot. The front end leaves it out when it doesn't fit, as on a short panel.
 
 ### XFCE plugin
 
@@ -65,16 +66,16 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- Nothing else in the plugin assumes X11. The drawing, the tip, the hover line, the right-click menu and Properties work the same on Wayland, and tukzmon-settings opens as a Wayland window.
 
 - The plugin draws its graphs in one drawing area, side by side, in the saved order. They have 2 px clear above and below, and 4 px between each pair, in logical pixels, so the panel shows through. On a vertical panel or a deskbar they're stacked, and share the height evenly, with the 2 px either side instead. Each asks for half the panel's width in height, at least 16 px, so the widths don't apply there. The graph under the pointer gets the hover line and the tip. The 2 px edges count as the graph beside them, so a pointer pushed against the screen's edge still finds it, and a gap between 2 graphs finds neither. `core/src/graphs.rs` has the layout.
-	- Under Graphs on the Graph tab is the graph list, a row per graph in the saved order. Each row has a checkbox, at `cpu.show`, `mem.show`, `swap.show` and `battery.show`, the live graph, a width, at `cpu.width`, `mem.width`, `swap.width` and `battery.width`, a time axis, a revert arrow and a gripper. A width of 0, the default, is the Width setting. Widths are in the panel's own pixels, so they scale with it.
+	- Under Graphs on the Graph tab is the graph list, a row per graph in the saved order. Each row has a checkbox, at `cpu.show`, `mem.show`, `swap.show`, `zswap.show` and `battery.show`, the live graph, a width, at `cpu.width`, `mem.width`, `swap.width`, `zswap.width` and `battery.width`, a time axis, a revert arrow and a gripper. A width of 0, the default, is the Width setting. Widths are in the panel's own pixels, so they scale with it.
 	- Each row draws its graph live, at its own width, with the window's settings, so a change shows there before Apply. The window reads the graphs itself from when it opens, so a row starts empty. A hidden graph is drawn too. The widest graph sets the column, so the boxes after it line up, and one wider than 512 px is squeezed to that.
 	- The row under the pointer gets the hover line and the tip, the same as in the panel, through the panel's own `graphs::point`. On a squeezed row the line goes at the pointer's place in the whole graph. A tip left up follows each sample.
-	- The time axis is at `cpu.time`, `mem.time`, `swap.time` and `battery.time`. See [Time axis](#time-axis).
+	- The time axis is at `cpu.time`, `mem.time`, `swap.time`, `zswap.time` and `battery.time`. See [Time axis](#time-axis).
 	- A graph gets a row once `core/src/settings.shcl` has its `<name>.show`, `.width` and `.time` settings.
 	- A box where `/proc/meminfo` can't be read never shows the memory graph.
-	- The swap and battery graphs are off by default, so an existing panel doesn't grow wider. A box with no swap, or no battery in, never shows that one.
+	- The swap, zswap and battery graphs are off by default, so an existing panel doesn't grow wider. A box with no swap, with neither zswap on nor zram set up, or with no battery in, never shows that one.
 	- With every other graph off, CPU shows anyway, so the item never shrinks to nothing, and its right-click menu stays in reach.
 	- A hidden graph isn't read. Its history is kept, and shows a gap for the time it was hidden.
-	- Dragging a row's gripper, or Up and Down on it, sets the order. It's saved at `graph.order`, which names the graphs first to last, left to right or top to bottom: `cpu`, `mem`, `swap` and `battery`, by their history section names. The default is `cpu mem swap battery`.
+	- Dragging a row's gripper, or Up and Down on it, sets the order. It's saved at `graph.order`, which names the graphs first to last, left to right or top to bottom: `cpu`, `mem`, `swap`, `zswap` and `battery`, by their history section names. The default is `cpu mem swap zswap battery`, so zswap sits beside swap. A saved order from before zswap puts it last.
 		- Spaces or commas both work, since a hand edit like `order: mem, cpu` is a list to shcl.
 		- A name it doesn't know is skipped. A graph it doesn't name goes at the end, in the default order, so that way a graph added later, such as network, shows up last in a saved order.
 		- A hidden graph keeps its place for when it's shown again.
@@ -144,11 +145,11 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- A color changed on a theme is kept apart from it, and the dropdown says "Name *", the way SilkTerm's does. Picking another theme drops those changes.
 	- knobs reads a color line at its own path as the Custom set. A file with colors and no theme line reads as Custom, so a hand edit or an older file isn't hidden under Default. A save names the theme whenever Custom colors are stored, even Default, or the file would read back as Custom.
 
-- Each graph's sub-tab starts with its mode, Detailed or Gradient, at `cpu.mode` for the CPU graph, `mem.mode` for memory, `swap.mode` for swap and `battery.mode` for the battery.
+- Each graph's sub-tab starts with its mode, Detailed or Gradient, at `cpu.mode` for the CPU graph, `mem.mode` for memory, `swap.mode` for swap, `zswap.mode` for zswap and `battery.mode` for the battery.
 	- Detailed stacks a color per series, as before.
 	- Gradient draws the column in one blend of Low, Medium and High. A pixel takes the blend at its height in the plot, Low at the bottom, Medium halfway and High at the top, so a busier column reaches further up the ramp and the colors stay put as it grows. The column's height is the same as the stack's.
 	- Only the rows for the mode picked are shown. A mode changed by hand is a change on the theme, like a color.
-	- Fire is a Gradient theme, and each graph burns a flame of its own. CPU is dim red, yellow-white, then light blue, like a hot flame. Memory is a violet flame, swap a blue gas flame, and the battery a green copper one. Every other built-in is Detailed, and each graph's gradient runs from its muted color through its own lead to a pale tint of it.
+	- Fire is a Gradient theme, and each graph burns a flame of its own. CPU is dim red, yellow-white, then light blue, like a hot flame. Memory is a violet flame, swap a blue gas flame, zswap a cyan one, and the battery a green copper one. Every other built-in is Detailed, and each graph's gradient runs from its muted color through its own lead to a pale tint of it.
 
 - The memory graph's colors are on the Memory sub-tab: Programs, Buffers and Cache, at `mem.colors.user`, `.buffers` and `.cache`, plus its own Low, Medium and High.
 	- Default's are multiload-ng's memory colors as they were, `#ffff80`, `#804080` and `#408060`, not moved onto Default's hue.
@@ -156,6 +157,10 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- multiload-ng's memory border and background aren't used, since every graph shares the Background sub-tab.
 
 - The swap graph's colors are on the Swap sub-tab: In use, at `swap.colors.used`, plus its own Low, Medium and High. Every built-in gives swap a hue and gradient of its own. Default's is sky blue, `#40a0ff`, and Fire draws swap as a gradient too.
+
+- The zswap graph's colors are on the Zswap sub-tab: In use, at `zswap.colors.used`, and Ratio, at `zswap.colors.ratio`, plus its own Low, Medium and High. Every built-in gives zswap a hue and gradient of its own, and Ratio is a pale tint of it. Default's is magenta, `#ff80ff`.
+	- The graph is zram's on a box with zram and no zswap, and its tip says which, such as "Zram 40% used".
+	- The ratio from the latest read is written at the plot's top left, such as `4.7x`, in Ratio with a rim of the background's Bottom, so it reads over the pool's own color too. An empty pool has no ratio, so nothing is written.
 
 - The battery graph's colors are on the Battery sub-tab: Plugged in, On battery and Critical, at `battery.colors.charging`, `.discharging` and `.critical`, plus its own Low, Medium and High. In every built-in, plugged in is a hue of the battery's own, and on battery and critical are the theme's system and I/O wait colors, so on battery reads as a warning and critical as an alarm. The gradient is the battery's own. Default's plugged in is lavender, `#b080ff`.
 	- The tip says plugged in rather than charging, since a full battery with the power in counts as charging.
@@ -169,7 +174,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 - Transparent, on the Background sub-tab at `graph.transparent`, leaves out the Top and Bottom colors so the panel shows through. It's one setting for every theme, outside the `theme` group, so a theme pick, a roll or Save as doesn't touch it. The border, the series and the hover line stay opaque. Pixels are premultiplied, so a row a column only half fills is half clear.
 
 - Randomize rolls colors for every graph and sets them as changes on the theme in force, so the dropdown says "Name *". Save as keeps a roll, and picking a theme drops it. The rules are in `settings/src/dice.rs`.
-	- Each graph leads with a hue of its own, the user share for CPU, at any hue from yellow-green round to magenta, which keeps it off red and orange. The 4 lead hues are at least 45 degrees apart, in a random order. A graph's quiet colors and its gradient's Low are its hue muted, or one up to 30 degrees from it. The border and background are CPU's lead hue or nice's, darker and grayer.
+	- Each graph leads with a hue of its own, the user share for CPU, at any hue from yellow-green round to magenta, which keeps it off red and orange. The 5 lead hues are at least 45 degrees apart, in a random order. A graph's quiet colors and its gradient's Low are its hue muted, or one up to 30 degrees from it. The border and background are CPU's lead hue or nice's, darker and grayer.
 	- I/O wait stays red and system orange, as in the built-ins, since those are the ones to watch. Every color softens together, from as bright as Primary to as pale as Pastel.
 	- Every graph shares one saturation and brightness, so a roll reads as one set and only the hues differ.
 	- A roll is always Detailed. Each graph's gradient runs from its quiet color through its lead to a pale tint, like the built-ins', so it's ready if Gradient is picked. The hover line stays black.
@@ -285,7 +290,7 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 - A linear mode is there too, for anyone who wants a plain scrolling graph. A pixel is one sample there.
 
 - Each graph can pick its own time axis under Graphs: Linear, or one of the 3 log curves. The default, As set under Time, follows Log time axis and Log curve, so a settings file from before the pick keeps its axis, and one setting still changes every graph that has no pick of its own.
-	- A graph's pick is `cpu.time`, `mem.time`, `swap.time` or `battery.time`: `same`, `linear`, `smooth`, `fixed_a` or `fixed_b`.
+	- A graph's pick is `cpu.time`, `mem.time`, `swap.time`, `zswap.time` or `battery.time`: `same`, `linear`, `smooth`, `fixed_a` or `fixed_b`.
 	- Spike emphasis sits under Log time axis, but it applies to any graph on a log curve.
 
 ## Drawing

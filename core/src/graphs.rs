@@ -12,6 +12,8 @@ use crate::config::Look;
 use crate::cpu::CpuReader;
 use crate::keep;
 use crate::mem::{MemoryReader, SwapReader};
+use crate::render::Overlay;
+use crate::zswap::ZswapReader;
 use crate::{Graph, Source};
 
 pub struct Graphs {
@@ -20,6 +22,8 @@ pub struct Graphs {
 	pub mem: Option<Graph<MemoryReader, 3>>,
 	/// None when hidden, or on a box with no swap.
 	pub swap: Option<Graph<SwapReader, 1>>,
+	/// None when hidden, or on a box with neither zswap on nor zram set up.
+	pub zswap: Option<Graph<ZswapReader, 1>>,
 	/// None when hidden, or on a box with no battery in.
 	pub battery: Option<Graph<BatteryReader, 3>>,
 	/// Top to bottom, for a vertical panel.
@@ -42,19 +46,27 @@ enum Which {
 	Cpu,
 	Mem,
 	Swap,
+	Zswap,
 	Battery,
 }
 
 impl Which {
 	/// The order with nothing saved. Graphs a saved order leaves out go
 	/// last, in this order.
-	const ALL: [Which; 4] = [Which::Cpu, Which::Mem, Which::Swap, Which::Battery];
+	const ALL: [Which; 5] = [
+		Which::Cpu,
+		Which::Mem,
+		Which::Swap,
+		Which::Zswap,
+		Which::Battery,
+	];
 
 	fn name(self) -> &'static str {
 		match self {
 			Which::Cpu => CpuReader::SECTION,
 			Which::Mem => MemoryReader::SECTION,
 			Which::Swap => SwapReader::SECTION,
+			Which::Zswap => ZswapReader::SECTION,
 			Which::Battery => BatteryReader::SECTION,
 		}
 	}
@@ -64,6 +76,7 @@ impl Which {
 			Which::Cpu => look.show_cpu,
 			Which::Mem => look.show_memory,
 			Which::Swap => look.show_swap,
+			Which::Zswap => look.show_zswap,
 			Which::Battery => look.show_battery,
 		}
 	}
@@ -78,6 +91,7 @@ impl Which {
 			Which::Cpu => look.cpu_width,
 			Which::Mem => look.mem_width,
 			Which::Swap => look.swap_width,
+			Which::Zswap => look.zswap_width,
 			Which::Battery => look.battery_width,
 		}
 	}
@@ -97,6 +111,7 @@ pub trait Drawn {
 	fn hover_tip(&self, x: usize, w: usize, h: usize, scale: usize) -> String;
 	fn tooltip(&self) -> String;
 	fn render(&mut self, w: usize, h: usize, scale: usize) -> &[u32];
+	fn overlay(&self, w: usize, h: usize, scale: usize) -> Option<Overlay>;
 	fn set_look(&mut self, look: &Look);
 }
 
@@ -133,6 +148,9 @@ impl<S: Source<N>, const N: usize> Drawn for Graph<S, N> {
 	}
 	fn render(&mut self, w: usize, h: usize, scale: usize) -> &[u32] {
 		Graph::render(self, w, h, scale)
+	}
+	fn overlay(&self, w: usize, h: usize, scale: usize) -> Option<Overlay> {
+		Graph::overlay(self, w, h, scale)
 	}
 	fn set_look(&mut self, look: &Look) {
 		look.clone_into(&mut self.look);
@@ -204,6 +222,11 @@ impl Graphs {
 		} else {
 			None
 		};
+		let zswap = if look.show_zswap {
+			Graph::zswap(look.clone())
+		} else {
+			None
+		};
 		let battery = if look.show_battery {
 			Graph::battery(look.clone())
 		} else {
@@ -213,6 +236,7 @@ impl Graphs {
 			cpu: Graph::new(look),
 			mem,
 			swap,
+			zswap,
 			battery,
 			stacked: false,
 			px: Vec::new(),
@@ -229,6 +253,7 @@ impl Graphs {
 			Which::Cpu => Some(&self.cpu),
 			Which::Mem => self.mem.as_ref().map(|g| g as &dyn Drawn),
 			Which::Swap => self.swap.as_ref().map(|g| g as &dyn Drawn),
+			Which::Zswap => self.zswap.as_ref().map(|g| g as &dyn Drawn),
 			Which::Battery => self.battery.as_ref().map(|g| g as &dyn Drawn),
 		}
 	}
@@ -238,6 +263,7 @@ impl Graphs {
 			Which::Cpu => Some(&mut self.cpu),
 			Which::Mem => self.mem.as_mut().map(|g| g as &mut dyn Drawn),
 			Which::Swap => self.swap.as_mut().map(|g| g as &mut dyn Drawn),
+			Which::Zswap => self.zswap.as_mut().map(|g| g as &mut dyn Drawn),
 			Which::Battery => self.battery.as_mut().map(|g| g as &mut dyn Drawn),
 		}
 	}
@@ -316,6 +342,11 @@ impl Graphs {
 		}
 		if switch(&mut self.swap, look.show_swap, || Graph::swap(look.clone())) {
 			added.push(Which::Swap);
+		}
+		if switch(&mut self.zswap, look.show_zswap, || {
+			Graph::zswap(look.clone())
+		}) {
+			added.push(Which::Zswap);
 		}
 		if switch(&mut self.battery, look.show_battery, || {
 			Graph::battery(look.clone())
@@ -430,6 +461,20 @@ impl Graphs {
 	// side by side, what the gaps leave is shared out by width, since the
 	// panel may not give exactly what was asked for. Stacked, they share it
 	// evenly. A panel too thin for the edges keeps most of itself for graphs.
+	/// Each graph's overlay, placed in the whole drawing `w` by `h`.
+	pub fn overlays(&self, w: usize, h: usize, scale: usize) -> Vec<Overlay> {
+		self.tiles(w, h, scale)
+			.filter_map(|(which, (tx, ty, tw, th))| {
+				let o = self.slot(which)?.overlay(tw, th, scale)?;
+				Some(Overlay {
+					x: tx + o.x,
+					y: ty + o.y,
+					..o
+				})
+			})
+			.collect()
+	}
+
 	fn tiles(&self, w: usize, h: usize, scale: usize) -> impl Iterator<Item = (Which, Tile)> + '_ {
 		let (n, stacked) = (self.count(), self.stacked);
 		let total = self.widths().map(|x| x as usize).sum::<usize>().max(1);
@@ -481,6 +526,10 @@ impl Graphs {
 		let optional = [
 			(Which::Mem, self.mem.as_mut().map(|g| g as &mut dyn Drawn)),
 			(Which::Swap, self.swap.as_mut().map(|g| g as &mut dyn Drawn)),
+			(
+				Which::Zswap,
+				self.zswap.as_mut().map(|g| g as &mut dyn Drawn),
+			),
 			(
 				Which::Battery,
 				self.battery.as_mut().map(|g| g as &mut dyn Drawn),
@@ -1210,7 +1259,7 @@ mod tests {
 			([0.0, 0.0, 0.03], "Battery 3%, critical"),
 			([0.0, 0.0, 0.0], "Battery 0%, plugged in"),
 		] {
-			assert_eq!(<BatteryReader as Source<3>>::text(&v), want);
+			assert_eq!(BatteryReader::default().text(&v), want);
 		}
 		// one with none in reads as a gap
 		b.sample();
@@ -1221,6 +1270,64 @@ mod tests {
 			fire.battery_paint(),
 			crate::render::Paint::Gradient(fire.battery_gradient)
 		);
+	}
+
+	// Test ID: dehy4
+	#[test]
+	fn zswap_sits_after_swap_and_keeps_its_history_hidden() {
+		let path = scratch("zswap");
+		let mut g = three();
+		let look = Look {
+			show_zswap: true,
+			..g.look().clone()
+		};
+		assert!(Graphs::new(Look::default()).zswap.is_none());
+		g.zswap = Some(Graph::with(look.clone(), ZswapReader::squeezed(2.1)));
+		g.set_look(look.clone(), None).unwrap();
+		let now = g.cpu.now();
+		let z = g.zswap.as_mut().unwrap();
+		z.hist.add(now - 60.0, now, &[0.5]);
+		let had = z.hist.last();
+		assert_eq!(g.count(), 4);
+		let (w, h) = (80 + 3 * G, 10 + 2 * E);
+		let right = g.zswap.as_mut().unwrap().render(20, 10, 1).to_vec();
+		let px = g.render(w, h, 1).to_vec();
+		sits(&px, w, &right, (60 + 3 * G, E, 20, 10));
+		assert!(g.hover(Some((65 + 3 * G, 3)), w, h, 1));
+		assert_eq!(g.zswap.as_ref().unwrap().hover, Some(5));
+		assert!(
+			g.hover_tip(65 + 3 * G, 3, w, h, 1)
+				.contains("Zram 50% used")
+		);
+		let bw = look.border as usize;
+		let o = g.overlays(w, h, 1);
+		assert_eq!(o.len(), 1);
+		assert_eq!(o[0].text, "2.1x");
+		assert_eq!(
+			(o[0].x, o[0].y, o[0].w, o[0].h),
+			(60 + 3 * G + bw, E + bw, 20 - 2 * bw, 10 - 2 * bw)
+		);
+		g.save(&path).unwrap();
+		let names: Vec<String> = keep::read(&path)
+			.unwrap()
+			.into_iter()
+			.map(|(n, _)| n)
+			.collect();
+		assert_eq!(names, ["cpu", "mem", "swap", "zswap"]);
+		let off = Look {
+			show_zswap: false,
+			..look
+		};
+		assert!(g.drops(&off));
+		g.set_look(off, Some(&path)).unwrap();
+		assert!(g.zswap.is_none());
+		assert_eq!(g.count(), 3);
+		g.save(&path).unwrap();
+		let back = keep::read(&path).unwrap();
+		let mut again = Graph::with(Look::default(), ZswapReader::default());
+		assert!(again.adopt(&back));
+		assert_eq!(again.hist.last(), had);
+		std::fs::remove_file(&path).unwrap();
 	}
 
 	// Test ID: defqd

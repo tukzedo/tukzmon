@@ -57,6 +57,22 @@ pub fn line(px: &mut [u32], w: usize, h: usize, bw: usize, x: usize, thick: usiz
 	}
 }
 
+/// Text a front end writes over a graph in the panel's own font, at the
+/// plot's top left. See design.md Code layout.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Overlay {
+	pub text: String,
+	pub color: Rgb,
+	/// A rim round each letter, so it reads over any column.
+	pub edge: Rgb,
+	/// The plot, in device pixels from the drawing's top left. Text that
+	/// doesn't fit in it is left out.
+	pub x: usize,
+	pub y: usize,
+	pub w: usize,
+	pub h: usize,
+}
+
 /// How a column is colored.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Paint<'a, const N: usize> {

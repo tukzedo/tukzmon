@@ -13,7 +13,7 @@
 ## default is the Default theme's value, and config::tests holds the two to
 ## each other.
 
-tabs: "Graph", "Themes", "Themes/CPU", "Themes/Memory", "Themes/Swap", "Themes/Battery", "Themes/Background"
+tabs: "Graph", "Themes", "Themes/CPU", "Themes/Memory", "Themes/Swap", "Themes/Zswap", "Themes/Battery", "Themes/Background"
 
 settings:
 
@@ -203,6 +203,36 @@ settings:
 		gate: show_swap
 		tip: "How the swap graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
 
+	show_zswap:
+		label: Zswap graph
+		tab: Graph
+		control: checkbox
+		path: zswap.show
+		default: false
+		tip: "Show how full the compressed swap pool is, zswap's or else zram's, with how far it squeezes what it holds written over it, such as 2.1x. It's left out on a box with neither."
+
+	zswap_width:
+		label: Zswap width px
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 4096
+		path: zswap.width
+		default: 0
+		gate: show_zswap
+		tip: "How wide the zswap graph is, in the same pixels as Width. 0 uses Width."
+
+	zswap_time:
+		label: Zswap time axis
+		tab: Graph
+		control: dropdown
+		options: same, linear, smooth, fixed_a, fixed_b
+		option_labels: "As set under Time", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: zswap.time
+		default: same
+		gate: show_zswap
+		tip: "How the zswap graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
+
 	show_battery:
 		label: Battery graph
 		tab: Graph
@@ -239,8 +269,8 @@ settings:
 		tab: Graph
 		control: text
 		path: graph.order
-		default: "cpu mem swap battery"
-		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, swap and battery. One left out goes at the end."
+		default: "cpu mem swap zswap battery"
+		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, swap, zswap and battery. One left out goes at the end."
 
 	HistoryHead:
 		label: History
@@ -506,6 +536,72 @@ settings:
 		shown_when: "swap_mode = gradient"
 		tip: "The color at the top."
 
+	zswap_mode:
+		label: Colors
+		tab: Themes/Zswap
+		control: dropdown
+		shown_as: radio
+		options: detailed, gradient
+		option_labels: "Detailed", "Gradient"
+		path: zswap.mode
+		default: detailed
+		group: theme
+		tip: "Detailed draws the pool in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top. Zram shows here too, on a box that has it and no zswap."
+
+	zswap_used:
+		label: In use
+		tab: Themes/Zswap
+		control: color
+		path: zswap.colors.used
+		default: "#ff80ff"
+		group: theme
+		shown_when: "zswap_mode = detailed"
+
+	zswap_ratio:
+		label: Ratio
+		tab: Themes/Zswap
+		control: color
+		path: zswap.colors.ratio
+		default: "#ffe0ff"
+		group: theme
+		tip: "The compression ratio written over the graph, such as 2.1x. It gets a Bottom colored edge, so it reads over the graph too."
+
+	ZswapGradHead:
+		label: "Zswap, by height"
+		tab: Themes/Zswap
+		control: heading
+		shown_when: "zswap_mode = gradient"
+
+	zswap_low:
+		label: Low
+		tab: Themes/Zswap
+		control: color
+		path: zswap.colors.low
+		default: "#6a2a6a"
+		group: theme
+		shown_when: "zswap_mode = gradient"
+		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
+
+	zswap_medium:
+		label: Medium
+		tab: Themes/Zswap
+		control: color
+		path: zswap.colors.medium
+		default: "#ff80ff"
+		group: theme
+		shown_when: "zswap_mode = gradient"
+		tip: "The color halfway up."
+
+	zswap_high:
+		label: High
+		tab: Themes/Zswap
+		control: color
+		path: zswap.colors.high
+		default: "#ffe0ff"
+		group: theme
+		shown_when: "zswap_mode = gradient"
+		tip: "The color at the top."
+
 	battery_mode:
 		label: Colors
 		tab: Themes/Battery
@@ -670,6 +766,12 @@ groups:
 				swap_medium: "#40a0ff"
 				swap_high: "#d0e8ff"
 				swap_used: "#40a0ff"
+				zswap_mode: detailed
+				zswap_low: "#6a2a6a"
+				zswap_medium: "#ff80ff"
+				zswap_high: "#ffe0ff"
+				zswap_used: "#ff80ff"
+				zswap_ratio: "#ffe0ff"
 				battery_mode: detailed
 				battery_low: "#483468"
 				battery_medium: "#b080ff"
@@ -703,6 +805,12 @@ groups:
 				swap_medium: "#0060ff"
 				swap_high: "#c0d0ff"
 				swap_used: "#0060ff"
+				zswap_mode: detailed
+				zswap_low: "#5f205f"
+				zswap_medium: "#ff00ff"
+				zswap_high: "#ffc0ff"
+				zswap_used: "#ff00ff"
+				zswap_ratio: "#ffc0ff"
 				battery_mode: detailed
 				battery_low: "#205f5f"
 				battery_medium: "#00ffff"
@@ -736,6 +844,12 @@ groups:
 				swap_medium: "#a1f0b8"
 				swap_high: "#e0ffe8"
 				swap_used: "#a1f0b8"
+				zswap_mode: detailed
+				zswap_low: "#8a6a7a"
+				zswap_medium: "#f0a1d0"
+				zswap_high: "#ffe0f0"
+				zswap_used: "#f0a1d0"
+				zswap_ratio: "#ffe0f0"
 				battery_mode: detailed
 				battery_low: "#7e6a8a"
 				battery_medium: "#d0b0f0"
@@ -769,6 +883,12 @@ groups:
 				swap_medium: "#b026ff"
 				swap_high: "#ecc8ff"
 				swap_used: "#b026ff"
+				zswap_mode: detailed
+				zswap_low: "#142a70"
+				zswap_medium: "#3060ff"
+				zswap_high: "#c8d4ff"
+				zswap_used: "#3060ff"
+				zswap_ratio: "#c8d4ff"
 				battery_mode: detailed
 				battery_low: "#6a6400"
 				battery_medium: "#ffee00"
@@ -802,6 +922,12 @@ groups:
 				swap_medium: "#6aa0b4"
 				swap_high: "#dceaf0"
 				swap_used: "#6aa0b4"
+				zswap_mode: detailed
+				zswap_low: "#34503c"
+				zswap_medium: "#6fa07a"
+				zswap_high: "#dcf0e0"
+				zswap_used: "#6fa07a"
+				zswap_ratio: "#dcf0e0"
 				battery_mode: detailed
 				battery_low: "#4a4060"
 				battery_medium: "#a08ad0"
@@ -835,6 +961,12 @@ groups:
 				swap_medium: "#2060ff"
 				swap_high: "#d0f0ff"
 				swap_used: "#4080ff"
+				zswap_mode: gradient
+				zswap_low: "#0a4048"
+				zswap_medium: "#20e0d0"
+				zswap_high: "#d0fff8"
+				zswap_used: "#20e0d0"
+				zswap_ratio: "#d0fff8"
 				battery_mode: gradient
 				battery_low: "#0a3a10"
 				battery_medium: "#20d040"
