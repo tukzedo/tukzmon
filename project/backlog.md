@@ -371,7 +371,7 @@ Sorted per the notes in [Template](#template).
 - The graphs
 	- ID: 2026101916013887
 	- Type: Feature
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: High
 	- Opened: 20261019-160138
 	- Opened by: t00mietum
@@ -395,9 +395,11 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-26: The swap and battery graphs are in, 2026102618353000 and 2026102618353013.
 		- 2026-10-28: The zswap graph is in, 2026102618353002.
 		- 2026-10-26: Split into one child per graph not yet drawn: 2026102618353000 (swap), 2026102618353002 (zswap or zram), 2026102618353004 (network), 2026102618353006 (load), 2026102618353008 (disk), 2026102618353011 (temperature) and 2026102618353013 (battery). This closes with the last of them.
+	- Test case: its children's tests, as each child lists them: swap 2026102618353000, zswap 2026102618353002, network 2026102618353004, load 2026102618353006, disk 2026102618353008, temperature 2026102618353011 and battery 2026102618353013.
 	- 2026-10-28: the zswap and network graphs are in.
 	- 2026-10-28: the load and disk graphs are in, 2026102618353006 and 2026102618353008.
 	- 2026-10-28: the temperature graph is in, 2026102618353011. It was the last child.
+	- 2026-10-28: closed, since every graph it lists draws and all 7 children are closed. How the colors look stays on 2026102620162201.
 
 - Color themes tab
 	- ID: 2026102408304612
