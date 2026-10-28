@@ -471,6 +471,31 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
 
+- Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
+	- ID: 2026102620162196
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build defqn, on b23 as of 2026-10-26 20:16.
+	- Related IDs: 2026102408304599
+	- Incorrect behavior: Mouseover tip text: "x seconds ago" doesn't update with ticks, it seems to be stuck at whatever it was at first flyover.
+	- Note: Regular time format works though.
+	- Reproduced: 2026-10-26, in core with 2 days of history. A still pointer read "32 sec ago" over 4 ticks while its clock time went 20:59:13, :14, :15, :16, on a linear axis and on Smooth log.
+	- Actual cause:
+		- Each column of the graph is a fixed age, since the right edge is always now and the graph moves left under the pointer. So a still pointer's age holds, and its clock time moves on by a sample each tick. Both say the same thing about the column under the line.
+		- The tip is asked again each tick, so nothing is stale. The round-1024 test panel saw the age count, likely because its history was only seconds old, and a log axis stretches as its history grows.
+	- Progress log:
+		- Answered 2026-10-28: the line and tip stay on the column under the pointer. No behavior change. design.md Drawing says why a still pointer's age holds, and a test pins it.
+		- Verified: the quick gate passed, with the new test.
+	- Decisions:
+		- Not a bug: each column is a fixed age, so the age holds while the clock time moves on. Both describe the column under the line.
+	- Branch: round-1028
+	- Test case: `tests::a_still_pointer_keeps_its_age_while_its_clock_time_moves_on` (defz1). It pins existing behavior, so it passes before and after. No code changed.
+		- Swept: `hover_tip` and `span_at` are the only places the tip's time is made, and the settings window's live tip goes through the same `Graph::hover_tip`.
+	- Closed: 20261028-080400
+
 - Memory graph
 	- ID: 2026102408304625
 	- Type: Feature
@@ -550,31 +575,6 @@ Sorted per the notes in [Template](#template).
 		- Swept: every `Which` match, the slots in `Graphs` and `Live`, the 6 built-in themes, and `dice::ROLES`.
 	- Acceptance signoff: Self-closed: defqc, defqd and defqe passed in round-1028's full run at 17d3d9d, and the 3 states measured 11.1 or more apart in every built-in.
 	- Closed: 20261028-101427
-
-- Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
-	- ID: 2026102620162196
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261026-201621
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build defqn, on b23 as of 2026-10-26 20:16.
-	- Related IDs: 2026102408304599
-	- Incorrect behavior: Mouseover tip text: "x seconds ago" doesn't update with ticks, it seems to be stuck at whatever it was at first flyover.
-	- Note: Regular time format works though.
-	- Reproduced: 2026-10-26, in core with 2 days of history. A still pointer read "32 sec ago" over 4 ticks while its clock time went 20:59:13, :14, :15, :16, on a linear axis and on Smooth log.
-	- Actual cause:
-		- Each column of the graph is a fixed age, since the right edge is always now and the graph moves left under the pointer. So a still pointer's age holds, and its clock time moves on by a sample each tick. Both say the same thing about the column under the line.
-		- The tip is asked again each tick, so nothing is stale. The round-1024 test panel saw the age count, likely because its history was only seconds old, and a log axis stretches as its history grows.
-	- Progress log:
-		- Answered 2026-10-28: the line and tip stay on the column under the pointer. No behavior change. design.md Drawing says why a still pointer's age holds, and a test pins it.
-		- Verified: the quick gate passed, with the new test.
-	- Decisions:
-		- Not a bug: each column is a fixed age, so the age holds while the clock time moves on. Both describe the column under the line.
-	- Branch: round-1028
-	- Test case: `tests::a_still_pointer_keeps_its_age_while_its_clock_time_moves_on` (defz1). It pins existing behavior, so it passes before and after. No code changed.
-		- Swept: `hover_tip` and `span_at` are the only places the tip's time is made, and the settings window's live tip goes through the same `Graph::hover_tip`.
-	- Closed: 20261028-080400
 
 - The graphs
 	- ID: 2026101916013887
