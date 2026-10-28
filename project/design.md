@@ -140,15 +140,28 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 ### Theme
 
-- Graph colors are meant to start from the panel theme: the GTK style context on XFCE, the Qt palette on LXQt. That's how a tukzedo personality's theme reaches the graphs. For now the defaults are a customized multiload-ng setup instead, with the CPU system and nice colors changed since.
+- Graph colors are meant to start from the panel theme: the GTK style context on XFCE, the Qt palette on LXQt. That's how a tukzedo personality's theme reaches the graphs. For now the defaults are b23's own colors instead, which started as a customized multiload-ng setup.
 
 - Each color can be overridden in the settings window.
 
-- Every color is in one knobs preset group, `theme`, picked with the Name dropdown on the Themes tab, at `theme.name`, and so is each graph's mode. The built-in themes are in `core/src/settings.shcl`: Default, Primary, Pastel, Neon, Earth and Fire.
+- Every color is in one knobs preset group, `theme`, picked with the Name dropdown on the Themes tab, at `theme.name`, and so is each graph's mode. The built-in themes are in `core/src/settings.shcl`: Default, Primary, Pastel, Neon, Earth, Fire, Terminal, Vintage and Frost.
 	- One theme colors every graph, so no graph picks its own. A theme has a value for every graph's colors and mode, and picking one changes every sub-tab.
-	- A theme's name says nothing of color. Each graph has a hue of its own in every theme, so graphs side by side are told apart. A graph's quiet series and its gradient's Low are its hue, muted. The border and background are neutral, or lean to the theme's mood.
-	- I/O wait and system stay red and orange in every theme, so trouble reads the same whichever is picked. No graph's own hue is red or orange, except in Fire and Earth, where they're warm but not the alarms'.
-	- Default is the earlier multiload-ng colors moved onto one hue, 150 degrees. System went from `#c64600` to `#c64200`, the border from `#40806a` to `#408060`, and the top from `#2a5446` to `#2a543f`.
+	- A theme's name says nothing of color. Each graph has a lead color of its own in every theme but the one-color ones, so graphs side by side are told apart. A graph's quiet series and its gradient's Low are its hue, muted. The border and background are neutral, or lean to the theme's mood.
+	- A graph's lead is the color it reads as from across the room: its main series in Detailed, such as user for CPU or received for the network, or its Medium in Gradient. `config::LEADS` lists them.
+		- In every built-in but the one-color ones, any 2 graphs' leads are 10 or more apart as CIEDE2000. In every built-in, every lead is 10 or more from I/O wait and system. At 10 or more 2 colors read apart at a glance.
+		- Hue angle alone doesn't do it. An equal step in hue looks far smaller among the greens than among the blues, and 10 graphs share what's left of the circle off red and orange. So leads also differ by lightness and saturation.
+		- The measure is in `core/src/color.rs`, checked against the test pairs Sharma, Wu and Dalal published with the formula. Randomize uses the same one.
+	- I/O wait and system stay red and orange in every theme but Default, so trouble reads the same whichever is picked. No graph's own hue is red or orange, except in Fire, Earth and Vintage, where they're warm but not the alarms', and in Default.
+	- Default is b23's colors as of 2026-10-28: the earlier multiload-ng ones, with the changes made on them since. Where those break a rule the other built-ins keep, Default follows the colors picked.
+		- System is pink, `#fa72f0`, and the battery's on battery is copper, `#c46e43`, not system's color.
+		- Swap, zswap, load and temperature draw as gradients. Load's is dark red, and temperature's runs from teal through yellow to red.
+		- Swap's and zswap's gradients run through the colors picked for them in Detailed, amber `#a45f00` and green `#4a8e54`, and temperature's normal is its Medium. So a graph switched to the other mode keeps its color.
+		- The network's local and sent, and the disk's written, are colors of their own, not shades of the lead.
+		- The border and the top are gray, `#8b8b8b` and `#313131`.
+		- Programs on the memory graph moved from `#ffff80` to `#ffffa3`, the least change that reads apart from temperature's yellow.
+	- Terminal, Vintage and Frost are one-color themes: a green phosphor screen, an amber one, and pale ice. Every graph has the same colors in them, so graphs are told apart by place and by the gap between them, as on a one-color multiload-ng setup.
+		- 10 graphs can't sit 10 apart by lightness alone, so these are let off the check on leads. A theme whose graphs all lead with one color is one of them, and only that lets a theme off.
+		- I/O wait and system stay red and orange, 10 or more from the lead and from each other, so trouble still reads. Each graph's own colors are 10 or more apart, and from the top.
 	- Each color row's default is Default's color, so Custom starts from it. `config::tests::the_default_theme_is_the_row_defaults` holds the two together.
 	- A color changed on a theme is kept apart from it, and the dropdown says "Name *", the way SilkTerm's does. Picking another theme drops those changes.
 	- knobs reads a color line at its own path as the Custom set. A file with colors and no theme line reads as Custom, so a hand edit or an older file isn't hidden under Default. A save names the theme whenever Custom colors are stored, even Default, or the file would read back as Custom.
@@ -160,32 +173,32 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- Fire is a Gradient theme, and each graph burns a flame of its own. CPU is dim red, yellow-white, then light blue, like a hot flame. Memory is a violet flame, swap a blue gas flame, the network a pink lithium one, zswap a cyan one, load a yellow-green barium one, the disk an indigo one, temperature a lilac potassium one, the battery a green copper one, and tukzmon a bright green boron one. Every other built-in is Detailed, and each graph's gradient runs from its muted color through its own lead to a pale tint of it.
 
 - The memory graph's colors are on the Memory sub-tab: Programs, Buffers and Cache, at `mem.colors.user`, `.buffers` and `.cache`, plus its own Low, Medium and High.
-	- Default's are multiload-ng's memory colors as they were, `#ffff80`, `#804080` and `#408060`, not moved onto Default's hue.
+	- Default's are multiload-ng's memory colors, `#804080` and `#408060`, with programs a little paler at `#ffffa3`.
 	- In the other built-ins, programs take memory's own hue, cache is that hue muted, and buffers a muted color a step round from it. Fire draws memory as a gradient too.
 	- multiload-ng's memory border and background aren't used, since every graph shares the Background sub-tab.
 
-- The swap graph's colors are on the Swap sub-tab: In use, at `swap.colors.used`, plus its own Low, Medium and High. Every built-in gives swap a hue and gradient of its own. Default's is sky blue, `#40a0ff`, and Fire draws swap as a gradient too.
+- The swap graph's colors are on the Swap sub-tab: In use, at `swap.colors.used`, plus its own Low, Medium and High. Every built-in gives swap a hue and gradient of its own. Default's is amber, `#a45f00`, and Default and Fire draw swap as a gradient.
 
-- The network graph's colors are on the Network sub-tab: Local, Sent and Received, at `net.colors.local`, `.sent` and `.received`, plus its own Low, Medium and High. Received is the network's own hue, local is that hue muted, the same as Low, and sent is a pale tint of it, the same as High. Default's received is lime, `#90ff40`.
+- The network graph's colors are on the Network sub-tab: Local, Sent and Received, at `net.colors.local`, `.sent` and `.received`, plus its own Low, Medium and High. Received is the network's own hue, local is that hue muted, the same as Low, and sent is a pale tint of it, the same as High. Default's received is light blue, `#6ad4ff`, with local yellow, `#ffed00`, and sent a light red, `#ff7777`.
 	- The tip gives the 3 rates in bytes a second, in decimal units, such as "Received 1.5 MB/s  Sent 30 kB/s" over "Local 2.0 kB/s".
 
-- The load graph's colors are on the Load sub-tab: Load, at `load.colors.load`, plus its own Low, Medium and High. Default's is cyan, `#40ffff`. Its tip reads like "Load 1.25".
+- The load graph's colors are on the Load sub-tab: Load, at `load.colors.load`, plus its own Low, Medium and High. Default's is a dark red gradient, `#553030`, `#924444` and `#eb4a4a`. Its tip reads like "Load 1.25".
 
-- The disk graph's colors are on the Disk sub-tab: Written and Read, at `disk.colors.write` and `.read`, plus its own Low, Medium and High. Read is the disk's own hue, and written a pale tint of it, the same as High. Default's read is rose, `#ff4080`.
+- The disk graph's colors are on the Disk sub-tab: Written and Read, at `disk.colors.write` and `.read`, plus its own Low, Medium and High. Read is the disk's own hue, and written a pale tint of it, the same as High. Default's read is light blue, `#6bb3ff`, and written red, `#c60000`.
 	- The tip gives both rates the way the network's does, such as "Read 1.5 MB/s  Write 30 kB/s".
 
-- The temperature graph's colors are on the Temperature sub-tab: Normal and Critical, at `temp.colors.normal` and `.critical`, plus its own Low, Medium and High. Normal is a hue of its own, and critical is the theme's I/O wait color, so going over reads as an alarm, as the battery's critical does. Default's normal is green, `#40ff48`.
+- The temperature graph's colors are on the Temperature sub-tab: Normal and Critical, at `temp.colors.normal` and `.critical`, plus its own Low, Medium and High. Normal is a hue of its own, and critical is the theme's I/O wait color, so going over reads as an alarm, as the battery's critical does. Default draws it as a gradient, from teal `#4eb6bd` through yellow `#feff40` to red.
 	- The tip gives the reading and the level it turns critical at, in whole degrees C.
 
-- The zswap graph's colors are on the Zswap sub-tab: In use, at `zswap.colors.used`, plus its own Low, Medium and High. Every built-in gives zswap a hue and gradient of its own. Default's is magenta, `#ff80ff`.
+- The zswap graph's colors are on the Zswap sub-tab: In use, at `zswap.colors.used`, plus its own Low, Medium and High. Every built-in gives zswap a hue and gradient of its own. Default's is green, `#4a8e54`, as a gradient.
 	- The graph is zram's on a box with zram and no zswap, and its tip says which, such as "Zram 40% used".
 	- The tip gives the compression ratio from the latest read on a second line, such as "Compressed 4.7x now". The ratio isn't kept in the history, so it's the latest one wherever the pointer is, and the line says so. An empty pool has no ratio, so the line is left out.
 	- Nothing is written over the graph. The ratio was, until backlog 2026102814061810 moved it to the tip.
 
-- The battery graph's colors are on the Battery sub-tab: Plugged in, On battery and Critical, at `battery.colors.charging`, `.discharging` and `.critical`, plus its own Low, Medium and High. In every built-in, plugged in is a hue of the battery's own, and on battery and critical are the theme's system and I/O wait colors, so on battery reads as a warning and critical as an alarm. The gradient is the battery's own. Default's plugged in is lavender, `#b080ff`.
+- The battery graph's colors are on the Battery sub-tab: Plugged in, On battery and Critical, at `battery.colors.charging`, `.discharging` and `.critical`, plus its own Low, Medium and High. In every built-in, plugged in is a hue of the battery's own, and on battery and critical are the theme's system and I/O wait colors, except Default's on battery, so on battery reads as a warning and critical as an alarm. The gradient is the battery's own. Default's plugged in is lavender, `#b080ff`.
 	- The tip says plugged in rather than charging, since a full battery with the power in counts as charging.
 
-- The tukzmon graph's colors are on the tukzmon sub-tab: CPU use, at `self.colors.used`, plus its own Low, Medium and High. Default's is indigo, `#404bff`. Every built-in's lead for it is provisional, until backlog 2026102810142725 spaces all 10 graphs' leads apart.
+- The tukzmon graph's colors are on the tukzmon sub-tab: CPU use, at `self.colors.used`, plus its own Low, Medium and High. Default's is `#00ccb8`.
 	- The tip gives the share of all CPUs, then of one CPU, as top shows it, such as "tukzmon 0.014% of all CPUs" over "0.46% of one CPU". The share is often under 0.1%, so it has 2 figures or so, not whole percents.
 
 - Saved themes are kept whole in the config file, under `themes.<key>`, with a `name` and every color and mode by its setting id, the same shape as a built-in in settings.shcl. The dropdown lists them after the built-ins, and before Custom.
@@ -197,9 +210,11 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 - Transparent, on the Background sub-tab at `graph.transparent`, leaves out the Top and Bottom colors so the panel shows through. It's one setting for every theme, outside the `theme` group, so a theme pick, a roll or Save as doesn't touch it. The border, the series and the hover line stay opaque. Pixels are premultiplied, so a row a column only half fills is half clear.
 
 - Randomize rolls colors for every graph and sets them as changes on the theme in force, so the dropdown says "Name *". Save as keeps a roll, and picking a theme drops it. The rules are in `settings/src/dice.rs`.
-	- Each graph leads with a hue of its own, the user share for CPU, at any hue from yellow-green round to magenta, which keeps it off red and orange. The 9 lead hues are at least 22 degrees apart, in a random order. A graph's quiet colors and its gradient's Low are its hue muted, or one up to 30 degrees from it. The border and background are CPU's lead hue or nice's, darker and grayer.
+	- Each graph leads with a hue of its own, the user share for CPU, at any hue from yellow-green round to magenta, which keeps it off red and orange. The 10 lead hues are at least 22 degrees apart, in a random order. A graph's quiet colors and its gradient's Low are its hue muted, or one up to 30 degrees from it. The border and background are CPU's lead hue or nice's, darker and grayer.
 	- I/O wait stays red and system orange, as in the built-ins, since those are the ones to watch. Every color softens together, from as bright as Primary to as pale as Pastel.
-	- Every graph shares one saturation and brightness, so a roll reads as one set and only the hues differ.
+	- Every graph leads at one saturation and brightness, so a roll reads as one set.
+		- Where 2 leads would still look alike, or a lead would look like I/O wait or system, one of them steps darker or paler, until every 2 are 10 or more apart as the built-ins are. CPU's lead never steps, since the rest fit round it. A graph that steps paler takes its quiet colors and tint along, and one that steps darker keeps its quiet colors clear of the background.
+		- A roll tries up to 16 hue draws for that, the same ones for the same seed. Over 10,000 seeds every roll found one.
 	- A roll is always Detailed. Each graph's gradient runs from its quiet color through its lead to a pale tint, like the built-ins', so it's ready if Gradient is picked. The hover line stays black.
 	- Buffers has a role of its own. It's muted like cache, but on the other side of the lead hue and at least 30 degrees from cache, so that way the 2 are told apart.
 	- Every theme member needs a role in `dice::ROLES`. A new graph's members fail `dice::tests::every_theme_member_has_a_role` until they get one, such as buffers and cache as muted ones.

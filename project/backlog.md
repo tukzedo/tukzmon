@@ -31,7 +31,7 @@ Sorted per the notes in [Template](#template).
 		- It departs from the wording in one way. b23's file sets 2 colors with no theme line, so it opens as Custom, with exactly the colors it has now. Picking Default there gives the coordinated set.
 		- Stand-in, 2026-10-25, build deea9: each built-in theme drew both graphs in a test panel, and a pick took effect at once. Only the look is left.
 		- Measured 2026-10-28, round-1028 at 17d3d9d, as CIEDE2000: in every built-in, a graph's own colors sit 10.8 or more apart, I/O wait and system 24 or more from every graph's lead, and every color 16.6 or more from the background, except one. Default's nice and Low, `#205f40`, sit 5.1 from the top, `#2a543f`. They were 7.1 from multiload-ng's top, `#2a5446`, before Default moved it. That and the look are left for a person.
-		- How far apart the graphs' leads sit is child 2026102810142725 of 2026102620162201.
+		- Measured again 2026-10-28, branch theme-colors, after 2026102814061803, 2026102810142725 and 2026102807585040: any 2 graphs' leads sit 10.4 or more apart in every built-in but the one-color ones, where all are alike on purpose. In every built-in, a graph's own colors sit 10.6 or more apart, I/O wait and system 14.2 or more from every lead, 21.7 outside Default, every color 15.8 or more from the background, and each gradient step 10.6 or more. Default's nice now sits 24.4 from its gray top, `#313131`. Only the look is left.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
 	- Needs hand testing: on b23, after a panel restart, pick each theme on the Themes tab, Apply, and judge how it looks on the panel graph, Default most of all.
 	- Stand-in: none (20261028). Turns on how the themes look, and the numbers are in the status row.
@@ -72,6 +72,7 @@ Sorted per the notes in [Template](#template).
 		- Whether the rolls look good together is for a person to judge.
 		- Stand-in, 2026-10-25, build deea9: in the window a roll changed every color as "Default *", Save as kept it, and the panel graph took it at Apply. Only the look is left.
 		- Measured 2026-10-28 over 2000 seeds, round-1028 at 17d3d9d, as CIEDE2000: I/O wait and system roll 23.5 or more from every lead, and each gradient step 11.0 or more. A graph's own colors roll as close as 4.8, buffers and cache, and 9.1 or more in 9 rolls of 10. CPU's Low rolls as close as 1.9 to the background top, which takes CPU's hue, and 5.6 or more in 9 of 10. Default's own nice sits 5.1 from its top, so that matches the built-in. Leads that nearly match are 2026102810142725.
+		- Measured again 2026-10-28 over 10,000 seeds, branch theme-colors, after 2026102810142725: every 2 leads 10.0 or more apart, and I/O wait and system 21.7 or more from every lead. A graph's own colors roll as close as 5.8, buffers and cache, and 9.0 or more in 9 rolls of 10. CPU's Low rolls as close as 1.3 to the top, and 6.0 or more in 9 of 10, as before. Each gradient step rolls 8.9 or more, in a graph stepped darker, and 12.4 or more in 9 of 10. Default's nice is 24.4 from its top now, so the closest rolls no longer match a built-in.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
 	- Needs hand testing: on b23, after a panel restart, press Randomize a few times with Apply, and judge whether the rolls look good together.
 	- Stand-in: none (20261028). Turns on whether a roll looks good, and the numbers are in the status row.
@@ -107,9 +108,10 @@ Sorted per the notes in [Template](#template).
 		- It departs from the wording in one way. Randomize still gives every graph the same lead hue. That part is child 2026102621562349.
 		- Stand-in, 2026-10-26, build defyt: in the window Fire drew CPU red and brown, memory violet and swap blue, and with b23's settings a test panel drew CPU, memory and swap apart on Default. Only the look is left.
 		- 2026-10-28: with 9 graphs now, some leads nearly match in every built-in but Fire, and in most rolls. That part is child 2026102810142725, a Bug.
+		- 2026-10-28: 2026102810142725 is fixed. As CIEDE2000, any 2 leads sit 10.4 or more apart in every built-in, and 10.0 or more in every roll over 10,000 seeds. The one-color themes from 2026102807585040 give every graph one color on purpose.
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Needs hand testing: on b23, after an install, with swap on, pick each built-in theme on the Themes tab, Apply, and judge whether CPU, memory and swap read apart and look good together, Fire most of all.
-	- Stand-in: none (20261028). Turns on how it looks. What can be measured is in child 2026102810142725.
+	- Stand-in: none (20261028). Turns on how it looks. What can be measured is checked by dejbr and dejbv, from child 2026102810142725.
 	- Priority|Severity: High
 	- Opened: 20261026-201621
 	- Opened by: t00mietum
@@ -140,6 +142,118 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-26: dedpz, defq5 and defqc had Fire's memory, swap and battery gradients equal to its CPU one. They now check each graph's own gradient, and dedpz that memory's differs from CPU's.
 		- Swept: every built-in key and label in the Rust tests, qt.cpp and the docs, every swap and battery row default, and the `dice` tests, which don't read the built-ins.
 	- 2026-10-27: the Randomize part is done in child 2026102621562349 (commit 9e35514).
+
+- Randomize: a hue of its own for each graph
+	- ID: 2026102621562349
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- Whether the hues of a roll look good together is for a person to judge.
+		- Measured 2026-10-28 over 10,000 seeds, as CIEDE2000: every 2 leads of a roll are 10.0 or more apart, 10.6 at the median, and every lead 21.7 or more from I/O wait and system. Before 2026102810142725 the closest 2 were 4.7 apart at the median and 1.8 at worst. A roll steps 3 of its 10 leads darker or paler at the median, and 6 at most.
+	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
+	- Needs hand testing: on b23, after an install, with swap on, press Randomize a few times with Apply, and judge whether CPU, memory and swap read apart and look good together.
+	- Stand-in: none (20261028). Whether a roll's hues look good together is for a person. dejbv checks that every roll's leads read apart.
+	- Priority|Severity: High
+	- Opened: 20261026-215623
+	- Opened by: t00mietum
+	- Parent ID: 2026102620162201
+	- Prereq IDs: 2026102810142725
+	- Related IDs: 2026102409400700
+	- Requirements:
+		- A roll gives CPU, memory, swap and the battery each a lead hue of its own, all kept off red and orange, with their quiet colors and gradients from those, the way the built-ins now do.
+	- Note: `dice::tests::buffers_and_cache_are_muted_and_told_apart` (dedq0) asserts memory's lead is CPU's. It changes with this.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A roll gives each graph a lead hue of its own, from yellow-green round to magenta as before, at least 45 degrees from the others, in a random order. Each graph's quiet colors, buffers and gradient come from its own hue.
+		- I/O wait and system stay red and orange, and so do the battery's critical and on battery.
+		- `design.md` Theme has the details.
+		- Verified: the full run passed with the new test.
+		- 2026-10-28: 2026102810142725 checks every roll's leads apart as CIEDE2000, so the hold is off. The hues are 22 degrees apart now, for 10 graphs.
+	- Decisions:
+		- 45 degrees apart, which leaves 90 degrees of the range to roll in, and keeps clear of defx7's 30 for the built-ins.
+		- All 4 share one saturation and brightness, so a roll reads as one set, the way each built-in does.
+		- The background still takes CPU's hue, or nice's, since it's one set of colors under every graph.
+		- `dice::ROLES` now names each member's graph as well as its role.
+		- 2026-10-28: a lead may step darker or paler from that shared saturation and brightness, where 2 would look alike, per 2026102810142725.
+	- Branch: round-1027, theme-colors
+	- Test case: `dice::tests::each_graph_leads_with_a_hue_of_its_own` (defxd), and dedq0. Both fail with every graph given CPU's hue, and defxd with the order left unshuffled. Both pass now.
+		- 2026-10-26: dedq0 checked memory's lead equal to CPU's user, and cache equal to nice. It now checks they differ, and cache equal to memory's Low. decdt, decdv and decdw now check each graph's colors, not CPU's alone.
+		- Swept: every `dice::ROLES` and `dice::theme` user (`dialog.rs` and its decdq test), and every graph in `ROLES`.
+		- 2026-10-28: decdt's brightness floor for a rolled lead is 0.6, not 0.84, and dejbv checks every roll's leads, both from 2026102810142725.
+
+- Pre-next-cut: Default per-monitor colors from my current settings
+	- ID: 2026102814061803
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- Whether Default looks right with b23's colors in it is for a person to judge.
+		- Measured as CIEDE2000, where 10 or more reads clearly apart. b23's colors as they were: zswap's magenta `#ff80ff` 3.2 from system's pink `#fa72f0`, swap `#40a0ff` 5.6 from the disk's read `#6bb3ff`, and memory `#ffff80` 5.7 from temperature `#feff40`. Default now: every 2 graphs' leads 10.4 or more apart, memory and temperature the closest, and every lead 14.2 or more from I/O wait and system.
+	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
+	- Needs hand testing: on b23, after an install and a panel restart, pick Default on the Themes tab with no "*" changes on it, Apply, and judge whether it looks like the colors set by hand before.
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304559, 2026102620162201, 2026102810142725
+	- Requirements:
+		- Default per-monitor colors:
+			- Update to my current personal settings
+			- Update each of these slightly if necessary so that theme is non-clashing, both:
+				- Within each monitor, and
+				- Across all monitors taken as a whole
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The current config is b23's `~/.config/tukzmon/tukzmon.shcl`, read by build defqn.
+		- 2026-10-28: b23's current colors are the changes kept on Default in `plugin-16.shcl`, the live panel item's own file, not the Custom colors at the top of it.
+		- Default now has every one of those changes, with their modes: swap, zswap, load and temperature as gradients.
+		- Where they clashed, colors nobody picked moved. Zswap's gradient was magenta, beside system's new pink, and swap's was the disk's blue. Each now runs through the color picked for it in Detailed, the way load's already did. Memory's programs went from `#ffff80` to `#ffffa3`, apart from temperature's yellow.
+		- The network's and the disk's gradients follow their new leads, and temperature's normal is its Medium.
+		- tukzmon's own graph is `#00ccb8`, the color farthest from the other 9 that still reads on the gray top.
+		- `design.md` Theme has the details.
+	- Decisions:
+		- The colors picked by hand win over rules every built-in kept, in Default only. System is pink, not orange. On battery is copper, not system's color. Load, the disk's written and the network's sent are red. The background is gray, not on CPU's hue. The other built-ins keep the rules.
+		- Picked colors are kept exactly, and colors nobody picked moved instead. Memory's programs was never changed by hand, so it moved rather than temperature's Medium. It was also the smaller move, 4.8 against 7.7, and the other way put temperature on the network's local yellow, 2.3 apart.
+		- That replaces "Default's memory colors stay as multiload-ng had them" from 2026102408304625 for programs. Buffers and cache are as they were.
+		- Swap's and zswap's gradients run through `#a45f00` and `#4a8e54`, the colors picked for them, rather than staying blue and magenta. Temperature's normal follows its Medium the same way. So switching one of them to Detailed keeps its color, and Default's earlier normal, green `#40ff48`, was 6.5 from CPU.
+		- tukzmon's color was picked by search: the most distant from every other lead, I/O wait, system and on battery, at a lightness that reads on `#313131`. It's 22.4 from CPU, the closest.
+	- Branch: theme-colors
+	- Test case: `config::tests::the_default_theme_keeps_the_colors_picked_on_it` (dejbq). It fails on the old Default and passes now.
+		- 2026-10-28: new values only. debhj reads system `#fa72f0`, the border `#8b8b8b` and the top `#313131`, not `#c64200`, `#408060` and `#2a543f`. dedpz reads programs `#ffffa3`, not `#ffff80`.
+		- 2026-10-28: defq5, dej0v and dejab read swap's, temperature's and zswap's series colors, which Default now draws as gradients, so their looks set those graphs to Detailed.
+		- 2026-10-28: defx7 no longer checks the hue angle between leads. dejbr, from 2026102810142725, checks how far apart they look instead.
+		- Swept: every test that reads a Default color or mode, in core, settings and xfce, every row default, which deccf holds to Default, and every mention of Default's colors in `design.md` and `settings.shcl`.
+
+- Pre-next-cut: Monochromatic themes
+	- ID: 2026102807585040
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- How the 3 themes look on the panel is for a person to judge.
+		- Measured 2026-10-28 as CIEDE2000: in all 3, I/O wait and system sit 13.0 or more apart and 24.9 or more from the lead, each graph's own colors 10.6 or more apart, and every color 21.0 or more from the top. Vintage's I/O wait and system are the closest pair.
+	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
+	- Needs hand testing: on b23, after an install and a panel restart, pick Terminal, Vintage and Frost on the Themes tab in turn, Apply, and judge each on the panel.
+	- Priority|Severity: Avg
+	- Opened: 20261028-075850
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304612, 2026102620162201, 2026102810142725
+	- Requirements:
+		- Themes: include some monochromatic themes.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- 3 one-color built-ins, after Fire in the list: Terminal, a green phosphor `#33ff33` on near black, Vintage, an amber `#ffae00` on dark brown, and Frost, a pale ice `#bfeaff` on blue-gray.
+		- In each, every graph has the same colors: the lead, a dark shade of it for nice, cache, local and Low, a middle shade for buffers, and a pale tint for sent, written and High.
+		- I/O wait and system stay red and orange. Vintage's system is a redder orange, `#ff6000`, so that way it stays clear of the amber.
+		- `design.md` Theme has the details.
+		- Verified: the settings window showed Terminal's CPU sub-tab with its colors.
+	- Decisions:
+		- 3 themes, one per classic screen color plus a cool one, so the list grows from 6 to 9.
+		- Names with no color word, which defx7 checks: Terminal, Vintage and Frost. "Amber" and "Phosphor" were passed over, the first being a color.
+		- One color for every graph, rather than 10 shades of it. 10 shades can't sit 10 apart as CIEDE2000 by lightness alone, and shades a little apart would only look like a mistake. Graphs are told apart by place, as on a one-color multiload-ng setup.
+		- So these themes are let off dejbr's check on leads, and defx7's on distinct gradients. What lets a theme off is that all 10 of its leads are one color, so no list of names is kept, and a theme with only some leads alike still fails.
+		- They still keep every lead 10 or more from I/O wait and system, as every built-in does.
+	- Branch: theme-colors
+	- Test case: `config::tests::the_one_color_themes_lead_alike_and_keep_the_alarms` (dejbw). It fails with the 3 themes left out, and passes now.
+		- 2026-10-28: new values only. decct lists `terminal`, `vintage` and `frost` after `fire`. In `dialog::tests`, deccy finds a saved theme after 9 built-ins, not 6, and decd0 and decd1 count 11 and 12 themes, not 8 and 9.
+		- Swept: every test that counts or lists the built-ins, and every list of built-in names in `design.md`, `settings.shcl` and qt.cpp, which has none.
 
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
@@ -198,41 +312,6 @@ Sorted per the notes in [Template](#template).
 	- Test case: `graphs::tests::a_file_the_5_tier_plugin_wrote_still_loads` (defv4). It fails with decode taking only today's tier count, and with `lo` and `hi` swapped in both encode and decode, which defp7 and decbg miss. Restarts are also covered by decbp, dedq3 and defp7.
 		- Swept: every load path (start, a graph added, keep turned back on) and every save path (the 15 minute timer, quit, keep turned off, a graph dropped) in `xfce/src/lib.rs` and `Graphs`. Nothing else reads or writes the history file.
 
-- Randomize: a hue of its own for each graph
-	- ID: 2026102621562349
-	- Type: Enhancement
-	- Status: Stalled
-		- Held for 2026102810142725. Over 2000 seeds the closest 2 leads of a roll sit 5.4 apart at the median, as CIEDE2000, and 1.8 at worst, so the rolls change with that fix.
-		- Whether the 4 hues of a roll look good together is for a person to judge.
-	- Needs local test suite run?: No. The full run passed on 2026-10-26.
-	- Needs hand testing: on b23, after an install, with swap on, press Randomize a few times with Apply, and judge whether CPU, memory and swap read apart and look good together.
-	- Stand-in: none (20261028). Whether a roll's hues look good together is for a person. defxd checks hue angle only, which 2026102810142725 covers.
-	- Priority|Severity: High
-	- Opened: 20261026-215623
-	- Opened by: t00mietum
-	- Parent ID: 2026102620162201
-	- Prereq IDs: 2026102810142725
-	- Related IDs: 2026102409400700
-	- Requirements:
-		- A roll gives CPU, memory, swap and the battery each a lead hue of its own, all kept off red and orange, with their quiet colors and gradients from those, the way the built-ins now do.
-	- Note: `dice::tests::buffers_and_cache_are_muted_and_told_apart` (dedq0) asserts memory's lead is CPU's. It changes with this.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- A roll gives each graph a lead hue of its own, from yellow-green round to magenta as before, at least 45 degrees from the others, in a random order. Each graph's quiet colors, buffers and gradient come from its own hue.
-		- I/O wait and system stay red and orange, and so do the battery's critical and on battery.
-		- `design.md` Theme has the details.
-		- Verified: the full run passed with the new test.
-	- Decisions:
-		- 45 degrees apart, which leaves 90 degrees of the range to roll in, and keeps clear of defx7's 30 for the built-ins.
-		- All 4 share one saturation and brightness, so a roll reads as one set, the way each built-in does.
-		- The background still takes CPU's hue, or nice's, since it's one set of colors under every graph.
-		- `dice::ROLES` now names each member's graph as well as its role.
-	- Branch: round-1027
-	- Test case: `dice::tests::each_graph_leads_with_a_hue_of_its_own` (defxd), and dedq0. Both fail with every graph given CPU's hue, and defxd with the order left unshuffled. Both pass now.
-		- 2026-10-26: dedq0 checked memory's lead equal to CPU's user, and cache equal to nice. It now checks they differ, and cache equal to memory's Low. decdt, decdv and decdw now check each graph's colors, not CPU's alone.
-		- Swept: every `dice::ROLES` and `dice::theme` user (`dialog.rs` and its decdq test), and every graph in `ROLES`.
-
 - XFCE panel plugin
 	- ID: 2026101916013889
 	- Type: Feature
@@ -287,32 +366,6 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Split into 6 children, in this order: 2026102409400679 (theme presets and Default), 2026102409400684 (Themes tab and its top row), 2026102409400689 (color picker), 2026102409400695 (Gradient mode and Fire), 2026102409400700 (Randomize), and 2026102409400705 (transparent background).
 
-- Some graphs' lead colors nearly match
-	- ID: 2026102810142725
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-101427
-	- Opened by: t00mietum
-	- Parent ID: 2026102620162201
-	- Related IDs: 2026102621562349, 2026102409400700
-	- Steps to reproduce:
-		- On Default, turn on the network and temperature graphs, or press Randomize a few times with 9 graphs on.
-	- Incorrect behavior: 2 graphs' lead colors can be close enough to read as one. As CIEDE2000, where 10 or more reads clearly apart:
-		- Default: network `#90ff40` and temperature `#40ff48` 5.8, and CPU `#00ff80` and temperature 6.5.
-		- Primary: CPU `#00ff00` and disk `#80ff00` 5.2.
-		- Pastel: zswap `#f0a1d0` and temperature `#eca1f0` 7.8, and temperature and the battery 7.8.
-		- Neon: CPU `#39ff14` and temperature `#a0ff00` 7.7.
-		- Earth: network `#b06a9a` and temperature `#a76bb5` 7.6.
-		- Fire: memory and temperature 10.3, the only built-in clear of it.
-		- Randomize, over 2000 seeds: the closest 2 leads of a roll are 5.4 apart at the median, 4.0 in the worst tenth, and 1.8 at worst.
-	- Expected behavior: Each graph's lead reads apart from every other's, per the parent's "unique and distinct colors" for each monitor.
-	- Reproduced: 2026-10-28, round-1028 at 17d3d9d, from the built-ins in `core/src/settings.shcl` and `dice::theme` seeds 0 to 1999.
-	- Possible cause: defx7 and defxd check hue angle only, at 25 and 17 degrees. An equal step in hue is far smaller to the eye among the greens than among the blues, and 9 graphs share the 225 degrees kept off red and orange, about 25 each.
-	- Test case: None yet. A check on a perceptual distance between every pair of leads, over each built-in and the roll seeds, would catch it.
-	- Progress log:
-		- 2026-10-28: 10 graphs share the range now, with the tukzmon graph, 2026102814061811. Its lead in each built-in is provisional, put in the widest hue gap left, so defx7's least gap went from 25 to 22 degrees. `dice::LEAD_GAP` is still 22, with 27 degrees of play.
-
 - Graph sizes on a vertical panel
 	- ID: 2026102621105420
 	- Type: Enhancement
@@ -357,34 +410,6 @@ Sorted per the notes in [Template](#template).
 			- Global outline color override
 			- Global background colors override
 				- Global transparent override.
-
-- Pre-next-cut: Monochromatic themes
-	- ID: 2026102807585040
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-075850
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304612, 2026102620162201
-	- Requirements:
-		- Themes: include some monochromatic themes.
-
-- Pre-next-cut: Default per-monitor colors from my current settings
-	- ID: 2026102814061803
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-140618
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304559, 2026102620162201, 2026102810142725
-	- Requirements:
-		- Default per-monitor colors:
-			- Update to my current personal settings
-			- Update each of these slightly if necessary so that theme is non-clashing, both:
-				- Within each monitor, and
-				- Across all monitors taken as a whole
-	- Progress log:
-		- The current config is b23's `~/.config/tukzmon/tukzmon.shcl`, read by build defqn.
 
 - Pre-next-cut: Less CPU used by tukzmon
 	- ID: 2026102814061812
@@ -2222,6 +2247,62 @@ Sorted per the notes in [Template](#template).
 		- OK'd as proposed. `design.md` now lists it as settled.
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019
+
+- Some graphs' lead colors nearly match
+	- ID: 2026102810142725
+	- Type: Bug
+	- Status: Done
+	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
+	- Priority|Severity: Avg
+	- Opened: 20261028-101427
+	- Opened by: t00mietum
+	- Parent ID: 2026102620162201
+	- Related IDs: 2026102621562349, 2026102409400700, 2026102814061803
+	- Steps to reproduce:
+		- On Default, turn on the network and temperature graphs, or press Randomize a few times with 9 graphs on.
+	- Incorrect behavior: 2 graphs' lead colors can be close enough to read as one. As CIEDE2000, where 10 or more reads clearly apart:
+		- Default: network `#90ff40` and temperature `#40ff48` 5.8, and CPU `#00ff80` and temperature 6.5.
+		- Primary: CPU `#00ff00` and disk `#80ff00` 5.2.
+		- Pastel: zswap `#f0a1d0` and temperature `#eca1f0` 7.8, and temperature and the battery 7.8.
+		- Neon: CPU `#39ff14` and temperature `#a0ff00` 7.7.
+		- Earth: network `#b06a9a` and temperature `#a76bb5` 7.6.
+		- Fire: memory and temperature 10.3, the only built-in clear of it.
+		- Randomize, over 2000 seeds: the closest 2 leads of a roll are 5.4 apart at the median, 4.0 in the worst tenth, and 1.8 at worst.
+	- Expected behavior: Each graph's lead reads apart from every other's, per the parent's "unique and distinct colors" for each monitor.
+	- Reproduced: 2026-10-28, round-1028 at 17d3d9d, from the built-ins in `core/src/settings.shcl` and `dice::theme` seeds 0 to 1999.
+	- Possible cause: defx7 and defxd check hue angle only, at 25 and 17 degrees. An equal step in hue is far smaller to the eye among the greens than among the blues, and 9 graphs share the 225 degrees kept off red and orange, about 25 each.
+	- Actual cause: the possible cause. With 10 graphs the hues are 22 degrees apart at best, and nothing checked how far apart the leads look.
+	- Actual fix: a CIEDE2000 check between every 2 graphs' leads, and between each lead and I/O wait and system, at 10 or more, over every built-in and Randomize's rolls. The built-ins' leads moved to pass it, and Randomize steps a lead darker or paler where hue alone falls short.
+	- Progress log:
+		- 2026-10-28: 10 graphs share the range now, with the tukzmon graph, 2026102814061811. Its lead in each built-in is provisional, put in the widest hue gap left, so defx7's least gap went from 25 to 22 degrees. `dice::LEAD_GAP` is still 22, with 27 degrees of play.
+		- A graph's lead is its main series in Detailed and its Medium in Gradient, in the mode the theme draws it in. `config::LEADS` and `config::leads` give them, and the tests and Randomize both go through those.
+		- CIEDE2000 is in `core/src/color.rs`, one copy for the tests and `dice`.
+		- Built-in leads before and after, closest 2 as CIEDE2000, 10 graphs:
+			- Default 5.8 -> 10.4, after 2026102814061803 moved it to b23's colors.
+			- Primary 5.2 -> 11.9. The disk went from `#80ff00` to `#bbff00`, the network from `#6000ff` to `#9900ff`, and temperature from `#00ff80` to `#00ffaa`.
+			- Pastel 5.3 -> 11.1. Zswap `#f0a1c3`, temperature `#f090e9`, tukzmon a deeper `#8ac777`, and the network `#d3f0a1`.
+			- Neon 7.7 -> 11.0. Temperature `#bbff00`, and load `#0fff8f`.
+			- Earth 7.6 -> 11.1. tukzmon `#80b565`, temperature `#9565b5`, and zswap `#5c9968`.
+			- Fire 8.3 -> 10.9. tukzmon's boron flame `#61ff66`, and temperature `#ff40ec`.
+			- Each moved graph's quiet colors and gradient moved with its lead. I/O wait and system sit 14.2 or more from every lead, 21.7 or more outside Default.
+		- Randomize before and after, over 10,000 seeds: the closest 2 leads 1.8 -> 10.0 at worst, 4.7 -> 10.6 at the median. Leads to I/O wait or system 22.8 -> 21.7 at worst.
+			- A roll steps 3 of its 10 leads darker or paler at the median, and 6 at most.
+			- Buffers and cache, the closest pair in a graph, 4.2 -> 5.8 at worst. CPU's Low to the top is 1.3 at worst and 6.0 or more in 9 rolls of 10, as before.
+			- The closest gradient steps went from 10.8 to 8.9 at worst, 13.5 -> 12.4 in the worst tenth, in a graph stepped darker. A roll is always Detailed, so that shows only if Gradient is picked after.
+		- `design.md` Theme has the details.
+	- Decisions:
+		- 10 as the line, per "about 10 or more reads as clearly apart". Leads are also held 10 or more from I/O wait and system, so no graph reads as an alarm.
+		- The lead is per mode, so a Gradient graph is checked by the color it draws. Default's swap, zswap, load and temperature are Gradient.
+		- Lightness and saturation separate leads too, not only hue. 10 graphs at 22 degrees can't all read apart by hue, most of all when pale.
+		- Randomize keeps CPU's lead as rolled, and fits the rest round it. Each other lead tries the roll's own color, then a step darker, then a step paler, and up to 16 hue draws are tried, the same for the same seed. Darker alone wasn't enough: with paler left out, seed 1216 of the 2000 still failed.
+		- The steps break design.md's "every graph shares one saturation and brightness" where they're needed. The roll still starts from one, so it reads as one set.
+		- defx7's hue angle check is replaced by the CIEDE2000 one, since Default's memory and temperature now share a hue on purpose and differ by lightness. defxd's 17 degree check on rolls stays, since rolled hues are still 22 apart.
+	- Branch: theme-colors
+	- Test case: `config::tests::every_graph_leads_with_a_color_that_reads_apart` (dejbr) and `dice::tests::every_roll_leads_each_graph_with_a_color_that_reads_apart` (dejbv), over 2000 seeds, and `color::tests::the_published_test_pairs_come_out_right` (dejbs) and `rgb_turns_into_lab_and_the_closest_pair_is_found` (dejbt). dejbr fails on the old built-ins, Primary first at 5.2. dejbv fails with steps turned off, and with paler left out. dejbs fails with the rotation term or the mean hue's wrap broken, and dejbt with Lab's white point off.
+		- 2026-10-28: new values only. decdt checks a rolled lead's brightness at 0.6 or more, not 0.84, since a lead may step to 0.72 of the roll's.
+		- 2026-10-28: defx7 no longer checks hue angle between leads. dejbr checks how far apart they look.
+		- Swept: defx7 and defxd, the only checks on leads, every built-in in `settings.shcl`, and every role in `dice::ROLES` that follows its graph's lead.
+	- Closed: 20261028-161000
 
 - Pre-next-cut: A graph of tukzmon's own CPU use
 	- ID: 2026102814061811

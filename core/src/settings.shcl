@@ -1,8 +1,8 @@
 ## tukzmon settings, read by the panel plugin and by tukzmon-settings.
 ##
 ## Compiled into both. The format is knobs', documented in knobs/src/lib.rs
-## and SilkTerm's knobs/demo/demo.shcl. Colors default to a customized
-## multiload-ng setup.
+## and SilkTerm's knobs/demo/demo.shcl. Colors default to b23's, which started
+## as a customized multiload-ng setup.
 ##
 ## slider_range is ours, not knobs'. It's how far a slider reaches, while
 ## range is what can be typed in the box beside it. shown_as: radio draws a
@@ -582,7 +582,7 @@ settings:
 		tab: Themes/CPU
 		control: color
 		path: cpu.colors.system
-		default: "#c64200"
+		default: "#fa72f0"
 		group: theme
 		shown_when: "cpu_mode = detailed"
 		tip: "Kernel time, including interrupts."
@@ -665,7 +665,7 @@ settings:
 		tab: Themes/Memory
 		control: color
 		path: mem.colors.user
-		default: "#ffff80"
+		default: "#ffffa3"
 		group: theme
 		shown_when: "mem_mode = detailed"
 		tip: "Memory in use that isn't buffers or cache."
@@ -710,7 +710,7 @@ settings:
 		tab: Themes/Memory
 		control: color
 		path: mem.colors.medium
-		default: "#ffff80"
+		default: "#ffffa3"
 		group: theme
 		shown_when: "mem_mode = gradient"
 		tip: "The color halfway up."
@@ -748,7 +748,7 @@ settings:
 		tab: Themes/Network
 		control: color
 		path: net.colors.local
-		default: "#406020"
+		default: "#ffed00"
 		group: theme
 		shown_when: "net_mode = detailed"
 		tip: "Traffic the box sends itself, on the loopback device."
@@ -758,7 +758,7 @@ settings:
 		tab: Themes/Network
 		control: color
 		path: net.colors.sent
-		default: "#e0ffc0"
+		default: "#ff7777"
 		group: theme
 		shown_when: "net_mode = detailed"
 
@@ -767,7 +767,7 @@ settings:
 		tab: Themes/Network
 		control: color
 		path: net.colors.received
-		default: "#90ff40"
+		default: "#6ad4ff"
 		group: theme
 		shown_when: "net_mode = detailed"
 
@@ -782,7 +782,7 @@ settings:
 		tab: Themes/Network
 		control: color
 		path: net.colors.low
-		default: "#406020"
+		default: "#2a5566"
 		group: theme
 		shown_when: "net_mode = gradient"
 		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
@@ -792,7 +792,7 @@ settings:
 		tab: Themes/Network
 		control: color
 		path: net.colors.medium
-		default: "#90ff40"
+		default: "#6ad4ff"
 		group: theme
 		shown_when: "net_mode = gradient"
 		tip: "The color halfway up."
@@ -802,7 +802,7 @@ settings:
 		tab: Themes/Network
 		control: color
 		path: net.colors.high
-		default: "#e0ffc0"
+		default: "#cff1ff"
 		group: theme
 		shown_when: "net_mode = gradient"
 		tip: "The color at the top."
@@ -815,7 +815,7 @@ settings:
 		options: detailed, gradient
 		option_labels: "Detailed", "Gradient"
 		path: swap.mode
-		default: detailed
+		default: gradient
 		group: theme
 		tip: "Detailed draws swap in use in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
@@ -824,7 +824,7 @@ settings:
 		tab: Themes/Swap
 		control: color
 		path: swap.colors.used
-		default: "#40a0ff"
+		default: "#a45f00"
 		group: theme
 		shown_when: "swap_mode = detailed"
 
@@ -839,7 +839,7 @@ settings:
 		tab: Themes/Swap
 		control: color
 		path: swap.colors.low
-		default: "#204a6a"
+		default: "#66461a"
 		group: theme
 		shown_when: "swap_mode = gradient"
 		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
@@ -849,7 +849,7 @@ settings:
 		tab: Themes/Swap
 		control: color
 		path: swap.colors.medium
-		default: "#40a0ff"
+		default: "#a45f00"
 		group: theme
 		shown_when: "swap_mode = gradient"
 		tip: "The color halfway up."
@@ -859,7 +859,7 @@ settings:
 		tab: Themes/Swap
 		control: color
 		path: swap.colors.high
-		default: "#d0e8ff"
+		default: "#ffebcf"
 		group: theme
 		shown_when: "swap_mode = gradient"
 		tip: "The color at the top."
@@ -872,7 +872,7 @@ settings:
 		options: detailed, gradient
 		option_labels: "Detailed", "Gradient"
 		path: zswap.mode
-		default: detailed
+		default: gradient
 		group: theme
 		tip: "Detailed draws the pool in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top. Zram shows here too, on a box that has it and no zswap."
 
@@ -881,7 +881,7 @@ settings:
 		tab: Themes/Zswap
 		control: color
 		path: zswap.colors.used
-		default: "#ff80ff"
+		default: "#4a8e54"
 		group: theme
 		shown_when: "zswap_mode = detailed"
 
@@ -896,7 +896,7 @@ settings:
 		tab: Themes/Zswap
 		control: color
 		path: zswap.colors.low
-		default: "#6a2a6a"
+		default: "#35663c"
 		group: theme
 		shown_when: "zswap_mode = gradient"
 		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
@@ -906,7 +906,7 @@ settings:
 		tab: Themes/Zswap
 		control: color
 		path: zswap.colors.medium
-		default: "#ff80ff"
+		default: "#4a8e54"
 		group: theme
 		shown_when: "zswap_mode = gradient"
 		tip: "The color halfway up."
@@ -916,7 +916,7 @@ settings:
 		tab: Themes/Zswap
 		control: color
 		path: zswap.colors.high
-		default: "#ffe0ff"
+		default: "#cfffd6"
 		group: theme
 		shown_when: "zswap_mode = gradient"
 		tip: "The color at the top."
@@ -929,7 +929,7 @@ settings:
 		options: detailed, gradient
 		option_labels: "Detailed", "Gradient"
 		path: load.mode
-		default: detailed
+		default: gradient
 		group: theme
 		tip: "Detailed draws the load in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
@@ -938,7 +938,7 @@ settings:
 		tab: Themes/Load
 		control: color
 		path: load.colors.load
-		default: "#40ffff"
+		default: "#924444"
 		group: theme
 		shown_when: "load_mode = detailed"
 
@@ -953,7 +953,7 @@ settings:
 		tab: Themes/Load
 		control: color
 		path: load.colors.low
-		default: "#1a6666"
+		default: "#553030"
 		group: theme
 		shown_when: "load_mode = gradient"
 		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
@@ -963,7 +963,7 @@ settings:
 		tab: Themes/Load
 		control: color
 		path: load.colors.medium
-		default: "#40ffff"
+		default: "#924444"
 		group: theme
 		shown_when: "load_mode = gradient"
 		tip: "The color halfway up."
@@ -973,7 +973,7 @@ settings:
 		tab: Themes/Load
 		control: color
 		path: load.colors.high
-		default: "#cfffff"
+		default: "#eb4a4a"
 		group: theme
 		shown_when: "load_mode = gradient"
 		tip: "The color at the top."
@@ -1001,7 +1001,7 @@ settings:
 		tab: Themes/Disk
 		control: color
 		path: disk.colors.write
-		default: "#ffcfdf"
+		default: "#c60000"
 		group: theme
 		shown_when: "disk_mode = detailed"
 
@@ -1010,7 +1010,7 @@ settings:
 		tab: Themes/Disk
 		control: color
 		path: disk.colors.read
-		default: "#ff4080"
+		default: "#6bb3ff"
 		group: theme
 		shown_when: "disk_mode = detailed"
 
@@ -1025,7 +1025,7 @@ settings:
 		tab: Themes/Disk
 		control: color
 		path: disk.colors.low
-		default: "#661a33"
+		default: "#2b4866"
 		group: theme
 		shown_when: "disk_mode = gradient"
 		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
@@ -1035,7 +1035,7 @@ settings:
 		tab: Themes/Disk
 		control: color
 		path: disk.colors.medium
-		default: "#ff4080"
+		default: "#6bb3ff"
 		group: theme
 		shown_when: "disk_mode = gradient"
 		tip: "The color halfway up."
@@ -1045,7 +1045,7 @@ settings:
 		tab: Themes/Disk
 		control: color
 		path: disk.colors.high
-		default: "#ffcfdf"
+		default: "#cfe6ff"
 		group: theme
 		shown_when: "disk_mode = gradient"
 		tip: "The color at the top."
@@ -1058,7 +1058,7 @@ settings:
 		options: detailed, gradient
 		option_labels: "Detailed", "Gradient"
 		path: temp.mode
-		default: detailed
+		default: gradient
 		group: theme
 		tip: "Detailed draws the temperature in one color, with any part over the critical level in another. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
@@ -1073,7 +1073,7 @@ settings:
 		tab: Themes/Temperature
 		control: color
 		path: temp.colors.normal
-		default: "#40ff48"
+		default: "#feff40"
 		group: theme
 		shown_when: "temp_mode = detailed"
 		tip: "Up to the critical level."
@@ -1099,7 +1099,7 @@ settings:
 		tab: Themes/Temperature
 		control: color
 		path: temp.colors.low
-		default: "#1a661d"
+		default: "#4eb6bd"
 		group: theme
 		shown_when: "temp_mode = gradient"
 		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
@@ -1109,7 +1109,7 @@ settings:
 		tab: Themes/Temperature
 		control: color
 		path: temp.colors.medium
-		default: "#40ff48"
+		default: "#feff40"
 		group: theme
 		shown_when: "temp_mode = gradient"
 		tip: "The color halfway up."
@@ -1119,7 +1119,7 @@ settings:
 		tab: Themes/Temperature
 		control: color
 		path: temp.colors.high
-		default: "#cfffd1"
+		default: "#ff0000"
 		group: theme
 		shown_when: "temp_mode = gradient"
 		tip: "The color at the top."
@@ -1157,7 +1157,7 @@ settings:
 		tab: Themes/Battery
 		control: color
 		path: battery.colors.discharging
-		default: "#c64200"
+		default: "#c46e43"
 		group: theme
 		shown_when: "battery_mode = detailed"
 
@@ -1224,7 +1224,7 @@ settings:
 		tab: Themes/tukzmon
 		control: color
 		path: self.colors.used
-		default: "#404bff"
+		default: "#00ccb8"
 		group: theme
 		shown_when: "self_mode = detailed"
 
@@ -1239,7 +1239,7 @@ settings:
 		tab: Themes/tukzmon
 		control: color
 		path: self.colors.low
-		default: "#1a1e66"
+		default: "#1a665e"
 		group: theme
 		shown_when: "self_mode = gradient"
 		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
@@ -1249,7 +1249,7 @@ settings:
 		tab: Themes/tukzmon
 		control: color
 		path: self.colors.medium
-		default: "#404bff"
+		default: "#00ccb8"
 		group: theme
 		shown_when: "self_mode = gradient"
 		tip: "The color halfway up."
@@ -1259,7 +1259,7 @@ settings:
 		tab: Themes/tukzmon
 		control: color
 		path: self.colors.high
-		default: "#cfd2ff"
+		default: "#cffffa"
 		group: theme
 		shown_when: "self_mode = gradient"
 		tip: "The color at the top."
@@ -1282,7 +1282,7 @@ settings:
 		tab: Themes/Background
 		control: color
 		path: graph.colors.border
-		default: "#408060"
+		default: "#8b8b8b"
 		group: theme
 
 	back_top:
@@ -1290,7 +1290,7 @@ settings:
 		tab: Themes/Background
 		control: color
 		path: graph.colors.top
-		default: "#2a543f"
+		default: "#313131"
 		group: theme
 
 	back_bottom:
@@ -1311,11 +1311,12 @@ settings:
 		tip: "The line under the pointer."
 
 ## Theme names say nothing of color. Each graph has hues of its own in every
-## theme, so the graphs are told apart side by side. I/O wait and system stay
-## red and orange in every theme, so trouble reads the same, and the battery's
+## theme, so the graphs are told apart side by side, except Terminal, Vintage
+## and Frost, which give every graph one color. I/O wait and system stay red
+## and orange in every theme, so trouble reads the same, and the battery's
 ## on battery and critical take those 2, as temperature's critical takes red.
-## Fire's graphs each burn a flame of their own. Default's CPU and memory
-## colors are multiload-ng's.
+## Fire's graphs each burn a flame of their own. Default is b23's colors, which
+## break some of that where they were picked by hand. See design.md Theme.
 
 groups:
 
@@ -1331,64 +1332,64 @@ groups:
 				cpu_medium: "#00ff80"
 				cpu_high: "#c0ffe0"
 				iowait: "#ff0000"
-				system: "#c64200"
+				system: "#fa72f0"
 				user: "#00ff80"
 				nice: "#205f40"
 				mem_mode: detailed
 				mem_low: "#408060"
-				mem_medium: "#ffff80"
+				mem_medium: "#ffffa3"
 				mem_high: "#ffffe0"
-				mem_user: "#ffff80"
+				mem_user: "#ffffa3"
 				mem_buffers: "#804080"
 				mem_cache: "#408060"
 				net_mode: detailed
-				net_low: "#406020"
-				net_medium: "#90ff40"
-				net_high: "#e0ffc0"
-				net_local: "#406020"
-				net_sent: "#e0ffc0"
-				net_received: "#90ff40"
-				swap_mode: detailed
-				swap_low: "#204a6a"
-				swap_medium: "#40a0ff"
-				swap_high: "#d0e8ff"
-				swap_used: "#40a0ff"
-				zswap_mode: detailed
-				zswap_low: "#6a2a6a"
-				zswap_medium: "#ff80ff"
-				zswap_high: "#ffe0ff"
-				zswap_used: "#ff80ff"
-				load_mode: detailed
-				load_low: "#1a6666"
-				load_medium: "#40ffff"
-				load_high: "#cfffff"
-				load_used: "#40ffff"
+				net_low: "#2a5566"
+				net_medium: "#6ad4ff"
+				net_high: "#cff1ff"
+				net_local: "#ffed00"
+				net_sent: "#ff7777"
+				net_received: "#6ad4ff"
+				swap_mode: gradient
+				swap_low: "#66461a"
+				swap_medium: "#a45f00"
+				swap_high: "#ffebcf"
+				swap_used: "#a45f00"
+				zswap_mode: gradient
+				zswap_low: "#35663c"
+				zswap_medium: "#4a8e54"
+				zswap_high: "#cfffd6"
+				zswap_used: "#4a8e54"
+				load_mode: gradient
+				load_low: "#553030"
+				load_medium: "#924444"
+				load_high: "#eb4a4a"
+				load_used: "#924444"
 				disk_mode: detailed
-				disk_low: "#661a33"
-				disk_medium: "#ff4080"
-				disk_high: "#ffcfdf"
-				disk_write: "#ffcfdf"
-				disk_read: "#ff4080"
-				temp_mode: detailed
-				temp_low: "#1a661d"
-				temp_medium: "#40ff48"
-				temp_high: "#cfffd1"
-				temp_normal: "#40ff48"
+				disk_low: "#2b4866"
+				disk_medium: "#6bb3ff"
+				disk_high: "#cfe6ff"
+				disk_write: "#c60000"
+				disk_read: "#6bb3ff"
+				temp_mode: gradient
+				temp_low: "#4eb6bd"
+				temp_medium: "#feff40"
+				temp_high: "#ff0000"
+				temp_normal: "#feff40"
 				temp_critical: "#ff0000"
 				battery_mode: detailed
 				battery_low: "#483468"
 				battery_medium: "#b080ff"
 				battery_high: "#ece0ff"
 				battery_charging: "#b080ff"
-				battery_discharging: "#c64200"
+				battery_discharging: "#c46e43"
 				battery_critical: "#ff0000"
 				self_mode: detailed
-				self_low: "#1a1e66"
-				self_medium: "#404bff"
-				self_high: "#cfd2ff"
-				self_used: "#404bff"
-				border_color: "#408060"
-				back_top: "#2a543f"
+				self_low: "#1a665e"
+				self_medium: "#00ccb8"
+				self_high: "#cffffa"
+				self_used: "#00ccb8"
+				border_color: "#8b8b8b"
+				back_top: "#313131"
 				back_bottom: "#000000"
 				hover_color: "#000000"
 			primary:
@@ -1409,12 +1410,12 @@ groups:
 				mem_buffers: "#604a20"
 				mem_cache: "#5f5f20"
 				net_mode: detailed
-				net_low: "#30205f"
-				net_medium: "#6000ff"
-				net_high: "#d0c0ff"
-				net_local: "#30205f"
-				net_sent: "#d0c0ff"
-				net_received: "#6000ff"
+				net_low: "#3e205f"
+				net_medium: "#9900ff"
+				net_high: "#dec0ff"
+				net_local: "#3e205f"
+				net_sent: "#dec0ff"
+				net_received: "#9900ff"
 				swap_mode: detailed
 				swap_low: "#20305f"
 				swap_medium: "#0060ff"
@@ -1431,16 +1432,16 @@ groups:
 				load_high: "#ffbfdf"
 				load_used: "#ff0080"
 				disk_mode: detailed
-				disk_low: "#336600"
-				disk_medium: "#80ff00"
-				disk_high: "#dfffbf"
-				disk_write: "#dfffbf"
-				disk_read: "#80ff00"
+				disk_low: "#4b6600"
+				disk_medium: "#bbff00"
+				disk_high: "#eeffbf"
+				disk_write: "#eeffbf"
+				disk_read: "#bbff00"
 				temp_mode: detailed
-				temp_low: "#006633"
-				temp_medium: "#00ff80"
-				temp_high: "#bfffdf"
-				temp_normal: "#00ff80"
+				temp_low: "#006644"
+				temp_medium: "#00ffaa"
+				temp_high: "#bfffea"
+				temp_normal: "#00ffaa"
 				temp_critical: "#ff0000"
 				battery_mode: detailed
 				battery_low: "#205f5f"
@@ -1476,22 +1477,22 @@ groups:
 				mem_buffers: "#8a786a"
 				mem_cache: "#8a856a"
 				net_mode: detailed
-				net_low: "#7a8a6a"
-				net_medium: "#c8f0a1"
-				net_high: "#f0ffe0"
-				net_local: "#7a8a6a"
-				net_sent: "#f0ffe0"
-				net_received: "#c8f0a1"
+				net_low: "#7e8a6a"
+				net_medium: "#d3f0a1"
+				net_high: "#f4ffe0"
+				net_local: "#7e8a6a"
+				net_sent: "#f4ffe0"
+				net_received: "#d3f0a1"
 				swap_mode: detailed
 				swap_low: "#6a8a72"
 				swap_medium: "#a1f0b8"
 				swap_high: "#e0ffe8"
 				swap_used: "#a1f0b8"
 				zswap_mode: detailed
-				zswap_low: "#8a6a7a"
-				zswap_medium: "#f0a1d0"
-				zswap_high: "#ffe0f0"
-				zswap_used: "#f0a1d0"
+				zswap_low: "#8a6a75"
+				zswap_medium: "#f0a1c3"
+				zswap_high: "#ffe0eb"
+				zswap_used: "#f0a1c3"
 				load_mode: detailed
 				load_low: "#5c8985"
 				load_medium: "#a1f0e9"
@@ -1504,10 +1505,10 @@ groups:
 				disk_write: "#e8e8fb"
 				disk_read: "#a1a1f0"
 				temp_mode: detailed
-				temp_low: "#875c89"
-				temp_medium: "#eca1f0"
-				temp_high: "#fae8fb"
-				temp_normal: "#eca1f0"
+				temp_low: "#895c85"
+				temp_medium: "#f090e9"
+				temp_high: "#fbe8fa"
+				temp_normal: "#f090e9"
 				temp_critical: "#ff6161"
 				battery_mode: detailed
 				battery_low: "#7e6a8a"
@@ -1517,10 +1518,10 @@ groups:
 				battery_discharging: "#f09b71"
 				battery_critical: "#ff6161"
 				self_mode: detailed
-				self_low: "#60895c"
-				self_medium: "#a9f0a1"
-				self_high: "#eafbe8"
-				self_used: "#a9f0a1"
+				self_low: "#66895c"
+				self_medium: "#8ac777"
+				self_high: "#edfbe8"
+				self_used: "#8ac777"
 				border_color: "#7f90a1"
 				back_top: "#3a424a"
 				back_bottom: "#0f1214"
@@ -1560,10 +1561,10 @@ groups:
 				zswap_high: "#c8d4ff"
 				zswap_used: "#3060ff"
 				load_mode: detailed
-				load_low: "#006633"
-				load_medium: "#00ff80"
-				load_high: "#bfffdf"
-				load_used: "#00ff80"
+				load_low: "#006636"
+				load_medium: "#0fff8f"
+				load_high: "#bfffe1"
+				load_used: "#0fff8f"
 				disk_mode: detailed
 				disk_low: "#140066"
 				disk_medium: "#3300ff"
@@ -1571,10 +1572,10 @@ groups:
 				disk_write: "#ccbfff"
 				disk_read: "#3300ff"
 				temp_mode: detailed
-				temp_low: "#406600"
-				temp_medium: "#a0ff00"
-				temp_high: "#e8ffbf"
-				temp_normal: "#a0ff00"
+				temp_low: "#4b6600"
+				temp_medium: "#bbff00"
+				temp_high: "#efffbf"
+				temp_normal: "#bbff00"
 				temp_critical: "#ff0000"
 				battery_mode: detailed
 				battery_low: "#6a6400"
@@ -1622,10 +1623,10 @@ groups:
 				swap_high: "#dceaf0"
 				swap_used: "#6aa0b4"
 				zswap_mode: detailed
-				zswap_low: "#34503c"
-				zswap_medium: "#6fa07a"
-				zswap_high: "#dcf0e0"
-				zswap_used: "#6fa07a"
+				zswap_low: "#34503b"
+				zswap_medium: "#5c9968"
+				zswap_high: "#dcf0df"
+				zswap_used: "#5c9968"
 				load_mode: detailed
 				load_low: "#335b52"
 				load_medium: "#5aa090"
@@ -1638,10 +1639,10 @@ groups:
 				disk_write: "#daddec"
 				disk_read: "#6a78b4"
 				temp_mode: detailed
-				temp_low: "#5f3d67"
-				temp_medium: "#a76bb5"
-				temp_high: "#e9daec"
-				temp_normal: "#a76bb5"
+				temp_low: "#563d67"
+				temp_medium: "#9565b5"
+				temp_high: "#e5daec"
+				temp_normal: "#9565b5"
 				temp_critical: "#d02818"
 				battery_mode: detailed
 				battery_low: "#4a4060"
@@ -1651,10 +1652,10 @@ groups:
 				battery_discharging: "#d2691e"
 				battery_critical: "#d02818"
 				self_mode: detailed
-				self_low: "#3c5b33"
-				self_medium: "#6aa05a"
-				self_high: "#dae7d6"
-				self_used: "#6aa05a"
+				self_low: "#405b33"
+				self_medium: "#80b565"
+				self_high: "#dce7d6"
+				self_used: "#80b565"
 				border_color: "#6a5a40"
 				back_top: "#2e261a"
 				back_bottom: "#0e0b07"
@@ -1705,10 +1706,10 @@ groups:
 				disk_write: "#d3cbff"
 				disk_read: "#5030ff"
 				temp_mode: gradient
-				temp_low: "#661a62"
-				temp_medium: "#ff40f5"
-				temp_high: "#ffcffc"
-				temp_normal: "#ff40f5"
+				temp_low: "#661a5e"
+				temp_medium: "#ff40ec"
+				temp_high: "#ffcffa"
+				temp_normal: "#ff40ec"
 				temp_critical: "#ff0000"
 				battery_mode: gradient
 				battery_low: "#0a3a10"
@@ -1718,11 +1719,212 @@ groups:
 				battery_discharging: "#c64200"
 				battery_critical: "#ff0000"
 				self_mode: gradient
-				self_low: "#22660d"
-				self_medium: "#54ff20"
-				self_high: "#d4ffc7"
-				self_used: "#54ff20"
+				self_low: "#0d6610"
+				self_medium: "#61ff66"
+				self_high: "#c7ffc9"
+				self_used: "#61ff66"
 				border_color: "#80401a"
 				back_top: "#3a1c0c"
 				back_bottom: "#000000"
+				hover_color: "#000000"
+			terminal:
+				label: Terminal
+				cpu_mode: detailed
+				cpu_low: "#1b6b1b"
+				cpu_medium: "#33ff33"
+				cpu_high: "#ccffcc"
+				iowait: "#ff2a2a"
+				system: "#ff8c1a"
+				user: "#33ff33"
+				nice: "#1b6b1b"
+				mem_mode: detailed
+				mem_low: "#1b6b1b"
+				mem_medium: "#33ff33"
+				mem_high: "#ccffcc"
+				mem_user: "#33ff33"
+				mem_buffers: "#40a840"
+				mem_cache: "#1b6b1b"
+				net_mode: detailed
+				net_low: "#1b6b1b"
+				net_medium: "#33ff33"
+				net_high: "#ccffcc"
+				net_local: "#1b6b1b"
+				net_sent: "#ccffcc"
+				net_received: "#33ff33"
+				swap_mode: detailed
+				swap_low: "#1b6b1b"
+				swap_medium: "#33ff33"
+				swap_high: "#ccffcc"
+				swap_used: "#33ff33"
+				zswap_mode: detailed
+				zswap_low: "#1b6b1b"
+				zswap_medium: "#33ff33"
+				zswap_high: "#ccffcc"
+				zswap_used: "#33ff33"
+				load_mode: detailed
+				load_low: "#1b6b1b"
+				load_medium: "#33ff33"
+				load_high: "#ccffcc"
+				load_used: "#33ff33"
+				disk_mode: detailed
+				disk_low: "#1b6b1b"
+				disk_medium: "#33ff33"
+				disk_high: "#ccffcc"
+				disk_write: "#ccffcc"
+				disk_read: "#33ff33"
+				temp_mode: detailed
+				temp_low: "#1b6b1b"
+				temp_medium: "#33ff33"
+				temp_high: "#ccffcc"
+				temp_normal: "#33ff33"
+				temp_critical: "#ff2a2a"
+				battery_mode: detailed
+				battery_low: "#1b6b1b"
+				battery_medium: "#33ff33"
+				battery_high: "#ccffcc"
+				battery_charging: "#33ff33"
+				battery_discharging: "#ff8c1a"
+				battery_critical: "#ff2a2a"
+				self_mode: detailed
+				self_low: "#1b6b1b"
+				self_medium: "#33ff33"
+				self_high: "#ccffcc"
+				self_used: "#33ff33"
+				border_color: "#1d611d"
+				back_top: "#0a210a"
+				back_bottom: "#000000"
+				hover_color: "#000000"
+			vintage:
+				label: Vintage
+				cpu_mode: detailed
+				cpu_low: "#6b4900"
+				cpu_medium: "#ffae00"
+				cpu_high: "#ffebbf"
+				iowait: "#ff1a1a"
+				system: "#ff6000"
+				user: "#ffae00"
+				nice: "#6b4900"
+				mem_mode: detailed
+				mem_low: "#6b4900"
+				mem_medium: "#ffae00"
+				mem_high: "#ffebbf"
+				mem_user: "#ffae00"
+				mem_buffers: "#ad7f1a"
+				mem_cache: "#6b4900"
+				net_mode: detailed
+				net_low: "#6b4900"
+				net_medium: "#ffae00"
+				net_high: "#ffebbf"
+				net_local: "#6b4900"
+				net_sent: "#ffebbf"
+				net_received: "#ffae00"
+				swap_mode: detailed
+				swap_low: "#6b4900"
+				swap_medium: "#ffae00"
+				swap_high: "#ffebbf"
+				swap_used: "#ffae00"
+				zswap_mode: detailed
+				zswap_low: "#6b4900"
+				zswap_medium: "#ffae00"
+				zswap_high: "#ffebbf"
+				zswap_used: "#ffae00"
+				load_mode: detailed
+				load_low: "#6b4900"
+				load_medium: "#ffae00"
+				load_high: "#ffebbf"
+				load_used: "#ffae00"
+				disk_mode: detailed
+				disk_low: "#6b4900"
+				disk_medium: "#ffae00"
+				disk_high: "#ffebbf"
+				disk_write: "#ffebbf"
+				disk_read: "#ffae00"
+				temp_mode: detailed
+				temp_low: "#6b4900"
+				temp_medium: "#ffae00"
+				temp_high: "#ffebbf"
+				temp_normal: "#ffae00"
+				temp_critical: "#ff1a1a"
+				battery_mode: detailed
+				battery_low: "#6b4900"
+				battery_medium: "#ffae00"
+				battery_high: "#ffebbf"
+				battery_charging: "#ffae00"
+				battery_discharging: "#ff6000"
+				battery_critical: "#ff1a1a"
+				self_mode: detailed
+				self_low: "#6b4900"
+				self_medium: "#ffae00"
+				self_high: "#ffebbf"
+				self_used: "#ffae00"
+				border_color: "#5c3f00"
+				back_top: "#1f1500"
+				back_bottom: "#000000"
+				hover_color: "#000000"
+			frost:
+				label: Frost
+				cpu_mode: detailed
+				cpu_low: "#4b6273"
+				cpu_medium: "#bfeaff"
+				cpu_high: "#f0faff"
+				iowait: "#ff4d4d"
+				system: "#ff9447"
+				user: "#bfeaff"
+				nice: "#4b6273"
+				mem_mode: detailed
+				mem_low: "#4b6273"
+				mem_medium: "#bfeaff"
+				mem_high: "#f0faff"
+				mem_user: "#bfeaff"
+				mem_buffers: "#728fa3"
+				mem_cache: "#4b6273"
+				net_mode: detailed
+				net_low: "#4b6273"
+				net_medium: "#bfeaff"
+				net_high: "#f0faff"
+				net_local: "#4b6273"
+				net_sent: "#f0faff"
+				net_received: "#bfeaff"
+				swap_mode: detailed
+				swap_low: "#4b6273"
+				swap_medium: "#bfeaff"
+				swap_high: "#f0faff"
+				swap_used: "#bfeaff"
+				zswap_mode: detailed
+				zswap_low: "#4b6273"
+				zswap_medium: "#bfeaff"
+				zswap_high: "#f0faff"
+				zswap_used: "#bfeaff"
+				load_mode: detailed
+				load_low: "#4b6273"
+				load_medium: "#bfeaff"
+				load_high: "#f0faff"
+				load_used: "#bfeaff"
+				disk_mode: detailed
+				disk_low: "#4b6273"
+				disk_medium: "#bfeaff"
+				disk_high: "#f0faff"
+				disk_write: "#f0faff"
+				disk_read: "#bfeaff"
+				temp_mode: detailed
+				temp_low: "#4b6273"
+				temp_medium: "#bfeaff"
+				temp_high: "#f0faff"
+				temp_normal: "#bfeaff"
+				temp_critical: "#ff4d4d"
+				battery_mode: detailed
+				battery_low: "#4b6273"
+				battery_medium: "#bfeaff"
+				battery_high: "#f0faff"
+				battery_charging: "#bfeaff"
+				battery_discharging: "#ff9447"
+				battery_critical: "#ff4d4d"
+				self_mode: detailed
+				self_low: "#4b6273"
+				self_medium: "#bfeaff"
+				self_high: "#f0faff"
+				self_used: "#bfeaff"
+				border_color: "#506473"
+				back_top: "#1b2329"
+				back_bottom: "#050708"
 				hover_color: "#000000"

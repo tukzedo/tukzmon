@@ -1188,7 +1188,7 @@ mod tests {
 				.options
 				.iter()
 				.map(|(_, l)| l.as_str())
-				.nth(6),
+				.nth(9),
 			Some("Night")
 		);
 		let b = dlg.theme_buttons();
@@ -1261,7 +1261,7 @@ mod tests {
 		assert!(text.contains("mine") && !text.contains("other"), "{text}");
 		let dlg = Dialog::open(path.clone());
 		assert_eq!(dlg.state("theme").choice, "Default");
-		assert_eq!(dlg.state("theme").options.len(), 8);
+		assert_eq!(dlg.state("theme").options.len(), 11);
 	}
 
 	// Test ID: decd1
@@ -1286,7 +1286,7 @@ mod tests {
 			!text.contains("gone") && text.contains("#020202") && text.contains("mine:"),
 			"{text}"
 		);
-		assert_eq!(dlg.state("theme").options.len(), 9);
+		assert_eq!(dlg.state("theme").options.len(), 12);
 	}
 
 	// Test ID: decd2

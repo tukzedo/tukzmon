@@ -344,6 +344,41 @@ impl Rgb {
 	}
 }
 
+/// Each graph's section and its main series, the color it reads as in
+/// Detailed. In Gradient that's its Medium. See design.md Theme.
+pub const LEADS: [(&str, &str); 10] = [
+	("cpu", "user"),
+	("mem", "mem_user"),
+	("net", "net_received"),
+	("swap", "swap_used"),
+	("zswap", "zswap_used"),
+	("load", "load_used"),
+	("disk", "disk_read"),
+	("temp", "temp_normal"),
+	("battery", "battery_charging"),
+	("self", "self_used"),
+];
+
+/// I/O wait and system, which every lead keeps clear of.
+pub const ALARMS: [&str; 2] = ["iowait", "system"];
+
+/// A theme's leads, in `LEADS` order, each in the mode the theme draws its
+/// graph in. `get` gives a theme member's value by its setting id.
+pub fn leads<'a>(get: impl Fn(&str) -> Option<&'a str>) -> Vec<Rgb> {
+	LEADS
+		.iter()
+		.filter_map(|(g, main)| {
+			let gradient = get(&format!("{g}_mode")).and_then(Mode::parse) == Some(Mode::Gradient);
+			let id = if gradient {
+				format!("{g}_medium")
+			} else {
+				(*main).to_string()
+			};
+			get(&id).and_then(Rgb::parse)
+		})
+		.collect()
+}
+
 #[derive(Clone, Debug, PartialEq)]
 #[allow(
 	clippy::struct_excessive_bools,
@@ -820,11 +855,11 @@ mod tests {
 	fn defaults_are_the_multiload_colors() {
 		let l = Look::default();
 		assert_eq!(l.cpu[0], Rgb(0xff, 0, 0));
-		assert_eq!(l.cpu[1], Rgb(0xc6, 0x42, 0));
+		assert_eq!(l.cpu[1], Rgb(0xfa, 0x72, 0xf0));
 		assert_eq!(l.cpu[2], Rgb(0, 0xff, 0x80));
 		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x40));
-		assert_eq!(l.border_color, Rgb(0x40, 0x80, 0x60));
-		assert_eq!(l.top, Rgb(0x2a, 0x54, 0x3f));
+		assert_eq!(l.border_color, Rgb(0x8b, 0x8b, 0x8b));
+		assert_eq!(l.top, Rgb(0x31, 0x31, 0x31));
 		assert_eq!(l.bottom, Rgb(0, 0, 0));
 		assert_eq!((l.width, l.sample_ms, l.border), (128, 500, 1));
 		assert_eq!(l.time, Timing::Log(Curve::Smooth));
@@ -857,6 +892,50 @@ mod tests {
 			if s.control == knobs::Control::Color {
 				assert!(g.members.contains(&s.id), "{}", s.id);
 			}
+		}
+	}
+
+	// Test ID: dejbq
+	#[test]
+	fn the_default_theme_keeps_the_colors_picked_on_it() {
+		// b23's changes on Default as of 2026-10-28, kept as they were
+		let picked = [
+			("system", "#fa72f0"),
+			("net_local", "#ffed00"),
+			("net_sent", "#ff7777"),
+			("net_received", "#6ad4ff"),
+			("swap_mode", "gradient"),
+			("swap_used", "#a45f00"),
+			("zswap_mode", "gradient"),
+			("zswap_used", "#4a8e54"),
+			("load_mode", "gradient"),
+			("load_used", "#924444"),
+			("load_low", "#553030"),
+			("load_medium", "#924444"),
+			("load_high", "#eb4a4a"),
+			("disk_write", "#c60000"),
+			("disk_read", "#6bb3ff"),
+			("temp_mode", "gradient"),
+			("temp_low", "#4eb6bd"),
+			("temp_medium", "#feff40"),
+			("temp_high", "#ff0000"),
+			("battery_discharging", "#c46e43"),
+			("border_color", "#8b8b8b"),
+			("back_top", "#313131"),
+		];
+		let spec = spec();
+		let default = spec.group(THEME).unwrap().preset("default").unwrap();
+		let v = |id: &str| default.values[id].as_text().to_string();
+		for (id, want) in picked {
+			assert_eq!(v(id), want, "{id}");
+		}
+		// a graph drawn as a gradient runs through the color picked for it
+		for (lead, medium) in [
+			("swap_used", "swap_medium"),
+			("zswap_used", "zswap_medium"),
+			("temp_normal", "temp_medium"),
+		] {
+			assert_eq!(v(lead), v(medium), "{lead}");
 		}
 	}
 
@@ -962,6 +1041,9 @@ mod tests {
 				"neon",
 				"earth",
 				"fire",
+				"terminal",
+				"vintage",
+				"frost",
 				"mine",
 				knobs::CUSTOM
 			]
@@ -1033,7 +1115,7 @@ mod tests {
 		assert_eq!(
 			d.mem,
 			[
-				Rgb(0xff, 0xff, 0x80),
+				Rgb(0xff, 0xff, 0xa3),
 				Rgb(0x80, 0x40, 0x80),
 				Rgb(0x40, 0x80, 0x60)
 			]
@@ -1069,21 +1151,6 @@ mod tests {
 	// Test ID: defx7
 	#[test]
 	fn no_theme_is_named_for_a_color_and_each_graph_has_its_own() {
-		fn hue(c: Rgb) -> f64 {
-			let [r, g, b] = [c.0, c.1, c.2].map(|v| f64::from(v) / 255.0);
-			let (hi, lo) = (r.max(g).max(b), r.min(g).min(b));
-			let d = hi - lo;
-			let h = if d == 0.0 {
-				0.0
-			} else if hi == r {
-				((g - b) / d).rem_euclid(6.0)
-			} else if hi == g {
-				(b - r) / d + 2.0
-			} else {
-				(r - g) / d + 4.0
-			};
-			h * 60.0
-		}
 		let colors = [
 			"red", "orange", "yellow", "green", "blue", "purple", "violet", "pink", "cyan",
 			"magenta", "teal", "brown", "gray", "grey",
@@ -1096,33 +1163,105 @@ mod tests {
 			assert!(!colors.iter().any(|c| label.contains(c)), "{label}");
 			let rgb = |id: &str| Rgb::parse(p.values[id].as_text()).unwrap();
 			let ramp = |g: &str| ["low", "medium", "high"].map(|s| rgb(&format!("{g}_{s}")));
-			let leads = [
-				"user",
-				"mem_user",
-				"swap_used",
-				"zswap_used",
-				"net_received",
-				"load_used",
-				"disk_read",
-				"temp_normal",
-				"battery_charging",
-				"self_used",
-			]
-			.map(rgb);
 			let ramps = [
 				"cpu", "mem", "swap", "zswap", "net", "load", "disk", "temp", "battery", "self",
 			]
 			.map(ramp);
-			for a in 0..leads.len() {
-				for b in a + 1..leads.len() {
-					let gap = (hue(leads[a]) - hue(leads[b])).abs();
-					// 22 for 10 graphs, until 2026102810142725
-					assert!(gap.min(360.0 - gap) >= 22.0, "{} {a} {b}", p.key);
+			// how far apart the leads look is dejbr's, by CIEDE2000, not hue angle
+			if ramps.iter().all(|r| *r == ramps[0]) {
+				// one color, like dejbw's
+				continue;
+			}
+			for a in 0..ramps.len() {
+				for b in a + 1..ramps.len() {
 					assert_ne!(ramps[a], ramps[b], "{} {a} {b}", p.key);
 					assert_ne!(ramps[a][1], ramps[b][1], "{} {a} {b}", p.key);
 				}
 			}
 		}
+	}
+
+	// Test ID: dejbr
+	#[test]
+	fn every_graph_leads_with_a_color_that_reads_apart() {
+		use crate::color::{APART, apart, closest};
+		let spec = spec();
+		for p in &spec.group(THEME).unwrap().presets {
+			let get = |id: &str| p.values.get(id).map(knobs::Value::as_text);
+			let leads = leads(get);
+			assert_eq!(leads.len(), LEADS.len(), "{}", p.key);
+			let (d, a, b) = closest(&leads).unwrap();
+			// a one-color theme leads every graph alike, on purpose (dejbw)
+			assert!(
+				d >= APART || leads.iter().all(|c| *c == leads[0]),
+				"{}: {} and {} are {d:.1} apart",
+				p.key,
+				LEADS[a].0,
+				LEADS[b].0
+			);
+			for alarm in ALARMS {
+				let c = Rgb::parse(get(alarm).unwrap()).unwrap();
+				for (lead, (g, _)) in leads.iter().zip(LEADS) {
+					let d = apart(*lead, c);
+					assert!(d >= APART, "{}: {g} is {d:.1} from {alarm}", p.key);
+				}
+			}
+		}
+		// a gradient's lead is its Medium
+		let one = |mode: &'static str| {
+			move |id: &str| match id {
+				"cpu_mode" => Some(mode),
+				"cpu_medium" => Some("#010203"),
+				"user" => Some("#040506"),
+				_ => Some("#000000"),
+			}
+		};
+		assert_eq!(leads(one("gradient"))[0], Rgb(1, 2, 3));
+		assert_eq!(leads(one("detailed"))[0], Rgb(4, 5, 6));
+	}
+
+	// Test ID: dejbw
+	#[test]
+	fn the_one_color_themes_lead_alike_and_keep_the_alarms() {
+		use crate::color::{APART, apart, closest};
+		let spec = spec();
+		let g = spec.group(THEME).unwrap();
+		let mut one_color = vec![];
+		for p in &g.presets {
+			let get = |id: &str| p.values.get(id).map(knobs::Value::as_text);
+			let leads = leads(get);
+			if leads.iter().any(|c| *c != leads[0]) {
+				continue;
+			}
+			one_color.push(p.key.as_str());
+			let rgb = |id: &str| Rgb::parse(get(id).unwrap()).unwrap();
+			let alarms = ALARMS.map(rgb);
+			assert!(apart(alarms[0], alarms[1]) >= APART, "{}", p.key);
+			for alarm in alarms {
+				assert!(apart(leads[0], alarm) >= APART, "{}", p.key);
+			}
+			// each graph's own colors read apart, and every color shows on the top
+			for ids in [
+				&["iowait", "system", "user", "nice"][..],
+				&["mem_user", "mem_buffers", "mem_cache"],
+				&["net_local", "net_sent", "net_received"],
+				&["disk_write", "disk_read"],
+				&["temp_normal", "temp_critical"],
+				&[
+					"battery_charging",
+					"battery_discharging",
+					"battery_critical",
+				],
+			] {
+				let colors: Vec<Rgb> = ids.iter().map(|id| rgb(id)).collect();
+				let (d, a, b) = closest(&colors).unwrap();
+				assert!(d >= APART, "{}: {} {} {d:.1}", p.key, ids[a], ids[b]);
+				for c in colors {
+					assert!(apart(c, rgb("back_top")) >= APART, "{} {c:?}", p.key);
+				}
+			}
+		}
+		assert_eq!(one_color, ["terminal", "vintage", "frost"]);
 	}
 
 	// Test ID: dedqf
