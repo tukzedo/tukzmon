@@ -293,6 +293,8 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - With the pointer over the graph, a line one pixel wide is drawn under it, black unless set otherwise, over the plot and not the border. The tip gives the time under the line, either as "7 hrs ago" or as the local time, with the date for anything before today. The time and date follow the locale's short formats, so 12 or 24 hour is its call too. Under that are that graph's shares across the line's column, or "No data" for a gap.
 
+- A still pointer's tip keeps its age and moves its clock time. The right edge is always now and the graph scrolls left under the pointer, so each column is a fixed age, while the time in that column advances a sample each tick. Both describe the column under the line. The line and tip follow the column, not the moment first pointed at.
+
 - Stacked graphs, like CPU and memory, draw each series on top of the one below, in the order the backlog gives.
 
 - Disk and network scale to their recent peak, and the peak is eased too. Disk can use a log Y axis.

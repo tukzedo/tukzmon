@@ -484,6 +484,43 @@ mod tests {
 		assert_eq!(g.span_at(2, 2 * w, 2 * h, 2), g.span_at(1, w, h, 1));
 	}
 
+	// Test ID: defz1
+	#[test]
+	fn a_still_pointer_keeps_its_age_while_its_clock_time_moves_on() {
+		let mut g = Graph::new(Look {
+			log_axis: false,
+			..Look::default()
+		});
+		let now = g.now();
+		g.hist.add(now - 300.0, now, &[0.1; 4]);
+		// 128 columns of 0.5 s: column 65 is 31.75 s back, clear of a rounding edge
+		let (w, h) = (130, 20);
+		let age = |g: &Graph| {
+			let (a, b) = g.span_at(65, w, h, 1).unwrap();
+			(
+				f64::midpoint(a, b),
+				g.hist.last().unwrap() - f64::midpoint(a, b),
+			)
+		};
+		let (t0, age0) = age(&g);
+		let tip0 = g.hover_tip(65, w, h, 1);
+		assert!(tip0.starts_with("31 sec ago\n"), "{tip0}");
+		for _ in 0..4 {
+			let from = g.hist.last().unwrap();
+			g.skip(1.0);
+			g.hist.add(from, from + 1.0, &[0.1; 4]);
+			assert!(
+				near_secs(age(&g).1, age0),
+				"the column under the line is a fixed age"
+			);
+			assert!(g.hover_tip(65, w, h, 1).starts_with("31 sec ago\n"));
+		}
+		assert!(
+			near_secs(age(&g).0 - t0, 4.0),
+			"the clock time under the line moves on with each sample"
+		);
+	}
+
 	fn near_secs(a: f64, b: f64) -> bool {
 		(a - b).abs() < 1e-6
 	}
