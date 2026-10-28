@@ -4,7 +4,7 @@
 // Draws made-up CPU history to a PPM file, to eyeball the log axis.
 //   cargo run --example preview -- OUT.ppm WIDTH HEIGHT HOURS [SETTINGS]
 
-use tukzmon_core::axis::Axis;
+use tukzmon_core::axis::{Axis, Curve, Timing};
 use tukzmon_core::config::Look;
 use tukzmon_core::history::History;
 use tukzmon_core::render::Frame;
@@ -39,7 +39,11 @@ fn main() {
 	let look = args
 		.get(4)
 		.map_or_else(Look::default, |p| Look::load(std::path::Path::new(p)));
-	let axis = Axis::log(look.curve, end);
+	let curve = match look.time {
+		Timing::Log(c) => c,
+		Timing::Linear => Curve::Smooth,
+	};
+	let axis = Axis::log(curve, end);
 	let mut px = Vec::new();
 	Frame {
 		hist: &hist,

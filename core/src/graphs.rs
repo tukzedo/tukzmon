@@ -361,7 +361,7 @@ impl Graphs {
 
 	fn width_of(&self, which: Which) -> u32 {
 		let l = &self.cpu.look;
-		l.width_or(which.own_width(l))
+		l.share(which.own_width(l))
 	}
 
 	/// Each shown graph's width in logical pixels, in the order drawn.
@@ -689,8 +689,24 @@ impl Graphs {
 mod tests {
 	use super::*;
 
+	// The defaults before 2026-10-28, which these tests lay out: CPU and
+	// memory shown, every graph as wide as Width, in the order they were added.
+	fn two() -> Look {
+		Look {
+			show_swap: false,
+			net_width: 100,
+			swap_width: 100,
+			zswap_width: 100,
+			load_width: 100,
+			disk_width: 100,
+			temp_width: 100,
+			order: crate::config::graph_order("cpu mem net swap zswap load disk temp battery"),
+			..Look::default()
+		}
+	}
+
 	fn both() -> Graphs {
-		let mut g = Graphs::new(Look::default());
+		let mut g = Graphs::new(two());
 		let now = g.cpu.now();
 		g.cpu.hist.add(now - 60.0, now, &[0.0, 0.0, 0.5, 0.0]);
 		let m = g.mem.as_mut().unwrap();
@@ -837,14 +853,14 @@ mod tests {
 			.map(|(n, _)| n)
 			.collect();
 		assert_eq!(names, ["cpu", "mem", "net"]);
-		let mut back = Graphs::new(Look::default());
+		let mut back = Graphs::new(two());
 		back.load(&path).unwrap();
 		assert_eq!(back.cpu.hist.last(), g.cpu.hist.last());
 		let mem = |g: &Graphs| g.mem.as_ref().unwrap().hist.last();
 		assert_eq!(mem(&back), mem(&g));
 		// a file from before the memory graph
 		keep::write(&path, &[("cpu", &g.cpu.section().1)]).unwrap();
-		let mut back = Graphs::new(Look::default());
+		let mut back = Graphs::new(two());
 		back.load(&path).unwrap();
 		assert_eq!(back.cpu.hist.last(), g.cpu.hist.last());
 		assert_eq!(mem(&back), None);
@@ -895,7 +911,7 @@ mod tests {
 		// so it never ages out
 		let look = Look {
 			max_days: 36500,
-			..Look::default()
+			..two()
 		};
 		let mut g = Graphs::new(look.clone());
 		g.load(&path).unwrap();
@@ -934,7 +950,7 @@ mod tests {
 		let hide = Look {
 			show_memory: false,
 			width: 99,
-			..Look::default()
+			..two()
 		};
 		g.set_look(hide.clone(), Some(&path)).unwrap();
 		assert!(g.mem.is_none());
@@ -952,7 +968,7 @@ mod tests {
 		assert!(
 			Graphs::new(Look {
 				show_memory: false,
-				..Look::default()
+				..two()
 			})
 			.mem
 			.is_none()
@@ -978,18 +994,18 @@ mod tests {
 			Look {
 				cpu_time: Some(Timing::Linear),
 				mem_time: Some(Timing::Log(Curve::FixedB)),
-				..Look::default()
+				..two()
 			},
 			None,
 		)
 		.unwrap();
 		assert_eq!(axes(&g), (linear.clone(), Axis::log(Curve::FixedB, total)));
-		// one with no pick of its own follows Log time axis and Log curve
+		// one with no pick of its own follows Time axis default
 		g.set_look(
 			Look {
-				log_axis: false,
+				time: Timing::Linear,
 				mem_time: Some(Timing::Log(Curve::FixedA)),
-				..Look::default()
+				..two()
 			},
 			None,
 		)
@@ -997,8 +1013,8 @@ mod tests {
 		assert_eq!(axes(&g), (linear, Axis::log(Curve::FixedA, total)));
 		g.set_look(
 			Look {
-				curve: Curve::FixedB,
-				..Look::default()
+				time: Timing::Log(Curve::FixedB),
+				..two()
 			},
 			None,
 		)
@@ -1020,7 +1036,7 @@ mod tests {
 			Look {
 				width: 100,
 				cpu_width: 40,
-				..Look::default()
+				..two()
 			},
 			None,
 		)
@@ -1052,8 +1068,9 @@ mod tests {
 		let mut g = both();
 		g.set_look(
 			Look {
+				width: 100,
 				mem_width: 30,
-				..Look::default()
+				..two()
 			},
 			None,
 		)
@@ -1068,7 +1085,7 @@ mod tests {
 		g.set_look(
 			Look {
 				show_memory: false,
-				..Look::default()
+				..two()
 			},
 			None,
 		)
@@ -1084,8 +1101,9 @@ mod tests {
 		let had = g.cpu.hist.last();
 		let no_cpu = Look {
 			show_cpu: false,
+			width: 100,
 			mem_width: 30,
-			..Look::default()
+			..two()
 		};
 		g.set_look(no_cpu.clone(), None).unwrap();
 		assert_eq!(g.cpu.hover, None);
@@ -1120,10 +1138,11 @@ mod tests {
 		let order = |names: &[&str]| names.iter().map(|n| (*n).to_string()).collect();
 		g.set_look(
 			Look {
+				width: 100,
 				cpu_width: 40,
 				mem_width: 100,
 				order: order(&["mem", "cpu"]),
-				..Look::default()
+				..two()
 			},
 			None,
 		)
@@ -1206,7 +1225,7 @@ mod tests {
 		let mut g = both();
 		let look = Look {
 			show_swap: true,
-			..Look::default()
+			..two()
 		};
 		g.swap = Some(Graph::with(look.clone(), SwapReader::default()));
 		g.set_look(look, None).unwrap();
@@ -1217,9 +1236,9 @@ mod tests {
 
 	// Test ID: defq5
 	#[test]
-	fn swap_is_off_by_default_and_draws_its_own_color_when_on() {
-		assert!(!Look::default().show_swap);
-		assert!(Graphs::new(Look::default()).swap.is_none());
+	fn swap_is_on_by_default_and_draws_its_own_color() {
+		assert!(Look::default().show_swap);
+		assert!(Graphs::new(two()).swap.is_none());
 		let mut g = three();
 		assert_eq!(g.count(), 3);
 		let s = g.swap.as_mut().unwrap();
@@ -1268,6 +1287,7 @@ mod tests {
 		// first in a saved order
 		let look = Look {
 			order: vec!["swap".into()],
+			width: 100,
 			swap_width: 30,
 			..g.look().clone()
 		};
@@ -1310,7 +1330,7 @@ mod tests {
 		g.set_look(off, Some(&path)).unwrap();
 		assert!(g.swap.is_none());
 		g.save(&path).unwrap();
-		let mut back = Graphs::new(Look::default());
+		let mut back = Graphs::new(two());
 		back.load(&path).unwrap();
 		assert!(back.swap.is_none(), "off by default");
 		// a box with no swap can't bring it back, so the rest is for one with it
@@ -1325,10 +1345,10 @@ mod tests {
 	#[test]
 	fn the_battery_graph_colors_the_charge_by_state() {
 		assert!(!Look::default().show_battery);
-		assert!(Graphs::new(Look::default()).battery.is_none());
+		assert!(Graphs::new(two()).battery.is_none());
 		let look = Look {
 			show_battery: true,
-			..Look::default()
+			..two()
 		};
 		let mut b = Graph::with(look.clone(), BatteryReader::default());
 		let now = b.now();
@@ -1364,7 +1384,7 @@ mod tests {
 			show_net: true,
 			..g.look().clone()
 		};
-		assert!(Graphs::new(Look::default()).net.is_none());
+		assert!(Graphs::new(two()).net.is_none());
 		g.net = Some(Graph::with(look.clone(), NetReader::default()));
 		g.set_look(look.clone(), None).unwrap();
 		let now = g.cpu.now();
@@ -1415,7 +1435,7 @@ mod tests {
 			disk_drives: vec!["nope".into()],
 			..g.look().clone()
 		};
-		let fresh = Graphs::new(Look::default());
+		let fresh = Graphs::new(two());
 		assert!(fresh.load.is_none() && fresh.disk.is_none());
 		g.load = Some(Graph::with(look.clone(), LoadReader::default()));
 		let disk = DiskReader::new(look.drives()).unwrap();
@@ -1482,7 +1502,7 @@ mod tests {
 			show_temp: true,
 			..g.look().clone()
 		};
-		assert!(Graphs::new(Look::default()).temp.is_none());
+		assert!(Graphs::new(two()).temp.is_none());
 		g.temp = Some(Graph::with(look.clone(), TempReader::default()));
 		g.set_look(look.clone(), None).unwrap();
 		let now = g.cpu.now();
@@ -1534,7 +1554,7 @@ mod tests {
 			show_zswap: true,
 			..g.look().clone()
 		};
-		assert!(Graphs::new(Look::default()).zswap.is_none());
+		assert!(Graphs::new(two()).zswap.is_none());
 		g.zswap = Some(Graph::with(look.clone(), ZswapReader::squeezed(2.1)));
 		g.set_look(look.clone(), None).unwrap();
 		let now = g.cpu.now();

@@ -479,11 +479,13 @@ mod tests {
 	#[test]
 	fn curves_parse_as_the_spec_spells_them() {
 		let spec = crate::config::spec();
-		let Some(s) = spec.get("log_curve") else {
-			panic!("no log_curve in settings.shcl");
+		let Some(s) = spec.get("time_axis") else {
+			panic!("no time_axis in settings.shcl");
 		};
-		assert_eq!(s.options.len(), CURVES.len());
-		for ((key, _), curve) in s.options.iter().zip(CURVES) {
+		// linear, then the curves
+		assert_eq!(s.options.len(), CURVES.len() + 1);
+		assert_eq!(Timing::parse(&s.options[0].0), Some(Timing::Linear));
+		for ((key, _), curve) in s.options.iter().skip(1).zip(CURVES) {
 			assert_eq!(Curve::parse(key), Some(curve), "{key}");
 		}
 		assert_eq!(Curve::parse(s.default.as_text()), Some(Curve::default()));

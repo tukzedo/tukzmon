@@ -66,19 +66,20 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- Nothing else in the plugin assumes X11. The drawing, the tip, the hover line, the right-click menu and Properties work the same on Wayland, and tukzmon-settings opens as a Wayland window.
 
 - The plugin draws its graphs in one drawing area, side by side, in the saved order. They have 2 px clear above and below, and 4 px between each pair, in logical pixels, so the panel shows through. On a vertical panel or a deskbar they're stacked, and share the height evenly, with the 2 px either side instead. Each asks for half the panel's width in height, at least 16 px, so the widths don't apply there. The graph under the pointer gets the hover line and the tip. The 2 px edges count as the graph beside them, so a pointer pushed against the screen's edge still finds it, and a gap between 2 graphs finds neither. `core/src/graphs.rs` has the layout.
-	- Under Graphs on the Graph tab is the graph list, a row per graph in the saved order. Each row has a checkbox, at `cpu.show`, `mem.show`, `net.show`, `swap.show`, `zswap.show`, `load.show`, `disk.show`, `temp.show` and `battery.show`, the live graph, a width, at `cpu.width`, `mem.width`, `net.width`, `swap.width`, `zswap.width`, `load.width`, `disk.width`, `temp.width` and `battery.width`, a time axis, a revert arrow and a gripper. A width of 0, the default, is the Width setting. Widths are in the panel's own pixels, so they scale with it.
+	- Under Graphs on the Graph tab is the graph list, a row per graph in the saved order. Each row has a checkbox, at `cpu.show`, `mem.show`, `net.show`, `swap.show`, `zswap.show`, `load.show`, `disk.show`, `temp.show` and `battery.show`, the live graph, a width, at `cpu.width`, `mem.width`, `net.width`, `swap.width`, `zswap.width`, `load.width`, `disk.width`, `temp.width` and `battery.width`, a time axis, a revert arrow and a gripper. A width is a percentage of the Width setting, so one setting still resizes them all. The defaults are 100% for CPU, memory and battery, 50% for network, disk and temperature, and 25% for swap, zswap and load. Widths come out in the panel's own pixels, so they scale with it.
+		- A hidden graph's width and time axis aren't greyed, so a graph can be set up before it's turned on.
 	- Each row draws its graph live, at its own width, with the window's settings, so a change shows there before Apply. The window reads the graphs itself from when it opens, so a row starts empty. A hidden graph is drawn too. The widest graph sets the column, so the boxes after it line up, and one wider than 512 px is squeezed to that.
 	- The row under the pointer gets the hover line and the tip, the same as in the panel, through the panel's own `graphs::point`. On a squeezed row the line goes at the pointer's place in the whole graph. A tip left up follows each sample.
 	- The time axis is at `cpu.time`, `mem.time`, `net.time`, `swap.time`, `zswap.time`, `load.time`, `disk.time`, `temp.time` and `battery.time`. See [Time axis](#time-axis).
 	- A graph gets a row once `core/src/settings.shcl` has its `<name>.show`, `.width` and `.time` settings.
 	- A box where `/proc/meminfo` can't be read never shows the memory graph.
-	- The network, swap, zswap, load, disk, temperature and battery graphs are off by default, so an existing panel doesn't grow wider. A box with no swap, with neither zswap on nor zram set up, with no disk, with no CPU sensor it knows, or with no battery in, never shows that one.
+	- CPU, memory and swap are on by default, and the rest are off. A box with no swap, with neither zswap on nor zram set up, with no disk, with no CPU sensor it knows, or with no battery in, never shows that one.
 	- Under Disk graph, below the order, Disk drives at `disk.drives` picks what the disk graph counts: `all`, the default, or `/proc/diskstats` names such as `sda nvme0n1`, with spaces or commas. A new pick takes effect at Apply and keeps the graph's history. Disk log scale, at `disk.log`, draws it on a log scale. See [Drawing](#drawing).
 	- With every other graph off, CPU shows anyway, so the item never shrinks to nothing, and its right-click menu stays in reach.
 	- A hidden graph isn't read. Its history is kept, and shows a gap for the time it was hidden.
-	- Dragging a row's gripper, or Up and Down on it, sets the order. It's saved at `graph.order`, which names the graphs first to last, left to right or top to bottom: `cpu`, `mem`, `net`, `swap`, `zswap`, `load`, `disk`, `temp` and `battery`, by their history section names. The default is `cpu mem net swap zswap load disk temp battery`, so network sits after memory and load, disk and temperature after swap, as in multiload-ng, and zswap beside swap. A saved order from before a graph was added puts it last.
+	- Dragging a row's gripper, or Up and Down on it, sets the order. It's saved at `graph.order`, which names the graphs first to last, left to right or top to bottom: `cpu`, `mem`, `net`, `swap`, `zswap`, `load`, `disk`, `temp` and `battery`, by their history section names. The default is `cpu mem net disk temp swap zswap load battery`, so the busiest graphs come first and zswap sits beside swap. A saved order from before a graph was added puts it last.
 		- Spaces or commas both work, since a hand edit like `order: mem, cpu` is a list to shcl.
-		- A name it doesn't know is skipped. A graph it doesn't name goes at the end, in the default order, so that way a graph added later, such as network, shows up last in a saved order.
+		- A name it doesn't know is skipped. A graph it doesn't name goes at the end, in the order the graphs were added to tukzmon, so that way a graph added later, such as network, shows up last in a saved order.
 		- A hidden graph keeps its place for when it's shown again.
 	- A name the list doesn't know stays in `graph.order` after a drag, at the end, so a file from a newer tukzmon keeps it.
 	- The row's revert arrow puts its checkbox, width and time axis back. The order has no arrow, since dragging back undoes it.
@@ -281,7 +282,7 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - In log mode, the newest sample is at the right edge. Every pixel to the left covers more time than the one to its right, and the left edge is the oldest sample. Until the caps below kick in, the whole run is squeezed into the graph from the first second.
 
-- There are 3 log curves, picked under Log curve in settings. Smooth log is the default.
+- There are 3 log curves, picked under Time axis default in settings, beside Linear. Smooth log is the default.
 	- Smooth log is one curve over the whole run, `u = ln(1 + age / 5 s) / ln(1 + T / 5 s)`, with no caps. A year in, the right quarter covers about 4 minutes.
 	- Log A and Log B put caps on 4 quarters, as below. They differ in the free curve that places a boundary before its cap is reached.
 	- Log A is the first curve tukzmon had. Its free curve is scaled to the run, so the caps fill early.
@@ -304,9 +305,10 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - A linear mode is there too, for anyone who wants a plain scrolling graph. A pixel is one sample there.
 
-- Each graph can pick its own time axis under Graphs: Linear, or one of the 3 log curves. The default, As set under Time, follows Log time axis and Log curve, so a settings file from before the pick keeps its axis, and one setting still changes every graph that has no pick of its own.
-	- A graph's pick is `cpu.time`, `mem.time`, `net.time`, `swap.time`, `zswap.time` or `battery.time`: `same`, `linear`, `smooth`, `fixed_a` or `fixed_b`.
-	- Spike emphasis sits under Log time axis, but it applies to any graph on a log curve.
+- Each graph can pick its own time axis under Graphs: Linear, or one of the 3 log curves. Its Default follows Time axis default, at `graph.time`, so one setting still changes every graph that has no pick of its own.
+	- A graph's pick is `cpu.time`, `mem.time`, `net.time`, `disk.time`, `temp.time`, `swap.time`, `zswap.time`, `load.time` or `battery.time`: `same`, `linear`, `smooth`, `fixed_a` or `fixed_b`. `same` is the one shown as Default.
+	- Time axis default replaced a Log time axis checkbox and a Log curve dropdown, `graph.log_axis` and `graph.log_curve`, before any release. A file with either line has to lose it by hand, or the settings window won't save.
+	- Spike emphasis applies to any graph on a log curve, so it's never greyed.
 
 ## Drawing
 

@@ -546,6 +546,8 @@ mod tests {
 			std::process::id()
 		));
 		let mut d = Dialog::open(path);
+		// at 100 px, a width in percent is the same number
+		d.set("width", &Value::Float(100.0));
 		d.set("cpu_width", &Value::Float(40.0));
 		d.set("mem_width", &Value::Float(100.0));
 		let rows = graph_rows(&d);
@@ -564,7 +566,7 @@ mod tests {
 			assert!(at(i)[2] >= at(i)[1] + widest, "{places:?}");
 		}
 		// past the window's room it's squeezed, not cut
-		d.set("cpu_width", &Value::Float(4096.0));
+		d.set("cpu_width", &Value::Float(1000.0));
 		let places = ffi::graph_list_places(&mut d);
 		let cpu = rows.iter().position(|r| r.name == "cpu").unwrap();
 		assert_eq!(places[cpu * 3], 512);
@@ -598,34 +600,16 @@ mod tests {
 				.cloned()
 				.collect()
 		};
-		assert_eq!(
-			want(&d),
-			[
-				"net_width",
-				"net_time",
-				"swap_width",
-				"swap_time",
-				"zswap_width",
-				"zswap_time",
-				"load_width",
-				"load_time",
-				"disk_width",
-				"disk_time",
-				"temp_width",
-				"temp_time",
-				"battery_width",
-				"battery_time",
-				"disk_drives",
-				"disk_log"
-			]
-		);
+		assert_eq!(want(&d), ["disk_drives", "disk_log"]);
 		assert_eq!(ffi::greyed_rows(&mut d), want(&d));
 		for g in &gates {
 			d.set(g, &Value::Bool(false));
 		}
 		let off = want(&d);
-		for id in ["log_curve", "spikes", "max_days", "cpu_width", "mem_time"] {
-			assert!(off.iter().any(|o| o == id), "{id}");
+		assert!(off.iter().any(|o| o == "max_days"));
+		// a hidden graph's width and time axis can still be set
+		for id in ["spikes", "cpu_width", "mem_time"] {
+			assert!(!off.iter().any(|o| o == id), "{id}");
 		}
 		assert_eq!(ffi::greyed_rows(&mut d), off);
 	}
