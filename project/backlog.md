@@ -141,6 +141,47 @@ Sorted per the notes in [Template](#template).
 		- Swept: every built-in key and label in the Rust tests, qt.cpp and the docs, every swap and battery row default, and the `dice` tests, which don't read the built-ins.
 	- 2026-10-27: the Randomize part is done in child 2026102621562349 (commit 9e35514).
 
+- Pre-next-cut: Default per-monitor colors from my current settings
+	- ID: 2026102814061803
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- Whether Default looks right with b23's colors in it is for a person to judge.
+		- Measured as CIEDE2000, where 10 or more reads clearly apart. b23's colors as they were: zswap's magenta `#ff80ff` 3.2 from system's pink `#fa72f0`, swap `#40a0ff` 5.6 from the disk's read `#6bb3ff`, and memory `#ffff80` 5.7 from temperature `#feff40`. Default now: every 2 graphs' leads 10.4 or more apart, memory and temperature the closest, and every lead 14.2 or more from I/O wait and system.
+	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
+	- Needs hand testing: on b23, after an install and a panel restart, pick Default on the Themes tab with no "*" changes on it, Apply, and judge whether it looks like the colors set by hand before.
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304559, 2026102620162201, 2026102810142725
+	- Requirements:
+		- Default per-monitor colors:
+			- Update to my current personal settings
+			- Update each of these slightly if necessary so that theme is non-clashing, both:
+				- Within each monitor, and
+				- Across all monitors taken as a whole
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The current config is b23's `~/.config/tukzmon/tukzmon.shcl`, read by build defqn.
+		- 2026-10-28: b23's current colors are the changes kept on Default in `plugin-16.shcl`, the live panel item's own file, not the Custom colors at the top of it.
+		- Default now has every one of those changes, with their modes: swap, zswap, load and temperature as gradients.
+		- Where they clashed, colors nobody picked moved. Zswap's gradient was magenta, beside system's new pink, and swap's was the disk's blue. Each now runs through the color picked for it in Detailed, the way load's already did. Memory's programs went from `#ffff80` to `#ffffa3`, apart from temperature's yellow.
+		- The network's and the disk's gradients follow their new leads, and temperature's normal is its Medium.
+		- tukzmon's own graph is `#00ccb8`, the color farthest from the other 9 that still reads on the gray top.
+		- `design.md` Theme has the details.
+	- Decisions:
+		- The colors picked by hand win over rules every built-in kept, in Default only. System is pink, not orange. On battery is copper, not system's color. Load, the disk's written and the network's sent are red. The background is gray, not on CPU's hue. The other built-ins keep the rules.
+		- Picked colors are kept exactly, and colors nobody picked moved instead. Memory's programs was never changed by hand, so it moved rather than temperature's Medium. It was also the smaller move, 4.8 against 7.7, and the other way put temperature on the network's local yellow, 2.3 apart.
+		- That replaces "Default's memory colors stay as multiload-ng had them" from 2026102408304625 for programs. Buffers and cache are as they were.
+		- Swap's and zswap's gradients run through `#a45f00` and `#4a8e54`, the colors picked for them, rather than staying blue and magenta. Temperature's normal follows its Medium the same way. So switching one of them to Detailed keeps its color, and Default's earlier normal, green `#40ff48`, was 6.5 from CPU.
+		- tukzmon's color was picked by search: the most distant from every other lead, I/O wait, system and on battery, at a lightness that reads on `#313131`. It's 22.4 from CPU, the closest.
+	- Branch: theme-colors
+	- Test case: `config::tests::the_default_theme_keeps_the_colors_picked_on_it` (dejbq). It fails on the old Default and passes now.
+		- 2026-10-28: new values only. debhj reads system `#fa72f0`, the border `#8b8b8b` and the top `#313131`, not `#c64200`, `#408060` and `#2a543f`. dedpz reads programs `#ffffa3`, not `#ffff80`.
+		- 2026-10-28: defq5, dej0v and dejab read swap's, temperature's and zswap's series colors, which Default now draws as gradients, so their looks set those graphs to Detailed.
+		- 2026-10-28: defx7 no longer checks the hue angle between leads. dejbr, from 2026102810142725, checks how far apart they look instead.
+		- Swept: every test that reads a Default color or mode, in core, settings and xfce, every row default, which deccf holds to Default, and every mention of Default's colors in `design.md` and `settings.shcl`.
+
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
@@ -368,23 +409,6 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026102408304612, 2026102620162201
 	- Requirements:
 		- Themes: include some monochromatic themes.
-
-- Pre-next-cut: Default per-monitor colors from my current settings
-	- ID: 2026102814061803
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-140618
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304559, 2026102620162201, 2026102810142725
-	- Requirements:
-		- Default per-monitor colors:
-			- Update to my current personal settings
-			- Update each of these slightly if necessary so that theme is non-clashing, both:
-				- Within each monitor, and
-				- Across all monitors taken as a whole
-	- Progress log:
-		- The current config is b23's `~/.config/tukzmon/tukzmon.shcl`, read by build defqn.
 
 - Pre-next-cut: Less CPU used by tukzmon
 	- ID: 2026102814061812

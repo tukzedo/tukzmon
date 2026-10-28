@@ -820,11 +820,11 @@ mod tests {
 	fn defaults_are_the_multiload_colors() {
 		let l = Look::default();
 		assert_eq!(l.cpu[0], Rgb(0xff, 0, 0));
-		assert_eq!(l.cpu[1], Rgb(0xc6, 0x42, 0));
+		assert_eq!(l.cpu[1], Rgb(0xfa, 0x72, 0xf0));
 		assert_eq!(l.cpu[2], Rgb(0, 0xff, 0x80));
 		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x40));
-		assert_eq!(l.border_color, Rgb(0x40, 0x80, 0x60));
-		assert_eq!(l.top, Rgb(0x2a, 0x54, 0x3f));
+		assert_eq!(l.border_color, Rgb(0x8b, 0x8b, 0x8b));
+		assert_eq!(l.top, Rgb(0x31, 0x31, 0x31));
 		assert_eq!(l.bottom, Rgb(0, 0, 0));
 		assert_eq!((l.width, l.sample_ms, l.border), (128, 500, 1));
 		assert_eq!(l.time, Timing::Log(Curve::Smooth));
@@ -857,6 +857,50 @@ mod tests {
 			if s.control == knobs::Control::Color {
 				assert!(g.members.contains(&s.id), "{}", s.id);
 			}
+		}
+	}
+
+	// Test ID: dejbq
+	#[test]
+	fn the_default_theme_keeps_the_colors_picked_on_it() {
+		// b23's changes on Default as of 2026-10-28, kept as they were
+		let picked = [
+			("system", "#fa72f0"),
+			("net_local", "#ffed00"),
+			("net_sent", "#ff7777"),
+			("net_received", "#6ad4ff"),
+			("swap_mode", "gradient"),
+			("swap_used", "#a45f00"),
+			("zswap_mode", "gradient"),
+			("zswap_used", "#4a8e54"),
+			("load_mode", "gradient"),
+			("load_used", "#924444"),
+			("load_low", "#553030"),
+			("load_medium", "#924444"),
+			("load_high", "#eb4a4a"),
+			("disk_write", "#c60000"),
+			("disk_read", "#6bb3ff"),
+			("temp_mode", "gradient"),
+			("temp_low", "#4eb6bd"),
+			("temp_medium", "#feff40"),
+			("temp_high", "#ff0000"),
+			("battery_discharging", "#c46e43"),
+			("border_color", "#8b8b8b"),
+			("back_top", "#313131"),
+		];
+		let spec = spec();
+		let default = spec.group(THEME).unwrap().preset("default").unwrap();
+		let v = |id: &str| default.values[id].as_text().to_string();
+		for (id, want) in picked {
+			assert_eq!(v(id), want, "{id}");
+		}
+		// a graph drawn as a gradient runs through the color picked for it
+		for (lead, medium) in [
+			("swap_used", "swap_medium"),
+			("zswap_used", "zswap_medium"),
+			("temp_normal", "temp_medium"),
+		] {
+			assert_eq!(v(lead), v(medium), "{lead}");
 		}
 	}
 
@@ -1033,7 +1077,7 @@ mod tests {
 		assert_eq!(
 			d.mem,
 			[
-				Rgb(0xff, 0xff, 0x80),
+				Rgb(0xff, 0xff, 0xa3),
 				Rgb(0x80, 0x40, 0x80),
 				Rgb(0x40, 0x80, 0x60)
 			]
@@ -1069,21 +1113,6 @@ mod tests {
 	// Test ID: defx7
 	#[test]
 	fn no_theme_is_named_for_a_color_and_each_graph_has_its_own() {
-		fn hue(c: Rgb) -> f64 {
-			let [r, g, b] = [c.0, c.1, c.2].map(|v| f64::from(v) / 255.0);
-			let (hi, lo) = (r.max(g).max(b), r.min(g).min(b));
-			let d = hi - lo;
-			let h = if d == 0.0 {
-				0.0
-			} else if hi == r {
-				((g - b) / d).rem_euclid(6.0)
-			} else if hi == g {
-				(b - r) / d + 2.0
-			} else {
-				(r - g) / d + 4.0
-			};
-			h * 60.0
-		}
 		let colors = [
 			"red", "orange", "yellow", "green", "blue", "purple", "violet", "pink", "cyan",
 			"magenta", "teal", "brown", "gray", "grey",
@@ -1096,28 +1125,13 @@ mod tests {
 			assert!(!colors.iter().any(|c| label.contains(c)), "{label}");
 			let rgb = |id: &str| Rgb::parse(p.values[id].as_text()).unwrap();
 			let ramp = |g: &str| ["low", "medium", "high"].map(|s| rgb(&format!("{g}_{s}")));
-			let leads = [
-				"user",
-				"mem_user",
-				"swap_used",
-				"zswap_used",
-				"net_received",
-				"load_used",
-				"disk_read",
-				"temp_normal",
-				"battery_charging",
-				"self_used",
-			]
-			.map(rgb);
 			let ramps = [
 				"cpu", "mem", "swap", "zswap", "net", "load", "disk", "temp", "battery", "self",
 			]
 			.map(ramp);
-			for a in 0..leads.len() {
-				for b in a + 1..leads.len() {
-					let gap = (hue(leads[a]) - hue(leads[b])).abs();
-					// 22 for 10 graphs, until 2026102810142725
-					assert!(gap.min(360.0 - gap) >= 22.0, "{} {a} {b}", p.key);
+			// how far apart the leads look is dejbr's, by CIEDE2000, not hue angle
+			for a in 0..ramps.len() {
+				for b in a + 1..ramps.len() {
 					assert_ne!(ramps[a], ramps[b], "{} {a} {b}", p.key);
 					assert_ne!(ramps[a][1], ramps[b][1], "{} {a} {b}", p.key);
 				}

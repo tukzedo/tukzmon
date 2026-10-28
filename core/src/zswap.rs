@@ -438,6 +438,7 @@ mod tests {
 		let look = Look {
 			show_zswap: true,
 			border: 1,
+			zswap_mode: crate::config::Mode::Detailed,
 			..Look::default()
 		};
 		let src = ZswapReader::probe_at(&roots(&on)).unwrap();

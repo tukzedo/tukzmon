@@ -1,8 +1,8 @@
 ## tukzmon settings, read by the panel plugin and by tukzmon-settings.
 ##
 ## Compiled into both. The format is knobs', documented in knobs/src/lib.rs
-## and SilkTerm's knobs/demo/demo.shcl. Colors default to a customized
-## multiload-ng setup.
+## and SilkTerm's knobs/demo/demo.shcl. Colors default to b23's, which started
+## as a customized multiload-ng setup.
 ##
 ## slider_range is ours, not knobs'. It's how far a slider reaches, while
 ## range is what can be typed in the box beside it. shown_as: radio draws a
@@ -582,7 +582,7 @@ settings:
 		tab: Themes/CPU
 		control: color
 		path: cpu.colors.system
-		default: "#c64200"
+		default: "#fa72f0"
 		group: theme
 		shown_when: "cpu_mode = detailed"
 		tip: "Kernel time, including interrupts."
@@ -665,7 +665,7 @@ settings:
 		tab: Themes/Memory
 		control: color
 		path: mem.colors.user
-		default: "#ffff80"
+		default: "#ffffa3"
 		group: theme
 		shown_when: "mem_mode = detailed"
 		tip: "Memory in use that isn't buffers or cache."
@@ -710,7 +710,7 @@ settings:
 		tab: Themes/Memory
 		control: color
 		path: mem.colors.medium
-		default: "#ffff80"
+		default: "#ffffa3"
 		group: theme
 		shown_when: "mem_mode = gradient"
 		tip: "The color halfway up."
@@ -748,7 +748,7 @@ settings:
 		tab: Themes/Network
 		control: color
 		path: net.colors.local
-		default: "#406020"
+		default: "#ffed00"
 		group: theme
 		shown_when: "net_mode = detailed"
 		tip: "Traffic the box sends itself, on the loopback device."
@@ -758,7 +758,7 @@ settings:
 		tab: Themes/Network
 		control: color
 		path: net.colors.sent
-		default: "#e0ffc0"
+		default: "#ff7777"
 		group: theme
 		shown_when: "net_mode = detailed"
 
@@ -767,7 +767,7 @@ settings:
 		tab: Themes/Network
 		control: color
 		path: net.colors.received
-		default: "#90ff40"
+		default: "#6ad4ff"
 		group: theme
 		shown_when: "net_mode = detailed"
 
@@ -782,7 +782,7 @@ settings:
 		tab: Themes/Network
 		control: color
 		path: net.colors.low
-		default: "#406020"
+		default: "#2a5566"
 		group: theme
 		shown_when: "net_mode = gradient"
 		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
@@ -792,7 +792,7 @@ settings:
 		tab: Themes/Network
 		control: color
 		path: net.colors.medium
-		default: "#90ff40"
+		default: "#6ad4ff"
 		group: theme
 		shown_when: "net_mode = gradient"
 		tip: "The color halfway up."
@@ -802,7 +802,7 @@ settings:
 		tab: Themes/Network
 		control: color
 		path: net.colors.high
-		default: "#e0ffc0"
+		default: "#cff1ff"
 		group: theme
 		shown_when: "net_mode = gradient"
 		tip: "The color at the top."
@@ -815,7 +815,7 @@ settings:
 		options: detailed, gradient
 		option_labels: "Detailed", "Gradient"
 		path: swap.mode
-		default: detailed
+		default: gradient
 		group: theme
 		tip: "Detailed draws swap in use in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
@@ -824,7 +824,7 @@ settings:
 		tab: Themes/Swap
 		control: color
 		path: swap.colors.used
-		default: "#40a0ff"
+		default: "#a45f00"
 		group: theme
 		shown_when: "swap_mode = detailed"
 
@@ -839,7 +839,7 @@ settings:
 		tab: Themes/Swap
 		control: color
 		path: swap.colors.low
-		default: "#204a6a"
+		default: "#66461a"
 		group: theme
 		shown_when: "swap_mode = gradient"
 		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
@@ -849,7 +849,7 @@ settings:
 		tab: Themes/Swap
 		control: color
 		path: swap.colors.medium
-		default: "#40a0ff"
+		default: "#a45f00"
 		group: theme
 		shown_when: "swap_mode = gradient"
 		tip: "The color halfway up."
@@ -859,7 +859,7 @@ settings:
 		tab: Themes/Swap
 		control: color
 		path: swap.colors.high
-		default: "#d0e8ff"
+		default: "#ffebcf"
 		group: theme
 		shown_when: "swap_mode = gradient"
 		tip: "The color at the top."
@@ -872,7 +872,7 @@ settings:
 		options: detailed, gradient
 		option_labels: "Detailed", "Gradient"
 		path: zswap.mode
-		default: detailed
+		default: gradient
 		group: theme
 		tip: "Detailed draws the pool in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top. Zram shows here too, on a box that has it and no zswap."
 
@@ -881,7 +881,7 @@ settings:
 		tab: Themes/Zswap
 		control: color
 		path: zswap.colors.used
-		default: "#ff80ff"
+		default: "#4a8e54"
 		group: theme
 		shown_when: "zswap_mode = detailed"
 
@@ -896,7 +896,7 @@ settings:
 		tab: Themes/Zswap
 		control: color
 		path: zswap.colors.low
-		default: "#6a2a6a"
+		default: "#35663c"
 		group: theme
 		shown_when: "zswap_mode = gradient"
 		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
@@ -906,7 +906,7 @@ settings:
 		tab: Themes/Zswap
 		control: color
 		path: zswap.colors.medium
-		default: "#ff80ff"
+		default: "#4a8e54"
 		group: theme
 		shown_when: "zswap_mode = gradient"
 		tip: "The color halfway up."
@@ -916,7 +916,7 @@ settings:
 		tab: Themes/Zswap
 		control: color
 		path: zswap.colors.high
-		default: "#ffe0ff"
+		default: "#cfffd6"
 		group: theme
 		shown_when: "zswap_mode = gradient"
 		tip: "The color at the top."
@@ -929,7 +929,7 @@ settings:
 		options: detailed, gradient
 		option_labels: "Detailed", "Gradient"
 		path: load.mode
-		default: detailed
+		default: gradient
 		group: theme
 		tip: "Detailed draws the load in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
@@ -938,7 +938,7 @@ settings:
 		tab: Themes/Load
 		control: color
 		path: load.colors.load
-		default: "#40ffff"
+		default: "#924444"
 		group: theme
 		shown_when: "load_mode = detailed"
 
@@ -953,7 +953,7 @@ settings:
 		tab: Themes/Load
 		control: color
 		path: load.colors.low
-		default: "#1a6666"
+		default: "#553030"
 		group: theme
 		shown_when: "load_mode = gradient"
 		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
@@ -963,7 +963,7 @@ settings:
 		tab: Themes/Load
 		control: color
 		path: load.colors.medium
-		default: "#40ffff"
+		default: "#924444"
 		group: theme
 		shown_when: "load_mode = gradient"
 		tip: "The color halfway up."
@@ -973,7 +973,7 @@ settings:
 		tab: Themes/Load
 		control: color
 		path: load.colors.high
-		default: "#cfffff"
+		default: "#eb4a4a"
 		group: theme
 		shown_when: "load_mode = gradient"
 		tip: "The color at the top."
@@ -1001,7 +1001,7 @@ settings:
 		tab: Themes/Disk
 		control: color
 		path: disk.colors.write
-		default: "#ffcfdf"
+		default: "#c60000"
 		group: theme
 		shown_when: "disk_mode = detailed"
 
@@ -1010,7 +1010,7 @@ settings:
 		tab: Themes/Disk
 		control: color
 		path: disk.colors.read
-		default: "#ff4080"
+		default: "#6bb3ff"
 		group: theme
 		shown_when: "disk_mode = detailed"
 
@@ -1025,7 +1025,7 @@ settings:
 		tab: Themes/Disk
 		control: color
 		path: disk.colors.low
-		default: "#661a33"
+		default: "#2b4866"
 		group: theme
 		shown_when: "disk_mode = gradient"
 		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
@@ -1035,7 +1035,7 @@ settings:
 		tab: Themes/Disk
 		control: color
 		path: disk.colors.medium
-		default: "#ff4080"
+		default: "#6bb3ff"
 		group: theme
 		shown_when: "disk_mode = gradient"
 		tip: "The color halfway up."
@@ -1045,7 +1045,7 @@ settings:
 		tab: Themes/Disk
 		control: color
 		path: disk.colors.high
-		default: "#ffcfdf"
+		default: "#cfe6ff"
 		group: theme
 		shown_when: "disk_mode = gradient"
 		tip: "The color at the top."
@@ -1058,7 +1058,7 @@ settings:
 		options: detailed, gradient
 		option_labels: "Detailed", "Gradient"
 		path: temp.mode
-		default: detailed
+		default: gradient
 		group: theme
 		tip: "Detailed draws the temperature in one color, with any part over the critical level in another. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
@@ -1073,7 +1073,7 @@ settings:
 		tab: Themes/Temperature
 		control: color
 		path: temp.colors.normal
-		default: "#40ff48"
+		default: "#feff40"
 		group: theme
 		shown_when: "temp_mode = detailed"
 		tip: "Up to the critical level."
@@ -1099,7 +1099,7 @@ settings:
 		tab: Themes/Temperature
 		control: color
 		path: temp.colors.low
-		default: "#1a661d"
+		default: "#4eb6bd"
 		group: theme
 		shown_when: "temp_mode = gradient"
 		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
@@ -1109,7 +1109,7 @@ settings:
 		tab: Themes/Temperature
 		control: color
 		path: temp.colors.medium
-		default: "#40ff48"
+		default: "#feff40"
 		group: theme
 		shown_when: "temp_mode = gradient"
 		tip: "The color halfway up."
@@ -1119,7 +1119,7 @@ settings:
 		tab: Themes/Temperature
 		control: color
 		path: temp.colors.high
-		default: "#cfffd1"
+		default: "#ff0000"
 		group: theme
 		shown_when: "temp_mode = gradient"
 		tip: "The color at the top."
@@ -1157,7 +1157,7 @@ settings:
 		tab: Themes/Battery
 		control: color
 		path: battery.colors.discharging
-		default: "#c64200"
+		default: "#c46e43"
 		group: theme
 		shown_when: "battery_mode = detailed"
 
@@ -1224,7 +1224,7 @@ settings:
 		tab: Themes/tukzmon
 		control: color
 		path: self.colors.used
-		default: "#404bff"
+		default: "#00ccb8"
 		group: theme
 		shown_when: "self_mode = detailed"
 
@@ -1239,7 +1239,7 @@ settings:
 		tab: Themes/tukzmon
 		control: color
 		path: self.colors.low
-		default: "#1a1e66"
+		default: "#1a665e"
 		group: theme
 		shown_when: "self_mode = gradient"
 		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
@@ -1249,7 +1249,7 @@ settings:
 		tab: Themes/tukzmon
 		control: color
 		path: self.colors.medium
-		default: "#404bff"
+		default: "#00ccb8"
 		group: theme
 		shown_when: "self_mode = gradient"
 		tip: "The color halfway up."
@@ -1259,7 +1259,7 @@ settings:
 		tab: Themes/tukzmon
 		control: color
 		path: self.colors.high
-		default: "#cfd2ff"
+		default: "#cffffa"
 		group: theme
 		shown_when: "self_mode = gradient"
 		tip: "The color at the top."
@@ -1282,7 +1282,7 @@ settings:
 		tab: Themes/Background
 		control: color
 		path: graph.colors.border
-		default: "#408060"
+		default: "#8b8b8b"
 		group: theme
 
 	back_top:
@@ -1290,7 +1290,7 @@ settings:
 		tab: Themes/Background
 		control: color
 		path: graph.colors.top
-		default: "#2a543f"
+		default: "#313131"
 		group: theme
 
 	back_bottom:
@@ -1314,8 +1314,8 @@ settings:
 ## theme, so the graphs are told apart side by side. I/O wait and system stay
 ## red and orange in every theme, so trouble reads the same, and the battery's
 ## on battery and critical take those 2, as temperature's critical takes red.
-## Fire's graphs each burn a flame of their own. Default's CPU and memory
-## colors are multiload-ng's.
+## Fire's graphs each burn a flame of their own. Default is b23's colors, which
+## break some of that where they were picked by hand. See design.md Theme.
 
 groups:
 
@@ -1331,64 +1331,64 @@ groups:
 				cpu_medium: "#00ff80"
 				cpu_high: "#c0ffe0"
 				iowait: "#ff0000"
-				system: "#c64200"
+				system: "#fa72f0"
 				user: "#00ff80"
 				nice: "#205f40"
 				mem_mode: detailed
 				mem_low: "#408060"
-				mem_medium: "#ffff80"
+				mem_medium: "#ffffa3"
 				mem_high: "#ffffe0"
-				mem_user: "#ffff80"
+				mem_user: "#ffffa3"
 				mem_buffers: "#804080"
 				mem_cache: "#408060"
 				net_mode: detailed
-				net_low: "#406020"
-				net_medium: "#90ff40"
-				net_high: "#e0ffc0"
-				net_local: "#406020"
-				net_sent: "#e0ffc0"
-				net_received: "#90ff40"
-				swap_mode: detailed
-				swap_low: "#204a6a"
-				swap_medium: "#40a0ff"
-				swap_high: "#d0e8ff"
-				swap_used: "#40a0ff"
-				zswap_mode: detailed
-				zswap_low: "#6a2a6a"
-				zswap_medium: "#ff80ff"
-				zswap_high: "#ffe0ff"
-				zswap_used: "#ff80ff"
-				load_mode: detailed
-				load_low: "#1a6666"
-				load_medium: "#40ffff"
-				load_high: "#cfffff"
-				load_used: "#40ffff"
+				net_low: "#2a5566"
+				net_medium: "#6ad4ff"
+				net_high: "#cff1ff"
+				net_local: "#ffed00"
+				net_sent: "#ff7777"
+				net_received: "#6ad4ff"
+				swap_mode: gradient
+				swap_low: "#66461a"
+				swap_medium: "#a45f00"
+				swap_high: "#ffebcf"
+				swap_used: "#a45f00"
+				zswap_mode: gradient
+				zswap_low: "#35663c"
+				zswap_medium: "#4a8e54"
+				zswap_high: "#cfffd6"
+				zswap_used: "#4a8e54"
+				load_mode: gradient
+				load_low: "#553030"
+				load_medium: "#924444"
+				load_high: "#eb4a4a"
+				load_used: "#924444"
 				disk_mode: detailed
-				disk_low: "#661a33"
-				disk_medium: "#ff4080"
-				disk_high: "#ffcfdf"
-				disk_write: "#ffcfdf"
-				disk_read: "#ff4080"
-				temp_mode: detailed
-				temp_low: "#1a661d"
-				temp_medium: "#40ff48"
-				temp_high: "#cfffd1"
-				temp_normal: "#40ff48"
+				disk_low: "#2b4866"
+				disk_medium: "#6bb3ff"
+				disk_high: "#cfe6ff"
+				disk_write: "#c60000"
+				disk_read: "#6bb3ff"
+				temp_mode: gradient
+				temp_low: "#4eb6bd"
+				temp_medium: "#feff40"
+				temp_high: "#ff0000"
+				temp_normal: "#feff40"
 				temp_critical: "#ff0000"
 				battery_mode: detailed
 				battery_low: "#483468"
 				battery_medium: "#b080ff"
 				battery_high: "#ece0ff"
 				battery_charging: "#b080ff"
-				battery_discharging: "#c64200"
+				battery_discharging: "#c46e43"
 				battery_critical: "#ff0000"
 				self_mode: detailed
-				self_low: "#1a1e66"
-				self_medium: "#404bff"
-				self_high: "#cfd2ff"
-				self_used: "#404bff"
-				border_color: "#408060"
-				back_top: "#2a543f"
+				self_low: "#1a665e"
+				self_medium: "#00ccb8"
+				self_high: "#cffffa"
+				self_used: "#00ccb8"
+				border_color: "#8b8b8b"
+				back_top: "#313131"
 				back_bottom: "#000000"
 				hover_color: "#000000"
 			primary:

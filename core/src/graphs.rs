@@ -721,11 +721,18 @@ impl Graphs {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::config::Mode;
 
 	// The defaults before 2026-10-28, which these tests lay out: CPU and
 	// memory shown, every graph as wide as Width, in the order they were added.
+	// Default draws swap, zswap, load and temperature as gradients, and these
+	// tests read each series' own color
 	fn two() -> Look {
 		Look {
+			swap_mode: Mode::Detailed,
+			zswap_mode: Mode::Detailed,
+			load_mode: Mode::Detailed,
+			temp_mode: Mode::Detailed,
 			show_swap: false,
 			net_width: 100,
 			swap_width: 100,
