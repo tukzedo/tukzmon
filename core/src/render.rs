@@ -86,6 +86,28 @@ impl Peak {
 	}
 }
 
+/// How a graph with no fixed top is scaled.
+#[derive(Debug)]
+pub struct Scale<'a> {
+	pub peak: &'a mut Peak,
+	/// The least the top goes down to, in the source's own unit.
+	pub floor: f32,
+	/// Log up the graph, from a thousandth of the floor to the top. A stack
+	/// keeps its shares of the column's log height.
+	pub log: bool,
+}
+
+// measured up from a thousandth of the floor, so a disk's idle trickle shows
+fn fit_log<const N: usize>(v: [f32; N], top: f32, floor: f32) -> [f32; N] {
+	let unit = floor / 1000.0;
+	let total: f32 = v.iter().map(|x| x.max(0.0)).sum();
+	if total <= 0.0 {
+		return [0.0; N];
+	}
+	let height = ((total / unit).ln_1p() / (top / unit).ln_1p()).clamp(0.0, 1.0);
+	v.map(|x| x.max(0.0) / total * height)
+}
+
 /// A vertical line `thick` pixels wide from column `x`, over the plot only, so
 /// a pointer on the border puts it at the plot's edge. `bw` is the border.
 pub fn line(px: &mut [u32], w: usize, h: usize, bw: usize, x: usize, thick: usize, color: Rgb) {
@@ -153,15 +175,15 @@ impl<const N: usize> Frame<'_, N> {
 		self.draw_to(px, w, h, scale, None);
 	}
 
-	/// As [`Self::draw`], for a source with no fixed top: `peak` and its floor
-	/// set the top, in the source's own unit, instead of 1.
+	/// As [`Self::draw`], for a source with no fixed top: `scaled` sets the
+	/// top, in the source's own unit, instead of 1.
 	pub fn draw_to(
 		&self,
 		px: &mut Vec<u32>,
 		w: usize,
 		h: usize,
 		scale: usize,
-		peak: Option<(&mut Peak, f32)>,
+		scaled: Option<Scale<'_>>,
 	) {
 		px.clear();
 		px.resize(w * h, self.look.border_color.argb());
@@ -213,19 +235,22 @@ impl<const N: usize> Frame<'_, N> {
 					.then(|| reach(&span.mean, &span.max, b - a, self.look.spikes))
 			})
 			.collect();
-		let top = match peak {
-			Some((peak, floor)) => {
+		let (top, log) = match scaled {
+			Some(Scale { peak, floor, log }) => {
 				let highest = reached
 					.iter()
 					.flatten()
 					.map(|v| v.iter().map(|x| x.max(0.0)).sum::<f32>())
 					.fold(0.0, f32::max);
-				peak.fit(highest, floor, self.now)
+				(peak.fit(highest, floor, self.now), log.then_some(floor))
 			}
-			None => 1.0,
+			None => (1.0, None),
 		};
 		for (cx, v) in reached.into_iter().enumerate() {
-			let heights = v.map(|v| fit(v, top));
+			let heights = v.map(|v| match log {
+				Some(floor) => fit_log(v, top, floor),
+				None => fit(v, top),
+			});
 			for r in 0..ph {
 				let mut c = back[r];
 				let mut alpha = back_alpha;
@@ -581,12 +606,57 @@ mod tests {
 		assert_eq!(p.top(), 2000.0);
 	}
 
+	// Test ID: dej06
+	#[test]
+	fn a_log_scale_lifts_a_trickle_and_keeps_the_shares() {
+		assert_eq!(fit_log([0.0, 0.0], 4e6, 1e5), [0.0, 0.0]);
+		let [a, b] = fit_log([1e6, 3e6], 4e6, 1e5);
+		assert!((a + b - 1.0).abs() < 1e-6 && (b - 3.0 * a).abs() < 1e-6);
+		// 1 kB/s under a 4 MB/s top is a 4000th as a line, a fifth as a log
+		let [lo, _] = fit_log([1000.0, 0.0], 4e6, 1e5);
+		assert!(lo > 0.2 && lo < 0.3, "{lo}");
+		assert_eq!(fit_log([-5.0, 8e6], 4e6, 1e5), [0.0, 1.0]);
+		let axis = Axis::log(Curve::FixedA, 120.0);
+		let l = look();
+		let h = steady([1000.0, 0.0], 120.0);
+		let red = |log: bool| {
+			let mut px = Vec::new();
+			let mut peak = Peak::default();
+			Frame {
+				hist: &h,
+				axis: &axis,
+				now: h.last().unwrap_or(0.0),
+				look: &l,
+				paint: Paint::Stack(&COLORS),
+			}
+			.draw_to(
+				&mut px,
+				22,
+				12,
+				1,
+				Some(Scale {
+					peak: &mut peak,
+					floor: 1e5,
+					log,
+				}),
+			);
+			px.iter().filter(|&&p| p == COLORS[0].argb()).count()
+		};
+		assert_eq!(red(false), 0);
+		assert!(red(true) >= 3 * 20, "{}", red(true));
+	}
+
 	// Test ID: dehzm
 	#[test]
 	fn a_graph_with_no_fixed_top_fills_to_its_peak_or_floor() {
 		let axis = Axis::log(Curve::FixedA, 120.0);
 		let l = look();
 		let drawn = |h: &History<2>, peak: Option<(&mut Peak, f32)>| {
+			let peak = peak.map(|(peak, floor)| Scale {
+				peak,
+				floor,
+				log: false,
+			});
 			let mut px = Vec::new();
 			Frame {
 				hist: h,

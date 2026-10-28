@@ -13,7 +13,7 @@
 ## default is the Default theme's value, and config::tests holds the two to
 ## each other.
 
-tabs: "Graph", "Themes", "Themes/CPU", "Themes/Memory", "Themes/Network", "Themes/Swap", "Themes/Zswap", "Themes/Battery", "Themes/Background"
+tabs: "Graph", "Themes", "Themes/CPU", "Themes/Memory", "Themes/Network", "Themes/Swap", "Themes/Zswap", "Themes/Load", "Themes/Disk", "Themes/Battery", "Themes/Background"
 
 settings:
 
@@ -263,6 +263,66 @@ settings:
 		gate: show_zswap
 		tip: "How the zswap graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
 
+	show_load:
+		label: Load graph
+		tab: Graph
+		control: checkbox
+		path: load.show
+		default: false
+		tip: "Show the 1 minute load average, the number of tasks running or waiting to run. The top follows the highest load in view, but never goes under the number of CPUs, so a full graph means every CPU had work queued."
+
+	load_width:
+		label: Load width px
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 4096
+		path: load.width
+		default: 0
+		gate: show_load
+		tip: "How wide the load graph is, in the same pixels as Width. 0 uses Width."
+
+	load_time:
+		label: Load time axis
+		tab: Graph
+		control: dropdown
+		options: same, linear, smooth, fixed_a, fixed_b
+		option_labels: "As set under Time", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: load.time
+		default: same
+		gate: show_load
+		tip: "How the load graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
+
+	show_disk:
+		label: Disk graph
+		tab: Graph
+		control: checkbox
+		path: disk.show
+		default: false
+		tip: "Show disk traffic in bytes a second: written, then read, from the bottom up. The top follows the busiest moment in view, so the graph has no fixed scale. The tip gives the rates. Disk drives and Disk log scale, further down, set what it counts and how it's drawn."
+
+	disk_width:
+		label: Disk width px
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 4096
+		path: disk.width
+		default: 0
+		gate: show_disk
+		tip: "How wide the disk graph is, in the same pixels as Width. 0 uses Width."
+
+	disk_time:
+		label: Disk time axis
+		tab: Graph
+		control: dropdown
+		options: same, linear, smooth, fixed_a, fixed_b
+		option_labels: "As set under Time", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: disk.time
+		default: same
+		gate: show_disk
+		tip: "How the disk graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
+
 	show_battery:
 		label: Battery graph
 		tab: Graph
@@ -299,8 +359,31 @@ settings:
 		tab: Graph
 		control: text
 		path: graph.order
-		default: "cpu mem net swap zswap battery"
-		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, net for network, swap, zswap and battery. One left out goes at the end."
+		default: "cpu mem net swap zswap load disk battery"
+		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, net for network, swap, zswap, load, disk and battery. One left out goes at the end."
+
+	DiskHead:
+		label: Disk graph
+		tab: Graph
+		control: heading
+
+	disk_drives:
+		label: Disk drives
+		tab: Graph
+		control: text
+		path: disk.drives
+		default: all
+		gate: show_disk
+		tip: "Which drives the disk graph counts: all, or names as /proc/diskstats gives them, such as sda nvme0n1. All is every disk with hardware behind it, and leaves out partitions and what sits on a disk, such as LUKS, LVM and RAID, so nothing is counted twice. A named drive is counted as is, partitions too."
+
+	disk_log:
+		label: Disk log scale
+		tab: Graph
+		control: checkbox
+		path: disk.log
+		default: false
+		gate: show_disk
+		tip: "Draw the disk graph on a log scale, so a trickle still shows next to a big copy. Off, the height is in proportion to the rate."
 
 	HistoryHead:
 		label: History
@@ -714,6 +797,135 @@ settings:
 		shown_when: "zswap_mode = gradient"
 		tip: "The color at the top."
 
+	load_mode:
+		label: Colors
+		tab: Themes/Load
+		control: dropdown
+		shown_as: radio
+		options: detailed, gradient
+		option_labels: "Detailed", "Gradient"
+		path: load.mode
+		default: detailed
+		group: theme
+		tip: "Detailed draws the load in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	load_used:
+		label: Load
+		tab: Themes/Load
+		control: color
+		path: load.colors.load
+		default: "#40ffff"
+		group: theme
+		shown_when: "load_mode = detailed"
+
+	LoadGradHead:
+		label: "Load, by height"
+		tab: Themes/Load
+		control: heading
+		shown_when: "load_mode = gradient"
+
+	load_low:
+		label: Low
+		tab: Themes/Load
+		control: color
+		path: load.colors.low
+		default: "#1a6666"
+		group: theme
+		shown_when: "load_mode = gradient"
+		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
+
+	load_medium:
+		label: Medium
+		tab: Themes/Load
+		control: color
+		path: load.colors.medium
+		default: "#40ffff"
+		group: theme
+		shown_when: "load_mode = gradient"
+		tip: "The color halfway up."
+
+	load_high:
+		label: High
+		tab: Themes/Load
+		control: color
+		path: load.colors.high
+		default: "#cfffff"
+		group: theme
+		shown_when: "load_mode = gradient"
+		tip: "The color at the top."
+
+	disk_mode:
+		label: Colors
+		tab: Themes/Disk
+		control: dropdown
+		shown_as: radio
+		options: detailed, gradient
+		option_labels: "Detailed", "Gradient"
+		path: disk.mode
+		default: detailed
+		group: theme
+		tip: "Detailed gives written and read a color each. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	DiskColorHead:
+		label: "Disk, from the bottom up"
+		tab: Themes/Disk
+		control: heading
+		shown_when: "disk_mode = detailed"
+
+	disk_write:
+		label: Written
+		tab: Themes/Disk
+		control: color
+		path: disk.colors.write
+		default: "#ffcfdf"
+		group: theme
+		shown_when: "disk_mode = detailed"
+
+	disk_read:
+		label: Read
+		tab: Themes/Disk
+		control: color
+		path: disk.colors.read
+		default: "#ff4080"
+		group: theme
+		shown_when: "disk_mode = detailed"
+
+	DiskGradHead:
+		label: "Disk, by height"
+		tab: Themes/Disk
+		control: heading
+		shown_when: "disk_mode = gradient"
+
+	disk_low:
+		label: Low
+		tab: Themes/Disk
+		control: color
+		path: disk.colors.low
+		default: "#661a33"
+		group: theme
+		shown_when: "disk_mode = gradient"
+		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
+
+	disk_medium:
+		label: Medium
+		tab: Themes/Disk
+		control: color
+		path: disk.colors.medium
+		default: "#ff4080"
+		group: theme
+		shown_when: "disk_mode = gradient"
+		tip: "The color halfway up."
+
+	disk_high:
+		label: High
+		tab: Themes/Disk
+		control: color
+		path: disk.colors.high
+		default: "#ffcfdf"
+		group: theme
+		shown_when: "disk_mode = gradient"
+		tip: "The color at the top."
+
 	battery_mode:
 		label: Colors
 		tab: Themes/Battery
@@ -891,6 +1103,17 @@ groups:
 				zswap_high: "#ffe0ff"
 				zswap_used: "#ff80ff"
 				zswap_ratio: "#ffe0ff"
+				load_mode: detailed
+				load_low: "#1a6666"
+				load_medium: "#40ffff"
+				load_high: "#cfffff"
+				load_used: "#40ffff"
+				disk_mode: detailed
+				disk_low: "#661a33"
+				disk_medium: "#ff4080"
+				disk_high: "#ffcfdf"
+				disk_write: "#ffcfdf"
+				disk_read: "#ff4080"
 				battery_mode: detailed
 				battery_low: "#483468"
 				battery_medium: "#b080ff"
@@ -937,6 +1160,17 @@ groups:
 				zswap_high: "#ffc0ff"
 				zswap_used: "#ff00ff"
 				zswap_ratio: "#ffc0ff"
+				load_mode: detailed
+				load_low: "#660033"
+				load_medium: "#ff0080"
+				load_high: "#ffbfdf"
+				load_used: "#ff0080"
+				disk_mode: detailed
+				disk_low: "#336600"
+				disk_medium: "#80ff00"
+				disk_high: "#dfffbf"
+				disk_write: "#dfffbf"
+				disk_read: "#80ff00"
 				battery_mode: detailed
 				battery_low: "#205f5f"
 				battery_medium: "#00ffff"
@@ -983,6 +1217,17 @@ groups:
 				zswap_high: "#ffe0f0"
 				zswap_used: "#f0a1d0"
 				zswap_ratio: "#ffe0f0"
+				load_mode: detailed
+				load_low: "#5c8985"
+				load_medium: "#a1f0e9"
+				load_high: "#e8fbfa"
+				load_used: "#a1f0e9"
+				disk_mode: detailed
+				disk_low: "#5c5c89"
+				disk_medium: "#a1a1f0"
+				disk_high: "#e8e8fb"
+				disk_write: "#e8e8fb"
+				disk_read: "#a1a1f0"
 				battery_mode: detailed
 				battery_low: "#7e6a8a"
 				battery_medium: "#d0b0f0"
@@ -1029,6 +1274,17 @@ groups:
 				zswap_high: "#c8d4ff"
 				zswap_used: "#3060ff"
 				zswap_ratio: "#c8d4ff"
+				load_mode: detailed
+				load_low: "#006633"
+				load_medium: "#00ff80"
+				load_high: "#bfffdf"
+				load_used: "#00ff80"
+				disk_mode: detailed
+				disk_low: "#140066"
+				disk_medium: "#3300ff"
+				disk_high: "#ccbfff"
+				disk_write: "#ccbfff"
+				disk_read: "#3300ff"
 				battery_mode: detailed
 				battery_low: "#6a6400"
 				battery_medium: "#ffee00"
@@ -1075,6 +1331,17 @@ groups:
 				zswap_high: "#dcf0e0"
 				zswap_used: "#6fa07a"
 				zswap_ratio: "#dcf0e0"
+				load_mode: detailed
+				load_low: "#335b52"
+				load_medium: "#5aa090"
+				load_high: "#d6e7e3"
+				load_used: "#5aa090"
+				disk_mode: detailed
+				disk_low: "#3c4467"
+				disk_medium: "#6a78b4"
+				disk_high: "#daddec"
+				disk_write: "#daddec"
+				disk_read: "#6a78b4"
 				battery_mode: detailed
 				battery_low: "#4a4060"
 				battery_medium: "#a08ad0"
@@ -1121,6 +1388,17 @@ groups:
 				zswap_high: "#d0fff8"
 				zswap_used: "#20e0d0"
 				zswap_ratio: "#d0fff8"
+				load_mode: gradient
+				load_low: "#46660d"
+				load_medium: "#b0ff20"
+				load_high: "#ebffc7"
+				load_used: "#b0ff20"
+				disk_mode: gradient
+				disk_low: "#201366"
+				disk_medium: "#5030ff"
+				disk_high: "#d3cbff"
+				disk_write: "#d3cbff"
+				disk_read: "#5030ff"
 				battery_mode: gradient
 				battery_low: "#0a3a10"
 				battery_medium: "#20d040"

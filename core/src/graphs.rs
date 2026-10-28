@@ -10,7 +10,9 @@ use std::path::Path;
 use crate::battery::BatteryReader;
 use crate::config::Look;
 use crate::cpu::CpuReader;
+use crate::disk::DiskReader;
 use crate::keep;
+use crate::load::LoadReader;
 use crate::mem::{MemoryReader, SwapReader};
 use crate::net::NetReader;
 use crate::render::Overlay;
@@ -27,6 +29,10 @@ pub struct Graphs {
 	pub swap: Option<Graph<SwapReader, 1>>,
 	/// None when hidden, or on a box with neither zswap on nor zram set up.
 	pub zswap: Option<Graph<ZswapReader, 1>>,
+	/// None when hidden.
+	pub load: Option<Graph<LoadReader, 1>>,
+	/// None when hidden, or on a box with no disk.
+	pub disk: Option<Graph<DiskReader, 2>>,
 	/// None when hidden, or on a box with no battery in.
 	pub battery: Option<Graph<BatteryReader, 3>>,
 	/// Top to bottom, for a vertical panel.
@@ -51,18 +57,22 @@ enum Which {
 	Net,
 	Swap,
 	Zswap,
+	Load,
+	Disk,
 	Battery,
 }
 
 impl Which {
 	/// The order with nothing saved. Graphs a saved order leaves out go
 	/// last, in this order.
-	const ALL: [Which; 6] = [
+	const ALL: [Which; 8] = [
 		Which::Cpu,
 		Which::Mem,
 		Which::Net,
 		Which::Swap,
 		Which::Zswap,
+		Which::Load,
+		Which::Disk,
 		Which::Battery,
 	];
 
@@ -73,6 +83,8 @@ impl Which {
 			Which::Net => NetReader::SECTION,
 			Which::Swap => SwapReader::SECTION,
 			Which::Zswap => ZswapReader::SECTION,
+			Which::Load => LoadReader::SECTION,
+			Which::Disk => DiskReader::SECTION,
 			Which::Battery => BatteryReader::SECTION,
 		}
 	}
@@ -84,6 +96,8 @@ impl Which {
 			Which::Net => look.show_net,
 			Which::Swap => look.show_swap,
 			Which::Zswap => look.show_zswap,
+			Which::Load => look.show_load,
+			Which::Disk => look.show_disk,
 			Which::Battery => look.show_battery,
 		}
 	}
@@ -100,6 +114,8 @@ impl Which {
 			Which::Net => look.net_width,
 			Which::Swap => look.swap_width,
 			Which::Zswap => look.zswap_width,
+			Which::Load => look.load_width,
+			Which::Disk => look.disk_width,
 			Which::Battery => look.battery_width,
 		}
 	}
@@ -161,6 +177,7 @@ impl<S: Source<N>, const N: usize> Drawn for Graph<S, N> {
 		Graph::overlay(self, w, h, scale)
 	}
 	fn set_look(&mut self, look: &Look) {
+		self.src.follow(look);
 		look.clone_into(&mut self.look);
 	}
 }
@@ -235,6 +252,16 @@ impl Graphs {
 		} else {
 			None
 		};
+		let load = if look.show_load {
+			Graph::load_avg(look.clone())
+		} else {
+			None
+		};
+		let disk = if look.show_disk {
+			Graph::disk(look.clone())
+		} else {
+			None
+		};
 		let zswap = if look.show_zswap {
 			Graph::zswap(look.clone())
 		} else {
@@ -251,6 +278,8 @@ impl Graphs {
 			net,
 			swap,
 			zswap,
+			load,
+			disk,
 			battery,
 			stacked: false,
 			px: Vec::new(),
@@ -269,6 +298,8 @@ impl Graphs {
 			Which::Net => self.net.as_ref().map(|g| g as &dyn Drawn),
 			Which::Swap => self.swap.as_ref().map(|g| g as &dyn Drawn),
 			Which::Zswap => self.zswap.as_ref().map(|g| g as &dyn Drawn),
+			Which::Load => self.load.as_ref().map(|g| g as &dyn Drawn),
+			Which::Disk => self.disk.as_ref().map(|g| g as &dyn Drawn),
 			Which::Battery => self.battery.as_ref().map(|g| g as &dyn Drawn),
 		}
 	}
@@ -280,6 +311,8 @@ impl Graphs {
 			Which::Net => self.net.as_mut().map(|g| g as &mut dyn Drawn),
 			Which::Swap => self.swap.as_mut().map(|g| g as &mut dyn Drawn),
 			Which::Zswap => self.zswap.as_mut().map(|g| g as &mut dyn Drawn),
+			Which::Load => self.load.as_mut().map(|g| g as &mut dyn Drawn),
+			Which::Disk => self.disk.as_mut().map(|g| g as &mut dyn Drawn),
 			Which::Battery => self.battery.as_mut().map(|g| g as &mut dyn Drawn),
 		}
 	}
@@ -366,6 +399,14 @@ impl Graphs {
 			Graph::zswap(look.clone())
 		}) {
 			added.push(Which::Zswap);
+		}
+		if switch(&mut self.load, look.show_load, || {
+			Graph::load_avg(look.clone())
+		}) {
+			added.push(Which::Load);
+		}
+		if switch(&mut self.disk, look.show_disk, || Graph::disk(look.clone())) {
+			added.push(Which::Disk);
 		}
 		if switch(&mut self.battery, look.show_battery, || {
 			Graph::battery(look.clone())
@@ -550,6 +591,8 @@ impl Graphs {
 				Which::Zswap,
 				self.zswap.as_mut().map(|g| g as &mut dyn Drawn),
 			),
+			(Which::Load, self.load.as_mut().map(|g| g as &mut dyn Drawn)),
+			(Which::Disk, self.disk.as_mut().map(|g| g as &mut dyn Drawn)),
 			(
 				Which::Battery,
 				self.battery.as_mut().map(|g| g as &mut dyn Drawn),
@@ -1338,6 +1381,76 @@ mod tests {
 			.collect();
 		assert_eq!(names, ["cpu", "mem", "net", "swap"]);
 		std::fs::remove_file(&path).unwrap();
+	}
+
+	// Test ID: dej05
+	#[test]
+	fn load_and_disk_sit_after_swap_and_fill_to_their_peak() {
+		use crate::disk::Drives;
+		let path = scratch("load-disk");
+		let mut g = three();
+		let look = Look {
+			show_load: true,
+			show_disk: true,
+			disk_drives: vec!["nope".into()],
+			..g.look().clone()
+		};
+		let fresh = Graphs::new(Look::default());
+		assert!(fresh.load.is_none() && fresh.disk.is_none());
+		g.load = Some(Graph::with(look.clone(), LoadReader::default()));
+		let disk = DiskReader::new(look.drives()).unwrap();
+		g.disk = Some(Graph::with(look.clone(), disk));
+		g.set_look(look.clone(), None).unwrap();
+		let now = g.cpu.now();
+		g.load.as_mut().unwrap().hist.add(now - 60.0, now, &[0.5]);
+		// 1 MB/s written and 3 MB/s read, steady for a minute
+		g.disk
+			.as_mut()
+			.unwrap()
+			.hist
+			.add(now - 60.0, now, &[1e6, 3e6]);
+		assert_eq!(g.count(), 5);
+		let (w, h) = (100 + 4 * G, 10 + 2 * E);
+		let load = g.load.as_mut().unwrap().render(20, 10, 1).to_vec();
+		let disk = g.disk.as_mut().unwrap().render(20, 10, 1).to_vec();
+		let px = g.render(w, h, 1).to_vec();
+		sits(&px, w, &load, (60 + 3 * G, E, 20, 10));
+		sits(&px, w, &disk, (80 + 4 * G, E, 20, 10));
+		// a load of 0.5 never fills it, since the floor is the CPU count
+		let cpus = std::thread::available_parallelism().unwrap().get() as f32;
+		assert_eq!(g.load.as_ref().unwrap().peak.top(), cpus);
+		let top = g.disk.as_ref().unwrap().peak.top();
+		assert!((top - 4e6).abs() < 1.0, "{top}");
+		let bw = look.border as usize;
+		let ph = 10 - 2 * bw;
+		let row = |up: usize| disk[(bw + ph - 1 - up) * 20 + 10];
+		assert_eq!(row(0), look.disk[0].argb());
+		assert_eq!(row(ph - 1), look.disk[1].argb());
+		assert!(g.hover_tip(65 + 3 * G, 3, w, h, 1).contains("Load 0.50"));
+		assert!(
+			g.hover_tip(85 + 4 * G, 3, w, h, 1)
+				.contains("Read 3.0 MB/s  Write 1.0 MB/s")
+		);
+		g.save(&path).unwrap();
+		let names: Vec<String> = keep::read(&path)
+			.unwrap()
+			.into_iter()
+			.map(|(n, _)| n)
+			.collect();
+		assert_eq!(names, ["cpu", "mem", "swap", "load", "disk"]);
+		std::fs::remove_file(&path).unwrap();
+		// a new pick of drives takes a new reader, and the history stays
+		let picked = Look {
+			disk_drives: vec!["sda".into(), "nvme0n1".into()],
+			..look
+		};
+		g.set_look(picked, None).unwrap();
+		let disk = g.disk.as_ref().unwrap();
+		assert_eq!(
+			*disk.src.drives(),
+			Drives::Only(vec!["sda".into(), "nvme0n1".into()])
+		);
+		assert!(disk.hist.last().is_some());
 	}
 
 	// Test ID: dehy4

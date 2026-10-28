@@ -29,10 +29,12 @@ use battery::BatteryReader;
 use collect::Collector;
 use config::{Look, Rgb};
 use cpu::CpuReader;
+use disk::DiskReader;
 use history::History;
+use load::LoadReader;
 use mem::{MemoryReader, SwapReader};
 use net::NetReader;
-use render::{Frame, Paint, Peak};
+use render::{Frame, Paint, Peak, Scale};
 use when::Said;
 use zswap::ZswapReader;
 
@@ -53,7 +55,18 @@ pub trait Source<const N: usize>: Collector<N> {
 
 	/// Some for a source with no fixed top, such as bytes per second: the
 	/// least its peak goes down to. See [`render::Peak`].
-	const PEAK_FLOOR: Option<f32> = None;
+	fn peak_floor(&self) -> Option<f32> {
+		None
+	}
+
+	/// A log scale up the graph, for a source with a peak floor.
+	fn log_y(_look: &Look) -> bool {
+		false
+	}
+
+	/// Takes up a new look's settings for the reader itself, such as which
+	/// drives to count.
+	fn follow(&mut self, _look: &Look) {}
 }
 
 fn pc(x: f32) -> i32 {
@@ -188,8 +201,11 @@ fn per_sec(bytes: f32) -> String {
 impl Source<3> for NetReader {
 	const SECTION: &'static str = "net";
 	const TITLE: &'static str = "Network";
+
 	// so a quiet line's odd packet doesn't fill the graph
-	const PEAK_FLOOR: Option<f32> = Some(10_000.0);
+	fn peak_floor(&self) -> Option<f32> {
+		Some(10_000.0)
+	}
 
 	fn text(&self, v: &[f32; 3]) -> String {
 		format!(
@@ -206,6 +222,68 @@ impl Source<3> for NetReader {
 
 	fn timing(look: &Look) -> Timing {
 		look.timing(look.net_time)
+	}
+}
+
+impl Source<1> for LoadReader {
+	const SECTION: &'static str = "load";
+	const TITLE: &'static str = "Load";
+
+	fn text(&self, v: &[f32; 1]) -> String {
+		format!("Load {:.2}", v[0].max(0.0))
+	}
+
+	fn paint(look: &Look) -> Paint<'_, 1> {
+		look.load_paint()
+	}
+
+	fn timing(look: &Look) -> Timing {
+		look.timing(look.load_time)
+	}
+
+	// full at a load of one a CPU, as the CPU graph is at 100%
+	fn peak_floor(&self) -> Option<f32> {
+		static CPUS: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
+		Some(
+			*CPUS.get_or_init(|| {
+				std::thread::available_parallelism().map_or(1.0, |n| n.get() as f32)
+			}),
+		)
+	}
+}
+
+impl Source<2> for DiskReader {
+	const SECTION: &'static str = "disk";
+	const TITLE: &'static str = "Disk";
+
+	fn text(&self, v: &[f32; 2]) -> String {
+		format!("Disk\nRead {}  Write {}", per_sec(v[1]), per_sec(v[0]))
+	}
+
+	fn paint(look: &Look) -> Paint<'_, 2> {
+		look.disk_paint()
+	}
+
+	fn timing(look: &Look) -> Timing {
+		look.timing(look.disk_time)
+	}
+
+	// so a log file's odd flush doesn't fill the graph
+	fn peak_floor(&self) -> Option<f32> {
+		Some(100_000.0)
+	}
+
+	fn log_y(look: &Look) -> bool {
+		look.disk_log
+	}
+
+	fn follow(&mut self, look: &Look) {
+		let want = look.drives();
+		if *self.drives() != want
+			&& let Some(r) = DiskReader::new(want)
+		{
+			*self = r;
+		}
 	}
 }
 
@@ -258,6 +336,21 @@ impl Graph<NetReader, 3> {
 	/// None where `/proc/net/dev` can't be read.
 	pub fn net(look: Look) -> Option<Self> {
 		NetReader::probe().map(|src| Graph::with(look, src))
+	}
+}
+
+impl Graph<LoadReader, 1> {
+	/// None where `/proc/loadavg` can't be read.
+	pub fn load_avg(look: Look) -> Option<Self> {
+		LoadReader::probe().map(|src| Graph::with(look, src))
+	}
+}
+
+impl Graph<DiskReader, 2> {
+	/// None where `/proc/diskstats` can't be read, or with all disks picked
+	/// on a box that has none.
+	pub fn disk(look: Look) -> Option<Self> {
+		DiskReader::new(look.drives()).map(|src| Graph::with(look, src))
 	}
 }
 
@@ -448,7 +541,12 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		let slack = 2.0 * f64::from(self.look.sample_ms.max(50)) / 1000.0 + 0.25;
 		self.ease.update(&axis, basis, t, slack);
 		let mut px = std::mem::take(&mut self.px);
-		let peak = S::PEAK_FLOOR.map(|floor| (&mut self.peak, floor));
+		let log = S::log_y(&self.look);
+		let peak = self.src.peak_floor().map(|floor| Scale {
+			peak: &mut self.peak,
+			floor,
+			log,
+		});
 		Frame {
 			hist: &self.hist,
 			axis: &self.ease.view(&axis, t),
@@ -531,6 +629,28 @@ mod tests {
 			NetReader::default().text(&[2000.0, 30_000.0, 1.5e6]),
 			"Network\nReceived 1.5 MB/s  Sent 30 kB/s\nLocal 2.0 kB/s"
 		);
+	}
+
+	// Test ID: dej07
+	#[test]
+	fn load_reads_as_a_number_and_disk_in_rates() {
+		let load = LoadReader::default();
+		assert_eq!(load.text(&[1.254]), "Load 1.25");
+		assert_eq!(load.text(&[-1.0]), "Load 0.00");
+		let cpus = std::thread::available_parallelism().unwrap().get() as f32;
+		assert_eq!(load.peak_floor(), Some(cpus));
+		let disk = DiskReader::new(disk::Drives::Only(Vec::new())).unwrap();
+		assert_eq!(
+			disk.text(&[30_000.0, 1.5e6]),
+			"Disk\nRead 1.5 MB/s  Write 30 kB/s"
+		);
+		assert_eq!(disk.peak_floor(), Some(100_000.0));
+		let log = Look {
+			disk_log: true,
+			..Look::default()
+		};
+		assert!(DiskReader::log_y(&log) && !DiskReader::log_y(&Look::default()));
+		assert!(!LoadReader::log_y(&log) && NetReader::default().peak_floor().is_some());
 	}
 
 	// Test ID: defpr

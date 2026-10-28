@@ -598,8 +598,14 @@ mod tests {
 				"swap_time",
 				"zswap_width",
 				"zswap_time",
+				"load_width",
+				"load_time",
+				"disk_width",
+				"disk_time",
 				"battery_width",
-				"battery_time"
+				"battery_time",
+				"disk_drives",
+				"disk_log"
 			]
 		);
 		assert_eq!(ffi::greyed_rows(&mut d), want(&d));

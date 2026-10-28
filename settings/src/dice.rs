@@ -41,10 +41,12 @@ pub enum Part {
 	Battery = 3,
 	Zswap = 4,
 	Net = 5,
-	Back = 6,
+	Load = 6,
+	Disk = 7,
+	Back = 8,
 }
 
-const GRAPHS: usize = 6;
+const GRAPHS: usize = 8;
 
 /// Every member of the theme group, by graph and role. A member missing here
 /// gets no random value, and `dice::tests::every_theme_member_has_a_role`
@@ -83,6 +85,17 @@ pub const ROLES: &[(&str, Part, Role)] = &[
 	("net_low", Part::Net, Role::Calm),
 	("net_medium", Part::Net, Role::Lead),
 	("net_high", Part::Net, Role::Tint),
+	("load_mode", Part::Load, Role::Mode),
+	("load_used", Part::Load, Role::Lead),
+	("load_low", Part::Load, Role::Calm),
+	("load_medium", Part::Load, Role::Lead),
+	("load_high", Part::Load, Role::Tint),
+	("disk_mode", Part::Disk, Role::Mode),
+	("disk_write", Part::Disk, Role::Tint),
+	("disk_read", Part::Disk, Role::Lead),
+	("disk_low", Part::Disk, Role::Calm),
+	("disk_medium", Part::Disk, Role::Lead),
+	("disk_high", Part::Disk, Role::Tint),
 	("battery_mode", Part::Battery, Role::Mode),
 	("battery_charging", Part::Battery, Role::Lead),
 	("battery_discharging", Part::Battery, Role::Warn),
@@ -100,9 +113,9 @@ pub const ROLES: &[(&str, Part, Role)] = &[
 const LEAD_HUES: (f64, f64) = (75.0 / 360.0, 300.0 / 360.0);
 const ALARM_HUES: (f64, f64) = (-10.0 / 360.0, 2.0 / 360.0);
 const WARN_HUES: (f64, f64) = (18.0 / 360.0, 32.0 / 360.0);
-// The least gap between 2 graphs' lead hues. 6 of them at this gap leave
-// 45 degrees of the lead range to roll in.
-const LEAD_GAP: f64 = 36.0 / 360.0;
+// The least gap between 2 graphs' lead hues. 8 of them at this gap leave
+// 50 degrees of the lead range to roll in.
+const LEAD_GAP: f64 = 25.0 / 360.0;
 
 // splitmix64, so a seed always rolls the same theme
 struct Roll(u64);
@@ -312,6 +325,8 @@ mod tests {
 		Part::Battery,
 		Part::Zswap,
 		Part::Net,
+		Part::Load,
+		Part::Disk,
 	];
 
 	fn hsv_of(text: &str) -> Hsv {
@@ -486,8 +501,8 @@ mod tests {
 			let leads = PARTS.map(|p| role_of(&t, p, Role::Lead).h);
 			for (i, a) in leads.iter().enumerate() {
 				for b in &leads[i + 1..] {
-					// 36 apart as rolled, less a little for the hex round trip
-					assert!(hue_gap(*a, *b) >= 31.0 / 360.0, "{seed} {leads:?}");
+					// 25 apart as rolled, less a little for the hex round trip
+					assert!(hue_gap(*a, *b) >= 20.0 / 360.0, "{seed} {leads:?}");
 				}
 			}
 			cpu = (cpu.0.min(leads[0]), cpu.1.max(leads[0]));

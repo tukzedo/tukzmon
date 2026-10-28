@@ -396,37 +396,7 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: The zswap graph is in, 2026102618353002.
 		- 2026-10-26: Split into one child per graph not yet drawn: 2026102618353000 (swap), 2026102618353002 (zswap or zram), 2026102618353004 (network), 2026102618353006 (load), 2026102618353008 (disk), 2026102618353011 (temperature) and 2026102618353013 (battery). This closes with the last of them.
 	- 2026-10-28: the zswap and network graphs are in.
-
-- Load graph
-	- ID: 2026102618353006
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261026-183530
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013887
-	- Prereq IDs: 2026102618353004
-		- Shares the peak level the network graph brings, since load has no fixed top either.
-	- Related IDs: 2026102408512207
-	- Requirements:
-		- The 1 minute load, from the load collector.
-
-- Disk graph
-	- ID: 2026102618353008
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261026-183530
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013887
-	- Prereq IDs: 2026102618353004
-		- Shares the peak level the network graph brings.
-	- Related IDs: 2026102408512212
-	- Requirements:
-		- Write, read, from the disk collector.
-		- Auto-adjusts peak level.
-		- With optional logarithmic Y axis.
-		- Can choose all disks, or specific drives.
+	- 2026-10-28: the load and disk graphs are in, 2026102618353006 and 2026102618353008.
 
 - CPU temperature graph
 	- ID: 2026102618353011
@@ -630,6 +600,84 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Load graph
+	- ID: 2026102618353006
+	- Type: Feature
+	- Status: Done
+		- It departs from the wording in one way. It's off by default, so an existing panel doesn't grow wider. Turn it on in the graph list.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353004
+		- Shares the peak level the network graph brings, since load has no fixed top either.
+	- Related IDs: 2026102408512207, 2026102618353008
+	- Requirements:
+		- The 1 minute load, from the load collector.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The load graph draws the 1 minute load in one color. Its tip reads "Load 1.25". It has a row in the graph list, at `load.show`, `load.width` and `load.time`, and a Themes/Load sub-tab with Load, and Low, Medium and High.
+		- Its top is the highest load in view, eased down like the network's, and never under the number of CPUs.
+		- `graph.order` defaults to `cpu mem net swap zswap load disk battery`. Each built-in theme gives load a hue of its own, and Randomize rolls 8 lead hues, with disk's.
+		- `design.md` XFCE plugin, Theme and Drawing have the details.
+		- Verified: the full run passed. A test panel drew the load graph after CPU and memory.
+	- Decisions:
+		- Off by default, like the other graphs since memory.
+		- After zswap in the default order, as multiload-ng has load after swap.
+		- The floor is the CPU count, so a full graph means more work queued than CPUs, as a full CPU graph means every CPU busy. A floor of 1 fills the graph on any busy box with many CPUs.
+		- `Source::PEAK_FLOOR` is now `Source::peak_floor(&self)`, since the CPU count isn't a constant. Network's is unchanged.
+		- Built-in lead hues are at least 25 degrees apart, down from 30. 8 leads beside red and orange didn't fit at 30 without moving colors already there. Randomize's least gap is 25 degrees, down from 36, which leaves 50 degrees of play. Colors and the rest are in a Check in questions.md.
+	- Branch: round-1028
+	- Test case: `graphs::tests::load_and_disk_sit_after_swap_and_fill_to_their_peak` (dej05), `tests::load_reads_as_a_number_and_disk_in_rates` (dej07) and `live::tests::the_load_and_disk_rows_draw_at_their_own_width` (dej08). dej05 and dej07 fail with the floor at 1.
+		- 2026-10-28: new values only, for both graphs. deccf and deccw count 55 theme members, not 44. deccy counts 47 saved colors, not 38. dedqq's default order, and defkz's and defm0's orders, have `load disk` after `zswap`, and defm0's past-the-end move is 8, not 6. defma's rows greyed at defaults add `load_width`, `load_time`, `disk_width`, `disk_time`, `disk_drives` and `disk_log`. defx7 checks 8 lead colors at least 25 degrees apart, not 6 at 30. defxd's `PARTS` takes load and disk too, and its least gap is 20 degrees, not 31, for the 25 degree roll.
+		- 2026-10-28: dehzm's helper builds a `render::Scale` in place of the `(peak, floor)` pair. Its values are unchanged.
+		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 6 built-in themes, `dice::ROLES`, every `draw_to` caller, and every `PEAK_FLOOR` use. The profiler and soak test run with the defaults, so they don't draw load or disk.
+	- Acceptance signoff: Self-closed, 2026-10-28: a test panel drew the load graph. How the themes look together stays on 2026102620162201.
+	- Closed: 20261028-094724
+
+- Disk graph
+	- ID: 2026102618353008
+	- Type: Feature
+	- Status: Done
+		- It departs from the wording in one way. It's off by default, so an existing panel doesn't grow wider. Turn it on in the graph list.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353004
+		- Shares the peak level the network graph brings.
+	- Related IDs: 2026102408512212, 2026102618353006
+	- Requirements:
+		- Write, read, from the disk collector.
+		- Auto-adjusts peak level.
+		- With optional logarithmic Y axis.
+		- Can choose all disks, or specific drives.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The disk graph stacks written and read, from the bottom up, in bytes a second. Its tip reads "Disk", then "Read 1.5 MB/s  Write 30 kB/s". It has a row in the graph list, at `disk.show`, `disk.width` and `disk.time`, and a Themes/Disk sub-tab with Written, Read, and Low, Medium and High.
+		- Its top is the tallest stack in view, like the network's, and never under 100 kB/s.
+		- Under a Disk graph heading on the Graph tab, Disk drives at `disk.drives` takes `all`, the default, or drive names such as `sda nvme0n1`. Disk log scale, at `disk.log`, draws it on a log scale.
+		- `design.md` XFCE plugin, Theme and Drawing have the details.
+		- Verified: the full run passed. A test panel drew the disk graph after load on a log scale, and a 200 MB write showed as written. The settings window showed the Disk graph heading, its 2 rows and the Disk sub-tab.
+	- Decisions:
+		- Drives are typed as names in a text box, not ticked in a list, since the settings window has no list control. Check in questions.md.
+		- A new pick of drives takes a new reader at Apply and keeps the history, so the graph doesn't go blank.
+		- The log scale runs from a thousandth of the floor, 100 B/s, to the top, so 1 kB/s under a 4 MB/s top is about a fifth of the height. Written and read keep their shares of the column's log height.
+		- A floor of 100 kB/s, 10 times the network's, so a log file's flush doesn't fill the graph.
+		- Read leads with the disk's hue and written is its pale tint, like the network's received and sent.
+		- The test value changes and the hue gap are on 2026102618353006, since both graphs went in together.
+	- Branch: round-1028
+	- Test case: `render::tests::a_log_scale_lifts_a_trickle_and_keeps_the_shares` (dej06), `config::tests::the_disk_graph_counts_every_disk_or_the_ones_named` (dej09), and dej05, dej07 and dej08, shared with load. dej06 fails with the log scale ignored, dej05 with a new pick of drives ignored, and dej09 with `all` not read as every disk.
+		- Swept: as 2026102618353006. `Source::follow` is called from the one `Drawn::set_look`, which both `Graphs` and `Live` go through.
+	- Acceptance signoff: Self-closed, 2026-10-28: a test panel drew the disk graph on a log scale. How the themes look together stays on 2026102620162201.
+	- Closed: 20261028-094724
 
 - Network graph
 	- ID: 2026102618353004
