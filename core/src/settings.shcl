@@ -16,7 +16,7 @@
 ## default is the Default theme's value, and config::tests holds the two to
 ## each other.
 
-tabs: "Graph", "Themes", "Themes/CPU", "Themes/Memory", "Themes/Network", "Themes/Disk", "Themes/Temperature", "Themes/Swap", "Themes/Zswap", "Themes/Load", "Themes/Battery", "Themes/Background"
+tabs: "Graph", "Themes", "Themes/CPU", "Themes/Memory", "Themes/Network", "Themes/Disk", "Themes/Temperature", "Themes/Swap", "Themes/Zswap", "Themes/Load", "Themes/Battery", "Themes/tukzmon", "Themes/Background"
 
 settings:
 
@@ -448,14 +448,52 @@ settings:
 		default: same
 		tip: "How the battery graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
 
+	show_self:
+		label: tukzmon
+		tab: Graph
+		control: checkbox
+		path: self.show
+		default: false
+		tip: "Show how much of all the CPUs' time tukzmon itself takes. The top follows the highest use in view, but never goes under 1% of one CPU, so its usual small share still shows. On Wayland tukzmon runs inside the panel, so this is the whole panel's use, and the tip says so."
+
+	self_width:
+		label: tukzmon width %
+		tab: Graph
+		control: number
+		whole: true
+		range: 1, 1000
+		path: self.width
+		default: 25
+		tip: "How wide the tukzmon graph is, as a percentage of Width."
+
+	self_sample_ms:
+		label: tukzmon sample ms
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 60000
+		path: self.sample_ms
+		default: 0
+		tip: "How often the tukzmon graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+
+	self_time:
+		label: tukzmon time axis
+		tab: Graph
+		control: dropdown
+		options: same, linear, smooth, fixed_a, fixed_b
+		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: self.time
+		default: same
+		tip: "How the tukzmon graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
+
 	## The graph list's grippers write this, and it has no row of its own.
 	graph_order:
 		label: Order
 		tab: Graph
 		control: text
 		path: graph.order
-		default: "cpu mem net disk temp swap zswap load battery"
-		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, net for network, swap, zswap, load, disk, temp for temperature, and battery. One left out goes at the end."
+		default: "cpu mem net disk temp swap zswap load battery self"
+		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, net for network, swap, zswap, load, disk, temp for temperature, battery, and self for tukzmon itself. One left out goes at the end."
 
 	DiskHead:
 		label: Disk graph
@@ -1169,6 +1207,63 @@ settings:
 		shown_when: "battery_mode = gradient"
 		tip: "The color at the top."
 
+	self_mode:
+		label: Colors
+		tab: Themes/tukzmon
+		control: dropdown
+		shown_as: radio
+		options: detailed, gradient
+		option_labels: "Detailed", "Gradient"
+		path: self.mode
+		default: detailed
+		group: theme
+		tip: "Detailed draws tukzmon's CPU use in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	self_used:
+		label: CPU use
+		tab: Themes/tukzmon
+		control: color
+		path: self.colors.used
+		default: "#404bff"
+		group: theme
+		shown_when: "self_mode = detailed"
+
+	SelfGradHead:
+		label: "tukzmon, by height"
+		tab: Themes/tukzmon
+		control: heading
+		shown_when: "self_mode = gradient"
+
+	self_low:
+		label: Low
+		tab: Themes/tukzmon
+		control: color
+		path: self.colors.low
+		default: "#1a1e66"
+		group: theme
+		shown_when: "self_mode = gradient"
+		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
+
+	self_medium:
+		label: Medium
+		tab: Themes/tukzmon
+		control: color
+		path: self.colors.medium
+		default: "#404bff"
+		group: theme
+		shown_when: "self_mode = gradient"
+		tip: "The color halfway up."
+
+	self_high:
+		label: High
+		tab: Themes/tukzmon
+		control: color
+		path: self.colors.high
+		default: "#cfd2ff"
+		group: theme
+		shown_when: "self_mode = gradient"
+		tip: "The color at the top."
+
 	BackHead:
 		label: Background
 		tab: Themes/Background
@@ -1287,6 +1382,11 @@ groups:
 				battery_charging: "#b080ff"
 				battery_discharging: "#c64200"
 				battery_critical: "#ff0000"
+				self_mode: detailed
+				self_low: "#1a1e66"
+				self_medium: "#404bff"
+				self_high: "#cfd2ff"
+				self_used: "#404bff"
 				border_color: "#408060"
 				back_top: "#2a543f"
 				back_bottom: "#000000"
@@ -1349,6 +1449,11 @@ groups:
 				battery_charging: "#00ffff"
 				battery_discharging: "#c64200"
 				battery_critical: "#ff0000"
+				self_mode: detailed
+				self_low: "#000066"
+				self_medium: "#0000ff"
+				self_high: "#bfbfff"
+				self_used: "#0000ff"
 				border_color: "#606060"
 				back_top: "#2a2a2a"
 				back_bottom: "#000000"
@@ -1411,6 +1516,11 @@ groups:
 				battery_charging: "#d0b0f0"
 				battery_discharging: "#f09b71"
 				battery_critical: "#ff6161"
+				self_mode: detailed
+				self_low: "#60895c"
+				self_medium: "#a9f0a1"
+				self_high: "#eafbe8"
+				self_used: "#a9f0a1"
 				border_color: "#7f90a1"
 				back_top: "#3a424a"
 				back_bottom: "#0f1214"
@@ -1473,6 +1583,11 @@ groups:
 				battery_charging: "#ffee00"
 				battery_discharging: "#ff6a00"
 				battery_critical: "#ff0000"
+				self_mode: detailed
+				self_low: "#660061"
+				self_medium: "#ff00f2"
+				self_high: "#ffbffc"
+				self_used: "#ff00f2"
 				border_color: "#3a2a6a"
 				back_top: "#120a24"
 				back_bottom: "#000000"
@@ -1535,6 +1650,11 @@ groups:
 				battery_charging: "#a08ad0"
 				battery_discharging: "#d2691e"
 				battery_critical: "#d02818"
+				self_mode: detailed
+				self_low: "#3c5b33"
+				self_medium: "#6aa05a"
+				self_high: "#dae7d6"
+				self_used: "#6aa05a"
 				border_color: "#6a5a40"
 				back_top: "#2e261a"
 				back_bottom: "#0e0b07"
@@ -1597,6 +1717,11 @@ groups:
 				battery_charging: "#20d040"
 				battery_discharging: "#c64200"
 				battery_critical: "#ff0000"
+				self_mode: gradient
+				self_low: "#22660d"
+				self_medium: "#54ff20"
+				self_high: "#d4ffc7"
+				self_used: "#54ff20"
 				border_color: "#80401a"
 				back_top: "#3a1c0c"
 				back_bottom: "#000000"

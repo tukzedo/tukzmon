@@ -310,6 +310,8 @@ Sorted per the notes in [Template](#template).
 	- Reproduced: 2026-10-28, round-1028 at 17d3d9d, from the built-ins in `core/src/settings.shcl` and `dice::theme` seeds 0 to 1999.
 	- Possible cause: defx7 and defxd check hue angle only, at 25 and 17 degrees. An equal step in hue is far smaller to the eye among the greens than among the blues, and 9 graphs share the 225 degrees kept off red and orange, about 25 each.
 	- Test case: None yet. A check on a perceptual distance between every pair of leads, over each built-in and the roll seeds, would catch it.
+	- Progress log:
+		- 2026-10-28: 10 graphs share the range now, with the tukzmon graph, 2026102814061811. Its lead in each built-in is provisional, put in the widest hue gap left, so defx7's least gap went from 25 to 22 degrees. `dice::LEAD_GAP` is still 22, with 27 degrees of play.
 
 - Graph sizes on a vertical panel
 	- ID: 2026102621105420
@@ -384,17 +386,6 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- The current config is b23's `~/.config/tukzmon/tukzmon.shcl`, read by build defqn.
 
-- Pre-next-cut: A graph of tukzmon's own CPU use
-	- ID: 2026102814061811
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-140618
-	- Opened by: t00mietum
-	- Related IDs: 2026101916013887, 2026102814061812
-	- Requirements:
-		- Add a new monitor (last): % of total CPU used by tukzmon
-
 - Pre-next-cut: Less CPU used by tukzmon
 	- ID: 2026102814061812
 	- Type: Enhancement
@@ -407,6 +398,7 @@ Sorted per the notes in [Template](#template).
 		- Figure out how to minimize CPU overhead used by tukzmon
 	- Progress log:
 		- The profile from 2026-10-28 puts 67% of a tick in history lookups while drawing (`History::span`), and 15% in the /proc reads.
+		- 2026-10-28: the tukzmon graph, 2026102814061811, shows the CPU use in the panel. Before any change here, b23's plugin took 0.46% of one CPU.
 
 - An item's files go when it's removed from the panel
 	- ID: 2026102622311676
@@ -2230,6 +2222,41 @@ Sorted per the notes in [Template](#template).
 		- OK'd as proposed. `design.md` now lists it as settled.
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019
+
+- Pre-next-cut: A graph of tukzmon's own CPU use
+	- ID: 2026102814061811
+	- Type: Feature
+	- Status: Done
+	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013887, 2026102814061812, 2026102810142725
+	- Requirements:
+		- Add a new monitor (last): % of total CPU used by tukzmon
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A tukzmon graph, last in the default order, off by default, 25% wide. It's `self` in `graph.order` and the history file, with its row in the graph list and its own sub-tab under Themes.
+		- It reads the process's CPU time against the time between reads and the CPU count, so it's a share of all CPUs. The tip gives that and the share of one CPU, such as "tukzmon 0.014% of all CPUs" over "0.46% of one CPU".
+		- Every built-in theme has colors for it, and Randomize rolls it a lead hue of its own.
+		- `design.md` Data sources on Linux, Theme and Drawing, and the README's graph list, have it.
+		- Measured on b23: the live plugin's wrapper took 46 ms of CPU in 10 s, 0.46% of one CPU, 0.014% of all 32. Its main thread had 33.35 s of the wrapper's 33.37 s.
+		- Verified: the settings window showed the tukzmon row and its sub-tab with the CPU use color.
+	- Decisions:
+		- It measures the whole process tukzmon runs in. On X11 that's the panel's wrapper for this plugin alone, where the main thread has nearly all the time anyway, so per-thread time would add nothing. On Wayland it's the whole panel, other plugins included, and timing only tukzmon's own callbacks would miss GTK's drawing for it. So there the tip says Panel and adds "The whole panel, tukzmon in it".
+		- In the settings window's graph list it's the window's own use, named Settings window. Reading the panel's process from there would mean finding it by name, for a preview.
+		- `clock_gettime` on the process CPU clock, in ns, rather than `/proc/self/stat`, whose 10 ms ticks would read 0 most samples at this size. It's one call per read, with no file.
+		- A share of the CPUs the process can run on, the same count the load graph's floor uses, so 100% is every CPU busy.
+		- The top follows the peak in view but never goes under 1% of one CPU, so the usual few tenths show at about half height on any box. No log scale, since the tip has the number.
+		- The setting and section name is `self`, and in Rust it's `own`, since `self` is a keyword there. The label is tukzmon.
+		- The colors are provisional, put in the widest gap between each theme's 9 leads. Default's is indigo, `#404bff`. 2026102810142725 reworks all the leads right after this.
+		- `dice::LEAD_GAP` stays 22 degrees. 10 graphs at that gap leave 27 degrees of the range to roll in, so defxd needs no change.
+	- Branch: self-graph
+	- Test case: `own::tests::cpu_time_is_a_share_of_every_cpu` (dejb3), `the_host_is_named_from_the_process` (dejb4) and `live_cpu_time_reads_and_rises_with_work` (dejb5), `tests::own_use_reads_in_fine_percents_and_fills_at_a_hundredth_of_one_cpu` (dejb6), `graphs::tests::the_own_graph_sits_last_and_fills_at_a_hundredth_of_one_cpu` (dejb7) and `live::tests::the_own_row_draws_the_settings_window_at_its_own_width` (dejb8). Each fails with its part broken: the CPU count left out, the panel's name not known, a clock that doesn't move, the floor doubled, and the row's width left out.
+		- 2026-10-28: new values only, for 10 graphs. defx7's least hue gap between leads is 22 degrees, down from 25, and it lists `self_used` and `self`. deccf and deccw count 65 theme members, up from 60, and deccy 55 saved colors, up from 51. dedqq, defkz and defm0 have `self` last in their orders, and defm0 refuses a move to 10, not 9. deja1 lists `self`. dejac and dejad move tukzmon from last to first, where they moved Battery.
+		- Swept: every graph list in `Which`, `Graphs`, `Live`, `Look`, `settings.shcl`, `dice::ROLES` and its test parts, and the graph lists in `design.md` and the README. The plugin and qt.cpp go through `Graphs` and the spec, with no list of their own.
+	- Closed: 20261028-153600
 
 - Pre-next-cut: Tab order follows the graph order
 	- ID: 2026102814061802

@@ -710,13 +710,13 @@ mod tests {
 			.map(|&t| tabs[t].label.as_str())
 			.collect();
 		assert_eq!(lines, model);
-		assert_eq!(at("Battery") + 1, at("CPU"));
-		assert_eq!(at("Themes") + 1, at("Battery"));
+		assert_eq!(at("tukzmon") + 1, at("CPU"));
+		assert_eq!(at("Themes") + 1, at("tukzmon"));
 		assert_eq!(lines.last(), Some(&"Background"));
 		assert_eq!(lines.len(), tabs.len());
 		assert_eq!(shown[0].rows, shown[1 + at("Memory")].rows);
 		// Themes on its own shows the first tab under it, as listed now
-		assert_eq!(shown[1 + at("Themes")].rows, shown[1 + at("Battery")].rows);
+		assert_eq!(shown[1 + at("Themes")].rows, shown[1 + at("tukzmon")].rows);
 		assert_ne!(shown[1 + at("Themes")].rows, shown[1 + at("CPU")].rows);
 	}
 

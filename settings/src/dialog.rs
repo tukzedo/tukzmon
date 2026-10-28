@@ -786,6 +786,7 @@ mod tests {
 			"Zswap",
 			"Load",
 			"Battery",
+			"tukzmon",
 		];
 		let with = |graphs: &[&str]| -> Vec<String> {
 			["Graph", "Themes"]
@@ -800,7 +801,7 @@ mod tests {
 		assert!(dlg.move_graph(last, 0));
 		assert!(dlg.move_graph(2, 4));
 		let moved = [
-			"Battery",
+			"tukzmon",
 			"CPU",
 			"Network",
 			"Disk",
@@ -809,6 +810,7 @@ mod tests {
 			"Swap",
 			"Zswap",
 			"Load",
+			"Battery",
 		];
 		assert_eq!(labels(&dlg), with(&moved));
 		dlg.reset(ORDER);
@@ -861,7 +863,7 @@ mod tests {
 		assert_eq!(
 			names(&dlg),
 			[
-				"mem", "cpu", "net", "swap", "zswap", "load", "disk", "temp", "battery"
+				"mem", "cpu", "net", "swap", "zswap", "load", "disk", "temp", "battery", "self"
 			]
 		);
 		for id in [
@@ -891,18 +893,18 @@ mod tests {
 		let d = scratch("drag");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone());
-		assert!(!dlg.move_graph(0, 9));
+		assert!(!dlg.move_graph(0, 10));
 		assert!(!dlg.dirty());
 		assert!(dlg.move_graph(0, 1));
 		assert_eq!(
 			dlg.state(ORDER).text,
-			"mem cpu net disk temp swap zswap load battery"
+			"mem cpu net disk temp swap zswap load battery self"
 		);
 		dlg.apply().unwrap();
 		assert_eq!(
 			config::Look::load(&path).order,
 			[
-				"mem", "cpu", "net", "disk", "temp", "swap", "zswap", "load", "battery"
+				"mem", "cpu", "net", "disk", "temp", "swap", "zswap", "load", "battery", "self"
 			]
 		);
 		assert!(dlg.move_graph(1, 0));
@@ -911,7 +913,7 @@ mod tests {
 		assert!(dlg.move_graph(0, 1));
 		assert_eq!(
 			dlg.state(ORDER).text,
-			"cpu mem net swap zswap load disk temp battery nope"
+			"cpu mem net swap zswap load disk temp battery self nope"
 		);
 	}
 
@@ -1195,7 +1197,7 @@ mod tests {
 		dlg.apply().unwrap();
 		let text = std::fs::read_to_string(&path).unwrap();
 		assert!(text.contains("name: night"), "{text}");
-		assert_eq!(text.matches("\"#").count(), 51, "{text}");
+		assert_eq!(text.matches("\"#").count(), 55, "{text}");
 		assert!(!text.contains("kept"), "{text}");
 		let dlg = Dialog::open(path.clone());
 		assert_eq!(dlg.state("theme").choice, "Night");

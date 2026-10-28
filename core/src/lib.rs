@@ -15,6 +15,7 @@ pub mod keep;
 pub mod load;
 pub mod mem;
 pub mod net;
+pub mod own;
 pub mod render;
 pub mod temp;
 pub mod when;
@@ -34,6 +35,7 @@ use history::History;
 use load::LoadReader;
 use mem::{MemoryReader, SwapReader};
 use net::NetReader;
+use own::OwnReader;
 use render::{Frame, Paint, Peak, Scale};
 use temp::TempReader;
 use when::Said;
@@ -45,6 +47,12 @@ pub const FASTEST_MS: u32 = 50;
 /// A read due this soon counts as due now, since a timer may fire a little
 /// early. So the wait to the next read can be up to this much over the rate.
 pub const EARLY_MS: f64 = 10.0;
+
+/// The CPUs this process can run on, read once.
+pub(crate) fn cpus() -> f32 {
+	static CPUS: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
+	*CPUS.get_or_init(|| std::thread::available_parallelism().map_or(1.0, |n| n.get() as f32))
+}
 
 /// Milliseconds on one clock that every graph's beats go by. See
 /// [`Graph::tick`].
@@ -293,12 +301,7 @@ impl Source<1> for LoadReader {
 
 	// full at a load of one a CPU, as the CPU graph is at 100%
 	fn peak_floor(&self) -> Option<f32> {
-		static CPUS: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
-		Some(
-			*CPUS.get_or_init(|| {
-				std::thread::available_parallelism().map_or(1.0, |n| n.get() as f32)
-			}),
-		)
+		Some(cpus())
 	}
 }
 
@@ -368,6 +371,56 @@ impl Source<2> for TempReader {
 	// full at the critical level, and higher once it's over
 	fn peak_floor(&self) -> Option<f32> {
 		Some(self.limit())
+	}
+}
+
+// percent with 2 figures or so, since tukzmon's own share is often under 0.1
+fn fine_pc(p: f32) -> String {
+	let p = p.max(0.0);
+	if p >= 9.95 {
+		format!("{p:.0}%")
+	} else if p >= 0.995 {
+		format!("{p:.1}%")
+	} else if p >= 0.0995 {
+		format!("{p:.2}%")
+	} else {
+		format!("{p:.3}%")
+	}
+}
+
+impl Source<1> for OwnReader {
+	const SECTION: &'static str = "self";
+	const TITLE: &'static str = "tukzmon";
+
+	fn text(&self, v: &[f32; 1]) -> String {
+		let all = v[0] * 100.0;
+		let tip = format!(
+			"{} {} of all CPUs\n{} of one CPU",
+			self.host().name(),
+			fine_pc(all),
+			fine_pc(all * cpus())
+		);
+		match self.host() {
+			own::Host::Panel => format!("{tip}\nThe whole panel, tukzmon in it"),
+			_ => tip,
+		}
+	}
+
+	fn paint(look: &Look) -> Paint<'_, 1> {
+		look.self_paint()
+	}
+
+	fn timing(look: &Look) -> Timing {
+		look.timing(look.self_time)
+	}
+
+	fn sample_ms(look: &Look) -> u32 {
+		look.rate(look.self_sample_ms)
+	}
+
+	// full at 1% of one CPU, so its usual few tenths of that show
+	fn peak_floor(&self) -> Option<f32> {
+		Some(0.01 / cpus())
 	}
 }
 
@@ -445,6 +498,13 @@ impl Graph<TempReader, 2> {
 	/// None on a box with no CPU sensor it knows.
 	pub fn temp(look: Look) -> Option<Self> {
 		TempReader::probe().map(|src| Graph::with(look, src))
+	}
+}
+
+impl Graph<OwnReader, 1> {
+	/// None where the process's CPU time can't be read.
+	pub fn own(look: Look) -> Option<Self> {
+		OwnReader::probe().map(|src| Graph::with(look, src))
 	}
 }
 
@@ -750,6 +810,41 @@ mod tests {
 		};
 		assert!(DiskReader::log_y(&log) && !DiskReader::log_y(&Look::default()));
 		assert!(!LoadReader::log_y(&log) && NetReader::default().peak_floor().is_some());
+	}
+
+	// Test ID: dejb6
+	#[test]
+	fn own_use_reads_in_fine_percents_and_fills_at_a_hundredth_of_one_cpu() {
+		for (p, want) in [
+			(0.0, "0.000%"),
+			(-1.0, "0.000%"),
+			(f32::NAN, "0.000%"),
+			(0.0144, "0.014%"),
+			(0.0996, "0.10%"),
+			(0.46, "0.46%"),
+			(1.234, "1.2%"),
+			(9.96, "10%"),
+			(100.0, "100%"),
+		] {
+			assert_eq!(fine_pc(p), want, "{p}");
+		}
+		let mut own = OwnReader::default();
+		let one = 0.0046 / cpus();
+		assert_eq!(
+			own.text(&[one]),
+			format!(
+				"tukzmon {} of all CPUs\n0.46% of one CPU",
+				fine_pc(one * 100.0)
+			)
+		);
+		own.host = own::Host::Panel;
+		assert!(own.text(&[one]).starts_with("Panel "));
+		assert!(
+			own.text(&[one])
+				.ends_with("\nThe whole panel, tukzmon in it")
+		);
+		assert_eq!(own.peak_floor(), Some(0.01 / cpus()));
+		assert!(!OwnReader::log_y(&Look::default()));
 	}
 
 	// Test ID: dej0t
