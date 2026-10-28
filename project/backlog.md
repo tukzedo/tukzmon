@@ -22,58 +22,6 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- Check whether XFCE 4.20 finds plugins under ~/.local
-	- ID: 2026102808222920
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261028-082229
-	- Opened: 20261028-082229
-	- Opened by: t00mietum
-	- Related IDs: 2026102621053725
-	- Requirements: design.md XFCE plugin and README say XDG_DATA_DIRS and ~/.local aren't searched, so dev-install.bash needs sudo once. The 4.20.4 and 4.20.7 panel source pairs each XDG_DATA_DIRS entry and ~/.local/share with the lib dir under the same prefix, which on Debian is lib/x86_64-linux-gnu. Try ~/.local/share/xfce4/panel/plugins with ~/.local/lib/x86_64-linux-gnu/xfce4/panel/plugins on b23, and if it works, drop the sudo step and fix both docs.
-
-- Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
-	- ID: 2026102620162196
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261026-201621
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build defqn, on b23 as of 2026-10-26 20:16.
-	- Related IDs: 2026102408304599
-	- Incorrect behavior: Mouseover tip text: "x seconds ago" doesn't update with ticks, it seems to be stuck at whatever it was at first flyover.
-	- Note: Regular time format works though.
-	- Reproduced: 2026-10-26, in core with 2 days of history. A still pointer read "32 sec ago" over 4 ticks while its clock time went 20:59:13, :14, :15, :16, on a linear axis and on Smooth log.
-	- Actual cause:
-		- Each column of the graph is a fixed age, since the right edge is always now and the graph moves left under the pointer. So a still pointer's age holds, and its clock time moves on by a sample each tick. Both say the same thing about the column under the line.
-		- The tip is asked again each tick, so nothing is stale. The round-1024 test panel saw the age count, likely because its history was only seconds old, and a log axis stretches as its history grows.
-	- Progress log:
-		- Answered 2026-10-28: the line and tip stay on the column under the pointer. No behavior change. design.md Drawing says why a still pointer's age holds, and a test pins it.
-		- Verified: the quick gate passed, with the new test.
-	- Decisions:
-		- Not a bug: each column is a fixed age, so the age holds while the clock time moves on. Both describe the column under the line.
-	- Branch: round-1028
-	- Test case: `tests::a_still_pointer_keeps_its_age_while_its_clock_time_moves_on` (defz1). It pins existing behavior, so it passes before and after. No code changed.
-		- Swept: `hover_tip` and `span_at` are the only places the tip's time is made, and the settings window's live tip goes through the same `Graph::hover_tip`.
-	- Closed: 20261028-080400
-
-- Graph sizes on a vertical panel
-	- ID: 2026102621105420
-	- Type: Enhancement
-	- Status: Queued
-		- Waits on the question about the Width settings on a vertical panel.
-	- Priority|Severity: Avg
-	- Opened: 20261026-211054
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013889
-	- Related IDs: 2026102621053709, 2026102508393152
-	- Requirements:
-		- On a vertical panel, the Width settings either do something, or say they don't.
-	- Progress log:
-		- Each graph there is as wide as the panel and half that tall, and the Width tip still says "Its height follows the panel".
-	- 2026-10-28 answer: B. On a vertical panel or a deskbar, a graph's width setting is its height, as multiload-ng's Size does. The time axis still runs across the panel. dedq2's even-share line changes.
-
 - Theme presets, with a coordinated Default
 	- ID: 2026102409400679
 	- Type: Feature
@@ -368,39 +316,6 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-26: Several graphs side by side, and the graph list that picks them, are in since round-1025. The `.deb` is in since 2026102506591283.
 		- 2026-10-26: Split what's left into children: 2026102621053709 (vertical and deskbar panels), 2026102621053715 (a settings file per plugin instance), 2026102621053720 (Wayland), 2026102621053725 (Nix package), and 2026102621105420 (graph sizes on a vertical panel). This closes with the last of them.
 
-- The graphs
-	- ID: 2026101916013887
-	- Type: Feature
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261019-160138
-	- Opened by: t00mietum
-	- Prereq IDs: 2026101916013884
-	- Related IDs: 2026101916013883
-	- Requirements:
-		- CPU; with detail stacked from bottom to top: I/O wait, system, user, nice.
-		- Memory; with detail stacked from bottom to top: User, Buffer, Cache
-		- Network; Local, Sending, Receiving
-		- Swap; % used
-		- Zswap (or Zram etc.); % used, and a text number overlay for compression ratio, e.g. "2.1x"
-		- Load
-		- Disk; write, read
-			- Auto-adjusts peak level
-			- With optional logarithmic Y axis
-			- Can choose all disks, or specific drives.
-		- CPU Temperature; normal, critical on top of that when normal maxes out
-		- Battery; charging, discharging, discharging and critical level
-	- Progress log:
-		- CPU and memory draw. Every other source has a collector since round-1026.
-		- 2026-10-26: The swap and battery graphs are in, 2026102618353000 and 2026102618353013.
-		- 2026-10-28: The zswap graph is in, 2026102618353002.
-		- 2026-10-26: Split into one child per graph not yet drawn: 2026102618353000 (swap), 2026102618353002 (zswap or zram), 2026102618353004 (network), 2026102618353006 (load), 2026102618353008 (disk), 2026102618353011 (temperature) and 2026102618353013 (battery). This closes with the last of them.
-	- Test case: its children's tests, as each child lists them: swap 2026102618353000, zswap 2026102618353002, network 2026102618353004, load 2026102618353006, disk 2026102618353008, temperature 2026102618353011 and battery 2026102618353013.
-	- 2026-10-28: the zswap and network graphs are in.
-	- 2026-10-28: the load and disk graphs are in, 2026102618353006 and 2026102618353008.
-	- 2026-10-28: the temperature graph is in, 2026102618353011. It was the last child.
-	- 2026-10-28: closed, since every graph it lists draws and all 7 children are closed. How the colors look stays on 2026102620162201.
-
 - Color themes tab
 	- ID: 2026102408304612
 	- Type: Feature
@@ -436,27 +351,21 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Split into 6 children, in this order: 2026102409400679 (theme presets and Default), 2026102409400684 (Themes tab and its top row), 2026102409400689 (color picker), 2026102409400695 (Gradient mode and Fire), 2026102409400700 (Randomize), and 2026102409400705 (transparent background).
 
-- Live graph list on the first settings tab
-	- ID: 2026102408304639
-	- Type: Feature
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261024-082803
+- Graph sizes on a vertical panel
+	- ID: 2026102621105420
+	- Type: Enhancement
+	- Status: Queued
+		- Waits on the question about the Width settings on a vertical panel.
+	- Priority|Severity: Avg
+	- Opened: 20261026-211054
 	- Opened by: t00mietum
-	- Related IDs: 2026102408304586, 2026102408304612
+	- Parent ID: 2026101916013889
+	- Related IDs: 2026102621053709, 2026102508393152
 	- Requirements:
-		- Show a list of live graphs in the first tab of settings, arranged in vertical columns (even though the live graphs will be arranged horizontally if in a horizontal bar). With these columns:
-			- Checkmarks to enable/disable the monitor.
-			- A live graph. The longest graph defines the width of this column, so that the next elements are aligned.
-			- Virtual pixel width of the monitor (DPI-aware), text input box.
-			- Dropdown to select the time function.
-			- Dropdown to select the named theme.
-			- Grippers on the right to vertically reorder monitors with the mouse.
+		- On a vertical panel, the Width settings either do something, or say they don't.
 	- Progress log:
-		- Split into 6 children, in this order: 2026102508393152 (on or off and a width per graph), 2026102508393154 (order), 2026102508393156 (time function per graph), 2026102508393159 (theme per graph), 2026102508393161 (the list itself), and 2026102508393163 (live graphs in it).
-		- 2026-10-25: no theme dropdown per graph after all. One theme colors every graph, per the answer on 2026102508393159.
-	- Test case: its children's tests: dedqd, dedqe, dedqp, dedqq, deea2, deea4, dee9p, dee9q, defkz, defm0, defmj and defmk.
-	- 2026-10-28: closed, since all 6 children are Done.
+		- Each graph there is as wide as the panel and half that tall, and the Width tip still says "Its height follows the panel".
+	- 2026-10-28 answer: B. On a vertical panel or a deskbar, a graph's width setting is its height, as multiload-ng's Size does. The time axis still runs across the panel. dedq2's even-share line changes.
 
 - Pre-next-cut: Empty checkboxes need to be more visible
 	- ID: 2026102807585000
@@ -536,6 +445,17 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Today both files stay. The plugin doesn't connect the panel's `remove` signal, and free-data saves history after it.
 
+- Check whether XFCE 4.20 finds plugins under ~/.local
+	- ID: 2026102808222920
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261028-082229
+	- Opened: 20261028-082229
+	- Opened by: t00mietum
+	- Related IDs: 2026102621053725
+	- Requirements: design.md XFCE plugin and README say XDG_DATA_DIRS and ~/.local aren't searched, so dev-install.bash needs sudo once. The 4.20.4 and 4.20.7 panel source pairs each XDG_DATA_DIRS entry and ~/.local/share with the lib dir under the same prefix, which on Debian is lib/x86_64-linux-gnu. Try ~/.local/share/xfce4/panel/plugins with ~/.local/lib/x86_64-linux-gnu/xfce4/panel/plugins on b23, and if it works, drop the sudo step and fix both docs.
+
 - The panel's tick costs about a third more since the 50 ms history tier
 	- ID: 2026102618573801
 	- Type: Enhancement
@@ -590,6 +510,86 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
+	- ID: 2026102620162196
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build defqn, on b23 as of 2026-10-26 20:16.
+	- Related IDs: 2026102408304599
+	- Incorrect behavior: Mouseover tip text: "x seconds ago" doesn't update with ticks, it seems to be stuck at whatever it was at first flyover.
+	- Note: Regular time format works though.
+	- Reproduced: 2026-10-26, in core with 2 days of history. A still pointer read "32 sec ago" over 4 ticks while its clock time went 20:59:13, :14, :15, :16, on a linear axis and on Smooth log.
+	- Actual cause:
+		- Each column of the graph is a fixed age, since the right edge is always now and the graph moves left under the pointer. So a still pointer's age holds, and its clock time moves on by a sample each tick. Both say the same thing about the column under the line.
+		- The tip is asked again each tick, so nothing is stale. The round-1024 test panel saw the age count, likely because its history was only seconds old, and a log axis stretches as its history grows.
+	- Progress log:
+		- Answered 2026-10-28: the line and tip stay on the column under the pointer. No behavior change. design.md Drawing says why a still pointer's age holds, and a test pins it.
+		- Verified: the quick gate passed, with the new test.
+	- Decisions:
+		- Not a bug: each column is a fixed age, so the age holds while the clock time moves on. Both describe the column under the line.
+	- Branch: round-1028
+	- Test case: `tests::a_still_pointer_keeps_its_age_while_its_clock_time_moves_on` (defz1). It pins existing behavior, so it passes before and after. No code changed.
+		- Swept: `hover_tip` and `span_at` are the only places the tip's time is made, and the settings window's live tip goes through the same `Graph::hover_tip`.
+	- Closed: 20261028-080400
+
+- The graphs
+	- ID: 2026101916013887
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Prereq IDs: 2026101916013884
+	- Related IDs: 2026101916013883
+	- Requirements:
+		- CPU; with detail stacked from bottom to top: I/O wait, system, user, nice.
+		- Memory; with detail stacked from bottom to top: User, Buffer, Cache
+		- Network; Local, Sending, Receiving
+		- Swap; % used
+		- Zswap (or Zram etc.); % used, and a text number overlay for compression ratio, e.g. "2.1x"
+		- Load
+		- Disk; write, read
+			- Auto-adjusts peak level
+			- With optional logarithmic Y axis
+			- Can choose all disks, or specific drives.
+		- CPU Temperature; normal, critical on top of that when normal maxes out
+		- Battery; charging, discharging, discharging and critical level
+	- Progress log:
+		- CPU and memory draw. Every other source has a collector since round-1026.
+		- 2026-10-26: The swap and battery graphs are in, 2026102618353000 and 2026102618353013.
+		- 2026-10-28: The zswap graph is in, 2026102618353002.
+		- 2026-10-26: Split into one child per graph not yet drawn: 2026102618353000 (swap), 2026102618353002 (zswap or zram), 2026102618353004 (network), 2026102618353006 (load), 2026102618353008 (disk), 2026102618353011 (temperature) and 2026102618353013 (battery). This closes with the last of them.
+	- Test case: its children's tests, as each child lists them: swap 2026102618353000, zswap 2026102618353002, network 2026102618353004, load 2026102618353006, disk 2026102618353008, temperature 2026102618353011 and battery 2026102618353013.
+	- 2026-10-28: the zswap and network graphs are in.
+	- 2026-10-28: the load and disk graphs are in, 2026102618353006 and 2026102618353008.
+	- 2026-10-28: the temperature graph is in, 2026102618353011. It was the last child.
+	- 2026-10-28: closed, since every graph it lists draws and all 7 children are closed. How the colors look stays on 2026102620162201.
+
+- Live graph list on the first settings tab
+	- ID: 2026102408304639
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261024-082803
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304586, 2026102408304612
+	- Requirements:
+		- Show a list of live graphs in the first tab of settings, arranged in vertical columns (even though the live graphs will be arranged horizontally if in a horizontal bar). With these columns:
+			- Checkmarks to enable/disable the monitor.
+			- A live graph. The longest graph defines the width of this column, so that the next elements are aligned.
+			- Virtual pixel width of the monitor (DPI-aware), text input box.
+			- Dropdown to select the time function.
+			- Dropdown to select the named theme.
+			- Grippers on the right to vertically reorder monitors with the mouse.
+	- Progress log:
+		- Split into 6 children, in this order: 2026102508393152 (on or off and a width per graph), 2026102508393154 (order), 2026102508393156 (time function per graph), 2026102508393159 (theme per graph), 2026102508393161 (the list itself), and 2026102508393163 (live graphs in it).
+		- 2026-10-25: no theme dropdown per graph after all. One theme colors every graph, per the answer on 2026102508393159.
+	- Test case: its children's tests: dedqd, dedqe, dedqp, dedqq, deea2, deea4, dee9p, dee9q, defkz, defm0, defmj and defmk.
+	- 2026-10-28: closed, since all 6 children are Done.
 
 - CPU temperature graph
 	- ID: 2026102618353011
@@ -749,36 +749,6 @@ Sorted per the notes in [Template](#template).
 		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 6 built-in themes, `dice::ROLES`, and every `Frame` user. The profiler and soak test run with the defaults, so they don't draw network.
 	- Acceptance signoff: Self-closed, 2026-10-28: a test panel drew the network graph, filled to its peak. How the themes look together stays on 2026102620162201.
 	- Closed: 20261028-092801
-
-- Nix package build as a pipeline area
-	- ID: 2026102808222810
-	- Type: Task
-	- Status: Done
-	- Needs local test suite run?: No. The full run passed on 2026-10-28. It doesn't take the Nix step.
-	- Priority|Severity: Low
-	- Opened: 20261028-082228
-	- Opened: 20261028-082228
-	- Opened by: t00mietum
-	- Related IDs: 2026102621053725
-	- Requirements: an opt-in cicd area, such as `nix`, that builds the flake's package in a nixos/nix container and runs the panel check, so a new system library or a build.rs change that breaks it is caught. It fetches about 5 GB the first time, so it stays out of the default run unless a kept store makes it cheap.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- `cicd/cicd.bash --backlog-run-quick nix`, or `--long`, runs a Nix package step. `cicd/nix/check.bash` runs in `nixos/nix:2.35.4` and builds the flake's package with the workspace tests. It checks every library the plugin links resolves, and runs `tukzmon-settings --version`. Then it builds a NixOS system with the module, and nixpkgs' xfce4-panel has to load and embed the plugin from that system's path, on Xvfb.
-		- The store is a docker volume, `tukzmon-nix-<hash of the image pin>`, kept between runs. Past `NIX_STORE_CAP_MB` (12000) in `config.bash`, a run collects it down to what it used.
-		- `design.md` XFCE plugin has a line on it.
-		- Verified: the first run fetched about 5 GB and passed in 2m 40s. Later runs took about 1m 40s, mostly the package's own rebuild. With xfce4-panel left out of the rpath, the step failed at the plugin's tests. With the panel's config naming another plugin, it failed at the embed check. With the cap set to 1000 MB, it collected 5239 MB down to 4812, and the next run built only the package, fetching nothing else.
-	- Decisions:
-		- Opt-in, like Miri: only `--long` or the `nix` area. Even with a kept store each run rebuilds the package, about 1.5 minutes, and a fresh box fetches 5 GB.
-		- One volume, named for the image pin, so a new pin starts a fresh store and the old one is removed. The cap collects with keep-outputs and the last run's builds as roots, so what built the package stays and a collection doesn't mean another 5 GB.
-		- The container runs as its root, as nix there needs, so it gets a read-only copy of the tracked files and writes nothing to the run folder. The image stays between runs, like the volume.
-		- The step is skipped with a warning when there's no docker, as the other container steps fall back.
-		- The source is a path flake of the tracked files, so its `lastModified` follows file times, and any edit rebuilds the package. A git flake would cost a `.git` in the container. Left as is.
-		- The panel check uses the nixpkgs the flake locks, not a pinned revision as the first rig did, so it tests what the package was built with.
-		- Swept: the help's step and area lists, `--list` in each mode, the area check, and cleanup, which removes the run's labeled containers. Nothing else calls the step.
-	- Branch: round-1028
-	- Test case: the `nix` area of cicd.bash, run with `--backlog-run-quick nix`. It has no test ID, since it isn't a cargo test.
-	- Closed: 20261028-091315
 
 - Zswap or zram graph
 	- ID: 2026102618353002
@@ -2642,6 +2612,36 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
 	- Closed: 20261025-081952
+
+- Nix package build as a pipeline area
+	- ID: 2026102808222810
+	- Type: Task
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-28. It doesn't take the Nix step.
+	- Priority|Severity: Low
+	- Opened: 20261028-082228
+	- Opened: 20261028-082228
+	- Opened by: t00mietum
+	- Related IDs: 2026102621053725
+	- Requirements: an opt-in cicd area, such as `nix`, that builds the flake's package in a nixos/nix container and runs the panel check, so a new system library or a build.rs change that breaks it is caught. It fetches about 5 GB the first time, so it stays out of the default run unless a kept store makes it cheap.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- `cicd/cicd.bash --backlog-run-quick nix`, or `--long`, runs a Nix package step. `cicd/nix/check.bash` runs in `nixos/nix:2.35.4` and builds the flake's package with the workspace tests. It checks every library the plugin links resolves, and runs `tukzmon-settings --version`. Then it builds a NixOS system with the module, and nixpkgs' xfce4-panel has to load and embed the plugin from that system's path, on Xvfb.
+		- The store is a docker volume, `tukzmon-nix-<hash of the image pin>`, kept between runs. Past `NIX_STORE_CAP_MB` (12000) in `config.bash`, a run collects it down to what it used.
+		- `design.md` XFCE plugin has a line on it.
+		- Verified: the first run fetched about 5 GB and passed in 2m 40s. Later runs took about 1m 40s, mostly the package's own rebuild. With xfce4-panel left out of the rpath, the step failed at the plugin's tests. With the panel's config naming another plugin, it failed at the embed check. With the cap set to 1000 MB, it collected 5239 MB down to 4812, and the next run built only the package, fetching nothing else.
+	- Decisions:
+		- Opt-in, like Miri: only `--long` or the `nix` area. Even with a kept store each run rebuilds the package, about 1.5 minutes, and a fresh box fetches 5 GB.
+		- One volume, named for the image pin, so a new pin starts a fresh store and the old one is removed. The cap collects with keep-outputs and the last run's builds as roots, so what built the package stays and a collection doesn't mean another 5 GB.
+		- The container runs as its root, as nix there needs, so it gets a read-only copy of the tracked files and writes nothing to the run folder. The image stays between runs, like the volume.
+		- The step is skipped with a warning when there's no docker, as the other container steps fall back.
+		- The source is a path flake of the tracked files, so its `lastModified` follows file times, and any edit rebuilds the package. A git flake would cost a `.git` in the container. Left as is.
+		- The panel check uses the nixpkgs the flake locks, not a pinned revision as the first rig did, so it tests what the package was built with.
+		- Swept: the help's step and area lists, `--list` in each mode, the area check, and cleanup, which removes the run's labeled containers. Nothing else calls the step.
+	- Branch: round-1028
+	- Test case: the `nix` area of cicd.bash, run with `--backlog-run-quick nix`. It has no test ID, since it isn't a cargo test.
+	- Closed: 20261028-091315
 
 **Stop here for a next release**
 
