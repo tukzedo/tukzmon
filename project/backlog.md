@@ -2222,6 +2222,26 @@ Sorted per the notes in [Template](#template).
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019
 
+- The soak check fails since swap is on by default
+	- ID: 2026102816343100
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261028-163431
+	- Opened by: t00mietum
+	- Related IDs: 2026102814061800
+	- Steps to reproduce:
+		- `cicd/cicd.bash --backlog-run-full` on `dev` at `c958b7c`.
+	- Incorrect behavior: the Soak step fails dee6p: the heap grew from 5160110 to 5181582 bytes between round 9000 and round 18000.
+	- Expected behavior: the heap stops growing once the history is full.
+	- Reproduced: 2026-10-28, at `c958b7c` and at `ebd73a2`, so the faster history spans didn't cause it.
+	- Actual cause: the test, not the code. The soak skips the clock on the CPU and memory graphs only. Swap has been on by default since 2026102814061800, so it ran on the real clock and its history never filled.
+	- Actual fix: the soak skips swap's clock too.
+	- Branch: soak-swap
+	- Test case: dee6p itself, which passes again.
+		- Swept: the soak's other graphs are all off by default, so only swap was missed.
+	- Closed: 20261028-163500
+
 - Some graphs' lead colors nearly match
 	- ID: 2026102810142725
 	- Type: Bug

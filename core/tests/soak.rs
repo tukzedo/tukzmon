@@ -62,6 +62,10 @@ fn the_heap_stops_growing_once_the_history_is_full() {
 		if let Some(m) = &mut g.mem {
 			m.skip(STEP);
 		}
+		// on by default too, and left on the real clock its history never fills
+		if let Some(s) = &mut g.swap {
+			s.skip(STEP);
+		}
 		g.sample();
 		g.trim();
 		let x = round % w;
