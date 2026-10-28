@@ -13,7 +13,7 @@
 ## default is the Default theme's value, and config::tests holds the two to
 ## each other.
 
-tabs: "Graph", "Themes", "Themes/CPU", "Themes/Memory", "Themes/Swap", "Themes/Zswap", "Themes/Battery", "Themes/Background"
+tabs: "Graph", "Themes", "Themes/CPU", "Themes/Memory", "Themes/Network", "Themes/Swap", "Themes/Zswap", "Themes/Battery", "Themes/Background"
 
 settings:
 
@@ -173,6 +173,36 @@ settings:
 		gate: show_memory
 		tip: "How the memory graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
 
+	show_net:
+		label: Network graph
+		tab: Graph
+		control: checkbox
+		path: net.show
+		default: false
+		tip: "Show network traffic in bytes a second: local, which is the box talking to itself, then sent, then received, from the bottom up. The top follows the busiest moment in view, so the graph has no fixed scale. The tip gives the rates."
+
+	net_width:
+		label: Network width px
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 4096
+		path: net.width
+		default: 0
+		gate: show_net
+		tip: "How wide the network graph is, in the same pixels as Width. 0 uses Width."
+
+	net_time:
+		label: Network time axis
+		tab: Graph
+		control: dropdown
+		options: same, linear, smooth, fixed_a, fixed_b
+		option_labels: "As set under Time", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: net.time
+		default: same
+		gate: show_net
+		tip: "How the network graph spreads time across its width. As set under Time follows Log time axis and Log curve. Linear is a plain scrolling graph, and the log curves are the ones Log curve's tip describes."
+
 	show_swap:
 		label: Swap graph
 		tab: Graph
@@ -269,8 +299,8 @@ settings:
 		tab: Graph
 		control: text
 		path: graph.order
-		default: "cpu mem swap zswap battery"
-		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, swap, zswap and battery. One left out goes at the end."
+		default: "cpu mem net swap zswap battery"
+		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, net for network, swap, zswap and battery. One left out goes at the end."
 
 	HistoryHead:
 		label: History
@@ -477,6 +507,88 @@ settings:
 		default: "#ffffe0"
 		group: theme
 		shown_when: "mem_mode = gradient"
+		tip: "The color at the top."
+
+	net_mode:
+		label: Colors
+		tab: Themes/Network
+		control: dropdown
+		shown_as: radio
+		options: detailed, gradient
+		option_labels: "Detailed", "Gradient"
+		path: net.mode
+		default: detailed
+		group: theme
+		tip: "Detailed gives local, sent and received a color each. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	NetHead:
+		label: "Network, from the bottom up"
+		tab: Themes/Network
+		control: heading
+		shown_when: "net_mode = detailed"
+
+	net_local:
+		label: Local
+		tab: Themes/Network
+		control: color
+		path: net.colors.local
+		default: "#406020"
+		group: theme
+		shown_when: "net_mode = detailed"
+		tip: "Traffic the box sends itself, on the loopback device."
+
+	net_sent:
+		label: Sent
+		tab: Themes/Network
+		control: color
+		path: net.colors.sent
+		default: "#e0ffc0"
+		group: theme
+		shown_when: "net_mode = detailed"
+
+	net_received:
+		label: Received
+		tab: Themes/Network
+		control: color
+		path: net.colors.received
+		default: "#90ff40"
+		group: theme
+		shown_when: "net_mode = detailed"
+
+	NetGradHead:
+		label: "Network, by height"
+		tab: Themes/Network
+		control: heading
+		shown_when: "net_mode = gradient"
+
+	net_low:
+		label: Low
+		tab: Themes/Network
+		control: color
+		path: net.colors.low
+		default: "#406020"
+		group: theme
+		shown_when: "net_mode = gradient"
+		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
+
+	net_medium:
+		label: Medium
+		tab: Themes/Network
+		control: color
+		path: net.colors.medium
+		default: "#90ff40"
+		group: theme
+		shown_when: "net_mode = gradient"
+		tip: "The color halfway up."
+
+	net_high:
+		label: High
+		tab: Themes/Network
+		control: color
+		path: net.colors.high
+		default: "#e0ffc0"
+		group: theme
+		shown_when: "net_mode = gradient"
 		tip: "The color at the top."
 
 	swap_mode:
@@ -761,6 +873,13 @@ groups:
 				mem_user: "#ffff80"
 				mem_buffers: "#804080"
 				mem_cache: "#408060"
+				net_mode: detailed
+				net_low: "#406020"
+				net_medium: "#90ff40"
+				net_high: "#e0ffc0"
+				net_local: "#406020"
+				net_sent: "#e0ffc0"
+				net_received: "#90ff40"
 				swap_mode: detailed
 				swap_low: "#204a6a"
 				swap_medium: "#40a0ff"
@@ -800,6 +919,13 @@ groups:
 				mem_user: "#ffff00"
 				mem_buffers: "#604a20"
 				mem_cache: "#5f5f20"
+				net_mode: detailed
+				net_low: "#30205f"
+				net_medium: "#6000ff"
+				net_high: "#d0c0ff"
+				net_local: "#30205f"
+				net_sent: "#d0c0ff"
+				net_received: "#6000ff"
 				swap_mode: detailed
 				swap_low: "#20305f"
 				swap_medium: "#0060ff"
@@ -839,6 +965,13 @@ groups:
 				mem_user: "#f0e0a1"
 				mem_buffers: "#8a786a"
 				mem_cache: "#8a856a"
+				net_mode: detailed
+				net_low: "#7a8a6a"
+				net_medium: "#c8f0a1"
+				net_high: "#f0ffe0"
+				net_local: "#7a8a6a"
+				net_sent: "#f0ffe0"
+				net_received: "#c8f0a1"
 				swap_mode: detailed
 				swap_low: "#6a8a72"
 				swap_medium: "#a1f0b8"
@@ -878,6 +1011,13 @@ groups:
 				mem_user: "#00f0ff"
 				mem_buffers: "#10406a"
 				mem_cache: "#106a70"
+				net_mode: detailed
+				net_low: "#6a1040"
+				net_medium: "#ff1090"
+				net_high: "#ffc0e0"
+				net_local: "#6a1040"
+				net_sent: "#ffc0e0"
+				net_received: "#ff1090"
 				swap_mode: detailed
 				swap_low: "#4a1070"
 				swap_medium: "#b026ff"
@@ -917,6 +1057,13 @@ groups:
 				mem_user: "#e0c080"
 				mem_buffers: "#6a4a3a"
 				mem_cache: "#5f5a3a"
+				net_mode: detailed
+				net_low: "#5a3a50"
+				net_medium: "#b06a9a"
+				net_high: "#f0dce8"
+				net_local: "#5a3a50"
+				net_sent: "#f0dce8"
+				net_received: "#b06a9a"
 				swap_mode: detailed
 				swap_low: "#34505a"
 				swap_medium: "#6aa0b4"
@@ -956,6 +1103,13 @@ groups:
 				mem_user: "#c060ff"
 				mem_buffers: "#5a2a4a"
 				mem_cache: "#4a2a6a"
+				net_mode: gradient
+				net_low: "#48102a"
+				net_medium: "#ff40a0"
+				net_high: "#ffd0e8"
+				net_local: "#48102a"
+				net_sent: "#ffd0e8"
+				net_received: "#ff40a0"
 				swap_mode: gradient
 				swap_low: "#0a1050"
 				swap_medium: "#2060ff"

@@ -387,6 +387,11 @@ pub struct Look {
 	/// 0 is `width`.
 	pub zswap_width: u32,
 	pub zswap_time: Option<Timing>,
+	/// Draw the network graph.
+	pub show_net: bool,
+	/// 0 is `width`.
+	pub net_width: u32,
+	pub net_time: Option<Timing>,
 	/// Draw the battery graph, where the box has a battery in.
 	pub show_battery: bool,
 	/// 0 is `width`.
@@ -406,6 +411,10 @@ pub struct Look {
 	pub zswap_gradient: [Rgb; 3],
 	/// The compression ratio written over the zswap graph.
 	pub zswap_ratio: Rgb,
+	/// In `net::NetReader::SERIES` order.
+	pub net: [Rgb; 3],
+	pub net_mode: Mode,
+	pub net_gradient: [Rgb; 3],
 	/// In `battery::BatteryReader::SERIES` order.
 	pub battery: [Rgb; 3],
 	pub battery_mode: Mode,
@@ -470,6 +479,9 @@ impl Look {
 			show_zswap: m.value("show_zswap", &NoEnv).as_bool(),
 			zswap_width: num("zswap_width") as u32,
 			zswap_time: Timing::parse(m.value("zswap_time", &NoEnv).as_text()),
+			show_net: m.value("show_net", &NoEnv).as_bool(),
+			net_width: num("net_width") as u32,
+			net_time: Timing::parse(m.value("net_time", &NoEnv).as_text()),
 			show_battery: m.value("show_battery", &NoEnv).as_bool(),
 			battery_width: num("battery_width") as u32,
 			battery_time: Timing::parse(m.value("battery_time", &NoEnv).as_text()),
@@ -488,6 +500,9 @@ impl Look {
 				color("zswap_high"),
 			],
 			zswap_ratio: color("zswap_ratio"),
+			net: [color("net_local"), color("net_sent"), color("net_received")],
+			net_mode: Mode::parse(m.value("net_mode", &NoEnv).as_text()).unwrap_or_default(),
+			net_gradient: [color("net_low"), color("net_medium"), color("net_high")],
 			battery: [
 				color("battery_charging"),
 				color("battery_discharging"),
@@ -533,6 +548,13 @@ impl Look {
 		match self.zswap_mode {
 			Mode::Detailed => Paint::Stack(&self.zswap),
 			Mode::Gradient => Paint::Gradient(self.zswap_gradient),
+		}
+	}
+
+	pub fn net_paint(&self) -> Paint<'_, 3> {
+		match self.net_mode {
+			Mode::Detailed => Paint::Stack(&self.net),
+			Mode::Gradient => Paint::Gradient(self.net_gradient),
 		}
 	}
 
@@ -696,7 +718,7 @@ mod tests {
 	fn the_default_theme_is_the_row_defaults() {
 		let spec = spec();
 		let g = spec.group(THEME).unwrap();
-		assert_eq!(g.members.len(), 37);
+		assert_eq!(g.members.len(), 44);
 		let default = g.preset("default").unwrap();
 		assert_eq!(default.label, "Default");
 		for id in &g.members {
@@ -959,10 +981,11 @@ mod tests {
 				"mem_user",
 				"swap_used",
 				"zswap_used",
+				"net_received",
 				"battery_charging",
 			]
 			.map(rgb);
-			let ramps = ["cpu", "mem", "swap", "zswap", "battery"].map(ramp);
+			let ramps = ["cpu", "mem", "swap", "zswap", "net", "battery"].map(ramp);
 			for a in 0..leads.len() {
 				for b in a + 1..leads.len() {
 					let gap = (hue(leads[a]) - hue(leads[b])).abs();
@@ -1043,7 +1066,7 @@ mod tests {
 	fn the_graph_order_reads_with_spaces_or_commas() {
 		assert_eq!(
 			Look::default().order,
-			["cpu", "mem", "swap", "zswap", "battery"]
+			["cpu", "mem", "net", "swap", "zswap", "battery"]
 		);
 		for text in [
 			"graph:\n\torder: mem cpu\n",
@@ -1135,7 +1158,7 @@ mod tests {
 			"themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n",
 		));
 		assert_eq!(t[0].name, "Say \"hi\"");
-		assert_eq!(t[0].colors.len(), 37);
+		assert_eq!(t[0].colors.len(), 44);
 		t.push(SavedTheme {
 			key: theme_key("Default", &t),
 			name: "Default".into(),

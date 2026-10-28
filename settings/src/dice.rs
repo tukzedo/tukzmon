@@ -40,10 +40,11 @@ pub enum Part {
 	Swap = 2,
 	Battery = 3,
 	Zswap = 4,
-	Back = 5,
+	Net = 5,
+	Back = 6,
 }
 
-const GRAPHS: usize = 5;
+const GRAPHS: usize = 6;
 
 /// Every member of the theme group, by graph and role. A member missing here
 /// gets no random value, and `dice::tests::every_theme_member_has_a_role`
@@ -75,6 +76,13 @@ pub const ROLES: &[(&str, Part, Role)] = &[
 	("zswap_low", Part::Zswap, Role::Calm),
 	("zswap_medium", Part::Zswap, Role::Lead),
 	("zswap_high", Part::Zswap, Role::Tint),
+	("net_mode", Part::Net, Role::Mode),
+	("net_local", Part::Net, Role::Calm),
+	("net_sent", Part::Net, Role::Tint),
+	("net_received", Part::Net, Role::Lead),
+	("net_low", Part::Net, Role::Calm),
+	("net_medium", Part::Net, Role::Lead),
+	("net_high", Part::Net, Role::Tint),
 	("battery_mode", Part::Battery, Role::Mode),
 	("battery_charging", Part::Battery, Role::Lead),
 	("battery_discharging", Part::Battery, Role::Warn),
@@ -92,9 +100,9 @@ pub const ROLES: &[(&str, Part, Role)] = &[
 const LEAD_HUES: (f64, f64) = (75.0 / 360.0, 300.0 / 360.0);
 const ALARM_HUES: (f64, f64) = (-10.0 / 360.0, 2.0 / 360.0);
 const WARN_HUES: (f64, f64) = (18.0 / 360.0, 32.0 / 360.0);
-// The least gap between 2 graphs' lead hues. 5 of them at this gap leave
+// The least gap between 2 graphs' lead hues. 6 of them at this gap leave
 // 45 degrees of the lead range to roll in.
-const LEAD_GAP: f64 = 45.0 / 360.0;
+const LEAD_GAP: f64 = 36.0 / 360.0;
 
 // splitmix64, so a seed always rolls the same theme
 struct Roll(u64);
@@ -297,7 +305,14 @@ mod tests {
 	use knobs::Value;
 	use tukzmon_core::config::{self, Rgb, THEME};
 
-	const PARTS: [Part; GRAPHS] = [Part::Cpu, Part::Mem, Part::Swap, Part::Battery, Part::Zswap];
+	const PARTS: [Part; GRAPHS] = [
+		Part::Cpu,
+		Part::Mem,
+		Part::Swap,
+		Part::Battery,
+		Part::Zswap,
+		Part::Net,
+	];
 
 	fn hsv_of(text: &str) -> Hsv {
 		pick::from_rgb(Rgb::parse(text).unwrap(), Hsv::default())
@@ -471,8 +486,8 @@ mod tests {
 			let leads = PARTS.map(|p| role_of(&t, p, Role::Lead).h);
 			for (i, a) in leads.iter().enumerate() {
 				for b in &leads[i + 1..] {
-					// 45 apart as rolled, less a little for the hex round trip
-					assert!(hue_gap(*a, *b) >= 40.0 / 360.0, "{seed} {leads:?}");
+					// 36 apart as rolled, less a little for the hex round trip
+					assert!(hue_gap(*a, *b) >= 31.0 / 360.0, "{seed} {leads:?}");
 				}
 			}
 			cpu = (cpu.0.min(leads[0]), cpu.1.max(leads[0]));

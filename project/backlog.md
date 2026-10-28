@@ -396,20 +396,6 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: The zswap graph is in, 2026102618353002.
 		- 2026-10-26: Split into one child per graph not yet drawn: 2026102618353000 (swap), 2026102618353002 (zswap or zram), 2026102618353004 (network), 2026102618353006 (load), 2026102618353008 (disk), 2026102618353011 (temperature) and 2026102618353013 (battery). This closes with the last of them.
 
-- Network graph
-	- ID: 2026102618353004
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261026-183530
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013887
-	- Prereq IDs: 2026102618353000
-	- Related IDs: 2026102408512202, 2026101916013883
-	- Requirements:
-		- Local, sending, receiving, from the network collector.
-		- A peak level that adjusts itself, since bytes per second has no fixed top.
-
 - Load graph
 	- ID: 2026102618353006
 	- Type: Feature
@@ -643,6 +629,47 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Network graph
+	- ID: 2026102618353004
+	- Type: Feature
+	- Status: Done
+		- It departs from the wording in one way. It's off by default, so an existing panel doesn't grow wider. Turn it on in the graph list.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Priority|Severity: High
+	- Opened: 20261026-183530
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026101916013887
+	- Prereq IDs: 2026102618353000
+	- Related IDs: 2026102408512202, 2026101916013883
+	- Requirements:
+		- Local, sending, receiving, from the network collector.
+		- A peak level that adjusts itself, since bytes per second has no fixed top.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The network graph stacks local, sent and received, from the bottom up, in bytes a second. Its tip reads "Network", then "Received 1.5 MB/s  Sent 30 kB/s", then "Local 2.0 kB/s". It has a row in the graph list, at `net.show`, `net.width` and `net.time`, and a Themes/Network sub-tab with Local, Sent, Received, and Low, Medium and High.
+		- The top is the tallest stack in view. It jumps up at once and eases down over about 2 s, and never goes under 10 kB/s. `render::Peak` and `Source::PEAK_FLOOR` have it, so the load and disk graphs only need a floor.
+		- `graph.order` defaults to `cpu mem net swap zswap battery`. Each built-in theme gives received a hue of its own, and Randomize rolls 6 lead hues.
+		- `design.md` XFCE plugin, Theme, Time axis and Drawing have the details.
+		- Verified: the full run passed. A test panel drew the network graph after CPU and memory, filled to its peak, and a burst of loopback traffic showed as local and filled the plot as it aged left.
+	- Decisions:
+		- Off by default, like swap and zswap, so a panel doesn't widen on upgrade.
+		- After memory in the default order, as multiload-ng has it.
+		- Up at once and down eased, so a new peak is never cut off. The fall goes by the newest sample's time, so it costs no extra frames.
+		- A floor of 10 kB/s, so the odd packet on a quiet line doesn't fill the graph.
+		- Decimal units, as a download usually shows them.
+		- Sent is the pale tint and local the muted color, like the gradient's High and Low, so Randomize needs no new role.
+		- Randomize's least gap between lead hues is 36 degrees, down from 45, since 6 hues at 45 leave no play in the range. Colors and the rest are in a Check in questions.md.
+		- The LAN and internet split stays on 2026101916274800.
+	- Branch: round-1028
+	- Test case: `render::tests::a_peak_jumps_up_and_eases_down_to_whats_in_view` (dehzk), `a_graph_with_no_fixed_top_fills_to_its_peak_or_floor` (dehzm), `tests::network_rates_read_in_decimal_units` (dehzn), `graphs::tests::net_sits_after_memory_and_fills_to_its_peak` (dehzp), and `live::tests::the_net_row_draws_at_its_own_width` (dehzq). dehzm and dehzp fail with the peak ignored and the top left at 1.
+		- 2026-10-28: new values only. deccf and deccw count 44 theme members, not 37. deccy counts 38 saved colors, not 32. dedqq's default order, and defkz's and defm0's orders, have `net` after `mem`, and defm0's past-the-end move is 6, not 5. defma's rows greyed at defaults add `net_width` and `net_time`. defx7 checks 6 lead colors, not 5. defxd's `PARTS` takes net too, and its least gap is 31 degrees, not 40, for the 36 degree roll.
+		- 2026-10-28: defm0 used `net` as a name it doesn't know. That's a graph now, so it uses `nope`.
+		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 6 built-in themes, `dice::ROLES`, and every `Frame` user. The profiler and soak test run with the defaults, so they don't draw network.
+	- Acceptance signoff: Self-closed, 2026-10-28: a test panel drew the network graph, filled to its peak. How the themes look together stays on 2026102620162201.
+	- Closed: 20261028-092801
 
 - Nix package build as a pipeline area
 	- ID: 2026102808222810

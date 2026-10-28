@@ -9,6 +9,7 @@ use tukzmon_core::config::Look;
 use tukzmon_core::cpu::CpuReader;
 use tukzmon_core::graphs::{self, Drawn};
 use tukzmon_core::mem::{MemoryReader, SwapReader};
+use tukzmon_core::net::NetReader;
 use tukzmon_core::render::Overlay;
 use tukzmon_core::zswap::ZswapReader;
 use tukzmon_core::{Graph, Source};
@@ -17,6 +18,7 @@ pub struct Live {
 	cpu: Graph,
 	/// None on a box where memory can't be read.
 	mem: Option<Graph<MemoryReader, 3>>,
+	net: Option<Graph<NetReader, 3>>,
 	/// None on a box with no swap.
 	swap: Option<Graph<SwapReader, 1>>,
 	/// None on a box with neither zswap on nor zram set up.
@@ -29,6 +31,7 @@ impl Live {
 	pub fn new(look: Look) -> Live {
 		Live {
 			mem: Graph::memory(look.clone()),
+			net: Graph::net(look.clone()),
 			swap: Graph::swap(look.clone()),
 			zswap: Graph::zswap(look.clone()),
 			battery: Graph::battery(look.clone()),
@@ -40,6 +43,7 @@ impl Live {
 		match name {
 			CpuReader::SECTION => Some(&self.cpu),
 			MemoryReader::SECTION => self.mem.as_ref().map(|g| g as &dyn Drawn),
+			NetReader::SECTION => self.net.as_ref().map(|g| g as &dyn Drawn),
 			SwapReader::SECTION => self.swap.as_ref().map(|g| g as &dyn Drawn),
 			ZswapReader::SECTION => self.zswap.as_ref().map(|g| g as &dyn Drawn),
 			BatteryReader::SECTION => self.battery.as_ref().map(|g| g as &dyn Drawn),
@@ -51,6 +55,7 @@ impl Live {
 		match name {
 			CpuReader::SECTION => Some(&mut self.cpu),
 			MemoryReader::SECTION => self.mem.as_mut().map(|g| g as &mut dyn Drawn),
+			NetReader::SECTION => self.net.as_mut().map(|g| g as &mut dyn Drawn),
 			SwapReader::SECTION => self.swap.as_mut().map(|g| g as &mut dyn Drawn),
 			ZswapReader::SECTION => self.zswap.as_mut().map(|g| g as &mut dyn Drawn),
 			BatteryReader::SECTION => self.battery.as_mut().map(|g| g as &mut dyn Drawn),
@@ -63,6 +68,10 @@ impl Live {
 			(
 				MemoryReader::SECTION,
 				self.mem.as_mut().map(|g| g as &mut dyn Drawn),
+			),
+			(
+				NetReader::SECTION,
+				self.net.as_mut().map(|g| g as &mut dyn Drawn),
 			),
 			(
 				SwapReader::SECTION,
@@ -112,6 +121,7 @@ impl Live {
 		let own = match name {
 			CpuReader::SECTION => l.cpu_width,
 			MemoryReader::SECTION => l.mem_width,
+			NetReader::SECTION => l.net_width,
 			SwapReader::SECTION => l.swap_width,
 			ZswapReader::SECTION => l.zswap_width,
 			BatteryReader::SECTION => l.battery_width,
@@ -362,5 +372,27 @@ mod tests {
 		assert_eq!(live.render("zswap", 50, 24, 1).len(), 50 * 24);
 		let tip = live.tip("zswap");
 		assert!(tip.starts_with("Zswap") || tip.starts_with("Zram"), "{tip}");
+	}
+
+	// Test ID: dehzq
+	#[test]
+	fn the_net_row_draws_at_its_own_width() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_live_net_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let mut live = Live::new(d.look());
+		assert!(live.net.is_some(), "every Linux box has /proc/net/dev");
+		live.sample();
+		std::thread::sleep(std::time::Duration::from_millis(30));
+		live.sample();
+		assert!(!d.look().show_net);
+		d.set("net_width", &Value::Float(60.0));
+		live.set_look(&d.look());
+		assert_eq!(live.width("net"), 60);
+		assert_eq!(live.render("net", 60, 24, 1).len(), 60 * 24);
+		let tip = live.tip("net");
+		assert!(tip.starts_with("Network"), "{tip}");
 	}
 }

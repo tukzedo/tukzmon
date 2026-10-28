@@ -12,6 +12,7 @@ use crate::config::Look;
 use crate::cpu::CpuReader;
 use crate::keep;
 use crate::mem::{MemoryReader, SwapReader};
+use crate::net::NetReader;
 use crate::render::Overlay;
 use crate::zswap::ZswapReader;
 use crate::{Graph, Source};
@@ -20,6 +21,8 @@ pub struct Graphs {
 	pub cpu: Graph,
 	/// None when hidden, or on a box where memory can't be read.
 	pub mem: Option<Graph<MemoryReader, 3>>,
+	/// None when hidden.
+	pub net: Option<Graph<NetReader, 3>>,
 	/// None when hidden, or on a box with no swap.
 	pub swap: Option<Graph<SwapReader, 1>>,
 	/// None when hidden, or on a box with neither zswap on nor zram set up.
@@ -45,6 +48,7 @@ pub const GAP: u32 = 2 * EDGE;
 enum Which {
 	Cpu,
 	Mem,
+	Net,
 	Swap,
 	Zswap,
 	Battery,
@@ -53,9 +57,10 @@ enum Which {
 impl Which {
 	/// The order with nothing saved. Graphs a saved order leaves out go
 	/// last, in this order.
-	const ALL: [Which; 5] = [
+	const ALL: [Which; 6] = [
 		Which::Cpu,
 		Which::Mem,
+		Which::Net,
 		Which::Swap,
 		Which::Zswap,
 		Which::Battery,
@@ -65,6 +70,7 @@ impl Which {
 		match self {
 			Which::Cpu => CpuReader::SECTION,
 			Which::Mem => MemoryReader::SECTION,
+			Which::Net => NetReader::SECTION,
 			Which::Swap => SwapReader::SECTION,
 			Which::Zswap => ZswapReader::SECTION,
 			Which::Battery => BatteryReader::SECTION,
@@ -75,6 +81,7 @@ impl Which {
 		match self {
 			Which::Cpu => look.show_cpu,
 			Which::Mem => look.show_memory,
+			Which::Net => look.show_net,
 			Which::Swap => look.show_swap,
 			Which::Zswap => look.show_zswap,
 			Which::Battery => look.show_battery,
@@ -90,6 +97,7 @@ impl Which {
 		match self {
 			Which::Cpu => look.cpu_width,
 			Which::Mem => look.mem_width,
+			Which::Net => look.net_width,
 			Which::Swap => look.swap_width,
 			Which::Zswap => look.zswap_width,
 			Which::Battery => look.battery_width,
@@ -222,6 +230,11 @@ impl Graphs {
 		} else {
 			None
 		};
+		let net = if look.show_net {
+			Graph::net(look.clone())
+		} else {
+			None
+		};
 		let zswap = if look.show_zswap {
 			Graph::zswap(look.clone())
 		} else {
@@ -235,6 +248,7 @@ impl Graphs {
 		Graphs {
 			cpu: Graph::new(look),
 			mem,
+			net,
 			swap,
 			zswap,
 			battery,
@@ -252,6 +266,7 @@ impl Graphs {
 		match which {
 			Which::Cpu => Some(&self.cpu),
 			Which::Mem => self.mem.as_ref().map(|g| g as &dyn Drawn),
+			Which::Net => self.net.as_ref().map(|g| g as &dyn Drawn),
 			Which::Swap => self.swap.as_ref().map(|g| g as &dyn Drawn),
 			Which::Zswap => self.zswap.as_ref().map(|g| g as &dyn Drawn),
 			Which::Battery => self.battery.as_ref().map(|g| g as &dyn Drawn),
@@ -262,6 +277,7 @@ impl Graphs {
 		match which {
 			Which::Cpu => Some(&mut self.cpu),
 			Which::Mem => self.mem.as_mut().map(|g| g as &mut dyn Drawn),
+			Which::Net => self.net.as_mut().map(|g| g as &mut dyn Drawn),
 			Which::Swap => self.swap.as_mut().map(|g| g as &mut dyn Drawn),
 			Which::Zswap => self.zswap.as_mut().map(|g| g as &mut dyn Drawn),
 			Which::Battery => self.battery.as_mut().map(|g| g as &mut dyn Drawn),
@@ -339,6 +355,9 @@ impl Graphs {
 			Graph::memory(look.clone())
 		}) {
 			added.push(Which::Mem);
+		}
+		if switch(&mut self.net, look.show_net, || Graph::net(look.clone())) {
+			added.push(Which::Net);
 		}
 		if switch(&mut self.swap, look.show_swap, || Graph::swap(look.clone())) {
 			added.push(Which::Swap);
@@ -525,6 +544,7 @@ impl Graphs {
 	fn all_mut(&mut self) -> impl Iterator<Item = (Which, &mut dyn Drawn)> {
 		let optional = [
 			(Which::Mem, self.mem.as_mut().map(|g| g as &mut dyn Drawn)),
+			(Which::Net, self.net.as_mut().map(|g| g as &mut dyn Drawn)),
 			(Which::Swap, self.swap.as_mut().map(|g| g as &mut dyn Drawn)),
 			(
 				Which::Zswap,
@@ -1270,6 +1290,54 @@ mod tests {
 			fire.battery_paint(),
 			crate::render::Paint::Gradient(fire.battery_gradient)
 		);
+	}
+
+	// Test ID: dehzp
+	#[test]
+	fn net_sits_after_memory_and_fills_to_its_peak() {
+		let path = scratch("net");
+		let mut g = three();
+		let look = Look {
+			show_net: true,
+			..g.look().clone()
+		};
+		assert!(Graphs::new(Look::default()).net.is_none());
+		g.net = Some(Graph::with(look.clone(), NetReader::default()));
+		g.set_look(look.clone(), None).unwrap();
+		let now = g.cpu.now();
+		// 1 MB/s local and 2 MB/s received, steady for a minute
+		g.net
+			.as_mut()
+			.unwrap()
+			.hist
+			.add(now - 60.0, now, &[1e6, 0.0, 2e6]);
+		assert_eq!(g.count(), 4);
+		let (w, h) = (80 + 3 * G, 10 + 2 * E);
+		let net = g.net.as_mut().unwrap().render(20, 10, 1).to_vec();
+		let px = g.render(w, h, 1).to_vec();
+		sits(&px, w, &net, (40 + 2 * G, E, 20, 10));
+		let top = g.net.as_ref().unwrap().peak.top();
+		assert!((top - 3e6).abs() < 1.0, "{top}");
+		// local is the bottom third, and received the rest, up to the top
+		let bw = look.border as usize;
+		let ph = 10 - 2 * bw;
+		let row = |up: usize| net[(bw + ph - 1 - up) * 20 + 10];
+		assert_eq!(row(0), look.net[0].argb());
+		assert_eq!(row(ph * 2 / 5), look.net[2].argb());
+		assert_eq!(row(ph - 1), look.net[2].argb());
+		assert!(g.hover(Some((45 + 2 * G, 3)), w, h, 1));
+		assert!(
+			g.hover_tip(45 + 2 * G, 3, w, h, 1)
+				.contains("Received 2.0 MB/s")
+		);
+		g.save(&path).unwrap();
+		let names: Vec<String> = keep::read(&path)
+			.unwrap()
+			.into_iter()
+			.map(|(n, _)| n)
+			.collect();
+		assert_eq!(names, ["cpu", "mem", "net", "swap"]);
+		std::fs::remove_file(&path).unwrap();
 	}
 
 	// Test ID: dehy4

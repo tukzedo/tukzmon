@@ -592,6 +592,8 @@ mod tests {
 		assert_eq!(
 			want(&d),
 			[
+				"net_width",
+				"net_time",
 				"swap_width",
 				"swap_time",
 				"zswap_width",

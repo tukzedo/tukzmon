@@ -31,7 +31,8 @@ use config::{Look, Rgb};
 use cpu::CpuReader;
 use history::History;
 use mem::{MemoryReader, SwapReader};
-use render::{Frame, Paint};
+use net::NetReader;
+use render::{Frame, Paint, Peak};
 use when::Said;
 use zswap::ZswapReader;
 
@@ -49,6 +50,10 @@ pub trait Source<const N: usize>: Collector<N> {
 	fn overlay(&self, _look: &Look) -> Option<(String, Rgb)> {
 		None
 	}
+
+	/// Some for a source with no fixed top, such as bytes per second: the
+	/// least its peak goes down to. See [`render::Peak`].
+	const PEAK_FLOOR: Option<f32> = None;
 }
 
 fn pc(x: f32) -> i32 {
@@ -165,6 +170,45 @@ impl Source<1> for ZswapReader {
 	}
 }
 
+// decimal, as a download is usually shown
+fn per_sec(bytes: f32) -> String {
+	const UNITS: [&str; 5] = ["B/s", "kB/s", "MB/s", "GB/s", "TB/s"];
+	let (mut v, mut unit) = (bytes.max(0.0), 0);
+	while v >= 999.5 && unit < UNITS.len() - 1 {
+		v /= 1000.0;
+		unit += 1;
+	}
+	if unit > 0 && v < 9.95 {
+		format!("{v:.1} {}", UNITS[unit])
+	} else {
+		format!("{v:.0} {}", UNITS[unit])
+	}
+}
+
+impl Source<3> for NetReader {
+	const SECTION: &'static str = "net";
+	const TITLE: &'static str = "Network";
+	// so a quiet line's odd packet doesn't fill the graph
+	const PEAK_FLOOR: Option<f32> = Some(10_000.0);
+
+	fn text(&self, v: &[f32; 3]) -> String {
+		format!(
+			"Network\nReceived {}  Sent {}\nLocal {}",
+			per_sec(v[2]),
+			per_sec(v[1]),
+			per_sec(v[0])
+		)
+	}
+
+	fn paint(look: &Look) -> Paint<'_, 3> {
+		look.net_paint()
+	}
+
+	fn timing(look: &Look) -> Timing {
+		look.timing(look.net_time)
+	}
+}
+
 /// One graph: reads, history, and drawing. CPU unless said otherwise.
 pub struct Graph<S: Source<N> = CpuReader, const N: usize = 4> {
 	pub look: Look,
@@ -177,6 +221,8 @@ pub struct Graph<S: Source<N> = CpuReader, const N: usize = 4> {
 	latest: Option<[f32; N]>,
 	px: Vec<u32>,
 	ease: Ease,
+	/// The top, for a source with no fixed one.
+	peak: Peak,
 	/// Where the pointer is, in device pixels from the left, for the hover line.
 	pub hover: Option<usize>,
 }
@@ -208,6 +254,13 @@ impl Graph<ZswapReader, 1> {
 	}
 }
 
+impl Graph<NetReader, 3> {
+	/// None where `/proc/net/dev` can't be read.
+	pub fn net(look: Look) -> Option<Self> {
+		NetReader::probe().map(|src| Graph::with(look, src))
+	}
+}
+
 impl Graph<BatteryReader, 3> {
 	/// None on a box with no battery in.
 	pub fn battery(look: Look) -> Option<Self> {
@@ -229,6 +282,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 			latest: None,
 			px: Vec::new(),
 			ease: Ease::default(),
+			peak: Peak::default(),
 			hover: None,
 		}
 	}
@@ -253,6 +307,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 	pub fn clear(&mut self) {
 		self.hist = History::default();
 		self.latest = None;
+		self.peak = Peak::default();
 	}
 
 	/// Swaps in the saved history, if there is one that reads. The time since
@@ -393,6 +448,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		let slack = 2.0 * f64::from(self.look.sample_ms.max(50)) / 1000.0 + 0.25;
 		self.ease.update(&axis, basis, t, slack);
 		let mut px = std::mem::take(&mut self.px);
+		let peak = S::PEAK_FLOOR.map(|floor| (&mut self.peak, floor));
 		Frame {
 			hist: &self.hist,
 			axis: &self.ease.view(&axis, t),
@@ -400,7 +456,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 			look: &self.look,
 			paint: S::paint(&self.look),
 		}
-		.draw(&mut px, w, h, scale);
+		.draw_to(&mut px, w, h, scale, peak);
 		if let Some(x) = self.hover {
 			let bw = self.border_px(w, h, scale);
 			render::line(&mut px, w, h, bw, x, scale, self.look.hover);
@@ -453,6 +509,28 @@ mod tests {
 		assert_eq!(px.len(), 128 * 26);
 		assert!(px.iter().all(|p| p >> 24 == 0xff));
 		assert!(g.tooltip().starts_with("CPU "));
+	}
+
+	// Test ID: dehzn
+	#[test]
+	fn network_rates_read_in_decimal_units() {
+		for (bytes, want) in [
+			(0.0, "0 B/s"),
+			(-3.0, "0 B/s"),
+			(f32::NAN, "0 B/s"),
+			(999.0, "999 B/s"),
+			(999.6, "1.0 kB/s"),
+			(1234.0, "1.2 kB/s"),
+			(12_345.0, "12 kB/s"),
+			(3e6, "3.0 MB/s"),
+			(5e15, "5000 TB/s"),
+		] {
+			assert_eq!(per_sec(bytes), want, "{bytes}");
+		}
+		assert_eq!(
+			NetReader::default().text(&[2000.0, 30_000.0, 1.5e6]),
+			"Network\nReceived 1.5 MB/s  Sent 30 kB/s\nLocal 2.0 kB/s"
+		);
 	}
 
 	// Test ID: defpr
