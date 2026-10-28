@@ -163,6 +163,15 @@ pub mod ffi {
 		fn tabs_shown(d: &mut Dialog) -> Vec<TabShown>;
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn bottom_buttons(d: &mut Dialog) -> Vec<String>;
+		/// Whether Apply is on before and after typing into the first color
+		/// box, or number box, and whether the dialog has the change once
+		/// the box gives it up.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn apply_while_typing(d: &mut Dialog, number: bool) -> Vec<bool>;
+		/// The most contrast an empty checkbox has with the window, as WCAG
+		/// measures it.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn empty_box_contrast(dark: bool) -> f64;
 	}
 }
 
@@ -737,5 +746,36 @@ mod tests {
 			ffi::bottom_buttons(&mut d),
 			["Reset history", "Cancel", "&Apply", "OK"]
 		);
+	}
+
+	// Test ID: dej8s
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn apply_turns_on_while_a_box_is_typed_in() {
+		let _qt = qt_turn();
+		for number in [false, true] {
+			let path = std::env::temp_dir().join(format!(
+				"test_tukzmon-settings_{}_typing_never_written.shcl",
+				std::process::id()
+			));
+			let mut d = Dialog::open(path);
+			assert_eq!(
+				ffi::apply_while_typing(&mut d, number),
+				[false, true, true],
+				"number box: {number}"
+			);
+		}
+	}
+
+	// Test ID: dej8t
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn an_empty_checkbox_stands_out_in_a_light_or_dark_theme() {
+		let _qt = qt_turn();
+		// WCAG's least contrast for the edge of a control
+		for dark in [false, true] {
+			let c = ffi::empty_box_contrast(dark);
+			assert!(c >= 3.0, "dark: {dark}, contrast {c:.2}");
+		}
 	}
 }
