@@ -366,20 +366,6 @@ Sorted per the notes in [Template](#template).
 			- Global background colors override
 				- Global transparent override.
 
-- Pre-next-cut: "Colors: detailed|gradient" applies to all monitors, with a granularity option
-	- ID: 2026102807585030
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-075850
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304612, 2026102409400695, 2026102807585010
-	- Requirements:
-		- "Colors: detailed|gradient" applies to all monitors at once, not individually.
-		- Additional option above "Colors: detailed|gradient":
-			- Granularity: [ ] Per-monitor  [ ] Global
-				- Disabled if 'Colors: Detailed' is selected.
-
 - Pre-next-cut: Monochromatic themes
 	- ID: 2026102807585040
 	- Type: Enhancement
@@ -390,6 +376,169 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026102408304612, 2026102620162201
 	- Requirements:
 		- Themes: include some monochromatic themes.
+
+- Pre-next-cut: Graph tab, Graphs section names, widths, order, and defaults
+	- ID: 2026102814061800
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102508393161, 2026102508393152, 2026102508393154
+	- Requirements:
+		- Remove " graph" from monitor names.
+		- Change "Width px" to "Width %" (of the default px width defined at the top).
+			- And use my relative %s for each monitor as default settings, as defined in my current config. (E.g. CPU=100%, Network=50%.)
+		- Use my current order of monitors as defined in my current config.
+		- Default enabled monitors: CPU, Memory, Swap
+	- Progress log:
+		- The current config is b23's `~/.config/tukzmon/tukzmon.shcl`, read by build defqn.
+
+- Pre-next-cut: Apply turns on while typing in a text box
+	- ID: 2026102814061801
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304546
+	- Requirements:
+		- Enable "Apply" button after editing values in a text box, without having to tab out of it.
+
+- Pre-next-cut: Tab order follows the graph order
+	- ID: 2026102814061802
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102508393154, 2026102508393161
+	- Requirements:
+		- Tab order should be updated when monitors are rearranged.
+
+- Pre-next-cut: Default per-monitor colors from my current settings
+	- ID: 2026102814061803
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304559, 2026102620162201, 2026102810142725
+	- Requirements:
+		- Default per-monitor colors:
+			- Update to my current personal settings
+			- Update each of these slightly if necessary so that theme is non-clashing, both:
+				- Within each monitor, and
+				- Across all monitors taken as a whole
+	- Progress log:
+		- The current config is b23's `~/.config/tukzmon/tukzmon.shcl`, read by build defqn.
+
+- Pre-next-cut: Time subsection, a default time axis
+	- ID: 2026102814061804
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013886, 2026102408304586, 2026102508393156
+	- Requirements:
+		- "Time" subsection:
+			- Remove "Log time axis" checkbox.
+			- Rename "Log curve" -> "Time axis default"
+				- Same dropdown options as the individual graph dropdowns.
+
+- Pre-next-cut: Time axis dropdowns in the Graphs section
+	- ID: 2026102814061805
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102508393156, 2026102508393161, 2026102814061804
+	- Requirements:
+		- Time axis dropdown boxes in the "Graphs" section:
+			- Don't disable the dropdown when the graph is not enabled.
+			- "As set under Time" -> "Default".
+
+- Pre-next-cut: Sample ms override per graph
+	- ID: 2026102814061806
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102508393161, 2026102814061800
+	- Requirements:
+		- Add a "Sample ms" override column, to the right of "Width px".
+
+- Pre-next-cut: Reset history clears the panel's graphs at once
+	- ID: 2026102814061807
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102620162202
+	- Requirements:
+		- Reset history: Affect the live graphs in the taskbar immediately.
+
+- Pre-next-cut: More space between settings sections
+	- ID: 2026102814061808
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304546, 2026102814061809
+	- Requirements:
+		- Add more vertical space between per-tab sections (between the bottom of the previous section and top of the next section's title).
+			- Also between the bottom of the last section, and the bottom buttons
+
+- Pre-next-cut: Taller bottom buttons
+	- ID: 2026102814061809
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304546, 2026102814061808
+	- Requirements:
+		- Make the bottom buttons a little vertically taller.
+
+- Pre-next-cut: Zswap ratio moves to the tip
+	- ID: 2026102814061810
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102618353002
+	- Requirements:
+		- Remove the ratio text from the zswap monitor, and put it in the flyover tip text.
+
+- Pre-next-cut: A graph of tukzmon's own CPU use
+	- ID: 2026102814061811
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013887, 2026102814061812
+	- Requirements:
+		- Add a new monitor (last): % of total CPU used by tukzmon
+
+- Pre-next-cut: Less CPU used by tukzmon
+	- ID: 2026102814061812
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102618573801, 2026102814061811
+	- Requirements:
+		- Figure out how to minimize CPU overhead used by tukzmon
+	- Progress log:
+		- The profile from 2026-10-28 puts 67% of a tick in history lookups while drawing (`History::span`), and 15% in the /proc reads.
 
 - An item's files go when it's removed from the panel
 	- ID: 2026102622311676
@@ -2712,6 +2861,22 @@ Sorted per the notes in [Template](#template).
 		- Cross platform: Linux, Windows, macOS, BSD.
 		- Windows 11 has no taskbar toolbars, so it gets a tray icon plus a small window docked over the taskbar.
 		- macOS gets a menu bar item, which can be wide.
+
+- Pre-next-cut: "Colors: detailed|gradient" applies to all monitors, with a granularity option
+	- ID: 2026102807585030
+	- Type: Enhancement
+	- Status: Canceled
+	- Priority|Severity: Avg
+	- Opened: 20261028-075850
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304612, 2026102409400695, 2026102807585010
+	- Requirements:
+		- "Colors: detailed|gradient" applies to all monitors at once, not individually.
+		- Additional option above "Colors: detailed|gradient":
+			- Granularity: [ ] Per-monitor  [ ] Global
+				- Disabled if 'Colors: Detailed' is selected.
+	- Decided against: I'm leaving it per-monitor.
+	- Closed: 20261028
 
 ## Template
 
