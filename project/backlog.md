@@ -395,6 +395,7 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-26: The swap and battery graphs are in, 2026102618353000 and 2026102618353013.
 		- 2026-10-28: The zswap graph is in, 2026102618353002.
 		- 2026-10-26: Split into one child per graph not yet drawn: 2026102618353000 (swap), 2026102618353002 (zswap or zram), 2026102618353004 (network), 2026102618353006 (load), 2026102618353008 (disk), 2026102618353011 (temperature) and 2026102618353013 (battery). This closes with the last of them.
+	- 2026-10-28: the zswap and network graphs are in.
 
 - Load graph
 	- ID: 2026102618353006
