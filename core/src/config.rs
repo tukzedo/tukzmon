@@ -427,6 +427,12 @@ pub struct Look {
 	pub battery_width: u32,
 	pub battery_sample_ms: u32,
 	pub battery_time: Option<Timing>,
+	/// Draw the graph of tukzmon's own CPU use.
+	pub show_self: bool,
+	/// A percentage of `width`. See [`Look::share`].
+	pub self_width: u32,
+	pub self_sample_ms: u32,
+	pub self_time: Option<Timing>,
 	/// Graph names as saved, first drawn first. See [`graph_order`].
 	pub order: Vec<String>,
 	/// In `mem::MemoryReader::SERIES` order, bottom first.
@@ -458,6 +464,9 @@ pub struct Look {
 	pub battery: [Rgb; 3],
 	pub battery_mode: Mode,
 	pub battery_gradient: [Rgb; 3],
+	pub self_colors: [Rgb; 1],
+	pub self_mode: Mode,
+	pub self_gradient: [Rgb; 3],
 	pub border_color: Rgb,
 	/// No background, so the panel shows through, whatever the theme.
 	pub transparent: bool,
@@ -544,6 +553,10 @@ impl Look {
 			battery_width: num("battery_width") as u32,
 			battery_sample_ms: num("battery_sample_ms") as u32,
 			battery_time: Timing::parse(m.value("battery_time", &NoEnv).as_text()),
+			show_self: m.value("show_self", &NoEnv).as_bool(),
+			self_width: num("self_width") as u32,
+			self_sample_ms: num("self_sample_ms") as u32,
+			self_time: Timing::parse(m.value("self_time", &NoEnv).as_text()),
 			order: graph_order(m.value("graph_order", &NoEnv).as_text()),
 			mem: [color("mem_user"), color("mem_buffers"), color("mem_cache")],
 			mem_mode: Mode::parse(m.value("mem_mode", &NoEnv).as_text()).unwrap_or_default(),
@@ -582,6 +595,9 @@ impl Look {
 				color("battery_medium"),
 				color("battery_high"),
 			],
+			self_colors: [color("self_used")],
+			self_mode: Mode::parse(m.value("self_mode", &NoEnv).as_text()).unwrap_or_default(),
+			self_gradient: [color("self_low"), color("self_medium"), color("self_high")],
 			border_color: color("border_color"),
 			transparent: m.value("transparent", &NoEnv).as_bool(),
 			top: color("back_top"),
@@ -659,6 +675,13 @@ impl Look {
 		match self.battery_mode {
 			Mode::Detailed => Paint::Stack(&self.battery),
 			Mode::Gradient => Paint::Gradient(self.battery_gradient),
+		}
+	}
+
+	pub fn self_paint(&self) -> Paint<'_, 1> {
+		match self.self_mode {
+			Mode::Detailed => Paint::Stack(&self.self_colors),
+			Mode::Gradient => Paint::Gradient(self.self_gradient),
 		}
 	}
 
@@ -815,7 +838,7 @@ mod tests {
 	fn the_default_theme_is_the_row_defaults() {
 		let spec = spec();
 		let g = spec.group(THEME).unwrap();
-		assert_eq!(g.members.len(), 60);
+		assert_eq!(g.members.len(), 65);
 		let default = g.preset("default").unwrap();
 		assert_eq!(default.label, "Default");
 		for id in &g.members {
@@ -1083,16 +1106,18 @@ mod tests {
 				"disk_read",
 				"temp_normal",
 				"battery_charging",
+				"self_used",
 			]
 			.map(rgb);
 			let ramps = [
-				"cpu", "mem", "swap", "zswap", "net", "load", "disk", "temp", "battery",
+				"cpu", "mem", "swap", "zswap", "net", "load", "disk", "temp", "battery", "self",
 			]
 			.map(ramp);
 			for a in 0..leads.len() {
 				for b in a + 1..leads.len() {
 					let gap = (hue(leads[a]) - hue(leads[b])).abs();
-					assert!(gap.min(360.0 - gap) >= 25.0, "{} {a} {b}", p.key);
+					// 22 for 10 graphs, until 2026102810142725
+					assert!(gap.min(360.0 - gap) >= 22.0, "{} {a} {b}", p.key);
 					assert_ne!(ramps[a], ramps[b], "{} {a} {b}", p.key);
 					assert_ne!(ramps[a][1], ramps[b][1], "{} {a} {b}", p.key);
 				}
@@ -1147,7 +1172,7 @@ mod tests {
 		assert_eq!(l.rate(l.net_sample_ms), 1000);
 		let spec = spec();
 		for g in [
-			"cpu", "mem", "net", "swap", "zswap", "load", "disk", "temp", "battery",
+			"cpu", "mem", "net", "swap", "zswap", "load", "disk", "temp", "battery", "self",
 		] {
 			let id = format!("{g}_sample_ms");
 			let Some(s) = spec.get(&id) else {
@@ -1223,7 +1248,7 @@ mod tests {
 		assert_eq!(
 			Look::default().order,
 			[
-				"cpu", "mem", "net", "disk", "temp", "swap", "zswap", "load", "battery"
+				"cpu", "mem", "net", "disk", "temp", "swap", "zswap", "load", "battery", "self"
 			]
 		);
 		for text in [
@@ -1316,7 +1341,7 @@ mod tests {
 			"themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n",
 		));
 		assert_eq!(t[0].name, "Say \"hi\"");
-		assert_eq!(t[0].colors.len(), 60);
+		assert_eq!(t[0].colors.len(), 65);
 		t.push(SavedTheme {
 			key: theme_key("Default", &t),
 			name: "Default".into(),

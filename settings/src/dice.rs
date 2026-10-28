@@ -44,10 +44,11 @@ pub enum Part {
 	Load = 6,
 	Disk = 7,
 	Temp = 8,
-	Back = 9,
+	Own = 9,
+	Back = 10,
 }
 
-const GRAPHS: usize = 9;
+const GRAPHS: usize = 10;
 
 /// Every member of the theme group, by graph and role. A member missing here
 /// gets no random value, and `dice::tests::every_theme_member_has_a_role`
@@ -109,6 +110,11 @@ pub const ROLES: &[(&str, Part, Role)] = &[
 	("battery_low", Part::Battery, Role::Calm),
 	("battery_medium", Part::Battery, Role::Lead),
 	("battery_high", Part::Battery, Role::Tint),
+	("self_mode", Part::Own, Role::Mode),
+	("self_used", Part::Own, Role::Lead),
+	("self_low", Part::Own, Role::Calm),
+	("self_medium", Part::Own, Role::Lead),
+	("self_high", Part::Own, Role::Tint),
 	("border_color", Part::Back, Role::Border),
 	("back_top", Part::Back, Role::Top),
 	("back_bottom", Part::Back, Role::Bottom),
@@ -119,8 +125,8 @@ pub const ROLES: &[(&str, Part, Role)] = &[
 const LEAD_HUES: (f64, f64) = (75.0 / 360.0, 300.0 / 360.0);
 const ALARM_HUES: (f64, f64) = (-10.0 / 360.0, 2.0 / 360.0);
 const WARN_HUES: (f64, f64) = (18.0 / 360.0, 32.0 / 360.0);
-// The least gap between 2 graphs' lead hues. 9 of them at this gap leave
-// 49 degrees of the lead range to roll in.
+// The least gap between 2 graphs' lead hues. 10 of them at this gap leave
+// 27 degrees of the lead range to roll in.
 const LEAD_GAP: f64 = 22.0 / 360.0;
 
 // splitmix64, so a seed always rolls the same theme
@@ -334,6 +340,7 @@ mod tests {
 		Part::Load,
 		Part::Disk,
 		Part::Temp,
+		Part::Own,
 	];
 
 	fn hsv_of(text: &str) -> Hsv {

@@ -12,6 +12,7 @@ use tukzmon_core::graphs::{self, Drawn};
 use tukzmon_core::load::LoadReader;
 use tukzmon_core::mem::{MemoryReader, SwapReader};
 use tukzmon_core::net::NetReader;
+use tukzmon_core::own::OwnReader;
 use tukzmon_core::temp::TempReader;
 use tukzmon_core::zswap::ZswapReader;
 use tukzmon_core::{Graph, Source};
@@ -32,6 +33,8 @@ pub struct Live {
 	temp: Option<Graph<TempReader, 2>>,
 	/// None on a box with no battery in.
 	battery: Option<Graph<BatteryReader, 3>>,
+	/// The settings window's own use, not the panel's.
+	own: Option<Graph<OwnReader, 1>>,
 }
 
 impl Live {
@@ -45,6 +48,7 @@ impl Live {
 			disk: Graph::disk(look.clone()),
 			temp: Graph::temp(look.clone()),
 			battery: Graph::battery(look.clone()),
+			own: Graph::own(look.clone()),
 			cpu: Graph::new(look),
 		}
 	}
@@ -60,6 +64,7 @@ impl Live {
 			DiskReader::SECTION => self.disk.as_ref().map(|g| g as &dyn Drawn),
 			TempReader::SECTION => self.temp.as_ref().map(|g| g as &dyn Drawn),
 			BatteryReader::SECTION => self.battery.as_ref().map(|g| g as &dyn Drawn),
+			OwnReader::SECTION => self.own.as_ref().map(|g| g as &dyn Drawn),
 			_ => None,
 		}
 	}
@@ -75,6 +80,7 @@ impl Live {
 			DiskReader::SECTION => self.disk.as_mut().map(|g| g as &mut dyn Drawn),
 			TempReader::SECTION => self.temp.as_mut().map(|g| g as &mut dyn Drawn),
 			BatteryReader::SECTION => self.battery.as_mut().map(|g| g as &mut dyn Drawn),
+			OwnReader::SECTION => self.own.as_mut().map(|g| g as &mut dyn Drawn),
 			_ => None,
 		}
 	}
@@ -112,6 +118,10 @@ impl Live {
 			(
 				BatteryReader::SECTION,
 				self.battery.as_mut().map(|g| g as &mut dyn Drawn),
+			),
+			(
+				OwnReader::SECTION,
+				self.own.as_mut().map(|g| g as &mut dyn Drawn),
 			),
 		];
 		std::iter::once((CpuReader::SECTION, &mut self.cpu as &mut dyn Drawn))
@@ -160,6 +170,7 @@ impl Live {
 			DiskReader::SECTION => l.disk_width,
 			TempReader::SECTION => l.temp_width,
 			BatteryReader::SECTION => l.battery_width,
+			OwnReader::SECTION => l.self_width,
 			_ => return 0,
 		};
 		if self.get(name).is_some() {
@@ -491,6 +502,34 @@ mod tests {
 			let tip = live.tip("temp");
 			assert!(tip.starts_with("Temperature"), "{tip}");
 		}
+	}
+
+	// Test ID: dejb8
+	#[test]
+	#[cfg_attr(miri, ignore = "Miri has no CPU time clock")]
+	fn the_own_row_draws_the_settings_window_at_its_own_width() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_live_self_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let mut live = Live::new(d.look());
+		assert!(!d.look().show_self);
+		// at 100 px, a width in percent is the same number
+		d.set("width", &Value::Float(100.0));
+		d.set("self_width", &Value::Float(40.0));
+		live.set_look(&d.look());
+		assert_eq!(live.width("self"), 40);
+		live.sample();
+		std::thread::sleep(std::time::Duration::from_millis(20));
+		live.sample();
+		assert_eq!(live.render("self", 40, 24, 1).len(), 40 * 24);
+		// the test binary's name isn't the settings window's
+		let tip = live.tip("self");
+		assert!(
+			tip.starts_with("tukzmon ") && tip.contains(" of all CPUs\n"),
+			"{tip}"
+		);
 	}
 
 	// Test ID: dehzq

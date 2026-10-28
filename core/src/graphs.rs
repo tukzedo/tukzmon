@@ -15,6 +15,7 @@ use crate::keep;
 use crate::load::LoadReader;
 use crate::mem::{MemoryReader, SwapReader};
 use crate::net::NetReader;
+use crate::own::OwnReader;
 use crate::temp::TempReader;
 use crate::zswap::ZswapReader;
 use crate::{Graph, Source, clock_ms, wait_ms};
@@ -37,6 +38,8 @@ pub struct Graphs {
 	pub temp: Option<Graph<TempReader, 2>>,
 	/// None when hidden, or on a box with no battery in.
 	pub battery: Option<Graph<BatteryReader, 3>>,
+	/// None when hidden.
+	pub own: Option<Graph<OwnReader, 1>>,
 	/// Top to bottom, for a vertical panel.
 	pub stacked: bool,
 	px: Vec<u32>,
@@ -63,12 +66,13 @@ enum Which {
 	Disk,
 	Temp,
 	Battery,
+	Own,
 }
 
 impl Which {
 	/// The order with nothing saved. Graphs a saved order leaves out go
 	/// last, in this order.
-	const ALL: [Which; 9] = [
+	const ALL: [Which; 10] = [
 		Which::Cpu,
 		Which::Mem,
 		Which::Net,
@@ -78,6 +82,7 @@ impl Which {
 		Which::Disk,
 		Which::Temp,
 		Which::Battery,
+		Which::Own,
 	];
 
 	fn name(self) -> &'static str {
@@ -91,6 +96,7 @@ impl Which {
 			Which::Disk => DiskReader::SECTION,
 			Which::Temp => TempReader::SECTION,
 			Which::Battery => BatteryReader::SECTION,
+			Which::Own => OwnReader::SECTION,
 		}
 	}
 
@@ -105,6 +111,7 @@ impl Which {
 			Which::Disk => look.show_disk,
 			Which::Temp => look.show_temp,
 			Which::Battery => look.show_battery,
+			Which::Own => look.show_self,
 		}
 	}
 
@@ -124,6 +131,7 @@ impl Which {
 			Which::Disk => look.disk_width,
 			Which::Temp => look.temp_width,
 			Which::Battery => look.battery_width,
+			Which::Own => look.self_width,
 		}
 	}
 }
@@ -295,6 +303,11 @@ impl Graphs {
 		} else {
 			None
 		};
+		let own = if look.show_self {
+			Graph::own(look.clone())
+		} else {
+			None
+		};
 		Graphs {
 			cpu: Graph::new(look),
 			mem,
@@ -305,6 +318,7 @@ impl Graphs {
 			disk,
 			temp,
 			battery,
+			own,
 			stacked: false,
 			px: Vec::new(),
 		}
@@ -326,6 +340,7 @@ impl Graphs {
 			Which::Disk => self.disk.as_ref().map(|g| g as &dyn Drawn),
 			Which::Temp => self.temp.as_ref().map(|g| g as &dyn Drawn),
 			Which::Battery => self.battery.as_ref().map(|g| g as &dyn Drawn),
+			Which::Own => self.own.as_ref().map(|g| g as &dyn Drawn),
 		}
 	}
 
@@ -340,6 +355,7 @@ impl Graphs {
 			Which::Disk => self.disk.as_mut().map(|g| g as &mut dyn Drawn),
 			Which::Temp => self.temp.as_mut().map(|g| g as &mut dyn Drawn),
 			Which::Battery => self.battery.as_mut().map(|g| g as &mut dyn Drawn),
+			Which::Own => self.own.as_mut().map(|g| g as &mut dyn Drawn),
 		}
 	}
 
@@ -441,6 +457,9 @@ impl Graphs {
 			Graph::battery(look.clone())
 		}) {
 			added.push(Which::Battery);
+		}
+		if switch(&mut self.own, look.show_self, || Graph::own(look.clone())) {
+			added.push(Which::Own);
 		}
 		let mut res = Ok(());
 		if let Some(path) = history.filter(|_| !added.is_empty()) {
@@ -630,6 +649,7 @@ impl Graphs {
 				Which::Battery,
 				self.battery.as_mut().map(|g| g as &mut dyn Drawn),
 			),
+			(Which::Own, self.own.as_mut().map(|g| g as &mut dyn Drawn)),
 		];
 		std::iter::once((Which::Cpu, &mut self.cpu as &mut dyn Drawn))
 			.chain(optional.into_iter().filter_map(|(w, g)| Some((w, g?))))
@@ -1592,6 +1612,62 @@ mod tests {
 		assert_eq!(
 			fire.temp_paint(),
 			crate::render::Paint::Gradient(fire.temp_gradient)
+		);
+	}
+
+	// Test ID: dejb7
+	#[test]
+	fn the_own_graph_sits_last_and_fills_at_a_hundredth_of_one_cpu() {
+		let path = scratch("own");
+		let mut g = three();
+		let look = Look {
+			show_self: true,
+			self_width: 100,
+			..g.look().clone()
+		};
+		assert!(!Look::default().show_self);
+		assert_eq!(
+			Look::default().order.last().map(String::as_str),
+			Some("self")
+		);
+		assert!(Graphs::new(two()).own.is_none());
+		g.own = Some(Graph::with(look.clone(), OwnReader::default()));
+		g.set_look(look.clone(), None).unwrap();
+		let floor = 0.01 / crate::cpus();
+		let now = g.cpu.now();
+		g.own
+			.as_mut()
+			.unwrap()
+			.hist
+			.add(now - 60.0, now, &[floor / 2.0]);
+		assert_eq!(g.count(), 4);
+		let (w, h) = (80 + 3 * G, 40 + 2 * E);
+		let own = g.own.as_mut().unwrap().render(20, 40, 1).to_vec();
+		let px = g.render(w, h, 1).to_vec();
+		sits(&px, w, &own, (60 + 3 * G, E, 20, 40));
+		let top = g.own.as_ref().unwrap().peak.top();
+		assert!((top - floor).abs() < 1e-9, "{top}");
+		let bw = look.border as usize;
+		let ph = 40 - 2 * bw;
+		let row = |up: usize| own[(bw + ph - 1 - up) * 20 + 10];
+		assert_eq!(row(0), look.self_colors[0].argb());
+		assert_eq!(row(ph / 2 - 2), look.self_colors[0].argb());
+		assert_ne!(row(ph / 2 + 2), look.self_colors[0].argb());
+		let tip = g.hover_tip(65 + 3 * G, 3, w, h, 1);
+		assert!(tip.contains("\ntukzmon "), "{tip}");
+		assert!(tip.ends_with("% of all CPUs\n0.50% of one CPU"), "{tip}");
+		g.save(&path).unwrap();
+		let names: Vec<String> = keep::read(&path)
+			.unwrap()
+			.into_iter()
+			.map(|(n, _)| n)
+			.collect();
+		assert_eq!(names, ["cpu", "mem", "swap", "self"]);
+		std::fs::remove_file(&path).unwrap();
+		let fire = Look::from_model(&crate::config::model("theme:\n\tname: fire\n"));
+		assert_eq!(
+			fire.self_paint(),
+			crate::render::Paint::Gradient(fire.self_gradient)
 		);
 	}
 
