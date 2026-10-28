@@ -3,6 +3,7 @@
 <!-- markdownlint-disable MD033 -- No inline html -->
 <!-- markdownlint-disable MD055 -- Table pipe style [Expected: leading_and_trailing; Actual: leading_only; Missing trailing pipe] -->
 <!-- markdownlint-disable MD041 -- First line in a file should be a top-level heading -->
+
 # Requirements
 
 This is a product backlog just for pre-v1.0.0 release. After that, bugs, features, and enhancements will be managed in Github Issues.
@@ -514,6 +515,70 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Split into 6 children, in this order: 2026102508393152 (on or off and a width per graph), 2026102508393154 (order), 2026102508393156 (time function per graph), 2026102508393159 (theme per graph), 2026102508393161 (the list itself), and 2026102508393163 (live graphs in it).
 		- 2026-10-25: no theme dropdown per graph after all. One theme colors every graph, per the answer on 2026102508393159.
+
+- Pre-next-cut: Empty checkboxes need to be more visible
+	- ID: 2026102807585000
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-075850
+	- Opened by: t00mietum
+	- Requirements:
+		- Empty checkboxes need to be more visible (e.g. in dark mode).
+
+- Pre-next-cut: All monitor colors on one tab
+	- ID: 2026102807585010
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-075850
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304612, 2026102620162201, 2026102807585020, 2026102807585030
+	- Requirements:
+		- See if all monitor colors will fit on one tab (vertical scrollbars for the per-monitor section if need more room).
+			- With background and outline colors per-monitor, to the right, for each monitor, of the main colors.
+
+- Pre-next-cut: One tab for global outline-related settings
+	- ID: 2026102807585020
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-075850
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304612, 2026102409400705, 2026102807585010
+	- Requirements:
+		- One tab for global outline-related settings (per-theme):
+			- Margins:
+				- Top & bottom
+				- Left & right
+			- Global outline color override
+			- Global background colors override
+				- Global transparent override.
+
+- Pre-next-cut: "Colors: detailed|gradient" applies to all monitors, with a granularity option
+	- ID: 2026102807585030
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-075850
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304612, 2026102409400695, 2026102807585010
+	- Requirements:
+		- "Colors: detailed|gradient" applies to all monitors at once, not individually.
+		- Additional option above "Colors: detailed|gradient":
+			- Granularity: [ ] Per-monitor  [ ] Global
+				- Disabled if 'Colors: Detailed' is selected.
+
+- Pre-next-cut: Monochromatic themes
+	- ID: 2026102807585040
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-075850
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304612, 2026102620162201
+	- Requirements:
+		- Themes: include some monochromatic themes.
 
 - An item's files go when it's removed from the panel
 	- ID: 2026102622311676
