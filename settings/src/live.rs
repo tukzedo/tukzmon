@@ -131,16 +131,20 @@ impl Live {
 		}
 	}
 
-	/// A hidden graph is read too, since its row still draws it. The first
+	/// Every graph read now, for tests that can't wait for a beat. The first
 	/// call only primes them.
+	#[cfg(test)]
 	pub fn sample(&mut self) {
 		for (_, g) in self.all_mut() {
 			g.sample();
 		}
 	}
 
-	pub fn sample_ms(&self) -> u32 {
-		self.cpu.look.sample_ms
+	/// Reads each graph whose beat has come, and gives the ms to the next
+	/// one's, as the panel does. A hidden graph is read too, since its row
+	/// still draws it. See [`Graph::tick`].
+	pub fn tick(&mut self) -> u32 {
+		graphs::tick(self.all_mut().map(|(_, g)| g), tukzmon_core::clock_ms())
 	}
 
 	/// The graph's width in the panel, in logical pixels. 0 for a name that
@@ -327,6 +331,31 @@ mod tests {
 		live.render("cpu", 40, 24, 1);
 		assert!(live.easing("cpu"));
 		assert!(!live.easing("nope"));
+	}
+
+	// Test ID: deja2
+	#[test]
+	fn a_rows_sample_rate_picked_in_the_window_sets_when_it_reads() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_live_rate_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let mut live = Live::new(d.look());
+		assert!(live.tick() <= 500);
+		// not applied, and still read that way
+		d.set("sample_ms", &Value::Float(5000.0));
+		live.set_look(&d.look());
+		assert_eq!(live.cpu.sample_ms(), 5000);
+		assert!(live.tick() <= 5000);
+		d.set("cpu_sample_ms", &Value::Float(100.0));
+		live.set_look(&d.look());
+		assert_eq!(live.cpu.sample_ms(), 100);
+		assert!(live.tick() <= 100);
+		// back to Default
+		d.set("cpu_sample_ms", &Value::Float(0.0));
+		live.set_look(&d.look());
+		assert_eq!(live.cpu.sample_ms(), 5000);
 	}
 
 	// Test ID: defq8

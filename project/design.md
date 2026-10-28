@@ -66,12 +66,13 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- Nothing else in the plugin assumes X11. The drawing, the tip, the hover line, the right-click menu and Properties work the same on Wayland, and tukzmon-settings opens as a Wayland window.
 
 - The plugin draws its graphs in one drawing area, side by side, in the saved order. They have 2 px clear above and below, and 4 px between each pair, in logical pixels, so the panel shows through. On a vertical panel or a deskbar they're stacked, and share the height evenly, with the 2 px either side instead. Each asks for half the panel's width in height, at least 16 px, so the widths don't apply there. The graph under the pointer gets the hover line and the tip. The 2 px edges count as the graph beside them, so a pointer pushed against the screen's edge still finds it, and a gap between 2 graphs finds neither. `core/src/graphs.rs` has the layout.
-	- Under Graphs on the Graph tab is the graph list, a row per graph in the saved order. Each row has a checkbox, at `cpu.show`, `mem.show`, `net.show`, `swap.show`, `zswap.show`, `load.show`, `disk.show`, `temp.show` and `battery.show`, the live graph, a width, at `cpu.width`, `mem.width`, `net.width`, `swap.width`, `zswap.width`, `load.width`, `disk.width`, `temp.width` and `battery.width`, a time axis, a revert arrow and a gripper. A width is a percentage of the Width setting, so one setting still resizes them all. The defaults are 100% for CPU, memory and battery, 50% for network, disk and temperature, and 25% for swap, zswap and load. Widths come out in the panel's own pixels, so they scale with it.
-		- A hidden graph's width and time axis aren't greyed, so a graph can be set up before it's turned on.
+	- Under Graphs on the Graph tab is the graph list, a row per graph in the saved order. Each row has a checkbox, at `cpu.show`, `mem.show`, `net.show`, `swap.show`, `zswap.show`, `load.show`, `disk.show`, `temp.show` and `battery.show`, the live graph, a width, at `cpu.width`, `mem.width`, `net.width`, `swap.width`, `zswap.width`, `load.width`, `disk.width`, `temp.width` and `battery.width`, a sample rate, a time axis, a revert arrow and a gripper. A width is a percentage of the Width setting, so one setting still resizes them all. The defaults are 100% for CPU, memory and battery, 50% for network, disk and temperature, and 25% for swap, zswap and load. Widths come out in the panel's own pixels, so they scale with it.
+		- A hidden graph's width, sample rate and time axis aren't greyed, so a graph can be set up before it's turned on.
 	- Each row draws its graph live, at its own width, with the window's settings, so a change shows there before Apply. The window reads the graphs itself from when it opens, so a row starts empty. A hidden graph is drawn too. The widest graph sets the column, so the boxes after it line up, and one wider than 512 px is squeezed to that.
 	- The row under the pointer gets the hover line and the tip, the same as in the panel, through the panel's own `graphs::point`. On a squeezed row the line goes at the pointer's place in the whole graph. A tip left up follows each sample.
+	- The sample rate is at `cpu.sample_ms`, `mem.sample_ms`, `net.sample_ms`, `swap.sample_ms`, `zswap.sample_ms`, `load.sample_ms`, `disk.sample_ms`, `temp.sample_ms` and `battery.sample_ms`, in ms. 0 shows as Default, and follows Sample ms default at `graph.sample_ms`, the way a time axis of Default follows Time axis default. Under 50 counts as 50, the finest history tier.
 	- The time axis is at `cpu.time`, `mem.time`, `net.time`, `swap.time`, `zswap.time`, `load.time`, `disk.time`, `temp.time` and `battery.time`. See [Time axis](#time-axis).
-	- A graph gets a row once `core/src/settings.shcl` has its `<name>.show`, `.width` and `.time` settings.
+	- A graph gets a row once `core/src/settings.shcl` has its `<name>.show`, `.width`, `.sample_ms` and `.time` settings.
 	- A box where `/proc/meminfo` can't be read never shows the memory graph.
 	- CPU, memory and swap are on by default, and the rest are off. A box with no swap, with neither zswap on nor zram set up, with no disk, with no CPU sensor it knows, or with no battery in, never shows that one.
 	- Under Disk graph, below the order, Disk drives at `disk.drives` picks what the disk graph counts: `all`, the default, or `/proc/diskstats` names such as `sda nvme0n1`, with spaces or commas. A new pick takes effect at Apply and keeps the graph's history. Disk log scale, at `disk.log`, draws it on a log scale. See [Drawing](#drawing).
@@ -82,11 +83,15 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 		- A name it doesn't know is skipped. A graph it doesn't name goes at the end, in the order the graphs were added to tukzmon, so that way a graph added later, such as network, shows up last in a saved order.
 		- A hidden graph keeps its place for when it's shown again.
 	- A name the list doesn't know stays in `graph.order` after a drag, at the end, so a file from a newer tukzmon keeps it.
-	- The row's revert arrow puts its checkbox, width and time axis back. The order has no arrow, since dragging back undoes it.
+	- The row's revert arrow puts its checkbox, width, sample rate and time axis back. The order has no arrow, since dragging back undoes it.
 
 - The drawing area has a window of its own, so it has to take button events and be an action widget, or a right-click never reaches the panel's menu.
 
-- The plugin reads the settings file again when its modified time changes, checked at every sample. That's how a save in the settings window shows up.
+- The plugin reads the settings file again when its modified time changes, checked at every timer tick. That's how a save in the settings window shows up.
+
+- Each graph reads at its own rate, on one timer. A graph reads on whole multiples of its rate, counted on one clock every graph shares, so graphs whose rates divide each other read on the same tick and the panel draws once for them. The timer is one-shot, set again each tick for the next graph due, so a mix of rates wakes the panel no more than it has to. `Graph::tick` in `core/src/lib.rs` has the beats.
+	- A read that would come less than half its rate after the one before is skipped, such as right after the rate changes. A very short span is mostly noise.
+	- The settings window's graph list reads its graphs the same way.
 
 - The tip belongs to the drawing area, through `query-tooltip`, so it can say what's under the pointer. GTK shows a tip once the pointer has been still for 500 ms, and asking again restarts that wait. So the timer asks again only after the pointer has been still for a second, which keeps a still pointer's time current.
 

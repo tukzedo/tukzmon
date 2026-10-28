@@ -23,8 +23,8 @@ struct Plugin {
 	xpp: *mut c_void,
 	area: *mut c_void,
 	graphs: Graphs,
+	/// The one-shot timer to the next graph's read.
 	timer: c_uint,
-	timer_ms: u32,
 	/// A one-shot redraw while an axis eases in, or 0.
 	frame: c_uint,
 	config: PathBuf,
@@ -70,10 +70,11 @@ impl Plugin {
 		}
 	}
 
-	fn start_timer(&mut self) {
-		self.timer_ms = self.graphs.look().sample_ms.max(50);
+	/// Each graph keeps its own rate, so the timer is set again each time,
+	/// for whichever is due next.
+	fn start_timer(&mut self, ms: u32) {
 		// SAFETY: self lives in a Box until free-data, which stops this timer.
-		self.timer = unsafe { g_timeout_add(self.timer_ms, tick, std::ptr::from_mut(self).cast()) };
+		self.timer = unsafe { g_timeout_add(ms, tick, std::ptr::from_mut(self).cast()) };
 	}
 
 	fn load_history(&mut self) {
@@ -150,7 +151,7 @@ extern "C" fn tick(data: *mut c_void) -> Gboolean {
 	}
 	p.reload_if_changed();
 	p.reset_if_asked();
-	p.graphs.sample();
+	let next = p.graphs.tick();
 	if p.graphs.look().keep && p.saved_at.elapsed() >= SAVE_EVERY {
 		p.save_history();
 	}
@@ -162,11 +163,8 @@ extern "C" fn tick(data: *mut c_void) -> Gboolean {
 			gtk_widget_trigger_tooltip_query(p.area);
 		}
 	}
-	if p.graphs.look().sample_ms.max(50) != p.timer_ms {
-		p.start_timer();
-		return 0;
-	}
-	1
+	p.start_timer(next);
+	0
 }
 
 extern "C" fn draw(widget: *mut c_void, cr: *mut c_void, data: *mut c_void) -> Gboolean {
@@ -405,7 +403,6 @@ fn construct(plugin: *mut c_void) {
 		area: std::ptr::null_mut(),
 		graphs: Graphs::new(Look::load(&config)),
 		timer: 0,
-		timer_ms: 0,
 		frame: 0,
 		config_time: modified(&config),
 		config,
@@ -458,9 +455,9 @@ fn construct(plugin: *mut c_void) {
 			data,
 		);
 		xfce_panel_plugin_menu_show_configure(plugin);
-		p.graphs.sample();
+		let first = p.graphs.tick();
 		p.fit();
-		p.start_timer();
+		p.start_timer(first);
 		gtk_widget_show_all(plugin);
 		connect(
 			plugin,

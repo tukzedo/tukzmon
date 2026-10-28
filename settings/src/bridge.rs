@@ -57,6 +57,7 @@ pub mod ffi {
 		name: String,
 		show: String,
 		width: String,
+		sample: String,
 		time: String,
 	}
 
@@ -124,7 +125,8 @@ pub mod ffi {
 		fn live_new(d: &Dialog) -> Box<Live>;
 		fn live_look(l: &mut Live, d: &Dialog);
 		fn live_clear(l: &mut Live);
-		/// Reads every graph, and gives the ms to the next read.
+		/// Reads each graph whose beat has come, and gives the ms to the next
+		/// one's.
 		fn live_sample(l: &mut Live) -> u32;
 		fn live_width(l: &Live, name: &str) -> u32;
 		/// The pixels live until the next call on `l`. cxx asks for `unsafe`
@@ -331,6 +333,7 @@ fn graph_rows(d: &Dialog) -> Vec<ffi::GraphRow> {
 			name: r.name,
 			show: r.show,
 			width: r.width,
+			sample: r.sample,
 			time: r.time,
 		})
 		.collect()
@@ -361,8 +364,7 @@ fn live_look(l: &mut Live, d: &Dialog) {
 }
 
 fn live_sample(l: &mut Live) -> u32 {
-	l.sample();
-	l.sample_ms()
+	l.tick()
 }
 
 fn live_width(l: &Live, name: &str) -> u32 {
@@ -522,7 +524,7 @@ mod tests {
 			.collect();
 		let mut want: Vec<String> = graph_rows(&d)
 			.into_iter()
-			.flat_map(|g| [g.show, g.width, g.time])
+			.flat_map(|g| [g.show, g.width, g.sample, g.time])
 			.collect();
 		want.push(crate::dialog::ORDER.to_string());
 		assert_eq!(listed, want);

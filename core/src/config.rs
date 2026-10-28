@@ -371,37 +371,45 @@ pub struct Look {
 	pub show_cpu: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub cpu_width: u32,
+	/// 0 follows `sample_ms`. See [`Look::rate`].
+	pub cpu_sample_ms: u32,
 	/// None follows `time`. See [`Look::timing`].
 	pub cpu_time: Option<Timing>,
 	/// Draw the memory graph, where the box has one.
 	pub show_memory: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub mem_width: u32,
+	pub mem_sample_ms: u32,
 	pub mem_time: Option<Timing>,
 	/// Draw the swap graph, where the box has swap.
 	pub show_swap: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub swap_width: u32,
+	pub swap_sample_ms: u32,
 	pub swap_time: Option<Timing>,
 	/// Draw the zswap graph, where the box has zswap on or zram set up.
 	pub show_zswap: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub zswap_width: u32,
+	pub zswap_sample_ms: u32,
 	pub zswap_time: Option<Timing>,
 	/// Draw the network graph.
 	pub show_net: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub net_width: u32,
+	pub net_sample_ms: u32,
 	pub net_time: Option<Timing>,
 	/// Draw the load graph.
 	pub show_load: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub load_width: u32,
+	pub load_sample_ms: u32,
 	pub load_time: Option<Timing>,
 	/// Draw the disk graph, where the box has a disk.
 	pub show_disk: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub disk_width: u32,
+	pub disk_sample_ms: u32,
 	pub disk_time: Option<Timing>,
 	/// A log scale up the disk graph.
 	pub disk_log: bool,
@@ -411,11 +419,13 @@ pub struct Look {
 	pub show_temp: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub temp_width: u32,
+	pub temp_sample_ms: u32,
 	pub temp_time: Option<Timing>,
 	/// Draw the battery graph, where the box has a battery in.
 	pub show_battery: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub battery_width: u32,
+	pub battery_sample_ms: u32,
 	pub battery_time: Option<Timing>,
 	/// Graph names as saved, first drawn first. See [`graph_order`].
 	pub order: Vec<String>,
@@ -500,32 +510,41 @@ impl Look {
 			cpu_gradient: [color("cpu_low"), color("cpu_medium"), color("cpu_high")],
 			show_cpu: m.value("show_cpu", &NoEnv).as_bool(),
 			cpu_width: num("cpu_width") as u32,
+			cpu_sample_ms: num("cpu_sample_ms") as u32,
 			cpu_time: Timing::parse(m.value("cpu_time", &NoEnv).as_text()),
 			show_memory: m.value("show_memory", &NoEnv).as_bool(),
 			mem_width: num("mem_width") as u32,
+			mem_sample_ms: num("mem_sample_ms") as u32,
 			mem_time: Timing::parse(m.value("mem_time", &NoEnv).as_text()),
 			show_swap: m.value("show_swap", &NoEnv).as_bool(),
 			swap_width: num("swap_width") as u32,
+			swap_sample_ms: num("swap_sample_ms") as u32,
 			swap_time: Timing::parse(m.value("swap_time", &NoEnv).as_text()),
 			show_zswap: m.value("show_zswap", &NoEnv).as_bool(),
 			zswap_width: num("zswap_width") as u32,
+			zswap_sample_ms: num("zswap_sample_ms") as u32,
 			zswap_time: Timing::parse(m.value("zswap_time", &NoEnv).as_text()),
 			show_net: m.value("show_net", &NoEnv).as_bool(),
 			net_width: num("net_width") as u32,
+			net_sample_ms: num("net_sample_ms") as u32,
 			net_time: Timing::parse(m.value("net_time", &NoEnv).as_text()),
 			show_load: m.value("show_load", &NoEnv).as_bool(),
 			load_width: num("load_width") as u32,
+			load_sample_ms: num("load_sample_ms") as u32,
 			load_time: Timing::parse(m.value("load_time", &NoEnv).as_text()),
 			show_disk: m.value("show_disk", &NoEnv).as_bool(),
 			disk_width: num("disk_width") as u32,
+			disk_sample_ms: num("disk_sample_ms") as u32,
 			disk_time: Timing::parse(m.value("disk_time", &NoEnv).as_text()),
 			disk_log: m.value("disk_log", &NoEnv).as_bool(),
 			disk_drives: graph_order(m.value("disk_drives", &NoEnv).as_text()),
 			show_temp: m.value("show_temp", &NoEnv).as_bool(),
 			temp_width: num("temp_width") as u32,
+			temp_sample_ms: num("temp_sample_ms") as u32,
 			temp_time: Timing::parse(m.value("temp_time", &NoEnv).as_text()),
 			show_battery: m.value("show_battery", &NoEnv).as_bool(),
 			battery_width: num("battery_width") as u32,
+			battery_sample_ms: num("battery_sample_ms") as u32,
 			battery_time: Timing::parse(m.value("battery_time", &NoEnv).as_text()),
 			order: graph_order(m.value("graph_order", &NoEnv).as_text()),
 			mem: [color("mem_user"), color("mem_buffers"), color("mem_cache")],
@@ -649,6 +668,12 @@ impl Look {
 	/// A graph's own pick, or else Time axis default.
 	pub fn timing(&self, own: Option<Timing>) -> Timing {
 		own.unwrap_or(self.time)
+	}
+
+	/// A graph's own sample rate in ms, or else Sample ms default, and never
+	/// under [`crate::FASTEST_MS`].
+	pub fn rate(&self, own: u32) -> u32 {
+		if own == 0 { self.sample_ms } else { own }.max(crate::FASTEST_MS)
 	}
 
 	/// A graph's width from its percentage of Width, rounded, and never 0.
@@ -1107,6 +1132,36 @@ mod tests {
 		// a hidden graph's width can be set before it's turned on
 		assert_eq!(gate("cpu_width"), None);
 		assert_eq!(gate("mem_width"), None);
+	}
+
+	// Test ID: deja1
+	#[test]
+	fn each_graph_has_a_sample_rate_and_old_files_keep_the_default() {
+		let d = Look::default();
+		assert_eq!((d.cpu_sample_ms, d.battery_sample_ms), (0, 0));
+		assert_eq!(d.rate(d.cpu_sample_ms), 500);
+		let l = Look::from_model(&model(
+			"graph:\n\tsample_ms: 1000\ncpu:\n\tsample_ms: 250\nmem:\n\tsample_ms: 20\n",
+		));
+		assert_eq!((l.cpu_sample_ms, l.mem_sample_ms), (250, 20));
+		assert_eq!(l.rate(l.cpu_sample_ms), 250);
+		assert_eq!(l.rate(l.mem_sample_ms), crate::FASTEST_MS);
+		// a file from before has none, and Sample ms default rules
+		assert_eq!(l.rate(l.net_sample_ms), 1000);
+		let spec = spec();
+		for g in [
+			"cpu", "mem", "net", "swap", "zswap", "load", "disk", "temp", "battery",
+		] {
+			let id = format!("{g}_sample_ms");
+			let Some(s) = spec.get(&id) else {
+				panic!("no {id} in settings.shcl");
+			};
+			// set while its graph is off, and 0 is Default
+			assert_eq!(s.gate, None);
+			assert_eq!(s.default.as_f64(), 0.0);
+			assert_eq!((s.min, s.max), (0.0, 60000.0));
+			assert_eq!(s.path, format!("{g}.sample_ms"));
+		}
 	}
 
 	// Test ID: deea4

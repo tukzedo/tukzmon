@@ -9,6 +9,9 @@
 ## dropdown as radio buttons, and shown_when: "id = key" shows a row only
 ## while that dropdown is on that key. Those 2 are ours too.
 ##
+## A graph's row in the Graphs list comes from its show, width, sample_ms and
+## time settings, in that order.
+##
 ## Every color is in the theme group, and so is each graph's mode. A row's
 ## default is the Default theme's value, and config::tests holds the two to
 ## each other.
@@ -51,7 +54,7 @@ settings:
 		tip: "How a graph spreads time across its width, unless it picks its own under Graphs. Linear is a plain scrolling graph. The log curves squeeze older history to the left, so the last minute and the last day fit in one graph.\n\nSmooth log is one log curve across the whole run, with each pixel covering a little more time than the one to its right.\n\nLog A and Log B split the graph into 4 fixed divisions. From the right, they cover at most the last minute, the next 59 minutes, the next 23 hours, and everything older. Log A fills them early: the first after about half an hour of history, and all 3 within a week. Log B follows Smooth log until a division fills, after about a day and a half for the first and 4 months for all 3."
 
 	sample_ms:
-		label: Sample every ms
+		label: Sample ms default
 		tab: Graph
 		control: slider
 		whole: true
@@ -61,7 +64,7 @@ settings:
 		path: graph.sample_ms
 		default: 500
 		detents: 250, 500, 1000, 2000
-		tip: "How often the graphs are read and redrawn."
+		tip: "How often a graph is read and redrawn, in ms, unless it has its own rate under Graphs."
 
 	spikes:
 		label: Spike emphasis %
@@ -121,6 +124,16 @@ settings:
 		default: 100
 		tip: "How wide the CPU graph is, as a percentage of Width."
 
+	cpu_sample_ms:
+		label: CPU sample ms
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 60000
+		path: cpu.sample_ms
+		default: 0
+		tip: "How often the CPU graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+
 	cpu_time:
 		label: CPU time axis
 		tab: Graph
@@ -148,6 +161,16 @@ settings:
 		path: mem.width
 		default: 100
 		tip: "How wide the memory graph is, as a percentage of Width."
+
+	mem_sample_ms:
+		label: Memory sample ms
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 60000
+		path: mem.sample_ms
+		default: 0
+		tip: "How often the memory graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
 
 	mem_time:
 		label: Memory time axis
@@ -177,6 +200,16 @@ settings:
 		default: 50
 		tip: "How wide the network graph is, as a percentage of Width."
 
+	net_sample_ms:
+		label: Network sample ms
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 60000
+		path: net.sample_ms
+		default: 0
+		tip: "How often the network graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+
 	net_time:
 		label: Network time axis
 		tab: Graph
@@ -204,6 +237,16 @@ settings:
 		path: disk.width
 		default: 50
 		tip: "How wide the disk graph is, as a percentage of Width."
+
+	disk_sample_ms:
+		label: Disk sample ms
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 60000
+		path: disk.sample_ms
+		default: 0
+		tip: "How often the disk graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
 
 	disk_time:
 		label: Disk time axis
@@ -233,6 +276,16 @@ settings:
 		default: 50
 		tip: "How wide the temperature graph is, as a percentage of Width."
 
+	temp_sample_ms:
+		label: Temperature sample ms
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 60000
+		path: temp.sample_ms
+		default: 0
+		tip: "How often the temperature graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+
 	temp_time:
 		label: Temperature time axis
 		tab: Graph
@@ -260,6 +313,16 @@ settings:
 		path: swap.width
 		default: 25
 		tip: "How wide the swap graph is, as a percentage of Width."
+
+	swap_sample_ms:
+		label: Swap sample ms
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 60000
+		path: swap.sample_ms
+		default: 0
+		tip: "How often the swap graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
 
 	swap_time:
 		label: Swap time axis
@@ -289,6 +352,16 @@ settings:
 		default: 25
 		tip: "How wide the zswap graph is, as a percentage of Width."
 
+	zswap_sample_ms:
+		label: Zswap sample ms
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 60000
+		path: zswap.sample_ms
+		default: 0
+		tip: "How often the zswap graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+
 	zswap_time:
 		label: Zswap time axis
 		tab: Graph
@@ -317,6 +390,16 @@ settings:
 		default: 25
 		tip: "How wide the load graph is, as a percentage of Width."
 
+	load_sample_ms:
+		label: Load sample ms
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 60000
+		path: load.sample_ms
+		default: 0
+		tip: "How often the load graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+
 	load_time:
 		label: Load time axis
 		tab: Graph
@@ -344,6 +427,16 @@ settings:
 		path: battery.width
 		default: 100
 		tip: "How wide the battery graph is, as a percentage of Width."
+
+	battery_sample_ms:
+		label: Battery sample ms
+		tab: Graph
+		control: number
+		whole: true
+		range: 0, 60000
+		path: battery.sample_ms
+		default: 0
+		tip: "How often the battery graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
 
 	battery_time:
 		label: Battery time axis
