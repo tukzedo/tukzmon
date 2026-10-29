@@ -52,6 +52,7 @@
 #include <climits>
 #include <cmath>
 #include <functional>
+#include <map>
 #include <string>
 #include <tuple>
 #include <memory>
@@ -75,6 +76,21 @@ void softenSelection(QWidget *w) {
 			mix(base.blueF(), pick.blueF()));
 		pal.setColor(group, QPalette::Highlight, tint);
 		pal.setColor(group, QPalette::HighlightedText, pal.color(group, QPalette::Text));
+	}
+	w->setPalette(pal);
+}
+
+// What scrolls sits a shade off the window, so it's plain which part moves.
+// Toward the text color goes darker in a light theme and lighter in a dark one.
+void shadeScroll(QWidget *w) {
+	QPalette pal = w->palette();
+	for (auto group : {QPalette::Active, QPalette::Inactive, QPalette::Disabled}) {
+		const QColor back = pal.color(group, QPalette::Window);
+		const QColor ink = pal.color(group, QPalette::WindowText);
+		auto mix = [](float a, float b) { return a + (b - a) / 16; };
+		pal.setColor(group, QPalette::Window,
+			QColor::fromRgbF(mix(back.redF(), ink.redF()), mix(back.greenF(), ink.greenF()),
+				mix(back.blueF(), ink.blueF())));
 	}
 	w->setPalette(pal);
 }
@@ -727,6 +743,32 @@ public:
 		}
 		return nullptr;
 	}
+	// the most common color in the page that scrolls, and in the rest of the
+	// window past the tab list, as drawn
+	std::pair<QColor, QColor> shadesNow() {
+		const QImage img = grab().toImage();
+		QRect inside, area;
+		for (auto *s : findChildren<QScrollArea *>())
+			if (s->isVisible()) {
+				inside = QRect(s->viewport()->mapTo(this, QPoint()), s->viewport()->size());
+				area = QRect(s->mapTo(this, QPoint()), s->size());
+			}
+		const QRect tabs(tabList->mapTo(this, QPoint()), tabList->size());
+		std::map<QRgb, int> in, out;
+		for (int y = 0; y < img.height(); y++)
+			for (int x = 0; x < img.width(); x++) {
+				const QPoint at(x, y);
+				if (inside.contains(at))
+					in[img.pixel(at)]++;
+				else if (!area.contains(at) && !tabs.contains(at))
+					out[img.pixel(at)]++;
+			}
+		auto most = [](const std::map<QRgb, int> &seen) {
+			auto top = std::max_element(seen.begin(), seen.end(), [](auto &a, auto &b) { return a.second < b.second; });
+			return top == seen.end() ? QColor() : QColor(top->first);
+		};
+		return {most(in), most(out)};
+	}
 	bool applyOn() const { return applyButton->isEnabled(); }
 	void commitTyped() { takeTyped(); }
 	bool isLeaf(int i) const { return leaf[size_t(lineTab[size_t(i)])]; }
@@ -984,6 +1026,7 @@ private:
 		scroll->setWidget(page);
 		scroll->setWidgetResizable(true);
 		scroll->setFrameShape(QFrame::NoFrame);
+		shadeScroll(scroll);
 		return scroll;
 	}
 
@@ -1677,15 +1720,10 @@ rust::Vec<bool> apply_while_typing(Dialog &d, bool number) {
 	return out;
 }
 
-double empty_box_contrast(bool dark) {
-	static int argc = 1;
-	static char name[] = "tukzmon-settings";
-	static char *argv[] = {name, nullptr};
-	qputenv("QT_QPA_PLATFORM", "offscreen");
-	QApplication app(argc, argv);
-	app.setStyle(new BoxStyle);
+namespace {
+// close to the dark themes where the empty checkbox went missing
+QPalette testPalette(const QApplication &app, bool dark) {
 	QPalette pal = app.palette();
-	// close to the dark themes where the box went missing
 	if (dark) {
 		pal.setColor(QPalette::Window, QColor("#2b2b2b"));
 		pal.setColor(QPalette::WindowText, QColor("#dcdcdc"));
@@ -1693,6 +1731,42 @@ double empty_box_contrast(bool dark) {
 		pal.setColor(QPalette::Text, QColor("#dcdcdc"));
 		pal.setColor(QPalette::Button, QColor("#353535"));
 	}
+	return pal;
+}
+} // namespace
+
+rust::Vec<rust::String> page_shades(Dialog &d, bool dark) {
+	static int argc = 1;
+	static char name[] = "tukzmon-settings";
+	static char *argv[] = {name, nullptr};
+	qputenv("QT_QPA_PLATFORM", "offscreen");
+	QApplication app(argc, argv);
+	app.setStyle(new BoxStyle);
+	const QPalette pal = testPalette(app, dark);
+	app.setPalette(pal);
+	Window w(d);
+	w.resize(w.sizeHint().expandedTo(QSize(560, 420)));
+	w.show();
+	rust::Vec<rust::String> out;
+	out.push_back(rust::String(pal.color(QPalette::Window).name().toStdString()));
+	for (int i = 0; i < w.tabCount(); i++) {
+		w.select(i);
+		app.processEvents();
+		const auto [in, rest] = w.shadesNow();
+		out.push_back(rust::String(QString::fromStdString(w.tabText(i)).trimmed().toStdString() + " " +
+			in.name().toStdString() + " " + rest.name().toStdString()));
+	}
+	return out;
+}
+
+double empty_box_contrast(bool dark) {
+	static int argc = 1;
+	static char name[] = "tukzmon-settings";
+	static char *argv[] = {name, nullptr};
+	qputenv("QT_QPA_PLATFORM", "offscreen");
+	QApplication app(argc, argv);
+	app.setStyle(new BoxStyle);
+	const QPalette pal = testPalette(app, dark);
 	app.setPalette(pal);
 	QCheckBox box;
 	const QImage img = box.grab().toImage();

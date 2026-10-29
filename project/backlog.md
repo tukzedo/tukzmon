@@ -281,12 +281,74 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Scrollable region of the dialog a different color
 	- ID: 2026102913122702
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- Whether the shade is subtle enough and still plain to see is for a person to judge.
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Needs hand testing: on b23, after an install, open Settings in the desktop's own theme, look at each tab, and judge whether the part that scrolls reads apart from the tab list, the Name row on Themes and the buttons.
 	- Priority|Severity: Avg
 	- Opened: 20261029-131227
 	- Opened by: t00mietum
+	- Related IDs: 2026102913122704
 	- Requirements:
 		- Make the scrollable region of the dialog a subtly different color than the non-scrollable, so it's more visually obvious which is which.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The page that scrolls on each tab is drawn a shade off the window color. The tab list, the theme's Name row over the Themes sub-tabs and the bottom buttons keep the window color.
+		- `design.md` Settings window has it.
+		- Verified: the full run passed with the new test. Every tab drew its page a shade darker than the window in a light theme, and a shade lighter in a dark one, with the rest of the window in the window color.
+	- Decisions:
+		- The shade is the window color moved 1/16 of the way to the text color. It follows the desktop's theme, so there's no color of ours to keep up, and it goes the right way in a light theme and a dark one.
+		- The whole page in a scroll area is shaded, even when it fits with no scrollbar, so a tab looks the same whether or not it runs past the window.
+		- Boxes and buttons on the page keep their own colors.
+	- Branch: round-1029
+	- Test case: `bridge::tests::the_part_that_scrolls_is_a_shade_off_the_window` (dekna), in a light and a dark theme. It fails with the shade left out.
+		- Swept: every scroll area in `qt.cpp`. `FitScroll` in `buildPage` is the only one, and every tab and sub-tab that scrolls goes through it.
+
+- Pre-next-cut: Graphs editing section on its own tab
+	- ID: 2026102913122704
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- It departs from the wording in one way. The old Graph tab is now General, since Graph beside Graphs read as one tab twice. Check in questions.md.
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Needs hand testing: on b23, after an install, open Settings, pick Graphs, and judge the tab names and the list on its own tab.
+	- Priority|Severity: Avg
+	- Opened: 20261029-131227
+	- Opened by: t00mietum
+	- Related IDs: 2026102913122702, 2026102913122703, 2026102913122705
+	- Requirements:
+		- Move the Graphs editing section to its own tab.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The graph list is on a Graphs tab of its own, after General. General keeps Size, Time, Frame, Disk graph and History.
+		- The list's tips that pointed under Time or at Width now say those are on the General tab, and General's tips point at the Graphs tab.
+		- The setting ids and paths are unchanged, so saved files read as before.
+		- `design.md` Settings window, XFCE plugin and Time axis have it.
+		- Verified: the full run passed. The Graphs tab drew the list with no heading over it, and General drew the rest.
+	- Decisions:
+		- General stays first, so the window still opens on the tab it opened on.
+		- The Graphs heading is dropped on its own tab, as any heading that repeats its tab's name is.
+		- The window's height is left to 2026102913122703 and 2026102913122705.
+	- Branch: round-1029
+	- Test case: `bridge::tests::the_graph_list_is_a_tab_of_its_own` (dekn9). It fails with the list on the old tab.
+		- 2026-10-29: new values only. dejac's tab list is General, Graphs, Themes, Colors, Outline, not Graph, Themes, Colors, Outline. dejmn checks that General and Graphs light nothing else, where it checked Graph.
+		- Swept: every reader of a tab's name (dejac, dejmn, `tabs_after_move` and `sections_after_move`, which pick Colors), the tips naming Time, Width and Graphs, and the docs naming the Graph tab.
+
+- GPU test fails on a box with an NVIDIA GPU
+	- ID: 2026102914040910
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261029-140409
+	- Opened by: t00mietum
+	- Related IDs: 2026102819145597
+	- Steps to reproduce:
+		- On b23, outside the container, run `cargo test -p tukzmon-settings -- the_gpu_rows`.
+	- Incorrect behavior: dekmd fails at its tip check. The GPU graph's tip reads only "GPU" after one sample.
+	- Expected behavior: it passes. In the container there's no GPU, so the test takes its other branch, and the full run never sees this.
+	- Reproduced: 2026-10-29 on b23, 3 times of 3, at f68f673 with no edits, with the RTX 3060 Ti about 50% busy.
+	- Possible cause: the first sample has no busy share for the tip yet, either because the first read only primes or because the GPU graph's beat hasn't come.
 
 - Pre-next-cut: Dialog never taller than the screen
 	- ID: 2026102913122703
@@ -297,16 +359,6 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Requirements:
 		- Dialog should never be taller than the available screen real-estate.
-
-- Pre-next-cut: Graphs editing section on its own tab
-	- ID: 2026102913122704
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261029-131227
-	- Opened by: t00mietum
-	- Requirements:
-		- Move the Graphs editing section to its own tab.
 
 - Pre-next-cut: Dialog height from the tallest other tab
 	- ID: 2026102913122705

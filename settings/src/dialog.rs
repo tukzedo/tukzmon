@@ -37,7 +37,7 @@ pub struct RowState {
 	pub shown: bool,
 }
 
-/// A row of the graph list on the Graph tab: a graph's history name, and the
+/// A row of the graph list on the Graphs tab: a graph's history name, and the
 /// ids of the settings it shows.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GraphRow {
@@ -760,7 +760,7 @@ mod tests {
 		let d = scratch("tab_order");
 		let mut dlg = Dialog::open(d.0.join("t.shcl"));
 		let tabs: Vec<String> = dlg.spec.tabs.iter().map(|t| t.label.clone()).collect();
-		assert_eq!(tabs, ["Graph", "Themes", "Colors", "Outline"]);
+		assert_eq!(tabs, ["General", "Graphs", "Themes", "Colors", "Outline"]);
 		// each section by its heading, as the window shows it
 		let labels = |dlg: &Dialog| -> Vec<String> {
 			dlg.section_order()

@@ -172,6 +172,11 @@ pub mod ffi {
 		/// the box gives it up.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn apply_while_typing(d: &mut Dialog, number: bool) -> Vec<bool>;
+		/// The window color, then per tab "label scroll rest": the most common
+		/// color in the page that scrolls and in the rest of the window, past
+		/// the tab list.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn page_shades(d: &mut Dialog, dark: bool) -> Vec<String>;
 		/// The most contrast an empty checkbox has with the window, as WCAG
 		/// measures it.
 		#[allow(dead_code, reason = "only the tests ask")]
@@ -736,7 +741,101 @@ mod tests {
 		assert_eq!(dim("Colors"), ["Themes"]);
 		assert_eq!(dim("Outline"), ["Themes"]);
 		// a tab with none under it lights nothing else
-		assert!(dim("Graph").is_empty(), "{:?}", dim("Graph"));
+		for tab in ["General", "Graphs"] {
+			assert!(dim(tab).is_empty(), "{tab}: {:?}", dim(tab));
+		}
+	}
+
+	// Test ID: dekn9
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn the_graph_list_is_a_tab_of_its_own() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_graphs_tab_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let tabs = dialog_tabs(&d);
+		let rows = dialog_rows(&d);
+		let shown = ffi::tabs_shown(&mut d);
+		let on = |name: &str| {
+			let at = tabs.iter().position(|t| t.label == name).unwrap();
+			shown[at].rows.clone()
+		};
+		let listed: Vec<String> = rows
+			.iter()
+			.filter(|r| r.in_list && r.id != "graph_order")
+			.map(|r| r.id.clone())
+			.collect();
+		assert!(listed.iter().any(|id| id == "cpu_width"), "{listed:?}");
+		assert_eq!(on("Graphs"), listed);
+		for (t, tab) in shown.iter().enumerate() {
+			if tabs[t].label != "Graphs" {
+				for id in &tab.rows {
+					assert!(!listed.contains(id), "{} shows {id}", tabs[t].label);
+				}
+			}
+		}
+		// what every graph shares stays on General
+		for id in [
+			"width",
+			"time_axis",
+			"sample_ms",
+			"border",
+			"disk_drives",
+			"keep_history",
+		] {
+			assert!(on("General").iter().any(|r| r == id), "{id}");
+		}
+	}
+
+	// Test ID: dekna
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn the_part_that_scrolls_is_a_shade_off_the_window() {
+		let _qt = qt_turn();
+		// WCAG's relative luminance, from "#rrggbb"
+		let lum = |hex: &str| {
+			let v = u32::from_str_radix(&hex[1..], 16).unwrap();
+			[16, 8, 0]
+				.iter()
+				.zip([0.2126, 0.7152, 0.0722])
+				.map(|(shift, k)| {
+					let c = f64::from((v >> shift) & 0xff) / 255.0;
+					let lin = if c <= 0.04045 {
+						c / 12.92
+					} else {
+						((c + 0.055) / 1.055).powf(2.4)
+					};
+					k * lin
+				})
+				.sum::<f64>()
+		};
+		for dark in [false, true] {
+			let path = std::env::temp_dir().join(format!(
+				"test_tukzmon-settings_{}_shades_never_written.shcl",
+				std::process::id()
+			));
+			let mut d = Dialog::open(path);
+			let got = ffi::page_shades(&mut d, dark);
+			let window = got[0].as_str();
+			assert_eq!(got.len(), dialog_tabs(&d).len() + 1, "{got:?}");
+			for line in &got[1..] {
+				let v: Vec<&str> = line.split(' ').collect();
+				let (scroll, rest) = (v[v.len() - 2], v[v.len() - 1]);
+				// the tab list, the theme's Name row and the buttons keep the window's
+				assert_eq!(rest, window, "dark: {dark}, {line}");
+				let (a, b) = (lum(scroll), lum(rest));
+				let ratio = (a.max(b) + 0.05) / (a.min(b) + 0.05);
+				assert!(
+					(1.05..1.3).contains(&ratio),
+					"dark: {dark}, {line}, contrast {ratio:.3}"
+				);
+				// toward the text, so darker in a light theme
+				assert_eq!(a > b, dark, "{line}");
+			}
+		}
 	}
 
 	// Test ID: dejad

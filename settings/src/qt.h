@@ -17,5 +17,6 @@ rust::Vec<TabShown> tabs_after_move(Dialog &d, rust::Str pick, std::size_t from,
 rust::Vec<rust::String> sections_after_move(Dialog &d, std::size_t from, std::size_t to);
 rust::Vec<rust::String> bottom_buttons(Dialog &d);
 rust::Vec<bool> apply_while_typing(Dialog &d, bool number);
+rust::Vec<rust::String> page_shades(Dialog &d, bool dark);
 double empty_box_contrast(bool dark);
 }

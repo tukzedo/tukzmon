@@ -20,18 +20,18 @@
 ## graph's. A row's default is the Default theme's value, and config::tests
 ## holds the two to each other.
 
-tabs: "Graph", "Themes", "Themes/Colors", "Themes/Outline"
+tabs: "General", "Graphs", "Themes", "Themes/Colors", "Themes/Outline"
 
 settings:
 
 	SizeHead:
 		label: Size
-		tab: Graph
+		tab: General
 		control: heading
 
 	width:
 		label: Width px
-		tab: Graph
+		tab: General
 		control: slider
 		whole: true
 		range: 16, 4096
@@ -40,26 +40,26 @@ settings:
 		path: graph.width
 		default: 128
 		detents: 64, 128, 256
-		tip: "How wide a graph is in the panel at 100%. Each graph under Graphs takes a percentage of it. Its height follows the panel.\n\nOn a vertical panel or a deskbar, this is how tall a graph is, and its width follows the panel. Time still runs from left to right."
+		tip: "How wide a graph is in the panel at 100%. Each graph on the Graphs tab takes a percentage of it. Its height follows the panel.\n\nOn a vertical panel or a deskbar, this is how tall a graph is, and its width follows the panel. Time still runs from left to right."
 
 	TimeHead:
 		label: Time
-		tab: Graph
+		tab: General
 		control: heading
 
 	time_axis:
 		label: Time axis default
-		tab: Graph
+		tab: General
 		control: dropdown
 		options: linear, smooth, fixed_a, fixed_b
 		option_labels: "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: graph.time
 		default: smooth
-		tip: "How a graph spreads time across its width, unless it picks its own under Graphs. Linear is a plain scrolling graph. The log curves squeeze older history to the left, so the last minute and the last day fit in one graph.\n\nSmooth log is one log curve across the whole run, with each pixel covering a little more time than the one to its right.\n\nLog A and Log B split the graph into 4 fixed divisions. From the right, they cover at most the last minute, the next 59 minutes, the next 23 hours, and everything older. Log A fills them early: the first after about half an hour of history, and all 3 within a week. Log B follows Smooth log until a division fills, after about a day and a half for the first and 4 months for all 3."
+		tip: "How a graph spreads time across its width, unless it picks its own on the Graphs tab. Linear is a plain scrolling graph. The log curves squeeze older history to the left, so the last minute and the last day fit in one graph.\n\nSmooth log is one log curve across the whole run, with each pixel covering a little more time than the one to its right.\n\nLog A and Log B split the graph into 4 fixed divisions. From the right, they cover at most the last minute, the next 59 minutes, the next 23 hours, and everything older. Log A fills them early: the first after about half an hour of history, and all 3 within a week. Log B follows Smooth log until a division fills, after about a day and a half for the first and 4 months for all 3."
 
 	sample_ms:
 		label: Sample ms default
-		tab: Graph
+		tab: General
 		control: slider
 		whole: true
 		range: 50, 60000
@@ -68,11 +68,11 @@ settings:
 		path: graph.sample_ms
 		default: 1000
 		detents: 250, 500, 1000, 2000
-		tip: "How often a graph is read and redrawn, in ms. Each graph under Graphs takes a percentage of it."
+		tip: "How often a graph is read and redrawn, in ms. Each graph on the Graphs tab takes a percentage of it."
 
 	spikes:
 		label: Spike emphasis %
-		tab: Graph
+		tab: General
 		control: slider
 		whole: true
 		range: 0, 100
@@ -82,7 +82,7 @@ settings:
 
 	hover_time:
 		label: Hover shows
-		tab: Graph
+		tab: General
 		control: dropdown
 		options: ago, clock
 		option_labels: "How long ago", "Date and time"
@@ -92,12 +92,12 @@ settings:
 
 	LookHead:
 		label: Frame
-		tab: Graph
+		tab: General
 		control: heading
 
 	border:
 		label: Border px
-		tab: Graph
+		tab: General
 		control: slider
 		whole: true
 		range: 0, 16
@@ -107,12 +107,12 @@ settings:
 
 	GraphsHead:
 		label: Graphs
-		tab: Graph
+		tab: Graphs
 		control: heading
 
 	show_cpu:
 		label: CPU
-		tab: Graph
+		tab: Graphs
 		control: checkbox
 		path: cpu.show
 		default: true
@@ -120,37 +120,37 @@ settings:
 
 	cpu_width:
 		label: CPU width %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: cpu.width
 		default: 100
-		tip: "How wide the CPU graph is, or how tall on a vertical panel, as a percentage of Width."
+		tip: "How wide the CPU graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
 
 	cpu_sample:
 		label: CPU sample %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: cpu.sample
 		default: 100
-		tip: "How often the CPU graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
+		tip: "How often the CPU graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	cpu_time:
 		label: CPU time axis
-		tab: Graph
+		tab: Graphs
 		control: dropdown
 		options: same, linear, smooth, fixed_a, fixed_b
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: cpu.time
 		default: same
-		tip: "How the CPU graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
+		tip: "How the CPU graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
 
 	show_memory:
 		label: Memory
-		tab: Graph
+		tab: Graphs
 		control: checkbox
 		path: mem.show
 		default: true
@@ -158,37 +158,37 @@ settings:
 
 	mem_width:
 		label: Memory width %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: mem.width
 		default: 100
-		tip: "How wide the memory graph is, or how tall on a vertical panel, as a percentage of Width."
+		tip: "How wide the memory graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
 
 	mem_sample:
 		label: Memory sample %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: mem.sample
 		default: 100
-		tip: "How often the memory graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
+		tip: "How often the memory graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	mem_time:
 		label: Memory time axis
-		tab: Graph
+		tab: Graphs
 		control: dropdown
 		options: same, linear, smooth, fixed_a, fixed_b
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: mem.time
 		default: same
-		tip: "How the memory graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
+		tip: "How the memory graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
 
 	show_gpu:
 		label: GPU
-		tab: Graph
+		tab: Graphs
 		control: checkbox
 		path: gpu.show
 		default: false
@@ -196,37 +196,37 @@ settings:
 
 	gpu_width:
 		label: GPU width %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: gpu.width
 		default: 100
-		tip: "How wide the GPU graph is, or how tall on a vertical panel, as a percentage of Width."
+		tip: "How wide the GPU graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
 
 	gpu_sample:
 		label: GPU sample %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: gpu.sample
 		default: 100
-		tip: "How often the GPU graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
+		tip: "How often the GPU graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	gpu_time:
 		label: GPU time axis
-		tab: Graph
+		tab: Graphs
 		control: dropdown
 		options: same, linear, smooth, fixed_a, fixed_b
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: gpu.time
 		default: same
-		tip: "How the GPU graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
+		tip: "How the GPU graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
 
 	show_vram:
 		label: GPU memory
-		tab: Graph
+		tab: Graphs
 		control: checkbox
 		path: vram.show
 		default: false
@@ -234,37 +234,37 @@ settings:
 
 	vram_width:
 		label: GPU memory width %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: vram.width
 		default: 100
-		tip: "How wide the GPU memory graph is, or how tall on a vertical panel, as a percentage of Width."
+		tip: "How wide the GPU memory graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
 
 	vram_sample:
 		label: GPU memory sample %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: vram.sample
 		default: 100
-		tip: "How often the GPU memory graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
+		tip: "How often the GPU memory graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	vram_time:
 		label: GPU memory time axis
-		tab: Graph
+		tab: Graphs
 		control: dropdown
 		options: same, linear, smooth, fixed_a, fixed_b
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: vram.time
 		default: same
-		tip: "How the GPU memory graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
+		tip: "How the GPU memory graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
 
 	show_net:
 		label: Network
-		tab: Graph
+		tab: Graphs
 		control: checkbox
 		path: net.show
 		default: false
@@ -272,37 +272,37 @@ settings:
 
 	net_width:
 		label: Network width %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: net.width
 		default: 50
-		tip: "How wide the network graph is, or how tall on a vertical panel, as a percentage of Width."
+		tip: "How wide the network graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
 
 	net_sample:
 		label: Network sample %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: net.sample
 		default: 100
-		tip: "How often the network graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
+		tip: "How often the network graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	net_time:
 		label: Network time axis
-		tab: Graph
+		tab: Graphs
 		control: dropdown
 		options: same, linear, smooth, fixed_a, fixed_b
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: net.time
 		default: same
-		tip: "How the network graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
+		tip: "How the network graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
 
 	show_disk:
 		label: Disk
-		tab: Graph
+		tab: Graphs
 		control: checkbox
 		path: disk.show
 		default: false
@@ -310,37 +310,37 @@ settings:
 
 	disk_width:
 		label: Disk width %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: disk.width
 		default: 50
-		tip: "How wide the disk graph is, or how tall on a vertical panel, as a percentage of Width."
+		tip: "How wide the disk graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
 
 	disk_sample:
 		label: Disk sample %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: disk.sample
 		default: 100
-		tip: "How often the disk graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
+		tip: "How often the disk graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	disk_time:
 		label: Disk time axis
-		tab: Graph
+		tab: Graphs
 		control: dropdown
 		options: same, linear, smooth, fixed_a, fixed_b
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: disk.time
 		default: same
-		tip: "How the disk graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
+		tip: "How the disk graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
 
 	show_temp:
 		label: Temperature
-		tab: Graph
+		tab: Graphs
 		control: checkbox
 		path: temp.show
 		default: false
@@ -348,37 +348,37 @@ settings:
 
 	temp_width:
 		label: Temperature width %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: temp.width
 		default: 50
-		tip: "How wide the temperature graph is, or how tall on a vertical panel, as a percentage of Width."
+		tip: "How wide the temperature graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
 
 	temp_sample:
 		label: Temperature sample %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: temp.sample
 		default: 100
-		tip: "How often the temperature graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
+		tip: "How often the temperature graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	temp_time:
 		label: Temperature time axis
-		tab: Graph
+		tab: Graphs
 		control: dropdown
 		options: same, linear, smooth, fixed_a, fixed_b
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: temp.time
 		default: same
-		tip: "How the temperature graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
+		tip: "How the temperature graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
 
 	show_swap:
 		label: Swap
-		tab: Graph
+		tab: Graphs
 		control: checkbox
 		path: swap.show
 		default: true
@@ -386,37 +386,37 @@ settings:
 
 	swap_width:
 		label: Swap width %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: swap.width
 		default: 25
-		tip: "How wide the swap graph is, or how tall on a vertical panel, as a percentage of Width."
+		tip: "How wide the swap graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
 
 	swap_sample:
 		label: Swap sample %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: swap.sample
 		default: 100
-		tip: "How often the swap graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
+		tip: "How often the swap graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	swap_time:
 		label: Swap time axis
-		tab: Graph
+		tab: Graphs
 		control: dropdown
 		options: same, linear, smooth, fixed_a, fixed_b
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: swap.time
 		default: same
-		tip: "How the swap graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
+		tip: "How the swap graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
 
 	show_zswap:
 		label: Zswap
-		tab: Graph
+		tab: Graphs
 		control: checkbox
 		path: zswap.show
 		default: false
@@ -424,37 +424,37 @@ settings:
 
 	zswap_width:
 		label: Zswap width %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: zswap.width
 		default: 25
-		tip: "How wide the zswap graph is, or how tall on a vertical panel, as a percentage of Width."
+		tip: "How wide the zswap graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
 
 	zswap_sample:
 		label: Zswap sample %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: zswap.sample
 		default: 100
-		tip: "How often the zswap graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
+		tip: "How often the zswap graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	zswap_time:
 		label: Zswap time axis
-		tab: Graph
+		tab: Graphs
 		control: dropdown
 		options: same, linear, smooth, fixed_a, fixed_b
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: zswap.time
 		default: same
-		tip: "How the zswap graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
+		tip: "How the zswap graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
 
 	show_load:
 		label: Load
-		tab: Graph
+		tab: Graphs
 		control: checkbox
 		path: load.show
 		default: false
@@ -462,37 +462,37 @@ settings:
 
 	load_width:
 		label: Load width %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: load.width
 		default: 25
-		tip: "How wide the load graph is, or how tall on a vertical panel, as a percentage of Width."
+		tip: "How wide the load graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
 
 	load_sample:
 		label: Load sample %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: load.sample
 		default: 100
-		tip: "How often the load graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
+		tip: "How often the load graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	load_time:
 		label: Load time axis
-		tab: Graph
+		tab: Graphs
 		control: dropdown
 		options: same, linear, smooth, fixed_a, fixed_b
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: load.time
 		default: same
-		tip: "How the load graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
+		tip: "How the load graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
 
 	show_battery:
 		label: Battery
-		tab: Graph
+		tab: Graphs
 		control: checkbox
 		path: battery.show
 		default: false
@@ -500,37 +500,37 @@ settings:
 
 	battery_width:
 		label: Battery width %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: battery.width
 		default: 100
-		tip: "How wide the battery graph is, or how tall on a vertical panel, as a percentage of Width."
+		tip: "How wide the battery graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
 
 	battery_sample:
 		label: Battery sample %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: battery.sample
 		default: 100
-		tip: "How often the battery graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
+		tip: "How often the battery graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	battery_time:
 		label: Battery time axis
-		tab: Graph
+		tab: Graphs
 		control: dropdown
 		options: same, linear, smooth, fixed_a, fixed_b
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: battery.time
 		default: same
-		tip: "How the battery graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
+		tip: "How the battery graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
 
 	show_self:
 		label: tukzmon
-		tab: Graph
+		tab: Graphs
 		control: checkbox
 		path: self.show
 		default: false
@@ -538,38 +538,38 @@ settings:
 
 	self_width:
 		label: tukzmon width %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: self.width
 		default: 25
-		tip: "How wide the tukzmon graph is, or how tall on a vertical panel, as a percentage of Width."
+		tip: "How wide the tukzmon graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
 
 	self_sample:
 		label: tukzmon sample %
-		tab: Graph
+		tab: Graphs
 		control: number
 		whole: true
 		range: 1, 1000
 		path: self.sample
 		default: 100
-		tip: "How often the tukzmon graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
+		tip: "How often the tukzmon graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	self_time:
 		label: tukzmon time axis
-		tab: Graph
+		tab: Graphs
 		control: dropdown
 		options: same, linear, smooth, fixed_a, fixed_b
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: self.time
 		default: same
-		tip: "How the tukzmon graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
+		tip: "How the tukzmon graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
 
 	## The graph list's grippers write this, and it has no row of its own.
 	graph_order:
 		label: Order
-		tab: Graph
+		tab: Graphs
 		control: text
 		path: graph.order
 		default: "cpu mem gpu vram net disk temp swap zswap load battery self"
@@ -577,12 +577,12 @@ settings:
 
 	DiskHead:
 		label: Disk graph
-		tab: Graph
+		tab: General
 		control: heading
 
 	disk_drives:
 		label: Disk drives
-		tab: Graph
+		tab: General
 		control: text
 		path: disk.drives
 		default: all
@@ -591,7 +591,7 @@ settings:
 
 	disk_log:
 		label: Disk log scale
-		tab: Graph
+		tab: General
 		control: checkbox
 		path: disk.log
 		default: false
@@ -600,12 +600,12 @@ settings:
 
 	HistoryHead:
 		label: History
-		tab: Graph
+		tab: General
 		control: heading
 
 	keep_history:
 		label: Keep across restarts
-		tab: Graph
+		tab: General
 		control: checkbox
 		path: history.keep
 		default: true
@@ -613,7 +613,7 @@ settings:
 
 	max_days:
 		label: Max age in days
-		tab: Graph
+		tab: General
 		control: number
 		whole: true
 		range: 1, 36500
