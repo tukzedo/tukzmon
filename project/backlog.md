@@ -297,104 +297,6 @@ Sorted per the notes in [Template](#template).
 	- Acceptance signoff: Self-closed 20261029: dekm0 and the full run.
 	- Closed: 20261029-132000
 
-- Pre-next-cut: GPU utilization graph
-	- ID: 2026102819145597
-	- Type: Feature
-	- Status: Done
-		- It departs from the wording in one way. It's off by default, like every graph since memory. Turn it on in the graph list.
-	- Needs local test suite run?: No. The full run passed on 2026-10-29.
-	- Needs hand testing: on b23, after an install and a panel restart, turn on GPU and GPU memory in the graph list, Apply, and judge how both look beside memory on Default. The GPU tip should be near what `nvidia-smi` shows.
-	- Stand-in: 20261029, build dekpw from 9b72012 in a test panel on Default, with CPU, memory, GPU and GPU memory on. The GPU graph drew in its own blue beside memory, and its tip read "GPU 29% busy" while `nvidia-smi` read 26% to 36%. The graph list, the GPU section on Colors and the Default colors matched the Check in questions.md, in a light and a dark theme.
-	- Priority|Severity: Avg
-	- Opened: 20261028-191455
-	- Opened by: t00mietum
-	- Related IDs: 2026102819145598
-	- Requirements:
-		- GPU utilization, after the "Memory" monitor.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- The GPU graph draws how busy the first GPU is, in one color, full at 100%. Its tip reads "GPU 44% busy". It has a row in the graph list after memory, at `gpu.show`, `gpu.width`, `gpu.sample` and `gpu.time`, and a GPU section on Themes/Colors with Busy, and Low, Medium and High.
-		- `core/src/gpu.rs` reads it, and the GPU memory graph, 2026102819145598, shares it. NVIDIA is through NVML, loaded at run time, and AMD through amdgpu's `gpu_busy_percent`.
-		- `graph.order` defaults to `cpu mem gpu vram net disk temp swap zswap load battery self`.
-		- `design.md` XFCE plugin, Theme and Data sources on Linux have the details.
-		- Verified: the full run passed. On b23 NVML read the RTX 3060 Ti at 31% busy and 39% of 8 GiB in use. The settings window showed the 2 rows after memory and the GPU section on Colors.
-	- Decisions:
-		- Off by default, like the other graphs since memory.
-		- The first GPU only. A picker for boxes with more than one can be its own item.
-		- NVML is opened with `dlopen`, so a box without the NVIDIA driver still starts, and no crate is added. It's opened once a process and stays open.
-		- NVIDIA first, then the first amdgpu card. Intel has no busy share without root, so it has no GPU graphs.
-		- Each built-in gives GPU a lead of its own, 14 or more from every other lead as CIEDE2000. The one-color themes give it their one color. Check in questions.md.
-		- Randomize rolls 12 lead hues at least 18 degrees apart, down from 22, with the same 27 degrees of play. 12 leads often have no steps that keep every 2 of them 10 apart, so it draws up to 128 sets of hues, up from 16. At 16, 34 of 20,000 rolls had 2 leads under 10 apart, and at 128 none did.
-	- Branch: round-1029
-	- Test case: `gpu::tests::amdgpu_reads_from_the_first_card_and_skips_connectors` (dekm9), `a_live_gpu_reads_as_a_share_where_there_is_one` (dekma), `tests::gpu_tips_read_busy_and_memory_in_gib` (dekmb), `graphs::tests::gpu_and_its_memory_sit_after_memory_and_fill_at_all_of_it` (dekmc) and `live::tests::the_gpu_rows_are_there_only_with_a_gpu_to_read` (dekmd). dekm9 fails with connectors such as `card0-DP-1` read as cards.
-		- 2026-10-29: new values only, for both graphs. deccf and deccw count 115 theme members, not 99. deccy counts 99 saved colors, not 85. dedqq's default order, and defkz's, defm0's and dejac's orders, have `gpu vram` after `mem`, and defm0's past-the-end move is 12, not 10. dejkg reads 12 outlines, not 10, with tukzmon's at 11. defx7 and deja1 take gpu and vram too. defxd's least gap is 13 degrees, not 17, for the 18 degree roll.
-		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 9 built-in themes, `dice::ROLES` and `PARTS`, `config::LEADS`, every graph list in config, dialog and bridge tests, and every graph list in `design.md`. The profiler and soak test run with the defaults, so they don't draw the GPU.
-	- Acceptance signoff: Self-closed 20261029: dekm9 to dekmd passed in the full run at 9b72012, and the stand-in above, with the colors already in a Check.
-	- Closed: 20261029-151300
-
-- Pre-next-cut: Graphs editing section on its own tab
-	- ID: 2026102913122704
-	- Type: Enhancement
-	- Status: Done
-		- It departs from the wording in one way. The old Graph tab is now General, since Graph beside Graphs read as one tab twice. Check in questions.md.
-	- Needs local test suite run?: No. The full run passed on 2026-10-29.
-	- Needs hand testing: on b23, after an install, open Settings, pick Graphs, and judge the tab names and the list on its own tab.
-	- Stand-in: 20261029, build dekpw from 9b72012, in a light and a dark theme. The tabs read General, Graphs, Themes, Colors, Outline. Graphs drew the 12 rows with no heading over them, and General drew Size, Time, Frame, Disk graph and History.
-	- Priority|Severity: Avg
-	- Opened: 20261029-131227
-	- Opened by: t00mietum
-	- Related IDs: 2026102913122702, 2026102913122703, 2026102913122705
-	- Requirements:
-		- Move the Graphs editing section to its own tab.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- The graph list is on a Graphs tab of its own, after General. General keeps Size, Time, Frame, Disk graph and History.
-		- The list's tips that pointed under Time or at Width now say those are on the General tab, and General's tips point at the Graphs tab.
-		- The setting ids and paths are unchanged, so saved files read as before.
-		- `design.md` Settings window, XFCE plugin and Time axis have it.
-		- Verified: the full run passed. The Graphs tab drew the list with no heading over it, and General drew the rest.
-	- Decisions:
-		- General stays first, so the window still opens on the tab it opened on.
-		- The Graphs heading is dropped on its own tab, as any heading that repeats its tab's name is.
-		- The window's height is left to 2026102913122703 and 2026102913122705.
-	- Branch: round-1029
-	- Test case: `bridge::tests::the_graph_list_is_a_tab_of_its_own` (dekn9). It fails with the list on the old tab.
-		- 2026-10-29: new values only. dejac's tab list is General, Graphs, Themes, Colors, Outline, not Graph, Themes, Colors, Outline. dejmn checks that General and Graphs light nothing else, where it checked Graph.
-		- Swept: every reader of a tab's name (dejac, dejmn, `tabs_after_move` and `sections_after_move`, which pick Colors), the tips naming Time, Width and Graphs, and the docs naming the Graph tab.
-	- Acceptance signoff: Self-closed 20261029: dekn9 passed in the full run at 9b72012, and the stand-in above, with the tab name already in a Check.
-	- Closed: 20261029-151300
-
-- Drop the sudo step in dev-install.bash
-	- ID: 2026102820420805
-	- Type: Task
-	- Status: Done
-		- Removing b23's 2 old links and `~/.local/lib/tukzmon` is left as a root step by hand. The script names them on each run.
-	- Needs hand testing: on b23, run `utility/dev-install.bash` and see the panel load the new build. Then remove the 2 old sudo links it names, and `~/.local/lib/tukzmon`.
-	- Stand-in: 20261029, on b23 with an empty folder in place of `~/.local` and the panel calls stubbed. It installed the 3 files under that `~/.local`, named both old `/usr` links with the `sudo rm` for each and the old `~/.local/lib/tukzmon`, and exited 0. The panel loading a user install was checked in a test panel before.
-	- Priority|Severity: Low
-	- Opened: 20261028-204208
-	- Opened by: t00mietum
-	- Related IDs: 2026102808222920
-	- Requirements: Install the .desktop file to ~/.local/share/xfce4/panel/plugins and the plugin and tukzmon-settings to ~/.local/lib/<multiarch>/xfce4/panel/plugins, with no sudo links. The multiarch dir comes from the panel's lib dir. Update design.md XFCE plugin and README to match.
-	- Actual effort: Low
-	- Progress log:
-		- `utility/dev-install.bash` puts the `.desktop` file in `~/.local/share/xfce4/panel/plugins`, and the library and `tukzmon-settings` in `~/.local/lib/<multiarch>/xfce4/panel/plugins`. No sudo. The multiarch tail comes from where `ldconfig` finds the panel's library.
-		- When the old links from the sudo step are still there, it names them with the command to remove them, and names the old `~/.local/lib/tukzmon`.
-		- design.md XFCE plugin, README Status and the Dogfood line in `cicd/cicd.bash` updated.
-		- Verified 2026-10-29: with HOME in a temp folder and the panel restart stubbed, the script installed the 3 files there. A private xfce4-panel 4.20.7 on Xvfb with that HOME read the `.local/share` dir first, registered tukzmon from the `.local/lib/x86_64-linux-gnu` library, and embedded it. b23's old `/usr` links were shadowed, not loaded.
-		- Verified: an `XDG_DATA_HOME` ending in `/share` installs beside it, and one that doesn't stops before the build with an error.
-	- Decisions:
-		- Follows `XDG_DATA_HOME`, since the panel does. The panel reads no user plugins when it doesn't end in `/share`, so the script stops there.
-		- The old links and folder are named, not removed. The links need root, and the panel reads the user folder first, so they do no harm meanwhile.
-		- Falls back to `lib/x86_64-linux-gnu`, with a warning, when `ldconfig` doesn't list the panel's library, as the old script did.
-		- Swept: README, design.md, `cicd/cicd.bash`, `cicd/config.bash`. `cicd/packaging/nfpm.yaml` and `nix/package.nix` install to system paths and need no change. The plugin finds `tukzmon-settings` beside its own library, which still holds.
-	- Branch: round-1029
-	- Test case: none in the repo. Checked in a private panel, as for 2026102808222920.
-	- Acceptance signoff: Self-closed 20261029: the stand-in above. Only the root cleanup is left, and it isn't part of the change.
-	- Closed: 20261029-151300
-
 - Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
 	- ID: 2026102620162196
 	- Type: Bug
@@ -2530,6 +2432,75 @@ Sorted per the notes in [Template](#template).
 		- Swept: defx7 and defxd, the only checks on leads, every built-in in `settings.shcl`, and every role in `dice::ROLES` that follows its graph's lead.
 	- Closed: 20261028-161000
 
+- Pre-next-cut: GPU utilization graph
+	- ID: 2026102819145597
+	- Type: Feature
+	- Status: Done
+		- It departs from the wording in one way. It's off by default, like every graph since memory. Turn it on in the graph list.
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Needs hand testing: on b23, after an install and a panel restart, turn on GPU and GPU memory in the graph list, Apply, and judge how both look beside memory on Default. The GPU tip should be near what `nvidia-smi` shows.
+	- Stand-in: 20261029, build dekpw from 9b72012 in a test panel on Default, with CPU, memory, GPU and GPU memory on. The GPU graph drew in its own blue beside memory, and its tip read "GPU 29% busy" while `nvidia-smi` read 26% to 36%. The graph list, the GPU section on Colors and the Default colors matched the Check in questions.md, in a light and a dark theme.
+	- Priority|Severity: Avg
+	- Opened: 20261028-191455
+	- Opened by: t00mietum
+	- Related IDs: 2026102819145598
+	- Requirements:
+		- GPU utilization, after the "Memory" monitor.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The GPU graph draws how busy the first GPU is, in one color, full at 100%. Its tip reads "GPU 44% busy". It has a row in the graph list after memory, at `gpu.show`, `gpu.width`, `gpu.sample` and `gpu.time`, and a GPU section on Themes/Colors with Busy, and Low, Medium and High.
+		- `core/src/gpu.rs` reads it, and the GPU memory graph, 2026102819145598, shares it. NVIDIA is through NVML, loaded at run time, and AMD through amdgpu's `gpu_busy_percent`.
+		- `graph.order` defaults to `cpu mem gpu vram net disk temp swap zswap load battery self`.
+		- `design.md` XFCE plugin, Theme and Data sources on Linux have the details.
+		- Verified: the full run passed. On b23 NVML read the RTX 3060 Ti at 31% busy and 39% of 8 GiB in use. The settings window showed the 2 rows after memory and the GPU section on Colors.
+	- Decisions:
+		- Off by default, like the other graphs since memory.
+		- The first GPU only. A picker for boxes with more than one can be its own item.
+		- NVML is opened with `dlopen`, so a box without the NVIDIA driver still starts, and no crate is added. It's opened once a process and stays open.
+		- NVIDIA first, then the first amdgpu card. Intel has no busy share without root, so it has no GPU graphs.
+		- Each built-in gives GPU a lead of its own, 14 or more from every other lead as CIEDE2000. The one-color themes give it their one color. Check in questions.md.
+		- Randomize rolls 12 lead hues at least 18 degrees apart, down from 22, with the same 27 degrees of play. 12 leads often have no steps that keep every 2 of them 10 apart, so it draws up to 128 sets of hues, up from 16. At 16, 34 of 20,000 rolls had 2 leads under 10 apart, and at 128 none did.
+	- Branch: round-1029
+	- Test case: `gpu::tests::amdgpu_reads_from_the_first_card_and_skips_connectors` (dekm9), `a_live_gpu_reads_as_a_share_where_there_is_one` (dekma), `tests::gpu_tips_read_busy_and_memory_in_gib` (dekmb), `graphs::tests::gpu_and_its_memory_sit_after_memory_and_fill_at_all_of_it` (dekmc) and `live::tests::the_gpu_rows_are_there_only_with_a_gpu_to_read` (dekmd). dekm9 fails with connectors such as `card0-DP-1` read as cards.
+		- 2026-10-29: new values only, for both graphs. deccf and deccw count 115 theme members, not 99. deccy counts 99 saved colors, not 85. dedqq's default order, and defkz's, defm0's and dejac's orders, have `gpu vram` after `mem`, and defm0's past-the-end move is 12, not 10. dejkg reads 12 outlines, not 10, with tukzmon's at 11. defx7 and deja1 take gpu and vram too. defxd's least gap is 13 degrees, not 17, for the 18 degree roll.
+		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 9 built-in themes, `dice::ROLES` and `PARTS`, `config::LEADS`, every graph list in config, dialog and bridge tests, and every graph list in `design.md`. The profiler and soak test run with the defaults, so they don't draw the GPU.
+	- Acceptance signoff: Self-closed 20261029: dekm9 to dekmd passed in the full run at 9b72012, and the stand-in above, with the colors already in a Check.
+	- Closed: 20261029-151300
+
+- Pre-next-cut: Graphs editing section on its own tab
+	- ID: 2026102913122704
+	- Type: Enhancement
+	- Status: Done
+		- It departs from the wording in one way. The old Graph tab is now General, since Graph beside Graphs read as one tab twice. Check in questions.md.
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Needs hand testing: on b23, after an install, open Settings, pick Graphs, and judge the tab names and the list on its own tab.
+	- Stand-in: 20261029, build dekpw from 9b72012, in a light and a dark theme. The tabs read General, Graphs, Themes, Colors, Outline. Graphs drew the 12 rows with no heading over them, and General drew Size, Time, Frame, Disk graph and History.
+	- Priority|Severity: Avg
+	- Opened: 20261029-131227
+	- Opened by: t00mietum
+	- Related IDs: 2026102913122702, 2026102913122703, 2026102913122705
+	- Requirements:
+		- Move the Graphs editing section to its own tab.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The graph list is on a Graphs tab of its own, after General. General keeps Size, Time, Frame, Disk graph and History.
+		- The list's tips that pointed under Time or at Width now say those are on the General tab, and General's tips point at the Graphs tab.
+		- The setting ids and paths are unchanged, so saved files read as before.
+		- `design.md` Settings window, XFCE plugin and Time axis have it.
+		- Verified: the full run passed. The Graphs tab drew the list with no heading over it, and General drew the rest.
+	- Decisions:
+		- General stays first, so the window still opens on the tab it opened on.
+		- The Graphs heading is dropped on its own tab, as any heading that repeats its tab's name is.
+		- The window's height is left to 2026102913122703 and 2026102913122705.
+	- Branch: round-1029
+	- Test case: `bridge::tests::the_graph_list_is_a_tab_of_its_own` (dekn9). It fails with the list on the old tab.
+		- 2026-10-29: new values only. dejac's tab list is General, Graphs, Themes, Colors, Outline, not Graph, Themes, Colors, Outline. dejmn checks that General and Graphs light nothing else, where it checked Graph.
+		- Swept: every reader of a tab's name (dejac, dejmn, `tabs_after_move` and `sections_after_move`, which pick Colors), the tips naming Time, Width and Graphs, and the docs naming the Graph tab.
+	- Acceptance signoff: Self-closed 20261029: dekn9 passed in the full run at 9b72012, and the stand-in above, with the tab name already in a Check.
+	- Closed: 20261029-151300
+
 - Pre-next-cut: Dialog never taller than the screen
 	- ID: 2026102913122703
 	- Type: Enhancement
@@ -3722,6 +3693,35 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
 	- Closed: 20261025-081952
+
+- Drop the sudo step in dev-install.bash
+	- ID: 2026102820420805
+	- Type: Task
+	- Status: Done
+		- Removing b23's 2 old links and `~/.local/lib/tukzmon` is left as a root step by hand. The script names them on each run.
+	- Needs hand testing: on b23, run `utility/dev-install.bash` and see the panel load the new build. Then remove the 2 old sudo links it names, and `~/.local/lib/tukzmon`.
+	- Stand-in: 20261029, on b23 with an empty folder in place of `~/.local` and the panel calls stubbed. It installed the 3 files under that `~/.local`, named both old `/usr` links with the `sudo rm` for each and the old `~/.local/lib/tukzmon`, and exited 0. The panel loading a user install was checked in a test panel before.
+	- Priority|Severity: Low
+	- Opened: 20261028-204208
+	- Opened by: t00mietum
+	- Related IDs: 2026102808222920
+	- Requirements: Install the .desktop file to ~/.local/share/xfce4/panel/plugins and the plugin and tukzmon-settings to ~/.local/lib/<multiarch>/xfce4/panel/plugins, with no sudo links. The multiarch dir comes from the panel's lib dir. Update design.md XFCE plugin and README to match.
+	- Actual effort: Low
+	- Progress log:
+		- `utility/dev-install.bash` puts the `.desktop` file in `~/.local/share/xfce4/panel/plugins`, and the library and `tukzmon-settings` in `~/.local/lib/<multiarch>/xfce4/panel/plugins`. No sudo. The multiarch tail comes from where `ldconfig` finds the panel's library.
+		- When the old links from the sudo step are still there, it names them with the command to remove them, and names the old `~/.local/lib/tukzmon`.
+		- design.md XFCE plugin, README Status and the Dogfood line in `cicd/cicd.bash` updated.
+		- Verified 2026-10-29: with HOME in a temp folder and the panel restart stubbed, the script installed the 3 files there. A private xfce4-panel 4.20.7 on Xvfb with that HOME read the `.local/share` dir first, registered tukzmon from the `.local/lib/x86_64-linux-gnu` library, and embedded it. b23's old `/usr` links were shadowed, not loaded.
+		- Verified: an `XDG_DATA_HOME` ending in `/share` installs beside it, and one that doesn't stops before the build with an error.
+	- Decisions:
+		- Follows `XDG_DATA_HOME`, since the panel does. The panel reads no user plugins when it doesn't end in `/share`, so the script stops there.
+		- The old links and folder are named, not removed. The links need root, and the panel reads the user folder first, so they do no harm meanwhile.
+		- Falls back to `lib/x86_64-linux-gnu`, with a warning, when `ldconfig` doesn't list the panel's library, as the old script did.
+		- Swept: README, design.md, `cicd/cicd.bash`, `cicd/config.bash`. `cicd/packaging/nfpm.yaml` and `nix/package.nix` install to system paths and need no change. The plugin finds `tukzmon-settings` beside its own library, which still holds.
+	- Branch: round-1029
+	- Test case: none in the repo. Checked in a private panel, as for 2026102808222920.
+	- Acceptance signoff: Self-closed 20261029: the stand-in above. Only the root cleanup is left, and it isn't part of the change.
+	- Closed: 20261029-151300
 
 - LAN and internet split: TCP socket reader
 	- ID: 2026102914561218
