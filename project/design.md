@@ -356,6 +356,6 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 	- With no labels on the graph, the tip gives the rates.
 	- The disk graph does the same, with a floor of 100 kB/s, so a log file's flush doesn't fill it.
 	- The load graph's floor is the number of CPUs, so it fills only once there's more work queued than CPUs to run it.
-	- The tukzmon graph's floor is 1% of one CPU. Its usual use is a few tenths of that, so it reads at about half height, and a spike such as a history save raises the top.
+	- The tukzmon graph's floor is every CPU busy, as the CPU graph's top is, so it reads as a share of all cores. Its usual use is a few hundredths of a percent, so the graph is close to empty and the tip has the number.
 	- The temperature graph's floor is the sensor's critical level, or 95 degrees C when it has none, as `k10temp` doesn't. Up to that it's normal, and it fills the graph at that level. What's over it is critical, drawn on top, and the top rises with it, the way multiload-ng splits it.
 	- With Disk log scale on, a column's height is `ln(1 + v/u) / ln(1 + top/u)`, with `u` a thousandth of the floor, 100 B/s. So 1 kB/s under a 4 MB/s top is about a fifth of the height, where a straight scale gives it 1/4000. Written and read keep their shares of that height.

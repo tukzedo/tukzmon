@@ -454,7 +454,7 @@ settings:
 		control: checkbox
 		path: self.show
 		default: false
-		tip: "Show how much of all the CPUs' time tukzmon itself takes. The top follows the highest use in view, but never goes under 1% of one CPU, so its usual small share still shows. On Wayland tukzmon runs inside the panel, so this is the whole panel's use, and the tip says so."
+		tip: "Show how much of all the CPUs' time tukzmon itself takes. The graph is full when every CPU is busy, as the CPU graph is, so its usual small share is a thin line. The tip has the number. On Wayland tukzmon runs inside the panel, so this is the whole panel's use, and the tip says so."
 
 	self_width:
 		label: tukzmon width %

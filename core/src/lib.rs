@@ -419,9 +419,9 @@ impl Source<1> for OwnReader {
 		look.rate(look.self_sample_ms)
 	}
 
-	// full at 1% of one CPU, so its usual few tenths of that show
+	// full at every CPU busy, like the CPU graph
 	fn peak_floor(&self) -> Option<f32> {
-		Some(0.01 / cpus())
+		Some(1.0)
 	}
 }
 
@@ -815,7 +815,7 @@ mod tests {
 
 	// Test ID: dejb6
 	#[test]
-	fn own_use_reads_in_fine_percents_and_fills_at_a_hundredth_of_one_cpu() {
+	fn own_use_reads_in_fine_percents_and_fills_at_every_cpu() {
 		for (p, want) in [
 			(0.0, "0.000%"),
 			(-1.0, "0.000%"),
@@ -844,7 +844,7 @@ mod tests {
 			own.text(&[one])
 				.ends_with("\nThe whole panel, tukzmon in it")
 		);
-		assert_eq!(own.peak_floor(), Some(0.01 / cpus()));
+		assert_eq!(own.peak_floor(), Some(1.0));
 		assert!(!OwnReader::log_y(&Look::default()));
 	}
 

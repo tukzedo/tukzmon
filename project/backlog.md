@@ -370,7 +370,7 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: tukzmon's own CPU graph reads too high
 	- ID: 2026102819172002
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting on UAT
 	- Priority|Severity: Avg
 	- Opened: 20261028-191720
 	- Opened by: t00mietum
@@ -379,6 +379,12 @@ Sorted per the notes in [Template](#template).
 		- Tukzmon CPU usage monitor shows too high. Graphically looks ~25%. Should be displayed as over all cores, not one.
 	- Progress log:
 		- The value is already a share of all CPUs. The graph's top never goes under 1% of one CPU (`OwnReader::peak_floor`), so its usual few tenths of that read at about 25% to half height. A floor of 100% of all CPUs, as the CPU graph has, would match what's asked. That touches the design.md line on the tukzmon graph's floor, the `self.show` tip in `settings.shcl`, and tests dej0t and the lib.rs tip test.
+		- 2026-10-28: the graph's floor is every CPU busy, as the CPU graph's top is. At the usual 0.014% it's a thin line, and the tip has the number.
+	- Decisions:
+		- Floor of 100% of all CPUs, as the note asked. A spike still raises the top, which can't happen above 100%, so the top is fixed.
+	- Test case: `tests::own_use_reads_in_fine_percents_and_fills_at_every_cpu` (dejb6) and `graphs::tests::the_own_graph_sits_last_and_fills_at_every_cpu` (dejb7), renamed from the hundredth-of-one-CPU names. 2026-10-28: dejb6 asserts a floor of 1.0, not 0.01 over the CPU count. dejb7 draws 0.5 and expects half height and a tip of "50% of all CPUs", where it drew half the old floor and expected 0.50% of one CPU. Both fail with the old floor.
+	- Swept: `OwnReader::peak_floor` is the only floor for the graph. The design.md Drawing line and the `self.show` tip in `settings.shcl` are updated. The README names no floor.
+	- Needs hand testing: a look at the graph on a panel, close to empty at idle.
 
 - Graph sizes on a vertical panel
 	- ID: 2026102621105420

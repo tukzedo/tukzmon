@@ -1624,7 +1624,7 @@ mod tests {
 
 	// Test ID: dejb7
 	#[test]
-	fn the_own_graph_sits_last_and_fills_at_a_hundredth_of_one_cpu() {
+	fn the_own_graph_sits_last_and_fills_at_every_cpu() {
 		let path = scratch("own");
 		let mut g = three();
 		let look = Look {
@@ -1640,7 +1640,7 @@ mod tests {
 		assert!(Graphs::new(two()).own.is_none());
 		g.own = Some(Graph::with(look.clone(), OwnReader::default()));
 		g.set_look(look.clone(), None).unwrap();
-		let floor = 0.01 / crate::cpus();
+		let floor = 1.0;
 		let now = g.cpu.now();
 		g.own
 			.as_mut()
@@ -1662,7 +1662,7 @@ mod tests {
 		assert_ne!(row(ph / 2 + 2), look.self_colors[0].argb());
 		let tip = g.hover_tip(65 + 3 * G, 3, w, h, 1);
 		assert!(tip.contains("\ntukzmon "), "{tip}");
-		assert!(tip.ends_with("% of all CPUs\n0.50% of one CPU"), "{tip}");
+		assert!(tip.contains("\ntukzmon 50% of all CPUs\n"), "{tip}");
 		g.save(&path).unwrap();
 		let names: Vec<String> = keep::read(&path)
 			.unwrap()
