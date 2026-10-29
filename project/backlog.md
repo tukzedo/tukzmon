@@ -98,6 +98,7 @@ Sorted per the notes in [Template](#template).
 		- A file or saved theme that set only the Outline sub-tab's colors gives each graph those, so it keeps its look.
 		- `design.md` Theme has the details.
 		- Verified: the full run passed with the 3 new tests. The window shows the Background group on each graph's sub-tab.
+		- 2026-10-28: Since 2026102819315837 the Outline tab's Border, Top and Bottom draw again, over every graph's own when their box is ticked.
 	- Decisions:
 		- The Outline sub-tab's Border, Top and Bottom stay, with their ids and paths, for 2026102819315837 to turn into the overrides. Dropping them would make a save refuse any file or saved theme that has them.
 		- The built-ins' per-graph colors are their old shared ones, not new picks, so this changes no look. multiload-ng's own memory border and background can go into Default later if wanted.
