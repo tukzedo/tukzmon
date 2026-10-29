@@ -335,21 +335,6 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-29: new values only. dejac's tab list is General, Graphs, Themes, Colors, Outline, not Graph, Themes, Colors, Outline. dejmn checks that General and Graphs light nothing else, where it checked Graph.
 		- Swept: every reader of a tab's name (dejac, dejmn, `tabs_after_move` and `sections_after_move`, which pick Colors), the tips naming Time, Width and Graphs, and the docs naming the Graph tab.
 
-- GPU test fails on a box with an NVIDIA GPU
-	- ID: 2026102914040910
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261029-140409
-	- Opened by: t00mietum
-	- Related IDs: 2026102819145597
-	- Steps to reproduce:
-		- On b23, outside the container, run `cargo test -p tukzmon-settings -- the_gpu_rows`.
-	- Incorrect behavior: dekmd fails at its tip check. The GPU graph's tip reads only "GPU" after one sample.
-	- Expected behavior: it passes. In the container there's no GPU, so the test takes its other branch, and the full run never sees this.
-	- Reproduced: 2026-10-29 on b23, 3 times of 3, at f68f673 with no edits, with the RTX 3060 Ti about 50% busy.
-	- Possible cause: the first sample has no busy share for the tip yet, either because the first read only primes or because the GPU graph's beat hasn't come.
-
 - Pre-next-cut: Dialog never taller than the screen
 	- ID: 2026102913122703
 	- Type: Enhancement
@@ -422,6 +407,36 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- GPU test fails on a box with an NVIDIA GPU
+	- ID: 2026102914040910
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261029-140409
+	- Opened by: t00mietum
+	- Related IDs: 2026102819145597
+	- Steps to reproduce:
+		- On b23, outside the container, run `cargo test -p tukzmon-settings -- the_gpu_rows`.
+	- Incorrect behavior: dekmd fails at its tip check. The GPU graph's tip reads only "GPU" after one sample.
+	- Expected behavior: it passes. In the container there's no GPU, so the test takes its other branch, and the full run never sees this.
+	- Reproduced: 2026-10-29 on b23, 3 times of 3, at f68f673 with no edits, with the RTX 3060 Ti about 50% busy.
+	- Possible cause: the first sample has no busy share for the tip yet, either because the first read only primes or because the GPU graph's beat hasn't come.
+	- Actual cause:
+		- dekmd read the tips after one `sample()`. Every graph's first read only primes, so its tip is the bare title, "GPU" or "GPU memory", until the second. The GPU reader is right: on the second sample NVML gave the tip a busy share.
+		- The container has no GPU, so the test took its no-GPU branch there, and only a box with a GPU saw it.
+	- Progress log:
+		- dekmd now samples twice, as the other live tests do. It checks that the first sample gives only the title, and that the second gives a reading.
+		- It checks GPU and GPU memory each on its own, since an amdgpu card can have a busy share and no memory files. The old test took both as there or both as missing.
+		- dej0w, the temperature row, had the same one-sample slip, but its check also passed on the title alone. It now samples twice and wants a reading.
+		- Verified: dekmd and dej0w passed 3 times of 3 on b23 outside the container, with the RTX 3060 Ti about 31% busy. dekm9, dekma, dekmb and dekmc passed there too. The quick gate and the full run passed.
+	- Decisions:
+		- The fix is in the test from 5b569ad, not the GPU code. Every graph primes on its first read, and its tip is the title until then, so GPU follows that, with no exception for gauges.
+	- Actual fix: dekmd and dej0w sample twice before they read a tip.
+	- Branch: round-1029
+	- Test case: `live::tests::the_gpu_rows_are_there_only_with_a_gpu_to_read` (dekmd). It failed on b23 before the fix, at its tip check, and passes after. It goes red again with the second sample taken out. `the_temp_row_draws_at_its_own_width` (dej0w) checks a reading now, not the title.
+		- Swept: every test that reads a tip after sampling. The CPU and own rows in `settings/src/live.rs`, dedq1 and the swap tip in `core/src/graphs.rs`, debj4 in `core/src/lib.rs` and the zswap test already sample twice. The battery test checks the title on purpose.
+	- Closed: 20261029-141357
 
 - An item's files go when it's removed from the panel
 	- ID: 2026102622311676

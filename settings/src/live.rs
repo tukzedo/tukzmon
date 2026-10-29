@@ -518,9 +518,12 @@ mod tests {
 		// the box, or a container, may have no CPU sensor
 		if live.temp.is_some() {
 			live.sample();
+			std::thread::sleep(std::time::Duration::from_millis(20));
+			live.sample();
 			assert_eq!(live.render("temp", 40, 24, 1).len(), 40 * 24);
+			// the title alone is the tip before a reading
 			let tip = live.tip("temp");
-			assert!(tip.starts_with("Temperature"), "{tip}");
+			assert!(tip.starts_with("Temperature "), "{tip}");
 		}
 	}
 
@@ -539,20 +542,37 @@ mod tests {
 		d.set("gpu_width", &Value::Float(30.0));
 		d.set("vram_width", &Value::Float(40.0));
 		live.set_look(&d.look());
-		if live.gpu.is_none() {
-			for name in ["gpu", "vram"] {
+		// an amdgpu card can have a busy share and no memory files
+		let rows = [
+			("gpu", 30, "GPU", "GPU ", live.gpu.is_some()),
+			("vram", 40, "GPU memory", " GiB", live.vram.is_some()),
+		];
+		for (name, _, _, _, there) in rows {
+			if !there {
 				assert_eq!(live.width(name), 0);
 				assert!(live.render(name, 10, 10, 1).is_empty());
 				assert_eq!(live.tip(name), "");
 			}
-			return;
 		}
-		assert_eq!((live.width("gpu"), live.width("vram")), (30, 40));
+		// the first read only primes, as with every graph
 		live.sample();
-		assert_eq!(live.render("gpu", 30, 24, 1).len(), 30 * 24);
-		assert_eq!(live.render("vram", 40, 24, 1).len(), 40 * 24);
-		assert!(live.tip("gpu").starts_with("GPU "), "{}", live.tip("gpu"));
-		assert!(live.tip("vram").contains(" GiB"), "{}", live.tip("vram"));
+		for (name, _, title, _, there) in rows {
+			if there {
+				assert_eq!(live.tip(name), title);
+			}
+		}
+		std::thread::sleep(std::time::Duration::from_millis(20));
+		live.sample();
+		for (name, width, _, says, there) in rows {
+			if !there {
+				continue;
+			}
+			assert_eq!(live.width(name), width);
+			let w = width as usize;
+			assert_eq!(live.render(name, w, 24, 1).len(), w * 24);
+			let tip = live.tip(name);
+			assert!(tip.contains(says), "{tip}");
+		}
 	}
 
 	// Test ID: dejb8
