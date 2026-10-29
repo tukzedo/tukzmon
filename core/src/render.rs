@@ -6,7 +6,7 @@
 //! is less than opaque.
 
 use crate::axis::Ages;
-use crate::config::{Look, Rgb};
+use crate::config::{Look, Outline, Rgb};
 use crate::history::History;
 
 /// Seconds a column can cover before its spike emphasis is down by half.
@@ -150,6 +150,7 @@ pub struct Frame<'a, const N: usize> {
 	pub now: f64,
 	pub look: &'a Look,
 	pub paint: Paint<'a, N>,
+	pub outline: Outline,
 }
 
 impl<const N: usize> Frame<'_, N> {
@@ -170,7 +171,7 @@ impl<const N: usize> Frame<'_, N> {
 		scaled: Option<Scale<'_>>,
 	) {
 		px.clear();
-		px.resize(w * h, self.look.border_color.argb());
+		px.resize(w * h, self.outline.border.argb());
 		let bw = (self.look.border as usize * scale).min(w / 2).min(h / 2);
 		let (pw, ph) = (w - 2 * bw, h - 2 * bw);
 		if pw == 0 || ph == 0 {
@@ -181,8 +182,8 @@ impl<const N: usize> Frame<'_, N> {
 		let back: Vec<[f32; 3]> = (0..ph)
 			.map(|r| {
 				mix(
-					self.look.top,
-					self.look.bottom,
+					self.outline.top,
+					self.outline.bottom,
 					if ph > 1 {
 						r as f32 / (ph - 1) as f32
 					} else {
@@ -289,12 +290,15 @@ mod tests {
 	fn look() -> Look {
 		Look {
 			border: 1,
-			border_color: Rgb(9, 9, 9),
-			top: Rgb(0, 0, 100),
-			bottom: Rgb(0, 0, 0),
 			..Look::default()
 		}
 	}
+
+	const OUTLINE: Outline = Outline {
+		border: Rgb(9, 9, 9),
+		top: Rgb(0, 0, 100),
+		bottom: Rgb(0, 0, 0),
+	};
 
 	const COLORS: [Rgb; 2] = [Rgb(255, 0, 0), Rgb(0, 255, 0)];
 
@@ -316,6 +320,7 @@ mod tests {
 			now: h.last().unwrap_or(0.0),
 			look: &l,
 			paint: Paint::Stack(&COLORS),
+			outline: OUTLINE,
 		};
 		let mut px = Vec::new();
 		f.draw(&mut px, w, ht, 1);
@@ -429,6 +434,7 @@ mod tests {
 				now: 120.0,
 				look: &l,
 				paint: p,
+				outline: OUTLINE,
 			};
 			let mut px = Vec::new();
 			f.draw(&mut px, 22, 12, 1);
@@ -458,6 +464,7 @@ mod tests {
 			now: 120.0,
 			look: &l,
 			paint: Paint::Gradient([LO, MID, HI]),
+			outline: OUTLINE,
 		};
 		let mut px = Vec::new();
 		f.draw(&mut px, 22, 12, 1);
@@ -496,6 +503,7 @@ mod tests {
 				now: 120.0,
 				look: &l,
 				paint,
+				outline: OUTLINE,
 			};
 			let mut px = Vec::new();
 			f.draw(&mut px, 22, 12, 1);
@@ -538,6 +546,7 @@ mod tests {
 			now: 120.0,
 			look: &l,
 			paint: Paint::Stack(&COLORS),
+			outline: OUTLINE,
 		};
 		let mut px = Vec::new();
 		f.draw(&mut px, 122, 6, 1);
@@ -564,6 +573,7 @@ mod tests {
 			now: 10.0,
 			look: &l,
 			paint: Paint::Stack(&COLORS),
+			outline: OUTLINE,
 		};
 		let mut px = Vec::new();
 		f.draw(&mut px, 4, 4, 1);
@@ -612,6 +622,7 @@ mod tests {
 				now: h.last().unwrap_or(0.0),
 				look: &l,
 				paint: Paint::Stack(&COLORS),
+				outline: OUTLINE,
 			}
 			.draw_to(
 				&mut px,
@@ -648,6 +659,7 @@ mod tests {
 				now: h.last().unwrap_or(0.0),
 				look: &l,
 				paint: Paint::Stack(&COLORS),
+				outline: OUTLINE,
 			}
 			.draw_to(&mut px, 22, 12, 1, peak);
 			px

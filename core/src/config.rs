@@ -77,6 +77,32 @@ pub fn shown_as_radio(id: &str) -> bool {
 		.any(|(k, v)| k == id && v == "radio")
 }
 
+/// The graph whose section a heading starts, from `graph: name`.
+pub fn section_graph(id: &str) -> Option<&'static str> {
+	static GRAPHS: OnceLock<Vec<(String, String)>> = OnceLock::new();
+	GRAPHS
+		.get_or_init(|| row_texts("graph"))
+		.iter()
+		.find(|(k, _)| k == id)
+		.map(|(_, g)| g.as_str())
+}
+
+/// Headings with `beside: true`, which sit with the rest of their section to
+/// the right of what's above them.
+pub fn beside(id: &str) -> bool {
+	static BESIDE: OnceLock<Vec<String>> = OnceLock::new();
+	BESIDE
+		.get_or_init(|| {
+			let doc = shcl::Document::parse(SPEC_TEXT);
+			doc.children("settings")
+				.into_iter()
+				.filter(|row| doc.get_bool_or(&format!("settings.{row}.beside"), false))
+				.collect()
+		})
+		.iter()
+		.any(|row| row == id)
+}
+
 /// The dropdown and key a row is shown for, from `shown_when: "id = key"`.
 /// knobs' gates only take a checkbox, so this is read here.
 pub fn shown_when(id: &str) -> Option<(&'static str, &'static str)> {
@@ -149,15 +175,38 @@ pub fn name_the_theme(m: &mut Model) {
 pub struct SavedTheme {
 	pub key: String,
 	pub name: String,
-	/// Setting id to `#rrggbb`, one per theme color, plus each graph's mode.
+	/// Setting id to `#rrggbb`, one per theme color, plus each graph's mode,
+	/// the margins and the 2 override checkboxes, as text.
 	pub colors: BTreeMap<String, String>,
 }
 
-// a theme member's value as the spec stores it, or None if it won't take it
-fn theme_value(spec: &Spec, id: &str, raw: &str) -> Option<String> {
+/// A theme member's value as [`SavedTheme`] keeps it. The margins are
+/// numbers, the override checkboxes `on` or `off` as the window shows them,
+/// and the rest text.
+pub fn theme_text(v: &knobs::Value) -> String {
+	match v {
+		knobs::Value::Text(t) => t.clone(),
+		_ => v.show(),
+	}
+}
+
+// a theme member's text as the spec stores it, or None if it won't take it
+fn theme_typed(spec: &Spec, id: &str, raw: &str) -> Option<knobs::Value> {
 	let s = spec.get(id)?;
-	let v = spec.valid(s, &knobs::Value::Text(raw.to_string())).ok()?;
-	Some(v.as_text().to_string())
+	let v = match s.kind {
+		knobs::Kind::Int | knobs::Kind::Float => knobs::Value::Float(raw.trim().parse().ok()?),
+		knobs::Kind::Bool => match raw.trim() {
+			"true" | "on" => knobs::Value::Bool(true),
+			"false" | "off" => knobs::Value::Bool(false),
+			_ => return None,
+		},
+		_ => knobs::Value::Text(raw.to_string()),
+	};
+	spec.valid(s, &v).ok()
+}
+
+fn theme_value(spec: &Spec, id: &str, raw: &str) -> Option<String> {
+	theme_typed(spec, id, raw).map(|v| theme_text(&v))
 }
 
 pub const THEMES: &str = "themes";
@@ -185,11 +234,14 @@ pub fn saved_themes(doc: &shcl::Document) -> Vec<SavedTheme> {
 				.members
 				.iter()
 				.map(|id| {
-					let v = doc
-						.get_string(&at(id))
-						.ok()
-						.and_then(|raw| theme_value(&spec, id, &raw))
-						.or_else(|| spec.get(id).map(|s| s.default.as_text().to_string()))
+					let read = |id: &str| {
+						doc.get_string(&at(id))
+							.ok()
+							.and_then(|raw| theme_value(&spec, id, &raw))
+					};
+					let v = read(id)
+						.or_else(|| shared_of(id).and_then(read))
+						.or_else(|| spec.get(id).map(|s| theme_text(&s.default)))
 						.unwrap_or_default();
 					(id.clone(), v)
 				})
@@ -258,7 +310,7 @@ pub fn spec_with(themes: &[SavedTheme]) -> Arc<Spec> {
 				values: t
 					.colors
 					.iter()
-					.map(|(id, hex)| (id.clone(), knobs::Value::Text(hex.clone())))
+					.filter_map(|(id, raw)| Some((id.clone(), theme_typed(&base, id, raw)?)))
 					.collect(),
 			});
 		}
@@ -277,8 +329,18 @@ pub fn themes_text(themes: &[SavedTheme]) -> String {
 		let at = |k: &str| format!("{THEMES}.{}.{k}", t.key);
 		// keys are from theme_key or a file that parsed, so the paths are good
 		let _ = doc.set_string(&at("name"), &t.name);
-		for (id, hex) in &t.colors {
-			let _ = doc.set_string(&at(id), hex);
+		for (id, raw) in &t.colors {
+			match theme_typed(&spec(), id, raw) {
+				Some(knobs::Value::Int(n)) => {
+					let _ = doc.set_int(&at(id), n);
+				}
+				Some(knobs::Value::Bool(b)) => {
+					let _ = doc.set_bool(&at(id), b);
+				}
+				_ => {
+					let _ = doc.set_string(&at(id), raw);
+				}
+			}
 		}
 	}
 	doc.to_canonical()
@@ -311,10 +373,77 @@ pub fn theme_key(name: &str, themes: &[SavedTheme]) -> String {
 		.unwrap_or(slug)
 }
 
+// The Outline sub-tab's border and background ids, each with one graph's.
+fn outline_pairs() -> impl Iterator<Item = (&'static str, String)> {
+	["border_color", "back_top", "back_bottom"]
+		.into_iter()
+		.flat_map(|shared| {
+			LEADS
+				.iter()
+				.map(move |(g, _)| (shared, format!("{g}_{shared}")))
+		})
+}
+
+fn shared_of(id: &str) -> Option<&'static str> {
+	outline_pairs()
+		.find(|(_, own)| own == id)
+		.map(|(shared, _)| shared)
+}
+
+// Where the Outline sub-tab's colors were kept before each graph had its own.
+const OLD_SHARED: [(&str, &str); 3] = [
+	("graph.colors.border", "border_color"),
+	("graph.colors.top", "back_top"),
+	("graph.colors.bottom", "back_bottom"),
+];
+
+/// A config file path from an older layout, which [`model_on`] moves.
+pub fn moved_path(path: &str) -> bool {
+	OLD_SHARED.iter().any(|(old, _)| *old == path)
+}
+
+// A file from before each graph had its own border and background gives every
+// graph the shared ones, so it keeps its look. The old paths are how it's told
+// apart: a save leaves out a graph's colors when they're its theme's, so a
+// missing one says nothing. 2026102820512294.
+fn upgraded(doc: &shcl::Document) -> Option<shcl::Document> {
+	let bases = [String::new(), format!("kept.changes.{THEME}.values.")];
+	let old_at = |base: &String| OLD_SHARED.map(|(old, shared)| (format!("{base}{old}"), shared));
+	if !bases.iter().flat_map(old_at).any(|(at, _)| doc.exists(&at)) {
+		return None;
+	}
+	let spec = spec();
+	let mut out = doc.clone();
+	for base in &bases {
+		for (at, shared) in old_at(base) {
+			let Ok(v) = doc.get_string(&at) else {
+				continue;
+			};
+			let ids = std::iter::once(shared.to_string()).chain(
+				outline_pairs()
+					.filter(|(s, _)| *s == shared)
+					.map(|(_, own)| own),
+			);
+			for id in ids {
+				let Some(s) = spec.get(&id) else {
+					continue;
+				};
+				let path = format!("{base}{}", s.path);
+				if !out.exists(&path) {
+					let _ = out.set_string(&path, &v);
+				}
+			}
+			out.remove(&at);
+		}
+	}
+	Some(out)
+}
+
 /// A parsed config file as a model on `spec`, with [`unthemed_is_custom`]
 /// applied.
 pub fn model_on(spec: Arc<Spec>, doc: &shcl::Document) -> Model {
-	let mut m = Model::load_docs(spec, doc, &shcl::Document::new());
+	let up = upgraded(doc);
+	let mut m = Model::load_docs(spec, up.as_ref().unwrap_or(doc), &shcl::Document::new());
 	unthemed_is_custom(&mut m);
 	m
 }
@@ -342,6 +471,14 @@ impl Rgb {
 	pub fn argb(self) -> u32 {
 		0xff00_0000 | (self.0 as u32) << 16 | (self.1 as u32) << 8 | self.2 as u32
 	}
+}
+
+/// A graph's frame, and the background its plot blends from top to bottom.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Outline {
+	pub border: Rgb,
+	pub top: Rgb,
+	pub bottom: Rgb,
 }
 
 /// Each graph's section and its main series, the color it reads as in
@@ -394,6 +531,10 @@ pub struct Look {
 	/// 0 to 1.
 	pub spikes: f32,
 	pub border: u32,
+	/// Logical pixels clear above and below each graph, and either side of it.
+	/// See `graphs::Graphs::tiles` for the item's ends.
+	pub margin_tb: u32,
+	pub margin_lr: u32,
 	/// Save history and load it back on start.
 	pub keep: bool,
 	pub max_days: u32,
@@ -406,45 +547,45 @@ pub struct Look {
 	pub show_cpu: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub cpu_width: u32,
-	/// 0 follows `sample_ms`. See [`Look::rate`].
-	pub cpu_sample_ms: u32,
+	/// A percentage of `sample_ms`. See [`Look::rate`].
+	pub cpu_sample: u32,
 	/// None follows `time`. See [`Look::timing`].
 	pub cpu_time: Option<Timing>,
 	/// Draw the memory graph, where the box has one.
 	pub show_memory: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub mem_width: u32,
-	pub mem_sample_ms: u32,
+	pub mem_sample: u32,
 	pub mem_time: Option<Timing>,
 	/// Draw the swap graph, where the box has swap.
 	pub show_swap: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub swap_width: u32,
-	pub swap_sample_ms: u32,
+	pub swap_sample: u32,
 	pub swap_time: Option<Timing>,
 	/// Draw the zswap graph, where the box has zswap on or zram set up.
 	pub show_zswap: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub zswap_width: u32,
-	pub zswap_sample_ms: u32,
+	pub zswap_sample: u32,
 	pub zswap_time: Option<Timing>,
 	/// Draw the network graph.
 	pub show_net: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub net_width: u32,
-	pub net_sample_ms: u32,
+	pub net_sample: u32,
 	pub net_time: Option<Timing>,
 	/// Draw the load graph.
 	pub show_load: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub load_width: u32,
-	pub load_sample_ms: u32,
+	pub load_sample: u32,
 	pub load_time: Option<Timing>,
 	/// Draw the disk graph, where the box has a disk.
 	pub show_disk: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub disk_width: u32,
-	pub disk_sample_ms: u32,
+	pub disk_sample: u32,
 	pub disk_time: Option<Timing>,
 	/// A log scale up the disk graph.
 	pub disk_log: bool,
@@ -454,19 +595,19 @@ pub struct Look {
 	pub show_temp: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub temp_width: u32,
-	pub temp_sample_ms: u32,
+	pub temp_sample: u32,
 	pub temp_time: Option<Timing>,
 	/// Draw the battery graph, where the box has a battery in.
 	pub show_battery: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub battery_width: u32,
-	pub battery_sample_ms: u32,
+	pub battery_sample: u32,
 	pub battery_time: Option<Timing>,
 	/// Draw the graph of tukzmon's own CPU use.
 	pub show_self: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub self_width: u32,
-	pub self_sample_ms: u32,
+	pub self_sample: u32,
 	pub self_time: Option<Timing>,
 	/// Graph names as saved, first drawn first. See [`graph_order`].
 	pub order: Vec<String>,
@@ -502,6 +643,18 @@ pub struct Look {
 	pub self_colors: [Rgb; 1],
 	pub self_mode: Mode,
 	pub self_gradient: [Rgb; 3],
+	pub cpu_outline: Outline,
+	pub mem_outline: Outline,
+	pub swap_outline: Outline,
+	pub zswap_outline: Outline,
+	pub net_outline: Outline,
+	pub load_outline: Outline,
+	pub disk_outline: Outline,
+	pub temp_outline: Outline,
+	pub battery_outline: Outline,
+	pub self_outline: Outline,
+	/// The Outline sub-tab's. A graph draws with its own unless
+	/// `border_all` or `back_all` is on, and then the `*_outline` are these.
 	pub border_color: Rgb,
 	/// No background, so the panel shows through, whatever the theme.
 	pub transparent: bool,
@@ -532,6 +685,23 @@ impl Look {
 		};
 		let num = |id: &str| m.value(id, &NoEnv).as_f64();
 		let color = |id: &str| Rgb::parse(m.value(id, &NoEnv).as_text()).unwrap_or(Rgb(0, 0, 0));
+		let on = |id: &str| m.value(id, &NoEnv).as_bool();
+		let (border_all, back_all) = (on("border_all"), on("back_all"));
+		// the Outline sub-tab's go over every graph's own when ticked
+		let outline = |g: &str| {
+			let pick = |all: bool, shared: &str| {
+				color(&if all {
+					shared.to_string()
+				} else {
+					format!("{g}_{shared}")
+				})
+			};
+			Outline {
+				border: pick(border_all, "border_color"),
+				top: pick(back_all, "back_top"),
+				bottom: pick(back_all, "back_bottom"),
+			}
+		};
 		Look {
 			width: num("width") as u32,
 			time: Timing::parse(m.value("time_axis", &NoEnv).as_text())
@@ -540,6 +710,8 @@ impl Look {
 			said: Said::parse(m.value("hover_time", &NoEnv).as_text()).unwrap_or_default(),
 			spikes: (num("spikes") / 100.0) as f32,
 			border: num("border") as u32,
+			margin_tb: num("margin_tb") as u32,
+			margin_lr: num("margin_lr") as u32,
 			keep: m.value("keep_history", &NoEnv).as_bool(),
 			max_days: num("max_days") as u32,
 			cpu: [
@@ -552,45 +724,45 @@ impl Look {
 			cpu_gradient: [color("cpu_low"), color("cpu_medium"), color("cpu_high")],
 			show_cpu: m.value("show_cpu", &NoEnv).as_bool(),
 			cpu_width: num("cpu_width") as u32,
-			cpu_sample_ms: num("cpu_sample_ms") as u32,
+			cpu_sample: num("cpu_sample") as u32,
 			cpu_time: Timing::parse(m.value("cpu_time", &NoEnv).as_text()),
 			show_memory: m.value("show_memory", &NoEnv).as_bool(),
 			mem_width: num("mem_width") as u32,
-			mem_sample_ms: num("mem_sample_ms") as u32,
+			mem_sample: num("mem_sample") as u32,
 			mem_time: Timing::parse(m.value("mem_time", &NoEnv).as_text()),
 			show_swap: m.value("show_swap", &NoEnv).as_bool(),
 			swap_width: num("swap_width") as u32,
-			swap_sample_ms: num("swap_sample_ms") as u32,
+			swap_sample: num("swap_sample") as u32,
 			swap_time: Timing::parse(m.value("swap_time", &NoEnv).as_text()),
 			show_zswap: m.value("show_zswap", &NoEnv).as_bool(),
 			zswap_width: num("zswap_width") as u32,
-			zswap_sample_ms: num("zswap_sample_ms") as u32,
+			zswap_sample: num("zswap_sample") as u32,
 			zswap_time: Timing::parse(m.value("zswap_time", &NoEnv).as_text()),
 			show_net: m.value("show_net", &NoEnv).as_bool(),
 			net_width: num("net_width") as u32,
-			net_sample_ms: num("net_sample_ms") as u32,
+			net_sample: num("net_sample") as u32,
 			net_time: Timing::parse(m.value("net_time", &NoEnv).as_text()),
 			show_load: m.value("show_load", &NoEnv).as_bool(),
 			load_width: num("load_width") as u32,
-			load_sample_ms: num("load_sample_ms") as u32,
+			load_sample: num("load_sample") as u32,
 			load_time: Timing::parse(m.value("load_time", &NoEnv).as_text()),
 			show_disk: m.value("show_disk", &NoEnv).as_bool(),
 			disk_width: num("disk_width") as u32,
-			disk_sample_ms: num("disk_sample_ms") as u32,
+			disk_sample: num("disk_sample") as u32,
 			disk_time: Timing::parse(m.value("disk_time", &NoEnv).as_text()),
 			disk_log: m.value("disk_log", &NoEnv).as_bool(),
 			disk_drives: graph_order(m.value("disk_drives", &NoEnv).as_text()),
 			show_temp: m.value("show_temp", &NoEnv).as_bool(),
 			temp_width: num("temp_width") as u32,
-			temp_sample_ms: num("temp_sample_ms") as u32,
+			temp_sample: num("temp_sample") as u32,
 			temp_time: Timing::parse(m.value("temp_time", &NoEnv).as_text()),
 			show_battery: m.value("show_battery", &NoEnv).as_bool(),
 			battery_width: num("battery_width") as u32,
-			battery_sample_ms: num("battery_sample_ms") as u32,
+			battery_sample: num("battery_sample") as u32,
 			battery_time: Timing::parse(m.value("battery_time", &NoEnv).as_text()),
 			show_self: m.value("show_self", &NoEnv).as_bool(),
 			self_width: num("self_width") as u32,
-			self_sample_ms: num("self_sample_ms") as u32,
+			self_sample: num("self_sample") as u32,
 			self_time: Timing::parse(m.value("self_time", &NoEnv).as_text()),
 			order: graph_order(m.value("graph_order", &NoEnv).as_text()),
 			mem: [color("mem_user"), color("mem_buffers"), color("mem_cache")],
@@ -633,6 +805,16 @@ impl Look {
 			self_colors: [color("self_used")],
 			self_mode: Mode::parse(m.value("self_mode", &NoEnv).as_text()).unwrap_or_default(),
 			self_gradient: [color("self_low"), color("self_medium"), color("self_high")],
+			cpu_outline: outline("cpu"),
+			mem_outline: outline("mem"),
+			swap_outline: outline("swap"),
+			zswap_outline: outline("zswap"),
+			net_outline: outline("net"),
+			load_outline: outline("load"),
+			disk_outline: outline("disk"),
+			temp_outline: outline("temp"),
+			battery_outline: outline("battery"),
+			self_outline: outline("self"),
 			border_color: color("border_color"),
 			transparent: m.value("transparent", &NoEnv).as_bool(),
 			top: color("back_top"),
@@ -725,10 +907,11 @@ impl Look {
 		own.unwrap_or(self.time)
 	}
 
-	/// A graph's own sample rate in ms, or else Sample ms default, and never
-	/// under [`crate::FASTEST_MS`].
-	pub fn rate(&self, own: u32) -> u32 {
-		if own == 0 { self.sample_ms } else { own }.max(crate::FASTEST_MS)
+	/// A graph's sample rate in ms from its percentage of Sample ms default,
+	/// rounded, and never under [`crate::FASTEST_MS`].
+	pub fn rate(&self, percent: u32) -> u32 {
+		let ms = (u64::from(self.sample_ms) * u64::from(percent) + 50) / 100;
+		u32::try_from(ms).unwrap_or(u32::MAX).max(crate::FASTEST_MS)
 	}
 
 	/// A graph's width from its percentage of Width, rounded, and never 0.
@@ -861,7 +1044,7 @@ mod tests {
 		assert_eq!(l.border_color, Rgb(0x8b, 0x8b, 0x8b));
 		assert_eq!(l.top, Rgb(0x31, 0x31, 0x31));
 		assert_eq!(l.bottom, Rgb(0, 0, 0));
-		assert_eq!((l.width, l.sample_ms, l.border), (128, 500, 1));
+		assert_eq!((l.width, l.sample_ms, l.border), (128, 1000, 1));
 		assert_eq!(l.time, Timing::Log(Curve::Smooth));
 		assert_eq!(l.spikes, 0.5);
 		assert_eq!(l.hover, Rgb(0, 0, 0));
@@ -873,14 +1056,18 @@ mod tests {
 	fn the_default_theme_is_the_row_defaults() {
 		let spec = spec();
 		let g = spec.group(THEME).unwrap();
-		assert_eq!(g.members.len(), 65);
+		assert_eq!(g.members.len(), 99);
 		let default = g.preset("default").unwrap();
 		assert_eq!(default.label, "Default");
 		for id in &g.members {
 			let s = spec.get(id).unwrap();
-			// colors, and a graph's mode
+			// colors, a graph's mode, the margins and the overrides
 			let control = if id.ends_with("_mode") {
 				knobs::Control::Dropdown
+			} else if id.starts_with("margin_") {
+				knobs::Control::Slider
+			} else if id.ends_with("_all") {
+				knobs::Control::Checkbox
 			} else {
 				knobs::Control::Color
 			};
@@ -971,6 +1158,192 @@ mod tests {
 		)));
 		assert!(l.transparent);
 		assert_eq!(l.top, Rgb(0x12, 0x34, 0x56));
+	}
+
+	// Test ID: dejjt
+	#[test]
+	fn margins_are_the_themes_and_reach_the_look() {
+		let s = spec();
+		for id in ["margin_tb", "margin_lr"] {
+			assert_eq!(s.get(id).and_then(|r| r.group.as_deref()), Some("theme"));
+		}
+		for p in &s.group("theme").unwrap().presets {
+			for id in ["margin_tb", "margin_lr"] {
+				assert_eq!(p.values[id].as_f64(), 2.0, "{} {id}", p.key);
+			}
+		}
+		let l = Look::default();
+		assert_eq!((l.margin_tb, l.margin_lr), (2, 2));
+		let set = "graph:\n\tmargins:\n\t\ttop_bottom: 0\n\t\tleft_right: 7\n";
+		let l = Look::from_model(&model(set));
+		assert_eq!((l.margin_tb, l.margin_lr), (0, 7));
+		let l = Look::from_model(&model("theme:\n\tname: fire\n"));
+		assert_eq!((l.margin_tb, l.margin_lr), (2, 2));
+		// a theme saved before the margins gets Default's, and is still listed
+		let old = "theme:\n\tname: old\nthemes:\n\told:\n\t\tname: Old\n\t\tuser: \"#123456\"\n";
+		let t = saved_themes(&shcl::Document::parse(old));
+		assert_eq!(t[0].colors["margin_lr"], "2");
+		assert!(spec_with(&t).group(THEME).unwrap().preset("old").is_some());
+		let l = Look::from_model(&model(old));
+		assert_eq!((l.margin_lr, l.cpu[2]), (2, Rgb(0x12, 0x34, 0x56)));
+	}
+
+	// Test ID: dejky
+	#[test]
+	fn the_outline_tabs_colors_go_over_every_graph_when_ticked() {
+		let s = spec();
+		let g = s.group(THEME).unwrap();
+		for id in ["border_all", "back_all"] {
+			assert!(g.members.iter().any(|m| m == id), "{id}");
+			assert_eq!(s.get(id).unwrap().default, knobs::Value::Bool(false));
+		}
+		assert_eq!(
+			s.get("border_color").unwrap().gate.as_deref(),
+			Some("border_all")
+		);
+		assert_eq!(s.get("back_top").unwrap().gate.as_deref(), Some("back_all"));
+		assert_eq!(
+			s.get("back_bottom").unwrap().gate.as_deref(),
+			Some("back_all")
+		);
+		let mine = "cpu:\n\tcolors:\n\t\tborder: \"#aa0000\"\n\t\ttop: \"#00aa00\"\n\t\tbottom: \"#0000aa\"\n\
+			graph:\n\toverrides:\n\t\tcolors:\n\t\t\tborder: \"#111111\"\n\t\t\ttop: \"#222222\"\n\t\t\tbottom: \"#333333\"\n";
+		let own = Outline {
+			border: Rgb(0xaa, 0, 0),
+			top: Rgb(0, 0xaa, 0),
+			bottom: Rgb(0, 0, 0xaa),
+		};
+		let shared = Outline {
+			border: Rgb(0x11, 0x11, 0x11),
+			top: Rgb(0x22, 0x22, 0x22),
+			bottom: Rgb(0x33, 0x33, 0x33),
+		};
+		let grey = Look::default().mem_outline;
+		let l = Look::from_model(&model(mine));
+		assert_eq!((l.cpu_outline, l.mem_outline), (own, grey));
+		let ticked = |border: bool, back: bool| {
+			let text = format!("{mine}\t\tborder: {border}\n\t\tbackground: {back}\n");
+			Look::from_model(&model(&text))
+		};
+		let l = ticked(true, false);
+		assert_eq!(
+			l.cpu_outline,
+			Outline {
+				border: shared.border,
+				..own
+			}
+		);
+		let l = ticked(false, true);
+		assert_eq!(
+			l.cpu_outline,
+			Outline {
+				border: own.border,
+				..shared
+			}
+		);
+		let l = ticked(true, true);
+		for o in [
+			l.cpu_outline,
+			l.mem_outline,
+			l.self_outline,
+			l.battery_outline,
+		] {
+			assert_eq!(o, shared);
+		}
+		// a saved theme keeps them, and one saved before them has them off
+		let mut t = saved_themes(&shcl::Document::parse("themes:\n\tx:\n\t\tname: X\n"));
+		assert_eq!(t[0].colors["back_all"], "off");
+		t[0].colors.insert("back_all".into(), "on".into());
+		let text = themes_text(&t);
+		assert!(text.contains("back_all: true\n"), "{text}");
+		let doc = shcl::Document::parse(&text);
+		assert!(theme_problems(&doc).is_empty());
+		assert_eq!(saved_themes(&doc), t);
+		let m = Model::load_docs(
+			spec_with(&t),
+			&shcl::Document::parse("theme:\n\tname: x\n"),
+			&shcl::Document::new(),
+		);
+		assert!(m.value("back_all", &NoEnv).as_bool());
+		assert!(!m.value("border_all", &NoEnv).as_bool());
+	}
+
+	// Test ID: dejkg
+	#[test]
+	fn each_graph_has_its_own_outline_in_every_theme() {
+		let s = spec();
+		let g = s.group(THEME).unwrap();
+		let graphs = LEADS.map(|(graph, _)| graph);
+		for graph in graphs {
+			for part in ["border_color", "back_top", "back_bottom"] {
+				let id = format!("{graph}_{part}");
+				assert!(g.members.contains(&id), "{id}");
+				let shared = &s.get(part).unwrap().default;
+				assert_eq!(&s.get(&id).unwrap().default, shared, "{id}");
+				for p in &g.presets {
+					assert_eq!(p.values[&id], p.values[part], "{} {id}", p.key);
+				}
+			}
+		}
+		let outlines = |l: &Look| {
+			[
+				l.cpu_outline,
+				l.mem_outline,
+				l.net_outline,
+				l.swap_outline,
+				l.zswap_outline,
+				l.load_outline,
+				l.disk_outline,
+				l.temp_outline,
+				l.battery_outline,
+				l.self_outline,
+			]
+		};
+		let d = Look::default();
+		let grey = Outline {
+			border: Rgb(0x8b, 0x8b, 0x8b),
+			top: Rgb(0x31, 0x31, 0x31),
+			bottom: Rgb(0, 0, 0),
+		};
+		assert_eq!(outlines(&d), [grey; 10]);
+		// each graph reads its own, and no other graph's, here as Custom
+		let l = Look::from_model(&model(
+			"mem:\n\tcolors:\n\t\ttop: \"#123456\"\nself:\n\tcolors:\n\t\tborder: \"#abcdef\"\n\t\tbottom: \"#010203\"\n",
+		));
+		let mut want = [grey; 10];
+		want[1].top = Rgb(0x12, 0x34, 0x56);
+		want[9].border = Rgb(0xab, 0xcd, 0xef);
+		want[9].bottom = Rgb(1, 2, 3);
+		assert_eq!(outlines(&l), want);
+		let fire = g.preset("fire").unwrap();
+		let l = Look::from_model(&model("theme:\n\tname: fire\n"));
+		assert_eq!(
+			l.load_outline.top,
+			Rgb::parse(fire.values["load_back_top"].as_text()).unwrap()
+		);
+		// the Outline sub-tab's draw no graph, but a file from before each
+		// graph had its own keeps its look
+		let shared = "graph:\n\tcolors:\n\t\ttop: \"#123456\"\n";
+		let l = Look::from_model(&model(&format!(
+			"{shared}mem:\n\tcolors:\n\t\ttop: \"#654321\"\n"
+		)));
+		assert_eq!(l.top, Rgb(0x12, 0x34, 0x56));
+		let mut want = [grey; 10].map(|o| Outline {
+			top: Rgb(0x12, 0x34, 0x56),
+			..o
+		});
+		want[1].top = Rgb(0x65, 0x43, 0x21);
+		assert_eq!(outlines(&l), want);
+		let kept = "theme:\n\tname: fire\nkept:\n\tchanges:\n\t\ttheme:\n\t\t\tpreset: fire\n\t\t\tvalues:\n\t\t\t\tgraph:\n\t\t\t\t\tcolors:\n\t\t\t\t\t\tborder: \"#123456\"\n";
+		let l = Look::from_model(&model(kept));
+		assert_eq!(l.disk_outline.border, Rgb(0x12, 0x34, 0x56));
+		let old =
+			"theme:\n\tname: old\nthemes:\n\told:\n\t\tname: Old\n\t\tback_bottom: \"#123456\"\n";
+		let t = saved_themes(&shcl::Document::parse(old));
+		assert_eq!(t[0].colors["temp_back_bottom"], "#123456");
+		assert_eq!(t[0].colors["temp_back_top"], "#313131");
+		let l = Look::from_model(&model(old));
+		assert_eq!(l.battery_outline.bottom, Rgb(0x12, 0x34, 0x56));
 	}
 
 	// Test ID: decch
@@ -1241,23 +1614,27 @@ mod tests {
 				assert!(apart(leads[0], alarm) >= APART, "{}", p.key);
 			}
 			// each graph's own colors read apart, and every color shows on the top
-			for ids in [
-				&["iowait", "system", "user", "nice"][..],
-				&["mem_user", "mem_buffers", "mem_cache"],
-				&["net_local", "net_sent", "net_received"],
-				&["disk_write", "disk_read"],
-				&["temp_normal", "temp_critical"],
-				&[
-					"battery_charging",
-					"battery_discharging",
-					"battery_critical",
-				],
+			for (graph, ids) in [
+				("cpu", &["iowait", "system", "user", "nice"][..]),
+				("mem", &["mem_user", "mem_buffers", "mem_cache"]),
+				("net", &["net_local", "net_sent", "net_received"]),
+				("disk", &["disk_write", "disk_read"]),
+				("temp", &["temp_normal", "temp_critical"]),
+				(
+					"battery",
+					&[
+						"battery_charging",
+						"battery_discharging",
+						"battery_critical",
+					],
+				),
 			] {
 				let colors: Vec<Rgb> = ids.iter().map(|id| rgb(id)).collect();
 				let (d, a, b) = closest(&colors).unwrap();
 				assert!(d >= APART, "{}: {} {} {d:.1}", p.key, ids[a], ids[b]);
+				let top = rgb(&format!("{graph}_back_top"));
 				for c in colors {
-					assert!(apart(c, rgb("back_top")) >= APART, "{} {c:?}", p.key);
+					assert!(apart(c, top) >= APART, "{} {c:?}", p.key);
 				}
 			}
 		}
@@ -1299,29 +1676,34 @@ mod tests {
 	#[test]
 	fn each_graph_has_a_sample_rate_and_old_files_keep_the_default() {
 		let d = Look::default();
-		assert_eq!((d.cpu_sample_ms, d.battery_sample_ms), (0, 0));
-		assert_eq!(d.rate(d.cpu_sample_ms), 500);
+		assert_eq!((d.cpu_sample, d.battery_sample), (100, 100));
+		assert_eq!(d.rate(d.cpu_sample), 1000);
 		let l = Look::from_model(&model(
-			"graph:\n\tsample_ms: 1000\ncpu:\n\tsample_ms: 250\nmem:\n\tsample_ms: 20\n",
+			"graph:\n\tsample_ms: 400\ncpu:\n\tsample: 250\nmem:\n\tsample: 5\nswap:\n\tsample: 33\n",
 		));
-		assert_eq!((l.cpu_sample_ms, l.mem_sample_ms), (250, 20));
-		assert_eq!(l.rate(l.cpu_sample_ms), 250);
-		assert_eq!(l.rate(l.mem_sample_ms), crate::FASTEST_MS);
+		assert_eq!((l.cpu_sample, l.mem_sample), (250, 5));
+		// a percentage of Sample ms default, rounded, and never under 50 ms
+		assert_eq!(l.rate(l.cpu_sample), 1000);
+		assert_eq!(l.rate(l.mem_sample), crate::FASTEST_MS);
+		assert_eq!(l.rate(l.swap_sample), 132);
 		// a file from before has none, and Sample ms default rules
-		assert_eq!(l.rate(l.net_sample_ms), 1000);
+		assert_eq!(l.rate(l.net_sample), 400);
+		// nor does the ms a graph had before it took a percentage
+		let old = Look::from_model(&model("cpu:\n\tsample_ms: 250\n"));
+		assert_eq!(old.rate(old.cpu_sample), 1000);
 		let spec = spec();
 		for g in [
 			"cpu", "mem", "net", "swap", "zswap", "load", "disk", "temp", "battery", "self",
 		] {
-			let id = format!("{g}_sample_ms");
+			let id = format!("{g}_sample");
 			let Some(s) = spec.get(&id) else {
 				panic!("no {id} in settings.shcl");
 			};
-			// set while its graph is off, and 0 is Default
+			// set while its graph is off, and 100 is Sample ms default
 			assert_eq!(s.gate, None);
-			assert_eq!(s.default.as_f64(), 0.0);
-			assert_eq!((s.min, s.max), (0.0, 60000.0));
-			assert_eq!(s.path, format!("{g}.sample_ms"));
+			assert_eq!(s.default.as_f64(), 100.0);
+			assert_eq!((s.min, s.max), (1.0, 1000.0));
+			assert_eq!(s.path, format!("{g}.sample"));
 		}
 	}
 
@@ -1480,7 +1862,7 @@ mod tests {
 			"themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n",
 		));
 		assert_eq!(t[0].name, "Say \"hi\"");
-		assert_eq!(t[0].colors.len(), 65);
+		assert_eq!(t[0].colors.len(), 99);
 		t.push(SavedTheme {
 			key: theme_key("Default", &t),
 			name: "Default".into(),
@@ -1551,7 +1933,7 @@ mod tests {
 		let text = "graph:\n\twidth: 200\n\tsample_ms: 99999\ncpu:\n\tcolors:\n\t\tuser: \"#123456\"\n\t\tnice: red\n";
 		let l = Look::from_model(&Model::load(spec(), text, ""));
 		assert_eq!(l.width, 200);
-		assert_eq!(l.sample_ms, 500);
+		assert_eq!(l.sample_ms, 1000);
 		assert_eq!(l.cpu[2], Rgb(0x12, 0x34, 0x56));
 		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x40));
 	}

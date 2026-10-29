@@ -111,6 +111,7 @@ fn would_lose(spec: &Spec, text: &str) -> Vec<String> {
 			|| p.starts_with("kept.")
 			|| p == config::THEMES
 			|| p.starts_with("themes.")
+			|| config::moved_path(&p)
 			|| spec.settings.iter().any(|s| {
 				s.control != Control::Heading
 					&& (s.path == p
@@ -259,7 +260,7 @@ impl Dialog {
 					.iter()
 					.map(|id| {
 						let v = self.model.value(id, &NoEnv);
-						(id.clone(), v.as_text().to_string())
+						(id.clone(), config::theme_text(&v))
 					})
 					.collect()
 			})
@@ -367,8 +368,23 @@ impl Dialog {
 	}
 
 	pub fn randomize_from(&mut self, seed: u64) {
-		for (id, v) in crate::dice::theme(seed) {
+		let rolled = crate::dice::theme(seed);
+		// a set turns its gate on, and a roll is colors, not the overrides
+		let gates: Vec<(String, Value)> = rolled
+			.iter()
+			.filter_map(|(id, _)| self.spec.get(id)?.gate.clone())
+			.map(|g| {
+				let was = self.model.value(&g, &NoEnv);
+				(g, was)
+			})
+			.collect();
+		for (id, v) in rolled {
 			self.set(id, &Value::Text(v));
+		}
+		for (g, was) in gates {
+			if self.model.value(&g, &NoEnv) != was {
+				self.set(&g, &was);
+			}
 		}
 	}
 
@@ -484,7 +500,7 @@ impl Dialog {
 	}
 
 	/// The graph list, first drawn first. A graph is in it once the spec has
-	/// its `<name>.show`, `.width`, `.sample_ms` and `.time` rows, so a new
+	/// its `<name>.show`, `.width`, `.sample` and `.time` rows, so a new
 	/// graph brings its own row.
 	pub fn graph_rows(&self) -> Vec<GraphRow> {
 		tukzmon_core::graphs::draw_order(&self.saved_order())
@@ -495,32 +511,49 @@ impl Dialog {
 					name: name.to_string(),
 					show: id("show")?,
 					width: id("width")?,
-					sample: id("sample_ms")?,
+					sample: id("sample")?,
 					time: id("time")?,
 				})
 			})
 			.collect()
 	}
 
-	/// The spec's tabs as the tab list shows them. A graph's tab, the one with
-	/// its mode, follows the graph order, in the places graph tabs have in the
-	/// spec, so the tabs that aren't a graph's, such as Background, stay put.
-	pub fn tab_order(&self) -> Vec<usize> {
-		let graph_tabs: Vec<usize> = self
-			.graph_rows()
+	/// Per spec row, the graph whose section it's in, from that section's
+	/// `graph:` heading to the next one or the end of its tab, and whether it
+	/// sits beside the rest, from a `beside: true` heading on.
+	pub fn sections(&self) -> Vec<Option<(&'static str, bool)>> {
+		let mut now: Option<(&'static str, usize, bool)> = None;
+		self.spec
+			.settings
 			.iter()
-			.filter_map(|r| Some(self.spec.get(self.id_at(&format!("{}.mode", r.name))?)?.tab))
+			.map(|s| {
+				if let Some(graph) = config::section_graph(&s.id) {
+					now = Some((graph, s.tab, false));
+				} else if now.is_some_and(|(_, tab, _)| tab != s.tab) {
+					now = None;
+				}
+				if let Some(n) = now.as_mut() {
+					n.2 |= config::beside(&s.id);
+				}
+				now.map(|(graph, _, beside)| (graph, beside))
+			})
+			.collect()
+	}
+
+	/// The graphs with a section, in the graph order, which is how they're
+	/// listed on their tab.
+	pub fn section_order(&self) -> Vec<String> {
+		let have: Vec<&str> = self
+			.sections()
+			.into_iter()
+			.flatten()
+			.map(|(g, _)| g)
 			.collect();
-		let mut order: Vec<usize> = (0..self.spec.tabs.len()).collect();
-		let places: Vec<usize> = order
-			.iter()
-			.copied()
-			.filter(|t| graph_tabs.contains(t))
-			.collect();
-		for (at, tab) in places.into_iter().zip(graph_tabs) {
-			order[at] = tab;
-		}
-		order
+		self.graph_rows()
+			.into_iter()
+			.map(|r| r.name)
+			.filter(|n| have.contains(&n.as_str()))
+			.collect()
 	}
 
 	/// Drawn in the graph list rather than as a row of its own, the order
@@ -764,18 +797,28 @@ mod tests {
 
 	// Test ID: dejac
 	#[test]
-	fn the_graph_tabs_follow_the_graph_order_and_background_stays_last() {
+	fn the_graph_sections_follow_the_graph_order_and_the_tabs_stay_put() {
 		let d = scratch("tab_order");
 		let mut dlg = Dialog::open(d.0.join("t.shcl"));
+		let tabs: Vec<String> = dlg.spec.tabs.iter().map(|t| t.label.clone()).collect();
+		assert_eq!(tabs, ["Graph", "Themes", "Colors", "Outline"]);
+		// each section by its heading, as the window shows it
 		let labels = |dlg: &Dialog| -> Vec<String> {
-			dlg.tab_order()
+			dlg.section_order()
 				.iter()
-				.map(|&t| dlg.spec.tabs[t].label.clone())
+				.map(|g| {
+					let head = dlg
+						.spec
+						.settings
+						.iter()
+						.find(|s| config::section_graph(&s.id) == Some(g.as_str()));
+					head.unwrap_or_else(|| panic!("{g} has no heading"))
+						.label
+						.clone()
+				})
 				.collect()
 		};
-		let spec_order: Vec<usize> = (0..dlg.spec.tabs.len()).collect();
 		// the spec lists them in the default graph order
-		assert_eq!(dlg.tab_order(), spec_order);
 		let graphs = [
 			"CPU",
 			"Memory",
@@ -788,15 +831,7 @@ mod tests {
 			"Battery",
 			"tukzmon",
 		];
-		let with = |graphs: &[&str]| -> Vec<String> {
-			["Graph", "Themes"]
-				.iter()
-				.chain(graphs)
-				.chain(&["Background"])
-				.map(|s| (*s).to_string())
-				.collect()
-		};
-		assert_eq!(labels(&dlg), with(&graphs));
+		assert_eq!(labels(&dlg), graphs);
 		let last = dlg.graph_rows().len() - 1;
 		assert!(dlg.move_graph(last, 0));
 		assert!(dlg.move_graph(2, 4));
@@ -812,9 +847,89 @@ mod tests {
 			"Load",
 			"Battery",
 		];
-		assert_eq!(labels(&dlg), with(&moved));
+		assert_eq!(labels(&dlg), moved);
+		assert_eq!(
+			dlg.spec
+				.tabs
+				.iter()
+				.map(|t| t.label.clone())
+				.collect::<Vec<_>>(),
+			tabs
+		);
 		dlg.reset(ORDER);
-		assert_eq!(dlg.tab_order(), spec_order);
+		assert_eq!(labels(&dlg), graphs);
+	}
+
+	// Test ID: dejma
+	#[test]
+	fn every_graphs_colors_are_its_own_section_with_the_background_beside() {
+		let d = scratch("sections");
+		let dlg = Dialog::open(d.0.join("t.shcl"));
+		let sections = dlg.sections();
+		let names: Vec<String> = dlg.graph_rows().into_iter().map(|r| r.name).collect();
+		assert_eq!(dlg.section_order(), names);
+		let colors = dlg
+			.spec
+			.tabs
+			.iter()
+			.position(|t| t.label == "Colors")
+			.unwrap();
+		for name in &names {
+			let mode = dlg.id_at(&format!("{name}.mode")).unwrap();
+			let mine: Vec<(&Setting, bool)> = dlg
+				.spec
+				.settings
+				.iter()
+				.zip(&sections)
+				.filter_map(|(s, at)| at.filter(|(g, _)| g == name).map(|(_, b)| (s, b)))
+				.collect();
+			// one run of rows, all on the one tab, and every one of them this graph's
+			let first = dlg
+				.spec
+				.settings
+				.iter()
+				.position(|s| s.id == mine[0].0.id)
+				.unwrap();
+			for (i, (s, _)) in mine.iter().enumerate() {
+				assert_eq!(dlg.spec.settings[first + i].id, s.id, "{name}");
+				assert_eq!(s.tab, colors, "{}", s.id);
+				assert!(
+					s.path.is_empty() || s.path.starts_with(&format!("{name}.")),
+					"{} in {name}",
+					s.id
+				);
+			}
+			let beside: Vec<&str> = mine
+				.iter()
+				.filter(|(_, b)| *b)
+				.map(|(s, _)| s.path.as_str())
+				.filter(|p| !p.is_empty())
+				.collect();
+			let want: Vec<String> = ["border", "top", "bottom"]
+				.iter()
+				.map(|c| format!("{name}.colors.{c}"))
+				.collect();
+			assert_eq!(beside, want, "{name}");
+			let left: Vec<&str> = mine
+				.iter()
+				.filter(|(_, b)| !*b)
+				.map(|(s, _)| s.id.as_str())
+				.collect();
+			assert!(left.contains(&mode), "{name}");
+			assert!(
+				left.iter().any(|id| dlg
+					.spec
+					.get(id)
+					.is_some_and(|s| s.control == Control::Color)),
+				"{name}"
+			);
+		}
+		// no graph's rows outside its section
+		for (s, at) in dlg.spec.settings.iter().zip(&sections) {
+			if s.tab == colors {
+				assert!(at.is_some(), "{} is in no section", s.id);
+			}
+		}
 	}
 
 	// Test ID: dedqr
@@ -847,7 +962,7 @@ mod tests {
 				name: "mem".into(),
 				show: "show_memory".into(),
 				width: "mem_width".into(),
-				sample: "mem_sample_ms".into(),
+				sample: "mem_sample".into(),
 				time: "mem_time".into(),
 			}
 		);
@@ -1109,6 +1224,125 @@ mod tests {
 		assert!(!themes.contains("transparent"), "{text}");
 	}
 
+	// Test ID: dejkz
+	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
+	fn a_shared_color_ticks_its_override_and_a_roll_leaves_both() {
+		let d = scratch("overrides");
+		let path = d.0.join("t.shcl");
+		let mut dlg = Dialog::open(path.clone());
+		assert!(!dlg.state("border_color").counts);
+		assert!(!dlg.state("back_top").counts);
+		dlg.randomize_from(42);
+		assert_eq!(dlg.state("border_all").text, "off");
+		assert_eq!(dlg.state("back_all").text, "off");
+		assert_eq!(
+			dlg.state("cpu_back_top").text,
+			crate::dice::theme(42)
+				.into_iter()
+				.find(|(id, _)| *id == "cpu_back_top")
+				.unwrap()
+				.1
+		);
+		// picking a shared color is asking for it everywhere
+		assert!(dlg.set_text("back_top", "#123456"));
+		assert_eq!(dlg.state("back_all").text, "on");
+		assert_eq!(dlg.state("border_all").text, "off");
+		dlg.randomize_from(43);
+		assert_eq!(dlg.state("back_all").text, "on");
+		assert_eq!(dlg.state("border_all").text, "off");
+		dlg.apply().unwrap();
+		let l = config::Look::load(&path);
+		assert_eq!(l.mem_outline.top, l.top);
+		assert_eq!(l.mem_outline.bottom, l.bottom);
+		assert_ne!(l.mem_outline.border, l.border_color);
+		// a theme pick takes the theme's, which is off
+		assert!(dlg.set_text("theme", "fire"));
+		assert_eq!(dlg.state("back_all").text, "off");
+	}
+
+	// Test ID: dejng
+	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
+	fn unticked_overrides_give_every_graph_its_own_back_after_a_reload() {
+		let d = scratch("untick");
+		let grey = config::Look::default().mem_outline;
+		let mine = config::Rgb(0xaa, 0, 0);
+		// Default keeps a change, Custom its own set
+		for (n, start) in ["theme:\n\tname: default\n", ""].into_iter().enumerate() {
+			let path = d.0.join(format!("t{n}.shcl"));
+			std::fs::write(&path, start).unwrap();
+			let mut dlg = Dialog::open(path.clone());
+			assert!(dlg.set_text("border_color", "#123456"));
+			assert!(dlg.set_text("back_top", "#654321"));
+			assert!(dlg.set_text("cpu_border_color", "#aa0000"));
+			dlg.apply().unwrap();
+			let l = config::Look::load(&path);
+			assert_eq!(l.mem_outline.border, config::Rgb(0x12, 0x34, 0x56), "{n}");
+			assert_eq!(l.cpu_outline.border, config::Rgb(0x12, 0x34, 0x56), "{n}");
+			assert_eq!(l.self_outline.top, config::Rgb(0x65, 0x43, 0x21), "{n}");
+			assert!(dlg.set_text("border_all", "off"));
+			assert!(dlg.set_text("back_all", "off"));
+			dlg.apply().unwrap();
+			let l = config::Look::load(&path);
+			assert_eq!(
+				l.cpu_outline,
+				config::Outline {
+					border: mine,
+					..grey
+				},
+				"{n}"
+			);
+			assert_eq!([l.mem_outline, l.self_outline], [grey; 2], "{n}");
+			// and again through a window opened on that file
+			let mut dlg = Dialog::open(path.clone());
+			assert_eq!(dlg.state("border_color").text, "#123456", "{n}");
+			assert!(dlg.set_text("border", "2"));
+			dlg.apply().unwrap();
+			let l = config::Look::load(&path);
+			assert_eq!([l.mem_outline, l.disk_outline], [grey; 2], "{n}");
+			assert_eq!(l.cpu_outline.border, mine, "{n}");
+		}
+		// a file from before each graph had its own still saves, and keeps its look
+		let path = d.0.join("old.shcl");
+		std::fs::write(&path, "graph:\n\tcolors:\n\t\tborder: \"#123456\"\n").unwrap();
+		let mut dlg = Dialog::open(path.clone());
+		assert!(dlg.set_text("border", "2"));
+		dlg.apply().unwrap();
+		let text = std::fs::read_to_string(&path).unwrap();
+		let doc = shcl::Document::parse(&text);
+		assert!(!doc.exists("graph.colors.border"), "{text}");
+		assert!(doc.exists("graph.overrides.colors.border"), "{text}");
+		let l = config::Look::load(&path);
+		assert_eq!(l.net_outline.border, config::Rgb(0x12, 0x34, 0x56));
+		assert_eq!(l.border_color, config::Rgb(0x12, 0x34, 0x56));
+	}
+
+	// Test ID: dejjv
+	#[test]
+	fn the_margins_go_with_the_theme_and_a_roll_leaves_them() {
+		let d = scratch("margins");
+		let path = d.0.join("t.shcl");
+		let mut dlg = Dialog::open(path.clone());
+		assert!(dlg.set_text("theme", "neon"));
+		assert!(dlg.set_text("margin_lr", "5"));
+		assert_eq!(dlg.state("theme").choice, "Neon *");
+		dlg.randomize_from(42);
+		assert_eq!(dlg.state("margin_lr").text, "5");
+		assert_eq!(dlg.state("margin_tb").text, "2");
+		// a saved theme keeps it, as a number, and the panel reads it
+		dlg.save_theme_as("Wide").unwrap();
+		dlg.apply().unwrap();
+		let text = std::fs::read_to_string(&path).unwrap();
+		assert!(text.contains("margin_lr: 5\n"), "{text}");
+		assert_eq!(config::Look::load(&path).margin_lr, 5);
+		let mut dlg = Dialog::open(path.clone());
+		assert_eq!(dlg.state("theme").choice, "Wide");
+		assert_eq!(dlg.state("margin_lr").text, "5");
+		assert!(dlg.set_text("theme", "fire"));
+		assert_eq!(dlg.state("margin_lr").text, "2");
+	}
+
 	// Test ID: decdq
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
@@ -1197,7 +1431,7 @@ mod tests {
 		dlg.apply().unwrap();
 		let text = std::fs::read_to_string(&path).unwrap();
 		assert!(text.contains("name: night"), "{text}");
-		assert_eq!(text.matches("\"#").count(), 55, "{text}");
+		assert_eq!(text.matches("\"#").count(), 85, "{text}");
 		assert!(!text.contains("kept"), "{text}");
 		let dlg = Dialog::open(path.clone());
 		assert_eq!(dlg.state("theme").choice, "Night");

@@ -7,16 +7,20 @@
 ## slider_range is ours, not knobs'. It's how far a slider reaches, while
 ## range is what can be typed in the box beside it. shown_as: radio draws a
 ## dropdown as radio buttons, and shown_when: "id = key" shows a row only
-## while that dropdown is on that key. Those 2 are ours too.
+## while that dropdown is on that key. Those 2 are ours too, and so are the
+## 2 that lay out Themes/Colors: graph: name on a heading starts that graph's
+## section, which moves with the graph order, and beside: true on a heading
+## puts it and the rest of its section to the right of what's above it.
 ##
-## A graph's row in the Graphs list comes from its show, width, sample_ms and
+## A graph's row in the Graphs list comes from its show, width, sample and
 ## time settings, in that order.
 ##
-## Every color is in the theme group, and so is each graph's mode. A row's
-## default is the Default theme's value, and config::tests holds the two to
-## each other.
+## Every color is in the theme group, and so are each graph's mode, the
+## margins and the 2 checkboxes that put the Outline tab's colors over every
+## graph's. A row's default is the Default theme's value, and config::tests
+## holds the two to each other.
 
-tabs: "Graph", "Themes", "Themes/CPU", "Themes/Memory", "Themes/Network", "Themes/Disk", "Themes/Temperature", "Themes/Swap", "Themes/Zswap", "Themes/Load", "Themes/Battery", "Themes/tukzmon", "Themes/Background"
+tabs: "Graph", "Themes", "Themes/Colors", "Themes/Outline"
 
 settings:
 
@@ -36,7 +40,7 @@ settings:
 		path: graph.width
 		default: 128
 		detents: 64, 128, 256
-		tip: "How wide a graph is in the panel at 100%. Each graph under Graphs takes a percentage of it. Its height follows the panel."
+		tip: "How wide a graph is in the panel at 100%. Each graph under Graphs takes a percentage of it. Its height follows the panel.\n\nOn a vertical panel or a deskbar, this is how tall a graph is, and its width follows the panel. Time still runs from left to right."
 
 	TimeHead:
 		label: Time
@@ -62,9 +66,9 @@ settings:
 		slider_range: 100, 5000
 		scale: log
 		path: graph.sample_ms
-		default: 500
+		default: 1000
 		detents: 250, 500, 1000, 2000
-		tip: "How often a graph is read and redrawn, in ms, unless it has its own rate under Graphs."
+		tip: "How often a graph is read and redrawn, in ms. Each graph under Graphs takes a percentage of it."
 
 	spikes:
 		label: Spike emphasis %
@@ -122,17 +126,17 @@ settings:
 		range: 1, 1000
 		path: cpu.width
 		default: 100
-		tip: "How wide the CPU graph is, as a percentage of Width."
+		tip: "How wide the CPU graph is, or how tall on a vertical panel, as a percentage of Width."
 
-	cpu_sample_ms:
-		label: CPU sample ms
+	cpu_sample:
+		label: CPU sample %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 60000
-		path: cpu.sample_ms
-		default: 0
-		tip: "How often the CPU graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+		range: 1, 1000
+		path: cpu.sample
+		default: 100
+		tip: "How often the CPU graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	cpu_time:
 		label: CPU time axis
@@ -160,17 +164,17 @@ settings:
 		range: 1, 1000
 		path: mem.width
 		default: 100
-		tip: "How wide the memory graph is, as a percentage of Width."
+		tip: "How wide the memory graph is, or how tall on a vertical panel, as a percentage of Width."
 
-	mem_sample_ms:
-		label: Memory sample ms
+	mem_sample:
+		label: Memory sample %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 60000
-		path: mem.sample_ms
-		default: 0
-		tip: "How often the memory graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+		range: 1, 1000
+		path: mem.sample
+		default: 100
+		tip: "How often the memory graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	mem_time:
 		label: Memory time axis
@@ -198,17 +202,17 @@ settings:
 		range: 1, 1000
 		path: net.width
 		default: 50
-		tip: "How wide the network graph is, as a percentage of Width."
+		tip: "How wide the network graph is, or how tall on a vertical panel, as a percentage of Width."
 
-	net_sample_ms:
-		label: Network sample ms
+	net_sample:
+		label: Network sample %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 60000
-		path: net.sample_ms
-		default: 0
-		tip: "How often the network graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+		range: 1, 1000
+		path: net.sample
+		default: 100
+		tip: "How often the network graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	net_time:
 		label: Network time axis
@@ -236,17 +240,17 @@ settings:
 		range: 1, 1000
 		path: disk.width
 		default: 50
-		tip: "How wide the disk graph is, as a percentage of Width."
+		tip: "How wide the disk graph is, or how tall on a vertical panel, as a percentage of Width."
 
-	disk_sample_ms:
-		label: Disk sample ms
+	disk_sample:
+		label: Disk sample %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 60000
-		path: disk.sample_ms
-		default: 0
-		tip: "How often the disk graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+		range: 1, 1000
+		path: disk.sample
+		default: 100
+		tip: "How often the disk graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	disk_time:
 		label: Disk time axis
@@ -274,17 +278,17 @@ settings:
 		range: 1, 1000
 		path: temp.width
 		default: 50
-		tip: "How wide the temperature graph is, as a percentage of Width."
+		tip: "How wide the temperature graph is, or how tall on a vertical panel, as a percentage of Width."
 
-	temp_sample_ms:
-		label: Temperature sample ms
+	temp_sample:
+		label: Temperature sample %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 60000
-		path: temp.sample_ms
-		default: 0
-		tip: "How often the temperature graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+		range: 1, 1000
+		path: temp.sample
+		default: 100
+		tip: "How often the temperature graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	temp_time:
 		label: Temperature time axis
@@ -312,17 +316,17 @@ settings:
 		range: 1, 1000
 		path: swap.width
 		default: 25
-		tip: "How wide the swap graph is, as a percentage of Width."
+		tip: "How wide the swap graph is, or how tall on a vertical panel, as a percentage of Width."
 
-	swap_sample_ms:
-		label: Swap sample ms
+	swap_sample:
+		label: Swap sample %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 60000
-		path: swap.sample_ms
-		default: 0
-		tip: "How often the swap graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+		range: 1, 1000
+		path: swap.sample
+		default: 100
+		tip: "How often the swap graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	swap_time:
 		label: Swap time axis
@@ -350,17 +354,17 @@ settings:
 		range: 1, 1000
 		path: zswap.width
 		default: 25
-		tip: "How wide the zswap graph is, as a percentage of Width."
+		tip: "How wide the zswap graph is, or how tall on a vertical panel, as a percentage of Width."
 
-	zswap_sample_ms:
-		label: Zswap sample ms
+	zswap_sample:
+		label: Zswap sample %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 60000
-		path: zswap.sample_ms
-		default: 0
-		tip: "How often the zswap graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+		range: 1, 1000
+		path: zswap.sample
+		default: 100
+		tip: "How often the zswap graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	zswap_time:
 		label: Zswap time axis
@@ -388,17 +392,17 @@ settings:
 		range: 1, 1000
 		path: load.width
 		default: 25
-		tip: "How wide the load graph is, as a percentage of Width."
+		tip: "How wide the load graph is, or how tall on a vertical panel, as a percentage of Width."
 
-	load_sample_ms:
-		label: Load sample ms
+	load_sample:
+		label: Load sample %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 60000
-		path: load.sample_ms
-		default: 0
-		tip: "How often the load graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+		range: 1, 1000
+		path: load.sample
+		default: 100
+		tip: "How often the load graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	load_time:
 		label: Load time axis
@@ -426,17 +430,17 @@ settings:
 		range: 1, 1000
 		path: battery.width
 		default: 100
-		tip: "How wide the battery graph is, as a percentage of Width."
+		tip: "How wide the battery graph is, or how tall on a vertical panel, as a percentage of Width."
 
-	battery_sample_ms:
-		label: Battery sample ms
+	battery_sample:
+		label: Battery sample %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 60000
-		path: battery.sample_ms
-		default: 0
-		tip: "How often the battery graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+		range: 1, 1000
+		path: battery.sample
+		default: 100
+		tip: "How often the battery graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	battery_time:
 		label: Battery time axis
@@ -454,7 +458,7 @@ settings:
 		control: checkbox
 		path: self.show
 		default: false
-		tip: "Show how much of all the CPUs' time tukzmon itself takes. The top follows the highest use in view, but never goes under 1% of one CPU, so its usual small share still shows. On Wayland tukzmon runs inside the panel, so this is the whole panel's use, and the tip says so."
+		tip: "Show how much of all the CPUs' time tukzmon itself takes. The graph is full when every CPU is busy, as the CPU graph is, so its usual small share is a thin line. The tip has the number. On Wayland tukzmon runs inside the panel, so this is the whole panel's use, and the tip says so."
 
 	self_width:
 		label: tukzmon width %
@@ -464,17 +468,17 @@ settings:
 		range: 1, 1000
 		path: self.width
 		default: 25
-		tip: "How wide the tukzmon graph is, as a percentage of Width."
+		tip: "How wide the tukzmon graph is, or how tall on a vertical panel, as a percentage of Width."
 
-	self_sample_ms:
-		label: tukzmon sample ms
+	self_sample:
+		label: tukzmon sample %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 60000
-		path: self.sample_ms
-		default: 0
-		tip: "How often the tukzmon graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+		range: 1, 1000
+		path: self.sample
+		default: 100
+		tip: "How often the tukzmon graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	self_time:
 		label: tukzmon time axis
@@ -550,9 +554,15 @@ settings:
 		default: default
 		tip: "A set of colors for every graph and its background. A color changed below is kept on top of the theme, and the theme's name gets a * after it. Save as keeps the colors as a theme of your own."
 
+	CpuSection:
+		label: CPU
+		tab: Themes/Colors
+		control: heading
+		graph: cpu
+
 	cpu_mode:
 		label: Colors
-		tab: Themes/CPU
+		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
 		options: detailed, gradient
@@ -563,14 +573,14 @@ settings:
 		tip: "Detailed gives each kind of CPU time a color of its own. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
 	CpuHead:
-		label: "CPU, from the bottom up"
-		tab: Themes/CPU
+		label: "From the bottom up"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "cpu_mode = detailed"
 
 	iowait:
 		label: I/O wait
-		tab: Themes/CPU
+		tab: Themes/Colors
 		control: color
 		path: cpu.colors.iowait
 		default: "#ff0000"
@@ -579,7 +589,7 @@ settings:
 
 	system:
 		label: System
-		tab: Themes/CPU
+		tab: Themes/Colors
 		control: color
 		path: cpu.colors.system
 		default: "#fa72f0"
@@ -589,7 +599,7 @@ settings:
 
 	user:
 		label: User
-		tab: Themes/CPU
+		tab: Themes/Colors
 		control: color
 		path: cpu.colors.user
 		default: "#00ff80"
@@ -598,7 +608,7 @@ settings:
 
 	nice:
 		label: Nice
-		tab: Themes/CPU
+		tab: Themes/Colors
 		control: color
 		path: cpu.colors.nice
 		default: "#205f40"
@@ -607,14 +617,14 @@ settings:
 		tip: "Programs running at a lower priority."
 
 	CpuGradHead:
-		label: "CPU, by height"
-		tab: Themes/CPU
+		label: "By height"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "cpu_mode = gradient"
 
 	cpu_low:
 		label: Low
-		tab: Themes/CPU
+		tab: Themes/Colors
 		control: color
 		path: cpu.colors.low
 		default: "#205f40"
@@ -624,7 +634,7 @@ settings:
 
 	cpu_medium:
 		label: Medium
-		tab: Themes/CPU
+		tab: Themes/Colors
 		control: color
 		path: cpu.colors.medium
 		default: "#00ff80"
@@ -634,7 +644,7 @@ settings:
 
 	cpu_high:
 		label: High
-		tab: Themes/CPU
+		tab: Themes/Colors
 		control: color
 		path: cpu.colors.high
 		default: "#c0ffe0"
@@ -642,9 +652,45 @@ settings:
 		shown_when: "cpu_mode = gradient"
 		tip: "The color at the top."
 
+	CpuBackHead:
+		label: Background
+		tab: Themes/Colors
+		control: heading
+		beside: true
+
+	cpu_border_color:
+		label: Border
+		tab: Themes/Colors
+		control: color
+		path: cpu.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	cpu_back_top:
+		label: Top
+		tab: Themes/Colors
+		control: color
+		path: cpu.colors.top
+		default: "#313131"
+		group: theme
+
+	cpu_back_bottom:
+		label: Bottom
+		tab: Themes/Colors
+		control: color
+		path: cpu.colors.bottom
+		default: "#000000"
+		group: theme
+
+	MemSection:
+		label: Memory
+		tab: Themes/Colors
+		control: heading
+		graph: mem
+
 	mem_mode:
 		label: Colors
-		tab: Themes/Memory
+		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
 		options: detailed, gradient
@@ -655,14 +701,14 @@ settings:
 		tip: "Detailed gives programs, buffers and cache a color each. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
 	MemHead:
-		label: "Memory, from the bottom up"
-		tab: Themes/Memory
+		label: "From the bottom up"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "mem_mode = detailed"
 
 	mem_user:
 		label: Programs
-		tab: Themes/Memory
+		tab: Themes/Colors
 		control: color
 		path: mem.colors.user
 		default: "#ffffa3"
@@ -672,7 +718,7 @@ settings:
 
 	mem_buffers:
 		label: Buffers
-		tab: Themes/Memory
+		tab: Themes/Colors
 		control: color
 		path: mem.colors.buffers
 		default: "#804080"
@@ -681,7 +727,7 @@ settings:
 
 	mem_cache:
 		label: Cache
-		tab: Themes/Memory
+		tab: Themes/Colors
 		control: color
 		path: mem.colors.cache
 		default: "#408060"
@@ -690,14 +736,14 @@ settings:
 		tip: "The page cache, which the kernel gives back when programs need it."
 
 	MemGradHead:
-		label: "Memory, by height"
-		tab: Themes/Memory
+		label: "By height"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "mem_mode = gradient"
 
 	mem_low:
 		label: Low
-		tab: Themes/Memory
+		tab: Themes/Colors
 		control: color
 		path: mem.colors.low
 		default: "#408060"
@@ -707,7 +753,7 @@ settings:
 
 	mem_medium:
 		label: Medium
-		tab: Themes/Memory
+		tab: Themes/Colors
 		control: color
 		path: mem.colors.medium
 		default: "#ffffa3"
@@ -717,7 +763,7 @@ settings:
 
 	mem_high:
 		label: High
-		tab: Themes/Memory
+		tab: Themes/Colors
 		control: color
 		path: mem.colors.high
 		default: "#ffffe0"
@@ -725,9 +771,45 @@ settings:
 		shown_when: "mem_mode = gradient"
 		tip: "The color at the top."
 
+	MemBackHead:
+		label: Background
+		tab: Themes/Colors
+		control: heading
+		beside: true
+
+	mem_border_color:
+		label: Border
+		tab: Themes/Colors
+		control: color
+		path: mem.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	mem_back_top:
+		label: Top
+		tab: Themes/Colors
+		control: color
+		path: mem.colors.top
+		default: "#313131"
+		group: theme
+
+	mem_back_bottom:
+		label: Bottom
+		tab: Themes/Colors
+		control: color
+		path: mem.colors.bottom
+		default: "#000000"
+		group: theme
+
+	NetSection:
+		label: Network
+		tab: Themes/Colors
+		control: heading
+		graph: net
+
 	net_mode:
 		label: Colors
-		tab: Themes/Network
+		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
 		options: detailed, gradient
@@ -738,14 +820,14 @@ settings:
 		tip: "Detailed gives local, sent and received a color each. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
 	NetHead:
-		label: "Network, from the bottom up"
-		tab: Themes/Network
+		label: "From the bottom up"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "net_mode = detailed"
 
 	net_local:
 		label: Local
-		tab: Themes/Network
+		tab: Themes/Colors
 		control: color
 		path: net.colors.local
 		default: "#ffed00"
@@ -755,7 +837,7 @@ settings:
 
 	net_sent:
 		label: Sent
-		tab: Themes/Network
+		tab: Themes/Colors
 		control: color
 		path: net.colors.sent
 		default: "#ff7777"
@@ -764,7 +846,7 @@ settings:
 
 	net_received:
 		label: Received
-		tab: Themes/Network
+		tab: Themes/Colors
 		control: color
 		path: net.colors.received
 		default: "#6ad4ff"
@@ -772,14 +854,14 @@ settings:
 		shown_when: "net_mode = detailed"
 
 	NetGradHead:
-		label: "Network, by height"
-		tab: Themes/Network
+		label: "By height"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "net_mode = gradient"
 
 	net_low:
 		label: Low
-		tab: Themes/Network
+		tab: Themes/Colors
 		control: color
 		path: net.colors.low
 		default: "#2a5566"
@@ -789,7 +871,7 @@ settings:
 
 	net_medium:
 		label: Medium
-		tab: Themes/Network
+		tab: Themes/Colors
 		control: color
 		path: net.colors.medium
 		default: "#6ad4ff"
@@ -799,7 +881,7 @@ settings:
 
 	net_high:
 		label: High
-		tab: Themes/Network
+		tab: Themes/Colors
 		control: color
 		path: net.colors.high
 		default: "#cff1ff"
@@ -807,9 +889,45 @@ settings:
 		shown_when: "net_mode = gradient"
 		tip: "The color at the top."
 
+	NetBackHead:
+		label: Background
+		tab: Themes/Colors
+		control: heading
+		beside: true
+
+	net_border_color:
+		label: Border
+		tab: Themes/Colors
+		control: color
+		path: net.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	net_back_top:
+		label: Top
+		tab: Themes/Colors
+		control: color
+		path: net.colors.top
+		default: "#313131"
+		group: theme
+
+	net_back_bottom:
+		label: Bottom
+		tab: Themes/Colors
+		control: color
+		path: net.colors.bottom
+		default: "#000000"
+		group: theme
+
+	SwapSection:
+		label: Swap
+		tab: Themes/Colors
+		control: heading
+		graph: swap
+
 	swap_mode:
 		label: Colors
-		tab: Themes/Swap
+		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
 		options: detailed, gradient
@@ -821,7 +939,7 @@ settings:
 
 	swap_used:
 		label: In use
-		tab: Themes/Swap
+		tab: Themes/Colors
 		control: color
 		path: swap.colors.used
 		default: "#a45f00"
@@ -829,14 +947,14 @@ settings:
 		shown_when: "swap_mode = detailed"
 
 	SwapGradHead:
-		label: "Swap, by height"
-		tab: Themes/Swap
+		label: "By height"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "swap_mode = gradient"
 
 	swap_low:
 		label: Low
-		tab: Themes/Swap
+		tab: Themes/Colors
 		control: color
 		path: swap.colors.low
 		default: "#66461a"
@@ -846,7 +964,7 @@ settings:
 
 	swap_medium:
 		label: Medium
-		tab: Themes/Swap
+		tab: Themes/Colors
 		control: color
 		path: swap.colors.medium
 		default: "#a45f00"
@@ -856,7 +974,7 @@ settings:
 
 	swap_high:
 		label: High
-		tab: Themes/Swap
+		tab: Themes/Colors
 		control: color
 		path: swap.colors.high
 		default: "#ffebcf"
@@ -864,9 +982,45 @@ settings:
 		shown_when: "swap_mode = gradient"
 		tip: "The color at the top."
 
+	SwapBackHead:
+		label: Background
+		tab: Themes/Colors
+		control: heading
+		beside: true
+
+	swap_border_color:
+		label: Border
+		tab: Themes/Colors
+		control: color
+		path: swap.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	swap_back_top:
+		label: Top
+		tab: Themes/Colors
+		control: color
+		path: swap.colors.top
+		default: "#313131"
+		group: theme
+
+	swap_back_bottom:
+		label: Bottom
+		tab: Themes/Colors
+		control: color
+		path: swap.colors.bottom
+		default: "#000000"
+		group: theme
+
+	ZswapSection:
+		label: Zswap
+		tab: Themes/Colors
+		control: heading
+		graph: zswap
+
 	zswap_mode:
 		label: Colors
-		tab: Themes/Zswap
+		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
 		options: detailed, gradient
@@ -878,7 +1032,7 @@ settings:
 
 	zswap_used:
 		label: In use
-		tab: Themes/Zswap
+		tab: Themes/Colors
 		control: color
 		path: zswap.colors.used
 		default: "#4a8e54"
@@ -886,14 +1040,14 @@ settings:
 		shown_when: "zswap_mode = detailed"
 
 	ZswapGradHead:
-		label: "Zswap, by height"
-		tab: Themes/Zswap
+		label: "By height"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "zswap_mode = gradient"
 
 	zswap_low:
 		label: Low
-		tab: Themes/Zswap
+		tab: Themes/Colors
 		control: color
 		path: zswap.colors.low
 		default: "#35663c"
@@ -903,7 +1057,7 @@ settings:
 
 	zswap_medium:
 		label: Medium
-		tab: Themes/Zswap
+		tab: Themes/Colors
 		control: color
 		path: zswap.colors.medium
 		default: "#4a8e54"
@@ -913,7 +1067,7 @@ settings:
 
 	zswap_high:
 		label: High
-		tab: Themes/Zswap
+		tab: Themes/Colors
 		control: color
 		path: zswap.colors.high
 		default: "#cfffd6"
@@ -921,9 +1075,45 @@ settings:
 		shown_when: "zswap_mode = gradient"
 		tip: "The color at the top."
 
+	ZswapBackHead:
+		label: Background
+		tab: Themes/Colors
+		control: heading
+		beside: true
+
+	zswap_border_color:
+		label: Border
+		tab: Themes/Colors
+		control: color
+		path: zswap.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	zswap_back_top:
+		label: Top
+		tab: Themes/Colors
+		control: color
+		path: zswap.colors.top
+		default: "#313131"
+		group: theme
+
+	zswap_back_bottom:
+		label: Bottom
+		tab: Themes/Colors
+		control: color
+		path: zswap.colors.bottom
+		default: "#000000"
+		group: theme
+
+	LoadSection:
+		label: Load
+		tab: Themes/Colors
+		control: heading
+		graph: load
+
 	load_mode:
 		label: Colors
-		tab: Themes/Load
+		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
 		options: detailed, gradient
@@ -935,7 +1125,7 @@ settings:
 
 	load_used:
 		label: Load
-		tab: Themes/Load
+		tab: Themes/Colors
 		control: color
 		path: load.colors.load
 		default: "#924444"
@@ -943,14 +1133,14 @@ settings:
 		shown_when: "load_mode = detailed"
 
 	LoadGradHead:
-		label: "Load, by height"
-		tab: Themes/Load
+		label: "By height"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "load_mode = gradient"
 
 	load_low:
 		label: Low
-		tab: Themes/Load
+		tab: Themes/Colors
 		control: color
 		path: load.colors.low
 		default: "#553030"
@@ -960,7 +1150,7 @@ settings:
 
 	load_medium:
 		label: Medium
-		tab: Themes/Load
+		tab: Themes/Colors
 		control: color
 		path: load.colors.medium
 		default: "#924444"
@@ -970,7 +1160,7 @@ settings:
 
 	load_high:
 		label: High
-		tab: Themes/Load
+		tab: Themes/Colors
 		control: color
 		path: load.colors.high
 		default: "#eb4a4a"
@@ -978,9 +1168,45 @@ settings:
 		shown_when: "load_mode = gradient"
 		tip: "The color at the top."
 
+	LoadBackHead:
+		label: Background
+		tab: Themes/Colors
+		control: heading
+		beside: true
+
+	load_border_color:
+		label: Border
+		tab: Themes/Colors
+		control: color
+		path: load.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	load_back_top:
+		label: Top
+		tab: Themes/Colors
+		control: color
+		path: load.colors.top
+		default: "#313131"
+		group: theme
+
+	load_back_bottom:
+		label: Bottom
+		tab: Themes/Colors
+		control: color
+		path: load.colors.bottom
+		default: "#000000"
+		group: theme
+
+	DiskSection:
+		label: Disk
+		tab: Themes/Colors
+		control: heading
+		graph: disk
+
 	disk_mode:
 		label: Colors
-		tab: Themes/Disk
+		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
 		options: detailed, gradient
@@ -991,14 +1217,14 @@ settings:
 		tip: "Detailed gives written and read a color each. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
 	DiskColorHead:
-		label: "Disk, from the bottom up"
-		tab: Themes/Disk
+		label: "From the bottom up"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "disk_mode = detailed"
 
 	disk_write:
 		label: Written
-		tab: Themes/Disk
+		tab: Themes/Colors
 		control: color
 		path: disk.colors.write
 		default: "#c60000"
@@ -1007,7 +1233,7 @@ settings:
 
 	disk_read:
 		label: Read
-		tab: Themes/Disk
+		tab: Themes/Colors
 		control: color
 		path: disk.colors.read
 		default: "#6bb3ff"
@@ -1015,14 +1241,14 @@ settings:
 		shown_when: "disk_mode = detailed"
 
 	DiskGradHead:
-		label: "Disk, by height"
-		tab: Themes/Disk
+		label: "By height"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "disk_mode = gradient"
 
 	disk_low:
 		label: Low
-		tab: Themes/Disk
+		tab: Themes/Colors
 		control: color
 		path: disk.colors.low
 		default: "#2b4866"
@@ -1032,7 +1258,7 @@ settings:
 
 	disk_medium:
 		label: Medium
-		tab: Themes/Disk
+		tab: Themes/Colors
 		control: color
 		path: disk.colors.medium
 		default: "#6bb3ff"
@@ -1042,7 +1268,7 @@ settings:
 
 	disk_high:
 		label: High
-		tab: Themes/Disk
+		tab: Themes/Colors
 		control: color
 		path: disk.colors.high
 		default: "#cfe6ff"
@@ -1050,9 +1276,45 @@ settings:
 		shown_when: "disk_mode = gradient"
 		tip: "The color at the top."
 
+	DiskBackHead:
+		label: Background
+		tab: Themes/Colors
+		control: heading
+		beside: true
+
+	disk_border_color:
+		label: Border
+		tab: Themes/Colors
+		control: color
+		path: disk.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	disk_back_top:
+		label: Top
+		tab: Themes/Colors
+		control: color
+		path: disk.colors.top
+		default: "#313131"
+		group: theme
+
+	disk_back_bottom:
+		label: Bottom
+		tab: Themes/Colors
+		control: color
+		path: disk.colors.bottom
+		default: "#000000"
+		group: theme
+
+	TempSection:
+		label: Temperature
+		tab: Themes/Colors
+		control: heading
+		graph: temp
+
 	temp_mode:
 		label: Colors
-		tab: Themes/Temperature
+		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
 		options: detailed, gradient
@@ -1063,14 +1325,14 @@ settings:
 		tip: "Detailed draws the temperature in one color, with any part over the critical level in another. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
 	TempColorHead:
-		label: "Temperature, from the bottom up"
-		tab: Themes/Temperature
+		label: "From the bottom up"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "temp_mode = detailed"
 
 	temp_normal:
 		label: Normal
-		tab: Themes/Temperature
+		tab: Themes/Colors
 		control: color
 		path: temp.colors.normal
 		default: "#feff40"
@@ -1080,7 +1342,7 @@ settings:
 
 	temp_critical:
 		label: Critical
-		tab: Themes/Temperature
+		tab: Themes/Colors
 		control: color
 		path: temp.colors.critical
 		default: "#ff0000"
@@ -1089,14 +1351,14 @@ settings:
 		tip: "Over the critical level, on top of Normal."
 
 	TempGradHead:
-		label: "Temperature, by height"
-		tab: Themes/Temperature
+		label: "By height"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "temp_mode = gradient"
 
 	temp_low:
 		label: Low
-		tab: Themes/Temperature
+		tab: Themes/Colors
 		control: color
 		path: temp.colors.low
 		default: "#4eb6bd"
@@ -1106,7 +1368,7 @@ settings:
 
 	temp_medium:
 		label: Medium
-		tab: Themes/Temperature
+		tab: Themes/Colors
 		control: color
 		path: temp.colors.medium
 		default: "#feff40"
@@ -1116,7 +1378,7 @@ settings:
 
 	temp_high:
 		label: High
-		tab: Themes/Temperature
+		tab: Themes/Colors
 		control: color
 		path: temp.colors.high
 		default: "#ff0000"
@@ -1124,9 +1386,45 @@ settings:
 		shown_when: "temp_mode = gradient"
 		tip: "The color at the top."
 
+	TempBackHead:
+		label: Background
+		tab: Themes/Colors
+		control: heading
+		beside: true
+
+	temp_border_color:
+		label: Border
+		tab: Themes/Colors
+		control: color
+		path: temp.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	temp_back_top:
+		label: Top
+		tab: Themes/Colors
+		control: color
+		path: temp.colors.top
+		default: "#313131"
+		group: theme
+
+	temp_back_bottom:
+		label: Bottom
+		tab: Themes/Colors
+		control: color
+		path: temp.colors.bottom
+		default: "#000000"
+		group: theme
+
+	BatterySection:
+		label: Battery
+		tab: Themes/Colors
+		control: heading
+		graph: battery
+
 	battery_mode:
 		label: Colors
-		tab: Themes/Battery
+		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
 		options: detailed, gradient
@@ -1137,14 +1435,14 @@ settings:
 		tip: "Detailed colors the charge by what the battery is doing. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
 	BatteryHead:
-		label: "Battery, by state"
-		tab: Themes/Battery
+		label: "By state"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "battery_mode = detailed"
 
 	battery_charging:
 		label: Plugged in
-		tab: Themes/Battery
+		tab: Themes/Colors
 		control: color
 		path: battery.colors.charging
 		default: "#b080ff"
@@ -1154,7 +1452,7 @@ settings:
 
 	battery_discharging:
 		label: On battery
-		tab: Themes/Battery
+		tab: Themes/Colors
 		control: color
 		path: battery.colors.discharging
 		default: "#c46e43"
@@ -1163,7 +1461,7 @@ settings:
 
 	battery_critical:
 		label: Critical
-		tab: Themes/Battery
+		tab: Themes/Colors
 		control: color
 		path: battery.colors.critical
 		default: "#ff0000"
@@ -1172,14 +1470,14 @@ settings:
 		tip: "On battery, with the charge at the critical level."
 
 	BatteryGradHead:
-		label: "Battery, by height"
-		tab: Themes/Battery
+		label: "By height"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "battery_mode = gradient"
 
 	battery_low:
 		label: Low
-		tab: Themes/Battery
+		tab: Themes/Colors
 		control: color
 		path: battery.colors.low
 		default: "#483468"
@@ -1189,7 +1487,7 @@ settings:
 
 	battery_medium:
 		label: Medium
-		tab: Themes/Battery
+		tab: Themes/Colors
 		control: color
 		path: battery.colors.medium
 		default: "#b080ff"
@@ -1199,7 +1497,7 @@ settings:
 
 	battery_high:
 		label: High
-		tab: Themes/Battery
+		tab: Themes/Colors
 		control: color
 		path: battery.colors.high
 		default: "#ece0ff"
@@ -1207,9 +1505,45 @@ settings:
 		shown_when: "battery_mode = gradient"
 		tip: "The color at the top."
 
+	BatteryBackHead:
+		label: Background
+		tab: Themes/Colors
+		control: heading
+		beside: true
+
+	battery_border_color:
+		label: Border
+		tab: Themes/Colors
+		control: color
+		path: battery.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	battery_back_top:
+		label: Top
+		tab: Themes/Colors
+		control: color
+		path: battery.colors.top
+		default: "#313131"
+		group: theme
+
+	battery_back_bottom:
+		label: Bottom
+		tab: Themes/Colors
+		control: color
+		path: battery.colors.bottom
+		default: "#000000"
+		group: theme
+
+	SelfSection:
+		label: tukzmon
+		tab: Themes/Colors
+		control: heading
+		graph: self
+
 	self_mode:
 		label: Colors
-		tab: Themes/tukzmon
+		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
 		options: detailed, gradient
@@ -1221,7 +1555,7 @@ settings:
 
 	self_used:
 		label: CPU use
-		tab: Themes/tukzmon
+		tab: Themes/Colors
 		control: color
 		path: self.colors.used
 		default: "#00ccb8"
@@ -1229,14 +1563,14 @@ settings:
 		shown_when: "self_mode = detailed"
 
 	SelfGradHead:
-		label: "tukzmon, by height"
-		tab: Themes/tukzmon
+		label: "By height"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "self_mode = gradient"
 
 	self_low:
 		label: Low
-		tab: Themes/tukzmon
+		tab: Themes/Colors
 		control: color
 		path: self.colors.low
 		default: "#1a665e"
@@ -1246,7 +1580,7 @@ settings:
 
 	self_medium:
 		label: Medium
-		tab: Themes/tukzmon
+		tab: Themes/Colors
 		control: color
 		path: self.colors.medium
 		default: "#00ccb8"
@@ -1256,7 +1590,7 @@ settings:
 
 	self_high:
 		label: High
-		tab: Themes/tukzmon
+		tab: Themes/Colors
 		control: color
 		path: self.colors.high
 		default: "#cffffa"
@@ -1264,46 +1598,126 @@ settings:
 		shown_when: "self_mode = gradient"
 		tip: "The color at the top."
 
+	SelfBackHead:
+		label: Background
+		tab: Themes/Colors
+		control: heading
+		beside: true
+
+	self_border_color:
+		label: Border
+		tab: Themes/Colors
+		control: color
+		path: self.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	self_back_top:
+		label: Top
+		tab: Themes/Colors
+		control: color
+		path: self.colors.top
+		default: "#313131"
+		group: theme
+
+	self_back_bottom:
+		label: Bottom
+		tab: Themes/Colors
+		control: color
+		path: self.colors.bottom
+		default: "#000000"
+		group: theme
+
+	MarginHead:
+		label: Margins
+		tab: Themes/Outline
+		control: heading
+
+	margin_tb:
+		label: Top & bottom px
+		tab: Themes/Outline
+		control: slider
+		whole: true
+		range: 0, 64
+		slider_range: 0, 8
+		path: graph.margins.top_bottom
+		default: 2
+		group: theme
+		tip: "Space left clear above and below each graph, so the panel shows through. On a vertical panel the graphs are stacked, so this is the space between 2 of them, from each. The top and bottom of the whole item get none there, since the panel spaces its items."
+
+	margin_lr:
+		label: Left & right px
+		tab: Themes/Outline
+		control: slider
+		whole: true
+		range: 0, 64
+		slider_range: 0, 8
+		path: graph.margins.left_right
+		default: 2
+		group: theme
+		tip: "Space left clear either side of each graph, so 2 graphs side by side have twice this between them. The two ends of the whole item get none, since the panel spaces its items. On a vertical panel this is the space either side of every graph."
+
 	BackHead:
 		label: Background
-		tab: Themes/Background
+		tab: Themes/Outline
 		control: heading
 
 	transparent:
 		label: Transparent
-		tab: Themes/Background
+		tab: Themes/Outline
 		control: checkbox
 		path: graph.transparent
 		default: false
-		tip: "Let the panel show through behind the graph, in place of the Top and Bottom colors. This one goes for every theme, so picking another keeps it. The border and the hover line are still drawn."
+		tip: "Let the panel show through behind the graph, in place of every graph's Top and Bottom colors. This one goes for every theme, so picking another keeps it. The border and the hover line are still drawn."
+
+	border_all:
+		label: One border for every graph
+		tab: Themes/Outline
+		control: checkbox
+		path: graph.overrides.border
+		default: false
+		group: theme
+		tip: "Draw every graph's border in the Border color below, over the one on its own sub-tab."
 
 	border_color:
 		label: Border
-		tab: Themes/Background
+		tab: Themes/Outline
 		control: color
-		path: graph.colors.border
+		path: graph.overrides.colors.border
 		default: "#8b8b8b"
 		group: theme
+		gate: border_all
+
+	back_all:
+		label: One background for every graph
+		tab: Themes/Outline
+		control: checkbox
+		path: graph.overrides.background
+		default: false
+		group: theme
+		tip: "Draw every graph's background in the Top and Bottom colors below, over the ones on its own sub-tab. Transparent still wins over both."
 
 	back_top:
 		label: Top
-		tab: Themes/Background
+		tab: Themes/Outline
 		control: color
-		path: graph.colors.top
+		path: graph.overrides.colors.top
 		default: "#313131"
 		group: theme
+		gate: back_all
 
 	back_bottom:
 		label: Bottom
-		tab: Themes/Background
+		tab: Themes/Outline
 		control: color
-		path: graph.colors.bottom
+		path: graph.overrides.colors.bottom
 		default: "#000000"
 		group: theme
+		gate: back_all
 
 	hover_color:
 		label: Hover line
-		tab: Themes/Background
+		tab: Themes/Outline
 		control: color
 		path: graph.colors.hover
 		default: "#000000"
@@ -1388,10 +1802,44 @@ groups:
 				self_medium: "#00ccb8"
 				self_high: "#cffffa"
 				self_used: "#00ccb8"
+				cpu_border_color: "#8b8b8b"
+				cpu_back_top: "#313131"
+				cpu_back_bottom: "#000000"
+				mem_border_color: "#8b8b8b"
+				mem_back_top: "#313131"
+				mem_back_bottom: "#000000"
+				net_border_color: "#8b8b8b"
+				net_back_top: "#313131"
+				net_back_bottom: "#000000"
+				disk_border_color: "#8b8b8b"
+				disk_back_top: "#313131"
+				disk_back_bottom: "#000000"
+				temp_border_color: "#8b8b8b"
+				temp_back_top: "#313131"
+				temp_back_bottom: "#000000"
+				swap_border_color: "#8b8b8b"
+				swap_back_top: "#313131"
+				swap_back_bottom: "#000000"
+				zswap_border_color: "#8b8b8b"
+				zswap_back_top: "#313131"
+				zswap_back_bottom: "#000000"
+				load_border_color: "#8b8b8b"
+				load_back_top: "#313131"
+				load_back_bottom: "#000000"
+				battery_border_color: "#8b8b8b"
+				battery_back_top: "#313131"
+				battery_back_bottom: "#000000"
+				self_border_color: "#8b8b8b"
+				self_back_top: "#313131"
+				self_back_bottom: "#000000"
 				border_color: "#8b8b8b"
 				back_top: "#313131"
 				back_bottom: "#000000"
 				hover_color: "#000000"
+				margin_tb: 2
+				margin_lr: 2
+				border_all: false
+				back_all: false
 			primary:
 				label: Primary
 				cpu_mode: detailed
@@ -1455,10 +1903,44 @@ groups:
 				self_medium: "#0000ff"
 				self_high: "#bfbfff"
 				self_used: "#0000ff"
+				cpu_border_color: "#606060"
+				cpu_back_top: "#2a2a2a"
+				cpu_back_bottom: "#000000"
+				mem_border_color: "#606060"
+				mem_back_top: "#2a2a2a"
+				mem_back_bottom: "#000000"
+				net_border_color: "#606060"
+				net_back_top: "#2a2a2a"
+				net_back_bottom: "#000000"
+				disk_border_color: "#606060"
+				disk_back_top: "#2a2a2a"
+				disk_back_bottom: "#000000"
+				temp_border_color: "#606060"
+				temp_back_top: "#2a2a2a"
+				temp_back_bottom: "#000000"
+				swap_border_color: "#606060"
+				swap_back_top: "#2a2a2a"
+				swap_back_bottom: "#000000"
+				zswap_border_color: "#606060"
+				zswap_back_top: "#2a2a2a"
+				zswap_back_bottom: "#000000"
+				load_border_color: "#606060"
+				load_back_top: "#2a2a2a"
+				load_back_bottom: "#000000"
+				battery_border_color: "#606060"
+				battery_back_top: "#2a2a2a"
+				battery_back_bottom: "#000000"
+				self_border_color: "#606060"
+				self_back_top: "#2a2a2a"
+				self_back_bottom: "#000000"
 				border_color: "#606060"
 				back_top: "#2a2a2a"
 				back_bottom: "#000000"
 				hover_color: "#000000"
+				margin_tb: 2
+				margin_lr: 2
+				border_all: false
+				back_all: false
 			pastel:
 				label: Pastel
 				cpu_mode: detailed
@@ -1522,10 +2004,44 @@ groups:
 				self_medium: "#8ac777"
 				self_high: "#edfbe8"
 				self_used: "#8ac777"
+				cpu_border_color: "#7f90a1"
+				cpu_back_top: "#3a424a"
+				cpu_back_bottom: "#0f1214"
+				mem_border_color: "#7f90a1"
+				mem_back_top: "#3a424a"
+				mem_back_bottom: "#0f1214"
+				net_border_color: "#7f90a1"
+				net_back_top: "#3a424a"
+				net_back_bottom: "#0f1214"
+				disk_border_color: "#7f90a1"
+				disk_back_top: "#3a424a"
+				disk_back_bottom: "#0f1214"
+				temp_border_color: "#7f90a1"
+				temp_back_top: "#3a424a"
+				temp_back_bottom: "#0f1214"
+				swap_border_color: "#7f90a1"
+				swap_back_top: "#3a424a"
+				swap_back_bottom: "#0f1214"
+				zswap_border_color: "#7f90a1"
+				zswap_back_top: "#3a424a"
+				zswap_back_bottom: "#0f1214"
+				load_border_color: "#7f90a1"
+				load_back_top: "#3a424a"
+				load_back_bottom: "#0f1214"
+				battery_border_color: "#7f90a1"
+				battery_back_top: "#3a424a"
+				battery_back_bottom: "#0f1214"
+				self_border_color: "#7f90a1"
+				self_back_top: "#3a424a"
+				self_back_bottom: "#0f1214"
 				border_color: "#7f90a1"
 				back_top: "#3a424a"
 				back_bottom: "#0f1214"
 				hover_color: "#000000"
+				margin_tb: 2
+				margin_lr: 2
+				border_all: false
+				back_all: false
 			neon:
 				label: Neon
 				cpu_mode: detailed
@@ -1589,10 +2105,44 @@ groups:
 				self_medium: "#ff00f2"
 				self_high: "#ffbffc"
 				self_used: "#ff00f2"
+				cpu_border_color: "#3a2a6a"
+				cpu_back_top: "#120a24"
+				cpu_back_bottom: "#000000"
+				mem_border_color: "#3a2a6a"
+				mem_back_top: "#120a24"
+				mem_back_bottom: "#000000"
+				net_border_color: "#3a2a6a"
+				net_back_top: "#120a24"
+				net_back_bottom: "#000000"
+				disk_border_color: "#3a2a6a"
+				disk_back_top: "#120a24"
+				disk_back_bottom: "#000000"
+				temp_border_color: "#3a2a6a"
+				temp_back_top: "#120a24"
+				temp_back_bottom: "#000000"
+				swap_border_color: "#3a2a6a"
+				swap_back_top: "#120a24"
+				swap_back_bottom: "#000000"
+				zswap_border_color: "#3a2a6a"
+				zswap_back_top: "#120a24"
+				zswap_back_bottom: "#000000"
+				load_border_color: "#3a2a6a"
+				load_back_top: "#120a24"
+				load_back_bottom: "#000000"
+				battery_border_color: "#3a2a6a"
+				battery_back_top: "#120a24"
+				battery_back_bottom: "#000000"
+				self_border_color: "#3a2a6a"
+				self_back_top: "#120a24"
+				self_back_bottom: "#000000"
 				border_color: "#3a2a6a"
 				back_top: "#120a24"
 				back_bottom: "#000000"
 				hover_color: "#000000"
+				margin_tb: 2
+				margin_lr: 2
+				border_all: false
+				back_all: false
 			earth:
 				label: Earth
 				cpu_mode: detailed
@@ -1656,10 +2206,44 @@ groups:
 				self_medium: "#80b565"
 				self_high: "#dce7d6"
 				self_used: "#80b565"
+				cpu_border_color: "#6a5a40"
+				cpu_back_top: "#2e261a"
+				cpu_back_bottom: "#0e0b07"
+				mem_border_color: "#6a5a40"
+				mem_back_top: "#2e261a"
+				mem_back_bottom: "#0e0b07"
+				net_border_color: "#6a5a40"
+				net_back_top: "#2e261a"
+				net_back_bottom: "#0e0b07"
+				disk_border_color: "#6a5a40"
+				disk_back_top: "#2e261a"
+				disk_back_bottom: "#0e0b07"
+				temp_border_color: "#6a5a40"
+				temp_back_top: "#2e261a"
+				temp_back_bottom: "#0e0b07"
+				swap_border_color: "#6a5a40"
+				swap_back_top: "#2e261a"
+				swap_back_bottom: "#0e0b07"
+				zswap_border_color: "#6a5a40"
+				zswap_back_top: "#2e261a"
+				zswap_back_bottom: "#0e0b07"
+				load_border_color: "#6a5a40"
+				load_back_top: "#2e261a"
+				load_back_bottom: "#0e0b07"
+				battery_border_color: "#6a5a40"
+				battery_back_top: "#2e261a"
+				battery_back_bottom: "#0e0b07"
+				self_border_color: "#6a5a40"
+				self_back_top: "#2e261a"
+				self_back_bottom: "#0e0b07"
 				border_color: "#6a5a40"
 				back_top: "#2e261a"
 				back_bottom: "#0e0b07"
 				hover_color: "#000000"
+				margin_tb: 2
+				margin_lr: 2
+				border_all: false
+				back_all: false
 			fire:
 				label: Fire
 				cpu_mode: gradient
@@ -1723,10 +2307,44 @@ groups:
 				self_medium: "#61ff66"
 				self_high: "#c7ffc9"
 				self_used: "#61ff66"
+				cpu_border_color: "#80401a"
+				cpu_back_top: "#3a1c0c"
+				cpu_back_bottom: "#000000"
+				mem_border_color: "#80401a"
+				mem_back_top: "#3a1c0c"
+				mem_back_bottom: "#000000"
+				net_border_color: "#80401a"
+				net_back_top: "#3a1c0c"
+				net_back_bottom: "#000000"
+				disk_border_color: "#80401a"
+				disk_back_top: "#3a1c0c"
+				disk_back_bottom: "#000000"
+				temp_border_color: "#80401a"
+				temp_back_top: "#3a1c0c"
+				temp_back_bottom: "#000000"
+				swap_border_color: "#80401a"
+				swap_back_top: "#3a1c0c"
+				swap_back_bottom: "#000000"
+				zswap_border_color: "#80401a"
+				zswap_back_top: "#3a1c0c"
+				zswap_back_bottom: "#000000"
+				load_border_color: "#80401a"
+				load_back_top: "#3a1c0c"
+				load_back_bottom: "#000000"
+				battery_border_color: "#80401a"
+				battery_back_top: "#3a1c0c"
+				battery_back_bottom: "#000000"
+				self_border_color: "#80401a"
+				self_back_top: "#3a1c0c"
+				self_back_bottom: "#000000"
 				border_color: "#80401a"
 				back_top: "#3a1c0c"
 				back_bottom: "#000000"
 				hover_color: "#000000"
+				margin_tb: 2
+				margin_lr: 2
+				border_all: false
+				back_all: false
 			terminal:
 				label: Terminal
 				cpu_mode: detailed
@@ -1790,10 +2408,44 @@ groups:
 				self_medium: "#33ff33"
 				self_high: "#ccffcc"
 				self_used: "#33ff33"
+				cpu_border_color: "#1d611d"
+				cpu_back_top: "#0a210a"
+				cpu_back_bottom: "#000000"
+				mem_border_color: "#1d611d"
+				mem_back_top: "#0a210a"
+				mem_back_bottom: "#000000"
+				net_border_color: "#1d611d"
+				net_back_top: "#0a210a"
+				net_back_bottom: "#000000"
+				disk_border_color: "#1d611d"
+				disk_back_top: "#0a210a"
+				disk_back_bottom: "#000000"
+				temp_border_color: "#1d611d"
+				temp_back_top: "#0a210a"
+				temp_back_bottom: "#000000"
+				swap_border_color: "#1d611d"
+				swap_back_top: "#0a210a"
+				swap_back_bottom: "#000000"
+				zswap_border_color: "#1d611d"
+				zswap_back_top: "#0a210a"
+				zswap_back_bottom: "#000000"
+				load_border_color: "#1d611d"
+				load_back_top: "#0a210a"
+				load_back_bottom: "#000000"
+				battery_border_color: "#1d611d"
+				battery_back_top: "#0a210a"
+				battery_back_bottom: "#000000"
+				self_border_color: "#1d611d"
+				self_back_top: "#0a210a"
+				self_back_bottom: "#000000"
 				border_color: "#1d611d"
 				back_top: "#0a210a"
 				back_bottom: "#000000"
 				hover_color: "#000000"
+				margin_tb: 2
+				margin_lr: 2
+				border_all: false
+				back_all: false
 			vintage:
 				label: Vintage
 				cpu_mode: detailed
@@ -1857,10 +2509,44 @@ groups:
 				self_medium: "#ffae00"
 				self_high: "#ffebbf"
 				self_used: "#ffae00"
+				cpu_border_color: "#5c3f00"
+				cpu_back_top: "#1f1500"
+				cpu_back_bottom: "#000000"
+				mem_border_color: "#5c3f00"
+				mem_back_top: "#1f1500"
+				mem_back_bottom: "#000000"
+				net_border_color: "#5c3f00"
+				net_back_top: "#1f1500"
+				net_back_bottom: "#000000"
+				disk_border_color: "#5c3f00"
+				disk_back_top: "#1f1500"
+				disk_back_bottom: "#000000"
+				temp_border_color: "#5c3f00"
+				temp_back_top: "#1f1500"
+				temp_back_bottom: "#000000"
+				swap_border_color: "#5c3f00"
+				swap_back_top: "#1f1500"
+				swap_back_bottom: "#000000"
+				zswap_border_color: "#5c3f00"
+				zswap_back_top: "#1f1500"
+				zswap_back_bottom: "#000000"
+				load_border_color: "#5c3f00"
+				load_back_top: "#1f1500"
+				load_back_bottom: "#000000"
+				battery_border_color: "#5c3f00"
+				battery_back_top: "#1f1500"
+				battery_back_bottom: "#000000"
+				self_border_color: "#5c3f00"
+				self_back_top: "#1f1500"
+				self_back_bottom: "#000000"
 				border_color: "#5c3f00"
 				back_top: "#1f1500"
 				back_bottom: "#000000"
 				hover_color: "#000000"
+				margin_tb: 2
+				margin_lr: 2
+				border_all: false
+				back_all: false
 			frost:
 				label: Frost
 				cpu_mode: detailed
@@ -1924,7 +2610,41 @@ groups:
 				self_medium: "#bfeaff"
 				self_high: "#f0faff"
 				self_used: "#bfeaff"
+				cpu_border_color: "#506473"
+				cpu_back_top: "#1b2329"
+				cpu_back_bottom: "#050708"
+				mem_border_color: "#506473"
+				mem_back_top: "#1b2329"
+				mem_back_bottom: "#050708"
+				net_border_color: "#506473"
+				net_back_top: "#1b2329"
+				net_back_bottom: "#050708"
+				disk_border_color: "#506473"
+				disk_back_top: "#1b2329"
+				disk_back_bottom: "#050708"
+				temp_border_color: "#506473"
+				temp_back_top: "#1b2329"
+				temp_back_bottom: "#050708"
+				swap_border_color: "#506473"
+				swap_back_top: "#1b2329"
+				swap_back_bottom: "#050708"
+				zswap_border_color: "#506473"
+				zswap_back_top: "#1b2329"
+				zswap_back_bottom: "#050708"
+				load_border_color: "#506473"
+				load_back_top: "#1b2329"
+				load_back_bottom: "#050708"
+				battery_border_color: "#506473"
+				battery_back_top: "#1b2329"
+				battery_back_bottom: "#050708"
+				self_border_color: "#506473"
+				self_back_top: "#1b2329"
+				self_back_bottom: "#050708"
 				border_color: "#506473"
 				back_top: "#1b2329"
 				back_bottom: "#050708"
 				hover_color: "#000000"
+				margin_tb: 2
+				margin_lr: 2
+				border_all: false
+				back_all: false

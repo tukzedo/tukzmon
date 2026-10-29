@@ -48,6 +48,8 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
+#include <climits>
 #include <cmath>
 #include <functional>
 #include <string>
@@ -128,13 +130,17 @@ constexpr int HEAD_GAP = 22;
 constexpr int BUTTON_GROW = 8;
 
 // QScrollArea's own hint stops at about 24 lines, so a tall tab opened with a
-// scroll bar it had no need for.
+// scroll bar it had no need for. Every graph's colors on one page would open
+// the window as tall as the screen, so that page asks for 2/3 of it at most.
 class FitScroll : public QScrollArea {
 public:
+	bool capped = false;
 	QSize sizeHint() const override {
 		QSize s = QScrollArea::sizeHint();
 		if (widget())
 			s.setHeight(std::max(s.height(), widget()->sizeHint().height() + 2 * frameWidth()));
+		if (const QScreen *sc = screen(); capped && sc)
+			s.setHeight(std::min(s.height(), sc->availableGeometry().height() * 2 / 3));
 		return s;
 	}
 };
@@ -544,8 +550,9 @@ public:
 			int depth = 0;
 			for (int p = tabs[i].parent; p >= 0; p = tabs[size_t(p)].parent)
 				depth++;
-			tabItem.push_back(new QListWidgetItem(QString(depth * 4, ' ') + qs(tabs[i].label)));
-			tabList->addItem(tabItem.back());
+			tabList->addItem(new QListWidgetItem(QString(depth * 4, ' ') + qs(tabs[i].label)));
+			lineTab.push_back(int(i));
+			lineUp.push_back(tabs[i].parent);
 			leaf.push_back(!parent);
 			// a tab with rows of its own keeps them on top of the tabs under it
 			const int up = tabs[i].parent;
@@ -578,7 +585,7 @@ public:
 			}
 			tabPage.push_back(pages->addWidget(page));
 		}
-		orderTabs();
+		orderSections();
 		const int tabWidth = tabList->sizeHintForColumn(0);
 		tabList->setFixedWidth(tabWidth + 2 * tabList->frameWidth() + 24);
 		for (int i = 0; i < tabList->count(); i++)
@@ -591,6 +598,15 @@ public:
 		for (auto &r : rows)
 			if (r->spin)
 				r->spin->setFixedWidth(numberWidth);
+		// and one label width per side of the sections, so their colors line up
+		for (size_t side = 0; side < 2; side++) {
+			int labelWidth = 0;
+			for (auto &r : rows)
+				if (r->label && !r->info.section.empty() && size_t(r->info.beside) == side)
+					labelWidth = std::max(labelWidth, r->label->sizeHint().width());
+			for (auto &s : sections)
+				s.side[side]->setColumnMinimumWidth(0, labelWidth);
+		}
 		connect(tabList, &QListWidget::currentRowChanged, this, [this](int i) { showTab(i); });
 
 		resetButton = new QPushButton("Reset history");
@@ -678,6 +694,13 @@ public:
 
 	int tabCount() const { return tabList->count(); }
 	std::string tabText(int i) const { return tabList->item(i)->text().toStdString(); }
+	std::vector<std::string> dimLines() const {
+		std::vector<std::string> out;
+		for (int i = 0; i < tabList->count(); i++)
+			if (tabList->item(i)->background().style() != Qt::NoBrush)
+				out.push_back(tabList->item(i)->text().trimmed().toStdString());
+		return out;
+	}
 	std::vector<std::string> shownRows() const {
 		std::vector<std::string> ids;
 		for (auto &r : rows) {
@@ -733,16 +756,44 @@ public:
 		return out;
 	}
 
+	// "graph left right" per section from the top, as sections_after_move gives
+	std::vector<std::string> sectionPlaces() const {
+		std::vector<std::pair<int, std::string>> found;
+		for (auto &s : sections) {
+			int left = 0, right = INT_MAX;
+			for (auto &r : rows) {
+				if (r->info.section != s.graph || r.get() == s.title)
+					continue;
+				for (QWidget *w : {static_cast<QWidget *>(r->label), r->control, static_cast<QWidget *>(r->revert),
+								   static_cast<QWidget *>(r->head)}) {
+					if (!w || !w->isVisibleTo(s.box))
+						continue;
+					const int x = w->mapTo(s.box, QPoint()).x();
+					if (r->info.beside)
+						right = std::min(right, x);
+					else
+						left = std::max(left, x + w->width());
+				}
+			}
+			found.emplace_back(s.box->y(), s.graph + " " + std::to_string(left) + " " + std::to_string(right));
+		}
+		std::sort(found.begin(), found.end());
+		std::vector<std::string> out;
+		for (auto &f : found)
+			out.push_back(f.second);
+		return out;
+	}
+
 private:
 	Dialog &d;
 	rust::Box<Live> live;
 	std::vector<std::unique_ptr<Row>> rows;
 	// per tab of the spec
-	std::vector<QListWidgetItem *> tabItem;
 	std::vector<int> tabPage;
 	std::vector<bool> leaf;
-	// the spec's tab on each line of the tab list
+	// the spec's tab on each line of the tab list, and the line over it
 	std::vector<int> lineTab;
+	std::vector<int> lineUp;
 	struct SubPage {
 		QStackedWidget *stack = nullptr;
 		int index = 0;
@@ -782,39 +833,129 @@ private:
 				continue;
 			pages->setCurrentIndex(tabPage[t]);
 			SubPage s = subPage[t];
+			int shown = j;
 			if (!leaf[t] && j + 1 < tabList->count())
-				if (const SubPage &next = subPage[size_t(lineTab[size_t(j) + 1])]; s.stack && next.stack == s.stack)
+				if (const SubPage &next = subPage[size_t(lineTab[size_t(j) + 1])]; s.stack && next.stack == s.stack) {
 					s = next;
+					shown = j + 1;
+				}
 			if (s.stack)
 				s.stack->setCurrentIndex(s.index);
+			lightAlong(i, shown);
 			return;
 		}
 	}
 
-	// Graph tabs follow the graph order, and the one picked stays picked.
-	void orderTabs() {
-		std::vector<int> want;
-		for (auto t : tab_order(d))
-			want.push_back(int(t));
-		if (want == lineTab)
+	// The line picked keeps the highlight. The sub-tab it shows and the tabs
+	// over either get a dimmer one, so Themes stays lit under a sub-tab.
+	void lightAlong(int picked, int shown) {
+		std::vector<bool> on(size_t(tabList->count()), false);
+		for (int k : {picked, shown})
+			for (int up = k; up >= 0; up = lineUp[size_t(up)])
+				on[size_t(up)] = true;
+		on[size_t(picked)] = false;
+		const QPalette pal = tabList->palette();
+		const QColor base = pal.color(QPalette::Base);
+		const QColor pick = pal.color(QPalette::Highlight);
+		auto mix = [](float a, float b) { return a + (b - a) * 0.45f; };
+		const QBrush dim(QColor::fromRgbF(
+			mix(base.redF(), pick.redF()), mix(base.greenF(), pick.greenF()), mix(base.blueF(), pick.blueF())));
+		for (int k = 0; k < tabList->count(); k++)
+			tabList->item(k)->setBackground(on[size_t(k)] ? dim : QBrush());
+	}
+
+	// One graph's colors on a page of them: its own rows on the left, and the
+	// ones beside them on the right.
+	struct Section {
+		std::string graph;
+		QWidget *box = nullptr;
+		Row *title = nullptr;
+		std::array<QGridLayout *, 2> side{};
+		std::array<int, 2> line{};
+	};
+	std::vector<Section> sections;
+	QVBoxLayout *sectionList = nullptr;
+
+	// Sections follow the graph order, before Apply too.
+	void orderSections() {
+		if (!sectionList)
 			return;
-		QListWidgetItem *picked = tabList->currentItem();
-		QSignalBlocker b(tabList);
-		while (tabList->count())
-			tabList->takeItem(0);
-		for (int t : want)
-			tabList->addItem(tabItem[size_t(t)]);
-		lineTab = want;
-		if (picked)
-			tabList->setCurrentItem(picked);
-		showTab(tabList->currentRow());
+		std::vector<QWidget *> want;
+		for (auto &name : section_order(d))
+			for (auto &s : sections)
+				if (s.graph == std::string(name))
+					want.push_back(s.box);
+		// one with no graph in the list still has to sit somewhere
+		for (auto &s : sections)
+			if (std::find(want.begin(), want.end(), s.box) == want.end())
+				want.push_back(s.box);
+		std::vector<QWidget *> now;
+		for (int i = 0; i < sectionList->count(); i++)
+			now.push_back(sectionList->itemAt(i)->widget());
+		if (now == want)
+			return;
+		for (auto *w : want)
+			sectionList->removeWidget(w);
+		for (auto *w : want)
+			sectionList->addWidget(w);
+	}
+
+	static QGridLayout *rowGrid(QWidget *on) {
+		auto *grid = new QGridLayout(on);
+		grid->setColumnStretch(1, 1);
+		grid->setVerticalSpacing(6);
+		return grid;
+	}
+
+	// The section a row goes in, made on its first row, which titles it when
+	// it's a heading.
+	Section &sectionOf(Row &r, QGridLayout *grid, int &line) {
+		for (auto &s : sections)
+			if (s.graph == std::string(r.info.section))
+				return s;
+		if (!sectionList) {
+			auto *holder = new QWidget;
+			sectionList = new QVBoxLayout(holder);
+			sectionList->setContentsMargins(0, 0, 0, 0);
+			sectionList->setSpacing(HEAD_GAP);
+			grid->addWidget(holder, line++, 0, 1, 3);
+		}
+		Section s{std::string(r.info.section)};
+		s.box = new QWidget;
+		auto *g = new QGridLayout(s.box);
+		g->setContentsMargins(0, 0, 0, 0);
+		g->setColumnStretch(0, 1);
+		g->setColumnStretch(1, 1);
+		g->setHorizontalSpacing(3 * HEAD_GAP / 2);
+		if (std::string(r.info.control) == "heading") {
+			auto *h = new QLabel(qs(r.info.label));
+			QFont f = h->font();
+			f.setBold(true);
+			f.setPointSizeF(f.pointSizeF() * 1.15);
+			h->setFont(f);
+			auto *rule = new QFrame;
+			rule->setFrameShape(QFrame::HLine);
+			rule->setFrameShadow(QFrame::Sunken);
+			g->addWidget(h, 0, 0, 1, 2);
+			g->addWidget(rule, 1, 0, 1, 2);
+			r.head = h;
+			r.rule = rule;
+			s.title = &r;
+		}
+		for (int side = 0; side < 2; side++) {
+			auto *col = new QWidget;
+			s.side[size_t(side)] = rowGrid(col);
+			s.side[size_t(side)]->setContentsMargins(0, 0, 0, 0);
+			g->addWidget(col, 2, side, Qt::AlignTop);
+		}
+		sectionList->addWidget(s.box);
+		sections.push_back(s);
+		return sections.back();
 	}
 
 	QWidget *buildPage(int tab, const TabInfo &info, bool scrolls) {
 		auto *page = new QWidget;
-		auto *grid = new QGridLayout(page);
-		grid->setColumnStretch(1, 1);
-		grid->setVerticalSpacing(6);
+		auto *grid = rowGrid(page);
 		int line = 0;
 		for (auto &rp : rows) {
 			Row &r = *rp;
@@ -825,52 +966,65 @@ private:
 					grid->addWidget(buildList(), line++, 0, 1, 3);
 				continue;
 			}
-			QString label = qs(r.info.label);
-			if (std::string(r.info.control) == "heading") {
-				// a heading that only repeats the tab's name says nothing
-				if (label == qs(info.label))
-					continue;
-				auto *h = new QLabel(label);
-				QFont f = h->font();
-				f.setBold(true);
-				h->setFont(f);
-				auto *rule = new QFrame;
-				rule->setFrameShape(QFrame::HLine);
-				rule->setFrameShadow(QFrame::Sunken);
-				if (line > 0) {
-					r.grid = grid;
-					r.gap = line;
-					grid->setRowMinimumHeight(line++, HEAD_GAP);
-				}
-				grid->addWidget(h, line++, 0, 1, 3);
-				grid->addWidget(rule, line++, 0, 1, 3);
-				r.head = h;
-				r.rule = rule;
+			if (r.info.section.empty()) {
+				placeRow(r, info, grid, line);
 				continue;
 			}
-			r.label = new QLabel(label);
-			r.label->setContentsMargins(16 * r.info.indent, 0, 12, 0);
-			grid->addWidget(r.label, line, 0);
-			r.control = buildControl(r);
-			grid->addWidget(r.control, line, 1);
-			r.revert = new QToolButton;
-			r.revert->setIcon(QIcon::fromTheme("edit-undo", style()->standardIcon(QStyle::SP_BrowserReload)));
-			r.revert->setAutoRaise(true);
-			connect(r.revert, &QToolButton::clicked, this, [this, &r] {
-				reset_row(d, r.id());
-				refresh();
-			});
-			grid->addWidget(r.revert, line, 2);
-			line++;
+			Section &s = sectionOf(r, grid, line);
+			if (s.title == &r)
+				continue;
+			const size_t side = r.info.beside ? 1 : 0;
+			placeRow(r, info, s.side[side], s.line[side]);
 		}
 		if (!scrolls)
 			return page;
 		grid->setRowStretch(line, 1);
 		auto *scroll = new FitScroll;
+		scroll->capped = !sections.empty();
 		scroll->setWidget(page);
 		scroll->setWidgetResizable(true);
 		scroll->setFrameShape(QFrame::NoFrame);
 		return scroll;
+	}
+
+	void placeRow(Row &r, const TabInfo &info, QGridLayout *grid, int &line) {
+		QString label = qs(r.info.label);
+		if (std::string(r.info.control) == "heading") {
+			// a heading that only repeats the tab's name says nothing
+			if (label == qs(info.label))
+				return;
+			auto *h = new QLabel(label);
+			QFont f = h->font();
+			f.setBold(true);
+			h->setFont(f);
+			auto *rule = new QFrame;
+			rule->setFrameShape(QFrame::HLine);
+			rule->setFrameShadow(QFrame::Sunken);
+			if (line > 0) {
+				r.grid = grid;
+				r.gap = line;
+				grid->setRowMinimumHeight(line++, HEAD_GAP);
+			}
+			grid->addWidget(h, line++, 0, 1, 3);
+			grid->addWidget(rule, line++, 0, 1, 3);
+			r.head = h;
+			r.rule = rule;
+			return;
+		}
+		r.label = new QLabel(label);
+		r.label->setContentsMargins(16 * r.info.indent, 0, 12, 0);
+		grid->addWidget(r.label, line, 0);
+		r.control = buildControl(r);
+		grid->addWidget(r.control, line, 1);
+		r.revert = new QToolButton;
+		r.revert->setIcon(QIcon::fromTheme("edit-undo", style()->standardIcon(QStyle::SP_BrowserReload)));
+		r.revert->setAutoRaise(true);
+		connect(r.revert, &QToolButton::clicked, this, [this, &r] {
+			reset_row(d, r.id());
+			refresh();
+		});
+		grid->addWidget(r.revert, line, 2);
+		line++;
 	}
 
 	Row *rowFor(const rust::String &id) {
@@ -895,8 +1049,6 @@ private:
 			for (Row *r : {lr.show, lr.width, lr.sample, lr.time})
 				r->control = buildControl(*r);
 			lr.show->check->setText(qs(lr.show->info.label));
-			// 0 follows Sample ms default, as Default does in the time axis column
-			lr.sample->spin->setSpecialValueText("Default");
 			lr.space = new LiveGraph(*live, lr.name);
 			lr.space->fit();
 			lr.revert = new QToolButton;
@@ -918,7 +1070,7 @@ private:
 			listRows.push_back(lr);
 		}
 		auto *widthHead = new QLabel("Width %");
-		auto *sampleHead = new QLabel("Sample ms");
+		auto *sampleHead = new QLabel("Sample %");
 		auto *timeHead = new QLabel("Time axis");
 		widthHead->setToolTip(listRows.empty() ? "" : qs(row_state(d, listRows[0].width->id()).tip));
 		sampleHead->setToolTip(listRows.empty() ? "" : qs(row_state(d, listRows[0].sample->id()).tip));
@@ -1320,7 +1472,7 @@ private:
 		}
 		if (list)
 			refreshList();
-		orderTabs();
+		orderSections();
 		if (saveTheme) {
 			auto b = theme_buttons(d);
 			saveTheme->setEnabled(b.save);
@@ -1410,6 +1562,8 @@ TabShown shownNow(Window &w, const std::string &label) {
 	t.label = rust::String(label);
 	for (auto &id : w.shownRows())
 		t.rows.push_back(rust::String(id));
+	for (auto &line : w.dimLines())
+		t.dim.push_back(rust::String(line));
 	return t;
 }
 
@@ -1453,6 +1607,26 @@ rust::Vec<TabShown> tabs_after_move(Dialog &d, rust::Str pick, std::size_t from,
 	rust::Vec<TabShown> out;
 	out.push_back(shownNow(w, w.selectedText()));
 	eachTab(app, w, out);
+	return out;
+}
+
+rust::Vec<rust::String> sections_after_move(Dialog &d, std::size_t from, std::size_t to) {
+	static int argc = 1;
+	static char name[] = "tukzmon-settings";
+	static char *argv[] = {name, nullptr};
+	qputenv("QT_QPA_PLATFORM", "offscreen");
+	QApplication app(argc, argv);
+	Window w(d);
+	w.show();
+	for (int i = 0; i < w.tabCount(); i++)
+		if (QString::fromStdString(w.tabText(i)).trimmed() == "Colors")
+			w.select(i);
+	app.processEvents();
+	w.moveGraph(int(from), int(to));
+	app.processEvents();
+	rust::Vec<rust::String> out;
+	for (auto &s : w.sectionPlaces())
+		out.push_back(rust::String(s));
 	return out;
 }
 

@@ -51,6 +51,7 @@ fn main() {
 		now: end,
 		look: &look,
 		paint: look.cpu_paint(),
+		outline: look.cpu_outline,
 	}
 	.draw(&mut px, w, h, 1);
 

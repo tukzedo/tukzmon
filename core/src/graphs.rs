@@ -3,6 +3,7 @@
 
 //! Every graph one panel item shows, side by side, or stacked on a vertical
 //! panel, with a little room across the panel and twice that between them.
+//! Each takes its width along the panel, so stacked, that's its height.
 
 use std::io;
 use std::path::Path;
@@ -47,13 +48,6 @@ pub struct Graphs {
 
 /// A graph's place in the area: x, y, width, height.
 type Tile = (usize, usize, usize, usize);
-
-/// Logical pixels left clear across the panel, above and below the graphs on
-/// a horizontal one, or either side of them on a vertical one.
-pub const EDGE: u32 = 2;
-
-/// Logical pixels left clear between 2 graphs.
-pub const GAP: u32 = 2 * EDGE;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Which {
@@ -395,19 +389,22 @@ impl Graphs {
 		self.shown().map(|w| self.width_of(w))
 	}
 
-	/// The size to ask a panel of `size` logical pixels for. Side by side it's
-	/// the widths' sum and the gaps by the panel's height. Stacked, it's the
-	/// panel's width, and half that for each graph's height, plus the gaps.
+	/// The size to ask a panel of `size` logical pixels for: the widths' sum
+	/// and the gaps along the panel, by `size` across it. Stacked, a graph's
+	/// width is its height, as multiload-ng's Size is, and time still runs
+	/// across.
 	pub fn wanted(&self, size: u32) -> (u32, u32) {
 		let n = u32::try_from(self.count()).unwrap_or(u32::MAX);
-		let gaps = GAP.saturating_mul(n.saturating_sub(1));
+		let gaps = self
+			.margins()
+			.1
+			.saturating_mul(2)
+			.saturating_mul(n.saturating_sub(1));
+		let along = self.widths().sum::<u32>().saturating_add(gaps);
 		if self.stacked {
-			(
-				size,
-				(size / 2).max(16).saturating_mul(n).saturating_add(gaps),
-			)
+			(size, along)
 		} else {
-			(self.widths().sum::<u32>().saturating_add(gaps), size)
+			(along, size)
 		}
 	}
 
@@ -583,24 +580,34 @@ impl Graphs {
 		}
 	}
 
-	// side by side, what the gaps leave is shared out by width, since the
-	// panel may not give exactly what was asked for. Stacked, they share it
-	// evenly. A panel too thin for the edges keeps most of itself for graphs.
+	// The margins as (across the panel, along it). Graphs are always drawn
+	// upright, so stacked, top and bottom are along.
+	fn margins(&self) -> (u32, u32) {
+		let l = self.look();
+		if self.stacked {
+			(l.margin_lr, l.margin_tb)
+		} else {
+			(l.margin_tb, l.margin_lr)
+		}
+	}
+
+	// what the gaps leave along the panel is shared out by width, since the
+	// panel may not give exactly what was asked for. Stacked, that's down it.
+	// A panel too thin for the edges keeps most of itself for graphs. The
+	// item's 2 ends along the panel get no margin, since the panel spaces
+	// its items.
 	fn tiles(&self, w: usize, h: usize, scale: usize) -> impl Iterator<Item = (Which, Tile)> + '_ {
 		let (n, stacked) = (self.count(), self.stacked);
 		let total = self.widths().map(|x| x as usize).sum::<usize>().max(1);
 		let (along, across) = if stacked { (h, w) } else { (w, h) };
-		let gap = GAP as usize * scale;
-		let edge = (EDGE as usize * scale).min(across / 4);
+		let (m_across, m_along) = self.margins();
+		let gap = 2 * m_along as usize * scale;
+		let edge = (m_across as usize * scale).min(across / 4);
 		let left = along.saturating_sub(gap * n.saturating_sub(1));
 		let (mut i, mut done) = (0, 0);
 		self.shown().map(move |which| {
 			let own = self.width_of(which) as usize;
-			let (a, b) = if stacked {
-				(i * left / n, (i + 1) * left / n)
-			} else {
-				(done * left / total, (done + own) * left / total)
-			};
+			let (a, b) = (done * left / total, (done + own) * left / total);
 			let (at, long, thick) = (a + i * gap, b - a, across - 2 * edge);
 			let tile = if stacked {
 				(edge, at, thick, long)
@@ -758,7 +765,8 @@ mod tests {
 	#[test]
 	fn each_shown_graph_reads_at_its_own_rate_on_one_timer() {
 		let mut g = Graphs::new(Look {
-			mem_sample_ms: 1000,
+			sample_ms: 500,
+			mem_sample: 200,
 			..two()
 		});
 		let beats = |g: &Graphs| {
@@ -779,7 +787,8 @@ mod tests {
 		g.set_look(
 			Look {
 				show_cpu: false,
-				mem_sample_ms: 1000,
+				sample_ms: 500,
+				mem_sample: 200,
 				..two()
 			},
 			None,
@@ -791,8 +800,9 @@ mod tests {
 		assert_eq!(beats(&g), (Some(4.0), Some(3.0)));
 	}
 
-	const E: usize = EDGE as usize;
-	const G: usize = GAP as usize;
+	// the default margins, 2 px each
+	const E: usize = 2;
+	const G: usize = 2 * E;
 
 	// one graph's own pixels sit at its tile in the whole area's
 	fn sits(px: &[u32], w: usize, one: &[u32], (x, y, tw, th): Tile) {
@@ -870,6 +880,41 @@ mod tests {
 		assert!(g.tooltip().starts_with("CPU\n\nMemory"));
 	}
 
+	// Test ID: dejkh
+	#[test]
+	fn each_graph_draws_its_own_border_and_background() {
+		use crate::config::{Outline, Rgb};
+		let cpu = Outline {
+			border: Rgb(200, 0, 0),
+			top: Rgb(0, 0, 90),
+			bottom: Rgb(0, 0, 0),
+		};
+		let mem = Outline {
+			border: Rgb(0, 0, 200),
+			top: Rgb(0, 90, 0),
+			bottom: Rgb(10, 10, 10),
+		};
+		let mut g = both();
+		g.set_look(
+			Look {
+				cpu_outline: cpu,
+				mem_outline: mem,
+				..two()
+			},
+			None,
+		)
+		.unwrap();
+		let (w, h) = (40 + G, 10 + 2 * E);
+		let px = g.render(w, h, 1).to_vec();
+		let at = |x: usize, y: usize| px[y * w + x];
+		// the corner is the border, and the plot's top row the top color
+		assert_eq!(at(0, E), cpu.border.argb());
+		assert_eq!(at(1, E + 1), cpu.top.argb());
+		assert_eq!(at(20 + G, E), mem.border.argb());
+		assert_eq!(at(21 + G, E + 1), mem.top.argb());
+		assert_eq!(at(39 + G, E + 9), mem.border.argb());
+	}
+
 	// Test ID: defw2
 	#[test]
 	fn the_edges_and_gaps_stay_clear_and_an_edge_still_finds_its_graph() {
@@ -915,6 +960,57 @@ mod tests {
 		assert_ne!(px[2 * E * w + 5], 0);
 		assert_eq!(px[(2 * E + 1) * w + 2 * 20 + 2 * G - 1], 0);
 		assert_ne!(px[(2 * E + 1) * w + 2 * (20 + G)], 0);
+	}
+
+	// Test ID: dejjs
+	#[test]
+	fn the_margins_set_the_edges_and_the_gaps() {
+		let mut g = both();
+		let wide = g.widths().sum::<u32>();
+		g.set_look(
+			Look {
+				margin_tb: 3,
+				margin_lr: 5,
+				..two()
+			},
+			None,
+		)
+		.unwrap();
+		// side by side: 3 above and below, 5 + 5 between, none at the ends
+		assert_eq!(g.wanted(16), (wide + 10, 16));
+		let (w, h) = (40 + 10, 10 + 2 * 3);
+		let left = g.cpu.render(20, 10, 1).to_vec();
+		let right = g.mem.as_mut().unwrap().render(20, 10, 1).to_vec();
+		let px = g.render(w, h, 1).to_vec();
+		sits(&px, w, &left, (0, 3, 20, 10));
+		sits(&px, w, &right, (30, 3, 20, 10));
+		assert!(g.hover(Some((19, 5)), w, h, 1));
+		assert!(g.hover(Some((25, 5)), w, h, 1));
+		assert!(!g.hovered(), "the gap finds neither");
+		// stacked, graphs stay upright, so left and right are across
+		g.stacked = true;
+		assert_eq!(g.wanted(20), (20, wide + 6));
+		let (w, h) = (10 + 2 * 5, 40 + 6);
+		let top = g.cpu.render(10, 20, 1).to_vec();
+		let under = g.mem.as_mut().unwrap().render(10, 20, 1).to_vec();
+		let px = g.render(w, h, 1).to_vec();
+		sits(&px, w, &top, (5, 0, 10, 20));
+		sits(&px, w, &under, (5, 26, 10, 20));
+		// none at all
+		g.stacked = false;
+		g.set_look(
+			Look {
+				margin_tb: 0,
+				margin_lr: 0,
+				..two()
+			},
+			None,
+		)
+		.unwrap();
+		assert_eq!(g.wanted(10), (wide, 10));
+		let px = g.render(40, 10, 1).to_vec();
+		let right = g.mem.as_mut().unwrap().render(20, 10, 1).to_vec();
+		sits(&px, 40, &right, (20, 0, 20, 10));
 	}
 
 	// Test ID: dedq3
@@ -1058,7 +1154,7 @@ mod tests {
 		use crate::axis::{Axis, Curve, Timing};
 		let mut g = both();
 		let total = 60.0;
-		let linear = Axis::linear(100.0 * 0.5);
+		let linear = Axis::linear(100.0 * 1.0);
 		let axes = |g: &Graphs| (g.cpu.axis(100), g.mem.as_ref().unwrap().axis(100));
 		assert_eq!(
 			axes(&g),
@@ -1133,10 +1229,20 @@ mod tests {
 			assert!(g.hover(Some((cw - 1, 3)), w, h, scale));
 			assert_eq!(g.cpu.hover, Some(cw - 1));
 		}
-		// stacked, they share the height evenly whatever their widths
+		// stacked, a width is a height, and time still runs across
 		g.stacked = true;
-		assert!(g.hover(Some((5 + E, 17)), 14, 24, 1));
+		let (w, h) = (10 + 2 * E, 140 + G);
+		let top = g.cpu.render(10, 40, 1).to_vec();
+		let under = g.mem.as_mut().unwrap().render(10, 100, 1).to_vec();
+		let px = g.render(w, h, 1).to_vec();
+		sits(&px, w, &top, (E, 0, 10, 40));
+		sits(&px, w, &under, (E, 40 + G, 10, 100));
+		assert!(g.hover(Some((5 + E, 39)), w, h, 1));
+		assert_eq!(g.cpu.hover, Some(5));
+		assert!(g.hover(Some((5 + E, 40 + G)), w, h, 1));
 		assert_eq!(g.mem.as_ref().unwrap().hover, Some(5));
+		assert!(g.hover(Some((5 + E, 40)), w, h, 1));
+		assert!(!g.hovered());
 	}
 
 	// Test ID: defvs
@@ -1153,12 +1259,12 @@ mod tests {
 		)
 		.unwrap();
 		let cpu = g.width_of(Which::Cpu);
-		assert_eq!(g.wanted(26), (cpu + 30 + GAP, 26));
-		assert_eq!(g.wanted(60), (cpu + 30 + GAP, 60));
-		// a vertical panel ignores the widths, and has a floor
+		assert_eq!(g.wanted(26), (cpu + 30 + G as u32, 26));
+		assert_eq!(g.wanted(60), (cpu + 30 + G as u32, 60));
+		// on a vertical panel the widths are heights, whatever the panel's size
 		g.stacked = true;
-		assert_eq!(g.wanted(48), (48, 48 + GAP));
-		assert_eq!(g.wanted(20), (20, 32 + GAP));
+		assert_eq!(g.wanted(48), (48, cpu + 30 + G as u32));
+		assert_eq!(g.wanted(20), (20, cpu + 30 + G as u32));
 		g.set_look(
 			Look {
 				show_memory: false,
@@ -1167,7 +1273,7 @@ mod tests {
 			None,
 		)
 		.unwrap();
-		assert_eq!(g.wanted(48), (48, 24));
+		assert_eq!(g.wanted(48), (48, g.width_of(Which::Cpu)));
 	}
 
 	// Test ID: dedqe
@@ -1238,7 +1344,7 @@ mod tests {
 		assert!(g.tooltip().starts_with("Memory"), "{}", g.tooltip());
 		// stacked, the first is on top
 		g.stacked = true;
-		assert!(g.hover(Some((6 + E, 17)), 14, 24, 1));
+		assert!(g.hover(Some((6 + E, 20)), 14, 24, 1));
 		assert_eq!(g.cpu.hover, Some(6));
 		assert!(g.hover(Some((6 + E, 2)), 14, 24, 1));
 		assert_eq!(g.mem.as_ref().unwrap().hover, Some(6));
@@ -1624,7 +1730,7 @@ mod tests {
 
 	// Test ID: dejb7
 	#[test]
-	fn the_own_graph_sits_last_and_fills_at_a_hundredth_of_one_cpu() {
+	fn the_own_graph_sits_last_and_fills_at_every_cpu() {
 		let path = scratch("own");
 		let mut g = three();
 		let look = Look {
@@ -1640,7 +1746,7 @@ mod tests {
 		assert!(Graphs::new(two()).own.is_none());
 		g.own = Some(Graph::with(look.clone(), OwnReader::default()));
 		g.set_look(look.clone(), None).unwrap();
-		let floor = 0.01 / crate::cpus();
+		let floor = 1.0;
 		let now = g.cpu.now();
 		g.own
 			.as_mut()
@@ -1662,7 +1768,7 @@ mod tests {
 		assert_ne!(row(ph / 2 + 2), look.self_colors[0].argb());
 		let tip = g.hover_tip(65 + 3 * G, 3, w, h, 1);
 		assert!(tip.contains("\ntukzmon "), "{tip}");
-		assert!(tip.ends_with("% of all CPUs\n0.50% of one CPU"), "{tip}");
+		assert!(tip.contains("\ntukzmon 50% of all CPUs\n"), "{tip}");
 		g.save(&path).unwrap();
 		let names: Vec<String> = keep::read(&path)
 			.unwrap()
