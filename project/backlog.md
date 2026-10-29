@@ -165,7 +165,7 @@ Sorted per the notes in [Template](#template).
 - Color themes tab
 	- ID: 2026102408304612
 	- Type: Feature
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: High
 	- Opened: 20261024-082803
 	- Opened by: t00mietum
@@ -196,6 +196,8 @@ Sorted per the notes in [Template](#template).
 		- Global setting to make background transparent, which overrides all background colors.
 	- Progress log:
 		- Split into 6 children, in this order: 2026102409400679 (theme presets and Default), 2026102409400684 (Themes tab and its top row), 2026102409400689 (color picker), 2026102409400695 (Gradient mode and Fire), 2026102409400700 (Randomize), and 2026102409400705 (transparent background).
+		- Closed 20261029 with its 6 children all Done.
+	- Test case: its 6 children's tests, deccf to dece0
 
 - Pre-next-cut: GPU utilization graph
 	- ID: 2026102819145597
