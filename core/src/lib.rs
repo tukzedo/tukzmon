@@ -14,6 +14,8 @@ pub mod gpu;
 pub mod graphs;
 pub mod history;
 pub mod keep;
+#[cfg(target_os = "linux")]
+pub mod lan;
 pub mod load;
 pub mod mem;
 pub mod net;

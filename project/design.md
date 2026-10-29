@@ -288,6 +288,10 @@ Splitting network traffic into LAN and internet is optional, backlog item 202610
 
 - eBPF. It's exact, and it needs root too. It isn't offered unless the other two fall short.
 
+Either way the LAN is what's counted, and the internet is the rest of what the interfaces carried. So UDP and QUIC to the LAN show as internet with socket polling. The LAN can't be more than the interfaces carried.
+
+With socket polling, `core/src/lan.rs` asks `sock_diag` for every TCP socket's `tcp_info`. A socket is on the LAN when its far end is a private IPv4 address (10/8, 172.16/12 or 192.168/16), a link-local one, an IPv6 unique local or link-local address, or in this end's own IPv6 /64. Loopback and the box's own addresses go through `lo`, so they stay local. Its bytes are `tcpi_bytes_acked` and `tcpi_bytes_received`, plus 66 bytes of headers for each segment on IPv4 and 86 on IPv6, since `/proc/net/dev` counts those. A socket new since the last poll moved all it has, and a failed poll is a gap.
+
 The BSDs use `sysctl`, Windows uses PDH counters, and macOS uses `host_statistics64` and IOKit. Those come later.
 
 ## History

@@ -22,6 +22,19 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- LAN and internet split: nftables counter set
+	- ID: 2026102914561248
+	- Type: Feature
+	- Status: Waiting for answers
+	- Priority|Severity: Low
+	- Opened: 20261029-145612
+	- Opened by: t00mietum
+	- Parent ID: 2026101916274800
+	- Requirements: An nftables counter set that counts bytes to and from private address ranges, installed once as root, and a reader for it.
+	- Prereq IDs: 2026102914561233
+	- 2026-10-29: waits on the question in questions.md on how the plugin reads the counters, since `nft list counters` needs root too, not just the install.
+	- Installing the set and the reader's test on b23 are a sudo path, so they're a hand test.
+
 - Pre-next-cut: "Sample ms" becomes "Sample %"
 	- ID: 2026102819145599
 	- Type: Enhancement
@@ -363,7 +376,7 @@ Sorted per the notes in [Template](#template).
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
 	- Type: Feature
-	- Status: Queued
+	- Status: Started
 	- Priority|Severity: Low
 	- Opened: 20261019-162748
 	- Opened by: t00mietum
@@ -377,6 +390,50 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+	- 2026-10-29: split into 3 children: the TCP socket reader 2026102914561218, the setting and the 5-series graph 2026102914561233, and the nftables counter set 2026102914561248. This closes with the last of them.
+
+- LAN and internet split: setting and the 5-series network graph
+	- ID: 2026102914561233
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261029-145612
+	- Opened by: t00mietum
+	- Parent ID: 2026101916274800
+	- Requirements: A setting for the split, off by default, with socket polling and the nftables counter set as its other choices. With it on, the network graph shows local, LAN sent, LAN received, internet sent and internet received, with theme colors for each.
+	- Prereq IDs: 2026102914561218
+	- 2026-10-29: `lan::LanReader` gives the LAN's sent and received, and `lan::split` turns those and the network reader's 3 series into the 5, from 2026102914561218. Nothing draws them yet.
+
+- LAN and internet split: TCP socket reader
+	- ID: 2026102914561218
+	- Type: Feature
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Priority|Severity: Low
+	- Opened: 20261029-145612
+	- Opened by: t00mietum
+	- Parent ID: 2026101916274800
+	- Related IDs: 2026102408512202, 2026102914561233
+	- Requirements:
+		- Bytes a second over TCP to and from the LAN, from polling `sock_diag`, with no root.
+		- What the interfaces carried that isn't the LAN's is the internet's.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- `core/src/lan.rs` has `LanReader`, with series LAN sent and LAN received, in bytes per second, from every TCP socket's `tcp_info` through `sock_diag`. The first read only primes it.
+		- `lan::split` turns the network reader's 3 series and those 2 into the 5 the split graph draws. Nothing draws them yet. That's 2026102914561233.
+		- `design.md` Data sources on Linux has the details.
+		- Verified: the full run passed. A live read on this box found 16 LAN sockets, the same as `ss` counts, as a user.
+	- Decisions:
+		- Only the LAN is counted, and the internet is the rest of the interfaces' traffic. UDP and QUIC go mostly to the internet, video above all, so they land on the right side more often that way. The nftables set can count the same way.
+		- The LAN is private IPv4, link-local, IPv6 unique local, and this end's own IPv6 /64, so a LAN box with a global IPv6 address counts too. 100.64/10 isn't, since that's a carrier's NAT more often than a LAN.
+		- A socket to the box's own address goes through `lo`, so it stays local and isn't the LAN's.
+		- Each segment adds 66 bytes of headers on IPv4 and 86 on IPv6, since `/proc/net/dev` counts them. Without them a 1 GB/s copy on the LAN would show about 4% of it as internet.
+		- Sockets are told apart by their kernel cookie. A new one moved all it has since the last poll, and a failed poll is a gap, since a socket it missed would count all it has next time.
+	- Branch: round-1029
+	- Test case: `lan::tests` (5: dekq5, dekq6, dekq7, dekq8, dekq9). dekq5 fails with the box's own address taken as LAN, dekq6 with the header bytes left out, dekq7 with a new socket counted as nothing, and dekq8 with the LAN not capped.
+		- Swept: the network collector's `Climb` doesn't fit, since sockets come and go every poll. No other reader counts per socket.
+	- Closed: 20261029-150424
 
 - Plugin errors go nowhere after a panel restart
 	- ID: 2026102620523642
