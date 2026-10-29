@@ -22,6 +22,16 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- Drop the sudo step in dev-install.bash
+	- ID: 2026102820420805
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261028-204208
+	- Opened by: t00mietum
+	- Related IDs: 2026102808222920
+	- Requirements: Install the .desktop file to ~/.local/share/xfce4/panel/plugins and the plugin and tukzmon-settings to ~/.local/lib/<multiarch>/xfce4/panel/plugins, with no sudo links. The multiarch dir comes from the panel's lib dir. Update design.md XFCE plugin and README to match.
+
 - Pre-next-cut: Every graph's colors on one scrolling tab
 	- ID: 2026102819315852
 	- Type: Enhancement
@@ -666,13 +676,19 @@ Sorted per the notes in [Template](#template).
 - Check whether XFCE 4.20 finds plugins under ~/.local
 	- ID: 2026102808222920
 	- Type: Task
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261028-082229
 	- Opened: 20261028-082229
 	- Opened by: t00mietum
 	- Related IDs: 2026102621053725
 	- Requirements: design.md XFCE plugin and README say XDG_DATA_DIRS and ~/.local aren't searched, so dev-install.bash needs sudo once. The 4.20.4 and 4.20.7 panel source pairs each XDG_DATA_DIRS entry and ~/.local/share with the lib dir under the same prefix, which on Debian is lib/x86_64-linux-gnu. Try ~/.local/share/xfce4/panel/plugins with ~/.local/lib/x86_64-linux-gnu/xfce4/panel/plugins on b23, and if it works, drop the sudo step and fix both docs.
+	- Actual effort: Low
+	- Branch: round-1028b
+	- Test case: none in the repo. Checked by hand in a private panel.
+	- Closed: 20261028-204500
+	- Verified 2026-10-28, Debian xfce4-panel 4.20.7 on a private Xvfb (:130), HOME and XDG_DATA_HOME in a temp folder, XDG_DATA_DIRS without it: with the .desktop file only in .local/share/xfce4/panel/plugins and the library only in .local/lib/x86_64-linux-gnu/xfce4/panel/plugins, PANEL_DEBUG=all logged reading the .local/share dir and new module tukzmon with the .local/lib/x86_64-linux-gnu filename, and the plugin was embedded.
+	- design.md XFCE plugin and README fixed. Dropping the sudo step is 2026102820420805.
 
 - Plugin errors go nowhere after a panel restart
 	- ID: 2026102620523642
