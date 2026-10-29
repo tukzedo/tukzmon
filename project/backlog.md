@@ -278,20 +278,6 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1029
 	- Test case: dekm9, dekmb, dekmc and dekmd, shared with 2026102819145597. dekmb checks the GiB line.
 
-- An item's files go when it's removed from the panel
-	- ID: 2026102622311676
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261026-223116
-	- Opened by: t00mietum
-	- Related IDs: 2026102621053715
-	- Requirements:
-		- Removing a tukzmon item from the panel deletes its `plugin-<id>.shcl` and `plugin-<id>.hist`, as the panel's Remove dialog says ("its configuration will be lost").
-		- A later item that gets the same id starts fresh, not with the removed one's settings and history.
-	- Progress log:
-		- Today both files stay. The plugin doesn't connect the panel's `remove` signal, and free-data saves history after it.
-
 - Pre-next-cut: Scrollable region of the dialog a different color
 	- ID: 2026102913122702
 	- Type: Enhancement
@@ -384,6 +370,34 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- An item's files go when it's removed from the panel
+	- ID: 2026102622311676
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Priority|Severity: Avg
+	- Opened: 20261026-223116
+	- Opened by: t00mietum
+	- Related IDs: 2026102621053715
+	- Requirements:
+		- Removing a tukzmon item from the panel deletes its `plugin-<id>.shcl` and `plugin-<id>.hist`, as the panel's Remove dialog says ("its configuration will be lost").
+		- A later item that gets the same id starts fresh, not with the removed one's settings and history.
+	- Actual effort: Low
+	- Progress log:
+		- Today both files stay. The plugin doesn't connect the panel's `remove` signal, and free-data saves history after it.
+		- 2026-10-29: the plugin connects the panel's `removed` signal. It deletes the item's `plugin-<id>.shcl` and `plugin-<id>.hist`, closes its Properties window, and saves nothing after, free-data included.
+		- `design.md` Settings window and History have it.
+		- Verified: in a test panel with 2 items, Remove on item 1 deleted both its files and left item 2's. Remove on item 2 with its Properties open closed the window and deleted both its files. With the plugin from before, both files stayed, and the history was saved again at the Remove.
+	- Decisions:
+		- "Starts fresh" is read as any new item starts: from a copy of the shared `tukzmon.shcl` when there is one, else the defaults, and with no history.
+		- An open Properties window for the item is closed without asking, since an Apply there would write the file back for an id no item has.
+		- The item's timer and file watches stop at the Remove, so deleting its settings file doesn't wake a reload before free-data.
+	- Branch: round-1029
+	- Test case: `tests::a_removed_item_takes_its_files_and_free_data_saves_nothing` (dekmw), in the plugin crate. It fails with the deletes taken out, and with free-data's save let through after the Remove.
+		- Swept: every history save (the 15 minute timer, a look change, free-data) goes through `save_history`, which stops after a Remove. The settings file is written only by the settings window, which is closed, and by `config::start_from`, which runs only when an item starts. The Reset history mark is shared by every item and stays.
+	- Acceptance signoff: Self-closed, 2026-10-29: in a test panel, Remove deleted the removed item's 2 files and nothing else, with and without its Properties open.
+	- Closed: 20261029-135241
 
 - Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
 	- ID: 2026102620162196

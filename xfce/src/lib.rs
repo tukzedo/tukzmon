@@ -35,6 +35,8 @@ struct Plugin {
 	watches: Vec<*mut c_void>,
 	saved_at: Instant,
 	moved_at: Instant,
+	/// Taken off the panel for good, so its files stay gone.
+	removed: bool,
 }
 
 /// How often to draw while an axis eases in.
@@ -91,6 +93,9 @@ impl Plugin {
 	}
 
 	fn save_history(&mut self) {
+		if self.removed {
+			return;
+		}
 		self.graphs.trim();
 		if let Err(e) = self.graphs.save(&self.history) {
 			complain(format_args!("can't save {}: {e}", self.history.display()));
@@ -142,6 +147,32 @@ impl Plugin {
 			complain(format_args!("can't delete {}: {e}", self.history.display()));
 		}
 		self.saved_at = Instant::now();
+	}
+
+	/// The panel's Remove says the item's configuration is lost, so its
+	/// files go, and a later item given the same id starts fresh.
+	fn forget(&mut self) {
+		self.removed = true;
+		if self.timer != 0 {
+			// SAFETY: the timer id is ours and still running.
+			unsafe { g_source_remove(self.timer) };
+			self.timer = 0;
+		}
+		// deleting the settings file would wake its watch
+		for w in self.watches.drain(..) {
+			// SAFETY: each is from watch, and isn't used again.
+			unsafe { unwatch(w) };
+		}
+		// its window would write the file back at Apply
+		if let Some(mut c) = self.settings.take() {
+			let _ = c.kill();
+			let _ = c.wait();
+		}
+		for f in [&self.config, &self.history] {
+			if let Err(e) = keep::remove(f) {
+				complain(format_args!("can't delete {}: {e}", f.display()));
+			}
+		}
 	}
 }
 
@@ -402,6 +433,11 @@ extern "C" fn configure(_plugin: *mut c_void, data: *mut c_void) {
 	}
 }
 
+extern "C" fn removed(_plugin: *mut c_void, data: *mut c_void) {
+	// SAFETY: data is the connected Plugin, and free-data comes after this.
+	unsafe { &mut *data.cast::<Plugin>() }.forget();
+}
+
 extern "C" fn free_data(_plugin: *mut c_void, data: *mut c_void) {
 	// SAFETY: data came from Box::into_raw in construct, and this is its last use.
 	let mut p = unsafe { Box::from_raw(data.cast::<Plugin>()) };
@@ -452,6 +488,7 @@ fn construct(plugin: *mut c_void) {
 		watches: Vec::new(),
 		saved_at: Instant::now(),
 		moved_at: Instant::now(),
+		removed: false,
 	});
 	if p.graphs.look().keep {
 		p.load_history();
@@ -495,6 +532,7 @@ fn construct(plugin: *mut c_void) {
 			configure as *const c_void,
 			data,
 		);
+		connect(plugin, c"removed", removed as *const c_void, data);
 		xfce_panel_plugin_menu_show_configure(plugin);
 		p.watches = vec![watch(&p.config, changed, data), watch(&mark, changed, data)];
 		let first = p.graphs.tick();
@@ -625,6 +663,54 @@ mod tests {
 		std::fs::remove_dir(&dir).unwrap();
 		assert!(HITS.load(Ordering::SeqCst) > 0, "no call in {took:?}");
 		assert!(took < Duration::from_millis(500), "{took:?}");
+	}
+
+	// Test ID: dekmw
+	#[test]
+	fn a_removed_item_takes_its_files_and_free_data_saves_nothing() {
+		use tukzmon_core::config::{self, Look};
+		let dir =
+			std::env::temp_dir().join(format!("test_tukzmon_xfce_{}_removed", std::process::id()));
+		std::fs::create_dir_all(&dir).unwrap();
+		let shared = dir.join("tukzmon.shcl");
+		std::fs::write(&shared, "shared\n").unwrap();
+		let own = config::instance_file(&dir, 7);
+		let hist = keep::history_file(&dir, 7);
+		std::fs::write(&own, "mine\n").unwrap();
+		std::fs::write(&hist, "old").unwrap();
+		let look = Look::default();
+		assert!(look.keep, "free-data saves only when kept");
+		let p = Box::new(super::Plugin {
+			xpp: std::ptr::null_mut(),
+			area: std::ptr::null_mut(),
+			graphs: tukzmon_core::graphs::Graphs::new(look),
+			timer: 0,
+			frame: 0,
+			config: own.clone(),
+			config_time: None,
+			settings: None,
+			history: hist.clone(),
+			reset: keep::ResetWatch::new(&dir),
+			watches: Vec::new(),
+			saved_at: Instant::now(),
+			moved_at: Instant::now(),
+			removed: false,
+		});
+		let data: *mut c_void = Box::into_raw(p).cast();
+		// the panel's order: removed, then free-data
+		super::removed(std::ptr::null_mut(), data);
+		super::free_data(std::ptr::null_mut(), data);
+		let left = (own.exists(), hist.exists());
+		// a later item with the same id starts from the shared file
+		config::start_from(&own, &shared).unwrap();
+		let fresh = std::fs::read_to_string(&own).unwrap();
+		for f in [&own, &shared] {
+			std::fs::remove_file(f).unwrap();
+		}
+		let _ = std::fs::remove_file(&hist);
+		std::fs::remove_dir(&dir).unwrap();
+		assert_eq!(left, (false, false), "(settings, history) left behind");
+		assert_eq!(fresh, "shared\n");
 	}
 
 	// Test ID: defyn

@@ -114,6 +114,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- Each panel item has its own file, `plugin-<id>.shcl` by the panel's unique id, named like its history file. Its Properties opens that file, so 2 items on a panel can show different graphs.
 	- `tukzmon.shcl` is the shared file. An item with no file of its own yet starts from a copy of it, so a panel set up before items had their own keeps its look. The shared file is never changed by an item, and `tukzmon-settings` with no `--config` edits it, which sets what a new item starts from.
 	- With no shared file either, a new item starts at the defaults, and writes no file until a save.
+	- Removing an item from the panel deletes its file and its history file, as the panel's Remove dialog warns, and closes its Properties window. So a later item given the same id starts from the shared file, with no history.
 
 - It follows SilkTerm's settings dialog, on top of knobs:
 	- Tabs down the left, groups with a rule under the title, and a sub-group stepped in under the switch it depends on. A row is greyed while that switch is off, but its revert arrow still works.
@@ -320,6 +321,7 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 	- "Keep across restarts" turns it off. Off stops saving and loading, and leaves the file as it is. Turned back on, the file is loaded again, so what was seen while it was off is a gap.
 	- History older than the max age, 365 days by default, is dropped at each save and load.
 	- Reset history in the settings window drops all of it, or only what's on screen while Keep across restarts is off. See [Settings window](#settings-window).
+	- Removing the item from the panel deletes its file, and nothing is saved after.
 
 ## Time axis
 
