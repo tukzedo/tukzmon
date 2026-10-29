@@ -412,6 +412,64 @@ Sorted per the notes in [Template](#template).
 			- Global background colors override
 				- Global transparent override.
 
+- Pre-next-cut: GPU utilization graph
+	- ID: 2026102819145597
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-191455
+	- Opened by: t00mietum
+	- Related IDs: 2026102819145598
+	- Requirements:
+		- GPU utilization, after the "Memory" monitor.
+
+- Pre-next-cut: GPU memory graph
+	- ID: 2026102819145598
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-191455
+	- Opened by: t00mietum
+	- Related IDs: 2026102819145597
+	- Requirements:
+		- GPU memory %, after the "Memory" monitor.
+
+- Pre-next-cut: "Sample ms" becomes "Sample %"
+	- ID: 2026102819145599
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-191455
+	- Opened by: t00mietum
+	- Related IDs: 2026102814061806, 2026102819145600
+	- Requirements:
+		- "Sample ms" -> "Sample %".
+
+- Pre-next-cut: "Sample ms default" of 1000
+	- ID: 2026102819145600
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-191455
+	- Opened by: t00mietum
+	- Related IDs: 2026102814061806, 2026102819145599
+	- Requirements:
+		- "Sample ms default": 1000.
+	- Progress log:
+		- It's 500 now.
+
+- Pre-next-cut: Themes tab stays highlighted with a sub-tab
+	- ID: 2026102819145601
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-191455
+	- Opened by: t00mietum
+	- Related IDs: 2026102620162200
+	- Requirements:
+		- When "Themes" tab is selected, also highlight the first sub-tab (dimmer).
+		- Themes should always be highlighted when a subtab is active.
+
 - An item's files go when it's removed from the panel
 	- ID: 2026102622311676
 	- Type: Enhancement
