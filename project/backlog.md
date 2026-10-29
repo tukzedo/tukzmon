@@ -108,33 +108,6 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: defx7 no longer checks the hue angle between leads. dejbr, from 2026102810142725, checks how far apart they look instead.
 		- Swept: every test that reads a Default color or mode, in core, settings and xfce, every row default, which deccf holds to Default, and every mention of Default's colors in `design.md` and `settings.shcl`.
 
-- Pre-next-cut: GPU memory graph
-	- ID: 2026102819145598
-	- Type: Feature
-	- Status: Waiting on UAT
-		- It departs from the wording in one way. It's off by default, like every graph since memory. Turn it on in the graph list.
-	- Needs local test suite run?: No. The full run passed on 2026-10-29.
-	- Needs hand testing: on b23, after an install, turn on GPU memory and judge whether its share should count the memory the driver keeps back, per bug 2026102915125135.
-	- Stand-in: 20261029, build dekpw from 9b72012 in a test panel on Default. The graph drew in its own violet after GPU, and its tip read "GPU memory 39% used" and "3.1 of 8.0 GiB", while `nvidia-smi` read 2818 MiB used and 351 MiB reserved. So the tip counts the reserved part as used, and reads about 4 points over `nvidia-smi`. Left for a person, since which one is right is a call on what the graph means. The rest matched 2026102819145597.
-	- Priority|Severity: Avg
-	- Opened: 20261028-191455
-	- Opened by: t00mietum
-	- Related IDs: 2026102819145597
-	- Requirements:
-		- GPU memory %, after the "Memory" monitor.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- The GPU memory graph draws the share of the first GPU's memory in use, in one color. Its tip reads "GPU memory 31% used", then "2.5 of 8.0 GiB". It sits after the GPU graph, at `vram.show`, `vram.width`, `vram.sample` and `vram.time`, with a GPU memory section on Themes/Colors with In use, and Low, Medium and High.
-		- It reads the same card as the GPU graph, through `core/src/gpu.rs`: NVML's memory info on NVIDIA, and amdgpu's `mem_info_vram_used` and `mem_info_vram_total` on AMD.
-		- Verified: the full run passed, as on 2026102819145597.
-	- Decisions:
-		- The config section is `vram`, short for the GPU's own memory, and its label is GPU memory.
-		- The tip gives GiB, since a card's memory is sold in binary units.
-		- The rest are on 2026102819145597, since both graphs went in together.
-	- Branch: round-1029
-	- Test case: dekm9, dekmb, dekmc and dekmd, shared with 2026102819145597. dekmb checks the GiB line.
-
 - Pre-next-cut: Scrollable region of the dialog a different color
 	- ID: 2026102913122702
 	- Type: Enhancement
@@ -239,21 +212,6 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
 	- 2026-10-29: split into 3 children: the TCP socket reader 2026102914561218, the setting and the 5-series graph 2026102914561233, and the nftables counter set 2026102914561248. This closes with the last of them.
-
-- GPU memory counts the driver's reserved memory as used
-	- ID: 2026102915125135
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261029-151251
-	- Opened by: t00mietum
-	- Related IDs: 2026102819145598
-	- Steps to reproduce:
-		- On b23, turn on GPU memory, hover it, and run `nvidia-smi -q -d MEMORY` at the same time.
-	- Incorrect behavior: the tip read "GPU memory 39% used" and "3.1 of 8.0 GiB", while `nvidia-smi` read 2818 MiB used and 351 MiB reserved, about 34%.
-	- Expected behavior: the share matches what `nvidia-smi` calls used, or the tip says the reserved part is in it.
-	- Reproduced: 2026-10-29, build dekpw on b23, RTX 3060 Ti, driver 595.58.03.
-	- Possible cause: `core/src/gpu.rs` calls `nvmlDeviceGetMemoryInfo`, whose used figure takes in the reserved memory. `nvmlDeviceGetMemoryInfo_v2` gives reserved apart.
 
 - LAN and internet split: setting and the 5-series network graph
 	- ID: 2026102914561233
@@ -2432,6 +2390,35 @@ Sorted per the notes in [Template](#template).
 		- Swept: defx7 and defxd, the only checks on leads, every built-in in `settings.shcl`, and every role in `dice::ROLES` that follows its graph's lead.
 	- Closed: 20261028-161000
 
+- Pre-next-cut: GPU memory graph
+	- ID: 2026102819145598
+	- Type: Feature
+	- Status: Done
+		- It departs from the wording in one way. It's off by default, like every graph since memory. Turn it on in the graph list.
+		- 2026-10-29: the one call left for a person, reserved memory, went the way bug 2026102915125135 asked, to match `nvidia-smi`.
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Stand-in: 20261029, build dekpw from 9b72012 in a test panel on Default. The graph drew in its own violet after GPU, and its tip read "GPU memory 39% used" and "3.1 of 8.0 GiB", while `nvidia-smi` read 2818 MiB used and 351 MiB reserved. So the tip counts the reserved part as used, and reads about 4 points over `nvidia-smi`. Left for a person, since which one is right is a call on what the graph means. The rest matched 2026102819145597.
+	- Priority|Severity: Avg
+	- Opened: 20261028-191455
+	- Opened by: t00mietum
+	- Related IDs: 2026102819145597
+	- Requirements:
+		- GPU memory %, after the "Memory" monitor.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The GPU memory graph draws the share of the first GPU's memory in use, in one color. Its tip reads "GPU memory 31% used", then "2.5 of 8.0 GiB". It sits after the GPU graph, at `vram.show`, `vram.width`, `vram.sample` and `vram.time`, with a GPU memory section on Themes/Colors with In use, and Low, Medium and High.
+		- It reads the same card as the GPU graph, through `core/src/gpu.rs`: NVML's memory info on NVIDIA, and amdgpu's `mem_info_vram_used` and `mem_info_vram_total` on AMD.
+		- Verified: the full run passed, as on 2026102819145597.
+	- Decisions:
+		- The config section is `vram`, short for the GPU's own memory, and its label is GPU memory.
+		- The tip gives GiB, since a card's memory is sold in binary units.
+		- The rest are on 2026102819145597, since both graphs went in together.
+	- Branch: round-1029
+	- Test case: dekm9, dekmb, dekmc and dekmd, shared with 2026102819145597. dekmb checks the GiB line.
+	- Acceptance signoff: Self-closed 20261029: the stand-in panel and bug 2026102915125135.
+	- Closed: 20261029-164500
+
 - Pre-next-cut: GPU utilization graph
 	- ID: 2026102819145597
 	- Type: Feature
@@ -3548,6 +3535,34 @@ Sorted per the notes in [Template](#template).
 		- A LAN and internet split is its own item, 2026101916274800.
 	- Test case: None, since it was a question. The network collector's tests will cover the answer.
 	- Closed: 20261019
+
+- GPU memory counts the driver's reserved memory as used
+	- ID: 2026102915125135
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261029-151251
+	- Opened by: t00mietum
+	- Related IDs: 2026102819145598
+	- Steps to reproduce:
+		- On b23, turn on GPU memory, hover it, and run `nvidia-smi -q -d MEMORY` at the same time.
+	- Incorrect behavior: the tip read "GPU memory 39% used" and "3.1 of 8.0 GiB", while `nvidia-smi` read 2818 MiB used and 351 MiB reserved, about 34%.
+	- Expected behavior: the share matches what `nvidia-smi` calls used, or the tip says the reserved part is in it.
+	- Reproduced: 2026-10-29, build dekpw on b23, RTX 3060 Ti, driver 595.58.03.
+	- Possible cause: `core/src/gpu.rs` calls `nvmlDeviceGetMemoryInfo`, whose used figure takes in the reserved memory. `nvmlDeviceGetMemoryInfo_v2` gives reserved apart.
+	- Actual cause: the first NVML memory call counts what the driver keeps back as used. `nvidia-smi` reads the v2 call, which lists it apart.
+	- Actual effort: Low
+	- Progress log:
+		- Verified: on b23 the reader gave 0.3488 of 8192 MiB, 2857 MiB, while `nvidia-smi` read 2858 MiB used. The quick gate passed.
+	- Decisions:
+		- Used against the card's total, the same as `nvidia-smi`'s Used and Total. The reserved part is left out of both the share and the tip.
+		- The first call stays as a fallback, for drivers older than 510.
+	- Actual fix: `Nvml::memory` asks `nvmlDeviceGetMemoryInfo_v2` first, when the driver has it.
+	- Branch: gpu-mem
+	- Test case: `gpu::tests::gpu_memory_leaves_out_what_the_driver_keeps_back` (dektc) fails with reserved added back to used. `nvidia_memory_reads_through_v2_where_the_driver_has_it` (dektd) checks that b23's driver has the v2 call, and skips where there's no NVML.
+		- Swept: the only NVML memory call is in `Nvml::memory`. amdgpu's `mem_info_vram_used` has no reserved part to leave out.
+	- Acceptance signoff: Self-closed 20261029: matched `nvidia-smi` on b23, and dektc.
+	- Closed: 20261029-164500
 
 - Bug: deja2 fails now and then
 	- ID: 2026102815185131

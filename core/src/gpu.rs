@@ -30,11 +30,31 @@ mod nvml {
 		used: u64,
 	}
 
+	// nvmlMemory_v2_t. Its used leaves out what the driver keeps back,
+	// as nvidia-smi does (2026102915125135).
+	#[repr(C)]
+	#[derive(Default)]
+	pub(super) struct MemoryV2 {
+		pub(super) version: c_uint,
+		pub(super) total: u64,
+		pub(super) reserved: u64,
+		pub(super) free: u64,
+		pub(super) used: u64,
+	}
+
+	// NVML_STRUCT_VERSION(Memory, 2)
+	pub(super) const MEMORY_V2: c_uint = size_of::<MemoryV2>() as c_uint | 2 << 24;
+
+	pub(super) fn used_of(m: &MemoryV2) -> Option<(u64, u64)> {
+		(m.total > 0).then_some((m.used, m.total))
+	}
+
 	#[derive(Debug)]
 	pub(super) struct Nvml {
 		device: Device,
 		utilization: unsafe extern "C" fn(Device, *mut Utilization) -> c_int,
 		memory: unsafe extern "C" fn(Device, *mut Memory) -> c_int,
+		memory_v2: Option<unsafe extern "C" fn(Device, *mut MemoryV2) -> c_int>,
 	}
 
 	// SAFETY: NVML's calls are thread safe, and the device handle is only
@@ -58,8 +78,23 @@ mod nvml {
 			(r == 0).then(|| (u.gpu as f32 / 100.0).clamp(0.0, 1.0))
 		}
 
-		/// Used and total, in bytes.
+		#[cfg(test)]
+		pub(super) fn has_v2(&self) -> bool {
+			self.memory_v2.is_some()
+		}
+
+		/// Used and total, in bytes. Drivers older than 510 have no v2.
 		pub(super) fn memory(&self) -> Option<(u64, u64)> {
+			if let Some(v2) = self.memory_v2 {
+				let mut m = MemoryV2 {
+					version: MEMORY_V2,
+					..MemoryV2::default()
+				};
+				// SAFETY: as in busy, with the version NVML checks first.
+				if unsafe { v2(self.device, &raw mut m) } == 0 {
+					return used_of(&m);
+				}
+			}
 			let mut m = Memory::default();
 			// SAFETY: as in busy.
 			let r = unsafe { (self.memory)(self.device, &raw mut m) };
@@ -83,6 +118,7 @@ mod nvml {
 		let by_index = sym(lib, c"nvmlDeviceGetHandleByIndex_v2")?;
 		let utilization = sym(lib, c"nvmlDeviceGetUtilizationRates")?;
 		let memory = sym(lib, c"nvmlDeviceGetMemoryInfo")?;
+		let memory_v2 = sym(lib, c"nvmlDeviceGetMemoryInfo_v2");
 		// SAFETY: each symbol has this signature in nvml.h, and the calls
 		// pass what it asks for.
 		unsafe {
@@ -108,6 +144,12 @@ mod nvml {
 					*mut c_void,
 					unsafe extern "C" fn(Device, *mut Memory) -> c_int,
 				>(memory),
+				memory_v2: memory_v2.map(|p| {
+					std::mem::transmute::<
+						*mut c_void,
+						unsafe extern "C" fn(Device, *mut MemoryV2) -> c_int,
+					>(p)
+				}),
 			})
 		}
 	}
@@ -129,6 +171,11 @@ mod nvml {
 		}
 
 		pub(super) fn memory(&self) -> Option<(u64, u64)> {
+			match *self {}
+		}
+
+		#[cfg(test)]
+		pub(super) fn has_v2(&self) -> bool {
 			match *self {}
 		}
 	}
@@ -318,5 +365,34 @@ mod tests {
 		let [used] = vram.read().unwrap();
 		assert!((0.0..=1.0).contains(&busy), "{busy}");
 		assert!(used > 0.0 && used <= 1.0 && vram.total() > 0, "{used}");
+	}
+
+	// Test ID: dektc
+	#[test]
+	#[cfg(not(miri))]
+	fn gpu_memory_leaves_out_what_the_driver_keeps_back() {
+		const MIB: u64 = 1 << 20;
+		let m = nvml::MemoryV2 {
+			version: nvml::MEMORY_V2,
+			total: 8192 * MIB,
+			reserved: 351 * MIB,
+			free: 4962 * MIB,
+			used: 2879 * MIB,
+		};
+		assert_eq!(nvml::used_of(&m), Some((2879 * MIB, 8192 * MIB)));
+		assert_eq!(nvml::MEMORY_V2, 0x0200_0028);
+	}
+
+	// Test ID: dektd
+	#[test]
+	#[cfg_attr(miri, ignore = "Miri can't load a library")]
+	fn nvidia_memory_reads_through_v2_where_the_driver_has_it() {
+		let Some(n) = Nvml::get() else {
+			return;
+		};
+		assert!(
+			n.has_v2(),
+			"a driver from 510 on has nvmlDeviceGetMemoryInfo_v2"
+		);
 	}
 }
