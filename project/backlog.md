@@ -316,7 +316,7 @@ Sorted per the notes in [Template](#template).
 - XFCE panel plugin
 	- ID: 2026101916013889
 	- Type: Feature
-	- Status: Started
+	- Status: Done
 	- Priority|Severity: High
 	- Opened: 20261019-160138
 	- Opened by: t00mietum
@@ -331,6 +331,9 @@ Sorted per the notes in [Template](#template).
 		- One CPU graph in the panel, with a tooltip and Properties opening tukzmon-settings. Tried on X11 only so far.
 		- 2026-10-26: Several graphs side by side, and the graph list that picks them, are in since round-1025. The `.deb` is in since 2026102506591283.
 		- 2026-10-26: Split what's left into children: 2026102621053709 (vertical and deskbar panels), 2026102621053715 (a settings file per plugin instance), 2026102621053720 (Wayland), 2026102621053725 (Nix package), and 2026102621105420 (graph sizes on a vertical panel). This closes with the last of them.
+		- 2026-10-28: Closed with its last child, graph sizes on a vertical panel. Every requirement above is covered by a closed child.
+	- Test case: the tests of its children 2026102621053709, 2026102621053715, 2026102621053720, 2026102621053725 and 2026102621105420
+	- Closed: 20261028
 
 - Color themes tab
 	- ID: 2026102408304612
