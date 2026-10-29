@@ -169,6 +169,62 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: new values only. deccf and deccw count 67 theme members, not 65, and deccf takes a slider for the 2 margins. dee9q, dejac and dejad name the Outline tab, not Background. dee9q also compares through `config::theme_text`, since a margin isn't text.
 		- Swept: every `EDGE` and `GAP` use, every reader of a saved theme's values (`saved_themes`, `theme_problems`, `spec_with`, `themes_text` and the dialog's `shown_colors`), `dice::theme`'s callers, and every doc naming the Background sub-tab.
 
+- Pre-next-cut: "Sample ms" becomes "Sample %"
+	- ID: 2026102819145599
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- Whether a percentage of the time between reads, where 200% reads half as often, is what was meant is for a person to judge.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Needs hand testing: on b23, after an install, open Settings, set one graph's Sample % to 200 and another's to 50, Apply, and watch them read half and twice as often as the rest.
+	- Priority|Severity: Avg
+	- Opened: 20261028-191455
+	- Opened by: t00mietum
+	- Related IDs: 2026102814061806, 2026102819145600
+	- Requirements:
+		- "Sample ms" -> "Sample %".
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The graph list's Sample ms column is now Sample %, at `cpu.sample` and the like. It's a percentage of Sample ms default, the way Width % is of Width. Each row starts at 100.
+		- `design.md` XFCE plugin has the details.
+		- Verified: the full run passed. The Graph tab showed Sample % with 100 in every row, and Apply off at open.
+	- Decisions:
+		- The percentage is of the time between reads, since the setting it scales is in ms. 200% reads half as often.
+		- A box from 1 to 1000, like Width %. Under 50 ms still counts as 50 ms, so at a Sample ms default of 1000 anything under 5% reads as 5%.
+		- 0 as Default went, since 100% follows Sample ms default by itself.
+		- New paths, `<name>.sample`, so a number saved in ms is never read as a percentage. An old `<name>.sample_ms` line is ignored, and that graph reads at 100%. Only builds since b6ed12b wrote it, and none is installed, so nothing carries it over. `graph.sample_ms` is unchanged, so saved files keep their Sample ms default.
+	- Branch: round-1028b
+	- Test case: `config::tests::each_graph_has_a_sample_rate_and_old_files_keep_the_default` (deja1) checks the rows, the percentage, rounding, the 50 ms floor, and an old ms line read as 100%. It fails on the ms rows. dej9z checks 400% and 33% of 500 ms, debj5 a graph's axis at 400%, deja0 200% on one timer, and deja2 an unapplied 2% in the window.
+		- 2026-10-28: new values only. dej9z, debj5, deja0 and deja2 give a graph's rate as a percentage, not ms, for the same rates as before, and deja2's Default is 100, not 0.
+		- Swept: every `<name>_sample_ms` field and id (`Look`, each `Source::sample_ms`, `Dialog::graph_rows`, the graph list in qt.cpp), every `Look::rate` caller, and the docs naming `.sample_ms`.
+
+- Pre-next-cut: Themes tab stays highlighted with a sub-tab
+	- ID: 2026102819145601
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- How the dimmer highlight reads, in a light and a dark theme, is for a person to judge.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Needs hand testing: on b23, after an install, open Settings, pick Themes, then Colors, then Outline, and judge the dimmer highlight on the line that goes with the one picked.
+	- Priority|Severity: Avg
+	- Opened: 20261028-191455
+	- Opened by: t00mietum
+	- Related IDs: 2026102620162200
+	- Requirements:
+		- When "Themes" tab is selected, also highlight the first sub-tab (dimmer).
+		- Themes should always be highlighted when a subtab is active.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Picking Themes lights Colors too, dimmer, since Themes shows it. Picking Colors or Outline keeps Themes lit, dimmer.
+		- `design.md` Settings window has the details.
+		- Verified: the full run passed with the new test. The window showed Themes dimly lit with Colors or Outline picked.
+	- Decisions:
+		- The dim tint is a little under half the picked one, from the same theme highlight, so it reads in a dark theme too.
+		- It follows the tab list, not Themes by name: every tab over the line picked, and the sub-tab a parent shows. A new parent tab gets it too.
+	- Branch: round-1028b
+	- Test case: `bridge::tests::themes_and_the_sub_tab_it_shows_are_lit_together` (dejmn). It fails with the highlight left out, and passes now.
+		- Swept: `showTab` is the one place a picked line takes effect. The `--snapshot` loop, `tabs_shown` and `tabs_after_move` all pick through it.
+
 - Theme presets, with a coordinated Default
 	- ID: 2026102409400679
 	- Type: Feature
@@ -593,42 +649,6 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- GPU memory %, after the "Memory" monitor.
 
-- Pre-next-cut: "Sample ms" becomes "Sample %"
-	- ID: 2026102819145599
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-191455
-	- Opened by: t00mietum
-	- Related IDs: 2026102814061806, 2026102819145600
-	- Requirements:
-		- "Sample ms" -> "Sample %".
-
-- Pre-next-cut: "Sample ms default" of 1000
-	- ID: 2026102819145600
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-191455
-	- Opened by: t00mietum
-	- Related IDs: 2026102814061806, 2026102819145599
-	- Requirements:
-		- "Sample ms default": 1000.
-	- Progress log:
-		- It's 500 now.
-
-- Pre-next-cut: Themes tab stays highlighted with a sub-tab
-	- ID: 2026102819145601
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-191455
-	- Opened by: t00mietum
-	- Related IDs: 2026102620162200
-	- Requirements:
-		- When "Themes" tab is selected, also highlight the first sub-tab (dimmer).
-		- Themes should always be highlighted when a subtab is active.
-
 - An item's files go when it's removed from the panel
 	- ID: 2026102622311676
 	- Type: Enhancement
@@ -696,6 +716,32 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Pre-next-cut: "Sample ms default" of 1000
+	- ID: 2026102819145600
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Priority|Severity: Avg
+	- Opened: 20261028-191455
+	- Opened by: t00mietum
+	- Related IDs: 2026102814061806, 2026102819145599
+	- Requirements:
+		- "Sample ms default": 1000.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- It's 500 now.
+		- Sample ms default is 1000 by default. A file that sets `graph.sample_ms` keeps its rate.
+		- Verified: the full run passed, the soak test (dee6p) included. The Graph tab showed 1000.
+	- Decisions:
+		- The history tiers stay as they are, since the 50 ms floor sets them, not the default. A linear graph at the default now spans twice the time.
+		- Tests about something else that counted on 500 now set 500 themselves (deja0, defz1), so their timings hold.
+	- Branch: round-1028b
+	- Test case: `config::tests::defaults_are_the_multiload_colors` (debhj) and `a_file_overrides_and_bad_lines_fall_back` (debhk) check 1000 as the default.
+		- 2026-10-28: new values only. debhj and debhk: 500 -> 1000. deea2's linear axis over 100 columns: 50 s -> 100 s. deja2's first wait: within 500 -> within 1000.
+	- Acceptance signoff: Self-closed, 2026-10-28: a default changed as asked, and the full run passed.
+	- Closed: 20261028-203943
 
 - Graph sizes on a vertical panel
 	- ID: 2026102621105420

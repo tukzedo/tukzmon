@@ -16,10 +16,12 @@ pub mod ffi {
 		parent: i32,
 	}
 
-	/// A line of the window's tab list, as drawn, and the rows it shows.
+	/// A line of the window's tab list, as drawn, the rows it shows, and the
+	/// lines lit dimmer beside it.
 	struct TabShown {
 		label: String,
 		rows: Vec<String>,
+		dim: Vec<String>,
 	}
 
 	struct RowInfo {
@@ -712,6 +714,29 @@ mod tests {
 				assert!(t == s || t == top as usize, "{} shows {id}", tabs[s].label);
 			}
 		}
+	}
+
+	// Test ID: dejmn
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn themes_and_the_sub_tab_it_shows_are_lit_together() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_tabs_lit_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let tabs = dialog_tabs(&d);
+		let shown = ffi::tabs_shown(&mut d);
+		let at = |name: &str| tabs.iter().position(|t| t.label == name).unwrap();
+		let dim = |name: &str| shown[at(name)].dim.clone();
+		// Themes picked lights the first sub-tab, which it shows, dimmer
+		assert_eq!(dim("Themes"), ["Colors"]);
+		// a sub-tab picked keeps Themes lit
+		assert_eq!(dim("Colors"), ["Themes"]);
+		assert_eq!(dim("Outline"), ["Themes"]);
+		// a tab with none under it lights nothing else
+		assert!(dim("Graph").is_empty(), "{:?}", dim("Graph"));
 	}
 
 	// Test ID: dejad

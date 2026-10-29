@@ -133,7 +133,7 @@ impl Source<4> for CpuReader {
 	}
 
 	fn sample_ms(look: &Look) -> u32 {
-		look.rate(look.cpu_sample_ms)
+		look.rate(look.cpu_sample)
 	}
 }
 
@@ -163,7 +163,7 @@ impl Source<3> for MemoryReader {
 	}
 
 	fn sample_ms(look: &Look) -> u32 {
-		look.rate(look.mem_sample_ms)
+		look.rate(look.mem_sample)
 	}
 }
 
@@ -188,7 +188,7 @@ impl Source<1> for SwapReader {
 	}
 
 	fn sample_ms(look: &Look) -> u32 {
-		look.rate(look.swap_sample_ms)
+		look.rate(look.swap_sample)
 	}
 }
 
@@ -221,7 +221,7 @@ impl Source<3> for BatteryReader {
 	}
 
 	fn sample_ms(look: &Look) -> u32 {
-		look.rate(look.battery_sample_ms)
+		look.rate(look.battery_sample)
 	}
 }
 
@@ -251,7 +251,7 @@ impl Source<1> for ZswapReader {
 	}
 
 	fn sample_ms(look: &Look) -> u32 {
-		look.rate(look.zswap_sample_ms)
+		look.rate(look.zswap_sample)
 	}
 }
 
@@ -301,7 +301,7 @@ impl Source<3> for NetReader {
 	}
 
 	fn sample_ms(look: &Look) -> u32 {
-		look.rate(look.net_sample_ms)
+		look.rate(look.net_sample)
 	}
 }
 
@@ -326,7 +326,7 @@ impl Source<1> for LoadReader {
 	}
 
 	fn sample_ms(look: &Look) -> u32 {
-		look.rate(look.load_sample_ms)
+		look.rate(look.load_sample)
 	}
 
 	// full at a load of one a CPU, as the CPU graph is at 100%
@@ -356,7 +356,7 @@ impl Source<2> for DiskReader {
 	}
 
 	fn sample_ms(look: &Look) -> u32 {
-		look.rate(look.disk_sample_ms)
+		look.rate(look.disk_sample)
 	}
 
 	// so a log file's odd flush doesn't fill the graph
@@ -403,7 +403,7 @@ impl Source<2> for TempReader {
 	}
 
 	fn sample_ms(look: &Look) -> u32 {
-		look.rate(look.temp_sample_ms)
+		look.rate(look.temp_sample)
 	}
 
 	// full at the critical level, and higher once it's over
@@ -457,7 +457,7 @@ impl Source<1> for OwnReader {
 	}
 
 	fn sample_ms(look: &Look) -> u32 {
-		look.rate(look.self_sample_ms)
+		look.rate(look.self_sample)
 	}
 
 	// full at every CPU busy, like the CPU graph
@@ -934,7 +934,7 @@ mod tests {
 		let g = Graph::new(Look {
 			time: Timing::Linear,
 			sample_ms: 250,
-			cpu_sample_ms: 1000,
+			cpu_sample: 400,
 			..Look::default()
 		});
 		assert_eq!(g.axis(100), Axis::linear(100.0));
@@ -961,19 +961,21 @@ mod tests {
 		assert_eq!(g.tick(2040.0), 460.0);
 		assert_eq!(g.beat, Some((4.0, 2040.0)));
 
-		// its own rate over Sample ms default, and a gap under half a beat
+		// its own percentage of Sample ms default, and a gap under half a beat
 		// after the change is too short to read
-		g.look.cpu_sample_ms = 2000;
+		g.look.cpu_sample = 400;
 		assert_eq!(g.sample_ms(), 2000);
 		assert_eq!(g.tick(2500.0), 1500.0);
 		assert_eq!(g.beat, Some((4.0, 2040.0)));
 		assert_eq!(g.tick(4000.0), 2000.0);
 		assert_eq!(g.beat, Some((2.0, 4000.0)));
 		// as fast as the finest history tier, and no faster
-		g.look.cpu_sample_ms = 10;
+		g.look.cpu_sample = 2;
 		assert_eq!(g.sample_ms(), FASTEST_MS);
-		g.look.cpu_sample_ms = 0;
+		g.look.cpu_sample = 100;
 		assert_eq!(g.sample_ms(), 500);
+		g.look.cpu_sample = 33;
+		assert_eq!(g.sample_ms(), 165);
 		assert_eq!(
 			(wait_ms(0.2), wait_ms(504.1), wait_ms(f64::NAN)),
 			(1, 505, 50)
@@ -1037,6 +1039,7 @@ mod tests {
 	fn a_still_pointer_keeps_its_age_while_its_clock_time_moves_on() {
 		let mut g = Graph::new(Look {
 			time: Timing::Linear,
+			sample_ms: 500,
 			..Look::default()
 		});
 		let now = g.now();
@@ -1085,7 +1088,7 @@ mod tests {
 		});
 		let now = g.now();
 		g.hist.add(now - 10.0, now, &[0.1; 4]);
-		// linear at 500 ms covers 64 s, so the left edge is before the first sample
+		// linear at 1000 ms covers 128 s, so the left edge is before the first sample
 		assert!(g.hover_tip(1, 130, 20, 1).ends_with("\nNo data"));
 		assert!(g.hover_tip(128, 130, 20, 1).contains("CPU 40%"));
 	}

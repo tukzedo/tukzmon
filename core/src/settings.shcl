@@ -12,7 +12,7 @@
 ## section, which moves with the graph order, and beside: true on a heading
 ## puts it and the rest of its section to the right of what's above it.
 ##
-## A graph's row in the Graphs list comes from its show, width, sample_ms and
+## A graph's row in the Graphs list comes from its show, width, sample and
 ## time settings, in that order.
 ##
 ## Every color is in the theme group, and so are each graph's mode, the
@@ -66,9 +66,9 @@ settings:
 		slider_range: 100, 5000
 		scale: log
 		path: graph.sample_ms
-		default: 500
+		default: 1000
 		detents: 250, 500, 1000, 2000
-		tip: "How often a graph is read and redrawn, in ms, unless it has its own rate under Graphs."
+		tip: "How often a graph is read and redrawn, in ms. Each graph under Graphs takes a percentage of it."
 
 	spikes:
 		label: Spike emphasis %
@@ -128,15 +128,15 @@ settings:
 		default: 100
 		tip: "How wide the CPU graph is, or how tall on a vertical panel, as a percentage of Width."
 
-	cpu_sample_ms:
-		label: CPU sample ms
+	cpu_sample:
+		label: CPU sample %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 60000
-		path: cpu.sample_ms
-		default: 0
-		tip: "How often the CPU graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+		range: 1, 1000
+		path: cpu.sample
+		default: 100
+		tip: "How often the CPU graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	cpu_time:
 		label: CPU time axis
@@ -166,15 +166,15 @@ settings:
 		default: 100
 		tip: "How wide the memory graph is, or how tall on a vertical panel, as a percentage of Width."
 
-	mem_sample_ms:
-		label: Memory sample ms
+	mem_sample:
+		label: Memory sample %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 60000
-		path: mem.sample_ms
-		default: 0
-		tip: "How often the memory graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+		range: 1, 1000
+		path: mem.sample
+		default: 100
+		tip: "How often the memory graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	mem_time:
 		label: Memory time axis
@@ -204,15 +204,15 @@ settings:
 		default: 50
 		tip: "How wide the network graph is, or how tall on a vertical panel, as a percentage of Width."
 
-	net_sample_ms:
-		label: Network sample ms
+	net_sample:
+		label: Network sample %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 60000
-		path: net.sample_ms
-		default: 0
-		tip: "How often the network graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+		range: 1, 1000
+		path: net.sample
+		default: 100
+		tip: "How often the network graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	net_time:
 		label: Network time axis
@@ -242,15 +242,15 @@ settings:
 		default: 50
 		tip: "How wide the disk graph is, or how tall on a vertical panel, as a percentage of Width."
 
-	disk_sample_ms:
-		label: Disk sample ms
+	disk_sample:
+		label: Disk sample %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 60000
-		path: disk.sample_ms
-		default: 0
-		tip: "How often the disk graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+		range: 1, 1000
+		path: disk.sample
+		default: 100
+		tip: "How often the disk graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	disk_time:
 		label: Disk time axis
@@ -280,15 +280,15 @@ settings:
 		default: 50
 		tip: "How wide the temperature graph is, or how tall on a vertical panel, as a percentage of Width."
 
-	temp_sample_ms:
-		label: Temperature sample ms
+	temp_sample:
+		label: Temperature sample %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 60000
-		path: temp.sample_ms
-		default: 0
-		tip: "How often the temperature graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+		range: 1, 1000
+		path: temp.sample
+		default: 100
+		tip: "How often the temperature graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	temp_time:
 		label: Temperature time axis
@@ -318,15 +318,15 @@ settings:
 		default: 25
 		tip: "How wide the swap graph is, or how tall on a vertical panel, as a percentage of Width."
 
-	swap_sample_ms:
-		label: Swap sample ms
+	swap_sample:
+		label: Swap sample %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 60000
-		path: swap.sample_ms
-		default: 0
-		tip: "How often the swap graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+		range: 1, 1000
+		path: swap.sample
+		default: 100
+		tip: "How often the swap graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	swap_time:
 		label: Swap time axis
@@ -356,15 +356,15 @@ settings:
 		default: 25
 		tip: "How wide the zswap graph is, or how tall on a vertical panel, as a percentage of Width."
 
-	zswap_sample_ms:
-		label: Zswap sample ms
+	zswap_sample:
+		label: Zswap sample %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 60000
-		path: zswap.sample_ms
-		default: 0
-		tip: "How often the zswap graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+		range: 1, 1000
+		path: zswap.sample
+		default: 100
+		tip: "How often the zswap graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	zswap_time:
 		label: Zswap time axis
@@ -394,15 +394,15 @@ settings:
 		default: 25
 		tip: "How wide the load graph is, or how tall on a vertical panel, as a percentage of Width."
 
-	load_sample_ms:
-		label: Load sample ms
+	load_sample:
+		label: Load sample %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 60000
-		path: load.sample_ms
-		default: 0
-		tip: "How often the load graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+		range: 1, 1000
+		path: load.sample
+		default: 100
+		tip: "How often the load graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	load_time:
 		label: Load time axis
@@ -432,15 +432,15 @@ settings:
 		default: 100
 		tip: "How wide the battery graph is, or how tall on a vertical panel, as a percentage of Width."
 
-	battery_sample_ms:
-		label: Battery sample ms
+	battery_sample:
+		label: Battery sample %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 60000
-		path: battery.sample_ms
-		default: 0
-		tip: "How often the battery graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+		range: 1, 1000
+		path: battery.sample
+		default: 100
+		tip: "How often the battery graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	battery_time:
 		label: Battery time axis
@@ -470,15 +470,15 @@ settings:
 		default: 25
 		tip: "How wide the tukzmon graph is, or how tall on a vertical panel, as a percentage of Width."
 
-	self_sample_ms:
-		label: tukzmon sample ms
+	self_sample:
+		label: tukzmon sample %
 		tab: Graph
 		control: number
 		whole: true
-		range: 0, 60000
-		path: self.sample_ms
-		default: 0
-		tip: "How often the tukzmon graph is read and redrawn, in ms. Default, which is 0, follows Sample ms default, under Time. Under 50 counts as 50."
+		range: 1, 1000
+		path: self.sample
+		default: 100
+		tip: "How often the tukzmon graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	self_time:
 		label: tukzmon time axis

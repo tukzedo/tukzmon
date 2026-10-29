@@ -552,6 +552,7 @@ public:
 				depth++;
 			tabList->addItem(new QListWidgetItem(QString(depth * 4, ' ') + qs(tabs[i].label)));
 			lineTab.push_back(int(i));
+			lineUp.push_back(tabs[i].parent);
 			leaf.push_back(!parent);
 			// a tab with rows of its own keeps them on top of the tabs under it
 			const int up = tabs[i].parent;
@@ -693,6 +694,13 @@ public:
 
 	int tabCount() const { return tabList->count(); }
 	std::string tabText(int i) const { return tabList->item(i)->text().toStdString(); }
+	std::vector<std::string> dimLines() const {
+		std::vector<std::string> out;
+		for (int i = 0; i < tabList->count(); i++)
+			if (tabList->item(i)->background().style() != Qt::NoBrush)
+				out.push_back(tabList->item(i)->text().trimmed().toStdString());
+		return out;
+	}
 	std::vector<std::string> shownRows() const {
 		std::vector<std::string> ids;
 		for (auto &r : rows) {
@@ -783,8 +791,9 @@ private:
 	// per tab of the spec
 	std::vector<int> tabPage;
 	std::vector<bool> leaf;
-	// the spec's tab on each line of the tab list
+	// the spec's tab on each line of the tab list, and the line over it
 	std::vector<int> lineTab;
+	std::vector<int> lineUp;
 	struct SubPage {
 		QStackedWidget *stack = nullptr;
 		int index = 0;
@@ -824,13 +833,35 @@ private:
 				continue;
 			pages->setCurrentIndex(tabPage[t]);
 			SubPage s = subPage[t];
+			int shown = j;
 			if (!leaf[t] && j + 1 < tabList->count())
-				if (const SubPage &next = subPage[size_t(lineTab[size_t(j) + 1])]; s.stack && next.stack == s.stack)
+				if (const SubPage &next = subPage[size_t(lineTab[size_t(j) + 1])]; s.stack && next.stack == s.stack) {
 					s = next;
+					shown = j + 1;
+				}
 			if (s.stack)
 				s.stack->setCurrentIndex(s.index);
+			lightAlong(i, shown);
 			return;
 		}
+	}
+
+	// The line picked keeps the highlight. The sub-tab it shows and the tabs
+	// over either get a dimmer one, so Themes stays lit under a sub-tab.
+	void lightAlong(int picked, int shown) {
+		std::vector<bool> on(size_t(tabList->count()), false);
+		for (int k : {picked, shown})
+			for (int up = k; up >= 0; up = lineUp[size_t(up)])
+				on[size_t(up)] = true;
+		on[size_t(picked)] = false;
+		const QPalette pal = tabList->palette();
+		const QColor base = pal.color(QPalette::Base);
+		const QColor pick = pal.color(QPalette::Highlight);
+		auto mix = [](float a, float b) { return a + (b - a) * 0.45f; };
+		const QBrush dim(QColor::fromRgbF(
+			mix(base.redF(), pick.redF()), mix(base.greenF(), pick.greenF()), mix(base.blueF(), pick.blueF())));
+		for (int k = 0; k < tabList->count(); k++)
+			tabList->item(k)->setBackground(on[size_t(k)] ? dim : QBrush());
 	}
 
 	// One graph's colors on a page of them: its own rows on the left, and the
@@ -1018,8 +1049,6 @@ private:
 			for (Row *r : {lr.show, lr.width, lr.sample, lr.time})
 				r->control = buildControl(*r);
 			lr.show->check->setText(qs(lr.show->info.label));
-			// 0 follows Sample ms default, as Default does in the time axis column
-			lr.sample->spin->setSpecialValueText("Default");
 			lr.space = new LiveGraph(*live, lr.name);
 			lr.space->fit();
 			lr.revert = new QToolButton;
@@ -1041,7 +1070,7 @@ private:
 			listRows.push_back(lr);
 		}
 		auto *widthHead = new QLabel("Width %");
-		auto *sampleHead = new QLabel("Sample ms");
+		auto *sampleHead = new QLabel("Sample %");
 		auto *timeHead = new QLabel("Time axis");
 		widthHead->setToolTip(listRows.empty() ? "" : qs(row_state(d, listRows[0].width->id()).tip));
 		sampleHead->setToolTip(listRows.empty() ? "" : qs(row_state(d, listRows[0].sample->id()).tip));
@@ -1533,6 +1562,8 @@ TabShown shownNow(Window &w, const std::string &label) {
 	t.label = rust::String(label);
 	for (auto &id : w.shownRows())
 		t.rows.push_back(rust::String(id));
+	for (auto &line : w.dimLines())
+		t.dim.push_back(rust::String(line));
 	return t;
 }
 

@@ -499,7 +499,7 @@ impl Dialog {
 	}
 
 	/// The graph list, first drawn first. A graph is in it once the spec has
-	/// its `<name>.show`, `.width`, `.sample_ms` and `.time` rows, so a new
+	/// its `<name>.show`, `.width`, `.sample` and `.time` rows, so a new
 	/// graph brings its own row.
 	pub fn graph_rows(&self) -> Vec<GraphRow> {
 		tukzmon_core::graphs::draw_order(&self.saved_order())
@@ -510,7 +510,7 @@ impl Dialog {
 					name: name.to_string(),
 					show: id("show")?,
 					width: id("width")?,
-					sample: id("sample_ms")?,
+					sample: id("sample")?,
 					time: id("time")?,
 				})
 			})
@@ -961,7 +961,7 @@ mod tests {
 				name: "mem".into(),
 				show: "show_memory".into(),
 				width: "mem_width".into(),
-				sample: "mem_sample_ms".into(),
+				sample: "mem_sample".into(),
 				time: "mem_time".into(),
 			}
 		);

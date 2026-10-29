@@ -512,45 +512,45 @@ pub struct Look {
 	pub show_cpu: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub cpu_width: u32,
-	/// 0 follows `sample_ms`. See [`Look::rate`].
-	pub cpu_sample_ms: u32,
+	/// A percentage of `sample_ms`. See [`Look::rate`].
+	pub cpu_sample: u32,
 	/// None follows `time`. See [`Look::timing`].
 	pub cpu_time: Option<Timing>,
 	/// Draw the memory graph, where the box has one.
 	pub show_memory: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub mem_width: u32,
-	pub mem_sample_ms: u32,
+	pub mem_sample: u32,
 	pub mem_time: Option<Timing>,
 	/// Draw the swap graph, where the box has swap.
 	pub show_swap: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub swap_width: u32,
-	pub swap_sample_ms: u32,
+	pub swap_sample: u32,
 	pub swap_time: Option<Timing>,
 	/// Draw the zswap graph, where the box has zswap on or zram set up.
 	pub show_zswap: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub zswap_width: u32,
-	pub zswap_sample_ms: u32,
+	pub zswap_sample: u32,
 	pub zswap_time: Option<Timing>,
 	/// Draw the network graph.
 	pub show_net: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub net_width: u32,
-	pub net_sample_ms: u32,
+	pub net_sample: u32,
 	pub net_time: Option<Timing>,
 	/// Draw the load graph.
 	pub show_load: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub load_width: u32,
-	pub load_sample_ms: u32,
+	pub load_sample: u32,
 	pub load_time: Option<Timing>,
 	/// Draw the disk graph, where the box has a disk.
 	pub show_disk: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub disk_width: u32,
-	pub disk_sample_ms: u32,
+	pub disk_sample: u32,
 	pub disk_time: Option<Timing>,
 	/// A log scale up the disk graph.
 	pub disk_log: bool,
@@ -560,19 +560,19 @@ pub struct Look {
 	pub show_temp: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub temp_width: u32,
-	pub temp_sample_ms: u32,
+	pub temp_sample: u32,
 	pub temp_time: Option<Timing>,
 	/// Draw the battery graph, where the box has a battery in.
 	pub show_battery: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub battery_width: u32,
-	pub battery_sample_ms: u32,
+	pub battery_sample: u32,
 	pub battery_time: Option<Timing>,
 	/// Draw the graph of tukzmon's own CPU use.
 	pub show_self: bool,
 	/// A percentage of `width`. See [`Look::share`].
 	pub self_width: u32,
-	pub self_sample_ms: u32,
+	pub self_sample: u32,
 	pub self_time: Option<Timing>,
 	/// Graph names as saved, first drawn first. See [`graph_order`].
 	pub order: Vec<String>,
@@ -689,45 +689,45 @@ impl Look {
 			cpu_gradient: [color("cpu_low"), color("cpu_medium"), color("cpu_high")],
 			show_cpu: m.value("show_cpu", &NoEnv).as_bool(),
 			cpu_width: num("cpu_width") as u32,
-			cpu_sample_ms: num("cpu_sample_ms") as u32,
+			cpu_sample: num("cpu_sample") as u32,
 			cpu_time: Timing::parse(m.value("cpu_time", &NoEnv).as_text()),
 			show_memory: m.value("show_memory", &NoEnv).as_bool(),
 			mem_width: num("mem_width") as u32,
-			mem_sample_ms: num("mem_sample_ms") as u32,
+			mem_sample: num("mem_sample") as u32,
 			mem_time: Timing::parse(m.value("mem_time", &NoEnv).as_text()),
 			show_swap: m.value("show_swap", &NoEnv).as_bool(),
 			swap_width: num("swap_width") as u32,
-			swap_sample_ms: num("swap_sample_ms") as u32,
+			swap_sample: num("swap_sample") as u32,
 			swap_time: Timing::parse(m.value("swap_time", &NoEnv).as_text()),
 			show_zswap: m.value("show_zswap", &NoEnv).as_bool(),
 			zswap_width: num("zswap_width") as u32,
-			zswap_sample_ms: num("zswap_sample_ms") as u32,
+			zswap_sample: num("zswap_sample") as u32,
 			zswap_time: Timing::parse(m.value("zswap_time", &NoEnv).as_text()),
 			show_net: m.value("show_net", &NoEnv).as_bool(),
 			net_width: num("net_width") as u32,
-			net_sample_ms: num("net_sample_ms") as u32,
+			net_sample: num("net_sample") as u32,
 			net_time: Timing::parse(m.value("net_time", &NoEnv).as_text()),
 			show_load: m.value("show_load", &NoEnv).as_bool(),
 			load_width: num("load_width") as u32,
-			load_sample_ms: num("load_sample_ms") as u32,
+			load_sample: num("load_sample") as u32,
 			load_time: Timing::parse(m.value("load_time", &NoEnv).as_text()),
 			show_disk: m.value("show_disk", &NoEnv).as_bool(),
 			disk_width: num("disk_width") as u32,
-			disk_sample_ms: num("disk_sample_ms") as u32,
+			disk_sample: num("disk_sample") as u32,
 			disk_time: Timing::parse(m.value("disk_time", &NoEnv).as_text()),
 			disk_log: m.value("disk_log", &NoEnv).as_bool(),
 			disk_drives: graph_order(m.value("disk_drives", &NoEnv).as_text()),
 			show_temp: m.value("show_temp", &NoEnv).as_bool(),
 			temp_width: num("temp_width") as u32,
-			temp_sample_ms: num("temp_sample_ms") as u32,
+			temp_sample: num("temp_sample") as u32,
 			temp_time: Timing::parse(m.value("temp_time", &NoEnv).as_text()),
 			show_battery: m.value("show_battery", &NoEnv).as_bool(),
 			battery_width: num("battery_width") as u32,
-			battery_sample_ms: num("battery_sample_ms") as u32,
+			battery_sample: num("battery_sample") as u32,
 			battery_time: Timing::parse(m.value("battery_time", &NoEnv).as_text()),
 			show_self: m.value("show_self", &NoEnv).as_bool(),
 			self_width: num("self_width") as u32,
-			self_sample_ms: num("self_sample_ms") as u32,
+			self_sample: num("self_sample") as u32,
 			self_time: Timing::parse(m.value("self_time", &NoEnv).as_text()),
 			order: graph_order(m.value("graph_order", &NoEnv).as_text()),
 			mem: [color("mem_user"), color("mem_buffers"), color("mem_cache")],
@@ -872,10 +872,11 @@ impl Look {
 		own.unwrap_or(self.time)
 	}
 
-	/// A graph's own sample rate in ms, or else Sample ms default, and never
-	/// under [`crate::FASTEST_MS`].
-	pub fn rate(&self, own: u32) -> u32 {
-		if own == 0 { self.sample_ms } else { own }.max(crate::FASTEST_MS)
+	/// A graph's sample rate in ms from its percentage of Sample ms default,
+	/// rounded, and never under [`crate::FASTEST_MS`].
+	pub fn rate(&self, percent: u32) -> u32 {
+		let ms = (u64::from(self.sample_ms) * u64::from(percent) + 50) / 100;
+		u32::try_from(ms).unwrap_or(u32::MAX).max(crate::FASTEST_MS)
 	}
 
 	/// A graph's width from its percentage of Width, rounded, and never 0.
@@ -1008,7 +1009,7 @@ mod tests {
 		assert_eq!(l.border_color, Rgb(0x8b, 0x8b, 0x8b));
 		assert_eq!(l.top, Rgb(0x31, 0x31, 0x31));
 		assert_eq!(l.bottom, Rgb(0, 0, 0));
-		assert_eq!((l.width, l.sample_ms, l.border), (128, 500, 1));
+		assert_eq!((l.width, l.sample_ms, l.border), (128, 1000, 1));
 		assert_eq!(l.time, Timing::Log(Curve::Smooth));
 		assert_eq!(l.spikes, 0.5);
 		assert_eq!(l.hover, Rgb(0, 0, 0));
@@ -1640,29 +1641,34 @@ mod tests {
 	#[test]
 	fn each_graph_has_a_sample_rate_and_old_files_keep_the_default() {
 		let d = Look::default();
-		assert_eq!((d.cpu_sample_ms, d.battery_sample_ms), (0, 0));
-		assert_eq!(d.rate(d.cpu_sample_ms), 500);
+		assert_eq!((d.cpu_sample, d.battery_sample), (100, 100));
+		assert_eq!(d.rate(d.cpu_sample), 1000);
 		let l = Look::from_model(&model(
-			"graph:\n\tsample_ms: 1000\ncpu:\n\tsample_ms: 250\nmem:\n\tsample_ms: 20\n",
+			"graph:\n\tsample_ms: 400\ncpu:\n\tsample: 250\nmem:\n\tsample: 5\nswap:\n\tsample: 33\n",
 		));
-		assert_eq!((l.cpu_sample_ms, l.mem_sample_ms), (250, 20));
-		assert_eq!(l.rate(l.cpu_sample_ms), 250);
-		assert_eq!(l.rate(l.mem_sample_ms), crate::FASTEST_MS);
+		assert_eq!((l.cpu_sample, l.mem_sample), (250, 5));
+		// a percentage of Sample ms default, rounded, and never under 50 ms
+		assert_eq!(l.rate(l.cpu_sample), 1000);
+		assert_eq!(l.rate(l.mem_sample), crate::FASTEST_MS);
+		assert_eq!(l.rate(l.swap_sample), 132);
 		// a file from before has none, and Sample ms default rules
-		assert_eq!(l.rate(l.net_sample_ms), 1000);
+		assert_eq!(l.rate(l.net_sample), 400);
+		// nor does the ms a graph had before it took a percentage
+		let old = Look::from_model(&model("cpu:\n\tsample_ms: 250\n"));
+		assert_eq!(old.rate(old.cpu_sample), 1000);
 		let spec = spec();
 		for g in [
 			"cpu", "mem", "net", "swap", "zswap", "load", "disk", "temp", "battery", "self",
 		] {
-			let id = format!("{g}_sample_ms");
+			let id = format!("{g}_sample");
 			let Some(s) = spec.get(&id) else {
 				panic!("no {id} in settings.shcl");
 			};
-			// set while its graph is off, and 0 is Default
+			// set while its graph is off, and 100 is Sample ms default
 			assert_eq!(s.gate, None);
-			assert_eq!(s.default.as_f64(), 0.0);
-			assert_eq!((s.min, s.max), (0.0, 60000.0));
-			assert_eq!(s.path, format!("{g}.sample_ms"));
+			assert_eq!(s.default.as_f64(), 100.0);
+			assert_eq!((s.min, s.max), (1.0, 1000.0));
+			assert_eq!(s.path, format!("{g}.sample"));
 		}
 	}
 
@@ -1892,7 +1898,7 @@ mod tests {
 		let text = "graph:\n\twidth: 200\n\tsample_ms: 99999\ncpu:\n\tcolors:\n\t\tuser: \"#123456\"\n\t\tnice: red\n";
 		let l = Look::from_model(&Model::load(spec(), text, ""));
 		assert_eq!(l.width, 200);
-		assert_eq!(l.sample_ms, 500);
+		assert_eq!(l.sample_ms, 1000);
 		assert_eq!(l.cpu[2], Rgb(0x12, 0x34, 0x56));
 		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x40));
 	}

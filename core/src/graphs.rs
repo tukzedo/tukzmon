@@ -765,7 +765,8 @@ mod tests {
 	#[test]
 	fn each_shown_graph_reads_at_its_own_rate_on_one_timer() {
 		let mut g = Graphs::new(Look {
-			mem_sample_ms: 1000,
+			sample_ms: 500,
+			mem_sample: 200,
 			..two()
 		});
 		let beats = |g: &Graphs| {
@@ -786,7 +787,8 @@ mod tests {
 		g.set_look(
 			Look {
 				show_cpu: false,
-				mem_sample_ms: 1000,
+				sample_ms: 500,
+				mem_sample: 200,
 				..two()
 			},
 			None,
@@ -1152,7 +1154,7 @@ mod tests {
 		use crate::axis::{Axis, Curve, Timing};
 		let mut g = both();
 		let total = 60.0;
-		let linear = Axis::linear(100.0 * 0.5);
+		let linear = Axis::linear(100.0 * 1.0);
 		let axes = |g: &Graphs| (g.cpu.axis(100), g.mem.as_ref().unwrap().axis(100));
 		assert_eq!(
 			axes(&g),
