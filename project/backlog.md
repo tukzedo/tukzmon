@@ -367,6 +367,19 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Split into 6 children, in this order: 2026102409400679 (theme presets and Default), 2026102409400684 (Themes tab and its top row), 2026102409400689 (color picker), 2026102409400695 (Gradient mode and Fire), 2026102409400700 (Randomize), and 2026102409400705 (transparent background).
 
+- Pre-next-cut: tukzmon's own CPU graph reads too high
+	- ID: 2026102819172002
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-191720
+	- Opened by: t00mietum
+	- Related IDs: 2026102814061811
+	- Requirements:
+		- Tukzmon CPU usage monitor shows too high. Graphically looks ~25%. Should be displayed as over all cores, not one.
+	- Progress log:
+		- The value is already a share of all CPUs. The graph's top never goes under 1% of one CPU (`OwnReader::peak_floor`), so its usual few tenths of that read at about 25% to half height. A floor of 100% of all CPUs, as the CPU graph has, would match what's asked. That touches the design.md line on the tukzmon graph's floor, the `self.show` tip in `settings.shcl`, and tests dej0t and the lib.rs tip test.
+
 - Graph sizes on a vertical panel
 	- ID: 2026102621105420
 	- Type: Enhancement
