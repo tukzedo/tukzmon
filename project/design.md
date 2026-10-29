@@ -206,11 +206,12 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - Each graph's section has its Background on the right: Border, Top and Bottom, at `cpu.colors.border`, `.top` and `.bottom` for the CPU graph, and the same under each graph's own section. They're in the `theme` group, so each theme gives every graph its own. The plot blends from Top down to Bottom, inside the border.
 	- In every built-in, each graph has the colors the theme had for all of them, so a built-in looks as it did.
-	- The Outline sub-tab has one Border, Top and Bottom too, at `graph.colors.border`, `.top` and `.bottom`. One border for every graph, at `graph.overrides.border`, puts its Border over every graph's own, and One background for every graph, at `graph.overrides.background`, does the same for Top and Bottom. Both are off in every built-in, and in the `theme` group, so a theme sets them and a saved one keeps them.
+	- The Outline sub-tab has one Border, Top and Bottom too, at `graph.overrides.colors.border`, `.top` and `.bottom`. One border for every graph, at `graph.overrides.border`, puts its Border over every graph's own, and One background for every graph, at `graph.overrides.background`, does the same for Top and Bottom. Both are off in every built-in, and in the `theme` group, so a theme sets them and a saved one keeps them.
 		- Their colors are greyed while the box over them is off, since they draw nothing then. Picking one of them ticks its box.
 		- Randomize rolls the colors and leaves the 2 boxes as they were.
 		- `Look::from_model` is the one place they apply, so each graph's `Outline` is already the one to draw.
 	- A file or a saved theme from before each graph had its own, that set the shared ones, gives every graph those where it has none of its own, so it keeps its look. The next save writes them per graph.
+		- A file from then is told by the old paths, `graph.colors.border`, `.top` and `.bottom`, which a load moves to the new ones. A save leaves out a graph's colors when they're its theme's, so a missing one can't tell an old file from a new one. A saved theme is written whole, so a missing one there does.
 
 - Saved themes are kept whole in the config file, under `themes.<key>`, with a `name` and every color and mode by its setting id, the same shape as a built-in in settings.shcl. The dropdown lists them after the built-ins, and before Custom.
 	- They join the `theme` group as presets on a copy of the spec, through knobs' `Spec::finish`. The plugin reads them the same way, so knobs is unchanged.

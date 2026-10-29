@@ -390,25 +390,60 @@ fn shared_of(id: &str) -> Option<&'static str> {
 		.map(|(shared, _)| shared)
 }
 
-// Each graph got its own border and background after the shared ones, so a
-// file that set only those keeps its look.
-fn outlines_follow_shared(values: &mut BTreeMap<String, knobs::Value>) {
-	for (shared, own) in outline_pairs() {
-		if values.contains_key(&own) {
-			continue;
-		}
-		if let Some(v) = values.get(shared).cloned() {
-			values.insert(own, v);
+// Where the Outline sub-tab's colors were kept before each graph had its own.
+const OLD_SHARED: [(&str, &str); 3] = [
+	("graph.colors.border", "border_color"),
+	("graph.colors.top", "back_top"),
+	("graph.colors.bottom", "back_bottom"),
+];
+
+/// A config file path from an older layout, which [`model_on`] moves.
+pub fn moved_path(path: &str) -> bool {
+	OLD_SHARED.iter().any(|(old, _)| *old == path)
+}
+
+// A file from before each graph had its own border and background gives every
+// graph the shared ones, so it keeps its look. The old paths are how it's told
+// apart: a save leaves out a graph's colors when they're its theme's, so a
+// missing one says nothing. 2026102820512294.
+fn upgraded(doc: &shcl::Document) -> Option<shcl::Document> {
+	let bases = [String::new(), format!("kept.changes.{THEME}.values.")];
+	let old_at = |base: &String| OLD_SHARED.map(|(old, shared)| (format!("{base}{old}"), shared));
+	if !bases.iter().flat_map(old_at).any(|(at, _)| doc.exists(&at)) {
+		return None;
+	}
+	let spec = spec();
+	let mut out = doc.clone();
+	for base in &bases {
+		for (at, shared) in old_at(base) {
+			let Ok(v) = doc.get_string(&at) else {
+				continue;
+			};
+			let ids = std::iter::once(shared.to_string()).chain(
+				outline_pairs()
+					.filter(|(s, _)| *s == shared)
+					.map(|(_, own)| own),
+			);
+			for id in ids {
+				let Some(s) = spec.get(&id) else {
+					continue;
+				};
+				let path = format!("{base}{}", s.path);
+				if !out.exists(&path) {
+					let _ = out.set_string(&path, &v);
+				}
+			}
+			out.remove(&at);
 		}
 	}
+	Some(out)
 }
 
 /// A parsed config file as a model on `spec`, with [`unthemed_is_custom`]
 /// applied.
 pub fn model_on(spec: Arc<Spec>, doc: &shcl::Document) -> Model {
-	let mut m = Model::load_docs(spec, doc, &shcl::Document::new());
-	outlines_follow_shared(&mut m.values.own);
-	outlines_follow_shared(&mut m.values.changes);
+	let up = upgraded(doc);
+	let mut m = Model::load_docs(spec, up.as_ref().unwrap_or(doc), &shcl::Document::new());
 	unthemed_is_custom(&mut m);
 	m
 }
@@ -1172,7 +1207,7 @@ mod tests {
 			Some("back_all")
 		);
 		let mine = "cpu:\n\tcolors:\n\t\tborder: \"#aa0000\"\n\t\ttop: \"#00aa00\"\n\t\tbottom: \"#0000aa\"\n\
-			graph:\n\tcolors:\n\t\tborder: \"#111111\"\n\t\ttop: \"#222222\"\n\t\tbottom: \"#333333\"\n";
+			graph:\n\toverrides:\n\t\tcolors:\n\t\t\tborder: \"#111111\"\n\t\t\ttop: \"#222222\"\n\t\t\tbottom: \"#333333\"\n";
 		let own = Outline {
 			border: Rgb(0xaa, 0, 0),
 			top: Rgb(0, 0xaa, 0),
@@ -1183,11 +1218,11 @@ mod tests {
 			top: Rgb(0x22, 0x22, 0x22),
 			bottom: Rgb(0x33, 0x33, 0x33),
 		};
+		let grey = Look::default().mem_outline;
 		let l = Look::from_model(&model(mine));
-		assert_eq!((l.cpu_outline, l.mem_outline), (own, shared));
+		assert_eq!((l.cpu_outline, l.mem_outline), (own, grey));
 		let ticked = |border: bool, back: bool| {
-			let text =
-				format!("{mine}\toverrides:\n\t\tborder: {border}\n\t\tbackground: {back}\n");
+			let text = format!("{mine}\t\tborder: {border}\n\t\tbackground: {back}\n");
 			Look::from_model(&model(&text))
 		};
 		let l = ticked(true, false);

@@ -111,6 +111,7 @@ fn would_lose(spec: &Spec, text: &str) -> Vec<String> {
 			|| p.starts_with("kept.")
 			|| p == config::THEMES
 			|| p.starts_with("themes.")
+			|| config::moved_path(&p)
 			|| spec.settings.iter().any(|s| {
 				s.control != Control::Heading
 					&& (s.path == p
@@ -1258,6 +1259,63 @@ mod tests {
 		// a theme pick takes the theme's, which is off
 		assert!(dlg.set_text("theme", "fire"));
 		assert_eq!(dlg.state("back_all").text, "off");
+	}
+
+	// Test ID: dejng
+	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
+	fn unticked_overrides_give_every_graph_its_own_back_after_a_reload() {
+		let d = scratch("untick");
+		let grey = config::Look::default().mem_outline;
+		let mine = config::Rgb(0xaa, 0, 0);
+		// Default keeps a change, Custom its own set
+		for (n, start) in ["theme:\n\tname: default\n", ""].into_iter().enumerate() {
+			let path = d.0.join(format!("t{n}.shcl"));
+			std::fs::write(&path, start).unwrap();
+			let mut dlg = Dialog::open(path.clone());
+			assert!(dlg.set_text("border_color", "#123456"));
+			assert!(dlg.set_text("back_top", "#654321"));
+			assert!(dlg.set_text("cpu_border_color", "#aa0000"));
+			dlg.apply().unwrap();
+			let l = config::Look::load(&path);
+			assert_eq!(l.mem_outline.border, config::Rgb(0x12, 0x34, 0x56), "{n}");
+			assert_eq!(l.cpu_outline.border, config::Rgb(0x12, 0x34, 0x56), "{n}");
+			assert_eq!(l.self_outline.top, config::Rgb(0x65, 0x43, 0x21), "{n}");
+			assert!(dlg.set_text("border_all", "off"));
+			assert!(dlg.set_text("back_all", "off"));
+			dlg.apply().unwrap();
+			let l = config::Look::load(&path);
+			assert_eq!(
+				l.cpu_outline,
+				config::Outline {
+					border: mine,
+					..grey
+				},
+				"{n}"
+			);
+			assert_eq!([l.mem_outline, l.self_outline], [grey; 2], "{n}");
+			// and again through a window opened on that file
+			let mut dlg = Dialog::open(path.clone());
+			assert_eq!(dlg.state("border_color").text, "#123456", "{n}");
+			assert!(dlg.set_text("border", "2"));
+			dlg.apply().unwrap();
+			let l = config::Look::load(&path);
+			assert_eq!([l.mem_outline, l.disk_outline], [grey; 2], "{n}");
+			assert_eq!(l.cpu_outline.border, mine, "{n}");
+		}
+		// a file from before each graph had its own still saves, and keeps its look
+		let path = d.0.join("old.shcl");
+		std::fs::write(&path, "graph:\n\tcolors:\n\t\tborder: \"#123456\"\n").unwrap();
+		let mut dlg = Dialog::open(path.clone());
+		assert!(dlg.set_text("border", "2"));
+		dlg.apply().unwrap();
+		let text = std::fs::read_to_string(&path).unwrap();
+		let doc = shcl::Document::parse(&text);
+		assert!(!doc.exists("graph.colors.border"), "{text}");
+		assert!(doc.exists("graph.overrides.colors.border"), "{text}");
+		let l = config::Look::load(&path);
+		assert_eq!(l.net_outline.border, config::Rgb(0x12, 0x34, 0x56));
+		assert_eq!(l.border_color, config::Rgb(0x12, 0x34, 0x56));
 	}
 
 	// Test ID: dejjv

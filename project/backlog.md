@@ -155,9 +155,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Outline, background and transparent overrides on the Outline tab
 	- ID: 2026102819315837
 	- Type: Enhancement
-	- Status: Stalled
+	- Status: Waiting on UAT
 		- Stand-in, 2026-10-28, round-1028b at 84b61ad: on a test panel, both boxes ticked put the shared border and background over every graph, CPU's own included. Unticked, CPU's own came back, but the other 8 graphs kept the shared colors.
-		- Held for Bug 2026102820512294, those graphs keeping the shared colors. The look is left for a person after that.
+		- 2026-10-28: since Bug 2026102820512294, unticked gives every graph its own back, across a save and reload (dejng). The look is left for a person.
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Needs hand testing: on b23, after an install, give one graph its own Border, Top and Bottom, then tick One border for every graph and One background for every graph on Themes/Outline, Apply, and judge the panel. Untick them and check that graph's own colors come back.
 	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row.
@@ -226,24 +226,6 @@ Sorted per the notes in [Template](#template).
 		- Global setting to make background transparent, which overrides all background colors.
 	- Progress log:
 		- Split into 6 children, in this order: 2026102409400679 (theme presets and Default), 2026102409400684 (Themes tab and its top row), 2026102409400689 (color picker), 2026102409400695 (Gradient mode and Fire), 2026102409400700 (Randomize), and 2026102409400705 (transparent background).
-
-- Unticking the Outline tab's overrides leaves the shared colors on the other graphs
-	- ID: 2026102820512294
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-205122
-	- Opened by: t00mietum
-	- Parent ID: 2026102819315837
-	- Related IDs: 2026102819315170
-	- Steps to reproduce:
-		- On Themes/Outline, pick a Border under One border for every graph, which ticks its box, and Apply.
-		- Untick One border for every graph, and Apply.
-	- Incorrect behavior: every graph with no border of its own keeps the shared one. Only a graph given its own gets it back. The background does the same.
-	- Expected behavior: unticked, every graph draws its own border and background.
-	- Reproduced: 2026-10-28, round-1028b at 84b61ad, on a test panel, from a file with both boxes off, the shared colors set, and CPU's own colors set. CPU drew its own, and the other 8 graphs the shared ones.
-	- Possible cause: `outlines_follow_shared` in `core/src/config.rs` gives every graph with no value of its own the shared one when a file loads, whatever the 2 boxes say. It's there for files from before each graph had its own (2026102819315170). A save leaves out values at their defaults, so a graph at Default's colors reads as one with none.
-	- Test case: none yet.
 
 - Pre-next-cut: One tab for global outline-related settings
 	- ID: 2026102807585020
@@ -352,6 +334,45 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Unticking the Outline tab's overrides leaves the shared colors on the other graphs
+	- ID: 2026102820512294
+	- Type: Bug
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Priority|Severity: Avg
+	- Opened: 20261028-205122
+	- Opened by: t00mietum
+	- Parent ID: 2026102819315837
+	- Related IDs: 2026102819315170
+	- Steps to reproduce:
+		- On Themes/Outline, pick a Border under One border for every graph, which ticks its box, and Apply.
+		- Untick One border for every graph, and Apply.
+	- Incorrect behavior: every graph with no border of its own keeps the shared one. Only a graph given its own gets it back. The background does the same.
+	- Expected behavior: unticked, every graph draws its own border and background.
+	- Reproduced: 2026-10-28, round-1028b at 84b61ad, on a test panel, from a file with both boxes off, the shared colors set, and CPU's own colors set. CPU drew its own, and the other 8 graphs the shared ones.
+	- Possible cause: `outlines_follow_shared` in `core/src/config.rs` gives every graph with no value of its own the shared one when a file loads, whatever the 2 boxes say. It's there for files from before each graph had its own (2026102819315170). A save leaves out values at their defaults, so a graph at Default's colors reads as one with none.
+	- Actual cause: as above. A save also leaves out a box that's off, so a new file with both boxes off and the shared colors set read as one from before each graph had its own.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The shared Border, Top and Bottom are at `graph.overrides.colors.border`, `.top` and `.bottom` now, beside their boxes.
+		- Only a file with them at the old paths, `graph.colors.border`, `.top` and `.bottom`, gives every graph those. A load moves them to the new paths, so the next save writes the new layout.
+		- The window still saves a file with the old paths, rather than refusing it for lines it would drop.
+		- Saved themes read as before, since each is written whole.
+		- `design.md` Theme has the details.
+		- Verified: the full run passed with dejng.
+	- Decisions:
+		- The path the shared colors are at tells an old file from a new one. A version line would be a second fact to keep in step. No build that wrote per-graph colors was installed, so no file has them beside the shared ones at the old paths.
+		- They sit under `graph.overrides` beside their boxes, as `colors.border`, `.top` and `.bottom`, the way each graph's are under `<graph>.colors`.
+		- An old file's shared colors still go to each graph, with the boxes left off, as 2026102819315170 decided. Ticking the boxes would keep the look too, but then each graph's sub-tab wouldn't show what it draws.
+	- Actual fix: `config::upgraded`, called by `model_on`, in place of `outlines_follow_shared`. `config::moved_path` names the old paths for the save's check.
+	- Branch: round-1028b
+	- Test case: `dialog::tests::unticked_overrides_give_every_graph_its_own_back_after_a_reload` (dejng), on Default and on Custom, through 2 saves and reloads, plus an old file saved once. It fails at 84b61ad, with CPU's top still the shared one after unticking, and passes now.
+		- 2026-10-28: new value only. dejky's file has the shared colors at the new paths, and with both boxes off its memory graph reads Default's grey, not the shared colors. The old-file cases stay in dejkg.
+		- Swept: every `model_on` caller (`Dialog::open`, `Dialog::apply`, `config::model`, so `Look::load` in the plugin and `preview.rs`), `would_lose`, `saved_themes` and its `shared_of` fallback, both the own and the `kept.changes` stores, and every doc and test naming `graph.colors.border`, `.top` or `.bottom`.
+	- Acceptance signoff: Self-closed 20261028: dejng and the full run.
+	- Closed: 20261028-210400
 
 - Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
 	- ID: 2026102620162196

@@ -1683,7 +1683,7 @@ settings:
 		label: Border
 		tab: Themes/Outline
 		control: color
-		path: graph.colors.border
+		path: graph.overrides.colors.border
 		default: "#8b8b8b"
 		group: theme
 		gate: border_all
@@ -1701,7 +1701,7 @@ settings:
 		label: Top
 		tab: Themes/Outline
 		control: color
-		path: graph.colors.top
+		path: graph.overrides.colors.top
 		default: "#313131"
 		group: theme
 		gate: back_all
@@ -1710,7 +1710,7 @@ settings:
 		label: Bottom
 		tab: Themes/Outline
 		control: color
-		path: graph.colors.bottom
+		path: graph.overrides.colors.bottom
 		default: "#000000"
 		group: theme
 		gate: back_all
