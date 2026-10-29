@@ -25,15 +25,38 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Every graph's colors on one scrolling tab
 	- ID: 2026102819315852
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- Whether the Colors tab reads well with 10 sections, and at what window size, is for a person to judge.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Needs hand testing: on b23, after an install, open Settings, pick Themes/Colors, scroll through every graph's section, move a graph in the graph list and see its section move, then judge the layout.
 	- Priority|Severity: Avg
 	- Opened: 20261028-193158
 	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
 	- Parent ID: 2026102807585010
 	- Prereq IDs: 2026102819315170
 	- Related IDs: 2026102620162200
 	- Requirements:
 		- One tab with a section per graph, in the graph order, its mode and main colors on the left and its background and outline colors to the right. A vertical scrollbar when it runs past the window.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Themes now has 2 sub-tabs, Colors and Outline. Colors has a section per graph, under its name, in the graph order. A section moves as soon as its graph is moved in the graph list.
+		- In each section the mode and main colors are on the left, and Background, with Border, Top and Bottom, is on the right. The page scrolls past the window.
+		- The setting ids and paths are unchanged, so files and saved themes read as before.
+		- `design.md` Settings window and Theme have the details.
+		- Verified: the full run passed with the 2 new tests. The window showed CPU, Memory and Network sections with their Background beside them, and the labels and colors lined up from one section to the next.
+	- Decisions:
+		- The tab is Colors, under Themes, with Outline staying its own sub-tab, since the margins and shared colors aren't any one graph's. Themes still shows its first sub-tab, so 2026102819145601 works on the same tab list.
+		- The sections are laid out from the spec: `graph: name` on a heading starts a graph's section, and `beside: true` on a heading puts it and the rest of its section on the right. Moving a graph's rows to another column or adding a graph needs no change in qt.cpp.
+		- The sub-headings drop the graph's name, such as "From the bottom up" for "CPU, from the bottom up", since the section's heading gives it.
+		- The page asks for at most 2/3 of the screen's height. Without the cap the window opened as tall as the screen. The other tabs keep their own heights.
+		- Labels get one width per side across all sections, so the colors sit in one column down the page.
+		- `Dialog::tab_order` and the tab list reorder went, since no tab follows the graph order now. `Dialog::section_order` replaces them.
+	- Branch: round-1028b
+	- Test case: `dialog::tests::every_graphs_colors_are_its_own_section_with_the_background_beside` (dejma) and `bridge::tests::the_sections_follow_a_move_with_the_background_on_the_right` (dejmb). dejma fails with a `beside: true` dropped from the spec, and dejmb with the sections left in place after a move or every row put on the left. Both pass now.
+		- 2026-10-28: dee9q names the Colors and Outline sub-tabs, not CPU, Memory and Outline. dejac and dejad checked that a graph's sub-tab moved with the graph, and now check the same of its section, as `the_graph_sections_follow_the_graph_order_and_the_tabs_stay_put` and `a_moved_graph_moves_its_section_and_the_picked_tab_stays_picked`, with their IDs kept.
+		- Swept: every `tab_order` caller (qt.cpp's tab list, dejac, dejad), every test naming a graph's sub-tab (dee9q, defwx), the `--snapshot` loop, which gives one picture for Colors, and the docs naming a graph's sub-tab.
 
 - Pre-next-cut: Outline, background and transparent overrides on the Outline tab
 	- ID: 2026102819315837

@@ -33,6 +33,10 @@ pub mod ffi {
 		options: Vec<String>,
 		option_labels: Vec<String>,
 		indent: i32,
+		/// The graph whose section it's in, or "" outside one.
+		section: String,
+		/// It sits to the right of the rest of its section.
+		beside: bool,
 		/// It picks a theme, so the theme buttons go beside it.
 		chooser: bool,
 		/// The graph list draws it, so it gets no row of its own.
@@ -105,7 +109,7 @@ pub mod ffi {
 		fn pick_close(d: &mut Dialog, keep: bool);
 		fn graph_rows(d: &Dialog) -> Vec<GraphRow>;
 		fn move_graph(d: &mut Dialog, from: usize, to: usize) -> bool;
-		fn tab_order(d: &Dialog) -> Vec<usize>;
+		fn section_order(d: &Dialog) -> Vec<String>;
 		fn reset_history(d: &Dialog) -> String;
 		fn reset_deletes_saved(d: &Dialog) -> bool;
 
@@ -154,6 +158,11 @@ pub mod ffi {
 		/// does.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn tabs_after_move(d: &mut Dialog, pick: &str, from: usize, to: usize) -> Vec<TabShown>;
+		/// Moves graph list row `from` to `to`, and gives each section on its
+		/// page from the top, as "name left right": the right edge of what's
+		/// in its left column, and the left edge of what's beside it.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn sections_after_move(d: &mut Dialog, from: usize, to: usize) -> Vec<String>;
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn bottom_buttons(d: &mut Dialog) -> Vec<String>;
 		/// Whether Apply is on before and after typing into the first color
@@ -187,8 +196,9 @@ fn dialog_rows(d: &Dialog) -> Vec<ffi::RowInfo> {
 	d.spec()
 		.settings
 		.iter()
-		.filter(|s| s.control != Control::None)
-		.map(|s| ffi::RowInfo {
+		.zip(d.sections())
+		.filter(|(s, _)| s.control != Control::None)
+		.map(|(s, section)| ffi::RowInfo {
 			id: s.id.clone(),
 			label: s.label.clone(),
 			tab: s.tab as i32,
@@ -205,6 +215,8 @@ fn dialog_rows(d: &Dialog) -> Vec<ffi::RowInfo> {
 			options: s.options.iter().map(|(k, _)| k.clone()).collect(),
 			option_labels: s.options.iter().map(|(_, l)| l.clone()).collect(),
 			indent: s.indent as i32,
+			section: section.map_or_else(String::new, |(g, _)| g.to_string()),
+			beside: section.is_some_and(|(_, b)| b),
 			chooser: d.spec().chooser_of(&s.id).is_some(),
 			in_list: d.in_graph_list(&s.id),
 		})
@@ -334,8 +346,8 @@ fn move_graph(d: &mut Dialog, from: usize, to: usize) -> bool {
 	d.move_graph(from, to)
 }
 
-fn tab_order(d: &Dialog) -> Vec<usize> {
-	d.tab_order()
+fn section_order(d: &Dialog) -> Vec<String> {
+	d.section_order()
 }
 
 fn reset_history(d: &Dialog) -> String {
@@ -619,7 +631,7 @@ mod tests {
 			.iter()
 			.map(|&t| tabs[t as usize].label.as_str())
 			.collect();
-		for want in ["CPU", "Memory", "Outline"] {
+		for want in ["Colors", "Outline"] {
 			assert!(names.contains(&want), "{names:?}");
 		}
 		let tab_of = |id: &str| rows.iter().find(|r| r.id == id).unwrap().tab;
@@ -705,7 +717,7 @@ mod tests {
 	// Test ID: dejad
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn a_moved_graph_moves_its_tab_and_the_picked_tab_stays_picked() {
+	fn a_moved_graph_moves_its_section_and_the_picked_tab_stays_picked() {
 		let _qt = qt_turn();
 		let path = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_tab_move_never_written.shcl",
@@ -714,24 +726,41 @@ mod tests {
 		let mut d = Dialog::open(path);
 		let tabs = dialog_tabs(&d);
 		let last = graph_rows(&d).len() - 1;
-		let shown = ffi::tabs_after_move(&mut d, "Memory", last, 0);
-		assert_eq!(shown[0].label.trim_start(), "Memory");
+		let shown = ffi::tabs_after_move(&mut d, "Colors", last, 0);
+		assert_eq!(shown[0].label.trim_start(), "Colors");
 		let lines: Vec<&str> = shown[1..].iter().map(|t| t.label.trim_start()).collect();
+		let want: Vec<&str> = tabs.iter().map(|t| t.label.as_str()).collect();
+		assert_eq!(lines, want);
 		let at = |name: &str| lines.iter().position(|l| *l == name).unwrap();
-		let model: Vec<&str> = d
-			.tab_order()
+		assert_eq!(shown[0].rows, shown[1 + at("Colors")].rows);
+		// Themes on its own shows the first tab under it
+		assert_eq!(shown[1 + at("Themes")].rows, shown[1 + at("Colors")].rows);
+	}
+
+	// Test ID: dejmb
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn the_sections_follow_a_move_with_the_background_on_the_right() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_sections_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let last = graph_rows(&d).len() - 1;
+		let placed = ffi::sections_after_move(&mut d, last, 0);
+		let names: Vec<&str> = placed
 			.iter()
-			.map(|&t| tabs[t].label.as_str())
+			.map(|p| p.split(' ').next().unwrap())
 			.collect();
-		assert_eq!(lines, model);
-		assert_eq!(at("tukzmon") + 1, at("CPU"));
-		assert_eq!(at("Themes") + 1, at("tukzmon"));
-		assert_eq!(lines.last(), Some(&"Outline"));
-		assert_eq!(lines.len(), tabs.len());
-		assert_eq!(shown[0].rows, shown[1 + at("Memory")].rows);
-		// Themes on its own shows the first tab under it, as listed now
-		assert_eq!(shown[1 + at("Themes")].rows, shown[1 + at("tukzmon")].rows);
-		assert_ne!(shown[1 + at("Themes")].rows, shown[1 + at("CPU")].rows);
+		let want = d.section_order();
+		assert_eq!(names, want);
+		assert_eq!(names[0], "self");
+		for p in &placed {
+			let v: Vec<i64> = p.split(' ').skip(1).map(|n| n.parse().unwrap()).collect();
+			// what's beside starts right of where the main colors end
+			assert!(v[0] > 0 && v[1] > v[0], "{p}");
+		}
 	}
 
 	// Test ID: defwy

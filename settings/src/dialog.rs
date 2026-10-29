@@ -517,25 +517,42 @@ impl Dialog {
 			.collect()
 	}
 
-	/// The spec's tabs as the tab list shows them. A graph's tab, the one with
-	/// its mode, follows the graph order, in the places graph tabs have in the
-	/// spec, so the tabs that aren't a graph's, such as Outline, stay put.
-	pub fn tab_order(&self) -> Vec<usize> {
-		let graph_tabs: Vec<usize> = self
-			.graph_rows()
+	/// Per spec row, the graph whose section it's in, from that section's
+	/// `graph:` heading to the next one or the end of its tab, and whether it
+	/// sits beside the rest, from a `beside: true` heading on.
+	pub fn sections(&self) -> Vec<Option<(&'static str, bool)>> {
+		let mut now: Option<(&'static str, usize, bool)> = None;
+		self.spec
+			.settings
 			.iter()
-			.filter_map(|r| Some(self.spec.get(self.id_at(&format!("{}.mode", r.name))?)?.tab))
+			.map(|s| {
+				if let Some(graph) = config::section_graph(&s.id) {
+					now = Some((graph, s.tab, false));
+				} else if now.is_some_and(|(_, tab, _)| tab != s.tab) {
+					now = None;
+				}
+				if let Some(n) = now.as_mut() {
+					n.2 |= config::beside(&s.id);
+				}
+				now.map(|(graph, _, beside)| (graph, beside))
+			})
+			.collect()
+	}
+
+	/// The graphs with a section, in the graph order, which is how they're
+	/// listed on their tab.
+	pub fn section_order(&self) -> Vec<String> {
+		let have: Vec<&str> = self
+			.sections()
+			.into_iter()
+			.flatten()
+			.map(|(g, _)| g)
 			.collect();
-		let mut order: Vec<usize> = (0..self.spec.tabs.len()).collect();
-		let places: Vec<usize> = order
-			.iter()
-			.copied()
-			.filter(|t| graph_tabs.contains(t))
-			.collect();
-		for (at, tab) in places.into_iter().zip(graph_tabs) {
-			order[at] = tab;
-		}
-		order
+		self.graph_rows()
+			.into_iter()
+			.map(|r| r.name)
+			.filter(|n| have.contains(&n.as_str()))
+			.collect()
 	}
 
 	/// Drawn in the graph list rather than as a row of its own, the order
@@ -779,18 +796,28 @@ mod tests {
 
 	// Test ID: dejac
 	#[test]
-	fn the_graph_tabs_follow_the_graph_order_and_background_stays_last() {
+	fn the_graph_sections_follow_the_graph_order_and_the_tabs_stay_put() {
 		let d = scratch("tab_order");
 		let mut dlg = Dialog::open(d.0.join("t.shcl"));
+		let tabs: Vec<String> = dlg.spec.tabs.iter().map(|t| t.label.clone()).collect();
+		assert_eq!(tabs, ["Graph", "Themes", "Colors", "Outline"]);
+		// each section by its heading, as the window shows it
 		let labels = |dlg: &Dialog| -> Vec<String> {
-			dlg.tab_order()
+			dlg.section_order()
 				.iter()
-				.map(|&t| dlg.spec.tabs[t].label.clone())
+				.map(|g| {
+					let head = dlg
+						.spec
+						.settings
+						.iter()
+						.find(|s| config::section_graph(&s.id) == Some(g.as_str()));
+					head.unwrap_or_else(|| panic!("{g} has no heading"))
+						.label
+						.clone()
+				})
 				.collect()
 		};
-		let spec_order: Vec<usize> = (0..dlg.spec.tabs.len()).collect();
 		// the spec lists them in the default graph order
-		assert_eq!(dlg.tab_order(), spec_order);
 		let graphs = [
 			"CPU",
 			"Memory",
@@ -803,15 +830,7 @@ mod tests {
 			"Battery",
 			"tukzmon",
 		];
-		let with = |graphs: &[&str]| -> Vec<String> {
-			["Graph", "Themes"]
-				.iter()
-				.chain(graphs)
-				.chain(&["Outline"])
-				.map(|s| (*s).to_string())
-				.collect()
-		};
-		assert_eq!(labels(&dlg), with(&graphs));
+		assert_eq!(labels(&dlg), graphs);
 		let last = dlg.graph_rows().len() - 1;
 		assert!(dlg.move_graph(last, 0));
 		assert!(dlg.move_graph(2, 4));
@@ -827,9 +846,89 @@ mod tests {
 			"Load",
 			"Battery",
 		];
-		assert_eq!(labels(&dlg), with(&moved));
+		assert_eq!(labels(&dlg), moved);
+		assert_eq!(
+			dlg.spec
+				.tabs
+				.iter()
+				.map(|t| t.label.clone())
+				.collect::<Vec<_>>(),
+			tabs
+		);
 		dlg.reset(ORDER);
-		assert_eq!(dlg.tab_order(), spec_order);
+		assert_eq!(labels(&dlg), graphs);
+	}
+
+	// Test ID: dejma
+	#[test]
+	fn every_graphs_colors_are_its_own_section_with_the_background_beside() {
+		let d = scratch("sections");
+		let dlg = Dialog::open(d.0.join("t.shcl"));
+		let sections = dlg.sections();
+		let names: Vec<String> = dlg.graph_rows().into_iter().map(|r| r.name).collect();
+		assert_eq!(dlg.section_order(), names);
+		let colors = dlg
+			.spec
+			.tabs
+			.iter()
+			.position(|t| t.label == "Colors")
+			.unwrap();
+		for name in &names {
+			let mode = dlg.id_at(&format!("{name}.mode")).unwrap();
+			let mine: Vec<(&Setting, bool)> = dlg
+				.spec
+				.settings
+				.iter()
+				.zip(&sections)
+				.filter_map(|(s, at)| at.filter(|(g, _)| g == name).map(|(_, b)| (s, b)))
+				.collect();
+			// one run of rows, all on the one tab, and every one of them this graph's
+			let first = dlg
+				.spec
+				.settings
+				.iter()
+				.position(|s| s.id == mine[0].0.id)
+				.unwrap();
+			for (i, (s, _)) in mine.iter().enumerate() {
+				assert_eq!(dlg.spec.settings[first + i].id, s.id, "{name}");
+				assert_eq!(s.tab, colors, "{}", s.id);
+				assert!(
+					s.path.is_empty() || s.path.starts_with(&format!("{name}.")),
+					"{} in {name}",
+					s.id
+				);
+			}
+			let beside: Vec<&str> = mine
+				.iter()
+				.filter(|(_, b)| *b)
+				.map(|(s, _)| s.path.as_str())
+				.filter(|p| !p.is_empty())
+				.collect();
+			let want: Vec<String> = ["border", "top", "bottom"]
+				.iter()
+				.map(|c| format!("{name}.colors.{c}"))
+				.collect();
+			assert_eq!(beside, want, "{name}");
+			let left: Vec<&str> = mine
+				.iter()
+				.filter(|(_, b)| !*b)
+				.map(|(s, _)| s.id.as_str())
+				.collect();
+			assert!(left.contains(&mode), "{name}");
+			assert!(
+				left.iter().any(|id| dlg
+					.spec
+					.get(id)
+					.is_some_and(|s| s.control == Control::Color)),
+				"{name}"
+			);
+		}
+		// no graph's rows outside its section
+		for (s, at) in dlg.spec.settings.iter().zip(&sections) {
+			if s.tab == colors {
+				assert!(at.is_some(), "{} is in no section", s.id);
+			}
+		}
 	}
 
 	// Test ID: dedqr

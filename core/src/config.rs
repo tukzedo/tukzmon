@@ -77,6 +77,32 @@ pub fn shown_as_radio(id: &str) -> bool {
 		.any(|(k, v)| k == id && v == "radio")
 }
 
+/// The graph whose section a heading starts, from `graph: name`.
+pub fn section_graph(id: &str) -> Option<&'static str> {
+	static GRAPHS: OnceLock<Vec<(String, String)>> = OnceLock::new();
+	GRAPHS
+		.get_or_init(|| row_texts("graph"))
+		.iter()
+		.find(|(k, _)| k == id)
+		.map(|(_, g)| g.as_str())
+}
+
+/// Headings with `beside: true`, which sit with the rest of their section to
+/// the right of what's above them.
+pub fn beside(id: &str) -> bool {
+	static BESIDE: OnceLock<Vec<String>> = OnceLock::new();
+	BESIDE
+		.get_or_init(|| {
+			let doc = shcl::Document::parse(SPEC_TEXT);
+			doc.children("settings")
+				.into_iter()
+				.filter(|row| doc.get_bool_or(&format!("settings.{row}.beside"), false))
+				.collect()
+		})
+		.iter()
+		.any(|row| row == id)
+}
+
 /// The dropdown and key a row is shown for, from `shown_when: "id = key"`.
 /// knobs' gates only take a checkbox, so this is read here.
 pub fn shown_when(id: &str) -> Option<(&'static str, &'static str)> {

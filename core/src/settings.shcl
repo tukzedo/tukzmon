@@ -7,7 +7,10 @@
 ## slider_range is ours, not knobs'. It's how far a slider reaches, while
 ## range is what can be typed in the box beside it. shown_as: radio draws a
 ## dropdown as radio buttons, and shown_when: "id = key" shows a row only
-## while that dropdown is on that key. Those 2 are ours too.
+## while that dropdown is on that key. Those 2 are ours too, and so are the
+## 2 that lay out Themes/Colors: graph: name on a heading starts that graph's
+## section, which moves with the graph order, and beside: true on a heading
+## puts it and the rest of its section to the right of what's above it.
 ##
 ## A graph's row in the Graphs list comes from its show, width, sample_ms and
 ## time settings, in that order.
@@ -17,7 +20,7 @@
 ## graph's. A row's default is the Default theme's value, and config::tests
 ## holds the two to each other.
 
-tabs: "Graph", "Themes", "Themes/CPU", "Themes/Memory", "Themes/Network", "Themes/Disk", "Themes/Temperature", "Themes/Swap", "Themes/Zswap", "Themes/Load", "Themes/Battery", "Themes/tukzmon", "Themes/Outline"
+tabs: "Graph", "Themes", "Themes/Colors", "Themes/Outline"
 
 settings:
 
@@ -551,9 +554,15 @@ settings:
 		default: default
 		tip: "A set of colors for every graph and its background. A color changed below is kept on top of the theme, and the theme's name gets a * after it. Save as keeps the colors as a theme of your own."
 
+	CpuSection:
+		label: CPU
+		tab: Themes/Colors
+		control: heading
+		graph: cpu
+
 	cpu_mode:
 		label: Colors
-		tab: Themes/CPU
+		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
 		options: detailed, gradient
@@ -564,14 +573,14 @@ settings:
 		tip: "Detailed gives each kind of CPU time a color of its own. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
 	CpuHead:
-		label: "CPU, from the bottom up"
-		tab: Themes/CPU
+		label: "From the bottom up"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "cpu_mode = detailed"
 
 	iowait:
 		label: I/O wait
-		tab: Themes/CPU
+		tab: Themes/Colors
 		control: color
 		path: cpu.colors.iowait
 		default: "#ff0000"
@@ -580,7 +589,7 @@ settings:
 
 	system:
 		label: System
-		tab: Themes/CPU
+		tab: Themes/Colors
 		control: color
 		path: cpu.colors.system
 		default: "#fa72f0"
@@ -590,7 +599,7 @@ settings:
 
 	user:
 		label: User
-		tab: Themes/CPU
+		tab: Themes/Colors
 		control: color
 		path: cpu.colors.user
 		default: "#00ff80"
@@ -599,7 +608,7 @@ settings:
 
 	nice:
 		label: Nice
-		tab: Themes/CPU
+		tab: Themes/Colors
 		control: color
 		path: cpu.colors.nice
 		default: "#205f40"
@@ -608,14 +617,14 @@ settings:
 		tip: "Programs running at a lower priority."
 
 	CpuGradHead:
-		label: "CPU, by height"
-		tab: Themes/CPU
+		label: "By height"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "cpu_mode = gradient"
 
 	cpu_low:
 		label: Low
-		tab: Themes/CPU
+		tab: Themes/Colors
 		control: color
 		path: cpu.colors.low
 		default: "#205f40"
@@ -625,7 +634,7 @@ settings:
 
 	cpu_medium:
 		label: Medium
-		tab: Themes/CPU
+		tab: Themes/Colors
 		control: color
 		path: cpu.colors.medium
 		default: "#00ff80"
@@ -635,7 +644,7 @@ settings:
 
 	cpu_high:
 		label: High
-		tab: Themes/CPU
+		tab: Themes/Colors
 		control: color
 		path: cpu.colors.high
 		default: "#c0ffe0"
@@ -645,12 +654,13 @@ settings:
 
 	CpuBackHead:
 		label: Background
-		tab: Themes/CPU
+		tab: Themes/Colors
 		control: heading
+		beside: true
 
 	cpu_border_color:
 		label: Border
-		tab: Themes/CPU
+		tab: Themes/Colors
 		control: color
 		path: cpu.colors.border
 		default: "#8b8b8b"
@@ -658,7 +668,7 @@ settings:
 
 	cpu_back_top:
 		label: Top
-		tab: Themes/CPU
+		tab: Themes/Colors
 		control: color
 		path: cpu.colors.top
 		default: "#313131"
@@ -666,15 +676,21 @@ settings:
 
 	cpu_back_bottom:
 		label: Bottom
-		tab: Themes/CPU
+		tab: Themes/Colors
 		control: color
 		path: cpu.colors.bottom
 		default: "#000000"
 		group: theme
 
+	MemSection:
+		label: Memory
+		tab: Themes/Colors
+		control: heading
+		graph: mem
+
 	mem_mode:
 		label: Colors
-		tab: Themes/Memory
+		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
 		options: detailed, gradient
@@ -685,14 +701,14 @@ settings:
 		tip: "Detailed gives programs, buffers and cache a color each. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
 	MemHead:
-		label: "Memory, from the bottom up"
-		tab: Themes/Memory
+		label: "From the bottom up"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "mem_mode = detailed"
 
 	mem_user:
 		label: Programs
-		tab: Themes/Memory
+		tab: Themes/Colors
 		control: color
 		path: mem.colors.user
 		default: "#ffffa3"
@@ -702,7 +718,7 @@ settings:
 
 	mem_buffers:
 		label: Buffers
-		tab: Themes/Memory
+		tab: Themes/Colors
 		control: color
 		path: mem.colors.buffers
 		default: "#804080"
@@ -711,7 +727,7 @@ settings:
 
 	mem_cache:
 		label: Cache
-		tab: Themes/Memory
+		tab: Themes/Colors
 		control: color
 		path: mem.colors.cache
 		default: "#408060"
@@ -720,14 +736,14 @@ settings:
 		tip: "The page cache, which the kernel gives back when programs need it."
 
 	MemGradHead:
-		label: "Memory, by height"
-		tab: Themes/Memory
+		label: "By height"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "mem_mode = gradient"
 
 	mem_low:
 		label: Low
-		tab: Themes/Memory
+		tab: Themes/Colors
 		control: color
 		path: mem.colors.low
 		default: "#408060"
@@ -737,7 +753,7 @@ settings:
 
 	mem_medium:
 		label: Medium
-		tab: Themes/Memory
+		tab: Themes/Colors
 		control: color
 		path: mem.colors.medium
 		default: "#ffffa3"
@@ -747,7 +763,7 @@ settings:
 
 	mem_high:
 		label: High
-		tab: Themes/Memory
+		tab: Themes/Colors
 		control: color
 		path: mem.colors.high
 		default: "#ffffe0"
@@ -757,12 +773,13 @@ settings:
 
 	MemBackHead:
 		label: Background
-		tab: Themes/Memory
+		tab: Themes/Colors
 		control: heading
+		beside: true
 
 	mem_border_color:
 		label: Border
-		tab: Themes/Memory
+		tab: Themes/Colors
 		control: color
 		path: mem.colors.border
 		default: "#8b8b8b"
@@ -770,7 +787,7 @@ settings:
 
 	mem_back_top:
 		label: Top
-		tab: Themes/Memory
+		tab: Themes/Colors
 		control: color
 		path: mem.colors.top
 		default: "#313131"
@@ -778,15 +795,21 @@ settings:
 
 	mem_back_bottom:
 		label: Bottom
-		tab: Themes/Memory
+		tab: Themes/Colors
 		control: color
 		path: mem.colors.bottom
 		default: "#000000"
 		group: theme
 
+	NetSection:
+		label: Network
+		tab: Themes/Colors
+		control: heading
+		graph: net
+
 	net_mode:
 		label: Colors
-		tab: Themes/Network
+		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
 		options: detailed, gradient
@@ -797,14 +820,14 @@ settings:
 		tip: "Detailed gives local, sent and received a color each. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
 	NetHead:
-		label: "Network, from the bottom up"
-		tab: Themes/Network
+		label: "From the bottom up"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "net_mode = detailed"
 
 	net_local:
 		label: Local
-		tab: Themes/Network
+		tab: Themes/Colors
 		control: color
 		path: net.colors.local
 		default: "#ffed00"
@@ -814,7 +837,7 @@ settings:
 
 	net_sent:
 		label: Sent
-		tab: Themes/Network
+		tab: Themes/Colors
 		control: color
 		path: net.colors.sent
 		default: "#ff7777"
@@ -823,7 +846,7 @@ settings:
 
 	net_received:
 		label: Received
-		tab: Themes/Network
+		tab: Themes/Colors
 		control: color
 		path: net.colors.received
 		default: "#6ad4ff"
@@ -831,14 +854,14 @@ settings:
 		shown_when: "net_mode = detailed"
 
 	NetGradHead:
-		label: "Network, by height"
-		tab: Themes/Network
+		label: "By height"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "net_mode = gradient"
 
 	net_low:
 		label: Low
-		tab: Themes/Network
+		tab: Themes/Colors
 		control: color
 		path: net.colors.low
 		default: "#2a5566"
@@ -848,7 +871,7 @@ settings:
 
 	net_medium:
 		label: Medium
-		tab: Themes/Network
+		tab: Themes/Colors
 		control: color
 		path: net.colors.medium
 		default: "#6ad4ff"
@@ -858,7 +881,7 @@ settings:
 
 	net_high:
 		label: High
-		tab: Themes/Network
+		tab: Themes/Colors
 		control: color
 		path: net.colors.high
 		default: "#cff1ff"
@@ -868,12 +891,13 @@ settings:
 
 	NetBackHead:
 		label: Background
-		tab: Themes/Network
+		tab: Themes/Colors
 		control: heading
+		beside: true
 
 	net_border_color:
 		label: Border
-		tab: Themes/Network
+		tab: Themes/Colors
 		control: color
 		path: net.colors.border
 		default: "#8b8b8b"
@@ -881,7 +905,7 @@ settings:
 
 	net_back_top:
 		label: Top
-		tab: Themes/Network
+		tab: Themes/Colors
 		control: color
 		path: net.colors.top
 		default: "#313131"
@@ -889,15 +913,21 @@ settings:
 
 	net_back_bottom:
 		label: Bottom
-		tab: Themes/Network
+		tab: Themes/Colors
 		control: color
 		path: net.colors.bottom
 		default: "#000000"
 		group: theme
 
+	SwapSection:
+		label: Swap
+		tab: Themes/Colors
+		control: heading
+		graph: swap
+
 	swap_mode:
 		label: Colors
-		tab: Themes/Swap
+		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
 		options: detailed, gradient
@@ -909,7 +939,7 @@ settings:
 
 	swap_used:
 		label: In use
-		tab: Themes/Swap
+		tab: Themes/Colors
 		control: color
 		path: swap.colors.used
 		default: "#a45f00"
@@ -917,14 +947,14 @@ settings:
 		shown_when: "swap_mode = detailed"
 
 	SwapGradHead:
-		label: "Swap, by height"
-		tab: Themes/Swap
+		label: "By height"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "swap_mode = gradient"
 
 	swap_low:
 		label: Low
-		tab: Themes/Swap
+		tab: Themes/Colors
 		control: color
 		path: swap.colors.low
 		default: "#66461a"
@@ -934,7 +964,7 @@ settings:
 
 	swap_medium:
 		label: Medium
-		tab: Themes/Swap
+		tab: Themes/Colors
 		control: color
 		path: swap.colors.medium
 		default: "#a45f00"
@@ -944,7 +974,7 @@ settings:
 
 	swap_high:
 		label: High
-		tab: Themes/Swap
+		tab: Themes/Colors
 		control: color
 		path: swap.colors.high
 		default: "#ffebcf"
@@ -954,12 +984,13 @@ settings:
 
 	SwapBackHead:
 		label: Background
-		tab: Themes/Swap
+		tab: Themes/Colors
 		control: heading
+		beside: true
 
 	swap_border_color:
 		label: Border
-		tab: Themes/Swap
+		tab: Themes/Colors
 		control: color
 		path: swap.colors.border
 		default: "#8b8b8b"
@@ -967,7 +998,7 @@ settings:
 
 	swap_back_top:
 		label: Top
-		tab: Themes/Swap
+		tab: Themes/Colors
 		control: color
 		path: swap.colors.top
 		default: "#313131"
@@ -975,15 +1006,21 @@ settings:
 
 	swap_back_bottom:
 		label: Bottom
-		tab: Themes/Swap
+		tab: Themes/Colors
 		control: color
 		path: swap.colors.bottom
 		default: "#000000"
 		group: theme
 
+	ZswapSection:
+		label: Zswap
+		tab: Themes/Colors
+		control: heading
+		graph: zswap
+
 	zswap_mode:
 		label: Colors
-		tab: Themes/Zswap
+		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
 		options: detailed, gradient
@@ -995,7 +1032,7 @@ settings:
 
 	zswap_used:
 		label: In use
-		tab: Themes/Zswap
+		tab: Themes/Colors
 		control: color
 		path: zswap.colors.used
 		default: "#4a8e54"
@@ -1003,14 +1040,14 @@ settings:
 		shown_when: "zswap_mode = detailed"
 
 	ZswapGradHead:
-		label: "Zswap, by height"
-		tab: Themes/Zswap
+		label: "By height"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "zswap_mode = gradient"
 
 	zswap_low:
 		label: Low
-		tab: Themes/Zswap
+		tab: Themes/Colors
 		control: color
 		path: zswap.colors.low
 		default: "#35663c"
@@ -1020,7 +1057,7 @@ settings:
 
 	zswap_medium:
 		label: Medium
-		tab: Themes/Zswap
+		tab: Themes/Colors
 		control: color
 		path: zswap.colors.medium
 		default: "#4a8e54"
@@ -1030,7 +1067,7 @@ settings:
 
 	zswap_high:
 		label: High
-		tab: Themes/Zswap
+		tab: Themes/Colors
 		control: color
 		path: zswap.colors.high
 		default: "#cfffd6"
@@ -1040,12 +1077,13 @@ settings:
 
 	ZswapBackHead:
 		label: Background
-		tab: Themes/Zswap
+		tab: Themes/Colors
 		control: heading
+		beside: true
 
 	zswap_border_color:
 		label: Border
-		tab: Themes/Zswap
+		tab: Themes/Colors
 		control: color
 		path: zswap.colors.border
 		default: "#8b8b8b"
@@ -1053,7 +1091,7 @@ settings:
 
 	zswap_back_top:
 		label: Top
-		tab: Themes/Zswap
+		tab: Themes/Colors
 		control: color
 		path: zswap.colors.top
 		default: "#313131"
@@ -1061,15 +1099,21 @@ settings:
 
 	zswap_back_bottom:
 		label: Bottom
-		tab: Themes/Zswap
+		tab: Themes/Colors
 		control: color
 		path: zswap.colors.bottom
 		default: "#000000"
 		group: theme
 
+	LoadSection:
+		label: Load
+		tab: Themes/Colors
+		control: heading
+		graph: load
+
 	load_mode:
 		label: Colors
-		tab: Themes/Load
+		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
 		options: detailed, gradient
@@ -1081,7 +1125,7 @@ settings:
 
 	load_used:
 		label: Load
-		tab: Themes/Load
+		tab: Themes/Colors
 		control: color
 		path: load.colors.load
 		default: "#924444"
@@ -1089,14 +1133,14 @@ settings:
 		shown_when: "load_mode = detailed"
 
 	LoadGradHead:
-		label: "Load, by height"
-		tab: Themes/Load
+		label: "By height"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "load_mode = gradient"
 
 	load_low:
 		label: Low
-		tab: Themes/Load
+		tab: Themes/Colors
 		control: color
 		path: load.colors.low
 		default: "#553030"
@@ -1106,7 +1150,7 @@ settings:
 
 	load_medium:
 		label: Medium
-		tab: Themes/Load
+		tab: Themes/Colors
 		control: color
 		path: load.colors.medium
 		default: "#924444"
@@ -1116,7 +1160,7 @@ settings:
 
 	load_high:
 		label: High
-		tab: Themes/Load
+		tab: Themes/Colors
 		control: color
 		path: load.colors.high
 		default: "#eb4a4a"
@@ -1126,12 +1170,13 @@ settings:
 
 	LoadBackHead:
 		label: Background
-		tab: Themes/Load
+		tab: Themes/Colors
 		control: heading
+		beside: true
 
 	load_border_color:
 		label: Border
-		tab: Themes/Load
+		tab: Themes/Colors
 		control: color
 		path: load.colors.border
 		default: "#8b8b8b"
@@ -1139,7 +1184,7 @@ settings:
 
 	load_back_top:
 		label: Top
-		tab: Themes/Load
+		tab: Themes/Colors
 		control: color
 		path: load.colors.top
 		default: "#313131"
@@ -1147,15 +1192,21 @@ settings:
 
 	load_back_bottom:
 		label: Bottom
-		tab: Themes/Load
+		tab: Themes/Colors
 		control: color
 		path: load.colors.bottom
 		default: "#000000"
 		group: theme
 
+	DiskSection:
+		label: Disk
+		tab: Themes/Colors
+		control: heading
+		graph: disk
+
 	disk_mode:
 		label: Colors
-		tab: Themes/Disk
+		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
 		options: detailed, gradient
@@ -1166,14 +1217,14 @@ settings:
 		tip: "Detailed gives written and read a color each. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
 	DiskColorHead:
-		label: "Disk, from the bottom up"
-		tab: Themes/Disk
+		label: "From the bottom up"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "disk_mode = detailed"
 
 	disk_write:
 		label: Written
-		tab: Themes/Disk
+		tab: Themes/Colors
 		control: color
 		path: disk.colors.write
 		default: "#c60000"
@@ -1182,7 +1233,7 @@ settings:
 
 	disk_read:
 		label: Read
-		tab: Themes/Disk
+		tab: Themes/Colors
 		control: color
 		path: disk.colors.read
 		default: "#6bb3ff"
@@ -1190,14 +1241,14 @@ settings:
 		shown_when: "disk_mode = detailed"
 
 	DiskGradHead:
-		label: "Disk, by height"
-		tab: Themes/Disk
+		label: "By height"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "disk_mode = gradient"
 
 	disk_low:
 		label: Low
-		tab: Themes/Disk
+		tab: Themes/Colors
 		control: color
 		path: disk.colors.low
 		default: "#2b4866"
@@ -1207,7 +1258,7 @@ settings:
 
 	disk_medium:
 		label: Medium
-		tab: Themes/Disk
+		tab: Themes/Colors
 		control: color
 		path: disk.colors.medium
 		default: "#6bb3ff"
@@ -1217,7 +1268,7 @@ settings:
 
 	disk_high:
 		label: High
-		tab: Themes/Disk
+		tab: Themes/Colors
 		control: color
 		path: disk.colors.high
 		default: "#cfe6ff"
@@ -1227,12 +1278,13 @@ settings:
 
 	DiskBackHead:
 		label: Background
-		tab: Themes/Disk
+		tab: Themes/Colors
 		control: heading
+		beside: true
 
 	disk_border_color:
 		label: Border
-		tab: Themes/Disk
+		tab: Themes/Colors
 		control: color
 		path: disk.colors.border
 		default: "#8b8b8b"
@@ -1240,7 +1292,7 @@ settings:
 
 	disk_back_top:
 		label: Top
-		tab: Themes/Disk
+		tab: Themes/Colors
 		control: color
 		path: disk.colors.top
 		default: "#313131"
@@ -1248,15 +1300,21 @@ settings:
 
 	disk_back_bottom:
 		label: Bottom
-		tab: Themes/Disk
+		tab: Themes/Colors
 		control: color
 		path: disk.colors.bottom
 		default: "#000000"
 		group: theme
 
+	TempSection:
+		label: Temperature
+		tab: Themes/Colors
+		control: heading
+		graph: temp
+
 	temp_mode:
 		label: Colors
-		tab: Themes/Temperature
+		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
 		options: detailed, gradient
@@ -1267,14 +1325,14 @@ settings:
 		tip: "Detailed draws the temperature in one color, with any part over the critical level in another. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
 	TempColorHead:
-		label: "Temperature, from the bottom up"
-		tab: Themes/Temperature
+		label: "From the bottom up"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "temp_mode = detailed"
 
 	temp_normal:
 		label: Normal
-		tab: Themes/Temperature
+		tab: Themes/Colors
 		control: color
 		path: temp.colors.normal
 		default: "#feff40"
@@ -1284,7 +1342,7 @@ settings:
 
 	temp_critical:
 		label: Critical
-		tab: Themes/Temperature
+		tab: Themes/Colors
 		control: color
 		path: temp.colors.critical
 		default: "#ff0000"
@@ -1293,14 +1351,14 @@ settings:
 		tip: "Over the critical level, on top of Normal."
 
 	TempGradHead:
-		label: "Temperature, by height"
-		tab: Themes/Temperature
+		label: "By height"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "temp_mode = gradient"
 
 	temp_low:
 		label: Low
-		tab: Themes/Temperature
+		tab: Themes/Colors
 		control: color
 		path: temp.colors.low
 		default: "#4eb6bd"
@@ -1310,7 +1368,7 @@ settings:
 
 	temp_medium:
 		label: Medium
-		tab: Themes/Temperature
+		tab: Themes/Colors
 		control: color
 		path: temp.colors.medium
 		default: "#feff40"
@@ -1320,7 +1378,7 @@ settings:
 
 	temp_high:
 		label: High
-		tab: Themes/Temperature
+		tab: Themes/Colors
 		control: color
 		path: temp.colors.high
 		default: "#ff0000"
@@ -1330,12 +1388,13 @@ settings:
 
 	TempBackHead:
 		label: Background
-		tab: Themes/Temperature
+		tab: Themes/Colors
 		control: heading
+		beside: true
 
 	temp_border_color:
 		label: Border
-		tab: Themes/Temperature
+		tab: Themes/Colors
 		control: color
 		path: temp.colors.border
 		default: "#8b8b8b"
@@ -1343,7 +1402,7 @@ settings:
 
 	temp_back_top:
 		label: Top
-		tab: Themes/Temperature
+		tab: Themes/Colors
 		control: color
 		path: temp.colors.top
 		default: "#313131"
@@ -1351,15 +1410,21 @@ settings:
 
 	temp_back_bottom:
 		label: Bottom
-		tab: Themes/Temperature
+		tab: Themes/Colors
 		control: color
 		path: temp.colors.bottom
 		default: "#000000"
 		group: theme
 
+	BatterySection:
+		label: Battery
+		tab: Themes/Colors
+		control: heading
+		graph: battery
+
 	battery_mode:
 		label: Colors
-		tab: Themes/Battery
+		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
 		options: detailed, gradient
@@ -1370,14 +1435,14 @@ settings:
 		tip: "Detailed colors the charge by what the battery is doing. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
 	BatteryHead:
-		label: "Battery, by state"
-		tab: Themes/Battery
+		label: "By state"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "battery_mode = detailed"
 
 	battery_charging:
 		label: Plugged in
-		tab: Themes/Battery
+		tab: Themes/Colors
 		control: color
 		path: battery.colors.charging
 		default: "#b080ff"
@@ -1387,7 +1452,7 @@ settings:
 
 	battery_discharging:
 		label: On battery
-		tab: Themes/Battery
+		tab: Themes/Colors
 		control: color
 		path: battery.colors.discharging
 		default: "#c46e43"
@@ -1396,7 +1461,7 @@ settings:
 
 	battery_critical:
 		label: Critical
-		tab: Themes/Battery
+		tab: Themes/Colors
 		control: color
 		path: battery.colors.critical
 		default: "#ff0000"
@@ -1405,14 +1470,14 @@ settings:
 		tip: "On battery, with the charge at the critical level."
 
 	BatteryGradHead:
-		label: "Battery, by height"
-		tab: Themes/Battery
+		label: "By height"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "battery_mode = gradient"
 
 	battery_low:
 		label: Low
-		tab: Themes/Battery
+		tab: Themes/Colors
 		control: color
 		path: battery.colors.low
 		default: "#483468"
@@ -1422,7 +1487,7 @@ settings:
 
 	battery_medium:
 		label: Medium
-		tab: Themes/Battery
+		tab: Themes/Colors
 		control: color
 		path: battery.colors.medium
 		default: "#b080ff"
@@ -1432,7 +1497,7 @@ settings:
 
 	battery_high:
 		label: High
-		tab: Themes/Battery
+		tab: Themes/Colors
 		control: color
 		path: battery.colors.high
 		default: "#ece0ff"
@@ -1442,12 +1507,13 @@ settings:
 
 	BatteryBackHead:
 		label: Background
-		tab: Themes/Battery
+		tab: Themes/Colors
 		control: heading
+		beside: true
 
 	battery_border_color:
 		label: Border
-		tab: Themes/Battery
+		tab: Themes/Colors
 		control: color
 		path: battery.colors.border
 		default: "#8b8b8b"
@@ -1455,7 +1521,7 @@ settings:
 
 	battery_back_top:
 		label: Top
-		tab: Themes/Battery
+		tab: Themes/Colors
 		control: color
 		path: battery.colors.top
 		default: "#313131"
@@ -1463,15 +1529,21 @@ settings:
 
 	battery_back_bottom:
 		label: Bottom
-		tab: Themes/Battery
+		tab: Themes/Colors
 		control: color
 		path: battery.colors.bottom
 		default: "#000000"
 		group: theme
 
+	SelfSection:
+		label: tukzmon
+		tab: Themes/Colors
+		control: heading
+		graph: self
+
 	self_mode:
 		label: Colors
-		tab: Themes/tukzmon
+		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
 		options: detailed, gradient
@@ -1483,7 +1555,7 @@ settings:
 
 	self_used:
 		label: CPU use
-		tab: Themes/tukzmon
+		tab: Themes/Colors
 		control: color
 		path: self.colors.used
 		default: "#00ccb8"
@@ -1491,14 +1563,14 @@ settings:
 		shown_when: "self_mode = detailed"
 
 	SelfGradHead:
-		label: "tukzmon, by height"
-		tab: Themes/tukzmon
+		label: "By height"
+		tab: Themes/Colors
 		control: heading
 		shown_when: "self_mode = gradient"
 
 	self_low:
 		label: Low
-		tab: Themes/tukzmon
+		tab: Themes/Colors
 		control: color
 		path: self.colors.low
 		default: "#1a665e"
@@ -1508,7 +1580,7 @@ settings:
 
 	self_medium:
 		label: Medium
-		tab: Themes/tukzmon
+		tab: Themes/Colors
 		control: color
 		path: self.colors.medium
 		default: "#00ccb8"
@@ -1518,7 +1590,7 @@ settings:
 
 	self_high:
 		label: High
-		tab: Themes/tukzmon
+		tab: Themes/Colors
 		control: color
 		path: self.colors.high
 		default: "#cffffa"
@@ -1528,12 +1600,13 @@ settings:
 
 	SelfBackHead:
 		label: Background
-		tab: Themes/tukzmon
+		tab: Themes/Colors
 		control: heading
+		beside: true
 
 	self_border_color:
 		label: Border
-		tab: Themes/tukzmon
+		tab: Themes/Colors
 		control: color
 		path: self.colors.border
 		default: "#8b8b8b"
@@ -1541,7 +1614,7 @@ settings:
 
 	self_back_top:
 		label: Top
-		tab: Themes/tukzmon
+		tab: Themes/Colors
 		control: color
 		path: self.colors.top
 		default: "#313131"
@@ -1549,7 +1622,7 @@ settings:
 
 	self_back_bottom:
 		label: Bottom
-		tab: Themes/tukzmon
+		tab: Themes/Colors
 		control: color
 		path: self.colors.bottom
 		default: "#000000"
