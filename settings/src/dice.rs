@@ -30,6 +30,8 @@ pub enum Role {
 	Hover,
 	/// A graph's mode, which Randomize always sets to Detailed.
 	Mode,
+	/// A margin. A roll is colors, so it leaves these as the theme has them.
+	Margin,
 }
 
 /// Which graph a member colors. Each graph gets its own lead hue, and the
@@ -120,6 +122,8 @@ pub const ROLES: &[(&str, Part, Role)] = &[
 	("back_top", Part::Back, Role::Top),
 	("back_bottom", Part::Back, Role::Bottom),
 	("hover_color", Part::Back, Role::Hover),
+	("margin_tb", Part::Back, Role::Margin),
+	("margin_lr", Part::Back, Role::Margin),
 ];
 
 // Lead hues stay out of the red and orange the alarms use, in turns.
@@ -369,14 +373,15 @@ fn hex(c: Hsv) -> String {
 }
 
 /// Every theme member in `ROLES` with its rolled value, as the setting
-/// takes it.
+/// takes it. The margins aren't rolled.
 pub fn theme(seed: u64) -> Vec<(&'static str, String)> {
 	let k = scheme(seed);
 	ROLES
 		.iter()
-		.map(|&(id, part, role)| {
+		.filter_map(|&(id, part, role)| {
 			let g = k.of(part);
 			let v = match role {
+				Role::Margin => return None,
 				Role::Mode => "detailed".to_string(),
 				Role::Lead => hex(g.lead),
 				Role::Calm => hex(g.calm),
@@ -390,7 +395,7 @@ pub fn theme(seed: u64) -> Vec<(&'static str, String)> {
 				// black, as in every built-in
 				Role::Hover => "#000000".to_string(),
 			};
-			(id, v)
+			Some((id, v))
 		})
 		.collect()
 }

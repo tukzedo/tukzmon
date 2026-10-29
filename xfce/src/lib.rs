@@ -108,6 +108,8 @@ impl Plugin {
 		let look = Look::load(&self.config);
 		if look != *self.graphs.look() {
 			let widths: Vec<u32> = self.graphs.widths().collect();
+			// the margins change the size too
+			let along = self.graphs.wanted(0);
 			let keep = (self.graphs.look().keep, look.keep);
 			let dropped = self.graphs.drops(&look);
 			// what came in while it was on still counts
@@ -118,7 +120,7 @@ impl Plugin {
 			if let Err(e) = self.graphs.set_look(look, from) {
 				complain(format_args!("can't read {}: {e}", self.history.display()));
 			}
-			let refit = !self.graphs.widths().eq(widths);
+			let refit = !self.graphs.widths().eq(widths) || self.graphs.wanted(0) != along;
 			if keep == (false, true) {
 				// nothing seen while it was off is logged, per backlog 2026102408304572
 				self.load_history();

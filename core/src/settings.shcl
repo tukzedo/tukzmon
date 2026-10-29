@@ -12,11 +12,11 @@
 ## A graph's row in the Graphs list comes from its show, width, sample_ms and
 ## time settings, in that order.
 ##
-## Every color is in the theme group, and so is each graph's mode. A row's
-## default is the Default theme's value, and config::tests holds the two to
-## each other.
+## Every color is in the theme group, and so are each graph's mode and the
+## margins. A row's default is the Default theme's value, and config::tests
+## holds the two to each other.
 
-tabs: "Graph", "Themes", "Themes/CPU", "Themes/Memory", "Themes/Network", "Themes/Disk", "Themes/Temperature", "Themes/Swap", "Themes/Zswap", "Themes/Load", "Themes/Battery", "Themes/tukzmon", "Themes/Background"
+tabs: "Graph", "Themes", "Themes/CPU", "Themes/Memory", "Themes/Network", "Themes/Disk", "Themes/Temperature", "Themes/Swap", "Themes/Zswap", "Themes/Load", "Themes/Battery", "Themes/tukzmon", "Themes/Outline"
 
 settings:
 
@@ -1264,14 +1264,43 @@ settings:
 		shown_when: "self_mode = gradient"
 		tip: "The color at the top."
 
+	MarginHead:
+		label: Margins
+		tab: Themes/Outline
+		control: heading
+
+	margin_tb:
+		label: Top & bottom px
+		tab: Themes/Outline
+		control: slider
+		whole: true
+		range: 0, 64
+		slider_range: 0, 8
+		path: graph.margins.top_bottom
+		default: 2
+		group: theme
+		tip: "Space left clear above and below each graph, so the panel shows through. On a vertical panel the graphs are stacked, so this is the space between 2 of them, from each. The top and bottom of the whole item get none there, since the panel spaces its items."
+
+	margin_lr:
+		label: Left & right px
+		tab: Themes/Outline
+		control: slider
+		whole: true
+		range: 0, 64
+		slider_range: 0, 8
+		path: graph.margins.left_right
+		default: 2
+		group: theme
+		tip: "Space left clear either side of each graph, so 2 graphs side by side have twice this between them. The two ends of the whole item get none, since the panel spaces its items. On a vertical panel this is the space either side of every graph."
+
 	BackHead:
 		label: Background
-		tab: Themes/Background
+		tab: Themes/Outline
 		control: heading
 
 	transparent:
 		label: Transparent
-		tab: Themes/Background
+		tab: Themes/Outline
 		control: checkbox
 		path: graph.transparent
 		default: false
@@ -1279,7 +1308,7 @@ settings:
 
 	border_color:
 		label: Border
-		tab: Themes/Background
+		tab: Themes/Outline
 		control: color
 		path: graph.colors.border
 		default: "#8b8b8b"
@@ -1287,7 +1316,7 @@ settings:
 
 	back_top:
 		label: Top
-		tab: Themes/Background
+		tab: Themes/Outline
 		control: color
 		path: graph.colors.top
 		default: "#313131"
@@ -1295,7 +1324,7 @@ settings:
 
 	back_bottom:
 		label: Bottom
-		tab: Themes/Background
+		tab: Themes/Outline
 		control: color
 		path: graph.colors.bottom
 		default: "#000000"
@@ -1303,7 +1332,7 @@ settings:
 
 	hover_color:
 		label: Hover line
-		tab: Themes/Background
+		tab: Themes/Outline
 		control: color
 		path: graph.colors.hover
 		default: "#000000"
@@ -1392,6 +1421,8 @@ groups:
 				back_top: "#313131"
 				back_bottom: "#000000"
 				hover_color: "#000000"
+				margin_tb: 2
+				margin_lr: 2
 			primary:
 				label: Primary
 				cpu_mode: detailed
@@ -1459,6 +1490,8 @@ groups:
 				back_top: "#2a2a2a"
 				back_bottom: "#000000"
 				hover_color: "#000000"
+				margin_tb: 2
+				margin_lr: 2
 			pastel:
 				label: Pastel
 				cpu_mode: detailed
@@ -1526,6 +1559,8 @@ groups:
 				back_top: "#3a424a"
 				back_bottom: "#0f1214"
 				hover_color: "#000000"
+				margin_tb: 2
+				margin_lr: 2
 			neon:
 				label: Neon
 				cpu_mode: detailed
@@ -1593,6 +1628,8 @@ groups:
 				back_top: "#120a24"
 				back_bottom: "#000000"
 				hover_color: "#000000"
+				margin_tb: 2
+				margin_lr: 2
 			earth:
 				label: Earth
 				cpu_mode: detailed
@@ -1660,6 +1697,8 @@ groups:
 				back_top: "#2e261a"
 				back_bottom: "#0e0b07"
 				hover_color: "#000000"
+				margin_tb: 2
+				margin_lr: 2
 			fire:
 				label: Fire
 				cpu_mode: gradient
@@ -1727,6 +1766,8 @@ groups:
 				back_top: "#3a1c0c"
 				back_bottom: "#000000"
 				hover_color: "#000000"
+				margin_tb: 2
+				margin_lr: 2
 			terminal:
 				label: Terminal
 				cpu_mode: detailed
@@ -1794,6 +1835,8 @@ groups:
 				back_top: "#0a210a"
 				back_bottom: "#000000"
 				hover_color: "#000000"
+				margin_tb: 2
+				margin_lr: 2
 			vintage:
 				label: Vintage
 				cpu_mode: detailed
@@ -1861,6 +1904,8 @@ groups:
 				back_top: "#1f1500"
 				back_bottom: "#000000"
 				hover_color: "#000000"
+				margin_tb: 2
+				margin_lr: 2
 			frost:
 				label: Frost
 				cpu_mode: detailed
@@ -1928,3 +1973,5 @@ groups:
 				back_top: "#1b2329"
 				back_bottom: "#050708"
 				hover_color: "#000000"
+				margin_tb: 2
+				margin_lr: 2

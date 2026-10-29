@@ -259,7 +259,7 @@ impl Dialog {
 					.iter()
 					.map(|id| {
 						let v = self.model.value(id, &NoEnv);
-						(id.clone(), v.as_text().to_string())
+						(id.clone(), config::theme_text(&v))
 					})
 					.collect()
 			})
@@ -504,7 +504,7 @@ impl Dialog {
 
 	/// The spec's tabs as the tab list shows them. A graph's tab, the one with
 	/// its mode, follows the graph order, in the places graph tabs have in the
-	/// spec, so the tabs that aren't a graph's, such as Background, stay put.
+	/// spec, so the tabs that aren't a graph's, such as Outline, stay put.
 	pub fn tab_order(&self) -> Vec<usize> {
 		let graph_tabs: Vec<usize> = self
 			.graph_rows()
@@ -792,7 +792,7 @@ mod tests {
 			["Graph", "Themes"]
 				.iter()
 				.chain(graphs)
-				.chain(&["Background"])
+				.chain(&["Outline"])
 				.map(|s| (*s).to_string())
 				.collect()
 		};
@@ -1107,6 +1107,31 @@ mod tests {
 		let text = std::fs::read_to_string(&path).unwrap();
 		let themes = &text[text.find("themes:").unwrap()..];
 		assert!(!themes.contains("transparent"), "{text}");
+	}
+
+	// Test ID: dejjv
+	#[test]
+	fn the_margins_go_with_the_theme_and_a_roll_leaves_them() {
+		let d = scratch("margins");
+		let path = d.0.join("t.shcl");
+		let mut dlg = Dialog::open(path.clone());
+		assert!(dlg.set_text("theme", "neon"));
+		assert!(dlg.set_text("margin_lr", "5"));
+		assert_eq!(dlg.state("theme").choice, "Neon *");
+		dlg.randomize_from(42);
+		assert_eq!(dlg.state("margin_lr").text, "5");
+		assert_eq!(dlg.state("margin_tb").text, "2");
+		// a saved theme keeps it, as a number, and the panel reads it
+		dlg.save_theme_as("Wide").unwrap();
+		dlg.apply().unwrap();
+		let text = std::fs::read_to_string(&path).unwrap();
+		assert!(text.contains("margin_lr: 5\n"), "{text}");
+		assert_eq!(config::Look::load(&path).margin_lr, 5);
+		let mut dlg = Dialog::open(path.clone());
+		assert_eq!(dlg.state("theme").choice, "Wide");
+		assert_eq!(dlg.state("margin_lr").text, "5");
+		assert!(dlg.set_text("theme", "fire"));
+		assert_eq!(dlg.state("margin_lr").text, "2");
 	}
 
 	// Test ID: decdq

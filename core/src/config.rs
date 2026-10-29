@@ -149,15 +149,32 @@ pub fn name_the_theme(m: &mut Model) {
 pub struct SavedTheme {
 	pub key: String,
 	pub name: String,
-	/// Setting id to `#rrggbb`, one per theme color, plus each graph's mode.
+	/// Setting id to `#rrggbb`, one per theme color, plus each graph's mode
+	/// and the margins, as text.
 	pub colors: BTreeMap<String, String>,
 }
 
-// a theme member's value as the spec stores it, or None if it won't take it
-fn theme_value(spec: &Spec, id: &str, raw: &str) -> Option<String> {
+/// A theme member's value as [`SavedTheme`] keeps it. The margins are
+/// numbers, and the rest text.
+pub fn theme_text(v: &knobs::Value) -> String {
+	match v {
+		knobs::Value::Text(t) => t.clone(),
+		_ => v.show(),
+	}
+}
+
+// a theme member's text as the spec stores it, or None if it won't take it
+fn theme_typed(spec: &Spec, id: &str, raw: &str) -> Option<knobs::Value> {
 	let s = spec.get(id)?;
-	let v = spec.valid(s, &knobs::Value::Text(raw.to_string())).ok()?;
-	Some(v.as_text().to_string())
+	let v = match s.kind {
+		knobs::Kind::Int | knobs::Kind::Float => knobs::Value::Float(raw.trim().parse().ok()?),
+		_ => knobs::Value::Text(raw.to_string()),
+	};
+	spec.valid(s, &v).ok()
+}
+
+fn theme_value(spec: &Spec, id: &str, raw: &str) -> Option<String> {
+	theme_typed(spec, id, raw).map(|v| theme_text(&v))
 }
 
 pub const THEMES: &str = "themes";
@@ -189,7 +206,7 @@ pub fn saved_themes(doc: &shcl::Document) -> Vec<SavedTheme> {
 						.get_string(&at(id))
 						.ok()
 						.and_then(|raw| theme_value(&spec, id, &raw))
-						.or_else(|| spec.get(id).map(|s| s.default.as_text().to_string()))
+						.or_else(|| spec.get(id).map(|s| theme_text(&s.default)))
 						.unwrap_or_default();
 					(id.clone(), v)
 				})
@@ -258,7 +275,7 @@ pub fn spec_with(themes: &[SavedTheme]) -> Arc<Spec> {
 				values: t
 					.colors
 					.iter()
-					.map(|(id, hex)| (id.clone(), knobs::Value::Text(hex.clone())))
+					.filter_map(|(id, raw)| Some((id.clone(), theme_typed(&base, id, raw)?)))
 					.collect(),
 			});
 		}
@@ -277,8 +294,12 @@ pub fn themes_text(themes: &[SavedTheme]) -> String {
 		let at = |k: &str| format!("{THEMES}.{}.{k}", t.key);
 		// keys are from theme_key or a file that parsed, so the paths are good
 		let _ = doc.set_string(&at("name"), &t.name);
-		for (id, hex) in &t.colors {
-			let _ = doc.set_string(&at(id), hex);
+		for (id, raw) in &t.colors {
+			if let Some(knobs::Value::Int(n)) = theme_typed(&spec(), id, raw) {
+				let _ = doc.set_int(&at(id), n);
+			} else {
+				let _ = doc.set_string(&at(id), raw);
+			}
 		}
 	}
 	doc.to_canonical()
@@ -394,6 +415,10 @@ pub struct Look {
 	/// 0 to 1.
 	pub spikes: f32,
 	pub border: u32,
+	/// Logical pixels clear above and below each graph, and either side of it.
+	/// See `graphs::Graphs::tiles` for the item's ends.
+	pub margin_tb: u32,
+	pub margin_lr: u32,
 	/// Save history and load it back on start.
 	pub keep: bool,
 	pub max_days: u32,
@@ -540,6 +565,8 @@ impl Look {
 			said: Said::parse(m.value("hover_time", &NoEnv).as_text()).unwrap_or_default(),
 			spikes: (num("spikes") / 100.0) as f32,
 			border: num("border") as u32,
+			margin_tb: num("margin_tb") as u32,
+			margin_lr: num("margin_lr") as u32,
 			keep: m.value("keep_history", &NoEnv).as_bool(),
 			max_days: num("max_days") as u32,
 			cpu: [
@@ -873,14 +900,16 @@ mod tests {
 	fn the_default_theme_is_the_row_defaults() {
 		let spec = spec();
 		let g = spec.group(THEME).unwrap();
-		assert_eq!(g.members.len(), 65);
+		assert_eq!(g.members.len(), 67);
 		let default = g.preset("default").unwrap();
 		assert_eq!(default.label, "Default");
 		for id in &g.members {
 			let s = spec.get(id).unwrap();
-			// colors, and a graph's mode
+			// colors, a graph's mode, and the margins
 			let control = if id.ends_with("_mode") {
 				knobs::Control::Dropdown
+			} else if id.starts_with("margin_") {
+				knobs::Control::Slider
 			} else {
 				knobs::Control::Color
 			};
@@ -971,6 +1000,34 @@ mod tests {
 		)));
 		assert!(l.transparent);
 		assert_eq!(l.top, Rgb(0x12, 0x34, 0x56));
+	}
+
+	// Test ID: dejjt
+	#[test]
+	fn margins_are_the_themes_and_reach_the_look() {
+		let s = spec();
+		for id in ["margin_tb", "margin_lr"] {
+			assert_eq!(s.get(id).and_then(|r| r.group.as_deref()), Some("theme"));
+		}
+		for p in &s.group("theme").unwrap().presets {
+			for id in ["margin_tb", "margin_lr"] {
+				assert_eq!(p.values[id].as_f64(), 2.0, "{} {id}", p.key);
+			}
+		}
+		let l = Look::default();
+		assert_eq!((l.margin_tb, l.margin_lr), (2, 2));
+		let set = "graph:\n\tmargins:\n\t\ttop_bottom: 0\n\t\tleft_right: 7\n";
+		let l = Look::from_model(&model(set));
+		assert_eq!((l.margin_tb, l.margin_lr), (0, 7));
+		let l = Look::from_model(&model("theme:\n\tname: fire\n"));
+		assert_eq!((l.margin_tb, l.margin_lr), (2, 2));
+		// a theme saved before the margins gets Default's, and is still listed
+		let old = "theme:\n\tname: old\nthemes:\n\told:\n\t\tname: Old\n\t\tuser: \"#123456\"\n";
+		let t = saved_themes(&shcl::Document::parse(old));
+		assert_eq!(t[0].colors["margin_lr"], "2");
+		assert!(spec_with(&t).group(THEME).unwrap().preset("old").is_some());
+		let l = Look::from_model(&model(old));
+		assert_eq!((l.margin_lr, l.cpu[2]), (2, Rgb(0x12, 0x34, 0x56)));
 	}
 
 	// Test ID: decch
@@ -1480,7 +1537,7 @@ mod tests {
 			"themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n",
 		));
 		assert_eq!(t[0].name, "Say \"hi\"");
-		assert_eq!(t[0].colors.len(), 65);
+		assert_eq!(t[0].colors.len(), 67);
 		t.push(SavedTheme {
 			key: theme_key("Default", &t),
 			name: "Default".into(),

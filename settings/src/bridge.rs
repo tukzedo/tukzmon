@@ -610,7 +610,7 @@ mod tests {
 			.iter()
 			.map(|&t| tabs[t as usize].label.as_str())
 			.collect();
-		for want in ["CPU", "Memory", "Background"] {
+		for want in ["CPU", "Memory", "Outline"] {
 			assert!(names.contains(&want), "{names:?}");
 		}
 		let tab_of = |id: &str| rows.iter().find(|r| r.id == id).unwrap().tab;
@@ -633,7 +633,12 @@ mod tests {
 				let want = p.values.get(id);
 				let want = want.unwrap_or_else(|| panic!("{} has no {id}", p.key));
 				let now = d.state(id).text;
-				assert_eq!(now, want.as_text(), "{} {id}", p.key);
+				assert_eq!(
+					now,
+					tukzmon_core::config::theme_text(want),
+					"{} {id}",
+					p.key
+				);
 				if now != *was {
 					moved.push(tab_of(id));
 				}
@@ -712,7 +717,7 @@ mod tests {
 		assert_eq!(lines, model);
 		assert_eq!(at("tukzmon") + 1, at("CPU"));
 		assert_eq!(at("Themes") + 1, at("tukzmon"));
-		assert_eq!(lines.last(), Some(&"Background"));
+		assert_eq!(lines.last(), Some(&"Outline"));
 		assert_eq!(lines.len(), tabs.len());
 		assert_eq!(shown[0].rows, shown[1 + at("Memory")].rows);
 		// Themes on its own shows the first tab under it, as listed now

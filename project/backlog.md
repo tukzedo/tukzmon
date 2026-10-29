@@ -22,6 +22,80 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- Pre-next-cut: Every graph's colors on one scrolling tab
+	- ID: 2026102819315852
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-193158
+	- Opened by: t00mietum
+	- Parent ID: 2026102807585010
+	- Prereq IDs: 2026102819315170
+	- Related IDs: 2026102620162200
+	- Requirements:
+		- One tab with a section per graph, in the graph order, its mode and main colors on the left and its background and outline colors to the right. A vertical scrollbar when it runs past the window.
+
+- Pre-next-cut: Outline, background and transparent overrides on the Outline tab
+	- ID: 2026102819315837
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-193158
+	- Opened by: t00mietum
+	- Parent ID: 2026102807585020
+	- Prereq IDs: 2026102819315170
+	- Related IDs: 2026102409400705
+	- Requirements:
+		- On the Outline tab, per theme: one outline color, and one Top and Bottom, each with a checkbox that puts it over every graph's own. Transparent overrides every background, as now.
+
+- Pre-next-cut: Outline and background colors per graph
+	- ID: 2026102819315170
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261028-193151
+	- Opened by: t00mietum
+	- Parent ID: 2026102807585010
+	- Related IDs: 2026102807585020, 2026102620162201
+	- Requirements:
+		- Each graph has its own Border, Top and Bottom colors, in every theme, and Randomize rolls them.
+
+- Pre-next-cut: Margins around each graph, on the Outline tab
+	- ID: 2026102819315156
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- Whether the Outline tab and the margins read well is for a person to judge. The calls are in a Check in questions.md.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Needs hand testing: on b23, after an install, set Top & bottom and Left & right on Themes/Outline, Apply, and judge the panel's look.
+	- Priority|Severity: Avg
+	- Opened: 20261028-193151
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026102807585020
+	- Related IDs: 2026102807585010
+	- Requirements:
+		- Top & bottom, and Left & right margins, per theme, on the tab for outline settings.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The Background sub-tab is now Outline. Its Margins group has Top & bottom px and Left & right px, at `graph.margins.top_bottom` and `.left_right`, 2 each by default, above the Background group.
+		- They replace the fixed 2 px edges and 4 px gaps. Graphs are drawn upright, so on a vertical panel top and bottom are the gaps between graphs.
+		- The panel asks for a new size when the margins change, not only the widths.
+		- A theme saved before the margins existed gets Default's 2 and 2, and stays listed.
+		- `design.md` XFCE plugin, Settings window and Theme have the details.
+		- Verified: the full run passed with the 3 new tests. In a test panel, Top & bottom 0 and Left & right 8 put the graphs against the panel's edges with 16 px between them, and the item grew to fit, at once.
+	- Decisions:
+		- The margins are in the `theme` group, as asked, with 2 and 2 in every built-in. Randomize leaves them, since a roll is colors.
+		- The item's 2 ends along the panel get none, as now, since the panel spaces its items. So a panel looks the same at the defaults.
+		- Top & bottom and Left & right are the graph's own sides, so a vertical panel swaps which is along it.
+		- A saved theme writes them as numbers. `config::theme_text` is the one place a theme value becomes text.
+		- Border px stays on the Graph tab, since it isn't per theme.
+		- The tab is named Outline after both parent items. The rest of 2026102807585020 goes on it.
+	- Branch: round-1028b
+	- Test case: `graphs::tests::the_margins_set_the_edges_and_the_gaps` (dejjs), `config::tests::margins_are_the_themes_and_reach_the_look` (dejjt) and `dialog::tests::the_margins_go_with_the_theme_and_a_roll_leaves_them` (dejjv). All 3 fail with the margins left at 2 or the saved theme's values read as text, and pass now. dejjt also fails when a theme saved without margins drops every saved theme from the list.
+		- 2026-10-28: new values only. deccf and deccw count 67 theme members, not 65, and deccf takes a slider for the 2 margins. dee9q, dejac and dejad name the Outline tab, not Background. dee9q also compares through `config::theme_text`, since a margin isn't text.
+		- Swept: every `EDGE` and `GAP` use, every reader of a saved theme's values (`saved_themes`, `theme_problems`, `spec_with`, `themes_text` and the dialog's `shown_colors`), `dice::theme`'s callers, and every doc naming the Background sub-tab.
+
 - Theme presets, with a coordinated Default
 	- ID: 2026102409400679
 	- Type: Feature
@@ -402,6 +476,8 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- See if all monitor colors will fit on one tab (vertical scrollbars for the per-monitor section if need more room).
 			- With background and outline colors per-monitor, to the right, for each monitor, of the main colors.
+	- Progress log:
+		- 2026-10-28: split with 2026102807585020 into 4 children. This one's are 2026102819315170 (outline and background colors per graph) and 2026102819315852 (every graph's colors on one scrolling tab), in that order.
 
 - Pre-next-cut: One tab for global outline-related settings
 	- ID: 2026102807585020
@@ -419,6 +495,8 @@ Sorted per the notes in [Template](#template).
 			- Global outline color override
 			- Global background colors override
 				- Global transparent override.
+	- Progress log:
+		- 2026-10-28: split with 2026102807585010 into 4 children. This one's are 2026102819315156 (the margins, on the Outline tab, Waiting on UAT) and 2026102819315837 (the overrides, after 2026102819315170).
 
 - Pre-next-cut: GPU utilization graph
 	- ID: 2026102819145597
