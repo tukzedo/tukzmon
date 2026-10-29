@@ -152,46 +152,6 @@ Sorted per the notes in [Template](#template).
 	- Test case: `graphs::tests::a_file_the_5_tier_plugin_wrote_still_loads` (defv4). It fails with decode taking only today's tier count, and with `lo` and `hi` swapped in both encode and decode, which defp7 and decbg miss. Restarts are also covered by decbp, dedq3 and defp7.
 		- Swept: every load path (start, a graph added, keep turned back on) and every save path (the 15 minute timer, quit, keep turned off, a graph dropped) in `xfce/src/lib.rs` and `Graphs`. Nothing else reads or writes the history file.
 
-- Pre-next-cut: Outline, background and transparent overrides on the Outline tab
-	- ID: 2026102819315837
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- Stand-in, 2026-10-28, round-1028b at 84b61ad: on a test panel, both boxes ticked put the shared border and background over every graph, CPU's own included. Unticked, CPU's own came back, but the other 8 graphs kept the shared colors.
-		- 2026-10-28: since Bug 2026102820512294, unticked gives every graph its own back, across a save and reload (dejng). The look is left for a person.
-	- Needs local test suite run?: No. The full run passed on 2026-10-28.
-	- Needs hand testing: on b23, after an install, give one graph its own Border, Top and Bottom, then tick One border for every graph and One background for every graph on Themes/Outline, Apply, and judge the panel. Untick them and check that graph's own colors come back.
-	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row.
-	- Priority|Severity: Avg
-	- Opened: 20261028-193158
-	- Opened by: t00mietum
-	- Version and build: v0.1.0, not on b23 yet.
-	- Parent ID: 2026102807585020
-	- Prereq IDs: 2026102819315170
-	- Related IDs: 2026102409400705
-	- Requirements:
-		- On the Outline tab, per theme: one outline color, and one Top and Bottom, each with a checkbox that puts it over every graph's own. Transparent overrides every background, as now.
-	- Estimated effort: Avg
-	- Actual effort: Low
-	- Progress log:
-		- The Outline sub-tab's Background group has One border for every graph over Border, and One background for every graph over Top and Bottom, at `graph.overrides.border` and `.background`. Ticked, that color goes over every graph's own.
-		- Both are in the `theme` group, off in every built-in, and kept in a saved theme as `true` or `false`.
-		- The colors under a box are greyed while it's off. Picking one ticks its box.
-		- Randomize still rolls the shared colors, and leaves the 2 boxes as they were.
-		- Transparent still wins over every background.
-		- `design.md` Theme has the details.
-		- Verified: the full run passed with the 2 new tests. The Outline tab shows both boxes, with their colors indented under them, and Border greyed while its box is off.
-	- Decisions:
-		- 2 boxes, not 3: one for the border, and one for Top and Bottom together, as the parent's "Global background colors override" says. A shared top over a graph's own bottom would rarely be wanted.
-		- The boxes are per theme, as asked, and off in every built-in. The built-ins give every graph the shared colors anyway, so they look the same either way, and off keeps each graph's sub-tab live.
-		- The shared colors are gated on their box, so they grey out while they draw nothing. That's knobs' gate, which also ticks the box when one of them is picked, so picking a shared color does what it looks like.
-		- Randomize would tick both through that gate, so it puts the boxes back after a roll. A roll is colors, as with the margins.
-		- The override applies in `Look::from_model`, so the plugin, the renderer and `preview.rs` all get it through each graph's `Outline`, with no second place to keep in step.
-		- A checkbox in a saved theme is written as a shcl bool, and read as `true`, `false`, `on` or `off`. `config::theme_text` gives `on` or `off`, as the window shows it.
-	- Branch: round-1028b
-	- Test case: `config::tests::the_outline_tabs_colors_go_over_every_graph_when_ticked` (dejky) and `dialog::tests::a_shared_color_ticks_its_override_and_a_roll_leaves_both` (dejkz). dejky fails with the overrides left unread, and dejkz with a roll ticking the boxes. Both pass now.
-		- 2026-10-28: new values only. deccf and deccw count 99 theme members, not 97, and deccf takes a checkbox for the 2 boxes. defma's rows greyed at defaults add `border_color`, `back_top` and `back_bottom`.
-		- Swept: every reader of `border_color`, `back_top`, `back_bottom` and the per-graph outlines (`Look::from_model`, `render::Frame`, `Source::outline`, `preview.rs`), every writer of theme members in a loop (`randomize_from`, `drop_theme_changes`, the dialog's `shown_colors`), every `theme_text` and `theme_typed` caller, and the docs naming the shared colors.
-
 - Color themes tab
 	- ID: 2026102408304612
 	- Type: Feature
@@ -226,25 +186,6 @@ Sorted per the notes in [Template](#template).
 		- Global setting to make background transparent, which overrides all background colors.
 	- Progress log:
 		- Split into 6 children, in this order: 2026102409400679 (theme presets and Default), 2026102409400684 (Themes tab and its top row), 2026102409400689 (color picker), 2026102409400695 (Gradient mode and Fire), 2026102409400700 (Randomize), and 2026102409400705 (transparent background).
-
-- Pre-next-cut: One tab for global outline-related settings
-	- ID: 2026102807585020
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-075850
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304612, 2026102409400705, 2026102807585010
-	- Requirements:
-		- One tab for global outline-related settings (per-theme):
-			- Margins:
-				- Top & bottom
-				- Left & right
-			- Global outline color override
-			- Global background colors override
-				- Global transparent override.
-	- Progress log:
-		- 2026-10-28: split with 2026102807585010 into 4 children. This one's are 2026102819315156 (the margins, on the Outline tab, Done) and 2026102819315837 (the overrides, on the Outline tab, Stalled for Bug 2026102820512294).
 
 - Pre-next-cut: GPU utilization graph
 	- ID: 2026102819145597
@@ -334,45 +275,6 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
-
-- Unticking the Outline tab's overrides leaves the shared colors on the other graphs
-	- ID: 2026102820512294
-	- Type: Bug
-	- Status: Done
-	- Needs local test suite run?: No. The full run passed on 2026-10-28.
-	- Priority|Severity: Avg
-	- Opened: 20261028-205122
-	- Opened by: t00mietum
-	- Parent ID: 2026102819315837
-	- Related IDs: 2026102819315170
-	- Steps to reproduce:
-		- On Themes/Outline, pick a Border under One border for every graph, which ticks its box, and Apply.
-		- Untick One border for every graph, and Apply.
-	- Incorrect behavior: every graph with no border of its own keeps the shared one. Only a graph given its own gets it back. The background does the same.
-	- Expected behavior: unticked, every graph draws its own border and background.
-	- Reproduced: 2026-10-28, round-1028b at 84b61ad, on a test panel, from a file with both boxes off, the shared colors set, and CPU's own colors set. CPU drew its own, and the other 8 graphs the shared ones.
-	- Possible cause: `outlines_follow_shared` in `core/src/config.rs` gives every graph with no value of its own the shared one when a file loads, whatever the 2 boxes say. It's there for files from before each graph had its own (2026102819315170). A save leaves out values at their defaults, so a graph at Default's colors reads as one with none.
-	- Actual cause: as above. A save also leaves out a box that's off, so a new file with both boxes off and the shared colors set read as one from before each graph had its own.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- The shared Border, Top and Bottom are at `graph.overrides.colors.border`, `.top` and `.bottom` now, beside their boxes.
-		- Only a file with them at the old paths, `graph.colors.border`, `.top` and `.bottom`, gives every graph those. A load moves them to the new paths, so the next save writes the new layout.
-		- The window still saves a file with the old paths, rather than refusing it for lines it would drop.
-		- Saved themes read as before, since each is written whole.
-		- `design.md` Theme has the details.
-		- Verified: the full run passed with dejng.
-	- Decisions:
-		- The path the shared colors are at tells an old file from a new one. A version line would be a second fact to keep in step. No build that wrote per-graph colors was installed, so no file has them beside the shared ones at the old paths.
-		- They sit under `graph.overrides` beside their boxes, as `colors.border`, `.top` and `.bottom`, the way each graph's are under `<graph>.colors`.
-		- An old file's shared colors still go to each graph, with the boxes left off, as 2026102819315170 decided. Ticking the boxes would keep the look too, but then each graph's sub-tab wouldn't show what it draws.
-	- Actual fix: `config::upgraded`, called by `model_on`, in place of `outlines_follow_shared`. `config::moved_path` names the old paths for the save's check.
-	- Branch: round-1028b
-	- Test case: `dialog::tests::unticked_overrides_give_every_graph_its_own_back_after_a_reload` (dejng), on Default and on Custom, through 2 saves and reloads, plus an old file saved once. It fails at 84b61ad, with CPU's top still the shared one after unticking, and passes now.
-		- 2026-10-28: new value only. dejky's file has the shared colors at the new paths, and with both boxes off its memory graph reads Default's grey, not the shared colors. The old-file cases stay in dejkg.
-		- Swept: every `model_on` caller (`Dialog::open`, `Dialog::apply`, `config::model`, so `Look::load` in the plugin and `preview.rs`), `would_lose`, `saved_themes` and its `shared_of` fallback, both the own and the `kept.changes` stores, and every doc and test naming `graph.colors.border`, `.top` or `.bottom`.
-	- Acceptance signoff: Self-closed 20261028: dejng and the full run.
-	- Closed: 20261028-210400
 
 - Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
 	- ID: 2026102620162196
@@ -2306,6 +2208,45 @@ Sorted per the notes in [Template](#template).
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019
 
+- Unticking the Outline tab's overrides leaves the shared colors on the other graphs
+	- ID: 2026102820512294
+	- Type: Bug
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Priority|Severity: Avg
+	- Opened: 20261028-205122
+	- Opened by: t00mietum
+	- Parent ID: 2026102819315837
+	- Related IDs: 2026102819315170
+	- Steps to reproduce:
+		- On Themes/Outline, pick a Border under One border for every graph, which ticks its box, and Apply.
+		- Untick One border for every graph, and Apply.
+	- Incorrect behavior: every graph with no border of its own keeps the shared one. Only a graph given its own gets it back. The background does the same.
+	- Expected behavior: unticked, every graph draws its own border and background.
+	- Reproduced: 2026-10-28, round-1028b at 84b61ad, on a test panel, from a file with both boxes off, the shared colors set, and CPU's own colors set. CPU drew its own, and the other 8 graphs the shared ones.
+	- Possible cause: `outlines_follow_shared` in `core/src/config.rs` gives every graph with no value of its own the shared one when a file loads, whatever the 2 boxes say. It's there for files from before each graph had its own (2026102819315170). A save leaves out values at their defaults, so a graph at Default's colors reads as one with none.
+	- Actual cause: as above. A save also leaves out a box that's off, so a new file with both boxes off and the shared colors set read as one from before each graph had its own.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The shared Border, Top and Bottom are at `graph.overrides.colors.border`, `.top` and `.bottom` now, beside their boxes.
+		- Only a file with them at the old paths, `graph.colors.border`, `.top` and `.bottom`, gives every graph those. A load moves them to the new paths, so the next save writes the new layout.
+		- The window still saves a file with the old paths, rather than refusing it for lines it would drop.
+		- Saved themes read as before, since each is written whole.
+		- `design.md` Theme has the details.
+		- Verified: the full run passed with dejng.
+	- Decisions:
+		- The path the shared colors are at tells an old file from a new one. A version line would be a second fact to keep in step. No build that wrote per-graph colors was installed, so no file has them beside the shared ones at the old paths.
+		- They sit under `graph.overrides` beside their boxes, as `colors.border`, `.top` and `.bottom`, the way each graph's are under `<graph>.colors`.
+		- An old file's shared colors still go to each graph, with the boxes left off, as 2026102819315170 decided. Ticking the boxes would keep the look too, but then each graph's sub-tab wouldn't show what it draws.
+	- Actual fix: `config::upgraded`, called by `model_on`, in place of `outlines_follow_shared`. `config::moved_path` names the old paths for the save's check.
+	- Branch: round-1028b
+	- Test case: `dialog::tests::unticked_overrides_give_every_graph_its_own_back_after_a_reload` (dejng), on Default and on Custom, through 2 saves and reloads, plus an old file saved once. It fails at 84b61ad, with CPU's top still the shared one after unticking, and passes now.
+		- 2026-10-28: new value only. dejky's file has the shared colors at the new paths, and with both boxes off its memory graph reads Default's grey, not the shared colors. The old-file cases stay in dejkg.
+		- Swept: every `model_on` caller (`Dialog::open`, `Dialog::apply`, `config::model`, so `Look::load` in the plugin and `preview.rs`), `would_lose`, `saved_themes` and its `shared_of` fallback, both the own and the `kept.changes` stores, and every doc and test naming `graph.colors.border`, `.top` or `.bottom`.
+	- Acceptance signoff: Self-closed 20261028: dejng and the full run.
+	- Closed: 20261028-210400
+
 - Pre-next-cut: tukzmon's own CPU graph reads too high
 	- ID: 2026102819172002
 	- Type: Bug
@@ -2402,6 +2343,71 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: defx7 no longer checks hue angle between leads. dejbr checks how far apart they look.
 		- Swept: defx7 and defxd, the only checks on leads, every built-in in `settings.shcl`, and every role in `dice::ROLES` that follows its graph's lead.
 	- Closed: 20261028-161000
+
+- Pre-next-cut: Outline, background and transparent overrides on the Outline tab
+	- ID: 2026102819315837
+	- Type: Enhancement
+	- Status: Done
+		- Stand-in, 2026-10-28, round-1028b at 84b61ad: on a test panel, both boxes ticked put the shared border and background over every graph, CPU's own included. Unticked, CPU's own came back, but the other 8 graphs kept the shared colors.
+		- 2026-10-28: since Bug 2026102820512294, unticked gives every graph its own back, across a save and reload (dejng). The look is left for a person.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Needs hand testing: No
+	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row.
+	- Priority|Severity: Avg
+	- Opened: 20261028-193158
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026102807585020
+	- Prereq IDs: 2026102819315170
+	- Related IDs: 2026102409400705
+	- Requirements:
+		- On the Outline tab, per theme: one outline color, and one Top and Bottom, each with a checkbox that puts it over every graph's own. Transparent overrides every background, as now.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- The Outline sub-tab's Background group has One border for every graph over Border, and One background for every graph over Top and Bottom, at `graph.overrides.border` and `.background`. Ticked, that color goes over every graph's own.
+		- Both are in the `theme` group, off in every built-in, and kept in a saved theme as `true` or `false`.
+		- The colors under a box are greyed while it's off. Picking one ticks its box.
+		- Randomize still rolls the shared colors, and leaves the 2 boxes as they were.
+		- Transparent still wins over every background.
+		- `design.md` Theme has the details.
+		- Verified: the full run passed with the 2 new tests. The Outline tab shows both boxes, with their colors indented under them, and Border greyed while its box is off.
+		- Verified 2026-10-28: in the batch's test panel the ticked boxes drew the shared colors over every graph. Unticking now gives each graph its own back across a save and reload (dejng, after Bug 2026102820512294), and the last full run passed.
+	- Decisions:
+		- 2 boxes, not 3: one for the border, and one for Top and Bottom together, as the parent's "Global background colors override" says. A shared top over a graph's own bottom would rarely be wanted.
+		- The boxes are per theme, as asked, and off in every built-in. The built-ins give every graph the shared colors anyway, so they look the same either way, and off keeps each graph's sub-tab live.
+		- The shared colors are gated on their box, so they grey out while they draw nothing. That's knobs' gate, which also ticks the box when one of them is picked, so picking a shared color does what it looks like.
+		- Randomize would tick both through that gate, so it puts the boxes back after a roll. A roll is colors, as with the margins.
+		- The override applies in `Look::from_model`, so the plugin, the renderer and `preview.rs` all get it through each graph's `Outline`, with no second place to keep in step.
+		- A checkbox in a saved theme is written as a shcl bool, and read as `true`, `false`, `on` or `off`. `config::theme_text` gives `on` or `off`, as the window shows it.
+	- Branch: round-1028b
+	- Test case: `config::tests::the_outline_tabs_colors_go_over_every_graph_when_ticked` (dejky) and `dialog::tests::a_shared_color_ticks_its_override_and_a_roll_leaves_both` (dejkz). dejky fails with the overrides left unread, and dejkz with a roll ticking the boxes. Both pass now.
+		- 2026-10-28: new values only. deccf and deccw count 99 theme members, not 97, and deccf takes a checkbox for the 2 boxes. defma's rows greyed at defaults add `border_color`, `back_top` and `back_bottom`.
+		- Swept: every reader of `border_color`, `back_top`, `back_bottom` and the per-graph outlines (`Look::from_model`, `render::Frame`, `Source::outline`, `preview.rs`), every writer of theme members in a loop (`randomize_from`, `drop_theme_changes`, the dialog's `shown_colors`), every `theme_text` and `theme_typed` caller, and the docs naming the shared colors.
+	- Acceptance signoff: closed on stand-ins, 20261028
+	- Closed: 20261028
+
+- Pre-next-cut: One tab for global outline-related settings
+	- ID: 2026102807585020
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261028-075850
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304612, 2026102409400705, 2026102807585010
+	- Requirements:
+		- One tab for global outline-related settings (per-theme):
+			- Margins:
+				- Top & bottom
+				- Left & right
+			- Global outline color override
+			- Global background colors override
+				- Global transparent override.
+	- Progress log:
+		- 2026-10-28: split with 2026102807585010 into 4 children. This one's are 2026102819315156 (the margins, on the Outline tab, Done) and 2026102819315837 (the overrides, on the Outline tab, Stalled for Bug 2026102820512294).
+		- 2026-10-28: Both children are Done, so this closes with them.
+	- Test case: the tests of its children 2026102819315156 (dejjs, dejjt, dejjv) and 2026102819315837 (dejky, dejkz, dejng)
+	- Closed: 20261028
 
 - Pre-next-cut: All monitor colors on one tab
 	- ID: 2026102807585010
