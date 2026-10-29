@@ -132,7 +132,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- A color chip opens a picker, and the hex value can be typed beside it. The picker is SilkTerm's, not the toolkit's: a saturation and brightness square, a hue strip, and boxes for red, green, blue, brightness, saturation and hex. The row behind it follows every change, and Cancel puts back all of it, the theme's "*" included. The color model is in `settings/src/pick.rs`.
 	- A tip is broken into lines of at most 70 characters, the width GTK wraps its own tips at, so the panel's and the window's read alike. Qt would show a plain tip as one line. `wrap_tip` in `settings/src/bridge.rs` does it, and an event filter in `qt.cpp` sends every tip in the window through it.
 	- The file gets only what was changed in the window, applied to the file as it is at save time, so a hand edit made meanwhile isn't lost.
-	- A save that would drop a line it can't read, or a setting it doesn't know, is refused, and the error names the lines.
+	- A line it can't read, or a setting it doesn't know, such as one an older build wrote, is dropped at the next save rather than refused, since most users never edit the file by hand.
 
 - Reset history sits on the left of the bottom strip, under the pages, and starts every graph over at once, in the window and in every panel item. With Keep across restarts on, as the window shows it or as last applied, it asks first, since that deletes the saved history too. It's an action, not a setting, so it doesn't wait for Apply, and Cancel doesn't take it back.
 	- It writes `reset` in the history folder. When the saved history goes too, it deletes every `plugin-*.hist` there first, so an item that isn't running doesn't bring old history back.

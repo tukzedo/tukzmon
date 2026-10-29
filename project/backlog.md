@@ -155,12 +155,32 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
 	- Priority|Severity: Critical
 	- Opened: 20261029-131227
 	- Opened by: t00mietum
 	- Requirements:
 		- Don't error if an old config file has old values that don't exist anymore. Just replace the file. Regular users aren't going to hand-edit the config file.
+	- Reproduced: 2026-10-29, round-1029 at a6ad993, with a file holding a gone `cpu.sample_ms`, a misspelled setting, a line that doesn't parse, and saved theme values it can't read. Apply failed with "has lines a save would drop, so it wasn't changed".
+	- Actual cause: the window's save checked the file for lines it would drop, and refused the whole save if it found any. An older build's settings are such lines.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Apply now writes the file from what it can read, and drops the rest. Known settings and readable saved themes are kept as before.
+		- `design.md` Settings window says so.
+		- Verified: dekm0 fails at a6ad993 with the error above, and passes now. The quick gate and the full run passed.
+	- Decisions:
+		- Everything the check caught is dropped, not only settings that are gone: lines that don't parse, misspelled names, and saved theme values it can't read. A save can't tell an old build's line from a hand edit, and the window can't show either, so the error only blocked the save.
+		- Nothing is rewritten until the next Apply. Loading already ignores what it can't read, so the panel draws the same either way.
+		- `config::moved_path` went, since only the check used it. `config::theme_problems` stays, with its tests, as the list of saved theme lines a save rewrites.
+	- Actual fix: the `would_lose` check in `Dialog::apply` is gone.
+	- Branch: round-1029
+	- Test case: `dialog::tests::an_old_file_with_lines_it_cant_place_saves_without_them` (dekm0).
+		- 2026-10-29: debjf (`refuses_to_drop_lines_it_cant_place`) and decd2 (`a_theme_line_it_cant_read_stops_the_save`) are commented out, since each checked the refusal this item removes. dekm0 covers both of their files.
+		- Swept: every caller of `Dialog::apply` (the bridge's `apply`, which every save in `qt.cpp` goes through, and the tests), every user of `would_lose`, `moved_path` and `theme_problems`, the plugin's and the window's load paths, which already skip what they can't read, and `design.md` and README.md for the refusal.
+	- Acceptance signoff: Self-closed 20261029: dekm0 and the full run.
+	- Closed: 20261029-132000
 
 - Color themes tab
 	- ID: 2026102408304612

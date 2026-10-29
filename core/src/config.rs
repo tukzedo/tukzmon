@@ -397,11 +397,6 @@ const OLD_SHARED: [(&str, &str); 3] = [
 	("graph.colors.bottom", "back_bottom"),
 ];
 
-/// A config file path from an older layout, which [`model_on`] moves.
-pub fn moved_path(path: &str) -> bool {
-	OLD_SHARED.iter().any(|(old, _)| *old == path)
-}
-
 // A file from before each graph had its own border and background gives every
 // graph the shared ones, so it keeps its look. The old paths are how it's told
 // apart: a save leaves out a graph's colors when they're its theme's, so a
