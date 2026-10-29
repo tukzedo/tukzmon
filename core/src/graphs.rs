@@ -3,6 +3,7 @@
 
 //! Every graph one panel item shows, side by side, or stacked on a vertical
 //! panel, with a little room across the panel and twice that between them.
+//! Each takes its width along the panel, so stacked, that's its height.
 
 use std::io;
 use std::path::Path;
@@ -395,19 +396,18 @@ impl Graphs {
 		self.shown().map(|w| self.width_of(w))
 	}
 
-	/// The size to ask a panel of `size` logical pixels for. Side by side it's
-	/// the widths' sum and the gaps by the panel's height. Stacked, it's the
-	/// panel's width, and half that for each graph's height, plus the gaps.
+	/// The size to ask a panel of `size` logical pixels for: the widths' sum
+	/// and the gaps along the panel, by `size` across it. Stacked, a graph's
+	/// width is its height, as multiload-ng's Size is, and time still runs
+	/// across.
 	pub fn wanted(&self, size: u32) -> (u32, u32) {
 		let n = u32::try_from(self.count()).unwrap_or(u32::MAX);
 		let gaps = GAP.saturating_mul(n.saturating_sub(1));
+		let along = self.widths().sum::<u32>().saturating_add(gaps);
 		if self.stacked {
-			(
-				size,
-				(size / 2).max(16).saturating_mul(n).saturating_add(gaps),
-			)
+			(size, along)
 		} else {
-			(self.widths().sum::<u32>().saturating_add(gaps), size)
+			(along, size)
 		}
 	}
 
@@ -583,9 +583,9 @@ impl Graphs {
 		}
 	}
 
-	// side by side, what the gaps leave is shared out by width, since the
-	// panel may not give exactly what was asked for. Stacked, they share it
-	// evenly. A panel too thin for the edges keeps most of itself for graphs.
+	// what the gaps leave along the panel is shared out by width, since the
+	// panel may not give exactly what was asked for. Stacked, that's down it.
+	// A panel too thin for the edges keeps most of itself for graphs.
 	fn tiles(&self, w: usize, h: usize, scale: usize) -> impl Iterator<Item = (Which, Tile)> + '_ {
 		let (n, stacked) = (self.count(), self.stacked);
 		let total = self.widths().map(|x| x as usize).sum::<usize>().max(1);
@@ -596,11 +596,7 @@ impl Graphs {
 		let (mut i, mut done) = (0, 0);
 		self.shown().map(move |which| {
 			let own = self.width_of(which) as usize;
-			let (a, b) = if stacked {
-				(i * left / n, (i + 1) * left / n)
-			} else {
-				(done * left / total, (done + own) * left / total)
-			};
+			let (a, b) = (done * left / total, (done + own) * left / total);
 			let (at, long, thick) = (a + i * gap, b - a, across - 2 * edge);
 			let tile = if stacked {
 				(edge, at, thick, long)
@@ -1133,10 +1129,20 @@ mod tests {
 			assert!(g.hover(Some((cw - 1, 3)), w, h, scale));
 			assert_eq!(g.cpu.hover, Some(cw - 1));
 		}
-		// stacked, they share the height evenly whatever their widths
+		// stacked, a width is a height, and time still runs across
 		g.stacked = true;
-		assert!(g.hover(Some((5 + E, 17)), 14, 24, 1));
+		let (w, h) = (10 + 2 * E, 140 + G);
+		let top = g.cpu.render(10, 40, 1).to_vec();
+		let under = g.mem.as_mut().unwrap().render(10, 100, 1).to_vec();
+		let px = g.render(w, h, 1).to_vec();
+		sits(&px, w, &top, (E, 0, 10, 40));
+		sits(&px, w, &under, (E, 40 + G, 10, 100));
+		assert!(g.hover(Some((5 + E, 39)), w, h, 1));
+		assert_eq!(g.cpu.hover, Some(5));
+		assert!(g.hover(Some((5 + E, 40 + G)), w, h, 1));
 		assert_eq!(g.mem.as_ref().unwrap().hover, Some(5));
+		assert!(g.hover(Some((5 + E, 40)), w, h, 1));
+		assert!(!g.hovered());
 	}
 
 	// Test ID: defvs
@@ -1155,10 +1161,10 @@ mod tests {
 		let cpu = g.width_of(Which::Cpu);
 		assert_eq!(g.wanted(26), (cpu + 30 + GAP, 26));
 		assert_eq!(g.wanted(60), (cpu + 30 + GAP, 60));
-		// a vertical panel ignores the widths, and has a floor
+		// on a vertical panel the widths are heights, whatever the panel's size
 		g.stacked = true;
-		assert_eq!(g.wanted(48), (48, 48 + GAP));
-		assert_eq!(g.wanted(20), (20, 32 + GAP));
+		assert_eq!(g.wanted(48), (48, cpu + 30 + GAP));
+		assert_eq!(g.wanted(20), (20, cpu + 30 + GAP));
 		g.set_look(
 			Look {
 				show_memory: false,
@@ -1167,7 +1173,7 @@ mod tests {
 			None,
 		)
 		.unwrap();
-		assert_eq!(g.wanted(48), (48, 24));
+		assert_eq!(g.wanted(48), (48, g.width_of(Which::Cpu)));
 	}
 
 	// Test ID: dedqe
@@ -1238,7 +1244,7 @@ mod tests {
 		assert!(g.tooltip().starts_with("Memory"), "{}", g.tooltip());
 		// stacked, the first is on top
 		g.stacked = true;
-		assert!(g.hover(Some((6 + E, 17)), 14, 24, 1));
+		assert!(g.hover(Some((6 + E, 20)), 14, 24, 1));
 		assert_eq!(g.cpu.hover, Some(6));
 		assert!(g.hover(Some((6 + E, 2)), 14, 24, 1));
 		assert_eq!(g.mem.as_ref().unwrap().hover, Some(6));

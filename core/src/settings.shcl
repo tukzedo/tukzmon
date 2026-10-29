@@ -36,7 +36,7 @@ settings:
 		path: graph.width
 		default: 128
 		detents: 64, 128, 256
-		tip: "How wide a graph is in the panel at 100%. Each graph under Graphs takes a percentage of it. Its height follows the panel."
+		tip: "How wide a graph is in the panel at 100%. Each graph under Graphs takes a percentage of it. Its height follows the panel.\n\nOn a vertical panel or a deskbar, this is how tall a graph is, and its width follows the panel. Time still runs from left to right."
 
 	TimeHead:
 		label: Time
@@ -122,7 +122,7 @@ settings:
 		range: 1, 1000
 		path: cpu.width
 		default: 100
-		tip: "How wide the CPU graph is, as a percentage of Width."
+		tip: "How wide the CPU graph is, or how tall on a vertical panel, as a percentage of Width."
 
 	cpu_sample_ms:
 		label: CPU sample ms
@@ -160,7 +160,7 @@ settings:
 		range: 1, 1000
 		path: mem.width
 		default: 100
-		tip: "How wide the memory graph is, as a percentage of Width."
+		tip: "How wide the memory graph is, or how tall on a vertical panel, as a percentage of Width."
 
 	mem_sample_ms:
 		label: Memory sample ms
@@ -198,7 +198,7 @@ settings:
 		range: 1, 1000
 		path: net.width
 		default: 50
-		tip: "How wide the network graph is, as a percentage of Width."
+		tip: "How wide the network graph is, or how tall on a vertical panel, as a percentage of Width."
 
 	net_sample_ms:
 		label: Network sample ms
@@ -236,7 +236,7 @@ settings:
 		range: 1, 1000
 		path: disk.width
 		default: 50
-		tip: "How wide the disk graph is, as a percentage of Width."
+		tip: "How wide the disk graph is, or how tall on a vertical panel, as a percentage of Width."
 
 	disk_sample_ms:
 		label: Disk sample ms
@@ -274,7 +274,7 @@ settings:
 		range: 1, 1000
 		path: temp.width
 		default: 50
-		tip: "How wide the temperature graph is, as a percentage of Width."
+		tip: "How wide the temperature graph is, or how tall on a vertical panel, as a percentage of Width."
 
 	temp_sample_ms:
 		label: Temperature sample ms
@@ -312,7 +312,7 @@ settings:
 		range: 1, 1000
 		path: swap.width
 		default: 25
-		tip: "How wide the swap graph is, as a percentage of Width."
+		tip: "How wide the swap graph is, or how tall on a vertical panel, as a percentage of Width."
 
 	swap_sample_ms:
 		label: Swap sample ms
@@ -350,7 +350,7 @@ settings:
 		range: 1, 1000
 		path: zswap.width
 		default: 25
-		tip: "How wide the zswap graph is, as a percentage of Width."
+		tip: "How wide the zswap graph is, or how tall on a vertical panel, as a percentage of Width."
 
 	zswap_sample_ms:
 		label: Zswap sample ms
@@ -388,7 +388,7 @@ settings:
 		range: 1, 1000
 		path: load.width
 		default: 25
-		tip: "How wide the load graph is, as a percentage of Width."
+		tip: "How wide the load graph is, or how tall on a vertical panel, as a percentage of Width."
 
 	load_sample_ms:
 		label: Load sample ms
@@ -426,7 +426,7 @@ settings:
 		range: 1, 1000
 		path: battery.width
 		default: 100
-		tip: "How wide the battery graph is, as a percentage of Width."
+		tip: "How wide the battery graph is, or how tall on a vertical panel, as a percentage of Width."
 
 	battery_sample_ms:
 		label: Battery sample ms
@@ -464,7 +464,7 @@ settings:
 		range: 1, 1000
 		path: self.width
 		default: 25
-		tip: "How wide the tukzmon graph is, as a percentage of Width."
+		tip: "How wide the tukzmon graph is, or how tall on a vertical panel, as a percentage of Width."
 
 	self_sample_ms:
 		label: tukzmon sample ms

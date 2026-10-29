@@ -388,22 +388,6 @@ Sorted per the notes in [Template](#template).
 	- Needs hand testing: No
 	- Closed: 20261028
 
-- Graph sizes on a vertical panel
-	- ID: 2026102621105420
-	- Type: Enhancement
-	- Status: Queued
-		- Waits on the question about the Width settings on a vertical panel.
-	- Priority|Severity: Avg
-	- Opened: 20261026-211054
-	- Opened by: t00mietum
-	- Parent ID: 2026101916013889
-	- Related IDs: 2026102621053709, 2026102508393152
-	- Requirements:
-		- On a vertical panel, the Width settings either do something, or say they don't.
-	- Progress log:
-		- Each graph there is as wide as the panel and half that tall, and the Width tip still says "Its height follows the panel".
-	- 2026-10-28 answer: B. On a vertical panel or a deskbar, a graph's width setting is its height, as multiload-ng's Size does. The time axis still runs across the panel. dedq2's even-share line changes.
-
 - Pre-next-cut: All monitor colors on one tab
 	- ID: 2026102807585010
 	- Type: Enhancement
@@ -558,6 +542,38 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Graph sizes on a vertical panel
+	- ID: 2026102621105420
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Priority|Severity: Avg
+	- Opened: 20261026-211054
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026101916013889
+	- Related IDs: 2026102621053709, 2026102508393152
+	- Requirements:
+		- On a vertical panel, the Width settings either do something, or say they don't.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Each graph there is as wide as the panel and half that tall, and the Width tip still says "Its height follows the panel".
+		- On a vertical panel or a deskbar, a graph's width is now its height, and it's as wide as the panel. Time still runs from left to right. The item asks for the heights' sum plus the gaps, and what it gets is shared out by width, as side by side.
+		- The Width tip says what it does on a vertical panel, and each graph's width tip says "or how tall on a vertical panel".
+		- `design.md` XFCE plugin is updated.
+		- Verified: the full run passed. In a test panel with Width 100, CPU 40% and memory 100%, a vertical panel of 48 px gave the item 48 by 144, with CPU 40 rows tall, a 4 row gap, and memory 100 rows. A deskbar of 64 px gave 64 by 144, and a horizontal panel of 26 px 144 by 26.
+	- Decisions:
+		- The 16 px floor on a stacked graph's height is gone, since a width has none side by side either.
+		- The labels stay "Width px" and "CPU width %" and so on, since a horizontal panel is the common case, and the tips cover the vertical one.
+	- 2026-10-28 answer: B. On a vertical panel or a deskbar, a graph's width setting is its height, as multiload-ng's Size does. The time axis still runs across the panel. dedq2's even-share line changes.
+		- The even-share line was in dedqd, not dedq2. dedq2 and defw2 lay out 2 graphs of the same width, so they're unchanged.
+	- Branch: round-1028b
+	- Test case: `graphs::tests::each_graph_takes_its_own_width_and_0_is_width` (dedqd) and `the_ask_follows_the_panels_size_and_orientation` (defvs). Both fail with the even share and the old ask, and pass now.
+		- 2026-10-28: new values only. defvs asks for the widths' sum plus a gap stacked, where it asked for 48 + GAP at 48 px and 32 + GAP at 20 px, and 128 for CPU alone, where it asked 24. dedqp's stacked hover on CPU moved from row 17 to row 20, since row 17 is now the gap under the wider memory graph.
+		- Swept: every caller of `Graphs::wanted` and `tiles` (the plugin's `fit`, `find`, `render`), and every Width and per-graph width tip in `settings.shcl`. qt.cpp's gripper tip already says top to bottom on a vertical panel.
+	- Closed: 20261028-192806
 
 - Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
 	- ID: 2026102620162196
