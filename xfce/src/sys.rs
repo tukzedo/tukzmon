@@ -17,6 +17,8 @@ pub const GDK_POINTER_MOTION_MASK: c_int = 1 << 2;
 pub const GDK_BUTTON_PRESS_MASK: c_int = 1 << 8;
 pub const GDK_BUTTON_RELEASE_MASK: c_int = 1 << 9;
 pub const GDK_LEAVE_NOTIFY_MASK: c_int = 1 << 13;
+pub const LOG_WARNING: c_int = 4;
+pub const LOG_USER: c_int = 1 << 3;
 
 #[repr(C)]
 #[allow(clippy::struct_field_names, reason = "glibc's Dl_info, as named there")]
@@ -40,7 +42,9 @@ impl Default for DlInfo {
 
 unsafe extern "C" {
 	pub fn dladdr(addr: *const c_void, info: *mut DlInfo) -> c_int;
+	pub fn syslog(priority: c_int, format: *const c_char, ...);
 
+	pub fn g_log_writer_is_journald(fd: c_int) -> Gboolean;
 	pub fn g_object_new(t: GType, first: *const c_char, ...) -> *mut c_void;
 	pub fn g_object_unref(object: *mut c_void);
 	pub fn g_signal_connect_data(

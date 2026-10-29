@@ -360,31 +360,6 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1029
 	- Test case: none in the repo. Checked in a private panel, as for 2026102808222920.
 
-- Plugin errors go nowhere after a panel restart
-	- ID: 2026102620523642
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261026-205236
-	- Opened by: t00mietum
-	- Related IDs: 2026102620162195
-	- Requirements:
-		- A panel started by `xfce4-panel --restart` runs with stdout and stderr on `/dev/null`, and so does the plugin. Its "can't read" and "can't save" lines for the history file are lost.
-		- Show a failed history load or save where a person can find it, such as in the tooltip or the journal.
-
-- A panic in the plugin takes the whole panel down on Wayland
-	- ID: 2026102622434311
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261026-224343
-	- Opened by: t00mietum
-	- Related IDs: 2026102621053720
-	- Requirements:
-		- On Wayland, XFCE 4.20 runs the plugin in the panel's own process, and the release build aborts on a panic. So a plugin bug takes down the panel and every other plugin in it. On X11 only the plugin's wrapper goes.
-		- A panic in the plugin stops only that item, with one line on stderr.
-	- Note: one way is `panic = "unwind"` in the release profile, and `catch_unwind` in each callback the panel calls, which then marks the item dead and stops its timers. Cargo can't set `panic` per package, so tukzmon-settings would unwind too. Measure what both binaries grow by first.
-
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
 	- Type: Feature
@@ -402,6 +377,65 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Plugin errors go nowhere after a panel restart
+	- ID: 2026102620523642
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Priority|Severity: Low
+	- Opened: 20261026-205236
+	- Opened by: t00mietum
+	- Related IDs: 2026102620162195, 2026102622434311
+	- Test environment: XFCE 4.20.7 panel on headless sway 1.10.1, Wayland, on b23.
+	- Requirements:
+		- A panel started by `xfce4-panel --restart` runs with stdout and stderr on `/dev/null`, and so does the plugin. Its "can't read" and "can't save" lines for the history file are lost.
+		- Show a failed history load or save where a person can find it, such as in the tooltip or the journal.
+	- Actual effort: Low
+	- Progress log:
+		- Both. Every `complain` line also goes to syslog, which the journal reads, unless stderr is the journal already. A failed history read, save or delete shows under the graphs in the tip, as "History: can't read <path>: <error>", until a save works or Reset history clears the file.
+		- Verified in a Wayland test panel with stderr on `/dev/null` and the history file made a folder: the tip showed the read failure under the CPU tip, and the journal had the read failure and the save failure at quit, under the panel's name.
+		- `design.md` XFCE plugin has it.
+	- Decisions:
+		- syslog with no `openlog`, since on Wayland the process is the panel's, and `openlog` would rename every other plugin's lines too. It's also in the journal on a box without systemd's.
+		- Skipped when stderr is already the journal, per GLib's `g_log_writer_is_journald`, so a session that logs there gets one line, not 2.
+		- Only history problems go in the tip, as asked. The others, such as Properties failing to start tukzmon-settings, are in the journal.
+		- Test runs skip syslog, so they don't fill the host's log.
+	- Branch: round-1029
+	- Test case: `tests::a_failed_history_save_shows_in_the_tip_until_one_works` (dekps). The journal and the tip on a real panel were checked in the Wayland test panel.
+		- Swept: every `complain` call in `xfce/src/lib.rs`. History reads at start and when Keep is turned on, saves on the timer, at quit and when a graph drops, and the delete at Reset history all set the tip line. tukzmon-settings complains only about its command line, which isn't lost this way.
+	- Closed: 20261029-145354
+
+- A panic in the plugin takes the whole panel down on Wayland
+	- ID: 2026102622434311
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Priority|Severity: Low
+	- Opened: 20261026-224343
+	- Opened by: t00mietum
+	- Related IDs: 2026102621053720, 2026102620523642
+	- Test environment: XFCE 4.20.7 panel on headless sway 1.10.1, Wayland, on b23.
+	- Requirements:
+		- On Wayland, XFCE 4.20 runs the plugin in the panel's own process, and the release build aborts on a panic. So a plugin bug takes down the panel and every other plugin in it. On X11 only the plugin's wrapper goes.
+		- A panic in the plugin stops only that item, with one line on stderr.
+	- Note: one way is `panic = "unwind"` in the release profile, and `catch_unwind` in each callback the panel calls, which then marks the item dead and stops its timers. Cargo can't set `panic` per package, so tukzmon-settings would unwind too. Measure what both binaries grow by first.
+	- Actual effort: Avg
+	- Progress log:
+		- Measured first, release builds: unwinding took the plugin from 1,093,056 to 1,165,528 bytes, and tukzmon-settings from 1,356,456 to 1,450,408. With the catching in, the plugin is 1,175,824, 7.6% more, and tukzmon-settings 6.9% more.
+		- The release profile unwinds, and every handler the panel calls goes through one `guarded` helper. A panic stops that item: its timers and file watches end, it draws nothing, saves no more history, and its tip says "tukzmon stopped after a bug: <text>" and to restart the panel. The line on stderr, and in the journal per 2026102620523642, is "tukzmon: stopped by a bug at <file>:<line>: <text>".
+		- The item's set-up was split so a panic part way can't leave a handler holding freed memory. free-data is connected before anything that can panic.
+		- Verified in a Wayland test panel, with a panic put in the fourth tick for the test: the panel kept running, stderr had the one line, the journal had it, and the item's tip said it had stopped.
+		- `design.md` XFCE plugin has it.
+	- Decisions:
+		- 7.6% and 6.9% is a fair price for a plugin bug not taking down the panel and every other plugin in it.
+		- A stopped item stays stopped until the panel restarts, rather than starting itself over, since the same bug would most likely come back each time.
+		- The panic hook is set once, when the panel first makes an item. Each cdylib has its own std, so it touches only this library's panics.
+		- Removing a stopped item still deletes its files, since that's what the panel's Remove says.
+	- Branch: round-1029
+	- Test case: `tests::a_panic_in_a_handler_stops_only_that_item` (dekpt), `tests::every_handler_the_panel_calls_catches_a_panic` (dekpx) and `tests::the_release_build_unwinds_so_a_panic_can_be_caught` (dekpv). dekpx failed with one handler left unguarded, and dekpv with the profile back on abort.
+		- Swept: every `extern "C" fn` in `xfce/src/lib.rs`, 13 of them. `xfce_panel_module_construct` makes only C calls. tukzmon-settings runs in its own process, and a panic there now exits 101 rather than 134. Nothing in `cicd/` or `utility/` reads either code.
+	- Closed: 20261029-145354
 
 - Pre-next-cut: Dialog never taller than the screen
 	- ID: 2026102913122703
