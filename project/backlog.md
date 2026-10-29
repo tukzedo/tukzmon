@@ -22,15 +22,164 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- Drop the sudo step in dev-install.bash
-	- ID: 2026102820420805
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261028-204208
+- Theme presets, with a coordinated Default
+	- ID: 2026102409400679
+	- Type: Feature
+	- Status: Waiting on UAT
+		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
+		- How the built-in themes look is for a person to judge.
+		- It departs from the wording in one way. b23's file sets 2 colors with no theme line, so it opens as Custom, with exactly the colors it has now. Picking Default there gives the coordinated set.
+		- Stand-in, 2026-10-25, build deea9: each built-in theme drew both graphs in a test panel, and a pick took effect at once. Only the look is left.
+		- Measured 2026-10-28, round-1028 at 17d3d9d, as CIEDE2000: in every built-in, a graph's own colors sit 10.8 or more apart, I/O wait and system 24 or more from every graph's lead, and every color 16.6 or more from the background, except one. Default's nice and Low, `#205f40`, sit 5.1 from the top, `#2a543f`. They were 7.1 from multiload-ng's top, `#2a5446`, before Default moved it. That and the look are left for a person.
+		- Measured again 2026-10-28, branch theme-colors, after 2026102814061803, 2026102810142725 and 2026102807585040: any 2 graphs' leads sit 10.4 or more apart in every built-in but the one-color ones, where all are alike on purpose. In every built-in, a graph's own colors sit 10.6 or more apart, I/O wait and system 14.2 or more from every lead, 21.7 outside Default, every color 15.8 or more from the background, and each gradient step 10.6 or more. Default's nice now sits 24.4 from its gray top, `#313131`. Only the look is left.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Needs hand testing: on b23, after a panel restart, pick each theme on the Themes tab, Apply, and judge how it looks on the panel graph, Default most of all.
+	- Stand-in: none (20261028). Turns on how the themes look, and the numbers are in the status row.
+	- Priority|Severity: High
+	- Opened: 20261024-094007
 	- Opened by: t00mietum
-	- Related IDs: 2026102808222920
-	- Requirements: Install the .desktop file to ~/.local/share/xfce4/panel/plugins and the plugin and tukzmon-settings to ~/.local/lib/<multiarch>/xfce4/panel/plugins, with no sudo links. The multiarch dir comes from the panel's lib dir. Update design.md XFCE plugin and README to match.
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+	- Parent ID: 2026102408304612
+	- Related IDs: 2026102408304559, 2026102408304625
+	- Requirements:
+		- A Theme dropdown that picks a named set of every graph color, backgrounds included, from the parent's requirements.
+		- "Default" is the current colors, moved onto one coordinated scheme close to them.
+		- A few built-in themes named by the color that dominates, such as "Green standard" and "Green pastel".
+			- Superseded by 2026102620162201: theme names are generic, with no color in them, and each monitor gets its own distinct colors.
+		- A color changed by hand sits on top of the theme as a change, the way SilkTerm's do.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A Theme dropdown sits at the top of the Colors tab. It picks Default, Green standard, Green pastel, Blue standard, Blue pastel, or Custom.
+		- Default keeps the user and nice colors, and moves system, the border and the top a little, onto one hue. `design.md` Theme has the values and the rule behind them.
+		- A color changed on a theme shows "Name *" in the dropdown, and is kept with that theme across a save.
+		- Verified: in the window, a change on Blue standard showed "Blue standard *" with the revert arrow live on that row.
+	- Decisions:
+		- The themes use knobs' preset groups, the same model as SilkTerm's, so knobs is unchanged.
+		- A file with colors and no theme line reads as Custom, so a hand edit isn't hidden under Default. A save names the theme whenever Custom colors are stored.
+		- I/O wait and system stay red and orange in every built-in theme, so trouble reads the same in each.
+		- One theme for the whole panel for now. A theme per graph comes with the live graph list, 2026102408304639.
+	- Branch: round-1024
+	- Test case: `config::tests::the_default_theme_is_the_row_defaults` (deccf), `a_theme_sets_every_color` (deccg), `colors_with_no_theme_line_are_custom` (decch), `a_change_on_a_theme_is_kept_with_it` (deccj) and `back_to_default_from_custom_stays_default` (decck), and `dialog::tests::a_theme_and_the_changes_on_it_are_saved` (deccm) and `custom_then_the_revert_arrow_is_default_again` (deccn). The 2 back-to-Default tests fail with the theme naming taken out and pass with it.
+		- 2026-10-24: `config::tests::defaults_are_the_multiload_colors` got new values only. System went from `#c64600` to `#c64200`, the border from `#40806a` to `#408060`, and the top from `#2a5446` to `#2a543f`.
+		- Swept: every `Model::load`, `Look::load` and `Look::from_model` caller, and every color row in `settings.shcl`. The plugin reads through `Look::load`, and the window through `config::model`.
+
+- Randomize button on the Themes tab
+	- ID: 2026102409400700
+	- Type: Feature
+	- Status: Waiting on UAT
+		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
+		- Whether the rolls look good together is for a person to judge.
+		- Stand-in, 2026-10-25, build deea9: in the window a roll changed every color as "Default *", Save as kept it, and the panel graph took it at Apply. Only the look is left.
+		- Measured 2026-10-28 over 2000 seeds, round-1028 at 17d3d9d, as CIEDE2000: I/O wait and system roll 23.5 or more from every lead, and each gradient step 11.0 or more. A graph's own colors roll as close as 4.8, buffers and cache, and 9.1 or more in 9 rolls of 10. CPU's Low rolls as close as 1.9 to the background top, which takes CPU's hue, and 5.6 or more in 9 of 10. Default's own nice sits 5.1 from its top, so that matches the built-in. Leads that nearly match are 2026102810142725.
+		- Measured again 2026-10-28 over 10,000 seeds, branch theme-colors, after 2026102810142725: every 2 leads 10.0 or more apart, and I/O wait and system 21.7 or more from every lead. A graph's own colors roll as close as 5.8, buffers and cache, and 9.0 or more in 9 rolls of 10. CPU's Low rolls as close as 1.3 to the top, and 6.0 or more in 9 of 10, as before. Each gradient step rolls 8.9 or more, in a graph stepped darker, and 12.4 or more in 9 of 10. Default's nice is 24.4 from its top now, so the closest rolls no longer match a built-in.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Needs hand testing: on b23, after a panel restart, press Randomize a few times with Apply, and judge whether the rolls look good together.
+	- Stand-in: none (20261028). Turns on whether a roll looks good, and the numbers are in the status row.
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+	- Parent ID: 2026102408304612
+	- Prereq IDs: 2026102409400684, 2026102409400695
+	- Requirements:
+		- [Randomize] on the Themes tab's top row sets random colors for every graph, by the parent's rules: one coordinated scheme around the user color, alarming colors for stats to watch, muted ones for nice, buffers and cache, and never Gradient mode.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- Randomize sits after Delete on the Themes top row. It sets every color and the mode as changes on the theme in force, so the dropdown says "Name *", Save as keeps the roll, and picking a theme drops it.
+		- The user color leads at any hue off red and orange. Nice, Low and the background are that hue or one near it, muted. I/O wait stays red and system orange. A roll is always Detailed, with a gradient ready from nice through user to a pale tint.
+		- `design.md` Theme and Settings window have the details.
+		- Verified: the Themes tab drew Randomize after Delete on the top row.
+	- Decisions:
+		- A roll is a change on the theme in force, not a switch to Custom, the same as a color changed by hand.
+		- I/O wait and system stay red and orange, as the presets decided, and the lead hue keeps clear of them.
+		- The hover line stays black, as in every built-in.
+		- Every theme member has a role in `settings/src/dice.rs`. A new graph's members fail a test until they get one.
+	- Branch: round-1024
+	- Test case: `dice::tests::every_theme_member_has_a_role` (decdr), `every_roll_is_a_value_its_setting_takes_and_never_a_gradient` (decds), `the_lead_rules_and_the_alarms_stay_red_and_orange` (decdt), `the_quiet_ones_are_muted_and_near_the_lead` (decdv), `the_gradient_runs_from_calm_through_the_lead` (decdw) and `a_seed_rolls_the_same_theme_and_seeds_differ` (decdx), over 2000 seeds each, and `dialog::tests::randomize_changes_every_color_on_the_theme_and_turns_off_the_gradient` (decdq). Each fails with its rule broken: the mode set to gradient, the lead hue let into red, a member left out, nice as bright as user, and Randomize doing nothing.
+		- Swept: every member of the theme group, which the role test walks, and the one theme button row in qt.cpp.
+
+- Pre-next-cut: Generic theme names, and distinct colors per monitor
+	- ID: 2026102620162201
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- How each theme looks, and whether the graphs read apart side by side, is for a person to judge.
+		- It departs from the wording in one way. Randomize still gives every graph the same lead hue. That part is child 2026102621562349.
+		- Stand-in, 2026-10-26, build defyt: in the window Fire drew CPU red and brown, memory violet and swap blue, and with b23's settings a test panel drew CPU, memory and swap apart on Default. Only the look is left.
+		- 2026-10-28: with 9 graphs now, some leads nearly match in every built-in but Fire, and in most rolls. That part is child 2026102810142725, a Bug.
+		- 2026-10-28: 2026102810142725 is fixed. As CIEDE2000, any 2 leads sit 10.4 or more apart in every built-in, and 10.0 or more in every roll over 10,000 seeds. The one-color themes from 2026102807585040 give every graph one color on purpose.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, after an install, with swap on, pick each built-in theme on the Themes tab, Apply, and judge whether CPU, memory and swap read apart and look good together, Fire most of all.
+	- Stand-in: none (20261028). Turns on how it looks. What can be measured is checked by dejbr and dejbv, from child 2026102810142725.
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304612
+	- Related IDs: 2026102409400679, 2026102409400695, 2026102508393159
+	- Note: The earlier instructions on theme colors were mixed up with a new theme design. These clarify them, and win over the color-named themes in 2026102408304612 and 2026102409400679.
+	- Requirements:
+		- Theme names shouldn't have colors in the names. They should be more generic, "Pastel", "Primary", etc. (E.g. some different common themes)
+		- The different monitors should have their own unique and distinct colors, which is why every theme name has subtabs for per-monitor colors.
+		- "Fire"-themes should have different color combos per monitor.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- The built-in themes are now Default, Primary, Pastel, Neon, Earth and Fire.
+		- Every theme gives CPU, memory, swap and the battery each a hue and gradient of their own. I/O wait and system stay red and orange, and the battery's on battery and critical stay those 2.
+		- Default keeps its CPU, memory and background colors. Swap is now sky blue, `#40a0ff`, and the battery's plugged in lavender, `#b080ff`.
+		- Fire's graphs each burn their own flame: CPU red, yellow-white and light blue as before, memory violet, swap a blue gas flame, and the battery a green copper one.
+		- `design.md` Theme has the details.
+		- Verified: the full run passed with the new test.
+	- Decisions:
+		- 6 built-ins, as before, so the theme list doesn't grow. Primary keeps Green standard's CPU colors and Pastel Blue pastel's CPU and background, so a pick of the old ones looks close to the new one.
+		- The old keys, such as `green_standard`, aren't kept as aliases. They were never in a release, and b23's file names `default`.
+		- Backgrounds are neutral, or lean to the theme's mood, since no single graph's hue leads any more.
+		- No graph's own color is red or orange, outside Fire's and Earth's warm ones, so the alarms stay apart.
+	- Branch: round-1027
+	- Test case: `config::tests::no_theme_is_named_for_a_color_and_each_graph_has_its_own` (defx7). It fails on the old themes, where Default's swap was CPU's color, and with a color word put in a label, and passes now.
+		- 2026-10-26: new values only, for the renamed themes. deccg reads `pastel`, not `blue_pastel`. deccj reads `primary` and "Primary *", not Green standard. decct lists `primary`, `pastel`, `neon` and `earth` in place of the 4 color-named keys. decdg reads `neon`, with a gradient Medium of `#39ff14`, not `#0080ff`. deccx's built-in clash is `Earth` -> `earth_2`, not `Blue pastel` -> `blue_pastel_2`. In `dialog::tests`, deccm and deccy pick `neon`, with user `#39ff14` and nice `#1f6a10`, not `#0080ff` and `#20405f`, and deccy's clash is `nEon`. dece0 picks `pastel`.
+		- 2026-10-26: dedpz, defq5 and defqc had Fire's memory, swap and battery gradients equal to its CPU one. They now check each graph's own gradient, and dedpz that memory's differs from CPU's.
+		- Swept: every built-in key and label in the Rust tests, qt.cpp and the docs, every swap and battery row default, and the `dice` tests, which don't read the built-ins.
+	- 2026-10-27: the Randomize part is done in child 2026102621562349 (commit 9e35514).
+
+- Randomize: a hue of its own for each graph
+	- ID: 2026102621562349
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- Whether the hues of a roll look good together is for a person to judge.
+		- Measured 2026-10-28 over 10,000 seeds, as CIEDE2000: every 2 leads of a roll are 10.0 or more apart, 10.6 at the median, and every lead 21.7 or more from I/O wait and system. Before 2026102810142725 the closest 2 were 4.7 apart at the median and 1.8 at worst. A roll steps 3 of its 10 leads darker or paler at the median, and 6 at most.
+	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
+	- Needs hand testing: on b23, after an install, with swap on, press Randomize a few times with Apply, and judge whether CPU, memory and swap read apart and look good together.
+	- Stand-in: none (20261028). Whether a roll's hues look good together is for a person. dejbv checks that every roll's leads read apart.
+	- Priority|Severity: High
+	- Opened: 20261026-215623
+	- Opened by: t00mietum
+	- Parent ID: 2026102620162201
+	- Prereq IDs: 2026102810142725
+	- Related IDs: 2026102409400700
+	- Requirements:
+		- A roll gives CPU, memory, swap and the battery each a lead hue of its own, all kept off red and orange, with their quiet colors and gradients from those, the way the built-ins now do.
+	- Note: `dice::tests::buffers_and_cache_are_muted_and_told_apart` (dedq0) asserts memory's lead is CPU's. It changes with this.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A roll gives each graph a lead hue of its own, from yellow-green round to magenta as before, at least 45 degrees from the others, in a random order. Each graph's quiet colors, buffers and gradient come from its own hue.
+		- I/O wait and system stay red and orange, and so do the battery's critical and on battery.
+		- `design.md` Theme has the details.
+		- Verified: the full run passed with the new test.
+		- 2026-10-28: 2026102810142725 checks every roll's leads apart as CIEDE2000, so the hold is off. The hues are 22 degrees apart now, for 10 graphs.
+	- Decisions:
+		- 45 degrees apart, which leaves 90 degrees of the range to roll in, and keeps clear of defx7's 30 for the built-ins.
+		- All 4 share one saturation and brightness, so a roll reads as one set, the way each built-in does.
+		- The background still takes CPU's hue, or nice's, since it's one set of colors under every graph.
+		- `dice::ROLES` now names each member's graph as well as its role.
+		- 2026-10-28: a lead may step darker or paler from that shared saturation and brightness, where 2 would look alike, per 2026102810142725.
+	- Branch: round-1027, theme-colors
+	- Test case: `dice::tests::each_graph_leads_with_a_hue_of_its_own` (defxd), and dedq0. Both fail with every graph given CPU's hue, and defxd with the order left unshuffled. Both pass now.
+		- 2026-10-26: dedq0 checked memory's lead equal to CPU's user, and cache equal to nice. It now checks they differ, and cache equal to memory's Low. decdt, decdv and decdw now check each graph's colors, not CPU's alone.
+		- Swept: every `dice::ROLES` and `dice::theme` user (`dialog.rs` and its decdq test), and every graph in `ROLES`.
+		- 2026-10-28: decdt's brightness floor for a rolled lead is 0.6, not 0.84, and dejbv checks every roll's leads, both from 2026102810142725.
 
 - Pre-next-cut: Every graph's colors on one scrolling tab
 	- ID: 2026102819315852
@@ -235,165 +384,6 @@ Sorted per the notes in [Template](#template).
 	- Test case: `bridge::tests::themes_and_the_sub_tab_it_shows_are_lit_together` (dejmn). It fails with the highlight left out, and passes now.
 		- Swept: `showTab` is the one place a picked line takes effect. The `--snapshot` loop, `tabs_shown` and `tabs_after_move` all pick through it.
 
-- Theme presets, with a coordinated Default
-	- ID: 2026102409400679
-	- Type: Feature
-	- Status: Waiting on UAT
-		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
-		- How the built-in themes look is for a person to judge.
-		- It departs from the wording in one way. b23's file sets 2 colors with no theme line, so it opens as Custom, with exactly the colors it has now. Picking Default there gives the coordinated set.
-		- Stand-in, 2026-10-25, build deea9: each built-in theme drew both graphs in a test panel, and a pick took effect at once. Only the look is left.
-		- Measured 2026-10-28, round-1028 at 17d3d9d, as CIEDE2000: in every built-in, a graph's own colors sit 10.8 or more apart, I/O wait and system 24 or more from every graph's lead, and every color 16.6 or more from the background, except one. Default's nice and Low, `#205f40`, sit 5.1 from the top, `#2a543f`. They were 7.1 from multiload-ng's top, `#2a5446`, before Default moved it. That and the look are left for a person.
-		- Measured again 2026-10-28, branch theme-colors, after 2026102814061803, 2026102810142725 and 2026102807585040: any 2 graphs' leads sit 10.4 or more apart in every built-in but the one-color ones, where all are alike on purpose. In every built-in, a graph's own colors sit 10.6 or more apart, I/O wait and system 14.2 or more from every lead, 21.7 outside Default, every color 15.8 or more from the background, and each gradient step 10.6 or more. Default's nice now sits 24.4 from its gray top, `#313131`. Only the look is left.
-	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
-	- Needs hand testing: on b23, after a panel restart, pick each theme on the Themes tab, Apply, and judge how it looks on the panel graph, Default most of all.
-	- Stand-in: none (20261028). Turns on how the themes look, and the numbers are in the status row.
-	- Priority|Severity: High
-	- Opened: 20261024-094007
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-	- Parent ID: 2026102408304612
-	- Related IDs: 2026102408304559, 2026102408304625
-	- Requirements:
-		- A Theme dropdown that picks a named set of every graph color, backgrounds included, from the parent's requirements.
-		- "Default" is the current colors, moved onto one coordinated scheme close to them.
-		- A few built-in themes named by the color that dominates, such as "Green standard" and "Green pastel".
-			- Superseded by 2026102620162201: theme names are generic, with no color in them, and each monitor gets its own distinct colors.
-		- A color changed by hand sits on top of the theme as a change, the way SilkTerm's do.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- A Theme dropdown sits at the top of the Colors tab. It picks Default, Green standard, Green pastel, Blue standard, Blue pastel, or Custom.
-		- Default keeps the user and nice colors, and moves system, the border and the top a little, onto one hue. `design.md` Theme has the values and the rule behind them.
-		- A color changed on a theme shows "Name *" in the dropdown, and is kept with that theme across a save.
-		- Verified: in the window, a change on Blue standard showed "Blue standard *" with the revert arrow live on that row.
-	- Decisions:
-		- The themes use knobs' preset groups, the same model as SilkTerm's, so knobs is unchanged.
-		- A file with colors and no theme line reads as Custom, so a hand edit isn't hidden under Default. A save names the theme whenever Custom colors are stored.
-		- I/O wait and system stay red and orange in every built-in theme, so trouble reads the same in each.
-		- One theme for the whole panel for now. A theme per graph comes with the live graph list, 2026102408304639.
-	- Branch: round-1024
-	- Test case: `config::tests::the_default_theme_is_the_row_defaults` (deccf), `a_theme_sets_every_color` (deccg), `colors_with_no_theme_line_are_custom` (decch), `a_change_on_a_theme_is_kept_with_it` (deccj) and `back_to_default_from_custom_stays_default` (decck), and `dialog::tests::a_theme_and_the_changes_on_it_are_saved` (deccm) and `custom_then_the_revert_arrow_is_default_again` (deccn). The 2 back-to-Default tests fail with the theme naming taken out and pass with it.
-		- 2026-10-24: `config::tests::defaults_are_the_multiload_colors` got new values only. System went from `#c64600` to `#c64200`, the border from `#40806a` to `#408060`, and the top from `#2a5446` to `#2a543f`.
-		- Swept: every `Model::load`, `Look::load` and `Look::from_model` caller, and every color row in `settings.shcl`. The plugin reads through `Look::load`, and the window through `config::model`.
-
-- Randomize button on the Themes tab
-	- ID: 2026102409400700
-	- Type: Feature
-	- Status: Waiting on UAT
-		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
-		- Whether the rolls look good together is for a person to judge.
-		- Stand-in, 2026-10-25, build deea9: in the window a roll changed every color as "Default *", Save as kept it, and the panel graph took it at Apply. Only the look is left.
-		- Measured 2026-10-28 over 2000 seeds, round-1028 at 17d3d9d, as CIEDE2000: I/O wait and system roll 23.5 or more from every lead, and each gradient step 11.0 or more. A graph's own colors roll as close as 4.8, buffers and cache, and 9.1 or more in 9 rolls of 10. CPU's Low rolls as close as 1.9 to the background top, which takes CPU's hue, and 5.6 or more in 9 of 10. Default's own nice sits 5.1 from its top, so that matches the built-in. Leads that nearly match are 2026102810142725.
-		- Measured again 2026-10-28 over 10,000 seeds, branch theme-colors, after 2026102810142725: every 2 leads 10.0 or more apart, and I/O wait and system 21.7 or more from every lead. A graph's own colors roll as close as 5.8, buffers and cache, and 9.0 or more in 9 rolls of 10. CPU's Low rolls as close as 1.3 to the top, and 6.0 or more in 9 of 10, as before. Each gradient step rolls 8.9 or more, in a graph stepped darker, and 12.4 or more in 9 of 10. Default's nice is 24.4 from its top now, so the closest rolls no longer match a built-in.
-	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
-	- Needs hand testing: on b23, after a panel restart, press Randomize a few times with Apply, and judge whether the rolls look good together.
-	- Stand-in: none (20261028). Turns on whether a roll looks good, and the numbers are in the status row.
-	- Priority|Severity: High
-	- Opened: 20261024-094007
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-	- Parent ID: 2026102408304612
-	- Prereq IDs: 2026102409400684, 2026102409400695
-	- Requirements:
-		- [Randomize] on the Themes tab's top row sets random colors for every graph, by the parent's rules: one coordinated scheme around the user color, alarming colors for stats to watch, muted ones for nice, buffers and cache, and never Gradient mode.
-	- Estimated effort: Avg
-	- Actual effort: Low
-	- Progress log:
-		- Randomize sits after Delete on the Themes top row. It sets every color and the mode as changes on the theme in force, so the dropdown says "Name *", Save as keeps the roll, and picking a theme drops it.
-		- The user color leads at any hue off red and orange. Nice, Low and the background are that hue or one near it, muted. I/O wait stays red and system orange. A roll is always Detailed, with a gradient ready from nice through user to a pale tint.
-		- `design.md` Theme and Settings window have the details.
-		- Verified: the Themes tab drew Randomize after Delete on the top row.
-	- Decisions:
-		- A roll is a change on the theme in force, not a switch to Custom, the same as a color changed by hand.
-		- I/O wait and system stay red and orange, as the presets decided, and the lead hue keeps clear of them.
-		- The hover line stays black, as in every built-in.
-		- Every theme member has a role in `settings/src/dice.rs`. A new graph's members fail a test until they get one.
-	- Branch: round-1024
-	- Test case: `dice::tests::every_theme_member_has_a_role` (decdr), `every_roll_is_a_value_its_setting_takes_and_never_a_gradient` (decds), `the_lead_rules_and_the_alarms_stay_red_and_orange` (decdt), `the_quiet_ones_are_muted_and_near_the_lead` (decdv), `the_gradient_runs_from_calm_through_the_lead` (decdw) and `a_seed_rolls_the_same_theme_and_seeds_differ` (decdx), over 2000 seeds each, and `dialog::tests::randomize_changes_every_color_on_the_theme_and_turns_off_the_gradient` (decdq). Each fails with its rule broken: the mode set to gradient, the lead hue let into red, a member left out, nice as bright as user, and Randomize doing nothing.
-		- Swept: every member of the theme group, which the role test walks, and the one theme button row in qt.cpp.
-
-- Pre-next-cut: Generic theme names, and distinct colors per monitor
-	- ID: 2026102620162201
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- How each theme looks, and whether the graphs read apart side by side, is for a person to judge.
-		- It departs from the wording in one way. Randomize still gives every graph the same lead hue. That part is child 2026102621562349.
-		- Stand-in, 2026-10-26, build defyt: in the window Fire drew CPU red and brown, memory violet and swap blue, and with b23's settings a test panel drew CPU, memory and swap apart on Default. Only the look is left.
-		- 2026-10-28: with 9 graphs now, some leads nearly match in every built-in but Fire, and in most rolls. That part is child 2026102810142725, a Bug.
-		- 2026-10-28: 2026102810142725 is fixed. As CIEDE2000, any 2 leads sit 10.4 or more apart in every built-in, and 10.0 or more in every roll over 10,000 seeds. The one-color themes from 2026102807585040 give every graph one color on purpose.
-	- Needs local test suite run?: No. The full run passed on 2026-10-26.
-	- Needs hand testing: on b23, after an install, with swap on, pick each built-in theme on the Themes tab, Apply, and judge whether CPU, memory and swap read apart and look good together, Fire most of all.
-	- Stand-in: none (20261028). Turns on how it looks. What can be measured is checked by dejbr and dejbv, from child 2026102810142725.
-	- Priority|Severity: High
-	- Opened: 20261026-201621
-	- Opened by: t00mietum
-	- Parent ID: 2026102408304612
-	- Related IDs: 2026102409400679, 2026102409400695, 2026102508393159
-	- Note: The earlier instructions on theme colors were mixed up with a new theme design. These clarify them, and win over the color-named themes in 2026102408304612 and 2026102409400679.
-	- Requirements:
-		- Theme names shouldn't have colors in the names. They should be more generic, "Pastel", "Primary", etc. (E.g. some different common themes)
-		- The different monitors should have their own unique and distinct colors, which is why every theme name has subtabs for per-monitor colors.
-		- "Fire"-themes should have different color combos per monitor.
-	- Estimated effort: Avg
-	- Actual effort: Low
-	- Progress log:
-		- The built-in themes are now Default, Primary, Pastel, Neon, Earth and Fire.
-		- Every theme gives CPU, memory, swap and the battery each a hue and gradient of their own. I/O wait and system stay red and orange, and the battery's on battery and critical stay those 2.
-		- Default keeps its CPU, memory and background colors. Swap is now sky blue, `#40a0ff`, and the battery's plugged in lavender, `#b080ff`.
-		- Fire's graphs each burn their own flame: CPU red, yellow-white and light blue as before, memory violet, swap a blue gas flame, and the battery a green copper one.
-		- `design.md` Theme has the details.
-		- Verified: the full run passed with the new test.
-	- Decisions:
-		- 6 built-ins, as before, so the theme list doesn't grow. Primary keeps Green standard's CPU colors and Pastel Blue pastel's CPU and background, so a pick of the old ones looks close to the new one.
-		- The old keys, such as `green_standard`, aren't kept as aliases. They were never in a release, and b23's file names `default`.
-		- Backgrounds are neutral, or lean to the theme's mood, since no single graph's hue leads any more.
-		- No graph's own color is red or orange, outside Fire's and Earth's warm ones, so the alarms stay apart.
-	- Branch: round-1027
-	- Test case: `config::tests::no_theme_is_named_for_a_color_and_each_graph_has_its_own` (defx7). It fails on the old themes, where Default's swap was CPU's color, and with a color word put in a label, and passes now.
-		- 2026-10-26: new values only, for the renamed themes. deccg reads `pastel`, not `blue_pastel`. deccj reads `primary` and "Primary *", not Green standard. decct lists `primary`, `pastel`, `neon` and `earth` in place of the 4 color-named keys. decdg reads `neon`, with a gradient Medium of `#39ff14`, not `#0080ff`. deccx's built-in clash is `Earth` -> `earth_2`, not `Blue pastel` -> `blue_pastel_2`. In `dialog::tests`, deccm and deccy pick `neon`, with user `#39ff14` and nice `#1f6a10`, not `#0080ff` and `#20405f`, and deccy's clash is `nEon`. dece0 picks `pastel`.
-		- 2026-10-26: dedpz, defq5 and defqc had Fire's memory, swap and battery gradients equal to its CPU one. They now check each graph's own gradient, and dedpz that memory's differs from CPU's.
-		- Swept: every built-in key and label in the Rust tests, qt.cpp and the docs, every swap and battery row default, and the `dice` tests, which don't read the built-ins.
-	- 2026-10-27: the Randomize part is done in child 2026102621562349 (commit 9e35514).
-
-- Randomize: a hue of its own for each graph
-	- ID: 2026102621562349
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- Whether the hues of a roll look good together is for a person to judge.
-		- Measured 2026-10-28 over 10,000 seeds, as CIEDE2000: every 2 leads of a roll are 10.0 or more apart, 10.6 at the median, and every lead 21.7 or more from I/O wait and system. Before 2026102810142725 the closest 2 were 4.7 apart at the median and 1.8 at worst. A roll steps 3 of its 10 leads darker or paler at the median, and 6 at most.
-	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
-	- Needs hand testing: on b23, after an install, with swap on, press Randomize a few times with Apply, and judge whether CPU, memory and swap read apart and look good together.
-	- Stand-in: none (20261028). Whether a roll's hues look good together is for a person. dejbv checks that every roll's leads read apart.
-	- Priority|Severity: High
-	- Opened: 20261026-215623
-	- Opened by: t00mietum
-	- Parent ID: 2026102620162201
-	- Prereq IDs: 2026102810142725
-	- Related IDs: 2026102409400700
-	- Requirements:
-		- A roll gives CPU, memory, swap and the battery each a lead hue of its own, all kept off red and orange, with their quiet colors and gradients from those, the way the built-ins now do.
-	- Note: `dice::tests::buffers_and_cache_are_muted_and_told_apart` (dedq0) asserts memory's lead is CPU's. It changes with this.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- A roll gives each graph a lead hue of its own, from yellow-green round to magenta as before, at least 45 degrees from the others, in a random order. Each graph's quiet colors, buffers and gradient come from its own hue.
-		- I/O wait and system stay red and orange, and so do the battery's critical and on battery.
-		- `design.md` Theme has the details.
-		- Verified: the full run passed with the new test.
-		- 2026-10-28: 2026102810142725 checks every roll's leads apart as CIEDE2000, so the hold is off. The hues are 22 degrees apart now, for 10 graphs.
-	- Decisions:
-		- 45 degrees apart, which leaves 90 degrees of the range to roll in, and keeps clear of defx7's 30 for the built-ins.
-		- All 4 share one saturation and brightness, so a roll reads as one set, the way each built-in does.
-		- The background still takes CPU's hue, or nice's, since it's one set of colors under every graph.
-		- `dice::ROLES` now names each member's graph as well as its role.
-		- 2026-10-28: a lead may step darker or paler from that shared saturation and brightness, where 2 would look alike, per 2026102810142725.
-	- Branch: round-1027, theme-colors
-	- Test case: `dice::tests::each_graph_leads_with_a_hue_of_its_own` (defxd), and dedq0. Both fail with every graph given CPU's hue, and defxd with the order left unshuffled. Both pass now.
-		- 2026-10-26: dedq0 checked memory's lead equal to CPU's user, and cache equal to nice. It now checks they differ, and cache equal to memory's Low. decdt, decdv and decdw now check each graph's colors, not CPU's alone.
-		- Swept: every `dice::ROLES` and `dice::theme` user (`dialog.rs` and its decdq test), and every graph in `ROLES`.
-		- 2026-10-28: decdt's brightness floor for a rolled lead is 0.6, not 0.84, and dejbv checks every roll's leads, both from 2026102810142725.
-
 - Pre-next-cut: Default per-monitor colors from my current settings
 	- ID: 2026102814061803
 	- Type: Enhancement
@@ -526,28 +516,6 @@ Sorted per the notes in [Template](#template).
 	- Test case: `graphs::tests::a_file_the_5_tier_plugin_wrote_still_loads` (defv4). It fails with decode taking only today's tier count, and with `lo` and `hi` swapped in both encode and decode, which defp7 and decbg miss. Restarts are also covered by decbp, dedq3 and defp7.
 		- Swept: every load path (start, a graph added, keep turned back on) and every save path (the 15 minute timer, quit, keep turned off, a graph dropped) in `xfce/src/lib.rs` and `Graphs`. Nothing else reads or writes the history file.
 
-- XFCE panel plugin
-	- ID: 2026101916013889
-	- Type: Feature
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261019-160138
-	- Opened by: t00mietum
-	- Prereq IDs: 2026101916013881, 2026101916013884
-	- Requirements:
-		- Start first with an XFCE4 panel plugin.
-		- Works on XFCE 4.20, on X11 and on Wayland.
-		- One plugin instance can show one or more graphs side by side, picked in its settings dialog.
-		- Follows the panel's size and orientation, including a vertical panel.
-		- Packaged for Debian, and as a Nix package for tukzedo-linux's NixOS edition.
-	- Progress log:
-		- One CPU graph in the panel, with a tooltip and Properties opening tukzmon-settings. Tried on X11 only so far.
-		- 2026-10-26: Several graphs side by side, and the graph list that picks them, are in since round-1025. The `.deb` is in since 2026102506591283.
-		- 2026-10-26: Split what's left into children: 2026102621053709 (vertical and deskbar panels), 2026102621053715 (a settings file per plugin instance), 2026102621053720 (Wayland), 2026102621053725 (Nix package), and 2026102621105420 (graph sizes on a vertical panel). This closes with the last of them.
-		- 2026-10-28: Closed with its last child, graph sizes on a vertical panel. Every requirement above is covered by a closed child.
-	- Test case: the tests of its children 2026102621053709, 2026102621053715, 2026102621053720, 2026102621053725 and 2026102621105420
-	- Closed: 20261028
-
 - Color themes tab
 	- ID: 2026102408304612
 	- Type: Feature
@@ -582,27 +550,6 @@ Sorted per the notes in [Template](#template).
 		- Global setting to make background transparent, which overrides all background colors.
 	- Progress log:
 		- Split into 6 children, in this order: 2026102409400679 (theme presets and Default), 2026102409400684 (Themes tab and its top row), 2026102409400689 (color picker), 2026102409400695 (Gradient mode and Fire), 2026102409400700 (Randomize), and 2026102409400705 (transparent background).
-
-- Pre-next-cut: tukzmon's own CPU graph reads too high
-	- ID: 2026102819172002
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261028-191720
-	- Opened by: t00mietum
-	- Related IDs: 2026102814061811
-	- Requirements:
-		- Tukzmon CPU usage monitor shows too high. Graphically looks ~25%. Should be displayed as over all cores, not one.
-	- Progress log:
-		- The value is already a share of all CPUs. The graph's top never goes under 1% of one CPU (`OwnReader::peak_floor`), so its usual few tenths of that read at about 25% to half height. A floor of 100% of all CPUs, as the CPU graph has, would match what's asked. That touches the design.md line on the tukzmon graph's floor, the `self.show` tip in `settings.shcl`, and tests dej0t and the lib.rs tip test.
-		- 2026-10-28: the graph's floor is every CPU busy, as the CPU graph's top is. At the usual 0.014% it's a thin line, and the tip has the number.
-		- Verified 2026-10-28: dejb6 and dejb7 passed in the quick gate run. The graph's top is fixed at every CPU busy, so there's nothing left for a hand look to judge.
-	- Decisions:
-		- Floor of 100% of all CPUs, as the note asked. A spike still raises the top, which can't happen above 100%, so the top is fixed.
-	- Test case: `tests::own_use_reads_in_fine_percents_and_fills_at_every_cpu` (dejb6) and `graphs::tests::the_own_graph_sits_last_and_fills_at_every_cpu` (dejb7), renamed from the hundredth-of-one-CPU names. 2026-10-28: dejb6 asserts a floor of 1.0, not 0.01 over the CPU count. dejb7 draws 0.5 and expects half height and a tip of "50% of all CPUs", where it drew half the old floor and expected 0.50% of one CPU. Both fail with the old floor.
-	- Swept: `OwnReader::peak_floor` is the only floor for the graph. The design.md Drawing line and the `self.show` tip in `settings.shcl` are updated. The README names no floor.
-	- Needs hand testing: No
-	- Closed: 20261028
 
 - Pre-next-cut: All monitor colors on one tab
 	- ID: 2026102807585010
@@ -673,22 +620,15 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Today both files stay. The plugin doesn't connect the panel's `remove` signal, and free-data saves history after it.
 
-- Check whether XFCE 4.20 finds plugins under ~/.local
-	- ID: 2026102808222920
+- Drop the sudo step in dev-install.bash
+	- ID: 2026102820420805
 	- Type: Task
-	- Status: Done
+	- Status: Queued
 	- Priority|Severity: Low
-	- Opened: 20261028-082229
-	- Opened: 20261028-082229
+	- Opened: 20261028-204208
 	- Opened by: t00mietum
-	- Related IDs: 2026102621053725
-	- Requirements: design.md XFCE plugin and README say XDG_DATA_DIRS and ~/.local aren't searched, so dev-install.bash needs sudo once. The 4.20.4 and 4.20.7 panel source pairs each XDG_DATA_DIRS entry and ~/.local/share with the lib dir under the same prefix, which on Debian is lib/x86_64-linux-gnu. Try ~/.local/share/xfce4/panel/plugins with ~/.local/lib/x86_64-linux-gnu/xfce4/panel/plugins on b23, and if it works, drop the sudo step and fix both docs.
-	- Actual effort: Low
-	- Branch: round-1028b
-	- Test case: none in the repo. Checked by hand in a private panel.
-	- Closed: 20261028-204500
-	- Verified 2026-10-28, Debian xfce4-panel 4.20.7 on a private Xvfb (:130), HOME and XDG_DATA_HOME in a temp folder, XDG_DATA_DIRS without it: with the .desktop file only in .local/share/xfce4/panel/plugins and the library only in .local/lib/x86_64-linux-gnu/xfce4/panel/plugins, PANEL_DEBUG=all logged reading the .local/share dir and new module tukzmon with the .local/lib/x86_64-linux-gnu filename, and the plugin was embedded.
-	- design.md XFCE plugin and README fixed. Dropping the sudo step is 2026102820420805.
+	- Related IDs: 2026102808222920
+	- Requirements: Install the .desktop file to ~/.local/share/xfce4/panel/plugins and the plugin and tukzmon-settings to ~/.local/lib/<multiarch>/xfce4/panel/plugins, with no sudo links. The multiarch dir comes from the panel's lib dir. Update design.md XFCE plugin and README to match.
 
 - Plugin errors go nowhere after a panel restart
 	- ID: 2026102620523642
@@ -733,64 +673,6 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
 
-- Pre-next-cut: "Sample ms default" of 1000
-	- ID: 2026102819145600
-	- Type: Enhancement
-	- Status: Done
-	- Needs local test suite run?: No. The full run passed on 2026-10-28.
-	- Priority|Severity: Avg
-	- Opened: 20261028-191455
-	- Opened by: t00mietum
-	- Related IDs: 2026102814061806, 2026102819145599
-	- Requirements:
-		- "Sample ms default": 1000.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- It's 500 now.
-		- Sample ms default is 1000 by default. A file that sets `graph.sample_ms` keeps its rate.
-		- Verified: the full run passed, the soak test (dee6p) included. The Graph tab showed 1000.
-	- Decisions:
-		- The history tiers stay as they are, since the 50 ms floor sets them, not the default. A linear graph at the default now spans twice the time.
-		- Tests about something else that counted on 500 now set 500 themselves (deja0, defz1), so their timings hold.
-	- Branch: round-1028b
-	- Test case: `config::tests::defaults_are_the_multiload_colors` (debhj) and `a_file_overrides_and_bad_lines_fall_back` (debhk) check 1000 as the default.
-		- 2026-10-28: new values only. debhj and debhk: 500 -> 1000. deea2's linear axis over 100 columns: 50 s -> 100 s. deja2's first wait: within 500 -> within 1000.
-	- Acceptance signoff: Self-closed, 2026-10-28: a default changed as asked, and the full run passed.
-	- Closed: 20261028-203943
-
-- Graph sizes on a vertical panel
-	- ID: 2026102621105420
-	- Type: Enhancement
-	- Status: Done
-	- Needs local test suite run?: No. The full run passed on 2026-10-28.
-	- Priority|Severity: Avg
-	- Opened: 20261026-211054
-	- Opened by: t00mietum
-	- Version and build: v0.1.0, not on b23 yet.
-	- Parent ID: 2026101916013889
-	- Related IDs: 2026102621053709, 2026102508393152
-	- Requirements:
-		- On a vertical panel, the Width settings either do something, or say they don't.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- Each graph there is as wide as the panel and half that tall, and the Width tip still says "Its height follows the panel".
-		- On a vertical panel or a deskbar, a graph's width is now its height, and it's as wide as the panel. Time still runs from left to right. The item asks for the heights' sum plus the gaps, and what it gets is shared out by width, as side by side.
-		- The Width tip says what it does on a vertical panel, and each graph's width tip says "or how tall on a vertical panel".
-		- `design.md` XFCE plugin is updated.
-		- Verified: the full run passed. In a test panel with Width 100, CPU 40% and memory 100%, a vertical panel of 48 px gave the item 48 by 144, with CPU 40 rows tall, a 4 row gap, and memory 100 rows. A deskbar of 64 px gave 64 by 144, and a horizontal panel of 26 px 144 by 26.
-	- Decisions:
-		- The 16 px floor on a stacked graph's height is gone, since a width has none side by side either.
-		- The labels stay "Width px" and "CPU width %" and so on, since a horizontal panel is the common case, and the tips cover the vertical one.
-	- 2026-10-28 answer: B. On a vertical panel or a deskbar, a graph's width setting is its height, as multiload-ng's Size does. The time axis still runs across the panel. dedq2's even-share line changes.
-		- The even-share line was in dedqd, not dedq2. dedq2 and defw2 lay out 2 graphs of the same width, so they're unchanged.
-	- Branch: round-1028b
-	- Test case: `graphs::tests::each_graph_takes_its_own_width_and_0_is_width` (dedqd) and `the_ask_follows_the_panels_size_and_orientation` (defvs). Both fail with the even share and the old ask, and pass now.
-		- 2026-10-28: new values only. defvs asks for the widths' sum plus a gap stacked, where it asked for 48 + GAP at 48 px and 32 + GAP at 20 px, and 128 for CPU alone, where it asked 24. dedqp's stacked hover on CPU moved from row 17 to row 20, since row 17 is now the gap under the wider memory graph.
-		- Swept: every caller of `Graphs::wanted` and `tiles` (the plugin's `fit`, `find`, `render`), and every Width and per-graph width tip in `settings.shcl`. qt.cpp's gripper tip already says top to bottom on a vertical panel.
-	- Closed: 20261028-192806
-
 - Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
 	- ID: 2026102620162196
 	- Type: Bug
@@ -815,6 +697,28 @@ Sorted per the notes in [Template](#template).
 	- Test case: `tests::a_still_pointer_keeps_its_age_while_its_clock_time_moves_on` (defz1). It pins existing behavior, so it passes before and after. No code changed.
 		- Swept: `hover_tip` and `span_at` are the only places the tip's time is made, and the settings window's live tip goes through the same `Graph::hover_tip`.
 	- Closed: 20261028-080400
+
+- XFCE panel plugin
+	- ID: 2026101916013889
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Prereq IDs: 2026101916013881, 2026101916013884
+	- Requirements:
+		- Start first with an XFCE4 panel plugin.
+		- Works on XFCE 4.20, on X11 and on Wayland.
+		- One plugin instance can show one or more graphs side by side, picked in its settings dialog.
+		- Follows the panel's size and orientation, including a vertical panel.
+		- Packaged for Debian, and as a Nix package for tukzedo-linux's NixOS edition.
+	- Progress log:
+		- One CPU graph in the panel, with a tooltip and Properties opening tukzmon-settings. Tried on X11 only so far.
+		- 2026-10-26: Several graphs side by side, and the graph list that picks them, are in since round-1025. The `.deb` is in since 2026102506591283.
+		- 2026-10-26: Split what's left into children: 2026102621053709 (vertical and deskbar panels), 2026102621053715 (a settings file per plugin instance), 2026102621053720 (Wayland), 2026102621053725 (Nix package), and 2026102621105420 (graph sizes on a vertical panel). This closes with the last of them.
+		- 2026-10-28: Closed with its last child, graph sizes on a vertical panel. Every requirement above is covered by a closed child.
+	- Test case: the tests of its children 2026102621053709, 2026102621053715, 2026102621053720, 2026102621053725 and 2026102621105420
+	- Closed: 20261028
 
 - Memory graph
 	- ID: 2026102408304625
@@ -2534,6 +2438,27 @@ Sorted per the notes in [Template](#template).
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019
 
+- Pre-next-cut: tukzmon's own CPU graph reads too high
+	- ID: 2026102819172002
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261028-191720
+	- Opened by: t00mietum
+	- Related IDs: 2026102814061811
+	- Requirements:
+		- Tukzmon CPU usage monitor shows too high. Graphically looks ~25%. Should be displayed as over all cores, not one.
+	- Progress log:
+		- The value is already a share of all CPUs. The graph's top never goes under 1% of one CPU (`OwnReader::peak_floor`), so its usual few tenths of that read at about 25% to half height. A floor of 100% of all CPUs, as the CPU graph has, would match what's asked. That touches the design.md line on the tukzmon graph's floor, the `self.show` tip in `settings.shcl`, and tests dej0t and the lib.rs tip test.
+		- 2026-10-28: the graph's floor is every CPU busy, as the CPU graph's top is. At the usual 0.014% it's a thin line, and the tip has the number.
+		- Verified 2026-10-28: dejb6 and dejb7 passed in the quick gate run. The graph's top is fixed at every CPU busy, so there's nothing left for a hand look to judge.
+	- Decisions:
+		- Floor of 100% of all CPUs, as the note asked. A spike still raises the top, which can't happen above 100%, so the top is fixed.
+	- Test case: `tests::own_use_reads_in_fine_percents_and_fills_at_every_cpu` (dejb6) and `graphs::tests::the_own_graph_sits_last_and_fills_at_every_cpu` (dejb7), renamed from the hundredth-of-one-CPU names. 2026-10-28: dejb6 asserts a floor of 1.0, not 0.01 over the CPU count. dejb7 draws 0.5 and expects half height and a tip of "50% of all CPUs", where it drew half the old floor and expected 0.50% of one CPU. Both fail with the old floor.
+	- Swept: `OwnReader::peak_floor` is the only floor for the graph. The design.md Drawing line and the `self.show` tip in `settings.shcl` are updated. The README names no floor.
+	- Needs hand testing: No
+	- Closed: 20261028
+
 - The soak check fails since swap is on by default
 	- ID: 2026102816343100
 	- Type: Bug
@@ -2609,6 +2534,64 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: defx7 no longer checks hue angle between leads. dejbr checks how far apart they look.
 		- Swept: defx7 and defxd, the only checks on leads, every built-in in `settings.shcl`, and every role in `dice::ROLES` that follows its graph's lead.
 	- Closed: 20261028-161000
+
+- Pre-next-cut: "Sample ms default" of 1000
+	- ID: 2026102819145600
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Priority|Severity: Avg
+	- Opened: 20261028-191455
+	- Opened by: t00mietum
+	- Related IDs: 2026102814061806, 2026102819145599
+	- Requirements:
+		- "Sample ms default": 1000.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- It's 500 now.
+		- Sample ms default is 1000 by default. A file that sets `graph.sample_ms` keeps its rate.
+		- Verified: the full run passed, the soak test (dee6p) included. The Graph tab showed 1000.
+	- Decisions:
+		- The history tiers stay as they are, since the 50 ms floor sets them, not the default. A linear graph at the default now spans twice the time.
+		- Tests about something else that counted on 500 now set 500 themselves (deja0, defz1), so their timings hold.
+	- Branch: round-1028b
+	- Test case: `config::tests::defaults_are_the_multiload_colors` (debhj) and `a_file_overrides_and_bad_lines_fall_back` (debhk) check 1000 as the default.
+		- 2026-10-28: new values only. debhj and debhk: 500 -> 1000. deea2's linear axis over 100 columns: 50 s -> 100 s. deja2's first wait: within 500 -> within 1000.
+	- Acceptance signoff: Self-closed, 2026-10-28: a default changed as asked, and the full run passed.
+	- Closed: 20261028-203943
+
+- Graph sizes on a vertical panel
+	- ID: 2026102621105420
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Priority|Severity: Avg
+	- Opened: 20261026-211054
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026101916013889
+	- Related IDs: 2026102621053709, 2026102508393152
+	- Requirements:
+		- On a vertical panel, the Width settings either do something, or say they don't.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Each graph there is as wide as the panel and half that tall, and the Width tip still says "Its height follows the panel".
+		- On a vertical panel or a deskbar, a graph's width is now its height, and it's as wide as the panel. Time still runs from left to right. The item asks for the heights' sum plus the gaps, and what it gets is shared out by width, as side by side.
+		- The Width tip says what it does on a vertical panel, and each graph's width tip says "or how tall on a vertical panel".
+		- `design.md` XFCE plugin is updated.
+		- Verified: the full run passed. In a test panel with Width 100, CPU 40% and memory 100%, a vertical panel of 48 px gave the item 48 by 144, with CPU 40 rows tall, a 4 row gap, and memory 100 rows. A deskbar of 64 px gave 64 by 144, and a horizontal panel of 26 px 144 by 26.
+	- Decisions:
+		- The 16 px floor on a stacked graph's height is gone, since a width has none side by side either.
+		- The labels stay "Width px" and "CPU width %" and so on, since a horizontal panel is the common case, and the tips cover the vertical one.
+	- 2026-10-28 answer: B. On a vertical panel or a deskbar, a graph's width setting is its height, as multiload-ng's Size does. The time axis still runs across the panel. dedq2's even-share line changes.
+		- The even-share line was in dedqd, not dedq2. dedq2 and defw2 lay out 2 graphs of the same width, so they're unchanged.
+	- Branch: round-1028b
+	- Test case: `graphs::tests::each_graph_takes_its_own_width_and_0_is_width` (dedqd) and `the_ask_follows_the_panels_size_and_orientation` (defvs). Both fail with the even share and the old ask, and pass now.
+		- 2026-10-28: new values only. defvs asks for the widths' sum plus a gap stacked, where it asked for 48 + GAP at 48 px and 32 + GAP at 20 px, and 128 for CPU alone, where it asked 24. dedqp's stacked hover on CPU moved from row 17 to row 20, since row 17 is now the gap under the wider memory graph.
+		- Swept: every caller of `Graphs::wanted` and `tiles` (the plugin's `fit`, `find`, `render`), and every Width and per-graph width tip in `settings.shcl`. qt.cpp's gripper tip already says top to bottom on a vertical panel.
+	- Closed: 20261028-192806
 
 - Pre-next-cut: Less CPU used by tukzmon
 	- ID: 2026102814061812
@@ -3394,6 +3377,23 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
 	- Closed: 20261025-081952
+
+- Check whether XFCE 4.20 finds plugins under ~/.local
+	- ID: 2026102808222920
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261028-082229
+	- Opened: 20261028-082229
+	- Opened by: t00mietum
+	- Related IDs: 2026102621053725
+	- Requirements: design.md XFCE plugin and README say XDG_DATA_DIRS and ~/.local aren't searched, so dev-install.bash needs sudo once. The 4.20.4 and 4.20.7 panel source pairs each XDG_DATA_DIRS entry and ~/.local/share with the lib dir under the same prefix, which on Debian is lib/x86_64-linux-gnu. Try ~/.local/share/xfce4/panel/plugins with ~/.local/lib/x86_64-linux-gnu/xfce4/panel/plugins on b23, and if it works, drop the sudo step and fix both docs.
+	- Actual effort: Low
+	- Branch: round-1028b
+	- Test case: none in the repo. Checked by hand in a private panel.
+	- Closed: 20261028-204500
+	- Verified 2026-10-28, Debian xfce4-panel 4.20.7 on a private Xvfb (:130), HOME and XDG_DATA_HOME in a temp folder, XDG_DATA_DIRS without it: with the .desktop file only in .local/share/xfce4/panel/plugins and the library only in .local/lib/x86_64-linux-gnu/xfce4/panel/plugins, PANEL_DEBUG=all logged reading the .local/share dir and new module tukzmon with the .local/lib/x86_64-linux-gnu filename, and the plugin was embedded.
+	- design.md XFCE plugin and README fixed. Dropping the sudo step is 2026102820420805.
 
 - The panel's tick costs about a third more since the 50 ms history tier
 	- ID: 2026102618573801
