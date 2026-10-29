@@ -186,6 +186,82 @@ settings:
 		default: same
 		tip: "How the memory graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
 
+	show_gpu:
+		label: GPU
+		tab: Graph
+		control: checkbox
+		path: gpu.show
+		default: false
+		tip: "Show how busy the GPU is, as the share of time it was running work. It reads the first NVIDIA card through its driver, or the first AMD one. It's left out on a box with neither."
+
+	gpu_width:
+		label: GPU width %
+		tab: Graph
+		control: number
+		whole: true
+		range: 1, 1000
+		path: gpu.width
+		default: 100
+		tip: "How wide the GPU graph is, or how tall on a vertical panel, as a percentage of Width."
+
+	gpu_sample:
+		label: GPU sample %
+		tab: Graph
+		control: number
+		whole: true
+		range: 1, 1000
+		path: gpu.sample
+		default: 100
+		tip: "How often the GPU graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
+
+	gpu_time:
+		label: GPU time axis
+		tab: Graph
+		control: dropdown
+		options: same, linear, smooth, fixed_a, fixed_b
+		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: gpu.time
+		default: same
+		tip: "How the GPU graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
+
+	show_vram:
+		label: GPU memory
+		tab: Graph
+		control: checkbox
+		path: vram.show
+		default: false
+		tip: "Show how much of the GPU's own memory is in use. The tip gives it in GiB too. It reads the same card as the GPU graph, and is left out on a box with neither an NVIDIA nor an AMD card."
+
+	vram_width:
+		label: GPU memory width %
+		tab: Graph
+		control: number
+		whole: true
+		range: 1, 1000
+		path: vram.width
+		default: 100
+		tip: "How wide the GPU memory graph is, or how tall on a vertical panel, as a percentage of Width."
+
+	vram_sample:
+		label: GPU memory sample %
+		tab: Graph
+		control: number
+		whole: true
+		range: 1, 1000
+		path: vram.sample
+		default: 100
+		tip: "How often the GPU memory graph is read and redrawn, as a percentage of Sample ms default, under Time. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
+
+	vram_time:
+		label: GPU memory time axis
+		tab: Graph
+		control: dropdown
+		options: same, linear, smooth, fixed_a, fixed_b
+		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: vram.time
+		default: same
+		tip: "How the GPU memory graph spreads time across its width. Default follows Time axis default, under Time, where the tip tells the curves apart."
+
 	show_net:
 		label: Network
 		tab: Graph
@@ -496,8 +572,8 @@ settings:
 		tab: Graph
 		control: text
 		path: graph.order
-		default: "cpu mem net disk temp swap zswap load battery self"
-		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, net for network, swap, zswap, load, disk, temp for temperature, battery, and self for tukzmon itself. One left out goes at the end."
+		default: "cpu mem gpu vram net disk temp swap zswap load battery self"
+		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, gpu, vram for GPU memory, net for network, swap, zswap, load, disk, temp for temperature, battery, and self for tukzmon itself. One left out goes at the end."
 
 	DiskHead:
 		label: Disk graph
@@ -798,6 +874,192 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: mem.colors.bottom
+		default: "#000000"
+		group: theme
+
+	GpuSection:
+		label: GPU
+		tab: Themes/Colors
+		control: heading
+		graph: gpu
+
+	gpu_mode:
+		label: Colors
+		tab: Themes/Colors
+		control: dropdown
+		shown_as: radio
+		options: detailed, gradient
+		option_labels: "Detailed", "Gradient"
+		path: gpu.mode
+		default: detailed
+		group: theme
+		tip: "Detailed draws how busy the GPU is in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	gpu_busy:
+		label: Busy
+		tab: Themes/Colors
+		control: color
+		path: gpu.colors.busy
+		default: "#3b6fd9"
+		group: theme
+		shown_when: "gpu_mode = detailed"
+
+	GpuGradHead:
+		label: "By height"
+		tab: Themes/Colors
+		control: heading
+		shown_when: "gpu_mode = gradient"
+
+	gpu_low:
+		label: Low
+		tab: Themes/Colors
+		control: color
+		path: gpu.colors.low
+		default: "#32456d"
+		group: theme
+		shown_when: "gpu_mode = gradient"
+		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
+
+	gpu_medium:
+		label: Medium
+		tab: Themes/Colors
+		control: color
+		path: gpu.colors.medium
+		default: "#3b6fd9"
+		group: theme
+		shown_when: "gpu_mode = gradient"
+		tip: "The color halfway up."
+
+	gpu_high:
+		label: High
+		tab: Themes/Colors
+		control: color
+		path: gpu.colors.high
+		default: "#dce8ff"
+		group: theme
+		shown_when: "gpu_mode = gradient"
+		tip: "The color at the top."
+
+	GpuBackHead:
+		label: Background
+		tab: Themes/Colors
+		control: heading
+		beside: true
+
+	gpu_border_color:
+		label: Border
+		tab: Themes/Colors
+		control: color
+		path: gpu.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	gpu_back_top:
+		label: Top
+		tab: Themes/Colors
+		control: color
+		path: gpu.colors.top
+		default: "#313131"
+		group: theme
+
+	gpu_back_bottom:
+		label: Bottom
+		tab: Themes/Colors
+		control: color
+		path: gpu.colors.bottom
+		default: "#000000"
+		group: theme
+
+	VramSection:
+		label: GPU memory
+		tab: Themes/Colors
+		control: heading
+		graph: vram
+
+	vram_mode:
+		label: Colors
+		tab: Themes/Colors
+		control: dropdown
+		shown_as: radio
+		options: detailed, gradient
+		option_labels: "Detailed", "Gradient"
+		path: vram.mode
+		default: detailed
+		group: theme
+		tip: "Detailed draws the GPU's memory in use in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	vram_used:
+		label: In use
+		tab: Themes/Colors
+		control: color
+		path: vram.colors.used
+		default: "#843bd9"
+		group: theme
+		shown_when: "vram_mode = detailed"
+
+	VramGradHead:
+		label: "By height"
+		tab: Themes/Colors
+		control: heading
+		shown_when: "vram_mode = gradient"
+
+	vram_low:
+		label: Low
+		tab: Themes/Colors
+		control: color
+		path: vram.colors.low
+		default: "#4d326d"
+		group: theme
+		shown_when: "vram_mode = gradient"
+		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
+
+	vram_medium:
+		label: Medium
+		tab: Themes/Colors
+		control: color
+		path: vram.colors.medium
+		default: "#843bd9"
+		group: theme
+		shown_when: "vram_mode = gradient"
+		tip: "The color halfway up."
+
+	vram_high:
+		label: High
+		tab: Themes/Colors
+		control: color
+		path: vram.colors.high
+		default: "#ecdcff"
+		group: theme
+		shown_when: "vram_mode = gradient"
+		tip: "The color at the top."
+
+	VramBackHead:
+		label: Background
+		tab: Themes/Colors
+		control: heading
+		beside: true
+
+	vram_border_color:
+		label: Border
+		tab: Themes/Colors
+		control: color
+		path: vram.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	vram_back_top:
+		label: Top
+		tab: Themes/Colors
+		control: color
+		path: vram.colors.top
+		default: "#313131"
+		group: theme
+
+	vram_back_bottom:
+		label: Bottom
+		tab: Themes/Colors
+		control: color
+		path: vram.colors.bottom
 		default: "#000000"
 		group: theme
 
@@ -1756,6 +2018,16 @@ groups:
 				mem_user: "#ffffa3"
 				mem_buffers: "#804080"
 				mem_cache: "#408060"
+				gpu_mode: detailed
+				gpu_low: "#32456d"
+				gpu_medium: "#3b6fd9"
+				gpu_high: "#dce8ff"
+				gpu_busy: "#3b6fd9"
+				vram_mode: detailed
+				vram_low: "#4d326d"
+				vram_medium: "#843bd9"
+				vram_high: "#ecdcff"
+				vram_used: "#843bd9"
 				net_mode: detailed
 				net_low: "#2a5566"
 				net_medium: "#6ad4ff"
@@ -1808,6 +2080,12 @@ groups:
 				mem_border_color: "#8b8b8b"
 				mem_back_top: "#313131"
 				mem_back_bottom: "#000000"
+				gpu_border_color: "#8b8b8b"
+				gpu_back_top: "#313131"
+				gpu_back_bottom: "#000000"
+				vram_border_color: "#8b8b8b"
+				vram_back_top: "#313131"
+				vram_back_bottom: "#000000"
 				net_border_color: "#8b8b8b"
 				net_back_top: "#313131"
 				net_back_bottom: "#000000"
@@ -1857,6 +2135,16 @@ groups:
 				mem_user: "#ffff00"
 				mem_buffers: "#604a20"
 				mem_cache: "#5f5f20"
+				gpu_mode: detailed
+				gpu_low: "#094a57"
+				gpu_medium: "#16b8d9"
+				gpu_high: "#c5f5ff"
+				gpu_busy: "#16b8d9"
+				vram_mode: detailed
+				vram_low: "#143d66"
+				vram_medium: "#3399ff"
+				vram_high: "#cce5ff"
+				vram_used: "#3399ff"
 				net_mode: detailed
 				net_low: "#3e205f"
 				net_medium: "#9900ff"
@@ -1909,6 +2197,12 @@ groups:
 				mem_border_color: "#606060"
 				mem_back_top: "#2a2a2a"
 				mem_back_bottom: "#000000"
+				gpu_border_color: "#606060"
+				gpu_back_top: "#2a2a2a"
+				gpu_back_bottom: "#000000"
+				vram_border_color: "#606060"
+				vram_back_top: "#2a2a2a"
+				vram_back_bottom: "#000000"
 				net_border_color: "#606060"
 				net_back_top: "#2a2a2a"
 				net_back_bottom: "#000000"
@@ -1958,6 +2252,16 @@ groups:
 				mem_user: "#f0e0a1"
 				mem_buffers: "#8a786a"
 				mem_cache: "#8a856a"
+				gpu_mode: detailed
+				gpu_low: "#585b8a"
+				gpu_medium: "#6f75c9"
+				gpu_high: "#e6e7fb"
+				gpu_busy: "#6f75c9"
+				vram_mode: detailed
+				vram_low: "#7a588a"
+				vram_medium: "#ab6fc9"
+				vram_high: "#f4e6fb"
+				vram_used: "#ab6fc9"
 				net_mode: detailed
 				net_low: "#7e8a6a"
 				net_medium: "#d3f0a1"
@@ -2010,6 +2314,12 @@ groups:
 				mem_border_color: "#7f90a1"
 				mem_back_top: "#3a424a"
 				mem_back_bottom: "#0f1214"
+				gpu_border_color: "#7f90a1"
+				gpu_back_top: "#3a424a"
+				gpu_back_bottom: "#0f1214"
+				vram_border_color: "#7f90a1"
+				vram_back_top: "#3a424a"
+				vram_back_bottom: "#0f1214"
 				net_border_color: "#7f90a1"
 				net_back_top: "#3a424a"
 				net_back_bottom: "#0f1214"
@@ -2059,6 +2369,16 @@ groups:
 				mem_user: "#00f0ff"
 				mem_buffers: "#10406a"
 				mem_cache: "#106a70"
+				gpu_mode: detailed
+				gpu_low: "#083a66"
+				gpu_medium: "#1492ff"
+				gpu_high: "#c4e4ff"
+				gpu_busy: "#1492ff"
+				vram_mode: detailed
+				vram_low: "#074757"
+				vram_medium: "#11b1d9"
+				vram_high: "#c4f3ff"
+				vram_used: "#11b1d9"
 				net_mode: detailed
 				net_low: "#6a1040"
 				net_medium: "#ff1090"
@@ -2111,6 +2431,12 @@ groups:
 				mem_border_color: "#3a2a6a"
 				mem_back_top: "#120a24"
 				mem_back_bottom: "#000000"
+				gpu_border_color: "#3a2a6a"
+				gpu_back_top: "#120a24"
+				gpu_back_bottom: "#000000"
+				vram_border_color: "#3a2a6a"
+				vram_back_top: "#120a24"
+				vram_back_bottom: "#000000"
 				net_border_color: "#3a2a6a"
 				net_back_top: "#120a24"
 				net_back_bottom: "#000000"
@@ -2160,6 +2486,16 @@ groups:
 				mem_user: "#e0c080"
 				mem_buffers: "#6a4a3a"
 				mem_cache: "#5f5a3a"
+				gpu_mode: detailed
+				gpu_low: "#4b7474"
+				gpu_medium: "#95e6e6"
+				gpu_high: "#d9e7e7"
+				gpu_busy: "#95e6e6"
+				vram_mode: detailed
+				vram_low: "#21215d"
+				vram_medium: "#4040b8"
+				vram_high: "#cecee7"
+				vram_used: "#4040b8"
 				net_mode: detailed
 				net_low: "#5a3a50"
 				net_medium: "#b06a9a"
@@ -2212,6 +2548,12 @@ groups:
 				mem_border_color: "#6a5a40"
 				mem_back_top: "#2e261a"
 				mem_back_bottom: "#0e0b07"
+				gpu_border_color: "#6a5a40"
+				gpu_back_top: "#2e261a"
+				gpu_back_bottom: "#0e0b07"
+				vram_border_color: "#6a5a40"
+				vram_back_top: "#2e261a"
+				vram_back_bottom: "#0e0b07"
 				net_border_color: "#6a5a40"
 				net_back_top: "#2e261a"
 				net_back_bottom: "#0e0b07"
@@ -2261,6 +2603,16 @@ groups:
 				mem_user: "#c060ff"
 				mem_buffers: "#5a2a4a"
 				mem_cache: "#4a2a6a"
+				gpu_mode: gradient
+				gpu_low: "#004e66"
+				gpu_medium: "#38d1ff"
+				gpu_high: "#b8efff"
+				gpu_busy: "#38d1ff"
+				vram_mode: gradient
+				vram_low: "#133166"
+				vram_medium: "#6ba1ff"
+				vram_high: "#cbdeff"
+				vram_used: "#6ba1ff"
 				net_mode: gradient
 				net_low: "#48102a"
 				net_medium: "#ff40a0"
@@ -2313,6 +2665,12 @@ groups:
 				mem_border_color: "#80401a"
 				mem_back_top: "#3a1c0c"
 				mem_back_bottom: "#000000"
+				gpu_border_color: "#80401a"
+				gpu_back_top: "#3a1c0c"
+				gpu_back_bottom: "#000000"
+				vram_border_color: "#80401a"
+				vram_back_top: "#3a1c0c"
+				vram_back_bottom: "#000000"
 				net_border_color: "#80401a"
 				net_back_top: "#3a1c0c"
 				net_back_bottom: "#000000"
@@ -2362,6 +2720,16 @@ groups:
 				mem_user: "#33ff33"
 				mem_buffers: "#40a840"
 				mem_cache: "#1b6b1b"
+				gpu_mode: detailed
+				gpu_low: "#1b6b1b"
+				gpu_medium: "#33ff33"
+				gpu_high: "#ccffcc"
+				gpu_busy: "#33ff33"
+				vram_mode: detailed
+				vram_low: "#1b6b1b"
+				vram_medium: "#33ff33"
+				vram_high: "#ccffcc"
+				vram_used: "#33ff33"
 				net_mode: detailed
 				net_low: "#1b6b1b"
 				net_medium: "#33ff33"
@@ -2414,6 +2782,12 @@ groups:
 				mem_border_color: "#1d611d"
 				mem_back_top: "#0a210a"
 				mem_back_bottom: "#000000"
+				gpu_border_color: "#1d611d"
+				gpu_back_top: "#0a210a"
+				gpu_back_bottom: "#000000"
+				vram_border_color: "#1d611d"
+				vram_back_top: "#0a210a"
+				vram_back_bottom: "#000000"
 				net_border_color: "#1d611d"
 				net_back_top: "#0a210a"
 				net_back_bottom: "#000000"
@@ -2463,6 +2837,16 @@ groups:
 				mem_user: "#ffae00"
 				mem_buffers: "#ad7f1a"
 				mem_cache: "#6b4900"
+				gpu_mode: detailed
+				gpu_low: "#6b4900"
+				gpu_medium: "#ffae00"
+				gpu_high: "#ffebbf"
+				gpu_busy: "#ffae00"
+				vram_mode: detailed
+				vram_low: "#6b4900"
+				vram_medium: "#ffae00"
+				vram_high: "#ffebbf"
+				vram_used: "#ffae00"
 				net_mode: detailed
 				net_low: "#6b4900"
 				net_medium: "#ffae00"
@@ -2515,6 +2899,12 @@ groups:
 				mem_border_color: "#5c3f00"
 				mem_back_top: "#1f1500"
 				mem_back_bottom: "#000000"
+				gpu_border_color: "#5c3f00"
+				gpu_back_top: "#1f1500"
+				gpu_back_bottom: "#000000"
+				vram_border_color: "#5c3f00"
+				vram_back_top: "#1f1500"
+				vram_back_bottom: "#000000"
 				net_border_color: "#5c3f00"
 				net_back_top: "#1f1500"
 				net_back_bottom: "#000000"
@@ -2564,6 +2954,16 @@ groups:
 				mem_user: "#bfeaff"
 				mem_buffers: "#728fa3"
 				mem_cache: "#4b6273"
+				gpu_mode: detailed
+				gpu_low: "#4b6273"
+				gpu_medium: "#bfeaff"
+				gpu_high: "#f0faff"
+				gpu_busy: "#bfeaff"
+				vram_mode: detailed
+				vram_low: "#4b6273"
+				vram_medium: "#bfeaff"
+				vram_high: "#f0faff"
+				vram_used: "#bfeaff"
 				net_mode: detailed
 				net_low: "#4b6273"
 				net_medium: "#bfeaff"
@@ -2616,6 +3016,12 @@ groups:
 				mem_border_color: "#506473"
 				mem_back_top: "#1b2329"
 				mem_back_bottom: "#050708"
+				gpu_border_color: "#506473"
+				gpu_back_top: "#1b2329"
+				gpu_back_bottom: "#050708"
+				vram_border_color: "#506473"
+				vram_back_top: "#1b2329"
+				vram_back_bottom: "#050708"
 				net_border_color: "#506473"
 				net_back_top: "#1b2329"
 				net_back_bottom: "#050708"

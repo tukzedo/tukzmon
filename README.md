@@ -5,13 +5,13 @@
 <!-- markdownlint-disable MD041 -- First line in a file should be a top-level heading -->
 # tukzmon
 
-A system monitor that lives in your panel. It draws small graphs for CPU, memory, network, disk, swap, temperature, battery, and more, right in the taskbar.
+A system monitor that lives in your panel. It draws small graphs for CPU, memory, GPU, network, disk, swap, temperature, battery, and more, right in the taskbar.
 
 The time axis is logarithmic by default. The last minute gets the most room, and older history is squeezed to the left, so one small graph shows the last few seconds and the last few weeks at once. History is kept across restarts and reboots, with gaps where the computer was off.
 
 ## Status
 
-Early. CPU, memory, network, swap, zswap, load, disk, temperature, battery and tukzmon's own CPU graphs run as an XFCE panel plugin, with a settings window, and keep their history across restarts, but there's no package yet. The plan is in [project/design.md](project/design.md) and the work list in [project/backlog.md](project/backlog.md).
+Early. CPU, memory, GPU, GPU memory, network, swap, zswap, load, disk, temperature, battery and tukzmon's own CPU graphs run as an XFCE panel plugin, with a settings window, and keep their history across restarts, but there's no package yet. The plan is in [project/design.md](project/design.md) and the work list in [project/backlog.md](project/backlog.md).
 
 To try it from a checkout you need Rust, XFCE 4.20, and Qt 6 (`qt6-base-dev` on Debian). Run `utility/dev-install.bash`. For now the first run links them into the panel's system folders with sudo, though the panel also reads `~/.local`. Each run restarts the panel to load the new build.
 
@@ -24,6 +24,8 @@ The first version is an XFCE panel plugin. Other desktops come after that, and l
 - CPU, split into I/O wait, system, user, and nice.
 
 - Memory, split into user, buffers, and cache.
+
+- GPU use and GPU memory, for an NVIDIA or AMD card.
 
 - Network, with local, sent, and received traffic.
 

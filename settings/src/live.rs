@@ -8,6 +8,7 @@ use tukzmon_core::battery::BatteryReader;
 use tukzmon_core::config::Look;
 use tukzmon_core::cpu::CpuReader;
 use tukzmon_core::disk::DiskReader;
+use tukzmon_core::gpu::{GpuReader, VramReader};
 use tukzmon_core::graphs::{self, Drawn};
 use tukzmon_core::load::LoadReader;
 use tukzmon_core::mem::{MemoryReader, SwapReader};
@@ -21,6 +22,9 @@ pub struct Live {
 	cpu: Graph,
 	/// None on a box where memory can't be read.
 	mem: Option<Graph<MemoryReader, 3>>,
+	/// None on a box with no GPU it can read.
+	gpu: Option<Graph<GpuReader, 1>>,
+	vram: Option<Graph<VramReader, 1>>,
 	net: Option<Graph<NetReader, 3>>,
 	/// None on a box with no swap.
 	swap: Option<Graph<SwapReader, 1>>,
@@ -41,6 +45,8 @@ impl Live {
 	pub fn new(look: Look) -> Live {
 		Live {
 			mem: Graph::memory(look.clone()),
+			gpu: Graph::gpu(look.clone()),
+			vram: Graph::vram(look.clone()),
 			net: Graph::net(look.clone()),
 			swap: Graph::swap(look.clone()),
 			zswap: Graph::zswap(look.clone()),
@@ -57,6 +63,8 @@ impl Live {
 		match name {
 			CpuReader::SECTION => Some(&self.cpu),
 			MemoryReader::SECTION => self.mem.as_ref().map(|g| g as &dyn Drawn),
+			GpuReader::SECTION => self.gpu.as_ref().map(|g| g as &dyn Drawn),
+			VramReader::SECTION => self.vram.as_ref().map(|g| g as &dyn Drawn),
 			NetReader::SECTION => self.net.as_ref().map(|g| g as &dyn Drawn),
 			SwapReader::SECTION => self.swap.as_ref().map(|g| g as &dyn Drawn),
 			ZswapReader::SECTION => self.zswap.as_ref().map(|g| g as &dyn Drawn),
@@ -73,6 +81,8 @@ impl Live {
 		match name {
 			CpuReader::SECTION => Some(&mut self.cpu),
 			MemoryReader::SECTION => self.mem.as_mut().map(|g| g as &mut dyn Drawn),
+			GpuReader::SECTION => self.gpu.as_mut().map(|g| g as &mut dyn Drawn),
+			VramReader::SECTION => self.vram.as_mut().map(|g| g as &mut dyn Drawn),
 			NetReader::SECTION => self.net.as_mut().map(|g| g as &mut dyn Drawn),
 			SwapReader::SECTION => self.swap.as_mut().map(|g| g as &mut dyn Drawn),
 			ZswapReader::SECTION => self.zswap.as_mut().map(|g| g as &mut dyn Drawn),
@@ -90,6 +100,14 @@ impl Live {
 			(
 				MemoryReader::SECTION,
 				self.mem.as_mut().map(|g| g as &mut dyn Drawn),
+			),
+			(
+				GpuReader::SECTION,
+				self.gpu.as_mut().map(|g| g as &mut dyn Drawn),
+			),
+			(
+				VramReader::SECTION,
+				self.vram.as_mut().map(|g| g as &mut dyn Drawn),
 			),
 			(
 				NetReader::SECTION,
@@ -163,6 +181,8 @@ impl Live {
 		let own = match name {
 			CpuReader::SECTION => l.cpu_width,
 			MemoryReader::SECTION => l.mem_width,
+			GpuReader::SECTION => l.gpu_width,
+			VramReader::SECTION => l.vram_width,
 			NetReader::SECTION => l.net_width,
 			SwapReader::SECTION => l.swap_width,
 			ZswapReader::SECTION => l.zswap_width,
@@ -502,6 +522,37 @@ mod tests {
 			let tip = live.tip("temp");
 			assert!(tip.starts_with("Temperature"), "{tip}");
 		}
+	}
+
+	// Test ID: dekmd
+	#[test]
+	#[cfg_attr(miri, ignore = "Miri can't load a library")]
+	fn the_gpu_rows_are_there_only_with_a_gpu_to_read() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_live_gpu_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let mut live = Live::new(d.look());
+		assert!(!d.look().show_gpu && !d.look().show_vram);
+		d.set("width", &Value::Float(100.0));
+		d.set("gpu_width", &Value::Float(30.0));
+		d.set("vram_width", &Value::Float(40.0));
+		live.set_look(&d.look());
+		if live.gpu.is_none() {
+			for name in ["gpu", "vram"] {
+				assert_eq!(live.width(name), 0);
+				assert!(live.render(name, 10, 10, 1).is_empty());
+				assert_eq!(live.tip(name), "");
+			}
+			return;
+		}
+		assert_eq!((live.width("gpu"), live.width("vram")), (30, 40));
+		live.sample();
+		assert_eq!(live.render("gpu", 30, 24, 1).len(), 30 * 24);
+		assert_eq!(live.render("vram", 40, 24, 1).len(), 40 * 24);
+		assert!(live.tip("gpu").starts_with("GPU "), "{}", live.tip("gpu"));
+		assert!(live.tip("vram").contains(" GiB"), "{}", live.tip("vram"));
 	}
 
 	// Test ID: dejb8

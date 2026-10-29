@@ -222,24 +222,61 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: GPU utilization graph
 	- ID: 2026102819145597
 	- Type: Feature
-	- Status: Queued
+	- Status: Waiting on UAT
+		- It departs from the wording in one way. It's off by default, like every graph since memory. Turn it on in the graph list.
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Needs hand testing: on b23, after an install and a panel restart, turn on GPU and GPU memory in the graph list, Apply, and judge how both look beside memory on Default. The GPU tip should be near what `nvidia-smi` shows.
 	- Priority|Severity: Avg
 	- Opened: 20261028-191455
 	- Opened by: t00mietum
 	- Related IDs: 2026102819145598
 	- Requirements:
 		- GPU utilization, after the "Memory" monitor.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The GPU graph draws how busy the first GPU is, in one color, full at 100%. Its tip reads "GPU 44% busy". It has a row in the graph list after memory, at `gpu.show`, `gpu.width`, `gpu.sample` and `gpu.time`, and a GPU section on Themes/Colors with Busy, and Low, Medium and High.
+		- `core/src/gpu.rs` reads it, and the GPU memory graph, 2026102819145598, shares it. NVIDIA is through NVML, loaded at run time, and AMD through amdgpu's `gpu_busy_percent`.
+		- `graph.order` defaults to `cpu mem gpu vram net disk temp swap zswap load battery self`.
+		- `design.md` XFCE plugin, Theme and Data sources on Linux have the details.
+		- Verified: the full run passed. On b23 NVML read the RTX 3060 Ti at 31% busy and 39% of 8 GiB in use. The settings window showed the 2 rows after memory and the GPU section on Colors.
+	- Decisions:
+		- Off by default, like the other graphs since memory.
+		- The first GPU only. A picker for boxes with more than one can be its own item.
+		- NVML is opened with `dlopen`, so a box without the NVIDIA driver still starts, and no crate is added. It's opened once a process and stays open.
+		- NVIDIA first, then the first amdgpu card. Intel has no busy share without root, so it has no GPU graphs.
+		- Each built-in gives GPU a lead of its own, 14 or more from every other lead as CIEDE2000. The one-color themes give it their one color. Check in questions.md.
+		- Randomize rolls 12 lead hues at least 18 degrees apart, down from 22, with the same 27 degrees of play. 12 leads often have no steps that keep every 2 of them 10 apart, so it draws up to 128 sets of hues, up from 16. At 16, 34 of 20,000 rolls had 2 leads under 10 apart, and at 128 none did.
+	- Branch: round-1029
+	- Test case: `gpu::tests::amdgpu_reads_from_the_first_card_and_skips_connectors` (dekm9), `a_live_gpu_reads_as_a_share_where_there_is_one` (dekma), `tests::gpu_tips_read_busy_and_memory_in_gib` (dekmb), `graphs::tests::gpu_and_its_memory_sit_after_memory_and_fill_at_all_of_it` (dekmc) and `live::tests::the_gpu_rows_are_there_only_with_a_gpu_to_read` (dekmd). dekm9 fails with connectors such as `card0-DP-1` read as cards.
+		- 2026-10-29: new values only, for both graphs. deccf and deccw count 115 theme members, not 99. deccy counts 99 saved colors, not 85. dedqq's default order, and defkz's, defm0's and dejac's orders, have `gpu vram` after `mem`, and defm0's past-the-end move is 12, not 10. dejkg reads 12 outlines, not 10, with tukzmon's at 11. defx7 and deja1 take gpu and vram too. defxd's least gap is 13 degrees, not 17, for the 18 degree roll.
+		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 9 built-in themes, `dice::ROLES` and `PARTS`, `config::LEADS`, every graph list in config, dialog and bridge tests, and every graph list in `design.md`. The profiler and soak test run with the defaults, so they don't draw the GPU.
 
 - Pre-next-cut: GPU memory graph
 	- ID: 2026102819145598
 	- Type: Feature
-	- Status: Queued
+	- Status: Waiting on UAT
+		- It departs from the wording in one way. It's off by default, like every graph since memory. Turn it on in the graph list.
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Needs hand testing: as 2026102819145597, which checks both graphs.
 	- Priority|Severity: Avg
 	- Opened: 20261028-191455
 	- Opened by: t00mietum
 	- Related IDs: 2026102819145597
 	- Requirements:
 		- GPU memory %, after the "Memory" monitor.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The GPU memory graph draws the share of the first GPU's memory in use, in one color. Its tip reads "GPU memory 31% used", then "2.5 of 8.0 GiB". It sits after the GPU graph, at `vram.show`, `vram.width`, `vram.sample` and `vram.time`, with a GPU memory section on Themes/Colors with In use, and Low, Medium and High.
+		- It reads the same card as the GPU graph, through `core/src/gpu.rs`: NVML's memory info on NVIDIA, and amdgpu's `mem_info_vram_used` and `mem_info_vram_total` on AMD.
+		- Verified: the full run passed, as on 2026102819145597.
+	- Decisions:
+		- The config section is `vram`, short for the GPU's own memory, and its label is GPU memory.
+		- The tip gives GiB, since a card's memory is sold in binary units.
+		- The rest are on 2026102819145597, since both graphs went in together.
+	- Branch: round-1029
+	- Test case: dekm9, dekmb, dekmc and dekmd, shared with 2026102819145597. dekmb checks the GiB line.
 
 - An item's files go when it's removed from the panel
 	- ID: 2026102622311676
