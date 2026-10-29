@@ -152,6 +152,16 @@ Sorted per the notes in [Template](#template).
 	- Test case: `graphs::tests::a_file_the_5_tier_plugin_wrote_still_loads` (defv4). It fails with decode taking only today's tier count, and with `lo` and `hi` swapped in both encode and decode, which defp7 and decbg miss. Restarts are also covered by decbp, dedq3 and defp7.
 		- Swept: every load path (start, a graph added, keep turned back on) and every save path (the 15 minute timer, quit, keep turned off, a graph dropped) in `xfce/src/lib.rs` and `Graphs`. Nothing else reads or writes the history file.
 
+- Pre-next-cut: Don't error on a config file with values that no longer exist
+	- ID: 2026102913122701
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Critical
+	- Opened: 20261029-131227
+	- Opened by: t00mietum
+	- Requirements:
+		- Don't error if an old config file has old values that don't exist anymore. Just replace the file. Regular users aren't going to hand-edit the config file.
+
 - Color themes tab
 	- ID: 2026102408304612
 	- Type: Feature
@@ -222,6 +232,46 @@ Sorted per the notes in [Template](#template).
 		- A later item that gets the same id starts fresh, not with the removed one's settings and history.
 	- Progress log:
 		- Today both files stay. The plugin doesn't connect the panel's `remove` signal, and free-data saves history after it.
+
+- Pre-next-cut: Scrollable region of the dialog a different color
+	- ID: 2026102913122702
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261029-131227
+	- Opened by: t00mietum
+	- Requirements:
+		- Make the scrollable region of the dialog a subtly different color than the non-scrollable, so it's more visually obvious which is which.
+
+- Pre-next-cut: Dialog never taller than the screen
+	- ID: 2026102913122703
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261029-131227
+	- Opened by: t00mietum
+	- Requirements:
+		- Dialog should never be taller than the available screen real-estate.
+
+- Pre-next-cut: Graphs editing section on its own tab
+	- ID: 2026102913122704
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261029-131227
+	- Opened by: t00mietum
+	- Requirements:
+		- Move the Graphs editing section to its own tab.
+
+- Pre-next-cut: Dialog height from the tallest other tab
+	- ID: 2026102913122705
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261029-131227
+	- Opened by: t00mietum
+	- Requirements:
+		- Themes|Colors tab: Don't use this for the dialog height. Use the tallest other tab to base the height on.
 
 - Drop the sudo step in dev-install.bash
 	- ID: 2026102820420805
