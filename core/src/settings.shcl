@@ -12,8 +12,9 @@
 ## A graph's row in the Graphs list comes from its show, width, sample_ms and
 ## time settings, in that order.
 ##
-## Every color is in the theme group, and so are each graph's mode and the
-## margins. A row's default is the Default theme's value, and config::tests
+## Every color is in the theme group, and so are each graph's mode, the
+## margins and the 2 checkboxes that put the Outline tab's colors over every
+## graph's. A row's default is the Default theme's value, and config::tests
 ## holds the two to each other.
 
 tabs: "Graph", "Themes", "Themes/CPU", "Themes/Memory", "Themes/Network", "Themes/Disk", "Themes/Temperature", "Themes/Swap", "Themes/Zswap", "Themes/Load", "Themes/Battery", "Themes/tukzmon", "Themes/Outline"
@@ -1594,7 +1595,16 @@ settings:
 		control: checkbox
 		path: graph.transparent
 		default: false
-		tip: "Let the panel show through behind the graph, in place of the Top and Bottom colors. This one goes for every theme, so picking another keeps it. The border and the hover line are still drawn."
+		tip: "Let the panel show through behind the graph, in place of every graph's Top and Bottom colors. This one goes for every theme, so picking another keeps it. The border and the hover line are still drawn."
+
+	border_all:
+		label: One border for every graph
+		tab: Themes/Outline
+		control: checkbox
+		path: graph.overrides.border
+		default: false
+		group: theme
+		tip: "Draw every graph's border in the Border color below, over the one on its own sub-tab."
 
 	border_color:
 		label: Border
@@ -1603,6 +1613,16 @@ settings:
 		path: graph.colors.border
 		default: "#8b8b8b"
 		group: theme
+		gate: border_all
+
+	back_all:
+		label: One background for every graph
+		tab: Themes/Outline
+		control: checkbox
+		path: graph.overrides.background
+		default: false
+		group: theme
+		tip: "Draw every graph's background in the Top and Bottom colors below, over the ones on its own sub-tab. Transparent still wins over both."
 
 	back_top:
 		label: Top
@@ -1611,6 +1631,7 @@ settings:
 		path: graph.colors.top
 		default: "#313131"
 		group: theme
+		gate: back_all
 
 	back_bottom:
 		label: Bottom
@@ -1619,6 +1640,7 @@ settings:
 		path: graph.colors.bottom
 		default: "#000000"
 		group: theme
+		gate: back_all
 
 	hover_color:
 		label: Hover line
@@ -1743,6 +1765,8 @@ groups:
 				hover_color: "#000000"
 				margin_tb: 2
 				margin_lr: 2
+				border_all: false
+				back_all: false
 			primary:
 				label: Primary
 				cpu_mode: detailed
@@ -1842,6 +1866,8 @@ groups:
 				hover_color: "#000000"
 				margin_tb: 2
 				margin_lr: 2
+				border_all: false
+				back_all: false
 			pastel:
 				label: Pastel
 				cpu_mode: detailed
@@ -1941,6 +1967,8 @@ groups:
 				hover_color: "#000000"
 				margin_tb: 2
 				margin_lr: 2
+				border_all: false
+				back_all: false
 			neon:
 				label: Neon
 				cpu_mode: detailed
@@ -2040,6 +2068,8 @@ groups:
 				hover_color: "#000000"
 				margin_tb: 2
 				margin_lr: 2
+				border_all: false
+				back_all: false
 			earth:
 				label: Earth
 				cpu_mode: detailed
@@ -2139,6 +2169,8 @@ groups:
 				hover_color: "#000000"
 				margin_tb: 2
 				margin_lr: 2
+				border_all: false
+				back_all: false
 			fire:
 				label: Fire
 				cpu_mode: gradient
@@ -2238,6 +2270,8 @@ groups:
 				hover_color: "#000000"
 				margin_tb: 2
 				margin_lr: 2
+				border_all: false
+				back_all: false
 			terminal:
 				label: Terminal
 				cpu_mode: detailed
@@ -2337,6 +2371,8 @@ groups:
 				hover_color: "#000000"
 				margin_tb: 2
 				margin_lr: 2
+				border_all: false
+				back_all: false
 			vintage:
 				label: Vintage
 				cpu_mode: detailed
@@ -2436,6 +2472,8 @@ groups:
 				hover_color: "#000000"
 				margin_tb: 2
 				margin_lr: 2
+				border_all: false
+				back_all: false
 			frost:
 				label: Frost
 				cpu_mode: detailed
@@ -2535,3 +2573,5 @@ groups:
 				hover_color: "#000000"
 				margin_tb: 2
 				margin_lr: 2
+				border_all: false
+				back_all: false

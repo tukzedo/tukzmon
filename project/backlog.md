@@ -38,15 +38,40 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Outline, background and transparent overrides on the Outline tab
 	- ID: 2026102819315837
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- Whether the Outline tab reads well, and the overrides look right on the panel, is for a person to judge.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Needs hand testing: on b23, after an install, give one graph its own Border, Top and Bottom, then tick One border for every graph and One background for every graph on Themes/Outline, Apply, and judge the panel. Untick them and check that graph's own colors come back.
 	- Priority|Severity: Avg
 	- Opened: 20261028-193158
 	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
 	- Parent ID: 2026102807585020
 	- Prereq IDs: 2026102819315170
 	- Related IDs: 2026102409400705
 	- Requirements:
 		- On the Outline tab, per theme: one outline color, and one Top and Bottom, each with a checkbox that puts it over every graph's own. Transparent overrides every background, as now.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- The Outline sub-tab's Background group has One border for every graph over Border, and One background for every graph over Top and Bottom, at `graph.overrides.border` and `.background`. Ticked, that color goes over every graph's own.
+		- Both are in the `theme` group, off in every built-in, and kept in a saved theme as `true` or `false`.
+		- The colors under a box are greyed while it's off. Picking one ticks its box.
+		- Randomize still rolls the shared colors, and leaves the 2 boxes as they were.
+		- Transparent still wins over every background.
+		- `design.md` Theme has the details.
+		- Verified: the full run passed with the 2 new tests. The Outline tab shows both boxes, with their colors indented under them, and Border greyed while its box is off.
+	- Decisions:
+		- 2 boxes, not 3: one for the border, and one for Top and Bottom together, as the parent's "Global background colors override" says. A shared top over a graph's own bottom would rarely be wanted.
+		- The boxes are per theme, as asked, and off in every built-in. The built-ins give every graph the shared colors anyway, so they look the same either way, and off keeps each graph's sub-tab live.
+		- The shared colors are gated on their box, so they grey out while they draw nothing. That's knobs' gate, which also ticks the box when one of them is picked, so picking a shared color does what it looks like.
+		- Randomize would tick both through that gate, so it puts the boxes back after a roll. A roll is colors, as with the margins.
+		- The override applies in `Look::from_model`, so the plugin, the renderer and `preview.rs` all get it through each graph's `Outline`, with no second place to keep in step.
+		- A checkbox in a saved theme is written as a shcl bool, and read as `true`, `false`, `on` or `off`. `config::theme_text` gives `on` or `off`, as the window shows it.
+	- Branch: round-1028b
+	- Test case: `config::tests::the_outline_tabs_colors_go_over_every_graph_when_ticked` (dejky) and `dialog::tests::a_shared_color_ticks_its_override_and_a_roll_leaves_both` (dejkz). dejky fails with the overrides left unread, and dejkz with a roll ticking the boxes. Both pass now.
+		- 2026-10-28: new values only. deccf and deccw count 99 theme members, not 97, and deccf takes a checkbox for the 2 boxes. defma's rows greyed at defaults add `border_color`, `back_top` and `back_bottom`.
+		- Swept: every reader of `border_color`, `back_top`, `back_bottom` and the per-graph outlines (`Look::from_model`, `render::Frame`, `Source::outline`, `preview.rs`), every writer of theme members in a loop (`randomize_from`, `drop_theme_changes`, the dialog's `shown_colors`), every `theme_text` and `theme_typed` caller, and the docs naming the shared colors.
 
 - Pre-next-cut: Outline and background colors per graph
 	- ID: 2026102819315170
@@ -520,7 +545,7 @@ Sorted per the notes in [Template](#template).
 			- Global background colors override
 				- Global transparent override.
 	- Progress log:
-		- 2026-10-28: split with 2026102807585010 into 4 children. This one's are 2026102819315156 (the margins, on the Outline tab, Waiting on UAT) and 2026102819315837 (the overrides, after 2026102819315170).
+		- 2026-10-28: split with 2026102807585010 into 4 children. This one's are 2026102819315156 (the margins, on the Outline tab, Waiting on UAT) and 2026102819315837 (the overrides, on the Outline tab, Waiting on UAT).
 
 - Pre-next-cut: GPU utilization graph
 	- ID: 2026102819145597

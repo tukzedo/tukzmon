@@ -149,13 +149,14 @@ pub fn name_the_theme(m: &mut Model) {
 pub struct SavedTheme {
 	pub key: String,
 	pub name: String,
-	/// Setting id to `#rrggbb`, one per theme color, plus each graph's mode
-	/// and the margins, as text.
+	/// Setting id to `#rrggbb`, one per theme color, plus each graph's mode,
+	/// the margins and the 2 override checkboxes, as text.
 	pub colors: BTreeMap<String, String>,
 }
 
 /// A theme member's value as [`SavedTheme`] keeps it. The margins are
-/// numbers, and the rest text.
+/// numbers, the override checkboxes `on` or `off` as the window shows them,
+/// and the rest text.
 pub fn theme_text(v: &knobs::Value) -> String {
 	match v {
 		knobs::Value::Text(t) => t.clone(),
@@ -168,6 +169,11 @@ fn theme_typed(spec: &Spec, id: &str, raw: &str) -> Option<knobs::Value> {
 	let s = spec.get(id)?;
 	let v = match s.kind {
 		knobs::Kind::Int | knobs::Kind::Float => knobs::Value::Float(raw.trim().parse().ok()?),
+		knobs::Kind::Bool => match raw.trim() {
+			"true" | "on" => knobs::Value::Bool(true),
+			"false" | "off" => knobs::Value::Bool(false),
+			_ => return None,
+		},
 		_ => knobs::Value::Text(raw.to_string()),
 	};
 	spec.valid(s, &v).ok()
@@ -298,10 +304,16 @@ pub fn themes_text(themes: &[SavedTheme]) -> String {
 		// keys are from theme_key or a file that parsed, so the paths are good
 		let _ = doc.set_string(&at("name"), &t.name);
 		for (id, raw) in &t.colors {
-			if let Some(knobs::Value::Int(n)) = theme_typed(&spec(), id, raw) {
-				let _ = doc.set_int(&at(id), n);
-			} else {
-				let _ = doc.set_string(&at(id), raw);
+			match theme_typed(&spec(), id, raw) {
+				Some(knobs::Value::Int(n)) => {
+					let _ = doc.set_int(&at(id), n);
+				}
+				Some(knobs::Value::Bool(b)) => {
+					let _ = doc.set_bool(&at(id), b);
+				}
+				_ => {
+					let _ = doc.set_string(&at(id), raw);
+				}
 			}
 		}
 	}
@@ -580,7 +592,8 @@ pub struct Look {
 	pub temp_outline: Outline,
 	pub battery_outline: Outline,
 	pub self_outline: Outline,
-	/// The Outline sub-tab's. A graph draws with its own.
+	/// The Outline sub-tab's. A graph draws with its own unless
+	/// `border_all` or `back_all` is on, and then the `*_outline` are these.
 	pub border_color: Rgb,
 	/// No background, so the panel shows through, whatever the theme.
 	pub transparent: bool,
@@ -611,10 +624,22 @@ impl Look {
 		};
 		let num = |id: &str| m.value(id, &NoEnv).as_f64();
 		let color = |id: &str| Rgb::parse(m.value(id, &NoEnv).as_text()).unwrap_or(Rgb(0, 0, 0));
-		let outline = |g: &str| Outline {
-			border: color(&format!("{g}_border_color")),
-			top: color(&format!("{g}_back_top")),
-			bottom: color(&format!("{g}_back_bottom")),
+		let on = |id: &str| m.value(id, &NoEnv).as_bool();
+		let (border_all, back_all) = (on("border_all"), on("back_all"));
+		// the Outline sub-tab's go over every graph's own when ticked
+		let outline = |g: &str| {
+			let pick = |all: bool, shared: &str| {
+				color(&if all {
+					shared.to_string()
+				} else {
+					format!("{g}_{shared}")
+				})
+			};
+			Outline {
+				border: pick(border_all, "border_color"),
+				top: pick(back_all, "back_top"),
+				bottom: pick(back_all, "back_bottom"),
+			}
 		};
 		Look {
 			width: num("width") as u32,
@@ -969,16 +994,18 @@ mod tests {
 	fn the_default_theme_is_the_row_defaults() {
 		let spec = spec();
 		let g = spec.group(THEME).unwrap();
-		assert_eq!(g.members.len(), 97);
+		assert_eq!(g.members.len(), 99);
 		let default = g.preset("default").unwrap();
 		assert_eq!(default.label, "Default");
 		for id in &g.members {
 			let s = spec.get(id).unwrap();
-			// colors, a graph's mode, and the margins
+			// colors, a graph's mode, the margins and the overrides
 			let control = if id.ends_with("_mode") {
 				knobs::Control::Dropdown
 			} else if id.starts_with("margin_") {
 				knobs::Control::Slider
+			} else if id.ends_with("_all") {
+				knobs::Control::Checkbox
 			} else {
 				knobs::Control::Color
 			};
@@ -1097,6 +1124,86 @@ mod tests {
 		assert!(spec_with(&t).group(THEME).unwrap().preset("old").is_some());
 		let l = Look::from_model(&model(old));
 		assert_eq!((l.margin_lr, l.cpu[2]), (2, Rgb(0x12, 0x34, 0x56)));
+	}
+
+	// Test ID: dejky
+	#[test]
+	fn the_outline_tabs_colors_go_over_every_graph_when_ticked() {
+		let s = spec();
+		let g = s.group(THEME).unwrap();
+		for id in ["border_all", "back_all"] {
+			assert!(g.members.iter().any(|m| m == id), "{id}");
+			assert_eq!(s.get(id).unwrap().default, knobs::Value::Bool(false));
+		}
+		assert_eq!(
+			s.get("border_color").unwrap().gate.as_deref(),
+			Some("border_all")
+		);
+		assert_eq!(s.get("back_top").unwrap().gate.as_deref(), Some("back_all"));
+		assert_eq!(
+			s.get("back_bottom").unwrap().gate.as_deref(),
+			Some("back_all")
+		);
+		let mine = "cpu:\n\tcolors:\n\t\tborder: \"#aa0000\"\n\t\ttop: \"#00aa00\"\n\t\tbottom: \"#0000aa\"\n\
+			graph:\n\tcolors:\n\t\tborder: \"#111111\"\n\t\ttop: \"#222222\"\n\t\tbottom: \"#333333\"\n";
+		let own = Outline {
+			border: Rgb(0xaa, 0, 0),
+			top: Rgb(0, 0xaa, 0),
+			bottom: Rgb(0, 0, 0xaa),
+		};
+		let shared = Outline {
+			border: Rgb(0x11, 0x11, 0x11),
+			top: Rgb(0x22, 0x22, 0x22),
+			bottom: Rgb(0x33, 0x33, 0x33),
+		};
+		let l = Look::from_model(&model(mine));
+		assert_eq!((l.cpu_outline, l.mem_outline), (own, shared));
+		let ticked = |border: bool, back: bool| {
+			let text =
+				format!("{mine}\toverrides:\n\t\tborder: {border}\n\t\tbackground: {back}\n");
+			Look::from_model(&model(&text))
+		};
+		let l = ticked(true, false);
+		assert_eq!(
+			l.cpu_outline,
+			Outline {
+				border: shared.border,
+				..own
+			}
+		);
+		let l = ticked(false, true);
+		assert_eq!(
+			l.cpu_outline,
+			Outline {
+				border: own.border,
+				..shared
+			}
+		);
+		let l = ticked(true, true);
+		for o in [
+			l.cpu_outline,
+			l.mem_outline,
+			l.self_outline,
+			l.battery_outline,
+		] {
+			assert_eq!(o, shared);
+		}
+		// a saved theme keeps them, and one saved before them has them off
+		let mut t = saved_themes(&shcl::Document::parse("themes:\n\tx:\n\t\tname: X\n"));
+		assert_eq!(t[0].colors["back_all"], "off");
+		t[0].colors.insert("back_all".into(), "on".into());
+		let text = themes_text(&t);
+		assert!(text.contains("back_all: true\n"), "{text}");
+		let doc = shcl::Document::parse(&text);
+		assert!(theme_problems(&doc).is_empty());
+		assert_eq!(saved_themes(&doc), t);
+		let m = Model::load_docs(
+			spec_with(&t),
+			&shcl::Document::parse("theme:\n\tname: x\n"),
+			&shcl::Document::new(),
+		);
+		assert!(m.value("back_all", &NoEnv).as_bool());
+		assert!(!m.value("border_all", &NoEnv).as_bool());
 	}
 
 	// Test ID: dejkg
@@ -1688,7 +1795,7 @@ mod tests {
 			"themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n",
 		));
 		assert_eq!(t[0].name, "Say \"hi\"");
-		assert_eq!(t[0].colors.len(), 97);
+		assert_eq!(t[0].colors.len(), 99);
 		t.push(SavedTheme {
 			key: theme_key("Default", &t),
 			name: "Default".into(),

@@ -367,8 +367,23 @@ impl Dialog {
 	}
 
 	pub fn randomize_from(&mut self, seed: u64) {
-		for (id, v) in crate::dice::theme(seed) {
+		let rolled = crate::dice::theme(seed);
+		// a set turns its gate on, and a roll is colors, not the overrides
+		let gates: Vec<(String, Value)> = rolled
+			.iter()
+			.filter_map(|(id, _)| self.spec.get(id)?.gate.clone())
+			.map(|g| {
+				let was = self.model.value(&g, &NoEnv);
+				(g, was)
+			})
+			.collect();
+		for (id, v) in rolled {
 			self.set(id, &Value::Text(v));
+		}
+		for (g, was) in gates {
+			if self.model.value(&g, &NoEnv) != was {
+				self.set(&g, &was);
+			}
 		}
 	}
 
@@ -1107,6 +1122,43 @@ mod tests {
 		let text = std::fs::read_to_string(&path).unwrap();
 		let themes = &text[text.find("themes:").unwrap()..];
 		assert!(!themes.contains("transparent"), "{text}");
+	}
+
+	// Test ID: dejkz
+	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
+	fn a_shared_color_ticks_its_override_and_a_roll_leaves_both() {
+		let d = scratch("overrides");
+		let path = d.0.join("t.shcl");
+		let mut dlg = Dialog::open(path.clone());
+		assert!(!dlg.state("border_color").counts);
+		assert!(!dlg.state("back_top").counts);
+		dlg.randomize_from(42);
+		assert_eq!(dlg.state("border_all").text, "off");
+		assert_eq!(dlg.state("back_all").text, "off");
+		assert_eq!(
+			dlg.state("cpu_back_top").text,
+			crate::dice::theme(42)
+				.into_iter()
+				.find(|(id, _)| *id == "cpu_back_top")
+				.unwrap()
+				.1
+		);
+		// picking a shared color is asking for it everywhere
+		assert!(dlg.set_text("back_top", "#123456"));
+		assert_eq!(dlg.state("back_all").text, "on");
+		assert_eq!(dlg.state("border_all").text, "off");
+		dlg.randomize_from(43);
+		assert_eq!(dlg.state("back_all").text, "on");
+		assert_eq!(dlg.state("border_all").text, "off");
+		dlg.apply().unwrap();
+		let l = config::Look::load(&path);
+		assert_eq!(l.mem_outline.top, l.top);
+		assert_eq!(l.mem_outline.bottom, l.bottom);
+		assert_ne!(l.mem_outline.border, l.border_color);
+		// a theme pick takes the theme's, which is off
+		assert!(dlg.set_text("theme", "fire"));
+		assert_eq!(dlg.state("back_all").text, "off");
 	}
 
 	// Test ID: dejjv

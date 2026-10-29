@@ -572,7 +572,16 @@ mod tests {
 				.cloned()
 				.collect()
 		};
-		assert_eq!(want(&d), ["disk_drives", "disk_log"]);
+		assert_eq!(
+			want(&d),
+			[
+				"disk_drives",
+				"disk_log",
+				"border_color",
+				"back_top",
+				"back_bottom"
+			]
+		);
 		assert_eq!(ffi::greyed_rows(&mut d), want(&d));
 		for g in &gates {
 			d.set(g, &Value::Bool(false));

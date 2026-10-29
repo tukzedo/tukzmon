@@ -203,7 +203,10 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - Each graph's sub-tab ends with its Background: Border, Top and Bottom, at `cpu.colors.border`, `.top` and `.bottom` for the CPU graph, and the same under each graph's own section. They're in the `theme` group, so each theme gives every graph its own. The plot blends from Top down to Bottom, inside the border.
 	- In every built-in, each graph has the colors the theme had for all of them, so a built-in looks as it did.
-	- The Outline sub-tab's Border, Top and Bottom, at `graph.colors.border`, `.top` and `.bottom`, are still read and saved, but draw no graph. Backlog 2026102819315837 gives each a checkbox that puts it over every graph's own.
+	- The Outline sub-tab has one Border, Top and Bottom too, at `graph.colors.border`, `.top` and `.bottom`. One border for every graph, at `graph.overrides.border`, puts its Border over every graph's own, and One background for every graph, at `graph.overrides.background`, does the same for Top and Bottom. Both are off in every built-in, and in the `theme` group, so a theme sets them and a saved one keeps them.
+		- Their colors are greyed while the box over them is off, since they draw nothing then. Picking one of them ticks its box.
+		- Randomize rolls the colors and leaves the 2 boxes as they were.
+		- `Look::from_model` is the one place they apply, so each graph's `Outline` is already the one to draw.
 	- A file or a saved theme from before each graph had its own, that set the shared ones, gives every graph those where it has none of its own, so it keeps its look. The next save writes them per graph.
 
 - Saved themes are kept whole in the config file, under `themes.<key>`, with a `name` and every color and mode by its setting id, the same shape as a built-in in settings.shcl. The dropdown lists them after the built-ins, and before Custom.
@@ -212,9 +215,9 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- Save puts the "*" changes into the saved theme in force. Save as makes a new theme from the colors showing and picks it. Delete picks Default. Built-in themes can't be saved over, renamed or deleted, and no two themes share a name.
 	- A save writes every saved theme. One this window didn't touch is written as the file has it, so a theme added by hand meanwhile isn't lost.
 
-- The margins, on the Outline sub-tab at `graph.margins.top_bottom` and `.left_right`, are in the `theme` group, so a theme sets them, and a saved one keeps them. Every built-in has 2 and 2. Randomize leaves them as they are, since a roll is colors. A saved theme writes them as numbers, and the rest as text.
+- The margins, on the Outline sub-tab at `graph.margins.top_bottom` and `.left_right`, are in the `theme` group, so a theme sets them, and a saved one keeps them. Every built-in has 2 and 2. Randomize leaves them as they are, since a roll is colors. A saved theme writes them as numbers, the override boxes as `true` or `false`, and the rest as text.
 
-- Transparent, on the Outline sub-tab at `graph.transparent`, leaves out the Top and Bottom colors so the panel shows through. It's one setting for every theme, outside the `theme` group, so a theme pick, a roll or Save as doesn't touch it. The border, the series and the hover line stay opaque. Pixels are premultiplied, so a row a column only half fills is half clear.
+- Transparent, on the Outline sub-tab at `graph.transparent`, leaves out every graph's Top and Bottom colors so the panel shows through, overrides or not. It's one setting for every theme, outside the `theme` group, so a theme pick, a roll or Save as doesn't touch it. The border, the series and the hover line stay opaque. Pixels are premultiplied, so a row a column only half fills is half clear.
 
 - Randomize rolls colors for every graph and sets them as changes on the theme in force, so the dropdown says "Name *". Save as keeps a roll, and picking a theme drops it. The rules are in `settings/src/dice.rs`.
 	- Each graph leads with a hue of its own, the user share for CPU, at any hue from yellow-green round to magenta, which keeps it off red and orange. The 10 lead hues are at least 22 degrees apart, in a random order. A graph's quiet colors and its gradient's Low are its hue muted, or one up to 30 degrees from it. Each graph's border and background are its lead hue or its quiet one, darker and grayer, and the Outline sub-tab's are CPU's. The top is dark, at about 15% brightness, so a quiet color shows on a background of its own hue. At 30%, 46% of the graphs rolled had a quiet color under 10 from their top. Over 2,000 seeds none do now.

@@ -32,6 +32,9 @@ pub enum Role {
 	Mode,
 	/// A margin. A roll is colors, so it leaves these as the theme has them.
 	Margin,
+	/// A checkbox that puts the Outline sub-tab's colors over every graph's.
+	/// Left alone, like the margins.
+	Switch,
 }
 
 /// Which graph a member colors. Each graph gets its own lead hue, and its
@@ -148,7 +151,9 @@ pub const ROLES: &[(&str, Part, Role)] = &[
 	("self_border_color", Part::Own, Role::Border),
 	("self_back_top", Part::Own, Role::Top),
 	("self_back_bottom", Part::Own, Role::Bottom),
+	("border_all", Part::Back, Role::Switch),
 	("border_color", Part::Back, Role::Border),
+	("back_all", Part::Back, Role::Switch),
 	("back_top", Part::Back, Role::Top),
 	("back_bottom", Part::Back, Role::Bottom),
 	("hover_color", Part::Back, Role::Hover),
@@ -429,7 +434,7 @@ fn hex(c: Hsv) -> String {
 }
 
 /// Every theme member in `ROLES` with its rolled value, as the setting
-/// takes it. The margins aren't rolled.
+/// takes it. The margins and the override checkboxes aren't rolled.
 pub fn theme(seed: u64) -> Vec<(&'static str, String)> {
 	let k = scheme(seed);
 	ROLES
@@ -437,7 +442,7 @@ pub fn theme(seed: u64) -> Vec<(&'static str, String)> {
 		.filter_map(|&(id, part, role)| {
 			let g = k.of(part);
 			let v = match role {
-				Role::Margin => return None,
+				Role::Margin | Role::Switch => return None,
 				Role::Mode => "detailed".to_string(),
 				Role::Lead => hex(g.lead),
 				Role::Calm => hex(g.calm),
