@@ -177,6 +177,13 @@ pub mod ffi {
 		/// the tab list.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn page_shades(d: &mut Dialog, dark: bool) -> Vec<String>;
+		/// Opens the window on the offscreen screens set in the file named, and
+		/// gives "room x y w h" for the screen less its panels, "frame x y w h"
+		/// for the window with its frame, then per tab with no tabs under it
+		/// "label view content": the height its page shows, and the height the
+		/// page asks for.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn window_fit(d: &mut Dialog, screens: &str) -> Vec<String>;
 		/// The most contrast an empty checkbox has with the window, as WCAG
 		/// measures it.
 		#[allow(dead_code, reason = "only the tests ask")]
@@ -932,5 +939,87 @@ mod tests {
 			let c = ffi::empty_box_contrast(dark);
 			assert!(c >= 3.0, "dark: {dark}, contrast {c:.2}");
 		}
+	}
+
+	// x, y, width and height
+	type Rect = [i32; 4];
+
+	// Opens the window on one offscreen screen of that size, with a frame
+	// round the window or none, and gives the screen less its panels, the
+	// window with its frame, and each tab's label, view and content.
+	fn fit_on(w: u32, h: u32, frame: bool) -> (Rect, Rect, Vec<(String, i32, i32)>) {
+		let dir = std::env::temp_dir();
+		let screens = dir.join(format!(
+			"test_tukzmon-settings_{}_fit_{w}x{h}.json",
+			std::process::id()
+		));
+		std::fs::write(
+			&screens,
+			format!(
+				r#"{{"windowFrameMargins": {frame}, "screens": [{{"name": "fit", "x": 0, "y": 0, "width": {w}, "height": {h}, "logicalDpi": 96, "logicalBaseDpi": 96, "dpr": 1}}]}}"#
+			),
+		)
+		.unwrap();
+		let mut d = Dialog::open(dir.join(format!(
+			"test_tukzmon-settings_{}_fit_never_written.shcl",
+			std::process::id()
+		)));
+		let got = ffi::window_fit(&mut d, screens.to_str().unwrap());
+		std::fs::remove_file(&screens).unwrap();
+		let rect = |line: &str, what: &str| -> Rect {
+			let v: Vec<&str> = line.split(' ').collect();
+			assert_eq!(v[0], what, "{got:?}");
+			std::array::from_fn(|i| v[i + 1].parse().unwrap())
+		};
+		let tabs = got[2..]
+			.iter()
+			.map(|line| {
+				let v: Vec<&str> = line.rsplitn(3, ' ').collect();
+				(
+					v[2].to_string(),
+					v[1].parse().unwrap(),
+					v[0].parse().unwrap(),
+				)
+			})
+			.collect();
+		(rect(&got[0], "room"), rect(&got[1], "frame"), tabs)
+	}
+
+	// Test ID: deknz
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn the_window_and_its_frame_stay_on_a_short_screen() {
+		let _qt = qt_turn();
+		for (w, h) in [(1280, 600), (1024, 500)] {
+			let (room, frame, _) = fit_on(w, h, true);
+			let [rx, ry, rw, rh] = room;
+			let [fx, fy, fw, fh] = frame;
+			assert!(fx >= rx && fy >= ry, "{w}x{h}: {frame:?} in {room:?}");
+			assert!(
+				fx + fw <= rx + rw && fy + fh <= ry + rh,
+				"{w}x{h}: {frame:?} in {room:?}"
+			);
+			// and no shorter than it has to be
+			assert_eq!(fh, rh, "{w}x{h}: {frame:?} in {room:?}");
+		}
+	}
+
+	// Test ID: dekp0
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn the_colors_tab_scrolls_in_the_height_the_other_tabs_set() {
+		let _qt = qt_turn();
+		let (room, frame, tabs) = fit_on(1600, 2000, false);
+		assert!(frame[3] < room[3] / 2, "{frame:?} in {room:?}");
+		let colors = tabs.iter().find(|t| t.0 == "Colors").unwrap();
+		assert!(colors.2 > colors.1, "{tabs:?}");
+		let others: Vec<_> = tabs.iter().filter(|t| t.0 != "Colors").collect();
+		assert!(others.len() >= 3, "{tabs:?}");
+		for t in &others {
+			assert!(t.1 >= t.2, "{t:?} scrolls: {tabs:?}");
+		}
+		// the tallest of them has no room to spare
+		let slack = others.iter().map(|t| t.1 - t.2).min().unwrap();
+		assert!(slack <= 4, "{tabs:?}");
 	}
 }

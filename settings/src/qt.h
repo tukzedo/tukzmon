@@ -18,5 +18,6 @@ rust::Vec<rust::String> sections_after_move(Dialog &d, std::size_t from, std::si
 rust::Vec<rust::String> bottom_buttons(Dialog &d);
 rust::Vec<bool> apply_while_typing(Dialog &d, bool number);
 rust::Vec<rust::String> page_shades(Dialog &d, bool dark);
+rust::Vec<rust::String> window_fit(Dialog &d, rust::Str screens);
 double empty_box_contrast(bool dark);
 }

@@ -335,26 +335,6 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-29: new values only. dejac's tab list is General, Graphs, Themes, Colors, Outline, not Graph, Themes, Colors, Outline. dejmn checks that General and Graphs light nothing else, where it checked Graph.
 		- Swept: every reader of a tab's name (dejac, dejmn, `tabs_after_move` and `sections_after_move`, which pick Colors), the tips naming Time, Width and Graphs, and the docs naming the Graph tab.
 
-- Pre-next-cut: Dialog never taller than the screen
-	- ID: 2026102913122703
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261029-131227
-	- Opened by: t00mietum
-	- Requirements:
-		- Dialog should never be taller than the available screen real-estate.
-
-- Pre-next-cut: Dialog height from the tallest other tab
-	- ID: 2026102913122705
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261029-131227
-	- Opened by: t00mietum
-	- Requirements:
-		- Themes|Colors tab: Don't use this for the dialog height. Use the tallest other tab to base the height on.
-
 - Drop the sudo step in dev-install.bash
 	- ID: 2026102820420805
 	- Type: Task
@@ -407,6 +387,61 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+
+- Pre-next-cut: Dialog never taller than the screen
+	- ID: 2026102913122703
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Priority|Severity: Avg
+	- Opened: 20261029-131227
+	- Opened by: t00mietum
+	- Related IDs: 2026102913122704, 2026102913122705
+	- Requirements:
+		- Dialog should never be taller than the available screen real-estate.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The window already opened no taller than the screen less its panels, but the window manager's title bar and border came on top of that. On a short screen the buttons ran off the bottom.
+		- Now the frame is taken off the size as soon as it's known, and the window is kept on screen.
+		- `design.md` Settings window has it.
+		- Verified: the full run passed with the new test. In a test window on a 600 px screen, the window and its frame filled the 600 px with the buttons on screen, where they had run 34 px past the bottom. The same on a 480 px screen.
+	- Decisions:
+		- The frame is read once the window is up, since it's the window manager's and differs by theme. So on a short screen the window opens one frame too tall and shrinks at once. On a tall one nothing moves.
+		- Only the first fit after the frame is known. A window moved or resized after that is left alone.
+		- The width gets the same rule.
+	- Branch: round-1029
+	- Test case: `bridge::tests::the_window_and_its_frame_stay_on_a_short_screen` (deknz), on a 1280x600 and a 1024x500 screen with a frame. It fails with the frame left on.
+		- Swept: every place the window is sized. `run_dialog` and `--snapshot` both go through `openSized`. The test hooks size their own windows and are unchanged. The color picker is a small dialog over the window, and is unchanged.
+	- Acceptance signoff: Self-closed 20261029: deknz, and the window on a 600 px screen.
+	- Closed: 20261029-142648
+
+- Pre-next-cut: Dialog height from the tallest other tab
+	- ID: 2026102913122705
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Priority|Severity: Avg
+	- Opened: 20261029-131227
+	- Opened by: t00mietum
+	- Related IDs: 2026102913122703, 2026102913122704, 2026102819315852
+	- Requirements:
+		- Themes|Colors tab: Don't use this for the dialog height. Use the tallest other tab to base the height on.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Themes/Colors no longer sets the window's height. The window is as tall as the tallest other tab needs, and Colors scrolls in that.
+		- The cap of 2/3 of the screen on Colors is gone, since that page asks for no height now.
+		- `design.md` Settings window has it.
+		- Verified: the full run passed with the new test. On a 1024 px screen the window opened 657 px tall, set by the other tabs, where Colors had made it 814.
+	- Decisions:
+		- Themes counts as one of the other tabs, with its Name row over Outline, so switching to Outline never needs more room than the window has.
+		- Only the page that holds the graph sections asks for no height. Outline, built after Colors, had the old cap too, and now asks for its own height like the rest.
+	- Branch: round-1029
+	- Test case: `bridge::tests::the_colors_tab_scrolls_in_the_height_the_other_tabs_set` (dekp0), on a 2000 px screen: Colors scrolls, every other tab fits, and the tallest of them fills its page. It fails with Colors asking for its own height.
+		- Swept: every `FitScroll`, all made in `buildPage`, and the `design.md` line on the 2/3 cap. 2026102819315852's Decisions still name the cap, and are left as they were, since it's closed.
+	- Acceptance signoff: Self-closed 20261029: dekp0, and the window on a 1024 px screen.
+	- Closed: 20261029-142648
 
 - GPU test fails on a box with an NVIDIA GPU
 	- ID: 2026102914040910

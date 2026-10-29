@@ -46,6 +46,7 @@
 #include <QToolButton>
 #include <QToolTip>
 #include <QVBoxLayout>
+#include <QWindow>
 
 #include <algorithm>
 #include <array>
@@ -146,20 +147,27 @@ constexpr int HEAD_GAP = 22;
 constexpr int BUTTON_GROW = 8;
 
 // QScrollArea's own hint stops at about 24 lines, so a tall tab opened with a
-// scroll bar it had no need for. Every graph's colors on one page would open
-// the window as tall as the screen, so that page asks for 2/3 of it at most.
+// scroll bar it had no need for. Every graph's colors on one page is far
+// taller than the rest, so that page asks for no height and scrolls in what
+// the other tabs set.
 class FitScroll : public QScrollArea {
 public:
-	bool capped = false;
+	bool ownHeight = true;
 	QSize sizeHint() const override {
 		QSize s = QScrollArea::sizeHint();
-		if (widget())
+		if (!ownHeight)
+			s.setHeight(minimumSizeHint().height());
+		else if (widget())
 			s.setHeight(std::max(s.height(), widget()->sizeHint().height() + 2 * frameWidth()));
-		if (const QScreen *sc = screen(); capped && sc)
-			s.setHeight(std::min(s.height(), sc->availableGeometry().height() * 2 / 3));
 		return s;
 	}
 };
+
+// The room is the screen less its panels, and the frame is the window
+// manager's, which isn't known until the window is up.
+QSize fitSize(QSize want, const QRect &room, const QMargins &frame) {
+	return want.boundedTo(room.size().shrunkBy(frame));
+}
 
 // A press or drag on the square or the strip, or an arrow key on it.
 class PickArea : public QWidget {
@@ -708,6 +716,31 @@ public:
 		return true;
 	}
 
+	void showEvent(QShowEvent *e) override {
+		QDialog::showEvent(e);
+		fitFrame();
+	}
+	void moveEvent(QMoveEvent *e) override {
+		QDialog::moveEvent(e);
+		fitFrame();
+	}
+	// Opened to fit the screen, the frame then pushed the buttons past its
+	// bottom. So once the frame is known, take it off, and keep it on screen.
+	void fitFrame() {
+		const QMargins frame = windowHandle() ? windowHandle()->frameMargins() : QMargins();
+		const QScreen *sc = screen();
+		if (framed || frame.isNull() || !sc)
+			return;
+		framed = true;
+		const QRect room = sc->availableGeometry();
+		resize(fitSize(size(), room, frame));
+		const QSize full = size().grownBy(frame);
+		const int x = std::max(room.left(), std::min(pos().x(), room.x() + room.width() - full.width()));
+		const int y = std::max(room.top(), std::min(pos().y(), room.y() + room.height() - full.height()));
+		if (QPoint(x, y) != pos())
+			move(x, y);
+	}
+
 	int tabCount() const { return tabList->count(); }
 	std::string tabText(int i) const { return tabList->item(i)->text().toStdString(); }
 	std::vector<std::string> dimLines() const {
@@ -826,9 +859,19 @@ public:
 		return out;
 	}
 
+	// the shown page's scroll area, as "view content": the height it shows and
+	// the height its page asks for
+	std::string scrollNow() const {
+		for (auto *s : findChildren<QScrollArea *>())
+			if (s->isVisible())
+				return std::to_string(s->viewport()->height()) + " " + std::to_string(s->widget()->sizeHint().height());
+		return "0 0";
+	}
+
 private:
 	Dialog &d;
 	rust::Box<Live> live;
+	bool framed = false;
 	std::vector<std::unique_ptr<Row>> rows;
 	// per tab of the spec
 	std::vector<int> tabPage;
@@ -996,6 +1039,7 @@ private:
 	}
 
 	QWidget *buildPage(int tab, const TabInfo &info, bool scrolls) {
+		const size_t sectionsBefore = sections.size();
 		auto *page = new QWidget;
 		auto *grid = rowGrid(page);
 		int line = 0;
@@ -1022,7 +1066,7 @@ private:
 			return page;
 		grid->setRowStretch(line, 1);
 		auto *scroll = new FitScroll;
-		scroll->capped = !sections.empty();
+		scroll->ownHeight = sections.size() == sectionsBefore;
 		scroll->setWidget(page);
 		scroll->setWidgetResizable(true);
 		scroll->setFrameShape(QFrame::NoFrame);
@@ -1526,6 +1570,13 @@ private:
 	}
 };
 
+void openSized(Window &w) {
+	QSize size = w.sizeHint().expandedTo(QSize(560, 420));
+	if (const QScreen *screen = w.screen())
+		size = fitSize(size, screen->availableGeometry(), QMargins());
+	w.resize(size);
+}
+
 } // namespace
 
 std::int32_t run_dialog(Dialog &d, rust::Str snapshot) {
@@ -1538,10 +1589,7 @@ std::int32_t run_dialog(Dialog &d, rust::Str snapshot) {
 	app.installEventFilter(&tipWrap);
 	app.setStyle(new BoxStyle);
 	Window w(d);
-	QSize size = w.sizeHint().expandedTo(QSize(560, 420));
-	if (const QScreen *screen = w.screen())
-		size = size.boundedTo(screen->availableGeometry().size());
-	w.resize(size);
+	openSized(w);
 	if (snapshot.empty())
 		return w.exec() == QDialog::Accepted ? 0 : 1;
 
@@ -1782,6 +1830,34 @@ double empty_box_contrast(bool dark) {
 			best = std::max(best, (std::max(l, back) + 0.05) / (std::min(l, back) + 0.05));
 		}
 	return best;
+}
+
+rust::Vec<rust::String> window_fit(Dialog &d, rust::Str screens) {
+	static int argc = 1;
+	static char name[] = "tukzmon-settings";
+	static char *argv[] = {name, nullptr};
+	qputenv("QT_QPA_PLATFORM", "offscreen:configfile=" + QByteArray(screens.data(), qsizetype(screens.size())));
+	QApplication app(argc, argv);
+	app.setStyle(new BoxStyle);
+	Window w(d);
+	openSized(w);
+	w.show();
+	app.processEvents();
+	auto rect = [](const char *what, const QRect &r) {
+		return rust::String(std::string(what) + " " + std::to_string(r.x()) + " " + std::to_string(r.y()) + " " +
+			std::to_string(r.width()) + " " + std::to_string(r.height()));
+	};
+	rust::Vec<rust::String> out;
+	out.push_back(rect("room", w.screen()->availableGeometry()));
+	out.push_back(rect("frame", w.frameGeometry()));
+	for (int i = 0; i < w.tabCount(); i++) {
+		if (!w.isLeaf(i))
+			continue;
+		w.select(i);
+		app.processEvents();
+		out.push_back(rust::String(QString::fromStdString(w.tabText(i)).trimmed().toStdString() + " " + w.scrollNow()));
+	}
+	return out;
 }
 
 } // namespace tukzmon
