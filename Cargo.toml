@@ -41,7 +41,9 @@ mem_forget = "warn"
 opt-level = 3
 lto = "fat"
 codegen-units = 1
-panic = "abort"
+# On Wayland the plugin runs in the panel's own process, so a panic in it
+# must unwind to the handler, which stops only that item. Test dekpv.
+panic = "unwind"
 strip = true
 
 # Release with the names kept, for the cicd profiler step.

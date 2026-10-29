@@ -37,7 +37,7 @@ pub struct RowState {
 	pub shown: bool,
 }
 
-/// A row of the graph list on the Graph tab: a graph's history name, and the
+/// A row of the graph list on the Graphs tab: a graph's history name, and the
 /// ids of the settings it shows.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GraphRow {
@@ -94,40 +94,6 @@ fn read(path: &Path) -> Result<String, String> {
 		Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
 		Err(e) => Err(format!("{} can't be read: {e}", path.display())),
 	}
-}
-
-/// Lines a save would lose: ones that don't parse, and settings nobody here
-/// knows about, such as a hand edit with a typo in the name.
-fn would_lose(spec: &Spec, text: &str) -> Vec<String> {
-	let doc = shcl::Document::parse(text);
-	let mut out: Vec<String> = doc
-		.diagnostics()
-		.iter()
-		.filter(|d| d.severity == shcl::Severity::Error)
-		.map(|d| format!("line {}: {}", d.line, d.message))
-		.collect();
-	for p in doc.paths() {
-		let known = p == "kept"
-			|| p.starts_with("kept.")
-			|| p == config::THEMES
-			|| p.starts_with("themes.")
-			|| config::moved_path(&p)
-			|| spec.settings.iter().any(|s| {
-				s.control != Control::Heading
-					&& (s.path == p
-						|| s.path
-							.strip_prefix(p.as_str())
-							.is_some_and(|r| r.starts_with('.')))
-			});
-		if !known {
-			out.push(format!(
-				"line {}: {p} isn't a tukzmon setting",
-				doc.line(&p)
-			));
-		}
-	}
-	out.extend(config::theme_problems(&doc));
-	out
 }
 
 // Saved themes as the file has them, with what this window changed since
@@ -644,21 +610,14 @@ impl Dialog {
 	}
 
 	/// Save what was changed here onto the file as it is now, so a hand edit
-	/// made while the window was open isn't lost.
+	/// made while the window was open isn't lost. Lines it can't read, or for
+	/// settings that are gone, are dropped (2026102913122701).
 	///
 	/// # Errors
 	///
 	/// Why nothing was written.
 	pub fn apply(&mut self) -> Result<(), String> {
 		let text = read(&self.path)?;
-		let lose = would_lose(&config::spec(), &text);
-		if !lose.is_empty() {
-			return Err(format!(
-				"{} has lines a save would drop, so it wasn't changed. Fix or remove them first.\n\n{}",
-				self.path.display(),
-				lose.join("\n")
-			));
-		}
 		let doc = shcl::Document::parse(&text);
 		let themes = merge_themes(config::saved_themes(&doc), &self.saved_themes, &self.themes);
 		let spec = config::spec_with(&themes);
@@ -801,7 +760,7 @@ mod tests {
 		let d = scratch("tab_order");
 		let mut dlg = Dialog::open(d.0.join("t.shcl"));
 		let tabs: Vec<String> = dlg.spec.tabs.iter().map(|t| t.label.clone()).collect();
-		assert_eq!(tabs, ["Graph", "Themes", "Colors", "Outline"]);
+		assert_eq!(tabs, ["General", "Graphs", "Themes", "Colors", "Outline"]);
 		// each section by its heading, as the window shows it
 		let labels = |dlg: &Dialog| -> Vec<String> {
 			dlg.section_order()
@@ -822,6 +781,8 @@ mod tests {
 		let graphs = [
 			"CPU",
 			"Memory",
+			"GPU",
+			"GPU memory",
 			"Network",
 			"Disk",
 			"Temperature",
@@ -838,9 +799,11 @@ mod tests {
 		let moved = [
 			"tukzmon",
 			"CPU",
+			"GPU",
+			"GPU memory",
+			"Memory",
 			"Network",
 			"Disk",
-			"Memory",
 			"Temperature",
 			"Swap",
 			"Zswap",
@@ -978,7 +941,8 @@ mod tests {
 		assert_eq!(
 			names(&dlg),
 			[
-				"mem", "cpu", "net", "swap", "zswap", "load", "disk", "temp", "battery", "self"
+				"mem", "cpu", "gpu", "vram", "net", "swap", "zswap", "load", "disk", "temp",
+				"battery", "self"
 			]
 		);
 		for id in [
@@ -1008,18 +972,19 @@ mod tests {
 		let d = scratch("drag");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone());
-		assert!(!dlg.move_graph(0, 10));
+		assert!(!dlg.move_graph(0, 12));
 		assert!(!dlg.dirty());
 		assert!(dlg.move_graph(0, 1));
 		assert_eq!(
 			dlg.state(ORDER).text,
-			"mem cpu net disk temp swap zswap load battery self"
+			"mem cpu gpu vram net disk temp swap zswap load battery self"
 		);
 		dlg.apply().unwrap();
 		assert_eq!(
 			config::Look::load(&path).order,
 			[
-				"mem", "cpu", "net", "disk", "temp", "swap", "zswap", "load", "battery", "self"
+				"mem", "cpu", "gpu", "vram", "net", "disk", "temp", "swap", "zswap", "load",
+				"battery", "self"
 			]
 		);
 		assert!(dlg.move_graph(1, 0));
@@ -1028,7 +993,7 @@ mod tests {
 		assert!(dlg.move_graph(0, 1));
 		assert_eq!(
 			dlg.state(ORDER).text,
-			"cpu mem net swap zswap load disk temp battery self nope"
+			"cpu mem gpu vram net swap zswap load disk temp battery self nope"
 		);
 	}
 
@@ -1071,20 +1036,54 @@ mod tests {
 		assert_eq!(config::Look::load(&path).border, 1);
 	}
 
-	// Test ID: debjf
+	// Out since 2026-10-29: a save drops what it can't place rather than
+	// refusing, per backlog 2026102913122701. dekm0 checks it now.
+	// // Test ID: debjf
+	// #[test]
+	// fn refuses_to_drop_lines_it_cant_place() {
+	// 	let d = scratch("lose");
+	// 	let path = d.0.join("t.shcl");
+	// 	std::fs::write(&path, "graph:\n\twidht: 300\n").unwrap();
+	// 	let mut dlg = Dialog::open(path.clone());
+	// 	dlg.set_text("border", "2");
+	// 	let e = dlg.apply().unwrap_err();
+	// 	assert!(e.contains("graph.widht"), "{e}");
+	// 	assert_eq!(
+	// 		std::fs::read_to_string(&path).unwrap(),
+	// 		"graph:\n\twidht: 300\n"
+	// 	);
+	// }
+
+	// Test ID: dekm0
 	#[test]
-	fn refuses_to_drop_lines_it_cant_place() {
-		let d = scratch("lose");
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
+	fn an_old_file_with_lines_it_cant_place_saves_without_them() {
+		let d = scratch("old");
 		let path = d.0.join("t.shcl");
-		std::fs::write(&path, "graph:\n\twidht: 300\n").unwrap();
-		let mut dlg = Dialog::open(path.clone());
-		dlg.set_text("border", "2");
-		let e = dlg.apply().unwrap_err();
-		assert!(e.contains("graph.widht"), "{e}");
-		assert_eq!(
-			std::fs::read_to_string(&path).unwrap(),
-			"graph:\n\twidht: 300\n"
+		let old = "graph:\n\twidth: 300\n\twidht: 120\ncpu:\n\tsample_ms: 500\n\t: 7\n\
+			themes:\n\tmine:\n\t\tname: Mine\n\t\tuser: blue\n\t\tzswap_ratio: \"#123456\"\n\t\tcpu_low: \"#010203\"\n";
+		let doc = shcl::Document::parse(old);
+		assert!(
+			doc.diagnostics()
+				.iter()
+				.any(|d| d.severity == shcl::Severity::Error),
+			"wants a line that doesn't parse"
 		);
+		std::fs::write(&path, old).unwrap();
+		let mut dlg = Dialog::open(path.clone());
+		assert!(dlg.set_text("border", "2"));
+		dlg.apply().unwrap();
+		let text = std::fs::read_to_string(&path).unwrap();
+		for gone in ["widht", "sample_ms", ": 7", "blue", "zswap_ratio"] {
+			assert!(!text.contains(gone), "{gone} in {text}");
+		}
+		assert!(text.contains("mine:") && text.contains("#010203"), "{text}");
+		let l = config::Look::load(&path);
+		assert_eq!((l.width, l.border), (300, 2));
+		assert!(!dlg.dirty());
+		// the file it wrote is one it reads back the same
+		let back = Dialog::open(path.clone());
+		assert_eq!(back.look(), dlg.look());
 	}
 
 	// Test ID: debjg
@@ -1431,7 +1430,7 @@ mod tests {
 		dlg.apply().unwrap();
 		let text = std::fs::read_to_string(&path).unwrap();
 		assert!(text.contains("name: night"), "{text}");
-		assert_eq!(text.matches("\"#").count(), 85, "{text}");
+		assert_eq!(text.matches("\"#").count(), 99, "{text}");
 		assert!(!text.contains("kept"), "{text}");
 		let dlg = Dialog::open(path.clone());
 		assert_eq!(dlg.state("theme").choice, "Night");
@@ -1523,19 +1522,21 @@ mod tests {
 		assert_eq!(dlg.state("theme").options.len(), 12);
 	}
 
-	// Test ID: decd2
-	#[test]
-	fn a_theme_line_it_cant_read_stops_the_save() {
-		let d = scratch("bad_theme");
-		let path = d.0.join("t.shcl");
-		let text = "themes:\n\tmine:\n\t\tuser: blue\n";
-		std::fs::write(&path, text).unwrap();
-		let mut dlg = Dialog::open(path.clone());
-		assert!(dlg.set_text("border", "2"));
-		let e = dlg.apply().unwrap_err();
-		assert!(e.contains("themes.mine.user"), "{e}");
-		assert_eq!(std::fs::read_to_string(&path).unwrap(), text);
-	}
+	// Out since 2026-10-29: a theme line it can't read is dropped rather than
+	// stopping the save, per backlog 2026102913122701. dekm0 checks it now.
+	// // Test ID: decd2
+	// #[test]
+	// fn a_theme_line_it_cant_read_stops_the_save() {
+	// 	let d = scratch("bad_theme");
+	// 	let path = d.0.join("t.shcl");
+	// 	let text = "themes:\n\tmine:\n\t\tuser: blue\n";
+	// 	std::fs::write(&path, text).unwrap();
+	// 	let mut dlg = Dialog::open(path.clone());
+	// 	assert!(dlg.set_text("border", "2"));
+	// 	let e = dlg.apply().unwrap_err();
+	// 	assert!(e.contains("themes.mine.user"), "{e}");
+	// 	assert_eq!(std::fs::read_to_string(&path).unwrap(), text);
+	// }
 
 	// Test ID: decbz
 	#[test]

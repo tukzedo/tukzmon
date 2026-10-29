@@ -10,9 +10,12 @@ pub mod color;
 pub mod config;
 pub mod cpu;
 pub mod disk;
+pub mod gpu;
 pub mod graphs;
 pub mod history;
 pub mod keep;
+#[cfg(target_os = "linux")]
+pub mod lan;
 pub mod load;
 pub mod mem;
 pub mod net;
@@ -32,6 +35,7 @@ use collect::Collector;
 use config::{Look, Outline};
 use cpu::CpuReader;
 use disk::DiskReader;
+use gpu::{GpuReader, VramReader};
 use history::History;
 use load::LoadReader;
 use mem::{MemoryReader, SwapReader};
@@ -164,6 +168,67 @@ impl Source<3> for MemoryReader {
 
 	fn sample_ms(look: &Look) -> u32 {
 		look.rate(look.mem_sample)
+	}
+}
+
+impl Source<1> for GpuReader {
+	const SECTION: &'static str = "gpu";
+	const TITLE: &'static str = "GPU";
+
+	fn text(&self, v: &[f32; 1]) -> String {
+		format!("GPU {}% busy", pc(v[0]))
+	}
+
+	fn paint(look: &Look) -> Paint<'_, 1> {
+		look.gpu_paint()
+	}
+
+	fn outline(look: &Look) -> Outline {
+		look.gpu_outline
+	}
+
+	fn timing(look: &Look) -> Timing {
+		look.timing(look.gpu_time)
+	}
+
+	fn sample_ms(look: &Look) -> u32 {
+		look.rate(look.gpu_sample)
+	}
+}
+
+// binary, as a card's memory is sold
+fn gib(bytes: f64) -> String {
+	format!("{:.1}", bytes / f64::from(1u32 << 30))
+}
+
+impl Source<1> for VramReader {
+	const SECTION: &'static str = "vram";
+	const TITLE: &'static str = "GPU memory";
+
+	fn text(&self, v: &[f32; 1]) -> String {
+		let total = self.total() as f64;
+		format!(
+			"GPU memory {}% used\n{} of {} GiB",
+			pc(v[0]),
+			gib(f64::from(v[0].clamp(0.0, 1.0)) * total),
+			gib(total)
+		)
+	}
+
+	fn paint(look: &Look) -> Paint<'_, 1> {
+		look.vram_paint()
+	}
+
+	fn outline(look: &Look) -> Outline {
+		look.vram_outline
+	}
+
+	fn timing(look: &Look) -> Timing {
+		look.timing(look.vram_time)
+	}
+
+	fn sample_ms(look: &Look) -> u32 {
+		look.rate(look.vram_sample)
 	}
 }
 
@@ -521,6 +586,20 @@ impl Graph<NetReader, 3> {
 	}
 }
 
+impl Graph<GpuReader, 1> {
+	/// None on a box with no GPU it can read.
+	pub fn gpu(look: Look) -> Option<Self> {
+		GpuReader::probe().map(|src| Graph::with(look, src))
+	}
+}
+
+impl Graph<VramReader, 1> {
+	/// None on a box with no GPU it can read.
+	pub fn vram(look: Look) -> Option<Self> {
+		VramReader::probe().map(|src| Graph::with(look, src))
+	}
+}
+
 impl Graph<LoadReader, 1> {
 	/// None where `/proc/loadavg` can't be read.
 	pub fn load_avg(look: Look) -> Option<Self> {
@@ -831,6 +910,26 @@ mod tests {
 			NetReader::default().text(&[2000.0, 30_000.0, 1.5e6]),
 			"Network\nReceived 1.5 MB/s  Sent 30 kB/s\nLocal 2.0 kB/s"
 		);
+	}
+
+	// Test ID: dekmb
+	#[test]
+	fn gpu_tips_read_busy_and_memory_in_gib() {
+		let t = collect::Tree::new(
+			"gpu_tip",
+			&[
+				("device/gpu_busy_percent", "44\n"),
+				("device/mem_info_vram_used", "2684354560\n"),
+				("device/mem_info_vram_total", "8589934592\n"),
+			],
+		);
+		let (mut gpu, mut vram) = gpu::amd_readers(&t.at("device"));
+		let v = gpu.read().unwrap();
+		assert_eq!(gpu.text(&v), "GPU 44% busy");
+		let v = vram.read().unwrap();
+		assert_eq!(vram.text(&v), "GPU memory 31% used\n2.5 of 8.0 GiB");
+		assert_eq!(gpu.peak_floor(), None);
+		assert_eq!(vram.peak_floor(), None);
 	}
 
 	// Test ID: dej07

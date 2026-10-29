@@ -397,11 +397,6 @@ const OLD_SHARED: [(&str, &str); 3] = [
 	("graph.colors.bottom", "back_bottom"),
 ];
 
-/// A config file path from an older layout, which [`model_on`] moves.
-pub fn moved_path(path: &str) -> bool {
-	OLD_SHARED.iter().any(|(old, _)| *old == path)
-}
-
 // A file from before each graph had its own border and background gives every
 // graph the shared ones, so it keeps its look. The old paths are how it's told
 // apart: a save leaves out a graph's colors when they're its theme's, so a
@@ -483,9 +478,11 @@ pub struct Outline {
 
 /// Each graph's section and its main series, the color it reads as in
 /// Detailed. In Gradient that's its Medium. See design.md Theme.
-pub const LEADS: [(&str, &str); 10] = [
+pub const LEADS: [(&str, &str); 12] = [
 	("cpu", "user"),
 	("mem", "mem_user"),
+	("gpu", "gpu_busy"),
+	("vram", "vram_used"),
 	("net", "net_received"),
 	("swap", "swap_used"),
 	("zswap", "zswap_used"),
@@ -597,6 +594,18 @@ pub struct Look {
 	pub temp_width: u32,
 	pub temp_sample: u32,
 	pub temp_time: Option<Timing>,
+	/// Draw the GPU graph, where the box has a GPU it can read.
+	pub show_gpu: bool,
+	/// A percentage of `width`. See [`Look::share`].
+	pub gpu_width: u32,
+	pub gpu_sample: u32,
+	pub gpu_time: Option<Timing>,
+	/// Draw the GPU memory graph, where the box has a GPU it can read.
+	pub show_vram: bool,
+	/// A percentage of `width`. See [`Look::share`].
+	pub vram_width: u32,
+	pub vram_sample: u32,
+	pub vram_time: Option<Timing>,
 	/// Draw the battery graph, where the box has a battery in.
 	pub show_battery: bool,
 	/// A percentage of `width`. See [`Look::share`].
@@ -643,8 +652,16 @@ pub struct Look {
 	pub self_colors: [Rgb; 1],
 	pub self_mode: Mode,
 	pub self_gradient: [Rgb; 3],
+	pub gpu: [Rgb; 1],
+	pub gpu_mode: Mode,
+	pub gpu_gradient: [Rgb; 3],
+	pub vram: [Rgb; 1],
+	pub vram_mode: Mode,
+	pub vram_gradient: [Rgb; 3],
 	pub cpu_outline: Outline,
 	pub mem_outline: Outline,
+	pub gpu_outline: Outline,
+	pub vram_outline: Outline,
 	pub swap_outline: Outline,
 	pub zswap_outline: Outline,
 	pub net_outline: Outline,
@@ -756,6 +773,14 @@ impl Look {
 			temp_width: num("temp_width") as u32,
 			temp_sample: num("temp_sample") as u32,
 			temp_time: Timing::parse(m.value("temp_time", &NoEnv).as_text()),
+			show_gpu: m.value("show_gpu", &NoEnv).as_bool(),
+			gpu_width: num("gpu_width") as u32,
+			gpu_sample: num("gpu_sample") as u32,
+			gpu_time: Timing::parse(m.value("gpu_time", &NoEnv).as_text()),
+			show_vram: m.value("show_vram", &NoEnv).as_bool(),
+			vram_width: num("vram_width") as u32,
+			vram_sample: num("vram_sample") as u32,
+			vram_time: Timing::parse(m.value("vram_time", &NoEnv).as_text()),
 			show_battery: m.value("show_battery", &NoEnv).as_bool(),
 			battery_width: num("battery_width") as u32,
 			battery_sample: num("battery_sample") as u32,
@@ -805,8 +830,16 @@ impl Look {
 			self_colors: [color("self_used")],
 			self_mode: Mode::parse(m.value("self_mode", &NoEnv).as_text()).unwrap_or_default(),
 			self_gradient: [color("self_low"), color("self_medium"), color("self_high")],
+			gpu: [color("gpu_busy")],
+			gpu_mode: Mode::parse(m.value("gpu_mode", &NoEnv).as_text()).unwrap_or_default(),
+			gpu_gradient: [color("gpu_low"), color("gpu_medium"), color("gpu_high")],
+			vram: [color("vram_used")],
+			vram_mode: Mode::parse(m.value("vram_mode", &NoEnv).as_text()).unwrap_or_default(),
+			vram_gradient: [color("vram_low"), color("vram_medium"), color("vram_high")],
 			cpu_outline: outline("cpu"),
 			mem_outline: outline("mem"),
+			gpu_outline: outline("gpu"),
+			vram_outline: outline("vram"),
 			swap_outline: outline("swap"),
 			zswap_outline: outline("zswap"),
 			net_outline: outline("net"),
@@ -899,6 +932,20 @@ impl Look {
 		match self.self_mode {
 			Mode::Detailed => Paint::Stack(&self.self_colors),
 			Mode::Gradient => Paint::Gradient(self.self_gradient),
+		}
+	}
+
+	pub fn gpu_paint(&self) -> Paint<'_, 1> {
+		match self.gpu_mode {
+			Mode::Detailed => Paint::Stack(&self.gpu),
+			Mode::Gradient => Paint::Gradient(self.gpu_gradient),
+		}
+	}
+
+	pub fn vram_paint(&self) -> Paint<'_, 1> {
+		match self.vram_mode {
+			Mode::Detailed => Paint::Stack(&self.vram),
+			Mode::Gradient => Paint::Gradient(self.vram_gradient),
 		}
 	}
 
@@ -1056,7 +1103,7 @@ mod tests {
 	fn the_default_theme_is_the_row_defaults() {
 		let spec = spec();
 		let g = spec.group(THEME).unwrap();
-		assert_eq!(g.members.len(), 99);
+		assert_eq!(g.members.len(), 115);
 		let default = g.preset("default").unwrap();
 		assert_eq!(default.label, "Default");
 		for id in &g.members {
@@ -1289,6 +1336,8 @@ mod tests {
 			[
 				l.cpu_outline,
 				l.mem_outline,
+				l.gpu_outline,
+				l.vram_outline,
 				l.net_outline,
 				l.swap_outline,
 				l.zswap_outline,
@@ -1305,15 +1354,15 @@ mod tests {
 			top: Rgb(0x31, 0x31, 0x31),
 			bottom: Rgb(0, 0, 0),
 		};
-		assert_eq!(outlines(&d), [grey; 10]);
+		assert_eq!(outlines(&d), [grey; 12]);
 		// each graph reads its own, and no other graph's, here as Custom
 		let l = Look::from_model(&model(
 			"mem:\n\tcolors:\n\t\ttop: \"#123456\"\nself:\n\tcolors:\n\t\tborder: \"#abcdef\"\n\t\tbottom: \"#010203\"\n",
 		));
-		let mut want = [grey; 10];
+		let mut want = [grey; 12];
 		want[1].top = Rgb(0x12, 0x34, 0x56);
-		want[9].border = Rgb(0xab, 0xcd, 0xef);
-		want[9].bottom = Rgb(1, 2, 3);
+		want[11].border = Rgb(0xab, 0xcd, 0xef);
+		want[11].bottom = Rgb(1, 2, 3);
 		assert_eq!(outlines(&l), want);
 		let fire = g.preset("fire").unwrap();
 		let l = Look::from_model(&model("theme:\n\tname: fire\n"));
@@ -1328,7 +1377,7 @@ mod tests {
 			"{shared}mem:\n\tcolors:\n\t\ttop: \"#654321\"\n"
 		)));
 		assert_eq!(l.top, Rgb(0x12, 0x34, 0x56));
-		let mut want = [grey; 10].map(|o| Outline {
+		let mut want = [grey; 12].map(|o| Outline {
 			top: Rgb(0x12, 0x34, 0x56),
 			..o
 		});
@@ -1537,7 +1586,8 @@ mod tests {
 			let rgb = |id: &str| Rgb::parse(p.values[id].as_text()).unwrap();
 			let ramp = |g: &str| ["low", "medium", "high"].map(|s| rgb(&format!("{g}_{s}")));
 			let ramps = [
-				"cpu", "mem", "swap", "zswap", "net", "load", "disk", "temp", "battery", "self",
+				"cpu", "mem", "gpu", "vram", "swap", "zswap", "net", "load", "disk", "temp",
+				"battery", "self",
 			]
 			.map(ramp);
 			// how far apart the leads look is dejbr's, by CIEDE2000, not hue angle
@@ -1693,7 +1743,8 @@ mod tests {
 		assert_eq!(old.rate(old.cpu_sample), 1000);
 		let spec = spec();
 		for g in [
-			"cpu", "mem", "net", "swap", "zswap", "load", "disk", "temp", "battery", "self",
+			"cpu", "mem", "gpu", "vram", "net", "swap", "zswap", "load", "disk", "temp", "battery",
+			"self",
 		] {
 			let id = format!("{g}_sample");
 			let Some(s) = spec.get(&id) else {
@@ -1769,7 +1820,8 @@ mod tests {
 		assert_eq!(
 			Look::default().order,
 			[
-				"cpu", "mem", "net", "disk", "temp", "swap", "zswap", "load", "battery", "self"
+				"cpu", "mem", "gpu", "vram", "net", "disk", "temp", "swap", "zswap", "load",
+				"battery", "self"
 			]
 		);
 		for text in [
@@ -1862,7 +1914,7 @@ mod tests {
 			"themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n",
 		));
 		assert_eq!(t[0].name, "Say \"hi\"");
-		assert_eq!(t[0].colors.len(), 99);
+		assert_eq!(t[0].colors.len(), 115);
 		t.push(SavedTheme {
 			key: theme_key("Default", &t),
 			name: "Default".into(),

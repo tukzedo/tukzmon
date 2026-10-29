@@ -22,6 +22,19 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- LAN and internet split: nftables counter set
+	- ID: 2026102914561248
+	- Type: Feature
+	- Status: Waiting for answers
+	- Priority|Severity: Low
+	- Opened: 20261029-145612
+	- Opened by: t00mietum
+	- Parent ID: 2026101916274800
+	- Requirements: An nftables counter set that counts bytes to and from private address ranges, installed once as root, and a reader for it.
+	- Prereq IDs: 2026102914561233
+	- 2026-10-29: waits on the question in questions.md on how the plugin reads the counters, since `nft list counters` needs root too, not just the install.
+	- Installing the set and the reader's test on b23 are a sudo path, so they're a hand test.
+
 - Pre-next-cut: "Sample ms" becomes "Sample %"
 	- ID: 2026102819145599
 	- Type: Enhancement
@@ -95,12 +108,68 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: defx7 no longer checks the hue angle between leads. dejbr, from 2026102810142725, checks how far apart they look instead.
 		- Swept: every test that reads a Default color or mode, in core, settings and xfce, every row default, which deccf holds to Default, and every mention of Default's colors in `design.md` and `settings.shcl`.
 
+- Pre-next-cut: GPU memory graph
+	- ID: 2026102819145598
+	- Type: Feature
+	- Status: Waiting on UAT
+		- It departs from the wording in one way. It's off by default, like every graph since memory. Turn it on in the graph list.
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Needs hand testing: on b23, after an install, turn on GPU memory and judge whether its share should count the memory the driver keeps back, per bug 2026102915125135.
+	- Stand-in: 20261029, build dekpw from 9b72012 in a test panel on Default. The graph drew in its own violet after GPU, and its tip read "GPU memory 39% used" and "3.1 of 8.0 GiB", while `nvidia-smi` read 2818 MiB used and 351 MiB reserved. So the tip counts the reserved part as used, and reads about 4 points over `nvidia-smi`. Left for a person, since which one is right is a call on what the graph means. The rest matched 2026102819145597.
+	- Priority|Severity: Avg
+	- Opened: 20261028-191455
+	- Opened by: t00mietum
+	- Related IDs: 2026102819145597
+	- Requirements:
+		- GPU memory %, after the "Memory" monitor.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The GPU memory graph draws the share of the first GPU's memory in use, in one color. Its tip reads "GPU memory 31% used", then "2.5 of 8.0 GiB". It sits after the GPU graph, at `vram.show`, `vram.width`, `vram.sample` and `vram.time`, with a GPU memory section on Themes/Colors with In use, and Low, Medium and High.
+		- It reads the same card as the GPU graph, through `core/src/gpu.rs`: NVML's memory info on NVIDIA, and amdgpu's `mem_info_vram_used` and `mem_info_vram_total` on AMD.
+		- Verified: the full run passed, as on 2026102819145597.
+	- Decisions:
+		- The config section is `vram`, short for the GPU's own memory, and its label is GPU memory.
+		- The tip gives GiB, since a card's memory is sold in binary units.
+		- The rest are on 2026102819145597, since both graphs went in together.
+	- Branch: round-1029
+	- Test case: dekm9, dekmb, dekmc and dekmd, shared with 2026102819145597. dekmb checks the GiB line.
+
+- Pre-next-cut: Scrollable region of the dialog a different color
+	- ID: 2026102913122702
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- Whether the shade is subtle enough and still plain to see is for a person to judge.
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Needs hand testing: on b23, after an install, open Settings in the desktop's own theme, look at each tab, and judge whether the part that scrolls reads apart from the tab list, the Name row on Themes and the buttons.
+	- Stand-in: none (20261029). Turns on how subtle the shade looks, with no Check on it. Build dekpw drew every tab in Adwaita and Adwaita dark: the page at `#f4f3f2` on a `#faf9f8` window, and `#383838` on `#323232`, with the tab list, the Name row and the buttons in the window color. Pictures are in `private/claude_simple/uat-20261029/`, `s-light-*.png` and `s-dark-*.png`.
+	- Priority|Severity: Avg
+	- Opened: 20261029-131227
+	- Opened by: t00mietum
+	- Related IDs: 2026102913122704
+	- Requirements:
+		- Make the scrollable region of the dialog a subtly different color than the non-scrollable, so it's more visually obvious which is which.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The page that scrolls on each tab is drawn a shade off the window color. The tab list, the theme's Name row over the Themes sub-tabs and the bottom buttons keep the window color.
+		- `design.md` Settings window has it.
+		- Verified: the full run passed with the new test. Every tab drew its page a shade darker than the window in a light theme, and a shade lighter in a dark one, with the rest of the window in the window color.
+	- Decisions:
+		- The shade is the window color moved 1/16 of the way to the text color. It follows the desktop's theme, so there's no color of ours to keep up, and it goes the right way in a light theme and a dark one.
+		- The whole page in a scroll area is shaded, even when it fits with no scrollbar, so a tab looks the same whether or not it runs past the window.
+		- Boxes and buttons on the page keep their own colors.
+	- Branch: round-1029
+	- Test case: `bridge::tests::the_part_that_scrolls_is_a_shade_off_the_window` (dekna), in a light and a dark theme. It fails with the shade left out.
+		- Swept: every scroll area in `qt.cpp`. `FitScroll` in `buildPage` is the only one, and every tab and sub-tab that scrolls goes through it.
+
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
 	- Status: Waiting on automated testing
 		- 2026-10-26: still waits for the workflow file to reach `main`, which a round never pushes to.
 		- 2026-10-28: round-1028 doesn't reach `main` either.
+		- 2026-10-29: `main` on GitHub still has no `.github/workflows`, and the repo has no workflow runs.
 	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
 	- Priority|Severity: Avg
 	- Opened: 20261025-135600
@@ -152,20 +221,111 @@ Sorted per the notes in [Template](#template).
 	- Test case: `graphs::tests::a_file_the_5_tier_plugin_wrote_still_loads` (defv4). It fails with decode taking only today's tier count, and with `lo` and `hi` swapped in both encode and decode, which defp7 and decbg miss. Restarts are also covered by decbp, dedq3 and defp7.
 		- Swept: every load path (start, a graph added, keep turned back on) and every save path (the 15 minute timer, quit, keep turned off, a graph dropped) in `xfce/src/lib.rs` and `Graphs`. Nothing else reads or writes the history file.
 
+- Split network traffic into LAN and internet
+	- ID: 2026101916274800
+	- Type: Feature
+	- Status: Started
+	- Priority|Severity: Low
+	- Opened: 20261019-162748
+	- Opened by: t00mietum
+	- Prereq IDs: 2026101916013887
+	- Related IDs: 2026101916013883
+	- Requirements:
+		- If it can be done easily with low overhead, the network graph shows 5 series: local, LAN sent, LAN received, internet sent, and internet received.
+		- Optional. Settings let the user pick the way:
+			- Off, the default. 3 series: local, sent, and received.
+			- Polling TCP sockets. No root, but UDP and QUIC traffic isn't split.
+			- An nftables counter set. Close to no overhead, but needs root to install once.
+	- Decisions:
+		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+	- 2026-10-29: split into 3 children: the TCP socket reader 2026102914561218, the setting and the 5-series graph 2026102914561233, and the nftables counter set 2026102914561248. This closes with the last of them.
+
+- GPU memory counts the driver's reserved memory as used
+	- ID: 2026102915125135
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261029-151251
+	- Opened by: t00mietum
+	- Related IDs: 2026102819145598
+	- Steps to reproduce:
+		- On b23, turn on GPU memory, hover it, and run `nvidia-smi -q -d MEMORY` at the same time.
+	- Incorrect behavior: the tip read "GPU memory 39% used" and "3.1 of 8.0 GiB", while `nvidia-smi` read 2818 MiB used and 351 MiB reserved, about 34%.
+	- Expected behavior: the share matches what `nvidia-smi` calls used, or the tip says the reserved part is in it.
+	- Reproduced: 2026-10-29, build dekpw on b23, RTX 3060 Ti, driver 595.58.03.
+	- Possible cause: `core/src/gpu.rs` calls `nvmlDeviceGetMemoryInfo`, whose used figure takes in the reserved memory. `nvmlDeviceGetMemoryInfo_v2` gives reserved apart.
+
+- LAN and internet split: setting and the 5-series network graph
+	- ID: 2026102914561233
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261029-145612
+	- Opened by: t00mietum
+	- Parent ID: 2026101916274800
+	- Requirements: A setting for the split, off by default, with socket polling and the nftables counter set as its other choices. With it on, the network graph shows local, LAN sent, LAN received, internet sent and internet received, with theme colors for each.
+	- Prereq IDs: 2026102914561218
+	- 2026-10-29: `lan::LanReader` gives the LAN's sent and received, and `lan::split` turns those and the network reader's 3 series into the 5, from 2026102914561218. Nothing draws them yet.
+
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
 	- Priority|Severity: Critical
 	- Opened: 20261029-131227
 	- Opened by: t00mietum
 	- Requirements:
 		- Don't error if an old config file has old values that don't exist anymore. Just replace the file. Regular users aren't going to hand-edit the config file.
+	- Reproduced: 2026-10-29, round-1029 at a6ad993, with a file holding a gone `cpu.sample_ms`, a misspelled setting, a line that doesn't parse, and saved theme values it can't read. Apply failed with "has lines a save would drop, so it wasn't changed".
+	- Actual cause: the window's save checked the file for lines it would drop, and refused the whole save if it found any. An older build's settings are such lines.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Apply now writes the file from what it can read, and drops the rest. Known settings and readable saved themes are kept as before.
+		- `design.md` Settings window says so.
+		- Verified: dekm0 fails at a6ad993 with the error above, and passes now. The quick gate and the full run passed.
+	- Decisions:
+		- Everything the check caught is dropped, not only settings that are gone: lines that don't parse, misspelled names, and saved theme values it can't read. A save can't tell an old build's line from a hand edit, and the window can't show either, so the error only blocked the save.
+		- Nothing is rewritten until the next Apply. Loading already ignores what it can't read, so the panel draws the same either way.
+		- `config::moved_path` went, since only the check used it. `config::theme_problems` stays, with its tests, as the list of saved theme lines a save rewrites.
+	- Actual fix: the `would_lose` check in `Dialog::apply` is gone.
+	- Branch: round-1029
+	- Test case: `dialog::tests::an_old_file_with_lines_it_cant_place_saves_without_them` (dekm0).
+		- 2026-10-29: debjf (`refuses_to_drop_lines_it_cant_place`) and decd2 (`a_theme_line_it_cant_read_stops_the_save`) are commented out, since each checked the refusal this item removes. dekm0 covers both of their files.
+		- Swept: every caller of `Dialog::apply` (the bridge's `apply`, which every save in `qt.cpp` goes through, and the tests), every user of `would_lose`, `moved_path` and `theme_problems`, the plugin's and the window's load paths, which already skip what they can't read, and `design.md` and README.md for the refusal.
+	- Acceptance signoff: Self-closed 20261029: dekm0 and the full run.
+	- Closed: 20261029-132000
+
+- Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
+	- ID: 2026102620162196
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build defqn, on b23 as of 2026-10-26 20:16.
+	- Related IDs: 2026102408304599
+	- Incorrect behavior: Mouseover tip text: "x seconds ago" doesn't update with ticks, it seems to be stuck at whatever it was at first flyover.
+	- Note: Regular time format works though.
+	- Reproduced: 2026-10-26, in core with 2 days of history. A still pointer read "32 sec ago" over 4 ticks while its clock time went 20:59:13, :14, :15, :16, on a linear axis and on Smooth log.
+	- Actual cause:
+		- Each column of the graph is a fixed age, since the right edge is always now and the graph moves left under the pointer. So a still pointer's age holds, and its clock time moves on by a sample each tick. Both say the same thing about the column under the line.
+		- The tip is asked again each tick, so nothing is stale. The round-1024 test panel saw the age count, likely because its history was only seconds old, and a log axis stretches as its history grows.
+	- Progress log:
+		- Answered 2026-10-28: the line and tip stay on the column under the pointer. No behavior change. design.md Drawing says why a still pointer's age holds, and a test pins it.
+		- Verified: the quick gate passed, with the new test.
+	- Decisions:
+		- Not a bug: each column is a fixed age, so the age holds while the clock time moves on. Both describe the column under the line.
+	- Branch: round-1028
+	- Test case: `tests::a_still_pointer_keeps_its_age_while_its_clock_time_moves_on` (defz1). It pins existing behavior, so it passes before and after. No code changed.
+		- Swept: `hover_tip` and `span_at` are the only places the tip's time is made, and the settings window's live tip goes through the same `Graph::hover_tip`.
+	- Closed: 20261028-080400
 
 - Color themes tab
 	- ID: 2026102408304612
 	- Type: Feature
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: High
 	- Opened: 20261024-082803
 	- Opened by: t00mietum
@@ -196,160 +356,8 @@ Sorted per the notes in [Template](#template).
 		- Global setting to make background transparent, which overrides all background colors.
 	- Progress log:
 		- Split into 6 children, in this order: 2026102409400679 (theme presets and Default), 2026102409400684 (Themes tab and its top row), 2026102409400689 (color picker), 2026102409400695 (Gradient mode and Fire), 2026102409400700 (Randomize), and 2026102409400705 (transparent background).
-
-- Pre-next-cut: GPU utilization graph
-	- ID: 2026102819145597
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-191455
-	- Opened by: t00mietum
-	- Related IDs: 2026102819145598
-	- Requirements:
-		- GPU utilization, after the "Memory" monitor.
-
-- Pre-next-cut: GPU memory graph
-	- ID: 2026102819145598
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261028-191455
-	- Opened by: t00mietum
-	- Related IDs: 2026102819145597
-	- Requirements:
-		- GPU memory %, after the "Memory" monitor.
-
-- An item's files go when it's removed from the panel
-	- ID: 2026102622311676
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261026-223116
-	- Opened by: t00mietum
-	- Related IDs: 2026102621053715
-	- Requirements:
-		- Removing a tukzmon item from the panel deletes its `plugin-<id>.shcl` and `plugin-<id>.hist`, as the panel's Remove dialog says ("its configuration will be lost").
-		- A later item that gets the same id starts fresh, not with the removed one's settings and history.
-	- Progress log:
-		- Today both files stay. The plugin doesn't connect the panel's `remove` signal, and free-data saves history after it.
-
-- Pre-next-cut: Scrollable region of the dialog a different color
-	- ID: 2026102913122702
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261029-131227
-	- Opened by: t00mietum
-	- Requirements:
-		- Make the scrollable region of the dialog a subtly different color than the non-scrollable, so it's more visually obvious which is which.
-
-- Pre-next-cut: Dialog never taller than the screen
-	- ID: 2026102913122703
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261029-131227
-	- Opened by: t00mietum
-	- Requirements:
-		- Dialog should never be taller than the available screen real-estate.
-
-- Pre-next-cut: Graphs editing section on its own tab
-	- ID: 2026102913122704
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261029-131227
-	- Opened by: t00mietum
-	- Requirements:
-		- Move the Graphs editing section to its own tab.
-
-- Pre-next-cut: Dialog height from the tallest other tab
-	- ID: 2026102913122705
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261029-131227
-	- Opened by: t00mietum
-	- Requirements:
-		- Themes|Colors tab: Don't use this for the dialog height. Use the tallest other tab to base the height on.
-
-- Drop the sudo step in dev-install.bash
-	- ID: 2026102820420805
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261028-204208
-	- Opened by: t00mietum
-	- Related IDs: 2026102808222920
-	- Requirements: Install the .desktop file to ~/.local/share/xfce4/panel/plugins and the plugin and tukzmon-settings to ~/.local/lib/<multiarch>/xfce4/panel/plugins, with no sudo links. The multiarch dir comes from the panel's lib dir. Update design.md XFCE plugin and README to match.
-
-- Plugin errors go nowhere after a panel restart
-	- ID: 2026102620523642
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261026-205236
-	- Opened by: t00mietum
-	- Related IDs: 2026102620162195
-	- Requirements:
-		- A panel started by `xfce4-panel --restart` runs with stdout and stderr on `/dev/null`, and so does the plugin. Its "can't read" and "can't save" lines for the history file are lost.
-		- Show a failed history load or save where a person can find it, such as in the tooltip or the journal.
-
-- A panic in the plugin takes the whole panel down on Wayland
-	- ID: 2026102622434311
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261026-224343
-	- Opened by: t00mietum
-	- Related IDs: 2026102621053720
-	- Requirements:
-		- On Wayland, XFCE 4.20 runs the plugin in the panel's own process, and the release build aborts on a panic. So a plugin bug takes down the panel and every other plugin in it. On X11 only the plugin's wrapper goes.
-		- A panic in the plugin stops only that item, with one line on stderr.
-	- Note: one way is `panic = "unwind"` in the release profile, and `catch_unwind` in each callback the panel calls, which then marks the item dead and stops its timers. Cargo can't set `panic` per package, so tukzmon-settings would unwind too. Measure what both binaries grow by first.
-
-- Split network traffic into LAN and internet
-	- ID: 2026101916274800
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261019-162748
-	- Opened by: t00mietum
-	- Prereq IDs: 2026101916013887
-	- Related IDs: 2026101916013883
-	- Requirements:
-		- If it can be done easily with low overhead, the network graph shows 5 series: local, LAN sent, LAN received, internet sent, and internet received.
-		- Optional. Settings let the user pick the way:
-			- Off, the default. 3 series: local, sent, and received.
-			- Polling TCP sockets. No root, but UDP and QUIC traffic isn't split.
-			- An nftables counter set. Close to no overhead, but needs root to install once.
-	- Decisions:
-		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
-
-- Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
-	- ID: 2026102620162196
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261026-201621
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build defqn, on b23 as of 2026-10-26 20:16.
-	- Related IDs: 2026102408304599
-	- Incorrect behavior: Mouseover tip text: "x seconds ago" doesn't update with ticks, it seems to be stuck at whatever it was at first flyover.
-	- Note: Regular time format works though.
-	- Reproduced: 2026-10-26, in core with 2 days of history. A still pointer read "32 sec ago" over 4 ticks while its clock time went 20:59:13, :14, :15, :16, on a linear axis and on Smooth log.
-	- Actual cause:
-		- Each column of the graph is a fixed age, since the right edge is always now and the graph moves left under the pointer. So a still pointer's age holds, and its clock time moves on by a sample each tick. Both say the same thing about the column under the line.
-		- The tip is asked again each tick, so nothing is stale. The round-1024 test panel saw the age count, likely because its history was only seconds old, and a log axis stretches as its history grows.
-	- Progress log:
-		- Answered 2026-10-28: the line and tip stay on the column under the pointer. No behavior change. design.md Drawing says why a still pointer's age holds, and a test pins it.
-		- Verified: the quick gate passed, with the new test.
-	- Decisions:
-		- Not a bug: each column is a fixed age, so the age holds while the clock time moves on. Both describe the column under the line.
-	- Branch: round-1028
-	- Test case: `tests::a_still_pointer_keeps_its_age_while_its_clock_time_moves_on` (defz1). It pins existing behavior, so it passes before and after. No code changed.
-		- Swept: `hover_tip` and `span_at` are the only places the tip's time is made, and the settings window's live tip goes through the same `Graph::hover_tip`.
-	- Closed: 20261028-080400
+		- Closed 20261029 with its 6 children all Done.
+	- Test case: its 6 children's tests, deccf to dece0
 
 - Randomize: a hue of its own for each graph
 	- ID: 2026102621562349
@@ -2258,6 +2266,36 @@ Sorted per the notes in [Template](#template).
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019
 
+- GPU test fails on a box with an NVIDIA GPU
+	- ID: 2026102914040910
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261029-140409
+	- Opened by: t00mietum
+	- Related IDs: 2026102819145597
+	- Steps to reproduce:
+		- On b23, outside the container, run `cargo test -p tukzmon-settings -- the_gpu_rows`.
+	- Incorrect behavior: dekmd fails at its tip check. The GPU graph's tip reads only "GPU" after one sample.
+	- Expected behavior: it passes. In the container there's no GPU, so the test takes its other branch, and the full run never sees this.
+	- Reproduced: 2026-10-29 on b23, 3 times of 3, at f68f673 with no edits, with the RTX 3060 Ti about 50% busy.
+	- Possible cause: the first sample has no busy share for the tip yet, either because the first read only primes or because the GPU graph's beat hasn't come.
+	- Actual cause:
+		- dekmd read the tips after one `sample()`. Every graph's first read only primes, so its tip is the bare title, "GPU" or "GPU memory", until the second. The GPU reader is right: on the second sample NVML gave the tip a busy share.
+		- The container has no GPU, so the test took its no-GPU branch there, and only a box with a GPU saw it.
+	- Progress log:
+		- dekmd now samples twice, as the other live tests do. It checks that the first sample gives only the title, and that the second gives a reading.
+		- It checks GPU and GPU memory each on its own, since an amdgpu card can have a busy share and no memory files. The old test took both as there or both as missing.
+		- dej0w, the temperature row, had the same one-sample slip, but its check also passed on the title alone. It now samples twice and wants a reading.
+		- Verified: dekmd and dej0w passed 3 times of 3 on b23 outside the container, with the RTX 3060 Ti about 31% busy. dekm9, dekma, dekmb and dekmc passed there too. The quick gate and the full run passed.
+	- Decisions:
+		- The fix is in the test from 5b569ad, not the GPU code. Every graph primes on its first read, and its tip is the title until then, so GPU follows that, with no exception for gauges.
+	- Actual fix: dekmd and dej0w sample twice before they read a tip.
+	- Branch: round-1029
+	- Test case: `live::tests::the_gpu_rows_are_there_only_with_a_gpu_to_read` (dekmd). It failed on b23 before the fix, at its tip check, and passes after. It goes red again with the second sample taken out. `the_temp_row_draws_at_its_own_width` (dej0w) checks a reading now, not the title.
+		- Swept: every test that reads a tip after sampling. The CPU and own rows in `settings/src/live.rs`, dedq1 and the swap tip in `core/src/graphs.rs`, debj4 in `core/src/lib.rs` and the zswap test already sample twice. The battery test checks the title on purpose.
+	- Closed: 20261029-141357
+
 - Unticking the Outline tab's overrides leaves the shared colors on the other graphs
 	- ID: 2026102820512294
 	- Type: Bug
@@ -2393,6 +2431,158 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: defx7 no longer checks hue angle between leads. dejbr checks how far apart they look.
 		- Swept: defx7 and defxd, the only checks on leads, every built-in in `settings.shcl`, and every role in `dice::ROLES` that follows its graph's lead.
 	- Closed: 20261028-161000
+
+- Pre-next-cut: GPU utilization graph
+	- ID: 2026102819145597
+	- Type: Feature
+	- Status: Done
+		- It departs from the wording in one way. It's off by default, like every graph since memory. Turn it on in the graph list.
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Needs hand testing: on b23, after an install and a panel restart, turn on GPU and GPU memory in the graph list, Apply, and judge how both look beside memory on Default. The GPU tip should be near what `nvidia-smi` shows.
+	- Stand-in: 20261029, build dekpw from 9b72012 in a test panel on Default, with CPU, memory, GPU and GPU memory on. The GPU graph drew in its own blue beside memory, and its tip read "GPU 29% busy" while `nvidia-smi` read 26% to 36%. The graph list, the GPU section on Colors and the Default colors matched the Check in questions.md, in a light and a dark theme.
+	- Priority|Severity: Avg
+	- Opened: 20261028-191455
+	- Opened by: t00mietum
+	- Related IDs: 2026102819145598
+	- Requirements:
+		- GPU utilization, after the "Memory" monitor.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The GPU graph draws how busy the first GPU is, in one color, full at 100%. Its tip reads "GPU 44% busy". It has a row in the graph list after memory, at `gpu.show`, `gpu.width`, `gpu.sample` and `gpu.time`, and a GPU section on Themes/Colors with Busy, and Low, Medium and High.
+		- `core/src/gpu.rs` reads it, and the GPU memory graph, 2026102819145598, shares it. NVIDIA is through NVML, loaded at run time, and AMD through amdgpu's `gpu_busy_percent`.
+		- `graph.order` defaults to `cpu mem gpu vram net disk temp swap zswap load battery self`.
+		- `design.md` XFCE plugin, Theme and Data sources on Linux have the details.
+		- Verified: the full run passed. On b23 NVML read the RTX 3060 Ti at 31% busy and 39% of 8 GiB in use. The settings window showed the 2 rows after memory and the GPU section on Colors.
+	- Decisions:
+		- Off by default, like the other graphs since memory.
+		- The first GPU only. A picker for boxes with more than one can be its own item.
+		- NVML is opened with `dlopen`, so a box without the NVIDIA driver still starts, and no crate is added. It's opened once a process and stays open.
+		- NVIDIA first, then the first amdgpu card. Intel has no busy share without root, so it has no GPU graphs.
+		- Each built-in gives GPU a lead of its own, 14 or more from every other lead as CIEDE2000. The one-color themes give it their one color. Check in questions.md.
+		- Randomize rolls 12 lead hues at least 18 degrees apart, down from 22, with the same 27 degrees of play. 12 leads often have no steps that keep every 2 of them 10 apart, so it draws up to 128 sets of hues, up from 16. At 16, 34 of 20,000 rolls had 2 leads under 10 apart, and at 128 none did.
+	- Branch: round-1029
+	- Test case: `gpu::tests::amdgpu_reads_from_the_first_card_and_skips_connectors` (dekm9), `a_live_gpu_reads_as_a_share_where_there_is_one` (dekma), `tests::gpu_tips_read_busy_and_memory_in_gib` (dekmb), `graphs::tests::gpu_and_its_memory_sit_after_memory_and_fill_at_all_of_it` (dekmc) and `live::tests::the_gpu_rows_are_there_only_with_a_gpu_to_read` (dekmd). dekm9 fails with connectors such as `card0-DP-1` read as cards.
+		- 2026-10-29: new values only, for both graphs. deccf and deccw count 115 theme members, not 99. deccy counts 99 saved colors, not 85. dedqq's default order, and defkz's, defm0's and dejac's orders, have `gpu vram` after `mem`, and defm0's past-the-end move is 12, not 10. dejkg reads 12 outlines, not 10, with tukzmon's at 11. defx7 and deja1 take gpu and vram too. defxd's least gap is 13 degrees, not 17, for the 18 degree roll.
+		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 9 built-in themes, `dice::ROLES` and `PARTS`, `config::LEADS`, every graph list in config, dialog and bridge tests, and every graph list in `design.md`. The profiler and soak test run with the defaults, so they don't draw the GPU.
+	- Acceptance signoff: Self-closed 20261029: dekm9 to dekmd passed in the full run at 9b72012, and the stand-in above, with the colors already in a Check.
+	- Closed: 20261029-151300
+
+- Pre-next-cut: Graphs editing section on its own tab
+	- ID: 2026102913122704
+	- Type: Enhancement
+	- Status: Done
+		- It departs from the wording in one way. The old Graph tab is now General, since Graph beside Graphs read as one tab twice. Check in questions.md.
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Needs hand testing: on b23, after an install, open Settings, pick Graphs, and judge the tab names and the list on its own tab.
+	- Stand-in: 20261029, build dekpw from 9b72012, in a light and a dark theme. The tabs read General, Graphs, Themes, Colors, Outline. Graphs drew the 12 rows with no heading over them, and General drew Size, Time, Frame, Disk graph and History.
+	- Priority|Severity: Avg
+	- Opened: 20261029-131227
+	- Opened by: t00mietum
+	- Related IDs: 2026102913122702, 2026102913122703, 2026102913122705
+	- Requirements:
+		- Move the Graphs editing section to its own tab.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The graph list is on a Graphs tab of its own, after General. General keeps Size, Time, Frame, Disk graph and History.
+		- The list's tips that pointed under Time or at Width now say those are on the General tab, and General's tips point at the Graphs tab.
+		- The setting ids and paths are unchanged, so saved files read as before.
+		- `design.md` Settings window, XFCE plugin and Time axis have it.
+		- Verified: the full run passed. The Graphs tab drew the list with no heading over it, and General drew the rest.
+	- Decisions:
+		- General stays first, so the window still opens on the tab it opened on.
+		- The Graphs heading is dropped on its own tab, as any heading that repeats its tab's name is.
+		- The window's height is left to 2026102913122703 and 2026102913122705.
+	- Branch: round-1029
+	- Test case: `bridge::tests::the_graph_list_is_a_tab_of_its_own` (dekn9). It fails with the list on the old tab.
+		- 2026-10-29: new values only. dejac's tab list is General, Graphs, Themes, Colors, Outline, not Graph, Themes, Colors, Outline. dejmn checks that General and Graphs light nothing else, where it checked Graph.
+		- Swept: every reader of a tab's name (dejac, dejmn, `tabs_after_move` and `sections_after_move`, which pick Colors), the tips naming Time, Width and Graphs, and the docs naming the Graph tab.
+	- Acceptance signoff: Self-closed 20261029: dekn9 passed in the full run at 9b72012, and the stand-in above, with the tab name already in a Check.
+	- Closed: 20261029-151300
+
+- Pre-next-cut: Dialog never taller than the screen
+	- ID: 2026102913122703
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Priority|Severity: Avg
+	- Opened: 20261029-131227
+	- Opened by: t00mietum
+	- Related IDs: 2026102913122704, 2026102913122705
+	- Requirements:
+		- Dialog should never be taller than the available screen real-estate.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The window already opened no taller than the screen less its panels, but the window manager's title bar and border came on top of that. On a short screen the buttons ran off the bottom.
+		- Now the frame is taken off the size as soon as it's known, and the window is kept on screen.
+		- `design.md` Settings window has it.
+		- Verified: the full run passed with the new test. In a test window on a 600 px screen, the window and its frame filled the 600 px with the buttons on screen, where they had run 34 px past the bottom. The same on a 480 px screen.
+	- Decisions:
+		- The frame is read once the window is up, since it's the window manager's and differs by theme. So on a short screen the window opens one frame too tall and shrinks at once. On a tall one nothing moves.
+		- Only the first fit after the frame is known. A window moved or resized after that is left alone.
+		- The width gets the same rule.
+	- Branch: round-1029
+	- Test case: `bridge::tests::the_window_and_its_frame_stay_on_a_short_screen` (deknz), on a 1280x600 and a 1024x500 screen with a frame. It fails with the frame left on.
+		- Swept: every place the window is sized. `run_dialog` and `--snapshot` both go through `openSized`. The test hooks size their own windows and are unchanged. The color picker is a small dialog over the window, and is unchanged.
+	- Acceptance signoff: Self-closed 20261029: deknz, and the window on a 600 px screen.
+	- Closed: 20261029-142648
+
+- Pre-next-cut: Dialog height from the tallest other tab
+	- ID: 2026102913122705
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Priority|Severity: Avg
+	- Opened: 20261029-131227
+	- Opened by: t00mietum
+	- Related IDs: 2026102913122703, 2026102913122704, 2026102819315852
+	- Requirements:
+		- Themes|Colors tab: Don't use this for the dialog height. Use the tallest other tab to base the height on.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Themes/Colors no longer sets the window's height. The window is as tall as the tallest other tab needs, and Colors scrolls in that.
+		- The cap of 2/3 of the screen on Colors is gone, since that page asks for no height now.
+		- `design.md` Settings window has it.
+		- Verified: the full run passed with the new test. On a 1024 px screen the window opened 657 px tall, set by the other tabs, where Colors had made it 814.
+	- Decisions:
+		- Themes counts as one of the other tabs, with its Name row over Outline, so switching to Outline never needs more room than the window has.
+		- Only the page that holds the graph sections asks for no height. Outline, built after Colors, had the old cap too, and now asks for its own height like the rest.
+	- Branch: round-1029
+	- Test case: `bridge::tests::the_colors_tab_scrolls_in_the_height_the_other_tabs_set` (dekp0), on a 2000 px screen: Colors scrolls, every other tab fits, and the tallest of them fills its page. It fails with Colors asking for its own height.
+		- Swept: every `FitScroll`, all made in `buildPage`, and the `design.md` line on the 2/3 cap. 2026102819315852's Decisions still name the cap, and are left as they were, since it's closed.
+	- Acceptance signoff: Self-closed 20261029: dekp0, and the window on a 1024 px screen.
+	- Closed: 20261029-142648
+
+- An item's files go when it's removed from the panel
+	- ID: 2026102622311676
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Priority|Severity: Avg
+	- Opened: 20261026-223116
+	- Opened by: t00mietum
+	- Related IDs: 2026102621053715
+	- Requirements:
+		- Removing a tukzmon item from the panel deletes its `plugin-<id>.shcl` and `plugin-<id>.hist`, as the panel's Remove dialog says ("its configuration will be lost").
+		- A later item that gets the same id starts fresh, not with the removed one's settings and history.
+	- Actual effort: Low
+	- Progress log:
+		- Today both files stay. The plugin doesn't connect the panel's `remove` signal, and free-data saves history after it.
+		- 2026-10-29: the plugin connects the panel's `removed` signal. It deletes the item's `plugin-<id>.shcl` and `plugin-<id>.hist`, closes its Properties window, and saves nothing after, free-data included.
+		- `design.md` Settings window and History have it.
+		- Verified: in a test panel with 2 items, Remove on item 1 deleted both its files and left item 2's. Remove on item 2 with its Properties open closed the window and deleted both its files. With the plugin from before, both files stayed, and the history was saved again at the Remove.
+	- Decisions:
+		- "Starts fresh" is read as any new item starts: from a copy of the shared `tukzmon.shcl` when there is one, else the defaults, and with no history.
+		- An open Properties window for the item is closed without asking, since an Apply there would write the file back for an id no item has.
+		- The item's timer and file watches stop at the Remove, so deleting its settings file doesn't wake a reload before free-data.
+	- Branch: round-1029
+	- Test case: `tests::a_removed_item_takes_its_files_and_free_data_saves_nothing` (dekmw), in the plugin crate. It fails with the deletes taken out, and with free-data's save let through after the Remove.
+		- Swept: every history save (the 15 minute timer, a look change, free-data) goes through `save_history`, which stops after a Remove. The settings file is written only by the settings window, which is closed, and by `config::start_from`, which runs only when an item starts. The Reset history mark is shared by every item and stays.
+	- Acceptance signoff: Self-closed, 2026-10-29: in a test panel, Remove deleted the removed item's 2 files and nothing else, with and without its Properties open.
+	- Closed: 20261029-135241
 
 - Pre-next-cut: Outline, background and transparent overrides on the Outline tab
 	- ID: 2026102819315837
@@ -3503,6 +3693,125 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
 	- Closed: 20261025-081952
+
+- Drop the sudo step in dev-install.bash
+	- ID: 2026102820420805
+	- Type: Task
+	- Status: Done
+		- Removing b23's 2 old links and `~/.local/lib/tukzmon` is left as a root step by hand. The script names them on each run.
+	- Needs hand testing: on b23, run `utility/dev-install.bash` and see the panel load the new build. Then remove the 2 old sudo links it names, and `~/.local/lib/tukzmon`.
+	- Stand-in: 20261029, on b23 with an empty folder in place of `~/.local` and the panel calls stubbed. It installed the 3 files under that `~/.local`, named both old `/usr` links with the `sudo rm` for each and the old `~/.local/lib/tukzmon`, and exited 0. The panel loading a user install was checked in a test panel before.
+	- Priority|Severity: Low
+	- Opened: 20261028-204208
+	- Opened by: t00mietum
+	- Related IDs: 2026102808222920
+	- Requirements: Install the .desktop file to ~/.local/share/xfce4/panel/plugins and the plugin and tukzmon-settings to ~/.local/lib/<multiarch>/xfce4/panel/plugins, with no sudo links. The multiarch dir comes from the panel's lib dir. Update design.md XFCE plugin and README to match.
+	- Actual effort: Low
+	- Progress log:
+		- `utility/dev-install.bash` puts the `.desktop` file in `~/.local/share/xfce4/panel/plugins`, and the library and `tukzmon-settings` in `~/.local/lib/<multiarch>/xfce4/panel/plugins`. No sudo. The multiarch tail comes from where `ldconfig` finds the panel's library.
+		- When the old links from the sudo step are still there, it names them with the command to remove them, and names the old `~/.local/lib/tukzmon`.
+		- design.md XFCE plugin, README Status and the Dogfood line in `cicd/cicd.bash` updated.
+		- Verified 2026-10-29: with HOME in a temp folder and the panel restart stubbed, the script installed the 3 files there. A private xfce4-panel 4.20.7 on Xvfb with that HOME read the `.local/share` dir first, registered tukzmon from the `.local/lib/x86_64-linux-gnu` library, and embedded it. b23's old `/usr` links were shadowed, not loaded.
+		- Verified: an `XDG_DATA_HOME` ending in `/share` installs beside it, and one that doesn't stops before the build with an error.
+	- Decisions:
+		- Follows `XDG_DATA_HOME`, since the panel does. The panel reads no user plugins when it doesn't end in `/share`, so the script stops there.
+		- The old links and folder are named, not removed. The links need root, and the panel reads the user folder first, so they do no harm meanwhile.
+		- Falls back to `lib/x86_64-linux-gnu`, with a warning, when `ldconfig` doesn't list the panel's library, as the old script did.
+		- Swept: README, design.md, `cicd/cicd.bash`, `cicd/config.bash`. `cicd/packaging/nfpm.yaml` and `nix/package.nix` install to system paths and need no change. The plugin finds `tukzmon-settings` beside its own library, which still holds.
+	- Branch: round-1029
+	- Test case: none in the repo. Checked in a private panel, as for 2026102808222920.
+	- Acceptance signoff: Self-closed 20261029: the stand-in above. Only the root cleanup is left, and it isn't part of the change.
+	- Closed: 20261029-151300
+
+- LAN and internet split: TCP socket reader
+	- ID: 2026102914561218
+	- Type: Feature
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Priority|Severity: Low
+	- Opened: 20261029-145612
+	- Opened by: t00mietum
+	- Parent ID: 2026101916274800
+	- Related IDs: 2026102408512202, 2026102914561233
+	- Requirements:
+		- Bytes a second over TCP to and from the LAN, from polling `sock_diag`, with no root.
+		- What the interfaces carried that isn't the LAN's is the internet's.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- `core/src/lan.rs` has `LanReader`, with series LAN sent and LAN received, in bytes per second, from every TCP socket's `tcp_info` through `sock_diag`. The first read only primes it.
+		- `lan::split` turns the network reader's 3 series and those 2 into the 5 the split graph draws. Nothing draws them yet. That's 2026102914561233.
+		- `design.md` Data sources on Linux has the details.
+		- Verified: the full run passed. A live read on this box found 16 LAN sockets, the same as `ss` counts, as a user.
+	- Decisions:
+		- Only the LAN is counted, and the internet is the rest of the interfaces' traffic. UDP and QUIC go mostly to the internet, video above all, so they land on the right side more often that way. The nftables set can count the same way.
+		- The LAN is private IPv4, link-local, IPv6 unique local, and this end's own IPv6 /64, so a LAN box with a global IPv6 address counts too. 100.64/10 isn't, since that's a carrier's NAT more often than a LAN.
+		- A socket to the box's own address goes through `lo`, so it stays local and isn't the LAN's.
+		- Each segment adds 66 bytes of headers on IPv4 and 86 on IPv6, since `/proc/net/dev` counts them. Without them a 1 GB/s copy on the LAN would show about 4% of it as internet.
+		- Sockets are told apart by their kernel cookie. A new one moved all it has since the last poll, and a failed poll is a gap, since a socket it missed would count all it has next time.
+	- Branch: round-1029
+	- Test case: `lan::tests` (5: dekq5, dekq6, dekq7, dekq8, dekq9). dekq5 fails with the box's own address taken as LAN, dekq6 with the header bytes left out, dekq7 with a new socket counted as nothing, and dekq8 with the LAN not capped.
+		- Swept: the network collector's `Climb` doesn't fit, since sockets come and go every poll. No other reader counts per socket.
+	- Closed: 20261029-150424
+
+- Plugin errors go nowhere after a panel restart
+	- ID: 2026102620523642
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Priority|Severity: Low
+	- Opened: 20261026-205236
+	- Opened by: t00mietum
+	- Related IDs: 2026102620162195, 2026102622434311
+	- Test environment: XFCE 4.20.7 panel on headless sway 1.10.1, Wayland, on b23.
+	- Requirements:
+		- A panel started by `xfce4-panel --restart` runs with stdout and stderr on `/dev/null`, and so does the plugin. Its "can't read" and "can't save" lines for the history file are lost.
+		- Show a failed history load or save where a person can find it, such as in the tooltip or the journal.
+	- Actual effort: Low
+	- Progress log:
+		- Both. Every `complain` line also goes to syslog, which the journal reads, unless stderr is the journal already. A failed history read, save or delete shows under the graphs in the tip, as "History: can't read <path>: <error>", until a save works or Reset history clears the file.
+		- Verified in a Wayland test panel with stderr on `/dev/null` and the history file made a folder: the tip showed the read failure under the CPU tip, and the journal had the read failure and the save failure at quit, under the panel's name.
+		- `design.md` XFCE plugin has it.
+	- Decisions:
+		- syslog with no `openlog`, since on Wayland the process is the panel's, and `openlog` would rename every other plugin's lines too. It's also in the journal on a box without systemd's.
+		- Skipped when stderr is already the journal, per GLib's `g_log_writer_is_journald`, so a session that logs there gets one line, not 2.
+		- Only history problems go in the tip, as asked. The others, such as Properties failing to start tukzmon-settings, are in the journal.
+		- Test runs skip syslog, so they don't fill the host's log.
+	- Branch: round-1029
+	- Test case: `tests::a_failed_history_save_shows_in_the_tip_until_one_works` (dekps). The journal and the tip on a real panel were checked in the Wayland test panel.
+		- Swept: every `complain` call in `xfce/src/lib.rs`. History reads at start and when Keep is turned on, saves on the timer, at quit and when a graph drops, and the delete at Reset history all set the tip line. tukzmon-settings complains only about its command line, which isn't lost this way.
+	- Closed: 20261029-145354
+
+- A panic in the plugin takes the whole panel down on Wayland
+	- ID: 2026102622434311
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Priority|Severity: Low
+	- Opened: 20261026-224343
+	- Opened by: t00mietum
+	- Related IDs: 2026102621053720, 2026102620523642
+	- Test environment: XFCE 4.20.7 panel on headless sway 1.10.1, Wayland, on b23.
+	- Requirements:
+		- On Wayland, XFCE 4.20 runs the plugin in the panel's own process, and the release build aborts on a panic. So a plugin bug takes down the panel and every other plugin in it. On X11 only the plugin's wrapper goes.
+		- A panic in the plugin stops only that item, with one line on stderr.
+	- Note: one way is `panic = "unwind"` in the release profile, and `catch_unwind` in each callback the panel calls, which then marks the item dead and stops its timers. Cargo can't set `panic` per package, so tukzmon-settings would unwind too. Measure what both binaries grow by first.
+	- Actual effort: Avg
+	- Progress log:
+		- Measured first, release builds: unwinding took the plugin from 1,093,056 to 1,165,528 bytes, and tukzmon-settings from 1,356,456 to 1,450,408. With the catching in, the plugin is 1,175,824, 7.6% more, and tukzmon-settings 6.9% more.
+		- The release profile unwinds, and every handler the panel calls goes through one `guarded` helper. A panic stops that item: its timers and file watches end, it draws nothing, saves no more history, and its tip says "tukzmon stopped after a bug: <text>" and to restart the panel. The line on stderr, and in the journal per 2026102620523642, is "tukzmon: stopped by a bug at <file>:<line>: <text>".
+		- The item's set-up was split so a panic part way can't leave a handler holding freed memory. free-data is connected before anything that can panic.
+		- Verified in a Wayland test panel, with a panic put in the fourth tick for the test: the panel kept running, stderr had the one line, the journal had it, and the item's tip said it had stopped.
+		- `design.md` XFCE plugin has it.
+	- Decisions:
+		- 7.6% and 6.9% is a fair price for a plugin bug not taking down the panel and every other plugin in it.
+		- A stopped item stays stopped until the panel restarts, rather than starting itself over, since the same bug would most likely come back each time.
+		- The panic hook is set once, when the panel first makes an item. Each cdylib has its own std, so it touches only this library's panics.
+		- Removing a stopped item still deletes its files, since that's what the panel's Remove says.
+	- Branch: round-1029
+	- Test case: `tests::a_panic_in_a_handler_stops_only_that_item` (dekpt), `tests::every_handler_the_panel_calls_catches_a_panic` (dekpx) and `tests::the_release_build_unwinds_so_a_panic_can_be_caught` (dekpv). dekpx failed with one handler left unguarded, and dekpv with the profile back on abort.
+		- Swept: every `extern "C" fn` in `xfce/src/lib.rs`, 13 of them. `xfce_panel_module_construct` makes only C calls. tukzmon-settings runs in its own process, and a panic there now exits 101 rather than 134. Nothing in `cicd/` or `utility/` reads either code.
+	- Closed: 20261029-145354
 
 - Check whether XFCE 4.20 finds plugins under ~/.local
 	- ID: 2026102808222920

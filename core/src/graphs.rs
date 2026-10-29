@@ -12,6 +12,7 @@ use crate::battery::BatteryReader;
 use crate::config::Look;
 use crate::cpu::CpuReader;
 use crate::disk::DiskReader;
+use crate::gpu::{GpuReader, VramReader};
 use crate::keep;
 use crate::load::LoadReader;
 use crate::mem::{MemoryReader, SwapReader};
@@ -25,6 +26,10 @@ pub struct Graphs {
 	pub cpu: Graph,
 	/// None when hidden, or on a box where memory can't be read.
 	pub mem: Option<Graph<MemoryReader, 3>>,
+	/// None when hidden, or on a box with no GPU it can read.
+	pub gpu: Option<Graph<GpuReader, 1>>,
+	/// None when hidden, or on a box with no GPU it can read.
+	pub vram: Option<Graph<VramReader, 1>>,
 	/// None when hidden.
 	pub net: Option<Graph<NetReader, 3>>,
 	/// None when hidden, or on a box with no swap.
@@ -53,6 +58,8 @@ type Tile = (usize, usize, usize, usize);
 enum Which {
 	Cpu,
 	Mem,
+	Gpu,
+	Vram,
 	Net,
 	Swap,
 	Zswap,
@@ -66,9 +73,11 @@ enum Which {
 impl Which {
 	/// The order with nothing saved. Graphs a saved order leaves out go
 	/// last, in this order.
-	const ALL: [Which; 10] = [
+	const ALL: [Which; 12] = [
 		Which::Cpu,
 		Which::Mem,
+		Which::Gpu,
+		Which::Vram,
 		Which::Net,
 		Which::Swap,
 		Which::Zswap,
@@ -83,6 +92,8 @@ impl Which {
 		match self {
 			Which::Cpu => CpuReader::SECTION,
 			Which::Mem => MemoryReader::SECTION,
+			Which::Gpu => GpuReader::SECTION,
+			Which::Vram => VramReader::SECTION,
 			Which::Net => NetReader::SECTION,
 			Which::Swap => SwapReader::SECTION,
 			Which::Zswap => ZswapReader::SECTION,
@@ -98,6 +109,8 @@ impl Which {
 		match self {
 			Which::Cpu => look.show_cpu,
 			Which::Mem => look.show_memory,
+			Which::Gpu => look.show_gpu,
+			Which::Vram => look.show_vram,
 			Which::Net => look.show_net,
 			Which::Swap => look.show_swap,
 			Which::Zswap => look.show_zswap,
@@ -118,6 +131,8 @@ impl Which {
 		match self {
 			Which::Cpu => look.cpu_width,
 			Which::Mem => look.mem_width,
+			Which::Gpu => look.gpu_width,
+			Which::Vram => look.vram_width,
 			Which::Net => look.net_width,
 			Which::Swap => look.swap_width,
 			Which::Zswap => look.zswap_width,
@@ -267,6 +282,16 @@ impl Graphs {
 		} else {
 			None
 		};
+		let gpu = if look.show_gpu {
+			Graph::gpu(look.clone())
+		} else {
+			None
+		};
+		let vram = if look.show_vram {
+			Graph::vram(look.clone())
+		} else {
+			None
+		};
 		let net = if look.show_net {
 			Graph::net(look.clone())
 		} else {
@@ -305,6 +330,8 @@ impl Graphs {
 		Graphs {
 			cpu: Graph::new(look),
 			mem,
+			gpu,
+			vram,
 			net,
 			swap,
 			zswap,
@@ -327,6 +354,8 @@ impl Graphs {
 		match which {
 			Which::Cpu => Some(&self.cpu),
 			Which::Mem => self.mem.as_ref().map(|g| g as &dyn Drawn),
+			Which::Gpu => self.gpu.as_ref().map(|g| g as &dyn Drawn),
+			Which::Vram => self.vram.as_ref().map(|g| g as &dyn Drawn),
 			Which::Net => self.net.as_ref().map(|g| g as &dyn Drawn),
 			Which::Swap => self.swap.as_ref().map(|g| g as &dyn Drawn),
 			Which::Zswap => self.zswap.as_ref().map(|g| g as &dyn Drawn),
@@ -342,6 +371,8 @@ impl Graphs {
 		match which {
 			Which::Cpu => Some(&mut self.cpu),
 			Which::Mem => self.mem.as_mut().map(|g| g as &mut dyn Drawn),
+			Which::Gpu => self.gpu.as_mut().map(|g| g as &mut dyn Drawn),
+			Which::Vram => self.vram.as_mut().map(|g| g as &mut dyn Drawn),
 			Which::Net => self.net.as_mut().map(|g| g as &mut dyn Drawn),
 			Which::Swap => self.swap.as_mut().map(|g| g as &mut dyn Drawn),
 			Which::Zswap => self.zswap.as_mut().map(|g| g as &mut dyn Drawn),
@@ -427,6 +458,12 @@ impl Graphs {
 			Graph::memory(look.clone())
 		}) {
 			added.push(Which::Mem);
+		}
+		if switch(&mut self.gpu, look.show_gpu, || Graph::gpu(look.clone())) {
+			added.push(Which::Gpu);
+		}
+		if switch(&mut self.vram, look.show_vram, || Graph::vram(look.clone())) {
+			added.push(Which::Vram);
 		}
 		if switch(&mut self.net, look.show_net, || Graph::net(look.clone())) {
 			added.push(Which::Net);
@@ -643,6 +680,8 @@ impl Graphs {
 	fn all_mut(&mut self) -> impl Iterator<Item = (Which, &mut dyn Drawn)> {
 		let optional = [
 			(Which::Mem, self.mem.as_mut().map(|g| g as &mut dyn Drawn)),
+			(Which::Gpu, self.gpu.as_mut().map(|g| g as &mut dyn Drawn)),
+			(Which::Vram, self.vram.as_mut().map(|g| g as &mut dyn Drawn)),
 			(Which::Net, self.net.as_mut().map(|g| g as &mut dyn Drawn)),
 			(Which::Swap, self.swap.as_mut().map(|g| g as &mut dyn Drawn)),
 			(
@@ -1726,6 +1765,73 @@ mod tests {
 			fire.temp_paint(),
 			crate::render::Paint::Gradient(fire.temp_gradient)
 		);
+	}
+
+	// Test ID: dekmc
+	#[test]
+	fn gpu_and_its_memory_sit_after_memory_and_fill_at_all_of_it() {
+		use crate::collect::Collector;
+		let path = scratch("gpu");
+		let mut g = three();
+		let look = Look {
+			show_gpu: true,
+			show_vram: true,
+			gpu_width: 100,
+			vram_width: 100,
+			gpu_mode: Mode::Detailed,
+			vram_mode: Mode::Detailed,
+			order: Look::default().order,
+			..g.look().clone()
+		};
+		assert!(!Look::default().show_gpu && !Look::default().show_vram);
+		assert_eq!(&Look::default().order[..4], ["cpu", "mem", "gpu", "vram"]);
+		let none = Graphs::new(two());
+		assert!(none.gpu.is_none() && none.vram.is_none());
+		let t = crate::collect::Tree::new(
+			"graphs_gpu",
+			&[
+				("device/gpu_busy_percent", "50\n"),
+				("device/mem_info_vram_used", "1073741824\n"),
+				("device/mem_info_vram_total", "4294967296\n"),
+			],
+		);
+		let (mut gpu, mut vram) = crate::gpu::amd_readers(&t.at("device"));
+		assert_eq!((gpu.read(), vram.read()), (Some([0.5]), Some([0.25])));
+		g.gpu = Some(Graph::with(look.clone(), gpu));
+		g.vram = Some(Graph::with(look.clone(), vram));
+		g.set_look(look.clone(), None).unwrap();
+		let now = g.cpu.now();
+		g.gpu.as_mut().unwrap().hist.add(now - 60.0, now, &[0.5]);
+		g.vram.as_mut().unwrap().hist.add(now - 60.0, now, &[0.25]);
+		assert_eq!(g.count(), 5);
+		let (w, h) = (100 + 4 * G, 40 + 2 * E);
+		let gpu = g.gpu.as_mut().unwrap().render(20, 40, 1).to_vec();
+		let vram = g.vram.as_mut().unwrap().render(20, 40, 1).to_vec();
+		let px = g.render(w, h, 1).to_vec();
+		sits(&px, w, &gpu, (40 + 2 * G, E, 20, 40));
+		sits(&px, w, &vram, (60 + 3 * G, E, 20, 40));
+		let bw = look.border as usize;
+		let ph = 40 - 2 * bw;
+		let row = |tile: &[u32], up: usize| tile[(bw + ph - 1 - up) * 20 + 10];
+		assert_eq!(row(&gpu, ph / 2 - 2), look.gpu[0].argb());
+		assert_ne!(row(&gpu, ph / 2 + 2), look.gpu[0].argb());
+		assert_eq!(row(&vram, ph / 4 - 2), look.vram[0].argb());
+		assert_ne!(row(&vram, ph / 4 + 2), look.vram[0].argb());
+		let tip = g.hover_tip(45 + 2 * G, 3, w, h, 1);
+		assert!(tip.ends_with("\nGPU 50% busy"), "{tip}");
+		let tip = g.hover_tip(65 + 3 * G, 3, w, h, 1);
+		assert!(
+			tip.ends_with("\nGPU memory 25% used\n1.0 of 4.0 GiB"),
+			"{tip}"
+		);
+		g.save(&path).unwrap();
+		let names: Vec<String> = keep::read(&path)
+			.unwrap()
+			.into_iter()
+			.map(|(n, _)| n)
+			.collect();
+		assert_eq!(names, ["cpu", "mem", "gpu", "vram", "swap"]);
+		std::fs::remove_file(&path).unwrap();
 	}
 
 	// Test ID: dejb7
