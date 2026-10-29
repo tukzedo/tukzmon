@@ -338,12 +338,27 @@ Sorted per the notes in [Template](#template).
 - Drop the sudo step in dev-install.bash
 	- ID: 2026102820420805
 	- Type: Task
-	- Status: Queued
+	- Status: Waiting on UAT
+	- Needs hand testing: on b23, run `utility/dev-install.bash` and see the panel load the new build. Then remove the 2 old sudo links it names, and `~/.local/lib/tukzmon`.
 	- Priority|Severity: Low
 	- Opened: 20261028-204208
 	- Opened by: t00mietum
 	- Related IDs: 2026102808222920
 	- Requirements: Install the .desktop file to ~/.local/share/xfce4/panel/plugins and the plugin and tukzmon-settings to ~/.local/lib/<multiarch>/xfce4/panel/plugins, with no sudo links. The multiarch dir comes from the panel's lib dir. Update design.md XFCE plugin and README to match.
+	- Actual effort: Low
+	- Progress log:
+		- `utility/dev-install.bash` puts the `.desktop` file in `~/.local/share/xfce4/panel/plugins`, and the library and `tukzmon-settings` in `~/.local/lib/<multiarch>/xfce4/panel/plugins`. No sudo. The multiarch tail comes from where `ldconfig` finds the panel's library.
+		- When the old links from the sudo step are still there, it names them with the command to remove them, and names the old `~/.local/lib/tukzmon`.
+		- design.md XFCE plugin, README Status and the Dogfood line in `cicd/cicd.bash` updated.
+		- Verified 2026-10-29: with HOME in a temp folder and the panel restart stubbed, the script installed the 3 files there. A private xfce4-panel 4.20.7 on Xvfb with that HOME read the `.local/share` dir first, registered tukzmon from the `.local/lib/x86_64-linux-gnu` library, and embedded it. b23's old `/usr` links were shadowed, not loaded.
+		- Verified: an `XDG_DATA_HOME` ending in `/share` installs beside it, and one that doesn't stops before the build with an error.
+	- Decisions:
+		- Follows `XDG_DATA_HOME`, since the panel does. The panel reads no user plugins when it doesn't end in `/share`, so the script stops there.
+		- The old links and folder are named, not removed. The links need root, and the panel reads the user folder first, so they do no harm meanwhile.
+		- Falls back to `lib/x86_64-linux-gnu`, with a warning, when `ldconfig` doesn't list the panel's library, as the old script did.
+		- Swept: README, design.md, `cicd/cicd.bash`, `cicd/config.bash`. `cicd/packaging/nfpm.yaml` and `nix/package.nix` install to system paths and need no change. The plugin finds `tukzmon-settings` beside its own library, which still holds.
+	- Branch: round-1029
+	- Test case: none in the repo. Checked in a private panel, as for 2026102808222920.
 
 - Plugin errors go nowhere after a panel restart
 	- ID: 2026102620523642

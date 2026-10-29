@@ -43,8 +43,8 @@
 ##	                      pprof's sampler, on this box. The flamegraph goes to
 ##	                      cicd/artifacts/profiling/, with a report on its hot
 ##	                      spots from utility/flame-report.py
-##	  15. Dogfood         utility/dev-install.bash, which installs the build to
-##	                      ~/.local/lib/tukzmon and restarts the panel
+##	  15. Dogfood         utility/dev-install.bash, which installs the build
+##	                      under ~/.local and restarts the panel
 ##	  A step that's off isn't counted, and the first section says why it's off.
 ##	  Cleanup comes last, on failure and Ctrl+C too.
 ##	- Syntax:
