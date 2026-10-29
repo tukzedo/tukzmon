@@ -29,7 +29,7 @@ use std::time::{Instant, SystemTime};
 use axis::{Ages, Axis, Basis, Ease, Timing};
 use battery::BatteryReader;
 use collect::Collector;
-use config::Look;
+use config::{Look, Outline};
 use cpu::CpuReader;
 use disk::DiskReader;
 use history::History;
@@ -79,6 +79,7 @@ pub trait Source<const N: usize>: Collector<N> {
 	const TITLE: &'static str;
 	fn text(&self, v: &[f32; N]) -> String;
 	fn paint(look: &Look) -> Paint<'_, N>;
+	fn outline(look: &Look) -> Outline;
 	fn timing(look: &Look) -> Timing;
 	/// How often the graph is read, in ms. See [`Look::rate`].
 	fn sample_ms(look: &Look) -> u32;
@@ -123,6 +124,10 @@ impl Source<4> for CpuReader {
 		look.cpu_paint()
 	}
 
+	fn outline(look: &Look) -> Outline {
+		look.cpu_outline
+	}
+
 	fn timing(look: &Look) -> Timing {
 		look.timing(look.cpu_time)
 	}
@@ -149,6 +154,10 @@ impl Source<3> for MemoryReader {
 		look.mem_paint()
 	}
 
+	fn outline(look: &Look) -> Outline {
+		look.mem_outline
+	}
+
 	fn timing(look: &Look) -> Timing {
 		look.timing(look.mem_time)
 	}
@@ -168,6 +177,10 @@ impl Source<1> for SwapReader {
 
 	fn paint(look: &Look) -> Paint<'_, 1> {
 		look.swap_paint()
+	}
+
+	fn outline(look: &Look) -> Outline {
+		look.swap_outline
 	}
 
 	fn timing(look: &Look) -> Timing {
@@ -199,6 +212,10 @@ impl Source<3> for BatteryReader {
 		look.battery_paint()
 	}
 
+	fn outline(look: &Look) -> Outline {
+		look.battery_outline
+	}
+
 	fn timing(look: &Look) -> Timing {
 		look.timing(look.battery_time)
 	}
@@ -223,6 +240,10 @@ impl Source<1> for ZswapReader {
 
 	fn paint(look: &Look) -> Paint<'_, 1> {
 		look.zswap_paint()
+	}
+
+	fn outline(look: &Look) -> Outline {
+		look.zswap_outline
 	}
 
 	fn timing(look: &Look) -> Timing {
@@ -271,6 +292,10 @@ impl Source<3> for NetReader {
 		look.net_paint()
 	}
 
+	fn outline(look: &Look) -> Outline {
+		look.net_outline
+	}
+
 	fn timing(look: &Look) -> Timing {
 		look.timing(look.net_time)
 	}
@@ -290,6 +315,10 @@ impl Source<1> for LoadReader {
 
 	fn paint(look: &Look) -> Paint<'_, 1> {
 		look.load_paint()
+	}
+
+	fn outline(look: &Look) -> Outline {
+		look.load_outline
 	}
 
 	fn timing(look: &Look) -> Timing {
@@ -316,6 +345,10 @@ impl Source<2> for DiskReader {
 
 	fn paint(look: &Look) -> Paint<'_, 2> {
 		look.disk_paint()
+	}
+
+	fn outline(look: &Look) -> Outline {
+		look.disk_outline
 	}
 
 	fn timing(look: &Look) -> Timing {
@@ -359,6 +392,10 @@ impl Source<2> for TempReader {
 
 	fn paint(look: &Look) -> Paint<'_, 2> {
 		look.temp_paint()
+	}
+
+	fn outline(look: &Look) -> Outline {
+		look.temp_outline
 	}
 
 	fn timing(look: &Look) -> Timing {
@@ -409,6 +446,10 @@ impl Source<1> for OwnReader {
 
 	fn paint(look: &Look) -> Paint<'_, 1> {
 		look.self_paint()
+	}
+
+	fn outline(look: &Look) -> Outline {
+		look.self_outline
 	}
 
 	fn timing(look: &Look) -> Timing {
@@ -732,6 +773,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 			now: self.hist.last().unwrap_or(0.0),
 			look: &self.look,
 			paint: S::paint(&self.look),
+			outline: S::outline(&self.look),
 		}
 		.draw_to(&mut px, w, h, scale, peak);
 		if let Some(x) = self.hover {

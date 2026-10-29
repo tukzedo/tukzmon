@@ -878,6 +878,41 @@ mod tests {
 		assert!(g.tooltip().starts_with("CPU\n\nMemory"));
 	}
 
+	// Test ID: dejkh
+	#[test]
+	fn each_graph_draws_its_own_border_and_background() {
+		use crate::config::{Outline, Rgb};
+		let cpu = Outline {
+			border: Rgb(200, 0, 0),
+			top: Rgb(0, 0, 90),
+			bottom: Rgb(0, 0, 0),
+		};
+		let mem = Outline {
+			border: Rgb(0, 0, 200),
+			top: Rgb(0, 90, 0),
+			bottom: Rgb(10, 10, 10),
+		};
+		let mut g = both();
+		g.set_look(
+			Look {
+				cpu_outline: cpu,
+				mem_outline: mem,
+				..two()
+			},
+			None,
+		)
+		.unwrap();
+		let (w, h) = (40 + G, 10 + 2 * E);
+		let px = g.render(w, h, 1).to_vec();
+		let at = |x: usize, y: usize| px[y * w + x];
+		// the corner is the border, and the plot's top row the top color
+		assert_eq!(at(0, E), cpu.border.argb());
+		assert_eq!(at(1, E + 1), cpu.top.argb());
+		assert_eq!(at(20 + G, E), mem.border.argb());
+		assert_eq!(at(21 + G, E + 1), mem.top.argb());
+		assert_eq!(at(39 + G, E + 9), mem.border.argb());
+	}
+
 	// Test ID: defw2
 	#[test]
 	fn the_edges_and_gaps_stay_clear_and_an_edge_still_finds_its_graph() {

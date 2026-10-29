@@ -146,7 +146,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - Every color is in one knobs preset group, `theme`, picked with the Name dropdown on the Themes tab, at `theme.name`, and so is each graph's mode. The built-in themes are in `core/src/settings.shcl`: Default, Primary, Pastel, Neon, Earth, Fire, Terminal, Vintage and Frost.
 	- One theme colors every graph, so no graph picks its own. A theme has a value for every graph's colors and mode, and picking one changes every sub-tab.
-	- A theme's name says nothing of color. Each graph has a lead color of its own in every theme but the one-color ones, so graphs side by side are told apart. A graph's quiet series and its gradient's Low are its hue, muted. The border and background are neutral, or lean to the theme's mood.
+	- A theme's name says nothing of color. Each graph has a lead color of its own in every theme but the one-color ones, so graphs side by side are told apart. A graph's quiet series and its gradient's Low are its hue, muted. Each graph's border and background are neutral, or lean to the theme's mood.
 	- A graph's lead is the color it reads as from across the room: its main series in Detailed, such as user for CPU or received for the network, or its Medium in Gradient. `config::LEADS` lists them.
 		- In every built-in but the one-color ones, any 2 graphs' leads are 10 or more apart as CIEDE2000. In every built-in, every lead is 10 or more from I/O wait and system. At 10 or more 2 colors read apart at a glance.
 		- Hue angle alone doesn't do it. An equal step in hue looks far smaller among the greens than among the blues, and 10 graphs share what's left of the circle off red and orange. So leads also differ by lightness and saturation.
@@ -175,7 +175,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 - The memory graph's colors are on the Memory sub-tab: Programs, Buffers and Cache, at `mem.colors.user`, `.buffers` and `.cache`, plus its own Low, Medium and High.
 	- Default's are multiload-ng's memory colors, `#804080` and `#408060`, with programs a little paler at `#ffffa3`.
 	- In the other built-ins, programs take memory's own hue, cache is that hue muted, and buffers a muted color a step round from it. Fire draws memory as a gradient too.
-	- multiload-ng's memory border and background aren't used, since every graph shares the Outline sub-tab.
+	- multiload-ng's memory border and background aren't Default's, so every graph keeps one look there. They can be set on the Memory sub-tab.
 
 - The swap graph's colors are on the Swap sub-tab: In use, at `swap.colors.used`, plus its own Low, Medium and High. Every built-in gives swap a hue and gradient of its own. Default's is amber, `#a45f00`, and Default and Fire draw swap as a gradient.
 
@@ -201,6 +201,11 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 - The tukzmon graph's colors are on the tukzmon sub-tab: CPU use, at `self.colors.used`, plus its own Low, Medium and High. Default's is `#00ccb8`.
 	- The tip gives the share of all CPUs, then of one CPU, as top shows it, such as "tukzmon 0.014% of all CPUs" over "0.46% of one CPU". The share is often under 0.1%, so it has 2 figures or so, not whole percents.
 
+- Each graph's sub-tab ends with its Background: Border, Top and Bottom, at `cpu.colors.border`, `.top` and `.bottom` for the CPU graph, and the same under each graph's own section. They're in the `theme` group, so each theme gives every graph its own. The plot blends from Top down to Bottom, inside the border.
+	- In every built-in, each graph has the colors the theme had for all of them, so a built-in looks as it did.
+	- The Outline sub-tab's Border, Top and Bottom, at `graph.colors.border`, `.top` and `.bottom`, are still read and saved, but draw no graph. Backlog 2026102819315837 gives each a checkbox that puts it over every graph's own.
+	- A file or a saved theme from before each graph had its own, that set the shared ones, gives every graph those where it has none of its own, so it keeps its look. The next save writes them per graph.
+
 - Saved themes are kept whole in the config file, under `themes.<key>`, with a `name` and every color and mode by its setting id, the same shape as a built-in in settings.shcl. The dropdown lists them after the built-ins, and before Custom.
 	- They join the `theme` group as presets on a copy of the spec, through knobs' `Spec::finish`. The plugin reads them the same way, so knobs is unchanged.
 	- The key comes from the name when the theme is made, and stays through a rename. A key that is a built-in's, or a color line that can't be read, stops a save like any other unreadable line. A missing color is Default's.
@@ -212,7 +217,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 - Transparent, on the Outline sub-tab at `graph.transparent`, leaves out the Top and Bottom colors so the panel shows through. It's one setting for every theme, outside the `theme` group, so a theme pick, a roll or Save as doesn't touch it. The border, the series and the hover line stay opaque. Pixels are premultiplied, so a row a column only half fills is half clear.
 
 - Randomize rolls colors for every graph and sets them as changes on the theme in force, so the dropdown says "Name *". Save as keeps a roll, and picking a theme drops it. The rules are in `settings/src/dice.rs`.
-	- Each graph leads with a hue of its own, the user share for CPU, at any hue from yellow-green round to magenta, which keeps it off red and orange. The 10 lead hues are at least 22 degrees apart, in a random order. A graph's quiet colors and its gradient's Low are its hue muted, or one up to 30 degrees from it. The border and background are CPU's lead hue or nice's, darker and grayer.
+	- Each graph leads with a hue of its own, the user share for CPU, at any hue from yellow-green round to magenta, which keeps it off red and orange. The 10 lead hues are at least 22 degrees apart, in a random order. A graph's quiet colors and its gradient's Low are its hue muted, or one up to 30 degrees from it. Each graph's border and background are its lead hue or its quiet one, darker and grayer, and the Outline sub-tab's are CPU's. The top is dark, at about 15% brightness, so a quiet color shows on a background of its own hue. At 30%, 46% of the graphs rolled had a quiet color under 10 from their top. Over 2,000 seeds none do now.
 	- I/O wait stays red and system orange, as in the built-ins, since those are the ones to watch. Every color softens together, from as bright as Primary to as pale as Pastel.
 	- Every graph leads at one saturation and brightness, so a roll reads as one set.
 		- Where 2 leads would still look alike, or a lead would look like I/O wait or system, one of them steps darker or paler, until every 2 are 10 or more apart as the built-ins are. CPU's lead never steps, since the rest fit round it. A graph that steps paler takes its quiet colors and tint along, and one that steps darker keeps its quiet colors clear of the background.

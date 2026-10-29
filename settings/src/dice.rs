@@ -34,8 +34,8 @@ pub enum Role {
 	Margin,
 }
 
-/// Which graph a member colors. Each graph gets its own lead hue, and the
-/// background rows, shared by all, go with CPU's.
+/// Which graph a member colors. Each graph gets its own lead hue, and its
+/// background goes with it. The Outline sub-tab's go with CPU's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Part {
 	Cpu = 0,
@@ -65,6 +65,9 @@ pub const ROLES: &[(&str, Part, Role)] = &[
 	("cpu_low", Part::Cpu, Role::Calm),
 	("cpu_medium", Part::Cpu, Role::Lead),
 	("cpu_high", Part::Cpu, Role::Tint),
+	("cpu_border_color", Part::Cpu, Role::Border),
+	("cpu_back_top", Part::Cpu, Role::Top),
+	("cpu_back_bottom", Part::Cpu, Role::Bottom),
 	("mem_mode", Part::Mem, Role::Mode),
 	("mem_user", Part::Mem, Role::Lead),
 	("mem_buffers", Part::Mem, Role::Hush),
@@ -72,16 +75,25 @@ pub const ROLES: &[(&str, Part, Role)] = &[
 	("mem_low", Part::Mem, Role::Calm),
 	("mem_medium", Part::Mem, Role::Lead),
 	("mem_high", Part::Mem, Role::Tint),
+	("mem_border_color", Part::Mem, Role::Border),
+	("mem_back_top", Part::Mem, Role::Top),
+	("mem_back_bottom", Part::Mem, Role::Bottom),
 	("swap_mode", Part::Swap, Role::Mode),
 	("swap_used", Part::Swap, Role::Lead),
 	("swap_low", Part::Swap, Role::Calm),
 	("swap_medium", Part::Swap, Role::Lead),
 	("swap_high", Part::Swap, Role::Tint),
+	("swap_border_color", Part::Swap, Role::Border),
+	("swap_back_top", Part::Swap, Role::Top),
+	("swap_back_bottom", Part::Swap, Role::Bottom),
 	("zswap_mode", Part::Zswap, Role::Mode),
 	("zswap_used", Part::Zswap, Role::Lead),
 	("zswap_low", Part::Zswap, Role::Calm),
 	("zswap_medium", Part::Zswap, Role::Lead),
 	("zswap_high", Part::Zswap, Role::Tint),
+	("zswap_border_color", Part::Zswap, Role::Border),
+	("zswap_back_top", Part::Zswap, Role::Top),
+	("zswap_back_bottom", Part::Zswap, Role::Bottom),
 	("net_mode", Part::Net, Role::Mode),
 	("net_local", Part::Net, Role::Calm),
 	("net_sent", Part::Net, Role::Tint),
@@ -89,23 +101,35 @@ pub const ROLES: &[(&str, Part, Role)] = &[
 	("net_low", Part::Net, Role::Calm),
 	("net_medium", Part::Net, Role::Lead),
 	("net_high", Part::Net, Role::Tint),
+	("net_border_color", Part::Net, Role::Border),
+	("net_back_top", Part::Net, Role::Top),
+	("net_back_bottom", Part::Net, Role::Bottom),
 	("load_mode", Part::Load, Role::Mode),
 	("load_used", Part::Load, Role::Lead),
 	("load_low", Part::Load, Role::Calm),
 	("load_medium", Part::Load, Role::Lead),
 	("load_high", Part::Load, Role::Tint),
+	("load_border_color", Part::Load, Role::Border),
+	("load_back_top", Part::Load, Role::Top),
+	("load_back_bottom", Part::Load, Role::Bottom),
 	("disk_mode", Part::Disk, Role::Mode),
 	("disk_write", Part::Disk, Role::Tint),
 	("disk_read", Part::Disk, Role::Lead),
 	("disk_low", Part::Disk, Role::Calm),
 	("disk_medium", Part::Disk, Role::Lead),
 	("disk_high", Part::Disk, Role::Tint),
+	("disk_border_color", Part::Disk, Role::Border),
+	("disk_back_top", Part::Disk, Role::Top),
+	("disk_back_bottom", Part::Disk, Role::Bottom),
 	("temp_mode", Part::Temp, Role::Mode),
 	("temp_normal", Part::Temp, Role::Lead),
 	("temp_critical", Part::Temp, Role::Alarm),
 	("temp_low", Part::Temp, Role::Calm),
 	("temp_medium", Part::Temp, Role::Lead),
 	("temp_high", Part::Temp, Role::Tint),
+	("temp_border_color", Part::Temp, Role::Border),
+	("temp_back_top", Part::Temp, Role::Top),
+	("temp_back_bottom", Part::Temp, Role::Bottom),
 	("battery_mode", Part::Battery, Role::Mode),
 	("battery_charging", Part::Battery, Role::Lead),
 	("battery_discharging", Part::Battery, Role::Warn),
@@ -113,11 +137,17 @@ pub const ROLES: &[(&str, Part, Role)] = &[
 	("battery_low", Part::Battery, Role::Calm),
 	("battery_medium", Part::Battery, Role::Lead),
 	("battery_high", Part::Battery, Role::Tint),
+	("battery_border_color", Part::Battery, Role::Border),
+	("battery_back_top", Part::Battery, Role::Top),
+	("battery_back_bottom", Part::Battery, Role::Bottom),
 	("self_mode", Part::Own, Role::Mode),
 	("self_used", Part::Own, Role::Lead),
 	("self_low", Part::Own, Role::Calm),
 	("self_medium", Part::Own, Role::Lead),
 	("self_high", Part::Own, Role::Tint),
+	("self_border_color", Part::Own, Role::Border),
+	("self_back_top", Part::Own, Role::Top),
+	("self_back_bottom", Part::Own, Role::Bottom),
 	("border_color", Part::Back, Role::Border),
 	("back_top", Part::Back, Role::Top),
 	("back_bottom", Part::Back, Role::Bottom),
@@ -252,15 +282,46 @@ struct Hues {
 	tint: Hsv,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct Back {
+	border: Hsv,
+	top: Hsv,
+	bottom: Hsv,
+}
+
+impl Back {
+	// a hue of the graph's, darker and grayer, with the border under a lead
+	// that stepped darker
+	fn on(h: f64, s: f64, soft: f64, lead: Hsv) -> Back {
+		Back {
+			border: Hsv {
+				h,
+				s: s * 0.5,
+				v: lerp(0.5, 0.63, soft).min(lead.v * 0.85),
+			},
+			top: Hsv {
+				h,
+				s: s * 0.5,
+				v: lerp(0.15, 0.14, soft),
+			},
+			bottom: Hsv {
+				h,
+				s: s * 0.25,
+				v: lerp(0.0, 0.08, soft),
+			},
+		}
+	}
+}
+
 /// The colors of one scheme, before they're handed out by role.
 #[derive(Clone, Copy, Debug)]
 struct Scheme {
 	graphs: [Hues; GRAPHS],
 	alarm: Hsv,
 	warn: Hsv,
-	border: Hsv,
-	top: Hsv,
-	bottom: Hsv,
+	/// The Outline sub-tab's.
+	back: Back,
+	backs: [Back; GRAPHS],
 }
 
 impl Scheme {
@@ -268,6 +329,13 @@ impl Scheme {
 		match p {
 			Part::Back => &self.graphs[Part::Cpu as usize],
 			p => &self.graphs[p as usize],
+		}
+	}
+
+	fn back_of(&self, p: Part) -> &Back {
+		match p {
+			Part::Back => &self.back,
+			p => &self.backs[p as usize],
 		}
 	}
 }
@@ -305,7 +373,7 @@ fn scheme(seed: u64) -> Scheme {
 	}
 	let picked = picked.unwrap_or_default();
 	let mut calm_hs = [0.0; GRAPHS];
-	let graphs = std::array::from_fn(|i| {
+	let graphs: [Hues; GRAPHS] = std::array::from_fn(|i| {
 		let h = hues[i];
 		let (lead_s, lead_v) = step(picked[i], s, v);
 		// a graph that stepped paler takes its other colors along, and one
@@ -339,32 +407,20 @@ fn scheme(seed: u64) -> Scheme {
 			},
 		}
 	});
-	// the background takes CPU's lead hue or its calm one
-	let cpu = Part::Cpu as usize;
-	let back_h = if r.unit() < 0.5 {
-		hues[cpu]
-	} else {
-		calm_hs[cpu]
+	// a background takes its graph's lead hue or its calm one, and the
+	// Outline sub-tab's CPU's
+	let mut back_on = |i: usize| {
+		let h = if r.unit() < 0.5 { hues[i] } else { calm_hs[i] };
+		Back::on(h, s, soft, graphs[i].lead)
 	};
+	let back = back_on(Part::Cpu as usize);
+	let backs = std::array::from_fn(back_on);
 	Scheme {
 		graphs,
 		alarm,
 		warn,
-		border: Hsv {
-			h: back_h,
-			s: s * 0.5,
-			v: lerp(0.5, 0.63, soft),
-		},
-		top: Hsv {
-			h: back_h,
-			s: s * 0.5,
-			v: lerp(0.33, 0.29, soft),
-		},
-		bottom: Hsv {
-			h: back_h,
-			s: s * 0.25,
-			v: lerp(0.0, 0.08, soft),
-		},
+		back,
+		backs,
 	}
 }
 
@@ -389,9 +445,9 @@ pub fn theme(seed: u64) -> Vec<(&'static str, String)> {
 				Role::Alarm => hex(k.alarm),
 				Role::Warn => hex(k.warn),
 				Role::Tint => hex(g.tint),
-				Role::Border => hex(k.border),
-				Role::Top => hex(k.top),
-				Role::Bottom => hex(k.bottom),
+				Role::Border => hex(k.back_of(part).border),
+				Role::Top => hex(k.back_of(part).top),
+				Role::Bottom => hex(k.back_of(part).bottom),
 				// black, as in every built-in
 				Role::Hover => "#000000".to_string(),
 			};
@@ -549,6 +605,41 @@ mod tests {
 				"{seed}"
 			);
 		}
+	}
+
+	// Test ID: dejkf
+	#[test]
+	fn each_graph_rolls_a_background_of_its_own_hue() {
+		let mut apart = 0;
+		for seed in SEEDS {
+			let t = theme(seed);
+			let mut tops = Vec::new();
+			for part in PARTS {
+				let lead = role_of(&t, part, Role::Lead);
+				let calm = role_of(&t, part, Role::Calm);
+				let border = role_of(&t, part, Role::Border);
+				let top = role_of(&t, part, Role::Top);
+				let bottom = role_of(&t, part, Role::Bottom);
+				assert!(
+					bottom.v < top.v && top.v < border.v && border.v < lead.v,
+					"{seed} {part:?}"
+				);
+				// grayed hues read back a few degrees off
+				let near = |h: f64| hue_gap(h, lead.h).min(hue_gap(h, calm.h)) <= 12.0 / 360.0;
+				assert!(near(top.h) && near(border.h), "{seed} {part:?} {top:?}");
+				// on its own hue, a quiet color reads apart by lightness alone
+				let lab = |c: Hsv| Lab::of(pick::to_rgb(c));
+				for role in [Role::Calm, Role::Hush] {
+					for c in all_of(&t, part, role) {
+						let d = ciede2000(Lab::of(Rgb::parse(c).unwrap()), lab(top));
+						assert!(d >= APART, "{seed} {part:?} {c} {d}");
+					}
+				}
+				tops.push(top);
+			}
+			apart += usize::from(tops.iter().any(|c| hue_gap(c.h, tops[0].h) > 0.1));
+		}
+		assert!(apart * 2 > SEEDS.count(), "{apart}");
 	}
 
 	// Test ID: decdw

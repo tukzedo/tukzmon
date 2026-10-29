@@ -202,10 +202,13 @@ pub fn saved_themes(doc: &shcl::Document) -> Vec<SavedTheme> {
 				.members
 				.iter()
 				.map(|id| {
-					let v = doc
-						.get_string(&at(id))
-						.ok()
-						.and_then(|raw| theme_value(&spec, id, &raw))
+					let read = |id: &str| {
+						doc.get_string(&at(id))
+							.ok()
+							.and_then(|raw| theme_value(&spec, id, &raw))
+					};
+					let v = read(id)
+						.or_else(|| shared_of(id).and_then(read))
 						.or_else(|| spec.get(id).map(|s| theme_text(&s.default)))
 						.unwrap_or_default();
 					(id.clone(), v)
@@ -332,10 +335,42 @@ pub fn theme_key(name: &str, themes: &[SavedTheme]) -> String {
 		.unwrap_or(slug)
 }
 
+// The Outline sub-tab's border and background ids, each with one graph's.
+fn outline_pairs() -> impl Iterator<Item = (&'static str, String)> {
+	["border_color", "back_top", "back_bottom"]
+		.into_iter()
+		.flat_map(|shared| {
+			LEADS
+				.iter()
+				.map(move |(g, _)| (shared, format!("{g}_{shared}")))
+		})
+}
+
+fn shared_of(id: &str) -> Option<&'static str> {
+	outline_pairs()
+		.find(|(_, own)| own == id)
+		.map(|(shared, _)| shared)
+}
+
+// Each graph got its own border and background after the shared ones, so a
+// file that set only those keeps its look.
+fn outlines_follow_shared(values: &mut BTreeMap<String, knobs::Value>) {
+	for (shared, own) in outline_pairs() {
+		if values.contains_key(&own) {
+			continue;
+		}
+		if let Some(v) = values.get(shared).cloned() {
+			values.insert(own, v);
+		}
+	}
+}
+
 /// A parsed config file as a model on `spec`, with [`unthemed_is_custom`]
 /// applied.
 pub fn model_on(spec: Arc<Spec>, doc: &shcl::Document) -> Model {
 	let mut m = Model::load_docs(spec, doc, &shcl::Document::new());
+	outlines_follow_shared(&mut m.values.own);
+	outlines_follow_shared(&mut m.values.changes);
 	unthemed_is_custom(&mut m);
 	m
 }
@@ -363,6 +398,14 @@ impl Rgb {
 	pub fn argb(self) -> u32 {
 		0xff00_0000 | (self.0 as u32) << 16 | (self.1 as u32) << 8 | self.2 as u32
 	}
+}
+
+/// A graph's frame, and the background its plot blends from top to bottom.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Outline {
+	pub border: Rgb,
+	pub top: Rgb,
+	pub bottom: Rgb,
 }
 
 /// Each graph's section and its main series, the color it reads as in
@@ -527,6 +570,17 @@ pub struct Look {
 	pub self_colors: [Rgb; 1],
 	pub self_mode: Mode,
 	pub self_gradient: [Rgb; 3],
+	pub cpu_outline: Outline,
+	pub mem_outline: Outline,
+	pub swap_outline: Outline,
+	pub zswap_outline: Outline,
+	pub net_outline: Outline,
+	pub load_outline: Outline,
+	pub disk_outline: Outline,
+	pub temp_outline: Outline,
+	pub battery_outline: Outline,
+	pub self_outline: Outline,
+	/// The Outline sub-tab's. A graph draws with its own.
 	pub border_color: Rgb,
 	/// No background, so the panel shows through, whatever the theme.
 	pub transparent: bool,
@@ -557,6 +611,11 @@ impl Look {
 		};
 		let num = |id: &str| m.value(id, &NoEnv).as_f64();
 		let color = |id: &str| Rgb::parse(m.value(id, &NoEnv).as_text()).unwrap_or(Rgb(0, 0, 0));
+		let outline = |g: &str| Outline {
+			border: color(&format!("{g}_border_color")),
+			top: color(&format!("{g}_back_top")),
+			bottom: color(&format!("{g}_back_bottom")),
+		};
 		Look {
 			width: num("width") as u32,
 			time: Timing::parse(m.value("time_axis", &NoEnv).as_text())
@@ -660,6 +719,16 @@ impl Look {
 			self_colors: [color("self_used")],
 			self_mode: Mode::parse(m.value("self_mode", &NoEnv).as_text()).unwrap_or_default(),
 			self_gradient: [color("self_low"), color("self_medium"), color("self_high")],
+			cpu_outline: outline("cpu"),
+			mem_outline: outline("mem"),
+			swap_outline: outline("swap"),
+			zswap_outline: outline("zswap"),
+			net_outline: outline("net"),
+			load_outline: outline("load"),
+			disk_outline: outline("disk"),
+			temp_outline: outline("temp"),
+			battery_outline: outline("battery"),
+			self_outline: outline("self"),
 			border_color: color("border_color"),
 			transparent: m.value("transparent", &NoEnv).as_bool(),
 			top: color("back_top"),
@@ -900,7 +969,7 @@ mod tests {
 	fn the_default_theme_is_the_row_defaults() {
 		let spec = spec();
 		let g = spec.group(THEME).unwrap();
-		assert_eq!(g.members.len(), 67);
+		assert_eq!(g.members.len(), 97);
 		let default = g.preset("default").unwrap();
 		assert_eq!(default.label, "Default");
 		for id in &g.members {
@@ -1028,6 +1097,84 @@ mod tests {
 		assert!(spec_with(&t).group(THEME).unwrap().preset("old").is_some());
 		let l = Look::from_model(&model(old));
 		assert_eq!((l.margin_lr, l.cpu[2]), (2, Rgb(0x12, 0x34, 0x56)));
+	}
+
+	// Test ID: dejkg
+	#[test]
+	fn each_graph_has_its_own_outline_in_every_theme() {
+		let s = spec();
+		let g = s.group(THEME).unwrap();
+		let graphs = LEADS.map(|(graph, _)| graph);
+		for graph in graphs {
+			for part in ["border_color", "back_top", "back_bottom"] {
+				let id = format!("{graph}_{part}");
+				assert!(g.members.contains(&id), "{id}");
+				let shared = &s.get(part).unwrap().default;
+				assert_eq!(&s.get(&id).unwrap().default, shared, "{id}");
+				for p in &g.presets {
+					assert_eq!(p.values[&id], p.values[part], "{} {id}", p.key);
+				}
+			}
+		}
+		let outlines = |l: &Look| {
+			[
+				l.cpu_outline,
+				l.mem_outline,
+				l.net_outline,
+				l.swap_outline,
+				l.zswap_outline,
+				l.load_outline,
+				l.disk_outline,
+				l.temp_outline,
+				l.battery_outline,
+				l.self_outline,
+			]
+		};
+		let d = Look::default();
+		let grey = Outline {
+			border: Rgb(0x8b, 0x8b, 0x8b),
+			top: Rgb(0x31, 0x31, 0x31),
+			bottom: Rgb(0, 0, 0),
+		};
+		assert_eq!(outlines(&d), [grey; 10]);
+		// each graph reads its own, and no other graph's, here as Custom
+		let l = Look::from_model(&model(
+			"mem:\n\tcolors:\n\t\ttop: \"#123456\"\nself:\n\tcolors:\n\t\tborder: \"#abcdef\"\n\t\tbottom: \"#010203\"\n",
+		));
+		let mut want = [grey; 10];
+		want[1].top = Rgb(0x12, 0x34, 0x56);
+		want[9].border = Rgb(0xab, 0xcd, 0xef);
+		want[9].bottom = Rgb(1, 2, 3);
+		assert_eq!(outlines(&l), want);
+		let fire = g.preset("fire").unwrap();
+		let l = Look::from_model(&model("theme:\n\tname: fire\n"));
+		assert_eq!(
+			l.load_outline.top,
+			Rgb::parse(fire.values["load_back_top"].as_text()).unwrap()
+		);
+		// the Outline sub-tab's draw no graph, but a file from before each
+		// graph had its own keeps its look
+		let shared = "graph:\n\tcolors:\n\t\ttop: \"#123456\"\n";
+		let l = Look::from_model(&model(&format!(
+			"{shared}mem:\n\tcolors:\n\t\ttop: \"#654321\"\n"
+		)));
+		assert_eq!(l.top, Rgb(0x12, 0x34, 0x56));
+		let mut want = [grey; 10].map(|o| Outline {
+			top: Rgb(0x12, 0x34, 0x56),
+			..o
+		});
+		want[1].top = Rgb(0x65, 0x43, 0x21);
+		assert_eq!(outlines(&l), want);
+		let kept = "theme:\n\tname: fire\nkept:\n\tchanges:\n\t\ttheme:\n\t\t\tpreset: fire\n\t\t\tvalues:\n\t\t\t\tgraph:\n\t\t\t\t\tcolors:\n\t\t\t\t\t\tborder: \"#123456\"\n";
+		let l = Look::from_model(&model(kept));
+		assert_eq!(l.disk_outline.border, Rgb(0x12, 0x34, 0x56));
+		let old =
+			"theme:\n\tname: old\nthemes:\n\told:\n\t\tname: Old\n\t\tback_bottom: \"#123456\"\n";
+		let t = saved_themes(&shcl::Document::parse(old));
+		assert_eq!(t[0].colors["temp_back_bottom"], "#123456");
+		assert_eq!(t[0].colors["temp_back_top"], "#313131");
+		let l = Look::from_model(&model(old));
+		assert_eq!(l.battery_outline.bottom, Rgb(0x12, 0x34, 0x56));
 	}
 
 	// Test ID: decch
@@ -1298,23 +1445,27 @@ mod tests {
 				assert!(apart(leads[0], alarm) >= APART, "{}", p.key);
 			}
 			// each graph's own colors read apart, and every color shows on the top
-			for ids in [
-				&["iowait", "system", "user", "nice"][..],
-				&["mem_user", "mem_buffers", "mem_cache"],
-				&["net_local", "net_sent", "net_received"],
-				&["disk_write", "disk_read"],
-				&["temp_normal", "temp_critical"],
-				&[
-					"battery_charging",
-					"battery_discharging",
-					"battery_critical",
-				],
+			for (graph, ids) in [
+				("cpu", &["iowait", "system", "user", "nice"][..]),
+				("mem", &["mem_user", "mem_buffers", "mem_cache"]),
+				("net", &["net_local", "net_sent", "net_received"]),
+				("disk", &["disk_write", "disk_read"]),
+				("temp", &["temp_normal", "temp_critical"]),
+				(
+					"battery",
+					&[
+						"battery_charging",
+						"battery_discharging",
+						"battery_critical",
+					],
+				),
 			] {
 				let colors: Vec<Rgb> = ids.iter().map(|id| rgb(id)).collect();
 				let (d, a, b) = closest(&colors).unwrap();
 				assert!(d >= APART, "{}: {} {} {d:.1}", p.key, ids[a], ids[b]);
+				let top = rgb(&format!("{graph}_back_top"));
 				for c in colors {
-					assert!(apart(c, rgb("back_top")) >= APART, "{} {c:?}", p.key);
+					assert!(apart(c, top) >= APART, "{} {c:?}", p.key);
 				}
 			}
 		}
@@ -1537,7 +1688,7 @@ mod tests {
 			"themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n",
 		));
 		assert_eq!(t[0].name, "Say \"hi\"");
-		assert_eq!(t[0].colors.len(), 67);
+		assert_eq!(t[0].colors.len(), 97);
 		t.push(SavedTheme {
 			key: theme_key("Default", &t),
 			name: "Default".into(),

@@ -51,14 +51,38 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Outline and background colors per graph
 	- ID: 2026102819315170
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- How a graph looks with colors of its own, and the darker rolled backgrounds, are for a person to judge.
+		- Until 2026102819315837, the Outline sub-tab's Border, Top and Bottom are read and saved but draw no graph.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Needs hand testing: on b23, after an install with 2026102819315837 in, give one graph its own Border, Top and Bottom, Apply, and judge it beside the rest. Then Randomize a few times and judge the backgrounds.
 	- Priority|Severity: Avg
 	- Opened: 20261028-193151
 	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
 	- Parent ID: 2026102807585010
 	- Related IDs: 2026102807585020, 2026102620162201
 	- Requirements:
 		- Each graph has its own Border, Top and Bottom colors, in every theme, and Randomize rolls them.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Each graph's sub-tab ends with a Background group: Border, Top and Bottom, at `cpu.colors.border`, `.top` and `.bottom`, and the same under each graph's section. They're in the `theme` group.
+		- Every built-in gives each graph the colors it had for all of them, so the built-ins look the same.
+		- Randomize rolls each graph's from its own lead hue or its quiet one. The top is darker than before, about 15% brightness, so a quiet color shows on a background of its own hue.
+		- A file or saved theme that set only the Outline sub-tab's colors gives each graph those, so it keeps its look.
+		- `design.md` Theme has the details.
+		- Verified: the full run passed with the 3 new tests. The window shows the Background group on each graph's sub-tab.
+	- Decisions:
+		- The Outline sub-tab's Border, Top and Bottom stay, with their ids and paths, for 2026102819315837 to turn into the overrides. Dropping them would make a save refuse any file or saved theme that has them.
+		- The built-ins' per-graph colors are their old shared ones, not new picks, so this changes no look. multiload-ng's own memory border and background can go into Default later if wanted.
+		- At the old rolled brightness, 46% of the graphs rolled had a quiet color under 10 from their own top, as CIEDE2000. At 15% none did over 2,000 seeds. The Outline sub-tab's roll uses the same darker top, so one rule covers both.
+		- A border rolls under 85% of its lead's brightness, since a lead that stepped darker could fall below it.
+		- The colors go to the renderer as one `Outline` per graph, through `Source::outline`, so the overrides have one place to apply.
+	- Branch: round-1028b
+	- Test case: `config::tests::each_graph_has_its_own_outline_in_every_theme` (dejkg), `graphs::tests::each_graph_draws_its_own_border_and_background` (dejkh) and `dice::tests::each_graph_rolls_a_background_of_its_own_hue` (dejkf). dejkg fails with memory reading CPU's outline or with the shared colors not carried over, dejkh with the border drawn from the shared color, and dejkf with every graph rolled one background or at the old brightness. All pass now.
+		- 2026-10-28: new values only. deccf and deccw count 97 theme members, not 67, and deccy 85 saved colors, not 55. The one-color theme check in `the_one_color_themes_lead_alike_and_keep_the_alarms` measures each graph's colors against its own top, not the shared one.
+		- Swept: every reader of `border_color`, `back_top` and `back_bottom` (`Look::from_model`, `render::Frame`, `dice`, the dialog's `shown_colors`, `preview.rs`), every `Frame` construction, every `Source` impl, and the docs naming the shared background.
 
 - Pre-next-cut: Margins around each graph, on the Outline tab
 	- ID: 2026102819315156

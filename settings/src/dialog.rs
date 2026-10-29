@@ -1222,7 +1222,7 @@ mod tests {
 		dlg.apply().unwrap();
 		let text = std::fs::read_to_string(&path).unwrap();
 		assert!(text.contains("name: night"), "{text}");
-		assert_eq!(text.matches("\"#").count(), 55, "{text}");
+		assert_eq!(text.matches("\"#").count(), 85, "{text}");
 		assert!(!text.contains("kept"), "{text}");
 		let dlg = Dialog::open(path.clone());
 		assert_eq!(dlg.state("theme").choice, "Night");

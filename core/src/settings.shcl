@@ -642,6 +642,35 @@ settings:
 		shown_when: "cpu_mode = gradient"
 		tip: "The color at the top."
 
+	CpuBackHead:
+		label: Background
+		tab: Themes/CPU
+		control: heading
+
+	cpu_border_color:
+		label: Border
+		tab: Themes/CPU
+		control: color
+		path: cpu.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	cpu_back_top:
+		label: Top
+		tab: Themes/CPU
+		control: color
+		path: cpu.colors.top
+		default: "#313131"
+		group: theme
+
+	cpu_back_bottom:
+		label: Bottom
+		tab: Themes/CPU
+		control: color
+		path: cpu.colors.bottom
+		default: "#000000"
+		group: theme
+
 	mem_mode:
 		label: Colors
 		tab: Themes/Memory
@@ -725,6 +754,35 @@ settings:
 		shown_when: "mem_mode = gradient"
 		tip: "The color at the top."
 
+	MemBackHead:
+		label: Background
+		tab: Themes/Memory
+		control: heading
+
+	mem_border_color:
+		label: Border
+		tab: Themes/Memory
+		control: color
+		path: mem.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	mem_back_top:
+		label: Top
+		tab: Themes/Memory
+		control: color
+		path: mem.colors.top
+		default: "#313131"
+		group: theme
+
+	mem_back_bottom:
+		label: Bottom
+		tab: Themes/Memory
+		control: color
+		path: mem.colors.bottom
+		default: "#000000"
+		group: theme
+
 	net_mode:
 		label: Colors
 		tab: Themes/Network
@@ -807,6 +865,35 @@ settings:
 		shown_when: "net_mode = gradient"
 		tip: "The color at the top."
 
+	NetBackHead:
+		label: Background
+		tab: Themes/Network
+		control: heading
+
+	net_border_color:
+		label: Border
+		tab: Themes/Network
+		control: color
+		path: net.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	net_back_top:
+		label: Top
+		tab: Themes/Network
+		control: color
+		path: net.colors.top
+		default: "#313131"
+		group: theme
+
+	net_back_bottom:
+		label: Bottom
+		tab: Themes/Network
+		control: color
+		path: net.colors.bottom
+		default: "#000000"
+		group: theme
+
 	swap_mode:
 		label: Colors
 		tab: Themes/Swap
@@ -863,6 +950,35 @@ settings:
 		group: theme
 		shown_when: "swap_mode = gradient"
 		tip: "The color at the top."
+
+	SwapBackHead:
+		label: Background
+		tab: Themes/Swap
+		control: heading
+
+	swap_border_color:
+		label: Border
+		tab: Themes/Swap
+		control: color
+		path: swap.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	swap_back_top:
+		label: Top
+		tab: Themes/Swap
+		control: color
+		path: swap.colors.top
+		default: "#313131"
+		group: theme
+
+	swap_back_bottom:
+		label: Bottom
+		tab: Themes/Swap
+		control: color
+		path: swap.colors.bottom
+		default: "#000000"
+		group: theme
 
 	zswap_mode:
 		label: Colors
@@ -921,6 +1037,35 @@ settings:
 		shown_when: "zswap_mode = gradient"
 		tip: "The color at the top."
 
+	ZswapBackHead:
+		label: Background
+		tab: Themes/Zswap
+		control: heading
+
+	zswap_border_color:
+		label: Border
+		tab: Themes/Zswap
+		control: color
+		path: zswap.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	zswap_back_top:
+		label: Top
+		tab: Themes/Zswap
+		control: color
+		path: zswap.colors.top
+		default: "#313131"
+		group: theme
+
+	zswap_back_bottom:
+		label: Bottom
+		tab: Themes/Zswap
+		control: color
+		path: zswap.colors.bottom
+		default: "#000000"
+		group: theme
+
 	load_mode:
 		label: Colors
 		tab: Themes/Load
@@ -977,6 +1122,35 @@ settings:
 		group: theme
 		shown_when: "load_mode = gradient"
 		tip: "The color at the top."
+
+	LoadBackHead:
+		label: Background
+		tab: Themes/Load
+		control: heading
+
+	load_border_color:
+		label: Border
+		tab: Themes/Load
+		control: color
+		path: load.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	load_back_top:
+		label: Top
+		tab: Themes/Load
+		control: color
+		path: load.colors.top
+		default: "#313131"
+		group: theme
+
+	load_back_bottom:
+		label: Bottom
+		tab: Themes/Load
+		control: color
+		path: load.colors.bottom
+		default: "#000000"
+		group: theme
 
 	disk_mode:
 		label: Colors
@@ -1049,6 +1223,35 @@ settings:
 		group: theme
 		shown_when: "disk_mode = gradient"
 		tip: "The color at the top."
+
+	DiskBackHead:
+		label: Background
+		tab: Themes/Disk
+		control: heading
+
+	disk_border_color:
+		label: Border
+		tab: Themes/Disk
+		control: color
+		path: disk.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	disk_back_top:
+		label: Top
+		tab: Themes/Disk
+		control: color
+		path: disk.colors.top
+		default: "#313131"
+		group: theme
+
+	disk_back_bottom:
+		label: Bottom
+		tab: Themes/Disk
+		control: color
+		path: disk.colors.bottom
+		default: "#000000"
+		group: theme
 
 	temp_mode:
 		label: Colors
@@ -1123,6 +1326,35 @@ settings:
 		group: theme
 		shown_when: "temp_mode = gradient"
 		tip: "The color at the top."
+
+	TempBackHead:
+		label: Background
+		tab: Themes/Temperature
+		control: heading
+
+	temp_border_color:
+		label: Border
+		tab: Themes/Temperature
+		control: color
+		path: temp.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	temp_back_top:
+		label: Top
+		tab: Themes/Temperature
+		control: color
+		path: temp.colors.top
+		default: "#313131"
+		group: theme
+
+	temp_back_bottom:
+		label: Bottom
+		tab: Themes/Temperature
+		control: color
+		path: temp.colors.bottom
+		default: "#000000"
+		group: theme
 
 	battery_mode:
 		label: Colors
@@ -1207,6 +1439,35 @@ settings:
 		shown_when: "battery_mode = gradient"
 		tip: "The color at the top."
 
+	BatteryBackHead:
+		label: Background
+		tab: Themes/Battery
+		control: heading
+
+	battery_border_color:
+		label: Border
+		tab: Themes/Battery
+		control: color
+		path: battery.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	battery_back_top:
+		label: Top
+		tab: Themes/Battery
+		control: color
+		path: battery.colors.top
+		default: "#313131"
+		group: theme
+
+	battery_back_bottom:
+		label: Bottom
+		tab: Themes/Battery
+		control: color
+		path: battery.colors.bottom
+		default: "#000000"
+		group: theme
+
 	self_mode:
 		label: Colors
 		tab: Themes/tukzmon
@@ -1263,6 +1524,35 @@ settings:
 		group: theme
 		shown_when: "self_mode = gradient"
 		tip: "The color at the top."
+
+	SelfBackHead:
+		label: Background
+		tab: Themes/tukzmon
+		control: heading
+
+	self_border_color:
+		label: Border
+		tab: Themes/tukzmon
+		control: color
+		path: self.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	self_back_top:
+		label: Top
+		tab: Themes/tukzmon
+		control: color
+		path: self.colors.top
+		default: "#313131"
+		group: theme
+
+	self_back_bottom:
+		label: Bottom
+		tab: Themes/tukzmon
+		control: color
+		path: self.colors.bottom
+		default: "#000000"
+		group: theme
 
 	MarginHead:
 		label: Margins
@@ -1417,6 +1707,36 @@ groups:
 				self_medium: "#00ccb8"
 				self_high: "#cffffa"
 				self_used: "#00ccb8"
+				cpu_border_color: "#8b8b8b"
+				cpu_back_top: "#313131"
+				cpu_back_bottom: "#000000"
+				mem_border_color: "#8b8b8b"
+				mem_back_top: "#313131"
+				mem_back_bottom: "#000000"
+				net_border_color: "#8b8b8b"
+				net_back_top: "#313131"
+				net_back_bottom: "#000000"
+				disk_border_color: "#8b8b8b"
+				disk_back_top: "#313131"
+				disk_back_bottom: "#000000"
+				temp_border_color: "#8b8b8b"
+				temp_back_top: "#313131"
+				temp_back_bottom: "#000000"
+				swap_border_color: "#8b8b8b"
+				swap_back_top: "#313131"
+				swap_back_bottom: "#000000"
+				zswap_border_color: "#8b8b8b"
+				zswap_back_top: "#313131"
+				zswap_back_bottom: "#000000"
+				load_border_color: "#8b8b8b"
+				load_back_top: "#313131"
+				load_back_bottom: "#000000"
+				battery_border_color: "#8b8b8b"
+				battery_back_top: "#313131"
+				battery_back_bottom: "#000000"
+				self_border_color: "#8b8b8b"
+				self_back_top: "#313131"
+				self_back_bottom: "#000000"
 				border_color: "#8b8b8b"
 				back_top: "#313131"
 				back_bottom: "#000000"
@@ -1486,6 +1806,36 @@ groups:
 				self_medium: "#0000ff"
 				self_high: "#bfbfff"
 				self_used: "#0000ff"
+				cpu_border_color: "#606060"
+				cpu_back_top: "#2a2a2a"
+				cpu_back_bottom: "#000000"
+				mem_border_color: "#606060"
+				mem_back_top: "#2a2a2a"
+				mem_back_bottom: "#000000"
+				net_border_color: "#606060"
+				net_back_top: "#2a2a2a"
+				net_back_bottom: "#000000"
+				disk_border_color: "#606060"
+				disk_back_top: "#2a2a2a"
+				disk_back_bottom: "#000000"
+				temp_border_color: "#606060"
+				temp_back_top: "#2a2a2a"
+				temp_back_bottom: "#000000"
+				swap_border_color: "#606060"
+				swap_back_top: "#2a2a2a"
+				swap_back_bottom: "#000000"
+				zswap_border_color: "#606060"
+				zswap_back_top: "#2a2a2a"
+				zswap_back_bottom: "#000000"
+				load_border_color: "#606060"
+				load_back_top: "#2a2a2a"
+				load_back_bottom: "#000000"
+				battery_border_color: "#606060"
+				battery_back_top: "#2a2a2a"
+				battery_back_bottom: "#000000"
+				self_border_color: "#606060"
+				self_back_top: "#2a2a2a"
+				self_back_bottom: "#000000"
 				border_color: "#606060"
 				back_top: "#2a2a2a"
 				back_bottom: "#000000"
@@ -1555,6 +1905,36 @@ groups:
 				self_medium: "#8ac777"
 				self_high: "#edfbe8"
 				self_used: "#8ac777"
+				cpu_border_color: "#7f90a1"
+				cpu_back_top: "#3a424a"
+				cpu_back_bottom: "#0f1214"
+				mem_border_color: "#7f90a1"
+				mem_back_top: "#3a424a"
+				mem_back_bottom: "#0f1214"
+				net_border_color: "#7f90a1"
+				net_back_top: "#3a424a"
+				net_back_bottom: "#0f1214"
+				disk_border_color: "#7f90a1"
+				disk_back_top: "#3a424a"
+				disk_back_bottom: "#0f1214"
+				temp_border_color: "#7f90a1"
+				temp_back_top: "#3a424a"
+				temp_back_bottom: "#0f1214"
+				swap_border_color: "#7f90a1"
+				swap_back_top: "#3a424a"
+				swap_back_bottom: "#0f1214"
+				zswap_border_color: "#7f90a1"
+				zswap_back_top: "#3a424a"
+				zswap_back_bottom: "#0f1214"
+				load_border_color: "#7f90a1"
+				load_back_top: "#3a424a"
+				load_back_bottom: "#0f1214"
+				battery_border_color: "#7f90a1"
+				battery_back_top: "#3a424a"
+				battery_back_bottom: "#0f1214"
+				self_border_color: "#7f90a1"
+				self_back_top: "#3a424a"
+				self_back_bottom: "#0f1214"
 				border_color: "#7f90a1"
 				back_top: "#3a424a"
 				back_bottom: "#0f1214"
@@ -1624,6 +2004,36 @@ groups:
 				self_medium: "#ff00f2"
 				self_high: "#ffbffc"
 				self_used: "#ff00f2"
+				cpu_border_color: "#3a2a6a"
+				cpu_back_top: "#120a24"
+				cpu_back_bottom: "#000000"
+				mem_border_color: "#3a2a6a"
+				mem_back_top: "#120a24"
+				mem_back_bottom: "#000000"
+				net_border_color: "#3a2a6a"
+				net_back_top: "#120a24"
+				net_back_bottom: "#000000"
+				disk_border_color: "#3a2a6a"
+				disk_back_top: "#120a24"
+				disk_back_bottom: "#000000"
+				temp_border_color: "#3a2a6a"
+				temp_back_top: "#120a24"
+				temp_back_bottom: "#000000"
+				swap_border_color: "#3a2a6a"
+				swap_back_top: "#120a24"
+				swap_back_bottom: "#000000"
+				zswap_border_color: "#3a2a6a"
+				zswap_back_top: "#120a24"
+				zswap_back_bottom: "#000000"
+				load_border_color: "#3a2a6a"
+				load_back_top: "#120a24"
+				load_back_bottom: "#000000"
+				battery_border_color: "#3a2a6a"
+				battery_back_top: "#120a24"
+				battery_back_bottom: "#000000"
+				self_border_color: "#3a2a6a"
+				self_back_top: "#120a24"
+				self_back_bottom: "#000000"
 				border_color: "#3a2a6a"
 				back_top: "#120a24"
 				back_bottom: "#000000"
@@ -1693,6 +2103,36 @@ groups:
 				self_medium: "#80b565"
 				self_high: "#dce7d6"
 				self_used: "#80b565"
+				cpu_border_color: "#6a5a40"
+				cpu_back_top: "#2e261a"
+				cpu_back_bottom: "#0e0b07"
+				mem_border_color: "#6a5a40"
+				mem_back_top: "#2e261a"
+				mem_back_bottom: "#0e0b07"
+				net_border_color: "#6a5a40"
+				net_back_top: "#2e261a"
+				net_back_bottom: "#0e0b07"
+				disk_border_color: "#6a5a40"
+				disk_back_top: "#2e261a"
+				disk_back_bottom: "#0e0b07"
+				temp_border_color: "#6a5a40"
+				temp_back_top: "#2e261a"
+				temp_back_bottom: "#0e0b07"
+				swap_border_color: "#6a5a40"
+				swap_back_top: "#2e261a"
+				swap_back_bottom: "#0e0b07"
+				zswap_border_color: "#6a5a40"
+				zswap_back_top: "#2e261a"
+				zswap_back_bottom: "#0e0b07"
+				load_border_color: "#6a5a40"
+				load_back_top: "#2e261a"
+				load_back_bottom: "#0e0b07"
+				battery_border_color: "#6a5a40"
+				battery_back_top: "#2e261a"
+				battery_back_bottom: "#0e0b07"
+				self_border_color: "#6a5a40"
+				self_back_top: "#2e261a"
+				self_back_bottom: "#0e0b07"
 				border_color: "#6a5a40"
 				back_top: "#2e261a"
 				back_bottom: "#0e0b07"
@@ -1762,6 +2202,36 @@ groups:
 				self_medium: "#61ff66"
 				self_high: "#c7ffc9"
 				self_used: "#61ff66"
+				cpu_border_color: "#80401a"
+				cpu_back_top: "#3a1c0c"
+				cpu_back_bottom: "#000000"
+				mem_border_color: "#80401a"
+				mem_back_top: "#3a1c0c"
+				mem_back_bottom: "#000000"
+				net_border_color: "#80401a"
+				net_back_top: "#3a1c0c"
+				net_back_bottom: "#000000"
+				disk_border_color: "#80401a"
+				disk_back_top: "#3a1c0c"
+				disk_back_bottom: "#000000"
+				temp_border_color: "#80401a"
+				temp_back_top: "#3a1c0c"
+				temp_back_bottom: "#000000"
+				swap_border_color: "#80401a"
+				swap_back_top: "#3a1c0c"
+				swap_back_bottom: "#000000"
+				zswap_border_color: "#80401a"
+				zswap_back_top: "#3a1c0c"
+				zswap_back_bottom: "#000000"
+				load_border_color: "#80401a"
+				load_back_top: "#3a1c0c"
+				load_back_bottom: "#000000"
+				battery_border_color: "#80401a"
+				battery_back_top: "#3a1c0c"
+				battery_back_bottom: "#000000"
+				self_border_color: "#80401a"
+				self_back_top: "#3a1c0c"
+				self_back_bottom: "#000000"
 				border_color: "#80401a"
 				back_top: "#3a1c0c"
 				back_bottom: "#000000"
@@ -1831,6 +2301,36 @@ groups:
 				self_medium: "#33ff33"
 				self_high: "#ccffcc"
 				self_used: "#33ff33"
+				cpu_border_color: "#1d611d"
+				cpu_back_top: "#0a210a"
+				cpu_back_bottom: "#000000"
+				mem_border_color: "#1d611d"
+				mem_back_top: "#0a210a"
+				mem_back_bottom: "#000000"
+				net_border_color: "#1d611d"
+				net_back_top: "#0a210a"
+				net_back_bottom: "#000000"
+				disk_border_color: "#1d611d"
+				disk_back_top: "#0a210a"
+				disk_back_bottom: "#000000"
+				temp_border_color: "#1d611d"
+				temp_back_top: "#0a210a"
+				temp_back_bottom: "#000000"
+				swap_border_color: "#1d611d"
+				swap_back_top: "#0a210a"
+				swap_back_bottom: "#000000"
+				zswap_border_color: "#1d611d"
+				zswap_back_top: "#0a210a"
+				zswap_back_bottom: "#000000"
+				load_border_color: "#1d611d"
+				load_back_top: "#0a210a"
+				load_back_bottom: "#000000"
+				battery_border_color: "#1d611d"
+				battery_back_top: "#0a210a"
+				battery_back_bottom: "#000000"
+				self_border_color: "#1d611d"
+				self_back_top: "#0a210a"
+				self_back_bottom: "#000000"
 				border_color: "#1d611d"
 				back_top: "#0a210a"
 				back_bottom: "#000000"
@@ -1900,6 +2400,36 @@ groups:
 				self_medium: "#ffae00"
 				self_high: "#ffebbf"
 				self_used: "#ffae00"
+				cpu_border_color: "#5c3f00"
+				cpu_back_top: "#1f1500"
+				cpu_back_bottom: "#000000"
+				mem_border_color: "#5c3f00"
+				mem_back_top: "#1f1500"
+				mem_back_bottom: "#000000"
+				net_border_color: "#5c3f00"
+				net_back_top: "#1f1500"
+				net_back_bottom: "#000000"
+				disk_border_color: "#5c3f00"
+				disk_back_top: "#1f1500"
+				disk_back_bottom: "#000000"
+				temp_border_color: "#5c3f00"
+				temp_back_top: "#1f1500"
+				temp_back_bottom: "#000000"
+				swap_border_color: "#5c3f00"
+				swap_back_top: "#1f1500"
+				swap_back_bottom: "#000000"
+				zswap_border_color: "#5c3f00"
+				zswap_back_top: "#1f1500"
+				zswap_back_bottom: "#000000"
+				load_border_color: "#5c3f00"
+				load_back_top: "#1f1500"
+				load_back_bottom: "#000000"
+				battery_border_color: "#5c3f00"
+				battery_back_top: "#1f1500"
+				battery_back_bottom: "#000000"
+				self_border_color: "#5c3f00"
+				self_back_top: "#1f1500"
+				self_back_bottom: "#000000"
 				border_color: "#5c3f00"
 				back_top: "#1f1500"
 				back_bottom: "#000000"
@@ -1969,6 +2499,36 @@ groups:
 				self_medium: "#bfeaff"
 				self_high: "#f0faff"
 				self_used: "#bfeaff"
+				cpu_border_color: "#506473"
+				cpu_back_top: "#1b2329"
+				cpu_back_bottom: "#050708"
+				mem_border_color: "#506473"
+				mem_back_top: "#1b2329"
+				mem_back_bottom: "#050708"
+				net_border_color: "#506473"
+				net_back_top: "#1b2329"
+				net_back_bottom: "#050708"
+				disk_border_color: "#506473"
+				disk_back_top: "#1b2329"
+				disk_back_bottom: "#050708"
+				temp_border_color: "#506473"
+				temp_back_top: "#1b2329"
+				temp_back_bottom: "#050708"
+				swap_border_color: "#506473"
+				swap_back_top: "#1b2329"
+				swap_back_bottom: "#050708"
+				zswap_border_color: "#506473"
+				zswap_back_top: "#1b2329"
+				zswap_back_bottom: "#050708"
+				load_border_color: "#506473"
+				load_back_top: "#1b2329"
+				load_back_bottom: "#050708"
+				battery_border_color: "#506473"
+				battery_back_top: "#1b2329"
+				battery_back_bottom: "#050708"
+				self_border_color: "#506473"
+				self_back_top: "#1b2329"
+				self_back_bottom: "#050708"
 				border_color: "#506473"
 				back_top: "#1b2329"
 				back_bottom: "#050708"
