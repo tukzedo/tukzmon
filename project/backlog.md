@@ -22,312 +22,6 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- Theme presets, with a coordinated Default
-	- ID: 2026102409400679
-	- Type: Feature
-	- Status: Waiting on UAT
-		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
-		- How the built-in themes look is for a person to judge.
-		- It departs from the wording in one way. b23's file sets 2 colors with no theme line, so it opens as Custom, with exactly the colors it has now. Picking Default there gives the coordinated set.
-		- Stand-in, 2026-10-25, build deea9: each built-in theme drew both graphs in a test panel, and a pick took effect at once. Only the look is left.
-		- Measured 2026-10-28, round-1028 at 17d3d9d, as CIEDE2000: in every built-in, a graph's own colors sit 10.8 or more apart, I/O wait and system 24 or more from every graph's lead, and every color 16.6 or more from the background, except one. Default's nice and Low, `#205f40`, sit 5.1 from the top, `#2a543f`. They were 7.1 from multiload-ng's top, `#2a5446`, before Default moved it. That and the look are left for a person.
-		- Measured again 2026-10-28, branch theme-colors, after 2026102814061803, 2026102810142725 and 2026102807585040: any 2 graphs' leads sit 10.4 or more apart in every built-in but the one-color ones, where all are alike on purpose. In every built-in, a graph's own colors sit 10.6 or more apart, I/O wait and system 14.2 or more from every lead, 21.7 outside Default, every color 15.8 or more from the background, and each gradient step 10.6 or more. Default's nice now sits 24.4 from its gray top, `#313131`. Only the look is left.
-	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
-	- Needs hand testing: on b23, after a panel restart, pick each theme on the Themes tab, Apply, and judge how it looks on the panel graph, Default most of all.
-	- Stand-in: none (20261028). Turns on how the themes look, and the numbers are in the status row.
-	- Priority|Severity: High
-	- Opened: 20261024-094007
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-	- Parent ID: 2026102408304612
-	- Related IDs: 2026102408304559, 2026102408304625
-	- Requirements:
-		- A Theme dropdown that picks a named set of every graph color, backgrounds included, from the parent's requirements.
-		- "Default" is the current colors, moved onto one coordinated scheme close to them.
-		- A few built-in themes named by the color that dominates, such as "Green standard" and "Green pastel".
-			- Superseded by 2026102620162201: theme names are generic, with no color in them, and each monitor gets its own distinct colors.
-		- A color changed by hand sits on top of the theme as a change, the way SilkTerm's do.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- A Theme dropdown sits at the top of the Colors tab. It picks Default, Green standard, Green pastel, Blue standard, Blue pastel, or Custom.
-		- Default keeps the user and nice colors, and moves system, the border and the top a little, onto one hue. `design.md` Theme has the values and the rule behind them.
-		- A color changed on a theme shows "Name *" in the dropdown, and is kept with that theme across a save.
-		- Verified: in the window, a change on Blue standard showed "Blue standard *" with the revert arrow live on that row.
-	- Decisions:
-		- The themes use knobs' preset groups, the same model as SilkTerm's, so knobs is unchanged.
-		- A file with colors and no theme line reads as Custom, so a hand edit isn't hidden under Default. A save names the theme whenever Custom colors are stored.
-		- I/O wait and system stay red and orange in every built-in theme, so trouble reads the same in each.
-		- One theme for the whole panel for now. A theme per graph comes with the live graph list, 2026102408304639.
-	- Branch: round-1024
-	- Test case: `config::tests::the_default_theme_is_the_row_defaults` (deccf), `a_theme_sets_every_color` (deccg), `colors_with_no_theme_line_are_custom` (decch), `a_change_on_a_theme_is_kept_with_it` (deccj) and `back_to_default_from_custom_stays_default` (decck), and `dialog::tests::a_theme_and_the_changes_on_it_are_saved` (deccm) and `custom_then_the_revert_arrow_is_default_again` (deccn). The 2 back-to-Default tests fail with the theme naming taken out and pass with it.
-		- 2026-10-24: `config::tests::defaults_are_the_multiload_colors` got new values only. System went from `#c64600` to `#c64200`, the border from `#40806a` to `#408060`, and the top from `#2a5446` to `#2a543f`.
-		- Swept: every `Model::load`, `Look::load` and `Look::from_model` caller, and every color row in `settings.shcl`. The plugin reads through `Look::load`, and the window through `config::model`.
-
-- Randomize button on the Themes tab
-	- ID: 2026102409400700
-	- Type: Feature
-	- Status: Waiting on UAT
-		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
-		- Whether the rolls look good together is for a person to judge.
-		- Stand-in, 2026-10-25, build deea9: in the window a roll changed every color as "Default *", Save as kept it, and the panel graph took it at Apply. Only the look is left.
-		- Measured 2026-10-28 over 2000 seeds, round-1028 at 17d3d9d, as CIEDE2000: I/O wait and system roll 23.5 or more from every lead, and each gradient step 11.0 or more. A graph's own colors roll as close as 4.8, buffers and cache, and 9.1 or more in 9 rolls of 10. CPU's Low rolls as close as 1.9 to the background top, which takes CPU's hue, and 5.6 or more in 9 of 10. Default's own nice sits 5.1 from its top, so that matches the built-in. Leads that nearly match are 2026102810142725.
-		- Measured again 2026-10-28 over 10,000 seeds, branch theme-colors, after 2026102810142725: every 2 leads 10.0 or more apart, and I/O wait and system 21.7 or more from every lead. A graph's own colors roll as close as 5.8, buffers and cache, and 9.0 or more in 9 rolls of 10. CPU's Low rolls as close as 1.3 to the top, and 6.0 or more in 9 of 10, as before. Each gradient step rolls 8.9 or more, in a graph stepped darker, and 12.4 or more in 9 of 10. Default's nice is 24.4 from its top now, so the closest rolls no longer match a built-in.
-	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
-	- Needs hand testing: on b23, after a panel restart, press Randomize a few times with Apply, and judge whether the rolls look good together.
-	- Stand-in: none (20261028). Turns on whether a roll looks good, and the numbers are in the status row.
-	- Priority|Severity: High
-	- Opened: 20261024-094007
-	- Opened by: t00mietum
-	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-	- Parent ID: 2026102408304612
-	- Prereq IDs: 2026102409400684, 2026102409400695
-	- Requirements:
-		- [Randomize] on the Themes tab's top row sets random colors for every graph, by the parent's rules: one coordinated scheme around the user color, alarming colors for stats to watch, muted ones for nice, buffers and cache, and never Gradient mode.
-	- Estimated effort: Avg
-	- Actual effort: Low
-	- Progress log:
-		- Randomize sits after Delete on the Themes top row. It sets every color and the mode as changes on the theme in force, so the dropdown says "Name *", Save as keeps the roll, and picking a theme drops it.
-		- The user color leads at any hue off red and orange. Nice, Low and the background are that hue or one near it, muted. I/O wait stays red and system orange. A roll is always Detailed, with a gradient ready from nice through user to a pale tint.
-		- `design.md` Theme and Settings window have the details.
-		- Verified: the Themes tab drew Randomize after Delete on the top row.
-	- Decisions:
-		- A roll is a change on the theme in force, not a switch to Custom, the same as a color changed by hand.
-		- I/O wait and system stay red and orange, as the presets decided, and the lead hue keeps clear of them.
-		- The hover line stays black, as in every built-in.
-		- Every theme member has a role in `settings/src/dice.rs`. A new graph's members fail a test until they get one.
-	- Branch: round-1024
-	- Test case: `dice::tests::every_theme_member_has_a_role` (decdr), `every_roll_is_a_value_its_setting_takes_and_never_a_gradient` (decds), `the_lead_rules_and_the_alarms_stay_red_and_orange` (decdt), `the_quiet_ones_are_muted_and_near_the_lead` (decdv), `the_gradient_runs_from_calm_through_the_lead` (decdw) and `a_seed_rolls_the_same_theme_and_seeds_differ` (decdx), over 2000 seeds each, and `dialog::tests::randomize_changes_every_color_on_the_theme_and_turns_off_the_gradient` (decdq). Each fails with its rule broken: the mode set to gradient, the lead hue let into red, a member left out, nice as bright as user, and Randomize doing nothing.
-		- Swept: every member of the theme group, which the role test walks, and the one theme button row in qt.cpp.
-
-- Pre-next-cut: Generic theme names, and distinct colors per monitor
-	- ID: 2026102620162201
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- How each theme looks, and whether the graphs read apart side by side, is for a person to judge.
-		- It departs from the wording in one way. Randomize still gives every graph the same lead hue. That part is child 2026102621562349.
-		- Stand-in, 2026-10-26, build defyt: in the window Fire drew CPU red and brown, memory violet and swap blue, and with b23's settings a test panel drew CPU, memory and swap apart on Default. Only the look is left.
-		- 2026-10-28: with 9 graphs now, some leads nearly match in every built-in but Fire, and in most rolls. That part is child 2026102810142725, a Bug.
-		- 2026-10-28: 2026102810142725 is fixed. As CIEDE2000, any 2 leads sit 10.4 or more apart in every built-in, and 10.0 or more in every roll over 10,000 seeds. The one-color themes from 2026102807585040 give every graph one color on purpose.
-	- Needs local test suite run?: No. The full run passed on 2026-10-26.
-	- Needs hand testing: on b23, after an install, with swap on, pick each built-in theme on the Themes tab, Apply, and judge whether CPU, memory and swap read apart and look good together, Fire most of all.
-	- Stand-in: none (20261028). Turns on how it looks. What can be measured is checked by dejbr and dejbv, from child 2026102810142725.
-	- Priority|Severity: High
-	- Opened: 20261026-201621
-	- Opened by: t00mietum
-	- Parent ID: 2026102408304612
-	- Related IDs: 2026102409400679, 2026102409400695, 2026102508393159
-	- Note: The earlier instructions on theme colors were mixed up with a new theme design. These clarify them, and win over the color-named themes in 2026102408304612 and 2026102409400679.
-	- Requirements:
-		- Theme names shouldn't have colors in the names. They should be more generic, "Pastel", "Primary", etc. (E.g. some different common themes)
-		- The different monitors should have their own unique and distinct colors, which is why every theme name has subtabs for per-monitor colors.
-		- "Fire"-themes should have different color combos per monitor.
-	- Estimated effort: Avg
-	- Actual effort: Low
-	- Progress log:
-		- The built-in themes are now Default, Primary, Pastel, Neon, Earth and Fire.
-		- Every theme gives CPU, memory, swap and the battery each a hue and gradient of their own. I/O wait and system stay red and orange, and the battery's on battery and critical stay those 2.
-		- Default keeps its CPU, memory and background colors. Swap is now sky blue, `#40a0ff`, and the battery's plugged in lavender, `#b080ff`.
-		- Fire's graphs each burn their own flame: CPU red, yellow-white and light blue as before, memory violet, swap a blue gas flame, and the battery a green copper one.
-		- `design.md` Theme has the details.
-		- Verified: the full run passed with the new test.
-	- Decisions:
-		- 6 built-ins, as before, so the theme list doesn't grow. Primary keeps Green standard's CPU colors and Pastel Blue pastel's CPU and background, so a pick of the old ones looks close to the new one.
-		- The old keys, such as `green_standard`, aren't kept as aliases. They were never in a release, and b23's file names `default`.
-		- Backgrounds are neutral, or lean to the theme's mood, since no single graph's hue leads any more.
-		- No graph's own color is red or orange, outside Fire's and Earth's warm ones, so the alarms stay apart.
-	- Branch: round-1027
-	- Test case: `config::tests::no_theme_is_named_for_a_color_and_each_graph_has_its_own` (defx7). It fails on the old themes, where Default's swap was CPU's color, and with a color word put in a label, and passes now.
-		- 2026-10-26: new values only, for the renamed themes. deccg reads `pastel`, not `blue_pastel`. deccj reads `primary` and "Primary *", not Green standard. decct lists `primary`, `pastel`, `neon` and `earth` in place of the 4 color-named keys. decdg reads `neon`, with a gradient Medium of `#39ff14`, not `#0080ff`. deccx's built-in clash is `Earth` -> `earth_2`, not `Blue pastel` -> `blue_pastel_2`. In `dialog::tests`, deccm and deccy pick `neon`, with user `#39ff14` and nice `#1f6a10`, not `#0080ff` and `#20405f`, and deccy's clash is `nEon`. dece0 picks `pastel`.
-		- 2026-10-26: dedpz, defq5 and defqc had Fire's memory, swap and battery gradients equal to its CPU one. They now check each graph's own gradient, and dedpz that memory's differs from CPU's.
-		- Swept: every built-in key and label in the Rust tests, qt.cpp and the docs, every swap and battery row default, and the `dice` tests, which don't read the built-ins.
-	- 2026-10-27: the Randomize part is done in child 2026102621562349 (commit 9e35514).
-
-- Randomize: a hue of its own for each graph
-	- ID: 2026102621562349
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- Whether the hues of a roll look good together is for a person to judge.
-		- Measured 2026-10-28 over 10,000 seeds, as CIEDE2000: every 2 leads of a roll are 10.0 or more apart, 10.6 at the median, and every lead 21.7 or more from I/O wait and system. Before 2026102810142725 the closest 2 were 4.7 apart at the median and 1.8 at worst. A roll steps 3 of its 10 leads darker or paler at the median, and 6 at most.
-	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
-	- Needs hand testing: on b23, after an install, with swap on, press Randomize a few times with Apply, and judge whether CPU, memory and swap read apart and look good together.
-	- Stand-in: none (20261028). Whether a roll's hues look good together is for a person. dejbv checks that every roll's leads read apart.
-	- Priority|Severity: High
-	- Opened: 20261026-215623
-	- Opened by: t00mietum
-	- Parent ID: 2026102620162201
-	- Prereq IDs: 2026102810142725
-	- Related IDs: 2026102409400700
-	- Requirements:
-		- A roll gives CPU, memory, swap and the battery each a lead hue of its own, all kept off red and orange, with their quiet colors and gradients from those, the way the built-ins now do.
-	- Note: `dice::tests::buffers_and_cache_are_muted_and_told_apart` (dedq0) asserts memory's lead is CPU's. It changes with this.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- A roll gives each graph a lead hue of its own, from yellow-green round to magenta as before, at least 45 degrees from the others, in a random order. Each graph's quiet colors, buffers and gradient come from its own hue.
-		- I/O wait and system stay red and orange, and so do the battery's critical and on battery.
-		- `design.md` Theme has the details.
-		- Verified: the full run passed with the new test.
-		- 2026-10-28: 2026102810142725 checks every roll's leads apart as CIEDE2000, so the hold is off. The hues are 22 degrees apart now, for 10 graphs.
-	- Decisions:
-		- 45 degrees apart, which leaves 90 degrees of the range to roll in, and keeps clear of defx7's 30 for the built-ins.
-		- All 4 share one saturation and brightness, so a roll reads as one set, the way each built-in does.
-		- The background still takes CPU's hue, or nice's, since it's one set of colors under every graph.
-		- `dice::ROLES` now names each member's graph as well as its role.
-		- 2026-10-28: a lead may step darker or paler from that shared saturation and brightness, where 2 would look alike, per 2026102810142725.
-	- Branch: round-1027, theme-colors
-	- Test case: `dice::tests::each_graph_leads_with_a_hue_of_its_own` (defxd), and dedq0. Both fail with every graph given CPU's hue, and defxd with the order left unshuffled. Both pass now.
-		- 2026-10-26: dedq0 checked memory's lead equal to CPU's user, and cache equal to nice. It now checks they differ, and cache equal to memory's Low. decdt, decdv and decdw now check each graph's colors, not CPU's alone.
-		- Swept: every `dice::ROLES` and `dice::theme` user (`dialog.rs` and its decdq test), and every graph in `ROLES`.
-		- 2026-10-28: decdt's brightness floor for a rolled lead is 0.6, not 0.84, and dejbv checks every roll's leads, both from 2026102810142725.
-
-- Pre-next-cut: Every graph's colors on one scrolling tab
-	- ID: 2026102819315852
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- Whether the Colors tab reads well with 10 sections, and at what window size, is for a person to judge.
-	- Needs local test suite run?: No. The full run passed on 2026-10-28.
-	- Needs hand testing: on b23, after an install, open Settings, pick Themes/Colors, scroll through every graph's section, move a graph in the graph list and see its section move, then judge the layout.
-	- Priority|Severity: Avg
-	- Opened: 20261028-193158
-	- Opened by: t00mietum
-	- Version and build: v0.1.0, not on b23 yet.
-	- Parent ID: 2026102807585010
-	- Prereq IDs: 2026102819315170
-	- Related IDs: 2026102620162200
-	- Requirements:
-		- One tab with a section per graph, in the graph order, its mode and main colors on the left and its background and outline colors to the right. A vertical scrollbar when it runs past the window.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- Themes now has 2 sub-tabs, Colors and Outline. Colors has a section per graph, under its name, in the graph order. A section moves as soon as its graph is moved in the graph list.
-		- In each section the mode and main colors are on the left, and Background, with Border, Top and Bottom, is on the right. The page scrolls past the window.
-		- The setting ids and paths are unchanged, so files and saved themes read as before.
-		- `design.md` Settings window and Theme have the details.
-		- Verified: the full run passed with the 2 new tests. The window showed CPU, Memory and Network sections with their Background beside them, and the labels and colors lined up from one section to the next.
-	- Decisions:
-		- The tab is Colors, under Themes, with Outline staying its own sub-tab, since the margins and shared colors aren't any one graph's. Themes still shows its first sub-tab, so 2026102819145601 works on the same tab list.
-		- The sections are laid out from the spec: `graph: name` on a heading starts a graph's section, and `beside: true` on a heading puts it and the rest of its section on the right. Moving a graph's rows to another column or adding a graph needs no change in qt.cpp.
-		- The sub-headings drop the graph's name, such as "From the bottom up" for "CPU, from the bottom up", since the section's heading gives it.
-		- The page asks for at most 2/3 of the screen's height. Without the cap the window opened as tall as the screen. The other tabs keep their own heights.
-		- Labels get one width per side across all sections, so the colors sit in one column down the page.
-		- `Dialog::tab_order` and the tab list reorder went, since no tab follows the graph order now. `Dialog::section_order` replaces them.
-	- Branch: round-1028b
-	- Test case: `dialog::tests::every_graphs_colors_are_its_own_section_with_the_background_beside` (dejma) and `bridge::tests::the_sections_follow_a_move_with_the_background_on_the_right` (dejmb). dejma fails with a `beside: true` dropped from the spec, and dejmb with the sections left in place after a move or every row put on the left. Both pass now.
-		- 2026-10-28: dee9q names the Colors and Outline sub-tabs, not CPU, Memory and Outline. dejac and dejad checked that a graph's sub-tab moved with the graph, and now check the same of its section, as `the_graph_sections_follow_the_graph_order_and_the_tabs_stay_put` and `a_moved_graph_moves_its_section_and_the_picked_tab_stays_picked`, with their IDs kept.
-		- Swept: every `tab_order` caller (qt.cpp's tab list, dejac, dejad), every test naming a graph's sub-tab (dee9q, defwx), the `--snapshot` loop, which gives one picture for Colors, and the docs naming a graph's sub-tab.
-
-- Pre-next-cut: Outline, background and transparent overrides on the Outline tab
-	- ID: 2026102819315837
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- Whether the Outline tab reads well, and the overrides look right on the panel, is for a person to judge.
-	- Needs local test suite run?: No. The full run passed on 2026-10-28.
-	- Needs hand testing: on b23, after an install, give one graph its own Border, Top and Bottom, then tick One border for every graph and One background for every graph on Themes/Outline, Apply, and judge the panel. Untick them and check that graph's own colors come back.
-	- Priority|Severity: Avg
-	- Opened: 20261028-193158
-	- Opened by: t00mietum
-	- Version and build: v0.1.0, not on b23 yet.
-	- Parent ID: 2026102807585020
-	- Prereq IDs: 2026102819315170
-	- Related IDs: 2026102409400705
-	- Requirements:
-		- On the Outline tab, per theme: one outline color, and one Top and Bottom, each with a checkbox that puts it over every graph's own. Transparent overrides every background, as now.
-	- Estimated effort: Avg
-	- Actual effort: Low
-	- Progress log:
-		- The Outline sub-tab's Background group has One border for every graph over Border, and One background for every graph over Top and Bottom, at `graph.overrides.border` and `.background`. Ticked, that color goes over every graph's own.
-		- Both are in the `theme` group, off in every built-in, and kept in a saved theme as `true` or `false`.
-		- The colors under a box are greyed while it's off. Picking one ticks its box.
-		- Randomize still rolls the shared colors, and leaves the 2 boxes as they were.
-		- Transparent still wins over every background.
-		- `design.md` Theme has the details.
-		- Verified: the full run passed with the 2 new tests. The Outline tab shows both boxes, with their colors indented under them, and Border greyed while its box is off.
-	- Decisions:
-		- 2 boxes, not 3: one for the border, and one for Top and Bottom together, as the parent's "Global background colors override" says. A shared top over a graph's own bottom would rarely be wanted.
-		- The boxes are per theme, as asked, and off in every built-in. The built-ins give every graph the shared colors anyway, so they look the same either way, and off keeps each graph's sub-tab live.
-		- The shared colors are gated on their box, so they grey out while they draw nothing. That's knobs' gate, which also ticks the box when one of them is picked, so picking a shared color does what it looks like.
-		- Randomize would tick both through that gate, so it puts the boxes back after a roll. A roll is colors, as with the margins.
-		- The override applies in `Look::from_model`, so the plugin, the renderer and `preview.rs` all get it through each graph's `Outline`, with no second place to keep in step.
-		- A checkbox in a saved theme is written as a shcl bool, and read as `true`, `false`, `on` or `off`. `config::theme_text` gives `on` or `off`, as the window shows it.
-	- Branch: round-1028b
-	- Test case: `config::tests::the_outline_tabs_colors_go_over_every_graph_when_ticked` (dejky) and `dialog::tests::a_shared_color_ticks_its_override_and_a_roll_leaves_both` (dejkz). dejky fails with the overrides left unread, and dejkz with a roll ticking the boxes. Both pass now.
-		- 2026-10-28: new values only. deccf and deccw count 99 theme members, not 97, and deccf takes a checkbox for the 2 boxes. defma's rows greyed at defaults add `border_color`, `back_top` and `back_bottom`.
-		- Swept: every reader of `border_color`, `back_top`, `back_bottom` and the per-graph outlines (`Look::from_model`, `render::Frame`, `Source::outline`, `preview.rs`), every writer of theme members in a loop (`randomize_from`, `drop_theme_changes`, the dialog's `shown_colors`), every `theme_text` and `theme_typed` caller, and the docs naming the shared colors.
-
-- Pre-next-cut: Outline and background colors per graph
-	- ID: 2026102819315170
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- How a graph looks with colors of its own, and the darker rolled backgrounds, are for a person to judge.
-		- Until 2026102819315837, the Outline sub-tab's Border, Top and Bottom are read and saved but draw no graph.
-	- Needs local test suite run?: No. The full run passed on 2026-10-28.
-	- Needs hand testing: on b23, after an install with 2026102819315837 in, give one graph its own Border, Top and Bottom, Apply, and judge it beside the rest. Then Randomize a few times and judge the backgrounds.
-	- Priority|Severity: Avg
-	- Opened: 20261028-193151
-	- Opened by: t00mietum
-	- Version and build: v0.1.0, not on b23 yet.
-	- Parent ID: 2026102807585010
-	- Related IDs: 2026102807585020, 2026102620162201
-	- Requirements:
-		- Each graph has its own Border, Top and Bottom colors, in every theme, and Randomize rolls them.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- Each graph's sub-tab ends with a Background group: Border, Top and Bottom, at `cpu.colors.border`, `.top` and `.bottom`, and the same under each graph's section. They're in the `theme` group.
-		- Every built-in gives each graph the colors it had for all of them, so the built-ins look the same.
-		- Randomize rolls each graph's from its own lead hue or its quiet one. The top is darker than before, about 15% brightness, so a quiet color shows on a background of its own hue.
-		- A file or saved theme that set only the Outline sub-tab's colors gives each graph those, so it keeps its look.
-		- `design.md` Theme has the details.
-		- Verified: the full run passed with the 3 new tests. The window shows the Background group on each graph's sub-tab.
-		- 2026-10-28: Since 2026102819315837 the Outline tab's Border, Top and Bottom draw again, over every graph's own when their box is ticked.
-	- Decisions:
-		- The Outline sub-tab's Border, Top and Bottom stay, with their ids and paths, for 2026102819315837 to turn into the overrides. Dropping them would make a save refuse any file or saved theme that has them.
-		- The built-ins' per-graph colors are their old shared ones, not new picks, so this changes no look. multiload-ng's own memory border and background can go into Default later if wanted.
-		- At the old rolled brightness, 46% of the graphs rolled had a quiet color under 10 from their own top, as CIEDE2000. At 15% none did over 2,000 seeds. The Outline sub-tab's roll uses the same darker top, so one rule covers both.
-		- A border rolls under 85% of its lead's brightness, since a lead that stepped darker could fall below it.
-		- The colors go to the renderer as one `Outline` per graph, through `Source::outline`, so the overrides have one place to apply.
-	- Branch: round-1028b
-	- Test case: `config::tests::each_graph_has_its_own_outline_in_every_theme` (dejkg), `graphs::tests::each_graph_draws_its_own_border_and_background` (dejkh) and `dice::tests::each_graph_rolls_a_background_of_its_own_hue` (dejkf). dejkg fails with memory reading CPU's outline or with the shared colors not carried over, dejkh with the border drawn from the shared color, and dejkf with every graph rolled one background or at the old brightness. All pass now.
-		- 2026-10-28: new values only. deccf and deccw count 97 theme members, not 67, and deccy 85 saved colors, not 55. The one-color theme check in `the_one_color_themes_lead_alike_and_keep_the_alarms` measures each graph's colors against its own top, not the shared one.
-		- Swept: every reader of `border_color`, `back_top` and `back_bottom` (`Look::from_model`, `render::Frame`, `dice`, the dialog's `shown_colors`, `preview.rs`), every `Frame` construction, every `Source` impl, and the docs naming the shared background.
-
-- Pre-next-cut: Margins around each graph, on the Outline tab
-	- ID: 2026102819315156
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- Whether the Outline tab and the margins read well is for a person to judge. The calls are in a Check in questions.md.
-	- Needs local test suite run?: No. The full run passed on 2026-10-28.
-	- Needs hand testing: on b23, after an install, set Top & bottom and Left & right on Themes/Outline, Apply, and judge the panel's look.
-	- Priority|Severity: Avg
-	- Opened: 20261028-193151
-	- Opened by: t00mietum
-	- Version and build: v0.1.0, not on b23 yet.
-	- Parent ID: 2026102807585020
-	- Related IDs: 2026102807585010
-	- Requirements:
-		- Top & bottom, and Left & right margins, per theme, on the tab for outline settings.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- The Background sub-tab is now Outline. Its Margins group has Top & bottom px and Left & right px, at `graph.margins.top_bottom` and `.left_right`, 2 each by default, above the Background group.
-		- They replace the fixed 2 px edges and 4 px gaps. Graphs are drawn upright, so on a vertical panel top and bottom are the gaps between graphs.
-		- The panel asks for a new size when the margins change, not only the widths.
-		- A theme saved before the margins existed gets Default's 2 and 2, and stays listed.
-		- `design.md` XFCE plugin, Settings window and Theme have the details.
-		- Verified: the full run passed with the 3 new tests. In a test panel, Top & bottom 0 and Left & right 8 put the graphs against the panel's edges with 16 px between them, and the item grew to fit, at once.
-	- Decisions:
-		- The margins are in the `theme` group, as asked, with 2 and 2 in every built-in. Randomize leaves them, since a roll is colors.
-		- The item's 2 ends along the panel get none, as now, since the panel spaces its items. So a panel looks the same at the defaults.
-		- Top & bottom and Left & right are the graph's own sides, so a vertical panel swaps which is along it.
-		- A saved theme writes them as numbers. `config::theme_text` is the one place a theme value becomes text.
-		- Border px stays on the Graph tab, since it isn't per theme.
-		- The tab is named Outline after both parent items. The rest of 2026102807585020 goes on it.
-	- Branch: round-1028b
-	- Test case: `graphs::tests::the_margins_set_the_edges_and_the_gaps` (dejjs), `config::tests::margins_are_the_themes_and_reach_the_look` (dejjt) and `dialog::tests::the_margins_go_with_the_theme_and_a_roll_leaves_them` (dejjv). All 3 fail with the margins left at 2 or the saved theme's values read as text, and pass now. dejjt also fails when a theme saved without margins drops every saved theme from the list.
-		- 2026-10-28: new values only. deccf and deccw count 67 theme members, not 65, and deccf takes a slider for the 2 margins. dee9q, dejac and dejad name the Outline tab, not Background. dee9q also compares through `config::theme_text`, since a margin isn't text.
-		- Swept: every `EDGE` and `GAP` use, every reader of a saved theme's values (`saved_themes`, `theme_problems`, `spec_with`, `themes_text` and the dialog's `shown_colors`), `dice::theme`'s callers, and every doc naming the Background sub-tab.
-
 - Pre-next-cut: "Sample ms" becomes "Sample %"
 	- ID: 2026102819145599
 	- Type: Enhancement
@@ -335,6 +29,7 @@ Sorted per the notes in [Template](#template).
 		- Whether a percentage of the time between reads, where 200% reads half as often, is what was meant is for a person to judge.
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Needs hand testing: on b23, after an install, open Settings, set one graph's Sample % to 200 and another's to 50, Apply, and watch them read half and twice as often as the rest.
+	- Stand-in: none (20261028). Turns on what the percentage was meant to be of. The rates are checked by dej9z, deja0 and deja2.
 	- Priority|Severity: Avg
 	- Opened: 20261028-191455
 	- Opened by: t00mietum
@@ -357,33 +52,6 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: new values only. dej9z, debj5, deja0 and deja2 give a graph's rate as a percentage, not ms, for the same rates as before, and deja2's Default is 100, not 0.
 		- Swept: every `<name>_sample_ms` field and id (`Look`, each `Source::sample_ms`, `Dialog::graph_rows`, the graph list in qt.cpp), every `Look::rate` caller, and the docs naming `.sample_ms`.
 
-- Pre-next-cut: Themes tab stays highlighted with a sub-tab
-	- ID: 2026102819145601
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- How the dimmer highlight reads, in a light and a dark theme, is for a person to judge.
-	- Needs local test suite run?: No. The full run passed on 2026-10-28.
-	- Needs hand testing: on b23, after an install, open Settings, pick Themes, then Colors, then Outline, and judge the dimmer highlight on the line that goes with the one picked.
-	- Priority|Severity: Avg
-	- Opened: 20261028-191455
-	- Opened by: t00mietum
-	- Related IDs: 2026102620162200
-	- Requirements:
-		- When "Themes" tab is selected, also highlight the first sub-tab (dimmer).
-		- Themes should always be highlighted when a subtab is active.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- Picking Themes lights Colors too, dimmer, since Themes shows it. Picking Colors or Outline keeps Themes lit, dimmer.
-		- `design.md` Settings window has the details.
-		- Verified: the full run passed with the new test. The window showed Themes dimly lit with Colors or Outline picked.
-	- Decisions:
-		- The dim tint is a little under half the picked one, from the same theme highlight, so it reads in a dark theme too.
-		- It follows the tab list, not Themes by name: every tab over the line picked, and the sub-tab a parent shows. A new parent tab gets it too.
-	- Branch: round-1028b
-	- Test case: `bridge::tests::themes_and_the_sub_tab_it_shows_are_lit_together` (dejmn). It fails with the highlight left out, and passes now.
-		- Swept: `showTab` is the one place a picked line takes effect. The `--snapshot` loop, `tabs_shown` and `tabs_after_move` all pick through it.
-
 - Pre-next-cut: Default per-monitor colors from my current settings
 	- ID: 2026102814061803
 	- Type: Enhancement
@@ -392,6 +60,7 @@ Sorted per the notes in [Template](#template).
 		- Measured as CIEDE2000, where 10 or more reads clearly apart. b23's colors as they were: zswap's magenta `#ff80ff` 3.2 from system's pink `#fa72f0`, swap `#40a0ff` 5.6 from the disk's read `#6bb3ff`, and memory `#ffff80` 5.7 from temperature `#feff40`. Default now: every 2 graphs' leads 10.4 or more apart, memory and temperature the closest, and every lead 14.2 or more from I/O wait and system.
 	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
 	- Needs hand testing: on b23, after an install and a panel restart, pick Default on the Themes tab with no "*" changes on it, Apply, and judge whether it looks like the colors set by hand before.
+	- Stand-in: none (20261028). Waits on the open question on Default's pink CPU system and memory `#ffffa3`, and turns on how it looks.
 	- Priority|Severity: Avg
 	- Opened: 20261028-140618
 	- Opened by: t00mietum
@@ -425,39 +94,6 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: defq5, dej0v and dejab read swap's, temperature's and zswap's series colors, which Default now draws as gradients, so their looks set those graphs to Detailed.
 		- 2026-10-28: defx7 no longer checks the hue angle between leads. dejbr, from 2026102810142725, checks how far apart they look instead.
 		- Swept: every test that reads a Default color or mode, in core, settings and xfce, every row default, which deccf holds to Default, and every mention of Default's colors in `design.md` and `settings.shcl`.
-
-- Pre-next-cut: Monochromatic themes
-	- ID: 2026102807585040
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- How the 3 themes look on the panel is for a person to judge.
-		- Measured 2026-10-28 as CIEDE2000: in all 3, I/O wait and system sit 13.0 or more apart and 24.9 or more from the lead, each graph's own colors 10.6 or more apart, and every color 21.0 or more from the top. Vintage's I/O wait and system are the closest pair.
-	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
-	- Needs hand testing: on b23, after an install and a panel restart, pick Terminal, Vintage and Frost on the Themes tab in turn, Apply, and judge each on the panel.
-	- Priority|Severity: Avg
-	- Opened: 20261028-075850
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304612, 2026102620162201, 2026102810142725
-	- Requirements:
-		- Themes: include some monochromatic themes.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- 3 one-color built-ins, after Fire in the list: Terminal, a green phosphor `#33ff33` on near black, Vintage, an amber `#ffae00` on dark brown, and Frost, a pale ice `#bfeaff` on blue-gray.
-		- In each, every graph has the same colors: the lead, a dark shade of it for nice, cache, local and Low, a middle shade for buffers, and a pale tint for sent, written and High.
-		- I/O wait and system stay red and orange. Vintage's system is a redder orange, `#ff6000`, so that way it stays clear of the amber.
-		- `design.md` Theme has the details.
-		- Verified: the settings window showed Terminal's CPU sub-tab with its colors.
-	- Decisions:
-		- 3 themes, one per classic screen color plus a cool one, so the list grows from 6 to 9.
-		- Names with no color word, which defx7 checks: Terminal, Vintage and Frost. "Amber" and "Phosphor" were passed over, the first being a color.
-		- One color for every graph, rather than 10 shades of it. 10 shades can't sit 10 apart as CIEDE2000 by lightness alone, and shades a little apart would only look like a mistake. Graphs are told apart by place, as on a one-color multiload-ng setup.
-		- So these themes are let off dejbr's check on leads, and defx7's on distinct gradients. What lets a theme off is that all 10 of its leads are one color, so no list of names is kept, and a theme with only some leads alike still fails.
-		- They still keep every lead 10 or more from I/O wait and system, as every built-in does.
-	- Branch: theme-colors
-	- Test case: `config::tests::the_one_color_themes_lead_alike_and_keep_the_alarms` (dejbw). It fails with the 3 themes left out, and passes now.
-		- 2026-10-28: new values only. decct lists `terminal`, `vintage` and `frost` after `fire`. In `dialog::tests`, deccy finds a saved theme after 9 built-ins, not 6, and decd0 and decd1 count 11 and 12 themes, not 8 and 9.
-		- Swept: every test that counts or lists the built-ins, and every list of built-in names in `design.md`, `settings.shcl` and qt.cpp, which has none.
 
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
@@ -516,6 +152,46 @@ Sorted per the notes in [Template](#template).
 	- Test case: `graphs::tests::a_file_the_5_tier_plugin_wrote_still_loads` (defv4). It fails with decode taking only today's tier count, and with `lo` and `hi` swapped in both encode and decode, which defp7 and decbg miss. Restarts are also covered by decbp, dedq3 and defp7.
 		- Swept: every load path (start, a graph added, keep turned back on) and every save path (the 15 minute timer, quit, keep turned off, a graph dropped) in `xfce/src/lib.rs` and `Graphs`. Nothing else reads or writes the history file.
 
+- Pre-next-cut: Outline, background and transparent overrides on the Outline tab
+	- ID: 2026102819315837
+	- Type: Enhancement
+	- Status: Stalled
+		- Stand-in, 2026-10-28, round-1028b at 84b61ad: on a test panel, both boxes ticked put the shared border and background over every graph, CPU's own included. Unticked, CPU's own came back, but the other 8 graphs kept the shared colors.
+		- Held for Bug 2026102820512294, those graphs keeping the shared colors. The look is left for a person after that.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Needs hand testing: on b23, after an install, give one graph its own Border, Top and Bottom, then tick One border for every graph and One background for every graph on Themes/Outline, Apply, and judge the panel. Untick them and check that graph's own colors come back.
+	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row.
+	- Priority|Severity: Avg
+	- Opened: 20261028-193158
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026102807585020
+	- Prereq IDs: 2026102819315170
+	- Related IDs: 2026102409400705
+	- Requirements:
+		- On the Outline tab, per theme: one outline color, and one Top and Bottom, each with a checkbox that puts it over every graph's own. Transparent overrides every background, as now.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- The Outline sub-tab's Background group has One border for every graph over Border, and One background for every graph over Top and Bottom, at `graph.overrides.border` and `.background`. Ticked, that color goes over every graph's own.
+		- Both are in the `theme` group, off in every built-in, and kept in a saved theme as `true` or `false`.
+		- The colors under a box are greyed while it's off. Picking one ticks its box.
+		- Randomize still rolls the shared colors, and leaves the 2 boxes as they were.
+		- Transparent still wins over every background.
+		- `design.md` Theme has the details.
+		- Verified: the full run passed with the 2 new tests. The Outline tab shows both boxes, with their colors indented under them, and Border greyed while its box is off.
+	- Decisions:
+		- 2 boxes, not 3: one for the border, and one for Top and Bottom together, as the parent's "Global background colors override" says. A shared top over a graph's own bottom would rarely be wanted.
+		- The boxes are per theme, as asked, and off in every built-in. The built-ins give every graph the shared colors anyway, so they look the same either way, and off keeps each graph's sub-tab live.
+		- The shared colors are gated on their box, so they grey out while they draw nothing. That's knobs' gate, which also ticks the box when one of them is picked, so picking a shared color does what it looks like.
+		- Randomize would tick both through that gate, so it puts the boxes back after a roll. A roll is colors, as with the margins.
+		- The override applies in `Look::from_model`, so the plugin, the renderer and `preview.rs` all get it through each graph's `Outline`, with no second place to keep in step.
+		- A checkbox in a saved theme is written as a shcl bool, and read as `true`, `false`, `on` or `off`. `config::theme_text` gives `on` or `off`, as the window shows it.
+	- Branch: round-1028b
+	- Test case: `config::tests::the_outline_tabs_colors_go_over_every_graph_when_ticked` (dejky) and `dialog::tests::a_shared_color_ticks_its_override_and_a_roll_leaves_both` (dejkz). dejky fails with the overrides left unread, and dejkz with a roll ticking the boxes. Both pass now.
+		- 2026-10-28: new values only. deccf and deccw count 99 theme members, not 97, and deccf takes a checkbox for the 2 boxes. defma's rows greyed at defaults add `border_color`, `back_top` and `back_bottom`.
+		- Swept: every reader of `border_color`, `back_top`, `back_bottom` and the per-graph outlines (`Look::from_model`, `render::Frame`, `Source::outline`, `preview.rs`), every writer of theme members in a loop (`randomize_from`, `drop_theme_changes`, the dialog's `shown_colors`), every `theme_text` and `theme_typed` caller, and the docs naming the shared colors.
+
 - Color themes tab
 	- ID: 2026102408304612
 	- Type: Feature
@@ -551,19 +227,23 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Split into 6 children, in this order: 2026102409400679 (theme presets and Default), 2026102409400684 (Themes tab and its top row), 2026102409400689 (color picker), 2026102409400695 (Gradient mode and Fire), 2026102409400700 (Randomize), and 2026102409400705 (transparent background).
 
-- Pre-next-cut: All monitor colors on one tab
-	- ID: 2026102807585010
-	- Type: Enhancement
+- Unticking the Outline tab's overrides leaves the shared colors on the other graphs
+	- ID: 2026102820512294
+	- Type: Bug
 	- Status: Queued
 	- Priority|Severity: Avg
-	- Opened: 20261028-075850
+	- Opened: 20261028-205122
 	- Opened by: t00mietum
-	- Related IDs: 2026102408304612, 2026102620162201, 2026102807585020, 2026102807585030
-	- Requirements:
-		- See if all monitor colors will fit on one tab (vertical scrollbars for the per-monitor section if need more room).
-			- With background and outline colors per-monitor, to the right, for each monitor, of the main colors.
-	- Progress log:
-		- 2026-10-28: split with 2026102807585020 into 4 children. This one's are 2026102819315170 (outline and background colors per graph) and 2026102819315852 (every graph's colors on one scrolling tab), in that order.
+	- Parent ID: 2026102819315837
+	- Related IDs: 2026102819315170
+	- Steps to reproduce:
+		- On Themes/Outline, pick a Border under One border for every graph, which ticks its box, and Apply.
+		- Untick One border for every graph, and Apply.
+	- Incorrect behavior: every graph with no border of its own keeps the shared one. Only a graph given its own gets it back. The background does the same.
+	- Expected behavior: unticked, every graph draws its own border and background.
+	- Reproduced: 2026-10-28, round-1028b at 84b61ad, on a test panel, from a file with both boxes off, the shared colors set, and CPU's own colors set. CPU drew its own, and the other 8 graphs the shared ones.
+	- Possible cause: `outlines_follow_shared` in `core/src/config.rs` gives every graph with no value of its own the shared one when a file loads, whatever the 2 boxes say. It's there for files from before each graph had its own (2026102819315170). A save leaves out values at their defaults, so a graph at Default's colors reads as one with none.
+	- Test case: none yet.
 
 - Pre-next-cut: One tab for global outline-related settings
 	- ID: 2026102807585020
@@ -582,7 +262,7 @@ Sorted per the notes in [Template](#template).
 			- Global background colors override
 				- Global transparent override.
 	- Progress log:
-		- 2026-10-28: split with 2026102807585010 into 4 children. This one's are 2026102819315156 (the margins, on the Outline tab, Waiting on UAT) and 2026102819315837 (the overrides, on the Outline tab, Waiting on UAT).
+		- 2026-10-28: split with 2026102807585010 into 4 children. This one's are 2026102819315156 (the margins, on the Outline tab, Done) and 2026102819315837 (the overrides, on the Outline tab, Stalled for Bug 2026102820512294).
 
 - Pre-next-cut: GPU utilization graph
 	- ID: 2026102819145597
@@ -697,6 +377,173 @@ Sorted per the notes in [Template](#template).
 	- Test case: `tests::a_still_pointer_keeps_its_age_while_its_clock_time_moves_on` (defz1). It pins existing behavior, so it passes before and after. No code changed.
 		- Swept: `hover_tip` and `span_at` are the only places the tip's time is made, and the settings window's live tip goes through the same `Graph::hover_tip`.
 	- Closed: 20261028-080400
+
+- Randomize: a hue of its own for each graph
+	- ID: 2026102621562349
+	- Type: Enhancement
+	- Status: Done
+		- Measured 2026-10-28 over 10,000 seeds, as CIEDE2000: every 2 leads of a roll are 10.0 or more apart, 10.6 at the median, and every lead 21.7 or more from I/O wait and system. Before 2026102810142725 the closest 2 were 4.7 apart at the median and 1.8 at worst. A roll steps 3 of its 10 leads darker or paler at the median, and 6 at most.
+		- Stand-in, 2026-10-28, round-1028b at 84b61ad: 5 rolls, seeds 17, 423, 1999, 5150 and 8888, drawn on a test panel with all 9 graphs. Each read as one set, with every graph apart and clear of the alarms.
+	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
+	- Needs hand testing: on b23, after an install, with swap on, press Randomize a few times with Apply, and judge whether CPU, memory and swap read apart and look good together.
+	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row. dejbv checks that every roll's leads read apart.
+	- Priority|Severity: High
+	- Opened: 20261026-215623
+	- Opened by: t00mietum
+	- Parent ID: 2026102620162201
+	- Prereq IDs: 2026102810142725
+	- Related IDs: 2026102409400700
+	- Requirements:
+		- A roll gives CPU, memory, swap and the battery each a lead hue of its own, all kept off red and orange, with their quiet colors and gradients from those, the way the built-ins now do.
+	- Note: `dice::tests::buffers_and_cache_are_muted_and_told_apart` (dedq0) asserts memory's lead is CPU's. It changes with this.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A roll gives each graph a lead hue of its own, from yellow-green round to magenta as before, at least 45 degrees from the others, in a random order. Each graph's quiet colors, buffers and gradient come from its own hue.
+		- I/O wait and system stay red and orange, and so do the battery's critical and on battery.
+		- `design.md` Theme has the details.
+		- Verified: the full run passed with the new test.
+		- 2026-10-28: 2026102810142725 checks every roll's leads apart as CIEDE2000, so the hold is off. The hues are 22 degrees apart now, for 10 graphs.
+	- Decisions:
+		- 45 degrees apart, which leaves 90 degrees of the range to roll in, and keeps clear of defx7's 30 for the built-ins.
+		- All 4 share one saturation and brightness, so a roll reads as one set, the way each built-in does.
+		- The background still takes CPU's hue, or nice's, since it's one set of colors under every graph.
+		- `dice::ROLES` now names each member's graph as well as its role.
+		- 2026-10-28: a lead may step darker or paler from that shared saturation and brightness, where 2 would look alike, per 2026102810142725.
+	- Branch: round-1027, theme-colors
+	- Test case: `dice::tests::each_graph_leads_with_a_hue_of_its_own` (defxd), and dedq0. Both fail with every graph given CPU's hue, and defxd with the order left unshuffled. Both pass now.
+		- 2026-10-26: dedq0 checked memory's lead equal to CPU's user, and cache equal to nice. It now checks they differ, and cache equal to memory's Low. decdt, decdv and decdw now check each graph's colors, not CPU's alone.
+		- Swept: every `dice::ROLES` and `dice::theme` user (`dialog.rs` and its decdq test), and every graph in `ROLES`.
+		- 2026-10-28: decdt's brightness floor for a rolled lead is 0.6, not 0.84, and dejbv checks every roll's leads, both from 2026102810142725.
+	- Acceptance signoff: Self-closed 20261028: 5 rolls drawn on a test panel, and dejbv over 10,000 seeds.
+	- Closed: 20261028-205317
+
+- Pre-next-cut: Generic theme names, and distinct colors per monitor
+	- ID: 2026102620162201
+	- Type: Enhancement
+	- Status: Done
+		- It departs from the wording in one way. Randomize still gives every graph the same lead hue. That part is child 2026102621562349.
+		- Stand-in, 2026-10-26, build defyt: in the window Fire drew CPU red and brown, memory violet and swap blue, and with b23's settings a test panel drew CPU, memory and swap apart on Default. Only the look is left.
+		- 2026-10-28: with 9 graphs now, some leads nearly match in every built-in but Fire, and in most rolls. That part is child 2026102810142725, a Bug.
+		- 2026-10-28: 2026102810142725 is fixed. As CIEDE2000, any 2 leads sit 10.4 or more apart in every built-in, and 10.0 or more in every roll over 10,000 seeds. The one-color themes from 2026102807585040 give every graph one color on purpose.
+		- Stand-in, 2026-10-28, round-1028b at 84b61ad: a test panel drew all 9 graphs in each of the 9 built-ins. Every graph read apart, outside the one-color themes, and none looked broken.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: on b23, after an install, with swap on, pick each built-in theme on the Themes tab, Apply, and judge whether CPU, memory and swap read apart and look good together, Fire most of all.
+	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row. dejbr and dejbv check what can be measured.
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Parent ID: 2026102408304612
+	- Related IDs: 2026102409400679, 2026102409400695, 2026102508393159
+	- Note: The earlier instructions on theme colors were mixed up with a new theme design. These clarify them, and win over the color-named themes in 2026102408304612 and 2026102409400679.
+	- Requirements:
+		- Theme names shouldn't have colors in the names. They should be more generic, "Pastel", "Primary", etc. (E.g. some different common themes)
+		- The different monitors should have their own unique and distinct colors, which is why every theme name has subtabs for per-monitor colors.
+		- "Fire"-themes should have different color combos per monitor.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- The built-in themes are now Default, Primary, Pastel, Neon, Earth and Fire.
+		- Every theme gives CPU, memory, swap and the battery each a hue and gradient of their own. I/O wait and system stay red and orange, and the battery's on battery and critical stay those 2.
+		- Default keeps its CPU, memory and background colors. Swap is now sky blue, `#40a0ff`, and the battery's plugged in lavender, `#b080ff`.
+		- Fire's graphs each burn their own flame: CPU red, yellow-white and light blue as before, memory violet, swap a blue gas flame, and the battery a green copper one.
+		- `design.md` Theme has the details.
+		- Verified: the full run passed with the new test.
+	- Decisions:
+		- 6 built-ins, as before, so the theme list doesn't grow. Primary keeps Green standard's CPU colors and Pastel Blue pastel's CPU and background, so a pick of the old ones looks close to the new one.
+		- The old keys, such as `green_standard`, aren't kept as aliases. They were never in a release, and b23's file names `default`.
+		- Backgrounds are neutral, or lean to the theme's mood, since no single graph's hue leads any more.
+		- No graph's own color is red or orange, outside Fire's and Earth's warm ones, so the alarms stay apart.
+	- Branch: round-1027
+	- Test case: `config::tests::no_theme_is_named_for_a_color_and_each_graph_has_its_own` (defx7). It fails on the old themes, where Default's swap was CPU's color, and with a color word put in a label, and passes now.
+		- 2026-10-26: new values only, for the renamed themes. deccg reads `pastel`, not `blue_pastel`. deccj reads `primary` and "Primary *", not Green standard. decct lists `primary`, `pastel`, `neon` and `earth` in place of the 4 color-named keys. decdg reads `neon`, with a gradient Medium of `#39ff14`, not `#0080ff`. deccx's built-in clash is `Earth` -> `earth_2`, not `Blue pastel` -> `blue_pastel_2`. In `dialog::tests`, deccm and deccy pick `neon`, with user `#39ff14` and nice `#1f6a10`, not `#0080ff` and `#20405f`, and deccy's clash is `nEon`. dece0 picks `pastel`.
+		- 2026-10-26: dedpz, defq5 and defqc had Fire's memory, swap and battery gradients equal to its CPU one. They now check each graph's own gradient, and dedpz that memory's differs from CPU's.
+		- Swept: every built-in key and label in the Rust tests, qt.cpp and the docs, every swap and battery row default, and the `dice` tests, which don't read the built-ins.
+	- 2026-10-27: the Randomize part is done in child 2026102621562349 (commit 9e35514).
+	- Acceptance signoff: Self-closed 20261028: every built-in drawn on a test panel, with dejbr passing.
+	- Closed: 20261028-205317
+
+- Randomize button on the Themes tab
+	- ID: 2026102409400700
+	- Type: Feature
+	- Status: Done
+		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
+		- Stand-in, 2026-10-25, build deea9: in the window a roll changed every color as "Default *", Save as kept it, and the panel graph took it at Apply. Only the look is left.
+		- Measured 2026-10-28 over 2000 seeds, round-1028 at 17d3d9d, as CIEDE2000: I/O wait and system roll 23.5 or more from every lead, and each gradient step 11.0 or more. A graph's own colors roll as close as 4.8, buffers and cache, and 9.1 or more in 9 rolls of 10. CPU's Low rolls as close as 1.9 to the background top, which takes CPU's hue, and 5.6 or more in 9 of 10. Default's own nice sits 5.1 from its top, so that matches the built-in. Leads that nearly match are 2026102810142725.
+		- Measured again 2026-10-28 over 10,000 seeds, branch theme-colors, after 2026102810142725: every 2 leads 10.0 or more apart, and I/O wait and system 21.7 or more from every lead. A graph's own colors roll as close as 5.8, buffers and cache, and 9.0 or more in 9 rolls of 10. CPU's Low rolls as close as 1.3 to the top, and 6.0 or more in 9 of 10, as before. Each gradient step rolls 8.9 or more, in a graph stepped darker, and 12.4 or more in 9 of 10. Default's nice is 24.4 from its top now, so the closest rolls no longer match a built-in.
+		- Stand-in, 2026-10-28, round-1028b at 84b61ad: 5 rolls, seeds 17, 423, 1999, 5150 and 8888, drawn on a test panel with all 9 graphs. Each read as one set, with every graph apart and clear of the alarms.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Needs hand testing: on b23, after a panel restart, press Randomize a few times with Apply, and judge whether the rolls look good together.
+	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row.
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+	- Parent ID: 2026102408304612
+	- Prereq IDs: 2026102409400684, 2026102409400695
+	- Requirements:
+		- [Randomize] on the Themes tab's top row sets random colors for every graph, by the parent's rules: one coordinated scheme around the user color, alarming colors for stats to watch, muted ones for nice, buffers and cache, and never Gradient mode.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- Randomize sits after Delete on the Themes top row. It sets every color and the mode as changes on the theme in force, so the dropdown says "Name *", Save as keeps the roll, and picking a theme drops it.
+		- The user color leads at any hue off red and orange. Nice, Low and the background are that hue or one near it, muted. I/O wait stays red and system orange. A roll is always Detailed, with a gradient ready from nice through user to a pale tint.
+		- `design.md` Theme and Settings window have the details.
+		- Verified: the Themes tab drew Randomize after Delete on the top row.
+	- Decisions:
+		- A roll is a change on the theme in force, not a switch to Custom, the same as a color changed by hand.
+		- I/O wait and system stay red and orange, as the presets decided, and the lead hue keeps clear of them.
+		- The hover line stays black, as in every built-in.
+		- Every theme member has a role in `settings/src/dice.rs`. A new graph's members fail a test until they get one.
+	- Branch: round-1024
+	- Test case: `dice::tests::every_theme_member_has_a_role` (decdr), `every_roll_is_a_value_its_setting_takes_and_never_a_gradient` (decds), `the_lead_rules_and_the_alarms_stay_red_and_orange` (decdt), `the_quiet_ones_are_muted_and_near_the_lead` (decdv), `the_gradient_runs_from_calm_through_the_lead` (decdw) and `a_seed_rolls_the_same_theme_and_seeds_differ` (decdx), over 2000 seeds each, and `dialog::tests::randomize_changes_every_color_on_the_theme_and_turns_off_the_gradient` (decdq). Each fails with its rule broken: the mode set to gradient, the lead hue let into red, a member left out, nice as bright as user, and Randomize doing nothing.
+		- Swept: every member of the theme group, which the role test walks, and the one theme button row in qt.cpp.
+	- Acceptance signoff: Self-closed 20261028: 5 rolls drawn on a test panel, and dejbv over 10,000 seeds.
+	- Closed: 20261028-205317
+
+- Theme presets, with a coordinated Default
+	- ID: 2026102409400679
+	- Type: Feature
+	- Status: Done
+		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
+		- It departs from the wording in one way. b23's file sets 2 colors with no theme line, so it opens as Custom, with exactly the colors it has now. Picking Default there gives the coordinated set.
+		- Stand-in, 2026-10-25, build deea9: each built-in theme drew both graphs in a test panel, and a pick took effect at once. Only the look is left.
+		- Measured 2026-10-28, round-1028 at 17d3d9d, as CIEDE2000: in every built-in, a graph's own colors sit 10.8 or more apart, I/O wait and system 24 or more from every graph's lead, and every color 16.6 or more from the background, except one. Default's nice and Low, `#205f40`, sit 5.1 from the top, `#2a543f`. They were 7.1 from multiload-ng's top, `#2a5446`, before Default moved it. That and the look are left for a person.
+		- Measured again 2026-10-28, branch theme-colors, after 2026102814061803, 2026102810142725 and 2026102807585040: any 2 graphs' leads sit 10.4 or more apart in every built-in but the one-color ones, where all are alike on purpose. In every built-in, a graph's own colors sit 10.6 or more apart, I/O wait and system 14.2 or more from every lead, 21.7 outside Default, every color 15.8 or more from the background, and each gradient step 10.6 or more. Default's nice now sits 24.4 from its gray top, `#313131`. Only the look is left.
+		- Stand-in, 2026-10-28, round-1028b at 84b61ad: a test panel drew all 9 graphs in each of the 9 built-ins. Every graph read apart, outside the one-color themes, and none looked broken.
+	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
+	- Needs hand testing: on b23, after a panel restart, pick each theme on the Themes tab, Apply, and judge how it looks on the panel graph, Default most of all.
+	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row.
+	- Priority|Severity: High
+	- Opened: 20261024-094007
+	- Opened by: t00mietum
+	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
+	- Parent ID: 2026102408304612
+	- Related IDs: 2026102408304559, 2026102408304625
+	- Requirements:
+		- A Theme dropdown that picks a named set of every graph color, backgrounds included, from the parent's requirements.
+		- "Default" is the current colors, moved onto one coordinated scheme close to them.
+		- A few built-in themes named by the color that dominates, such as "Green standard" and "Green pastel".
+			- Superseded by 2026102620162201: theme names are generic, with no color in them, and each monitor gets its own distinct colors.
+		- A color changed by hand sits on top of the theme as a change, the way SilkTerm's do.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A Theme dropdown sits at the top of the Colors tab. It picks Default, Green standard, Green pastel, Blue standard, Blue pastel, or Custom.
+		- Default keeps the user and nice colors, and moves system, the border and the top a little, onto one hue. `design.md` Theme has the values and the rule behind them.
+		- A color changed on a theme shows "Name *" in the dropdown, and is kept with that theme across a save.
+		- Verified: in the window, a change on Blue standard showed "Blue standard *" with the revert arrow live on that row.
+	- Decisions:
+		- The themes use knobs' preset groups, the same model as SilkTerm's, so knobs is unchanged.
+		- A file with colors and no theme line reads as Custom, so a hand edit isn't hidden under Default. A save names the theme whenever Custom colors are stored.
+		- I/O wait and system stay red and orange in every built-in theme, so trouble reads the same in each.
+		- One theme for the whole panel for now. A theme per graph comes with the live graph list, 2026102408304639.
+	- Branch: round-1024
+	- Test case: `config::tests::the_default_theme_is_the_row_defaults` (deccf), `a_theme_sets_every_color` (deccg), `colors_with_no_theme_line_are_custom` (decch), `a_change_on_a_theme_is_kept_with_it` (deccj) and `back_to_default_from_custom_stays_default` (decck), and `dialog::tests::a_theme_and_the_changes_on_it_are_saved` (deccm) and `custom_then_the_revert_arrow_is_default_again` (deccn). The 2 back-to-Default tests fail with the theme naming taken out and pass with it.
+		- 2026-10-24: `config::tests::defaults_are_the_multiload_colors` got new values only. System went from `#c64600` to `#c64200`, the border from `#40806a` to `#408060`, and the top from `#2a5446` to `#2a543f`.
+		- Swept: every `Model::load`, `Look::load` and `Look::from_model` caller, and every color row in `settings.shcl`. The plugin reads through `Look::load`, and the window through `config::model`.
+	- Acceptance signoff: Self-closed 20261028: every built-in drawn on a test panel, with the measured distances above.
+	- Closed: 20261028-205317
 
 - XFCE panel plugin
 	- ID: 2026101916013889
@@ -2534,6 +2381,208 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: defx7 no longer checks hue angle between leads. dejbr checks how far apart they look.
 		- Swept: defx7 and defxd, the only checks on leads, every built-in in `settings.shcl`, and every role in `dice::ROLES` that follows its graph's lead.
 	- Closed: 20261028-161000
+
+- Pre-next-cut: All monitor colors on one tab
+	- ID: 2026102807585010
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261028-075850
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304612, 2026102620162201, 2026102807585020, 2026102807585030
+	- Requirements:
+		- See if all monitor colors will fit on one tab (vertical scrollbars for the per-monitor section if need more room).
+			- With background and outline colors per-monitor, to the right, for each monitor, of the main colors.
+	- Progress log:
+		- 2026-10-28: split with 2026102807585020 into 4 children. This one's are 2026102819315170 (outline and background colors per graph) and 2026102819315852 (every graph's colors on one scrolling tab), in that order.
+		- 2026-10-28: both children are Done.
+	- Test case: its children's, dejkg, dejkh and dejkf from 2026102819315170, and dejma and dejmb from 2026102819315852.
+	- Acceptance signoff: Closed with its children, 20261028.
+	- Closed: 20261028-205317
+
+- Pre-next-cut: Themes tab stays highlighted with a sub-tab
+	- ID: 2026102819145601
+	- Type: Enhancement
+	- Status: Done
+		- Stand-in, 2026-10-28, round-1028b at 84b61ad: Themes showed dimly lit with Colors or Outline picked, in a light and a dark palette, and the picked line brighter.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Needs hand testing: on b23, after an install, open Settings, pick Themes, then Colors, then Outline, and judge the dimmer highlight on the line that goes with the one picked.
+	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row.
+	- Priority|Severity: Avg
+	- Opened: 20261028-191455
+	- Opened by: t00mietum
+	- Related IDs: 2026102620162200
+	- Requirements:
+		- When "Themes" tab is selected, also highlight the first sub-tab (dimmer).
+		- Themes should always be highlighted when a subtab is active.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Picking Themes lights Colors too, dimmer, since Themes shows it. Picking Colors or Outline keeps Themes lit, dimmer.
+		- `design.md` Settings window has the details.
+		- Verified: the full run passed with the new test. The window showed Themes dimly lit with Colors or Outline picked.
+	- Decisions:
+		- The dim tint is a little under half the picked one, from the same theme highlight, so it reads in a dark theme too.
+		- It follows the tab list, not Themes by name: every tab over the line picked, and the sub-tab a parent shows. A new parent tab gets it too.
+	- Branch: round-1028b
+	- Test case: `bridge::tests::themes_and_the_sub_tab_it_shows_are_lit_together` (dejmn). It fails with the highlight left out, and passes now.
+		- Swept: `showTab` is the one place a picked line takes effect. The `--snapshot` loop, `tabs_shown` and `tabs_after_move` all pick through it.
+	- Acceptance signoff: Self-closed 20261028: the tab list drawn in a light and a dark palette, and dejmn.
+	- Closed: 20261028-205317
+
+- Pre-next-cut: Every graph's colors on one scrolling tab
+	- ID: 2026102819315852
+	- Type: Enhancement
+	- Status: Done
+		- Stand-in, 2026-10-28, round-1028b at 84b61ad: the Colors tab drew each graph's section under its name with Background beside it, the colors in one column down the page, and a scrollbar, in a 735 by 800 window.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Needs hand testing: on b23, after an install, open Settings, pick Themes/Colors, scroll through every graph's section, move a graph in the graph list and see its section move, then judge the layout.
+	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row.
+	- Priority|Severity: Avg
+	- Opened: 20261028-193158
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026102807585010
+	- Prereq IDs: 2026102819315170
+	- Related IDs: 2026102620162200
+	- Requirements:
+		- One tab with a section per graph, in the graph order, its mode and main colors on the left and its background and outline colors to the right. A vertical scrollbar when it runs past the window.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Themes now has 2 sub-tabs, Colors and Outline. Colors has a section per graph, under its name, in the graph order. A section moves as soon as its graph is moved in the graph list.
+		- In each section the mode and main colors are on the left, and Background, with Border, Top and Bottom, is on the right. The page scrolls past the window.
+		- The setting ids and paths are unchanged, so files and saved themes read as before.
+		- `design.md` Settings window and Theme have the details.
+		- Verified: the full run passed with the 2 new tests. The window showed CPU, Memory and Network sections with their Background beside them, and the labels and colors lined up from one section to the next.
+	- Decisions:
+		- The tab is Colors, under Themes, with Outline staying its own sub-tab, since the margins and shared colors aren't any one graph's. Themes still shows its first sub-tab, so 2026102819145601 works on the same tab list.
+		- The sections are laid out from the spec: `graph: name` on a heading starts a graph's section, and `beside: true` on a heading puts it and the rest of its section on the right. Moving a graph's rows to another column or adding a graph needs no change in qt.cpp.
+		- The sub-headings drop the graph's name, such as "From the bottom up" for "CPU, from the bottom up", since the section's heading gives it.
+		- The page asks for at most 2/3 of the screen's height. Without the cap the window opened as tall as the screen. The other tabs keep their own heights.
+		- Labels get one width per side across all sections, so the colors sit in one column down the page.
+		- `Dialog::tab_order` and the tab list reorder went, since no tab follows the graph order now. `Dialog::section_order` replaces them.
+	- Branch: round-1028b
+	- Test case: `dialog::tests::every_graphs_colors_are_its_own_section_with_the_background_beside` (dejma) and `bridge::tests::the_sections_follow_a_move_with_the_background_on_the_right` (dejmb). dejma fails with a `beside: true` dropped from the spec, and dejmb with the sections left in place after a move or every row put on the left. Both pass now.
+		- 2026-10-28: dee9q names the Colors and Outline sub-tabs, not CPU, Memory and Outline. dejac and dejad checked that a graph's sub-tab moved with the graph, and now check the same of its section, as `the_graph_sections_follow_the_graph_order_and_the_tabs_stay_put` and `a_moved_graph_moves_its_section_and_the_picked_tab_stays_picked`, with their IDs kept.
+		- Swept: every `tab_order` caller (qt.cpp's tab list, dejac, dejad), every test naming a graph's sub-tab (dee9q, defwx), the `--snapshot` loop, which gives one picture for Colors, and the docs naming a graph's sub-tab.
+	- Acceptance signoff: Self-closed 20261028: the Colors tab drawn, and dejma and dejmb.
+	- Closed: 20261028-205317
+
+- Pre-next-cut: Outline and background colors per graph
+	- ID: 2026102819315170
+	- Type: Enhancement
+	- Status: Done
+		- Stand-in, 2026-10-28, round-1028b at 84b61ad: on a test panel, CPU's own border and background drew beside the other graphs' Default ones. 5 rolls gave each graph a dark background of its own hue, with its quiet colors showing on it.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Needs hand testing: on b23, after an install with 2026102819315837 in, give one graph its own Border, Top and Bottom, Apply, and judge it beside the rest. Then Randomize a few times and judge the backgrounds.
+	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row.
+	- Priority|Severity: Avg
+	- Opened: 20261028-193151
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026102807585010
+	- Related IDs: 2026102807585020, 2026102620162201
+	- Requirements:
+		- Each graph has its own Border, Top and Bottom colors, in every theme, and Randomize rolls them.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Each graph's sub-tab ends with a Background group: Border, Top and Bottom, at `cpu.colors.border`, `.top` and `.bottom`, and the same under each graph's section. They're in the `theme` group.
+		- Every built-in gives each graph the colors it had for all of them, so the built-ins look the same.
+		- Randomize rolls each graph's from its own lead hue or its quiet one. The top is darker than before, about 15% brightness, so a quiet color shows on a background of its own hue.
+		- A file or saved theme that set only the Outline sub-tab's colors gives each graph those, so it keeps its look.
+		- `design.md` Theme has the details.
+		- Verified: the full run passed with the 3 new tests. The window shows the Background group on each graph's sub-tab.
+		- 2026-10-28: Since 2026102819315837 the Outline tab's Border, Top and Bottom draw again, over every graph's own when their box is ticked.
+	- Decisions:
+		- The Outline sub-tab's Border, Top and Bottom stay, with their ids and paths, for 2026102819315837 to turn into the overrides. Dropping them would make a save refuse any file or saved theme that has them.
+		- The built-ins' per-graph colors are their old shared ones, not new picks, so this changes no look. multiload-ng's own memory border and background can go into Default later if wanted.
+		- At the old rolled brightness, 46% of the graphs rolled had a quiet color under 10 from their own top, as CIEDE2000. At 15% none did over 2,000 seeds. The Outline sub-tab's roll uses the same darker top, so one rule covers both.
+		- A border rolls under 85% of its lead's brightness, since a lead that stepped darker could fall below it.
+		- The colors go to the renderer as one `Outline` per graph, through `Source::outline`, so the overrides have one place to apply.
+	- Branch: round-1028b
+	- Test case: `config::tests::each_graph_has_its_own_outline_in_every_theme` (dejkg), `graphs::tests::each_graph_draws_its_own_border_and_background` (dejkh) and `dice::tests::each_graph_rolls_a_background_of_its_own_hue` (dejkf). dejkg fails with memory reading CPU's outline or with the shared colors not carried over, dejkh with the border drawn from the shared color, and dejkf with every graph rolled one background or at the old brightness. All pass now.
+		- 2026-10-28: new values only. deccf and deccw count 97 theme members, not 67, and deccy 85 saved colors, not 55. The one-color theme check in `the_one_color_themes_lead_alike_and_keep_the_alarms` measures each graph's colors against its own top, not the shared one.
+		- Swept: every reader of `border_color`, `back_top` and `back_bottom` (`Look::from_model`, `render::Frame`, `dice`, the dialog's `shown_colors`, `preview.rs`), every `Frame` construction, every `Source` impl, and the docs naming the shared background.
+	- Acceptance signoff: Self-closed 20261028: own colors and 5 rolls drawn on a test panel, and dejkg, dejkh and dejkf.
+	- Closed: 20261028-205317
+
+- Pre-next-cut: Margins around each graph, on the Outline tab
+	- ID: 2026102819315156
+	- Type: Enhancement
+	- Status: Done
+		- The calls are in a Check in questions.md.
+		- Stand-in, 2026-10-28, round-1028b at 84b61ad: the Outline tab drew Margins above Background. On a test panel, Top & bottom 0 and Left & right 8 put the graphs against the panel's edges with 16 px between them, and 2 and 2 looked as before.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Needs hand testing: on b23, after an install, set Top & bottom and Left & right on Themes/Outline, Apply, and judge the panel's look.
+	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row.
+	- Priority|Severity: Avg
+	- Opened: 20261028-193151
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Parent ID: 2026102807585020
+	- Related IDs: 2026102807585010
+	- Requirements:
+		- Top & bottom, and Left & right margins, per theme, on the tab for outline settings.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The Background sub-tab is now Outline. Its Margins group has Top & bottom px and Left & right px, at `graph.margins.top_bottom` and `.left_right`, 2 each by default, above the Background group.
+		- They replace the fixed 2 px edges and 4 px gaps. Graphs are drawn upright, so on a vertical panel top and bottom are the gaps between graphs.
+		- The panel asks for a new size when the margins change, not only the widths.
+		- A theme saved before the margins existed gets Default's 2 and 2, and stays listed.
+		- `design.md` XFCE plugin, Settings window and Theme have the details.
+		- Verified: the full run passed with the 3 new tests. In a test panel, Top & bottom 0 and Left & right 8 put the graphs against the panel's edges with 16 px between them, and the item grew to fit, at once.
+	- Decisions:
+		- The margins are in the `theme` group, as asked, with 2 and 2 in every built-in. Randomize leaves them, since a roll is colors.
+		- The item's 2 ends along the panel get none, as now, since the panel spaces its items. So a panel looks the same at the defaults.
+		- Top & bottom and Left & right are the graph's own sides, so a vertical panel swaps which is along it.
+		- A saved theme writes them as numbers. `config::theme_text` is the one place a theme value becomes text.
+		- Border px stays on the Graph tab, since it isn't per theme.
+		- The tab is named Outline after both parent items. The rest of 2026102807585020 goes on it.
+	- Branch: round-1028b
+	- Test case: `graphs::tests::the_margins_set_the_edges_and_the_gaps` (dejjs), `config::tests::margins_are_the_themes_and_reach_the_look` (dejjt) and `dialog::tests::the_margins_go_with_the_theme_and_a_roll_leaves_them` (dejjv). All 3 fail with the margins left at 2 or the saved theme's values read as text, and pass now. dejjt also fails when a theme saved without margins drops every saved theme from the list.
+		- 2026-10-28: new values only. deccf and deccw count 67 theme members, not 65, and deccf takes a slider for the 2 margins. dee9q, dejac and dejad name the Outline tab, not Background. dee9q also compares through `config::theme_text`, since a margin isn't text.
+		- Swept: every `EDGE` and `GAP` use, every reader of a saved theme's values (`saved_themes`, `theme_problems`, `spec_with`, `themes_text` and the dialog's `shown_colors`), `dice::theme`'s callers, and every doc naming the Background sub-tab.
+	- Acceptance signoff: Self-closed 20261028: the margins drawn on a test panel, and dejjs, dejjt and dejjv.
+	- Closed: 20261028-205317
+
+- Pre-next-cut: Monochromatic themes
+	- ID: 2026102807585040
+	- Type: Enhancement
+	- Status: Done
+		- Measured 2026-10-28 as CIEDE2000: in all 3, I/O wait and system sit 13.0 or more apart and 24.9 or more from the lead, each graph's own colors 10.6 or more apart, and every color 21.0 or more from the top. Vintage's I/O wait and system are the closest pair.
+		- Stand-in, 2026-10-28, round-1028b at 84b61ad: on a test panel, Terminal, Vintage and Frost each drew all 9 graphs in their one color, clear of the background, with I/O wait and system apart.
+	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
+	- Needs hand testing: on b23, after an install and a panel restart, pick Terminal, Vintage and Frost on the Themes tab in turn, Apply, and judge each on the panel.
+	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row.
+	- Priority|Severity: Avg
+	- Opened: 20261028-075850
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304612, 2026102620162201, 2026102810142725
+	- Requirements:
+		- Themes: include some monochromatic themes.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- 3 one-color built-ins, after Fire in the list: Terminal, a green phosphor `#33ff33` on near black, Vintage, an amber `#ffae00` on dark brown, and Frost, a pale ice `#bfeaff` on blue-gray.
+		- In each, every graph has the same colors: the lead, a dark shade of it for nice, cache, local and Low, a middle shade for buffers, and a pale tint for sent, written and High.
+		- I/O wait and system stay red and orange. Vintage's system is a redder orange, `#ff6000`, so that way it stays clear of the amber.
+		- `design.md` Theme has the details.
+		- Verified: the settings window showed Terminal's CPU sub-tab with its colors.
+	- Decisions:
+		- 3 themes, one per classic screen color plus a cool one, so the list grows from 6 to 9.
+		- Names with no color word, which defx7 checks: Terminal, Vintage and Frost. "Amber" and "Phosphor" were passed over, the first being a color.
+		- One color for every graph, rather than 10 shades of it. 10 shades can't sit 10 apart as CIEDE2000 by lightness alone, and shades a little apart would only look like a mistake. Graphs are told apart by place, as on a one-color multiload-ng setup.
+		- So these themes are let off dejbr's check on leads, and defx7's on distinct gradients. What lets a theme off is that all 10 of its leads are one color, so no list of names is kept, and a theme with only some leads alike still fails.
+		- They still keep every lead 10 or more from I/O wait and system, as every built-in does.
+	- Branch: theme-colors
+	- Test case: `config::tests::the_one_color_themes_lead_alike_and_keep_the_alarms` (dejbw). It fails with the 3 themes left out, and passes now.
+		- 2026-10-28: new values only. decct lists `terminal`, `vintage` and `frost` after `fire`. In `dialog::tests`, deccy finds a saved theme after 9 built-ins, not 6, and decd0 and decd1 count 11 and 12 themes, not 8 and 9.
+		- Swept: every test that counts or lists the built-ins, and every list of built-in names in `design.md`, `settings.shcl` and qt.cpp, which has none.
+	- Acceptance signoff: Self-closed 20261028: the 3 themes drawn on a test panel, and dejbw.
+	- Closed: 20261028-205317
 
 - Pre-next-cut: "Sample ms default" of 1000
 	- ID: 2026102819145600
