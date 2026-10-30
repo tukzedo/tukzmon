@@ -7,6 +7,8 @@
 use std::time::Instant;
 
 use crate::collect::{Climb, Collector, Counts, slurp};
+use crate::config::Split;
+use crate::lan::{self, LanReader};
 
 const NET_DEV: &str = "/proc/net/dev";
 
@@ -65,6 +67,51 @@ impl Collector<3> for NetReader {
 			slurp(NET_DEV, &mut self.buf)?,
 			Instant::now(),
 		)
+	}
+}
+
+/// What the network graph draws: [`NetReader`]'s 3 series split 5 ways by
+/// [`lan::split`]. With the split off, or no LAN reader, the LAN's 2 are 0
+/// and sent and received hold it all.
+#[derive(Debug, Default)]
+pub struct Traffic {
+	net: NetReader,
+	lan: Option<LanReader>,
+}
+
+impl Traffic {
+	/// True while the LAN is told apart from the internet.
+	pub fn split(&self) -> bool {
+		self.lan.is_some()
+	}
+
+	/// Starts or stops the LAN reader. One that can't start leaves the split
+	/// off, and the next pick tries again.
+	pub fn set_split(&mut self, split: Split) {
+		match split {
+			Split::Off => self.lan = None,
+			Split::Sockets if self.lan.is_none() => self.lan = LanReader::probe(),
+			Split::Sockets => {}
+		}
+	}
+}
+
+impl Collector<5> for Traffic {
+	const SERIES: [&'static str; 5] = ["local", "LAN sent", "LAN received", "sent", "received"];
+
+	fn probe() -> Option<Self> {
+		NetReader::probe().map(|net| Traffic { net, lan: None })
+	}
+
+	/// A failed LAN poll is a gap, like a failed `/proc/net/dev` read, so
+	/// the LAN's bytes never show as internet.
+	fn read(&mut self) -> Option<[f32; 5]> {
+		let net = self.net.read();
+		let lan = match &mut self.lan {
+			Some(r) => r.read()?,
+			None => [0.0; 2],
+		};
+		Some(lan::split(net?, lan))
 	}
 }
 
@@ -189,5 +236,20 @@ mod tests {
 		if let Some(v) = r.read() {
 			assert!(v.iter().all(|x| x.is_finite() && *x >= 0.0), "{v:?}");
 		}
+	}
+
+	// Test ID: demw0
+	#[test]
+	fn with_the_split_off_sent_and_received_hold_it_all() {
+		let mut t = Traffic::probe().expect("every Linux box has /proc/net/dev");
+		assert!(!t.split());
+		std::thread::sleep(Duration::from_millis(20));
+		let v = t.read().expect("a read after the first gives rates");
+		assert_eq!(v[1..3], [0.0, 0.0], "{v:?}");
+		t.set_split(Split::Sockets);
+		assert!(t.split());
+		std::thread::sleep(Duration::from_millis(20));
+		let v = t.read().expect("the LAN reader came primed");
+		assert!(v.iter().all(|x| x.is_finite() && *x >= 0.0), "{v:?}");
 	}
 }

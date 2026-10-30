@@ -141,6 +141,27 @@ impl Mode {
 	}
 }
 
+/// How the network graph tells the LAN from the internet. Off draws local,
+/// sent and received. See design.md, Data sources on Linux.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Split {
+	#[default]
+	Off,
+	/// Polls every TCP socket, with no root. UDP, QUIC among it, counts as
+	/// internet.
+	Sockets,
+}
+
+impl Split {
+	pub fn parse(s: &str) -> Option<Split> {
+		match s.to_ascii_lowercase().as_str() {
+			"off" => Some(Split::Off),
+			"sockets" => Some(Split::Sockets),
+			_ => None,
+		}
+	}
+}
+
 /// The group every color is in, and the id of the dropdown that picks one.
 pub const THEME: &str = "theme";
 
@@ -572,6 +593,7 @@ pub struct Look {
 	pub net_width: u32,
 	pub net_sample: u32,
 	pub net_time: Option<Timing>,
+	pub net_split: Split,
 	/// Draw the load graph.
 	pub show_load: bool,
 	/// A percentage of `width`. See [`Look::share`].
@@ -630,8 +652,8 @@ pub struct Look {
 	pub zswap: [Rgb; 1],
 	pub zswap_mode: Mode,
 	pub zswap_gradient: [Rgb; 3],
-	/// In `net::NetReader::SERIES` order.
-	pub net: [Rgb; 3],
+	/// In `net::Traffic::SERIES` order.
+	pub net: [Rgb; 5],
 	pub net_mode: Mode,
 	pub net_gradient: [Rgb; 3],
 	pub load: [Rgb; 1],
@@ -759,6 +781,7 @@ impl Look {
 			net_width: num("net_width") as u32,
 			net_sample: num("net_sample") as u32,
 			net_time: Timing::parse(m.value("net_time", &NoEnv).as_text()),
+			net_split: Split::parse(m.value("net_split", &NoEnv).as_text()).unwrap_or_default(),
 			show_load: m.value("show_load", &NoEnv).as_bool(),
 			load_width: num("load_width") as u32,
 			load_sample: num("load_sample") as u32,
@@ -803,7 +826,13 @@ impl Look {
 				color("zswap_medium"),
 				color("zswap_high"),
 			],
-			net: [color("net_local"), color("net_sent"), color("net_received")],
+			net: [
+				color("net_local"),
+				color("net_lan_sent"),
+				color("net_lan_received"),
+				color("net_sent"),
+				color("net_received"),
+			],
 			net_mode: Mode::parse(m.value("net_mode", &NoEnv).as_text()).unwrap_or_default(),
 			net_gradient: [color("net_low"), color("net_medium"), color("net_high")],
 			load: [color("load_used")],
@@ -884,7 +913,7 @@ impl Look {
 		}
 	}
 
-	pub fn net_paint(&self) -> Paint<'_, 3> {
+	pub fn net_paint(&self) -> Paint<'_, 5> {
 		match self.net_mode {
 			Mode::Detailed => Paint::Stack(&self.net),
 			Mode::Gradient => Paint::Gradient(self.net_gradient),
@@ -1103,7 +1132,7 @@ mod tests {
 	fn the_default_theme_is_the_row_defaults() {
 		let spec = spec();
 		let g = spec.group(THEME).unwrap();
-		assert_eq!(g.members.len(), 115);
+		assert_eq!(g.members.len(), 117);
 		let default = g.preset("default").unwrap();
 		assert_eq!(default.label, "Default");
 		for id in &g.members {
@@ -1669,7 +1698,16 @@ mod tests {
 			for (graph, ids) in [
 				("cpu", &["iowait", "system", "user", "nice"][..]),
 				("mem", &["mem_user", "mem_buffers", "mem_cache"]),
-				("net", &["net_local", "net_sent", "net_received"]),
+				(
+					"net",
+					&[
+						"net_local",
+						"net_lan_sent",
+						"net_lan_received",
+						"net_sent",
+						"net_received",
+					],
+				),
 				("disk", &["disk_write", "disk_read"]),
 				("temp", &["temp_normal", "temp_critical"]),
 				(
@@ -1822,6 +1860,16 @@ mod tests {
 		);
 	}
 
+	// Test ID: demw1
+	#[test]
+	fn the_lan_split_is_off_unless_picked() {
+		assert_eq!(Look::default().net_split, Split::Off);
+		let l = Look::from_model(&model("net:\n\tsplit: sockets\n"));
+		assert_eq!(l.net_split, Split::Sockets);
+		let l = Look::from_model(&model("net:\n\tsplit: nope\n"));
+		assert_eq!(l.net_split, Split::Off);
+	}
+
 	// Test ID: dedqq
 	#[test]
 	fn the_graph_order_reads_with_spaces_or_commas() {
@@ -1922,7 +1970,7 @@ mod tests {
 			"themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n",
 		));
 		assert_eq!(t[0].name, "Say \"hi\"");
-		assert_eq!(t[0].colors.len(), 115);
+		assert_eq!(t[0].colors.len(), 117);
 		t.push(SavedTheme {
 			key: theme_key("Default", &t),
 			name: "Default".into(),

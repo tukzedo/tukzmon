@@ -12,7 +12,7 @@ use tukzmon_core::gpu::{GpuReader, VramReader};
 use tukzmon_core::graphs::{self, Drawn};
 use tukzmon_core::load::LoadReader;
 use tukzmon_core::mem::{MemoryReader, SwapReader};
-use tukzmon_core::net::NetReader;
+use tukzmon_core::net::Traffic;
 use tukzmon_core::own::OwnReader;
 use tukzmon_core::temp::TempReader;
 use tukzmon_core::zswap::ZswapReader;
@@ -25,7 +25,7 @@ pub struct Live {
 	/// None on a box with no GPU it can read.
 	gpu: Option<Graph<GpuReader, 1>>,
 	vram: Option<Graph<VramReader, 1>>,
-	net: Option<Graph<NetReader, 3>>,
+	net: Option<Graph<Traffic, 5>>,
 	/// None on a box with no swap.
 	swap: Option<Graph<SwapReader, 1>>,
 	/// None on a box with neither zswap on nor zram set up.
@@ -65,7 +65,7 @@ impl Live {
 			MemoryReader::SECTION => self.mem.as_ref().map(|g| g as &dyn Drawn),
 			GpuReader::SECTION => self.gpu.as_ref().map(|g| g as &dyn Drawn),
 			VramReader::SECTION => self.vram.as_ref().map(|g| g as &dyn Drawn),
-			NetReader::SECTION => self.net.as_ref().map(|g| g as &dyn Drawn),
+			Traffic::SECTION => self.net.as_ref().map(|g| g as &dyn Drawn),
 			SwapReader::SECTION => self.swap.as_ref().map(|g| g as &dyn Drawn),
 			ZswapReader::SECTION => self.zswap.as_ref().map(|g| g as &dyn Drawn),
 			LoadReader::SECTION => self.load.as_ref().map(|g| g as &dyn Drawn),
@@ -83,7 +83,7 @@ impl Live {
 			MemoryReader::SECTION => self.mem.as_mut().map(|g| g as &mut dyn Drawn),
 			GpuReader::SECTION => self.gpu.as_mut().map(|g| g as &mut dyn Drawn),
 			VramReader::SECTION => self.vram.as_mut().map(|g| g as &mut dyn Drawn),
-			NetReader::SECTION => self.net.as_mut().map(|g| g as &mut dyn Drawn),
+			Traffic::SECTION => self.net.as_mut().map(|g| g as &mut dyn Drawn),
 			SwapReader::SECTION => self.swap.as_mut().map(|g| g as &mut dyn Drawn),
 			ZswapReader::SECTION => self.zswap.as_mut().map(|g| g as &mut dyn Drawn),
 			LoadReader::SECTION => self.load.as_mut().map(|g| g as &mut dyn Drawn),
@@ -110,7 +110,7 @@ impl Live {
 				self.vram.as_mut().map(|g| g as &mut dyn Drawn),
 			),
 			(
-				NetReader::SECTION,
+				Traffic::SECTION,
 				self.net.as_mut().map(|g| g as &mut dyn Drawn),
 			),
 			(
@@ -183,7 +183,7 @@ impl Live {
 			MemoryReader::SECTION => l.mem_width,
 			GpuReader::SECTION => l.gpu_width,
 			VramReader::SECTION => l.vram_width,
-			NetReader::SECTION => l.net_width,
+			Traffic::SECTION => l.net_width,
 			SwapReader::SECTION => l.swap_width,
 			ZswapReader::SECTION => l.zswap_width,
 			LoadReader::SECTION => l.load_width,

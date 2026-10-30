@@ -24,6 +24,11 @@ pub enum Role {
 	Warn,
 	/// The pale end of a gradient.
 	Tint,
+	/// LAN sent: Hush's hue, between the lead and Tint, and kept apart from
+	/// the network's other colors.
+	Pale,
+	/// LAN received: Hush's hue, between Calm and the lead, kept apart too.
+	Deep,
 	Border,
 	Top,
 	Bottom,
@@ -101,6 +106,8 @@ pub const ROLES: &[(&str, Part, Role)] = &[
 	("zswap_back_bottom", Part::Zswap, Role::Bottom),
 	("net_mode", Part::Net, Role::Mode),
 	("net_local", Part::Net, Role::Calm),
+	("net_lan_sent", Part::Net, Role::Pale),
+	("net_lan_received", Part::Net, Role::Deep),
 	("net_sent", Part::Net, Role::Tint),
 	("net_received", Part::Net, Role::Lead),
 	("net_low", Part::Net, Role::Calm),
@@ -303,6 +310,8 @@ struct Hues {
 	calm: Hsv,
 	hush: Hsv,
 	tint: Hsv,
+	pale: Hsv,
+	deep: Hsv,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -396,7 +405,7 @@ fn scheme(seed: u64) -> Scheme {
 	}
 	let picked = picked.unwrap_or_default();
 	let mut calm_hs = [0.0; GRAPHS];
-	let graphs: [Hues; GRAPHS] = std::array::from_fn(|i| {
+	let mut graphs: [Hues; GRAPHS] = std::array::from_fn(|i| {
 		let h = hues[i];
 		let (lead_s, lead_v) = step(picked[i], s, v);
 		// a graph that stepped paler takes its other colors along, and one
@@ -407,6 +416,8 @@ fn scheme(seed: u64) -> Scheme {
 		calm_hs[i] = calm_h;
 		// mirrored, and pushed out so it's 30 degrees or more from calm
 		let off = calm_h - h;
+		let hush_h = (h - off.signum() * (1.0 / 12.0 - off.abs() / 2.0)).rem_euclid(1.0);
+		let calm_sv = (calm_s * ks, (calm_v * kv).min(lead_v * 0.62));
 		Hues {
 			lead: Hsv {
 				h,
@@ -415,11 +426,11 @@ fn scheme(seed: u64) -> Scheme {
 			},
 			calm: Hsv {
 				h: calm_h,
-				s: calm_s * ks,
-				v: (calm_v * kv).min(lead_v * 0.62),
+				s: calm_sv.0,
+				v: calm_sv.1,
 			},
 			hush: Hsv {
-				h: (h - off.signum() * (1.0 / 12.0 - off.abs() / 2.0)).rem_euclid(1.0),
+				h: hush_h,
 				s: calm_s * ks,
 				v: (calm_v * 1.2 * kv).min(lead_v * 0.72),
 			},
@@ -428,8 +439,23 @@ fn scheme(seed: u64) -> Scheme {
 				s: lead_s * 0.25,
 				v: 1.0,
 			},
+			pale: Hsv {
+				h: hush_h,
+				s: lead_s * 0.625,
+				v: f64::midpoint(lead_v, 1.0),
+			},
+			deep: Hsv {
+				h: hush_h,
+				s: f64::midpoint(calm_sv.0, lead_s),
+				v: f64::midpoint(calm_sv.1, lead_v),
+			},
 		}
 	});
+	// the LAN's 2 sit among local, sent and received, so they move off
+	// those till they read apart
+	let net = &mut graphs[Part::Net as usize];
+	net.deep = clear_of(net.deep, &[net.lead, net.calm, net.tint]);
+	net.pale = clear_of(net.pale, &[net.lead, net.calm, net.tint, net.deep]);
 	// a background takes its graph's lead hue or its calm one, and the
 	// Outline sub-tab's CPU's
 	let mut back_on = |i: usize| {
@@ -445,6 +471,37 @@ fn scheme(seed: u64) -> Scheme {
 		back,
 		backs,
 	}
+}
+
+/// The nearest color to `want` that reads apart from each of `others`, by
+/// hue, saturation and brightness steps. `want` when none does.
+fn clear_of(want: Hsv, others: &[Hsv]) -> Hsv {
+	let lab = |c: Hsv| Lab::of(pick::to_rgb(c));
+	let others: Vec<Lab> = others.iter().map(|&c| lab(c)).collect();
+	let mut steps: Vec<(f64, f64, f64)> = Vec::with_capacity(5 * 9 * 9);
+	for dh in [0.0, -1.0 / 36.0, 1.0 / 36.0, -1.0 / 18.0, 1.0 / 18.0] {
+		for ds in -4..=4 {
+			for dv in -4..=4 {
+				steps.push((dh, f64::from(ds) * 0.08, f64::from(dv) * 0.08));
+			}
+		}
+	}
+	steps.sort_by(|a, b| {
+		let far = |(h, s, v): &(f64, f64, f64)| h.abs() * 3.0 + s.abs() + v.abs();
+		far(a).total_cmp(&far(b))
+	});
+	steps
+		.into_iter()
+		.map(|(dh, ds, dv)| Hsv {
+			h: (want.h + dh).rem_euclid(1.0),
+			s: (want.s + ds).clamp(0.0, 1.0),
+			v: (want.v + dv).clamp(0.0, 1.0),
+		})
+		.find(|&c| {
+			let c = lab(c);
+			others.iter().all(|o| ciede2000(c, *o) >= APART + 1.0)
+		})
+		.unwrap_or(want)
 }
 
 fn hex(c: Hsv) -> String {
@@ -468,6 +525,8 @@ pub fn theme(seed: u64) -> Vec<(&'static str, String)> {
 				Role::Alarm => hex(k.alarm),
 				Role::Warn => hex(k.warn),
 				Role::Tint => hex(g.tint),
+				Role::Pale => hex(g.pale),
+				Role::Deep => hex(g.deep),
 				Role::Border => hex(k.back_of(part).border),
 				Role::Top => hex(k.back_of(part).top),
 				Role::Bottom => hex(k.back_of(part).bottom),
@@ -710,6 +769,30 @@ mod tests {
 				hue_gap(mem.hush.h, mem.calm.h) >= 30.0 / 360.0 - 1e-9,
 				"{seed}"
 			);
+		}
+	}
+
+	// Test ID: demw2
+	#[test]
+	fn the_lan_rolls_colors_that_read_apart_from_the_rest() {
+		use tukzmon_core::color::apart;
+		let ids = [
+			"net_local",
+			"net_sent",
+			"net_received",
+			"net_lan_received",
+			"net_lan_sent",
+		];
+		for seed in SEEDS {
+			let t = theme(seed);
+			let rgb = |id: &str| Rgb::parse(&t.iter().find(|(i, _)| *i == id).unwrap().1).unwrap();
+			// local, sent and received were rolled before the split
+			for (i, lan) in ids.iter().enumerate().skip(3) {
+				for other in &ids[..i] {
+					let d = apart(rgb(lan), rgb(other));
+					assert!(d >= APART, "{seed}: {lan} and {other} are {d:.1} apart");
+				}
+			}
 		}
 	}
 

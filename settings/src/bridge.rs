@@ -608,8 +608,8 @@ mod tests {
 				.cloned()
 				.collect()
 		};
-		// Default has the disk graph and both overrides on
-		assert_eq!(want(&d), Vec::<String>::new());
+		// Default has the disk graph and both overrides on, and network off
+		assert_eq!(want(&d), ["net_split"]);
 		assert_eq!(ffi::greyed_rows(&mut d), want(&d));
 		for g in &gates {
 			d.set(g, &Value::Bool(false));

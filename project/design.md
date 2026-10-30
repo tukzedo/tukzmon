@@ -76,7 +76,8 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- A graph gets a row once `core/src/settings.shcl` has its `<name>.show`, `.width`, `.sample` and `.time` settings.
 	- A box where `/proc/meminfo` can't be read never shows the memory graph.
 	- CPU, memory, GPU memory, disk, temperature, and swap are on by default, and the rest are off. A box with no swap, with neither zswap on nor zram set up, with no disk, with no CPU sensor it knows, with no GPU it can read, or with no battery in, never shows that one.
-	- Under Disk graph, below the order, Disk drives at `disk.drives` picks what the disk graph counts: `all`, the default, or `/proc/diskstats` names such as `sda nvme0n1`, with spaces or commas. A new pick takes effect at Apply and keeps the graph's history. Disk log scale, at `disk.log`, draws it on a log scale. See [Drawing](#drawing).
+	- Under Network graph, below the order, LAN and internet at `net.split` tells the LAN from the internet: `off`, the default, or `sockets`. See [Data sources on Linux](#data-sources-on-linux). It greys out while the network graph is off, as the disk rows do.
+	- Under Disk graph, Disk drives at `disk.drives` picks what the disk graph counts: `all`, the default, or `/proc/diskstats` names such as `sda nvme0n1`, with spaces or commas. A new pick takes effect at Apply and keeps the graph's history. Disk log scale, at `disk.log`, draws it on a log scale. See [Drawing](#drawing).
 	- With every other graph off, CPU shows anyway, so the item never shrinks to nothing, and its right-click menu stays in reach.
 	- A hidden graph isn't read. Its history is kept, and shows a gap for the time it was hidden.
 	- Dragging a row's gripper, or Up and Down on it, sets the order. It's saved at `graph.order`, which names the graphs first to last, left to right or top to bottom: `cpu`, `mem`, `gpu`, `vram`, `net`, `swap`, `zswap`, `load`, `disk`, `temp`, `battery` and `self`, by their history section names. The default is `cpu mem gpu vram net disk temp swap zswap load self battery`, so the busiest graphs come first, the GPU's 2 follow memory, zswap sits beside swap, and the battery is last. A saved order from before a graph was added puts it last.
@@ -188,8 +189,9 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - The swap graph's colors are in the Swap section: In use, at `swap.colors.used`, plus its own Low, Medium and High. Every built-in gives swap a hue and gradient of its own. Default's is amber, `#a45f00`, and Default and Fire draw swap as a gradient.
 
-- The network graph's colors are in the Network section: Local, Sent and Received, at `net.colors.local`, `.sent` and `.received`, plus its own Low, Medium and High. Received is the network's own hue, local is that hue muted, the same as Low, and sent is a pale tint of it, the same as High. Default's received is light blue, `#6ad4ff`, with local yellow, `#ffed00`, and sent a light red, `#ff7777`.
-	- The tip gives the 3 rates in bytes a second, in decimal units, such as "Received 1.5 MB/s  Sent 30 kB/s" over "Local 2.0 kB/s".
+- The network graph's colors are in the Network section: Local, LAN sent, LAN received, Sent and Received, at `net.colors.local`, `.lan_sent`, `.lan_received`, `.sent` and `.received`, plus its own Low, Medium and High. Received is the network's own hue, local is that hue muted, the same as Low, and sent is a pale tint of it, the same as High. Default's received is light blue, `#6ad4ff`, with local yellow, `#ffed00`, and sent a light red, `#ff7777`.
+	- With the split on, sent and received are the internet's. In the built-ins LAN received sits between Low and Medium, and LAN sent between Medium and High, each moved as little as it takes to read 10 or more from the other 4.
+	- The tip gives the 3 rates in bytes a second, in decimal units, such as "Received 1.5 MB/s  Sent 30 kB/s" over "Local 2.0 kB/s". With the split on it gives "Internet received" and "LAN received" lines, each with its sent.
 
 - The load graph's colors are in the Load section: Load, at `load.colors.load`, plus its own Low, Medium and High. Default's is a dark red gradient, `#553030`, `#924444` and `#eb4a4a`. Its tip reads like "Load 1.25".
 
@@ -237,6 +239,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- Every graph leads at one saturation and brightness, so a roll reads as one set.
 		- Where 2 leads would still look alike, or a lead would look like I/O wait or system, one of them steps darker or paler, until every 2 are 10 or more apart as the built-ins are. With 12 graphs a set of hues often has no such steps, so up to 128 sets are drawn. CPU's lead never steps, since the rest fit round it. A graph that steps paler takes its quiet colors and tint along, and one that steps darker keeps its quiet colors clear of the background.
 		- A roll tries up to 16 hue draws for that, the same ones for the same seed. Over 10,000 seeds every roll found one.
+	- The network's LAN received is between its quiet color and its lead, and LAN sent between its lead and tint, both on the buffers' side of the lead. Each steps in hue, saturation and brightness till it's 11 or more from the network's other colors. Without that a third of 2,000 seeds had a pair under 10.
 	- A roll is always Detailed. Each graph's gradient runs from its quiet color through its lead to a pale tint, like the built-ins', so it's ready if Gradient is picked. The hover line stays black.
 	- Buffers has a role of its own. It's muted like cache, but on the other side of the lead hue and at least 30 degrees from cache, so that way the 2 are told apart.
 	- Every theme member needs a role in `dice::ROLES`. A new graph's members fail `dice::tests::every_theme_member_has_a_role` until they get one, such as buffers and cache as muted ones.
@@ -289,6 +292,14 @@ Splitting network traffic into LAN and internet is optional, backlog item 202610
 - eBPF. It's exact, and it needs root too. It isn't offered unless the other two fall short.
 
 Either way the LAN is what's counted, and the internet is the rest of what the interfaces carried. So UDP and QUIC to the LAN show as internet with socket polling. The LAN can't be more than the interfaces carried.
+
+The way is picked at `net.split`, a dropdown with `off` and `sockets`. The nftables set is deferred, 2026102914561248, and joins it as a third value when it's done, so a saved pick still reads.
+
+- The network graph always draws 5 series: local, LAN sent, LAN received, sent and received. With the split off the LAN's 2 are 0, so sent and received are everything, as before. `net::Traffic` has it.
+
+- A failed LAN poll is a gap in the whole graph, so the LAN's bytes never show as internet.
+
+- A history saved with 3 series doesn't read as 5, so the network graph starts over once after the update.
 
 With socket polling, `core/src/lan.rs` asks `sock_diag` for every TCP socket's `tcp_info`. A socket is on the LAN when its far end is a private IPv4 address (10/8, 172.16/12 or 192.168/16), a link-local one, an IPv6 unique local or link-local address, or in this end's own IPv6 /64. Loopback and the box's own addresses go through `lo`, so they stay local. Its bytes are `tcpi_bytes_acked` and `tcpi_bytes_received`, plus 66 bytes of headers for each segment on IPv4 and 86 on IPv6, since `/proc/net/dev` counts those. A socket new since the last poll moved all it has, and a failed poll is a gap.
 
