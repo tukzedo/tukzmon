@@ -56,6 +56,7 @@
 #include <map>
 #include <string>
 #include <tuple>
+#include <utility>
 #include <memory>
 #include <vector>
 
@@ -628,8 +629,11 @@ public:
 			for (auto &r : rows)
 				if (r->label && !r->info.section.empty() && size_t(r->info.beside) == side)
 					labelWidth = std::max(labelWidth, r->label->sizeHint().width());
-			for (auto &s : sections)
+			for (auto &s : sections) {
 				s.side[side]->setColumnMinimumWidth(0, labelWidth);
+				if (side == 0 && s.lead)
+					s.lead->setColumnMinimumWidth(0, labelWidth);
+			}
 		}
 		connect(tabList, &QListWidget::currentRowChanged, this, [this](int i) { showTab(i); });
 
@@ -701,7 +705,12 @@ public:
 		auto *w = qobject_cast<QWidget *>(obj);
 		if (!w || w->window() != this)
 			return false;
-		int key = static_cast<QKeyEvent *>(ev)->key();
+		const auto *k = static_cast<QKeyEvent *>(ev);
+		const int key = k->key();
+		if ((key == Qt::Key_Tab || key == Qt::Key_Backtab) && (k->modifiers() & Qt::ControlModifier)) {
+			stepTab(key == Qt::Key_Backtab || (k->modifiers() & Qt::ShiftModifier) ? -1 : 1);
+			return true;
+		}
 		if (key == Qt::Key_Escape) {
 			reject();
 			return true;
@@ -859,6 +868,34 @@ public:
 		return out;
 	}
 
+	// "graph left right" per section: how far down its box the left column's
+	// first row under the colors mode starts, and the right column's first
+	std::vector<std::string> sectionTops() const {
+		std::vector<std::string> out;
+		for (auto &s : sections) {
+			std::array<int, 2> top{-1, -1};
+			bool mode = true;
+			for (auto &r : rows) {
+				if (r->info.section != s.graph || r.get() == s.title)
+					continue;
+				const size_t side = r->info.beside ? 1 : 0;
+				int y = INT_MAX;
+				for (QWidget *w : {static_cast<QWidget *>(r->head), static_cast<QWidget *>(r->label), r->control,
+						 static_cast<QWidget *>(r->revert)})
+					if (w && w->isVisibleTo(s.box))
+						y = std::min(y, w->mapTo(s.box, QPoint()).y());
+				if (y == INT_MAX)
+					continue;
+				if (side == 0 && std::exchange(mode, false) && !r->head)
+					continue;
+				if (top[side] < 0)
+					top[side] = y;
+			}
+			out.push_back(s.graph + " " + std::to_string(top[0]) + " " + std::to_string(top[1]));
+		}
+		return out;
+	}
+
 	// the shown page's scroll area, as "view content": the height it shows and
 	// the height its page asks for
 	std::string scrollNow() const {
@@ -931,6 +968,19 @@ private:
 		}
 	}
 
+	// Ctrl+Tab goes page by page, as a tab bar does, so a parent that only
+	// shows its first sub-tab isn't a stop of its own.
+	void stepTab(int by) {
+		const int n = tabList->count();
+		for (int i = tabList->currentRow(), left = n; left > 0; left--) {
+			i = (i + by + n) % n;
+			if (isLeaf(i)) {
+				tabList->setCurrentRow(i);
+				return;
+			}
+		}
+	}
+
 	// The line picked keeps the highlight. The sub-tab it shows and the tabs
 	// over either get a dimmer one, so Themes stays lit under a sub-tab.
 	void lightAlong(int picked, int shown) {
@@ -955,6 +1005,11 @@ private:
 		std::string graph;
 		QWidget *box = nullptr;
 		Row *title = nullptr;
+		QGridLayout *outer = nullptr;
+		// the first row on the left, its colors mode, over both columns
+		QGridLayout *lead = nullptr;
+		int leadLine = 0;
+		bool leadDone = false;
 		std::array<QGridLayout *, 2> side{};
 		std::array<int, 2> line{};
 	};
@@ -985,6 +1040,31 @@ private:
 			sectionList->addWidget(w);
 	}
 
+	// Whatever the mode shows first on the left sits level with the top of
+	// the right column, Background. So the first thing shown in a column
+	// has no gap over it, and a heading's gap goes over both columns.
+	void lineUpSections() {
+		for (auto &s : sections) {
+			std::array<bool, 2> above{};
+			bool headFirst = false;
+			for (auto &rp : rows) {
+				Row &r = *rp;
+				const size_t side = r.grid == s.side[0] ? 0 : r.grid == s.side[1] ? 1 : 2;
+				if (side == 2)
+					continue;
+				QWidget *w = r.head ? static_cast<QWidget *>(r.head) : r.label;
+				if (!w || w->isHidden())
+					continue;
+				if (side == 0 && !above[0])
+					headFirst = r.head != nullptr;
+				if (r.head && r.gap >= 0)
+					r.grid->setRowMinimumHeight(r.gap, above[side] ? HEAD_GAP : 0);
+				above[side] = true;
+			}
+			s.outer->setRowMinimumHeight(3, s.lead && headFirst ? HEAD_GAP : 0);
+		}
+	}
+
 	static QGridLayout *rowGrid(QWidget *on) {
 		auto *grid = new QGridLayout(on);
 		grid->setColumnStretch(1, 1);
@@ -1008,6 +1088,7 @@ private:
 		Section s{std::string(r.info.section)};
 		s.box = new QWidget;
 		auto *g = new QGridLayout(s.box);
+		s.outer = g;
 		g->setContentsMargins(0, 0, 0, 0);
 		g->setColumnStretch(0, 1);
 		g->setColumnStretch(1, 1);
@@ -1031,7 +1112,7 @@ private:
 			auto *col = new QWidget;
 			s.side[size_t(side)] = rowGrid(col);
 			s.side[size_t(side)]->setContentsMargins(0, 0, 0, 0);
-			g->addWidget(col, 2, side, Qt::AlignTop);
+			g->addWidget(col, 4, side, Qt::AlignTop);
 		}
 		sectionList->addWidget(s.box);
 		sections.push_back(s);
@@ -1060,7 +1141,15 @@ private:
 			if (s.title == &r)
 				continue;
 			const size_t side = r.info.beside ? 1 : 0;
-			placeRow(r, info, s.side[side], s.line[side]);
+			if (side == 0 && !std::exchange(s.leadDone, true) && std::string(r.info.control) != "heading") {
+				auto *top = new QWidget;
+				s.lead = rowGrid(top);
+				s.lead->setContentsMargins(0, 0, 0, 0);
+				s.outer->addWidget(top, 2, 0, Qt::AlignTop);
+				placeRow(r, info, s.lead, s.leadLine);
+				continue;
+			}
+			placeRow(r, info, s.side[side], s.line[side], true);
 		}
 		if (!scrolls)
 			return page;
@@ -1074,8 +1163,11 @@ private:
 		return scroll;
 	}
 
-	void placeRow(Row &r, const TabInfo &info, QGridLayout *grid, int &line) {
+	// A heading gets a gap over it, which a column's first one in a section
+	// keeps for when a mode hides what's over it.
+	void placeRow(Row &r, const TabInfo &info, QGridLayout *grid, int &line, bool inSection = false) {
 		QString label = qs(r.info.label);
+		r.grid = grid;
 		if (std::string(r.info.control) == "heading") {
 			// a heading that only repeats the tab's name says nothing
 			if (label == qs(info.label))
@@ -1087,8 +1179,7 @@ private:
 			auto *rule = new QFrame;
 			rule->setFrameShape(QFrame::HLine);
 			rule->setFrameShadow(QFrame::Sunken);
-			if (line > 0) {
-				r.grid = grid;
+			if (line > 0 || inSection) {
 				r.gap = line;
 				grid->setRowMinimumHeight(line++, HEAD_GAP);
 			}
@@ -1488,7 +1579,7 @@ private:
 				const bool shown = row_state(d, r.id()).shown;
 				r.head->setVisible(shown);
 				r.rule->setVisible(shown);
-				if (r.grid)
+				if (r.gap >= 0)
 					r.grid->setRowMinimumHeight(r.gap, shown ? HEAD_GAP : 0);
 			}
 			// the graph list's rows have a control and no label or revert
@@ -1560,6 +1651,7 @@ private:
 		if (list)
 			refreshList();
 		orderSections();
+		lineUpSections();
 		if (saveTheme) {
 			auto b = theme_buttons(d);
 			saveTheme->setEnabled(b.save);
@@ -1717,6 +1809,52 @@ rust::Vec<rust::String> sections_after_move(Dialog &d, std::size_t from, std::si
 	app.processEvents();
 	rust::Vec<rust::String> out;
 	for (auto &s : w.sectionPlaces())
+		out.push_back(rust::String(s));
+	return out;
+}
+
+rust::Vec<rust::String> tabs_by_key(Dialog &d, bool back, bool fromPage) {
+	static int argc = 1;
+	static char name[] = "tukzmon-settings";
+	static char *argv[] = {name, nullptr};
+	qputenv("QT_QPA_PLATFORM", "offscreen");
+	QApplication app(argc, argv);
+	Window w(d);
+	w.show();
+	w.activateWindow();
+	app.processEvents();
+	if (fromPage)
+		if (QWidget *box = w.firstBox(true))
+			box->setFocus();
+	rust::Vec<rust::String> out;
+	for (int i = 0; i < w.tabCount(); i++) {
+		out.push_back(rust::String(QString::fromStdString(w.selectedText()).trimmed().toStdString()));
+		QWidget *to = QApplication::focusWidget() ? QApplication::focusWidget() : &w;
+		QKeyEvent down(QEvent::KeyPress, back ? Qt::Key_Backtab : Qt::Key_Tab,
+			back ? Qt::ControlModifier | Qt::ShiftModifier : Qt::ControlModifier);
+		// Qt runs app filters only on the thread that made the first
+		// QApplication, and each test has a thread of its own
+		if (!w.eventFilter(to, &down))
+			QApplication::sendEvent(to, &down);
+		app.processEvents();
+	}
+	return out;
+}
+
+rust::Vec<rust::String> section_tops(Dialog &d) {
+	static int argc = 1;
+	static char name[] = "tukzmon-settings";
+	static char *argv[] = {name, nullptr};
+	qputenv("QT_QPA_PLATFORM", "offscreen");
+	QApplication app(argc, argv);
+	Window w(d);
+	w.show();
+	for (int i = 0; i < w.tabCount(); i++)
+		if (QString::fromStdString(w.tabText(i)).trimmed() == "Colors")
+			w.select(i);
+	app.processEvents();
+	rust::Vec<rust::String> out;
+	for (auto &s : w.sectionTops())
 		out.push_back(rust::String(s));
 	return out;
 }

@@ -15,6 +15,8 @@ struct TabShown;
 rust::Vec<TabShown> tabs_shown(Dialog &d);
 rust::Vec<TabShown> tabs_after_move(Dialog &d, rust::Str pick, std::size_t from, std::size_t to);
 rust::Vec<rust::String> sections_after_move(Dialog &d, std::size_t from, std::size_t to);
+rust::Vec<rust::String> tabs_by_key(Dialog &d, bool back, bool fromPage);
+rust::Vec<rust::String> section_tops(Dialog &d);
 rust::Vec<rust::String> bottom_buttons(Dialog &d);
 rust::Vec<bool> apply_while_typing(Dialog &d, bool number);
 rust::Vec<rust::String> page_shades(Dialog &d, bool dark);

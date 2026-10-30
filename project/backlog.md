@@ -176,20 +176,41 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Ctrl+Tab skips Themes|Colors
 	- ID: 2026103009394901
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting on UAT
+		- Ctrl+Tab stepping onto Colors was checked here, but the skip as reported wasn't seen. See Needs hand testing.
+	- Needs hand testing: on b23, with the settings window open, Ctrl+Tab from General goes to Graphs, Colors, Outline and back to General, and Ctrl+Shift+Tab goes the other way.
 	- Priority|Severity: Avg
 	- Opened: 20261030-093949
 	- Opened by: t00mietum
 	- Incorrect behavior: Ctrl+Tab order skips Themes|Colors and goes straight to Themes|Outline.
+	- Reproduced: In part, 2026-10-30. Here Ctrl+Tab did nothing at all, from the tab list or from a field, in the current build and in dekwp.
+	- Actual cause: The window never handled Ctrl+Tab. The tab widget that did went away with the sub-tabs moving into the tab list (`b52a55b`).
+	- Actual fix: Ctrl+Tab and Ctrl+Shift+Tab step through the pages, wrapping, from anywhere in the window.
+	- Decisions:
+		- Each page is a stop once: General, Graphs, Colors, Outline. Themes itself isn't a stop, since picking it only shows Colors.
+		- Only Ctrl+Tab and Ctrl+Shift+Tab, not Ctrl+PageUp and PageDown, since the issue names those.
+	- Branch: round-1030
+	- Test case: `bridge::tests::ctrl_tab_steps_through_every_page_colors_too` (demvm). It fails with the key left unhandled.
+		- Swept: Themes is the only tab with sub-tabs.
 
 - Pre-next-cut: Themes|Colors labels out of vertical alignment
 	- ID: 2026103009394902
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
+		- It departs from the wording in one way. In a section with one color, such as Swap, Background now starts level with that color, In use, not with the Colors mode row.
 	- Priority|Severity: Avg
 	- Opened: 20261030-093949
 	- Opened by: t00mietum
 	- Incorrect behavior: The vertical alignment on Themes|Colors is messed up. The labels "From the bottom up" and "Background" should be on the same horizontal line. They used to be, but now "Background" is higher.
+	- Reproduced: Yes, 2026-10-30. Background sat 51 px above From the bottom up in every section with 2 or more colors.
+	- Actual cause: The right column started level with the Colors mode row, so Background sat beside the mode, not beside the heading under it.
+	- Actual fix: The mode row sits on its own line over both columns. A column's first shown heading has no gap over it, and the gap goes over both columns, so Background lines up with From the bottom up, or By height in Gradient.
+	- Decisions:
+		- Lined up by what's shown, not a fixed line, since Gradient hides the first heading and shows By height lower down.
+	- Branch: round-1030
+	- Test case: `bridge::tests::the_colors_under_the_mode_start_level_with_background` (demvn), in Detailed and Gradient. It fails without the fix, at 86 px against 35.
+		- Swept: every graph section on Colors. Outline and the other tabs have one column.
+	- Closed: 20261030-103119
 
 - LAN and internet split: setting and the 5-series network graph
 	- ID: 2026102914561233
