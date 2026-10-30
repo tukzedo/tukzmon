@@ -22,10 +22,32 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- Intel GPU busy share through its perf counters
+	- ID: 2026103010322277
+	- Type: Enhancement
+	- Status: Deferred
+	- Priority|Severity: Low
+	- Opened: 20261030-103222
+	- Opened by:
+	- Related IDs: 2026102819145597, 2026102819145598
+	- Progress log:
+		- Filed 2026-10-30 from the answer on the GPU graphs: deferred with no date. Intel has no busy share without root or a lowered perf_event_paranoid, so it gets no GPU graph.
+
+- GPU picker for boxes with more than one GPU
+	- ID: 2026103010322267
+	- Type: Enhancement
+	- Status: Deferred
+	- Priority|Severity: Low
+	- Opened: 20261030-103222
+	- Opened by:
+	- Related IDs: 2026102819145597, 2026102819145598
+	- Progress log:
+		- Filed 2026-10-30 from the answer on the GPU graphs: deferred with no date. The GPU graphs read the first GPU only.
+
 - LAN and internet split: nftables counter set
 	- ID: 2026102914561248
 	- Type: Feature
-	- Status: Waiting for answers
+	- Status: Deferred
 	- Priority|Severity: Low
 	- Opened: 20261029-145612
 	- Opened by: t00mietum
@@ -34,6 +56,7 @@ Sorted per the notes in [Template](#template).
 	- Prereq IDs: 2026102914561233
 	- 2026-10-29: waits on the question in questions.md on how the plugin reads the counters, since `nft list counters` needs root too, not just the install.
 	- Installing the set and the reader's test on b23 are a sudo path, so they're a hand test.
+	- Answered 2026-10-30: deferred with no date. The LAN split uses the non-root socket reader for now.
 
 - Pre-next-cut: "Sample ms" becomes "Sample %"
 	- ID: 2026102819145599
