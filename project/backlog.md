@@ -170,6 +170,24 @@ Sorted per the notes in [Template](#template).
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
 	- 2026-10-29: split into 3 children: the TCP socket reader 2026102914561218, the setting and the 5-series graph 2026102914561233, and the nftables counter set 2026102914561248. This closes with the last of them.
 
+- Pre-next-cut: Ctrl+Tab skips Themes|Colors
+	- ID: 2026103009394901
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261030-093949
+	- Opened by: t00mietum
+	- Incorrect behavior: Ctrl+Tab order skips Themes|Colors and goes straight to Themes|Outline.
+
+- Pre-next-cut: Themes|Colors labels out of vertical alignment
+	- ID: 2026103009394902
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261030-093949
+	- Opened by: t00mietum
+	- Incorrect behavior: The vertical alignment on Themes|Colors is messed up. The labels "From the bottom up" and "Background" should be on the same horizontal line. They used to be, but now "Background" is higher.
+
 - LAN and internet split: setting and the 5-series network graph
 	- ID: 2026102914561233
 	- Type: Feature
