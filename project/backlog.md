@@ -48,17 +48,6 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: The workflow is its own test. Its first run is in the row above.
 
-- Pre-next-cut: Ctrl+PgDn and Ctrl+PgUp skip Graphs and Themes|Colors
-	- ID: 2026103015255983
-	- Type: Bug
-	- Status: Queued
-	- Needs hand testing: Yes
-	- Priority|Severity: Avg
-	- Opened: 20261030-152559
-	- Opened by: t00mietum
-	- Related IDs: 2026103009394901
-	- Incorrect behavior: Ctrl+PgDn and Ctrl+PgUp order skips Graphs and Themes|Colors, and goes straight to Themes|Outline.
-
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
 	- Type: Bug
@@ -2123,6 +2112,25 @@ Sorted per the notes in [Template](#template).
 		- Swept: every `History::encode` and `decode` caller (`Graph::section`, `Graph::adopt`, `Graphs::save` carrying hidden sections, the tests), every `keep::read` and `keep::write` caller, and the settings tests that write a history file.
 	- Closed: 20261030-105637
 
+- Pre-next-cut: Ctrl+PgDn and Ctrl+PgUp skip Graphs and Themes|Colors
+	- ID: 2026103015255983
+	- Type: Bug
+	- Status: Done
+	- Needs hand testing: No. Same path as Ctrl+Tab, and den56 sends the keys through it.
+	- Priority|Severity: Avg
+	- Opened: 20261030-152559
+	- Opened by: t00mietum
+	- Related IDs: 2026103009394901
+	- Incorrect behavior: Ctrl+PgDn and Ctrl+PgUp order skips Graphs and Themes|Colors, and goes straight to Themes|Outline.
+	- Reproduced: Yes, 2026-10-30. From General, each Ctrl+PgDn went to Outline and stayed there.
+	- Actual cause: Only Ctrl+Tab was handled, as 2026103009394901 decided. The tab list took Ctrl+PgDn and Ctrl+PgUp as a page jump, to its last or first line.
+	- Actual fix: Ctrl+PgDn and Ctrl+PgUp step through the pages the same as Ctrl+Tab and Ctrl+Shift+Tab, from anywhere in the window.
+	- Decisions:
+		- This reverses that item's call to leave out Ctrl+PgUp and Ctrl+PgDn. Both are the usual next and previous tab keys.
+	- Branch: pgkeys
+	- Test case: `bridge::tests::ctrl_page_down_and_up_step_like_ctrl_tab` (den56), from the tab list and from a number box. It fails without the fix with General, Outline, Outline, Outline.
+	- Closed 2026-10-30.
+
 - Pre-next-cut: Ctrl+Tab skips Themes|Colors
 	- ID: 2026103009394901
 	- Type: Bug
@@ -2139,6 +2147,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- Each page is a stop once: General, Graphs, Colors, Outline. Themes itself isn't a stop, since picking it only shows Colors.
 		- Only Ctrl+Tab and Ctrl+Shift+Tab, not Ctrl+PageUp and PageDown, since the issue names those.
+			- Reversed by 2026103015255983, which adds Ctrl+PgDn and Ctrl+PgUp.
 	- Branch: round-1030
 	- Test case: `bridge::tests::ctrl_tab_steps_through_every_page_colors_too` (demvm). It fails with the key left unhandled.
 		- Swept: Themes is the only tab with sub-tabs.
