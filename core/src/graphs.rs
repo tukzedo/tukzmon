@@ -1130,9 +1130,11 @@ mod tests {
 		let sections = keep::read(&path).unwrap();
 		let ends = |name: &str| {
 			let body = &sections.iter().find(|(n, _)| n == name).unwrap().1;
+			// read with a series count of 0 put at its head
+			assert_eq!(body[..4], [0; 4]);
 			let f = |at: usize| f64::from_le_bytes(body[at..at + 8].try_into().unwrap());
-			assert_eq!(u32::from_le_bytes(body[16..20].try_into().unwrap()), 5);
-			(Some(f(0)), Some(f(8)))
+			assert_eq!(u32::from_le_bytes(body[20..24].try_into().unwrap()), 5);
+			(Some(f(4)), Some(f(12)))
 		};
 		let (cpu, mem) = (ends("cpu"), ends("mem"));
 		// so it never ages out
@@ -1159,7 +1161,7 @@ mod tests {
 			keep::read(&path)
 				.unwrap()
 				.iter()
-				.all(|(_, body)| body[16..20] == tiers)
+				.all(|(_, body)| body[20..24] == tiers && body[..4] != [0; 4])
 		);
 		let mut back = Graphs::new(look);
 		back.load(&path).unwrap();

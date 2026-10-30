@@ -25,14 +25,34 @@ Sorted per the notes in [Template](#template).
 - History file sections don't record their series count
 	- ID: 2026103010491713
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-30.
 	- Priority|Severity: Avg
 	- Opened: 20261030-104917
 	- Opened by:
 	- Related IDs: 2026102914561233
 	- Incorrect behavior: A saved history section has no series count. One saved with another count, such as the network graph's 3 before round-1030's 5, is refused only because its bytes stop lining up. A layout that happens to fit would load as wrong history.
+	- Reproduced: Yes. An empty 3-series section loaded as a 5-series one, since with no buckets the layouts match.
+	- Actual cause: The section format had no field for the count.
+	- Estimated effort: Low
+	- Actual effort: Low
 	- Progress log:
 		- Filed 2026-10-30 from the LAN split worker's report. demw3 checks the network case refuses today.
+		- The history file is version 2. Each section starts with its series count, and decode refuses another count.
+		- A version 1 file still reads. Its sections come back with a count of 0, which decode takes to mean "go by the layout", as before.
+		- `design.md` History has the details.
+		- Verified: a copy of b23's 11 MB plugin-16.hist loads in every shown graph, and its next save reads back. The hidden graphs' sections are saved back byte for byte.
+		- Verified: the full run passed.
+	- Decisions:
+		- The count is at the head of each section, not in the file's section header, so `keep` stays a plain store of named sections and `History` checks its own count.
+		- `keep::read` puts a 0 count on a version 1 file's sections, rather than passing the version on to each graph, so no caller's signature changes. A hidden graph's old section keeps its 0 when saved again, so it's never taken as counted.
+		- An older build refuses a version 2 file as a whole and starts fresh, as it already does for a file with a new tier. Only an upgrade keeps history.
+	- Actual fix: `History::encode` writes the count first, `History::decode` checks it, and `keep` writes version 2 and reads 1 or 2.
+	- Branch: round-1030
+	- Test case: `history::tests::another_series_count_is_refused_by_its_count` (demwf), `keep::tests::a_version_1_files_sections_read_with_no_series_count` (demwg) and `tests::a_version_1_file_with_3_network_series_is_still_refused` (demwh). demwf fails with the count check taken out, and an empty 3-series section loads as 5 then. demw3 now refuses by the count.
+		- 2026-10-30: new values only, since sections are 4 bytes longer at the head. decbh's tier offsets are 24 and 40, not 20 and 36. defp7's are 20, 40 and 44, not 16, 36 and 40. defv4 reads the fixture's ends at 4 and 12, and its tier count at 20, not 0, 8 and 16, and also checks the fixture reads with a 0 count and the next save with a real one.
+		- Swept: every `History::encode` and `decode` caller (`Graph::section`, `Graph::adopt`, `Graphs::save` carrying hidden sections, the tests), every `keep::read` and `keep::write` caller, and the settings tests that write a history file.
+	- Closed: 20261030-105637
 
 - Intel GPU busy share through its perf counters
 	- ID: 2026103010322277

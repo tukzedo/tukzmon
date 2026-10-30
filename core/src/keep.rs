@@ -9,7 +9,8 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const MAGIC: &[u8; 8] = b"tukzhist";
-const VERSION: u32 = 1;
+// 2 put each graph's series count at the head of its section, 2026103010491713
+const VERSION: u32 = 2;
 
 /// `$XDG_DATA_HOME/tukzmon`, else `~/.local/share/tukzmon`.
 pub fn data_dir() -> PathBuf {
@@ -61,7 +62,8 @@ pub fn write(path: &Path, sections: &[(&str, &[u8])]) -> io::Result<()> {
 	std::fs::rename(&tmp, path)
 }
 
-/// Every section, by name.
+/// Every section, by name. A version 1 file's sections come back with a
+/// series count of 0 at their head, for "saved before there was one".
 ///
 /// # Errors
 ///
@@ -72,9 +74,11 @@ pub fn read(path: &Path) -> io::Result<Vec<(String, Vec<u8>)>> {
 		.strip_prefix(MAGIC)
 		.ok_or_else(|| bad("not a history file"))?;
 	let (version, rest) = rest.split_first_chunk::<4>().ok_or_else(|| bad("short"))?;
-	if u32::from_le_bytes(*version) != VERSION {
-		return Err(bad("history file version"));
-	}
+	let uncounted = match u32::from_le_bytes(*version) {
+		1 => true,
+		VERSION => false,
+		_ => return Err(bad("history file version")),
+	};
 	let (count, mut rest) = rest.split_first_chunk::<4>().ok_or_else(|| bad("short"))?;
 	let mut sections = Vec::new();
 	for _ in 0..u32::from_le_bytes(*count) {
@@ -86,7 +90,12 @@ pub fn read(path: &Path) -> io::Result<Vec<(String, Vec<u8>)>> {
 		let size = usize::try_from(u64::from_le_bytes(*size)).map_err(|_| bad("short"))?;
 		let (body, r) = r.split_at_checked(size).ok_or_else(|| bad("short"))?;
 		let name = std::str::from_utf8(name).map_err(|_| bad("section name"))?;
-		sections.push((name.to_owned(), body.to_vec()));
+		let body = if uncounted {
+			[&0u32.to_le_bytes()[..], body].concat()
+		} else {
+			body.to_vec()
+		};
+		sections.push((name.to_owned(), body));
 		rest = r;
 	}
 	if !rest.is_empty() {
@@ -220,6 +229,32 @@ mod tests {
 		let mut long = full.clone();
 		long.push(0);
 		std::fs::write(&path, &long).unwrap();
+		assert!(read(&path).is_err());
+		std::fs::remove_file(&path).unwrap();
+		std::fs::remove_dir(&dir).unwrap();
+	}
+
+	// Test ID: demwg
+	#[test]
+	fn a_version_1_files_sections_read_with_no_series_count() {
+		let dir = scratch("v1");
+		let path = dir.join("h");
+		let mut v1 = MAGIC.to_vec();
+		for x in [1u32, 1] {
+			v1.extend_from_slice(&x.to_le_bytes());
+		}
+		v1.push(3);
+		v1.extend_from_slice(b"cpu");
+		v1.extend_from_slice(&2u64.to_le_bytes());
+		v1.extend_from_slice(b"ab");
+		std::fs::write(&path, &v1).unwrap();
+		assert_eq!(
+			read(&path).unwrap(),
+			vec![("cpu".into(), b"\0\0\0\0ab".to_vec())]
+		);
+		// one from a later build isn't read
+		v1[8..12].copy_from_slice(&3u32.to_le_bytes());
+		std::fs::write(&path, &v1).unwrap();
 		assert!(read(&path).is_err());
 		std::fs::remove_file(&path).unwrap();
 		std::fs::remove_dir(&dir).unwrap();

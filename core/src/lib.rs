@@ -944,6 +944,39 @@ mod tests {
 		assert!(g.adopt(&sections));
 	}
 
+	// Test ID: demwh
+	#[test]
+	fn a_version_1_file_with_3_network_series_is_still_refused() {
+		let mut old = History::<3>::default();
+		let now = SystemTime::now()
+			.duration_since(SystemTime::UNIX_EPOCH)
+			.unwrap()
+			.as_secs_f64();
+		for i in 0..600 {
+			let t = now - 600.0 + f64::from(i);
+			old.add(t, t + 1.0, &[1.0, 2.0, 3.0]);
+		}
+		let mut body = Vec::new();
+		old.encode(&mut body);
+		// as the plugin wrote it before sections had a series count
+		let mut v1 = b"tukzhist".to_vec();
+		for x in [1u32, 1] {
+			v1.extend_from_slice(&x.to_le_bytes());
+		}
+		v1.push(3);
+		v1.extend_from_slice(b"net");
+		v1.extend_from_slice(&(body.len() as u64 - 4).to_le_bytes());
+		v1.extend_from_slice(&body[4..]);
+		let path = std::env::temp_dir().join(format!("test_tukzmon_net_v1_{}", std::process::id()));
+		std::fs::write(&path, &v1).unwrap();
+		let mut g = Graph::with(Look::default(), Traffic::default());
+		assert!(g.load(&path).is_err());
+		// by its layout, which still fits 3
+		let back = keep::read(&path).unwrap();
+		assert_eq!(History::<3>::decode(&back[0].1).unwrap().last(), old.last());
+		std::fs::remove_file(&path).unwrap();
+	}
+
 	// Test ID: demvz
 	#[test]
 	fn the_split_tip_names_the_lan_and_the_internet() {
