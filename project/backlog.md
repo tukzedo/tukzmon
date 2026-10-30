@@ -48,6 +48,17 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: The workflow is its own test. Its first run is in the row above.
 
+- Pre-next-cut: Ctrl+PgDn and Ctrl+PgUp skip Graphs and Themes|Colors
+	- ID: 2026103015255983
+	- Type: Bug
+	- Status: Queued
+	- Needs hand testing: Yes
+	- Priority|Severity: Avg
+	- Opened: 20261030-152559
+	- Opened by: t00mietum
+	- Related IDs: 2026103009394901
+	- Incorrect behavior: Ctrl+PgDn and Ctrl+PgUp order skips Graphs and Themes|Colors, and goes straight to Themes|Outline.
+
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
 	- Type: Bug
