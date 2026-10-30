@@ -1091,11 +1091,11 @@ mod tests {
 		assert_eq!(l.border_color, Rgb(0x8b, 0x8b, 0x8b));
 		assert_eq!(l.top, Rgb(0x31, 0x31, 0x31));
 		assert_eq!(l.bottom, Rgb(0, 0, 0));
-		assert_eq!((l.width, l.sample_ms, l.border), (128, 1000, 1));
+		assert_eq!((l.width, l.sample_ms, l.border), (100, 1000, 1));
 		assert_eq!(l.time, Timing::Log(Curve::Smooth));
-		assert_eq!(l.spikes, 0.5);
+		assert_eq!(l.spikes, 0.75);
 		assert_eq!(l.hover, Rgb(0, 0, 0));
-		assert_eq!(l.said, Said::Ago);
+		assert_eq!(l.said, Said::Clock);
 	}
 
 	// Test ID: deccf
@@ -1179,7 +1179,7 @@ mod tests {
 		let l = Look::from_model(&model("theme:\n\tname: pastel\n"));
 		assert_eq!(l.cpu[2], Rgb(0xa1, 0xc8, 0xf0));
 		assert_eq!(l.bottom, Rgb(0x0f, 0x12, 0x14));
-		assert_eq!(l.width, 128);
+		assert_eq!(l.width, 100);
 		assert_eq!(
 			Look::from_model(&model("theme:\n\tname: plaid\n")),
 			Look::default()
@@ -1242,7 +1242,7 @@ mod tests {
 		let g = s.group(THEME).unwrap();
 		for id in ["border_all", "back_all"] {
 			assert!(g.members.iter().any(|m| m == id), "{id}");
-			assert_eq!(s.get(id).unwrap().default, knobs::Value::Bool(false));
+			assert_eq!(s.get(id).unwrap().default, knobs::Value::Bool(true));
 		}
 		assert_eq!(
 			s.get("border_color").unwrap().gate.as_deref(),
@@ -1266,12 +1266,12 @@ mod tests {
 			bottom: Rgb(0x33, 0x33, 0x33),
 		};
 		let grey = Look::default().mem_outline;
-		let l = Look::from_model(&model(mine));
-		assert_eq!((l.cpu_outline, l.mem_outline), (own, grey));
 		let ticked = |border: bool, back: bool| {
 			let text = format!("{mine}\t\tborder: {border}\n\t\tbackground: {back}\n");
 			Look::from_model(&model(&text))
 		};
+		let l = ticked(false, false);
+		assert_eq!((l.cpu_outline, l.mem_outline), (own, grey));
 		let l = ticked(true, false);
 		assert_eq!(
 			l.cpu_outline,
@@ -1297,12 +1297,12 @@ mod tests {
 		] {
 			assert_eq!(o, shared);
 		}
-		// a saved theme keeps them, and one saved before them has them off
+		// a saved theme keeps them, and one saved before them has Default's
 		let mut t = saved_themes(&shcl::Document::parse("themes:\n\tx:\n\t\tname: X\n"));
-		assert_eq!(t[0].colors["back_all"], "off");
-		t[0].colors.insert("back_all".into(), "on".into());
+		assert_eq!(t[0].colors["back_all"], "on");
+		t[0].colors.insert("back_all".into(), "off".into());
 		let text = themes_text(&t);
-		assert!(text.contains("back_all: true\n"), "{text}");
+		assert!(text.contains("back_all: false\n"), "{text}");
 		let doc = shcl::Document::parse(&text);
 		assert!(theme_problems(&doc).is_empty());
 		assert_eq!(saved_themes(&doc), t);
@@ -1311,8 +1311,8 @@ mod tests {
 			&shcl::Document::parse("theme:\n\tname: x\n"),
 			&shcl::Document::new(),
 		);
-		assert!(m.value("back_all", &NoEnv).as_bool());
-		assert!(!m.value("border_all", &NoEnv).as_bool());
+		assert!(!m.value("back_all", &NoEnv).as_bool());
+		assert!(m.value("border_all", &NoEnv).as_bool());
 	}
 
 	// Test ID: dejkg
@@ -1355,10 +1355,12 @@ mod tests {
 			bottom: Rgb(0, 0, 0),
 		};
 		assert_eq!(outlines(&d), [grey; 12]);
+		// with the Outline sub-tab's overrides off, as Default has them on
+		let own = "graph:\n\toverrides:\n\t\tborder: false\n\t\tbackground: false\n";
 		// each graph reads its own, and no other graph's, here as Custom
-		let l = Look::from_model(&model(
-			"mem:\n\tcolors:\n\t\ttop: \"#123456\"\nself:\n\tcolors:\n\t\tborder: \"#abcdef\"\n\t\tbottom: \"#010203\"\n",
-		));
+		let l = Look::from_model(&model(&format!(
+			"{own}mem:\n\tcolors:\n\t\ttop: \"#123456\"\nself:\n\tcolors:\n\t\tborder: \"#abcdef\"\n\t\tbottom: \"#010203\"\n"
+		)));
 		let mut want = [grey; 12];
 		want[1].top = Rgb(0x12, 0x34, 0x56);
 		want[11].border = Rgb(0xab, 0xcd, 0xef);
@@ -1374,7 +1376,7 @@ mod tests {
 		// graph had its own keeps its look
 		let shared = "graph:\n\tcolors:\n\t\ttop: \"#123456\"\n";
 		let l = Look::from_model(&model(&format!(
-			"{shared}mem:\n\tcolors:\n\t\ttop: \"#654321\"\n"
+			"{shared}\toverrides:\n\t\tborder: false\n\t\tbackground: false\nmem:\n\tcolors:\n\t\ttop: \"#654321\"\n"
 		)));
 		assert_eq!(l.top, Rgb(0x12, 0x34, 0x56));
 		let mut want = [grey; 12].map(|o| Outline {
@@ -1726,8 +1728,8 @@ mod tests {
 	#[test]
 	fn each_graph_has_a_sample_rate_and_old_files_keep_the_default() {
 		let d = Look::default();
-		assert_eq!((d.cpu_sample, d.battery_sample), (100, 100));
-		assert_eq!(d.rate(d.cpu_sample), 1000);
+		assert_eq!((d.cpu_sample, d.battery_sample), (50, 100));
+		assert_eq!(d.rate(d.cpu_sample), 500);
 		let l = Look::from_model(&model(
 			"graph:\n\tsample_ms: 400\ncpu:\n\tsample: 250\nmem:\n\tsample: 5\nswap:\n\tsample: 33\n",
 		));
@@ -1740,7 +1742,7 @@ mod tests {
 		assert_eq!(l.rate(l.net_sample), 400);
 		// nor does the ms a graph had before it took a percentage
 		let old = Look::from_model(&model("cpu:\n\tsample_ms: 250\n"));
-		assert_eq!(old.rate(old.cpu_sample), 1000);
+		assert_eq!(old.rate(old.cpu_sample), 500);
 		let spec = spec();
 		for g in [
 			"cpu", "mem", "gpu", "vram", "net", "swap", "zswap", "load", "disk", "temp", "battery",
@@ -1752,7 +1754,13 @@ mod tests {
 			};
 			// set while its graph is off, and 100 is Sample ms default
 			assert_eq!(s.gate, None);
-			assert_eq!(s.default.as_f64(), 100.0);
+			let want = match g {
+				"cpu" | "mem" => 50.0,
+				"swap" | "zswap" | "load" => 200.0,
+				"self" => 400.0,
+				_ => 100.0,
+			};
+			assert_eq!(s.default.as_f64(), want, "{id}");
 			assert_eq!((s.min, s.max), (1.0, 1000.0));
 			assert_eq!(s.path, format!("{g}.sample"));
 		}
@@ -1821,7 +1829,7 @@ mod tests {
 			Look::default().order,
 			[
 				"cpu", "mem", "gpu", "vram", "net", "disk", "temp", "swap", "zswap", "load",
-				"battery", "self"
+				"self", "battery"
 			]
 		);
 		for text in [
@@ -1945,7 +1953,7 @@ mod tests {
 		assert_eq!(l.said, Said::Clock);
 		assert_eq!(l.hover, Rgb(0xff, 0xff, 0xff));
 		let l = Look::from_model(&Model::load(spec(), "graph:\n\thover_time: never\n", ""));
-		assert_eq!(l.said, Said::Ago);
+		assert_eq!(l.said, Said::Clock);
 	}
 
 	// Test ID: decbx
@@ -1969,14 +1977,14 @@ mod tests {
 
 	// Test ID: decbf
 	#[test]
-	fn history_is_kept_a_year_by_default() {
+	fn history_is_kept_four_weeks_by_default() {
 		let l = Look::default();
 		assert!(l.keep);
-		assert_eq!(l.max_days, 365);
+		assert_eq!(l.max_days, 28);
 		let text = "history:\n\tkeep: false\n\tmax_days: 0\n";
 		let l = Look::from_model(&Model::load(spec(), text, ""));
 		assert!(!l.keep);
-		assert_eq!(l.max_days, 365);
+		assert_eq!(l.max_days, 28);
 	}
 
 	// Test ID: debhk

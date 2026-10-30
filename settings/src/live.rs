@@ -252,7 +252,7 @@ mod tests {
 		live.sample();
 		std::thread::sleep(std::time::Duration::from_millis(30));
 		live.sample();
-		assert_eq!(live.width("cpu"), 128);
+		assert_eq!(live.width("cpu"), 100);
 		assert_eq!(live.width("nope"), 0);
 		assert!(live.render("nope", 10, 10, 1).is_empty());
 		assert!(live.tip("cpu").starts_with("CPU "), "{}", live.tip("cpu"));
@@ -293,6 +293,7 @@ mod tests {
 		let d = Dialog::open(path);
 		let mut look = d.look();
 		look.hover = tukzmon_core::config::Rgb(1, 2, 3);
+		look.said = tukzmon_core::when::Said::Ago;
 		let mut live = Live::new(look);
 		live.sample();
 		std::thread::sleep(std::time::Duration::from_millis(30));
@@ -367,6 +368,7 @@ mod tests {
 			std::process::id()
 		));
 		let mut d = Dialog::open(path);
+		d.set("cpu_sample", &Value::Float(100.0));
 		let mut live = Live::new(d.look());
 		// a beat due a little early counts as now, so the next is a rate on
 		let within = |rate: u32| f64::from(rate) + tukzmon_core::EARLY_MS;
@@ -404,7 +406,7 @@ mod tests {
 		live.sample();
 		// on by default, at a quarter of Width
 		assert!(d.look().show_swap);
-		assert_eq!(live.width("swap"), 32);
+		assert_eq!(live.width("swap"), 25);
 		// at 100 px, a width in percent is the same number
 		d.set("width", &Value::Float(100.0));
 		d.set("swap_width", &Value::Float(60.0));
@@ -482,7 +484,7 @@ mod tests {
 		live.sample();
 		std::thread::sleep(std::time::Duration::from_millis(30));
 		live.sample();
-		assert!(!d.look().show_load && !d.look().show_disk);
+		assert!(!d.look().show_load && d.look().show_disk);
 		// at 100 px, a width in percent is the same number
 		d.set("width", &Value::Float(100.0));
 		d.set("load_width", &Value::Float(60.0));
@@ -509,7 +511,7 @@ mod tests {
 		));
 		let mut d = Dialog::open(path);
 		let mut live = Live::new(d.look());
-		assert!(!d.look().show_temp);
+		assert!(d.look().show_temp);
 		// at 100 px, a width in percent is the same number
 		d.set("width", &Value::Float(100.0));
 		d.set("temp_width", &Value::Float(40.0));
@@ -537,7 +539,7 @@ mod tests {
 		));
 		let mut d = Dialog::open(path);
 		let mut live = Live::new(d.look());
-		assert!(!d.look().show_gpu && !d.look().show_vram);
+		assert!(!d.look().show_gpu && d.look().show_vram);
 		d.set("width", &Value::Float(100.0));
 		d.set("gpu_width", &Value::Float(30.0));
 		d.set("vram_width", &Value::Float(40.0));

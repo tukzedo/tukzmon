@@ -771,21 +771,36 @@ mod tests {
 
 	// The defaults before 2026-10-28, which these tests lay out: CPU and
 	// memory shown, every graph as wide as Width, in the order they were added.
-	// Default draws swap, zswap, load and temperature as gradients, and these
-	// tests read each series' own color
+	// Default draws swap, zswap, load, temperature and the GPU's as gradients,
+	// and these tests read each series' own color
 	fn two() -> Look {
 		Look {
+			width: 128,
 			swap_mode: Mode::Detailed,
 			zswap_mode: Mode::Detailed,
 			load_mode: Mode::Detailed,
 			temp_mode: Mode::Detailed,
+			gpu_mode: Mode::Detailed,
+			vram_mode: Mode::Detailed,
 			show_swap: false,
+			show_vram: false,
+			show_disk: false,
+			show_temp: false,
+			cpu_sample: 100,
+			mem_sample: 100,
+			swap_sample: 100,
+			zswap_sample: 100,
+			load_sample: 100,
+			self_sample: 100,
 			net_width: 100,
 			swap_width: 100,
 			zswap_width: 100,
 			load_width: 100,
 			disk_width: 100,
 			temp_width: 100,
+			gpu_width: 100,
+			vram_width: 100,
+			self_width: 25,
 			order: crate::config::graph_order("cpu mem net swap zswap load disk temp battery"),
 			..Look::default()
 		}
@@ -1783,7 +1798,7 @@ mod tests {
 			order: Look::default().order,
 			..g.look().clone()
 		};
-		assert!(!Look::default().show_gpu && !Look::default().show_vram);
+		assert!(!Look::default().show_gpu && Look::default().show_vram);
 		assert_eq!(&Look::default().order[..4], ["cpu", "mem", "gpu", "vram"]);
 		let none = Graphs::new(two());
 		assert!(none.gpu.is_none() && none.vram.is_none());
@@ -1836,7 +1851,7 @@ mod tests {
 
 	// Test ID: dejb7
 	#[test]
-	fn the_own_graph_sits_last_and_fills_at_every_cpu() {
+	fn the_own_graph_sits_before_battery_and_fills_at_every_cpu() {
 		let path = scratch("own");
 		let mut g = three();
 		let look = Look {
@@ -1845,10 +1860,7 @@ mod tests {
 			..g.look().clone()
 		};
 		assert!(!Look::default().show_self);
-		assert_eq!(
-			Look::default().order.last().map(String::as_str),
-			Some("self")
-		);
+		assert_eq!(Look::default().order[10..], ["self", "battery"]);
 		assert!(Graphs::new(two()).own.is_none());
 		g.own = Some(Graph::with(look.clone(), OwnReader::default()));
 		g.set_look(look.clone(), None).unwrap();

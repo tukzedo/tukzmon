@@ -7,9 +7,9 @@
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Said {
 	/// "7 hrs ago".
-	#[default]
 	Ago,
 	/// The local time, with the date too when it's before today.
+	#[default]
 	Clock,
 }
 

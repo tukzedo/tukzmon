@@ -1026,6 +1026,7 @@ mod tests {
 		let g = Graph::new(Look {
 			time: Timing::Linear,
 			sample_ms: 250,
+			cpu_sample: 100,
 			..Look::default()
 		});
 		assert_eq!(g.axis(100), Axis::linear(25.0));
@@ -1044,6 +1045,7 @@ mod tests {
 	fn a_graph_reads_on_the_beats_of_its_own_rate() {
 		let mut g = Graph::new(Look {
 			sample_ms: 500,
+			cpu_sample: 100,
 			..Look::default()
 		});
 		assert_eq!(g.sample_ms(), 500);
@@ -1095,7 +1097,10 @@ mod tests {
 
 	// a busy hour, then an idle one, ending now
 	fn two_hours() -> Graph {
-		let mut g = Graph::new(Look::default());
+		let mut g = Graph::new(Look {
+			said: Said::Ago,
+			..Look::default()
+		});
 		let now = g.now();
 		g.hist
 			.add(now - 7200.0, now - 3600.0, &[0.0, 0.0, 0.8, 0.0]);
@@ -1139,6 +1144,8 @@ mod tests {
 		let mut g = Graph::new(Look {
 			time: Timing::Linear,
 			sample_ms: 500,
+			cpu_sample: 100,
+			said: Said::Ago,
 			..Look::default()
 		});
 		let now = g.now();

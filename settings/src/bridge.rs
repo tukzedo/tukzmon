@@ -598,16 +598,8 @@ mod tests {
 				.cloned()
 				.collect()
 		};
-		assert_eq!(
-			want(&d),
-			[
-				"disk_drives",
-				"disk_log",
-				"border_color",
-				"back_top",
-				"back_bottom"
-			]
-		);
+		// Default has the disk graph and both overrides on
+		assert_eq!(want(&d), Vec::<String>::new());
 		assert_eq!(ffi::greyed_rows(&mut d), want(&d));
 		for g in &gates {
 			d.set(g, &Value::Bool(false));
@@ -886,7 +878,7 @@ mod tests {
 			.collect();
 		let want = d.section_order();
 		assert_eq!(names, want);
-		assert_eq!(names[0], "self");
+		assert_eq!(names[0], "battery");
 		for p in &placed {
 			let v: Vec<i64> = p.split(' ').skip(1).map(|n| n.parse().unwrap()).collect();
 			// what's beside starts right of where the main colors end

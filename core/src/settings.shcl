@@ -38,7 +38,7 @@ settings:
 		slider_range: 24, 1024
 		scale: log
 		path: graph.width
-		default: 128
+		default: 100
 		detents: 64, 128, 256
 		tip: "How wide a graph is in the panel at 100%. Each graph on the Graphs tab takes a percentage of it. Its height follows the panel.\n\nOn a vertical panel or a deskbar, this is how tall a graph is, and its width follows the panel. Time still runs from left to right."
 
@@ -77,7 +77,7 @@ settings:
 		whole: true
 		range: 0, 100
 		path: graph.spikes
-		default: 50
+		default: 75
 		tip: "How far a squeezed column reaches from its average toward its peak. At 0% every column shows only its average, so short spikes in older history are smoothed away. At 100% a column covering a few seconds shows its full peak. The reach fades as a column covers more time, so on the far left spikes melt into the background even at 100%."
 
 	hover_time:
@@ -87,7 +87,7 @@ settings:
 		options: ago, clock
 		option_labels: "How long ago", "Date and time"
 		path: graph.hover_time
-		default: ago
+		default: clock
 		tip: "What the tip says about the time under the pointer. How long ago reads like 7 hrs ago. Date and time gives just the time for today, and the date too for anything older, in your locale's short format."
 
 	LookHead:
@@ -135,7 +135,7 @@ settings:
 		whole: true
 		range: 1, 1000
 		path: cpu.sample
-		default: 100
+		default: 50
 		tip: "How often the CPU graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	cpu_time:
@@ -173,7 +173,7 @@ settings:
 		whole: true
 		range: 1, 1000
 		path: mem.sample
-		default: 100
+		default: 50
 		tip: "How often the memory graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	mem_time:
@@ -201,7 +201,7 @@ settings:
 		whole: true
 		range: 1, 1000
 		path: gpu.width
-		default: 100
+		default: 50
 		tip: "How wide the GPU graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
 
 	gpu_sample:
@@ -229,7 +229,7 @@ settings:
 		tab: Graphs
 		control: checkbox
 		path: vram.show
-		default: false
+		default: true
 		tip: "Show how much of the GPU's own memory is in use. The tip gives it in GiB too. It reads the same card as the GPU graph, and is left out on a box with neither an NVIDIA nor an AMD card."
 
 	vram_width:
@@ -239,7 +239,7 @@ settings:
 		whole: true
 		range: 1, 1000
 		path: vram.width
-		default: 100
+		default: 50
 		tip: "How wide the GPU memory graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
 
 	vram_sample:
@@ -305,7 +305,7 @@ settings:
 		tab: Graphs
 		control: checkbox
 		path: disk.show
-		default: false
+		default: true
 		tip: "Show disk traffic in bytes a second: written, then read, from the bottom up. The top follows the busiest moment in view, so the graph has no fixed scale. The tip gives the rates. Disk drives and Disk log scale, further down, set what it counts and how it's drawn."
 
 	disk_width:
@@ -343,7 +343,7 @@ settings:
 		tab: Graphs
 		control: checkbox
 		path: temp.show
-		default: false
+		default: true
 		tip: "Show the CPU's temperature. It fills to the top at the sensor's critical level, or 95 degrees C when the sensor gives none, and anything over that is drawn on top in the critical color. It's left out on a box with no CPU sensor it knows."
 
 	temp_width:
@@ -401,7 +401,7 @@ settings:
 		whole: true
 		range: 1, 1000
 		path: swap.sample
-		default: 100
+		default: 200
 		tip: "How often the swap graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	swap_time:
@@ -439,7 +439,7 @@ settings:
 		whole: true
 		range: 1, 1000
 		path: zswap.sample
-		default: 100
+		default: 200
 		tip: "How often the zswap graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	zswap_time:
@@ -477,7 +477,7 @@ settings:
 		whole: true
 		range: 1, 1000
 		path: load.sample
-		default: 100
+		default: 200
 		tip: "How often the load graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	load_time:
@@ -489,6 +489,44 @@ settings:
 		path: load.time
 		default: same
 		tip: "How the load graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+
+	show_self:
+		label: tukzmon
+		tab: Graphs
+		control: checkbox
+		path: self.show
+		default: false
+		tip: "Show how much of all the CPUs' time tukzmon itself takes. The graph is full when every CPU is busy, as the CPU graph is, so its usual small share is a thin line. The tip has the number. On Wayland tukzmon runs inside the panel, so this is the whole panel's use, and the tip says so."
+
+	self_width:
+		label: tukzmon width %
+		tab: Graphs
+		control: number
+		whole: true
+		range: 1, 1000
+		path: self.width
+		default: 12
+		tip: "How wide the tukzmon graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+
+	self_sample:
+		label: tukzmon sample %
+		tab: Graphs
+		control: number
+		whole: true
+		range: 1, 1000
+		path: self.sample
+		default: 400
+		tip: "How often the tukzmon graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
+
+	self_time:
+		label: tukzmon time axis
+		tab: Graphs
+		control: dropdown
+		options: same, linear, smooth, fixed_a, fixed_b
+		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: self.time
+		default: same
+		tip: "How the tukzmon graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
 
 	show_battery:
 		label: Battery
@@ -528,51 +566,13 @@ settings:
 		default: same
 		tip: "How the battery graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
 
-	show_self:
-		label: tukzmon
-		tab: Graphs
-		control: checkbox
-		path: self.show
-		default: false
-		tip: "Show how much of all the CPUs' time tukzmon itself takes. The graph is full when every CPU is busy, as the CPU graph is, so its usual small share is a thin line. The tip has the number. On Wayland tukzmon runs inside the panel, so this is the whole panel's use, and the tip says so."
-
-	self_width:
-		label: tukzmon width %
-		tab: Graphs
-		control: number
-		whole: true
-		range: 1, 1000
-		path: self.width
-		default: 25
-		tip: "How wide the tukzmon graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
-
-	self_sample:
-		label: tukzmon sample %
-		tab: Graphs
-		control: number
-		whole: true
-		range: 1, 1000
-		path: self.sample
-		default: 100
-		tip: "How often the tukzmon graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
-
-	self_time:
-		label: tukzmon time axis
-		tab: Graphs
-		control: dropdown
-		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
-		path: self.time
-		default: same
-		tip: "How the tukzmon graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
-
 	## The graph list's grippers write this, and it has no row of its own.
 	graph_order:
 		label: Order
 		tab: Graphs
 		control: text
 		path: graph.order
-		default: "cpu mem gpu vram net disk temp swap zswap load battery self"
+		default: "cpu mem gpu vram net disk temp swap zswap load self battery"
 		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, gpu, vram for GPU memory, net for network, swap, zswap, load, disk, temp for temperature, battery, and self for tukzmon itself. One left out goes at the end."
 
 	DiskHead:
@@ -618,7 +618,7 @@ settings:
 		whole: true
 		range: 1, 36500
 		path: history.max_days
-		default: 365
+		default: 28
 		gate: keep_history
 		tip: "History older than this is dropped."
 
@@ -891,7 +891,7 @@ settings:
 		options: detailed, gradient
 		option_labels: "Detailed", "Gradient"
 		path: gpu.mode
-		default: detailed
+		default: gradient
 		group: theme
 		tip: "Detailed draws how busy the GPU is in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
@@ -984,7 +984,7 @@ settings:
 		options: detailed, gradient
 		option_labels: "Detailed", "Gradient"
 		path: vram.mode
-		default: detailed
+		default: gradient
 		group: theme
 		tip: "Detailed draws the GPU's memory in use in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
@@ -1937,7 +1937,7 @@ settings:
 		tab: Themes/Outline
 		control: checkbox
 		path: graph.overrides.border
-		default: false
+		default: true
 		group: theme
 		tip: "Draw every graph's border in the Border color below, over the one on its own sub-tab."
 
@@ -1955,7 +1955,7 @@ settings:
 		tab: Themes/Outline
 		control: checkbox
 		path: graph.overrides.background
-		default: false
+		default: true
 		group: theme
 		tip: "Draw every graph's background in the Top and Bottom colors below, over the ones on its own sub-tab. Transparent still wins over both."
 
@@ -2018,12 +2018,12 @@ groups:
 				mem_user: "#ffffa3"
 				mem_buffers: "#804080"
 				mem_cache: "#408060"
-				gpu_mode: detailed
+				gpu_mode: gradient
 				gpu_low: "#32456d"
 				gpu_medium: "#3b6fd9"
 				gpu_high: "#dce8ff"
 				gpu_busy: "#3b6fd9"
-				vram_mode: detailed
+				vram_mode: gradient
 				vram_low: "#4d326d"
 				vram_medium: "#843bd9"
 				vram_high: "#ecdcff"
@@ -2116,8 +2116,8 @@ groups:
 				hover_color: "#000000"
 				margin_tb: 2
 				margin_lr: 2
-				border_all: false
-				back_all: false
+				border_all: true
+				back_all: true
 			primary:
 				label: Primary
 				cpu_mode: detailed
