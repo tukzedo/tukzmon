@@ -167,9 +167,11 @@ pub mod ffi {
 		fn sections_after_move(d: &mut Dialog, from: usize, to: usize) -> Vec<String>;
 		/// The line picked at the start and after each Ctrl+Tab, or
 		/// Ctrl+Shift+Tab with `back`, pressed in the tab list or, with
-		/// `from_page`, in a number box on the page.
+		/// `from_page`, in a number box on the page. `page_keys` sends
+		/// Ctrl+PgDn and Ctrl+PgUp instead.
 		#[allow(dead_code, reason = "only the tests ask")]
-		fn tabs_by_key(d: &mut Dialog, back: bool, from_page: bool) -> Vec<String>;
+		fn tabs_by_key(d: &mut Dialog, back: bool, from_page: bool, page_keys: bool)
+		-> Vec<String>;
 		/// Per section on Themes/Colors, "name left right": how far down its
 		/// box the left column's first row under the colors mode starts, and
 		/// the right column's first row. -1 for a column with none shown.
@@ -1020,9 +1022,29 @@ mod tests {
 		let ahead = ["General", "Graphs", "Colors", "Outline", "General"];
 		let back = ["General", "Outline", "Colors", "Graphs", "General"];
 		for from_page in [false, true] {
-			let got = ffi::tabs_by_key(&mut d, false, from_page);
+			let got = ffi::tabs_by_key(&mut d, false, from_page, false);
 			assert_eq!(got, ahead, "from the page: {from_page}");
-			let got = ffi::tabs_by_key(&mut d, true, from_page);
+			let got = ffi::tabs_by_key(&mut d, true, from_page, false);
+			assert_eq!(got, back, "from the page: {from_page}");
+		}
+	}
+
+	// Test ID: den56
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn ctrl_page_down_and_up_step_like_ctrl_tab() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_ctrl_page_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let ahead = ["General", "Graphs", "Colors", "Outline", "General"];
+		let back = ["General", "Outline", "Colors", "Graphs", "General"];
+		for from_page in [false, true] {
+			let got = ffi::tabs_by_key(&mut d, false, from_page, true);
+			assert_eq!(got, ahead, "from the page: {from_page}");
+			let got = ffi::tabs_by_key(&mut d, true, from_page, true);
 			assert_eq!(got, back, "from the page: {from_page}");
 		}
 	}

@@ -711,6 +711,11 @@ public:
 			stepTab(key == Qt::Key_Backtab || (k->modifiers() & Qt::ShiftModifier) ? -1 : 1);
 			return true;
 		}
+		// or the tab list takes them as a page jump, to its first or last line
+		if ((key == Qt::Key_PageDown || key == Qt::Key_PageUp) && (k->modifiers() & Qt::ControlModifier)) {
+			stepTab(key == Qt::Key_PageUp ? -1 : 1);
+			return true;
+		}
 		if (key == Qt::Key_Escape) {
 			reject();
 			return true;
@@ -1813,7 +1818,7 @@ rust::Vec<rust::String> sections_after_move(Dialog &d, std::size_t from, std::si
 	return out;
 }
 
-rust::Vec<rust::String> tabs_by_key(Dialog &d, bool back, bool fromPage) {
+rust::Vec<rust::String> tabs_by_key(Dialog &d, bool back, bool fromPage, bool pageKeys) {
 	static int argc = 1;
 	static char name[] = "tukzmon-settings";
 	static char *argv[] = {name, nullptr};
@@ -1830,8 +1835,9 @@ rust::Vec<rust::String> tabs_by_key(Dialog &d, bool back, bool fromPage) {
 	for (int i = 0; i < w.tabCount(); i++) {
 		out.push_back(rust::String(QString::fromStdString(w.selectedText()).trimmed().toStdString()));
 		QWidget *to = QApplication::focusWidget() ? QApplication::focusWidget() : &w;
-		QKeyEvent down(QEvent::KeyPress, back ? Qt::Key_Backtab : Qt::Key_Tab,
-			back ? Qt::ControlModifier | Qt::ShiftModifier : Qt::ControlModifier);
+		const int key = pageKeys ? (back ? Qt::Key_PageUp : Qt::Key_PageDown) : (back ? Qt::Key_Backtab : Qt::Key_Tab);
+		QKeyEvent down(QEvent::KeyPress, key,
+			back && !pageKeys ? Qt::ControlModifier | Qt::ShiftModifier : Qt::ControlModifier);
 		// Qt runs app filters only on the thread that made the first
 		// QApplication, and each test has a thread of its own
 		if (!w.eventFilter(to, &down))
