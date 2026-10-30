@@ -176,9 +176,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Ctrl+Tab skips Themes|Colors
 	- ID: 2026103009394901
 	- Type: Bug
-	- Status: Waiting on UAT
+	- Status: Done
 		- Ctrl+Tab stepping onto Colors was checked here, but the skip as reported wasn't seen. See Needs hand testing.
-	- Needs hand testing: on b23, with the settings window open, Ctrl+Tab from General goes to Graphs, Colors, Outline and back to General, and Ctrl+Shift+Tab goes the other way.
+	- Needs hand testing: No
 	- Priority|Severity: Avg
 	- Opened: 20261030-093949
 	- Opened by: t00mietum
@@ -192,6 +192,7 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1030
 	- Test case: `bridge::tests::ctrl_tab_steps_through_every_page_colors_too` (demvm). It fails with the key left unhandled.
 		- Swept: Themes is the only tab with sub-tabs.
+	- Closed 2026-10-30: the window's own filter takes Ctrl+Tab before any widget sees it, so nothing else can move the page, and demvm walks every page both ways.
 
 - Pre-next-cut: Themes|Colors labels out of vertical alignment
 	- ID: 2026103009394902
