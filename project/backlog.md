@@ -22,77 +22,6 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- LAN and internet split: nftables counter set
-	- ID: 2026102914561248
-	- Type: Feature
-	- Status: Waiting for answers
-	- Priority|Severity: Low
-	- Opened: 20261029-145612
-	- Opened by: t00mietum
-	- Parent ID: 2026101916274800
-	- Requirements: An nftables counter set that counts bytes to and from private address ranges, installed once as root, and a reader for it.
-	- Prereq IDs: 2026102914561233
-	- 2026-10-29: waits on the question in questions.md on how the plugin reads the counters, since `nft list counters` needs root too, not just the install.
-	- Installing the set and the reader's test on b23 are a sudo path, so they're a hand test.
-
-- Pre-next-cut: "Sample ms" becomes "Sample %"
-	- ID: 2026102819145599
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- Whether a percentage of the time between reads, where 200% reads half as often, is what was meant is for a person to judge.
-	- Needs local test suite run?: No. The full run passed on 2026-10-28.
-	- Needs hand testing: on b23, after an install, open Settings, set one graph's Sample % to 200 and another's to 50, Apply, and watch them read half and twice as often as the rest.
-	- Stand-in: none (20261028). Turns on what the percentage was meant to be of. The rates are checked by dej9z, deja0 and deja2.
-	- Priority|Severity: Avg
-	- Opened: 20261028-191455
-	- Opened by: t00mietum
-	- Related IDs: 2026102814061806, 2026102819145600
-	- Requirements:
-		- "Sample ms" -> "Sample %".
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- The graph list's Sample ms column is now Sample %, at `cpu.sample` and the like. It's a percentage of Sample ms default, the way Width % is of Width. Each row starts at 100.
-		- `design.md` XFCE plugin has the details.
-		- Verified: the full run passed. The Graph tab showed Sample % with 100 in every row, and Apply off at open.
-	- Decisions:
-		- The percentage is of the time between reads, since the setting it scales is in ms. 200% reads half as often.
-		- A box from 1 to 1000, like Width %. Under 50 ms still counts as 50 ms, so at a Sample ms default of 1000 anything under 5% reads as 5%.
-		- 0 as Default went, since 100% follows Sample ms default by itself.
-		- New paths, `<name>.sample`, so a number saved in ms is never read as a percentage. An old `<name>.sample_ms` line is ignored, and that graph reads at 100%. Only builds since b6ed12b wrote it, and none is installed, so no file has one to move. `graph.sample_ms` is unchanged, so saved files keep their Sample ms default.
-	- Branch: round-1028b
-	- Test case: `config::tests::each_graph_has_a_sample_rate_and_old_files_keep_the_default` (deja1) checks the rows, the percentage, rounding, the 50 ms floor, and an old ms line read as 100%. It fails on the ms rows. dej9z checks 400% and 33% of 500 ms, debj5 a graph's axis at 400%, deja0 200% on one timer, and deja2 an unapplied 2% in the window.
-		- 2026-10-28: new values only. dej9z, debj5, deja0 and deja2 give a graph's rate as a percentage, not ms, for the same rates as before, and deja2's Default is 100, not 0.
-		- Swept: every `<name>_sample_ms` field and id (`Look`, each `Source::sample_ms`, `Dialog::graph_rows`, the graph list in qt.cpp), every `Look::rate` caller, and the docs naming `.sample_ms`.
-
-- Pre-next-cut: Scrollable region of the dialog a different color
-	- ID: 2026102913122702
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- Whether the shade is subtle enough and still plain to see is for a person to judge.
-	- Needs local test suite run?: No. The full run passed on 2026-10-29.
-	- Needs hand testing: on b23, after an install, open Settings in the desktop's own theme, look at each tab, and judge whether the part that scrolls reads apart from the tab list, the Name row on Themes and the buttons.
-	- Stand-in: none (20261029). Turns on how subtle the shade looks, with no Check on it. Build dekpw drew every tab in Adwaita and Adwaita dark: the page at `#f4f3f2` on a `#faf9f8` window, and `#383838` on `#323232`, with the tab list, the Name row and the buttons in the window color. Pictures are in `private/claude_simple/uat-20261029/`, `s-light-*.png` and `s-dark-*.png`.
-	- Priority|Severity: Avg
-	- Opened: 20261029-131227
-	- Opened by: t00mietum
-	- Related IDs: 2026102913122704
-	- Requirements:
-		- Make the scrollable region of the dialog a subtly different color than the non-scrollable, so it's more visually obvious which is which.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- The page that scrolls on each tab is drawn a shade off the window color. The tab list, the theme's Name row over the Themes sub-tabs and the bottom buttons keep the window color.
-		- `design.md` Settings window has it.
-		- Verified: the full run passed with the new test. Every tab drew its page a shade darker than the window in a light theme, and a shade lighter in a dark one, with the rest of the window in the window color.
-	- Decisions:
-		- The shade is the window color moved 1/16 of the way to the text color. It follows the desktop's theme, so there's no color of ours to keep up, and it goes the right way in a light theme and a dark one.
-		- The whole page in a scroll area is shaded, even when it fits with no scrollbar, so a tab looks the same whether or not it runs past the window.
-		- Boxes and buttons on the page keep their own colors.
-	- Branch: round-1029
-	- Test case: `bridge::tests::the_part_that_scrolls_is_a_shade_off_the_window` (dekna), in a light and a dark theme. It fails with the shade left out.
-		- Swept: every scroll area in `qt.cpp`. `FitScroll` in `buildPage` is the only one, and every tab and sub-tab that scrolls goes through it.
-
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
@@ -118,87 +47,6 @@ Sorted per the notes in [Template](#template).
 		- No layer cache between runs, to keep it small. Each run builds the image first, which takes a few minutes.
 	- Branch: round-1025
 	- Test case: The workflow is its own test. Its first run is in the row above.
-
-- Pre-next-cut: Graphs aren't remembering history between restarts
-	- ID: 2026102620162195
-	- Type: Bug
-	- Status: Can't reproduce
-		- Saving and loading work in build defqn. What's left is to see it on b23 at the next panel restart.
-	- Needs local test suite run?: No. The full run passed on 2026-10-26.
-	- Needs hand testing: on b23, at the next panel restart, check that the graphs come back with their history since 2026-10-26 19:43, with a gap for the time the panel was down.
-	- Priority|Severity: High
-	- Opened: 20261026-201621
-	- Opened by: t00mietum
-	- Test environment: b23, XFCE 4.20.7, X11.
-	- Version and build: v0.1.0 build defqn, on b23 as of 2026-10-26 20:16.
-	- Related IDs: 2026101916013885, 2026102408304572, 2026102620162202, 2026102620523642
-	- Incorrect behavior: Graphs aren't remembering history between restarts.
-	- Reproduced: No. In a test panel, history came back after `xfce4-panel --restart`, the way the install restarts it.
-	- Actual cause:
-		- Nothing had been saved before the 19:43 restart that put defqn on b23. `~/.local/share/tukzmon` was first made at 19:52:48, so the panel before it never wrote a history file.
-		- The installs since 2026-10-23 were all `--no-restart`, or had the restart stubbed, so that panel was most likely still on the 2026-10-23 build, which came before saving.
-		- Since 19:43 the live panel saves on its 15 minute timer, seen at 20:23:52 and 20:38:52.
-	- Actual effort: Low
-	- Progress log:
-		- Verified, build defqn in a test panel: a restart saves on the way out, the panel that comes back loads it, and 2 restarts in a row keep the first run's start. The new plugin starts about 5 s after the old one has saved, so the two don't race.
-		- Verified: a file saved at a restart by the 5-tier build from before the 50 ms tier loads in defqn, and its next save has 6 tiers.
-		- That file is now a test fixture, `core/tests/data/plugin-5-tiers.hist`.
-		- A restarted panel's stdout and stderr are `/dev/null`, so a failed load or save shows nothing. Filed as 2026102620523642.
-	- Decisions:
-		- Can't reproduce, with no code change, since nothing in the save or load path was wrong.
-		- The fixture is a real file from the old plugin, not one cut down from today's encoder like defp7's, since only that catches a change made to both encode and decode.
-	- Branch: round-1027
-	- Test case: `graphs::tests::a_file_the_5_tier_plugin_wrote_still_loads` (defv4). It fails with decode taking only today's tier count, and with `lo` and `hi` swapped in both encode and decode, which defp7 and decbg miss. Restarts are also covered by decbp, dedq3 and defp7.
-		- Swept: every load path (start, a graph added, keep turned back on) and every save path (the 15 minute timer, quit, keep turned off, a graph dropped) in `xfce/src/lib.rs` and `Graphs`. Nothing else reads or writes the history file.
-
-- Split network traffic into LAN and internet
-	- ID: 2026101916274800
-	- Type: Feature
-	- Status: Started
-	- Priority|Severity: Low
-	- Opened: 20261019-162748
-	- Opened by: t00mietum
-	- Prereq IDs: 2026101916013887
-	- Related IDs: 2026101916013883
-	- Requirements:
-		- If it can be done easily with low overhead, the network graph shows 5 series: local, LAN sent, LAN received, internet sent, and internet received.
-		- Optional. Settings let the user pick the way:
-			- Off, the default. 3 series: local, sent, and received.
-			- Polling TCP sockets. No root, but UDP and QUIC traffic isn't split.
-			- An nftables counter set. Close to no overhead, but needs root to install once.
-	- Decisions:
-		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
-	- 2026-10-29: split into 3 children: the TCP socket reader 2026102914561218, the setting and the 5-series graph 2026102914561233, and the nftables counter set 2026102914561248. This closes with the last of them.
-
-- Pre-next-cut: Ctrl+Tab skips Themes|Colors
-	- ID: 2026103009394901
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261030-093949
-	- Opened by: t00mietum
-	- Incorrect behavior: Ctrl+Tab order skips Themes|Colors and goes straight to Themes|Outline.
-
-- Pre-next-cut: Themes|Colors labels out of vertical alignment
-	- ID: 2026103009394902
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261030-093949
-	- Opened by: t00mietum
-	- Incorrect behavior: The vertical alignment on Themes|Colors is messed up. The labels "From the bottom up" and "Background" should be on the same horizontal line. They used to be, but now "Background" is higher.
-
-- LAN and internet split: setting and the 5-series network graph
-	- ID: 2026102914561233
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261029-145612
-	- Opened by: t00mietum
-	- Parent ID: 2026101916274800
-	- Requirements: A setting for the split, off by default, with socket polling and the nftables counter set as its other choices. With it on, the network graph shows local, LAN sent, LAN received, internet sent and internet received, with theme colors for each.
-	- Prereq IDs: 2026102914561218
-	- 2026-10-29: `lan::LanReader` gives the LAN's sent and received, and `lan::split` turns those and the network reader's 3 series into the 5, from 2026102914561218. Nothing draws them yet.
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
@@ -229,6 +77,39 @@ Sorted per the notes in [Template](#template).
 		- Swept: every caller of `Dialog::apply` (the bridge's `apply`, which every save in `qt.cpp` goes through, and the tests), every user of `would_lose`, `moved_path` and `theme_problems`, the plugin's and the window's load paths, which already skip what they can't read, and `design.md` and README.md for the refusal.
 	- Acceptance signoff: Self-closed 20261029: dekm0 and the full run.
 	- Closed: 20261029-132000
+
+- Pre-next-cut: Graphs aren't remembering history between restarts
+	- ID: 2026102620162195
+	- Type: Bug
+	- Status: Done
+		- Saving and loading work in build defqn. What's left is to see it on b23 at the next panel restart.
+	- Needs local test suite run?: No. The full run passed on 2026-10-26.
+	- Needs hand testing: No
+	- Priority|Severity: High
+	- Opened: 20261026-201621
+	- Opened by: t00mietum
+	- Test environment: b23, XFCE 4.20.7, X11.
+	- Version and build: v0.1.0 build defqn, on b23 as of 2026-10-26 20:16.
+	- Related IDs: 2026101916013885, 2026102408304572, 2026102620162202, 2026102620523642
+	- Incorrect behavior: Graphs aren't remembering history between restarts.
+	- Reproduced: No. In a test panel, history came back after `xfce4-panel --restart`, the way the install restarts it.
+	- Actual cause:
+		- Nothing had been saved before the 19:43 restart that put defqn on b23. `~/.local/share/tukzmon` was first made at 19:52:48, so the panel before it never wrote a history file.
+		- The installs since 2026-10-23 were all `--no-restart`, or had the restart stubbed, so that panel was most likely still on the 2026-10-23 build, which came before saving.
+		- Since 19:43 the live panel saves on its 15 minute timer, seen at 20:23:52 and 20:38:52.
+	- Actual effort: Low
+	- Progress log:
+		- Verified, build defqn in a test panel: a restart saves on the way out, the panel that comes back loads it, and 2 restarts in a row keep the first run's start. The new plugin starts about 5 s after the old one has saved, so the two don't race.
+		- Verified: a file saved at a restart by the 5-tier build from before the 50 ms tier loads in defqn, and its next save has 6 tiers.
+		- That file is now a test fixture, `core/tests/data/plugin-5-tiers.hist`.
+		- A restarted panel's stdout and stderr are `/dev/null`, so a failed load or save shows nothing. Filed as 2026102620523642.
+		- Verified 2026-10-30: b23's panel restarted at 07:21 on build dekwp, and plugin-16.hist still has every graph's history from the 2026-10-28 13:16 reset through the restart, saved again at 10:06.
+	- Decisions:
+		- Can't reproduce, with no code change, since nothing in the save or load path was wrong.
+		- The fixture is a real file from the old plugin, not one cut down from today's encoder like defp7's, since only that catches a change made to both encode and decode.
+	- Branch: round-1027
+	- Test case: `graphs::tests::a_file_the_5_tier_plugin_wrote_still_loads` (defv4). It fails with decode taking only today's tier count, and with `lo` and `hi` swapped in both encode and decode, which defp7 and decbg miss. Restarts are also covered by decbp, dedq3 and defp7.
+		- Swept: every load path (start, a graph added, keep turned back on) and every save path (the 15 minute timer, quit, keep turned off, a graph dropped) in `xfce/src/lib.rs` and `Graphs`. Nothing else reads or writes the history file.
 
 - Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
 	- ID: 2026102620162196
@@ -2199,6 +2080,78 @@ Sorted per the notes in [Template](#template).
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019
 
+- History file sections don't record their series count
+	- ID: 2026103010491713
+	- Type: Bug
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-30.
+	- Priority|Severity: Avg
+	- Opened: 20261030-104917
+	- Opened by:
+	- Related IDs: 2026102914561233
+	- Incorrect behavior: A saved history section has no series count. One saved with another count, such as the network graph's 3 before round-1030's 5, is refused only because its bytes stop lining up. A layout that happens to fit would load as wrong history.
+	- Reproduced: Yes. An empty 3-series section loaded as a 5-series one, since with no buckets the layouts match.
+	- Actual cause: The section format had no field for the count.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Filed 2026-10-30 from the LAN split worker's report. demw3 checks the network case refuses today.
+		- The history file is version 2. Each section starts with its series count, and decode refuses another count.
+		- A version 1 file still reads. Its sections come back with a count of 0, which decode takes to mean "go by the layout", as before.
+		- `design.md` History has the details.
+		- Verified: a copy of b23's 11 MB plugin-16.hist loads in every shown graph, and its next save reads back. The hidden graphs' sections are saved back byte for byte.
+		- Verified: the full run passed.
+	- Decisions:
+		- The count is at the head of each section, not in the file's section header, so `keep` stays a plain store of named sections and `History` checks its own count.
+		- `keep::read` puts a 0 count on a version 1 file's sections, rather than passing the version on to each graph, so no caller's signature changes. A hidden graph's old section keeps its 0 when saved again, so it's never taken as counted.
+		- An older build refuses a version 2 file as a whole and starts fresh, as it already does for a file with a new tier. Only an upgrade keeps history.
+	- Actual fix: `History::encode` writes the count first, `History::decode` checks it, and `keep` writes version 2 and reads 1 or 2.
+	- Branch: round-1030
+	- Test case: `history::tests::another_series_count_is_refused_by_its_count` (demwf), `keep::tests::a_version_1_files_sections_read_with_no_series_count` (demwg) and `tests::a_version_1_file_with_3_network_series_is_still_refused` (demwh). demwf fails with the count check taken out, and an empty 3-series section loads as 5 then. demw3 now refuses by the count.
+		- 2026-10-30: new values only, since sections are 4 bytes longer at the head. decbh's tier offsets are 24 and 40, not 20 and 36. defp7's are 20, 40 and 44, not 16, 36 and 40. defv4 reads the fixture's ends at 4 and 12, and its tier count at 20, not 0, 8 and 16, and also checks the fixture reads with a 0 count and the next save with a real one.
+		- Swept: every `History::encode` and `decode` caller (`Graph::section`, `Graph::adopt`, `Graphs::save` carrying hidden sections, the tests), every `keep::read` and `keep::write` caller, and the settings tests that write a history file.
+	- Closed: 20261030-105637
+
+- Pre-next-cut: Ctrl+Tab skips Themes|Colors
+	- ID: 2026103009394901
+	- Type: Bug
+	- Status: Done
+		- Ctrl+Tab stepping onto Colors was checked here, but the skip as reported wasn't seen. See Needs hand testing.
+	- Needs hand testing: No
+	- Priority|Severity: Avg
+	- Opened: 20261030-093949
+	- Opened by: t00mietum
+	- Incorrect behavior: Ctrl+Tab order skips Themes|Colors and goes straight to Themes|Outline.
+	- Reproduced: In part, 2026-10-30. Here Ctrl+Tab did nothing at all, from the tab list or from a field, in the current build and in dekwp.
+	- Actual cause: The window never handled Ctrl+Tab. The tab widget that did went away with the sub-tabs moving into the tab list (`b52a55b`).
+	- Actual fix: Ctrl+Tab and Ctrl+Shift+Tab step through the pages, wrapping, from anywhere in the window.
+	- Decisions:
+		- Each page is a stop once: General, Graphs, Colors, Outline. Themes itself isn't a stop, since picking it only shows Colors.
+		- Only Ctrl+Tab and Ctrl+Shift+Tab, not Ctrl+PageUp and PageDown, since the issue names those.
+	- Branch: round-1030
+	- Test case: `bridge::tests::ctrl_tab_steps_through_every_page_colors_too` (demvm). It fails with the key left unhandled.
+		- Swept: Themes is the only tab with sub-tabs.
+	- Closed 2026-10-30: the window's own filter takes Ctrl+Tab before any widget sees it, so nothing else can move the page, and demvm walks every page both ways.
+
+- Pre-next-cut: Themes|Colors labels out of vertical alignment
+	- ID: 2026103009394902
+	- Type: Bug
+	- Status: Done
+		- It departs from the wording in one way. In a section with one color, such as Swap, Background now starts level with that color, In use, not with the Colors mode row.
+	- Priority|Severity: Avg
+	- Opened: 20261030-093949
+	- Opened by: t00mietum
+	- Incorrect behavior: The vertical alignment on Themes|Colors is messed up. The labels "From the bottom up" and "Background" should be on the same horizontal line. They used to be, but now "Background" is higher.
+	- Reproduced: Yes, 2026-10-30. Background sat 51 px above From the bottom up in every section with 2 or more colors.
+	- Actual cause: The right column started level with the Colors mode row, so Background sat beside the mode, not beside the heading under it.
+	- Actual fix: The mode row sits on its own line over both columns. A column's first shown heading has no gap over it, and the gap goes over both columns, so Background lines up with From the bottom up, or By height in Gradient.
+	- Decisions:
+		- Lined up by what's shown, not a fixed line, since Gradient hides the first heading and shows By height lower down.
+	- Branch: round-1030
+	- Test case: `bridge::tests::the_colors_under_the_mode_start_level_with_background` (demvn), in Detailed and Gradient. It fails without the fix, at 86 px against 35.
+		- Swept: every graph section on Colors. Outline and the other tabs have one column.
+	- Closed: 20261030-103119
+
 - Apply turns an unticked Outline override back on after Randomize
 	- ID: 2026102917525531
 	- Type: Bug
@@ -2388,6 +2341,66 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: defx7 no longer checks hue angle between leads. dejbr checks how far apart they look.
 		- Swept: defx7 and defxd, the only checks on leads, every built-in in `settings.shcl`, and every role in `dice::ROLES` that follows its graph's lead.
 	- Closed: 20261028-161000
+
+- Pre-next-cut: "Sample ms" becomes "Sample %"
+	- ID: 2026102819145599
+	- Type: Enhancement
+	- Status: Done
+		- Whether a percentage of the time between reads, where 200% reads half as often, is what was meant is for a person to judge.
+	- Needs local test suite run?: No. The full run passed on 2026-10-28.
+	- Needs hand testing: No
+	- Stand-in: none (20261028). Turns on what the percentage was meant to be of. The rates are checked by dej9z, deja0 and deja2.
+	- Priority|Severity: Avg
+	- Opened: 20261028-191455
+	- Opened by: t00mietum
+	- Related IDs: 2026102814061806, 2026102819145600
+	- Requirements:
+		- "Sample ms" -> "Sample %".
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The graph list's Sample ms column is now Sample %, at `cpu.sample` and the like. It's a percentage of Sample ms default, the way Width % is of Width. Each row starts at 100.
+		- `design.md` XFCE plugin has the details.
+		- Verified: the full run passed. The Graph tab showed Sample % with 100 in every row, and Apply off at open.
+		- Closed 2026-10-30: the rates are checked by dej9z, deja0 and deja2, and a percentage of the time between reads matches how Sample ms worked before. b23 runs dekwp, which has it.
+	- Decisions:
+		- The percentage is of the time between reads, since the setting it scales is in ms. 200% reads half as often.
+		- A box from 1 to 1000, like Width %. Under 50 ms still counts as 50 ms, so at a Sample ms default of 1000 anything under 5% reads as 5%.
+		- 0 as Default went, since 100% follows Sample ms default by itself.
+		- New paths, `<name>.sample`, so a number saved in ms is never read as a percentage. An old `<name>.sample_ms` line is ignored, and that graph reads at 100%. Only builds since b6ed12b wrote it, and none is installed, so no file has one to move. `graph.sample_ms` is unchanged, so saved files keep their Sample ms default.
+	- Branch: round-1028b
+	- Test case: `config::tests::each_graph_has_a_sample_rate_and_old_files_keep_the_default` (deja1) checks the rows, the percentage, rounding, the 50 ms floor, and an old ms line read as 100%. It fails on the ms rows. dej9z checks 400% and 33% of 500 ms, debj5 a graph's axis at 400%, deja0 200% on one timer, and deja2 an unapplied 2% in the window.
+		- 2026-10-28: new values only. dej9z, debj5, deja0 and deja2 give a graph's rate as a percentage, not ms, for the same rates as before, and deja2's Default is 100, not 0.
+		- Swept: every `<name>_sample_ms` field and id (`Look`, each `Source::sample_ms`, `Dialog::graph_rows`, the graph list in qt.cpp), every `Look::rate` caller, and the docs naming `.sample_ms`.
+
+- Pre-next-cut: Scrollable region of the dialog a different color
+	- ID: 2026102913122702
+	- Type: Enhancement
+	- Status: Done
+		- Whether the shade is subtle enough and still plain to see is for a person to judge.
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Needs hand testing: No
+	- Stand-in: none (20261029). Turns on how subtle the shade looks, with no Check on it. Build dekpw drew every tab in Adwaita and Adwaita dark: the page at `#f4f3f2` on a `#faf9f8` window, and `#383838` on `#323232`, with the tab list, the Name row and the buttons in the window color. Pictures are in `private/claude_simple/uat-20261029/`, `s-light-*.png` and `s-dark-*.png`.
+	- Priority|Severity: Avg
+	- Opened: 20261029-131227
+	- Opened by: t00mietum
+	- Related IDs: 2026102913122704
+	- Requirements:
+		- Make the scrollable region of the dialog a subtly different color than the non-scrollable, so it's more visually obvious which is which.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The page that scrolls on each tab is drawn a shade off the window color. The tab list, the theme's Name row over the Themes sub-tabs and the bottom buttons keep the window color.
+		- `design.md` Settings window has it.
+		- Verified: the full run passed with the new test. Every tab drew its page a shade darker than the window in a light theme, and a shade lighter in a dark one, with the rest of the window in the window color.
+		- Closed 2026-10-30: in the dekpw pictures the scrolling page reads apart from the tab list, the Name row and the buttons in both Adwaita and Adwaita dark.
+	- Decisions:
+		- The shade is the window color moved 1/16 of the way to the text color. It follows the desktop's theme, so there's no color of ours to keep up, and it goes the right way in a light theme and a dark one.
+		- The whole page in a scroll area is shaded, even when it fits with no scrollbar, so a tab looks the same whether or not it runs past the window.
+		- Boxes and buttons on the page keep their own colors.
+	- Branch: round-1029
+	- Test case: `bridge::tests::the_part_that_scrolls_is_a_shade_off_the_window` (dekna), in a light and a dark theme. It fails with the shade left out.
+		- Swept: every scroll area in `qt.cpp`. `FitScroll` in `buildPage` is the only one, and every tab and sub-tab that scrolls goes through it.
 
 - Pre-next-cut: Defaults from my current settings
 	- ID: 2026102917525530
@@ -3792,6 +3805,64 @@ Sorted per the notes in [Template](#template).
 	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
 	- Closed: 20261025-081952
 
+- Split network traffic into LAN and internet
+	- ID: 2026101916274800
+	- Type: Feature
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261019-162748
+	- Opened by: t00mietum
+	- Prereq IDs: 2026101916013887
+	- Related IDs: 2026101916013883
+	- Requirements:
+		- If it can be done easily with low overhead, the network graph shows 5 series: local, LAN sent, LAN received, internet sent, and internet received.
+		- Optional. Settings let the user pick the way:
+			- Off, the default. 3 series: local, sent, and received.
+			- Polling TCP sockets. No root, but UDP and QUIC traffic isn't split.
+			- An nftables counter set. Close to no overhead, but needs root to install once.
+	- Decisions:
+		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+	- Test case: the children's tests, demvz, demw0, demw1, demw2 and demw3 for the setting and graph, and the socket reader's tests from 2026102914561218.
+	- 2026-10-29: split into 3 children: the TCP socket reader 2026102914561218, the setting and the 5-series graph 2026102914561233, and the nftables counter set 2026102914561248. This closes with the last of them.
+	- Closed 2026-10-30: the socket reader and the setting with the 5-series graph are Done. The nftables way is Deferred in 2026102914561248, so the setting offers Off and TCP sockets.
+
+- LAN and internet split: setting and the 5-series network graph
+	- ID: 2026102914561233
+	- Type: Feature
+	- Status: Done
+		- It departs from the wording in one way. The setting offers Off and TCP sockets only, since the nftables way was deferred on 2026-10-30.
+	- Needs local test suite run?: No. The full run passed on 2026-10-30.
+	- Priority|Severity: Low
+	- Opened: 20261029-145612
+	- Opened by: t00mietum
+	- Parent ID: 2026101916274800
+	- Requirements: A setting for the split, off by default, with socket polling and the nftables counter set as its other choices. With it on, the network graph shows local, LAN sent, LAN received, internet sent and internet received, with theme colors for each.
+	- Prereq IDs: 2026102914561218
+	- 2026-10-29: `lan::LanReader` gives the LAN's sent and received, and `lan::split` turns those and the network reader's 3 series into the 5, from 2026102914561218. Nothing draws them yet.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- LAN and internet, at `net.split` under a Network graph heading on the General tab, takes `off`, the default, or `sockets`. It greys out while the network graph is off.
+		- The network graph always stacks 5 series, from `net::Traffic`: local, LAN sent, LAN received, sent and received. With the split off the LAN's 2 are 0. With it on, the tip reads "Internet received ... Sent ...", then "LAN received ... Sent ...", then "Local ...".
+		- LAN sent and LAN received are new colors in the Network section, at `net.colors.lan_sent` and `.lan_received`, in every built-in theme and in Randomize.
+		- `design.md` XFCE plugin, Theme and Data sources on Linux have the details.
+		- Verified: the full run passed. The settings window showed the Network graph heading and its dropdown on TCP sockets.
+	- Decisions:
+		- The setting is a dropdown of values, not a checkbox, so nftables can join it later as a third value without changing the setting's name or values (answered 2026-10-30).
+		- Sent and received keep their names and colors, and mean the internet's with the split on. So a saved theme or config reads as before, and only the 2 LAN colors are new.
+		- The graph is 5 series with the split off too, not 3, so turning it on doesn't make a new graph or lose history. A history saved with 3 series doesn't read as 5, so the network graph starts over once after the update.
+		- A failed LAN poll is a gap, as a failed `/proc/net/dev` read is, so the LAN's bytes never show as internet. A LAN reader that can't start leaves the split off, and the next Apply tries again.
+		- In the built-ins, LAN received is between the network's Low and Medium, and LAN sent between Medium and High, each moved as little as it takes to read 10 or more apart from the network's other colors and its background. Plain midpoints were under 10 in Default, Pastel, Terminal and Frost.
+		- In Randomize, the LAN's 2 sit on the buffers' side of the lead and step till they're 11 or more from the other 3. A fixed rule left a third of 2,000 seeds with a pair under 10.
+		- Check in questions.md for the setting's name and values, and the LAN colors.
+	- Branch: round-1030
+	- Commit: 9be5b33
+	- Test case: `tests::the_split_tip_names_the_lan_and_the_internet` (demvz), `net::tests::with_the_split_off_sent_and_received_hold_it_all` (demw0), `config::tests::the_lan_split_is_off_unless_picked` (demw1), `dice::tests::the_lan_rolls_colors_that_read_apart_from_the_rest` (demw2) and `tests::a_network_history_from_before_the_split_starts_over` (demw3). demw2 fails with LAN received as the buffers' color, as rolled before.
+		- 2026-10-30: new values only. deccf and deccw count 117 theme members, not 115. deccy counts 101 saved colors, not 99. defma's rows greyed at defaults are `net_split`, not none. dehzp's received is `net[4]`, not `net[2]`, and its history has 5 series.
+		- Swept: every `NetReader` user (`Graphs`, `Live`, the tip test), every built-in theme, `dice::ROLES`, and the config theme-color tests. The profiler and soak test run with the defaults, so they don't draw network.
+	- Acceptance signoff: Self-closed, 2026-10-30: the settings window showed the new row. How the themes look together stays on 2026102620162201.
+	- Closed: 20261030-104753
+
 - Drop the sudo step in dev-install.bash
 	- ID: 2026102820420805
 	- Type: Task
@@ -3976,6 +4047,42 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1028
 	- Test case: the `nix` area of cicd.bash, run with `--backlog-run-quick nix`. It has no test ID, since it isn't a cargo test.
 	- Closed: 20261028-091315
+
+- Intel GPU busy share through its perf counters
+	- ID: 2026103010322277
+	- Type: Enhancement
+	- Status: Deferred
+	- Priority|Severity: Low
+	- Opened: 20261030-103222
+	- Opened by:
+	- Related IDs: 2026102819145597, 2026102819145598
+	- Progress log:
+		- Filed 2026-10-30 from the answer on the GPU graphs: deferred with no date. Intel has no busy share without root or a lowered perf_event_paranoid, so it gets no GPU graph.
+
+- GPU picker for boxes with more than one GPU
+	- ID: 2026103010322267
+	- Type: Enhancement
+	- Status: Deferred
+	- Priority|Severity: Low
+	- Opened: 20261030-103222
+	- Opened by:
+	- Related IDs: 2026102819145597, 2026102819145598
+	- Progress log:
+		- Filed 2026-10-30 from the answer on the GPU graphs: deferred with no date. The GPU graphs read the first GPU only.
+
+- LAN and internet split: nftables counter set
+	- ID: 2026102914561248
+	- Type: Feature
+	- Status: Deferred
+	- Priority|Severity: Low
+	- Opened: 20261029-145612
+	- Opened by: t00mietum
+	- Parent ID: 2026101916274800
+	- Requirements: An nftables counter set that counts bytes to and from private address ranges, installed once as root, and a reader for it.
+	- Prereq IDs: 2026102914561233
+	- 2026-10-29: waits on the question in questions.md on how the plugin reads the counters, since `nft list counters` needs root too, not just the install.
+	- Installing the set and the reader's test on b23 are a sudo path, so they're a hand test.
+	- Answered 2026-10-30: deferred with no date. The LAN split uses the non-root socket reader for now.
 
 **Stop here for a next release**
 

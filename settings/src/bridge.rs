@@ -165,6 +165,16 @@ pub mod ffi {
 		/// in its left column, and the left edge of what's beside it.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn sections_after_move(d: &mut Dialog, from: usize, to: usize) -> Vec<String>;
+		/// The line picked at the start and after each Ctrl+Tab, or
+		/// Ctrl+Shift+Tab with `back`, pressed in the tab list or, with
+		/// `from_page`, in a number box on the page.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn tabs_by_key(d: &mut Dialog, back: bool, from_page: bool) -> Vec<String>;
+		/// Per section on Themes/Colors, "name left right": how far down its
+		/// box the left column's first row under the colors mode starts, and
+		/// the right column's first row. -1 for a column with none shown.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn section_tops(d: &mut Dialog) -> Vec<String>;
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn bottom_buttons(d: &mut Dialog) -> Vec<String>;
 		/// Whether Apply is on before and after typing into the first color
@@ -598,8 +608,8 @@ mod tests {
 				.cloned()
 				.collect()
 		};
-		// Default has the disk graph and both overrides on
-		assert_eq!(want(&d), Vec::<String>::new());
+		// Default has the disk graph and both overrides on, and network off
+		assert_eq!(want(&d), ["net_split"]);
 		assert_eq!(ffi::greyed_rows(&mut d), want(&d));
 		for g in &gates {
 			d.set(g, &Value::Bool(false));
@@ -993,6 +1003,61 @@ mod tests {
 			);
 			// and no shorter than it has to be
 			assert_eq!(fh, rh, "{w}x{h}: {frame:?} in {room:?}");
+		}
+	}
+
+	// Test ID: demvm
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn ctrl_tab_steps_through_every_page_colors_too() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_ctrl_tab_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		// Themes only shows Colors, so it's no stop of its own
+		let ahead = ["General", "Graphs", "Colors", "Outline", "General"];
+		let back = ["General", "Outline", "Colors", "Graphs", "General"];
+		for from_page in [false, true] {
+			let got = ffi::tabs_by_key(&mut d, false, from_page);
+			assert_eq!(got, ahead, "from the page: {from_page}");
+			let got = ffi::tabs_by_key(&mut d, true, from_page);
+			assert_eq!(got, back, "from the page: {from_page}");
+		}
+	}
+
+	// Test ID: demvn
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn the_colors_under_the_mode_start_level_with_background() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_section_tops_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path);
+		let modes: Vec<String> = dialog_rows(&d)
+			.into_iter()
+			.filter(|r| !r.section.is_empty() && r.id.ends_with("_mode"))
+			.map(|r| r.id)
+			.collect();
+		assert!(modes.len() > 5, "{modes:?}");
+		for mode in ["detailed", "gradient"] {
+			for id in &modes {
+				assert!(d.set(id, &Value::Text(mode.to_string())), "{id}");
+			}
+			let tops = ffi::section_tops(&mut d);
+			assert_eq!(tops.len(), modes.len(), "{tops:?}");
+			for t in &tops {
+				let [graph, left, right] = t.split(' ').collect::<Vec<_>>()[..] else {
+					panic!("{t}");
+				};
+				let (left, right): (i32, i32) = (left.parse().unwrap(), right.parse().unwrap());
+				// under the mode row, not beside it
+				assert!(left > 0, "{mode} {graph}: {tops:?}");
+				assert_eq!(left, right, "{mode} {graph}: {tops:?}");
+			}
 		}
 	}
 

@@ -268,7 +268,7 @@ settings:
 		control: checkbox
 		path: net.show
 		default: false
-		tip: "Show network traffic in bytes a second: local, which is the box talking to itself, then sent, then received, from the bottom up. The top follows the busiest moment in view, so the graph has no fixed scale. The tip gives the rates."
+		tip: "Show network traffic in bytes a second: local, which is the box talking to itself, then sent, then received, from the bottom up. The top follows the busiest moment in view, so the graph has no fixed scale. The tip gives the rates. LAN and internet, further down, splits sent and received into the LAN's and the internet's."
 
 	net_width:
 		label: Network width %
@@ -574,6 +574,22 @@ settings:
 		path: graph.order
 		default: "cpu mem gpu vram net disk temp swap zswap load self battery"
 		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, gpu, vram for GPU memory, net for network, swap, zswap, load, disk, temp for temperature, battery, and self for tukzmon itself. One left out goes at the end."
+
+	NetGraphHead:
+		label: Network graph
+		tab: General
+		control: heading
+
+	net_split:
+		label: LAN and internet
+		tab: General
+		control: dropdown
+		options: off, sockets
+		option_labels: "Off", "TCP sockets"
+		path: net.split
+		default: off
+		gate: show_net
+		tip: "Tell traffic to and from the LAN apart from the internet's, so the network graph draws local, LAN sent, LAN received, internet sent and internet received. Off draws local, sent and received.\n\nTCP sockets asks the kernel for each TCP connection's byte counts every read, and needs no root. UDP doesn't have them, so UDP and QUIC to the LAN count as internet. The LAN is the private address ranges and this box's own IPv6 /64."
 
 	DiskHead:
 		label: Disk graph
@@ -1079,7 +1095,7 @@ settings:
 		path: net.mode
 		default: detailed
 		group: theme
-		tip: "Detailed gives local, sent and received a color each. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+		tip: "Detailed gives local, sent and received a color each, and LAN sent and LAN received too with LAN and internet on, on the General tab. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
 	NetHead:
 		label: "From the bottom up"
@@ -1097,6 +1113,26 @@ settings:
 		shown_when: "net_mode = detailed"
 		tip: "Traffic the box sends itself, on the loopback device."
 
+	net_lan_sent:
+		label: LAN sent
+		tab: Themes/Colors
+		control: color
+		path: net.colors.lan_sent
+		default: "#c0effc"
+		group: theme
+		shown_when: "net_mode = detailed"
+		tip: "Sent to the LAN, with LAN and internet on, on the General tab."
+
+	net_lan_received:
+		label: LAN received
+		tab: Themes/Colors
+		control: color
+		path: net.colors.lan_received
+		default: "#4e93af"
+		group: theme
+		shown_when: "net_mode = detailed"
+		tip: "Received from the LAN, with LAN and internet on, on the General tab."
+
 	net_sent:
 		label: Sent
 		tab: Themes/Colors
@@ -1105,6 +1141,7 @@ settings:
 		default: "#ff7777"
 		group: theme
 		shown_when: "net_mode = detailed"
+		tip: "Everything sent, or what went to the internet with LAN and internet on, on the General tab."
 
 	net_received:
 		label: Received
@@ -1114,6 +1151,7 @@ settings:
 		default: "#6ad4ff"
 		group: theme
 		shown_when: "net_mode = detailed"
+		tip: "Everything received, or what came from the internet with LAN and internet on, on the General tab."
 
 	NetGradHead:
 		label: "By height"
@@ -2033,6 +2071,8 @@ groups:
 				net_medium: "#6ad4ff"
 				net_high: "#cff1ff"
 				net_local: "#ffed00"
+				net_lan_sent: "#c0effc"
+				net_lan_received: "#4e93af"
 				net_sent: "#ff7777"
 				net_received: "#6ad4ff"
 				swap_mode: gradient
@@ -2150,6 +2190,8 @@ groups:
 				net_medium: "#9900ff"
 				net_high: "#dec0ff"
 				net_local: "#3e205f"
+				net_lan_sent: "#bc60ff"
+				net_lan_received: "#6d10ac"
 				net_sent: "#dec0ff"
 				net_received: "#9900ff"
 				swap_mode: detailed
@@ -2267,6 +2309,8 @@ groups:
 				net_medium: "#d3f0a1"
 				net_high: "#f4ffe0"
 				net_local: "#7e8a6a"
+				net_lan_sent: "#b5cfad"
+				net_lan_received: "#a3b36f"
 				net_sent: "#f4ffe0"
 				net_received: "#d3f0a1"
 				swap_mode: detailed
@@ -2384,6 +2428,8 @@ groups:
 				net_medium: "#ff1090"
 				net_high: "#ffc0e0"
 				net_local: "#6a1040"
+				net_lan_sent: "#ff70c0"
+				net_lan_received: "#b11566"
 				net_sent: "#ffc0e0"
 				net_received: "#ff1090"
 				swap_mode: detailed
@@ -2501,6 +2547,8 @@ groups:
 				net_medium: "#b06a9a"
 				net_high: "#f0dce8"
 				net_local: "#5a3a50"
+				net_lan_sent: "#cda1bf"
+				net_lan_received: "#8a5174"
 				net_sent: "#f0dce8"
 				net_received: "#b06a9a"
 				swap_mode: detailed
@@ -2618,6 +2666,8 @@ groups:
 				net_medium: "#ff40a0"
 				net_high: "#ffd0e8"
 				net_local: "#48102a"
+				net_lan_sent: "#ff88c6"
+				net_lan_received: "#a12763"
 				net_sent: "#ffd0e8"
 				net_received: "#ff40a0"
 				swap_mode: gradient
@@ -2735,6 +2785,8 @@ groups:
 				net_medium: "#33ff33"
 				net_high: "#ccffcc"
 				net_local: "#1b6b1b"
+				net_lan_sent: "#65f59e"
+				net_lan_received: "#29b226"
 				net_sent: "#ccffcc"
 				net_received: "#33ff33"
 				swap_mode: detailed
@@ -2852,6 +2904,8 @@ groups:
 				net_medium: "#ffae00"
 				net_high: "#ffebbf"
 				net_local: "#6b4900"
+				net_lan_sent: "#fcd46e"
+				net_lan_received: "#b27c05"
 				net_sent: "#ffebbf"
 				net_received: "#ffae00"
 				swap_mode: detailed
@@ -2969,6 +3023,8 @@ groups:
 				net_medium: "#bfeaff"
 				net_high: "#f0faff"
 				net_local: "#4b6273"
+				net_lan_sent: "#bac7c7"
+				net_lan_received: "#83a4b6"
 				net_sent: "#f0faff"
 				net_received: "#bfeaff"
 				swap_mode: detailed

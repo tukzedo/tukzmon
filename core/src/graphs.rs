@@ -16,7 +16,7 @@ use crate::gpu::{GpuReader, VramReader};
 use crate::keep;
 use crate::load::LoadReader;
 use crate::mem::{MemoryReader, SwapReader};
-use crate::net::NetReader;
+use crate::net::Traffic;
 use crate::own::OwnReader;
 use crate::temp::TempReader;
 use crate::zswap::ZswapReader;
@@ -31,7 +31,7 @@ pub struct Graphs {
 	/// None when hidden, or on a box with no GPU it can read.
 	pub vram: Option<Graph<VramReader, 1>>,
 	/// None when hidden.
-	pub net: Option<Graph<NetReader, 3>>,
+	pub net: Option<Graph<Traffic, 5>>,
 	/// None when hidden, or on a box with no swap.
 	pub swap: Option<Graph<SwapReader, 1>>,
 	/// None when hidden, or on a box with neither zswap on nor zram set up.
@@ -94,7 +94,7 @@ impl Which {
 			Which::Mem => MemoryReader::SECTION,
 			Which::Gpu => GpuReader::SECTION,
 			Which::Vram => VramReader::SECTION,
-			Which::Net => NetReader::SECTION,
+			Which::Net => Traffic::SECTION,
 			Which::Swap => SwapReader::SECTION,
 			Which::Zswap => ZswapReader::SECTION,
 			Which::Load => LoadReader::SECTION,
@@ -1130,9 +1130,11 @@ mod tests {
 		let sections = keep::read(&path).unwrap();
 		let ends = |name: &str| {
 			let body = &sections.iter().find(|(n, _)| n == name).unwrap().1;
+			// read with a series count of 0 put at its head
+			assert_eq!(body[..4], [0; 4]);
 			let f = |at: usize| f64::from_le_bytes(body[at..at + 8].try_into().unwrap());
-			assert_eq!(u32::from_le_bytes(body[16..20].try_into().unwrap()), 5);
-			(Some(f(0)), Some(f(8)))
+			assert_eq!(u32::from_le_bytes(body[20..24].try_into().unwrap()), 5);
+			(Some(f(4)), Some(f(12)))
 		};
 		let (cpu, mem) = (ends("cpu"), ends("mem"));
 		// so it never ages out
@@ -1159,7 +1161,7 @@ mod tests {
 			keep::read(&path)
 				.unwrap()
 				.iter()
-				.all(|(_, body)| body[16..20] == tiers)
+				.all(|(_, body)| body[20..24] == tiers && body[..4] != [0; 4])
 		);
 		let mut back = Graphs::new(look);
 		back.load(&path).unwrap();
@@ -1622,7 +1624,7 @@ mod tests {
 			..g.look().clone()
 		};
 		assert!(Graphs::new(two()).net.is_none());
-		g.net = Some(Graph::with(look.clone(), NetReader::default()));
+		g.net = Some(Graph::with(look.clone(), Traffic::default()));
 		g.set_look(look.clone(), None).unwrap();
 		let now = g.cpu.now();
 		// 1 MB/s local and 2 MB/s received, steady for a minute
@@ -1630,7 +1632,7 @@ mod tests {
 			.as_mut()
 			.unwrap()
 			.hist
-			.add(now - 60.0, now, &[1e6, 0.0, 2e6]);
+			.add(now - 60.0, now, &[1e6, 0.0, 0.0, 0.0, 2e6]);
 		assert_eq!(g.count(), 4);
 		let (w, h) = (80 + 3 * G, 10 + 2 * E);
 		let net = g.net.as_mut().unwrap().render(20, 10, 1).to_vec();
@@ -1643,8 +1645,8 @@ mod tests {
 		let ph = 10 - 2 * bw;
 		let row = |up: usize| net[(bw + ph - 1 - up) * 20 + 10];
 		assert_eq!(row(0), look.net[0].argb());
-		assert_eq!(row(ph * 2 / 5), look.net[2].argb());
-		assert_eq!(row(ph - 1), look.net[2].argb());
+		assert_eq!(row(ph * 2 / 5), look.net[4].argb());
+		assert_eq!(row(ph - 1), look.net[4].argb());
 		assert!(g.hover(Some((45 + 2 * G, 3)), w, h, 1));
 		assert!(
 			g.hover_tip(45 + 2 * G, 3, w, h, 1)

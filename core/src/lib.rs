@@ -39,7 +39,7 @@ use gpu::{GpuReader, VramReader};
 use history::History;
 use load::LoadReader;
 use mem::{MemoryReader, SwapReader};
-use net::NetReader;
+use net::Traffic;
 use own::OwnReader;
 use render::{Frame, Paint, Peak, Scale};
 use temp::TempReader;
@@ -335,7 +335,7 @@ fn per_sec(bytes: f32) -> String {
 	}
 }
 
-impl Source<3> for NetReader {
+impl Source<5> for Traffic {
 	const SECTION: &'static str = "net";
 	const TITLE: &'static str = "Network";
 
@@ -344,16 +344,18 @@ impl Source<3> for NetReader {
 		Some(10_000.0)
 	}
 
-	fn text(&self, v: &[f32; 3]) -> String {
+	fn text(&self, v: &[f32; 5]) -> String {
+		let [local, lan_sent, lan_received, sent, received] = v.map(per_sec);
+		if !self.split() {
+			return format!("Network\nReceived {received}  Sent {sent}\nLocal {local}");
+		}
 		format!(
-			"Network\nReceived {}  Sent {}\nLocal {}",
-			per_sec(v[2]),
-			per_sec(v[1]),
-			per_sec(v[0])
+			"Network\nInternet received {received}  Sent {sent}\n\
+			 LAN received {lan_received}  Sent {lan_sent}\nLocal {local}"
 		)
 	}
 
-	fn paint(look: &Look) -> Paint<'_, 3> {
+	fn paint(look: &Look) -> Paint<'_, 5> {
 		look.net_paint()
 	}
 
@@ -367,6 +369,10 @@ impl Source<3> for NetReader {
 
 	fn sample_ms(look: &Look) -> u32 {
 		look.rate(look.net_sample)
+	}
+
+	fn follow(&mut self, look: &Look) {
+		self.set_split(look.net_split);
 	}
 }
 
@@ -579,10 +585,13 @@ impl Graph<ZswapReader, 1> {
 	}
 }
 
-impl Graph<NetReader, 3> {
+impl Graph<Traffic, 5> {
 	/// None where `/proc/net/dev` can't be read.
 	pub fn net(look: Look) -> Option<Self> {
-		NetReader::probe().map(|src| Graph::with(look, src))
+		Traffic::probe().map(|mut src| {
+			src.set_split(look.net_split);
+			Graph::with(look, src)
+		})
 	}
 }
 
@@ -907,9 +916,81 @@ mod tests {
 			assert_eq!(per_sec(bytes), want, "{bytes}");
 		}
 		assert_eq!(
-			NetReader::default().text(&[2000.0, 30_000.0, 1.5e6]),
+			Traffic::default().text(&[2000.0, 0.0, 0.0, 30_000.0, 1.5e6]),
 			"Network\nReceived 1.5 MB/s  Sent 30 kB/s\nLocal 2.0 kB/s"
 		);
+	}
+
+	// Test ID: demw3
+	#[test]
+	fn a_network_history_from_before_the_split_starts_over() {
+		let mut old = History::<3>::default();
+		let now = SystemTime::now()
+			.duration_since(SystemTime::UNIX_EPOCH)
+			.unwrap()
+			.as_secs_f64();
+		for i in 0..600 {
+			let t = now - 600.0 + f64::from(i);
+			old.add(t, t + 1.0, &[1.0, 2.0, 3.0]);
+		}
+		let mut body = Vec::new();
+		old.encode(&mut body);
+		let sections = [("net".to_string(), body)];
+		let mut g = Graph::with(Look::default(), Traffic::default());
+		assert!(!g.adopt(&sections));
+		let mut five = Graph::with(Look::default(), Traffic::default());
+		five.hist.add(now - 1.0, now, &[1.0; 5]);
+		let sections = [five.section()].map(|(n, b)| (n.to_string(), b));
+		assert!(g.adopt(&sections));
+	}
+
+	// Test ID: demwh
+	#[test]
+	fn a_version_1_file_with_3_network_series_is_still_refused() {
+		let mut old = History::<3>::default();
+		let now = SystemTime::now()
+			.duration_since(SystemTime::UNIX_EPOCH)
+			.unwrap()
+			.as_secs_f64();
+		for i in 0..600 {
+			let t = now - 600.0 + f64::from(i);
+			old.add(t, t + 1.0, &[1.0, 2.0, 3.0]);
+		}
+		let mut body = Vec::new();
+		old.encode(&mut body);
+		// as the plugin wrote it before sections had a series count
+		let mut v1 = b"tukzhist".to_vec();
+		for x in [1u32, 1] {
+			v1.extend_from_slice(&x.to_le_bytes());
+		}
+		v1.push(3);
+		v1.extend_from_slice(b"net");
+		v1.extend_from_slice(&(body.len() as u64 - 4).to_le_bytes());
+		v1.extend_from_slice(&body[4..]);
+		let path = std::env::temp_dir().join(format!("test_tukzmon_net_v1_{}", std::process::id()));
+		std::fs::write(&path, &v1).unwrap();
+		let mut g = Graph::with(Look::default(), Traffic::default());
+		assert!(g.load(&path).is_err());
+		// by its layout, which still fits 3
+		let back = keep::read(&path).unwrap();
+		assert_eq!(History::<3>::decode(&back[0].1).unwrap().last(), old.last());
+		std::fs::remove_file(&path).unwrap();
+	}
+
+	// Test ID: demvz
+	#[test]
+	fn the_split_tip_names_the_lan_and_the_internet() {
+		let mut t = Traffic::default();
+		t.set_split(config::Split::Sockets);
+		assert!(t.split(), "sock_diag needs no root");
+		assert_eq!(
+			t.text(&[2000.0, 1000.0, 5e5, 30_000.0, 1.5e6]),
+			"Network\nInternet received 1.5 MB/s  Sent 30 kB/s\n\
+			 LAN received 500 kB/s  Sent 1.0 kB/s\nLocal 2.0 kB/s"
+		);
+		t.set_split(config::Split::Off);
+		assert!(!t.split());
+		assert!(t.text(&[0.0; 5]).starts_with("Network\nReceived"));
 	}
 
 	// Test ID: dekmb
@@ -951,7 +1032,7 @@ mod tests {
 			..Look::default()
 		};
 		assert!(DiskReader::log_y(&log) && !DiskReader::log_y(&Look::default()));
-		assert!(!LoadReader::log_y(&log) && NetReader::default().peak_floor().is_some());
+		assert!(!LoadReader::log_y(&log) && Traffic::default().peak_floor().is_some());
 	}
 
 	// Test ID: dejb6

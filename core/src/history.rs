@@ -378,6 +378,7 @@ impl<const N: usize> History<N> {
 				out.extend_from_slice(&x.to_le_bytes());
 			}
 		};
+		out.extend_from_slice(&(N as u32).to_le_bytes());
 		f64s(out, self.first.unwrap_or(f64::NAN));
 		f64s(out, self.last.unwrap_or(f64::NAN));
 		out.extend_from_slice(&(self.tiers.len() as u32).to_le_bytes());
@@ -398,9 +399,15 @@ impl<const N: usize> History<N> {
 
 	/// None for anything [`History::encode`] wouldn't have written with
 	/// today's tiers, or with today's less the finest ones, so a stale or
-	/// broken file starts fresh.
+	/// broken file starts fresh. Also None for another series count. A count
+	/// of 0 is a section from before counts were saved, which only its
+	/// layout can refuse.
 	pub fn decode(bytes: &[u8]) -> Option<History<N>> {
 		let mut rd = Reader(bytes);
+		let series = rd.u32()? as usize;
+		if series != 0 && series != N {
+			return None;
+		}
 		let first = Some(rd.f64()?).filter(|x| x.is_finite());
 		let last = Some(rd.f64()?).filter(|x| x.is_finite());
 		let mut h = History::<N> {
@@ -698,12 +705,34 @@ mod tests {
 		assert!(History::<3>::decode(&bytes).is_none());
 		// tiers that don't match today's
 		let mut other = bytes.clone();
-		other[20..28].copy_from_slice(&0.5f64.to_le_bytes());
+		other[24..32].copy_from_slice(&0.5f64.to_le_bytes());
 		assert!(History::<2>::decode(&other).is_none());
 		// a bucket count past what the fine tier keeps
 		let mut over = bytes.clone();
-		over[36..40].copy_from_slice(&9000u32.to_le_bytes());
+		over[40..44].copy_from_slice(&9000u32.to_le_bytes());
 		assert!(History::<2>::decode(&over).is_none());
+	}
+
+	// Test ID: demwf
+	#[test]
+	fn another_series_count_is_refused_by_its_count() {
+		// no buckets, so nothing but the count tells 3 series from 5
+		let mut bytes = Vec::new();
+		History::<3>::default().encode(&mut bytes);
+		assert_eq!(bytes[..4], 3u32.to_le_bytes());
+		assert!(History::<5>::decode(&bytes).is_none());
+		assert!(History::<3>::decode(&bytes).is_some());
+		// a version 1 file's section has no count, and goes by its layout
+		let mut old = bytes.clone();
+		old[..4].copy_from_slice(&0u32.to_le_bytes());
+		assert!(History::<5>::decode(&old).is_some());
+		let h = a_day_of_samples();
+		let mut bytes = Vec::new();
+		h.encode(&mut bytes);
+		bytes[..4].copy_from_slice(&0u32.to_le_bytes());
+		let back = History::<2>::decode(&bytes).unwrap();
+		assert_eq!((back.first(), back.last()), (h.first(), h.last()));
+		assert!(History::<3>::decode(&bytes).is_none());
 	}
 
 	// Test ID: defp7
@@ -713,10 +742,10 @@ mod tests {
 		let mut bytes = Vec::new();
 		h.encode(&mut bytes);
 		// cut tier 0 out, as a file from when there was one less
-		let count = u32::from_le_bytes(bytes[36..40].try_into().unwrap()) as usize;
-		let mut old = bytes[..16].to_vec();
+		let count = u32::from_le_bytes(bytes[40..44].try_into().unwrap()) as usize;
+		let mut old = bytes[..20].to_vec();
 		old.extend_from_slice(&(TIERS.len() as u32 - 1).to_le_bytes());
-		old.extend_from_slice(&bytes[40 + count * 44..]);
+		old.extend_from_slice(&bytes[44 + count * 44..]);
 		let back = History::<2>::decode(&old).unwrap();
 		assert!(back.tiers[0].buckets.is_empty());
 		assert_eq!((back.first(), back.last()), (h.first(), h.last()));
@@ -726,7 +755,7 @@ mod tests {
 		}
 		// a tier more than today's isn't
 		let mut more = bytes.clone();
-		more[16..20].copy_from_slice(&(TIERS.len() as u32 + 1).to_le_bytes());
+		more[20..24].copy_from_slice(&(TIERS.len() as u32 + 1).to_le_bytes());
 		assert!(History::<2>::decode(&more).is_none());
 	}
 
