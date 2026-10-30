@@ -239,7 +239,9 @@ Sorted per the notes in [Template](#template).
 - LAN and internet split: setting and the 5-series network graph
 	- ID: 2026102914561233
 	- Type: Feature
-	- Status: Queued
+	- Status: Done
+		- It departs from the wording in one way. The setting offers Off and TCP sockets only, since the nftables way was deferred on 2026-10-30.
+	- Needs local test suite run?: No. The full run passed on 2026-10-30.
 	- Priority|Severity: Low
 	- Opened: 20261029-145612
 	- Opened by: t00mietum
@@ -247,6 +249,29 @@ Sorted per the notes in [Template](#template).
 	- Requirements: A setting for the split, off by default, with socket polling and the nftables counter set as its other choices. With it on, the network graph shows local, LAN sent, LAN received, internet sent and internet received, with theme colors for each.
 	- Prereq IDs: 2026102914561218
 	- 2026-10-29: `lan::LanReader` gives the LAN's sent and received, and `lan::split` turns those and the network reader's 3 series into the 5, from 2026102914561218. Nothing draws them yet.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- LAN and internet, at `net.split` under a Network graph heading on the General tab, takes `off`, the default, or `sockets`. It greys out while the network graph is off.
+		- The network graph always stacks 5 series, from `net::Traffic`: local, LAN sent, LAN received, sent and received. With the split off the LAN's 2 are 0. With it on, the tip reads "Internet received ... Sent ...", then "LAN received ... Sent ...", then "Local ...".
+		- LAN sent and LAN received are new colors in the Network section, at `net.colors.lan_sent` and `.lan_received`, in every built-in theme and in Randomize.
+		- `design.md` XFCE plugin, Theme and Data sources on Linux have the details.
+		- Verified: the full run passed. The settings window showed the Network graph heading and its dropdown on TCP sockets.
+	- Decisions:
+		- The setting is a dropdown of values, not a checkbox, so nftables can join it later as a third value without changing the setting's name or values (answered 2026-10-30).
+		- Sent and received keep their names and colors, and mean the internet's with the split on. So a saved theme or config reads as before, and only the 2 LAN colors are new.
+		- The graph is 5 series with the split off too, not 3, so turning it on doesn't make a new graph or lose history. A history saved with 3 series doesn't read as 5, so the network graph starts over once after the update.
+		- A failed LAN poll is a gap, as a failed `/proc/net/dev` read is, so the LAN's bytes never show as internet. A LAN reader that can't start leaves the split off, and the next Apply tries again.
+		- In the built-ins, LAN received is between the network's Low and Medium, and LAN sent between Medium and High, each moved as little as it takes to read 10 or more apart from the network's other colors and its background. Plain midpoints were under 10 in Default, Pastel, Terminal and Frost.
+		- In Randomize, the LAN's 2 sit on the buffers' side of the lead and step till they're 11 or more from the other 3. A fixed rule left a third of 2,000 seeds with a pair under 10.
+		- Check in questions.md for the setting's name and values, and the LAN colors.
+	- Branch: round-1030
+	- Commit: 9be5b33
+	- Test case: `tests::the_split_tip_names_the_lan_and_the_internet` (demvz), `net::tests::with_the_split_off_sent_and_received_hold_it_all` (demw0), `config::tests::the_lan_split_is_off_unless_picked` (demw1), `dice::tests::the_lan_rolls_colors_that_read_apart_from_the_rest` (demw2) and `tests::a_network_history_from_before_the_split_starts_over` (demw3). demw2 fails with LAN received as the buffers' color, as rolled before.
+		- 2026-10-30: new values only. deccf and deccw count 117 theme members, not 115. deccy counts 101 saved colors, not 99. defma's rows greyed at defaults are `net_split`, not none. dehzp's received is `net[4]`, not `net[2]`, and its history has 5 series.
+		- Swept: every `NetReader` user (`Graphs`, `Live`, the tip test), every built-in theme, `dice::ROLES`, and the config theme-color tests. The profiler and soak test run with the defaults, so they don't draw network.
+	- Acceptance signoff: Self-closed, 2026-10-30: the settings window showed the new row. How the themes look together stays on 2026102620162201.
+	- Closed: 20261030-104753
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
