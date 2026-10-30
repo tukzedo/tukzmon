@@ -65,7 +65,9 @@ pub struct Dialog {
 	model: Model,
 	/// As the file was when it was last read or written.
 	saved: Model,
-	/// Settings changed in the window, so a save writes only those.
+	/// Settings changed in the window, so a save writes only those. Last
+	/// changed last, since a save sets them in this order and setting a gated
+	/// row ticks its gate.
 	touched: Vec<String>,
 	/// Sliders that reach less far than their number box takes, as copies of
 	/// the setting over the slider's own range.
@@ -397,9 +399,8 @@ impl Dialog {
 	}
 
 	fn touch(&mut self, id: &str) {
-		if !self.touched.iter().any(|t| t == id) {
-			self.touched.push(id.to_string());
-		}
+		self.touched.retain(|t| t != id);
+		self.touched.push(id.to_string());
 	}
 
 	/// False when the value doesn't fit the setting, and nothing changes.
@@ -751,7 +752,7 @@ mod tests {
 		let s = dlg.state("user");
 		assert_eq!(s.text, "#00ff80");
 		assert!(!s.can_reset);
-		assert_eq!(dlg.state("width").number, 128.0);
+		assert_eq!(dlg.state("width").number, 100.0);
 	}
 
 	// Test ID: dejac
@@ -789,15 +790,15 @@ mod tests {
 			"Swap",
 			"Zswap",
 			"Load",
-			"Battery",
 			"tukzmon",
+			"Battery",
 		];
 		assert_eq!(labels(&dlg), graphs);
 		let last = dlg.graph_rows().len() - 1;
 		assert!(dlg.move_graph(last, 0));
 		assert!(dlg.move_graph(2, 4));
 		let moved = [
-			"tukzmon",
+			"Battery",
 			"CPU",
 			"GPU",
 			"GPU memory",
@@ -808,7 +809,7 @@ mod tests {
 			"Swap",
 			"Zswap",
 			"Load",
-			"Battery",
+			"tukzmon",
 		];
 		assert_eq!(labels(&dlg), moved);
 		assert_eq!(
@@ -977,14 +978,14 @@ mod tests {
 		assert!(dlg.move_graph(0, 1));
 		assert_eq!(
 			dlg.state(ORDER).text,
-			"mem cpu gpu vram net disk temp swap zswap load battery self"
+			"mem cpu gpu vram net disk temp swap zswap load self battery"
 		);
 		dlg.apply().unwrap();
 		assert_eq!(
 			config::Look::load(&path).order,
 			[
 				"mem", "cpu", "gpu", "vram", "net", "disk", "temp", "swap", "zswap", "load",
-				"battery", "self"
+				"self", "battery"
 			]
 		);
 		assert!(dlg.move_graph(1, 0));
@@ -1230,6 +1231,10 @@ mod tests {
 		let d = scratch("overrides");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone());
+		// Default has both on
+		assert!(dlg.state("border_color").counts && dlg.state("back_top").counts);
+		assert!(dlg.set_text("border_all", "off"));
+		assert!(dlg.set_text("back_all", "off"));
 		assert!(!dlg.state("border_color").counts);
 		assert!(!dlg.state("back_top").counts);
 		dlg.randomize_from(42);
@@ -1250,6 +1255,7 @@ mod tests {
 		dlg.randomize_from(43);
 		assert_eq!(dlg.state("back_all").text, "on");
 		assert_eq!(dlg.state("border_all").text, "off");
+		// unticked before the rolled colors, and still off once saved
 		dlg.apply().unwrap();
 		let l = config::Look::load(&path);
 		assert_eq!(l.mem_outline.top, l.top);

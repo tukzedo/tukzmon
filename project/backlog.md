@@ -59,54 +59,11 @@ Sorted per the notes in [Template](#template).
 		- The percentage is of the time between reads, since the setting it scales is in ms. 200% reads half as often.
 		- A box from 1 to 1000, like Width %. Under 50 ms still counts as 50 ms, so at a Sample ms default of 1000 anything under 5% reads as 5%.
 		- 0 as Default went, since 100% follows Sample ms default by itself.
-		- New paths, `<name>.sample`, so a number saved in ms is never read as a percentage. An old `<name>.sample_ms` line is ignored, and that graph reads at 100%. Only builds since b6ed12b wrote it, and none is installed, so nothing carries it over. `graph.sample_ms` is unchanged, so saved files keep their Sample ms default.
+		- New paths, `<name>.sample`, so a number saved in ms is never read as a percentage. An old `<name>.sample_ms` line is ignored, and that graph reads at 100%. Only builds since b6ed12b wrote it, and none is installed, so no file has one to move. `graph.sample_ms` is unchanged, so saved files keep their Sample ms default.
 	- Branch: round-1028b
 	- Test case: `config::tests::each_graph_has_a_sample_rate_and_old_files_keep_the_default` (deja1) checks the rows, the percentage, rounding, the 50 ms floor, and an old ms line read as 100%. It fails on the ms rows. dej9z checks 400% and 33% of 500 ms, debj5 a graph's axis at 400%, deja0 200% on one timer, and deja2 an unapplied 2% in the window.
 		- 2026-10-28: new values only. dej9z, debj5, deja0 and deja2 give a graph's rate as a percentage, not ms, for the same rates as before, and deja2's Default is 100, not 0.
 		- Swept: every `<name>_sample_ms` field and id (`Look`, each `Source::sample_ms`, `Dialog::graph_rows`, the graph list in qt.cpp), every `Look::rate` caller, and the docs naming `.sample_ms`.
-
-- Pre-next-cut: Default per-monitor colors from my current settings
-	- ID: 2026102814061803
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- Whether Default looks right with b23's colors in it is for a person to judge.
-		- Measured as CIEDE2000, where 10 or more reads clearly apart. b23's colors as they were: zswap's magenta `#ff80ff` 3.2 from system's pink `#fa72f0`, swap `#40a0ff` 5.6 from the disk's read `#6bb3ff`, and memory `#ffff80` 5.7 from temperature `#feff40`. Default now: every 2 graphs' leads 10.4 or more apart, memory and temperature the closest, and every lead 14.2 or more from I/O wait and system.
-	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
-	- Needs hand testing: on b23, after an install and a panel restart, pick Default on the Themes tab with no "*" changes on it, Apply, and judge whether it looks like the colors set by hand before.
-	- Stand-in: none (20261028). Waits on the open question on Default's pink CPU system and memory `#ffffa3`, and turns on how it looks.
-	- Priority|Severity: Avg
-	- Opened: 20261028-140618
-	- Opened by: t00mietum
-	- Related IDs: 2026102408304559, 2026102620162201, 2026102810142725
-	- Requirements:
-		- Default per-monitor colors:
-			- Update to my current personal settings
-			- Update each of these slightly if necessary so that theme is non-clashing, both:
-				- Within each monitor, and
-				- Across all monitors taken as a whole
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- The current config is b23's `~/.config/tukzmon/tukzmon.shcl`, read by build defqn.
-		- 2026-10-28: b23's current colors are the changes kept on Default in `plugin-16.shcl`, the live panel item's own file, not the Custom colors at the top of it.
-		- Default now has every one of those changes, with their modes: swap, zswap, load and temperature as gradients.
-		- Where they clashed, colors nobody picked moved. Zswap's gradient was magenta, beside system's new pink, and swap's was the disk's blue. Each now runs through the color picked for it in Detailed, the way load's already did. Memory's programs went from `#ffff80` to `#ffffa3`, apart from temperature's yellow.
-		- The network's and the disk's gradients follow their new leads, and temperature's normal is its Medium.
-		- tukzmon's own graph is `#00ccb8`, the color farthest from the other 9 that still reads on the gray top.
-		- `design.md` Theme has the details.
-	- Decisions:
-		- The colors picked by hand win over rules every built-in kept, in Default only. System is pink, not orange. On battery is copper, not system's color. Load, the disk's written and the network's sent are red. The background is gray, not on CPU's hue. The other built-ins keep the rules.
-		- Picked colors are kept exactly, and colors nobody picked moved instead. Memory's programs was never changed by hand, so it moved rather than temperature's Medium. It was also the smaller move, 4.8 against 7.7, and the other way put temperature on the network's local yellow, 2.3 apart.
-		- That replaces "Default's memory colors stay as multiload-ng had them" from 2026102408304625 for programs. Buffers and cache are as they were.
-		- Swap's and zswap's gradients run through `#a45f00` and `#4a8e54`, the colors picked for them, rather than staying blue and magenta. Temperature's normal follows its Medium the same way. So switching one of them to Detailed keeps its color, and Default's earlier normal, green `#40ff48`, was 6.5 from CPU.
-			- Confirmed 2026-10-28.
-		- tukzmon's color was picked by search: the most distant from every other lead, I/O wait, system and on battery, at a lightness that reads on `#313131`. It's 22.4 from CPU, the closest.
-	- Branch: theme-colors
-	- Test case: `config::tests::the_default_theme_keeps_the_colors_picked_on_it` (dejbq). It fails on the old Default and passes now.
-		- 2026-10-28: new values only. debhj reads system `#fa72f0`, the border `#8b8b8b` and the top `#313131`, not `#c64200`, `#408060` and `#2a543f`. dedpz reads programs `#ffffa3`, not `#ffff80`.
-		- 2026-10-28: defq5, dej0v and dejab read swap's, temperature's and zswap's series colors, which Default now draws as gradients, so their looks set those graphs to Detailed.
-		- 2026-10-28: defx7 no longer checks the hue angle between leads. dejbr, from 2026102810142725, checks how far apart they look instead.
-		- Swept: every test that reads a Default color or mode, in core, settings and xfce, every row default, which deccf holds to Default, and every mention of Default's colors in `design.md` and `settings.shcl`.
 
 - Pre-next-cut: Scrollable region of the dialog a different color
 	- ID: 2026102913122702
@@ -2224,6 +2181,30 @@ Sorted per the notes in [Template](#template).
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019
 
+- Apply turns an unticked Outline override back on after Randomize
+	- ID: 2026102917525531
+	- Type: Bug
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-29.
+	- Priority|Severity: Avg
+	- Opened: 20261029-175255
+	- Opened by: t00mietum
+	- Related IDs: 2026102917525530, 2026102820512294
+	- Steps to reproduce:
+		- On Default, untick One border for every graph.
+		- Randomize, then Apply.
+	- Incorrect behavior: the saved file has the box on again, so every graph draws the shared border.
+	- Expected behavior: the box stays off, as the window showed it.
+	- Reproduced: 2026-10-29, in dejkz once Default had both boxes on.
+	- Actual cause: Apply sets the changed rows again in the order they were first changed. Randomize sets the shared Border after the box, and setting a gated row ticks its gate, so the box came back on.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Actual fix: `Dialog::touch` moves a row to the end when it's changed again, so Apply sets rows in the order they were last changed.
+	- Branch: defaults
+	- Test case: `dialog::tests::a_shared_color_ticks_its_override_and_a_roll_leaves_both` (dejkz) unticks both boxes first now. It fails without the fix and passes with it.
+	- Acceptance signoff: Self-closed 20261029: dejkz and the full run.
+	- Closed: 20261029-175255
+
 - GPU test fails on a box with an NVIDIA GPU
 	- ID: 2026102914040910
 	- Type: Bug
@@ -2389,6 +2370,90 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: defx7 no longer checks hue angle between leads. dejbr checks how far apart they look.
 		- Swept: defx7 and defxd, the only checks on leads, every built-in in `settings.shcl`, and every role in `dice::ROLES` that follows its graph's lead.
 	- Closed: 20261028-161000
+
+- Pre-next-cut: Defaults from my current settings
+	- ID: 2026102917525530
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full run and the soak passed on 2026-10-29.
+	- Priority|Severity: Avg
+	- Opened: 20261029-175255
+	- Opened by: t00mietum
+	- Related IDs: 2026102814061803, 2026102917525531
+	- Requirements:
+		- Use all of my current settings as defaults, except for which monitors are active. For those, use this list:
+			- CPU
+			- Memory
+			- GPU memory
+			- Disk
+			- Temperature
+			- Swap
+	- Estimated effort: Low
+	- Actual effort: Avg
+	- Progress log:
+		- The settings are b23's live panel item, `plugin-16.shcl`, with Default plus its kept changes.
+		- New defaults: Width 100, spikes 75, hover time as a clock, history kept 28 days, CPU and memory at 50% sample, swap, zswap and load at 200%, tukzmon at 400% and width 12, and the GPU's 2 graphs at width 50.
+		- Default draws the GPU's 2 graphs as gradients, with both Outline overrides on.
+		- tukzmon's own graph is before the battery in the default order, and in the graph list.
+		- GPU memory, disk and temperature are on by default, with CPU, memory and swap.
+		- A new item on b23 now differs from the defaults only in the graphs shown.
+		- `design.md` XFCE plugin and History have the new defaults.
+	- Decisions:
+		- The live item's file, not `tukzmon.shcl`, since it's what the panel draws. `tukzmon.shcl` is only where a new item starts.
+		- The top-level CPU colors in that file are Custom's, which aren't in use, so they stay out.
+		- The battery's rows moved below tukzmon's in `settings.shcl`, so the spec lists them in the default order.
+		- A saved theme from before the Outline overrides gets Default's, now on, the way it gets Default's margins.
+	- Branch: defaults
+	- Test case: `config::tests::the_default_theme_is_the_row_defaults` (deccf) holds Default to the rows. debhj, deja1, dedqq, decc5 and decbf read the new values.
+		- 2026-10-29: new values only. The layout tests in `graphs.rs` pin the old defaults in `two()`. Tests that read their own per-graph outline set both overrides off. debj5, dej9z, defz1 and deja2 set 100% sample, and the hover tests set "ago".
+		- Swept: every test in core, settings and xfce that opens on defaults, the soak (which now skips the clock for the 3 graphs newly on), and `design.md`.
+	- Acceptance signoff: Self-closed 20261029: a new item on b23 differs from the defaults only in the graphs shown, and the full run passed.
+	- Closed: 20261029-175255
+
+- Pre-next-cut: Default per-monitor colors from my current settings
+	- ID: 2026102814061803
+	- Type: Enhancement
+	- Status: Done
+		- Measured as CIEDE2000, where 10 or more reads clearly apart. b23's colors as they were: zswap's magenta `#ff80ff` 3.2 from system's pink `#fa72f0`, swap `#40a0ff` 5.6 from the disk's read `#6bb3ff`, and memory `#ffff80` 5.7 from temperature `#feff40`. Default now: every 2 graphs' leads 10.4 or more apart, memory and temperature the closest, and every lead 14.2 or more from I/O wait and system.
+	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
+	- Needs hand testing: on b23, after an install and a panel restart, pick Default on the Themes tab with no "*" changes on it, Apply, and judge whether it looks like the colors set by hand before.
+	- Stand-in: none (20261028). Waits on the open question on Default's pink CPU system and memory `#ffffa3`, and turns on how it looks.
+	- Priority|Severity: Avg
+	- Opened: 20261028-140618
+	- Opened by: t00mietum
+	- Related IDs: 2026102408304559, 2026102620162201, 2026102810142725
+	- Requirements:
+		- Default per-monitor colors:
+			- Update to my current personal settings
+			- Update each of these slightly if necessary so that theme is non-clashing, both:
+				- Within each monitor, and
+				- Across all monitors taken as a whole
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The current config is b23's `~/.config/tukzmon/tukzmon.shcl`, read by build defqn.
+		- 2026-10-28: b23's current colors are the changes kept on Default in `plugin-16.shcl`, the live panel item's own file, not the Custom colors at the top of it.
+		- Default now has every one of those changes, with their modes: swap, zswap, load and temperature as gradients.
+		- Where they clashed, colors nobody picked moved. Zswap's gradient was magenta, beside system's new pink, and swap's was the disk's blue. Each now runs through the color picked for it in Detailed, the way load's already did. Memory's programs went from `#ffff80` to `#ffffa3`, apart from temperature's yellow.
+		- The network's and the disk's gradients follow their new leads, and temperature's normal is its Medium.
+		- tukzmon's own graph is `#00ccb8`, the color farthest from the other 9 that still reads on the gray top.
+		- `design.md` Theme has the details.
+		- 2026-10-29: the GPU's 2 graphs as gradients and both Outline overrides on came in with 2026102917525530.
+	- Decisions:
+		- The colors picked by hand win over rules every built-in kept, in Default only. System is pink, not orange. On battery is copper, not system's color. Load, the disk's written and the network's sent are red. The background is gray, not on CPU's hue. The other built-ins keep the rules.
+		- Picked colors are kept exactly, and colors nobody picked moved instead. Memory's programs was never changed by hand, so it moved rather than temperature's Medium. It was also the smaller move, 4.8 against 7.7, and the other way put temperature on the network's local yellow, 2.3 apart.
+		- That replaces "Default's memory colors stay as multiload-ng had them" from 2026102408304625 for programs. Buffers and cache are as they were.
+		- Swap's and zswap's gradients run through `#a45f00` and `#4a8e54`, the colors picked for them, rather than staying blue and magenta. Temperature's normal follows its Medium the same way. So switching one of them to Detailed keeps its color, and Default's earlier normal, green `#40ff48`, was 6.5 from CPU.
+			- Confirmed 2026-10-28.
+		- tukzmon's color was picked by search: the most distant from every other lead, I/O wait, system and on battery, at a lightness that reads on `#313131`. It's 22.4 from CPU, the closest.
+	- Branch: theme-colors
+	- Test case: `config::tests::the_default_theme_keeps_the_colors_picked_on_it` (dejbq). It fails on the old Default and passes now.
+		- 2026-10-28: new values only. debhj reads system `#fa72f0`, the border `#8b8b8b` and the top `#313131`, not `#c64200`, `#408060` and `#2a543f`. dedpz reads programs `#ffffa3`, not `#ffff80`.
+		- 2026-10-28: defq5, dej0v and dejab read swap's, temperature's and zswap's series colors, which Default now draws as gradients, so their looks set those graphs to Detailed.
+		- 2026-10-28: defx7 no longer checks the hue angle between leads. dejbr, from 2026102810142725, checks how far apart they look instead.
+		- Swept: every test that reads a Default color or mode, in core, settings and xfce, every row default, which deccf holds to Default, and every mention of Default's colors in `design.md` and `settings.shcl`.
+	- Acceptance signoff: 20261029: b23's settings were asked for as the defaults, and Default already had their colors, pink system and `#ffffa3` included (2026102917525530).
+	- Closed: 20261029-175255
 
 - Pre-next-cut: GPU memory graph
 	- ID: 2026102819145598
