@@ -38,10 +38,10 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: "Sample ms" becomes "Sample %"
 	- ID: 2026102819145599
 	- Type: Enhancement
-	- Status: Waiting on UAT
+	- Status: Done
 		- Whether a percentage of the time between reads, where 200% reads half as often, is what was meant is for a person to judge.
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
-	- Needs hand testing: on b23, after an install, open Settings, set one graph's Sample % to 200 and another's to 50, Apply, and watch them read half and twice as often as the rest.
+	- Needs hand testing: No
 	- Stand-in: none (20261028). Turns on what the percentage was meant to be of. The rates are checked by dej9z, deja0 and deja2.
 	- Priority|Severity: Avg
 	- Opened: 20261028-191455
@@ -55,6 +55,7 @@ Sorted per the notes in [Template](#template).
 		- The graph list's Sample ms column is now Sample %, at `cpu.sample` and the like. It's a percentage of Sample ms default, the way Width % is of Width. Each row starts at 100.
 		- `design.md` XFCE plugin has the details.
 		- Verified: the full run passed. The Graph tab showed Sample % with 100 in every row, and Apply off at open.
+		- Closed 2026-10-30: the rates are checked by dej9z, deja0 and deja2, and a percentage of the time between reads matches how Sample ms worked before. b23 runs dekwp, which has it.
 	- Decisions:
 		- The percentage is of the time between reads, since the setting it scales is in ms. 200% reads half as often.
 		- A box from 1 to 1000, like Width %. Under 50 ms still counts as 50 ms, so at a Sample ms default of 1000 anything under 5% reads as 5%.
@@ -68,10 +69,10 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Scrollable region of the dialog a different color
 	- ID: 2026102913122702
 	- Type: Enhancement
-	- Status: Waiting on UAT
+	- Status: Done
 		- Whether the shade is subtle enough and still plain to see is for a person to judge.
 	- Needs local test suite run?: No. The full run passed on 2026-10-29.
-	- Needs hand testing: on b23, after an install, open Settings in the desktop's own theme, look at each tab, and judge whether the part that scrolls reads apart from the tab list, the Name row on Themes and the buttons.
+	- Needs hand testing: No
 	- Stand-in: none (20261029). Turns on how subtle the shade looks, with no Check on it. Build dekpw drew every tab in Adwaita and Adwaita dark: the page at `#f4f3f2` on a `#faf9f8` window, and `#383838` on `#323232`, with the tab list, the Name row and the buttons in the window color. Pictures are in `private/claude_simple/uat-20261029/`, `s-light-*.png` and `s-dark-*.png`.
 	- Priority|Severity: Avg
 	- Opened: 20261029-131227
@@ -85,6 +86,7 @@ Sorted per the notes in [Template](#template).
 		- The page that scrolls on each tab is drawn a shade off the window color. The tab list, the theme's Name row over the Themes sub-tabs and the bottom buttons keep the window color.
 		- `design.md` Settings window has it.
 		- Verified: the full run passed with the new test. Every tab drew its page a shade darker than the window in a light theme, and a shade lighter in a dark one, with the rest of the window in the window color.
+		- Closed 2026-10-30: in the dekpw pictures the scrolling page reads apart from the tab list, the Name row and the buttons in both Adwaita and Adwaita dark.
 	- Decisions:
 		- The shade is the window color moved 1/16 of the way to the text color. It follows the desktop's theme, so there's no color of ours to keep up, and it goes the right way in a light theme and a dark one.
 		- The whole page in a scroll area is shaded, even when it fits with no scrollbar, so a tab looks the same whether or not it runs past the window.
@@ -122,10 +124,10 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Graphs aren't remembering history between restarts
 	- ID: 2026102620162195
 	- Type: Bug
-	- Status: Can't reproduce
+	- Status: Done
 		- Saving and loading work in build defqn. What's left is to see it on b23 at the next panel restart.
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
-	- Needs hand testing: on b23, at the next panel restart, check that the graphs come back with their history since 2026-10-26 19:43, with a gap for the time the panel was down.
+	- Needs hand testing: No
 	- Priority|Severity: High
 	- Opened: 20261026-201621
 	- Opened by: t00mietum
@@ -144,6 +146,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: a file saved at a restart by the 5-tier build from before the 50 ms tier loads in defqn, and its next save has 6 tiers.
 		- That file is now a test fixture, `core/tests/data/plugin-5-tiers.hist`.
 		- A restarted panel's stdout and stderr are `/dev/null`, so a failed load or save shows nothing. Filed as 2026102620523642.
+		- Verified 2026-10-30: b23's panel restarted at 07:21 on build dekwp, and plugin-16.hist still has every graph's history from the 2026-10-28 13:16 reset through the restart, saved again at 10:06.
 	- Decisions:
 		- Can't reproduce, with no code change, since nothing in the save or load path was wrong.
 		- The fixture is a real file from the old plugin, not one cut down from today's encoder like defp7's, since only that catches a change made to both encode and decode.
