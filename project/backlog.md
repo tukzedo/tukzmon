@@ -22,6 +22,18 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- History file sections don't record their series count
+	- ID: 2026103010491713
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261030-104917
+	- Opened by:
+	- Related IDs: 2026102914561233
+	- Incorrect behavior: A saved history section has no series count. One saved with another count, such as the network graph's 3 before round-1030's 5, is refused only because its bytes stop lining up. A layout that happens to fit would load as wrong history.
+	- Progress log:
+		- Filed 2026-10-30 from the LAN split worker's report. demw3 checks the network case refuses today.
+
 - Intel GPU busy share through its perf counters
 	- ID: 2026103010322277
 	- Type: Enhancement
@@ -180,7 +192,7 @@ Sorted per the notes in [Template](#template).
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
 	- Type: Feature
-	- Status: Started
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261019-162748
 	- Opened by: t00mietum
@@ -194,7 +206,9 @@ Sorted per the notes in [Template](#template).
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Decisions:
 		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+	- Test case: the children's tests, demvz, demw0, demw1, demw2 and demw3 for the setting and graph, and the socket reader's tests from 2026102914561218.
 	- 2026-10-29: split into 3 children: the TCP socket reader 2026102914561218, the setting and the 5-series graph 2026102914561233, and the nftables counter set 2026102914561248. This closes with the last of them.
+	- Closed 2026-10-30: the socket reader and the setting with the 5-series graph are Done. The nftables way is Deferred in 2026102914561248, so the setting offers Off and TCP sockets.
 
 - Pre-next-cut: Ctrl+Tab skips Themes|Colors
 	- ID: 2026103009394901
