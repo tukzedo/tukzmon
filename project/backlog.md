@@ -48,6 +48,232 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: The workflow is its own test. Its first run is in the row above.
 
+- Code review 20261030 item 1: The profiler measures a mostly empty history for 4 of its 6 graphs
+	- ID: 2026103016201601
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: `27110e8` (profiler, 2026-10-25). Default graphs grew past CPU and memory after that, and the profiler's clock skip didn't follow. First review. Confirmed by reading.
+	- Steps to reproduce:
+		- Read `core/examples/profile.rs`. Only `g.cpu` and `g.mem` skip the clock, in the preload and in each tick.
+	- Incorrect behavior: GPU memory, disk, temperature and swap stay on the real clock, so they have only a few seconds of history and draw mostly gaps. The drawing and history shares in the flame report come out too low.
+	- Expected behavior: every shown graph is profiled with a full history, as the soak test does.
+	- Possible cause: graphs were added without touching the profiler. `TICK` still says 500 ms is the default, but it's been 1000 since `aa43398`, and the subtitle still says "CPU and memory".
+	- Estimated effort: Low
+	- Test case: a test that every graph `Graphs::new(Look::default())` shows gets a clock skip, or one `Graphs` method that skips them all, used by both the profiler and the soak test.
+
+- Code review 20261030 item 2: The temp folder guard accepts the project's whole temp folder
+	- ID: 2026103016201602
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: `ff4610a` (cicd, 2026-10-25). The rule against it came later, on 2026-10-28. First review. Confirmed with a regex test in the shell.
+	- Steps to reproduce:
+		- Pass `fSafeRm` in `cicd/utility/include/run-tmp.bash` the path `${HOST_TEMP}/tukzmon`.
+	- Incorrect behavior: the path matches `^/(.+/)?tmp/[^/]+`, so it would be removed.
+	- Expected behavior: refused. `Safe removal` in the CICD process allows a run folder under it, never the project's folder itself.
+	- Possible cause: no caller passes it today, so nothing has tripped it.
+	- Estimated effort: Low
+	- Test case: a guard test that tries `${HOST_TEMP}`, `${HOST_TEMP}/tukzmon` and a run folder, and sees only the last one go.
+
+- Code review 20261030 item 3: The settings window redoes its whole refresh on each step of a slider or color drag
+	- ID: 2026103016201603
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: `f89e55e` (proof of concept), and grew as rows were added. First review. Confirmed in the code. How much it lags hasn't been timed.
+	- Requirements:
+		- A slider drag and a color picker drag stay smooth on a slow box.
+		- Time one `refresh()` first, on b23 and on a VM, before and after.
+	- Progress log:
+		- Each step runs `refresh()`, which looks up every row's setting by a linear scan of about 400 settings, several times per row, and restyles all 101 color chips. Details in `details.md` -> "Code review 20261030".
+		- The lookup is in knobs, which stays byte-identical to silkterm, so that part goes there first.
+	- Estimated effort: Avg
+
+- Code review 20261030 item 4: Nothing formats or lints the C++ and Python files
+	- ID: 2026103016201604
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: `f89e55e` for `qt.cpp`, and `27110e8` for `flame-report.py`. First review. Confirmed: the repo has no `.clang-format`, `.clang-tidy` or `pyproject.toml`, and the lint step runs none of them.
+	- Requirements:
+		- A `.clang-format` with tabs, matching `qt.cpp` as it is now, and a `.clang-tidy`. Both run in the lint step.
+		- ruff and black for `cicd/utility/flame-report.py`, keeping its silkterm naming.
+		- Build `qt.cpp` as C++20, and fail the gate on its warnings.
+		- Fix what clang-tidy finds, such as the C arrays, the 11 copies of the test `QApplication` setup, and leaf classes not marked `final`.
+	- Estimated effort: Avg
+
+- Code review 20261030 item 5: A settings file that can't be read opens as defaults with no message
+	- ID: 2026103016201605
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: `f89e55e` (proof of concept). First review. Plausible, only read.
+	- Steps to reproduce:
+		- `chmod 000` the settings file and open the settings window.
+	- Incorrect behavior: `Dialog::open` turns the read error into an empty file. The window shows defaults, and the user edits on top of them.
+	- Expected behavior: the window says it can't read the file, or `tukzmon-settings` exits with the error through `complain`. A missing file still opens as defaults.
+	- Estimated effort: Low
+
+- Code review 20261030 item 6: The Nix check puts env values into arithmetic unchecked
+	- ID: 2026103016201606
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: `6f7209f` (nix pipeline area, 2026-10-28). First review. Confirmed by reading.
+	- Steps to reproduce:
+		- Set `TUKZMON_NIX_CAP_MB` to `x[$(id)]` and run the Nix step.
+	- Incorrect behavior: `((mb > capMb))` in `cicd/nix/check.bash` runs the substitution. `TUKZMON_JOBS` goes into `NIX_CONFIG` unchecked too.
+	- Expected behavior: both are checked for digits first, as `cicd.bash` does for `CICD_MAX_JOBS`.
+	- Possible cause: the values come from tracked `config.bash`, inside a throwaway container, so the risk is small.
+	- Estimated effort: Low
+
+- Code review 20261030 item 7: Collectors reopen their files every tick, and the disk graph reads every block device
+	- ID: 2026103016201607
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Prereq IDs: 2026103016201601
+	- Origin: `940bb77` (mem collector) for `slurp`, and `1c4df3f` (net and disk collectors) for the disk read. First review. The read times were measured on b23.
+	- Requirements:
+		- The /proc and /sys reads are about 72% of a tick, and the disk graph alone about a third.
+		- Keep each file open and re-read it from the start, rather than opening it each tick.
+		- The disk graph reads only the wanted disks' `/sys/block/<disk>/stat`, kept open, and lists the disks again now and then.
+		- Read `/proc/meminfo` once a tick for memory, swap and zswap, not 2 or 3 times.
+	- Progress log:
+		- A tick is about 209 us, at 1 a second by default, so this is small. Measured numbers are in `details.md` -> "Code review 20261030".
+	- Estimated effort: Avg
+
+- Code review 20261030 item 8: Each history save reads the whole history file again first
+	- ID: 2026103016201608
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: `b46c961` (memory graph, 2026-10-25). First review. Plausible on the cost, not timed.
+	- Requirements:
+		- `Graphs::save` re-reads the file only to keep hidden graphs' sections, and copies every section on the way. b23's file is 11.5 MB, and it saves every 15 minutes on the panel's thread.
+		- Keep the hidden graphs' sections from the last load, or read only those.
+		- Time a save before and after.
+	- Estimated effort: Low
+
+- Code review 20261030 item 9: Drawing allocates on every draw and packs every pixel
+	- ID: 2026103016201609
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Prereq IDs: 2026103016201601
+	- Origin: `f89e55e` for `render.rs`, and `51ab3f4` for the tile layout. First review. Confirmed in the code, and the cost will be clearer once the profiler is fixed.
+	- Requirements:
+		- Reuse the draw's scratch buffers rather than allocating 3 or 4 each draw.
+		- Pack the background and each solid series color once, not per pixel.
+		- Work out the graph order once per settings change, not 3 times per draw and on every pointer move.
+	- Decisions:
+		- Decided against: keeping history block totals up to date one sample at a time. At 2.3% it isn't worth the risk of drift.
+	- Estimated effort: Avg
+
+- Code review 20261030 item 10: Each graph's settings are listed by hand in about 15 places
+	- ID: 2026103016201610
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: grew graph by graph from round-1025 on. First review.
+	- Requirements:
+		- One per-graph record in `Look`, indexed by `Which`, in place of about 120 parallel fields and 12 near-identical paint methods.
+		- `Source` gets the per-graph accessors by default from that.
+		- Graphs share one `Look` rather than each keeping a clone of it.
+		- Weigh against the churn first. The payoff is a new graph that can't be missed somewhere.
+	- Estimated effort: High
+
+- Code review 20261030 item 11: Catch-all matches and string-typed values across the bridge
+	- ID: 2026103016201611
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: `0bc1224`, `35cf141`, `9e35514` and `fe76b54`. First review. Confirmed by reading.
+	- Requirements:
+		- Name the variants in the `_` arms over `Which` (`Graphs::is_shown`), `own::Host` (`OwnReader::text`) and `Part` (`Scheme::of`, which would index past the end for a new non-graph part).
+		- Send a row's control kind to `qt.cpp` as a shared enum, not a lower-cased debug string, and the picker's numbers as numbers, not text read back with `std::stoi`.
+		- Say why at each remaining `clone()` that has no comment, or borrow, as in `Dialog`'s theme member loop.
+	- Estimated effort: Low
+
+- Code review 20261030 item 12: Public types without Debug and public items without doc comments
+	- ID: 2026103016201612
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: across the tree. First review. Confirmed by reading.
+	- Requirements:
+		- Derive or write `Debug` for `Graph`, `Graphs`, `render::Frame`, `Dialog`, `RowState`, `Live` and the bridge's shared structs.
+		- One-line `///` on the public items that have none. The list is in `details.md` -> "Code review 20261030".
+		- The SAFETY note in the plugin's draw handler says why the pixel buffer outlives the cairo surface.
+		- `color.rs` takes `//!` for its module header, as the other modules do.
+	- Estimated effort: Low
+
+- Code review 20261030 item 13: Scripts fork inside loops
+	- ID: 2026103016201613
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: `963ab8d` (test ids, 2026-10-25) for the worst one. First review. Confirmed by reading.
+	- Requirements:
+		- `test-ids.bash` decodes each of about 1000 test IDs in a subshell, on every lint step. Decode with `printf -v` or inside the awk it already runs.
+		- One awk over all `.rs` files rather than one per file.
+		- `${f##*/}` for `basename` in `lint-report.bash` and `dev-install.bash`, and one `dpkg-query -S` call in `package.bash`.
+	- Estimated effort: Low
+
+- Code review 20261030 item 14: The release build's opt-level has never been measured against size
+	- ID: 2026103016201614
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: `f89e55e` (proof of concept). First review.
+	- Requirements:
+		- Build the plugin and the settings window at `opt-level` 3, "s" and "z". Compare size, and tick time from the profiler.
+		- Keep the winner, with the numbers in a comment beside it.
+	- Estimated effort: Low
+
+- Code review 20261030 item 15: `dev-install.bash` doesn't follow the helper script layout
+	- ID: 2026103016201615
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: `2a74ce3` (dev-install without sudo, 2026-10-29). First review. Confirmed by reading.
+	- Requirements:
+		- The `##` header with Purpose, copyright and license, and History at the bottom, as in `cicd/utility/package.bash`.
+		- Output through `fEcho`, and errors through an error helper.
+		- MIT like the other helper scripts, unless it should stay LGPL.
+	- Estimated effort: Low
+
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
 	- Type: Bug
