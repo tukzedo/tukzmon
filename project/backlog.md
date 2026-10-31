@@ -68,22 +68,49 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Clicking a slider's track moves the slider there
 	- ID: 2026103108591401
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-085914
 	- Opened by: t00mietum
+	- Related IDs: 2026103108591402
 	- Requirements:
 		- Clicking on a spot of a slider control that isn't the slider button should move the slider to that spot.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A left click anywhere on a slider but its handle puts the handle's middle there, then snaps to a detent as a drag does. Holding the button on drags it from there.
+		- A press on the handle still drags it from where it was taken.
+		- `design.md` Settings window has it.
+	- Decisions:
+		- It's a `QSlider` subclass, `TrackSlider`, not the style's absolute-set hint. The hint would also move a grabbed handle up to half its width, which can step it onto the next detent.
+		- A detent can pull the handle off the pointer, so the drag takes hold of the handle where it went.
+	- Branch: round-1031b
+	- Test case: `bridge::tests::a_click_on_a_sliders_track_moves_it_there_and_its_handle_is_tall` (dep6b). Without `TrackSlider` it fails, with a click at 80% giving 640 of 1000, not about 800. With the style hint instead, it fails on a grab of the handle's edge moving it from 789 to 773.
+		- Swept: `TrackSlider` is the window's only slider. The color picker uses number boxes.
+	- Closed: 20261031-091605
 
 - Pre-next-cut: Taller slider grab buttons
 	- ID: 2026103108591402
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- The handle's look in the live theme is for a person to judge. Open Properties and compare a slider's handle with its number box.
+	- Needs hand testing: The look of the taller handle on b23, in the settings window.
 	- Priority|Severity: Avg
 	- Opened: 20261031-085914
 	- Opened by: t00mietum
+	- Related IDs: 2026103108591401
 	- Requirements:
 		- Slider grab buttons should be taller, about as tall as the text boxes.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A slider is as tall as the number box beside it, and its handle as tall as the slider: 26 px, up from 15, at the default font.
+		- Verified: in Orchis-green-light-compact and Orchis-green-dark-compact, the handles on the General tab come level with the number boxes, and the groove stays thin and centered.
+	- Decisions:
+		- The slider takes its row's height from the box, rather than a set size, so it follows the font. `BoxStyle` stretches the handle to the slider's height, for a horizontal slider without ticks.
+		- The handle keeps its width.
+	- Branch: round-1031b
+	- Test case: dep6b checks the handle is at least the box's height less 2 px. Without the stretch it fails, with 15 against 26.
 
 - Pre-next-cut: Same height for all buttons
 	- ID: 2026103108591403

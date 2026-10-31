@@ -44,6 +44,7 @@
 #include <QStackedWidget>
 #include <QStyle>
 #include <QStyleOptionButton>
+#include <QStyleOptionSlider>
 #include <QTimer>
 #include <QToolButton>
 #include <QToolTip>
@@ -130,9 +131,21 @@ constexpr int BUTTON_PAD_DOWN = 6;
 // Some dark themes draw an empty checkbox with an edge close to the window
 // color, so it all but vanishes. An edge in the text color, a little faded,
 // shows in a light theme and a dark one. Buttons also get more room around
-// their text than most styles give.
+// their text than most styles give, and a slider's handle is as tall as the
+// slider.
 class BoxStyle final : public QProxyStyle {
 public:
+	QRect subControlRect(ComplexControl cc, const QStyleOptionComplex *opt, SubControl sc,
+		const QWidget *w) const override {
+		QRect r = QProxyStyle::subControlRect(cc, opt, sc, w);
+		const auto *s = qstyleoption_cast<const QStyleOptionSlider *>(opt);
+		if (cc != CC_Slider || sc != SC_SliderHandle || !s || s->orientation != Qt::Horizontal ||
+			s->tickPosition != QSlider::NoTicks)
+			return r;
+		r.setTop(s->rect.top());
+		r.setBottom(s->rect.bottom());
+		return r;
+	}
 	QSize sizeFromContents(ContentsType ct, const QStyleOption *opt, const QSize &csz,
 		const QWidget *w) const override {
 		QSize s = QProxyStyle::sizeFromContents(ct, opt, csz, w);
@@ -161,6 +174,41 @@ public:
 		else
 			p->drawRoundedRect(r, 2, 2);
 		p->restore();
+	}
+};
+
+// A press on the track puts the handle under the pointer and goes on as a drag,
+// where Qt's own slider pages toward it. A press on the handle drags it from
+// where it was taken, so a grab never nudges it onto the next detent.
+class TrackSlider final : public QSlider {
+public:
+	TrackSlider() : QSlider(Qt::Horizontal) {}
+	QRect part(QStyle::SubControl sc) const {
+		QStyleOptionSlider opt;
+		initStyleOption(&opt);
+		return style()->subControlRect(QStyle::CC_Slider, &opt, sc, this);
+	}
+
+protected:
+	void mousePressEvent(QMouseEvent *e) override {
+		QRect handle = part(QStyle::SC_SliderHandle);
+		if (e->buttons() != Qt::LeftButton || handle.contains(e->position().toPoint())) {
+			QSlider::mousePressEvent(e);
+			return;
+		}
+		QStyleOptionSlider opt;
+		initStyleOption(&opt);
+		const QRect groove = part(QStyle::SC_SliderGroove);
+		const int x = e->position().toPoint().x() - groove.x() - (handle.width() / 2);
+		setSliderPosition(
+			QStyle::sliderValueFromPosition(minimum(), maximum(), x, groove.width() - handle.width(), opt.upsideDown));
+		// a detent can pull it off the pointer, so take hold of it where it went
+		handle = part(QStyle::SC_SliderHandle);
+		const QPointF at = handle.center();
+		QMouseEvent grab(e->type(), at, mapToGlobal(at), e->button(), e->buttons(), e->modifiers(),
+			e->pointingDevice());
+		QSlider::mousePressEvent(&grab);
+		e->setAccepted(grab.isAccepted());
 	}
 };
 
@@ -566,7 +614,7 @@ struct Row {
 	RowInfo info;
 	QLabel *label = nullptr;
 	QCheckBox *check = nullptr;
-	QSlider *slider = nullptr;
+	TrackSlider *slider = nullptr;
 	QDoubleSpinBox *spin = nullptr;
 	QComboBox *combo = nullptr;
 	QLineEdit *line = nullptr;
@@ -825,6 +873,10 @@ public:
 				return r->line;
 		}
 		return nullptr;
+	}
+	const Row *firstSlider() const {
+		const auto r = std::ranges::find_if(rows, [](auto &row) { return row->slider != nullptr; });
+		return r == rows.end() ? nullptr : r->get();
 	}
 	// the most common color in the page that scrolls, and in the rest of the
 	// window past the tab list, as drawn
@@ -1446,9 +1498,11 @@ private:
 			return r.check;
 		}
 		case ControlKind::Slider: {
-			r.slider = new QSlider(Qt::Horizontal);
+			r.slider = new TrackSlider;
 			r.slider->setRange(0, SLIDER_STEPS);
 			r.slider->setMinimumWidth(180);
+			// as tall as the number box beside it, and the handle with it
+			r.slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 			connect(r.slider, &QSlider::valueChanged, this, [this, &r](int v) {
 				set_slider(d, r.id(), double(v) / SLIDER_STEPS);
 				refresh();
@@ -2094,6 +2148,53 @@ rust::Vec<rust::String> button_gaps(Dialog &d) {
 					std::to_string((inner.height() - text.height()) / 2)));
 		}
 	}
+	return out;
+}
+
+rust::Vec<rust::String> slider_clicks(Dialog &d) {
+	const App app("offscreen");
+	tukzmon::App::setStyle(new BoxStyle);
+	Window w(d);
+	openSized(w);
+	w.show();
+	const Row *row = w.firstSlider();
+	if (!row)
+		return {};
+	TrackSlider *s = row->slider;
+	for (int i = 0; i < w.tabCount() && !s->isVisible(); i++) {
+		w.select(i);
+		tukzmon::App::processEvents();
+	}
+	rust::Vec<rust::String> out;
+	auto say = [&out](const std::string &what, int v) { out.push_back(rust::String(what + " " + std::to_string(v))); };
+	const QRect handle = s->part(QStyle::SC_SliderHandle);
+	say("handle", handle.height());
+	say("box", row->spin->height());
+	// where the handle's middle sits at t, 0 to 1 along the track
+	auto at = [s](double t) {
+		const QRect g = s->part(QStyle::SC_SliderGroove);
+		const int hw = s->part(QStyle::SC_SliderHandle).width();
+		const int x = g.x() + (hw / 2) + int(std::lround(t * (g.width() - hw)));
+		return QPointF(QPoint(x, s->height() / 2));
+	};
+	auto mouse = [s](QEvent::Type type, QPointF p, Qt::MouseButton b, Qt::MouseButtons held) {
+		QMouseEvent e(type, p, s->mapToGlobal(p), b, held, Qt::NoModifier);
+		QApplication::sendEvent(s, &e);
+		tukzmon::App::processEvents();
+	};
+	auto click = [&](QPointF p) {
+		mouse(QEvent::MouseButtonPress, p, Qt::LeftButton, Qt::LeftButton);
+		mouse(QEvent::MouseButtonRelease, p, Qt::LeftButton, Qt::NoButton);
+	};
+	click(at(0.8));
+	say("jump", s->value());
+	const QRect now = s->part(QStyle::SC_SliderHandle);
+	click(QPointF(now.left() + 1, now.center().y()));
+	say("grab", s->value());
+	mouse(QEvent::MouseButtonPress, at(0.2), Qt::LeftButton, Qt::LeftButton);
+	mouse(QEvent::MouseMove, at(0.5), Qt::NoButton, Qt::LeftButton);
+	mouse(QEvent::MouseButtonRelease, at(0.5), Qt::LeftButton, Qt::NoButton);
+	say("drag", s->value());
 	return out;
 }
 

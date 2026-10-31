@@ -22,6 +22,7 @@ rust::Vec<rust::String> bottom_buttons(Dialog &d);
 rust::Vec<bool> apply_while_typing(Dialog &d, bool number);
 rust::Vec<rust::String> page_shades(Dialog &d, bool dark);
 rust::Vec<rust::String> button_gaps(Dialog &d);
+rust::Vec<rust::String> slider_clicks(Dialog &d);
 rust::Vec<rust::String> window_fit(Dialog &d, rust::Str screens);
 double empty_box_contrast(bool dark);
 rust::Vec<std::int32_t> chip_restyles(Dialog &d, rust::Str color);

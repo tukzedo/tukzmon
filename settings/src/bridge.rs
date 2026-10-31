@@ -219,6 +219,12 @@ pub mod ffi {
 		/// on each side.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn button_gaps(d: &mut Dialog) -> Vec<String>;
+		/// For the first slider, "handle h" and "box h", the heights of its
+		/// handle and its number box, then its 0 to 1000 value after a click
+		/// on the track at 80% ("jump"), a click on the handle's edge ("grab"),
+		/// and a press on the track at 20% dragged to 50% ("drag").
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn slider_clicks(d: &mut Dialog) -> Vec<String>;
 		/// Opens the window on the offscreen screens set in the file named, and
 		/// gives "room x y w h" for the screen less its panels, "frame x y w h"
 		/// for the window with its frame, then per tab with no tabs under it
@@ -1033,6 +1039,30 @@ mod tests {
 			// BUTTON_PAD_ACROSS and BUTTON_PAD_DOWN in qt.cpp
 			assert!(across >= 12 && down >= 6, "{g}");
 		}
+	}
+
+	// Test ID: dep6b
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn a_click_on_a_sliders_track_moves_it_there_and_its_handle_is_tall() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_slider_clicks_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let got: std::collections::HashMap<String, i32> = ffi::slider_clicks(&mut d)
+			.iter()
+			.filter_map(|s| s.split_once(' '))
+			.map(|(k, v)| (k.to_string(), v.parse().unwrap_or(-1)))
+			.collect();
+		let near = |k: &str, want: i32| {
+			assert!((got[k] - want).abs() <= 20, "{k}: {got:?}");
+		};
+		assert!(got["handle"] >= got["box"] - 2, "{got:?}");
+		near("jump", 800);
+		assert_eq!(got["grab"], got["jump"], "a grab moved it: {got:?}");
+		near("drag", 500);
 	}
 
 	// Test ID: dej8s
