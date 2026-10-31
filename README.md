@@ -7,17 +7,17 @@
 
 A system monitor that lives in your panel. It draws small graphs for CPU, memory, GPU, network, disk, swap, temperature, battery, and more, right in the taskbar.
 
-The time axis is logarithmic by default. The last minute gets the most room, and older history is squeezed to the left, so one small graph shows the last few seconds and the last few weeks at once. History is kept across restarts and reboots, with gaps where the computer was off.
+Inspired by A) The "Non-linear time" scale option in XFCE4's "CPU Graph", and B) The now-abandoned and stale "Multimon-NG" project. (The latter was a revival fork of the defunct "Multimon" project, which was a reimplimentation of the original monitors available in the original Gnome desktop panel' - and also available in MATE.)
+
+The time axis is logarithmic by default. The last minute gets the most room, and older history is squeezed to the left, so one small graph shows the last few seconds and the last few weeks at once. History is kept across restarts and reboots (by default), with gaps where the computer was off.
 
 ## Status
-
-Early. CPU, memory, GPU, GPU memory, network, swap, zswap, load, disk, temperature, battery and tukzmon's own CPU graphs run as an XFCE panel plugin, with a settings window, and keep their history across restarts, but there's no package yet. The plan is in [project/design.md](project/design.md) and the work list in [project/backlog.md](project/backlog.md).
 
 To try it from a checkout you need Rust, XFCE 4.20, and Qt 6 (`qt6-base-dev` on Debian). Run `utility/dev-install.bash`. It installs to `~/.local`, with no sudo, and restarts the panel to load the new build.
 
 On NixOS, add `tukzmon.url = "github:tukzedo/tukzmon";` to your flake's inputs, put `tukzmon.nixosModules.default` in the system's modules, and set `programs.tukzmon.enable = true;`. After a rebuild, tukzmon is in the panel's Add New Items list. There's also `tukzmon.packages.x86_64-linux.default` and `tukzmon.overlays.default` if you'd rather add the package yourself, but then `environment.pathsToLink` needs `/share/xfce4` and `/lib/xfce4` unless the XFCE desktop is on.
 
-The first version is an XFCE panel plugin. Other desktops come after that, and later Windows, macOS, and the BSDs.
+The first version is an XFCE panel plugin. Other desktops will follow. And then after that - Windows, macOS, and the BSDs.
 
 ## Graphs
 
@@ -39,15 +39,15 @@ The first version is an XFCE panel plugin. Other desktops come after that, and l
 
 - Battery charge and discharge, with the critical level.
 
-- tukzmon's own CPU use, so you can see what it costs.
+- tukzmon's own CPU use, so you can see what it costs. (A boring indicator as it is typically a tiny fraction of a % of one CPU, and usually shows nothing.)
 
 ## Related projects
 
-- [tukzedo-linux](https://github.com/tukzedo/tukzedo-linux) is the distro.
+- [Tukzedo Linux](https://github.com/tukzedo/tukzedo-linux) an altra-secure distro with similar design principles.
 
-- [lxqtukz](https://github.com/tukzedo/lxqtukz) is the desktop. An LXQt panel version of tukzmon is planned for it.
+- [LXQtukz](https://github.com/tukzedo/lxqtukz) a highly-configurable desktop with multiple "personnas" out-of-the-box. (An LXQt panel version of tukzmon is in the works for it.)
 
-tukzmon doesn't need either one. It should work on any distro with a supported panel.
+Tukzmon doesn't need either one. It should work on any distro with a supported panel.
 
 ## Copyright and license
 
