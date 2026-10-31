@@ -65,6 +65,117 @@ Sorted per the notes in [Template](#template).
 		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
 	- Estimated effort: Low
 
+- Code review 20261031 item 2: Apply resets Custom colors edited before another theme was picked
+	- ID: 2026103115231817
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261031-152318
+	- Opened by: t00mietum
+	- Steps to reproduce: A file on Custom with `cpu.colors.user` set. Change User, pick Default, Apply, then pick Custom again.
+	- Incorrect behavior: User is the spec default, neither the old color nor the edit. Randomize on Custom, then Default, then Apply does the same.
+	- Expected behavior: Custom keeps the edit, as the window showed before Apply.
+	- Possible cause: Apply replays each touched row, judging set or reset by the window theme, then runs that against the file theme.
+	- Estimated effort: Avg
+	- Origin: `f89e55e` (`Dialog::apply`). First review. Confirmed, by scratch tests without Qt.
+
+- Code review 20261031 item 1: A hidden CPU graph, shown again, fills the hidden time and can take gigabytes
+	- ID: 2026103115231801
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261031-152318
+	- Opened by: t00mietum
+	- Related IDs: 2026102508393152
+	- Steps to reproduce: Untick CPU, leave it hidden a day or more, then tick it again.
+	- Incorrect behavior: The first read after it's back covers the whole hidden time, so the graph shows that time filled with one average. The 50 ms tier makes a bucket for every step of it before trimming. 3 days hidden took the probe from 24 MB to 1.87 GB, which stayed. 30 days would want about 18 GB, and a failed allocation aborts the panel.
+	- Expected behavior: A gap for the hidden time, as 2026102508393152 says, and no more memory than the tier keeps.
+	- Possible cause: CPU keeps its slot while hidden, so `read_at` is left from before. `Tier::add` pushes every bucket from `first` to the end before it trims to `cap`.
+	- Estimated effort: Low
+	- Origin: `f89e55e` (`Tier::add`) and `bfa6a97` (hidden graphs not read). First review. Confirmed, by a probe through `Graphs::skip`.
+
+- Code review 20261031 item 7: The network graph counts bridge, VM and VPN traffic as well
+	- ID: 2026103115231894
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261031-152318
+	- Opened by: t00mietum
+	- Related IDs: 2026102408512202
+	- Steps to reproduce: Run a VM or VPN and watch the network graph.
+	- Incorrect behavior: Over 10 s on b23 every interface but `lo` received 18.3 MB, and the physical NIC 0.23 MB, so the graph read about 80 times high. With the LAN split on, VM traffic over the bridge counts as internet.
+	- Expected behavior: Physical interfaces only by default, or a setting for which ones count.
+	- Possible cause: `net::bin` adds every interface but `lo`.
+	- Estimated effort: Low
+	- Origin: `1c4df3f`. 2026102408512202 left it for later "if it shows". Confirmed on b23.
+
+- Code review 20261031 item 6: Format and Lint pass on no files when git ls-files fails
+	- ID: 2026103115231879
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261031-152318
+	- Opened by: t00mietum
+	- Steps to reproduce: Run the gate on a repo with `extensions.relativeWorktrees` set, which the image git 2.47 refuses, or on a tree that is not a git repo.
+	- Incorrect behavior: shellcheck, markdownlint, clang-tidy, ruff, clang-format, black and the stray test ID check run on nothing, and the step passes.
+	- Expected behavior: The step fails when git fails, or when a kind that should have files has none.
+	- Possible cause: `mapfile < <(git ls-files ...)` loses the exit status.
+	- Estimated effort: Low
+	- Origin: `ff4610a` (Lint list) and `4993f98` (`fFilesLike`). First review. Confirmed in the image with a probe repo.
+
+- Code review 20261031 item 5: History files aren't checked for times and values out of bounds
+	- ID: 2026103115231863
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261031-152318
+	- Opened by: t00mietum
+	- Steps to reproduce: Save a history file with `last` a day ahead, or one bit flipped high in it, or a NaN or inf in a bucket, or a tier `first` near the top of i64.
+	- Incorrect behavior: A day ahead keeps the graph a day off until Reset history. A high bit freezes the graph, and that is saved back. NaN fills a column full height, and inf flattens every other column for as long as it's in view. A crafted tier start aborts the panel at every start.
+	- Expected behavior: A section with times past now, times out of order, or values that aren't finite is refused, or the bad buckets are dropped. Drawing treats a non-finite value as a gap.
+	- Possible cause: decode checks layout only, and adopt moves the clock to any saved last.
+	- Estimated effort: Avg
+	- Origin: `87bc145` (`History::decode`, `Graph::adopt`) and `90f83106` (`render::fit`). First review. Confirmed, by probes with crafted files.
+
+- Code review 20261031 item 4: Graph times fall behind the clock after a suspend
+	- ID: 2026103115231848
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261031-152318
+	- Opened by: t00mietum
+	- Steps to reproduce: Suspend a laptop for an hour, wake it, and hover the graph.
+	- Incorrect behavior: Clock tips are an hour early, Ago tips before the suspend are an hour short, and no gap shows for it. A clock change after start does the same.
+	- Expected behavior: Times match the wall clock, and the suspend shows as a gap. design.md says times are Unix seconds, so runs line up.
+	- Possible cause: `Graph::now` is the start time plus an `Instant`, which reads `CLOCK_MONOTONIC`, and that stops during suspend.
+	- Estimated effort: Avg
+	- Origin: `87bc145` (epoch) and `f89e55e` (`Instant`). First review. Plausible. The std source and `clock_gettime` were read, but b23 never suspends.
+
+- Code review 20261031 item 3: Enter on a focused button saves and closes the settings window
+	- ID: 2026103115231832
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261031-152318
+	- Opened by: t00mietum
+	- Steps to reproduce: Change a setting, Tab to Cancel, press Enter.
+	- Incorrect behavior: The change is saved and the window closes as OK. Enter on Reset history, Save, Delete or Randomize does the same, and Reset history resets nothing.
+	- Expected behavior: Enter presses the focused button, as in any dialog. Enter in a field is still OK.
+	- Estimated effort: Low
+	- Origin: `f89e55e` (the key filter in `qt.cpp`). First review. Confirmed on a private display.
+
+- Code review 20261031 item 24: The profiler draws into a canvas far smaller than a panel's, and one run varies 20%
+	- ID: 2026103115232157
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261031-152321
+	- Opened by: t00mietum
+	- Related IDs: 2026103016201601
+	- Requirements: Size the canvas from `Graphs::wanted`, drive it through `Graphs::tick` with beats, and give the median of a few runs or user time alone. 6 graphs want 790 device px and get 96, so the last plot is 1 px, and 40 px are gaps. The 134 to 178 us move on 2026-10-31 came with no core change.
+	- Estimated effort: Low
+	- Origin: `27110e8`. First review. Confirmed by a probe.
+
 - Pre-next-cut: No horizontal line between the theme buttons and the scrollable region
 	- ID: 2026103114565000
 	- Type: Enhancement
@@ -101,6 +212,318 @@ Sorted per the notes in [Template](#template).
 		- Dialog change to follow `project/style-guide_ux.md` (Message boxes).
 		- The Delete theme and Reset history questions have no default button set, so Qt picks Yes. Make it No for both.
 	- Estimated effort: Low
+
+- Code review 20261031 item 23: Dead code in the settings window and public items only tests use
+	- ID: 2026103115232140
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152321
+	- Opened by: t00mietum
+	- Incorrect behavior: `typing()` in `qt.cpp` checks `specialValueText()`, which nothing sets, and its comment is from before Sample %. `config::theme_problems`, `render::column`, `Graph::save` and `Graph::load` have no caller outside tests.
+	- Expected behavior: Removed, or made test-only.
+	- Estimated effort: Low
+	- Origin: `4993f98` (`typing`) and earlier. First review. Confirmed by grep.
+
+- Code review 20261031 item 22: Stale text in the desktop file, package description, design.md and the knobs demo
+	- ID: 2026103115232125
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152321
+	- Opened by: t00mietum
+	- Incorrect behavior: `tukzmon.desktop` says CPU graph with a log time axis, and `nfpm.yaml` says CPU and memory graphs, with 13 graphs now. design.md says the only globals are the spec cache and the panic hook, and that the settings window won't save an unreadable file, both out of date. `knobs/demo/demo.shcl` doesn't list `from_program`.
+	- Expected behavior: Each says what the code does now.
+	- Estimated effort: Low
+	- Origin: `f89e55e` and later. First review. Confirmed by reading.
+
+- Code review 20261031 item 21: Tests that can't fail, or check less than their names say
+	- ID: 2026103115232109
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152321
+	- Opened by: t00mietum
+	- Steps to reproduce: Take out the `count > tier.cap()` check in `History::decode` and run the history tests.
+	- Incorrect behavior: All 15 pass, since decbh's file is too short and fails on length first. debj0 says a holed bucket reads as thin, but checks only the count. dep7b refuses 2 spaces in a row, so a tip line with 2 pairs and a comma passes. `procs_sits_after_load_and_stacks_by_owner` lays procs after swap.
+	- Expected behavior: Each fails when what it names breaks.
+	- Estimated effort: Low
+	- Origin: `87bc145` (decbh, debj0), `1d07a68` (dep7b). First review. decbh confirmed by mutation; the rest by reading.
+
+- Code review 20261031 item 20: Each trim past the max age eases the time axis again
+	- ID: 2026103115232093
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152320
+	- Opened by: t00mietum
+	- Steps to reproduce: Keep history until it reaches the max age.
+	- Incorrect behavior: Every trim moves the first time, which counts as a jump, so each 15 minute save starts half a second of redraws every 33 ms. It can't be seen, but costs about 15 draws per item per save.
+	- Expected behavior: Trimming the old end isn't a jump.
+	- Estimated effort: Low
+	- Origin: `34dffcb` (`Basis::jumps_to`). First review. Plausible, by reading.
+
+- Code review 20261031 item 19: The LAN reader doesn't check netlink sequence numbers
+	- ID: 2026103115232077
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152320
+	- Opened by: t00mietum
+	- Steps to reproduce: A sock_diag dump fails partway.
+	- Incorrect behavior: Its leftover messages are read into the next dump, so one read misses sockets and the next counts their whole life once. The interface totals bound it, since the LAN is clamped to them.
+	- Expected behavior: Messages from another request are skipped.
+	- Estimated effort: Low
+	- Origin: `8bbd96a`. First review. Plausible, by reading.
+
+- Code review 20261031 item 18: History saves can lose hidden graphs' sections or leave a temp file
+	- ID: 2026103115232061
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152320
+	- Opened by: t00mietum
+	- Steps to reproduce: Run an older build on a newer history file, or fill the disk during a save.
+	- Incorrect behavior: A read that fails leaves nothing kept, so the save writes only the shown graphs over the file. A failed write leaves `plugin-N.hist.tmp`, up to 14 MB, which Reset history never removes. 2 sessions with one item id share the temp name.
+	- Expected behavior: A file that can't be read isn't overwritten, and a failed write removes its temp file.
+	- Estimated effort: Low
+	- Origin: `87bc145` (`keep::write`) and `9b0535f` (`Graphs::save`). First review. Plausible, by reading.
+
+- Code review 20261031 item 17: The plugin's tick makes a second mutable borrow through the tooltip requery
+	- ID: 2026103115232046
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152320
+	- Opened by: t00mietum
+	- Steps to reproduce: Leave the pointer still on the graph for a second or more.
+	- Incorrect behavior: `gtk_widget_trigger_tooltip_query` inside `tick` fires `query-tooltip` at once, which makes a second `&mut Plugin` while the first is live. That is undefined behavior. Today the inner call only reads, so at worst a tip line is stale.
+	- Expected behavior: The trigger runs after `guarded` returns, or from an idle callback.
+	- Estimated effort: Low
+	- Origin: `a9ca08f`. First review. Plausible. The GTK 3.24 call path was confirmed in its source.
+
+- Code review 20261031 item 16: The Nix store volume has no dev.run label, and the Nix step removes other tukzmon volumes
+	- ID: 2026103115232031
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152320
+	- Opened by: t00mietum
+	- Related IDs: 2026102808222810
+	- Steps to reproduce: Keep a worktree whose NIX_IMAGE pin differs, then run the Nix step in another.
+	- Incorrect behavior: The other store, about 5 GB, is removed. Any tukzmon volume added later would be too.
+	- Expected behavior: Both labels on every volume, per Containers in CICD process, and removal of only what the step owns.
+	- Estimated effort: Low
+	- Origin: `6f7209f`. First review. Confirmed with `docker volume inspect`.
+
+- Code review 20261031 item 15: license.txt counts as docs only for the pre-push hook
+	- ID: 2026103115232016
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152320
+	- Opened by: t00mietum
+	- Steps to reproduce: Push to main a commit that only renames or deletes license.txt.
+	- Incorrect behavior: The gate is skipped, and the Packages step breaks on main.
+	- Expected behavior: Files that go into a package aren't docs.
+	- Estimated effort: Low
+	- Origin: `ff4610a` (`DOCS_PATHS`). First review. Confirmed by reading `nfpm.yaml`.
+
+- Code review 20261031 item 14: The pre-push hook keeps the gate from removing images, and any value skips it
+	- ID: 2026103115232000
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152320
+	- Opened by: t00mietum
+	- Steps to reproduce: Push to main from a checkout with any untracked file, or with TUKZMON_SKIP_HOOK=0.
+	- Incorrect behavior: The hook's own run folder looks like a live run, so the gate never removes its images. Setting the skip to 0 also skips.
+	- Expected behavior: The gate's cleanup ignores the hook that started it, and only 1 skips.
+	- Estimated effort: Low
+	- Origin: `ff4610a` (hook) and `f95b2c6` (`fOtherRun`). First review. Confirmed with a probe, and by reading.
+
+- Code review 20261031 item 13: The leftover process scan stops at the first one that exits, and prints a false abort
+	- ID: 2026103115231984
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152319
+	- Opened by: t00mietum
+	- Steps to reproduce: Stop a run during an in-image step, so its processes exit while the scan reads them.
+	- Incorrect behavior: The ERR trap fires inside the process substitution, prints CICD ABORTED, and no pid after that one is stopped. Cleanup then removes the run folder under them.
+	- Expected behavior: A process gone before its read is skipped, and the rest are stopped.
+	- Estimated effort: Low
+	- Origin: `f95b2c6` (`fRunPids`) and `5f1bef0` (ERR trap). First review. Confirmed with a probe.
+
+- Code review 20261031 item 12: dev-install.bash ignores the target dir and can't find ldconfig
+	- ID: 2026103115231969
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152319
+	- Opened by: t00mietum
+	- Related IDs: 2026102820420805, 2026103016201615
+	- Steps to reproduce: Set `CARGO_TARGET_DIR` and run it, or run it with Debian's default user PATH.
+	- Incorrect behavior: It builds into the target dir but copies the old `target/release` files, then restarts the panel on them. `ldconfig` is in `/usr/sbin`, so every Debian user gets the not found warning and the x86_64 fallback, which is wrong on arm64. The build has no `--locked`.
+	- Expected behavior: It copies what it built, finds the library, and leaves `Cargo.lock` alone.
+	- Estimated effort: Low
+	- Decisions: 2026103016201615 closed with no test because the pipeline can't run it. `dev-install-rig.bash` runs it under unshare, so a test can now go in `cicd/tests`.
+	- Origin: `2a74ce3` and `69dae71`. First review. ldconfig confirmed with a Debian user PATH. The target dir is Plausible, by reading.
+
+- Code review 20261031 item 11: knobs lets NaN past a range check
+	- ID: 2026103115231954
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152319
+	- Opened by: t00mietum
+	- Steps to reproduce: Put `margin_tb: nan` in a saved theme.
+	- Incorrect behavior: The margin is 0. Junk text gives the default 2, so nan isn't dropped as junk is. A float setting keeps NaN and saves it.
+	- Expected behavior: A number that isn't finite is refused like any out of range.
+	- Possible cause: `x < min || x > max` is false for NaN, and `theme_typed` takes `nan` through `parse::<f64>`.
+	- Estimated effort: Low
+	- Decisions: The knobs fix goes to silkterm first, as its copy is the source.
+	- Origin: `f89e55e` (`Spec::valid`). First review. Confirmed with a scratch crate. silkterm's copy is byte-identical.
+
+- Code review 20261031 item 10: A non-UTF-8 config path panics, and a dangling config link is replaced
+	- ID: 2026103115231938
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152319
+	- Opened by: t00mietum
+	- Steps to reproduce: Run `tukzmon-settings --config` with a path holding byte 0xff. Or point the config at a link to a missing file and Apply.
+	- Incorrect behavior: The first exits 101 with a panic. The second opens at defaults and Apply writes a regular file over the link.
+	- Expected behavior: A message and exit 2 for the path. For the link, write through it, or say it points nowhere.
+	- Estimated effort: Low
+	- Origin: `f89e55e` (`main.rs` args, Apply). First review. Confirmed.
+
+- Code review 20261031 item 9: The graph list's Width % and Sample % header tips are the first row's
+	- ID: 2026103115231923
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152319
+	- Opened by: t00mietum
+	- Steps to reproduce: Hover the Width % header in the graph list.
+	- Incorrect behavior: It says how wide the CPU graph is, or whichever graph is first, and can include its stale Set by hand line.
+	- Expected behavior: A tip about the column.
+	- Estimated effort: Low
+	- Origin: `b869164` and `bad9e01`. First review. Confirmed by reading.
+
+- Code review 20261031 item 8: 2 windows saving one new theme name keep only the last one's colors
+	- ID: 2026103115231908
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152319
+	- Opened by: t00mietum
+	- Steps to reproduce: Open 2 windows on one file. Save "Mine" in the first and Apply, then save "Mine" in the second and Apply.
+	- Incorrect behavior: The first window's Mine is gone with no word.
+	- Expected behavior: The second gets its own key, or is asked before it overwrites.
+	- Possible cause: The theme key is picked against this window's themes only. A plugin item opens one window, so it needs a second started by hand.
+	- Estimated effort: Low
+	- Origin: `6a78316` (`merge_themes`). First review. Confirmed by a scratch test.
+
+- Code review 20261031 item 33: The workflow pins actions/checkout by tag and keeps the token in the checkout
+	- ID: 2026103115232296
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152322
+	- Opened by: t00mietum
+	- Requirements: Pin by commit SHA and set `persist-credentials: false`, since the containers mount the checkout.
+	- Estimated effort: Low
+	- Origin: `5f1bef0`. First review. Plausible, the workflow has never run.
+
+- Code review 20261031 item 32: A run whose named areas are all turned off checks nothing and passes
+	- ID: 2026103115232280
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152322
+	- Opened by: t00mietum
+	- Requirements: `--backlog-run-quick miri --no-leakcheck` plans only the image step. Fail when the plan has no checks.
+	- Estimated effort: Low
+	- Origin: `ff4610a`. First review. Confirmed with `--list`.
+
+- Code review 20261031 item 31: knobs drops unknown spec keys with no word
+	- ID: 2026103115232265
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152322
+	- Opened by: t00mietum
+	- Requirements: Warn on a spec key that neither knobs nor the program names in an allow list, so a typo shows. tukzmon reads its own keys, so it needs that list.
+	- Estimated effort: Low
+	- Decisions: Goes to silkterm first, as its copy is the source.
+	- Origin: `f89e55e`. First review. Confirmed with a probe, `gaet:` was ignored.
+
+- Code review 20261031 item 30: The settings window's teardown relies on being hidden first
+	- ID: 2026103115232250
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152322
+	- Opened by: t00mietum
+	- Requirements: `~Window` frees `live` and `rows` before Qt deletes the child widgets, whose lambdas point at them. `exec()` hides the window first, so nothing fires today. Hide and disconnect at the top of `~Window` so a test hook or a later caller can't reach freed memory.
+	- Estimated effort: Low
+	- Origin: `391bfce`. First review. Plausible, not reachable today.
+
+- Code review 20261031 item 29: Apply drops comments in the config file
+	- ID: 2026103115232235
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152322
+	- Opened by: t00mietum
+	- Requirements: Keep the comments a hand edit put in the file, or say in design.md and the file header that Apply rewrites it.
+	- Estimated effort: Avg
+	- Origin: `f89e55e` and `6a78316`. First review. Confirmed by a scratch test.
+
+- Code review 20261031 item 28: Properties gives no sign when its window is open or fails to start
+	- ID: 2026103115232220
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152322
+	- Opened by: t00mietum
+	- Requirements: Raise the open window, or say it's open. Show a failed start in the tip as well as the journal. A window opened before a panel restart is untracked, so removing the item can't close it, and its Apply makes the file again for the next item that takes that id.
+	- Estimated effort: Low
+	- Origin: `f89e55e` (`lib.rs` about 590). First review. Plausible, by reading.
+
+- Code review 20261031 item 27: The settings window's controls have no accessible names
+	- ID: 2026103115232204
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152322
+	- Opened by: t00mietum
+	- Requirements: Each row label becomes its control's buddy or accessible name, so a screen reader names checkboxes, sliders, boxes, chips and revert arrows. The color picker title names the graph too, not just Low or Border.
+	- Estimated effort: Low
+	- Origin: `d621249`. First review. Plausible, by reading.
+
+- Code review 20261031 item 26: ZFS ARC counts as programs in the memory graph
+	- ID: 2026103115232189
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152321
+	- Opened by: t00mietum
+	- Requirements: Read `/proc/spl/kstat/zfs/arcstats` size when it exists, and count it as cache, as htop can.
+	- Estimated effort: Low
+	- Origin: `940bb77`. First review. Confirmed on b23, 7.7 GiB.
+
+- Code review 20261031 item 25: NVML keeps a hybrid laptop's NVIDIA GPU open, and reads device 0
+	- ID: 2026103115232174
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-152321
+	- Opened by: t00mietum
+	- Requirements: The GPU memory graph is on by default, so every NVIDIA box opens NVML at start and asks each second. On a hybrid laptop that may keep the discrete GPU from powering down, and device 0 is usually that one, not the display GPU. Check on b28l or a stand-in, and open NVML only while a GPU graph is shown.
+	- Estimated effort: Avg
+	- Origin: `5b569ad`. First review. Plausible, no hybrid laptop to try.
 
 - Label wording: "and" for ampersands, and "default" on Width
 	- ID: 2026103115020300
@@ -5023,6 +5446,18 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1028
 	- Test case: the `nix` area of cicd.bash, run with `--backlog-run-quick nix`. It has no test ID, since it isn't a cargo test.
 	- Closed: 20261028-091315
+
+- Code review 20261031 item 34: The history save's fsync runs on the panel's main thread
+	- ID: 2026103115232312
+	- Type: Enhancement
+	- Status: Deferred
+	- Priority|Severity: Low
+	- Opened: 20261031-152323
+	- Opened by: t00mietum
+	- Requirements: Save from a worker thread, or without fsync on the 15 minute save.
+	- Estimated effort: Avg
+	- Decisions: Deferred until a save is seen to stall the panel, on a loaded disk or a laptop.
+	- Origin: `87bc145`. First review. Measured, a 12 MB write and fsync took 0.08 s on b23.
 
 - Intel GPU busy share through its perf counters
 	- ID: 2026103010322277
