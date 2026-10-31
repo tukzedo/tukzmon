@@ -207,6 +207,11 @@ pub mod ffi {
 		/// the tab list.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn page_shades(d: &mut Dialog, dark: bool) -> Vec<String>;
+		/// Per button with text, in the window and in a question box, "text
+		/// across down": the room from its text to the inner edge of its frame,
+		/// on each side.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn button_gaps(d: &mut Dialog) -> Vec<String>;
 		/// Opens the window on the offscreen screens set in the file named, and
 		/// gives "room x y w h" for the screen less its panels, "frame x y w h"
 		/// for the window with its frame, then per tab with no tabs under it
@@ -996,6 +1001,31 @@ mod tests {
 			ffi::bottom_buttons(&mut d),
 			["Reset history", "Cancel", "&Apply", "OK"]
 		);
+	}
+
+	// Test ID: dep3y
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn every_button_keeps_room_around_its_text() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_button_gaps_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let got = ffi::button_gaps(&mut d);
+		for want in ["Randomize", "Cancel", "OK", "&Yes"] {
+			assert!(
+				got.iter().any(|g| g.starts_with(&format!("{want} "))),
+				"no {want} in {got:?}"
+			);
+		}
+		for g in &got {
+			let mut n = g.rsplitn(3, ' ').map(|v| v.parse::<i32>().unwrap_or(-1));
+			let (down, across) = (n.next().unwrap(), n.next().unwrap());
+			// BUTTON_PAD_ACROSS and BUTTON_PAD_DOWN in qt.cpp
+			assert!(across >= 12 && down >= 6, "{g}");
+		}
 	}
 
 	// Test ID: dej8s

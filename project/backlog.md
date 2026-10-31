@@ -107,13 +107,29 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: More minimum padding between buttons' inner edges and their text
 	- ID: 2026103107404601
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- The amount is a look: open Settings and judge the room around the text on the buttons.
+	- Needs hand testing: Settings on b23, with its own style, once a build with this is installed.
 	- Priority|Severity: Avg
 	- Opened: 20261031-074046
 	- Opened by: t00mietum
+	- Related IDs: 2026102814061809
 	- Requirements:
 		- More minimum padding on all sides (top, bottom, left, right) between the inner button edges and the text.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Every button with text now keeps at least 12 px across and 6 px over and under, from its text to the inside of its frame. Fusion had left 3 px over and under, and 3 px across on Reset history.
+		- The bottom buttons are still 8 px taller on top of that.
+		- `design.md` Settings window has it.
+		- Verified: the full run passed with the new test. In a snapshot the Graphs and Outline tabs laid out as before, with roomier buttons.
+	- Decisions:
+		- It's a floor, not a fixed amount added, so a style that already gives more keeps its own, and a short label such as OK, already wide, doesn't grow.
+		- It's done in the style (`BoxStyle`), so message boxes and the color picker get it too.
+		- Buttons with no text, such as the color chips, are left alone.
+	- Branch: round-1031
+	- Test case: `bridge::tests::every_button_keeps_room_around_its_text` (dep3y). It fails before the change, with 3 px over and under, and passes after.
+		- Swept: every `QPushButton` in `qt.cpp`. The window's and a question box's are in the test. The picker's take the same style. The chips have a fixed size and no text. The revert arrows are tool buttons with an icon only.
 
 - Pre-next-cut: Monitor for the number of processes
 	- ID: 2026103107404602

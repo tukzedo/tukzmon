@@ -43,6 +43,7 @@
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QStyle>
+#include <QStyleOptionButton>
 #include <QTimer>
 #include <QToolButton>
 #include <QToolTip>
@@ -54,6 +55,7 @@
 #include <climits>
 #include <cmath>
 #include <functional>
+#include <initializer_list>
 #include <map>
 #include <string>
 #include <tuple>
@@ -120,11 +122,29 @@ protected:
 	}
 };
 
+// Room from a button's text to the inner edge of its frame, at the least.
+// Fusion leaves 3 px over and under, and as little across on a long label.
+constexpr int BUTTON_PAD_ACROSS = 12;
+constexpr int BUTTON_PAD_DOWN = 6;
+
 // Some dark themes draw an empty checkbox with an edge close to the window
 // color, so it all but vanishes. An edge in the text color, a little faded,
-// shows in a light theme and a dark one.
+// shows in a light theme and a dark one. Buttons also get more room around
+// their text than most styles give.
 class BoxStyle final : public QProxyStyle {
 public:
+	QSize sizeFromContents(ContentsType ct, const QStyleOption *opt, const QSize &csz,
+		const QWidget *w) const override {
+		QSize s = QProxyStyle::sizeFromContents(ct, opt, csz, w);
+		const auto *b = qstyleoption_cast<const QStyleOptionButton *>(opt);
+		if (ct != CT_PushButton || !b || b->text.isEmpty())
+			return s;
+		// the frame's inset, as SE_PushButtonContents takes it
+		int inset = pixelMetric(PM_DefaultFrameWidth, opt, w);
+		if (b->features & QStyleOptionButton::AutoDefaultButton)
+			inset += pixelMetric(PM_ButtonDefaultIndicator, opt, w);
+		return s.expandedTo(csz + QSize(2 * (inset + BUTTON_PAD_ACROSS), 2 * (inset + BUTTON_PAD_DOWN)));
+	}
 	void drawPrimitive(PrimitiveElement pe, const QStyleOption *opt, QPainter *p, const QWidget *w) const override {
 		QProxyStyle::drawPrimitive(pe, opt, p, w);
 		if (pe != PE_IndicatorCheckBox && pe != PE_IndicatorRadioButton)
@@ -2047,6 +2067,34 @@ double empty_box_contrast(bool dark) {
 			best = std::max(best, (std::max(l, back) + 0.05) / (std::min(l, back) + 0.05));
 		}
 	return best;
+}
+
+rust::Vec<rust::String> button_gaps(Dialog &d) {
+	const App app("offscreen");
+	tukzmon::App::setStyle(new BoxStyle);
+	Window w(d);
+	QMessageBox box(QMessageBox::Question, "Reset history", "Reset history?", QMessageBox::Yes | QMessageBox::No);
+	rust::Vec<rust::String> out;
+	auto *style = tukzmon::App::style();
+	for (QWidget *top : std::initializer_list<QWidget *>{&w, &box}) {
+		top->show();
+		tukzmon::App::processEvents();
+		for (auto *b : top->findChildren<QPushButton *>()) {
+			if (b->text().isEmpty())
+				continue;
+			QStyleOptionButton opt;
+			opt.initFrom(b);
+			opt.text = b->text();
+			if (b->autoDefault())
+				opt.features |= QStyleOptionButton::AutoDefaultButton;
+			const QRect inner = style->subElementRect(QStyle::SE_PushButtonContents, &opt, b);
+			const QSize text = b->fontMetrics().size(Qt::TextShowMnemonic, b->text());
+			out.push_back(
+				rust::String(b->text().toStdString() + " " + std::to_string((inner.width() - text.width()) / 2) + " " +
+					std::to_string((inner.height() - text.height()) / 2)));
+		}
+	}
+	return out;
 }
 
 rust::Vec<rust::String> window_fit(Dialog &d, rust::Str screens) {
