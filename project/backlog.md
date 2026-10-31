@@ -65,6 +65,17 @@ Sorted per the notes in [Template](#template).
 		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
 	- Estimated effort: Low
 
+- Pre-next-cut: No horizontal line between the theme buttons and the scrollable region
+	- ID: 2026103114565000
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261031-145650
+	- Opened by: t00mietum
+	- Requirements:
+		- Themes|Colors page: There should be no horizontal line between the theme management buttons, and the scrollable region.
+			- Ditto with the Themes|Outline tab.
+
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
 	- Type: Bug
