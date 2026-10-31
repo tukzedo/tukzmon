@@ -4,6 +4,7 @@
 //! Settings, as knobs reads them from `settings.shcl` and the config file.
 
 use std::collections::BTreeMap;
+use std::ops::{Index, IndexMut};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 
@@ -534,11 +535,128 @@ pub fn leads<'a>(get: impl Fn(&str) -> Option<&'a str>) -> Vec<Rgb> {
 		.collect()
 }
 
+/// Every graph there is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Which {
+	Cpu,
+	Mem,
+	Gpu,
+	Vram,
+	Net,
+	Swap,
+	Zswap,
+	Load,
+	Disk,
+	Temp,
+	Battery,
+	Own,
+}
+
+impl Which {
+	/// The order with nothing saved. Graphs a saved order leaves out go
+	/// last, in this order. Declaration order too, so a `Which` is its own
+	/// index in [`Look::graphs`].
+	pub const ALL: [Which; 12] = [
+		Which::Cpu,
+		Which::Mem,
+		Which::Gpu,
+		Which::Vram,
+		Which::Net,
+		Which::Swap,
+		Which::Zswap,
+		Which::Load,
+		Which::Disk,
+		Which::Temp,
+		Which::Battery,
+		Which::Own,
+	];
+
+	/// Its history section and its name in `graph.order`, which its setting
+	/// ids start with too, such as `mem_width`.
+	pub const fn key(self) -> &'static str {
+		match self {
+			Which::Cpu => "cpu",
+			Which::Mem => "mem",
+			Which::Gpu => "gpu",
+			Which::Vram => "vram",
+			Which::Net => "net",
+			Which::Swap => "swap",
+			Which::Zswap => "zswap",
+			Which::Load => "load",
+			Which::Disk => "disk",
+			Which::Temp => "temp",
+			Which::Battery => "battery",
+			Which::Own => "self",
+		}
+	}
+
+	pub fn named(key: &str) -> Option<Which> {
+		Which::ALL.into_iter().find(|w| w.key() == key)
+	}
+
+	/// Its Detailed colors' setting ids, in its reader's `SERIES` order,
+	/// bottom first.
+	pub const fn color_ids(self) -> &'static [&'static str] {
+		match self {
+			Which::Cpu => &["iowait", "system", "user", "nice"],
+			Which::Mem => &["mem_user", "mem_buffers", "mem_cache"],
+			Which::Gpu => &["gpu_busy"],
+			Which::Vram => &["vram_used"],
+			Which::Net => &[
+				"net_local",
+				"net_lan_sent",
+				"net_lan_received",
+				"net_sent",
+				"net_received",
+			],
+			Which::Swap => &["swap_used"],
+			Which::Zswap => &["zswap_used"],
+			Which::Load => &["load_used"],
+			Which::Disk => &["disk_write", "disk_read"],
+			Which::Temp => &["temp_normal", "temp_critical"],
+			Which::Battery => &[
+				"battery_charging",
+				"battery_discharging",
+				"battery_critical",
+			],
+			Which::Own => &["self_used"],
+		}
+	}
+
+	fn show_id(self) -> String {
+		// saved as that before the others got short keys
+		if self == Which::Mem {
+			"show_memory".to_string()
+		} else {
+			format!("show_{}", self.key())
+		}
+	}
+}
+
+/// The most series a graph stacks, the network's.
+pub const MOST_SERIES: usize = 5;
+
+/// One graph's settings in a [`Look`].
 #[derive(Clone, Debug, PartialEq)]
-#[allow(
-	clippy::struct_excessive_bools,
-	reason = "each is a checkbox in settings.shcl, not a state"
-)]
+pub struct Each {
+	/// Draw it, where the box has it. CPU is drawn anyway when no other
+	/// graph is.
+	pub show: bool,
+	/// A percentage of `width`. See [`Look::share`].
+	pub width: u32,
+	/// A percentage of `sample_ms`. See [`Look::rate`].
+	pub sample: u32,
+	/// None follows `time`. See [`Look::timing`].
+	pub time: Option<Timing>,
+	/// In [`Which::color_ids`] order, and black past its series count.
+	pub colors: [Rgb; MOST_SERIES],
+	pub mode: Mode,
+	/// Low, Medium and High.
+	pub gradient: [Rgb; 3],
+	pub outline: Outline,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct Look {
 	pub width: u32,
 	/// What a graph with no time axis of its own follows.
@@ -556,144 +674,17 @@ pub struct Look {
 	/// Save history and load it back on start.
 	pub keep: bool,
 	pub max_days: u32,
-	/// In `cpu::SERIES` order, bottom first.
-	pub cpu: [Rgb; 4],
-	pub cpu_mode: Mode,
-	/// Low, Medium and High.
-	pub cpu_gradient: [Rgb; 3],
-	/// Draw the CPU graph. It's drawn anyway when no other graph is.
-	pub show_cpu: bool,
-	/// A percentage of `width`. See [`Look::share`].
-	pub cpu_width: u32,
-	/// A percentage of `sample_ms`. See [`Look::rate`].
-	pub cpu_sample: u32,
-	/// None follows `time`. See [`Look::timing`].
-	pub cpu_time: Option<Timing>,
-	/// Draw the memory graph, where the box has one.
-	pub show_memory: bool,
-	/// A percentage of `width`. See [`Look::share`].
-	pub mem_width: u32,
-	pub mem_sample: u32,
-	pub mem_time: Option<Timing>,
-	/// Draw the swap graph, where the box has swap.
-	pub show_swap: bool,
-	/// A percentage of `width`. See [`Look::share`].
-	pub swap_width: u32,
-	pub swap_sample: u32,
-	pub swap_time: Option<Timing>,
-	/// Draw the zswap graph, where the box has zswap on or zram set up.
-	pub show_zswap: bool,
-	/// A percentage of `width`. See [`Look::share`].
-	pub zswap_width: u32,
-	pub zswap_sample: u32,
-	pub zswap_time: Option<Timing>,
-	/// Draw the network graph.
-	pub show_net: bool,
-	/// A percentage of `width`. See [`Look::share`].
-	pub net_width: u32,
-	pub net_sample: u32,
-	pub net_time: Option<Timing>,
+	/// Each graph's own, by [`Which`]: `look[Which::Mem].width`.
+	pub graphs: [Each; Which::ALL.len()],
 	pub net_split: Split,
-	/// Draw the load graph.
-	pub show_load: bool,
-	/// A percentage of `width`. See [`Look::share`].
-	pub load_width: u32,
-	pub load_sample: u32,
-	pub load_time: Option<Timing>,
-	/// Draw the disk graph, where the box has a disk.
-	pub show_disk: bool,
-	/// A percentage of `width`. See [`Look::share`].
-	pub disk_width: u32,
-	pub disk_sample: u32,
-	pub disk_time: Option<Timing>,
 	/// A log scale up the disk graph.
 	pub disk_log: bool,
 	/// `/proc/diskstats` names, or `all`. See [`Look::drives`].
 	pub disk_drives: Vec<String>,
-	/// Draw the CPU temperature graph, where the box has a sensor for it.
-	pub show_temp: bool,
-	/// A percentage of `width`. See [`Look::share`].
-	pub temp_width: u32,
-	pub temp_sample: u32,
-	pub temp_time: Option<Timing>,
-	/// Draw the GPU graph, where the box has a GPU it can read.
-	pub show_gpu: bool,
-	/// A percentage of `width`. See [`Look::share`].
-	pub gpu_width: u32,
-	pub gpu_sample: u32,
-	pub gpu_time: Option<Timing>,
-	/// Draw the GPU memory graph, where the box has a GPU it can read.
-	pub show_vram: bool,
-	/// A percentage of `width`. See [`Look::share`].
-	pub vram_width: u32,
-	pub vram_sample: u32,
-	pub vram_time: Option<Timing>,
-	/// Draw the battery graph, where the box has a battery in.
-	pub show_battery: bool,
-	/// A percentage of `width`. See [`Look::share`].
-	pub battery_width: u32,
-	pub battery_sample: u32,
-	pub battery_time: Option<Timing>,
-	/// Draw the graph of tukzmon's own CPU use.
-	pub show_self: bool,
-	/// A percentage of `width`. See [`Look::share`].
-	pub self_width: u32,
-	pub self_sample: u32,
-	pub self_time: Option<Timing>,
 	/// Graph names as saved, first drawn first. See [`graph_order`].
 	pub order: Vec<String>,
-	/// In `mem::MemoryReader::SERIES` order, bottom first.
-	pub mem: [Rgb; 3],
-	pub mem_mode: Mode,
-	pub mem_gradient: [Rgb; 3],
-	pub swap: [Rgb; 1],
-	pub swap_mode: Mode,
-	pub swap_gradient: [Rgb; 3],
-	pub zswap: [Rgb; 1],
-	pub zswap_mode: Mode,
-	pub zswap_gradient: [Rgb; 3],
-	/// In `net::Traffic::SERIES` order.
-	pub net: [Rgb; 5],
-	pub net_mode: Mode,
-	pub net_gradient: [Rgb; 3],
-	pub load: [Rgb; 1],
-	pub load_mode: Mode,
-	pub load_gradient: [Rgb; 3],
-	/// In `disk::DiskReader::SERIES` order.
-	pub disk: [Rgb; 2],
-	pub disk_mode: Mode,
-	pub disk_gradient: [Rgb; 3],
-	/// In `temp::TempReader::SERIES` order.
-	pub temp: [Rgb; 2],
-	pub temp_mode: Mode,
-	pub temp_gradient: [Rgb; 3],
-	/// In `battery::BatteryReader::SERIES` order.
-	pub battery: [Rgb; 3],
-	pub battery_mode: Mode,
-	pub battery_gradient: [Rgb; 3],
-	pub self_colors: [Rgb; 1],
-	pub self_mode: Mode,
-	pub self_gradient: [Rgb; 3],
-	pub gpu: [Rgb; 1],
-	pub gpu_mode: Mode,
-	pub gpu_gradient: [Rgb; 3],
-	pub vram: [Rgb; 1],
-	pub vram_mode: Mode,
-	pub vram_gradient: [Rgb; 3],
-	pub cpu_outline: Outline,
-	pub mem_outline: Outline,
-	pub gpu_outline: Outline,
-	pub vram_outline: Outline,
-	pub swap_outline: Outline,
-	pub zswap_outline: Outline,
-	pub net_outline: Outline,
-	pub load_outline: Outline,
-	pub disk_outline: Outline,
-	pub temp_outline: Outline,
-	pub battery_outline: Outline,
-	pub self_outline: Outline,
 	/// The Outline sub-tab's. A graph draws with its own unless
-	/// `border_all` or `back_all` is on, and then the `*_outline` are these.
+	/// `border_all` or `back_all` is on, and then each one's `outline` is these.
 	pub border_color: Rgb,
 	/// No background, so the panel shows through, whatever the theme.
 	pub transparent: bool,
@@ -705,6 +696,19 @@ pub struct Look {
 impl Default for Look {
 	fn default() -> Self {
 		Look::from_model(&Model::new(spec()))
+	}
+}
+
+impl Index<Which> for Look {
+	type Output = Each;
+	fn index(&self, w: Which) -> &Each {
+		&self.graphs[w as usize]
+	}
+}
+
+impl IndexMut<Which> for Look {
+	fn index_mut(&mut self, w: Which) -> &mut Each {
+		&mut self.graphs[w as usize]
 	}
 }
 
@@ -741,6 +745,28 @@ impl Look {
 				bottom: pick(back_all, "back_bottom"),
 			}
 		};
+		let each = |w: Which| {
+			let k = w.key();
+			let mut colors = [Rgb(0, 0, 0); MOST_SERIES];
+			for (c, id) in colors.iter_mut().zip(w.color_ids()) {
+				*c = color(id);
+			}
+			Each {
+				show: on(&w.show_id()),
+				width: num(&format!("{k}_width")) as u32,
+				sample: num(&format!("{k}_sample")) as u32,
+				time: Timing::parse(m.value(&format!("{k}_time"), &NoEnv).as_text()),
+				colors,
+				mode: Mode::parse(m.value(&format!("{k}_mode"), &NoEnv).as_text())
+					.unwrap_or_default(),
+				gradient: [
+					color(&format!("{k}_low")),
+					color(&format!("{k}_medium")),
+					color(&format!("{k}_high")),
+				],
+				outline: outline(k),
+			}
+		};
 		Look {
 			width: num("width") as u32,
 			time: Timing::parse(m.value("time_axis", &NoEnv).as_text())
@@ -753,130 +779,11 @@ impl Look {
 			margin_lr: num("margin_lr") as u32,
 			keep: m.value("keep_history", &NoEnv).as_bool(),
 			max_days: num("max_days") as u32,
-			cpu: [
-				color("iowait"),
-				color("system"),
-				color("user"),
-				color("nice"),
-			],
-			cpu_mode: Mode::parse(m.value("cpu_mode", &NoEnv).as_text()).unwrap_or_default(),
-			cpu_gradient: [color("cpu_low"), color("cpu_medium"), color("cpu_high")],
-			show_cpu: m.value("show_cpu", &NoEnv).as_bool(),
-			cpu_width: num("cpu_width") as u32,
-			cpu_sample: num("cpu_sample") as u32,
-			cpu_time: Timing::parse(m.value("cpu_time", &NoEnv).as_text()),
-			show_memory: m.value("show_memory", &NoEnv).as_bool(),
-			mem_width: num("mem_width") as u32,
-			mem_sample: num("mem_sample") as u32,
-			mem_time: Timing::parse(m.value("mem_time", &NoEnv).as_text()),
-			show_swap: m.value("show_swap", &NoEnv).as_bool(),
-			swap_width: num("swap_width") as u32,
-			swap_sample: num("swap_sample") as u32,
-			swap_time: Timing::parse(m.value("swap_time", &NoEnv).as_text()),
-			show_zswap: m.value("show_zswap", &NoEnv).as_bool(),
-			zswap_width: num("zswap_width") as u32,
-			zswap_sample: num("zswap_sample") as u32,
-			zswap_time: Timing::parse(m.value("zswap_time", &NoEnv).as_text()),
-			show_net: m.value("show_net", &NoEnv).as_bool(),
-			net_width: num("net_width") as u32,
-			net_sample: num("net_sample") as u32,
-			net_time: Timing::parse(m.value("net_time", &NoEnv).as_text()),
+			graphs: Which::ALL.map(each),
 			net_split: Split::parse(m.value("net_split", &NoEnv).as_text()).unwrap_or_default(),
-			show_load: m.value("show_load", &NoEnv).as_bool(),
-			load_width: num("load_width") as u32,
-			load_sample: num("load_sample") as u32,
-			load_time: Timing::parse(m.value("load_time", &NoEnv).as_text()),
-			show_disk: m.value("show_disk", &NoEnv).as_bool(),
-			disk_width: num("disk_width") as u32,
-			disk_sample: num("disk_sample") as u32,
-			disk_time: Timing::parse(m.value("disk_time", &NoEnv).as_text()),
 			disk_log: m.value("disk_log", &NoEnv).as_bool(),
 			disk_drives: graph_order(m.value("disk_drives", &NoEnv).as_text()),
-			show_temp: m.value("show_temp", &NoEnv).as_bool(),
-			temp_width: num("temp_width") as u32,
-			temp_sample: num("temp_sample") as u32,
-			temp_time: Timing::parse(m.value("temp_time", &NoEnv).as_text()),
-			show_gpu: m.value("show_gpu", &NoEnv).as_bool(),
-			gpu_width: num("gpu_width") as u32,
-			gpu_sample: num("gpu_sample") as u32,
-			gpu_time: Timing::parse(m.value("gpu_time", &NoEnv).as_text()),
-			show_vram: m.value("show_vram", &NoEnv).as_bool(),
-			vram_width: num("vram_width") as u32,
-			vram_sample: num("vram_sample") as u32,
-			vram_time: Timing::parse(m.value("vram_time", &NoEnv).as_text()),
-			show_battery: m.value("show_battery", &NoEnv).as_bool(),
-			battery_width: num("battery_width") as u32,
-			battery_sample: num("battery_sample") as u32,
-			battery_time: Timing::parse(m.value("battery_time", &NoEnv).as_text()),
-			show_self: m.value("show_self", &NoEnv).as_bool(),
-			self_width: num("self_width") as u32,
-			self_sample: num("self_sample") as u32,
-			self_time: Timing::parse(m.value("self_time", &NoEnv).as_text()),
 			order: graph_order(m.value("graph_order", &NoEnv).as_text()),
-			mem: [color("mem_user"), color("mem_buffers"), color("mem_cache")],
-			mem_mode: Mode::parse(m.value("mem_mode", &NoEnv).as_text()).unwrap_or_default(),
-			mem_gradient: [color("mem_low"), color("mem_medium"), color("mem_high")],
-			swap: [color("swap_used")],
-			swap_mode: Mode::parse(m.value("swap_mode", &NoEnv).as_text()).unwrap_or_default(),
-			swap_gradient: [color("swap_low"), color("swap_medium"), color("swap_high")],
-			zswap: [color("zswap_used")],
-			zswap_mode: Mode::parse(m.value("zswap_mode", &NoEnv).as_text()).unwrap_or_default(),
-			zswap_gradient: [
-				color("zswap_low"),
-				color("zswap_medium"),
-				color("zswap_high"),
-			],
-			net: [
-				color("net_local"),
-				color("net_lan_sent"),
-				color("net_lan_received"),
-				color("net_sent"),
-				color("net_received"),
-			],
-			net_mode: Mode::parse(m.value("net_mode", &NoEnv).as_text()).unwrap_or_default(),
-			net_gradient: [color("net_low"), color("net_medium"), color("net_high")],
-			load: [color("load_used")],
-			load_mode: Mode::parse(m.value("load_mode", &NoEnv).as_text()).unwrap_or_default(),
-			load_gradient: [color("load_low"), color("load_medium"), color("load_high")],
-			disk: [color("disk_write"), color("disk_read")],
-			disk_mode: Mode::parse(m.value("disk_mode", &NoEnv).as_text()).unwrap_or_default(),
-			disk_gradient: [color("disk_low"), color("disk_medium"), color("disk_high")],
-			temp: [color("temp_normal"), color("temp_critical")],
-			temp_mode: Mode::parse(m.value("temp_mode", &NoEnv).as_text()).unwrap_or_default(),
-			temp_gradient: [color("temp_low"), color("temp_medium"), color("temp_high")],
-			battery: [
-				color("battery_charging"),
-				color("battery_discharging"),
-				color("battery_critical"),
-			],
-			battery_mode: Mode::parse(m.value("battery_mode", &NoEnv).as_text())
-				.unwrap_or_default(),
-			battery_gradient: [
-				color("battery_low"),
-				color("battery_medium"),
-				color("battery_high"),
-			],
-			self_colors: [color("self_used")],
-			self_mode: Mode::parse(m.value("self_mode", &NoEnv).as_text()).unwrap_or_default(),
-			self_gradient: [color("self_low"), color("self_medium"), color("self_high")],
-			gpu: [color("gpu_busy")],
-			gpu_mode: Mode::parse(m.value("gpu_mode", &NoEnv).as_text()).unwrap_or_default(),
-			gpu_gradient: [color("gpu_low"), color("gpu_medium"), color("gpu_high")],
-			vram: [color("vram_used")],
-			vram_mode: Mode::parse(m.value("vram_mode", &NoEnv).as_text()).unwrap_or_default(),
-			vram_gradient: [color("vram_low"), color("vram_medium"), color("vram_high")],
-			cpu_outline: outline("cpu"),
-			mem_outline: outline("mem"),
-			gpu_outline: outline("gpu"),
-			vram_outline: outline("vram"),
-			swap_outline: outline("swap"),
-			zswap_outline: outline("zswap"),
-			net_outline: outline("net"),
-			load_outline: outline("load"),
-			disk_outline: outline("disk"),
-			temp_outline: outline("temp"),
-			battery_outline: outline("battery"),
-			self_outline: outline("self"),
 			border_color: color("border_color"),
 			transparent: m.value("transparent", &NoEnv).as_bool(),
 			top: color("back_top"),
@@ -885,52 +792,21 @@ impl Look {
 		}
 	}
 
-	pub fn cpu_paint(&self) -> Paint<'_, 4> {
-		match self.cpu_mode {
-			Mode::Detailed => Paint::Stack(&self.cpu),
-			Mode::Gradient => Paint::Gradient(self.cpu_gradient),
-		}
+	/// The look with graph `w`'s settings changed by `f`.
+	#[cfg(test)]
+	pub(crate) fn with(mut self, w: Which, f: impl FnOnce(&mut Each)) -> Look {
+		f(&mut self[w]);
+		self
 	}
 
-	pub fn mem_paint(&self) -> Paint<'_, 3> {
-		match self.mem_mode {
-			Mode::Detailed => Paint::Stack(&self.mem),
-			Mode::Gradient => Paint::Gradient(self.mem_gradient),
-		}
-	}
-
-	pub fn swap_paint(&self) -> Paint<'_, 1> {
-		match self.swap_mode {
-			Mode::Detailed => Paint::Stack(&self.swap),
-			Mode::Gradient => Paint::Gradient(self.swap_gradient),
-		}
-	}
-
-	pub fn zswap_paint(&self) -> Paint<'_, 1> {
-		match self.zswap_mode {
-			Mode::Detailed => Paint::Stack(&self.zswap),
-			Mode::Gradient => Paint::Gradient(self.zswap_gradient),
-		}
-	}
-
-	pub fn net_paint(&self) -> Paint<'_, 5> {
-		match self.net_mode {
-			Mode::Detailed => Paint::Stack(&self.net),
-			Mode::Gradient => Paint::Gradient(self.net_gradient),
-		}
-	}
-
-	pub fn load_paint(&self) -> Paint<'_, 1> {
-		match self.load_mode {
-			Mode::Detailed => Paint::Stack(&self.load),
-			Mode::Gradient => Paint::Gradient(self.load_gradient),
-		}
-	}
-
-	pub fn disk_paint(&self) -> Paint<'_, 2> {
-		match self.disk_mode {
-			Mode::Detailed => Paint::Stack(&self.disk),
-			Mode::Gradient => Paint::Gradient(self.disk_gradient),
+	/// How graph `w` colors its `N` series.
+	pub fn paint<const N: usize>(&self, w: Which) -> Paint<'_, N> {
+		const { assert!(N <= MOST_SERIES) };
+		let g = &self[w];
+		match g.mode {
+			#[allow(clippy::expect_used, reason = "N <= MOST_SERIES, asserted at build")]
+			Mode::Detailed => Paint::Stack(g.colors.first_chunk().expect("N <= MOST_SERIES")),
+			Mode::Gradient => Paint::Gradient(g.gradient),
 		}
 	}
 
@@ -940,41 +816,6 @@ impl Look {
 			Drives::All
 		} else {
 			Drives::Only(self.disk_drives.clone())
-		}
-	}
-
-	pub fn temp_paint(&self) -> Paint<'_, 2> {
-		match self.temp_mode {
-			Mode::Detailed => Paint::Stack(&self.temp),
-			Mode::Gradient => Paint::Gradient(self.temp_gradient),
-		}
-	}
-
-	pub fn battery_paint(&self) -> Paint<'_, 3> {
-		match self.battery_mode {
-			Mode::Detailed => Paint::Stack(&self.battery),
-			Mode::Gradient => Paint::Gradient(self.battery_gradient),
-		}
-	}
-
-	pub fn self_paint(&self) -> Paint<'_, 1> {
-		match self.self_mode {
-			Mode::Detailed => Paint::Stack(&self.self_colors),
-			Mode::Gradient => Paint::Gradient(self.self_gradient),
-		}
-	}
-
-	pub fn gpu_paint(&self) -> Paint<'_, 1> {
-		match self.gpu_mode {
-			Mode::Detailed => Paint::Stack(&self.gpu),
-			Mode::Gradient => Paint::Gradient(self.gpu_gradient),
-		}
-	}
-
-	pub fn vram_paint(&self) -> Paint<'_, 1> {
-		match self.vram_mode {
-			Mode::Detailed => Paint::Stack(&self.vram),
-			Mode::Gradient => Paint::Gradient(self.vram_gradient),
 		}
 	}
 
@@ -1121,10 +962,10 @@ mod tests {
 	#[test]
 	fn defaults_are_the_multiload_colors() {
 		let l = Look::default();
-		assert_eq!(l.cpu[0], Rgb(0xff, 0, 0));
-		assert_eq!(l.cpu[1], Rgb(0xfa, 0x72, 0xf0));
-		assert_eq!(l.cpu[2], Rgb(0, 0xff, 0x80));
-		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x40));
+		assert_eq!(l[Which::Cpu].colors[0], Rgb(0xff, 0, 0));
+		assert_eq!(l[Which::Cpu].colors[1], Rgb(0xfa, 0x72, 0xf0));
+		assert_eq!(l[Which::Cpu].colors[2], Rgb(0, 0xff, 0x80));
+		assert_eq!(l[Which::Cpu].colors[3], Rgb(0x20, 0x5f, 0x40));
 		assert_eq!(l.border_color, Rgb(0x8b, 0x8b, 0x8b));
 		assert_eq!(l.top, Rgb(0x31, 0x31, 0x31));
 		assert_eq!(l.bottom, Rgb(0, 0, 0));
@@ -1133,6 +974,48 @@ mod tests {
 		assert_eq!(l.spikes, 0.75);
 		assert_eq!(l.hover, Rgb(0, 0, 0));
 		assert_eq!(l.said, Said::Clock);
+	}
+
+	// Test ID: dencn
+	#[test]
+	fn each_graph_reads_its_own_settings_into_its_own_record() {
+		let spec = spec();
+		let mut m = Model::new(spec.clone());
+		for (i, w) in Which::ALL.into_iter().enumerate() {
+			assert_eq!(w as usize, i, "{w:?}");
+			assert_eq!(Which::named(w.key()), Some(w));
+			let k = w.key();
+			let shared = ["width", "sample", "time", "mode", "low", "medium", "high"]
+				.map(|s| format!("{k}_{s}"))
+				.into_iter()
+				.chain(["border_color", "back_top", "back_bottom"].map(|s| format!("{k}_{s}")))
+				.chain([w.show_id()]);
+			for id in shared.chain(w.color_ids().iter().map(ToString::to_string)) {
+				assert!(spec.get(&id).is_some(), "{w:?}: no {id}");
+			}
+			let n = i as i64;
+			m.set(&format!("{k}_width"), &knobs::Value::Int(10 + n), &NoEnv);
+			m.set(&format!("{k}_sample"), &knobs::Value::Int(30 + n), &NoEnv);
+			m.set(&w.show_id(), &knobs::Value::Bool(i % 2 == 0), &NoEnv);
+			for (j, id) in w.color_ids().iter().enumerate() {
+				let c = format!("#{i:02x}{j:02x}01");
+				m.set(id, &knobs::Value::Text(c), &NoEnv);
+			}
+		}
+		let l = Look::from_model(&m);
+		for (i, w) in Which::ALL.into_iter().enumerate() {
+			let g = &l[w];
+			assert_eq!((g.width, g.sample), (10 + i as u32, 30 + i as u32), "{w:?}");
+			assert_eq!(g.show, i % 2 == 0, "{w:?}");
+			for (j, c) in g.colors.iter().enumerate() {
+				let want = if j < w.color_ids().len() {
+					Rgb(i as u8, j as u8, 1)
+				} else {
+					Rgb(0, 0, 0)
+				};
+				assert_eq!(*c, want, "{w:?} color {j}");
+			}
+		}
 	}
 
 	// Test ID: deccf
@@ -1214,7 +1097,7 @@ mod tests {
 	#[test]
 	fn a_theme_sets_every_color() {
 		let l = Look::from_model(&model("theme:\n\tname: pastel\n"));
-		assert_eq!(l.cpu[2], Rgb(0xa1, 0xc8, 0xf0));
+		assert_eq!(l[Which::Cpu].colors[2], Rgb(0xa1, 0xc8, 0xf0));
 		assert_eq!(l.bottom, Rgb(0x0f, 0x12, 0x14));
 		assert_eq!(l.width, 100);
 		assert_eq!(
@@ -1269,7 +1152,10 @@ mod tests {
 		assert_eq!(t[0].colors["margin_lr"], "2");
 		assert!(spec_with(&t).group(THEME).unwrap().preset("old").is_some());
 		let l = Look::from_model(&model(old));
-		assert_eq!((l.margin_lr, l.cpu[2]), (2, Rgb(0x12, 0x34, 0x56)));
+		assert_eq!(
+			(l.margin_lr, l[Which::Cpu].colors[2]),
+			(2, Rgb(0x12, 0x34, 0x56))
+		);
 	}
 
 	// Test ID: dejky
@@ -1302,16 +1188,16 @@ mod tests {
 			top: Rgb(0x22, 0x22, 0x22),
 			bottom: Rgb(0x33, 0x33, 0x33),
 		};
-		let grey = Look::default().mem_outline;
+		let grey = Look::default()[Which::Mem].outline;
 		let ticked = |border: bool, back: bool| {
 			let text = format!("{mine}\t\tborder: {border}\n\t\tbackground: {back}\n");
 			Look::from_model(&model(&text))
 		};
 		let l = ticked(false, false);
-		assert_eq!((l.cpu_outline, l.mem_outline), (own, grey));
+		assert_eq!((l[Which::Cpu].outline, l[Which::Mem].outline), (own, grey));
 		let l = ticked(true, false);
 		assert_eq!(
-			l.cpu_outline,
+			l[Which::Cpu].outline,
 			Outline {
 				border: shared.border,
 				..own
@@ -1319,7 +1205,7 @@ mod tests {
 		);
 		let l = ticked(false, true);
 		assert_eq!(
-			l.cpu_outline,
+			l[Which::Cpu].outline,
 			Outline {
 				border: own.border,
 				..shared
@@ -1327,10 +1213,10 @@ mod tests {
 		);
 		let l = ticked(true, true);
 		for o in [
-			l.cpu_outline,
-			l.mem_outline,
-			l.self_outline,
-			l.battery_outline,
+			l[Which::Cpu].outline,
+			l[Which::Mem].outline,
+			l[Which::Own].outline,
+			l[Which::Battery].outline,
 		] {
 			assert_eq!(o, shared);
 		}
@@ -1371,18 +1257,18 @@ mod tests {
 		}
 		let outlines = |l: &Look| {
 			[
-				l.cpu_outline,
-				l.mem_outline,
-				l.gpu_outline,
-				l.vram_outline,
-				l.net_outline,
-				l.swap_outline,
-				l.zswap_outline,
-				l.load_outline,
-				l.disk_outline,
-				l.temp_outline,
-				l.battery_outline,
-				l.self_outline,
+				l[Which::Cpu].outline,
+				l[Which::Mem].outline,
+				l[Which::Gpu].outline,
+				l[Which::Vram].outline,
+				l[Which::Net].outline,
+				l[Which::Swap].outline,
+				l[Which::Zswap].outline,
+				l[Which::Load].outline,
+				l[Which::Disk].outline,
+				l[Which::Temp].outline,
+				l[Which::Battery].outline,
+				l[Which::Own].outline,
 			]
 		};
 		let d = Look::default();
@@ -1406,7 +1292,7 @@ mod tests {
 		let fire = g.preset("fire").unwrap();
 		let l = Look::from_model(&model("theme:\n\tname: fire\n"));
 		assert_eq!(
-			l.load_outline.top,
+			l[Which::Load].outline.top,
 			Rgb::parse(fire.values["load_back_top"].as_text()).unwrap()
 		);
 		// the Outline sub-tab's draw no graph, but a file from before each
@@ -1424,14 +1310,14 @@ mod tests {
 		assert_eq!(outlines(&l), want);
 		let kept = "theme:\n\tname: fire\nkept:\n\tchanges:\n\t\ttheme:\n\t\t\tpreset: fire\n\t\t\tvalues:\n\t\t\t\tgraph:\n\t\t\t\t\tcolors:\n\t\t\t\t\t\tborder: \"#123456\"\n";
 		let l = Look::from_model(&model(kept));
-		assert_eq!(l.disk_outline.border, Rgb(0x12, 0x34, 0x56));
+		assert_eq!(l[Which::Disk].outline.border, Rgb(0x12, 0x34, 0x56));
 		let old =
 			"theme:\n\tname: old\nthemes:\n\told:\n\t\tname: Old\n\t\tback_bottom: \"#123456\"\n";
 		let t = saved_themes(&shcl::Document::parse(old));
 		assert_eq!(t[0].colors["temp_back_bottom"], "#123456");
 		assert_eq!(t[0].colors["temp_back_top"], "#313131");
 		let l = Look::from_model(&model(old));
-		assert_eq!(l.battery_outline.bottom, Rgb(0x12, 0x34, 0x56));
+		assert_eq!(l[Which::Battery].outline.bottom, Rgb(0x12, 0x34, 0x56));
 	}
 
 	// Test ID: decch
@@ -1440,13 +1326,19 @@ mod tests {
 		let text = "cpu:\n\tcolors:\n\t\tuser: \"#123456\"\n";
 		let m = model(text);
 		assert_eq!(m.chosen(THEME, &NoEnv), knobs::CUSTOM);
-		assert_eq!(Look::from_model(&m).cpu[2], Rgb(0x12, 0x34, 0x56));
+		assert_eq!(
+			Look::from_model(&m)[Which::Cpu].colors[2],
+			Rgb(0x12, 0x34, 0x56)
+		);
 		// the rest of Custom starts as Default
-		assert_eq!(Look::from_model(&m).cpu[3], Rgb(0x20, 0x5f, 0x40));
+		assert_eq!(
+			Look::from_model(&m)[Which::Cpu].colors[3],
+			Rgb(0x20, 0x5f, 0x40)
+		);
 		// with a theme named, they're its Custom set and wait
 		let text = format!("theme:\n\tname: default\n{text}");
 		let l = Look::from_model(&model(&text));
-		assert_eq!(l.cpu[2], Rgb(0, 0xff, 0x80));
+		assert_eq!(l[Which::Cpu].colors[2], Rgb(0, 0xff, 0x80));
 	}
 
 	// Test ID: deccj
@@ -1459,8 +1351,8 @@ mod tests {
 		let back = model(&m.save(&NoEnv).0);
 		assert_eq!(back.shown_choice(THEME, &NoEnv), "Primary *");
 		let l = Look::from_model(&back);
-		assert_eq!(l.cpu[2], Rgb(0xab, 0xcd, 0xef));
-		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x20));
+		assert_eq!(l[Which::Cpu].colors[2], Rgb(0xab, 0xcd, 0xef));
+		assert_eq!(l[Which::Cpu].colors[3], Rgb(0x20, 0x5f, 0x20));
 	}
 
 	// Test ID: decck
@@ -1479,7 +1371,10 @@ mod tests {
 		assert!(saved.contains("#123456"), "{saved}");
 		let back = model(&saved);
 		assert_eq!(back.chosen(THEME, &NoEnv), "default");
-		assert_eq!(Look::from_model(&back).cpu[2], Rgb(0, 0xff, 0x80));
+		assert_eq!(
+			Look::from_model(&back)[Which::Cpu].colors[2],
+			Rgb(0, 0xff, 0x80)
+		);
 		// and nothing to name when there's no Custom set
 		let mut plain = model("");
 		name_the_theme(&mut plain);
@@ -1511,9 +1406,9 @@ mod tests {
 		);
 		assert_eq!(m.shown_choice(THEME, &NoEnv), "My green");
 		let l = Look::from_model(&m);
-		assert_eq!(l.cpu[2], Rgb(0x11, 0xaa, 0x22));
+		assert_eq!(l[Which::Cpu].colors[2], Rgb(0x11, 0xaa, 0x22));
 		// a missing or bad color is Default's
-		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x40));
+		assert_eq!(l[Which::Cpu].colors[3], Rgb(0x20, 0x5f, 0x40));
 		let doc = shcl::Document::parse(text);
 		let p = theme_problems(&doc);
 		assert_eq!(p.len(), 1, "{p:?}");
@@ -1533,9 +1428,9 @@ mod tests {
 	#[test]
 	fn fire_is_a_gradient_and_the_rest_are_detailed() {
 		let l = Look::from_model(&model("theme:\n\tname: fire\n"));
-		assert_eq!(l.cpu_mode, Mode::Gradient);
+		assert_eq!(l[Which::Cpu].mode, Mode::Gradient);
 		assert_eq!(
-			l.cpu_gradient,
+			l[Which::Cpu].gradient,
 			[
 				Rgb(0x8b, 0x1a, 0),
 				Rgb(0xff, 0xf4, 0xc8),
@@ -1543,8 +1438,8 @@ mod tests {
 			]
 		);
 		assert_eq!(
-			l.cpu_paint(),
-			crate::render::Paint::Gradient(l.cpu_gradient)
+			l.paint::<4>(Which::Cpu),
+			crate::render::Paint::Gradient(l[Which::Cpu].gradient)
 		);
 		let spec = spec();
 		for p in &spec.group(THEME).unwrap().presets {
@@ -1556,16 +1451,19 @@ mod tests {
 			assert_eq!(p.values["cpu_mode"].as_text(), want, "{}", p.key);
 		}
 		let d = Look::default();
-		assert_eq!(d.cpu_mode, Mode::Detailed);
-		assert_eq!(d.cpu_paint(), crate::render::Paint::Stack(&d.cpu));
+		assert_eq!(d[Which::Cpu].mode, Mode::Detailed);
+		assert_eq!(
+			d.paint::<4>(Which::Cpu),
+			crate::render::Paint::Stack(d[Which::Cpu].colors.first_chunk().unwrap())
+		);
 		// a mode set by hand is a change on the theme, like a color
 		let mut m = model("theme:\n\tname: neon\n");
 		m.set("cpu_mode", &knobs::Value::Text("Gradient".into()), &NoEnv);
 		assert_eq!(m.shown_choice(THEME, &NoEnv), "Neon *");
 		name_the_theme(&mut m);
 		let l = Look::from_model(&model(&m.save(&NoEnv).0));
-		assert_eq!(l.cpu_mode, Mode::Gradient);
-		assert_eq!(l.cpu_gradient[1], Rgb(0x39, 0xff, 0x14));
+		assert_eq!(l[Which::Cpu].mode, Mode::Gradient);
+		assert_eq!(l[Which::Cpu].gradient[1], Rgb(0x39, 0xff, 0x14));
 		assert_eq!(Mode::parse("plaid"), None);
 	}
 
@@ -1574,16 +1472,19 @@ mod tests {
 	fn memory_colors_are_multiload_ngs_and_every_theme_has_them() {
 		let d = Look::default();
 		assert_eq!(
-			d.mem,
+			d[Which::Mem].colors[..3],
 			[
 				Rgb(0xff, 0xff, 0xa3),
 				Rgb(0x80, 0x40, 0x80),
 				Rgb(0x40, 0x80, 0x60)
 			]
 		);
-		assert!(d.show_memory);
-		assert_eq!(d.mem_mode, Mode::Detailed);
-		assert_eq!(d.mem_paint(), crate::render::Paint::Stack(&d.mem));
+		assert!(d[Which::Mem].show);
+		assert_eq!(d[Which::Mem].mode, Mode::Detailed);
+		assert_eq!(
+			d.paint::<3>(Which::Mem),
+			crate::render::Paint::Stack(d[Which::Mem].colors.first_chunk().unwrap())
+		);
 		let spec = spec();
 		for p in &spec.group(THEME).unwrap().presets {
 			let v = |id: &str| p.values[id].as_text().to_string();
@@ -1593,10 +1494,10 @@ mod tests {
 		}
 		let fire = Look::from_model(&model("theme:\n\tname: fire\n"));
 		assert_eq!(
-			fire.mem_paint(),
-			crate::render::Paint::Gradient(fire.mem_gradient)
+			fire.paint::<3>(Which::Mem),
+			crate::render::Paint::Gradient(fire[Which::Mem].gradient)
 		);
-		assert_ne!(fire.mem_gradient, fire.cpu_gradient);
+		assert_ne!(fire[Which::Mem].gradient, fire[Which::Cpu].gradient);
 		assert_eq!(shown_when("mem_buffers"), Some(("mem_mode", "detailed")));
 		assert_eq!(shown_when("mem_high"), Some(("mem_mode", "gradient")));
 		assert!(shown_as_radio("mem_mode"));
@@ -1604,9 +1505,9 @@ mod tests {
 		let l = Look::from_model(&model(
 			"mem:\n\tshow: false\n\tcolors:\n\t\tcache: \"#010203\"\n",
 		));
-		assert!(!l.show_memory);
-		assert_eq!(l.mem[2], Rgb(1, 2, 3));
-		assert_eq!(l.cpu, d.cpu);
+		assert!(!l[Which::Mem].show);
+		assert_eq!(l[Which::Mem].colors[2], Rgb(1, 2, 3));
+		assert_eq!(l[Which::Cpu].colors, d[Which::Cpu].colors);
 	}
 
 	// Test ID: defx7
@@ -1743,19 +1644,38 @@ mod tests {
 	#[test]
 	fn each_graph_has_a_switch_and_a_width() {
 		let d = Look::default();
-		assert!(d.show_cpu && d.show_memory && d.show_swap);
-		assert_eq!((d.cpu_width, d.mem_width, d.net_width), (100, 100, 50));
+		assert!(d[Which::Cpu].show && d[Which::Mem].show && d[Which::Swap].show);
+		assert_eq!(
+			(
+				d[Which::Cpu].width,
+				d[Which::Mem].width,
+				d[Which::Net].width
+			),
+			(100, 100, 50)
+		);
 		let l = Look::from_model(&model(
 			"graph:\n\twidth: 90\ncpu:\n\tshow: false\n\twidth: 64\nmem:\n\twidth: 1000\n",
 		));
 		assert_eq!(
-			(l.show_cpu, l.cpu_width, l.mem_width, l.width),
+			(
+				l[Which::Cpu].show,
+				l[Which::Cpu].width,
+				l[Which::Mem].width,
+				l.width
+			),
 			(false, 64, 1000, 90)
 		);
 		// a percentage of Width, rounded, and never 0
 		assert_eq!((l.share(64), l.share(1000), l.share(50)), (58, 900, 45));
-		assert_eq!(Look { width: 16, ..l }.share(1), 1);
-		assert!(l.show_memory);
+		assert_eq!(
+			Look {
+				width: 16,
+				..l.clone()
+			}
+			.share(1),
+			1
+		);
+		assert!(l[Which::Mem].show);
 		let spec = spec();
 		let gate = |id: &str| {
 			spec.settings
@@ -1774,21 +1694,21 @@ mod tests {
 	#[test]
 	fn each_graph_has_a_sample_rate_and_old_files_keep_the_default() {
 		let d = Look::default();
-		assert_eq!((d.cpu_sample, d.battery_sample), (50, 100));
-		assert_eq!(d.rate(d.cpu_sample), 500);
+		assert_eq!((d[Which::Cpu].sample, d[Which::Battery].sample), (50, 100));
+		assert_eq!(d.rate(d[Which::Cpu].sample), 500);
 		let l = Look::from_model(&model(
 			"graph:\n\tsample_ms: 400\ncpu:\n\tsample: 250\nmem:\n\tsample: 5\nswap:\n\tsample: 33\n",
 		));
-		assert_eq!((l.cpu_sample, l.mem_sample), (250, 5));
+		assert_eq!((l[Which::Cpu].sample, l[Which::Mem].sample), (250, 5));
 		// a percentage of Sample ms default, rounded, and never under 50 ms
-		assert_eq!(l.rate(l.cpu_sample), 1000);
-		assert_eq!(l.rate(l.mem_sample), crate::FASTEST_MS);
-		assert_eq!(l.rate(l.swap_sample), 132);
+		assert_eq!(l.rate(l[Which::Cpu].sample), 1000);
+		assert_eq!(l.rate(l[Which::Mem].sample), crate::FASTEST_MS);
+		assert_eq!(l.rate(l[Which::Swap].sample), 132);
 		// a file from before has none, and Sample ms default rules
-		assert_eq!(l.rate(l.net_sample), 400);
+		assert_eq!(l.rate(l[Which::Net].sample), 400);
 		// nor does the ms a graph had before it took a percentage
 		let old = Look::from_model(&model("cpu:\n\tsample_ms: 250\n"));
-		assert_eq!(old.rate(old.cpu_sample), 500);
+		assert_eq!(old.rate(old[Which::Cpu].sample), 500);
 		let spec = spec();
 		for g in [
 			"cpu", "mem", "gpu", "vram", "net", "swap", "zswap", "load", "disk", "temp", "battery",
@@ -1816,17 +1736,17 @@ mod tests {
 	#[test]
 	fn each_graph_has_a_time_axis_and_old_files_keep_theirs() {
 		let d = Look::default();
-		assert_eq!((d.cpu_time, d.mem_time), (None, None));
+		assert_eq!((d[Which::Cpu].time, d[Which::Mem].time), (None, None));
 		let l = Look::from_model(&model("cpu:\n\ttime: linear\nmem:\n\ttime: Fixed_B\n"));
-		assert_eq!(l.cpu_time, Some(Timing::Linear));
-		assert_eq!(l.mem_time, Some(Timing::Log(Curve::FixedB)));
+		assert_eq!(l[Which::Cpu].time, Some(Timing::Linear));
+		assert_eq!(l[Which::Mem].time, Some(Timing::Log(Curve::FixedB)));
 		// a file from before has neither, and Time axis default rules
 		let old = Look::from_model(&model("graph:\n\ttime: linear\n"));
-		assert_eq!(old.timing(old.cpu_time), Timing::Linear);
+		assert_eq!(old.timing(old[Which::Cpu].time), Timing::Linear);
 		let old = Look::from_model(&model("graph:\n\ttime: fixed_a\n"));
-		assert_eq!(old.timing(old.mem_time), Timing::Log(Curve::FixedA));
+		assert_eq!(old.timing(old[Which::Mem].time), Timing::Log(Curve::FixedA));
 		assert_eq!(
-			Look::from_model(&model("cpu:\n\ttime: squiggly\n")).cpu_time,
+			Look::from_model(&model("cpu:\n\ttime: squiggly\n"))[Which::Cpu].time,
 			None
 		);
 		let spec = spec();
@@ -1946,8 +1866,8 @@ mod tests {
 		assert_eq!(t[0].colors["cpu_mode"], "gradient");
 		assert!(theme_problems(&doc).is_empty());
 		let l = Look::from_model(&model(text));
-		assert_eq!(l.cpu_mode, Mode::Gradient);
-		assert_eq!(l.cpu_gradient[0], Rgb(1, 2, 3));
+		assert_eq!(l[Which::Cpu].mode, Mode::Gradient);
+		assert_eq!(l[Which::Cpu].gradient[0], Rgb(1, 2, 3));
 		assert_eq!(saved_themes(&shcl::Document::parse(&themes_text(&t))), t);
 		// a mode it can't read is a problem, and reads as Default's
 		let bad = text.replace("GRADIENT", "plaid");
@@ -2050,8 +1970,8 @@ mod tests {
 		let l = Look::from_model(&Model::load(spec(), text, ""));
 		assert_eq!(l.width, 200);
 		assert_eq!(l.sample_ms, 1000);
-		assert_eq!(l.cpu[2], Rgb(0x12, 0x34, 0x56));
-		assert_eq!(l.cpu[3], Rgb(0x20, 0x5f, 0x40));
+		assert_eq!(l[Which::Cpu].colors[2], Rgb(0x12, 0x34, 0x56));
+		assert_eq!(l[Which::Cpu].colors[3], Rgb(0x20, 0x5f, 0x40));
 	}
 
 	fn scratch(name: &str) -> PathBuf {
@@ -2102,8 +2022,8 @@ mod tests {
 		start_from(&one, &shared).unwrap();
 		start_from(&two, &shared).unwrap();
 		std::fs::write(&one, "mem:\n\tshow: false\n").unwrap();
-		assert!(!Look::load(&one).unwrap().show_memory);
-		assert!(Look::load(&two).unwrap().show_memory);
+		assert!(!Look::load(&one).unwrap()[Which::Mem].show);
+		assert!(Look::load(&two).unwrap()[Which::Mem].show);
 		assert_eq!(Look::load(&two).unwrap().width, 77);
 		assert_eq!(Look::load(&two).unwrap(), Look::load(&shared).unwrap());
 		let _ = std::fs::remove_dir_all(&dir);

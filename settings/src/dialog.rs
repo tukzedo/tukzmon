@@ -656,6 +656,7 @@ impl Dialog {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use tukzmon_core::config::Which;
 
 	struct Dir(PathBuf);
 	impl Drop for Dir {
@@ -1051,7 +1052,7 @@ mod tests {
 		assert!(text.contains("#123abc"));
 		assert!(!text.contains("width"));
 		assert_eq!(
-			config::Look::load(&path).unwrap().cpu[2],
+			config::Look::load(&path).unwrap()[Which::Cpu].colors[2],
 			config::Rgb(0x12, 0x3a, 0xbc)
 		);
 	}
@@ -1219,8 +1220,8 @@ mod tests {
 		assert_eq!(dlg.state("cpu_high").text, "#7fd4ff");
 		dlg.apply().unwrap();
 		let l = config::Look::load(&path).unwrap();
-		assert_eq!(l.cpu_mode, config::Mode::Gradient);
-		assert_eq!(l.cpu_gradient[0], config::Rgb(0x8b, 0x1a, 0));
+		assert_eq!(l[Which::Cpu].mode, config::Mode::Gradient);
+		assert_eq!(l[Which::Cpu].gradient[0], config::Rgb(0x8b, 0x1a, 0));
 		let mut dlg = Dialog::open(path.clone()).unwrap();
 		assert!(shown(&dlg, "cpu_medium"));
 		// a theme saved from it keeps the mode
@@ -1231,7 +1232,7 @@ mod tests {
 		assert!(shown(&dlg, "cpu_medium"));
 		dlg.apply().unwrap();
 		assert_eq!(
-			config::Look::load(&path).unwrap().cpu_mode,
+			config::Look::load(&path).unwrap()[Which::Cpu].mode,
 			config::Mode::Gradient
 		);
 		let text = std::fs::read_to_string(&path).unwrap();
@@ -1298,9 +1299,9 @@ mod tests {
 		// unticked before the rolled colors, and still off once saved
 		dlg.apply().unwrap();
 		let l = config::Look::load(&path).unwrap();
-		assert_eq!(l.mem_outline.top, l.top);
-		assert_eq!(l.mem_outline.bottom, l.bottom);
-		assert_ne!(l.mem_outline.border, l.border_color);
+		assert_eq!(l[Which::Mem].outline.top, l.top);
+		assert_eq!(l[Which::Mem].outline.bottom, l.bottom);
+		assert_ne!(l[Which::Mem].outline.border, l.border_color);
 		// a theme pick takes the theme's, which is off
 		assert!(dlg.set_text("theme", "fire"));
 		assert_eq!(dlg.state("back_all").text, "off");
@@ -1311,7 +1312,7 @@ mod tests {
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
 	fn unticked_overrides_give_every_graph_its_own_back_after_a_reload() {
 		let d = scratch("untick");
-		let grey = config::Look::default().mem_outline;
+		let grey = config::Look::default()[Which::Mem].outline;
 		let mine = config::Rgb(0xaa, 0, 0);
 		// Default keeps a change, Custom its own set
 		for (n, start) in ["theme:\n\tname: default\n", ""].into_iter().enumerate() {
@@ -1323,30 +1324,50 @@ mod tests {
 			assert!(dlg.set_text("cpu_border_color", "#aa0000"));
 			dlg.apply().unwrap();
 			let l = config::Look::load(&path).unwrap();
-			assert_eq!(l.mem_outline.border, config::Rgb(0x12, 0x34, 0x56), "{n}");
-			assert_eq!(l.cpu_outline.border, config::Rgb(0x12, 0x34, 0x56), "{n}");
-			assert_eq!(l.self_outline.top, config::Rgb(0x65, 0x43, 0x21), "{n}");
+			assert_eq!(
+				l[Which::Mem].outline.border,
+				config::Rgb(0x12, 0x34, 0x56),
+				"{n}"
+			);
+			assert_eq!(
+				l[Which::Cpu].outline.border,
+				config::Rgb(0x12, 0x34, 0x56),
+				"{n}"
+			);
+			assert_eq!(
+				l[Which::Own].outline.top,
+				config::Rgb(0x65, 0x43, 0x21),
+				"{n}"
+			);
 			assert!(dlg.set_text("border_all", "off"));
 			assert!(dlg.set_text("back_all", "off"));
 			dlg.apply().unwrap();
 			let l = config::Look::load(&path).unwrap();
 			assert_eq!(
-				l.cpu_outline,
+				l[Which::Cpu].outline,
 				config::Outline {
 					border: mine,
 					..grey
 				},
 				"{n}"
 			);
-			assert_eq!([l.mem_outline, l.self_outline], [grey; 2], "{n}");
+			assert_eq!(
+				[l[Which::Mem].outline, l[Which::Own].outline],
+				[grey; 2],
+				"{n}"
+			);
 			// and again through a window opened on that file
 			let mut dlg = Dialog::open(path.clone()).unwrap();
 			assert_eq!(dlg.state("border_color").text, "#123456", "{n}");
 			assert!(dlg.set_text("border", "2"));
 			dlg.apply().unwrap();
 			let l = config::Look::load(&path).unwrap();
-			assert_eq!([l.mem_outline, l.disk_outline], [grey; 2], "{n}");
-			assert_eq!(l.cpu_outline.border, mine, "{n}");
+			assert_eq!(
+				[l[Which::Mem].outline, l[Which::Disk].outline],
+				[grey; 2],
+				"{n}"
+			);
+			assert_eq!(l[Which::Cpu].outline.border, mine, "{n}");
 		}
 		// a file from before each graph had its own still saves, and keeps its look
 		let path = d.0.join("old.shcl");
@@ -1359,7 +1380,7 @@ mod tests {
 		assert!(!doc.exists("graph.colors.border"), "{text}");
 		assert!(doc.exists("graph.overrides.colors.border"), "{text}");
 		let l = config::Look::load(&path).unwrap();
-		assert_eq!(l.net_outline.border, config::Rgb(0x12, 0x34, 0x56));
+		assert_eq!(l[Which::Net].outline.border, config::Rgb(0x12, 0x34, 0x56));
 		assert_eq!(l.border_color, config::Rgb(0x12, 0x34, 0x56));
 	}
 
@@ -1433,7 +1454,7 @@ mod tests {
 		assert!(dlg.set_text("user", "#123456"));
 		dlg.apply().unwrap();
 		assert_eq!(
-			config::Look::load(&path).unwrap().cpu[2],
+			config::Look::load(&path).unwrap()[Which::Cpu].colors[2],
 			config::Rgb(0x12, 0x34, 0x56)
 		);
 		dlg.reset("theme");
@@ -1482,7 +1503,7 @@ mod tests {
 		assert_eq!(dlg.state("theme").choice, "Night");
 		assert!(!dlg.dirty());
 		assert_eq!(
-			config::Look::load(&path).unwrap().cpu[2],
+			config::Look::load(&path).unwrap()[Which::Cpu].colors[2],
 			config::Rgb(0x11, 0x11, 0x11)
 		);
 	}

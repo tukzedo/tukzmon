@@ -5,7 +5,7 @@
 // opens, and draws them with its own look, Apply or not.
 
 use tukzmon_core::battery::BatteryReader;
-use tukzmon_core::config::Look;
+use tukzmon_core::config::{Look, Which};
 use tukzmon_core::cpu::CpuReader;
 use tukzmon_core::disk::DiskReader;
 use tukzmon_core::gpu::{GpuReader, VramReader};
@@ -178,25 +178,9 @@ impl Live {
 	/// isn't drawn here.
 	pub fn width(&self, name: &str) -> u32 {
 		let l = &self.cpu.look;
-		let own = match name {
-			CpuReader::SECTION => l.cpu_width,
-			MemoryReader::SECTION => l.mem_width,
-			GpuReader::SECTION => l.gpu_width,
-			VramReader::SECTION => l.vram_width,
-			Traffic::SECTION => l.net_width,
-			SwapReader::SECTION => l.swap_width,
-			ZswapReader::SECTION => l.zswap_width,
-			LoadReader::SECTION => l.load_width,
-			DiskReader::SECTION => l.disk_width,
-			TempReader::SECTION => l.temp_width,
-			BatteryReader::SECTION => l.battery_width,
-			OwnReader::SECTION => l.self_width,
-			_ => return 0,
-		};
-		if self.get(name).is_some() {
-			l.share(own)
-		} else {
-			0
+		match Which::named(name) {
+			Some(w) if self.get(name).is_some() => l.share(l[w].width),
+			_ => 0,
 		}
 	}
 
@@ -405,7 +389,7 @@ mod tests {
 		std::thread::sleep(std::time::Duration::from_millis(30));
 		live.sample();
 		// on by default, at a quarter of Width
-		assert!(d.look().show_swap);
+		assert!(d.look()[Which::Swap].show);
 		assert_eq!(live.width("swap"), 25);
 		// at 100 px, a width in percent is the same number
 		d.set("width", &Value::Float(100.0));
@@ -484,7 +468,7 @@ mod tests {
 		live.sample();
 		std::thread::sleep(std::time::Duration::from_millis(30));
 		live.sample();
-		assert!(!d.look().show_load && d.look().show_disk);
+		assert!(!d.look()[Which::Load].show && d.look()[Which::Disk].show);
 		// at 100 px, a width in percent is the same number
 		d.set("width", &Value::Float(100.0));
 		d.set("load_width", &Value::Float(60.0));
@@ -511,7 +495,7 @@ mod tests {
 		));
 		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
-		assert!(d.look().show_temp);
+		assert!(d.look()[Which::Temp].show);
 		// at 100 px, a width in percent is the same number
 		d.set("width", &Value::Float(100.0));
 		d.set("temp_width", &Value::Float(40.0));
@@ -539,7 +523,7 @@ mod tests {
 		));
 		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
-		assert!(!d.look().show_gpu && d.look().show_vram);
+		assert!(!d.look()[Which::Gpu].show && d.look()[Which::Vram].show);
 		d.set("width", &Value::Float(100.0));
 		d.set("gpu_width", &Value::Float(30.0));
 		d.set("vram_width", &Value::Float(40.0));
@@ -587,7 +571,7 @@ mod tests {
 		));
 		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
-		assert!(!d.look().show_self);
+		assert!(!d.look()[Which::Own].show);
 		// at 100 px, a width in percent is the same number
 		d.set("width", &Value::Float(100.0));
 		d.set("self_width", &Value::Float(40.0));
@@ -618,7 +602,7 @@ mod tests {
 		live.sample();
 		std::thread::sleep(std::time::Duration::from_millis(30));
 		live.sample();
-		assert!(!d.look().show_net);
+		assert!(!d.look()[Which::Net].show);
 		// at 100 px, a width in percent is the same number
 		d.set("width", &Value::Float(100.0));
 		d.set("net_width", &Value::Float(60.0));

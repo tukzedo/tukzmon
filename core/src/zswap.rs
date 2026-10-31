@@ -225,6 +225,7 @@ impl Collector<1> for ZswapReader {
 mod tests {
 	use super::*;
 	use crate::collect::Tree;
+	use crate::config::Which;
 
 	fn roots(t: &Tree) -> Roots {
 		Roots {
@@ -453,17 +454,19 @@ mod tests {
 			],
 		);
 		let look = Look {
-			show_zswap: true,
 			border: 1,
-			zswap_mode: crate::config::Mode::Detailed,
 			..Look::default()
-		};
+		}
+		.with(Which::Zswap, |e| {
+			e.show = true;
+			e.mode = crate::config::Mode::Detailed;
+		});
 		let src = ZswapReader::probe_at(&roots(&on)).unwrap();
 		let mut g = crate::Graph::with(look.clone(), src);
 		let now = g.now();
 		g.hist.add(now - 60.0, now, &[0.25]);
 		let px = g.render(64, 20, 1).to_vec();
-		assert_eq!(px[18 * 64 + 60], look.zswap[0].argb());
+		assert_eq!(px[18 * 64 + 60], look[Which::Zswap].colors[0].argb());
 		let tip = g.hover_tip(60, 64, 20, 1);
 		assert!(
 			tip.ends_with("\nZswap 25% used\nCompressed 4.2x now"),
@@ -474,8 +477,8 @@ mod tests {
 		assert_eq!(g.tooltip(), "Zswap 25% used\nCompressed 4.2x now");
 		let fire = Look::from_model(&crate::config::model("theme:\n\tname: fire\n"));
 		assert_eq!(
-			fire.zswap_paint(),
-			crate::render::Paint::Gradient(fire.zswap_gradient)
+			fire.paint::<1>(Which::Zswap),
+			crate::render::Paint::Gradient(fire[Which::Zswap].gradient)
 		);
 		// an empty pool has no ratio to give
 		let empty = crate::Graph::with(look, ZswapReader::default());

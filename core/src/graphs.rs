@@ -9,8 +9,7 @@ use std::io;
 use std::path::Path;
 
 use crate::battery::BatteryReader;
-use crate::config::Look;
-use crate::cpu::CpuReader;
+use crate::config::{Look, Which};
 use crate::disk::DiskReader;
 use crate::gpu::{GpuReader, VramReader};
 use crate::keep;
@@ -61,94 +60,10 @@ pub struct Graphs {
 /// A graph's place in the area: x, y, width, height.
 type Tile = (usize, usize, usize, usize);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Which {
-	Cpu,
-	Mem,
-	Gpu,
-	Vram,
-	Net,
-	Swap,
-	Zswap,
-	Load,
-	Disk,
-	Temp,
-	Battery,
-	Own,
-}
-
 impl Which {
-	/// The order with nothing saved. Graphs a saved order leaves out go
-	/// last, in this order.
-	const ALL: [Which; 12] = [
-		Which::Cpu,
-		Which::Mem,
-		Which::Gpu,
-		Which::Vram,
-		Which::Net,
-		Which::Swap,
-		Which::Zswap,
-		Which::Load,
-		Which::Disk,
-		Which::Temp,
-		Which::Battery,
-		Which::Own,
-	];
-
-	fn name(self) -> &'static str {
-		match self {
-			Which::Cpu => CpuReader::SECTION,
-			Which::Mem => MemoryReader::SECTION,
-			Which::Gpu => GpuReader::SECTION,
-			Which::Vram => VramReader::SECTION,
-			Which::Net => Traffic::SECTION,
-			Which::Swap => SwapReader::SECTION,
-			Which::Zswap => ZswapReader::SECTION,
-			Which::Load => LoadReader::SECTION,
-			Which::Disk => DiskReader::SECTION,
-			Which::Temp => TempReader::SECTION,
-			Which::Battery => BatteryReader::SECTION,
-			Which::Own => OwnReader::SECTION,
-		}
-	}
-
-	fn wanted(self, look: &Look) -> bool {
-		match self {
-			Which::Cpu => look.show_cpu,
-			Which::Mem => look.show_memory,
-			Which::Gpu => look.show_gpu,
-			Which::Vram => look.show_vram,
-			Which::Net => look.show_net,
-			Which::Swap => look.show_swap,
-			Which::Zswap => look.show_zswap,
-			Which::Load => look.show_load,
-			Which::Disk => look.show_disk,
-			Which::Temp => look.show_temp,
-			Which::Battery => look.show_battery,
-			Which::Own => look.show_self,
-		}
-	}
-
 	/// Every graph but CPU, which is always there.
 	fn optional() -> impl Iterator<Item = Which> {
 		Which::ALL.into_iter().filter(|&w| w != Which::Cpu)
-	}
-
-	fn own_width(self, look: &Look) -> u32 {
-		match self {
-			Which::Cpu => look.cpu_width,
-			Which::Mem => look.mem_width,
-			Which::Gpu => look.gpu_width,
-			Which::Vram => look.vram_width,
-			Which::Net => look.net_width,
-			Which::Swap => look.swap_width,
-			Which::Zswap => look.zswap_width,
-			Which::Load => look.load_width,
-			Which::Disk => look.disk_width,
-			Which::Temp => look.temp_width,
-			Which::Battery => look.battery_width,
-			Which::Own => look.self_width,
-		}
 	}
 }
 
@@ -229,7 +144,7 @@ fn order_of(saved: &[String]) -> [Which; Which::ALL.len()] {
 	let mut n = 0;
 	let named = saved
 		.iter()
-		.filter_map(|name| Which::ALL.into_iter().find(|w| w.name() == name.as_str()));
+		.filter_map(|name| Which::ALL.into_iter().find(|w| w.key() == name.as_str()));
 	for w in named.chain(Which::ALL) {
 		if !out[..n].contains(&w) {
 			out[n] = w;
@@ -242,7 +157,7 @@ fn order_of(saved: &[String]) -> [Which; Which::ALL.len()] {
 /// Every graph's name, first drawn first, from a saved `graph.order`. The
 /// settings window's graph list goes by this too, so it shows the panel's order.
 pub fn draw_order(saved: &[String]) -> Vec<&'static str> {
-	order_of(saved).into_iter().map(Which::name).collect()
+	order_of(saved).into_iter().map(Which::key).collect()
 }
 
 /// Puts the hover line on the graph `hit` names, at its device column, and
@@ -291,57 +206,57 @@ fn switch<G>(slot: &mut Option<G>, show: bool, make: impl FnOnce() -> Option<G>)
 
 impl Graphs {
 	pub fn new(look: Look) -> Graphs {
-		let mem = if look.show_memory {
+		let mem = if look[Which::Mem].show {
 			Graph::memory(look.clone())
 		} else {
 			None
 		};
-		let swap = if look.show_swap {
+		let swap = if look[Which::Swap].show {
 			Graph::swap(look.clone())
 		} else {
 			None
 		};
-		let gpu = if look.show_gpu {
+		let gpu = if look[Which::Gpu].show {
 			Graph::gpu(look.clone())
 		} else {
 			None
 		};
-		let vram = if look.show_vram {
+		let vram = if look[Which::Vram].show {
 			Graph::vram(look.clone())
 		} else {
 			None
 		};
-		let net = if look.show_net {
+		let net = if look[Which::Net].show {
 			Graph::net(look.clone())
 		} else {
 			None
 		};
-		let load = if look.show_load {
+		let load = if look[Which::Load].show {
 			Graph::load_avg(look.clone())
 		} else {
 			None
 		};
-		let disk = if look.show_disk {
+		let disk = if look[Which::Disk].show {
 			Graph::disk(look.clone())
 		} else {
 			None
 		};
-		let temp = if look.show_temp {
+		let temp = if look[Which::Temp].show {
 			Graph::temp(look.clone())
 		} else {
 			None
 		};
-		let zswap = if look.show_zswap {
+		let zswap = if look[Which::Zswap].show {
 			Graph::zswap(look.clone())
 		} else {
 			None
 		};
-		let battery = if look.show_battery {
+		let battery = if look[Which::Battery].show {
 			Graph::battery(look.clone())
 		} else {
 			None
 		};
-		let own = if look.show_self {
+		let own = if look[Which::Own].show {
 			Graph::own(look.clone())
 		} else {
 			None
@@ -408,7 +323,7 @@ impl Graphs {
 	/// CPU is drawn whenever no other graph is, so the panel item never
 	/// shrinks to nothing and its menu stays in reach.
 	pub fn cpu_shown(&self) -> bool {
-		self.cpu.look.show_cpu || Which::optional().all(|w| self.slot(w).is_none())
+		self.cpu.look[Which::Cpu].show || Which::optional().all(|w| self.slot(w).is_none())
 	}
 
 	fn is_shown(&self, which: Which) -> bool {
@@ -429,7 +344,7 @@ impl Graphs {
 
 	fn width_of(&self, which: Which) -> u32 {
 		let l = &self.cpu.look;
-		l.share(which.own_width(l))
+		l.share(l[which].width)
 	}
 
 	/// Each shown graph's width in logical pixels, in the order drawn.
@@ -459,7 +374,7 @@ impl Graphs {
 	/// True when `look` would hide a graph that's drawn now, so what it read
 	/// should be saved first.
 	pub fn drops(&self, look: &Look) -> bool {
-		Which::optional().any(|w| self.slot(w).is_some() && !w.wanted(look))
+		Which::optional().any(|w| self.slot(w).is_some() && !look[w].show)
 	}
 
 	/// Takes a new look, adding or dropping graphs to match. One added loads
@@ -471,52 +386,66 @@ impl Graphs {
 	/// taken anyway.
 	pub fn set_look(&mut self, look: Look, history: Option<&Path>) -> io::Result<()> {
 		if self.kept.is_some() {
-			for w in Which::optional().filter(|w| !w.wanted(&look)) {
+			for w in Which::optional().filter(|w| !look[*w].show) {
 				if let Some((name, body)) = self.slot(w).map(Drawn::section) {
 					self.keep_section(name, body);
 				}
 			}
 		}
 		let mut added = Vec::new();
-		if switch(&mut self.mem, look.show_memory, || {
+		if switch(&mut self.mem, look[Which::Mem].show, || {
 			Graph::memory(look.clone())
 		}) {
 			added.push(Which::Mem);
 		}
-		if switch(&mut self.gpu, look.show_gpu, || Graph::gpu(look.clone())) {
+		if switch(&mut self.gpu, look[Which::Gpu].show, || {
+			Graph::gpu(look.clone())
+		}) {
 			added.push(Which::Gpu);
 		}
-		if switch(&mut self.vram, look.show_vram, || Graph::vram(look.clone())) {
+		if switch(&mut self.vram, look[Which::Vram].show, || {
+			Graph::vram(look.clone())
+		}) {
 			added.push(Which::Vram);
 		}
-		if switch(&mut self.net, look.show_net, || Graph::net(look.clone())) {
+		if switch(&mut self.net, look[Which::Net].show, || {
+			Graph::net(look.clone())
+		}) {
 			added.push(Which::Net);
 		}
-		if switch(&mut self.swap, look.show_swap, || Graph::swap(look.clone())) {
+		if switch(&mut self.swap, look[Which::Swap].show, || {
+			Graph::swap(look.clone())
+		}) {
 			added.push(Which::Swap);
 		}
-		if switch(&mut self.zswap, look.show_zswap, || {
+		if switch(&mut self.zswap, look[Which::Zswap].show, || {
 			Graph::zswap(look.clone())
 		}) {
 			added.push(Which::Zswap);
 		}
-		if switch(&mut self.load, look.show_load, || {
+		if switch(&mut self.load, look[Which::Load].show, || {
 			Graph::load_avg(look.clone())
 		}) {
 			added.push(Which::Load);
 		}
-		if switch(&mut self.disk, look.show_disk, || Graph::disk(look.clone())) {
+		if switch(&mut self.disk, look[Which::Disk].show, || {
+			Graph::disk(look.clone())
+		}) {
 			added.push(Which::Disk);
 		}
-		if switch(&mut self.temp, look.show_temp, || Graph::temp(look.clone())) {
+		if switch(&mut self.temp, look[Which::Temp].show, || {
+			Graph::temp(look.clone())
+		}) {
 			added.push(Which::Temp);
 		}
-		if switch(&mut self.battery, look.show_battery, || {
+		if switch(&mut self.battery, look[Which::Battery].show, || {
 			Graph::battery(look.clone())
 		}) {
 			added.push(Which::Battery);
 		}
-		if switch(&mut self.own, look.show_self, || Graph::own(look.clone())) {
+		if switch(&mut self.own, look[Which::Own].show, || {
+			Graph::own(look.clone())
+		}) {
 			added.push(Which::Own);
 		}
 		let mut res = Ok(());
@@ -680,7 +609,7 @@ impl Graphs {
 		let ours: Vec<&str> = Which::ALL
 			.into_iter()
 			.filter(|&w| self.slot(w).is_some())
-			.map(Which::name)
+			.map(Which::key)
 			.collect();
 		sections.retain(|(name, _)| !ours.contains(&name.as_str()));
 		self.kept = Some(sections);
@@ -856,34 +785,50 @@ mod tests {
 	fn two() -> Look {
 		Look {
 			width: 128,
-			swap_mode: Mode::Detailed,
-			zswap_mode: Mode::Detailed,
-			load_mode: Mode::Detailed,
-			temp_mode: Mode::Detailed,
-			gpu_mode: Mode::Detailed,
-			vram_mode: Mode::Detailed,
-			show_swap: false,
-			show_vram: false,
-			show_disk: false,
-			show_temp: false,
-			cpu_sample: 100,
-			mem_sample: 100,
-			swap_sample: 100,
-			zswap_sample: 100,
-			load_sample: 100,
-			self_sample: 100,
-			net_width: 100,
-			swap_width: 100,
-			zswap_width: 100,
-			load_width: 100,
-			disk_width: 100,
-			temp_width: 100,
-			gpu_width: 100,
-			vram_width: 100,
-			self_width: 25,
 			order: crate::config::graph_order("cpu mem net swap zswap load disk temp battery"),
 			..Look::default()
 		}
+		.with(Which::Swap, |e| {
+			e.mode = Mode::Detailed;
+			e.show = false;
+			e.sample = 100;
+			e.width = 100;
+		})
+		.with(Which::Zswap, |e| {
+			e.mode = Mode::Detailed;
+			e.sample = 100;
+			e.width = 100;
+		})
+		.with(Which::Load, |e| {
+			e.mode = Mode::Detailed;
+			e.sample = 100;
+			e.width = 100;
+		})
+		.with(Which::Temp, |e| {
+			e.mode = Mode::Detailed;
+			e.show = false;
+			e.width = 100;
+		})
+		.with(Which::Gpu, |e| {
+			e.mode = Mode::Detailed;
+			e.width = 100;
+		})
+		.with(Which::Vram, |e| {
+			e.mode = Mode::Detailed;
+			e.show = false;
+			e.width = 100;
+		})
+		.with(Which::Disk, |e| {
+			e.show = false;
+			e.width = 100;
+		})
+		.with(Which::Cpu, |e| e.sample = 100)
+		.with(Which::Mem, |e| e.sample = 100)
+		.with(Which::Own, |e| {
+			e.sample = 100;
+			e.width = 25;
+		})
+		.with(Which::Net, |e| e.width = 100)
 	}
 
 	fn both() -> Graphs {
@@ -898,11 +843,13 @@ mod tests {
 	// Test ID: deja0
 	#[test]
 	fn each_shown_graph_reads_at_its_own_rate_on_one_timer() {
-		let mut g = Graphs::new(Look {
-			sample_ms: 500,
-			mem_sample: 200,
-			..two()
-		});
+		let mut g = Graphs::new(
+			Look {
+				sample_ms: 500,
+				..two()
+			}
+			.with(Which::Mem, |e| e.sample = 200),
+		);
 		let beats = |g: &Graphs| {
 			(
 				g.cpu.beat.map(|b| b.0),
@@ -920,11 +867,11 @@ mod tests {
 		// a hidden graph isn't read
 		g.set_look(
 			Look {
-				show_cpu: false,
 				sample_ms: 500,
-				mem_sample: 200,
 				..two()
-			},
+			}
+			.with(Which::Cpu, |e| e.show = false)
+			.with(Which::Mem, |e| e.sample = 200),
 			None,
 		)
 		.unwrap();
@@ -973,12 +920,45 @@ mod tests {
 		let now = m.now();
 		m.hist.add(now - 60.0, now, &[1.0, 0.0, 0.0]);
 		let px = m.render(64, 20, 1);
-		assert_eq!(px[10 * 64 + 60], Look::default().mem[0].argb());
+		assert_eq!(
+			px[10 * 64 + 60],
+			Look::default()[Which::Mem].colors[0].argb()
+		);
 		let tip = m.hover_tip(60, 64, 20, 1);
 		assert!(
 			tip.ends_with("\nMemory 100% in use\nBuffers 0%  Cache 0%"),
 			"{tip}"
 		);
+	}
+
+	// Test ID: dencp
+	#[test]
+	fn each_slot_is_its_own_graph_with_a_color_per_series() {
+		fn of<S: Source<N>, const N: usize>(_: Option<&Graph<S, N>>) -> (Which, usize) {
+			(S::WHICH, N)
+		}
+		let g = Graphs::new(Look::default());
+		let slots = [
+			of(Some(&g.cpu)),
+			of(g.mem.as_ref()),
+			of(g.gpu.as_ref()),
+			of(g.vram.as_ref()),
+			of(g.net.as_ref()),
+			of(g.swap.as_ref()),
+			of(g.zswap.as_ref()),
+			of(g.load.as_ref()),
+			of(g.disk.as_ref()),
+			of(g.temp.as_ref()),
+			of(g.battery.as_ref()),
+			of(g.own.as_ref()),
+		];
+		for w in Which::ALL {
+			assert_eq!(slots.iter().filter(|s| s.0 == w).count(), 1, "{w:?}");
+		}
+		for (w, n) in slots {
+			assert_eq!(w.color_ids().len(), n, "{w:?}");
+			assert!(n <= crate::config::MOST_SERIES, "{w:?}");
+		}
 	}
 
 	// Test ID: dedq2
@@ -1030,11 +1010,9 @@ mod tests {
 		};
 		let mut g = both();
 		g.set_look(
-			Look {
-				cpu_outline: cpu,
-				mem_outline: mem,
-				..two()
-			},
+			two()
+				.with(Which::Cpu, |e| e.outline = cpu)
+				.with(Which::Mem, |e| e.outline = mem),
 			None,
 		)
 		.unwrap();
@@ -1256,11 +1234,7 @@ mod tests {
 		let mut g = both();
 		let had = g.mem.as_ref().unwrap().hist.last();
 		g.save(&path).unwrap();
-		let hide = Look {
-			show_memory: false,
-			width: 99,
-			..two()
-		};
+		let hide = Look { width: 99, ..two() }.with(Which::Mem, |e| e.show = false);
 		g.set_look(hide.clone(), Some(&path)).unwrap();
 		assert!(g.mem.is_none());
 		assert_eq!(g.look().width, 99);
@@ -1275,12 +1249,9 @@ mod tests {
 		assert_eq!(g.mem.as_ref().unwrap().hist.last(), None);
 		std::fs::remove_file(&path).unwrap();
 		assert!(
-			Graphs::new(Look {
-				show_memory: false,
-				..two()
-			})
-			.mem
-			.is_none()
+			Graphs::new(two().with(Which::Mem, |e| e.show = false))
+				.mem
+				.is_none()
 		);
 	}
 
@@ -1323,10 +1294,7 @@ mod tests {
 		let had = g.mem.as_ref().unwrap().hist.last();
 		std::fs::remove_file(&path).unwrap();
 		// hidden with no save first, as with history off
-		let hide = Look {
-			show_memory: false,
-			..two()
-		};
+		let hide = two().with(Which::Mem, |e| e.show = false);
 		g.set_look(hide, None).unwrap();
 		g.save(&path).unwrap();
 		let names = |p: &std::path::Path| -> Vec<String> {
@@ -1393,11 +1361,9 @@ mod tests {
 			)
 		);
 		g.set_look(
-			Look {
-				cpu_time: Some(Timing::Linear),
-				mem_time: Some(Timing::Log(Curve::FixedB)),
-				..two()
-			},
+			two()
+				.with(Which::Cpu, |e| e.time = Some(Timing::Linear))
+				.with(Which::Mem, |e| e.time = Some(Timing::Log(Curve::FixedB))),
 			None,
 		)
 		.unwrap();
@@ -1406,9 +1372,9 @@ mod tests {
 		g.set_look(
 			Look {
 				time: Timing::Linear,
-				mem_time: Some(Timing::Log(Curve::FixedA)),
 				..two()
-			},
+			}
+			.with(Which::Mem, |e| e.time = Some(Timing::Log(Curve::FixedA))),
 			None,
 		)
 		.unwrap();
@@ -1437,9 +1403,9 @@ mod tests {
 		g.set_look(
 			Look {
 				width: 100,
-				cpu_width: 40,
 				..two()
-			},
+			}
+			.with(Which::Cpu, |e| e.width = 40),
 			None,
 		)
 		.unwrap();
@@ -1481,9 +1447,9 @@ mod tests {
 		g.set_look(
 			Look {
 				width: 100,
-				mem_width: 30,
 				..two()
-			},
+			}
+			.with(Which::Mem, |e| e.width = 30),
 			None,
 		)
 		.unwrap();
@@ -1494,14 +1460,8 @@ mod tests {
 		g.stacked = true;
 		assert_eq!(g.wanted(48), (48, cpu + 30 + G as u32));
 		assert_eq!(g.wanted(20), (20, cpu + 30 + G as u32));
-		g.set_look(
-			Look {
-				show_memory: false,
-				..two()
-			},
-			None,
-		)
-		.unwrap();
+		g.set_look(two().with(Which::Mem, |e| e.show = false), None)
+			.unwrap();
 		assert_eq!(g.wanted(48), (48, g.width_of(Which::Cpu)));
 	}
 
@@ -1512,11 +1472,11 @@ mod tests {
 		assert!(g.hover(Some((5, 3)), 40, 10, 1));
 		let had = g.cpu.hist.last();
 		let no_cpu = Look {
-			show_cpu: false,
 			width: 100,
-			mem_width: 30,
 			..two()
-		};
+		}
+		.with(Which::Cpu, |e| e.show = false)
+		.with(Which::Mem, |e| e.width = 30);
 		g.set_look(no_cpu.clone(), None).unwrap();
 		assert_eq!(g.cpu.hover, None);
 		assert_eq!(g.count(), 1);
@@ -1532,10 +1492,7 @@ mod tests {
 		g.sample();
 		assert_eq!(g.cpu.hist.last(), had);
 		// with nothing else to show, CPU shows anyway
-		let none = Look {
-			show_memory: false,
-			..no_cpu
-		};
+		let none = no_cpu.with(Which::Mem, |e| e.show = false);
 		g.set_look(none.clone(), None).unwrap();
 		assert!(g.cpu_shown());
 		assert_eq!(g.widths().collect::<Vec<_>>(), [none.width]);
@@ -1546,13 +1503,15 @@ mod tests {
 	// Test ID: denc5
 	#[test]
 	fn a_new_set_lays_out_in_the_saved_order() {
-		let g = Graphs::new(Look {
-			width: 100,
-			cpu_width: 40,
-			mem_width: 100,
-			order: crate::config::graph_order("mem cpu"),
-			..two()
-		});
+		let g = Graphs::new(
+			Look {
+				width: 100,
+				order: crate::config::graph_order("mem cpu"),
+				..two()
+			}
+			.with(Which::Cpu, |e| e.width = 40)
+			.with(Which::Mem, |e| e.width = 100),
+		);
 		if g.mem.is_some() {
 			assert_eq!(g.widths().collect::<Vec<_>>(), [100, 40]);
 		}
@@ -1566,11 +1525,11 @@ mod tests {
 		g.set_look(
 			Look {
 				width: 100,
-				cpu_width: 40,
-				mem_width: 100,
 				order: order(&["mem", "cpu"]),
 				..two()
-			},
+			}
+			.with(Which::Cpu, |e| e.width = 40)
+			.with(Which::Mem, |e| e.width = 100),
 			None,
 		)
 		.unwrap();
@@ -1610,19 +1569,13 @@ mod tests {
 		// a hidden graph keeps its place for when it's back
 		let look = Look {
 			order: order(&["mem", "cpu"]),
-			show_memory: false,
 			..g.look().clone()
-		};
+		}
+		.with(Which::Mem, |e| e.show = false);
 		g.set_look(look.clone(), None).unwrap();
 		assert_eq!(g.widths().collect::<Vec<_>>(), [40]);
-		g.set_look(
-			Look {
-				show_memory: true,
-				..look
-			},
-			None,
-		)
-		.unwrap();
+		g.set_look(look.with(Which::Mem, |e| e.show = true), None)
+			.unwrap();
 		assert_eq!(g.widths().collect::<Vec<_>>(), [100, 40]);
 	}
 
@@ -1640,7 +1593,7 @@ mod tests {
 			assert!(g.id == theme.id || !under_themes(at), "{}", g.id);
 		}
 		for w in Which::ALL {
-			let mode = format!("{}_mode", w.name());
+			let mode = format!("{}_mode", w.key());
 			let s = spec.get(&mode).unwrap_or_else(|| panic!("no {mode}"));
 			assert_eq!(s.group.as_deref(), Some(theme.id.as_str()), "{mode}");
 			assert_eq!(spec.tabs[s.tab].parent, Some(top), "{mode}");
@@ -1650,10 +1603,7 @@ mod tests {
 	// all 3, with swap made by hand so a box with no swap runs it too
 	fn three() -> Graphs {
 		let mut g = both();
-		let look = Look {
-			show_swap: true,
-			..two()
-		};
+		let look = two().with(Which::Swap, |e| e.show = true);
 		g.swap = Some(Graph::with(look.clone(), SwapReader));
 		g.set_look(look, None).unwrap();
 		let now = g.cpu.now();
@@ -1664,20 +1614,23 @@ mod tests {
 	// Test ID: defq5
 	#[test]
 	fn swap_is_on_by_default_and_draws_its_own_color() {
-		assert!(Look::default().show_swap);
+		assert!(Look::default()[Which::Swap].show);
 		assert!(Graphs::new(two()).swap.is_none());
 		let mut g = three();
 		assert_eq!(g.count(), 3);
 		let s = g.swap.as_mut().unwrap();
 		let px = s.render(64, 20, 1);
-		assert_eq!(px[10 * 64 + 60], Look::default().swap[0].argb());
+		assert_eq!(
+			px[10 * 64 + 60],
+			Look::default()[Which::Swap].colors[0].argb()
+		);
 		let tip = s.hover_tip(60, 64, 20, 1);
 		assert!(tip.ends_with("\nSwap 100% used"), "{tip}");
 		// Fire draws it as a gradient
 		let fire = Look::from_model(&crate::config::model("theme:\n\tname: fire\n"));
 		assert_eq!(
-			fire.swap_paint(),
-			crate::render::Paint::Gradient(fire.swap_gradient)
+			fire.paint::<1>(Which::Swap),
+			crate::render::Paint::Gradient(fire[Which::Swap].gradient)
 		);
 		if let Some(mut live) = Graph::swap(Look::default()) {
 			live.sample();
@@ -1715,20 +1668,20 @@ mod tests {
 		let look = Look {
 			order: vec!["swap".into()],
 			width: 100,
-			swap_width: 30,
 			..g.look().clone()
-		};
+		}
+		.with(Which::Swap, |e| e.width = 30);
 		g.set_look(look, None).unwrap();
 		let w0 = g.look().width;
 		assert_eq!(g.widths().collect::<Vec<_>>(), [30, w0, w0]);
 		assert!(g.hover(Some((7, 3)), 30 + 2 * w0 as usize + 2 * G, h, 1));
 		assert_eq!(g.swap.as_ref().unwrap().hover, Some(7));
 		// swap alone hides CPU, as memory alone does
-		let alone = Look {
-			show_cpu: false,
-			show_memory: false,
-			..g.look().clone()
-		};
+		let alone = g
+			.look()
+			.clone()
+			.with(Which::Cpu, |e| e.show = false)
+			.with(Which::Mem, |e| e.show = false);
 		g.set_look(alone, None).unwrap();
 		assert!(!g.cpu_shown());
 		assert_eq!(g.widths().collect::<Vec<_>>(), [30]);
@@ -1748,10 +1701,7 @@ mod tests {
 			.collect();
 		assert_eq!(names, ["cpu", "mem", "swap"]);
 		let on = g.look().clone();
-		let off = Look {
-			show_swap: false,
-			..on.clone()
-		};
+		let off = on.clone().with(Which::Swap, |e| e.show = false);
 		assert!(g.drops(&off));
 		assert!(!g.drops(&on));
 		g.set_look(off, Some(&path)).unwrap();
@@ -1771,17 +1721,14 @@ mod tests {
 	// Test ID: defqc
 	#[test]
 	fn the_battery_graph_colors_the_charge_by_state() {
-		assert!(!Look::default().show_battery);
+		assert!(!Look::default()[Which::Battery].show);
 		assert!(Graphs::new(two()).battery.is_none());
-		let look = Look {
-			show_battery: true,
-			..two()
-		};
+		let look = two().with(Which::Battery, |e| e.show = true);
 		let mut b = Graph::with(look.clone(), BatteryReader::default());
 		let now = b.now();
 		b.hist.add(now - 60.0, now, &[0.0, 0.8, 0.0]);
 		let px = b.render(64, 20, 1);
-		assert_eq!(px[10 * 64 + 60], look.battery[1].argb());
+		assert_eq!(px[10 * 64 + 60], look[Which::Battery].colors[1].argb());
 		let tip = b.hover_tip(60, 64, 20, 1);
 		assert!(tip.ends_with("\nBattery 80%, on battery"), "{tip}");
 		for (v, want) in [
@@ -1797,8 +1744,8 @@ mod tests {
 		assert_eq!(b.tooltip(), "Battery");
 		let fire = Look::from_model(&crate::config::model("theme:\n\tname: fire\n"));
 		assert_eq!(
-			fire.battery_paint(),
-			crate::render::Paint::Gradient(fire.battery_gradient)
+			fire.paint::<3>(Which::Battery),
+			crate::render::Paint::Gradient(fire[Which::Battery].gradient)
 		);
 	}
 
@@ -1807,10 +1754,7 @@ mod tests {
 	fn net_sits_after_memory_and_fills_to_its_peak() {
 		let path = scratch("net");
 		let mut g = three();
-		let look = Look {
-			show_net: true,
-			..g.look().clone()
-		};
+		let look = g.look().clone().with(Which::Net, |e| e.show = true);
 		assert!(Graphs::new(two()).net.is_none());
 		g.net = Some(Graph::with(look.clone(), Traffic::default()));
 		g.set_look(look.clone(), None).unwrap();
@@ -1832,9 +1776,9 @@ mod tests {
 		let bw = look.border as usize;
 		let ph = 10 - 2 * bw;
 		let row = |up: usize| net[(bw + ph - 1 - up) * 20 + 10];
-		assert_eq!(row(0), look.net[0].argb());
-		assert_eq!(row(ph * 2 / 5), look.net[4].argb());
-		assert_eq!(row(ph - 1), look.net[4].argb());
+		assert_eq!(row(0), look[Which::Net].colors[0].argb());
+		assert_eq!(row(ph * 2 / 5), look[Which::Net].colors[4].argb());
+		assert_eq!(row(ph - 1), look[Which::Net].colors[4].argb());
 		assert!(g.hover(Some((45 + 2 * G, 3)), w, h, 1));
 		assert!(
 			g.hover_tip(45 + 2 * G, 3, w, h, 1)
@@ -1857,11 +1801,11 @@ mod tests {
 		let path = scratch("load-disk");
 		let mut g = three();
 		let look = Look {
-			show_load: true,
-			show_disk: true,
 			disk_drives: vec!["nope".into()],
 			..g.look().clone()
-		};
+		}
+		.with(Which::Load, |e| e.show = true)
+		.with(Which::Disk, |e| e.show = true);
 		let fresh = Graphs::new(two());
 		assert!(fresh.load.is_none() && fresh.disk.is_none());
 		g.load = Some(Graph::with(look.clone(), LoadReader::default()));
@@ -1891,8 +1835,8 @@ mod tests {
 		let bw = look.border as usize;
 		let ph = 10 - 2 * bw;
 		let row = |up: usize| disk[(bw + ph - 1 - up) * 20 + 10];
-		assert_eq!(row(0), look.disk[0].argb());
-		assert_eq!(row(ph - 1), look.disk[1].argb());
+		assert_eq!(row(0), look[Which::Disk].colors[0].argb());
+		assert_eq!(row(ph - 1), look[Which::Disk].colors[1].argb());
 		assert!(g.hover_tip(65 + 3 * G, 3, w, h, 1).contains("Load 0.50"));
 		assert!(
 			g.hover_tip(85 + 4 * G, 3, w, h, 1)
@@ -1925,10 +1869,7 @@ mod tests {
 	fn temp_sits_after_swap_and_goes_critical_on_top() {
 		let path = scratch("temp");
 		let mut g = three();
-		let look = Look {
-			show_temp: true,
-			..g.look().clone()
-		};
+		let look = g.look().clone().with(Which::Temp, |e| e.show = true);
 		assert!(Graphs::new(two()).temp.is_none());
 		g.temp = Some(Graph::with(look.clone(), TempReader::default()));
 		g.set_look(look.clone(), None).unwrap();
@@ -1949,9 +1890,9 @@ mod tests {
 		let bw = look.border as usize;
 		let ph = 40 - 2 * bw;
 		let row = |up: usize| temp[(bw + ph - 1 - up) * 20 + 10];
-		assert_eq!(row(0), look.temp[0].argb());
-		assert_eq!(row(ph / 2), look.temp[0].argb());
-		assert_eq!(row(ph - 1), look.temp[1].argb());
+		assert_eq!(row(0), look[Which::Temp].colors[0].argb());
+		assert_eq!(row(ph / 2), look[Which::Temp].colors[0].argb());
+		assert_eq!(row(ph - 1), look[Which::Temp].colors[1].argb());
 		let tip = g.hover_tip(65 + 3 * G, 3, w, h, 1);
 		assert!(
 			tip.contains("Temperature 100 \u{b0}C\nCritical at 95"),
@@ -1967,8 +1908,8 @@ mod tests {
 		std::fs::remove_file(&path).unwrap();
 		let fire = Look::from_model(&crate::config::model("theme:\n\tname: fire\n"));
 		assert_eq!(
-			fire.temp_paint(),
-			crate::render::Paint::Gradient(fire.temp_gradient)
+			fire.paint::<2>(Which::Temp),
+			crate::render::Paint::Gradient(fire[Which::Temp].gradient)
 		);
 	}
 
@@ -1979,16 +1920,20 @@ mod tests {
 		let path = scratch("gpu");
 		let mut g = three();
 		let look = Look {
-			show_gpu: true,
-			show_vram: true,
-			gpu_width: 100,
-			vram_width: 100,
-			gpu_mode: Mode::Detailed,
-			vram_mode: Mode::Detailed,
 			order: Look::default().order,
 			..g.look().clone()
-		};
-		assert!(!Look::default().show_gpu && Look::default().show_vram);
+		}
+		.with(Which::Gpu, |e| {
+			e.show = true;
+			e.width = 100;
+			e.mode = Mode::Detailed;
+		})
+		.with(Which::Vram, |e| {
+			e.show = true;
+			e.width = 100;
+			e.mode = Mode::Detailed;
+		});
+		assert!(!Look::default()[Which::Gpu].show && Look::default()[Which::Vram].show);
 		assert_eq!(&Look::default().order[..4], ["cpu", "mem", "gpu", "vram"]);
 		let none = Graphs::new(two());
 		assert!(none.gpu.is_none() && none.vram.is_none());
@@ -2018,10 +1963,10 @@ mod tests {
 		let bw = look.border as usize;
 		let ph = 40 - 2 * bw;
 		let row = |tile: &[u32], up: usize| tile[(bw + ph - 1 - up) * 20 + 10];
-		assert_eq!(row(&gpu, ph / 2 - 2), look.gpu[0].argb());
-		assert_ne!(row(&gpu, ph / 2 + 2), look.gpu[0].argb());
-		assert_eq!(row(&vram, ph / 4 - 2), look.vram[0].argb());
-		assert_ne!(row(&vram, ph / 4 + 2), look.vram[0].argb());
+		assert_eq!(row(&gpu, ph / 2 - 2), look[Which::Gpu].colors[0].argb());
+		assert_ne!(row(&gpu, ph / 2 + 2), look[Which::Gpu].colors[0].argb());
+		assert_eq!(row(&vram, ph / 4 - 2), look[Which::Vram].colors[0].argb());
+		assert_ne!(row(&vram, ph / 4 + 2), look[Which::Vram].colors[0].argb());
 		let tip = g.hover_tip(45 + 2 * G, 3, w, h, 1);
 		assert!(tip.ends_with("\nGPU 50% busy"), "{tip}");
 		let tip = g.hover_tip(65 + 3 * G, 3, w, h, 1);
@@ -2044,12 +1989,11 @@ mod tests {
 	fn the_own_graph_sits_before_battery_and_fills_at_every_cpu() {
 		let path = scratch("own");
 		let mut g = three();
-		let look = Look {
-			show_self: true,
-			self_width: 100,
-			..g.look().clone()
-		};
-		assert!(!Look::default().show_self);
+		let look = g.look().clone().with(Which::Own, |e| {
+			e.show = true;
+			e.width = 100;
+		});
+		assert!(!Look::default()[Which::Own].show);
 		assert_eq!(Look::default().order[10..], ["self", "battery"]);
 		assert!(Graphs::new(two()).own.is_none());
 		g.own = Some(Graph::with(look.clone(), OwnReader::default()));
@@ -2071,9 +2015,9 @@ mod tests {
 		let bw = look.border as usize;
 		let ph = 40 - 2 * bw;
 		let row = |up: usize| own[(bw + ph - 1 - up) * 20 + 10];
-		assert_eq!(row(0), look.self_colors[0].argb());
-		assert_eq!(row(ph / 2 - 2), look.self_colors[0].argb());
-		assert_ne!(row(ph / 2 + 2), look.self_colors[0].argb());
+		assert_eq!(row(0), look[Which::Own].colors[0].argb());
+		assert_eq!(row(ph / 2 - 2), look[Which::Own].colors[0].argb());
+		assert_ne!(row(ph / 2 + 2), look[Which::Own].colors[0].argb());
 		let tip = g.hover_tip(65 + 3 * G, 3, w, h, 1);
 		assert!(tip.contains("\ntukzmon "), "{tip}");
 		assert!(tip.contains("\ntukzmon 50% of all CPUs\n"), "{tip}");
@@ -2087,8 +2031,8 @@ mod tests {
 		std::fs::remove_file(&path).unwrap();
 		let fire = Look::from_model(&crate::config::model("theme:\n\tname: fire\n"));
 		assert_eq!(
-			fire.self_paint(),
-			crate::render::Paint::Gradient(fire.self_gradient)
+			fire.paint::<1>(Which::Own),
+			crate::render::Paint::Gradient(fire[Which::Own].gradient)
 		);
 	}
 
@@ -2097,10 +2041,7 @@ mod tests {
 	fn zswap_sits_after_swap_and_keeps_its_history_hidden() {
 		let path = scratch("zswap");
 		let mut g = three();
-		let look = Look {
-			show_zswap: true,
-			..g.look().clone()
-		};
+		let look = g.look().clone().with(Which::Zswap, |e| e.show = true);
 		assert!(Graphs::new(two()).zswap.is_none());
 		g.zswap = Some(Graph::with(look.clone(), ZswapReader::squeezed(2.1)));
 		g.set_look(look.clone(), None).unwrap();
@@ -2126,10 +2067,7 @@ mod tests {
 			.map(|(n, _)| n)
 			.collect();
 		assert_eq!(names, ["cpu", "mem", "swap", "zswap"]);
-		let off = Look {
-			show_zswap: false,
-			..look
-		};
+		let off = look.with(Which::Zswap, |e| e.show = false);
 		assert!(g.drops(&off));
 		g.set_look(off, Some(&path)).unwrap();
 		assert!(g.zswap.is_none());
@@ -2147,10 +2085,7 @@ mod tests {
 	fn four_sit_side_by_side_and_battery_keeps_its_history_hidden() {
 		let path = scratch("battery");
 		let mut g = three();
-		let look = Look {
-			show_battery: true,
-			..g.look().clone()
-		};
+		let look = g.look().clone().with(Which::Battery, |e| e.show = true);
 		g.battery = Some(Graph::with(look.clone(), BatteryReader::default()));
 		g.set_look(look.clone(), None).unwrap();
 		let now = g.cpu.now();
@@ -2175,10 +2110,7 @@ mod tests {
 			.map(|(n, _)| n)
 			.collect();
 		assert_eq!(names, ["cpu", "mem", "swap", "battery"]);
-		let off = Look {
-			show_battery: false,
-			..look
-		};
+		let off = look.with(Which::Battery, |e| e.show = false);
 		assert!(g.drops(&off));
 		g.set_look(off, Some(&path)).unwrap();
 		assert!(g.battery.is_none());
@@ -2194,20 +2126,18 @@ mod tests {
 	// Test ID: den86
 	#[test]
 	fn skip_moves_the_clock_of_every_graph_shown() {
-		let all = Look {
-			show_memory: true,
-			show_gpu: true,
-			show_vram: true,
-			show_net: true,
-			show_swap: true,
-			show_zswap: true,
-			show_load: true,
-			show_disk: true,
-			show_temp: true,
-			show_battery: true,
-			show_self: true,
-			..two()
-		};
+		let all = two()
+			.with(Which::Mem, |e| e.show = true)
+			.with(Which::Gpu, |e| e.show = true)
+			.with(Which::Vram, |e| e.show = true)
+			.with(Which::Net, |e| e.show = true)
+			.with(Which::Swap, |e| e.show = true)
+			.with(Which::Zswap, |e| e.show = true)
+			.with(Which::Load, |e| e.show = true)
+			.with(Which::Disk, |e| e.show = true)
+			.with(Which::Temp, |e| e.show = true)
+			.with(Which::Battery, |e| e.show = true)
+			.with(Which::Own, |e| e.show = true);
 		let mut g = Graphs::new(all.clone());
 		// a box with neither zswap nor zram still gets one
 		if g.zswap.is_none() {

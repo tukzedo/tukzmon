@@ -22,6 +22,49 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- Graphs share one Look
+	- ID: 2026103019230902
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261030-192309
+	- Opened by: t00mietum
+	- Parent ID: 2026103016201610
+	- Prereq IDs: 2026103019230886
+	- Requirements:
+		- Graphs and the settings window's `Live` share one `Look` rather than each graph keeping a clone of it.
+	- Estimated effort: Avg
+
+- One record per graph in Look
+	- ID: 2026103019230886
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-30.
+	- Priority|Severity: Low
+	- Opened: 20261030-192308
+	- Opened by: t00mietum
+	- Parent ID: 2026103016201610
+	- Requirements:
+		- One per-graph record in `Look`, indexed by `Which`, in place of the parallel fields and the 12 paint methods.
+		- `Source` gets the per-graph accessors by default from that.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- `Look` keeps each graph's show, width, sample, time, colors, mode, gradient and outline in one `config::Each`, as `look[Which::Mem].width`. `Look::paint(which)` replaces the 12 paint methods.
+		- `Which` moved from `graphs` to `config` and is public. Its `key` is the history section, the name in `graph.order` and the head of the setting ids, and `color_ids` lists its Detailed colors. `Look::from_model` reads every graph through those.
+		- A `Source` names its `WHICH`, and gets its `SECTION`, paint, outline, timing and sample rate from it by default.
+		- The settings window's graph widths go through `Which` too.
+		- Verified: the full run passed.
+	- Decisions:
+		- Done now, against the churn. They were 96 of `Look`'s 116 fields, and the test edits are mechanical.
+		- Colors are a fixed `[Rgb; 5]`, the network's count, with black past a graph's own, so `Each` is one type. `paint` checks at build that a graph's series fit.
+		- The slots in `Graphs` and `Live` are left as they are. They hold a different reader type each, and the shared look in 2026103019230902 changes them anyway.
+		- `LEADS` and `dice::ROLES` stay lists of their own, since they're about themes, not a graph's settings.
+	- Branch: round-1030b
+	- Test case: `config::tests::each_graph_reads_its_own_settings_into_its_own_record` (dencn) and `graphs::tests::each_slot_is_its_own_graph_with_a_color_per_series` (dencp). dencn fails with a graph's key changed, and dencp with a color id dropped or a reader naming another graph's `WHICH`.
+		- Swept: every `Look` field read and struct literal in core, settings, xfce, the preview example and the soak test, every `*_paint` caller, every `Source` impl, and `Live::width`. The tests changed only in how they reach a graph's settings.
+	- Closed: 20261030-193730
+
 - A panel item whose settings file can't be read draws at the defaults with no message
 	- ID: 2026103018110076
 	- Type: Bug
@@ -382,6 +425,8 @@ Sorted per the notes in [Template](#template).
 		- Graphs share one `Look` rather than each keeping a clone of it.
 		- Weigh against the churn first. The payoff is a new graph that can't be missed somewhere.
 	- Estimated effort: High
+	- Progress log:
+		- Split in 2: the per-graph record and `Source`'s defaults are in child 2026103019230886, and the shared `Look` in child 2026103019230902.
 
 - Code review 20261030 item 11: Catch-all matches and string-typed values across the bridge
 	- ID: 2026103016201611

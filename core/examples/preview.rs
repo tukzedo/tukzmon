@@ -5,7 +5,7 @@
 //   cargo run --example preview -- OUT.ppm WIDTH HEIGHT HOURS [SETTINGS]
 
 use tukzmon_core::axis::{Axis, Curve, Timing};
-use tukzmon_core::config::Look;
+use tukzmon_core::config::{Look, Which};
 use tukzmon_core::history::History;
 use tukzmon_core::render::Frame;
 
@@ -55,8 +55,8 @@ fn main() {
 		axis: &axis,
 		now: end,
 		look: &look,
-		paint: look.cpu_paint(),
-		outline: look.cpu_outline,
+		paint: look.paint(Which::Cpu),
+		outline: look[Which::Cpu].outline,
 	}
 	.draw(&mut px, w, h, 1);
 

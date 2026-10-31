@@ -825,7 +825,7 @@ mod tests {
 	use std::sync::atomic::{AtomicUsize, Ordering};
 	use std::time::{Duration, Instant};
 
-	use tukzmon_core::config::Rgb;
+	use tukzmon_core::config::{Rgb, Which};
 	use tukzmon_core::keep;
 
 	/// A Plugin with no widgets, as the handlers get it, kept so free-data
@@ -899,17 +899,20 @@ mod tests {
 		// SAFETY: from plugin, and freed below.
 		let p = unsafe { &mut *data.cast::<super::Plugin>() };
 		p.reload_if_changed();
-		let first = p.graphs.look().cpu[2];
+		let first = p.graphs.look()[Which::Cpu].colors[2];
 		// a folder in its place, so it can't be read as root either
 		std::fs::remove_file(&own).unwrap();
 		std::fs::create_dir(&own).unwrap();
 		p.reload_if_changed();
-		let kept = p.graphs.look().cpu[2];
+		let kept = p.graphs.look()[Which::Cpu].colors[2];
 		let failed = p.tip("graphs".into());
 		std::fs::remove_dir(&own).unwrap();
 		std::fs::write(&own, "cpu:\n\tcolors:\n\t\tuser: \"#654321\"\n").unwrap();
 		p.reload_if_changed();
-		let fixed = (p.graphs.look().cpu[2], p.tip("graphs".into()));
+		let fixed = (
+			p.graphs.look()[Which::Cpu].colors[2],
+			p.tip("graphs".into()),
+		);
 		p.removed = true;
 		super::free_data(std::ptr::null_mut(), data);
 		std::fs::remove_file(&own).unwrap();
