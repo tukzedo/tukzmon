@@ -10,6 +10,7 @@ use crate::mem::{Meminfo, meminfo, parse_meminfo};
 /// How full the pool is, 0 to 1, and how far it squeezes what it holds.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Squeeze {
+	/// How full the pool is, 0 to 1.
 	pub used: f32,
 	/// None while the pool is empty.
 	pub ratio: Option<f32>,

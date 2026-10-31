@@ -490,6 +490,44 @@ settings:
 		default: same
 		tip: "How the load graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
 
+	show_procs:
+		label: Processes
+		tab: Graphs
+		control: checkbox
+		path: procs.show
+		default: false
+		tip: "Show how many processes are running, stacked by who runs them: the system's, other users', and yours. The top follows the highest count in view."
+
+	procs_width:
+		label: Processes width %
+		tab: Graphs
+		control: number
+		whole: true
+		range: 1, 1000
+		path: procs.width
+		default: 25
+		tip: "How wide the processes graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+
+	procs_sample:
+		label: Processes sample %
+		tab: Graphs
+		control: number
+		whole: true
+		range: 1, 1000
+		path: procs.sample
+		default: 200
+		tip: "How often the processes graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
+
+	procs_time:
+		label: Processes time axis
+		tab: Graphs
+		control: dropdown
+		options: same, linear, smooth, fixed_a, fixed_b
+		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: procs.time
+		default: same
+		tip: "How the processes graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+
 	show_self:
 		label: tukzmon
 		tab: Graphs
@@ -572,8 +610,8 @@ settings:
 		tab: Graphs
 		control: text
 		path: graph.order
-		default: "cpu mem gpu vram net disk temp swap zswap load self battery"
-		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, gpu, vram for GPU memory, net for network, swap, zswap, load, disk, temp for temperature, battery, and self for tukzmon itself. One left out goes at the end."
+		default: "cpu mem gpu vram net disk temp swap zswap load procs self battery"
+		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, gpu, vram for GPU memory, net for network, swap, zswap, load, procs for processes, disk, temp for temperature, battery, and self for tukzmon itself. One left out goes at the end."
 
 	NetGraphHead:
 		label: Network graph
@@ -1928,6 +1966,125 @@ settings:
 		default: "#000000"
 		group: theme
 
+	ProcsSection:
+		label: Processes
+		tab: Themes/Colors
+		control: heading
+		graph: procs
+
+	procs_mode:
+		label: Colors
+		tab: Themes/Colors
+		control: dropdown
+		shown_as: radio
+		options: detailed, gradient
+		option_labels: "Detailed", "Gradient"
+		path: procs.mode
+		default: detailed
+		group: theme
+		tip: "Detailed stacks a color for each owner. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	ProcsHead:
+		label: "By owner"
+		tab: Themes/Colors
+		control: heading
+		shown_when: "procs_mode = detailed"
+
+	procs_system:
+		label: System
+		tab: Themes/Colors
+		control: color
+		path: procs.colors.system
+		default: "#705a1d"
+		group: theme
+		shown_when: "procs_mode = detailed"
+		tip: "Root's, the kernel's own threads, and the system accounts under user ID 1000."
+
+	procs_users:
+		label: Other users
+		tab: Themes/Colors
+		control: color
+		path: procs.colors.users
+		default: "#6a7b31"
+		group: theme
+		shown_when: "procs_mode = detailed"
+
+	procs_me:
+		label: Yours
+		tab: Themes/Colors
+		control: color
+		path: procs.colors.me
+		default: "#e0a500"
+		group: theme
+		shown_when: "procs_mode = detailed"
+		tip: "The ones running as the user tukzmon runs as."
+
+	ProcsGradHead:
+		label: "By height"
+		tab: Themes/Colors
+		control: heading
+		shown_when: "procs_mode = gradient"
+
+	procs_low:
+		label: Low
+		tab: Themes/Colors
+		control: color
+		path: procs.colors.low
+		default: "#705a1d"
+		group: theme
+		shown_when: "procs_mode = gradient"
+		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
+
+	procs_medium:
+		label: Medium
+		tab: Themes/Colors
+		control: color
+		path: procs.colors.medium
+		default: "#e0a500"
+		group: theme
+		shown_when: "procs_mode = gradient"
+		tip: "The color halfway up."
+
+	procs_high:
+		label: High
+		tab: Themes/Colors
+		control: color
+		path: procs.colors.high
+		default: "#fff2cf"
+		group: theme
+		shown_when: "procs_mode = gradient"
+		tip: "The color at the top."
+
+	ProcsBackHead:
+		label: Background
+		tab: Themes/Colors
+		control: heading
+		beside: true
+
+	procs_border_color:
+		label: Border
+		tab: Themes/Colors
+		control: color
+		path: procs.colors.border
+		default: "#8b8b8b"
+		group: theme
+
+	procs_back_top:
+		label: Top
+		tab: Themes/Colors
+		control: color
+		path: procs.colors.top
+		default: "#313131"
+		group: theme
+
+	procs_back_bottom:
+		label: Bottom
+		tab: Themes/Colors
+		control: color
+		path: procs.colors.bottom
+		default: "#000000"
+		group: theme
+
 	MarginHead:
 		label: Margins
 		tab: Themes/Outline
@@ -2114,6 +2271,13 @@ groups:
 				self_medium: "#00ccb8"
 				self_high: "#cffffa"
 				self_used: "#00ccb8"
+				procs_mode: detailed
+				procs_low: "#705a1d"
+				procs_medium: "#e0a500"
+				procs_high: "#fff2cf"
+				procs_system: "#705a1d"
+				procs_users: "#6a7b31"
+				procs_me: "#e0a500"
 				cpu_border_color: "#8b8b8b"
 				cpu_back_top: "#313131"
 				cpu_back_bottom: "#000000"
@@ -2150,6 +2314,9 @@ groups:
 				self_border_color: "#8b8b8b"
 				self_back_top: "#313131"
 				self_back_bottom: "#000000"
+				procs_border_color: "#8b8b8b"
+				procs_back_top: "#313131"
+				procs_back_bottom: "#000000"
 				border_color: "#8b8b8b"
 				back_top: "#313131"
 				back_bottom: "#000000"
@@ -2233,6 +2400,13 @@ groups:
 				self_medium: "#0000ff"
 				self_high: "#bfbfff"
 				self_used: "#0000ff"
+				procs_mode: detailed
+				procs_low: "#664100"
+				procs_medium: "#ffa200"
+				procs_high: "#ffe8bf"
+				procs_system: "#664100"
+				procs_users: "#818c38"
+				procs_me: "#ffa200"
 				cpu_border_color: "#606060"
 				cpu_back_top: "#2a2a2a"
 				cpu_back_bottom: "#000000"
@@ -2269,6 +2443,9 @@ groups:
 				self_border_color: "#606060"
 				self_back_top: "#2a2a2a"
 				self_back_bottom: "#000000"
+				procs_border_color: "#606060"
+				procs_back_top: "#2a2a2a"
+				procs_back_bottom: "#000000"
 				border_color: "#606060"
 				back_top: "#2a2a2a"
 				back_bottom: "#000000"
@@ -2352,6 +2529,13 @@ groups:
 				self_medium: "#8ac777"
 				self_high: "#edfbe8"
 				self_used: "#8ac777"
+				procs_mode: detailed
+				procs_low: "#3f6360"
+				procs_medium: "#508f8a"
+				procs_high: "#e6fbf9"
+				procs_system: "#3f6360"
+				procs_users: "#3a464f"
+				procs_me: "#508f8a"
 				cpu_border_color: "#7f90a1"
 				cpu_back_top: "#3a424a"
 				cpu_back_bottom: "#0f1214"
@@ -2388,6 +2572,9 @@ groups:
 				self_border_color: "#7f90a1"
 				self_back_top: "#3a424a"
 				self_back_bottom: "#0f1214"
+				procs_border_color: "#7f90a1"
+				procs_back_top: "#3a424a"
+				procs_back_bottom: "#0f1214"
 				border_color: "#7f90a1"
 				back_top: "#3a424a"
 				back_bottom: "#0f1214"
@@ -2471,6 +2658,13 @@ groups:
 				self_medium: "#ff00f2"
 				self_high: "#ffbffc"
 				self_used: "#ff00f2"
+				procs_mode: detailed
+				procs_low: "#493800"
+				procs_medium: "#b88d00"
+				procs_high: "#fff0bf"
+				procs_system: "#493800"
+				procs_users: "#556528"
+				procs_me: "#b88d00"
 				cpu_border_color: "#3a2a6a"
 				cpu_back_top: "#120a24"
 				cpu_back_bottom: "#000000"
@@ -2507,6 +2701,9 @@ groups:
 				self_border_color: "#3a2a6a"
 				self_back_top: "#120a24"
 				self_back_bottom: "#000000"
+				procs_border_color: "#3a2a6a"
+				procs_back_top: "#120a24"
+				procs_back_bottom: "#000000"
 				border_color: "#3a2a6a"
 				back_top: "#120a24"
 				back_bottom: "#000000"
@@ -2590,6 +2787,13 @@ groups:
 				self_medium: "#80b565"
 				self_high: "#dce7d6"
 				self_used: "#80b565"
+				procs_mode: detailed
+				procs_low: "#423922"
+				procs_medium: "#827143"
+				procs_high: "#e7e2d4"
+				procs_system: "#423922"
+				procs_users: "#50563d"
+				procs_me: "#827143"
 				cpu_border_color: "#6a5a40"
 				cpu_back_top: "#2e261a"
 				cpu_back_bottom: "#0e0b07"
@@ -2626,6 +2830,9 @@ groups:
 				self_border_color: "#6a5a40"
 				self_back_top: "#2e261a"
 				self_back_bottom: "#0e0b07"
+				procs_border_color: "#6a5a40"
+				procs_back_top: "#2e261a"
+				procs_back_bottom: "#0e0b07"
 				border_color: "#6a5a40"
 				back_top: "#2e261a"
 				back_bottom: "#0e0b07"
@@ -2709,6 +2916,13 @@ groups:
 				self_medium: "#61ff66"
 				self_high: "#c7ffc9"
 				self_used: "#61ff66"
+				procs_mode: gradient
+				procs_low: "#663931"
+				procs_medium: "#ffaea0"
+				procs_high: "#ffe2dd"
+				procs_system: "#663931"
+				procs_users: "#8c816d"
+				procs_me: "#ffaea0"
 				cpu_border_color: "#80401a"
 				cpu_back_top: "#3a1c0c"
 				cpu_back_bottom: "#000000"
@@ -2745,6 +2959,9 @@ groups:
 				self_border_color: "#80401a"
 				self_back_top: "#3a1c0c"
 				self_back_bottom: "#000000"
+				procs_border_color: "#80401a"
+				procs_back_top: "#3a1c0c"
+				procs_back_bottom: "#000000"
 				border_color: "#80401a"
 				back_top: "#3a1c0c"
 				back_bottom: "#000000"
@@ -2828,6 +3045,13 @@ groups:
 				self_medium: "#33ff33"
 				self_high: "#ccffcc"
 				self_used: "#33ff33"
+				procs_mode: detailed
+				procs_low: "#1b6b1b"
+				procs_medium: "#33ff33"
+				procs_high: "#ccffcc"
+				procs_system: "#1b6b1b"
+				procs_users: "#40a840"
+				procs_me: "#33ff33"
 				cpu_border_color: "#1d611d"
 				cpu_back_top: "#0a210a"
 				cpu_back_bottom: "#000000"
@@ -2864,6 +3088,9 @@ groups:
 				self_border_color: "#1d611d"
 				self_back_top: "#0a210a"
 				self_back_bottom: "#000000"
+				procs_border_color: "#1d611d"
+				procs_back_top: "#0a210a"
+				procs_back_bottom: "#000000"
 				border_color: "#1d611d"
 				back_top: "#0a210a"
 				back_bottom: "#000000"
@@ -2947,6 +3174,13 @@ groups:
 				self_medium: "#ffae00"
 				self_high: "#ffebbf"
 				self_used: "#ffae00"
+				procs_mode: detailed
+				procs_low: "#6b4900"
+				procs_medium: "#ffae00"
+				procs_high: "#ffebbf"
+				procs_system: "#6b4900"
+				procs_users: "#ad7f1a"
+				procs_me: "#ffae00"
 				cpu_border_color: "#5c3f00"
 				cpu_back_top: "#1f1500"
 				cpu_back_bottom: "#000000"
@@ -2983,6 +3217,9 @@ groups:
 				self_border_color: "#5c3f00"
 				self_back_top: "#1f1500"
 				self_back_bottom: "#000000"
+				procs_border_color: "#5c3f00"
+				procs_back_top: "#1f1500"
+				procs_back_bottom: "#000000"
 				border_color: "#5c3f00"
 				back_top: "#1f1500"
 				back_bottom: "#000000"
@@ -3066,6 +3303,13 @@ groups:
 				self_medium: "#bfeaff"
 				self_high: "#f0faff"
 				self_used: "#bfeaff"
+				procs_mode: detailed
+				procs_low: "#4b6273"
+				procs_medium: "#bfeaff"
+				procs_high: "#f0faff"
+				procs_system: "#4b6273"
+				procs_users: "#728fa3"
+				procs_me: "#bfeaff"
 				cpu_border_color: "#506473"
 				cpu_back_top: "#1b2329"
 				cpu_back_bottom: "#050708"
@@ -3102,6 +3346,9 @@ groups:
 				self_border_color: "#506473"
 				self_back_top: "#1b2329"
 				self_back_bottom: "#050708"
+				procs_border_color: "#506473"
+				procs_back_top: "#1b2329"
+				procs_back_bottom: "#050708"
 				border_color: "#506473"
 				back_top: "#1b2329"
 				back_bottom: "#050708"

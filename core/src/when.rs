@@ -14,6 +14,7 @@ pub enum Said {
 }
 
 impl Said {
+	/// As the settings file spells it.
 	pub fn parse(key: &str) -> Option<Said> {
 		match key {
 			"ago" => Some(Said::Ago),

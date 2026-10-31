@@ -58,10 +58,11 @@ pub enum Part {
 	Own = 9,
 	Gpu = 10,
 	Vram = 11,
-	Back = 12,
+	Procs = 12,
+	Back = 13,
 }
 
-const GRAPHS: usize = 12;
+const GRAPHS: usize = 13;
 
 /// Every member of the theme group, by graph and role. A member missing here
 /// gets no random value, and `dice::tests::every_theme_member_has_a_role`
@@ -176,6 +177,16 @@ pub const ROLES: &[(&str, Part, Role)] = &[
 	("vram_border_color", Part::Vram, Role::Border),
 	("vram_back_top", Part::Vram, Role::Top),
 	("vram_back_bottom", Part::Vram, Role::Bottom),
+	("procs_mode", Part::Procs, Role::Mode),
+	("procs_system", Part::Procs, Role::Calm),
+	("procs_users", Part::Procs, Role::Hush),
+	("procs_me", Part::Procs, Role::Lead),
+	("procs_low", Part::Procs, Role::Calm),
+	("procs_medium", Part::Procs, Role::Lead),
+	("procs_high", Part::Procs, Role::Tint),
+	("procs_border_color", Part::Procs, Role::Border),
+	("procs_back_top", Part::Procs, Role::Top),
+	("procs_back_bottom", Part::Procs, Role::Bottom),
 	("border_all", Part::Back, Role::Switch),
 	("border_color", Part::Back, Role::Border),
 	("back_all", Part::Back, Role::Switch),
@@ -190,11 +201,13 @@ pub const ROLES: &[(&str, Part, Role)] = &[
 const LEAD_HUES: (f64, f64) = (75.0 / 360.0, 300.0 / 360.0);
 const ALARM_HUES: (f64, f64) = (-10.0 / 360.0, 2.0 / 360.0);
 const WARN_HUES: (f64, f64) = (18.0 / 360.0, 32.0 / 360.0);
-// The least gap between 2 graphs' lead hues. 12 of them at this gap leave
-// 27 degrees of the lead range to roll in.
-const LEAD_GAP: f64 = 18.0 / 360.0;
-// Hue draws tried for leads that all read apart, before settling for the last.
-const TRIES: usize = 128;
+// The least gap between 2 graphs' lead hues. 13 of them at this gap leave
+// 45 degrees of the lead range to roll in. At 16 or more some seeds take
+// hundreds of draws to read apart, or never do.
+const LEAD_GAP: f64 = 15.0 / 360.0;
+// Hue draws tried for leads that all read apart, before settling for the
+// last. The worst of dejbv's seeds takes 140.
+const TRIES: usize = 256;
 
 // splitmix64, so a seed always rolls the same theme
 struct Roll(u64);
@@ -245,7 +258,7 @@ fn lead_hues(r: &mut Roll) -> [f64; GRAPHS] {
 }
 
 // Where 2 leads would look alike, one of them steps darker or paler, tried
-// in this order. 12 hues share too little of the circle to read apart by hue
+// in this order. 13 hues share too little of the circle to read apart by hue
 // alone, most of all when pale.
 fn step(n: usize, s: f64, v: f64) -> (f64, f64) {
 	match n {
@@ -372,7 +385,8 @@ impl Part {
 			| Part::Temp
 			| Part::Own
 			| Part::Gpu
-			| Part::Vram => Some(self as usize),
+			| Part::Vram
+			| Part::Procs => Some(self as usize),
 			Part::Back => None,
 		}
 	}
@@ -584,6 +598,7 @@ mod tests {
 		Part::Own,
 		Part::Gpu,
 		Part::Vram,
+		Part::Procs,
 	];
 
 	fn hsv_of(text: &str) -> Hsv {
@@ -822,8 +837,8 @@ mod tests {
 			let leads = PARTS.map(|p| role_of(&t, p, Role::Lead).h);
 			for (i, a) in leads.iter().enumerate() {
 				for b in &leads[i + 1..] {
-					// 18 apart as rolled, less a little for the hex round trip
-					assert!(hue_gap(*a, *b) >= 13.0 / 360.0, "{seed} {leads:?}");
+					// 15 apart as rolled, less a little for the hex round trip
+					assert!(hue_gap(*a, *b) >= 10.0 / 360.0, "{seed} {leads:?}");
 				}
 			}
 			cpu = (cpu.0.min(leads[0]), cpu.1.max(leads[0]));

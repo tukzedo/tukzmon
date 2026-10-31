@@ -31,6 +31,7 @@ impl Host {
 		}
 	}
 
+	/// As the tip says it.
 	pub fn name(self) -> &'static str {
 		match self {
 			Host::Own => "tukzmon",
@@ -67,6 +68,7 @@ fn cpu_ns() -> Option<u64> {
 	None
 }
 
+/// Reads this process's own CPU and memory use.
 #[derive(Debug, Default)]
 pub struct OwnReader {
 	pub(crate) host: Host,
@@ -74,6 +76,7 @@ pub struct OwnReader {
 }
 
 impl OwnReader {
+	/// The program it runs in.
 	pub fn host(&self) -> Host {
 		self.host
 	}

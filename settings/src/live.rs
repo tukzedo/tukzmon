@@ -7,6 +7,8 @@
 use tukzmon_core::config::{Look, Which};
 use tukzmon_core::graphs::{self, Drawn, Slots};
 
+/// The graphs drawn in the graph list's rows, read live as the panel would.
+#[derive(Debug)]
 pub struct Live {
 	/// Every graph this box can read. The own graph is the settings window's,
 	/// not the panel's.
@@ -14,6 +16,7 @@ pub struct Live {
 }
 
 impl Live {
+	/// Every graph this box can read, shown or not.
 	pub fn new(look: Look) -> Live {
 		Live {
 			slots: Slots::new(look, |_, _| true),
@@ -39,6 +42,7 @@ impl Live {
 		self.slots.set_look(look);
 	}
 
+	/// Drops every graph's samples, so each starts over.
 	pub fn clear(&mut self) {
 		for (_, g) in self.all_mut() {
 			g.clear();
@@ -78,10 +82,12 @@ impl Live {
 		}
 	}
 
+	/// True while the named graph's axis is easing in.
 	pub fn easing(&self, name: &str) -> bool {
 		self.get(name).is_some_and(Drawn::easing)
 	}
 
+	/// The named graph's latest read, as its tooltip, or empty.
 	pub fn tip(&self, name: &str) -> String {
 		self.get(name).map(Drawn::tooltip).unwrap_or_default()
 	}
@@ -531,6 +537,32 @@ mod tests {
 		let tip = live.tip("self");
 		assert!(
 			tip.starts_with("tukzmon ") && tip.contains(" of all CPUs\n"),
+			"{tip}"
+		);
+	}
+
+	// Test ID: dep49
+	#[test]
+	#[cfg_attr(miri, ignore = "Miri can't list /proc")]
+	fn the_procs_row_counts_this_test_as_yours() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_live_procs_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let mut live = Live::new(d.look());
+		assert!(!d.look()[Which::Procs].show);
+		d.set("width", &Value::Float(100.0));
+		d.set("procs_width", &Value::Float(30.0));
+		live.set_look(d.look());
+		assert_eq!(live.width("procs"), 30);
+		live.sample();
+		std::thread::sleep(std::time::Duration::from_millis(20));
+		live.sample();
+		assert_eq!(live.render("procs", 30, 24, 1).len(), 30 * 24);
+		let tip = live.tip("procs");
+		assert!(
+			tip.starts_with("Processes ") && !tip.contains("\nYours 0 "),
 			"{tip}"
 		);
 	}

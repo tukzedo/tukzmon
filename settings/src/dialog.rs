@@ -16,10 +16,12 @@ use crate::pick::{self, Field, Hsv};
 
 const HEADER: &str = "## tukzmon settings. Only values changed from their defaults are listed.\n";
 
+/// One row as the window shows it now.
 #[allow(
 	clippy::struct_excessive_bools,
 	reason = "a snapshot of one row for the window, and each flag stands alone"
 )]
+#[derive(Debug)]
 pub struct RowState {
 	pub text: String,
 	pub on: bool,
@@ -59,6 +61,9 @@ pub struct ThemeButtons {
 	pub delete: bool,
 }
 
+/// The settings window's state: the file, what's changed in it, and the
+/// saved themes.
+#[derive(Debug)]
 pub struct Dialog {
 	path: PathBuf,
 	spec: Arc<Spec>,
@@ -83,6 +88,7 @@ pub struct Dialog {
 /// An open color picker. Its row follows every change, and Cancel puts back
 /// all that was stored when it opened, since a color change also marks the
 /// theme changed.
+#[derive(Debug)]
 struct Picker {
 	id: String,
 	hsv: Hsv,
@@ -164,10 +170,12 @@ impl Dialog {
 			.or_else(|| self.spec.get(id))
 	}
 
+	/// The config file it reads and writes.
 	pub fn path(&self) -> &Path {
 		&self.path
 	}
 
+	/// The settings spec, with the saved themes in its theme list.
 	pub fn spec(&self) -> &Spec {
 		&self.spec
 	}
@@ -177,6 +185,7 @@ impl Dialog {
 		config::Look::from_model(&self.model)
 	}
 
+	/// True when a setting or a saved theme differs from the file.
 	pub fn dirty(&self) -> bool {
 		self.model != self.saved || self.themes != self.saved_themes
 	}
@@ -208,6 +217,7 @@ impl Dialog {
 		self.themes.iter().position(|t| t.key == key)
 	}
 
+	/// Which theme buttons do anything now. None do off a saved theme.
 	pub fn theme_buttons(&self) -> ThemeButtons {
 		if self.on_saved().is_none() {
 			return ThemeButtons::default();
@@ -340,6 +350,7 @@ impl Dialog {
 		self.randomize_from(crate::dice::fresh_seed());
 	}
 
+	/// [`Self::randomize`], from `seed`, so a test gets the same colors each time.
 	pub fn randomize_from(&mut self, seed: u64) {
 		let rolled = crate::dice::theme(seed);
 		// a set turns its gate on, and a roll is colors, not the overrides
@@ -362,6 +373,7 @@ impl Dialog {
 		}
 	}
 
+	/// The row for setting `id` as it should look now.
 	pub fn state(&self, id: &str) -> RowState {
 		let v = self.model.value(id, &NoEnv);
 		let number = v.as_f64();
@@ -450,6 +462,7 @@ impl Dialog {
 		self.set(id, &Value::Float(v));
 	}
 
+	/// Puts setting `id` back to its default.
 	pub fn reset(&mut self, id: &str) {
 		if self.spec.get(id).is_some() {
 			self.model.reset(id, &NoEnv);
@@ -572,6 +585,7 @@ impl Dialog {
 		true
 	}
 
+	/// The open picker's color, or None with no picker open.
 	pub fn pick_hsv(&self) -> Option<Hsv> {
 		self.picker.as_ref().map(|p| p.hsv)
 	}
@@ -668,8 +682,8 @@ mod tests {
 	struct Dir(PathBuf);
 	impl Drop for Dir {
 		fn drop(&mut self) {
-			let _ = std::fs::remove_file(self.0.join("t.shcl"));
-			let _ = std::fs::remove_dir(&self.0);
+			// The folder is this test's own, named by pid and test, so a test may write any name in it.
+			let _ = std::fs::remove_dir_all(&self.0);
 		}
 	}
 
@@ -828,6 +842,7 @@ mod tests {
 			"Swap",
 			"Zswap",
 			"Load",
+			"Processes",
 			"tukzmon",
 			"Battery",
 		];
@@ -847,6 +862,7 @@ mod tests {
 			"Swap",
 			"Zswap",
 			"Load",
+			"Processes",
 			"tukzmon",
 		];
 		assert_eq!(labels(&dlg), moved);
@@ -988,7 +1004,7 @@ mod tests {
 			names(&dlg),
 			[
 				"mem", "cpu", "gpu", "vram", "net", "swap", "zswap", "load", "disk", "temp",
-				"battery", "self"
+				"battery", "self", "procs"
 			]
 		);
 		for id in [
@@ -1018,19 +1034,19 @@ mod tests {
 		let d = scratch("drag");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone()).unwrap();
-		assert!(!dlg.move_graph(0, 12));
+		assert!(!dlg.move_graph(0, 13));
 		assert!(!dlg.dirty());
 		assert!(dlg.move_graph(0, 1));
 		assert_eq!(
 			dlg.state(ORDER).text,
-			"mem cpu gpu vram net disk temp swap zswap load self battery"
+			"mem cpu gpu vram net disk temp swap zswap load procs self battery"
 		);
 		dlg.apply().unwrap();
 		assert_eq!(
 			config::Look::load(&path).unwrap().order,
 			[
 				"mem", "cpu", "gpu", "vram", "net", "disk", "temp", "swap", "zswap", "load",
-				"self", "battery"
+				"procs", "self", "battery"
 			]
 		);
 		assert!(dlg.move_graph(1, 0));
@@ -1039,7 +1055,7 @@ mod tests {
 		assert!(dlg.move_graph(0, 1));
 		assert_eq!(
 			dlg.state(ORDER).text,
-			"cpu mem gpu vram net swap zswap load disk temp battery self nope"
+			"cpu mem gpu vram net swap zswap load disk temp battery self procs nope"
 		);
 	}
 
@@ -1504,7 +1520,7 @@ mod tests {
 		dlg.apply().unwrap();
 		let text = std::fs::read_to_string(&path).unwrap();
 		assert!(text.contains("name: night"), "{text}");
-		assert_eq!(text.matches("\"#").count(), 101, "{text}");
+		assert_eq!(text.matches("\"#").count(), 110, "{text}");
 		assert!(!text.contains("kept"), "{text}");
 		let dlg = Dialog::open(path.clone()).unwrap();
 		assert_eq!(dlg.state("theme").choice, "Night");

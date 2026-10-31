@@ -12,12 +12,19 @@ const MEMINFO: &str = "/proc/meminfo";
 /// The `/proc/meminfo` rows used here, in kB.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Meminfo {
+	/// `MemTotal`.
 	pub total: u64,
+	/// `MemFree`.
 	pub free: u64,
+	/// `Buffers`.
 	pub buffers: u64,
+	/// `Cached`.
 	pub cached: u64,
+	/// `SReclaimable`, counted as cache.
 	pub sreclaimable: u64,
+	/// `SwapTotal`.
 	pub swap_total: u64,
+	/// `SwapFree`.
 	pub swap_free: u64,
 	/// zswap's pool, compressed. None on a kernel without the row.
 	pub zswap: Option<u64>,
@@ -150,6 +157,7 @@ pub fn swap_share(m: &Meminfo) -> Option<[f32; 1]> {
 	Some([(used as f64 / m.swap_total as f64).clamp(0.0, 1.0) as f32])
 }
 
+/// Reads `/proc/meminfo` for the memory graph.
 #[derive(Debug, Default)]
 pub struct MemoryReader;
 

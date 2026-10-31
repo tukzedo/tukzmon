@@ -45,7 +45,9 @@ impl Curve {
 /// How one graph spreads time across its width.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Timing {
+	/// A plain line, each column the same span of time.
 	Linear,
+	/// Older data squeezed, on this curve.
 	Log(Curve),
 }
 
@@ -60,10 +62,16 @@ impl Timing {
 	}
 }
 
+/// Age as a function of `u`, 0 at the right edge and 1 at the left.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Axis {
 	/// Knot values and slopes in g = ln(1 + age/A0), at u = 0, 1/4, 1/2, 3/4, 1.
-	Log { g: [f64; 5], m: [f64; 5] },
+	Log {
+		/// The knot values.
+		g: [f64; 5],
+		/// The slopes at each knot.
+		m: [f64; 5],
+	},
 	/// The whole width covers this many seconds.
 	Linear(f64),
 }
@@ -111,6 +119,7 @@ impl Axis {
 		b
 	}
 
+	/// A log axis on `curve` whose left edge is `total` seconds back.
 	pub fn log(curve: Curve, total: f64) -> Axis {
 		let b = Axis::knots(curve, total);
 		let g = b.map(to_g);
@@ -120,10 +129,12 @@ impl Axis {
 		}
 	}
 
+	/// A linear axis over `seconds`, never negative.
 	pub fn linear(seconds: f64) -> Axis {
 		Axis::Linear(seconds.max(0.0))
 	}
 
+	/// Seconds old at `u`, which is clamped to 0 to 1.
 	pub fn age(&self, u: f64) -> f64 {
 		let u = u.clamp(0.0, 1.0);
 		match self {
@@ -141,6 +152,7 @@ impl Axis {
 		}
 	}
 
+	/// The axis `basis` calls for.
 	pub fn of(basis: &Basis) -> Axis {
 		match *basis {
 			Basis::Log { curve, span } => Axis::log(curve, span.map_or(0.0, |(a, b)| b - a)),
@@ -157,6 +169,7 @@ const STEPS: usize = 64;
 
 /// Anything that says how old the data at `u` is: an axis, or one easing in.
 pub trait Ages {
+	/// Seconds old at `u`, 0 at the right edge and 1 at the left.
 	fn age(&self, u: f64) -> f64;
 }
 
@@ -172,7 +185,9 @@ impl Ages for Axis {
 pub enum Basis {
 	/// A log curve over history from its first to its last time, if any.
 	Log {
+		/// The curve, as the Time settings name it.
 		curve: Curve,
+		/// First and last times in the history, or None while it's empty.
 		span: Option<(f64, f64)>,
 	},
 	/// The whole width covers this many seconds.
@@ -254,6 +269,7 @@ impl Ease {
 		Eased { from, to }
 	}
 
+	/// True while the jump at `t` is still easing in.
 	pub fn easing(&self, t: f64) -> bool {
 		self.from.as_ref().is_some_and(|(_, at)| t - at < EASE)
 	}

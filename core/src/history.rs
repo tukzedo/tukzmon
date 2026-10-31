@@ -22,16 +22,20 @@ pub const TIERS: [(f64, f64); 6] = [
 	(3600.0, f64::INFINITY),
 ];
 
+/// One span of time at a tier's resolution.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Bucket<const N: usize> {
 	/// Each value times the seconds it lasted.
 	pub sum: [f32; N],
+	/// The least of each value.
 	pub min: [f32; N],
+	/// The most of each value.
 	pub max: [f32; N],
 	/// Seconds of data in the bucket. 0 is a gap.
 	pub secs: f32,
 	/// Where the data starts and ends, in seconds from the bucket's start.
 	pub lo: f64,
+	/// See `lo`.
 	pub hi: f64,
 }
 
@@ -60,6 +64,7 @@ impl<const N: usize> Bucket<N> {
 		self.lo = self.lo.min(lo);
 		self.hi = self.hi.max(hi);
 	}
+	/// The time-weighted mean of value `i`, or 0 for a gap.
 	pub fn mean(&self, i: usize) -> f32 {
 		if self.secs > 0.0 {
 			self.sum[i] / self.secs
@@ -242,12 +247,15 @@ impl<const N: usize> Tier<N> {
 /// What a span of time averaged out to.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Span<const N: usize> {
+	/// Time-weighted mean of each value.
 	pub mean: [f32; N],
+	/// The most of each value.
 	pub max: [f32; N],
 	/// Share of the span that had data, 0 to 1.
 	pub covered: f32,
 }
 
+/// One graph's samples, at a finer resolution for recent ones.
 #[derive(Clone, Debug)]
 pub struct History<const N: usize> {
 	tiers: Vec<Tier<N>>,

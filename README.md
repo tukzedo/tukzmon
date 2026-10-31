@@ -33,6 +33,8 @@ The first version is an XFCE panel plugin. Other desktops will follow. And then 
 
 - Load average.
 
+- The number of processes, split into the system's, other users', and yours.
+
 - Disk reads and writes, for all disks or the ones you pick, with an optional log scale.
 
 - CPU temperature, with the critical range on top.

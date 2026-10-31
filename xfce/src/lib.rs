@@ -418,7 +418,11 @@ extern "C" fn draw(widget: *mut c_void, cr: *mut c_void, data: *mut c_void) -> G
 }
 
 fn draw_graphs(p: &mut Plugin, widget: *mut c_void, cr: *mut c_void) -> Gboolean {
-	// SAFETY: widget and cr come from GTK for this draw.
+	// SAFETY: widget and cr come from GTK for this draw. The surface wraps
+	// px, which is the graphs' own buffer and isn't touched again until the
+	// next render. Nothing here frees or moves it before the destroy, and cr,
+	// which still holds the surface as its source after that, is GTK's for
+	// this draw only and goes before the next one.
 	unsafe {
 		let scale = gtk_widget_get_scale_factor(widget).max(1);
 		let w = gtk_widget_get_allocated_width(widget).max(0) * scale;

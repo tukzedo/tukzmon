@@ -15,6 +15,7 @@ use crate::disk::Drives;
 use crate::render::Paint;
 use crate::when::Said;
 
+/// The settings spec, in shcl.
 pub const SPEC_TEXT: &str = include_str!("settings.shcl");
 
 /// The parsed spec. A test proves it parses, so a bad one never gets built.
@@ -132,6 +133,7 @@ pub enum Mode {
 }
 
 impl Mode {
+	/// As the settings file spells it, in any case.
 	pub fn parse(s: &str) -> Option<Mode> {
 		match s.to_ascii_lowercase().as_str() {
 			"detailed" => Some(Mode::Detailed),
@@ -145,6 +147,7 @@ impl Mode {
 /// sent and received. See design.md, Data sources on Linux.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Split {
+	/// No split.
 	#[default]
 	Off,
 	/// Polls every TCP socket, with no root. UDP, QUIC among it, counts as
@@ -153,6 +156,7 @@ pub enum Split {
 }
 
 impl Split {
+	/// As the settings file spells it, in any case.
 	pub fn parse(s: &str) -> Option<Split> {
 		match s.to_ascii_lowercase().as_str() {
 			"off" => Some(Split::Off),
@@ -194,7 +198,9 @@ pub fn name_the_theme(m: &mut Model) {
 /// `themes.<key>`, with every color named by its setting id.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SavedTheme {
+	/// Its key under `themes.`.
 	pub key: String,
+	/// The name shown in the window.
 	pub name: String,
 	/// Setting id to `#rrggbb`, one per theme color, plus each graph's mode,
 	/// the margins and the 2 override checkboxes, as text.
@@ -230,6 +236,7 @@ fn theme_value(spec: &Spec, id: &str, raw: &str) -> Option<String> {
 	theme_typed(spec, id, raw).map(|v| theme_text(&v))
 }
 
+/// The config file's section for saved themes.
 pub const THEMES: &str = "themes";
 
 fn builtin_key(key: &str) -> bool {
@@ -472,10 +479,12 @@ pub fn model(text: &str) -> Model {
 	model_on(spec_with(&saved_themes(&doc)), &doc)
 }
 
+/// A color, red, green and blue.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Rgb(pub u8, pub u8, pub u8);
 
 impl Rgb {
+	/// From `#rrggbb`, or None.
 	pub fn parse(hex: &str) -> Option<Rgb> {
 		let h = hex.strip_prefix('#')?;
 		if h.len() != 6 || !h.bytes().all(|b| b.is_ascii_hexdigit()) {
@@ -494,14 +503,17 @@ impl Rgb {
 /// A graph's frame, and the background its plot blends from top to bottom.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Outline {
+	/// The frame around the graph.
 	pub border: Rgb,
+	/// The background at the top.
 	pub top: Rgb,
+	/// The background at the bottom.
 	pub bottom: Rgb,
 }
 
 /// Each graph's section and its main series, the color it reads as in
 /// Detailed. In Gradient that's its Medium. See design.md Theme.
-pub const LEADS: [(&str, &str); 12] = [
+pub const LEADS: [(&str, &str); 13] = [
 	("cpu", "user"),
 	("mem", "mem_user"),
 	("gpu", "gpu_busy"),
@@ -514,6 +526,7 @@ pub const LEADS: [(&str, &str); 12] = [
 	("temp", "temp_normal"),
 	("battery", "battery_charging"),
 	("self", "self_used"),
+	("procs", "procs_me"),
 ];
 
 /// I/O wait and system, which every lead keeps clear of.
@@ -539,25 +552,39 @@ pub fn leads<'a>(get: impl Fn(&str) -> Option<&'a str>) -> Vec<Rgb> {
 /// Every graph there is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Which {
+	/// Processor use.
 	Cpu,
+	/// Memory use.
 	Mem,
+	/// GPU use.
 	Gpu,
+	/// GPU memory use.
 	Vram,
+	/// Network traffic.
 	Net,
+	/// Swap use.
 	Swap,
+	/// zswap's pool.
 	Zswap,
+	/// Load average.
 	Load,
+	/// Disk traffic.
 	Disk,
+	/// Temperatures.
 	Temp,
+	/// Battery charge.
 	Battery,
+	/// tukzmon's own CPU and memory.
 	Own,
+	/// Process counts.
+	Procs,
 }
 
 impl Which {
 	/// The order with nothing saved. Graphs a saved order leaves out go
 	/// last, in this order. Declaration order too, so a `Which` is its own
 	/// index in [`Look::graphs`].
-	pub const ALL: [Which; 12] = [
+	pub const ALL: [Which; 13] = [
 		Which::Cpu,
 		Which::Mem,
 		Which::Gpu,
@@ -570,6 +597,7 @@ impl Which {
 		Which::Temp,
 		Which::Battery,
 		Which::Own,
+		Which::Procs,
 	];
 
 	/// Its history section and its name in `graph.order`, which its setting
@@ -588,9 +616,11 @@ impl Which {
 			Which::Temp => "temp",
 			Which::Battery => "battery",
 			Which::Own => "self",
+			Which::Procs => "procs",
 		}
 	}
 
+	/// The graph whose key is `key`, or None.
 	pub fn named(key: &str) -> Option<Which> {
 		Which::ALL.into_iter().find(|w| w.key() == key)
 	}
@@ -621,6 +651,7 @@ impl Which {
 				"battery_critical",
 			],
 			Which::Own => &["self_used"],
+			Which::Procs => &["procs_system", "procs_users", "procs_me"],
 		}
 	}
 
@@ -651,32 +682,41 @@ pub struct Each {
 	pub time: Option<Timing>,
 	/// In [`Which::color_ids`] order, and black past its series count.
 	pub colors: [Rgb; MOST_SERIES],
+	/// Detailed or Gradient.
 	pub mode: Mode,
 	/// Low, Medium and High.
 	pub gradient: [Rgb; 3],
+	/// Its frame and background, unless the Outline sub-tab overrides it.
 	pub outline: Outline,
 }
 
+/// Every setting a panel draws with, as read from the config file.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Look {
+	/// Each graph's width in logical pixels, before its own share.
 	pub width: u32,
 	/// What a graph with no time axis of its own follows.
 	pub time: Timing,
+	/// Milliseconds between reads, before each graph's own rate.
 	pub sample_ms: u32,
 	/// What the hover tip says about the time under the pointer.
 	pub said: Said,
 	/// 0 to 1.
 	pub spikes: f32,
+	/// The frame's width in logical pixels.
 	pub border: u32,
 	/// Logical pixels clear above and below each graph, and either side of it.
 	/// See `graphs::Graphs::tiles` for the item's ends.
 	pub margin_tb: u32,
+	/// Logical pixels clear either side of each graph.
 	pub margin_lr: u32,
 	/// Save history and load it back on start.
 	pub keep: bool,
+	/// History older than this many days is dropped.
 	pub max_days: u32,
 	/// Each graph's own, by [`Which`]: `look[Which::Mem].width`.
 	pub graphs: [Each; Which::ALL.len()],
+	/// How the network graph tells the LAN from the internet.
 	pub net_split: Split,
 	/// A log scale up the disk graph.
 	pub disk_log: bool,
@@ -689,8 +729,11 @@ pub struct Look {
 	pub border_color: Rgb,
 	/// No background, so the panel shows through, whatever the theme.
 	pub transparent: bool,
+	/// The background at the top, for every graph, when `back_all` is on.
 	pub top: Rgb,
+	/// The background at the bottom, for every graph, when `back_all` is on.
 	pub bottom: Rgb,
+	/// The hover line.
 	pub hover: Rgb,
 }
 
@@ -1026,7 +1069,7 @@ mod tests {
 	fn the_default_theme_is_the_row_defaults() {
 		let spec = spec();
 		let g = spec.group(THEME).unwrap();
-		assert_eq!(g.members.len(), 117);
+		assert_eq!(g.members.len(), 127);
 		let default = g.preset("default").unwrap();
 		assert_eq!(default.label, "Default");
 		for id in &g.members {
@@ -1272,6 +1315,7 @@ mod tests {
 				l[Which::Temp].outline,
 				l[Which::Battery].outline,
 				l[Which::Own].outline,
+				l[Which::Procs].outline,
 			]
 		};
 		let d = Look::default();
@@ -1280,14 +1324,14 @@ mod tests {
 			top: Rgb(0x31, 0x31, 0x31),
 			bottom: Rgb(0, 0, 0),
 		};
-		assert_eq!(outlines(&d), [grey; 12]);
+		assert_eq!(outlines(&d), [grey; 13]);
 		// with the Outline sub-tab's overrides off, as Default has them on
 		let own = "graph:\n\toverrides:\n\t\tborder: false\n\t\tbackground: false\n";
 		// each graph reads its own, and no other graph's, here as Custom
 		let l = Look::from_model(&model(&format!(
 			"{own}mem:\n\tcolors:\n\t\ttop: \"#123456\"\nself:\n\tcolors:\n\t\tborder: \"#abcdef\"\n\t\tbottom: \"#010203\"\n"
 		)));
-		let mut want = [grey; 12];
+		let mut want = [grey; 13];
 		want[1].top = Rgb(0x12, 0x34, 0x56);
 		want[11].border = Rgb(0xab, 0xcd, 0xef);
 		want[11].bottom = Rgb(1, 2, 3);
@@ -1305,7 +1349,7 @@ mod tests {
 			"{shared}\toverrides:\n\t\tborder: false\n\t\tbackground: false\nmem:\n\tcolors:\n\t\ttop: \"#654321\"\n"
 		)));
 		assert_eq!(l.top, Rgb(0x12, 0x34, 0x56));
-		let mut want = [grey; 12].map(|o| Outline {
+		let mut want = [grey; 13].map(|o| Outline {
 			top: Rgb(0x12, 0x34, 0x56),
 			..o
 		});
@@ -1530,7 +1574,7 @@ mod tests {
 			let ramp = |g: &str| ["low", "medium", "high"].map(|s| rgb(&format!("{g}_{s}")));
 			let ramps = [
 				"cpu", "mem", "gpu", "vram", "swap", "zswap", "net", "load", "disk", "temp",
-				"battery", "self",
+				"battery", "self", "procs",
 			]
 			.map(ramp);
 			// how far apart the leads look is dejbr's, by CIEDE2000, not hue angle
@@ -1715,7 +1759,7 @@ mod tests {
 		let spec = spec();
 		for g in [
 			"cpu", "mem", "gpu", "vram", "net", "swap", "zswap", "load", "disk", "temp", "battery",
-			"self",
+			"self", "procs",
 		] {
 			let id = format!("{g}_sample");
 			let Some(s) = spec.get(&id) else {
@@ -1725,7 +1769,7 @@ mod tests {
 			assert_eq!(s.gate, None);
 			let want = match g {
 				"cpu" | "mem" => 50.0,
-				"swap" | "zswap" | "load" => 200.0,
+				"swap" | "zswap" | "load" | "procs" => 200.0,
 				"self" => 400.0,
 				_ => 100.0,
 			};
@@ -1808,7 +1852,7 @@ mod tests {
 			Look::default().order,
 			[
 				"cpu", "mem", "gpu", "vram", "net", "disk", "temp", "swap", "zswap", "load",
-				"self", "battery"
+				"procs", "self", "battery"
 			]
 		);
 		for text in [
@@ -1901,7 +1945,7 @@ mod tests {
 			"themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n",
 		));
 		assert_eq!(t[0].name, "Say \"hi\"");
-		assert_eq!(t[0].colors.len(), 117);
+		assert_eq!(t[0].colors.len(), 127);
 		t.push(SavedTheme {
 			key: theme_key("Default", &t),
 			name: "Default".into(),

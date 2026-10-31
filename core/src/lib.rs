@@ -3,6 +3,8 @@
 
 //! The part of tukzmon every panel shares. No GUI toolkit in here.
 
+#![warn(missing_docs)]
+
 pub mod axis;
 pub mod battery;
 pub mod collect;
@@ -20,6 +22,8 @@ pub mod load;
 pub mod mem;
 pub mod net;
 pub mod own;
+#[cfg(unix)]
+pub mod procs;
 pub mod render;
 pub mod temp;
 pub mod when;
@@ -42,6 +46,8 @@ use load::LoadReader;
 use mem::{MemoryReader, SwapReader};
 use net::Traffic;
 use own::OwnReader;
+#[cfg(unix)]
+use procs::ProcsReader;
 use render::{Frame, Paint, Peak, Scale, Scratch};
 use temp::TempReader;
 use when::Said;
@@ -84,16 +90,20 @@ pub trait Source<const N: usize>: Collector<N> {
 	const SECTION: &'static str = Self::WHICH.key();
 	/// The tip before there's anything read.
 	const TITLE: &'static str;
+	/// The hover tip's text for one read.
 	fn text(&self, v: &[f32; N]) -> String;
 
+	/// How the graph is colored, from its settings.
 	fn paint(look: &Look) -> Paint<'_, N> {
 		look.paint(Self::WHICH)
 	}
 
+	/// The graph's frame and background, from its settings.
 	fn outline(look: &Look) -> Outline {
 		look[Self::WHICH].outline
 	}
 
+	/// How the graph spreads time, its own or the Time settings'.
 	fn timing(look: &Look) -> Timing {
 		look.timing(look[Self::WHICH].time)
 	}
@@ -360,6 +370,25 @@ impl Source<1> for OwnReader {
 	}
 }
 
+#[cfg(unix)]
+impl Source<3> for ProcsReader {
+	const WHICH: Which = Which::Procs;
+	const TITLE: &'static str = "Processes";
+
+	fn text(&self, v: &[f32; 3]) -> String {
+		let [system, others, me] = v.map(|x| x.max(0.0).round() as u32);
+		format!(
+			"Processes {}\nYours {me}  Other users {others}\nSystem {system}",
+			system + others + me
+		)
+	}
+
+	// a count has no top, and a box runs more than this anyway
+	fn peak_floor(&self) -> Option<f32> {
+		Some(100.0)
+	}
+}
+
 /// One graph: reads, history, and drawing. CPU unless said otherwise.
 pub struct Graph<S: Source<N> = CpuReader, const N: usize = 4> {
 	/// The same one for every graph of a panel item, or of the settings
@@ -384,7 +413,20 @@ pub struct Graph<S: Source<N> = CpuReader, const N: usize = 4> {
 	beat: Option<(f64, f64)>,
 }
 
+// By hand, to leave out the pixel buffer and the samples.
+impl<S: Source<N>, const N: usize> std::fmt::Debug for Graph<S, N> {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("Graph")
+			.field("which", &S::WHICH)
+			.field("read_at", &self.read_at)
+			.field("latest", &self.latest)
+			.field("hover", &self.hover)
+			.finish_non_exhaustive()
+	}
+}
+
 impl Graph {
+	/// A CPU graph, the one every panel item has.
 	pub fn new(look: impl Into<Rc<Look>>) -> Graph {
 		Graph::with(look, CpuReader::default())
 	}
@@ -440,6 +482,14 @@ impl Graph<LoadReader, 1> {
 	/// None where `/proc/loadavg` can't be read.
 	pub fn load_avg(look: impl Into<Rc<Look>>) -> Option<Self> {
 		LoadReader::probe().map(|src| Graph::with(look, src))
+	}
+}
+
+#[cfg(unix)]
+impl Graph<ProcsReader, 3> {
+	/// None where `/proc` can't be listed.
+	pub fn procs(look: impl Into<Rc<Look>>) -> Option<Self> {
+		ProcsReader::probe().map(|src| Graph::with(look, src))
 	}
 }
 
@@ -604,6 +654,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		(beat + 1.0) * rate - at
 	}
 
+	/// The axis for a graph `columns` wide, as of the latest read.
 	pub fn axis(&self, columns: usize) -> Axis {
 		Axis::of(&self.basis(columns))
 	}

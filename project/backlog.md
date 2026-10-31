@@ -29,6 +29,7 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-26: still waits for the workflow file to reach `main`, which a round never pushes to.
 		- 2026-10-28: round-1028 doesn't reach `main` either.
 		- 2026-10-29: `main` on GitHub still has no `.github/workflows`, and the repo has no workflow runs.
+		- 2026-10-31: round-1031 doesn't reach `main` either.
 	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
 	- Priority|Severity: Avg
 	- Opened: 20261025-135600
@@ -63,58 +64,6 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
 	- Estimated effort: Low
-
-- A dialog test leaves its scratch folder in the temp dir
-	- ID: 2026103020140879
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261030-201408
-	- Opened by: t00mietum
-	- Related IDs: 2026103019482449
-	- Steps to reproduce:
-		- Run `cargo test -p tukzmon-settings` and list the temp dir.
-	- Incorrect behavior: `test_tukzmon-settings_<pid>_untick` stays, holding `old.shcl`, `t0.shcl` and `t1.shcl`. Older runs' folders are still there too.
-	- Expected behavior: a test removes what it wrote.
-	- Possible cause: the tests' `Dir` in `settings/src/dialog.rs` removes only `t.shcl` before `remove_dir`, and `unticked_overrides_give_every_graph_its_own_back_after_a_reload` (dejng) writes other names.
-	- Estimated effort: Low
-
-- Code review 20261030 item 12: Public types without Debug and public items without doc comments
-	- ID: 2026103016201612
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261030-162016
-	- Opened by: t00mietum
-	- Origin: across the tree. First review. Confirmed by reading.
-	- Requirements:
-		- Derive or write `Debug` for `Graph`, `Graphs`, `render::Frame`, `Dialog`, `RowState`, `Live` and the bridge's shared structs.
-		- One-line `///` on the public items that have none. The list is in `details.md` -> "Code review 20261030".
-		- The SAFETY note in the plugin's draw handler says why the pixel buffer outlives the cairo surface.
-		- `color.rs` takes `//!` for its module header, as the other modules do.
-	- Estimated effort: Low
-
-- Pre-next-cut: More minimum padding between buttons' inner edges and their text
-	- ID: 2026103107404601
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261031-074046
-	- Opened by: t00mietum
-	- Requirements:
-		- More minimum padding on all sides (top, bottom, left, right) between the inner button edges and the text.
-	- Estimated effort: Low
-
-- Pre-next-cut: Monitor for the number of processes
-	- ID: 2026103107404602
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261031-074046
-	- Opened by: t00mietum
-	- Requirements:
-		- An additional monitor showing the number of processes: system, other users, and me.
-	- Estimated effort: Avg
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
@@ -2488,6 +2437,76 @@ Sorted per the notes in [Template](#template).
 		- Swept: defx7 and defxd, the only checks on leads, every built-in in `settings.shcl`, and every role in `dice::ROLES` that follows its graph's lead.
 	- Closed: 20261028-161000
 
+- Pre-next-cut: More minimum padding between buttons' inner edges and their text
+	- ID: 2026103107404601
+	- Type: Enhancement
+	- Status: Done
+		- The amount is a look: open Settings and judge the room around the text on the buttons.
+	- Needs hand testing: Settings on b23, with its own style, once a build with this is installed.
+	- Stand-in: 20261031, build dep51 from c1dec56 in b23's own style (gtk3 platform theme, Orchis green compact), light and dark, in place of the hand test on b23. Every tab and the color picker showed each button's text clear of its frame, and nothing else out of place.
+	- Priority|Severity: Avg
+	- Opened: 20261031-074046
+	- Opened by: t00mietum
+	- Related IDs: 2026102814061809
+	- Requirements:
+		- More minimum padding on all sides (top, bottom, left, right) between the inner button edges and the text.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Every button with text now keeps at least 12 px across and 6 px over and under, from its text to the inside of its frame. Fusion had left 3 px over and under, and 3 px across on Reset history.
+		- The bottom buttons are still 8 px taller on top of that.
+		- `design.md` Settings window has it.
+		- Verified: the full run passed with the new test. In a snapshot the Graphs and Outline tabs laid out as before, with roomier buttons.
+	- Decisions:
+		- It's a floor, not a fixed amount added, so a style that already gives more keeps its own, and a short label such as OK, already wide, doesn't grow.
+		- It's done in the style (`BoxStyle`), so message boxes and the color picker get it too.
+		- Buttons with no text, such as the color chips, are left alone.
+	- Branch: round-1031
+	- Test case: `bridge::tests::every_button_keeps_room_around_its_text` (dep3y). It fails before the change, with 3 px over and under, and passes after.
+		- Swept: every `QPushButton` in `qt.cpp`. The window's and a question box's are in the test. The picker's take the same style. The chips have a fixed size and no text. The revert arrows are tool buttons with an icon only.
+	- Commit: 93a6705
+	- Acceptance signoff: Self-closed 20261031: dep3y passed in the full run at c1dec56, and the stand-in look above.
+	- Closed: 20261031-084400
+
+- Pre-next-cut: Monitor for the number of processes
+	- ID: 2026103107404602
+	- Type: Enhancement
+	- Status: Done
+		- It departs from the wording in one way. It's off by default, like the other graphs since memory. Turn it on in the graph list.
+		- How it looks in each theme stays on 2026102620162201. A Check in questions.md has the colors and the owner rule.
+	- Needs local test suite run?: No. The quick gate passed on 2026-10-31.
+	- Priority|Severity: Avg
+	- Opened: 20261031-074046
+	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Related IDs: 2026102618353006
+	- Requirements:
+		- An additional monitor showing the number of processes: system, other users, and me.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The processes graph stacks System, Other users and Yours from the bottom. Its tip reads "Processes 612", then "Yours 112  Other users 20", then "System 480". It has a row in the graph list, at `procs.show`, `procs.width`, `procs.sample` and `procs.time`, and a Processes section in Themes/Colors.
+		- `graph.order` defaults to `cpu mem gpu vram net disk temp swap zswap load procs self battery`.
+		- Each built-in theme gives it a lead of its own. Randomize rolls 13 lead hues.
+		- `design.md` XFCE plugin, Theme, Data sources on Linux and Drawing have the details.
+		- Verified: the quick gate passed, with the new tests. A read of `/proc` here counted 1,162 processes.
+	- Decisions:
+		- Off by default, like the other graphs since memory.
+		- After load in the default order, since both count tasks.
+		- System is user IDs under 1000 and `nobody`, as Debian and systemd number them. Yours is the user tukzmon runs as.
+		- The owner of each `/proc/<pid>` folder, as htop reads it, rather than a status file per process. That's one `stat` each, about a millisecond a read here.
+		- Processes, not threads, and kernel threads count as the system's, as `ps -e` counts them.
+		- The top is the highest count in view, with a floor of 100, as load and network do theirs.
+		- Yours is the lead, and System is its Low, as memory's cache is. Randomize gives Other users the Hush role, as memory's buffers have it.
+		- "Yours" in place of "me", since the window speaks to the user.
+		- Randomize's least lead gap is 15 degrees, down from 18, with up to 256 hue draws, up from 128. At 17 and 16 degrees dejbv failed on a seed, and at 15 with 128 draws too. At 15 the worst of 2,000 seeds took 140 draws.
+	- Branch: round-1031
+	- Test case: `procs::tests::system_is_under_the_first_user_and_nobody` (dep4h), `only_numbered_entries_are_counted` (dep4j), `live_proc_counts_this_test_as_mine` (dep4k), `graphs::tests::procs_sits_after_load_and_stacks_by_owner` (dep48) and `live::tests::the_procs_row_counts_this_test_as_yours` (dep49).
+		- 2026-10-31: new values only. deccf and deccw count 127 theme members, not 117. deccy counts 110 saved colors, not 101. dedqq's default order, dejac's labels, and defkz's and defm0's orders have `procs`, and defm0's past-the-end move is 13, not 12. dejb7 reads `self battery` from index 11, not 10. dejkg has 13 outlines, not 12. defx7 checks 13 ramps, and deja1 13 sample rows. den86 turns processes on too. defxd's least gap is 10 degrees, not 13, for the 15 degree roll.
+		- Swept: every `Which` match, `config::LEADS`, `dice::ROLES` and `Part`, the 9 built-in themes, the Graphs rows in spec order, and den86, which turns every graph on. The profiler and soak test go through `Graphs::skip`, so they need nothing.
+	- Acceptance signoff: Self-closed, 2026-10-31: dep48 drew the 3 owners stacked, and dep49 drew the row from this box's `/proc`.
+	- Closed: 20261031-081900
+
 - Code review 20261030 item 3: The settings window redoes its whole refresh on each step of a slider or color drag
 	- ID: 2026103016201603
 	- Type: Enhancement
@@ -3839,6 +3858,31 @@ Sorted per the notes in [Template](#template).
 	- Test case: None, since it was a question. The network collector's tests will cover the answer.
 	- Closed: 20261019
 
+- A dialog test leaves its scratch folder in the temp dir
+	- ID: 2026103020140879
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261030-201408
+	- Opened by: t00mietum
+	- Related IDs: 2026103019482449
+	- Steps to reproduce:
+		- Run `cargo test -p tukzmon-settings` and list the temp dir.
+	- Incorrect behavior: `test_tukzmon-settings_<pid>_untick` stays, holding `old.shcl`, `t0.shcl` and `t1.shcl`. Older runs' folders are still there too.
+	- Expected behavior: a test removes what it wrote.
+	- Possible cause: the tests' `Dir` in `settings/src/dialog.rs` removes only `t.shcl` before `remove_dir`, and `unticked_overrides_give_every_graph_its_own_back_after_a_reload` (dejng) writes other names.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The tests' `Dir` removes its whole folder on drop, not just `t.shcl`.
+		- Verified: `cargo test -p tukzmon-settings` with `TMPDIR` on an empty folder passed (81 passed, 1 ignored) and left it empty. The quick format and lint gates passed.
+	- Decisions:
+		- `remove_dir_all`, not a list of names, so a test may write any name. The folder is named by pid and test, and made by the test.
+	- Actual fix: `Dir::drop` in `settings/src/dialog.rs`.
+	- Branch: round-1031
+	- Test case: None of its own: dejng and the other dialog tests leave the temp folder empty now. Not run before the fix, so the failing side is unverified. Folders left by older runs aren't removed by this.
+	- Swept: the only scratch `Dir` in the settings crate is this one. `cargo test -p tukzmon-core` with `TMPDIR` on an empty folder left it empty.
+
 - A panel item whose settings file can't be read draws at the defaults with no message
 	- ID: 2026103018110076
 	- Type: Bug
@@ -4102,6 +4146,32 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
 	- Closed: 20261025-081952
+
+- Code review 20261030 item 12: Public types without Debug and public items without doc comments
+	- ID: 2026103016201612
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: across the tree. First review. Confirmed by reading.
+	- Requirements:
+		- Derive or write `Debug` for `Graph`, `Graphs`, `render::Frame`, `Dialog`, `RowState`, `Live` and the bridge's shared structs.
+		- One-line `///` on the public items that have none. The list is in `details.md` -> "Code review 20261030".
+		- The SAFETY note in the plugin's draw handler says why the pixel buffer outlives the cairo surface.
+		- `color.rs` takes `//!` for its module header, as the other modules do.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The core crate has `#![warn(missing_docs)]`, and every public item there has a `///`, 127 in all, fields and variants included.
+		- `Graph`, `Graphs` and `render::Frame` write `Debug` by hand, leaving out pixel buffers and the axis trait object. `Dialog`, its `Picker`, `RowState`, `Live` and the bridge's 7 shared structs derive it.
+		- The settings items in the list have a `///`. The plugin's draw handler says why `px` outlives the surface. `color.rs` has a `//!` header.
+		- Verified: the full run passed. The quick run failed on 2 undocumented test-only `Drawn` methods before they had a `///`.
+	- Decisions:
+		- `missing_docs` only in core. The settings crate is a binary and the plugin a cdylib with no public Rust API, so the lint checks nothing there.
+	- Branch: round-1031
+	- Test case: none, a doc and `Debug` change. The `missing_docs` lint in the lint step keeps core's docs from going missing again.
+	- Closed: 20261031-082942
 
 - Graphs and Live list their 12 graph slots by hand
 	- ID: 2026103019482449
