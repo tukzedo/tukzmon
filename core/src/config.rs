@@ -996,11 +996,19 @@ impl Look {
 		u32::try_from(px).unwrap_or(u32::MAX).max(1)
 	}
 
-	/// A missing or unreadable file gives the defaults, and a bad line gives
-	/// that setting's default.
-	pub fn load(path: &Path) -> Look {
-		let text = std::fs::read_to_string(path).unwrap_or_default();
-		Look::from_model(&model(&text))
+	/// A missing file gives the defaults, and a bad line gives that setting's
+	/// default.
+	///
+	/// # Errors
+	///
+	/// A file that's there but can't be read, or isn't UTF-8, so the caller
+	/// can keep what it has.
+	pub fn load(path: &Path) -> std::io::Result<Look> {
+		let text = match std::fs::read_to_string(path) {
+			Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+			r => r?,
+		};
+		Ok(Look::from_model(&model(&text)))
 	}
 }
 
@@ -1515,7 +1523,7 @@ mod tests {
 		std::fs::create_dir_all(&dir).unwrap();
 		let path = dir.join("t.shcl");
 		std::fs::write(&path, text).unwrap();
-		let loaded = Look::load(&path);
+		let loaded = Look::load(&path).unwrap();
 		std::fs::remove_file(&path).unwrap();
 		std::fs::remove_dir(&dir).unwrap();
 		assert_eq!(loaded, l);
@@ -2066,8 +2074,8 @@ mod tests {
 		start_from(&own, &shared).unwrap();
 		assert_eq!(std::fs::read_to_string(&own).unwrap(), text);
 		assert_eq!(std::fs::read_to_string(&shared).unwrap(), text);
-		assert_eq!(Look::load(&own), Look::load(&shared));
-		assert_ne!(Look::load(&own), Look::default());
+		assert_eq!(Look::load(&own).unwrap(), Look::load(&shared).unwrap());
+		assert_ne!(Look::load(&own).unwrap(), Look::default());
 		assert!(!dir.join("plugin-7.shcl.tmp").exists());
 
 		// its own file wins from then on
@@ -2079,7 +2087,7 @@ mod tests {
 		let fresh = instance_file(&dir, 8);
 		start_from(&fresh, &dir.join("missing.shcl")).unwrap();
 		assert!(!fresh.exists());
-		assert_eq!(Look::load(&fresh), Look::default());
+		assert_eq!(Look::load(&fresh).unwrap(), Look::default());
 		let _ = std::fs::remove_dir_all(&dir);
 	}
 
@@ -2094,10 +2102,10 @@ mod tests {
 		start_from(&one, &shared).unwrap();
 		start_from(&two, &shared).unwrap();
 		std::fs::write(&one, "mem:\n\tshow: false\n").unwrap();
-		assert!(!Look::load(&one).show_memory);
-		assert!(Look::load(&two).show_memory);
-		assert_eq!(Look::load(&two).width, 77);
-		assert_eq!(Look::load(&two), Look::load(&shared));
+		assert!(!Look::load(&one).unwrap().show_memory);
+		assert!(Look::load(&two).unwrap().show_memory);
+		assert_eq!(Look::load(&two).unwrap().width, 77);
+		assert_eq!(Look::load(&two).unwrap(), Look::load(&shared).unwrap());
 		let _ = std::fs::remove_dir_all(&dir);
 	}
 
@@ -2105,9 +2113,24 @@ mod tests {
 	#[test]
 	fn missing_file_is_defaults() {
 		assert_eq!(
-			Look::load(Path::new("/nonexistent/tukzmon.shcl")),
+			Look::load(Path::new("/nonexistent/tukzmon.shcl")).unwrap(),
 			Look::default()
 		);
+	}
+
+	// Test ID: dena8
+	#[test]
+	fn a_file_that_cant_be_read_is_an_error_not_the_defaults() {
+		let dir = scratch("unreadable");
+		// a folder, so it can't be read as root either
+		let folder = dir.join("plugin-3.shcl");
+		std::fs::create_dir(&folder).unwrap();
+		let not_text = dir.join("plugin-4.shcl");
+		std::fs::write(&not_text, b"graph:\n\twidth: \xff\n").unwrap();
+		let got = (Look::load(&folder), Look::load(&not_text));
+		let _ = std::fs::remove_dir_all(&dir);
+		assert!(got.0.is_err(), "{:?}", got.0.map(|l| l.width));
+		assert!(got.1.is_err(), "{:?}", got.1.map(|l| l.width));
 	}
 
 	// Test ID: debhn

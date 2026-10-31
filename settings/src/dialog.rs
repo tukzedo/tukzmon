@@ -940,7 +940,11 @@ mod tests {
 		for typed in ["mem cpu", "mem, cpu"] {
 			assert!(dlg.set_text("graph_order", typed));
 			dlg.apply().unwrap();
-			assert_eq!(config::Look::load(&path).order, ["mem", "cpu"], "{typed}");
+			assert_eq!(
+				config::Look::load(&path).unwrap().order,
+				["mem", "cpu"],
+				"{typed}"
+			);
 			// and the window takes the file back without a complaint
 			assert!(
 				Dialog::open(path.clone()).unwrap().apply().is_ok(),
@@ -1019,7 +1023,7 @@ mod tests {
 		);
 		dlg.apply().unwrap();
 		assert_eq!(
-			config::Look::load(&path).order,
+			config::Look::load(&path).unwrap().order,
 			[
 				"mem", "cpu", "gpu", "vram", "net", "disk", "temp", "swap", "zswap", "load",
 				"self", "battery"
@@ -1051,7 +1055,7 @@ mod tests {
 		assert!(text.contains("#123abc"));
 		assert!(!text.contains("width"));
 		assert_eq!(
-			config::Look::load(&path).cpu[2],
+			config::Look::load(&path).unwrap().cpu[2],
 			config::Rgb(0x12, 0x3a, 0xbc)
 		);
 	}
@@ -1066,12 +1070,12 @@ mod tests {
 		std::fs::write(&path, "graph:\n\twidth: 300\n").unwrap();
 		assert!(dlg.set_text("border", "2"));
 		dlg.apply().unwrap();
-		let l = config::Look::load(&path);
+		let l = config::Look::load(&path).unwrap();
 		assert_eq!((l.width, l.border), (300, 2));
 		// and a reset in the window takes the line back out
 		dlg.reset("border");
 		dlg.apply().unwrap();
-		assert_eq!(config::Look::load(&path).border, 1);
+		assert_eq!(config::Look::load(&path).unwrap().border, 1);
 	}
 
 	// Out since 2026-10-29: a save drops what it can't place rather than
@@ -1116,7 +1120,7 @@ mod tests {
 			assert!(!text.contains(gone), "{gone} in {text}");
 		}
 		assert!(text.contains("mine:") && text.contains("#010203"), "{text}");
-		let l = config::Look::load(&path);
+		let l = config::Look::load(&path).unwrap();
 		assert_eq!((l.width, l.border), (300, 2));
 		assert!(!dlg.dirty());
 		// the file it wrote is one it reads back the same
@@ -1218,7 +1222,7 @@ mod tests {
 		assert_eq!(dlg.state("theme").choice, "Fire");
 		assert_eq!(dlg.state("cpu_high").text, "#7fd4ff");
 		dlg.apply().unwrap();
-		let l = config::Look::load(&path);
+		let l = config::Look::load(&path).unwrap();
 		assert_eq!(l.cpu_mode, config::Mode::Gradient);
 		assert_eq!(l.cpu_gradient[0], config::Rgb(0x8b, 0x1a, 0));
 		let mut dlg = Dialog::open(path.clone()).unwrap();
@@ -1230,7 +1234,10 @@ mod tests {
 		assert!(dlg.set_text("theme", "embers"));
 		assert!(shown(&dlg, "cpu_medium"));
 		dlg.apply().unwrap();
-		assert_eq!(config::Look::load(&path).cpu_mode, config::Mode::Gradient);
+		assert_eq!(
+			config::Look::load(&path).unwrap().cpu_mode,
+			config::Mode::Gradient
+		);
 		let text = std::fs::read_to_string(&path).unwrap();
 		assert!(text.contains("cpu_mode: gradient"), "{text}");
 	}
@@ -1252,7 +1259,7 @@ mod tests {
 		dlg.apply().unwrap();
 		let mut dlg = Dialog::open(path.clone()).unwrap();
 		assert!(dlg.state("transparent").on);
-		assert!(config::Look::load(&path).transparent);
+		assert!(config::Look::load(&path).unwrap().transparent);
 		// Save as doesn't take it into the theme
 		dlg.save_theme_as("Clear").unwrap();
 		dlg.apply().unwrap();
@@ -1294,7 +1301,7 @@ mod tests {
 		assert_eq!(dlg.state("border_all").text, "off");
 		// unticked before the rolled colors, and still off once saved
 		dlg.apply().unwrap();
-		let l = config::Look::load(&path);
+		let l = config::Look::load(&path).unwrap();
 		assert_eq!(l.mem_outline.top, l.top);
 		assert_eq!(l.mem_outline.bottom, l.bottom);
 		assert_ne!(l.mem_outline.border, l.border_color);
@@ -1319,14 +1326,14 @@ mod tests {
 			assert!(dlg.set_text("back_top", "#654321"));
 			assert!(dlg.set_text("cpu_border_color", "#aa0000"));
 			dlg.apply().unwrap();
-			let l = config::Look::load(&path);
+			let l = config::Look::load(&path).unwrap();
 			assert_eq!(l.mem_outline.border, config::Rgb(0x12, 0x34, 0x56), "{n}");
 			assert_eq!(l.cpu_outline.border, config::Rgb(0x12, 0x34, 0x56), "{n}");
 			assert_eq!(l.self_outline.top, config::Rgb(0x65, 0x43, 0x21), "{n}");
 			assert!(dlg.set_text("border_all", "off"));
 			assert!(dlg.set_text("back_all", "off"));
 			dlg.apply().unwrap();
-			let l = config::Look::load(&path);
+			let l = config::Look::load(&path).unwrap();
 			assert_eq!(
 				l.cpu_outline,
 				config::Outline {
@@ -1341,7 +1348,7 @@ mod tests {
 			assert_eq!(dlg.state("border_color").text, "#123456", "{n}");
 			assert!(dlg.set_text("border", "2"));
 			dlg.apply().unwrap();
-			let l = config::Look::load(&path);
+			let l = config::Look::load(&path).unwrap();
 			assert_eq!([l.mem_outline, l.disk_outline], [grey; 2], "{n}");
 			assert_eq!(l.cpu_outline.border, mine, "{n}");
 		}
@@ -1355,7 +1362,7 @@ mod tests {
 		let doc = shcl::Document::parse(&text);
 		assert!(!doc.exists("graph.colors.border"), "{text}");
 		assert!(doc.exists("graph.overrides.colors.border"), "{text}");
-		let l = config::Look::load(&path);
+		let l = config::Look::load(&path).unwrap();
 		assert_eq!(l.net_outline.border, config::Rgb(0x12, 0x34, 0x56));
 		assert_eq!(l.border_color, config::Rgb(0x12, 0x34, 0x56));
 	}
@@ -1377,7 +1384,7 @@ mod tests {
 		dlg.apply().unwrap();
 		let text = std::fs::read_to_string(&path).unwrap();
 		assert!(text.contains("margin_lr: 5\n"), "{text}");
-		assert_eq!(config::Look::load(&path).margin_lr, 5);
+		assert_eq!(config::Look::load(&path).unwrap().margin_lr, 5);
 		let mut dlg = Dialog::open(path.clone()).unwrap();
 		assert_eq!(dlg.state("theme").choice, "Wide");
 		assert_eq!(dlg.state("margin_lr").text, "5");
@@ -1430,7 +1437,7 @@ mod tests {
 		assert!(dlg.set_text("user", "#123456"));
 		dlg.apply().unwrap();
 		assert_eq!(
-			config::Look::load(&path).cpu[2],
+			config::Look::load(&path).unwrap().cpu[2],
 			config::Rgb(0x12, 0x34, 0x56)
 		);
 		dlg.reset("theme");
@@ -1479,7 +1486,7 @@ mod tests {
 		assert_eq!(dlg.state("theme").choice, "Night");
 		assert!(!dlg.dirty());
 		assert_eq!(
-			config::Look::load(&path).cpu[2],
+			config::Look::load(&path).unwrap().cpu[2],
 			config::Rgb(0x11, 0x11, 0x11)
 		);
 	}

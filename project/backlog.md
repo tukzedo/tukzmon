@@ -25,7 +25,7 @@ Sorted per the notes in [Template](#template).
 - A panel item whose settings file can't be read draws at the defaults with no message
 	- ID: 2026103018110076
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-181100
 	- Opened by: t00mietum
@@ -34,6 +34,27 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: `Look::load` in `core/src/config.rs` reads an unreadable file as an empty one, so the item drops to the defaults, with nothing in the log. It writes nothing, so the file isn't lost.
 	- Expected behavior: the item keeps the look it has, or the defaults at its start, and logs the read error once through `complain`. A missing file still means the defaults.
 	- Estimated effort: Low
+	- Reproduced: 2026-10-30, with the new tests against the old `Look::load`.
+	- Actual cause: `Look::load` took `read_to_string(path).unwrap_or_default()`, so any read error but a missing file became an empty file.
+	- Actual effort: Low
+	- Progress log:
+		- `Look::load` returns the read error, and a missing file is still the defaults. The plugin keeps the look it has, or starts at the defaults, logs the error once through `complain`, and shows "Settings: can't read <path>: <error>" in the tip until the file reads again.
+		- `design.md` XFCE plugin has it.
+		- Verified: the full run passed, with dena8 and dena9.
+		- Unverified: the read at the item's start, since `Plugin::new` needs a live panel. It shares `read_look` with the reload that dena9 covers.
+	- Decisions:
+		- Keep the current look, not the defaults, since a file the item can't read says nothing new about how it should look, and a sudden change to the defaults reads as lost settings.
+		- A tip line plus `complain`, the same as history trouble, since a restarted panel's stderr is out of sight.
+		- Logged once per error text, so a file that stays unreadable doesn't fill the journal. A new error, or the same one after a good read, is logged again.
+		- Each tick reads again until it works, since `chmod` back doesn't change the modified time the reload goes by. It costs one failed open a tick while the file is bad.
+		- A `chmod 000` alone isn't seen until the next write, since it doesn't move the modified time either. The item just keeps its look, which is what's asked.
+		- A file that isn't UTF-8 counts as unreadable too, as in `Dialog::open`.
+		- The preview example quits with the error rather than drawing defaults.
+	- Branch: round-1030b
+	- Test case: `config::tests::a_file_that_cant_be_read_is_an_error_not_the_defaults` (dena8) and `tests::an_unreadable_settings_file_keeps_the_look_and_says_why` (dena9). Both fail with the old `unwrap_or_default` put back.
+		- Swept: every `Look::load` caller (the plugin's start and reload, the preview example, and the tests in `config.rs` and `dialog.rs`, now with `.unwrap()`), and every `fs::read` in core, xfce and settings. `Dialog::open` was fixed in 2026103016201605, and the history reads already return their error.
+	- Acceptance signoff: Self-closed, 2026-10-30: dena8 and dena9 passed in the full run.
+	- Closed: 20261030-181911
 
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001

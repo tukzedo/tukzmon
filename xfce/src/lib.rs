@@ -42,6 +42,8 @@ struct Plugin {
 	/// The last failed read or save of the history file, shown in the tip
 	/// until a save works.
 	trouble: Option<String>,
+	/// Why the settings file can't be read, shown in the tip until it can.
+	unreadable: Option<String>,
 	/// Why a panic stopped this item. It draws nothing and does nothing after.
 	stopped: Option<String>,
 }
@@ -131,6 +133,25 @@ fn guarded<R>(
 	stopped(p.stopped.as_deref().unwrap_or_default())
 }
 
+/// The look in the settings file, or None while it can't be read, which
+/// is logged once per error and kept in `unreadable` for the tip.
+fn read_look(path: &Path, unreadable: &mut Option<String>) -> Option<Look> {
+	match Look::load(path) {
+		Ok(look) => {
+			*unreadable = None;
+			Some(look)
+		}
+		Err(e) => {
+			let what = format!("can't read {}: {e}", path.display());
+			if unreadable.as_ref() != Some(&what) {
+				complain(format_args!("{what}"));
+			}
+			*unreadable = Some(what);
+			None
+		}
+	}
+}
+
 // with the size, since a file watch can wake on a write still under way, and
 // the rest of it may come within the same tick of the file clock
 fn modified(p: &Path) -> Option<(SystemTime, u64)> {
@@ -187,12 +208,15 @@ impl Plugin {
 		self.saved_at = Instant::now();
 	}
 
-	/// The graphs' tip, with any history trouble under it.
+	/// The graphs' tip, with any settings or history trouble under it.
 	fn tip(&self, graphs: String) -> String {
-		match &self.trouble {
-			Some(t) => format!("{graphs}\n\nHistory: {t}"),
-			None => graphs,
+		let mut tip = graphs;
+		for (head, t) in [("Settings", &self.unreadable), ("History", &self.trouble)] {
+			if let Some(t) = t {
+				tip = format!("{tip}\n\n{head}: {t}");
+			}
 		}
+		tip
 	}
 
 	/// Ends the timers and file watches, which hold a pointer to this.
@@ -255,8 +279,11 @@ impl Plugin {
 		if t == self.config_time {
 			return;
 		}
+		// the time stays old until it reads, since a chmod back doesn't move it
+		let Some(look) = read_look(&self.config, &mut self.unreadable) else {
+			return;
+		};
 		self.config_time = t;
-		let look = Look::load(&self.config);
 		if look != *self.graphs.look() {
 			let widths: Vec<u32> = self.graphs.widths().collect();
 			// the margins change the size too
@@ -616,13 +643,20 @@ impl Plugin {
 		if let Err(e) = std::fs::create_dir_all(&data) {
 			complain(format_args!("can't make {}: {e}", data.display()));
 		}
+		let mut unreadable = None;
+		let look = read_look(&config, &mut unreadable);
+		// a time no file has, so each tick tries again, even once it's gone
+		let config_time = match look {
+			Some(_) => modified(&config),
+			None => Some((SystemTime::UNIX_EPOCH, u64::MAX)),
+		};
 		let mut p = Plugin {
 			xpp: plugin,
 			area: std::ptr::null_mut(),
-			graphs: Graphs::new(Look::load(&config)),
+			graphs: Graphs::new(look.unwrap_or_default()),
 			timer: 0,
 			frame: 0,
-			config_time: modified(&config),
+			config_time,
 			config,
 			settings: None,
 			history: keep::history_file(&data, id),
@@ -632,6 +666,7 @@ impl Plugin {
 			moved_at: Instant::now(),
 			removed: false,
 			trouble: None,
+			unreadable,
 			stopped: None,
 		};
 		if p.graphs.look().keep {
@@ -790,6 +825,7 @@ mod tests {
 	use std::sync::atomic::{AtomicUsize, Ordering};
 	use std::time::{Duration, Instant};
 
+	use tukzmon_core::config::Rgb;
 	use tukzmon_core::keep;
 
 	/// A Plugin with no widgets, as the handlers get it, kept so free-data
@@ -813,6 +849,7 @@ mod tests {
 			moved_at: Instant::now(),
 			removed: false,
 			trouble: None,
+			unreadable: None,
 			stopped: None,
 		});
 		Box::into_raw(p).cast()
@@ -846,6 +883,46 @@ mod tests {
 			"{failed}"
 		);
 		assert_eq!(saved, "graphs");
+	}
+
+	// Test ID: dena9
+	#[test]
+	fn an_unreadable_settings_file_keeps_the_look_and_says_why() {
+		let dir = std::env::temp_dir().join(format!(
+			"test_tukzmon_xfce_{}_unreadable",
+			std::process::id()
+		));
+		std::fs::create_dir_all(&dir).unwrap();
+		let own = dir.join("own.shcl");
+		std::fs::write(&own, "cpu:\n\tcolors:\n\t\tuser: \"#123456\"\n").unwrap();
+		let data = plugin(&dir, &own, &dir.join("history"));
+		// SAFETY: from plugin, and freed below.
+		let p = unsafe { &mut *data.cast::<super::Plugin>() };
+		p.reload_if_changed();
+		let first = p.graphs.look().cpu[2];
+		// a folder in its place, so it can't be read as root either
+		std::fs::remove_file(&own).unwrap();
+		std::fs::create_dir(&own).unwrap();
+		p.reload_if_changed();
+		let kept = p.graphs.look().cpu[2];
+		let failed = p.tip("graphs".into());
+		std::fs::remove_dir(&own).unwrap();
+		std::fs::write(&own, "cpu:\n\tcolors:\n\t\tuser: \"#654321\"\n").unwrap();
+		p.reload_if_changed();
+		let fixed = (p.graphs.look().cpu[2], p.tip("graphs".into()));
+		p.removed = true;
+		super::free_data(std::ptr::null_mut(), data);
+		std::fs::remove_file(&own).unwrap();
+		std::fs::remove_dir(&dir).unwrap();
+		// a color, since a new size would reach for the missing widgets
+		let (old, new) = (Rgb(0x12, 0x34, 0x56), Rgb(0x65, 0x43, 0x21));
+		assert_eq!((first, kept), (old, old));
+		assert!(
+			failed.starts_with("graphs\n\nSettings: can't read ")
+				&& failed.contains(&*own.display().to_string()),
+			"{failed}"
+		);
+		assert_eq!(fixed, (new, "graphs".to_string()));
 	}
 
 	// Test ID: dekpt

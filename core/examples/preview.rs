@@ -36,9 +36,14 @@ fn main() {
 		t += step;
 	}
 
-	let look = args
-		.get(4)
-		.map_or_else(Look::default, |p| Look::load(std::path::Path::new(p)));
+	let look = match args.get(4).map(|p| Look::load(std::path::Path::new(p))) {
+		None => Look::default(),
+		Some(Ok(l)) => l,
+		Some(Err(e)) => {
+			eprintln!("{}: {e}", args[4]);
+			std::process::exit(1);
+		}
+	};
 	let curve = match look.time {
 		Timing::Log(c) => c,
 		Timing::Linear => Curve::Smooth,
