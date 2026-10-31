@@ -133,6 +133,17 @@ Sorted per the notes in [Template](#template).
 	- Need to work out ambiguities:
 		- Read as the order the Tab key moves through the graph list's rows. The Themes/Colors sections already follow a move.
 
+- Flyover tip text: one "Key: Value" pair per line
+	- ID: 2026103109002399
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261031-090023
+	- Opened by: t00mietum
+	- Requirements:
+		- Flyover tip text: Don't list multiple "Key: Value" pairs on the same line. Each pair gets its own line.
+		- Today the CPU tip has `User 3%  System 1%` on one line, and memory has `Buffers 2%  Cache 30%`. Each graph's `Source::text` in `core/src/lib.rs` builds them.
+
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
 	- Type: Bug
