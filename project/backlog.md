@@ -445,7 +445,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 10: Each graph's settings are listed by hand in about 15 places
 	- ID: 2026103016201610
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -458,6 +458,8 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: High
 	- Progress log:
 		- Split in 2: the per-graph record and `Source`'s defaults are in child 2026103019230886, and the shared `Look` in child 2026103019230902.
+		- 2026-10-30: Closed with both children. The slots left in Graphs and Live are 2026103019482449.
+	- Test case: dencn and dencp (2026103019230886), dend1 and dend2 (2026103019230902).
 
 - Code review 20261030 item 11: Catch-all matches and string-typed values across the bridge
 	- ID: 2026103016201611
