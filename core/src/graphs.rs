@@ -1964,7 +1964,10 @@ mod tests {
 			e.mode = Mode::Detailed;
 		});
 		assert!(!Look::default()[Which::Gpu].show && Look::default()[Which::Vram].show);
-		assert_eq!(&Look::default().order[..4], ["cpu", "mem", "gpu", "vram"]);
+		assert_eq!(
+			&Look::default().order[..5],
+			["cpu", "mem", "procs", "gpu", "vram"]
+		);
 		let none = Graphs::new(two());
 		assert!(!none.has(Which::Gpu) && !none.has(Which::Vram));
 		let t = crate::collect::Tree::new(
@@ -2080,7 +2083,7 @@ mod tests {
 			e.mode = Mode::Detailed;
 		});
 		assert!(!Look::default()[Which::Procs].show);
-		assert_eq!(Look::default().order[9..11], ["load", "procs"]);
+		assert_eq!(Look::default().order[1..3], ["mem", "procs"]);
 		g.put(Graph::with(look.clone(), ProcsReader::at("/nowhere", 1000)));
 		g.set_look(look.clone(), None).unwrap();
 		let now = g.cpu().now();

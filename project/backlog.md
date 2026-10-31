@@ -143,7 +143,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Default position and colors for Processes
 	- ID: 2026103108591404
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
+		- It goes a little past the wording. Default's memory programs moved from `#ffffa3` to `#ffffb8`, to read apart from the new yellows.
 	- Priority|Severity: Avg
 	- Opened: 20261031-085914
 	- Opened by: t00mietum
@@ -153,17 +154,46 @@ Sorted per the notes in [Template](#template).
 		- On b23 as of 2026-10-31, in `plugin-16.shcl`:
 			- Order: `cpu mem procs gpu vram net disk temp swap zswap load self battery`, so right after memory. The default has it last.
 			- Default theme colors: system `#707070`, users `#6bc9ff`, me `#fff02a`. The defaults are `#705a1d`, `#6a7b31` and `#e0a500`.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `graph.order` defaults to `cpu mem procs gpu vram net disk temp swap zswap load self battery`, and the graph list's spec rows follow it. Processes stays off by default.
+		- Default's processes colors are b23's. Its Low and Medium follow System and Yours, so Gradient keeps the colors.
+		- `design.md` XFCE plugin and Theme have it.
+		- Verified: the quick gate passed.
+	- Decisions:
+		- Only position and colors. b23's width 50% and sample 100% for processes weren't asked for, so they stay 25% and 200%.
+		- Temperature's Medium and processes' Yours are both picked, and 9.4 apart as CIEDE2000, under the 10 the other leads keep. They stay as picked, since in Default what was picked wins (2026102814061803). dejbr lets off that one pair in Default. A Check in questions.md has it.
+		- Memory's programs, `#ffffa3`, was 9.2 from temperature's new yellow. It was never picked, so it moved, to `#ffffb8`, the least change that reads 10 apart from both new yellows.
+	- Branch: round-1031b
+	- Test case: `config::tests::the_default_theme_keeps_the_colors_picked_on_it` (dejbq) checks the new colors, and that Low and Medium follow System and Yours. It fails on the old colors. dedqq, dep48 and defm0 check the order.
+		- 2026-10-31: new values only. dedqq's and defm0's orders, dejac's labels, and the moved list after its 2 moves, have `procs` after `mem`. dep48 reads `mem procs` at index 1, not `load procs` at 9, and dekmc reads `cpu mem procs gpu vram`. dedpz reads programs `#ffffb8`, not `#ffffa3`.
+		- 2026-10-31: dejbr now checks every pair of leads, not only the closest, so it can let off Default's temperature and processes pair.
+		- Swept: every test and doc naming the default order or Default's processes, temperature and memory programs colors, and `settings.shcl`'s row defaults, which deccf holds to Default.
+	- Acceptance signoff: Self-closed 20261031: dejbq and the order tests passed in the quick gate.
+	- Closed: 20261031-094117
 
 - Pre-next-cut: Default temperature colors from b23's
 	- ID: 2026103108591405
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-085914
 	- Opened by: t00mietum
 	- Requirements:
 		- Update the default temperature colors to my current definition.
 		- On b23 as of 2026-10-31, in `plugin-16.shcl`, Default's temperature Low is `#60dae2` and Medium is `#d9da62`. The defaults are `#4eb6bd` and `#feff40`. The rest are unchanged.
+	- Related IDs: 2026103108591404
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Default's temperature Low is `#60dae2` and Medium `#d9da62`, and Normal follows Medium, as before.
+		- Done with 2026103108591404, which has the lead color decisions.
+		- Verified: the quick gate passed.
+	- Branch: round-1031b
+	- Test case: `config::tests::the_default_theme_keeps_the_colors_picked_on_it` (dejbq). It fails on the old colors and passes now.
+	- Acceptance signoff: Self-closed 20261031: dejbq passed in the quick gate.
+	- Closed: 20261031-094117
 
 - Pre-next-cut: Tab order follows a graph reorder
 	- ID: 2026103108591406

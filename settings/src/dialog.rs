@@ -834,6 +834,7 @@ mod tests {
 		let graphs = [
 			"CPU",
 			"Memory",
+			"Processes",
 			"GPU",
 			"GPU memory",
 			"Network",
@@ -842,7 +843,6 @@ mod tests {
 			"Swap",
 			"Zswap",
 			"Load",
-			"Processes",
 			"tukzmon",
 			"Battery",
 		];
@@ -853,16 +853,16 @@ mod tests {
 		let moved = [
 			"Battery",
 			"CPU",
+			"Processes",
 			"GPU",
-			"GPU memory",
 			"Memory",
+			"GPU memory",
 			"Network",
 			"Disk",
 			"Temperature",
 			"Swap",
 			"Zswap",
 			"Load",
-			"Processes",
 			"tukzmon",
 		];
 		assert_eq!(labels(&dlg), moved);
@@ -1039,14 +1039,14 @@ mod tests {
 		assert!(dlg.move_graph(0, 1));
 		assert_eq!(
 			dlg.state(ORDER).text,
-			"mem cpu gpu vram net disk temp swap zswap load procs self battery"
+			"mem cpu procs gpu vram net disk temp swap zswap load self battery"
 		);
 		dlg.apply().unwrap();
 		assert_eq!(
 			config::Look::load(&path).unwrap().order,
 			[
-				"mem", "cpu", "gpu", "vram", "net", "disk", "temp", "swap", "zswap", "load",
-				"procs", "self", "battery"
+				"mem", "cpu", "procs", "gpu", "vram", "net", "disk", "temp", "swap", "zswap",
+				"load", "self", "battery"
 			]
 		);
 		assert!(dlg.move_graph(1, 0));
