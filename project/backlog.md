@@ -94,6 +94,28 @@ Sorted per the notes in [Template](#template).
 		- `color.rs` takes `//!` for its module header, as the other modules do.
 	- Estimated effort: Low
 
+- Pre-next-cut: More minimum padding between buttons' inner edges and their text
+	- ID: 2026103107404601
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261031-074046
+	- Opened by: t00mietum
+	- Requirements:
+		- More minimum padding on all sides (top, bottom, left, right) between the inner button edges and the text.
+	- Estimated effort: Low
+
+- Pre-next-cut: Monitor for the number of processes
+	- ID: 2026103107404602
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261031-074046
+	- Opened by: t00mietum
+	- Requirements:
+		- An additional monitor showing the number of processes: system, other users, and me.
+	- Estimated effort: Avg
+
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
 	- Type: Bug
