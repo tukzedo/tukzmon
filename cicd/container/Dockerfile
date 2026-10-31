@@ -102,6 +102,21 @@ RUN apt-get update \
 	&& tar -C /usr/local/bin -xzf /tmp/nfpm.tgz nfpm \
 	&& rm -f /tmp/nfpm.tgz
 
+# The C++ and Python format and lint tools. clang-format and clang-tidy at
+# the clang the sanitizers use, and black from the snapshot. ruff isn't in
+# Debian, so it's the release binary. Its own layer, last but the env.
+ARG RUFF_VER=0.15.22
+ARG RUFF_SHA256=853462df618fb9f156a9f04d9d899d9e5a9e1a43fbffaec72df4bb159348e71b
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends clang-format-19 clang-tidy-19 black \
+	&& rm -rf /var/lib/apt/lists/* \
+	&& ln -s /usr/bin/clang-format-19 /usr/local/bin/clang-format \
+	&& ln -s /usr/bin/clang-tidy-19 /usr/local/bin/clang-tidy \
+	&& curl -fsSLo /tmp/ruff.tgz "https://github.com/astral-sh/ruff/releases/download/${RUFF_VER}/ruff-x86_64-unknown-linux-musl.tar.gz" \
+	&& echo "${RUFF_SHA256}  /tmp/ruff.tgz" | sha256sum -c - \
+	&& tar -C /usr/local/bin --strip-components=1 -xzf /tmp/ruff.tgz ruff-x86_64-unknown-linux-musl/ruff \
+	&& rm -f /tmp/ruff.tgz
+
 # Runs as the caller's uid, which has no passwd entry here. CARGO_HOME, HOME
 # and TMPDIR are set per run to dirs mounted from the host.
 ENV PATH=/opt/cargo/bin:/opt/node/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \

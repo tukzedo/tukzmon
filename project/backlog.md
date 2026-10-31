@@ -125,7 +125,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 4: Nothing formats or lints the C++ and Python files
 	- ID: 2026103016201604
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -136,6 +136,22 @@ Sorted per the notes in [Template](#template).
 		- Build `qt.cpp` as C++20, and fail the gate on its warnings.
 		- Fix what clang-tidy finds, such as the C arrays, the 11 copies of the test `QApplication` setup, and leaf classes not marked `final`.
 	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- `.clang-format` keeps `qt.cpp`'s tabs, braces and 120 columns. It moved 11 wrapped lines and put west const back where the fixes added east const.
+		- `pyproject.toml` sets black and ruff to 120 columns, with ruff's naming checks off for the silkterm names. `flame-report.py` needed only `itertools.pairwise`.
+		- The image has clang-format and clang-tidy 19, black from its apt snapshot, and ruff by checksum. All 4 are pinned in `cicd/config.bash`.
+		- `qt.cpp` builds as C++20. A cicd build turns its warnings into errors, and a plain `cargo build` doesn't.
+		- Fixed what clang-tidy found: C arrays, all 13 copies of the `QApplication` setup now one `App` class, `final` on the 9 leaf classes, const locals, reserves, nested ternaries, and implicit widening.
+		- Verified: `--backlog-run-full` passed, all 11 steps. Planted faults failed the gate: an unused variable failed the build, a C array failed clang-tidy, an unused import failed ruff, and a stray space failed clang-format, as did a missing one for black.
+	- Decisions:
+		- clang-format and black run in the Format step, not Lint, next to cargo fmt. They check in the hands-off runs and format in place in the others, the same as cargo fmt.
+		- clang-tidy leaves out what fights Qt or the file's style: owning-memory and the downcast checks, since Qt's parent owns what `new` makes. Also magic numbers, short names, unbraced bodies, leading return types, include-cleaner, cognitive complexity, and constant array index, since there's no GSL. `.clang-tidy` gives the reasons.
+		- `pointer-arithmetic-on-polymorphic-object` is off, since it crashes clang-tidy 19 on `qt.cpp`.
+		- Warnings fail only cicd builds, through `TUKZMON_WERROR=1`, so a newer compiler's new warning doesn't break someone's own build or a distro's.
+	- Branch: round-1030b
+	- Test case: None in the repo, as for 2026102416252892. The gate was watched to fail on each planted fault above.
+	- Closed: 20261030-173604
 
 - Code review 20261030 item 5: A settings file that can't be read opens as defaults with no message
 	- ID: 2026103016201605

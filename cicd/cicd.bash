@@ -13,11 +13,13 @@
 ##	   1. Remote sync     fast-forward from upstream before anything is built
 ##	   2. Container image build the image from cicd/container/ when this recipe
 ##	                      has none, and fetch the crates the steps need
-##	   3. Format          cargo fmt, in place; a check only in the hands-off runs
-##	   4. Build (debug)   every crate and test target
-##	   5. Lint            clippy -D warnings, shellcheck, markdownlint, and the
-##	                      test ID check, with the output also rotated into
-##	                      cicd/artifacts/lint/
+##	   3. Format          cargo fmt, clang-format and black, in place; a check
+##	                      only in the hands-off runs
+##	   4. Build (debug)   every crate and test target, with qt.cpp's warnings
+##	                      as errors
+##	   5. Lint            clippy -D warnings, shellcheck, markdownlint,
+##	                      clang-tidy, ruff, and the test ID check, with the
+##	                      output also rotated into cicd/artifacts/lint/
 ##	   6. Advisories      cargo deny check advisories: the crates in Cargo.lock
 ##	                      against RustSec's database, per deny.toml
 ##	   7. Tests           cargo test, with TMPDIR in the run's temp folder, and
@@ -63,10 +65,11 @@
 ##	                       what a backlog worker runs before it commits: the
 ##	                       format check, build, lint, tests and the fast leak
 ##	                       checks, or only the areas named:
-##	                         format  cargo fmt --check
+##	                         format  cargo fmt, clang-format and black,
+##	                                 as checks
 ##	                         build   the debug build
-##	                         lint    clippy, shellcheck, markdownlint, and
-##	                                 the test ID check
+##	                         lint    clippy, shellcheck, markdownlint,
+##	                                 clang-tidy, ruff, and the test ID check
 ##	                         test    cargo test
 ##	                         advisories  the advisory scan, only when named
 ##	                         release the release build, only when named
@@ -150,6 +153,8 @@ root="$(cd "${here}/.." && pwd)"
 ## rust-toolchain.toml. A go-installed nfpm is a fallback for a host run.
 export PATH="${HOME}/.cargo/bin:${PATH}"
 [[ ! -d "${HOME}/.go/bin" ]] || PATH+=":${HOME}/.go/bin"
+## A warning in qt.cpp fails a cicd build. settings/build.rs reads it.
+export TUKZMON_WERROR=1
 
 source "${here}/config.bash"
 source "${here}/utility/include/gfs-rotate.bash"
@@ -363,13 +368,43 @@ fStepSync() {
 	fEcho_Clean "fast-forwarded ${behind} commit(s) from ${upstream}"
 }
 
+## The tracked and untracked files of one kind, as lint lists them.
+fFilesLike() { git ls-files --cached --others --exclude-standard -- "$@" | while IFS= read -r f; do [[ ! -f "${f}" ]] || printf '%s\n' "${f}"; done; }
+
 fStepFormat() {
+	local -a cppFiles=() pyFiles=()
+	mapfile -t cppFiles < <(fFilesLike '*.cpp' '*.h')
+	mapfile -t pyFiles < <(fFilesLike '*.py')
 	if ((handsOff)); then
 		fEcho_Clean "cargo fmt --all --check"
 		cargo fmt --all --check || { fEcho_Clean "run cargo fmt --all and commit"; return 1; }
 	else
 		fEcho_Clean "cargo fmt --all"
 		cargo fmt --all || return 1
+	fi
+	if ! command -v clang-format > /dev/null 2>&1; then
+		((! handsOff)) || { fEcho_Clean "clang-format isn't installed"; return 1; }
+		fEcho_Clean "WARNING: clang-format isn't installed, so the C++ isn't formatted"
+	elif ((${#cppFiles[@]})); then
+		if ((handsOff)); then
+			fEcho_Clean "clang-format --dry-run: ${#cppFiles[@]} file(s)"
+			clang-format --dry-run -Werror -- "${cppFiles[@]}" || { fEcho_Clean "run clang-format -i on them and commit"; return 1; }
+		else
+			fEcho_Clean "clang-format -i: ${#cppFiles[@]} file(s)"
+			clang-format -i -- "${cppFiles[@]}" || return 1
+		fi
+	fi
+	if ! command -v black > /dev/null 2>&1; then
+		((! handsOff)) || { fEcho_Clean "black isn't installed"; return 1; }
+		fEcho_Clean "WARNING: black isn't installed, so the Python isn't formatted"
+	elif ((${#pyFiles[@]})); then
+		if ((handsOff)); then
+			fEcho_Clean "black --check: ${#pyFiles[@]} file(s)"
+			black --check --quiet -- "${pyFiles[@]}" || { fEcho_Clean "run black on them and commit"; return 1; }
+		else
+			fEcho_Clean "black: ${#pyFiles[@]} file(s)"
+			black --quiet -- "${pyFiles[@]}" || return 1
+		fi
 	fi
 }
 
@@ -382,9 +417,31 @@ fStepBuild() {
 lintLog="/dev/null"
 fLintRun() { local rc=0; "$@" 2>&1 | tee -a "${lintLog}" || rc=$?; return "${rc}"; }
 
+## clang-tidy over the C++, per .clang-tidy. It reads the cxx bridge's headers
+## from the clippy build just before it, and qt.cpp's own include of
+## tukzmon-settings/src/qt.h through a link to settings/ in the run's temp,
+## which TMPDIR is, in the image too.
+fLintTidy() {
+	local f out='' inc="${TMPDIR}/tidy-include" bridge="${CARGO_TARGET_DIR:-${root}/target}/clippy/cxxbridge" rc=0
+	local -a qtFlags=()
+	[[ -f "${bridge}/tukzmon-settings/src/bridge.rs.h" ]] || { fLintRun echo "clang-tidy: no bridge header in ${bridge}"; return 1; }
+	read -r -a qtFlags <<< "$(pkg-config --cflags Qt6Widgets 2> /dev/null)" || true
+	((${#qtFlags[@]})) || { fLintRun echo "clang-tidy: pkg-config has no Qt6Widgets"; return 1; }
+	mkdir -p -- "${inc}" && ln -sfn -- "${root}/settings" "${inc}/tukzmon-settings" || return 1
+	fEcho_Clean "clang-tidy: ${#cppFiles[@]} file(s)"
+	for f in "${cppFiles[@]}"; do
+		out="$(clang-tidy --quiet "${f}" -- -std=c++20 -x c++ -fPIC -I"${bridge}" -I"${inc}" "${qtFlags[@]}" 2>&1)" || rc=1
+		## Its count of what Qt's headers set off, which the header filter hides.
+		out="$(grep -v -E '^[0-9]+ warnings? generated\.$' <<< "${out}" || true)"
+		[[ -z "${out}" ]] || fLintRun printf '%s\n' "${out}"
+	done
+	((rc)) || fEcho_Clean "clang-tidy: clean"
+	return "${rc}"
+}
+
 fStepLint() {
 	local f entry pin pinName pinWant pinCmd have
-	local -a failed=() files=() shFiles=() mdFiles=() mdOff=() rules=() pinArgv=()
+	local -a failed=() files=() shFiles=() mdFiles=() mdOff=() rules=() pinArgv=() cppFiles=() pyFiles=()
 	if mkdir -p -- "${root}/${LINT_LOG_DIR}" 2> /dev/null; then
 		lintLog="${root}/${LINT_LOG_DIR}/lint_$(printf '%(%Y%m%d-%H%M%S)T' -1).log"
 		: > "${lintLog}"
@@ -403,6 +460,8 @@ fStepLint() {
 		case "${f}" in
 			*.bash|cicd/hooks/*) shFiles+=("${f}") ;;
 			*.md) mdFiles+=("${f}") ;;
+			*.cpp) cppFiles+=("${f}") ;;
+			*.py) pyFiles+=("${f}") ;;
 		esac
 	done
 
@@ -430,6 +489,17 @@ fStepLint() {
 			fLintRun markdownlint --disable "${mdOff[@]}" -- "${f}" || failed+=("markdownlint ${f}")
 		done
 		[[ " ${failed[*]} " == *" markdownlint "* ]] || fEcho_Clean "markdownlint: clean"
+	fi
+	if ! command -v clang-tidy > /dev/null 2>&1; then
+		((handsOff)) && failed+=("clang-tidy (not installed)")
+	else
+		fLintTidy || failed+=(clang-tidy)
+	fi
+	if ! command -v ruff > /dev/null 2>&1; then
+		((handsOff)) && failed+=("ruff (not installed)")
+	elif ((${#pyFiles[@]})); then
+		fEcho_Clean "ruff: ${#pyFiles[@]} file(s)"
+		if fLintRun ruff check --no-cache --quiet -- "${pyFiles[@]}"; then fEcho_Clean "ruff: clean"; else failed+=(ruff); fi
 	fi
 	fLintRun "${here}/utility/test-ids.bash" check || failed+=("test IDs")
 	if [[ "${lintLog}" != /dev/null ]]; then
@@ -1097,3 +1167,5 @@ exit 0
 ##		- 2026-10-25: The profiler, with a report on each flamegraph.
 ##		- 2026-10-28: The Nix package, in --long and the nix area.
 ##		- 2026-10-30: The Tests step runs cicd/tests/ too.
+##		- 2026-10-30: clang-format and black in Format, clang-tidy and ruff in
+##		  Lint, and qt.cpp's warnings fail a build.

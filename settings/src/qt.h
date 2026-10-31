@@ -22,4 +22,4 @@ rust::Vec<bool> apply_while_typing(Dialog &d, bool number);
 rust::Vec<rust::String> page_shades(Dialog &d, bool dark);
 rust::Vec<rust::String> window_fit(Dialog &d, rust::Str screens);
 double empty_box_contrast(bool dark);
-}
+} // namespace tukzmon

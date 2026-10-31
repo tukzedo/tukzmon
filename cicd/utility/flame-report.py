@@ -25,6 +25,7 @@ import argparse
 import bisect
 import contextlib
 import html
+import itertools
 import re
 import sys
 import time
@@ -124,7 +125,7 @@ def fParse(path: Path) -> tuple[int, list[Frame], str]:
     if not text.rstrip().endswith("</svg>"):
         fSkip(f"{path} doesn't end in </svg>; cut off mid-write")
     ys = sorted({fr[2] for fr in frames})
-    gaps = {round(b - a, 6) for a, b in zip(ys, ys[1:], strict=False)}
+    gaps = {round(b - a, 6) for a, b in itertools.pairwise(ys)}
     if len(gaps) > 1:
         fSkip(f"rows aren't evenly spaced in {path} (gaps {sorted(gaps)}); not a whole flamegraph")
     if gaps:
@@ -319,3 +320,4 @@ if __name__ == "__main__":
 ##		  sidecar, and std frames are left out of the call buckets and chains.
 ##		- 2026-10-25: Copied to tukzmon from tukfs-hash's. Buckets redone for
 ##		  the panel's tick, and a name with no role tag is read too.
+##		- 2026-10-30: black and ruff check it, and the row gaps use pairwise.

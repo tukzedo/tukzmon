@@ -92,9 +92,12 @@ fn qt() {
 	};
 	let mut b = cxx_build::bridge("src/bridge.rs");
 	b.file("src/qt.cpp")
-		.std("c++17")
+		.std("c++20")
 		.flag_if_supported("-fPIC")
-		.warnings(true);
+		.warnings(true)
+		// cicd sets it, so a warning fails the gate but not someone's own build
+		// on a newer compiler
+		.warnings_into_errors(std::env::var("TUKZMON_WERROR").is_ok_and(|v| v == "1"));
 	for dir in &lib.include_paths {
 		b.include(dir);
 	}
@@ -111,4 +114,5 @@ fn qt() {
 	}
 	println!("cargo:rerun-if-changed=src/qt.cpp");
 	println!("cargo:rerun-if-changed=src/qt.h");
+	println!("cargo:rerun-if-env-changed=TUKZMON_WERROR");
 }

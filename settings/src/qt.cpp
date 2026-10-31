@@ -73,7 +73,7 @@ void softenSelection(QWidget *w) {
 	for (auto group : {QPalette::Active, QPalette::Inactive}) {
 		const QColor base = pal.color(group, QPalette::Base);
 		const QColor pick = pal.color(group, QPalette::Highlight);
-		auto mix = [](float a, float b) { return a + (b - a) * 0.35f; };
+		auto mix = [](float a, float b) { return a + ((b - a) * 0.35F); };
 		const QColor tint = QColor::fromRgbF(mix(base.redF(), pick.redF()), mix(base.greenF(), pick.greenF()),
 			mix(base.blueF(), pick.blueF()));
 		pal.setColor(group, QPalette::Highlight, tint);
@@ -89,7 +89,7 @@ void shadeScroll(QWidget *w) {
 	for (auto group : {QPalette::Active, QPalette::Inactive, QPalette::Disabled}) {
 		const QColor back = pal.color(group, QPalette::Window);
 		const QColor ink = pal.color(group, QPalette::WindowText);
-		auto mix = [](float a, float b) { return a + (b - a) / 16; };
+		auto mix = [](float a, float b) { return a + ((b - a) / 16); };
 		pal.setColor(group, QPalette::Window,
 			QColor::fromRgbF(mix(back.redF(), ink.redF()), mix(back.greenF(), ink.greenF()),
 				mix(back.blueF(), ink.blueF())));
@@ -104,7 +104,7 @@ QString wrapped(const QString &tip) {
 
 // Qt shows a plain text tip as one line however long, so every tip in the
 // window goes through here first.
-class TipWrap : public QObject {
+class TipWrap final : public QObject {
 protected:
 	bool eventFilter(QObject *o, QEvent *e) override {
 		if (e->type() != QEvent::ToolTip || !o->isWidgetType())
@@ -122,14 +122,14 @@ protected:
 // Some dark themes draw an empty checkbox with an edge close to the window
 // color, so it all but vanishes. An edge in the text color, a little faded,
 // shows in a light theme and a dark one.
-class BoxStyle : public QProxyStyle {
+class BoxStyle final : public QProxyStyle {
 public:
 	void drawPrimitive(PrimitiveElement pe, const QStyleOption *opt, QPainter *p, const QWidget *w) const override {
 		QProxyStyle::drawPrimitive(pe, opt, p, w);
 		if (pe != PE_IndicatorCheckBox && pe != PE_IndicatorRadioButton)
 			return;
 		QColor edge = opt->palette.color(QPalette::WindowText);
-		edge.setAlphaF(0.6f);
+		edge.setAlphaF(0.6F);
 		p->save();
 		p->setRenderHint(QPainter::Antialiasing);
 		p->setPen(QPen(edge, 1));
@@ -151,7 +151,7 @@ constexpr int BUTTON_GROW = 8;
 // scroll bar it had no need for. Every graph's colors on one page is far
 // taller than the rest, so that page asks for no height and scrolls in what
 // the other tabs set.
-class FitScroll : public QScrollArea {
+class FitScroll final : public QScrollArea {
 public:
 	bool ownHeight = true;
 	QSize sizeHint() const override {
@@ -159,7 +159,7 @@ public:
 		if (!ownHeight)
 			s.setHeight(minimumSizeHint().height());
 		else if (widget())
-			s.setHeight(std::max(s.height(), widget()->sizeHint().height() + 2 * frameWidth()));
+			s.setHeight(std::max(s.height(), widget()->sizeHint().height() + (2 * frameWidth())));
 		return s;
 	}
 };
@@ -215,7 +215,7 @@ private:
 };
 
 // saturation left to right, brightness bottom to top, at one hue
-class SvSquare : public PickArea {
+class SvSquare final : public PickArea {
 public:
 	explicit SvSquare(int side) {
 		setFixedSize(side, side);
@@ -226,7 +226,7 @@ public:
 protected:
 	void pickAt(double x, double y) override { moved(x, 1 - y); }
 	void arrow(int dx, int dy, double by) override {
-		moved(std::clamp(s + dx * by, 0.0, 1.0), std::clamp(v - dy * by, 0.0, 1.0));
+		moved(std::clamp(s + (dx * by), 0.0, 1.0), std::clamp(v - (dy * by), 0.0, 1.0));
 	}
 	void paintEvent(QPaintEvent *) override {
 		QPainter p(this);
@@ -249,7 +249,7 @@ protected:
 };
 
 // the hue, top to bottom
-class HueStrip : public PickArea {
+class HueStrip final : public PickArea {
 public:
 	HueStrip(int w, int h) {
 		setFixedSize(w, h);
@@ -260,7 +260,7 @@ protected:
 	void pickAt(double, double y) override { moved(y, 0); }
 	void arrow(int dx, int dy, double by) override {
 		if (dy)
-			moved(std::fmod(h + dy * by + 1, 1), 0);
+			moved(std::fmod(h + (dy * by) + 1, 1), 0);
 		else
 			focusNextPrevChild(dx > 0);
 	}
@@ -268,7 +268,7 @@ protected:
 		QPainter p(this);
 		QLinearGradient ramp(0, 0, 0, height());
 		for (int k = 0; k <= 6; k++)
-			ramp.setColorAt(k / 6.0, QColor::fromHsvF(k == 6 ? 0 : k / 6.0f, 1, 1));
+			ramp.setColorAt(k / 6.0, QColor::fromHsvF(k == 6 ? 0 : float(k) / 6.0F, 1, 1));
 		p.fillRect(rect(), ramp);
 		edge(p);
 		// the strip is every hue, so its marker is black and white
@@ -280,7 +280,7 @@ protected:
 
 // SilkTerm's picker, not the toolkit's. The row behind follows every change,
 // and Cancel puts back all of it.
-class ColorPicker : public QDialog {
+class ColorPicker final : public QDialog {
 public:
 	ColorPicker(Dialog &d, const QString &title, std::function<void()> changed, QWidget *parent)
 		: QDialog(parent), d(d), changed(std::move(changed)) {
@@ -376,11 +376,11 @@ private:
 		for (size_t i = 0; i < spins.size(); i++) {
 			if (spins[i] == typing)
 				continue;
-			QSignalBlocker b(spins[i]);
+			const QSignalBlocker b(spins[i]);
 			spins[i]->setValue(std::stoi(std::string(state.fields[i])));
 		}
 		if (hexBox != typing) {
-			QSignalBlocker b(hexBox);
+			const QSignalBlocker b(hexBox);
 			hexBox->setText(qs(state.hex));
 		}
 		changed();
@@ -389,7 +389,7 @@ private:
 
 // The handle at the right end of a graph list row. Dragging it moves the row,
 // and so do Up and Down while it has focus.
-class Gripper : public QWidget {
+class Gripper final : public QWidget {
 public:
 	std::function<void(QPoint)> dragged;
 	std::function<void(int)> stepped;
@@ -429,19 +429,19 @@ protected:
 		p.setPen(Qt::NoPen);
 		// Mid all but vanishes in some light styles
 		QColor ink = palette().color(QPalette::WindowText);
-		ink.setAlphaF(0.45f);
+		ink.setAlphaF(0.45F);
 		p.setBrush(hasFocus() ? palette().color(QPalette::Highlight) : ink);
 		const double dot = std::max(2.0, width() / 6.0);
 		const QPointF mid(width() / 2.0, height() / 2.0);
-		for (int col : {-1, 1})
-			for (int row : {-1, 0, 1})
+		for (const int col : {-1, 1})
+			for (const int row : {-1, 0, 1})
 				p.drawEllipse(mid + QPointF(col * dot, row * dot * 2), dot / 2, dot / 2);
 	}
 };
 
 // A graph list row's graph, read and drawn here with the window's look, so a
 // change shows before Apply.
-class LiveGraph : public QWidget {
+class LiveGraph final : public QWidget {
 public:
 	LiveGraph(Live &live, std::string name) : live(live), name(std::move(name)) {
 		setFixedSize(0, fontMetrics().height() * 3 / 2);
@@ -473,7 +473,8 @@ protected:
 		if (px.size() != size_t(w) * size_t(h))
 			return;
 		// cairo's ARGB32 is Qt's premultiplied one
-		QImage img(reinterpret_cast<const uchar *>(px.data()), w, h, w * 4, QImage::Format_ARGB32_Premultiplied);
+		const QImage img(reinterpret_cast<const uchar *>(px.data()), w, h, qsizetype(w) * 4,
+			QImage::Format_ARGB32_Premultiplied);
 		QPainter p(this);
 		p.drawImage(rect(), img);
 		if (!framePending && live_easing(live, name)) {
@@ -549,9 +550,9 @@ struct Row {
 	std::string id() const { return std::string(info.id); }
 };
 
-class Window : public QDialog {
+class Window final : public QDialog {
 public:
-	explicit Window(Dialog &d) : d(d), live(live_new(d)) {
+	explicit Window(Dialog &d) : d(d), live(live_new(d)), tabList(new QListWidget), pages(new QStackedWidget) {
 		setWindowTitle(qs(dialog_title(d)));
 		auto tabs = dialog_tabs(d);
 		for (auto &r : dialog_rows(d)) {
@@ -560,11 +561,10 @@ public:
 			rows.push_back(std::move(row));
 		}
 
-		tabList = new QListWidget;
 		softenSelection(tabList);
-		pages = new QStackedWidget;
+
 		auto hasRows = [this](int tab) {
-			return std::any_of(rows.begin(), rows.end(), [tab](auto &r) { return r->info.tab == tab; });
+			return std::ranges::any_of(rows, [tab](auto &r) { return r->info.tab == tab; });
 		};
 		// knobs lists a parent before its tabs, so one pass finds every stack
 		std::vector<QStackedWidget *> stackOf(tabs.size(), nullptr);
@@ -575,7 +575,7 @@ public:
 			int depth = 0;
 			for (int p = tabs[i].parent; p >= 0; p = tabs[size_t(p)].parent)
 				depth++;
-			tabList->addItem(new QListWidgetItem(QString(depth * 4, ' ') + qs(tabs[i].label)));
+			tabList->addItem(new QListWidgetItem(QString(qsizetype(depth) * 4, ' ') + qs(tabs[i].label)));
 			lineTab.push_back(int(i));
 			lineUp.push_back(tabs[i].parent);
 			leaf.push_back(!parent);
@@ -596,7 +596,7 @@ public:
 			subPage.push_back({});
 			if (parent) {
 				stackOf[i] = new QStackedWidget;
-				subPage.back() = {stackOf[i], 0};
+				subPage.back() = {.stack = stackOf[i], .index = 0};
 				auto *rule = new QFrame;
 				rule->setFrameShape(QFrame::HLine);
 				rule->setFrameShadow(QFrame::Sunken);
@@ -612,7 +612,7 @@ public:
 		}
 		orderSections();
 		const int tabWidth = tabList->sizeHintForColumn(0);
-		tabList->setFixedWidth(tabWidth + 2 * tabList->frameWidth() + 24);
+		tabList->setFixedWidth(tabWidth + (2 * tabList->frameWidth()) + 24);
 		for (int i = 0; i < tabList->count(); i++)
 			tabList->item(i)->setSizeHint(QSize(tabWidth, tabList->fontMetrics().height() * 2));
 		// one width for every number box, so the sliders all end in one column
@@ -766,7 +766,7 @@ public:
 	}
 	std::vector<std::string> shownRows() const {
 		std::vector<std::string> ids;
-		for (auto &r : rows) {
+		for (const auto &r : rows) {
 			QWidget *w = r->control ? r->control : r->label;
 			if (w && w->isVisible())
 				ids.push_back(r->id());
@@ -775,6 +775,7 @@ public:
 	}
 	std::vector<std::string> buttonTexts() const {
 		std::vector<std::string> out;
+		out.reserve(bottom.size());
 		for (auto *b : bottom)
 			out.push_back(b->text().toStdString());
 		return out;
@@ -782,7 +783,7 @@ public:
 	// the first color box, or the first whole number box at 10 or more that
 	// isn't greyed
 	QWidget *firstBox(bool number) const {
-		for (auto &r : rows) {
+		for (const auto &r : rows) {
 			if (number && r->spin && r->spin->isEnabled() && r->info.whole && r->spin->value() >= 10)
 				return r->spin;
 			if (!number && r->chip)
@@ -794,14 +795,16 @@ public:
 	// window past the tab list, as drawn
 	std::pair<QColor, QColor> shadesNow() {
 		const QImage img = grab().toImage();
-		QRect inside, area;
+		QRect inside;
+		QRect area;
 		for (auto *s : findChildren<QScrollArea *>())
 			if (s->isVisible()) {
 				inside = QRect(s->viewport()->mapTo(this, QPoint()), s->viewport()->size());
 				area = QRect(s->mapTo(this, QPoint()), s->size());
 			}
 		const QRect tabs(tabList->mapTo(this, QPoint()), tabList->size());
-		std::map<QRgb, int> in, out;
+		std::map<QRgb, int> in;
+		std::map<QRgb, int> out;
 		for (int y = 0; y < img.height(); y++)
 			for (int x = 0; x < img.width(); x++) {
 				const QPoint at(x, y);
@@ -811,7 +814,7 @@ public:
 					out[img.pixel(at)]++;
 			}
 		auto most = [](const std::map<QRgb, int> &seen) {
-			auto top = std::max_element(seen.begin(), seen.end(), [](auto &a, auto &b) { return a.second < b.second; });
+			auto top = std::ranges::max_element(seen, [](auto &a, auto &b) { return a.second < b.second; });
 			return top == seen.end() ? QColor() : QColor(top->first);
 		};
 		return {most(in), most(out)};
@@ -830,7 +833,7 @@ public:
 	}
 	std::vector<std::string> greyed() const {
 		std::vector<std::string> ids;
-		for (auto &r : rows)
+		for (const auto &r : rows)
 			if (r->control && !r->control->isEnabled())
 				ids.push_back(r->id());
 		return ids;
@@ -839,8 +842,8 @@ public:
 	// graph width and x, and the width box's x, per graph list row
 	std::vector<int> listPlaces() const {
 		std::vector<int> out;
-		for (auto &l : listRows)
-			for (int v : {l.space->width(), l.space->x(), l.width->control->x()})
+		for (const auto &l : listRows)
+			for (const int v : {l.space->width(), l.space->x(), l.width->control->x()})
 				out.push_back(v);
 		return out;
 	}
@@ -848,13 +851,14 @@ public:
 	// "graph left right" per section from the top, as sections_after_move gives
 	std::vector<std::string> sectionPlaces() const {
 		std::vector<std::pair<int, std::string>> found;
-		for (auto &s : sections) {
-			int left = 0, right = INT_MAX;
-			for (auto &r : rows) {
+		for (const auto &s : sections) {
+			int left = 0;
+			int right = INT_MAX;
+			for (const auto &r : rows) {
 				if (r->info.section != s.graph || r.get() == s.title)
 					continue;
 				for (QWidget *w : {static_cast<QWidget *>(r->label), r->control, static_cast<QWidget *>(r->revert),
-								   static_cast<QWidget *>(r->head)}) {
+						 static_cast<QWidget *>(r->head)}) {
 					if (!w || !w->isVisibleTo(s.box))
 						continue;
 					const int x = w->mapTo(s.box, QPoint()).x();
@@ -866,8 +870,9 @@ public:
 			}
 			found.emplace_back(s.box->y(), s.graph + " " + std::to_string(left) + " " + std::to_string(right));
 		}
-		std::sort(found.begin(), found.end());
+		std::ranges::sort(found);
 		std::vector<std::string> out;
+		out.reserve(found.size());
 		for (auto &f : found)
 			out.push_back(f.second);
 		return out;
@@ -877,10 +882,10 @@ public:
 	// first row under the colors mode starts, and the right column's first
 	std::vector<std::string> sectionTops() const {
 		std::vector<std::string> out;
-		for (auto &s : sections) {
+		for (const auto &s : sections) {
 			std::array<int, 2> top{-1, -1};
 			bool mode = true;
-			for (auto &r : rows) {
+			for (const auto &r : rows) {
 				if (r->info.section != s.graph || r.get() == s.title)
 					continue;
 				const size_t side = r->info.beside ? 1 : 0;
@@ -990,16 +995,16 @@ private:
 	// over either get a dimmer one, so Themes stays lit under a sub-tab.
 	void lightAlong(int picked, int shown) {
 		std::vector<bool> on(size_t(tabList->count()), false);
-		for (int k : {picked, shown})
+		for (const int k : {picked, shown})
 			for (int up = k; up >= 0; up = lineUp[size_t(up)])
 				on[size_t(up)] = true;
 		on[size_t(picked)] = false;
 		const QPalette pal = tabList->palette();
 		const QColor base = pal.color(QPalette::Base);
 		const QColor pick = pal.color(QPalette::Highlight);
-		auto mix = [](float a, float b) { return a + (b - a) * 0.45f; };
-		const QBrush dim(QColor::fromRgbF(
-			mix(base.redF(), pick.redF()), mix(base.greenF(), pick.greenF()), mix(base.blueF(), pick.blueF())));
+		auto mix = [](float a, float b) { return a + ((b - a) * 0.45F); };
+		const QBrush dim(QColor::fromRgbF(mix(base.redF(), pick.redF()), mix(base.greenF(), pick.greenF()),
+			mix(base.blueF(), pick.blueF())));
 		for (int k = 0; k < tabList->count(); k++)
 			tabList->item(k)->setBackground(on[size_t(k)] ? dim : QBrush());
 	}
@@ -1032,9 +1037,10 @@ private:
 					want.push_back(s.box);
 		// one with no graph in the list still has to sit somewhere
 		for (auto &s : sections)
-			if (std::find(want.begin(), want.end(), s.box) == want.end())
+			if (std::ranges::find(want, s.box) == want.end())
 				want.push_back(s.box);
 		std::vector<QWidget *> now;
+		now.reserve(size_t(sectionList->count()));
 		for (int i = 0; i < sectionList->count(); i++)
 			now.push_back(sectionList->itemAt(i)->widget());
 		if (now == want)
@@ -1054,7 +1060,11 @@ private:
 			bool headFirst = false;
 			for (auto &rp : rows) {
 				Row &r = *rp;
-				const size_t side = r.grid == s.side[0] ? 0 : r.grid == s.side[1] ? 1 : 2;
+				size_t side = 2;
+				if (r.grid == s.side[0])
+					side = 0;
+				else if (r.grid == s.side[1])
+					side = 1;
 				if (side == 2)
 					continue;
 				QWidget *w = r.head ? static_cast<QWidget *>(r.head) : r.label;
@@ -1090,7 +1100,7 @@ private:
 			sectionList->setSpacing(HEAD_GAP);
 			grid->addWidget(holder, line++, 0, 1, 3);
 		}
-		Section s{std::string(r.info.section)};
+		Section s{.graph = std::string(r.info.section)};
 		s.box = new QWidget;
 		auto *g = new QGridLayout(s.box);
 		s.outer = g;
@@ -1171,7 +1181,7 @@ private:
 	// A heading gets a gap over it, which a column's first one in a section
 	// keeps for when a mode hides what's over it.
 	void placeRow(Row &r, const TabInfo &info, QGridLayout *grid, int &line, bool inSection = false) {
-		QString label = qs(r.info.label);
+		const QString label = qs(r.info.label);
 		r.grid = grid;
 		if (std::string(r.info.control) == "heading") {
 			// a heading that only repeats the tab's name says nothing
@@ -1226,7 +1236,11 @@ private:
 		listGrid->setContentsMargins(0, 0, 0, 0);
 		listGrid->setColumnStretch(5, 1);
 		for (auto &g : graph_rows(d)) {
-			ListRow lr{std::string(g.name), rowFor(g.show), rowFor(g.width), rowFor(g.sample), rowFor(g.time)};
+			ListRow lr{.name = std::string(g.name),
+				.show = rowFor(g.show),
+				.width = rowFor(g.width),
+				.sample = rowFor(g.sample),
+				.time = rowFor(g.time)};
 			if (!lr.show || !lr.width || !lr.sample || !lr.time)
 				continue;
 			for (Row *r : {lr.show, lr.width, lr.sample, lr.time})
@@ -1269,10 +1283,10 @@ private:
 		for (size_t i = 0; i < listRows.size(); i++) {
 			const ListRow &l = listRows[i];
 			const int at = int(i) + 1;
-			QWidget *cells[] = {
-				l.show->control, l.space, l.width->control, l.sample->control, l.time->control, l.revert, l.grip};
-			const int cols[] = {0, 1, 2, 3, 4, 6, 7};
-			for (int k = 0; k < 7; k++) {
+			const std::array<QWidget *, 7> cells = {l.show->control, l.space, l.width->control, l.sample->control,
+				l.time->control, l.revert, l.grip};
+			const std::array<int, 7> cols = {0, 1, 2, 3, 4, 6, 7};
+			for (size_t k = 0; k < cells.size(); k++) {
 				listGrid->removeWidget(cells[k]);
 				// narrower graphs sit left, so the column is the widest's
 				listGrid->addWidget(cells[k], at, cols[k], k == 1 ? Qt::AlignLeft | Qt::AlignVCenter : Qt::Alignment());
@@ -1514,8 +1528,8 @@ private:
 	void resetHistory() {
 		if (reset_deletes_saved(d) &&
 			QMessageBox::question(this, "Reset history",
-								  "Keep across restarts is on, so this deletes all past history, not only what's "
-								  "on screen.\n\nReset history?") != QMessageBox::Yes)
+				"Keep across restarts is on, so this deletes all past history, not only what's "
+				"on screen.\n\nReset history?") != QMessageBox::Yes)
 			return;
 		live_clear(*live);
 		refresh();
@@ -1525,16 +1539,14 @@ private:
 
 	// a box still being typed in, which counts as a change before it's left
 	bool typing() const {
-		for (auto &r : rows) {
+		for (const auto &r : rows) {
 			if (r->line && r->line->isModified())
 				return true;
 			if (!r->spin)
 				continue;
 			// a sample rate of 0 shows as Default
-			const bool special =
-				!r->spin->specialValueText().isEmpty() && r->spin->value() == r->spin->minimum();
-			const QString shows =
-				special ? r->spin->specialValueText() : r->spin->textFromValue(r->spin->value());
+			const bool special = !r->spin->specialValueText().isEmpty() && r->spin->value() == r->spin->minimum();
+			const QString shows = special ? r->spin->specialValueText() : r->spin->textFromValue(r->spin->value());
 			if (r->spin->text() != shows)
 				return true;
 		}
@@ -1598,30 +1610,30 @@ private:
 			for (QWidget *w : {static_cast<QWidget *>(r.label), r.control})
 				if (w)
 					w->setEnabled(st.counts);
-			QString tip = qs(st.tip);
-			QString text = qs(st.text);
+			const QString tip = qs(st.tip);
+			const QString text = qs(st.text);
 			if (r.label) {
 				r.label->setToolTip(tip);
 				r.revert->setEnabled(st.can_reset);
 				r.revert->setToolTip(st.can_reset ? "Back to the default." : "");
 			}
 			if (r.check) {
-				QSignalBlocker b(r.check);
+				const QSignalBlocker b(r.check);
 				r.check->setChecked(st.on);
 				r.check->setToolTip(tip);
 			}
 			if (r.slider) {
-				QSignalBlocker b(r.slider);
+				const QSignalBlocker b(r.slider);
 				r.slider->setValue(int(std::lround(st.slider * SLIDER_STEPS)));
 				r.slider->setToolTip(tip);
 			}
 			if (r.spin) {
-				QSignalBlocker b(r.spin);
+				const QSignalBlocker b(r.spin);
 				r.spin->setValue(st.number);
 				r.spin->setToolTip(tip);
 			}
 			if (r.combo) {
-				QSignalBlocker b(r.combo);
+				const QSignalBlocker b(r.combo);
 				std::vector<std::string> keys;
 				for (auto &k : st.options)
 					keys.push_back(std::string(k));
@@ -1641,12 +1653,12 @@ private:
 				r.combo->setToolTip(tip);
 			}
 			for (size_t i = 0; i < r.radios.size(); i++) {
-				QSignalBlocker b(r.radios[i]);
+				const QSignalBlocker b(r.radios[i]);
 				r.radios[i]->setChecked(QString::fromStdString(r.keys[i]) == text);
 				r.radios[i]->setToolTip(tip);
 			}
 			if (r.line) {
-				QSignalBlocker b(r.line);
+				const QSignalBlocker b(r.line);
 				r.line->setText(text);
 				r.line->setToolTip(tip);
 			}
@@ -1667,6 +1679,24 @@ private:
 	}
 };
 
+// Qt reads argc and argv for as long as the app lives, and the platform
+// before the app is made, so both come from a base built first.
+struct AppArgs {
+	explicit AppArgs(const QByteArray &platform) {
+		if (!platform.isEmpty())
+			qputenv("QT_QPA_PLATFORM", platform);
+	}
+	int argc = 1;
+	std::array<char, sizeof("tukzmon-settings")> name{"tukzmon-settings"};
+	std::array<char *, 2> argv{name.data(), nullptr};
+};
+
+// One per call. The test hooks pass an offscreen platform.
+class App final : AppArgs, public QApplication {
+public:
+	explicit App(const QByteArray &platform = {}) : AppArgs(platform), QApplication(argc, argv.data()) {}
+};
+
 void openSized(Window &w) {
 	QSize size = w.sizeHint().expandedTo(QSize(560, 420));
 	if (const QScreen *screen = w.screen())
@@ -1677,14 +1707,11 @@ void openSized(Window &w) {
 } // namespace
 
 std::int32_t run_dialog(Dialog &d, rust::Str snapshot) {
-	static int argc = 1;
-	static char name[] = "tukzmon-settings";
-	static char *argv[] = {name, nullptr};
-	QApplication app(argc, argv);
+	App app;
 	QApplication::setApplicationName("tukzmon-settings");
 	TipWrap tipWrap;
 	app.installEventFilter(&tipWrap);
-	app.setStyle(new BoxStyle);
+	tukzmon::App::setStyle(new BoxStyle);
 	Window w(d);
 	openSized(w);
 	if (snapshot.empty())
@@ -1701,13 +1728,13 @@ std::int32_t run_dialog(Dialog &d, rust::Str snapshot) {
 		if (!w.isLeaf(i))
 			continue;
 		w.select(i);
-		app.processEvents();
+		tukzmon::App::processEvents();
 		if (!w.grab().save(QString("%1-%2.png").arg(base).arg(++n)))
 			return 3;
 	}
 	if (auto pick = w.firstPicker()) {
 		pick->show();
-		app.processEvents();
+		tukzmon::App::processEvents();
 		const bool saved = pick->grab().save(QString("%1-%2.png").arg(base).arg(++n));
 		pick->reject();
 		if (!saved)
@@ -1717,12 +1744,8 @@ std::int32_t run_dialog(Dialog &d, rust::Str snapshot) {
 }
 
 rust::Vec<rust::String> greyed_rows(Dialog &d) {
-	static int argc = 1;
-	static char name[] = "tukzmon-settings";
-	static char *argv[] = {name, nullptr};
-	qputenv("QT_QPA_PLATFORM", "offscreen");
-	QApplication app(argc, argv);
-	Window w(d);
+	const App app("offscreen");
+	const Window w(d);
 	rust::Vec<rust::String> ids;
 	for (auto &id : w.greyed())
 		ids.push_back(rust::String(id));
@@ -1730,16 +1753,12 @@ rust::Vec<rust::String> greyed_rows(Dialog &d) {
 }
 
 rust::Vec<std::int32_t> graph_list_places(Dialog &d) {
-	static int argc = 1;
-	static char name[] = "tukzmon-settings";
-	static char *argv[] = {name, nullptr};
-	qputenv("QT_QPA_PLATFORM", "offscreen");
-	QApplication app(argc, argv);
+	const App app("offscreen");
 	Window w(d);
 	w.show();
-	app.processEvents();
+	tukzmon::App::processEvents();
 	rust::Vec<std::int32_t> out;
-	for (int v : w.listPlaces())
+	for (const int v : w.listPlaces())
 		out.push_back(v);
 	return out;
 }
@@ -1755,63 +1774,51 @@ TabShown shownNow(Window &w, const std::string &label) {
 	return t;
 }
 
-void eachTab(QApplication &app, Window &w, rust::Vec<TabShown> &out) {
+void eachTab(Window &w, rust::Vec<TabShown> &out) {
 	for (int i = 0; i < w.tabCount(); i++) {
 		w.select(i);
-		app.processEvents();
+		QApplication::processEvents();
 		out.push_back(shownNow(w, w.tabText(i)));
 	}
 }
 } // namespace
 
 rust::Vec<TabShown> tabs_shown(Dialog &d) {
-	static int argc = 1;
-	static char name[] = "tukzmon-settings";
-	static char *argv[] = {name, nullptr};
-	qputenv("QT_QPA_PLATFORM", "offscreen");
-	QApplication app(argc, argv);
+	const App app("offscreen");
 	Window w(d);
 	w.show();
 	rust::Vec<TabShown> out;
-	eachTab(app, w, out);
+	eachTab(w, out);
 	return out;
 }
 
 rust::Vec<TabShown> tabs_after_move(Dialog &d, rust::Str pick, std::size_t from, std::size_t to) {
-	static int argc = 1;
-	static char name[] = "tukzmon-settings";
-	static char *argv[] = {name, nullptr};
-	qputenv("QT_QPA_PLATFORM", "offscreen");
-	QApplication app(argc, argv);
+	const App app("offscreen");
 	Window w(d);
 	w.show();
 	const QString want = QString::fromUtf8(pick.data(), int(pick.size()));
 	for (int i = 0; i < w.tabCount(); i++)
 		if (QString::fromStdString(w.tabText(i)).trimmed() == want)
 			w.select(i);
-	app.processEvents();
+	tukzmon::App::processEvents();
 	w.moveGraph(int(from), int(to));
-	app.processEvents();
+	tukzmon::App::processEvents();
 	rust::Vec<TabShown> out;
 	out.push_back(shownNow(w, w.selectedText()));
-	eachTab(app, w, out);
+	eachTab(w, out);
 	return out;
 }
 
 rust::Vec<rust::String> sections_after_move(Dialog &d, std::size_t from, std::size_t to) {
-	static int argc = 1;
-	static char name[] = "tukzmon-settings";
-	static char *argv[] = {name, nullptr};
-	qputenv("QT_QPA_PLATFORM", "offscreen");
-	QApplication app(argc, argv);
+	const App app("offscreen");
 	Window w(d);
 	w.show();
 	for (int i = 0; i < w.tabCount(); i++)
 		if (QString::fromStdString(w.tabText(i)).trimmed() == "Colors")
 			w.select(i);
-	app.processEvents();
+	tukzmon::App::processEvents();
 	w.moveGraph(int(from), int(to));
-	app.processEvents();
+	tukzmon::App::processEvents();
 	rust::Vec<rust::String> out;
 	for (auto &s : w.sectionPlaces())
 		out.push_back(rust::String(s));
@@ -1819,15 +1826,11 @@ rust::Vec<rust::String> sections_after_move(Dialog &d, std::size_t from, std::si
 }
 
 rust::Vec<rust::String> tabs_by_key(Dialog &d, bool back, bool fromPage, bool pageKeys) {
-	static int argc = 1;
-	static char name[] = "tukzmon-settings";
-	static char *argv[] = {name, nullptr};
-	qputenv("QT_QPA_PLATFORM", "offscreen");
-	QApplication app(argc, argv);
+	const App app("offscreen");
 	Window w(d);
 	w.show();
 	w.activateWindow();
-	app.processEvents();
+	tukzmon::App::processEvents();
 	if (fromPage)
 		if (QWidget *box = w.firstBox(true))
 			box->setFocus();
@@ -1835,30 +1838,28 @@ rust::Vec<rust::String> tabs_by_key(Dialog &d, bool back, bool fromPage, bool pa
 	for (int i = 0; i < w.tabCount(); i++) {
 		out.push_back(rust::String(QString::fromStdString(w.selectedText()).trimmed().toStdString()));
 		QWidget *to = QApplication::focusWidget() ? QApplication::focusWidget() : &w;
-		const int key = pageKeys ? (back ? Qt::Key_PageUp : Qt::Key_PageDown) : (back ? Qt::Key_Backtab : Qt::Key_Tab);
+		int key = back ? Qt::Key_Backtab : Qt::Key_Tab;
+		if (pageKeys)
+			key = back ? Qt::Key_PageUp : Qt::Key_PageDown;
 		QKeyEvent down(QEvent::KeyPress, key,
 			back && !pageKeys ? Qt::ControlModifier | Qt::ShiftModifier : Qt::ControlModifier);
 		// Qt runs app filters only on the thread that made the first
 		// QApplication, and each test has a thread of its own
 		if (!w.eventFilter(to, &down))
 			QApplication::sendEvent(to, &down);
-		app.processEvents();
+		tukzmon::App::processEvents();
 	}
 	return out;
 }
 
 rust::Vec<rust::String> section_tops(Dialog &d) {
-	static int argc = 1;
-	static char name[] = "tukzmon-settings";
-	static char *argv[] = {name, nullptr};
-	qputenv("QT_QPA_PLATFORM", "offscreen");
-	QApplication app(argc, argv);
+	const App app("offscreen");
 	Window w(d);
 	w.show();
 	for (int i = 0; i < w.tabCount(); i++)
 		if (QString::fromStdString(w.tabText(i)).trimmed() == "Colors")
 			w.select(i);
-	app.processEvents();
+	tukzmon::App::processEvents();
 	rust::Vec<rust::String> out;
 	for (auto &s : w.sectionTops())
 		out.push_back(rust::String(s));
@@ -1866,12 +1867,8 @@ rust::Vec<rust::String> section_tops(Dialog &d) {
 }
 
 rust::Vec<rust::String> bottom_buttons(Dialog &d) {
-	static int argc = 1;
-	static char name[] = "tukzmon-settings";
-	static char *argv[] = {name, nullptr};
-	qputenv("QT_QPA_PLATFORM", "offscreen");
-	QApplication app(argc, argv);
-	Window w(d);
+	const App app("offscreen");
+	const Window w(d);
 	rust::Vec<rust::String> out;
 	for (auto &t : w.buttonTexts())
 		out.push_back(rust::String(t));
@@ -1888,11 +1885,7 @@ void press(QWidget *w, int key, const QString &text = QString()) {
 } // namespace
 
 rust::Vec<bool> apply_while_typing(Dialog &d, bool number) {
-	static int argc = 1;
-	static char name[] = "tukzmon-settings";
-	static char *argv[] = {name, nullptr};
-	qputenv("QT_QPA_PLATFORM", "offscreen");
-	QApplication app(argc, argv);
+	const App app("offscreen");
 	Window w(d);
 	QWidget *box = w.firstBox(number);
 	if (!box)
@@ -1914,8 +1907,8 @@ rust::Vec<bool> apply_while_typing(Dialog &d, bool number) {
 
 namespace {
 // close to the dark themes where the empty checkbox went missing
-QPalette testPalette(const QApplication &app, bool dark) {
-	QPalette pal = app.palette();
+QPalette testPalette(bool dark) {
+	QPalette pal = QApplication::palette();
 	if (dark) {
 		pal.setColor(QPalette::Window, QColor("#2b2b2b"));
 		pal.setColor(QPalette::WindowText, QColor("#dcdcdc"));
@@ -1928,14 +1921,10 @@ QPalette testPalette(const QApplication &app, bool dark) {
 } // namespace
 
 rust::Vec<rust::String> page_shades(Dialog &d, bool dark) {
-	static int argc = 1;
-	static char name[] = "tukzmon-settings";
-	static char *argv[] = {name, nullptr};
-	qputenv("QT_QPA_PLATFORM", "offscreen");
-	QApplication app(argc, argv);
-	app.setStyle(new BoxStyle);
-	const QPalette pal = testPalette(app, dark);
-	app.setPalette(pal);
+	const App app("offscreen");
+	tukzmon::App::setStyle(new BoxStyle);
+	const QPalette pal = testPalette(dark);
+	tukzmon::App::setPalette(pal);
 	Window w(d);
 	w.resize(w.sizeHint().expandedTo(QSize(560, 420)));
 	w.show();
@@ -1943,7 +1932,7 @@ rust::Vec<rust::String> page_shades(Dialog &d, bool dark) {
 	out.push_back(rust::String(pal.color(QPalette::Window).name().toStdString()));
 	for (int i = 0; i < w.tabCount(); i++) {
 		w.select(i);
-		app.processEvents();
+		tukzmon::App::processEvents();
 		const auto [in, rest] = w.shadesNow();
 		out.push_back(rust::String(QString::fromStdString(w.tabText(i)).trimmed().toStdString() + " " +
 			in.name().toStdString() + " " + rest.name().toStdString()));
@@ -1952,19 +1941,15 @@ rust::Vec<rust::String> page_shades(Dialog &d, bool dark) {
 }
 
 double empty_box_contrast(bool dark) {
-	static int argc = 1;
-	static char name[] = "tukzmon-settings";
-	static char *argv[] = {name, nullptr};
-	qputenv("QT_QPA_PLATFORM", "offscreen");
-	QApplication app(argc, argv);
-	app.setStyle(new BoxStyle);
-	const QPalette pal = testPalette(app, dark);
-	app.setPalette(pal);
+	const App app("offscreen");
+	tukzmon::App::setStyle(new BoxStyle);
+	const QPalette pal = testPalette(dark);
+	tukzmon::App::setPalette(pal);
 	QCheckBox box;
 	const QImage img = box.grab().toImage();
 	auto lum = [](QColor c) {
 		auto lin = [](double v) { return v <= 0.04045 ? v / 12.92 : std::pow((v + 0.055) / 1.055, 2.4); };
-		return 0.2126 * lin(c.redF()) + 0.7152 * lin(c.greenF()) + 0.0722 * lin(c.blueF());
+		return (0.2126 * lin(c.redF())) + (0.7152 * lin(c.greenF())) + (0.0722 * lin(c.blueF()));
 	};
 	const double back = lum(pal.color(QPalette::Window));
 	double best = 1;
@@ -1977,16 +1962,12 @@ double empty_box_contrast(bool dark) {
 }
 
 rust::Vec<rust::String> window_fit(Dialog &d, rust::Str screens) {
-	static int argc = 1;
-	static char name[] = "tukzmon-settings";
-	static char *argv[] = {name, nullptr};
-	qputenv("QT_QPA_PLATFORM", "offscreen:configfile=" + QByteArray(screens.data(), qsizetype(screens.size())));
-	QApplication app(argc, argv);
-	app.setStyle(new BoxStyle);
+	const App app("offscreen:configfile=" + QByteArray(screens.data(), qsizetype(screens.size())));
+	tukzmon::App::setStyle(new BoxStyle);
 	Window w(d);
 	openSized(w);
 	w.show();
-	app.processEvents();
+	tukzmon::App::processEvents();
 	auto rect = [](const char *what, const QRect &r) {
 		return rust::String(std::string(what) + " " + std::to_string(r.x()) + " " + std::to_string(r.y()) + " " +
 			std::to_string(r.width()) + " " + std::to_string(r.height()));
@@ -1998,7 +1979,7 @@ rust::Vec<rust::String> window_fit(Dialog &d, rust::Str screens) {
 		if (!w.isLeaf(i))
 			continue;
 		w.select(i);
-		app.processEvents();
+		tukzmon::App::processEvents();
 		out.push_back(rust::String(QString::fromStdString(w.tabText(i)).trimmed().toStdString() + " " + w.scrollNow()));
 	}
 	return out;
