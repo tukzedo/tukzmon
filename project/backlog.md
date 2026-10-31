@@ -512,6 +512,21 @@ Sorted per the notes in [Template](#template).
 		- Swept: every `r.info.control` and `state.fields` in `qt.cpp`, every `RowInfo.control` and `PickState` read in the bridge tests, every `Field::text` caller, and every `clone()` outside tests in core, settings and xfce.
 	- Closed: 20261030-201330
 
+- A dialog test leaves its scratch folder in the temp dir
+	- ID: 2026103020140879
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261030-201408
+	- Opened by: t00mietum
+	- Related IDs: 2026103019482449
+	- Steps to reproduce:
+		- Run `cargo test -p tukzmon-settings` and list the temp dir.
+	- Incorrect behavior: `test_tukzmon-settings_<pid>_untick` stays, holding `old.shcl`, `t0.shcl` and `t1.shcl`. Older runs' folders are still there too.
+	- Expected behavior: a test removes what it wrote.
+	- Possible cause: the tests' `Dir` in `settings/src/dialog.rs` removes only `t.shcl` before `remove_dir`, and `unticked_overrides_give_every_graph_its_own_back_after_a_reload` (dejng) writes other names.
+	- Estimated effort: Low
+
 - Code review 20261030 item 12: Public types without Debug and public items without doc comments
 	- ID: 2026103016201612
 	- Type: Enhancement
