@@ -38,6 +38,12 @@ undocumented_unsafe_blocks = "warn"
 mem_forget = "warn"
 
 [profile.release]
+# The panel ticks several times a second for as long as it runs, so speed
+# wins over a few hundred KB. Measured 2026-10-30, plugin / settings window
+# bytes, and the profiler's 20000 ticks, user CPU and us a tick, best of 3:
+#   3     1225272 / 1545224   1.33 s   218 us
+#   "s"   1016376 / 1262600   1.83 s   247 us
+#   "z"    971320 / 1205256   2.74 s   294 us
 opt-level = 3
 lto = "fat"
 codegen-units = 1

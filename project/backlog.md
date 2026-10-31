@@ -314,7 +314,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 14: The release build's opt-level has never been measured against size
 	- ID: 2026103016201614
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -323,6 +323,19 @@ Sorted per the notes in [Template](#template).
 		- Build the plugin and the settings window at `opt-level` 3, "s" and "z". Compare size, and tick time from the profiler.
 		- Keep the winner, with the numbers in a comment beside it.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Measured 2026-10-30 on b23, best of 3 interleaved profiler runs of 20000 ticks each. Plugin and settings window in bytes, then user CPU and time a tick:
+			- 3: 1225272 and 1545224, 1.33 s, 218 us.
+			- "s": 1016376 and 1262600 (17% and 18% smaller), 1.83 s, 247 us (13% slower a tick, 38% more user CPU).
+			- "z": 971320 and 1205256 (21% and 22% smaller), 2.74 s, 294 us (35% slower a tick, twice the user CPU).
+		- System time was about 3 s in every arm, from the `/proc` reads and saves.
+		- opt-level 3 stays, with the table in a comment over it in `Cargo.toml`.
+	- Decisions:
+		- 3 wins. The CPU graph ticks every 500 ms by default for as long as the panel runs, and a monitor shouldn't add to the load it shows. The 200 to 340 KB saved isn't worth that.
+		- The settings window keeps 3 too, rather than a per-package "s". Its live graph runs the same tick code, fat LTO makes a per-package level hard to reason about, and one level is simpler.
+	- Test case: none. Only a comment changed, and the build is the same as before.
+	- Closed: 20261030-175606
 
 - Code review 20261030 item 15: `dev-install.bash` doesn't follow the helper script layout
 	- ID: 2026103016201615
