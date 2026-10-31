@@ -934,7 +934,7 @@ mod tests {
 		);
 		let tip = m.hover_tip(60, 64, 20, 1);
 		assert!(
-			tip.ends_with("\nMemory 100% in use\nBuffers 0%  Cache 0%"),
+			tip.ends_with("\nMemory 100% in use\nBuffers 0%\nCache 0%"),
 			"{tip}"
 		);
 	}
@@ -1872,7 +1872,7 @@ mod tests {
 		assert!(g.hover_tip(65 + 3 * G, 3, w, h, 1).contains("Load 0.50"));
 		assert!(
 			g.hover_tip(85 + 4 * G, 3, w, h, 1)
-				.contains("Read 3.0 MB/s  Write 1.0 MB/s")
+				.contains("Read 3.0 MB/s\nWrite 1.0 MB/s")
 		);
 		g.save(&path).unwrap();
 		let names: Vec<String> = keep::read(&path)
@@ -2107,7 +2107,7 @@ mod tests {
 		assert_eq!(row(ph * 7 / 8), colors[2].argb());
 		let tip = g.hover_tip(65 + 3 * G, 3, w, h, 1);
 		assert!(
-			tip.contains("\nProcesses 200\nYours 50  Other users 50\nSystem 100"),
+			tip.contains("\nProcesses 200\nYours 50\nOther users 50\nSystem 100"),
 			"{tip}"
 		);
 		g.save(&path).unwrap();

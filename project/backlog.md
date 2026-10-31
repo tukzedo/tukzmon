@@ -225,13 +225,28 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Flyover tip text: one "Key: Value" pair per line
 	- ID: 2026103109002399
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-090023
 	- Opened by: t00mietum
 	- Requirements:
 		- Flyover tip text: Don't list multiple "Key: Value" pairs on the same line. Each pair gets its own line.
 		- Today the CPU tip has `User 3%  System 1%` on one line, and memory has `Buffers 2%  Cache 30%`. Each graph's `Source::text` in `core/src/lib.rs` builds them.
+	- Actual effort: Low
+	- Progress log:
+		- The CPU, memory, network, disk and processes tips now give each name and value on a line of their own. The other graphs' tips already did.
+		- With the split on, the network tip reads "Internet received", "Internet sent", "LAN received" and "LAN sent", one to a line.
+		- `design.md` Drawing, and the network, disk and processes notes under Theme, say so.
+		- Verified: the full run passed, with the new test.
+	- Decisions:
+		- The lines keep their "Name value" form, with no colon added, since the issue asks only for one pair a line.
+		- A sent line on its own is named "Internet sent" or "LAN sent", since a bare "Sent" under the split no longer sits beside its received.
+		- The battery's "Battery 50%, on battery" stays on one line, since the state belongs to the charge and isn't a pair of its own.
+	- Branch: round-1031b
+	- Test case: `tests::every_tip_gives_one_pair_a_line` (dep7b), which walks every graph's tip. It fails with either the old CPU line or the old network, disk and processes lines put back.
+		- 2026-10-31: new values only, for the one-pair-a-line text: dehzn, demvz and dej07 in `core/src/lib.rs`, dedq1, dej05 and dep48 in `core/src/graphs.rs`, and dep49 in `settings/src/live.rs`.
+		- Swept: every `Source::text` impl in `core/src/lib.rs`, every test and doc that quoted a two-pair line, and the other tip text in `xfce/src/lib.rs` and `qt.cpp`, which has no two-pair lines.
+	- Closed: 20261031-094952
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701

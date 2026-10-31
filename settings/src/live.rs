@@ -562,7 +562,7 @@ mod tests {
 		assert_eq!(live.render("procs", 30, 24, 1).len(), 30 * 24);
 		let tip = live.tip("procs");
 		assert!(
-			tip.starts_with("Processes ") && !tip.contains("\nYours 0 "),
+			tip.starts_with("Processes ") && !tip.contains("\nYours 0\n"),
 			"{tip}"
 		);
 	}

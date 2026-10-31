@@ -197,12 +197,12 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - The network graph's colors are in the Network section: Local, LAN sent, LAN received, Sent and Received, at `net.colors.local`, `.lan_sent`, `.lan_received`, `.sent` and `.received`, plus its own Low, Medium and High. Received is the network's own hue, local is that hue muted, the same as Low, and sent is a pale tint of it, the same as High. Default's received is light blue, `#6ad4ff`, with local yellow, `#ffed00`, and sent a light red, `#ff7777`.
 	- With the split on, sent and received are the internet's. In the built-ins LAN received sits between Low and Medium, and LAN sent between Medium and High, each moved as little as it takes to read 10 or more from the other 4.
-	- The tip gives the 3 rates in bytes a second, in decimal units, such as "Received 1.5 MB/s  Sent 30 kB/s" over "Local 2.0 kB/s". With the split on it gives "Internet received" and "LAN received" lines, each with its sent.
+	- The tip gives the 3 rates in bytes a second, in decimal units, one to a line, such as "Received 1.5 MB/s", "Sent 30 kB/s" and "Local 2.0 kB/s". With the split on it gives "Internet received", "Internet sent", "LAN received" and "LAN sent" lines.
 
 - The load graph's colors are in the Load section: Load, at `load.colors.load`, plus its own Low, Medium and High. Default's is a dark red gradient, `#553030`, `#924444` and `#eb4a4a`. Its tip reads like "Load 1.25".
 
 - The disk graph's colors are in the Disk section: Written and Read, at `disk.colors.write` and `.read`, plus its own Low, Medium and High. Read is the disk's own hue, and written a pale tint of it, the same as High. Default's read is light blue, `#6bb3ff`, and written red, `#c60000`.
-	- The tip gives both rates the way the network's does, such as "Read 1.5 MB/s  Write 30 kB/s".
+	- The tip gives both rates the way the network's does, such as "Read 1.5 MB/s" over "Write 30 kB/s".
 
 - The temperature graph's colors are in the Temperature section: Normal and Critical, at `temp.colors.normal` and `.critical`, plus its own Low, Medium and High. Normal is a hue of its own, and critical is the theme's I/O wait color, so going over reads as an alarm, as the battery's critical does. Default draws it as a gradient, from teal `#60dae2` through yellow `#d9da62` to red.
 	- The tip gives the reading and the level it turns critical at, in whole degrees C.
@@ -218,7 +218,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 - The tukzmon graph's colors are in the tukzmon section: CPU use, at `self.colors.used`, plus its own Low, Medium and High. Default's is `#00ccb8`.
 
 - The processes graph's colors are in the Processes section: System, Other users and Yours, at `procs.colors.system`, `.users` and `.me`, stacked in that order from the bottom, plus its own Low, Medium and High. Yours is the lead, and System is its Low, as memory's cache is. Default's are gray `#707070`, blue `#6bc9ff` and yellow `#fff02a`, and its Low and Medium are System's and Yours.
-	- The tip gives the total, then each owner's count, such as "Processes 612", "Yours 112  Other users 20" and "System 480".
+	- The tip gives the total, then each owner's count, such as "Processes 612", "Yours 112", "Other users 20" and "System 480", one to a line.
 
 - The GPU graph's colors are in the GPU section: Busy, at `gpu.colors.busy`, plus its own Low, Medium and High. GPU memory's are in the GPU memory section: In use, at `vram.colors.used`, plus the same 3. Default's are blue `#3b6fd9` and violet `#843bd9`, and also the one-color themes give both tukzmon's color.
 	- The tip gives the share of all CPUs, then of one CPU, as top shows it, such as "tukzmon 0.014% of all CPUs" over "0.46% of one CPU". The share is often under 0.1%, so it has 2 figures or so, not whole percents.
@@ -397,7 +397,7 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - A column with data for less than half its time is drawn as a gap.
 
-- With the pointer over the graph, a line one pixel wide is drawn under it, black unless set otherwise, over the plot and not the border. The tip gives the time under the line, either as "7 hrs ago" or as the local time, with the date for anything before today. The time and date follow the locale's short formats, so 12 or 24 hour is its call too. Under that are that graph's shares across the line's column, or "No data" for a gap.
+- With the pointer over the graph, a line one pixel wide is drawn under it, black unless set otherwise, over the plot and not the border. The tip gives the time under the line, either as "7 hrs ago" or as the local time, with the date for anything before today. The time and date follow the locale's short formats, so 12 or 24 hour is its call too. Under that are that graph's shares across the line's column, each name and value on a line of its own, or "No data" for a gap.
 
 - A still pointer's tip keeps its age and moves its clock time. The right edge is always now and the graph scrolls left under the pointer, so each column is a fixed age, while the time in that column advances a sample each tick. Both describe the column under the line. The line and tip follow the column, not the moment first pointed at.
 

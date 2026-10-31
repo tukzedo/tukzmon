@@ -140,7 +140,7 @@ impl Source<4> for CpuReader {
 	fn text(&self, v: &[f32; 4]) -> String {
 		let busy: f32 = v.iter().sum();
 		format!(
-			"CPU {}%\nUser {}%  System {}%\nNice {}%  I/O wait {}%",
+			"CPU {}%\nUser {}%\nSystem {}%\nNice {}%\nI/O wait {}%",
 			pc(busy),
 			pc(v[2]),
 			pc(v[1]),
@@ -156,7 +156,7 @@ impl Source<3> for MemoryReader {
 
 	fn text(&self, v: &[f32; 3]) -> String {
 		format!(
-			"Memory {}% in use\nBuffers {}%  Cache {}%",
+			"Memory {}% in use\nBuffers {}%\nCache {}%",
 			pc(v[0]),
 			pc(v[1]),
 			pc(v[2])
@@ -260,11 +260,11 @@ impl Source<5> for Traffic {
 	fn text(&self, v: &[f32; 5]) -> String {
 		let [local, lan_sent, lan_received, sent, received] = v.map(per_sec);
 		if !self.split() {
-			return format!("Network\nReceived {received}  Sent {sent}\nLocal {local}");
+			return format!("Network\nReceived {received}\nSent {sent}\nLocal {local}");
 		}
 		format!(
-			"Network\nInternet received {received}  Sent {sent}\n\
-			 LAN received {lan_received}  Sent {lan_sent}\nLocal {local}"
+			"Network\nInternet received {received}\nInternet sent {sent}\n\
+			 LAN received {lan_received}\nLAN sent {lan_sent}\nLocal {local}"
 		)
 	}
 
@@ -292,7 +292,7 @@ impl Source<2> for DiskReader {
 	const TITLE: &'static str = "Disk";
 
 	fn text(&self, v: &[f32; 2]) -> String {
-		format!("Disk\nRead {}  Write {}", per_sec(v[1]), per_sec(v[0]))
+		format!("Disk\nRead {}\nWrite {}", per_sec(v[1]), per_sec(v[0]))
 	}
 
 	// so a log file's odd flush doesn't fill the graph
@@ -378,7 +378,7 @@ impl Source<3> for ProcsReader {
 	fn text(&self, v: &[f32; 3]) -> String {
 		let [system, others, me] = v.map(|x| x.max(0.0).round() as u32);
 		format!(
-			"Processes {}\nYours {me}  Other users {others}\nSystem {system}",
+			"Processes {}\nYours {me}\nOther users {others}\nSystem {system}",
 			system + others + me
 		)
 	}
@@ -797,7 +797,7 @@ mod tests {
 		}
 		assert_eq!(
 			Traffic::default().text(&[2000.0, 0.0, 0.0, 30_000.0, 1.5e6]),
-			"Network\nReceived 1.5 MB/s  Sent 30 kB/s\nLocal 2.0 kB/s"
+			"Network\nReceived 1.5 MB/s\nSent 30 kB/s\nLocal 2.0 kB/s"
 		);
 	}
 
@@ -865,8 +865,8 @@ mod tests {
 		assert!(t.split(), "sock_diag needs no root");
 		assert_eq!(
 			t.text(&[2000.0, 1000.0, 5e5, 30_000.0, 1.5e6]),
-			"Network\nInternet received 1.5 MB/s  Sent 30 kB/s\n\
-			 LAN received 500 kB/s  Sent 1.0 kB/s\nLocal 2.0 kB/s"
+			"Network\nInternet received 1.5 MB/s\nInternet sent 30 kB/s\n\
+			 LAN received 500 kB/s\nLAN sent 1.0 kB/s\nLocal 2.0 kB/s"
 		);
 		t.set_split(config::Split::Off);
 		assert!(!t.split());
@@ -904,7 +904,7 @@ mod tests {
 		let disk = DiskReader::new(disk::Drives::Only(Vec::new())).unwrap();
 		assert_eq!(
 			disk.text(&[30_000.0, 1.5e6]),
-			"Disk\nRead 1.5 MB/s  Write 30 kB/s"
+			"Disk\nRead 1.5 MB/s\nWrite 30 kB/s"
 		);
 		assert_eq!(disk.peak_floor(), Some(100_000.0));
 		let log = Look {
@@ -960,6 +960,52 @@ mod tests {
 		);
 		assert_eq!(t.peak_floor(), Some(temp::CRIT_UNKNOWN));
 		assert!(!TempReader::log_y(&Look::default()));
+	}
+
+	// Test ID: dep7b
+	#[test]
+	fn every_tip_gives_one_pair_a_line() {
+		assert_eq!(
+			CpuReader::default().text(&[0.01, 0.02, 0.03, 0.04]),
+			"CPU 10%\nUser 3%\nSystem 2%\nNice 4%\nI/O wait 1%"
+		);
+		assert_eq!(
+			MemoryReader.text(&[0.4, 0.02, 0.3]),
+			"Memory 40% in use\nBuffers 2%\nCache 30%"
+		);
+		let t = collect::Tree::new(
+			"one_pair_tip",
+			&[
+				("device/gpu_busy_percent", "44\n"),
+				("device/mem_info_vram_used", "2684354560\n"),
+				("device/mem_info_vram_total", "8589934592\n"),
+			],
+		);
+		let (gpu, vram) = gpu::amd_readers(&t.at("device"));
+		let mut split = Traffic::default();
+		split.set_split(config::Split::Sockets);
+		let disk = DiskReader::new(disk::Drives::Only(Vec::new())).unwrap();
+		let mut tips = vec![
+			CpuReader::default().text(&[0.01, 0.02, 0.03, 0.04]),
+			MemoryReader.text(&[0.4, 0.02, 0.3]),
+			gpu.text(&[0.44]),
+			vram.text(&[0.31]),
+			SwapReader.text(&[0.1]),
+			BatteryReader::default().text(&[0.5, 0.1, 0.0]),
+			ZswapReader::zswap_on("/proc/no/such").text(&[0.35]),
+			Traffic::default().text(&[2000.0, 0.0, 0.0, 30_000.0, 1.5e6]),
+			split.text(&[2000.0, 1000.0, 5e5, 30_000.0, 1.5e6]),
+			LoadReader::default().text(&[1.25]),
+			disk.text(&[30_000.0, 1.5e6]),
+			TempReader::default().text(&[60.0, 0.0]),
+			OwnReader::default().text(&[0.001]),
+		];
+		#[cfg(unix)]
+		tips.push(ProcsReader::at("/proc/no/such", 1000).text(&[100.0, 50.0, 50.0]));
+		for tip in &tips {
+			// pairs used to share a line, 2 spaces apart
+			assert!(tip.lines().all(|l| !l.contains("  ")), "{tip:?}");
+		}
 	}
 
 	// Test ID: defpr
