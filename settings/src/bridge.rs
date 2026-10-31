@@ -431,7 +431,7 @@ fn wrap_tip(text: &str) -> String {
 }
 
 /// Breaks each line of `text` longer than `width` characters between words.
-/// Shorter lines, adn the breaks already there, are kept as they are, so a
+/// Shorter lines, and the breaks already there, are kept as they are, so a
 /// wrapped text wraps to itself. A word longer than `width` gets a line of
 /// its own.
 pub fn wrapped(text: &str, width: usize) -> String {
