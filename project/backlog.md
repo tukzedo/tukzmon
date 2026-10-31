@@ -65,6 +65,20 @@ Sorted per the notes in [Template](#template).
 		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
 	- Estimated effort: Low
 
+- Pre-next-cut: Settings dialog brightness inverted
+	- ID: 2026103113364400
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261031-133644
+	- Opened by: t00mietum
+	- Related IDs: 2026102913122702
+	- Requirements:
+		- Settings dialog: Invert the brightness of the scrollable region, and others.
+			- Scrollable and Tab area get the darker color.
+			- The rest gets the lighter color (but not quite as light as currently).
+	- Estimated effort: Low
+
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
 	- Type: Bug
