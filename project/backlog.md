@@ -143,8 +143,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 3: The settings window redoes its whole refresh on each step of a slider or color drag
 	- ID: 2026103016201603
 	- Type: Enhancement
-	- Status: Waiting on automated testing
-	- Needs external testing: denam on a slow VM, before and after, as `cargo test -p tukzmon-settings --release -- --ignored --nocapture time_a`. For the before, put back the old chip line in `refresh` in `qt.cpp`, `if (r.chip)`.
+	- Status: Done
+	- Needs external testing: No
 	- Priority|Severity: Avg
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -160,6 +160,7 @@ Sorted per the notes in [Template](#template).
 		- `Dialog::state` looks up the setting once, not 4 times.
 		- Verified on b23, at a load of 11 to 23 on 32 cores, medians of 50: a refresh went from 4.7 ms to 1.0 ms, and a slider step with its events from 5.0 ms to 1.3 ms. The rows' states went from about 630 us to 480 us.
 		- Verified: denaq fails with the old chip line, 101 restyles where 0 and 1 are right, and passes now. The quick gate passed.
+		- 2026-10-30: Closed without the VM timing. VMs take smoke runs only, never timings, and the b23 run already shows the 4x drop.
 	- Decisions:
 		- Refreshes aren't merged onto a timer. At about 1 ms a step there's no lag left to hide, and the tests read the window straight after a change.
 		- `graph_rows` isn't cached. The whole graph list takes 0.15 ms of a refresh.
