@@ -356,19 +356,36 @@ struct Scheme {
 	backs: [Back; GRAPHS],
 }
 
-impl Scheme {
-	fn of(&self, p: Part) -> &Hues {
-		match p {
-			Part::Back => &self.graphs[Part::Cpu as usize],
-			p => &self.graphs[p as usize],
+impl Part {
+	/// Its place in a scheme's per-graph lists, or None for a part no graph
+	/// owns.
+	const fn graph(self) -> Option<usize> {
+		match self {
+			Part::Cpu
+			| Part::Mem
+			| Part::Swap
+			| Part::Battery
+			| Part::Zswap
+			| Part::Net
+			| Part::Load
+			| Part::Disk
+			| Part::Temp
+			| Part::Own
+			| Part::Gpu
+			| Part::Vram => Some(self as usize),
+			Part::Back => None,
 		}
+	}
+}
+
+impl Scheme {
+	// Back takes CPU's hues
+	fn of(&self, p: Part) -> &Hues {
+		&self.graphs[p.graph().unwrap_or(Part::Cpu as usize)]
 	}
 
 	fn back_of(&self, p: Part) -> &Back {
-		match p {
-			Part::Back => &self.back,
-			p => &self.backs[p as usize],
-		}
+		p.graph().map_or(&self.back, |i| &self.backs[i])
 	}
 }
 

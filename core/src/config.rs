@@ -20,11 +20,10 @@ pub const SPEC_TEXT: &str = include_str!("settings.shcl");
 /// The parsed spec. A test proves it parses, so a bad one never gets built.
 pub fn spec() -> Arc<Spec> {
 	static SPEC: OnceLock<Arc<Spec>> = OnceLock::new();
-	SPEC.get_or_init(|| {
+	Arc::clone(SPEC.get_or_init(|| {
 		#[allow(clippy::expect_used, reason = "compiled in, and parse_spec checks it")]
 		Arc::new(Spec::parse(SPEC_TEXT).expect("settings.shcl"))
-	})
-	.clone()
+	}))
 }
 
 fn slider_ranges() -> &'static [(String, f64, f64)] {
@@ -273,6 +272,7 @@ pub fn saved_themes(doc: &shcl::Document) -> Vec<SavedTheme> {
 				.ok()
 				.map(|n| n.trim().to_string())
 				.filter(|n| !n.is_empty())
+				// with no name of its own it goes by its key
 				.unwrap_or_else(|| key.clone());
 			SavedTheme { key, name, colors }
 		})
@@ -322,6 +322,7 @@ pub fn spec_with(themes: &[SavedTheme]) -> Arc<Spec> {
 	if themes.is_empty() {
 		return base;
 	}
+	// a copy, since the one spec() hands out is shared
 	let mut s = (*base).clone();
 	if let Some(g) = s.groups.iter_mut().find(|g| g.id == THEME) {
 		for t in themes {
@@ -718,6 +719,7 @@ impl Look {
 		let custom;
 		let m = if unthemed(m) {
 			custom = {
+				// the caller's model stays as read
 				let mut c = m.clone();
 				unthemed_is_custom(&mut c);
 				c
@@ -815,6 +817,7 @@ impl Look {
 		if self.disk_drives.is_empty() || self.disk_drives.iter().any(|d| d == "all") {
 			Drives::All
 		} else {
+			// the reader keeps its own, and follows a new look by comparing
 			Drives::Only(self.disk_drives.clone())
 		}
 	}

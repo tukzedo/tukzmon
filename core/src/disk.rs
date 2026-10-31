@@ -65,6 +65,7 @@ impl Picker {
 	/// What's counted now, sorted for [`Drives::All`].
 	fn names(&self) -> Vec<String> {
 		match &self.drives {
+			// owned, since each one goes into the disk list
 			Drives::Only(names) => names.clone(),
 			Drives::All => {
 				let Ok(dir) = std::fs::read_dir(&self.block) else {

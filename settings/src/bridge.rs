@@ -24,11 +24,25 @@ pub mod ffi {
 		dim: Vec<String>,
 	}
 
+	/// How a row is drawn. A dropdown with `shown_as: radio` is Radio.
+	#[derive(Debug)]
+	enum ControlKind {
+		Heading,
+		Checkbox,
+		Slider,
+		Number,
+		Dropdown,
+		Radio,
+		Text,
+		Color,
+		File,
+	}
+
 	struct RowInfo {
 		id: String,
 		label: String,
 		tab: i32,
-		control: String,
+		control: ControlKind,
 		whole: bool,
 		min: f64,
 		max: f64,
@@ -74,14 +88,15 @@ pub mod ffi {
 		remove: bool,
 	}
 
-	/// The open picker's color, and what each value box shows for it.
+	/// The open picker's color, and what each value box shows for it: a
+	/// whole percent in each but the last, which is the hex box.
 	struct PickState {
 		h: f64,
 		s: f64,
 		v: f64,
 		hex: String,
 		labels: Vec<String>,
-		fields: Vec<String>,
+		percents: Vec<i32>,
 	}
 
 	extern "Rust" {
@@ -218,6 +233,7 @@ fn dialog_title(d: &Dialog) -> String {
 	format!("tukzmon settings - {}", d.path().display())
 }
 
+// cxx's structs own their text, so the spec's is copied into them
 fn dialog_tabs(d: &Dialog) -> Vec<ffi::TabInfo> {
 	d.spec()
 		.tabs
@@ -229,23 +245,33 @@ fn dialog_tabs(d: &Dialog) -> Vec<ffi::TabInfo> {
 		.collect()
 }
 
+// None for a setting with no row
+fn control_kind(s: &knobs::Setting) -> Option<ffi::ControlKind> {
+	Some(match s.control {
+		Control::Heading => ffi::ControlKind::Heading,
+		Control::Checkbox => ffi::ControlKind::Checkbox,
+		Control::Slider => ffi::ControlKind::Slider,
+		Control::Number => ffi::ControlKind::Number,
+		Control::Dropdown if tukzmon_core::config::shown_as_radio(&s.id) => ffi::ControlKind::Radio,
+		Control::Dropdown => ffi::ControlKind::Dropdown,
+		Control::Text => ffi::ControlKind::Text,
+		Control::Color => ffi::ControlKind::Color,
+		Control::File => ffi::ControlKind::File,
+		Control::None => return None,
+	})
+}
+
 fn dialog_rows(d: &Dialog) -> Vec<ffi::RowInfo> {
 	d.spec()
 		.settings
 		.iter()
 		.zip(d.sections())
-		.filter(|(s, _)| s.control != Control::None)
-		.map(|(s, section)| ffi::RowInfo {
+		.filter_map(|(s, section)| Some((s, section, control_kind(s)?)))
+		.map(|(s, section, control)| ffi::RowInfo {
 			id: s.id.clone(),
 			label: s.label.clone(),
 			tab: s.tab as i32,
-			control: if s.control == Control::Dropdown
-				&& tukzmon_core::config::shown_as_radio(&s.id)
-			{
-				"radio".into()
-			} else {
-				format!("{:?}", s.control).to_lowercase()
-			},
+			control,
 			whole: s.kind == knobs::Kind::Int,
 			min: s.min,
 			max: s.max,
@@ -262,6 +288,7 @@ fn dialog_rows(d: &Dialog) -> Vec<ffi::RowInfo> {
 
 fn row_state(d: &Dialog, id: &str) -> ffi::RowState {
 	let s = d.state(id);
+	let (options, option_labels) = s.options.into_iter().unzip();
 	ffi::RowState {
 		text: s.text,
 		on: s.on,
@@ -272,8 +299,8 @@ fn row_state(d: &Dialog, id: &str) -> ffi::RowState {
 		tip: s.tip,
 		choice: s.choice,
 		shown: s.shown,
-		option_labels: s.options.iter().map(|(_, l)| l.clone()).collect(),
-		options: s.options.into_iter().map(|(k, _)| k).collect(),
+		options,
+		option_labels,
 	}
 }
 
@@ -350,7 +377,7 @@ fn pick_state(d: &Dialog) -> ffi::PickState {
 		v: hsv.v,
 		hex: crate::pick::hex(crate::pick::to_rgb(hsv)),
 		labels: Field::ALL.iter().map(|f| f.label().to_string()).collect(),
-		fields: Field::ALL.iter().map(|f| f.text(hsv)).collect(),
+		percents: Field::ALL.iter().filter_map(|f| f.percent(hsv)).collect(),
 	}
 }
 
@@ -531,6 +558,48 @@ mod tests {
 		assert!(long > 10, "only {long} tips needed wrapping");
 	}
 
+	// Test ID: dendh
+	#[test]
+	fn rows_send_their_control_as_a_kind_and_the_picker_its_percents() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_kinds_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let rows = dialog_rows(&d);
+		let kind = |id: &str| rows.iter().find(|r| r.id == id).unwrap().control;
+		assert_eq!(kind("cpu_mode"), ffi::ControlKind::Radio);
+		assert_eq!(kind("back_bottom"), ffi::ControlKind::Color);
+		assert_eq!(kind("back_all"), ffi::ControlKind::Checkbox);
+		assert_eq!(kind("border"), ffi::ControlKind::Slider);
+		assert_eq!(kind("disk_drives"), ffi::ControlKind::Text);
+		for k in [
+			ffi::ControlKind::Heading,
+			ffi::ControlKind::Number,
+			ffi::ControlKind::Dropdown,
+		] {
+			assert!(rows.iter().any(|r| r.control == k), "{k:?}");
+		}
+		assert!(d.pick_open("back_bottom"));
+		let p = pick_state(&d);
+		let hsv = d.pick_hsv().unwrap();
+		assert_eq!(p.labels.len(), Field::ALL.len());
+		assert_eq!(
+			p.percents.len(),
+			Field::ALL.len() - 1,
+			"all but the hex box"
+		);
+		for (f, n) in Field::ALL.iter().zip(&p.percents) {
+			assert_eq!(f.percent(hsv), Some(*n), "{f:?}");
+		}
+		assert_eq!(
+			p.labels.last().map(String::as_str),
+			Some(Field::Hex.label())
+		);
+		assert_eq!(crate::pick::hex(crate::pick::to_rgb(hsv)), p.hex);
+		pick_close(&mut d, false);
+	}
+
 	// Test ID: defm1
 	#[test]
 	fn the_graph_list_sits_under_graphs_and_takes_its_rows() {
@@ -609,7 +678,7 @@ mod tests {
 		let mut d = Dialog::open(path).unwrap();
 		let shown: Vec<String> = dialog_rows(&d)
 			.into_iter()
-			.filter(|r| !matches!(r.control.as_str(), "heading" | "none"))
+			.filter(|r| r.control != ffi::ControlKind::Heading)
 			.map(|r| r.id)
 			.collect();
 		let gates: Vec<String> = d
@@ -672,7 +741,7 @@ mod tests {
 		let group = d.spec().group(THEME).unwrap().clone();
 		for r in rows
 			.iter()
-			.filter(|r| subs.contains(&r.tab) && r.control == "color")
+			.filter(|r| subs.contains(&r.tab) && r.control == ffi::ControlKind::Color)
 		{
 			assert!(group.members.contains(&r.id), "{}", r.id);
 		}

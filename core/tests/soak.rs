@@ -10,7 +10,7 @@
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
-use tukzmon_core::config::Look;
+use tukzmon_core::config::{Look, Which};
 use tukzmon_core::graphs::Graphs;
 
 #[global_allocator]
@@ -49,7 +49,7 @@ fn the_heap_stops_growing_once_the_history_is_full() {
 	};
 	let mut g = Graphs::new(look);
 	assert!(
-		g.mem.is_some(),
+		g.has(Which::Mem),
 		"no memory graph here, so half the work is left out"
 	);
 	let (w, h, scale) = (96, 48, 2);

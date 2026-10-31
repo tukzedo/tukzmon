@@ -25,7 +25,7 @@ Sorted per the notes in [Template](#template).
 - Graphs and Live list their 12 graph slots by hand
 	- ID: 2026103019482449
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-194824
 	- Opened by: t00mietum
@@ -36,6 +36,24 @@ Sorted per the notes in [Template](#template).
 		- Weigh against the churn first. Each slot holds a different reader type, so a table holds `Box<dyn Drawn>` or an enum.
 	- Estimated effort: Avg
 	- Origin: found while sharing the look in 2026103019230902.
+	- Actual effort: Avg
+	- Progress log:
+		- `Graphs` and the settings window's `Live` keep their graphs in one `graphs::Slots`: a `Box<dyn Drawn>` per `Which`, at its own index, and the look they share. `graphs::make` is the one match that knows each graph's reader, so a new graph is one arm there, and the build asks for it.
+		- `Live` finds a graph by name through `Which::named`, so there's no `_` arm left to skip one.
+		- `Graphs::has(which)` replaces the profiler's and the soak test's reads of `g.mem`.
+		- `make` checks at build that each reader has a color per series, and in a debug build that it sits in its own graph's slot.
+		- Verified: the full run passed, with the soak and profiler steps.
+	- Decisions:
+		- `Box<dyn Drawn>`, not an enum. Every caller already went through `Drawn`, and an enum would list the 12 graphs again in each match.
+		- CPU sits in the table too, always made, so each loop is one loop. `Slots` keeps the shared look, as `cpu.look` did.
+		- `Drawn` is `Any`, so tests reach a graph's history and peak through `the::<MemoryReader, 3>()`. The test edits are mechanical.
+		- `Live::set_look` still makes none and drops none, so a graph the box couldn't read at open isn't probed again on each change. `Graphs::set_look` still makes a shown one that's missing.
+		- A graph being hidden is dropped before the new look goes out, as before, so it doesn't follow it first.
+	- Branch: round-1030b
+	- Test case: `live::tests::every_graph_the_panel_can_draw_has_a_row_by_its_name` (dendg), plus dencp and dend1 over the table. dendg fails with `Live::get` missing the own graph, and dencp with a reader in another graph's slot.
+		- 2026-10-30: dencp checks each graph `make` gives, not the old fields' types, and dend1 each slot's look, not a list of fields. What they check is the same.
+		- Swept: every `Graphs` field read (core, settings, xfce, the profiler, the soak test), every `Live` field read, both `set_look`s, and every `Source::SECTION`, which all still come from `WHICH`.
+	- Closed: 20261030-201330
 
 - Graphs share one Look
 	- ID: 2026103019230902
@@ -464,7 +482,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 11: Catch-all matches and string-typed values across the bridge
 	- ID: 2026103016201611
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -474,6 +492,25 @@ Sorted per the notes in [Template](#template).
 		- Send a row's control kind to `qt.cpp` as a shared enum, not a lower-cased debug string, and the picker's numbers as numbers, not text read back with `std::stoi`.
 		- Say why at each remaining `clone()` that has no comment, or borrow, as in `Dialog`'s theme member loop.
 	- Estimated effort: Low
+	- Actual effort: Avg
+	- Progress log:
+		- `OwnReader::text` and `Scheme::of` name their variants. `Part::graph` gives a part's place in a scheme's lists, or None for Back, and `of` and `back_of` go through it.
+		- `Graphs::is_shown` is an `if` on CPU, not a match.
+		- A row's control goes to `qt.cpp` as the shared enum `ControlKind`, and `buildControl` switches over every kind, so a new one is a build warning there, and an error in cicd.
+		- `PickState` gives the 5 percent boxes as `i32` in `percents`, in place of `fields`, and `qt.cpp` sets them with no `std::stoi`. `Field::percent` replaces `Field::text`.
+		- Each `clone()` outside tests borrows or moves now, or says why. `drop_theme_changes` reads the members through its own handle on the spec, not a copy of the list. `row_state` and `Dialog::state` move what they had, and `spec()` hands out `Arc::clone`.
+		- Verified: the full run passed.
+	- Decisions:
+		- `Graphs::is_shown` doesn't list the 11 other graphs, since that would be another per-graph list, which 2026103019482449 just took out. It splits on CPU, as `Which::optional` does.
+		- `Host::of` keeps its `_` arm, since it's over the process name, not the enum.
+		- A clone that only builds an owned value that a signature or a struct asks for, such as a returned `String` or cxx's structs, gets no comment, apart from one over the bridge's conversions.
+		- The spin boxes still send what's typed as text, through `pick_type`, which the hex box shares. Nothing reads it back with `stoi`.
+		- knobs isn't touched, since it stays byte-identical to silkterm's.
+	- Branch: round-1030b
+	- Test case: `bridge::tests::rows_send_their_control_as_a_kind_and_the_picker_its_percents` (dendh). It fails with the radio arm dropped from `control_kind`.
+		- 2026-10-30: decd8 and decd4 compare `Field::percent` with a number, not `Field::text` with its text, since `text` is gone. decd8 still checks `#0000ff`, through `hex`.
+		- Swept: every `r.info.control` and `state.fields` in `qt.cpp`, every `RowInfo.control` and `PickState` read in the bridge tests, every `Field::text` caller, and every `clone()` outside tests in core, settings and xfce.
+	- Closed: 20261030-201330
 
 - Code review 20261030 item 12: Public types without Debug and public items without doc comments
 	- ID: 2026103016201612

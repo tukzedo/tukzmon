@@ -12,7 +12,7 @@ use std::hint::black_box;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use tukzmon_core::config::Look;
+use tukzmon_core::config::{Look, Which};
 use tukzmon_core::graphs::Graphs;
 
 // Under the kernel's 250 Hz tick.
@@ -71,7 +71,7 @@ fn main() -> Result<(), String> {
 	let secs = f64::from(look.sample_ms) / 1000.0;
 	let keep_every = (KEEP_MS / look.sample_ms.max(1)).max(1) as usize;
 	let mut g = Graphs::new(look);
-	if g.mem.is_none() {
+	if !g.has(Which::Mem) {
 		return Err("no memory graph here, so half the work would be left out".into());
 	}
 	// A week at 20 s a step.

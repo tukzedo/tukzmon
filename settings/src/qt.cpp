@@ -294,8 +294,8 @@ public:
 
 		state = pick_state(d);
 		auto *form = new QFormLayout;
-		for (size_t i = 0; i < state.fields.size(); i++) {
-			const bool hex = i + 1 == state.fields.size();
+		for (size_t i = 0; i < state.labels.size(); i++) {
+			const bool hex = i >= state.percents.size();
 			QWidget *box = nullptr;
 			if (hex) {
 				auto *edit = new QLineEdit;
@@ -378,7 +378,7 @@ private:
 			if (spins[i] == typing)
 				continue;
 			const QSignalBlocker b(spins[i]);
-			spins[i]->setValue(std::stoi(std::string(state.fields[i])));
+			spins[i]->setValue(state.percents[i]);
 		}
 		if (hexBox != typing) {
 			const QSignalBlocker b(hexBox);
@@ -1160,7 +1160,7 @@ private:
 		g->setColumnStretch(0, 1);
 		g->setColumnStretch(1, 1);
 		g->setHorizontalSpacing(3 * HEAD_GAP / 2);
-		if (std::string(r.info.control) == "heading") {
+		if (r.info.control == ControlKind::Heading) {
 			auto *h = new QLabel(qs(r.info.label));
 			QFont f = h->font();
 			f.setBold(true);
@@ -1208,7 +1208,7 @@ private:
 			if (s.title == &r)
 				continue;
 			const size_t side = r.info.beside ? 1 : 0;
-			if (side == 0 && !std::exchange(s.leadDone, true) && std::string(r.info.control) != "heading") {
+			if (side == 0 && !std::exchange(s.leadDone, true) && r.info.control != ControlKind::Heading) {
 				auto *top = new QWidget;
 				s.lead = rowGrid(top);
 				s.lead->setContentsMargins(0, 0, 0, 0);
@@ -1235,7 +1235,7 @@ private:
 	void placeRow(Row &r, const TabInfo &info, QGridLayout *grid, int &line, bool inSection = false) {
 		const QString label = qs(r.info.label);
 		r.grid = grid;
-		if (std::string(r.info.control) == "heading") {
+		if (r.info.control == ControlKind::Heading) {
 			// a heading that only repeats the tab's name says nothing
 			if (label == qs(info.label))
 				return;
@@ -1416,8 +1416,8 @@ private:
 	}
 
 	QWidget *buildControl(Row &r) {
-		const std::string c(r.info.control);
-		if (c == "checkbox") {
+		switch (r.info.control) {
+		case ControlKind::Checkbox: {
 			r.check = new QCheckBox;
 			connect(r.check, &QCheckBox::toggled, this, [this, &r](bool on) {
 				set_bool(d, r.id(), on);
@@ -1425,7 +1425,7 @@ private:
 			});
 			return r.check;
 		}
-		if (c == "slider") {
+		case ControlKind::Slider: {
 			r.slider = new QSlider(Qt::Horizontal);
 			r.slider->setRange(0, SLIDER_STEPS);
 			r.slider->setMinimumWidth(180);
@@ -1441,11 +1441,11 @@ private:
 			h->addWidget(r.spin);
 			return w;
 		}
-		if (c == "number") {
+		case ControlKind::Number: {
 			r.spin = numberBox(r);
 			return r.spin;
 		}
-		if (c == "radio") {
+		case ControlKind::Radio: {
 			auto *w = new QWidget;
 			auto *h = new QHBoxLayout(w);
 			h->setContentsMargins(0, 0, 0, 0);
@@ -1467,7 +1467,7 @@ private:
 			h->addStretch(1);
 			return w;
 		}
-		if (c == "dropdown") {
+		case ControlKind::Dropdown: {
 			r.combo = new QComboBox;
 			r.combo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
 			connect(r.combo, &QComboBox::activated, this, [this, &r](int i) {
@@ -1479,13 +1479,19 @@ private:
 				return r.combo;
 			return themeButtons(r.combo);
 		}
+		// a heading is drawn by placeRow, and has no control
+		case ControlKind::Heading:
+		case ControlKind::Text:
+		case ControlKind::File:
+		case ControlKind::Color: break;
+		}
 		r.line = new QLineEdit;
 		connect(r.line, &QLineEdit::editingFinished, this, [this, &r] {
 			set_text(d, r.id(), r.line->text().toStdString());
 			refresh();
 		});
 		connect(r.line, &QLineEdit::textEdited, this, [this] { updateApply(); });
-		if (c != "color")
+		if (r.info.control != ControlKind::Color)
 			return r.line;
 
 		r.line->setValidator(new QRegularExpressionValidator(QRegularExpression("#?[0-9a-fA-F]{0,6}"), r.line));

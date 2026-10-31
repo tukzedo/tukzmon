@@ -109,6 +109,7 @@ fn merge_themes(file: Vec<SavedTheme>, was: &[SavedTheme], now: &[SavedTheme]) -
 		if was.contains(t) {
 			continue;
 		}
+		// the window keeps its own list too
 		match out.iter_mut().find(|o| o.key == t.key) {
 			Some(o) => *o = t.clone(),
 			None => out.push(t.clone()),
@@ -132,6 +133,7 @@ impl Dialog {
 			.iter()
 			.filter_map(|s| {
 				let (min, max) = config::slider_range(&s.id)?;
+				// the same setting, but over the slider's range
 				Some(Setting {
 					min,
 					max,
@@ -142,6 +144,7 @@ impl Dialog {
 		Ok(Dialog {
 			path,
 			spec: Arc::clone(&spec),
+			// the saved copies tell what this window changed
 			saved: model.clone(),
 			model,
 			touched: Vec::new(),
@@ -246,12 +249,10 @@ impl Dialog {
 
 	// the colors are the theme's own now, so nothing is changed on top of it
 	fn drop_theme_changes(&mut self) {
-		let members = self
-			.spec
-			.group(THEME)
-			.map(|g| g.members.clone())
-			.unwrap_or_default();
-		for id in &members {
+		// a handle on the spec, so its list reads while touch takes self
+		let spec = Arc::clone(&self.spec);
+		let members = spec.group(THEME).map_or(&[][..], |g| g.members.as_slice());
+		for id in members {
 			self.model.values.changes.remove(id);
 			self.touch(id);
 		}
@@ -301,6 +302,7 @@ impl Dialog {
 			name,
 			colors: self.shown_colors(),
 		};
+		// the dropdown picks it by key, once it's in the list
 		let key = theme.key.clone();
 		self.themes.push(theme);
 		self.respec();
@@ -343,6 +345,7 @@ impl Dialog {
 		// a set turns its gate on, and a roll is colors, not the overrides
 		let gates: Vec<(String, Value)> = rolled
 			.iter()
+			// owned, since the sets below take self
 			.filter_map(|(id, _)| self.spec.get(id)?.gate.clone())
 			.map(|g| {
 				let was = self.model.value(&g, &NoEnv);
@@ -376,12 +379,13 @@ impl Dialog {
 				short.min, short.max, s.min, s.max
 			);
 		}
+		let on = v.as_bool();
 		RowState {
-			text: match &v {
-				Value::Text(t) => t.clone(),
+			text: match v {
+				Value::Text(t) => t,
 				other => other.show(),
 			},
-			on: v.as_bool(),
+			on,
 			number,
 			slider: short.or(setting).map_or(0.0, |s| s.to_t(number)),
 			can_reset: self.model.can_reset(id, &NoEnv),
@@ -561,6 +565,7 @@ impl Dialog {
 		self.picker = Some(Picker {
 			id: id.to_string(),
 			hsv: pick::from_rgb(now, Hsv::default()),
+			// what Cancel puts back
 			values: self.model.values.clone(),
 			touched: self.touched.clone(),
 		});
@@ -581,6 +586,7 @@ impl Dialog {
 			s: hsv.s.clamp(0.0, 1.0),
 			v: hsv.v.clamp(0.0, 1.0),
 		};
+		// p borrows self, and set takes it
 		let (id, text) = (p.id.clone(), pick::hex(pick::to_rgb(p.hsv)));
 		self.set(&id, &Value::Text(text));
 	}
@@ -643,6 +649,7 @@ impl Dialog {
 		}
 		let themes_text = config::themes_text(&themes);
 		shcl::write_file_atomic(file, &format!("{HEADER}{body}{themes_text}"))?;
+		// as in open, kept apart to tell what changes next
 		self.saved = fresh.clone();
 		self.model = fresh;
 		self.spec = spec;
@@ -1669,8 +1676,8 @@ mod tests {
 		);
 		assert!(dlg.pick_type(Field::Hex, "#3366cc"));
 		let hsv = dlg.pick_hsv().unwrap();
-		assert_eq!(Field::Red.text(hsv), "20");
-		assert_eq!(Field::Blue.text(hsv), "80");
+		assert_eq!(Field::Red.percent(hsv), Some(20));
+		assert_eq!(Field::Blue.percent(hsv), Some(80));
 		assert!(dlg.pick_type(Field::Red, "100"));
 		assert_eq!(dlg.state("nice").text, "#ff66cc");
 		dlg.pick_close(true);

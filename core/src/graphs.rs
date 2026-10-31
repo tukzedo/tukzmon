@@ -5,47 +5,19 @@
 //! panel, with a little room across the panel and twice that between them.
 //! Each takes its width along the panel, so stacked, that's its height.
 
+use std::any::Any;
 use std::io;
 use std::path::Path;
 use std::rc::Rc;
 
-use crate::battery::BatteryReader;
 use crate::config::{Look, Which};
-use crate::disk::DiskReader;
-use crate::gpu::{GpuReader, VramReader};
 use crate::keep;
-use crate::load::LoadReader;
-use crate::mem::{MemoryReader, SwapReader};
-use crate::net::Traffic;
-use crate::own::OwnReader;
-use crate::temp::TempReader;
-use crate::zswap::ZswapReader;
 use crate::{Graph, Source, clock_ms, wait_ms};
 
 pub struct Graphs {
-	pub cpu: Graph,
-	/// None when hidden, or on a box where memory can't be read.
-	pub mem: Option<Graph<MemoryReader, 3>>,
-	/// None when hidden, or on a box with no GPU it can read.
-	pub gpu: Option<Graph<GpuReader, 1>>,
-	/// None when hidden, or on a box with no GPU it can read.
-	pub vram: Option<Graph<VramReader, 1>>,
-	/// None when hidden.
-	pub net: Option<Graph<Traffic, 5>>,
-	/// None when hidden, or on a box with no swap.
-	pub swap: Option<Graph<SwapReader, 1>>,
-	/// None when hidden, or on a box with neither zswap on nor zram set up.
-	pub zswap: Option<Graph<ZswapReader, 1>>,
-	/// None when hidden.
-	pub load: Option<Graph<LoadReader, 1>>,
-	/// None when hidden, or on a box with no disk.
-	pub disk: Option<Graph<DiskReader, 2>>,
-	/// None when hidden, or on a box with no CPU sensor it knows.
-	pub temp: Option<Graph<TempReader, 2>>,
-	/// None when hidden, or on a box with no battery in.
-	pub battery: Option<Graph<BatteryReader, 3>>,
-	/// None when hidden.
-	pub own: Option<Graph<OwnReader, 1>>,
+	/// CPU always, shown or not. Any other only while shown, and where it
+	/// can be read.
+	slots: Slots,
 	/// Top to bottom, for a vertical panel.
 	pub stacked: bool,
 	/// `graph.order` as read, kept up by [`Graphs::set_look`] so a draw or a
@@ -69,14 +41,19 @@ impl Which {
 }
 
 /// What [`Graphs`] needs of a graph, whatever it reads, so each one isn't
-/// handled by hand everywhere.
-pub trait Drawn {
+/// handled by hand everywhere. `Any`, so a test can get at the graph itself.
+pub trait Drawn: Any {
+	/// The graph its reader says it is.
+	fn which(&self) -> Which;
+	fn look(&self) -> &Rc<Look>;
 	fn sample(&mut self);
 	fn tick(&mut self, at: f64) -> f64;
 	fn trim(&mut self);
 	fn skip(&mut self, secs: f64);
 	#[cfg(test)]
 	fn now(&self) -> f64;
+	#[cfg(test)]
+	fn series(&self) -> usize;
 	fn clear(&mut self);
 	fn section(&self) -> (&'static str, Vec<u8>);
 	fn adopt(&mut self, sections: &[(String, Vec<u8>)]) -> bool;
@@ -89,7 +66,13 @@ pub trait Drawn {
 	fn set_look(&mut self, look: &Rc<Look>);
 }
 
-impl<S: Source<N>, const N: usize> Drawn for Graph<S, N> {
+impl<S: Source<N> + 'static, const N: usize> Drawn for Graph<S, N> {
+	fn which(&self) -> Which {
+		S::WHICH
+	}
+	fn look(&self) -> &Rc<Look> {
+		&self.look
+	}
 	fn sample(&mut self) {
 		Graph::sample(self);
 	}
@@ -105,6 +88,10 @@ impl<S: Source<N>, const N: usize> Drawn for Graph<S, N> {
 	#[cfg(test)]
 	fn now(&self) -> f64 {
 		Graph::now(self)
+	}
+	#[cfg(test)]
+	fn series(&self) -> usize {
+		N
 	}
 	fn clear(&mut self) {
 		Graph::clear(self);
@@ -192,91 +179,133 @@ pub fn tick<'a>(all: impl IntoIterator<Item = &'a mut dyn Drawn>, at: f64) -> u3
 	})
 }
 
-// drops a graph turned off and makes one turned on. True when one was made.
-fn switch<G>(slot: &mut Option<G>, show: bool, make: impl FnOnce() -> Option<G>) -> bool {
-	if !show {
-		*slot = None;
-		return false;
+/// `which`'s graph, or None on a box where it can't be read. The one place
+/// that knows each graph's reader, for [`Slots`].
+fn make(which: Which, look: &Rc<Look>) -> Option<Box<dyn Drawn>> {
+	fn boxed<S: Source<N> + 'static, const N: usize>(
+		which: Which,
+		g: Option<Graph<S, N>>,
+	) -> Option<Box<dyn Drawn>> {
+		const { assert!(S::WHICH.color_ids().len() == N, "a color per series") };
+		// before the probe's answer, so a test of every graph catches one
+		// put in another's slot on a box that can't read it
+		debug_assert_eq!(S::WHICH, which, "a slot holds its own graph");
+		Some(Box::new(g?))
 	}
-	if slot.is_some() {
-		return false;
+	let look = Rc::clone(look);
+	match which {
+		Which::Cpu => boxed(which, Some(Graph::new(look))),
+		Which::Mem => boxed(which, Graph::memory(look)),
+		Which::Gpu => boxed(which, Graph::gpu(look)),
+		Which::Vram => boxed(which, Graph::vram(look)),
+		Which::Net => boxed(which, Graph::net(look)),
+		Which::Swap => boxed(which, Graph::swap(look)),
+		Which::Zswap => boxed(which, Graph::zswap(look)),
+		Which::Load => boxed(which, Graph::load_avg(look)),
+		Which::Disk => boxed(which, Graph::disk(look)),
+		Which::Temp => boxed(which, Graph::temp(look)),
+		Which::Battery => boxed(which, Graph::battery(look)),
+		Which::Own => boxed(which, Graph::own(look)),
 	}
-	*slot = make();
-	slot.is_some()
+}
+
+/// One place per [`Which`], at its own index, and the look every graph in
+/// them shares. [`Graphs`] and the settings window's graph list both keep
+/// their graphs in one.
+pub struct Slots {
+	look: Rc<Look>,
+	all: [Option<Box<dyn Drawn>>; Which::ALL.len()],
+}
+
+impl std::fmt::Debug for Slots {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		let there: Vec<Which> = Which::ALL
+			.into_iter()
+			.filter(|&w| self.get(w).is_some())
+			.collect();
+		f.debug_struct("Slots")
+			.field("look", &self.look)
+			.field("graphs", &there)
+			.finish_non_exhaustive()
+	}
+}
+
+impl Slots {
+	/// With each graph `wanted` made, where it can be read.
+	pub fn new(look: Look, wanted: impl Fn(&Look, Which) -> bool) -> Slots {
+		let look = Rc::new(look);
+		let all = Which::ALL.map(|w| {
+			if wanted(&look, w) {
+				make(w, &look)
+			} else {
+				None
+			}
+		});
+		Slots { look, all }
+	}
+
+	pub fn look(&self) -> &Rc<Look> {
+		&self.look
+	}
+
+	pub fn get(&self, which: Which) -> Option<&dyn Drawn> {
+		self.all[which as usize].as_deref()
+	}
+
+	pub fn get_mut(&mut self, which: Which) -> Option<&mut dyn Drawn> {
+		self.all[which as usize]
+			.as_deref_mut()
+			.map(|g| g as &mut dyn Drawn)
+	}
+
+	/// Every graph there is, in [`Which::ALL`] order.
+	pub fn iter_mut(&mut self) -> impl Iterator<Item = (Which, &mut dyn Drawn)> {
+		Which::ALL
+			.into_iter()
+			.zip(&mut self.all)
+			.filter_map(|(w, g)| Some((w, g.as_deref_mut()? as &mut dyn Drawn)))
+	}
+
+	/// Gives every graph there the new look. It makes none and drops none.
+	pub fn set_look(&mut self, look: Look) {
+		self.look = Rc::new(look);
+		for g in self.all.iter_mut().flatten() {
+			g.set_look(&self.look);
+		}
+	}
+
+	// as set_look, but drops each graph `wanted` no longer is, before it
+	// follows the look, and makes each wanted one that's missing. Gives the
+	// ones made.
+	fn switch(&mut self, look: Look, wanted: impl Fn(&Look, Which) -> bool) -> Vec<Which> {
+		self.look = Rc::new(look);
+		let mut made = Vec::new();
+		for (w, slot) in Which::ALL.into_iter().zip(&mut self.all) {
+			if !wanted(&self.look, w) {
+				*slot = None;
+			} else if let Some(g) = slot {
+				g.set_look(&self.look);
+			} else {
+				*slot = make(w, &self.look);
+				if slot.is_some() {
+					made.push(w);
+				}
+			}
+		}
+		made
+	}
+}
+
+// what the panel item keeps
+fn shown_here(look: &Look, which: Which) -> bool {
+	which == Which::Cpu || look[which].show
 }
 
 impl Graphs {
 	pub fn new(look: Look) -> Graphs {
-		let look = Rc::new(look);
-		let mem = if look[Which::Mem].show {
-			Graph::memory(Rc::clone(&look))
-		} else {
-			None
-		};
-		let swap = if look[Which::Swap].show {
-			Graph::swap(Rc::clone(&look))
-		} else {
-			None
-		};
-		let gpu = if look[Which::Gpu].show {
-			Graph::gpu(Rc::clone(&look))
-		} else {
-			None
-		};
-		let vram = if look[Which::Vram].show {
-			Graph::vram(Rc::clone(&look))
-		} else {
-			None
-		};
-		let net = if look[Which::Net].show {
-			Graph::net(Rc::clone(&look))
-		} else {
-			None
-		};
-		let load = if look[Which::Load].show {
-			Graph::load_avg(Rc::clone(&look))
-		} else {
-			None
-		};
-		let disk = if look[Which::Disk].show {
-			Graph::disk(Rc::clone(&look))
-		} else {
-			None
-		};
-		let temp = if look[Which::Temp].show {
-			Graph::temp(Rc::clone(&look))
-		} else {
-			None
-		};
-		let zswap = if look[Which::Zswap].show {
-			Graph::zswap(Rc::clone(&look))
-		} else {
-			None
-		};
-		let battery = if look[Which::Battery].show {
-			Graph::battery(Rc::clone(&look))
-		} else {
-			None
-		};
-		let own = if look[Which::Own].show {
-			Graph::own(Rc::clone(&look))
-		} else {
-			None
-		};
 		Graphs {
 			order: order_of(&look.order),
-			cpu: Graph::new(look),
-			mem,
-			gpu,
-			vram,
-			net,
-			swap,
-			zswap,
-			load,
-			disk,
-			temp,
-			battery,
-			own,
+			slots: Slots::new(look, shown_here),
 			stacked: false,
 			px: Vec::new(),
 			kept: None,
@@ -284,54 +313,35 @@ impl Graphs {
 	}
 
 	pub fn look(&self) -> &Look {
-		&self.cpu.look
+		self.slots.look()
 	}
 
-	// CPU always has one, shown or not
+	/// True when `which`'s graph is there: shown, and read on this box.
+	/// CPU's always is.
+	pub fn has(&self, which: Which) -> bool {
+		self.slot(which).is_some()
+	}
+
 	fn slot(&self, which: Which) -> Option<&dyn Drawn> {
-		match which {
-			Which::Cpu => Some(&self.cpu),
-			Which::Mem => self.mem.as_ref().map(|g| g as &dyn Drawn),
-			Which::Gpu => self.gpu.as_ref().map(|g| g as &dyn Drawn),
-			Which::Vram => self.vram.as_ref().map(|g| g as &dyn Drawn),
-			Which::Net => self.net.as_ref().map(|g| g as &dyn Drawn),
-			Which::Swap => self.swap.as_ref().map(|g| g as &dyn Drawn),
-			Which::Zswap => self.zswap.as_ref().map(|g| g as &dyn Drawn),
-			Which::Load => self.load.as_ref().map(|g| g as &dyn Drawn),
-			Which::Disk => self.disk.as_ref().map(|g| g as &dyn Drawn),
-			Which::Temp => self.temp.as_ref().map(|g| g as &dyn Drawn),
-			Which::Battery => self.battery.as_ref().map(|g| g as &dyn Drawn),
-			Which::Own => self.own.as_ref().map(|g| g as &dyn Drawn),
-		}
+		self.slots.get(which)
 	}
 
 	fn slot_mut(&mut self, which: Which) -> Option<&mut dyn Drawn> {
-		match which {
-			Which::Cpu => Some(&mut self.cpu),
-			Which::Mem => self.mem.as_mut().map(|g| g as &mut dyn Drawn),
-			Which::Gpu => self.gpu.as_mut().map(|g| g as &mut dyn Drawn),
-			Which::Vram => self.vram.as_mut().map(|g| g as &mut dyn Drawn),
-			Which::Net => self.net.as_mut().map(|g| g as &mut dyn Drawn),
-			Which::Swap => self.swap.as_mut().map(|g| g as &mut dyn Drawn),
-			Which::Zswap => self.zswap.as_mut().map(|g| g as &mut dyn Drawn),
-			Which::Load => self.load.as_mut().map(|g| g as &mut dyn Drawn),
-			Which::Disk => self.disk.as_mut().map(|g| g as &mut dyn Drawn),
-			Which::Temp => self.temp.as_mut().map(|g| g as &mut dyn Drawn),
-			Which::Battery => self.battery.as_mut().map(|g| g as &mut dyn Drawn),
-			Which::Own => self.own.as_mut().map(|g| g as &mut dyn Drawn),
-		}
+		self.slots.get_mut(which)
 	}
 
 	/// CPU is drawn whenever no other graph is, so the panel item never
 	/// shrinks to nothing and its menu stays in reach.
 	pub fn cpu_shown(&self) -> bool {
-		self.cpu.look[Which::Cpu].show || Which::optional().all(|w| self.slot(w).is_none())
+		self.look()[Which::Cpu].show || Which::optional().all(|w| self.slot(w).is_none())
 	}
 
+	// CPU against every other graph, as Which::optional splits them
 	fn is_shown(&self, which: Which) -> bool {
-		match which {
-			Which::Cpu => self.cpu_shown(),
-			_ => self.slot(which).is_some(),
+		if which == Which::Cpu {
+			self.cpu_shown()
+		} else {
+			self.has(which)
 		}
 	}
 
@@ -345,7 +355,7 @@ impl Graphs {
 	}
 
 	fn width_of(&self, which: Which) -> u32 {
-		let l = &self.cpu.look;
+		let l = self.look();
 		l.share(l[which].width)
 	}
 
@@ -394,63 +404,7 @@ impl Graphs {
 				}
 			}
 		}
-		let look = Rc::new(look);
-		let mut added = Vec::new();
-		if switch(&mut self.mem, look[Which::Mem].show, || {
-			Graph::memory(Rc::clone(&look))
-		}) {
-			added.push(Which::Mem);
-		}
-		if switch(&mut self.gpu, look[Which::Gpu].show, || {
-			Graph::gpu(Rc::clone(&look))
-		}) {
-			added.push(Which::Gpu);
-		}
-		if switch(&mut self.vram, look[Which::Vram].show, || {
-			Graph::vram(Rc::clone(&look))
-		}) {
-			added.push(Which::Vram);
-		}
-		if switch(&mut self.net, look[Which::Net].show, || {
-			Graph::net(Rc::clone(&look))
-		}) {
-			added.push(Which::Net);
-		}
-		if switch(&mut self.swap, look[Which::Swap].show, || {
-			Graph::swap(Rc::clone(&look))
-		}) {
-			added.push(Which::Swap);
-		}
-		if switch(&mut self.zswap, look[Which::Zswap].show, || {
-			Graph::zswap(Rc::clone(&look))
-		}) {
-			added.push(Which::Zswap);
-		}
-		if switch(&mut self.load, look[Which::Load].show, || {
-			Graph::load_avg(Rc::clone(&look))
-		}) {
-			added.push(Which::Load);
-		}
-		if switch(&mut self.disk, look[Which::Disk].show, || {
-			Graph::disk(Rc::clone(&look))
-		}) {
-			added.push(Which::Disk);
-		}
-		if switch(&mut self.temp, look[Which::Temp].show, || {
-			Graph::temp(Rc::clone(&look))
-		}) {
-			added.push(Which::Temp);
-		}
-		if switch(&mut self.battery, look[Which::Battery].show, || {
-			Graph::battery(Rc::clone(&look))
-		}) {
-			added.push(Which::Battery);
-		}
-		if switch(&mut self.own, look[Which::Own].show, || {
-			Graph::own(Rc::clone(&look))
-		}) {
-			added.push(Which::Own);
-		}
+		let added = self.slots.switch(look, shown_here);
 		let mut res = Ok(());
 		if let Some(path) = history.filter(|_| !added.is_empty()) {
 			match keep::read(path) {
@@ -465,15 +419,11 @@ impl Graphs {
 				Err(e) => res = Err(e),
 			}
 		}
-		for w in Which::optional() {
-			if let Some(g) = self.slot_mut(w) {
-				g.set_look(&look);
-			}
-		}
-		self.order = order_of(&look.order);
-		self.cpu.look = look;
-		if !self.cpu_shown() {
-			self.cpu.hover = None;
+		self.order = order_of(&self.look().order);
+		if !self.cpu_shown()
+			&& let Some(cpu) = self.slot_mut(Which::Cpu)
+		{
+			cpu.set_hover(None);
 		}
 		res
 	}
@@ -501,7 +451,8 @@ impl Graphs {
 		// ALL is in declaration order, so a Which is its own index
 		let shown = Which::ALL.map(|w| self.is_shown(w));
 		tick(
-			self.all_mut()
+			self.slots
+				.iter_mut()
 				.filter(|&(w, _)| shown[w as usize])
 				.map(|(_, g)| g),
 			at,
@@ -683,37 +634,13 @@ impl Graphs {
 			.map(|(which, t)| (which, t, x.clamp(t.0, t.0 + t.2 - 1) - t.0))
 	}
 
-	fn all_mut(&mut self) -> impl Iterator<Item = (Which, &mut dyn Drawn)> {
-		let optional = [
-			(Which::Mem, self.mem.as_mut().map(|g| g as &mut dyn Drawn)),
-			(Which::Gpu, self.gpu.as_mut().map(|g| g as &mut dyn Drawn)),
-			(Which::Vram, self.vram.as_mut().map(|g| g as &mut dyn Drawn)),
-			(Which::Net, self.net.as_mut().map(|g| g as &mut dyn Drawn)),
-			(Which::Swap, self.swap.as_mut().map(|g| g as &mut dyn Drawn)),
-			(
-				Which::Zswap,
-				self.zswap.as_mut().map(|g| g as &mut dyn Drawn),
-			),
-			(Which::Load, self.load.as_mut().map(|g| g as &mut dyn Drawn)),
-			(Which::Disk, self.disk.as_mut().map(|g| g as &mut dyn Drawn)),
-			(Which::Temp, self.temp.as_mut().map(|g| g as &mut dyn Drawn)),
-			(
-				Which::Battery,
-				self.battery.as_mut().map(|g| g as &mut dyn Drawn),
-			),
-			(Which::Own, self.own.as_mut().map(|g| g as &mut dyn Drawn)),
-		];
-		std::iter::once((Which::Cpu, &mut self.cpu as &mut dyn Drawn))
-			.chain(optional.into_iter().filter_map(|(w, g)| Some((w, g?))))
-	}
-
 	/// Puts the hover line under device pixel (x, y), or takes it away. True
 	/// when that changed what's drawn.
 	pub fn hover(&mut self, at: Option<(usize, usize)>, w: usize, h: usize, scale: usize) -> bool {
 		let hit = at
 			.and_then(|(x, y)| self.find(x, y, w, h, scale))
 			.map(|(which, _, cx)| (which, cx));
-		point(self.all_mut(), hit)
+		point(self.slots.iter_mut(), hit)
 	}
 
 	/// True while a shown graph's axis is easing in.
@@ -779,7 +706,42 @@ impl Graphs {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::battery::BatteryReader;
 	use crate::config::Mode;
+	use crate::disk::DiskReader;
+	use crate::gpu::{GpuReader, VramReader};
+	use crate::load::LoadReader;
+	use crate::mem::{MemoryReader, SwapReader};
+	use crate::net::Traffic;
+	use crate::own::OwnReader;
+	use crate::temp::TempReader;
+	use crate::zswap::ZswapReader;
+
+	// the graph itself, for what Drawn doesn't give
+	impl Graphs {
+		fn the<S: Source<N> + 'static, const N: usize>(&self) -> &Graph<S, N> {
+			let g: &dyn Any = self.slot(S::WHICH).expect("there");
+			g.downcast_ref().expect("its own reader")
+		}
+
+		fn the_mut<S: Source<N> + 'static, const N: usize>(&mut self) -> &mut Graph<S, N> {
+			let g: &mut dyn Any = self.slot_mut(S::WHICH).expect("there");
+			g.downcast_mut().expect("its own reader")
+		}
+
+		// in place of what its look made, or didn't
+		fn put<S: Source<N> + 'static, const N: usize>(&mut self, g: Graph<S, N>) {
+			self.slots.all[S::WHICH as usize] = Some(Box::new(g));
+		}
+
+		fn cpu(&self) -> &Graph {
+			self.the()
+		}
+
+		fn cpu_mut(&mut self) -> &mut Graph {
+			self.the_mut()
+		}
+	}
 
 	// The defaults before 2026-10-28, which these tests lay out: CPU and
 	// memory shown, every graph as wide as Width, in the order they were added.
@@ -836,9 +798,9 @@ mod tests {
 
 	fn both() -> Graphs {
 		let mut g = Graphs::new(two());
-		let now = g.cpu.now();
-		g.cpu.hist.add(now - 60.0, now, &[0.0, 0.0, 0.5, 0.0]);
-		let m = g.mem.as_mut().unwrap();
+		let now = g.cpu().now();
+		g.cpu_mut().hist.add(now - 60.0, now, &[0.0, 0.0, 0.5, 0.0]);
+		let m = g.the_mut::<MemoryReader, 3>();
 		m.hist.add(now - 60.0, now, &[0.25, 0.25, 0.25]);
 		g
 	}
@@ -855,8 +817,8 @@ mod tests {
 		);
 		let beats = |g: &Graphs| {
 			(
-				g.cpu.beat.map(|b| b.0),
-				g.mem.as_ref().unwrap().beat.map(|b| b.0),
+				g.cpu().beat.map(|b| b.0),
+				g.the::<MemoryReader, 3>().beat.map(|b| b.0),
 			)
 		};
 		// both primed, and the timer wakes for CPU's next beat
@@ -937,30 +899,23 @@ mod tests {
 	// Test ID: dencp
 	#[test]
 	fn each_slot_is_its_own_graph_with_a_color_per_series() {
-		fn of<S: Source<N>, const N: usize>(_: Option<&Graph<S, N>>) -> (Which, usize) {
-			(S::WHICH, N)
+		let mut every = Look::default();
+		for w in Which::ALL {
+			every[w].show = true;
+		}
+		// make's own check runs for a graph this box can't read, too
+		let look = Rc::new(every);
+		for w in Which::ALL {
+			if let Some(g) = make(w, &look) {
+				assert_eq!(g.which(), w);
+				assert_eq!(w.color_ids().len(), g.series(), "{w:?}");
+				assert!(g.series() <= crate::config::MOST_SERIES, "{w:?}");
+			}
 		}
 		let g = Graphs::new(Look::default());
-		let slots = [
-			of(Some(&g.cpu)),
-			of(g.mem.as_ref()),
-			of(g.gpu.as_ref()),
-			of(g.vram.as_ref()),
-			of(g.net.as_ref()),
-			of(g.swap.as_ref()),
-			of(g.zswap.as_ref()),
-			of(g.load.as_ref()),
-			of(g.disk.as_ref()),
-			of(g.temp.as_ref()),
-			of(g.battery.as_ref()),
-			of(g.own.as_ref()),
-		];
+		assert!(g.has(Which::Cpu));
 		for w in Which::ALL {
-			assert_eq!(slots.iter().filter(|s| s.0 == w).count(), 1, "{w:?}");
-		}
-		for (w, n) in slots {
-			assert_eq!(w.color_ids().len(), n, "{w:?}");
-			assert!(n <= crate::config::MOST_SERIES, "{w:?}");
+			assert!(g.slot(w).is_none_or(|g| g.which() == w), "{w:?}");
 		}
 	}
 
@@ -968,20 +923,10 @@ mod tests {
 	#[test]
 	fn every_graph_shares_the_one_look() {
 		fn looks(g: &Graphs) -> Vec<&Rc<Look>> {
-			let all = [
-				g.mem.as_ref().map(|g| &g.look),
-				g.gpu.as_ref().map(|g| &g.look),
-				g.vram.as_ref().map(|g| &g.look),
-				g.net.as_ref().map(|g| &g.look),
-				g.swap.as_ref().map(|g| &g.look),
-				g.zswap.as_ref().map(|g| &g.look),
-				g.load.as_ref().map(|g| &g.look),
-				g.disk.as_ref().map(|g| &g.look),
-				g.temp.as_ref().map(|g| &g.look),
-				g.battery.as_ref().map(|g| &g.look),
-				g.own.as_ref().map(|g| &g.look),
-			];
-			all.into_iter().flatten().collect()
+			Which::ALL
+				.into_iter()
+				.filter_map(|w| g.slot(w).map(Drawn::look))
+				.collect()
 		}
 		let mut every = Look::default();
 		for w in Which::ALL {
@@ -989,16 +934,16 @@ mod tests {
 		}
 		// net is off here and on below. It reads /proc, so any Linux box has one.
 		let mut g = Graphs::new(every.clone().with(Which::Net, |e| e.show = false));
-		assert!(g.net.is_none() && !looks(&g).is_empty());
+		assert!(!g.has(Which::Net) && looks(&g).len() > 1);
 		for l in looks(&g) {
-			assert!(Rc::ptr_eq(l, &g.cpu.look));
+			assert!(Rc::ptr_eq(l, g.slots.look()));
 		}
-		let was = Rc::clone(&g.cpu.look);
+		let was = Rc::clone(g.slots.look());
 		g.set_look(Look { width: 77, ..every }, None).unwrap();
-		assert!(g.net.is_some(), "added by the new look");
+		assert!(g.has(Which::Net), "added by the new look");
 		assert_eq!(g.look().width, 77);
 		for l in looks(&g) {
-			assert!(Rc::ptr_eq(l, &g.cpu.look));
+			assert!(Rc::ptr_eq(l, g.slots.look()));
 		}
 		assert_eq!(Rc::strong_count(&was), 1, "no graph kept the old look");
 	}
@@ -1009,14 +954,14 @@ mod tests {
 		let mut g = both();
 		assert_eq!(g.count(), 2);
 		let (w, h) = (40 + G, 10 + 2 * E);
-		let left = g.cpu.render(20, 10, 1).to_vec();
-		let right = g.mem.as_mut().unwrap().render(20, 10, 1).to_vec();
+		let left = g.cpu_mut().render(20, 10, 1).to_vec();
+		let right = g.the_mut::<MemoryReader, 3>().render(20, 10, 1).to_vec();
 		let px = g.render(w, h, 1).to_vec();
 		sits(&px, w, &left, (0, E, 20, 10));
 		sits(&px, w, &right, (20 + G, E, 20, 10));
 		assert!(g.hover(Some((25 + G, 3)), w, h, 1));
-		assert_eq!(g.cpu.hover, None);
-		assert_eq!(g.mem.as_ref().unwrap().hover, Some(5));
+		assert_eq!(g.cpu().hover, None);
+		assert_eq!(g.the::<MemoryReader, 3>().hover, Some(5));
 		assert!(!g.hover(Some((25 + G, 4)), w, h, 1), "same column");
 		assert!(
 			g.hover_tip(25 + G, 3, w, h, 1)
@@ -1028,10 +973,10 @@ mod tests {
 		// on a vertical panel the second is under the first
 		g.stacked = true;
 		assert!(g.hover(Some((5 + E, 17)), 14, 24, 1));
-		assert_eq!(g.mem.as_ref().unwrap().hover, Some(5));
+		assert_eq!(g.the::<MemoryReader, 3>().hover, Some(5));
 		assert!(g.hover(Some((5 + E, 2)), 14, 24, 1));
-		assert_eq!(g.cpu.hover, Some(5));
-		assert_eq!(g.mem.as_ref().unwrap().hover, None);
+		assert_eq!(g.cpu().hover, Some(5));
+		assert_eq!(g.the::<MemoryReader, 3>().hover, None);
 		assert_eq!(g.render(14, 24, 1).len(), 14 * 24);
 		assert!(g.tooltip().starts_with("CPU\n\nMemory"));
 	}
@@ -1096,10 +1041,10 @@ mod tests {
 			// the screen's edge, past the graph's, still finds the graph
 			let (x, y) = at(25 + G, 0);
 			assert!(g.hover(Some((x, y)), w, h, 1));
-			assert!(g.mem.as_ref().unwrap().hover.is_some());
+			assert!(g.the::<MemoryReader, 3>().hover.is_some());
 			let (x, y) = at(5, across - 1);
 			assert!(g.hover(Some((x, y)), w, h, 1));
-			assert!(g.cpu.hover.is_some());
+			assert!(g.cpu().hover.is_some());
 			// a gap finds neither, and its tip is every graph's latest
 			let (x, y) = at(21, E + 1);
 			assert!(g.hover(Some((x, y)), w, h, 1));
@@ -1133,8 +1078,8 @@ mod tests {
 		// side by side: 3 above and below, 5 + 5 between, none at the ends
 		assert_eq!(g.wanted(16), (wide + 10, 16));
 		let (w, h) = (40 + 10, 10 + 2 * 3);
-		let left = g.cpu.render(20, 10, 1).to_vec();
-		let right = g.mem.as_mut().unwrap().render(20, 10, 1).to_vec();
+		let left = g.cpu_mut().render(20, 10, 1).to_vec();
+		let right = g.the_mut::<MemoryReader, 3>().render(20, 10, 1).to_vec();
 		let px = g.render(w, h, 1).to_vec();
 		sits(&px, w, &left, (0, 3, 20, 10));
 		sits(&px, w, &right, (30, 3, 20, 10));
@@ -1145,8 +1090,8 @@ mod tests {
 		g.stacked = true;
 		assert_eq!(g.wanted(20), (20, wide + 6));
 		let (w, h) = (10 + 2 * 5, 40 + 6);
-		let top = g.cpu.render(10, 20, 1).to_vec();
-		let under = g.mem.as_mut().unwrap().render(10, 20, 1).to_vec();
+		let top = g.cpu_mut().render(10, 20, 1).to_vec();
+		let under = g.the_mut::<MemoryReader, 3>().render(10, 20, 1).to_vec();
 		let px = g.render(w, h, 1).to_vec();
 		sits(&px, w, &top, (5, 0, 10, 20));
 		sits(&px, w, &under, (5, 26, 10, 20));
@@ -1163,7 +1108,7 @@ mod tests {
 		.unwrap();
 		assert_eq!(g.wanted(10), (wide, 10));
 		let px = g.render(40, 10, 1).to_vec();
-		let right = g.mem.as_mut().unwrap().render(20, 10, 1).to_vec();
+		let right = g.the_mut::<MemoryReader, 3>().render(20, 10, 1).to_vec();
 		sits(&px, 40, &right, (20, 0, 20, 10));
 	}
 
@@ -1182,14 +1127,14 @@ mod tests {
 		assert_eq!(names, ["cpu", "mem", "net"]);
 		let mut back = Graphs::new(two());
 		back.load(&path).unwrap();
-		assert_eq!(back.cpu.hist.last(), g.cpu.hist.last());
-		let mem = |g: &Graphs| g.mem.as_ref().unwrap().hist.last();
+		assert_eq!(back.cpu().hist.last(), g.cpu().hist.last());
+		let mem = |g: &Graphs| g.the::<MemoryReader, 3>().hist.last();
 		assert_eq!(mem(&back), mem(&g));
 		// a file from before the memory graph
-		keep::write(&path, &[("cpu", &g.cpu.section().1)]).unwrap();
+		keep::write(&path, &[("cpu", &g.cpu().section().1)]).unwrap();
 		let mut back = Graphs::new(two());
 		back.load(&path).unwrap();
-		assert_eq!(back.cpu.hist.last(), g.cpu.hist.last());
+		assert_eq!(back.cpu().hist.last(), g.cpu().hist.last());
 		assert_eq!(mem(&back), None);
 		keep::write(&path, &[("net", b"x")]).unwrap();
 		assert!(back.load(&path).is_err());
@@ -1204,18 +1149,18 @@ mod tests {
 		let mut g = both();
 		g.save(&path).unwrap();
 		g.reset(None).unwrap();
-		assert_eq!(g.cpu.hist.last(), None);
-		assert_eq!(g.mem.as_ref().unwrap().hist.last(), None);
+		assert_eq!(g.cpu().hist.last(), None);
+		assert_eq!(g.the::<MemoryReader, 3>().hist.last(), None);
 		assert!(path.exists());
 		let mut g = both();
 		g.reset(Some(&path)).unwrap();
-		assert_eq!(g.cpu.hist.last(), None);
+		assert_eq!(g.cpu().hist.last(), None);
 		assert!(!path.exists());
 		// and it goes on from there
-		g.cpu.sample();
+		g.cpu_mut().sample();
 		std::thread::sleep(std::time::Duration::from_millis(20));
-		g.cpu.sample();
-		assert!(g.cpu.hist.last().is_some());
+		g.cpu_mut().sample();
+		assert!(g.cpu().hist.last().is_some());
 		assert!(g.reset(Some(&path)).is_ok());
 	}
 
@@ -1245,15 +1190,15 @@ mod tests {
 		let mut g = Graphs::new(look.clone());
 		g.load(&path).unwrap();
 		let got = |g: &Graphs| {
-			let m = &g.mem.as_ref().unwrap().hist;
+			let m = &g.the::<MemoryReader, 3>().hist;
 			(
-				(g.cpu.hist.first(), g.cpu.hist.last()),
+				(g.cpu().hist.first(), g.cpu().hist.last()),
 				(m.first(), m.last()),
 			)
 		};
 		assert_eq!(got(&g), (cpu, mem));
 		let (a, b) = (cpu.0.unwrap(), cpu.1.unwrap());
-		assert!(g.cpu.hist.span(a, b).covered > 0.9);
+		assert!(g.cpu().hist.span(a, b).covered > 0.9);
 		// and the next restart reads what this one saves
 		g.save(&path).unwrap();
 		let tiers = (crate::history::TIERS.len() as u32).to_le_bytes();
@@ -1274,27 +1219,23 @@ mod tests {
 	fn hiding_memory_drops_it_and_showing_brings_its_history_back() {
 		let path = scratch("show");
 		let mut g = both();
-		let had = g.mem.as_ref().unwrap().hist.last();
+		let had = g.the::<MemoryReader, 3>().hist.last();
 		g.save(&path).unwrap();
 		let hide = Look { width: 99, ..two() }.with(Which::Mem, |e| e.show = false);
 		g.set_look(hide.clone(), Some(&path)).unwrap();
-		assert!(g.mem.is_none());
+		assert!(!g.has(Which::Mem));
 		assert_eq!(g.look().width, 99);
 		// the hidden graph's history stays in the file
 		g.save(&path).unwrap();
 		g.set_look(Look::default(), Some(&path)).unwrap();
-		assert_eq!(g.mem.as_ref().unwrap().hist.last(), had);
-		assert_eq!(*g.mem.as_ref().unwrap().look, Look::default());
+		assert_eq!(g.the::<MemoryReader, 3>().hist.last(), had);
+		assert_eq!(*g.the::<MemoryReader, 3>().look, Look::default());
 		// with history off it starts empty
 		g.set_look(hide, None).unwrap();
 		g.set_look(Look::default(), None).unwrap();
-		assert_eq!(g.mem.as_ref().unwrap().hist.last(), None);
+		assert_eq!(g.the::<MemoryReader, 3>().hist.last(), None);
 		std::fs::remove_file(&path).unwrap();
-		assert!(
-			Graphs::new(two().with(Which::Mem, |e| e.show = false))
-				.mem
-				.is_none()
-		);
+		assert!(!Graphs::new(two().with(Which::Mem, |e| e.show = false)).has(Which::Mem));
 	}
 
 	// Test ID: denbb
@@ -1304,8 +1245,8 @@ mod tests {
 		use crate::mem::meminfo_reads;
 		let look = two();
 		let mut g = Graphs::new(look.clone());
-		g.swap = Some(Graph::with(look.clone(), SwapReader));
-		g.zswap = Some(Graph::with(look, ZswapReader::zswap_on("/proc/no/such")));
+		g.put(Graph::with(look.clone(), SwapReader));
+		g.put(Graph::with(look, ZswapReader::zswap_on("/proc/no/such")));
 		let was = meminfo_reads();
 		g.sample();
 		assert_eq!(meminfo_reads() - was, 1);
@@ -1333,7 +1274,7 @@ mod tests {
 		keep::write(&path, &all).unwrap();
 		let mut g = both();
 		g.load(&path).unwrap();
-		let had = g.mem.as_ref().unwrap().hist.last();
+		let had = g.the::<MemoryReader, 3>().hist.last();
 		std::fs::remove_file(&path).unwrap();
 		// hidden with no save first, as with history off
 		let hide = two().with(Which::Mem, |e| e.show = false);
@@ -1344,7 +1285,7 @@ mod tests {
 		};
 		assert_eq!(names(&path), ["cpu", "net", "mem"]);
 		g.set_look(two(), Some(&path)).unwrap();
-		assert_eq!(g.mem.as_ref().unwrap().hist.last(), had);
+		assert_eq!(g.the::<MemoryReader, 3>().hist.last(), had);
 		// a load that found no file has nothing else to keep
 		std::fs::remove_file(&path).unwrap();
 		let mut g = both();
@@ -1363,7 +1304,7 @@ mod tests {
 		let path = scratch("time");
 		let g = both();
 		let hidden = vec![7u8; 11_500_000];
-		let (cpu, mem) = (g.cpu.section(), g.mem.as_ref().unwrap().section());
+		let (cpu, mem) = (g.cpu().section(), g.the::<MemoryReader, 3>().section());
 		keep::write(
 			&path,
 			&[(cpu.0, &cpu.1), (mem.0, &mem.1), ("disk", &hidden)],
@@ -1394,7 +1335,7 @@ mod tests {
 		let mut g = both();
 		let total = 60.0;
 		let linear = Axis::linear(100.0 * 1.0);
-		let axes = |g: &Graphs| (g.cpu.axis(100), g.mem.as_ref().unwrap().axis(100));
+		let axes = |g: &Graphs| (g.cpu().axis(100), g.the::<MemoryReader, 3>().axis(100));
 		assert_eq!(
 			axes(&g),
 			(
@@ -1456,28 +1397,31 @@ mod tests {
 		for scale in [1, 2] {
 			let (cw, mw, gap, edge) = (40 * scale, 100 * scale, G * scale, E * scale);
 			let (w, h) = (cw + gap + mw, th + 2 * edge);
-			let left = g.cpu.render(cw, th, scale).to_vec();
-			let right = g.mem.as_mut().unwrap().render(mw, th, scale).to_vec();
+			let left = g.cpu_mut().render(cw, th, scale).to_vec();
+			let right = g
+				.the_mut::<MemoryReader, 3>()
+				.render(mw, th, scale)
+				.to_vec();
 			let px = g.render(w, h, scale).to_vec();
 			sits(&px, w, &left, (0, edge, cw, th));
 			sits(&px, w, &right, (cw + gap, edge, mw, th));
 			assert!(g.hover(Some((cw + gap + 5, 3)), w, h, scale));
-			assert_eq!(g.mem.as_ref().unwrap().hover, Some(5));
+			assert_eq!(g.the::<MemoryReader, 3>().hover, Some(5));
 			assert!(g.hover(Some((cw - 1, 3)), w, h, scale));
-			assert_eq!(g.cpu.hover, Some(cw - 1));
+			assert_eq!(g.cpu().hover, Some(cw - 1));
 		}
 		// stacked, a width is a height, and time still runs across
 		g.stacked = true;
 		let (w, h) = (10 + 2 * E, 140 + G);
-		let top = g.cpu.render(10, 40, 1).to_vec();
-		let under = g.mem.as_mut().unwrap().render(10, 100, 1).to_vec();
+		let top = g.cpu_mut().render(10, 40, 1).to_vec();
+		let under = g.the_mut::<MemoryReader, 3>().render(10, 100, 1).to_vec();
 		let px = g.render(w, h, 1).to_vec();
 		sits(&px, w, &top, (E, 0, 10, 40));
 		sits(&px, w, &under, (E, 40 + G, 10, 100));
 		assert!(g.hover(Some((5 + E, 39)), w, h, 1));
-		assert_eq!(g.cpu.hover, Some(5));
+		assert_eq!(g.cpu().hover, Some(5));
 		assert!(g.hover(Some((5 + E, 40 + G)), w, h, 1));
-		assert_eq!(g.mem.as_ref().unwrap().hover, Some(5));
+		assert_eq!(g.the::<MemoryReader, 3>().hover, Some(5));
 		assert!(g.hover(Some((5 + E, 40)), w, h, 1));
 		assert!(!g.hovered());
 	}
@@ -1512,7 +1456,7 @@ mod tests {
 	fn cpu_can_be_hidden_but_not_with_nothing_else_shown() {
 		let mut g = both();
 		assert!(g.hover(Some((5, 3)), 40, 10, 1));
-		let had = g.cpu.hist.last();
+		let had = g.cpu().hist.last();
 		let no_cpu = Look {
 			width: 100,
 			..two()
@@ -1520,19 +1464,19 @@ mod tests {
 		.with(Which::Cpu, |e| e.show = false)
 		.with(Which::Mem, |e| e.width = 30);
 		g.set_look(no_cpu.clone(), None).unwrap();
-		assert_eq!(g.cpu.hover, None);
+		assert_eq!(g.cpu().hover, None);
 		assert_eq!(g.count(), 1);
 		assert_eq!(g.widths().collect::<Vec<_>>(), [30]);
-		let alone = g.mem.as_mut().unwrap().render(30, 10, 1).to_vec();
+		let alone = g.the_mut::<MemoryReader, 3>().render(30, 10, 1).to_vec();
 		let px = g.render(30, 10 + 2 * E, 1).to_vec();
 		sits(&px, 30, &alone, (0, E, 30, 10));
 		assert!(g.hover(Some((5, 3)), 30, 10, 1));
-		assert_eq!(g.cpu.hover, None);
-		assert_eq!(g.mem.as_ref().unwrap().hover, Some(5));
+		assert_eq!(g.cpu().hover, None);
+		assert_eq!(g.the::<MemoryReader, 3>().hover, Some(5));
 		assert!(g.tooltip().starts_with("Memory"), "{}", g.tooltip());
 		// a hidden graph isn't read
 		g.sample();
-		assert_eq!(g.cpu.hist.last(), had);
+		assert_eq!(g.cpu().hist.last(), had);
 		// with nothing else to show, CPU shows anyway
 		let none = no_cpu.with(Which::Mem, |e| e.show = false);
 		g.set_look(none.clone(), None).unwrap();
@@ -1554,7 +1498,7 @@ mod tests {
 			.with(Which::Cpu, |e| e.width = 40)
 			.with(Which::Mem, |e| e.width = 100),
 		);
-		if g.mem.is_some() {
+		if g.has(Which::Mem) {
 			assert_eq!(g.widths().collect::<Vec<_>>(), [100, 40]);
 		}
 	}
@@ -1577,22 +1521,22 @@ mod tests {
 		.unwrap();
 		assert_eq!(g.widths().collect::<Vec<_>>(), [100, 40]);
 		let (w, h) = (140 + G, 10 + 2 * E);
-		let left = g.mem.as_mut().unwrap().render(100, 10, 1).to_vec();
-		let right = g.cpu.render(40, 10, 1).to_vec();
+		let left = g.the_mut::<MemoryReader, 3>().render(100, 10, 1).to_vec();
+		let right = g.cpu_mut().render(40, 10, 1).to_vec();
 		let px = g.render(w, h, 1).to_vec();
 		sits(&px, w, &left, (0, E, 100, 10));
 		sits(&px, w, &right, (100 + G, E, 40, 10));
 		assert!(g.hover(Some((5, 3)), w, h, 1));
-		assert_eq!(g.mem.as_ref().unwrap().hover, Some(5));
-		assert_eq!(g.cpu.hover, None);
+		assert_eq!(g.the::<MemoryReader, 3>().hover, Some(5));
+		assert_eq!(g.cpu().hover, None);
 		assert!(g.hover_tip(105 + G, 3, w, h, 1).contains("CPU 50%"));
 		assert!(g.tooltip().starts_with("Memory"), "{}", g.tooltip());
 		// stacked, the first is on top
 		g.stacked = true;
 		assert!(g.hover(Some((6 + E, 20)), 14, 24, 1));
-		assert_eq!(g.cpu.hover, Some(6));
+		assert_eq!(g.cpu().hover, Some(6));
 		assert!(g.hover(Some((6 + E, 2)), 14, 24, 1));
-		assert_eq!(g.mem.as_ref().unwrap().hover, Some(6));
+		assert_eq!(g.the::<MemoryReader, 3>().hover, Some(6));
 		g.stacked = false;
 		// a name it doesn't know is skipped, and a graph it doesn't name goes last
 		for (saved, want) in [
@@ -1646,10 +1590,12 @@ mod tests {
 	fn three() -> Graphs {
 		let mut g = both();
 		let look = two().with(Which::Swap, |e| e.show = true);
-		g.swap = Some(Graph::with(look.clone(), SwapReader));
+		g.put(Graph::with(look.clone(), SwapReader));
 		g.set_look(look, None).unwrap();
-		let now = g.cpu.now();
-		g.swap.as_mut().unwrap().hist.add(now - 60.0, now, &[1.0]);
+		let now = g.cpu().now();
+		g.the_mut::<SwapReader, 1>()
+			.hist
+			.add(now - 60.0, now, &[1.0]);
 		g
 	}
 
@@ -1657,10 +1603,10 @@ mod tests {
 	#[test]
 	fn swap_is_on_by_default_and_draws_its_own_color() {
 		assert!(Look::default()[Which::Swap].show);
-		assert!(Graphs::new(two()).swap.is_none());
+		assert!(!Graphs::new(two()).has(Which::Swap));
 		let mut g = three();
 		assert_eq!(g.count(), 3);
-		let s = g.swap.as_mut().unwrap();
+		let s = g.the_mut::<SwapReader, 1>();
 		let px = s.render(64, 20, 1);
 		assert_eq!(
 			px[10 * 64 + 60],
@@ -1688,17 +1634,20 @@ mod tests {
 		let mut g = three();
 		let (w, h) = (60 + 2 * G, 10 + 2 * E);
 		let tiles: Vec<Vec<u32>> = vec![
-			g.cpu.render(20, 10, 1).to_vec(),
-			g.mem.as_mut().unwrap().render(20, 10, 1).to_vec(),
-			g.swap.as_mut().unwrap().render(20, 10, 1).to_vec(),
+			g.cpu_mut().render(20, 10, 1).to_vec(),
+			g.the_mut::<MemoryReader, 3>().render(20, 10, 1).to_vec(),
+			g.the_mut::<SwapReader, 1>().render(20, 10, 1).to_vec(),
 		];
 		let px = g.render(w, h, 1).to_vec();
 		for (i, t) in tiles.iter().enumerate() {
 			sits(&px, w, t, (i * (20 + G), E, 20, 10));
 		}
 		assert!(g.hover(Some((45 + 2 * G, 3)), w, h, 1));
-		assert_eq!(g.swap.as_ref().unwrap().hover, Some(5));
-		assert_eq!((g.cpu.hover, g.mem.as_ref().unwrap().hover), (None, None));
+		assert_eq!(g.the::<SwapReader, 1>().hover, Some(5));
+		assert_eq!(
+			(g.cpu().hover, g.the::<MemoryReader, 3>().hover),
+			(None, None)
+		);
 		assert!(g.hovered());
 		assert!(
 			g.hover_tip(45 + 2 * G, 3, w, h, 1)
@@ -1717,7 +1666,7 @@ mod tests {
 		let w0 = g.look().width;
 		assert_eq!(g.widths().collect::<Vec<_>>(), [30, w0, w0]);
 		assert!(g.hover(Some((7, 3)), 30 + 2 * w0 as usize + 2 * G, h, 1));
-		assert_eq!(g.swap.as_ref().unwrap().hover, Some(7));
+		assert_eq!(g.the::<SwapReader, 1>().hover, Some(7));
 		// swap alone hides CPU, as memory alone does
 		let alone = g
 			.look()
@@ -1734,7 +1683,7 @@ mod tests {
 	fn hiding_swap_keeps_its_history_for_when_its_back() {
 		let path = scratch("swap");
 		let mut g = three();
-		let had = g.swap.as_ref().unwrap().hist.last();
+		let had = g.the::<SwapReader, 1>().hist.last();
 		g.save(&path).unwrap();
 		let names: Vec<String> = keep::read(&path)
 			.unwrap()
@@ -1747,15 +1696,15 @@ mod tests {
 		assert!(g.drops(&off));
 		assert!(!g.drops(&on));
 		g.set_look(off, Some(&path)).unwrap();
-		assert!(g.swap.is_none());
+		assert!(!g.has(Which::Swap));
 		g.save(&path).unwrap();
 		let mut back = Graphs::new(two());
 		back.load(&path).unwrap();
-		assert!(back.swap.is_none(), "off by default");
+		assert!(!back.has(Which::Swap), "off by default");
 		// a box with no swap can't bring it back, so the rest is for one with it
 		if <SwapReader as crate::collect::Collector<1>>::probe().is_some() {
 			g.set_look(on, Some(&path)).unwrap();
-			assert_eq!(g.swap.as_ref().unwrap().hist.last(), had);
+			assert_eq!(g.the::<SwapReader, 1>().hist.last(), had);
 		}
 		std::fs::remove_file(&path).unwrap();
 	}
@@ -1764,7 +1713,7 @@ mod tests {
 	#[test]
 	fn the_battery_graph_colors_the_charge_by_state() {
 		assert!(!Look::default()[Which::Battery].show);
-		assert!(Graphs::new(two()).battery.is_none());
+		assert!(!Graphs::new(two()).has(Which::Battery));
 		let look = two().with(Which::Battery, |e| e.show = true);
 		let mut b = Graph::with(look.clone(), BatteryReader::default());
 		let now = b.now();
@@ -1797,22 +1746,20 @@ mod tests {
 		let path = scratch("net");
 		let mut g = three();
 		let look = g.look().clone().with(Which::Net, |e| e.show = true);
-		assert!(Graphs::new(two()).net.is_none());
-		g.net = Some(Graph::with(look.clone(), Traffic::default()));
+		assert!(!Graphs::new(two()).has(Which::Net));
+		g.put(Graph::with(look.clone(), Traffic::default()));
 		g.set_look(look.clone(), None).unwrap();
-		let now = g.cpu.now();
+		let now = g.cpu().now();
 		// 1 MB/s local and 2 MB/s received, steady for a minute
-		g.net
-			.as_mut()
-			.unwrap()
+		g.the_mut::<Traffic, 5>()
 			.hist
 			.add(now - 60.0, now, &[1e6, 0.0, 0.0, 0.0, 2e6]);
 		assert_eq!(g.count(), 4);
 		let (w, h) = (80 + 3 * G, 10 + 2 * E);
-		let net = g.net.as_mut().unwrap().render(20, 10, 1).to_vec();
+		let net = g.the_mut::<Traffic, 5>().render(20, 10, 1).to_vec();
 		let px = g.render(w, h, 1).to_vec();
 		sits(&px, w, &net, (40 + 2 * G, E, 20, 10));
-		let top = g.net.as_ref().unwrap().peak.top();
+		let top = g.the::<Traffic, 5>().peak.top();
 		assert!((top - 3e6).abs() < 1.0, "{top}");
 		// local is the bottom third, and received the rest, up to the top
 		let bw = look.border as usize;
@@ -1849,30 +1796,30 @@ mod tests {
 		.with(Which::Load, |e| e.show = true)
 		.with(Which::Disk, |e| e.show = true);
 		let fresh = Graphs::new(two());
-		assert!(fresh.load.is_none() && fresh.disk.is_none());
-		g.load = Some(Graph::with(look.clone(), LoadReader::default()));
+		assert!(!fresh.has(Which::Load) && !fresh.has(Which::Disk));
+		g.put(Graph::with(look.clone(), LoadReader::default()));
 		let disk = DiskReader::new(look.drives()).unwrap();
-		g.disk = Some(Graph::with(look.clone(), disk));
+		g.put(Graph::with(look.clone(), disk));
 		g.set_look(look.clone(), None).unwrap();
-		let now = g.cpu.now();
-		g.load.as_mut().unwrap().hist.add(now - 60.0, now, &[0.5]);
+		let now = g.cpu().now();
+		g.the_mut::<LoadReader, 1>()
+			.hist
+			.add(now - 60.0, now, &[0.5]);
 		// 1 MB/s written and 3 MB/s read, steady for a minute
-		g.disk
-			.as_mut()
-			.unwrap()
+		g.the_mut::<DiskReader, 2>()
 			.hist
 			.add(now - 60.0, now, &[1e6, 3e6]);
 		assert_eq!(g.count(), 5);
 		let (w, h) = (100 + 4 * G, 10 + 2 * E);
-		let load = g.load.as_mut().unwrap().render(20, 10, 1).to_vec();
-		let disk = g.disk.as_mut().unwrap().render(20, 10, 1).to_vec();
+		let load = g.the_mut::<LoadReader, 1>().render(20, 10, 1).to_vec();
+		let disk = g.the_mut::<DiskReader, 2>().render(20, 10, 1).to_vec();
 		let px = g.render(w, h, 1).to_vec();
 		sits(&px, w, &load, (60 + 3 * G, E, 20, 10));
 		sits(&px, w, &disk, (80 + 4 * G, E, 20, 10));
 		// a load of 0.5 never fills it, since the floor is the CPU count
 		let cpus = std::thread::available_parallelism().unwrap().get() as f32;
-		assert_eq!(g.load.as_ref().unwrap().peak.top(), cpus);
-		let top = g.disk.as_ref().unwrap().peak.top();
+		assert_eq!(g.the::<LoadReader, 1>().peak.top(), cpus);
+		let top = g.the::<DiskReader, 2>().peak.top();
 		assert!((top - 4e6).abs() < 1.0, "{top}");
 		let bw = look.border as usize;
 		let ph = 10 - 2 * bw;
@@ -1898,7 +1845,7 @@ mod tests {
 			..look
 		};
 		g.set_look(picked, None).unwrap();
-		let disk = g.disk.as_ref().unwrap();
+		let disk = g.the::<DiskReader, 2>();
 		assert_eq!(
 			*disk.src.drives(),
 			Drives::Only(vec!["sda".into(), "nvme0n1".into()])
@@ -1912,22 +1859,20 @@ mod tests {
 		let path = scratch("temp");
 		let mut g = three();
 		let look = g.look().clone().with(Which::Temp, |e| e.show = true);
-		assert!(Graphs::new(two()).temp.is_none());
-		g.temp = Some(Graph::with(look.clone(), TempReader::default()));
+		assert!(!Graphs::new(two()).has(Which::Temp));
+		g.put(Graph::with(look.clone(), TempReader::default()));
 		g.set_look(look.clone(), None).unwrap();
-		let now = g.cpu.now();
+		let now = g.cpu().now();
 		// 5 over the 95 a sensor with no crit gets
-		g.temp
-			.as_mut()
-			.unwrap()
+		g.the_mut::<TempReader, 2>()
 			.hist
 			.add(now - 60.0, now, &[95.0, 5.0]);
 		assert_eq!(g.count(), 4);
 		let (w, h) = (80 + 3 * G, 40 + 2 * E);
-		let temp = g.temp.as_mut().unwrap().render(20, 40, 1).to_vec();
+		let temp = g.the_mut::<TempReader, 2>().render(20, 40, 1).to_vec();
 		let px = g.render(w, h, 1).to_vec();
 		sits(&px, w, &temp, (60 + 3 * G, E, 20, 40));
-		let top = g.temp.as_ref().unwrap().peak.top();
+		let top = g.the::<TempReader, 2>().peak.top();
 		assert!((top - 100.0).abs() < 1e-3, "{top}");
 		let bw = look.border as usize;
 		let ph = 40 - 2 * bw;
@@ -1978,7 +1923,7 @@ mod tests {
 		assert!(!Look::default()[Which::Gpu].show && Look::default()[Which::Vram].show);
 		assert_eq!(&Look::default().order[..4], ["cpu", "mem", "gpu", "vram"]);
 		let none = Graphs::new(two());
-		assert!(none.gpu.is_none() && none.vram.is_none());
+		assert!(!none.has(Which::Gpu) && !none.has(Which::Vram));
 		let t = crate::collect::Tree::new(
 			"graphs_gpu",
 			&[
@@ -1989,16 +1934,20 @@ mod tests {
 		);
 		let (mut gpu, mut vram) = crate::gpu::amd_readers(&t.at("device"));
 		assert_eq!((gpu.read(), vram.read()), (Some([0.5]), Some([0.25])));
-		g.gpu = Some(Graph::with(look.clone(), gpu));
-		g.vram = Some(Graph::with(look.clone(), vram));
+		g.put(Graph::with(look.clone(), gpu));
+		g.put(Graph::with(look.clone(), vram));
 		g.set_look(look.clone(), None).unwrap();
-		let now = g.cpu.now();
-		g.gpu.as_mut().unwrap().hist.add(now - 60.0, now, &[0.5]);
-		g.vram.as_mut().unwrap().hist.add(now - 60.0, now, &[0.25]);
+		let now = g.cpu().now();
+		g.the_mut::<GpuReader, 1>()
+			.hist
+			.add(now - 60.0, now, &[0.5]);
+		g.the_mut::<VramReader, 1>()
+			.hist
+			.add(now - 60.0, now, &[0.25]);
 		assert_eq!(g.count(), 5);
 		let (w, h) = (100 + 4 * G, 40 + 2 * E);
-		let gpu = g.gpu.as_mut().unwrap().render(20, 40, 1).to_vec();
-		let vram = g.vram.as_mut().unwrap().render(20, 40, 1).to_vec();
+		let gpu = g.the_mut::<GpuReader, 1>().render(20, 40, 1).to_vec();
+		let vram = g.the_mut::<VramReader, 1>().render(20, 40, 1).to_vec();
 		let px = g.render(w, h, 1).to_vec();
 		sits(&px, w, &gpu, (40 + 2 * G, E, 20, 40));
 		sits(&px, w, &vram, (60 + 3 * G, E, 20, 40));
@@ -2037,22 +1986,20 @@ mod tests {
 		});
 		assert!(!Look::default()[Which::Own].show);
 		assert_eq!(Look::default().order[10..], ["self", "battery"]);
-		assert!(Graphs::new(two()).own.is_none());
-		g.own = Some(Graph::with(look.clone(), OwnReader::default()));
+		assert!(!Graphs::new(two()).has(Which::Own));
+		g.put(Graph::with(look.clone(), OwnReader::default()));
 		g.set_look(look.clone(), None).unwrap();
 		let floor = 1.0;
-		let now = g.cpu.now();
-		g.own
-			.as_mut()
-			.unwrap()
+		let now = g.cpu().now();
+		g.the_mut::<OwnReader, 1>()
 			.hist
 			.add(now - 60.0, now, &[floor / 2.0]);
 		assert_eq!(g.count(), 4);
 		let (w, h) = (80 + 3 * G, 40 + 2 * E);
-		let own = g.own.as_mut().unwrap().render(20, 40, 1).to_vec();
+		let own = g.the_mut::<OwnReader, 1>().render(20, 40, 1).to_vec();
 		let px = g.render(w, h, 1).to_vec();
 		sits(&px, w, &own, (60 + 3 * G, E, 20, 40));
-		let top = g.own.as_ref().unwrap().peak.top();
+		let top = g.the::<OwnReader, 1>().peak.top();
 		assert!((top - floor).abs() < 1e-9, "{top}");
 		let bw = look.border as usize;
 		let ph = 40 - 2 * bw;
@@ -2084,20 +2031,20 @@ mod tests {
 		let path = scratch("zswap");
 		let mut g = three();
 		let look = g.look().clone().with(Which::Zswap, |e| e.show = true);
-		assert!(Graphs::new(two()).zswap.is_none());
-		g.zswap = Some(Graph::with(look.clone(), ZswapReader::squeezed(2.1)));
+		assert!(!Graphs::new(two()).has(Which::Zswap));
+		g.put(Graph::with(look.clone(), ZswapReader::squeezed(2.1)));
 		g.set_look(look.clone(), None).unwrap();
-		let now = g.cpu.now();
-		let z = g.zswap.as_mut().unwrap();
+		let now = g.cpu().now();
+		let z = g.the_mut::<ZswapReader, 1>();
 		z.hist.add(now - 60.0, now, &[0.5]);
 		let had = z.hist.last();
 		assert_eq!(g.count(), 4);
 		let (w, h) = (80 + 3 * G, 10 + 2 * E);
-		let right = g.zswap.as_mut().unwrap().render(20, 10, 1).to_vec();
+		let right = g.the_mut::<ZswapReader, 1>().render(20, 10, 1).to_vec();
 		let px = g.render(w, h, 1).to_vec();
 		sits(&px, w, &right, (60 + 3 * G, E, 20, 10));
 		assert!(g.hover(Some((65 + 3 * G, 3)), w, h, 1));
-		assert_eq!(g.zswap.as_ref().unwrap().hover, Some(5));
+		assert_eq!(g.the::<ZswapReader, 1>().hover, Some(5));
 		assert!(
 			g.hover_tip(65 + 3 * G, 3, w, h, 1)
 				.ends_with("Zram 50% used\nCompressed 2.1x now")
@@ -2112,7 +2059,7 @@ mod tests {
 		let off = look.with(Which::Zswap, |e| e.show = false);
 		assert!(g.drops(&off));
 		g.set_look(off, Some(&path)).unwrap();
-		assert!(g.zswap.is_none());
+		assert!(!g.has(Which::Zswap));
 		assert_eq!(g.count(), 3);
 		g.save(&path).unwrap();
 		let back = keep::read(&path).unwrap();
@@ -2128,19 +2075,19 @@ mod tests {
 		let path = scratch("battery");
 		let mut g = three();
 		let look = g.look().clone().with(Which::Battery, |e| e.show = true);
-		g.battery = Some(Graph::with(look.clone(), BatteryReader::default()));
+		g.put(Graph::with(look.clone(), BatteryReader::default()));
 		g.set_look(look.clone(), None).unwrap();
-		let now = g.cpu.now();
-		let b = g.battery.as_mut().unwrap();
+		let now = g.cpu().now();
+		let b = g.the_mut::<BatteryReader, 3>();
 		b.hist.add(now - 60.0, now, &[0.5, 0.0, 0.0]);
 		let had = b.hist.last();
 		assert_eq!(g.count(), 4);
 		let (w, h) = (80 + 3 * G, 10 + 2 * E);
-		let right = g.battery.as_mut().unwrap().render(20, 10, 1).to_vec();
+		let right = g.the_mut::<BatteryReader, 3>().render(20, 10, 1).to_vec();
 		let px = g.render(w, h, 1).to_vec();
 		sits(&px, w, &right, (60 + 3 * G, E, 20, 10));
 		assert!(g.hover(Some((65 + 3 * G, 3)), w, h, 1));
-		assert_eq!(g.battery.as_ref().unwrap().hover, Some(5));
+		assert_eq!(g.the::<BatteryReader, 3>().hover, Some(5));
 		assert!(
 			g.hover_tip(65 + 3 * G, 3, w, h, 1)
 				.contains("Battery 50%, plugged in")
@@ -2155,7 +2102,7 @@ mod tests {
 		let off = look.with(Which::Battery, |e| e.show = false);
 		assert!(g.drops(&off));
 		g.set_look(off, Some(&path)).unwrap();
-		assert!(g.battery.is_none());
+		assert!(!g.has(Which::Battery));
 		assert_eq!(g.count(), 3);
 		g.save(&path).unwrap();
 		let back = keep::read(&path).unwrap();
@@ -2182,8 +2129,8 @@ mod tests {
 			.with(Which::Own, |e| e.show = true);
 		let mut g = Graphs::new(all.clone());
 		// a box with neither zswap nor zram still gets one
-		if g.zswap.is_none() {
-			g.zswap = Some(Graph::with(all, ZswapReader::squeezed(2.1)));
+		if !g.has(Which::Zswap) {
+			g.put(Graph::with(all, ZswapReader::squeezed(2.1)));
 		}
 		let clocks = |g: &Graphs| -> Vec<(Which, f64)> {
 			g.shown().map(|w| (w, g.slot(w).unwrap().now())).collect()

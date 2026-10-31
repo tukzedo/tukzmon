@@ -350,7 +350,7 @@ impl Source<1> for OwnReader {
 		);
 		match self.host() {
 			own::Host::Panel => format!("{tip}\nThe whole panel, tukzmon in it"),
-			_ => tip,
+			own::Host::Own | own::Host::Settings => tip,
 		}
 	}
 
