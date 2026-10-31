@@ -668,8 +668,8 @@ mod tests {
 	struct Dir(PathBuf);
 	impl Drop for Dir {
 		fn drop(&mut self) {
-			let _ = std::fs::remove_file(self.0.join("t.shcl"));
-			let _ = std::fs::remove_dir(&self.0);
+			// The folder is this test's own, named by pid and test, so a test may write any name in it.
+			let _ = std::fs::remove_dir_all(&self.0);
 		}
 	}
 

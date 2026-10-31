@@ -67,7 +67,7 @@ Sorted per the notes in [Template](#template).
 - A dialog test leaves its scratch folder in the temp dir
 	- ID: 2026103020140879
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-201408
 	- Opened by: t00mietum
@@ -78,6 +78,16 @@ Sorted per the notes in [Template](#template).
 	- Expected behavior: a test removes what it wrote.
 	- Possible cause: the tests' `Dir` in `settings/src/dialog.rs` removes only `t.shcl` before `remove_dir`, and `unticked_overrides_give_every_graph_its_own_back_after_a_reload` (dejng) writes other names.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The tests' `Dir` removes its whole folder on drop, not just `t.shcl`.
+		- Verified: `cargo test -p tukzmon-settings` with `TMPDIR` on an empty folder passed (81 passed, 1 ignored) and left it empty. The quick format and lint gates passed.
+	- Decisions:
+		- `remove_dir_all`, not a list of names, so a test may write any name. The folder is named by pid and test, and made by the test.
+	- Actual fix: `Dir::drop` in `settings/src/dialog.rs`.
+	- Branch: round-1031
+	- Test case: None of its own: dejng and the other dialog tests leave the temp folder empty now. Not run before the fix, so the failing side is unverified. Folders left by older runs aren't removed by this.
+	- Swept: the only scratch `Dir` in the settings crate is this one. `cargo test -p tukzmon-core` with `TMPDIR` on an empty folder left it empty.
 
 - Code review 20261030 item 12: Public types without Debug and public items without doc comments
 	- ID: 2026103016201612
