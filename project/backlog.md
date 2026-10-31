@@ -133,7 +133,7 @@ Sorted per the notes in [Template](#template).
 	- Need to work out ambiguities:
 		- Read as the order the Tab key moves through the graph list's rows. The Themes/Colors sections already follow a move.
 
-- Flyover tip text: one "Key: Value" pair per line
+- Pre-next-cut: Flyover tip text: one "Key: Value" pair per line
 	- ID: 2026103109002399
 	- Type: Enhancement
 	- Status: Queued
