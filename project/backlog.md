@@ -295,7 +295,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 8: Each history save reads the whole history file again first
 	- ID: 2026103016201608
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -305,6 +305,18 @@ Sorted per the notes in [Template](#template).
 		- Keep the hidden graphs' sections from the last load, or read only those.
 		- Time a save before and after.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `Graphs::load` keeps the sections no graph there owns, and `save` writes them back from memory, not from the file. A graph hidden after a load goes into them too, so it needs no save first.
+		- A `Graphs` that hasn't loaded still reads the file at save, as before. A load that finds no file starts with none kept, and a reset with history kept clears them.
+		- Timed with an 11.5 MB hidden section, file on tmpfs, median of 15: 25.1 ms a save before, 12.1 ms after (`time_a_save_beside_a_big_hidden_section`, denb9, ignored).
+		- Verified: the quick gate passed.
+	- Decisions:
+		- Showing a graph again still reads the file for its section, as that's only at a settings change, and `set_look`'s callers stay as they are.
+	- Branch: round-1030b
+	- Test case: `graphs::tests::a_save_after_a_load_keeps_hidden_sections_without_reading_the_file` (denb8). It fails with the save reading the file, as it did.
+		- Swept: every `Graphs::save`, `load`, `reset` and `set_look` caller (the plugin, the profiler, the soak test and the graphs tests).
+	- Closed: 20261030-185052
 
 - Code review 20261030 item 9: Drawing allocates on every draw and packs every pixel
 	- ID: 2026103016201609

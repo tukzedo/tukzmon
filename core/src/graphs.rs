@@ -49,6 +49,10 @@ pub struct Graphs {
 	/// Top to bottom, for a vertical panel.
 	pub stacked: bool,
 	px: Vec<u32>,
+	/// The history file's sections that no graph here owns, such as a hidden
+	/// graph's, as of the last load. None before one, so a save reads the
+	/// file for them.
+	kept: Option<Vec<(String, Vec<u8>)>>,
 }
 
 /// A graph's place in the area: x, y, width, height.
@@ -352,6 +356,7 @@ impl Graphs {
 			own,
 			stacked: false,
 			px: Vec::new(),
+			kept: None,
 		}
 	}
 
@@ -463,6 +468,13 @@ impl Graphs {
 	/// As [`keep::read`], but not for a file that isn't there. The look is
 	/// taken anyway.
 	pub fn set_look(&mut self, look: Look, history: Option<&Path>) -> io::Result<()> {
+		if self.kept.is_some() {
+			for w in Which::optional().filter(|w| !w.wanted(&look)) {
+				if let Some((name, body)) = self.slot(w).map(Drawn::section) {
+					self.keep_section(name, body);
+				}
+			}
+		}
 		let mut added = Vec::new();
 		if switch(&mut self.mem, look.show_memory, || {
 			Graph::memory(look.clone())
@@ -592,11 +604,25 @@ impl Graphs {
 				g.clear();
 			}
 		}
+		if saved.is_some() {
+			self.kept = Some(Vec::new());
+		}
 		saved.map_or(Ok(()), keep::remove)
+	}
+
+	fn keep_section(&mut self, name: &str, body: Vec<u8>) {
+		let Some(kept) = &mut self.kept else {
+			return;
+		};
+		match kept.iter_mut().find(|(n, _)| n == name) {
+			Some(slot) => slot.1 = body,
+			None => kept.push((name.to_owned(), body)),
+		}
 	}
 
 	/// Every graph's history, plus any section in the file that none of them
 	/// owns, such as a hidden graph's, so showing it again brings it back.
+	/// Those come from the last [`Self::load`], or from the file before one.
 	///
 	/// # Errors
 	///
@@ -606,15 +632,22 @@ impl Graphs {
 			.into_iter()
 			.filter_map(|w| self.slot(w).map(Drawn::section))
 			.collect();
-		let kept: Vec<(String, Vec<u8>)> = keep::read(path)
-			.unwrap_or_default()
-			.into_iter()
-			.filter(|(name, _)| ours.iter().all(|(n, _)| n != name))
-			.collect();
+		let read;
+		let others = if let Some(kept) = &self.kept {
+			kept
+		} else {
+			read = keep::read(path).unwrap_or_default();
+			&read
+		};
 		let all: Vec<(&str, &[u8])> = ours
 			.iter()
 			.map(|(n, b)| (*n, b.as_slice()))
-			.chain(kept.iter().map(|(n, b)| (n.as_str(), b.as_slice())))
+			.chain(
+				others
+					.iter()
+					.filter(|(name, _)| ours.iter().all(|(n, _)| n != name))
+					.map(|(n, b)| (n.as_str(), b.as_slice())),
+			)
 			.collect();
 		keep::write(path, &all)
 	}
@@ -624,13 +657,28 @@ impl Graphs {
 	/// As [`keep::read`], or `InvalidData` when no graph's history in it
 	/// reads. A graph with none in the file keeps what it has.
 	pub fn load(&mut self, path: &Path) -> io::Result<()> {
-		let sections = keep::read(path)?;
+		let mut sections = match keep::read(path) {
+			Ok(s) => s,
+			Err(e) => {
+				if e.kind() == io::ErrorKind::NotFound {
+					self.kept = Some(Vec::new());
+				}
+				return Err(e);
+			}
+		};
 		let mut any = false;
 		for w in Which::ALL {
 			if let Some(g) = self.slot_mut(w) {
 				any |= g.adopt(&sections);
 			}
 		}
+		let ours: Vec<&str> = Which::ALL
+			.into_iter()
+			.filter(|&w| self.slot(w).is_some())
+			.map(Which::name)
+			.collect();
+		sections.retain(|(name, _)| !ours.contains(&name.as_str()));
+		self.kept = Some(sections);
 		if any {
 			Ok(())
 		} else {
@@ -1223,6 +1271,78 @@ mod tests {
 			.mem
 			.is_none()
 		);
+	}
+
+	// Test ID: denb8
+	#[test]
+	fn a_save_after_a_load_keeps_hidden_sections_without_reading_the_file() {
+		let path = scratch("kept");
+		let g = both();
+		g.save(&path).unwrap();
+		let mut sections = keep::read(&path).unwrap();
+		sections.push(("net".into(), b"later".to_vec()));
+		let all: Vec<(&str, &[u8])> = sections
+			.iter()
+			.map(|(n, b)| (n.as_str(), b.as_slice()))
+			.collect();
+		keep::write(&path, &all).unwrap();
+		let mut g = both();
+		g.load(&path).unwrap();
+		let had = g.mem.as_ref().unwrap().hist.last();
+		std::fs::remove_file(&path).unwrap();
+		// hidden with no save first, as with history off
+		let hide = Look {
+			show_memory: false,
+			..two()
+		};
+		g.set_look(hide, None).unwrap();
+		g.save(&path).unwrap();
+		let names = |p: &std::path::Path| -> Vec<String> {
+			keep::read(p).unwrap().into_iter().map(|(n, _)| n).collect()
+		};
+		assert_eq!(names(&path), ["cpu", "net", "mem"]);
+		g.set_look(two(), Some(&path)).unwrap();
+		assert_eq!(g.mem.as_ref().unwrap().hist.last(), had);
+		// a load that found no file has nothing else to keep
+		std::fs::remove_file(&path).unwrap();
+		let mut g = both();
+		assert!(g.load(&path).is_err());
+		keep::write(&path, &[("net", b"later")]).unwrap();
+		g.save(&path).unwrap();
+		assert_eq!(names(&path), ["cpu", "mem"]);
+		std::fs::remove_file(&path).unwrap();
+	}
+
+	// cargo test -p tukzmon-core --release -- --ignored --nocapture time_a_save
+	// Test ID: denb9
+	#[test]
+	#[ignore = "timing, by hand"]
+	fn time_a_save_beside_a_big_hidden_section() {
+		let path = scratch("time");
+		let g = both();
+		let hidden = vec![7u8; 11_500_000];
+		let (cpu, mem) = (g.cpu.section(), g.mem.as_ref().unwrap().section());
+		keep::write(
+			&path,
+			&[(cpu.0, &cpu.1), (mem.0, &mem.1), ("disk", &hidden)],
+		)
+		.unwrap();
+		let mut g = both();
+		g.load(&path).unwrap();
+		let mut took: Vec<u128> = (0..15)
+			.map(|_| {
+				let t = std::time::Instant::now();
+				g.save(&path).unwrap();
+				t.elapsed().as_micros()
+			})
+			.collect();
+		took.sort_unstable();
+		println!(
+			"save, median of {}: {} us",
+			took.len(),
+			took[took.len() / 2]
+		);
+		std::fs::remove_file(&path).unwrap();
 	}
 
 	// Test ID: deea2
