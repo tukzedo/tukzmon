@@ -65,6 +65,74 @@ Sorted per the notes in [Template](#template).
 		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
 	- Estimated effort: Low
 
+- Pre-next-cut: Clicking a slider's track moves the slider there
+	- ID: 2026103108591401
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261031-085914
+	- Opened by: t00mietum
+	- Requirements:
+		- Clicking on a spot of a slider control that isn't the slider button should move the slider to that spot.
+
+- Pre-next-cut: Taller slider grab buttons
+	- ID: 2026103108591402
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261031-085914
+	- Opened by: t00mietum
+	- Requirements:
+		- Slider grab buttons should be taller, about as tall as the text boxes.
+
+- Pre-next-cut: Same height for all buttons
+	- ID: 2026103108591403
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261031-085914
+	- Opened by: t00mietum
+	- Related IDs: 2026103107404601
+	- Requirements:
+		- All buttons should have the same height. Somewhere in between the current bottom row and theme management.
+
+- Pre-next-cut: Default position and colors for Processes
+	- ID: 2026103108591404
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261031-085914
+	- Opened by: t00mietum
+	- Related IDs: 2026103107404602
+	- Requirements:
+		- Move the default position and colors of "Processes" to where I have it set, but off by default.
+		- On b23 as of 2026-10-31, in `plugin-16.shcl`:
+			- Order: `cpu mem procs gpu vram net disk temp swap zswap load self battery`, so right after memory. The default has it last.
+			- Default theme colors: system `#707070`, users `#6bc9ff`, me `#fff02a`. The defaults are `#705a1d`, `#6a7b31` and `#e0a500`.
+
+- Pre-next-cut: Default temperature colors from b23's
+	- ID: 2026103108591405
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261031-085914
+	- Opened by: t00mietum
+	- Requirements:
+		- Update the default temperature colors to my current definition.
+		- On b23 as of 2026-10-31, in `plugin-16.shcl`, Default's temperature Low is `#60dae2` and Medium is `#d9da62`. The defaults are `#4eb6bd` and `#feff40`. The rest are unchanged.
+
+- Pre-next-cut: Tab order follows a graph reorder
+	- ID: 2026103108591406
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261031-085914
+	- Opened by: t00mietum
+	- Requirements:
+		- After reordering a monitor on the "Graphs" tab, the tab order should be updated accordingly.
+	- Need to work out ambiguities:
+		- Read as the order the Tab key moves through the graph list's rows. The Themes/Colors sections already follow a move.
+
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
 	- Type: Bug
