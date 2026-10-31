@@ -151,6 +151,9 @@ pub trait Drawn {
 	fn sample(&mut self);
 	fn tick(&mut self, at: f64) -> f64;
 	fn trim(&mut self);
+	fn skip(&mut self, secs: f64);
+	#[cfg(test)]
+	fn now(&self) -> f64;
 	fn clear(&mut self);
 	fn section(&self) -> (&'static str, Vec<u8>);
 	fn adopt(&mut self, sections: &[(String, Vec<u8>)]) -> bool;
@@ -172,6 +175,13 @@ impl<S: Source<N>, const N: usize> Drawn for Graph<S, N> {
 	}
 	fn trim(&mut self) {
 		Graph::trim(self);
+	}
+	fn skip(&mut self, secs: f64) {
+		Graph::skip(self, secs);
+	}
+	#[cfg(test)]
+	fn now(&self) -> f64 {
+		Graph::now(self)
 	}
 	fn clear(&mut self) {
 		Graph::clear(self);
@@ -555,6 +565,17 @@ impl Graphs {
 				&& let Some(g) = self.slot_mut(w)
 			{
 				g.trim();
+			}
+		}
+	}
+
+	/// Moves every graph's clock on, so the soak test and the profiler can
+	/// run days in seconds with each graph's history full.
+	#[doc(hidden)]
+	pub fn skip(&mut self, secs: f64) {
+		for w in Which::ALL {
+			if let Some(g) = self.slot_mut(w) {
+				g.skip(secs);
 			}
 		}
 	}
@@ -2001,5 +2022,44 @@ mod tests {
 		assert!(again.adopt(&back));
 		assert_eq!(again.hist.last(), had);
 		std::fs::remove_file(&path).unwrap();
+	}
+
+	// Test ID: den86
+	#[test]
+	fn skip_moves_the_clock_of_every_graph_shown() {
+		let all = Look {
+			show_memory: true,
+			show_gpu: true,
+			show_vram: true,
+			show_net: true,
+			show_swap: true,
+			show_zswap: true,
+			show_load: true,
+			show_disk: true,
+			show_temp: true,
+			show_battery: true,
+			show_self: true,
+			..two()
+		};
+		let mut g = Graphs::new(all.clone());
+		// a box with neither zswap nor zram still gets one
+		if g.zswap.is_none() {
+			g.zswap = Some(Graph::with(all, ZswapReader::squeezed(2.1)));
+		}
+		let clocks = |g: &Graphs| -> Vec<(Which, f64)> {
+			g.shown().map(|w| (w, g.slot(w).unwrap().now())).collect()
+		};
+		let before = clocks(&g);
+		// CPU, network, load and self are there on any box, and zswap is put in
+		assert!(before.len() >= 5, "{before:?}");
+		assert_eq!(before.len(), g.count());
+		g.skip(86_400.0);
+		for ((w, was), (_, now)) in before.iter().zip(clocks(&g)) {
+			let moved = now - was;
+			assert!(
+				(86_400.0..86_460.0).contains(&moved),
+				"{w:?} moved {moved} s"
+			);
+		}
 	}
 }

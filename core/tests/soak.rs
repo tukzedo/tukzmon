@@ -58,23 +58,7 @@ fn the_heap_stops_growing_once_the_history_is_full() {
 	report.push_str("round  sim_hours  curr_bytes  curr_blocks  max_bytes  total_blocks\n");
 	let mut at_n = None;
 	for round in 1..=2 * N {
-		g.cpu.skip(STEP);
-		if let Some(m) = &mut g.mem {
-			m.skip(STEP);
-		}
-		// on by default too, and left on the real clock their history never fills
-		if let Some(s) = &mut g.swap {
-			s.skip(STEP);
-		}
-		if let Some(v) = &mut g.vram {
-			v.skip(STEP);
-		}
-		if let Some(d) = &mut g.disk {
-			d.skip(STEP);
-		}
-		if let Some(t) = &mut g.temp {
-			t.skip(STEP);
-		}
+		g.skip(STEP);
 		g.sample();
 		g.trim();
 		let x = round % w;

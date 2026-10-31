@@ -51,7 +51,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 1: The profiler measures a mostly empty history for 4 of its 6 graphs
 	- ID: 2026103016201601
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -61,8 +61,23 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: GPU memory, disk, temperature and swap stay on the real clock, so they have only a few seconds of history and draw mostly gaps. The drawing and history shares in the flame report come out too low.
 	- Expected behavior: every shown graph is profiled with a full history, as the soak test does.
 	- Possible cause: graphs were added without touching the profiler. `TICK` still says 500 ms is the default, but it's been 1000 since `aa43398`, and the subtitle still says "CPU and memory".
+	- Actual cause [Bug]: as above. The profiler and the soak test each listed the graphs to skip by hand, so each new default graph had to be added to both. The soak test was caught the same way in 2026102816343100.
 	- Estimated effort: Low
-	- Test case: a test that every graph `Graphs::new(Look::default())` shows gets a clock skip, or one `Graphs` method that skips them all, used by both the profiler and the soak test.
+	- Actual effort: Low
+	- Progress log:
+		- `Graphs::skip` moves every graph's clock on, through the `Drawn` slots, and the profiler and the soak test both call it.
+		- The profiler ticks at the default sample time from `Look::default()`, 1 s, and saves every 15 minutes of it. Its subtitle gives the graph count, such as "20000 ticks of 6 graphs".
+		- First report with all 6 default graphs on this box: 231 us a tick, against 209 with CPU and memory only. History file 11.2% (was 3.9%), history lookups 8.3% (was 5.4%), drawing 10.3% (was 13.2%), the reads 65.5% (was 71.7%). One run each.
+		- Verified: the quick gate with the profile area passed, and the soak test passed.
+	- Decisions:
+		- One `Graphs` method rather than a test over the profiler's list, so a new graph needs no change in either caller.
+		- It skips every graph that exists, shown or not, as `reset` clears them all. A hidden one isn't sampled, so its clock only keeps pace.
+		- The sample time and the save interval come from `Look::default()`, so a new default doesn't leave them stale again.
+	- Actual fix [Bug]: `Graphs::skip` in `core/src/graphs.rs`, used by `core/examples/profile.rs` and `core/tests/soak.rs`.
+	- Branch: round-1030b
+	- Test case: `graphs::tests::skip_moves_the_clock_of_every_graph_shown` (den86), with every graph turned on. It fails with the skip on CPU and memory only, as the profiler had it.
+		- Swept: every `.skip(` caller (the profiler, the soak test, and 2 tests in `core/src/lib.rs` that skip one graph on purpose), and the cicd and design docs for "CPU and memory" about the profiler.
+	- Closed: 20261030-171006
 
 - Code review 20261030 item 2: The temp folder guard accepts the project's whole temp folder
 	- ID: 2026103016201602
