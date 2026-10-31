@@ -115,13 +115,30 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Same height for all buttons
 	- ID: 2026103108591403
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
+	- Stand-in: 20261031, the release build from the full run, in b23's own style (Orchis green compact), light and dark, in place of a hand test on b23. On Themes/Colors the theme buttons and the bottom row came out one height.
 	- Priority|Severity: Avg
 	- Opened: 20261031-085914
 	- Opened by: t00mietum
 	- Related IDs: 2026103107404601
 	- Requirements:
 		- All buttons should have the same height. Somewhere in between the current bottom row and theme management.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Every button with text keeps at least 8 px over and under its text, up from 6, and the bottom buttons lost their extra 8 px. At the default font they're all 35 px, where the theme buttons were 31 and the bottom row 39.
+		- The color picker and message boxes get the same height, since it's done in the style.
+		- `design.md` Settings window has it.
+		- Verified: the full run passed with the new test.
+	- Decisions:
+		- Halfway, 4 px either way, read as "somewhere in between".
+		- One floor in `BoxStyle` rather than a set height, so a style that draws taller buttons keeps its own, and every button still matches.
+		- 2026-10-31: dep3y's floor went from 6 to 8 with `BUTTON_PAD_DOWN`. What it checks is unchanged.
+	- Branch: round-1031b
+	- Test case: `bridge::tests::every_button_is_one_height` (dep6m). It fails before the change, with 39 against 31, and passes after.
+		- Swept: every `QPushButton` in `qt.cpp`. The bottom row's `setMinimumHeight` was the only height set by hand. The color chips have no text and a fixed size, so they're left alone.
+	- Acceptance signoff: Self-closed 20261031: dep6m in the full run, and the stand-in look above.
+	- Closed: 20261031-093028
 
 - Pre-next-cut: Default position and colors for Processes
 	- ID: 2026103108591404
@@ -151,7 +168,7 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Tab order follows a graph reorder
 	- ID: 2026103108591406
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-085914
 	- Opened by: t00mietum
@@ -159,6 +176,21 @@ Sorted per the notes in [Template](#template).
 		- After reordering a monitor on the "Graphs" tab, the tab order should be updated accordingly.
 	- Need to work out ambiguities:
 		- Read as the order the Tab key moves through the graph list's rows. The Themes/Colors sections already follow a move.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Tab goes through the graph list's rows in the graph order, as soon as a graph is moved, and inside a row as before.
+		- The Themes/Colors sections moved on screen but Tab still went through them in the spec's order, so they follow the order now too.
+		- A saved order that differs from the default was also off before any move, since Tab went by the order the rows were made. That's fixed by the same change.
+		- `design.md` XFCE plugin has it.
+		- Verified: the full run passed with the new test.
+	- Decisions:
+		- The Colors sections are included, since a moved section that Tab still visits in its old place is the same fault.
+	- Branch: round-1031b
+	- Test case: `bridge::tests::tab_follows_a_moved_graph` (dep6n), for the graph list and Colors, with the order moved before the window opens and after. It fails with the fix taken out, with Tab leaving the list after the moved row, and passes with it.
+		- Swept: the 2 places that move widgets in a layout, `placeList` (the graph list) and `orderSections` (Colors). Nothing else reorders widgets.
+	- Acceptance signoff: Self-closed 20261031: dep6n in the full run.
+	- Closed: 20261031-093028
 
 - Pre-next-cut: Flyover tip text: one "Key: Value" pair per line
 	- ID: 2026103109002399

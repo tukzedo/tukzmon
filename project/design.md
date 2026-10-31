@@ -84,6 +84,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 		- Spaces or commas both work, since a hand edit like `order: mem, cpu` is a list to shcl.
 		- A name it doesn't know is skipped. A graph it doesn't name goes at the end, in the order the graphs were added to tukzmon, so that way a graph added later, such as network, shows up last in a saved order.
 		- A hidden graph keeps its place for when it's shown again.
+		- Tab follows the order, through the graph list's rows and the Themes/Colors sections, from the moment a graph is moved.
 	- A name the list doesn't know stays in `graph.order` after a drag, at the end, so a file from a newer tukzmon keeps it.
 	- The row's revert arrow puts its checkbox, width, sample rate and time axis back. The order has no arrow, since dragging back undoes it.
 
@@ -127,7 +128,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- Cancel, Apply, and OK, with Cancel set a little apart. Enter is OK and Esc is Cancel, even from inside a field.
 		- Apply turns on as soon as a box is typed in, before it's left. Apply and OK take what's typed, Alt+A included, which leaves the focus where it was.
 	- An empty checkbox or radio button gets an edge in the text color, a little faded, over what the style draws. Some dark themes draw that edge close to the window color, and it all but vanished. `BoxStyle` in `qt.cpp` does it.
-	- Every button with text keeps at least 12 px across and 6 px over and under, from its text to the inside of its frame, in the window and in its message boxes. The style may give more. The bottom buttons are 8 px taller again. `BoxStyle` does it too.
+	- Every button with text keeps at least 12 px across and 8 px over and under, from its text to the inside of its frame, in the window and in its message boxes. The style may give more. So every button is one height, the bottom ones included. `BoxStyle` does it too.
 	- A slider can reach less far than its number box takes. The box takes any sane value, and `slider_range` in `core/src/settings.shcl` sets how far the slider goes.
 		- A click anywhere on a slider but its handle puts the handle there, and holding the button on drags it from there. A press on the handle drags it from where it was taken, so a grab doesn't nudge it onto the next detent. `TrackSlider` in `qt.cpp` does it.
 		- A slider is as tall as the number box beside it, and its handle as tall as the slider. `BoxStyle` does that.

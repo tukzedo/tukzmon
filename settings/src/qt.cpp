@@ -125,8 +125,9 @@ protected:
 
 // Room from a button's text to the inner edge of its frame, at the least.
 // Fusion leaves 3 px over and under, and as little across on a long label.
+// One floor for every button, so a row of them is one height.
 constexpr int BUTTON_PAD_ACROSS = 12;
-constexpr int BUTTON_PAD_DOWN = 6;
+constexpr int BUTTON_PAD_DOWN = 8;
 
 // Some dark themes draw an empty checkbox with an edge close to the window
 // color, so it all but vanishes. An edge in the text color, a little faded,
@@ -214,7 +215,6 @@ protected:
 
 constexpr int SLIDER_STEPS = 1000;
 constexpr int HEAD_GAP = 22;
-constexpr int BUTTON_GROW = 8;
 
 // QScrollArea's own hint stops at about 24 lines, so a tall tab opened with a
 // scroll bar it had no need for. Every graph's colors on one page is far
@@ -755,8 +755,6 @@ public:
 		buttons->addSpacing(gap);
 		buttons->addWidget(closeButton);
 		bottom = {resetButton, cancel, applyButton, closeButton};
-		for (auto *b : bottom)
-			b->setMinimumHeight(b->sizeHint().height() + BUTTON_GROW);
 
 		auto *body = new QHBoxLayout;
 		body->addWidget(tabList);
@@ -963,6 +961,28 @@ public:
 		return ids;
 	}
 
+	// the graph list row or Colors section `w` sits in, or ""
+	std::string groupOf(const QWidget *w) const {
+		for (const auto &l : listRows)
+			for (const QWidget *c : l.cells())
+				if (c == w || c->isAncestorOf(w))
+					return l.name;
+		for (const auto &s : sections)
+			if (s.box->isAncestorOf(w))
+				return s.graph;
+		return {};
+	}
+	// where Tab starts in the graph list, or on Colors
+	QWidget *firstStop(bool colors) const {
+		if (!colors)
+			return listRows.empty() ? nullptr : listRows[0].show->check;
+		for (int i = 0; sectionList && i < sectionList->count(); i++)
+			for (auto *w : sectionList->itemAt(i)->widget()->findChildren<QWidget *>())
+				if ((w->focusPolicy() & Qt::TabFocus) && !w->focusProxy() && w->isVisible() && w->isEnabled())
+					return w;
+		return nullptr;
+	}
+
 	// graph width and x, and the width box's x, per graph list row
 	std::vector<int> listPlaces() const {
 		std::vector<int> out;
@@ -1074,6 +1094,9 @@ private:
 		LiveGraph *space = nullptr;
 		QToolButton *revert = nullptr;
 		Gripper *grip = nullptr;
+		std::array<QWidget *, 7> cells() const {
+			return {show->control, space, width->control, sample->control, time->control, revert, grip};
+		}
 	};
 	QWidget *list = nullptr;
 	QGridLayout *listGrid = nullptr;
@@ -1173,6 +1196,7 @@ private:
 			sectionList->removeWidget(w);
 		for (auto *w : want)
 			sectionList->addWidget(w);
+		tabInOrder(want);
 	}
 
 	// Whatever the mode shows first on the left sits level with the top of
@@ -1405,10 +1429,8 @@ private:
 	// puts each row's widgets on its grid line, in listRows' order
 	void placeList() {
 		for (size_t i = 0; i < listRows.size(); i++) {
-			const ListRow &l = listRows[i];
 			const int at = int(i) + 1;
-			const std::array<QWidget *, 7> cells = {l.show->control, l.space, l.width->control, l.sample->control,
-				l.time->control, l.revert, l.grip};
+			const auto cells = listRows[i].cells();
 			const std::array<int, 7> cols = {0, 1, 2, 3, 4, 6, 7};
 			for (size_t k = 0; k < cells.size(); k++) {
 				listGrid->removeWidget(cells[k]);
@@ -1418,6 +1440,26 @@ private:
 		}
 		// the next drag event reads the new places
 		listGrid->activate();
+		std::vector<QWidget *> cells;
+		cells.reserve(listRows.size() * 7);
+		for (const auto &l : listRows)
+			std::ranges::copy(l.cells(), std::back_inserter(cells));
+		tabInOrder(cells);
+	}
+
+	// Moving a widget in a layout leaves Tab where it was made, so Tab goes
+	// through `groups` in the order given, each keeping its own order inside.
+	static void tabInOrder(const std::vector<QWidget *> &groups) {
+		if (groups.empty())
+			return;
+		QWidget *top = groups.front()->window();
+		std::vector<QWidget *> chain;
+		for (QWidget *g : groups)
+			for (QWidget *w = top->nextInFocusChain(); w != top; w = w->nextInFocusChain())
+				if ((w->focusPolicy() & Qt::TabFocus) && !w->focusProxy() && (w == g || g->isAncestorOf(w)))
+					chain.push_back(w);
+		for (size_t i = 1; i < chain.size(); i++)
+			setTabOrder(chain[i - 1], chain[i]);
 	}
 
 	int listIndex(const std::string &name) const {
@@ -2147,6 +2189,70 @@ rust::Vec<rust::String> button_gaps(Dialog &d) {
 				rust::String(b->text().toStdString() + " " + std::to_string((inner.width() - text.width()) / 2) + " " +
 					std::to_string((inner.height() - text.height()) / 2)));
 		}
+	}
+	return out;
+}
+
+rust::Vec<rust::String> button_heights(Dialog &d) {
+	const App app("offscreen");
+	tukzmon::App::setStyle(new BoxStyle);
+	Window w(d);
+	openSized(w);
+	w.show();
+	rust::Vec<rust::String> out;
+	std::vector<const QPushButton *> seen;
+	auto take = [&](const QWidget &top) {
+		for (auto *b : top.findChildren<QPushButton *>()) {
+			if (b->text().isEmpty() || !b->isVisible() || std::ranges::find(seen, b) != seen.end())
+				continue;
+			seen.push_back(b);
+			out.push_back(rust::String(b->text().toStdString() + " " + std::to_string(b->height())));
+		}
+	};
+	for (int i = 0; i < w.tabCount(); i++) {
+		w.select(i);
+		tukzmon::App::processEvents();
+		take(w);
+	}
+	if (auto pick = w.firstPicker()) {
+		pick->show();
+		tukzmon::App::processEvents();
+		take(*pick);
+	}
+	QMessageBox box(QMessageBox::Question, "Reset history", "Reset history?", QMessageBox::Yes | QMessageBox::No);
+	box.show();
+	tukzmon::App::processEvents();
+	take(box);
+	return out;
+}
+
+rust::Vec<rust::String> tab_walk(Dialog &d, bool colors, std::size_t from, std::size_t to) {
+	const App app("offscreen");
+	Window w(d);
+	w.show();
+	w.activateWindow();
+	for (int i = 0; i < w.tabCount(); i++)
+		if (QString::fromStdString(w.tabText(i)).trimmed() == (colors ? "Colors" : "Graphs"))
+			w.select(i);
+	tukzmon::App::processEvents();
+	w.moveGraph(int(from), int(to));
+	tukzmon::App::processEvents();
+	rust::Vec<rust::String> out;
+	QWidget *start = w.firstStop(colors);
+	if (!start)
+		return out;
+	start->setFocus(Qt::TabFocusReason);
+	tukzmon::App::processEvents();
+	for (int i = 0; i < 5000; i++) {
+		QWidget *at = QApplication::focusWidget();
+		const std::string group = at ? w.groupOf(at) : std::string();
+		if (group.empty() || (i > 0 && at == start))
+			break;
+		if (out.empty() || std::string(out.back()) != group)
+			out.push_back(rust::String(group));
+		QKeyEvent tab(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier);
+		QApplication::sendEvent(at, &tab);
+		tukzmon::App::processEvents();
 	}
 	return out;
 }
