@@ -118,8 +118,11 @@ fn merge_themes(file: Vec<SavedTheme>, was: &[SavedTheme], now: &[SavedTheme]) -
 }
 
 impl Dialog {
-	pub fn open(path: PathBuf) -> Dialog {
-		let text = read(&path).unwrap_or_default();
+	/// The window's state for the file at `path`. A missing file opens at the
+	/// defaults. One that can't be read is an error, so a save can't write the
+	/// defaults over it.
+	pub fn open(path: PathBuf) -> Result<Dialog, String> {
+		let text = read(&path)?;
 		let doc = shcl::Document::parse(&text);
 		let themes = config::saved_themes(&doc);
 		let spec = config::spec_with(&themes);
@@ -136,7 +139,7 @@ impl Dialog {
 				})
 			})
 			.collect();
-		Dialog {
+		Ok(Dialog {
 			path,
 			spec: Arc::clone(&spec),
 			saved: model.clone(),
@@ -147,7 +150,7 @@ impl Dialog {
 			themes,
 			picker: None,
 			history_dir: keep::data_dir(),
-		}
+		})
 	}
 
 	/// The setting as its slider sees it.
@@ -685,7 +688,7 @@ mod tests {
 	// 	let data = d.0.join("data");
 	// 	let hist = keep::history_file(&data, 3);
 	// 	keep::write(&hist, &[("cpu", b"x")]).unwrap();
-	// 	let mut dlg = Dialog::open(d.0.join("t.shcl"));
+	// 	let mut dlg = Dialog::open(d.0.join("t.shcl")).unwrap();
 	// 	dlg.history_dir.clone_from(&data);
 	// 	dlg.reset_history();
 	// 	assert!(dlg.dirty());
@@ -715,7 +718,7 @@ mod tests {
 		let data = d.0.join("data");
 		let hist = keep::history_file(&data, 3);
 		keep::write(&hist, &[("cpu", b"x")]).unwrap();
-		let mut dlg = Dialog::open(d.0.join("t.shcl"));
+		let mut dlg = Dialog::open(d.0.join("t.shcl")).unwrap();
 		dlg.history_dir.clone_from(&data);
 		assert!(dlg.reset_deletes_saved());
 		dlg.reset_history().unwrap();
@@ -747,7 +750,7 @@ mod tests {
 	#[test]
 	fn opens_on_defaults_with_no_file() {
 		let d = scratch("defaults");
-		let dlg = Dialog::open(d.0.join("t.shcl"));
+		let dlg = Dialog::open(d.0.join("t.shcl")).unwrap();
 		assert!(!dlg.dirty());
 		let s = dlg.state("user");
 		assert_eq!(s.text, "#00ff80");
@@ -755,11 +758,42 @@ mod tests {
 		assert_eq!(dlg.state("width").number, 100.0);
 	}
 
+	// Test ID: den9y
+	#[test]
+	fn a_file_that_cant_be_read_is_an_error_not_the_defaults() {
+		use std::os::unix::fs::PermissionsExt as _;
+		let d = scratch("unreadable");
+		let path = d.0.join("t.shcl");
+		// a folder can't be read as a file, even by root
+		std::fs::create_dir(&path).unwrap();
+		let e = Dialog::open(path.clone()).err().unwrap();
+		std::fs::remove_dir(&path).unwrap();
+		assert!(
+			e.starts_with(&format!("{} can't be read: ", path.display())),
+			"{e}"
+		);
+		std::fs::write(&path, "graph.width: 120\n").unwrap();
+		// Miri has no chmod
+		if cfg!(miri) {
+			return;
+		}
+		std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).unwrap();
+		// root reads it anyway, and then it isn't the case under test
+		if std::fs::read(&path).is_err() {
+			assert!(Dialog::open(path.clone()).is_err());
+		}
+		std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+		assert_eq!(
+			std::fs::read_to_string(&path).unwrap(),
+			"graph.width: 120\n"
+		);
+	}
+
 	// Test ID: dejac
 	#[test]
 	fn the_graph_sections_follow_the_graph_order_and_the_tabs_stay_put() {
 		let d = scratch("tab_order");
-		let mut dlg = Dialog::open(d.0.join("t.shcl"));
+		let mut dlg = Dialog::open(d.0.join("t.shcl")).unwrap();
 		let tabs: Vec<String> = dlg.spec.tabs.iter().map(|t| t.label.clone()).collect();
 		assert_eq!(tabs, ["General", "Graphs", "Themes", "Colors", "Outline"]);
 		// each section by its heading, as the window shows it
@@ -828,7 +862,7 @@ mod tests {
 	#[test]
 	fn every_graphs_colors_are_its_own_section_with_the_background_beside() {
 		let d = scratch("sections");
-		let dlg = Dialog::open(d.0.join("t.shcl"));
+		let dlg = Dialog::open(d.0.join("t.shcl")).unwrap();
 		let sections = dlg.sections();
 		let names: Vec<String> = dlg.graph_rows().into_iter().map(|r| r.name).collect();
 		assert_eq!(dlg.section_order(), names);
@@ -902,13 +936,16 @@ mod tests {
 	fn the_graph_order_is_saved_as_typed_and_reads_back() {
 		let d = scratch("order");
 		let path = d.0.join("t.shcl");
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		for typed in ["mem cpu", "mem, cpu"] {
 			assert!(dlg.set_text("graph_order", typed));
 			dlg.apply().unwrap();
 			assert_eq!(config::Look::load(&path).order, ["mem", "cpu"], "{typed}");
 			// and the window takes the file back without a complaint
-			assert!(Dialog::open(path.clone()).apply().is_ok(), "{typed}");
+			assert!(
+				Dialog::open(path.clone()).unwrap().apply().is_ok(),
+				"{typed}"
+			);
 		}
 	}
 
@@ -916,7 +953,7 @@ mod tests {
 	#[test]
 	fn the_graph_list_has_a_row_per_graph_in_the_saved_order() {
 		let d = scratch("list");
-		let mut dlg = Dialog::open(d.0.join("t.shcl"));
+		let mut dlg = Dialog::open(d.0.join("t.shcl")).unwrap();
 		let names = |dlg: &Dialog| -> Vec<String> {
 			dlg.graph_rows().into_iter().map(|r| r.name).collect()
 		};
@@ -972,7 +1009,7 @@ mod tests {
 	fn dragging_a_graph_saves_the_order_and_keeps_names_it_doesnt_know() {
 		let d = scratch("drag");
 		let path = d.0.join("t.shcl");
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		assert!(!dlg.move_graph(0, 12));
 		assert!(!dlg.dirty());
 		assert!(dlg.move_graph(0, 1));
@@ -1004,7 +1041,7 @@ mod tests {
 	fn apply_writes_only_what_changed() {
 		let d = scratch("apply");
 		let path = d.0.join("t.shcl");
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		assert!(dlg.set_text("user", "123abc"));
 		assert!(dlg.dirty());
 		dlg.apply().unwrap();
@@ -1025,7 +1062,7 @@ mod tests {
 	fn a_hand_edit_made_while_open_survives() {
 		let d = scratch("hand");
 		let path = d.0.join("t.shcl");
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		std::fs::write(&path, "graph:\n\twidth: 300\n").unwrap();
 		assert!(dlg.set_text("border", "2"));
 		dlg.apply().unwrap();
@@ -1045,7 +1082,7 @@ mod tests {
 	// 	let d = scratch("lose");
 	// 	let path = d.0.join("t.shcl");
 	// 	std::fs::write(&path, "graph:\n\twidht: 300\n").unwrap();
-	// 	let mut dlg = Dialog::open(path.clone());
+	// 	let mut dlg = Dialog::open(path.clone()).unwrap();
 	// 	dlg.set_text("border", "2");
 	// 	let e = dlg.apply().unwrap_err();
 	// 	assert!(e.contains("graph.widht"), "{e}");
@@ -1071,7 +1108,7 @@ mod tests {
 			"wants a line that doesn't parse"
 		);
 		std::fs::write(&path, old).unwrap();
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		assert!(dlg.set_text("border", "2"));
 		dlg.apply().unwrap();
 		let text = std::fs::read_to_string(&path).unwrap();
@@ -1083,7 +1120,7 @@ mod tests {
 		assert_eq!((l.width, l.border), (300, 2));
 		assert!(!dlg.dirty());
 		// the file it wrote is one it reads back the same
-		let back = Dialog::open(path.clone());
+		let back = Dialog::open(path.clone()).unwrap();
 		assert_eq!(back.look(), dlg.look());
 	}
 
@@ -1091,7 +1128,7 @@ mod tests {
 	#[test]
 	fn bad_input_changes_nothing() {
 		let d = scratch("bad");
-		let mut dlg = Dialog::open(d.0.join("t.shcl"));
+		let mut dlg = Dialog::open(d.0.join("t.shcl")).unwrap();
 		assert!(!dlg.set_text("width", "huge"));
 		assert!(!dlg.set_text("width", "5000"));
 		assert!(!dlg.set_text("user", "#12"));
@@ -1103,7 +1140,7 @@ mod tests {
 	#[test]
 	fn the_box_takes_more_than_the_slider_reaches() {
 		let d = scratch("reach");
-		let mut dlg = Dialog::open(d.0.join("t.shcl"));
+		let mut dlg = Dialog::open(d.0.join("t.shcl")).unwrap();
 		assert!(dlg.set_text("width", "2000"));
 		let s = dlg.state("width");
 		assert_eq!(s.number, 2000.0);
@@ -1125,7 +1162,7 @@ mod tests {
 	#[test]
 	fn sliders_snap_to_detents_and_gates_turn_on() {
 		let d = scratch("slider");
-		let mut dlg = Dialog::open(d.0.join("t.shcl"));
+		let mut dlg = Dialog::open(d.0.join("t.shcl")).unwrap();
 		let s = dlg.slider("width").unwrap().clone();
 		dlg.set_slider("width", s.to_t(130.0));
 		assert_eq!(dlg.state("width").number, 128.0);
@@ -1142,7 +1179,7 @@ mod tests {
 	fn a_theme_and_the_changes_on_it_are_saved() {
 		let d = scratch("theme");
 		let path = d.0.join("t.shcl");
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		assert_eq!(dlg.state("theme").choice, "Default");
 		assert!(dlg.state("width").choice.is_empty());
 		assert!(dlg.set_text("theme", "neon"));
@@ -1150,7 +1187,7 @@ mod tests {
 		assert!(dlg.set_text("user", "#111111"));
 		assert_eq!(dlg.state("theme").choice, "Neon *");
 		dlg.apply().unwrap();
-		let dlg = Dialog::open(path.clone());
+		let dlg = Dialog::open(path.clone()).unwrap();
 		assert_eq!(dlg.state("theme").choice, "Neon *");
 		assert_eq!(dlg.state("user").text, "#111111");
 		assert_eq!(dlg.state("nice").text, "#1f6a10");
@@ -1162,7 +1199,7 @@ mod tests {
 	fn the_mode_swaps_the_rows_and_fire_is_a_gradient() {
 		let d = scratch("mode");
 		let path = d.0.join("t.shcl");
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		let shown = |dlg: &Dialog, id: &str| dlg.state(id).shown;
 		assert_eq!(dlg.state("cpu_mode").text, "detailed");
 		for id in ["cpuhead", "user", "iowait"] {
@@ -1184,7 +1221,7 @@ mod tests {
 		let l = config::Look::load(&path);
 		assert_eq!(l.cpu_mode, config::Mode::Gradient);
 		assert_eq!(l.cpu_gradient[0], config::Rgb(0x8b, 0x1a, 0));
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		assert!(shown(&dlg, "cpu_medium"));
 		// a theme saved from it keeps the mode
 		dlg.save_theme_as("Embers").unwrap();
@@ -1204,7 +1241,7 @@ mod tests {
 	fn transparent_stays_through_a_theme_pick_and_a_roll() {
 		let d = scratch("clear");
 		let path = d.0.join("t.shcl");
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		assert!(!dlg.state("transparent").on);
 		assert!(dlg.set_text("transparent", "on"));
 		assert!(dlg.set_text("theme", "fire"));
@@ -1213,7 +1250,7 @@ mod tests {
 		assert!(dlg.state("transparent").on);
 		assert_eq!(dlg.state("theme").choice, "Pastel");
 		dlg.apply().unwrap();
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		assert!(dlg.state("transparent").on);
 		assert!(config::Look::load(&path).transparent);
 		// Save as doesn't take it into the theme
@@ -1230,7 +1267,7 @@ mod tests {
 	fn a_shared_color_ticks_its_override_and_a_roll_leaves_both() {
 		let d = scratch("overrides");
 		let path = d.0.join("t.shcl");
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		// Default has both on
 		assert!(dlg.state("border_color").counts && dlg.state("back_top").counts);
 		assert!(dlg.set_text("border_all", "off"));
@@ -1277,7 +1314,7 @@ mod tests {
 		for (n, start) in ["theme:\n\tname: default\n", ""].into_iter().enumerate() {
 			let path = d.0.join(format!("t{n}.shcl"));
 			std::fs::write(&path, start).unwrap();
-			let mut dlg = Dialog::open(path.clone());
+			let mut dlg = Dialog::open(path.clone()).unwrap();
 			assert!(dlg.set_text("border_color", "#123456"));
 			assert!(dlg.set_text("back_top", "#654321"));
 			assert!(dlg.set_text("cpu_border_color", "#aa0000"));
@@ -1300,7 +1337,7 @@ mod tests {
 			);
 			assert_eq!([l.mem_outline, l.self_outline], [grey; 2], "{n}");
 			// and again through a window opened on that file
-			let mut dlg = Dialog::open(path.clone());
+			let mut dlg = Dialog::open(path.clone()).unwrap();
 			assert_eq!(dlg.state("border_color").text, "#123456", "{n}");
 			assert!(dlg.set_text("border", "2"));
 			dlg.apply().unwrap();
@@ -1311,7 +1348,7 @@ mod tests {
 		// a file from before each graph had its own still saves, and keeps its look
 		let path = d.0.join("old.shcl");
 		std::fs::write(&path, "graph:\n\tcolors:\n\t\tborder: \"#123456\"\n").unwrap();
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		assert!(dlg.set_text("border", "2"));
 		dlg.apply().unwrap();
 		let text = std::fs::read_to_string(&path).unwrap();
@@ -1328,7 +1365,7 @@ mod tests {
 	fn the_margins_go_with_the_theme_and_a_roll_leaves_them() {
 		let d = scratch("margins");
 		let path = d.0.join("t.shcl");
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		assert!(dlg.set_text("theme", "neon"));
 		assert!(dlg.set_text("margin_lr", "5"));
 		assert_eq!(dlg.state("theme").choice, "Neon *");
@@ -1341,7 +1378,7 @@ mod tests {
 		let text = std::fs::read_to_string(&path).unwrap();
 		assert!(text.contains("margin_lr: 5\n"), "{text}");
 		assert_eq!(config::Look::load(&path).margin_lr, 5);
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		assert_eq!(dlg.state("theme").choice, "Wide");
 		assert_eq!(dlg.state("margin_lr").text, "5");
 		assert!(dlg.set_text("theme", "fire"));
@@ -1354,7 +1391,7 @@ mod tests {
 	fn randomize_changes_every_color_on_the_theme_and_turns_off_the_gradient() {
 		let d = scratch("dice");
 		let path = d.0.join("t.shcl");
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		assert!(dlg.set_text("theme", "fire"));
 		dlg.randomize_from(42);
 		assert_eq!(dlg.state("theme").choice, "Fire *");
@@ -1370,7 +1407,7 @@ mod tests {
 		assert_ne!(dlg.state("user").text, first_user);
 		dlg.save_theme_as("Lucky").unwrap();
 		dlg.apply().unwrap();
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		assert_eq!(dlg.state("theme").choice, "Lucky");
 		for (id, v) in crate::dice::theme(43) {
 			assert_eq!(dlg.state(id).text, v, "{id}");
@@ -1388,7 +1425,7 @@ mod tests {
 	fn custom_then_the_revert_arrow_is_default_again() {
 		let d = scratch("custom");
 		let path = d.0.join("t.shcl");
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		assert!(dlg.set_text("theme", "custom"));
 		assert!(dlg.set_text("user", "#123456"));
 		dlg.apply().unwrap();
@@ -1398,7 +1435,7 @@ mod tests {
 		);
 		dlg.reset("theme");
 		dlg.apply().unwrap();
-		let dlg = Dialog::open(path.clone());
+		let dlg = Dialog::open(path.clone()).unwrap();
 		assert_eq!(dlg.state("theme").choice, "Default");
 		assert_eq!(dlg.state("user").text, "#00ff80");
 		assert!(!dlg.dirty());
@@ -1410,7 +1447,7 @@ mod tests {
 	fn save_as_keeps_the_colors_whole_and_picks_the_new_theme() {
 		let d = scratch("save_as");
 		let path = d.0.join("t.shcl");
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		assert_eq!(dlg.theme_buttons(), ThemeButtons::default());
 		assert!(dlg.set_text("theme", "neon"));
 		assert!(dlg.set_text("user", "#111111"));
@@ -1438,7 +1475,7 @@ mod tests {
 		assert!(text.contains("name: night"), "{text}");
 		assert_eq!(text.matches("\"#").count(), 101, "{text}");
 		assert!(!text.contains("kept"), "{text}");
-		let dlg = Dialog::open(path.clone());
+		let dlg = Dialog::open(path.clone()).unwrap();
 		assert_eq!(dlg.state("theme").choice, "Night");
 		assert!(!dlg.dirty());
 		assert_eq!(
@@ -1453,7 +1490,7 @@ mod tests {
 	fn save_puts_the_changes_into_the_theme() {
 		let d = scratch("save");
 		let path = d.0.join("t.shcl");
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		dlg.save_theme_as("Mine").unwrap();
 		dlg.apply().unwrap();
 		assert!(dlg.set_text("user", "#222222"));
@@ -1467,7 +1504,7 @@ mod tests {
 		let text = std::fs::read_to_string(&path).unwrap();
 		assert!(text.contains("#222222") && !text.contains("kept"), "{text}");
 		// the theme picked again gives the saved color
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		assert!(dlg.set_text("theme", "default"));
 		assert!(dlg.set_text("theme", "mine"));
 		assert_eq!(dlg.state("user").text, "#222222");
@@ -1479,7 +1516,7 @@ mod tests {
 	fn rename_and_delete() {
 		let d = scratch("rename");
 		let path = d.0.join("t.shcl");
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		dlg.rename_theme("Nope").unwrap();
 		assert!(!dlg.dirty());
 		dlg.save_theme_as("Mine").unwrap();
@@ -1498,7 +1535,7 @@ mod tests {
 		dlg.apply().unwrap();
 		let text = std::fs::read_to_string(&path).unwrap();
 		assert!(text.contains("mine") && !text.contains("other"), "{text}");
-		let dlg = Dialog::open(path.clone());
+		let dlg = Dialog::open(path.clone()).unwrap();
 		assert_eq!(dlg.state("theme").choice, "Default");
 		assert_eq!(dlg.state("theme").options.len(), 11);
 	}
@@ -1510,7 +1547,7 @@ mod tests {
 		let d = scratch("merge");
 		let path = d.0.join("t.shcl");
 		std::fs::write(&path, "themes:\n\tgone:\n\t\tuser: \"#010101\"\n").unwrap();
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		assert!(dlg.set_text("theme", "gone"));
 		dlg.delete_theme();
 		dlg.save_theme_as("Mine").unwrap();
@@ -1537,7 +1574,7 @@ mod tests {
 	// 	let path = d.0.join("t.shcl");
 	// 	let text = "themes:\n\tmine:\n\t\tuser: blue\n";
 	// 	std::fs::write(&path, text).unwrap();
-	// 	let mut dlg = Dialog::open(path.clone());
+	// 	let mut dlg = Dialog::open(path.clone()).unwrap();
 	// 	assert!(dlg.set_text("border", "2"));
 	// 	let e = dlg.apply().unwrap_err();
 	// 	assert!(e.contains("themes.mine.user"), "{e}");
@@ -1550,7 +1587,7 @@ mod tests {
 	fn the_time_axis_default_is_a_dropdown_with_linear_first() {
 		let d = scratch("curve");
 		let path = d.0.join("t.shcl");
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		assert_eq!(dlg.state("time_axis").text, "smooth");
 		assert!(!dlg.set_text("time_axis", "squiggly"));
 		assert!(dlg.set_text("time_axis", "linear"));
@@ -1565,7 +1602,7 @@ mod tests {
 	#[test]
 	fn the_picker_moves_its_row_and_cancel_puts_it_all_back() {
 		let d = scratch("pick_cancel");
-		let mut dlg = Dialog::open(d.0.join("t.shcl"));
+		let mut dlg = Dialog::open(d.0.join("t.shcl")).unwrap();
 		let was = dlg.state("user").text;
 		assert!(!dlg.pick_open("width"), "not a color row");
 		assert!(dlg.pick_open("user"));
@@ -1600,7 +1637,7 @@ mod tests {
 	fn the_picker_keeps_what_ok_was_pressed_on() {
 		let d = scratch("pick_ok");
 		let path = d.0.join("t.shcl");
-		let mut dlg = Dialog::open(path.clone());
+		let mut dlg = Dialog::open(path.clone()).unwrap();
 		assert!(dlg.pick_open("nice"));
 		assert!(
 			!dlg.pick_type(Field::Hex, "#33"),
@@ -1616,7 +1653,7 @@ mod tests {
 		assert!(dlg.pick_hsv().is_none());
 		assert_eq!(dlg.state("nice").text, "#ff66cc");
 		dlg.apply().unwrap();
-		let dlg = Dialog::open(path);
+		let dlg = Dialog::open(path).unwrap();
 		assert_eq!(dlg.state("nice").text, "#ff66cc");
 		assert_eq!(dlg.state("theme").choice, "Default *");
 	}

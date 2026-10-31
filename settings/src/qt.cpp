@@ -1706,6 +1706,13 @@ void openSized(Window &w) {
 
 } // namespace
 
+void say_unreadable(rust::Str text) {
+	const App app;
+	QApplication::setApplicationName("tukzmon-settings");
+	QMessageBox::critical(nullptr, "Settings can't be read",
+		QString::fromUtf8(text.data(), int(text.size())) + "\n\nNothing was changed.");
+}
+
 std::int32_t run_dialog(Dialog &d, rust::Str snapshot) {
 	App app;
 	QApplication::setApplicationName("tukzmon-settings");

@@ -22,6 +22,19 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- A panel item whose settings file can't be read draws at the defaults with no message
+	- ID: 2026103018110076
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261030-181100
+	- Opened by: t00mietum
+	- Related IDs: 2026103016201605
+	- Steps to reproduce: `chmod 000` an item's `plugin-<id>.shcl` while the panel runs, or before it starts.
+	- Incorrect behavior: `Look::load` in `core/src/config.rs` reads an unreadable file as an empty one, so the item drops to the defaults, with nothing in the log. It writes nothing, so the file isn't lost.
+	- Expected behavior: the item keeps the look it has, or the defaults at its start, and logs the read error once through `complain`. A missing file still means the defaults.
+	- Estimated effort: Low
+
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
@@ -156,16 +169,35 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 5: A settings file that can't be read opens as defaults with no message
 	- ID: 2026103016201605
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
+	- Related IDs: 2026103018110076
 	- Origin: `f89e55e` (proof of concept). First review. Plausible, only read.
 	- Steps to reproduce:
 		- `chmod 000` the settings file and open the settings window.
 	- Incorrect behavior: `Dialog::open` turns the read error into an empty file. The window shows defaults, and the user edits on top of them.
 	- Expected behavior: the window says it can't read the file, or `tukzmon-settings` exits with the error through `complain`. A missing file still opens as defaults.
 	- Estimated effort: Low
+	- Reproduced: 2026-10-30, with the new test against the old `Dialog::open`.
+	- Actual cause: `Dialog::open` took `read(&path).unwrap_or_default()`, so any read error but a missing file became an empty file.
+	- Actual effort: Low
+	- Progress log:
+		- `Dialog::open` returns the read error. `tukzmon-settings` then writes it to stderr, shows it in a message box with "Nothing was changed.", and quits with 1. A missing file still opens at the defaults.
+		- `design.md` Settings window has it.
+		- Verified: the full run passed. With `chmod 000` on a file, the window didn't open, the box showed the path and "Permission denied", the file was unchanged, and `--snapshot` quit with 1 and no box. A missing file still opened.
+	- Decisions:
+		- Both the box and stderr, since the panel starts the window with stderr out of sight, so a stderr line alone would look like Properties doing nothing.
+		- Quit after the box rather than open the window read-only, since a window that can't save is more surprising than one that says why it didn't open.
+		- `--snapshot` gets no box, since it runs unattended.
+		- A file that isn't UTF-8 counts as unreadable too, since it reads through the same `read`.
+		- The plugin's own read of the file, `Look::load`, has the same fallback. It writes nothing, so it's its own item, 2026103018110076.
+	- Branch: round-1030b
+	- Test case: `dialog::tests::a_file_that_cant_be_read_is_an_error_not_the_defaults` (den9y). It fails with the old `unwrap_or_default` put back.
+		- Swept: every `Dialog::open` caller (main and the tests in `dialog.rs`, `live.rs` and `bridge.rs`), `Dialog::apply`, which already returned the read error, and the plugin's `Look::load`, filed as 2026103018110076.
+	- Acceptance signoff: Self-closed, 2026-10-30: den9y passed in the full run, and the box was seen to name the file and the error.
+	- Closed: 20261030-181112
 
 - Code review 20261030 item 6: The Nix check puts env values into arithmetic unchecked
 	- ID: 2026103016201606

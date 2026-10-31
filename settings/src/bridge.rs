@@ -148,6 +148,9 @@ pub mod ffi {
 	unsafe extern "C++" {
 		include!("tukzmon-settings/src/qt.h");
 		fn run_dialog(d: &mut Dialog, snapshot: &str) -> i32;
+		/// A message box, with no window behind it, for a settings file that
+		/// can't be read.
+		fn say_unreadable(text: &str);
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn greyed_rows(d: &mut Dialog) -> Vec<String>;
 		/// Each graph list row's graph width and x, and its width box's x.
@@ -466,6 +469,10 @@ pub fn run(d: &mut Dialog, snapshot: &str) -> i32 {
 	ffi::run_dialog(d, snapshot)
 }
 
+pub fn say_unreadable(text: &str) {
+	ffi::say_unreadable(text);
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -491,7 +498,7 @@ mod tests {
 			"test_tukzmon-settings_{}_tips_never_written.shcl",
 			std::process::id()
 		));
-		let d = Dialog::open(path);
+		let d = Dialog::open(path).unwrap();
 		let mut long = 0;
 		for r in dialog_rows(&d) {
 			let tip = row_state(&d, &r.id).tip;
@@ -523,7 +530,7 @@ mod tests {
 			"test_tukzmon-settings_{}_list_never_written.shcl",
 			std::process::id()
 		));
-		let d = Dialog::open(path);
+		let d = Dialog::open(path).unwrap();
 		let rows = dialog_rows(&d);
 		let listed: Vec<&str> = rows
 			.iter()
@@ -555,7 +562,7 @@ mod tests {
 			"test_tukzmon-settings_{}_places_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		// at 100 px, a width in percent is the same number
 		d.set("width", &Value::Float(100.0));
 		d.set("cpu_width", &Value::Float(40.0));
@@ -591,7 +598,7 @@ mod tests {
 			"test_tukzmon-settings_{}_greyed_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let shown: Vec<String> = dialog_rows(&d)
 			.into_iter()
 			.filter(|r| !matches!(r.control.as_str(), "heading" | "none"))
@@ -632,7 +639,7 @@ mod tests {
 			"test_tukzmon-settings_{}_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let tabs = dialog_tabs(&d);
 		let rows = dialog_rows(&d);
 		let choosers: Vec<&ffi::RowInfo> = rows.iter().filter(|r| r.chooser).collect();
@@ -697,7 +704,7 @@ mod tests {
 			"test_tukzmon-settings_{}_tabs_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let tabs = dialog_tabs(&d);
 		let rows = dialog_rows(&d);
 		let shown = ffi::tabs_shown(&mut d);
@@ -741,7 +748,7 @@ mod tests {
 			"test_tukzmon-settings_{}_tabs_lit_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let tabs = dialog_tabs(&d);
 		let shown = ffi::tabs_shown(&mut d);
 		let at = |name: &str| tabs.iter().position(|t| t.label == name).unwrap();
@@ -766,7 +773,7 @@ mod tests {
 			"test_tukzmon-settings_{}_graphs_tab_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let tabs = dialog_tabs(&d);
 		let rows = dialog_rows(&d);
 		let shown = ffi::tabs_shown(&mut d);
@@ -828,7 +835,7 @@ mod tests {
 				"test_tukzmon-settings_{}_shades_never_written.shcl",
 				std::process::id()
 			));
-			let mut d = Dialog::open(path);
+			let mut d = Dialog::open(path).unwrap();
 			let got = ffi::page_shades(&mut d, dark);
 			let window = got[0].as_str();
 			assert_eq!(got.len(), dialog_tabs(&d).len() + 1, "{got:?}");
@@ -858,7 +865,7 @@ mod tests {
 			"test_tukzmon-settings_{}_tab_move_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let tabs = dialog_tabs(&d);
 		let last = graph_rows(&d).len() - 1;
 		let shown = ffi::tabs_after_move(&mut d, "Colors", last, 0);
@@ -881,7 +888,7 @@ mod tests {
 			"test_tukzmon-settings_{}_sections_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let last = graph_rows(&d).len() - 1;
 		let placed = ffi::sections_after_move(&mut d, last, 0);
 		let names: Vec<&str> = placed
@@ -907,7 +914,7 @@ mod tests {
 			"test_tukzmon-settings_{}_buttons_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		assert_eq!(
 			ffi::bottom_buttons(&mut d),
 			["Reset history", "Cancel", "&Apply", "OK"]
@@ -924,7 +931,7 @@ mod tests {
 				"test_tukzmon-settings_{}_typing_never_written.shcl",
 				std::process::id()
 			));
-			let mut d = Dialog::open(path);
+			let mut d = Dialog::open(path).unwrap();
 			assert_eq!(
 				ffi::apply_while_typing(&mut d, number),
 				[false, true, true],
@@ -967,7 +974,8 @@ mod tests {
 		let mut d = Dialog::open(dir.join(format!(
 			"test_tukzmon-settings_{}_fit_never_written.shcl",
 			std::process::id()
-		)));
+		)))
+		.unwrap();
 		let got = ffi::window_fit(&mut d, screens.to_str().unwrap());
 		std::fs::remove_file(&screens).unwrap();
 		let rect = |line: &str, what: &str| -> Rect {
@@ -1017,7 +1025,7 @@ mod tests {
 			"test_tukzmon-settings_{}_ctrl_tab_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		// Themes only shows Colors, so it's no stop of its own
 		let ahead = ["General", "Graphs", "Colors", "Outline", "General"];
 		let back = ["General", "Outline", "Colors", "Graphs", "General"];
@@ -1038,7 +1046,7 @@ mod tests {
 			"test_tukzmon-settings_{}_ctrl_page_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let ahead = ["General", "Graphs", "Colors", "Outline", "General"];
 		let back = ["General", "Outline", "Colors", "Graphs", "General"];
 		for from_page in [false, true] {
@@ -1058,7 +1066,7 @@ mod tests {
 			"test_tukzmon-settings_{}_section_tops_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let modes: Vec<String> = dialog_rows(&d)
 			.into_iter()
 			.filter(|r| !r.section.is_empty() && r.id.ends_with("_mode"))

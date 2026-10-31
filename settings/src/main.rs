@@ -61,8 +61,17 @@ fn main() -> ExitCode {
 		}
 	}
 	let path = config.unwrap_or_else(tukzmon_core::config::config_file);
-	let mut d = dialog::Dialog::open(path);
-	run(&mut d, &snapshot)
+	match dialog::Dialog::open(path) {
+		Ok(mut d) => run(&mut d, &snapshot),
+		Err(e) => {
+			complain(&format!("tukzmon-settings: {e}"));
+			// A panel starts the window with stderr out of sight.
+			if snapshot.is_empty() {
+				say_unreadable(&e);
+			}
+			ExitCode::FAILURE
+		}
+	}
 }
 
 // Writes a line to stdout without println!, which panics (and aborts in a
@@ -145,6 +154,14 @@ fn local_date(secs: i64) -> Option<String> {
 fn run(d: &mut dialog::Dialog, snapshot: &str) -> ExitCode {
 	ExitCode::from(bridge::run(d, snapshot).clamp(0, 255) as u8)
 }
+
+#[cfg(feature = "qt")]
+fn say_unreadable(text: &str) {
+	bridge::say_unreadable(text);
+}
+
+#[cfg(not(feature = "qt"))]
+fn say_unreadable(_text: &str) {}
 
 #[cfg(not(feature = "qt"))]
 fn run(_d: &mut dialog::Dialog, _snapshot: &str) -> ExitCode {

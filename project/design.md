@@ -118,6 +118,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- Each panel item has its own file, `plugin-<id>.shcl` by the panel's unique id, named like its history file. Its Properties opens that file, so 2 items on a panel can show different graphs.
 	- `tukzmon.shcl` is the shared file. An item with no file of its own yet starts from a copy of it, so a panel set up before items had their own keeps its look. The shared file is never changed by an item, and `tukzmon-settings` with no `--config` edits it, which sets what a new item starts from.
 	- With no shared file either, a new item starts at the defaults, and writes no file until a save.
+	- A file that's there but can't be read, such as one with no read permission, isn't taken for a missing one. `tukzmon-settings` says so in a message box and on stderr, and quits with nothing changed, rather than opening at the defaults for a save to write over it.
 	- Removing an item from the panel deletes its file and its history file, as the panel's Remove dialog warns, and closes its Properties window. So a later item given the same id starts from the shared file, with no history.
 
 - It follows SilkTerm's settings dialog, on top of knobs:

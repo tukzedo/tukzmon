@@ -247,7 +247,7 @@ mod tests {
 			"test_tukzmon-settings_{}_live_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
 		live.sample();
 		std::thread::sleep(std::time::Duration::from_millis(30));
@@ -290,7 +290,7 @@ mod tests {
 			"test_tukzmon-settings_{}_live_hover_never_written.shcl",
 			std::process::id()
 		));
-		let d = Dialog::open(path);
+		let d = Dialog::open(path).unwrap();
 		let mut look = d.look();
 		look.hover = tukzmon_core::config::Rgb(1, 2, 3);
 		look.said = tukzmon_core::when::Said::Ago;
@@ -346,7 +346,7 @@ mod tests {
 			"test_tukzmon-settings_{}_live_ease_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
 		live.sample();
 		std::thread::sleep(std::time::Duration::from_millis(30));
@@ -367,7 +367,7 @@ mod tests {
 			"test_tukzmon-settings_{}_live_rate_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		d.set("cpu_sample", &Value::Float(100.0));
 		let mut live = Live::new(d.look());
 		// a beat due a little early counts as now, so the next is a rate on
@@ -395,7 +395,7 @@ mod tests {
 			"test_tukzmon-settings_{}_live_swap_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
 		if live.swap.is_none() {
 			assert_eq!(live.width("swap"), 0);
@@ -427,7 +427,7 @@ mod tests {
 			"test_tukzmon-settings_{}_live_battery_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
 		let Some(_) = &live.battery else {
 			assert_eq!(live.width("battery"), 0);
@@ -453,7 +453,7 @@ mod tests {
 			"test_tukzmon-settings_{}_live_zswap_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
 		let Some(_) = &live.zswap else {
 			assert_eq!(live.width("zswap"), 0);
@@ -478,7 +478,7 @@ mod tests {
 			"test_tukzmon-settings_{}_live_load_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
 		assert!(live.load.is_some(), "every Linux box has /proc/loadavg");
 		live.sample();
@@ -509,7 +509,7 @@ mod tests {
 			"test_tukzmon-settings_{}_live_temp_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
 		assert!(d.look().show_temp);
 		// at 100 px, a width in percent is the same number
@@ -537,7 +537,7 @@ mod tests {
 			"test_tukzmon-settings_{}_live_gpu_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
 		assert!(!d.look().show_gpu && d.look().show_vram);
 		d.set("width", &Value::Float(100.0));
@@ -585,7 +585,7 @@ mod tests {
 			"test_tukzmon-settings_{}_live_self_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
 		assert!(!d.look().show_self);
 		// at 100 px, a width in percent is the same number
@@ -612,7 +612,7 @@ mod tests {
 			"test_tukzmon-settings_{}_live_net_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
 		assert!(live.net.is_some(), "every Linux box has /proc/net/dev");
 		live.sample();
