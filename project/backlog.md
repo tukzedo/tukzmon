@@ -134,13 +134,41 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Monitor for the number of processes
 	- ID: 2026103107404602
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
+		- It departs from the wording in one way. It's off by default, like the other graphs since memory. Turn it on in the graph list.
+		- How it looks in each theme stays on 2026102620162201. A Check in questions.md has the colors and the owner rule.
+	- Needs local test suite run?: No. The quick gate passed on 2026-10-31.
 	- Priority|Severity: Avg
 	- Opened: 20261031-074046
 	- Opened by: t00mietum
+	- Version and build: v0.1.0, not on b23 yet.
+	- Related IDs: 2026102618353006
 	- Requirements:
 		- An additional monitor showing the number of processes: system, other users, and me.
 	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The processes graph stacks System, Other users and Yours from the bottom. Its tip reads "Processes 612", then "Yours 112  Other users 20", then "System 480". It has a row in the graph list, at `procs.show`, `procs.width`, `procs.sample` and `procs.time`, and a Processes section in Themes/Colors.
+		- `graph.order` defaults to `cpu mem gpu vram net disk temp swap zswap load procs self battery`.
+		- Each built-in theme gives it a lead of its own. Randomize rolls 13 lead hues.
+		- `design.md` XFCE plugin, Theme, Data sources on Linux and Drawing have the details.
+		- Verified: the quick gate passed, with the new tests. A read of `/proc` here counted 1,162 processes.
+	- Decisions:
+		- Off by default, like the other graphs since memory.
+		- After load in the default order, since both count tasks.
+		- System is user IDs under 1000 and `nobody`, as Debian and systemd number them. Yours is the user tukzmon runs as.
+		- The owner of each `/proc/<pid>` folder, as htop reads it, rather than a status file per process. That's one `stat` each, about a millisecond a read here.
+		- Processes, not threads, and kernel threads count as the system's, as `ps -e` counts them.
+		- The top is the highest count in view, with a floor of 100, as load and network do theirs.
+		- Yours is the lead, and System is its Low, as memory's cache is. Randomize gives Other users the Hush role, as memory's buffers have it.
+		- "Yours" in place of "me", since the window speaks to the user.
+		- Randomize's least lead gap is 15 degrees, down from 18, with up to 256 hue draws, up from 128. At 17 and 16 degrees dejbv failed on a seed, and at 15 with 128 draws too. At 15 the worst of 2,000 seeds took 140 draws.
+	- Branch: round-1031
+	- Test case: `procs::tests::system_is_under_the_first_user_and_nobody` (dep4h), `only_numbered_entries_are_counted` (dep4j), `live_proc_counts_this_test_as_mine` (dep4k), `graphs::tests::procs_sits_after_load_and_stacks_by_owner` (dep48) and `live::tests::the_procs_row_counts_this_test_as_yours` (dep49).
+		- 2026-10-31: new values only. deccf and deccw count 127 theme members, not 117. deccy counts 110 saved colors, not 101. dedqq's default order, dejac's labels, and defkz's and defm0's orders have `procs`, and defm0's past-the-end move is 13, not 12. dejb7 reads `self battery` from index 11, not 10. dejkg has 13 outlines, not 12. defx7 checks 13 ramps, and deja1 13 sample rows. den86 turns processes on too. defxd's least gap is 10 degrees, not 13, for the 15 degree roll.
+		- Swept: every `Which` match, `config::LEADS`, `dice::ROLES` and `Part`, the 9 built-in themes, the Graphs rows in spec order, and den86, which turns every graph on. The profiler and soak test go through `Graphs::skip`, so they need nothing.
+	- Acceptance signoff: Self-closed, 2026-10-31: dep48 drew the 3 owners stacked, and dep49 drew the row from this box's `/proc`.
+	- Closed: 20261031-081900
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701

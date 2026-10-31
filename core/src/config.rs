@@ -501,7 +501,7 @@ pub struct Outline {
 
 /// Each graph's section and its main series, the color it reads as in
 /// Detailed. In Gradient that's its Medium. See design.md Theme.
-pub const LEADS: [(&str, &str); 12] = [
+pub const LEADS: [(&str, &str); 13] = [
 	("cpu", "user"),
 	("mem", "mem_user"),
 	("gpu", "gpu_busy"),
@@ -514,6 +514,7 @@ pub const LEADS: [(&str, &str); 12] = [
 	("temp", "temp_normal"),
 	("battery", "battery_charging"),
 	("self", "self_used"),
+	("procs", "procs_me"),
 ];
 
 /// I/O wait and system, which every lead keeps clear of.
@@ -551,13 +552,14 @@ pub enum Which {
 	Temp,
 	Battery,
 	Own,
+	Procs,
 }
 
 impl Which {
 	/// The order with nothing saved. Graphs a saved order leaves out go
 	/// last, in this order. Declaration order too, so a `Which` is its own
 	/// index in [`Look::graphs`].
-	pub const ALL: [Which; 12] = [
+	pub const ALL: [Which; 13] = [
 		Which::Cpu,
 		Which::Mem,
 		Which::Gpu,
@@ -570,6 +572,7 @@ impl Which {
 		Which::Temp,
 		Which::Battery,
 		Which::Own,
+		Which::Procs,
 	];
 
 	/// Its history section and its name in `graph.order`, which its setting
@@ -588,6 +591,7 @@ impl Which {
 			Which::Temp => "temp",
 			Which::Battery => "battery",
 			Which::Own => "self",
+			Which::Procs => "procs",
 		}
 	}
 
@@ -621,6 +625,7 @@ impl Which {
 				"battery_critical",
 			],
 			Which::Own => &["self_used"],
+			Which::Procs => &["procs_system", "procs_users", "procs_me"],
 		}
 	}
 
@@ -1026,7 +1031,7 @@ mod tests {
 	fn the_default_theme_is_the_row_defaults() {
 		let spec = spec();
 		let g = spec.group(THEME).unwrap();
-		assert_eq!(g.members.len(), 117);
+		assert_eq!(g.members.len(), 127);
 		let default = g.preset("default").unwrap();
 		assert_eq!(default.label, "Default");
 		for id in &g.members {
@@ -1272,6 +1277,7 @@ mod tests {
 				l[Which::Temp].outline,
 				l[Which::Battery].outline,
 				l[Which::Own].outline,
+				l[Which::Procs].outline,
 			]
 		};
 		let d = Look::default();
@@ -1280,14 +1286,14 @@ mod tests {
 			top: Rgb(0x31, 0x31, 0x31),
 			bottom: Rgb(0, 0, 0),
 		};
-		assert_eq!(outlines(&d), [grey; 12]);
+		assert_eq!(outlines(&d), [grey; 13]);
 		// with the Outline sub-tab's overrides off, as Default has them on
 		let own = "graph:\n\toverrides:\n\t\tborder: false\n\t\tbackground: false\n";
 		// each graph reads its own, and no other graph's, here as Custom
 		let l = Look::from_model(&model(&format!(
 			"{own}mem:\n\tcolors:\n\t\ttop: \"#123456\"\nself:\n\tcolors:\n\t\tborder: \"#abcdef\"\n\t\tbottom: \"#010203\"\n"
 		)));
-		let mut want = [grey; 12];
+		let mut want = [grey; 13];
 		want[1].top = Rgb(0x12, 0x34, 0x56);
 		want[11].border = Rgb(0xab, 0xcd, 0xef);
 		want[11].bottom = Rgb(1, 2, 3);
@@ -1305,7 +1311,7 @@ mod tests {
 			"{shared}\toverrides:\n\t\tborder: false\n\t\tbackground: false\nmem:\n\tcolors:\n\t\ttop: \"#654321\"\n"
 		)));
 		assert_eq!(l.top, Rgb(0x12, 0x34, 0x56));
-		let mut want = [grey; 12].map(|o| Outline {
+		let mut want = [grey; 13].map(|o| Outline {
 			top: Rgb(0x12, 0x34, 0x56),
 			..o
 		});
@@ -1530,7 +1536,7 @@ mod tests {
 			let ramp = |g: &str| ["low", "medium", "high"].map(|s| rgb(&format!("{g}_{s}")));
 			let ramps = [
 				"cpu", "mem", "gpu", "vram", "swap", "zswap", "net", "load", "disk", "temp",
-				"battery", "self",
+				"battery", "self", "procs",
 			]
 			.map(ramp);
 			// how far apart the leads look is dejbr's, by CIEDE2000, not hue angle
@@ -1715,7 +1721,7 @@ mod tests {
 		let spec = spec();
 		for g in [
 			"cpu", "mem", "gpu", "vram", "net", "swap", "zswap", "load", "disk", "temp", "battery",
-			"self",
+			"self", "procs",
 		] {
 			let id = format!("{g}_sample");
 			let Some(s) = spec.get(&id) else {
@@ -1725,7 +1731,7 @@ mod tests {
 			assert_eq!(s.gate, None);
 			let want = match g {
 				"cpu" | "mem" => 50.0,
-				"swap" | "zswap" | "load" => 200.0,
+				"swap" | "zswap" | "load" | "procs" => 200.0,
 				"self" => 400.0,
 				_ => 100.0,
 			};
@@ -1808,7 +1814,7 @@ mod tests {
 			Look::default().order,
 			[
 				"cpu", "mem", "gpu", "vram", "net", "disk", "temp", "swap", "zswap", "load",
-				"self", "battery"
+				"procs", "self", "battery"
 			]
 		);
 		for text in [
@@ -1901,7 +1907,7 @@ mod tests {
 			"themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n",
 		));
 		assert_eq!(t[0].name, "Say \"hi\"");
-		assert_eq!(t[0].colors.len(), 117);
+		assert_eq!(t[0].colors.len(), 127);
 		t.push(SavedTheme {
 			key: theme_key("Default", &t),
 			name: "Default".into(),

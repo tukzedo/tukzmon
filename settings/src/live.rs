@@ -535,6 +535,32 @@ mod tests {
 		);
 	}
 
+	// Test ID: dep49
+	#[test]
+	#[cfg_attr(miri, ignore = "Miri can't list /proc")]
+	fn the_procs_row_counts_this_test_as_yours() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_live_procs_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let mut live = Live::new(d.look());
+		assert!(!d.look()[Which::Procs].show);
+		d.set("width", &Value::Float(100.0));
+		d.set("procs_width", &Value::Float(30.0));
+		live.set_look(d.look());
+		assert_eq!(live.width("procs"), 30);
+		live.sample();
+		std::thread::sleep(std::time::Duration::from_millis(20));
+		live.sample();
+		assert_eq!(live.render("procs", 30, 24, 1).len(), 30 * 24);
+		let tip = live.tip("procs");
+		assert!(
+			tip.starts_with("Processes ") && !tip.contains("\nYours 0 "),
+			"{tip}"
+		);
+	}
+
 	// Test ID: dehzq
 	#[test]
 	fn the_net_row_draws_at_its_own_width() {

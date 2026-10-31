@@ -206,6 +206,10 @@ fn make(which: Which, look: &Rc<Look>) -> Option<Box<dyn Drawn>> {
 		Which::Temp => boxed(which, Graph::temp(look)),
 		Which::Battery => boxed(which, Graph::battery(look)),
 		Which::Own => boxed(which, Graph::own(look)),
+		#[cfg(unix)]
+		Which::Procs => boxed(which, Graph::procs(look)),
+		#[cfg(not(unix))]
+		Which::Procs => None,
 	}
 }
 
@@ -714,6 +718,8 @@ mod tests {
 	use crate::mem::{MemoryReader, SwapReader};
 	use crate::net::Traffic;
 	use crate::own::OwnReader;
+	#[cfg(unix)]
+	use crate::procs::ProcsReader;
 	use crate::temp::TempReader;
 	use crate::zswap::ZswapReader;
 
@@ -1985,7 +1991,7 @@ mod tests {
 			e.width = 100;
 		});
 		assert!(!Look::default()[Which::Own].show);
-		assert_eq!(Look::default().order[10..], ["self", "battery"]);
+		assert_eq!(Look::default().order[11..], ["self", "battery"]);
 		assert!(!Graphs::new(two()).has(Which::Own));
 		g.put(Graph::with(look.clone(), OwnReader::default()));
 		g.set_look(look.clone(), None).unwrap();
@@ -2023,6 +2029,55 @@ mod tests {
 			fire.paint::<1>(Which::Own),
 			crate::render::Paint::Gradient(fire[Which::Own].gradient)
 		);
+	}
+
+	// Test ID: dep48
+	#[test]
+	#[cfg(unix)]
+	fn procs_sits_after_load_and_stacks_by_owner() {
+		let path = scratch("procs");
+		let mut g = three();
+		let look = g.look().clone().with(Which::Procs, |e| {
+			e.show = true;
+			e.width = 100;
+			e.mode = Mode::Detailed;
+		});
+		assert!(!Look::default()[Which::Procs].show);
+		assert_eq!(Look::default().order[9..11], ["load", "procs"]);
+		g.put(Graph::with(look.clone(), ProcsReader::at("/nowhere", 1000)));
+		g.set_look(look.clone(), None).unwrap();
+		let now = g.cpu().now();
+		g.the_mut::<ProcsReader, 3>()
+			.hist
+			.add(now - 60.0, now, &[100.0, 50.0, 50.0]);
+		assert_eq!(g.count(), 4);
+		let (w, h) = (80 + 3 * G, 40 + 2 * E);
+		let procs = g.the_mut::<ProcsReader, 3>().render(20, 40, 1).to_vec();
+		let px = g.render(w, h, 1).to_vec();
+		sits(&px, w, &procs, (60 + 3 * G, E, 20, 40));
+		// over the floor, so the top is the count
+		let top = g.the::<ProcsReader, 3>().peak.top();
+		assert!((top - 200.0).abs() < 1e-9, "{top}");
+		let bw = look.border as usize;
+		let ph = 40 - 2 * bw;
+		let row = |up: usize| procs[(bw + ph - 1 - up) * 20 + 10];
+		let colors = look[Which::Procs].colors;
+		assert_eq!(row(ph / 4), colors[0].argb());
+		assert_eq!(row(ph * 5 / 8), colors[1].argb());
+		assert_eq!(row(ph * 7 / 8), colors[2].argb());
+		let tip = g.hover_tip(65 + 3 * G, 3, w, h, 1);
+		assert!(
+			tip.contains("\nProcesses 200\nYours 50  Other users 50\nSystem 100"),
+			"{tip}"
+		);
+		g.save(&path).unwrap();
+		let names: Vec<String> = keep::read(&path)
+			.unwrap()
+			.into_iter()
+			.map(|(n, _)| n)
+			.collect();
+		assert_eq!(names, ["cpu", "mem", "swap", "procs"]);
+		std::fs::remove_file(&path).unwrap();
 	}
 
 	// Test ID: dehy4
@@ -2126,7 +2181,8 @@ mod tests {
 			.with(Which::Disk, |e| e.show = true)
 			.with(Which::Temp, |e| e.show = true)
 			.with(Which::Battery, |e| e.show = true)
-			.with(Which::Own, |e| e.show = true);
+			.with(Which::Own, |e| e.show = true)
+			.with(Which::Procs, |e| e.show = true);
 		let mut g = Graphs::new(all.clone());
 		// a box with neither zswap nor zram still gets one
 		if !g.has(Which::Zswap) {
