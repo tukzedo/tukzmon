@@ -67,9 +67,17 @@ if grep -q '^[^#]*\${TUKZMON_' "${yaml}"; then fDie "nfpm.yaml has a name packag
 mapfile -t debDeps < <(sed -n '/^  deb:/,/^  [a-z]/s/^      - \([^ ]*\).*/\1/p' "${yaml}"; sed -n '/^  deb:/,/^  [a-z]/s/^      - .* | \([^ ]*\).*/\1/p' "${yaml}")
 unowned=0
 if command -v dpkg-query > /dev/null 2>&1; then
+	## One query for them all. Each line is "pkg[:arch][, pkg...]: path", and
+	## the first one for a soname wins.
+	declare -A owners=()
+	if ((${#sonames[@]})); then
+		while IFS= read -r line; do
+			s="${line##*/}"
+			[[ -n "${owners["${s}"]:-}" ]] || owners["${s}"]="${line%%[:,]*}"
+		done < <(dpkg-query -S "${sonames[@]/#/*/x86_64-linux-gnu/}" 2> /dev/null || true)
+	fi
 	for s in "${sonames[@]}"; do
-		owner="$(dpkg-query -S "*/x86_64-linux-gnu/${s}" 2> /dev/null | head -n 1 || true)"
-		owner="${owner%%[:,]*}"
+		owner="${owners["${s}"]:-}"
 		if [[ -z "${owner}" ]]; then unowned=$((unowned + 1)); continue; fi
 		[[ " ${debDeps[*]} " == *" ${owner} "* ]] || fDie "${s} is from ${owner}, which the .deb's depends in nfpm.yaml don't name"
 	done
@@ -109,3 +117,4 @@ echo "depends: glibc ${glibc}, ${#sonames[@]} linked libraries"
 ##	History:
 ##		- 2026-10-25: Created from tukfs-hash's package.bash: the plugin, its
 ##		  .desktop file and tukzmon-settings, with the depends checked.
+##		- 2026-10-30: One dpkg-query for every linked library.

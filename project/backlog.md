@@ -287,7 +287,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 13: Scripts fork inside loops
 	- ID: 2026103016201613
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -297,6 +297,19 @@ Sorted per the notes in [Template](#template).
 		- One awk over all `.rs` files rather than one per file.
 		- `${f##*/}` for `basename` in `lint-report.bash` and `dev-install.bash`, and one `dpkg-query -S` call in `package.bash`.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `test-ids.bash` decodes and encodes into a variable with `printf -v`, and reads every `.rs` file in one awk, and every `cicd/tests/*.bash` file in another. Strays get one awk too.
+		- `lint-report.bash` and `dev-install.bash` use `${f##*/}` and `${f%/*}`. `package.bash` asks `dpkg-query -S` once for every linked library.
+		- `test-ids.bash check` took 0.11 s of CPU, down from 0.31 s, over 308 tests.
+		- Verified: `list`, `check` and `new` gave the same output as before on the repo and on a test tree with bad, missing, repeated and future IDs, strays, nested and unclosed mods and an empty file, under gawk and mawk. `lint-report.bash` gave the same output in each mode. The owners from one `dpkg-query` matched the old per-library ones. The full run passed.
+	- Decisions:
+		- There are 308 tests, not about 1000.
+		- Module path, lines and the bash file's previous line are reset for each file, so the one awk reads each file as the per-file ones did.
+	- Branch: round-1030b
+	- Test case: `fTest_test_ids_reads_each_file_on_its_own` (den97), in `cicd/tests/guards.bash`. It passes on the old per-file scan too, and fails with a file's lines, or the line above a bash test, carried into the next file.
+		- Swept: every `$(basename` and `$(dirname` in `cicd/` and `utility/`, which are all once at startup now, and every caller of `fDecode` and `fEncode`.
+	- Closed: 20261030-174900
 
 - Code review 20261030 item 14: The release build's opt-level has never been measured against size
 	- ID: 2026103016201614
@@ -314,7 +327,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 15: `dev-install.bash` doesn't follow the helper script layout
 	- ID: 2026103016201615
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -324,6 +337,17 @@ Sorted per the notes in [Template](#template).
 		- Output through `fEcho`, and errors through an error helper.
 		- MIT like the other helper scripts, unless it should stay LGPL.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `dev-install.bash` has the `##` header with Purpose, Syntax, Exit, copyright and the MIT license, and History at the bottom. Its output goes through `fEcho`, and its errors through `fDie` to stderr. It takes `--help`.
+		- Verified: with `~/.local` swapped for an empty folder and the panel shimmed, it built, installed the 3 files, named the old links, and restarted the panel, or didn't with `--no-restart`. A bad `XDG_DATA_HOME` failed with exit 1.
+	- Decisions:
+		- MIT, as the other helper scripts are.
+		- An unknown option is an error, exit 2, where it used to be ignored. A typo of `--no-restart` restarted the panel.
+		- A failed copy or build now says what failed before it exits.
+	- Branch: round-1030b
+	- Test case: none. It installs into the user's panel, so the pipeline can't run it.
+	- Closed: 20261030-174900
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701

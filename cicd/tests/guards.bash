@@ -64,6 +64,26 @@ fTest_nix_check_refuses_env_values_that_arent_numbers() {
 	[[ ! -e "${mark}" ]] || { fWhy "a \$(...) in a value ran"; return 1; }
 }
 
+## Test ID: den97
+fTest_test_ids_reads_each_file_on_its_own() {
+	local t="${work}/ids" out='' want=''
+	mkdir -p -- "${t}/cicd/utility" "${t}/cicd/tests" "${t}/a/src" "${t}/a/tests"
+	cp -- "${cicd}/utility/test-ids.bash" "${t}/cicd/utility/"
+	printf '[workspace]\nmembers = ["a"]\n' > "${t}/Cargo.toml"
+	printf '[package]\nname = "a-pkg"\n' > "${t}/a/Cargo.toml"
+	printf 'mod tests {\n\t// Test ID: dek00\n\t#[test]\n\tfn one() {}\n}\n' > "${t}/a/src/lib.rs"
+	## Ends inside its mod, with a fn past where the next file's lines stop.
+	printf 'mod deep {\n\t// Test ID: dek01\n\t#[test]\n\tfn two() {}\n\tfn stale() {}\n' > "${t}/a/src/m.rs"
+	: > "${t}/a/src/n.rs"
+	printf '#[test]\n' > "${t}/a/src/o.rs"
+	printf '// Test ID: dek02\n#[test]\nfn three() {}\n' > "${t}/a/tests/t.rs"
+	printf 'fTest_x() { :; }\n## Test ID: dek03\n' > "${t}/cicd/tests/w.bash"
+	printf 'fTest_four() { :; }\n' > "${t}/cicd/tests/x.bash"
+	want="$(printf '%s\n' 'dek00 tests::one' 'dek01 m::deep::two' '- o::?' 'dek02 three' '- fTest_x' '- fTest_four')"
+	out="$(bash "${t}/cicd/utility/test-ids.bash" list 2>&1)" || { fWhy "list failed: ${out}"; return 1; }
+	[[ "${out}" == "${want}" ]] || { fWhy "got:"; printf '%s\n' "${out}" | sed 's/^/      /'; return 1; }
+}
+
 failed=0
 while read -r id fn; do
 	if "${fn}"; then echo "PASS ${id} ${fn#fTest_}"; else echo "FAIL ${id} ${fn#fTest_}"; failed=1; fi
@@ -74,3 +94,5 @@ exit "${failed}"
 ##	History:
 ##		- 2026-10-30: Created, with the safe removal guard and the Nix check's
 ##		  env values.
+##		- 2026-10-30: test-ids.bash keeps each file's modules and lines to
+##		  itself.
