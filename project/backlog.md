@@ -68,7 +68,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Settings dialog brightness inverted
 	- ID: 2026103113364400
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- Whether the 2 shades read apart and look right is for a person to judge. Pictures in Orchis-green light and dark, before and after, are in `private/claude_simple/uat-2026103113364400/`.
+	- Needs hand testing: on b23, after an install, open Settings and judge the page and tab list against the rest of the window.
 	- Priority|Severity: Avg
 	- Opened: 20261031-133644
 	- Opened by: t00mietum
@@ -78,6 +80,21 @@ Sorted per the notes in [Template](#template).
 			- Scrollable and Tab area get the darker color.
 			- The rest gets the lighter color (but not quite as light as currently).
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The page that scrolls and the tab list are now the darker shade, in a light theme and a dark one. The rest of the window, with the theme's Name row and the bottom buttons, is the lighter one.
+		- Orchis-green-dark-compact: page and tab list `#212121`, the rest `#2b2b2b`. Before, the page was `#2f2f2f` and the rest `#212121`.
+		- Orchis-green-light-compact: page and tab list `#e3e3e3`, the rest `#eeeeee`. Before, the page was `#e3e3e3` and the rest and tab list `#f2f2f2`.
+		- `design.md` Settings window has it.
+		- Verified: the quick gate passed, with dekna changed to check the new shades.
+	- Decisions:
+		- "And others" is read as the tab list, the only other inset part. The Name row over the Themes sub-tabs stays with the rest, since it doesn't scroll.
+		- Both shades come from the theme, as before: the step from its window color 1/16 of the way to its text color. The inset parts take the darker end, and the rest stops 3/4 of the way to the lighter end, which is the "not quite as light". So a dark theme keeps its own window color for the inset parts, and its rest is a little lighter.
+		- Boxes, buttons and the color picker keep their own colors.
+	- Branch: round-1031c
+	- Test case: `bridge::tests::the_parts_set_in_are_a_shade_darker_than_the_rest` (dekna), in a light and a dark theme. It fails with the old shades, where the tab list kept the window color.
+		- 2026-10-31: dekna was `the_part_that_scrolls_is_a_shade_off_the_window`. It checked the rest equal to the window color and the page lighter in a dark theme. It now checks the tab list equal to the page, the page darker than the rest in both themes, and the page equal to the window color in a dark one. The contrast range 1.05 to 1.3 is unchanged.
+		- Swept: every `QScrollArea` and item view in `qt.cpp`. The `FitScroll` in `buildPage` and the tab list are the only ones. The color picker and message boxes are windows of their own, so they don't take the dialog's shade.
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
