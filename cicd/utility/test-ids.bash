@@ -8,7 +8,8 @@
 ##		2026-10-24 22:00 UTC is decp8. 2 that come out the same take the next
 ##		free minute, and an ID never changes, even when its test is renamed or
 ##		moved. A Rust test carries it on a "// Test ID: decp8" line just above
-##		its attributes.
+##		its attributes, and a test of the pipeline in cicd/tests/*.bash on a
+##		"## Test ID: decp8" line just above its fTest_ function.
 ##		Ported from silkterm's cicd/utility/test-id.py, which was base 62 in ms.
 ##	Syntax:
 ##		test-ids.bash new [N]           print N fresh IDs for now (default 1)
@@ -37,19 +38,20 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 digits="0123456789abcdefghjkmnpqrstvwxyz"
 epoch2000=946684800
 
-fEncode() {   ## fEncode MINUTES
+## Both set the caller's VAR rather than print, so a loop over them doesn't fork.
+fEncode() {   ## fEncode MINUTES VAR
 	local -i n="$1"; local out=""
 	while ((n)); do out="${digits:n % 32:1}${out}"; n=$((n / 32)); done
-	printf '%s\n' "${out:-0}"
+	printf -v "$2" '%s' "${out:-0}"
 }
-fDecode() {   ## fDecode ID -> minutes, or fails on a letter that isn't ours
+fDecode() {   ## fDecode ID VAR -> minutes, or fails on a letter that isn't ours
 	local id="$1" c head; local -i n=0 i
 	for ((i = 0; i < ${#id}; i++)); do
 		c="${id:i:1}"; head="${digits%%"${c}"*}"
 		[[ "${head}" != "${digits}" ]] || return 1
 		n=$((n * 32 + ${#head}))
 	done
-	printf '%d\n' "${n}"
+	printf -v "$2" '%d' "${n}"
 }
 
 ## Each workspace member as "dir<TAB>crate", where crate is the name libtest's
@@ -68,14 +70,14 @@ fMembers() {
 
 ## Every Rust test as "id<TAB>crate<TAB>name<TAB>file:line", with "-" for a
 ## missing ID. The module path comes from the file's place under src/ and the
-## indent of each "mod x {", which rustfmt keeps exact.
-fScanFile() {   ## fScanFile CRATE MODULE_PATH FILE
-	local crate="$1" mods="$2" f="$3"
-	awk -v crate="${crate}" -v base="${mods}" -v file="${f#"${root}/"}" '
-		{ line[NR] = $0 }
-		END {
+## indent of each "mod x {", which rustfmt keeps exact. One awk for every
+## file, with crate, base and file set on its command line before each one.
+fScanRust() {   ## fScanRust [crate=CRATE base=MODULE_PATH file=REL FILE]...
+	(($#)) || return 0
+	awk '
+		function scan(   depth, n, s, ind, top, id, fn, k, path, d) {
 			depth = 0
-			for (n = 1; n <= NR; n++) {
+			for (n = 1; n <= nl; n++) {
 				if (match(line[n], /^\t*(pub(\([^)]*\))? +)?mod +[A-Za-z0-9_]+ *\{/)) {
 					s = line[n]; ind = s; sub(/[^\t].*/, "", ind)
 					sub(/^\t*(pub(\([^)]*\))? +)?mod +/, "", s); sub(/[^A-Za-z0-9_].*/, "", s)
@@ -92,45 +94,69 @@ fScanFile() {   ## fScanFile CRATE MODULE_PATH FILE
 					if (id == "") id = "-"
 				}
 				fn = "?"
-				for (k = n + 1; k <= n + 20 && k <= NR; k++) {
+				for (k = n + 1; k <= n + 20 && k <= nl; k++) {
 					if (match(line[k], /fn +[A-Za-z0-9_]+/)) { fn = substr(line[k], RSTART, RLENGTH); sub(/fn +/, "", fn); break }
 				}
-				path = base
+				path = pb
 				for (d = 1; d <= depth; d++) path = path mname[d] "::"
-				printf "%s\t%s\t%s%s\t%s:%d\n", id, crate, path, fn, file, n
+				printf "%s\t%s\t%s%s\t%s:%d\n", id, pc, path, fn, pf, n
 			}
-		}' "${f}"
+		}
+		FNR == 1 { if (nl) scan(); nl = 0; pc = crate; pb = base; pf = file }
+		{ line[++nl] = $0 }
+		END { if (nl) scan() }' "$@"
 }
 fScan() {
-	local dir crate f rel mods
+	local dir crate f rel mods; local -a args=()
 	while IFS=$'\t' read -r dir crate; do
 		[[ -d "${root}/${dir}/src" ]] || continue
 		while IFS= read -r f; do
 			rel="${f#"${root}/${dir}/src/"}"; rel="${rel%.rs}"; rel="${rel%/mod}"
 			case "${rel}" in lib|main) mods="" ;; *) mods="${rel//\//::}::" ;; esac
-			fScanFile "${crate}" "${mods}" "${f}"
+			args+=("crate=${crate}" "base=${mods}" "file=${f#"${root}/"}" "${f}")
 		done < <(find "${root}/${dir}/src" -name '*.rs' -type f | LC_ALL=C sort)
 		## Each file in tests/ is a test binary of its own, named after it.
 		[[ -d "${root}/${dir}/tests" ]] || continue
 		while IFS= read -r f; do
-			rel="${f##*/}"; fScanFile "${rel%.rs}" "" "${f}"
+			rel="${f##*/}"; args+=("crate=${rel%.rs}" "base=" "file=${f#"${root}/"}" "${f}")
 		done < <(find "${root}/${dir}/tests" -maxdepth 1 -name '*.rs' -type f | LC_ALL=C sort)
 	done < <(fMembers)
+	fScanRust "${args[@]}"
+	fScanBash
+}
+
+## The pipeline's own tests, in cicd/tests/*.bash: each is an fTest_ function
+## with a "## Test ID: decp8" line just above it. The crate is the file's name.
+fScanBash() {
+	local f; local -a files=()
+	for f in "${root}"/cicd/tests/*.bash; do [[ ! -f "${f}" ]] || files+=("${f#"${root}/"}"); done
+	((${#files[@]})) || return 0
+	(cd "${root}" && awk '
+		FNR == 1 { crate = FILENAME; sub(/.*\//, "", crate); sub(/\.bash$/, "", crate); prev = "" }
+		/^fTest_[A-Za-z0-9_]+\(\)/ {
+			fn = $0; sub(/\(.*/, "", fn); id = "-"
+			if (prev ~ /^##[ \t]*Test ID:/) { id = prev; sub(/^##[ \t]*Test ID:[ \t]*/, "", id); sub(/[ \t]+$/, "", id); if (id == "") id = "-" }
+			printf "%s\t%s\t%s\t%s:%d\n", id, crate, fn, FILENAME, FNR
+		}
+		{ prev = $0 }' "${files[@]}")
 }
 
 ## A #[test] in a tracked .rs file outside any member's src/ and the top of
 ## its tests/, where fScan doesn't look.
 fStrays() {
-	local dir f; local -a srcs=()
+	local dir f; local -a srcs=() tracked=() strays=()
 	while IFS=$'\t' read -r dir _; do srcs+=("${dir}/src/"); done < <(fMembers)
-	git -C "${root}" ls-files '*.rs' | while IFS= read -r f; do
+	mapfile -t tracked < <(git -C "${root}" ls-files '*.rs')
+	for f in "${tracked[@]}"; do
 		for dir in "${srcs[@]}"; do [[ "${f}" != "${dir}"* ]] || continue 2; done
 		for dir in "${srcs[@]}"; do
 			dir="${dir%src/}tests/"
 			[[ "${f}" != "${dir}"* || "${f#"${dir}"}" == */* ]] || continue 2
 		done
-		awk -v file="${f}" '/^[ \t]*#\[test\]/{ printf "%s:%d: a test outside every src/, where nothing looks for its ID\n", file, NR }' "${root}/${f}"
+		strays+=("${f}")
 	done
+	((${#strays[@]})) || return 0
+	(cd "${root}" && awk '/^[ \t]*#\[test\]/{ printf "%s:%d: a test outside every src/, where nothing looks for its ID\n", FILENAME, FNR }' "${strays[@]}")
 }
 
 ## IDs of tests commented out once a decision made them wrong, on a
@@ -152,13 +178,13 @@ fNew() {   ## fNew MINUTES COUNT
 	while IFS=$'\t' read -r id _; do taken["${id}"]=1; done < <(fScan)
 	while IFS= read -r id; do taken["${id}"]=1; done < <(fRetired)
 	while ((count)); do
-		id="$(fEncode "${at}")"; at+=1
+		fEncode "${at}" id; at+=1
 		[[ -z "${taken["${id}"]:-}" ]] || continue
 		printf '%s\n' "${id}"; count=$((count - 1))
 	done
 }
 
-fWhen() { local -i m; m="$(fDecode "$1")" || return 1; printf '%s  %s\n' "$1" "$(date -u -d "@$((epoch2000 + m * 60))" '+%Y-%m-%d %H:%M UTC')"; }
+fWhen() { local -i m; fDecode "$1" m || return 1; printf '%s  %s\n' "$1" "$(date -u -d "@$((epoch2000 + m * 60))" '+%Y-%m-%d %H:%M UTC')"; }
 
 ## Done items with no Test case row, and IDs a Test case row names that no
 ## test has. A word counts as an ID when it would be a sane one, so "seven",
@@ -194,7 +220,7 @@ fCheck() {
 	while IFS=$'\t' read -r id crate name at; do
 		count+=1; prob=""
 		if [[ "${id}" == - ]]; then prob="${at}: ${name} has no Test ID line"
-		elif ! m="$(fDecode "${id}")"; then prob="${at}: ${id} isn't lower-case Crockford base 32"
+		elif ! fDecode "${id}" m; then prob="${at}: ${id} isn't lower-case Crockford base 32"
 		elif ((m < first || m > now)); then prob="${at}: ${id} stands for $(fWhen "${id}" | cut -c 8-)"
 		elif [[ -n "${seen["${id}"]:-}" ]]; then prob="${at}: ${id} is already used at ${seen["${id}"]}"
 		else seen["${id}"]="${at}"; fi
@@ -262,3 +288,6 @@ esac
 ##		- 2026-10-25: Tests in a member's tests/ folder too.
 ##		- 2026-10-28: A commented-out test's ID still counts for the backlog,
 ##		  and isn't handed out again.
+##		- 2026-10-30: The pipeline's own tests in cicd/tests/*.bash too.
+##		- 2026-10-30: No fork per ID or per file: decode and encode set a
+##		  variable, and one awk reads every file.

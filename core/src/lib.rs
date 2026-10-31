@@ -27,12 +27,13 @@ pub mod zswap;
 
 use std::io;
 use std::path::Path;
+use std::rc::Rc;
 use std::time::{Instant, SystemTime};
 
 use axis::{Ages, Axis, Basis, Ease, Timing};
 use battery::BatteryReader;
 use collect::Collector;
-use config::{Look, Outline};
+use config::{Look, Outline, Which};
 use cpu::CpuReader;
 use disk::DiskReader;
 use gpu::{GpuReader, VramReader};
@@ -41,7 +42,7 @@ use load::LoadReader;
 use mem::{MemoryReader, SwapReader};
 use net::Traffic;
 use own::OwnReader;
-use render::{Frame, Paint, Peak, Scale};
+use render::{Frame, Paint, Peak, Scale, Scratch};
 use temp::TempReader;
 use when::Said;
 use zswap::ZswapReader;
@@ -77,16 +78,30 @@ pub fn wait_ms(next: f64) -> u32 {
 
 /// A collector as one graph draws and names it.
 pub trait Source<const N: usize>: Collector<N> {
+	/// Which graph it is, and so its settings in a [`Look`].
+	const WHICH: Which;
 	/// The graph's section in the history file.
-	const SECTION: &'static str;
+	const SECTION: &'static str = Self::WHICH.key();
 	/// The tip before there's anything read.
 	const TITLE: &'static str;
 	fn text(&self, v: &[f32; N]) -> String;
-	fn paint(look: &Look) -> Paint<'_, N>;
-	fn outline(look: &Look) -> Outline;
-	fn timing(look: &Look) -> Timing;
+
+	fn paint(look: &Look) -> Paint<'_, N> {
+		look.paint(Self::WHICH)
+	}
+
+	fn outline(look: &Look) -> Outline {
+		look[Self::WHICH].outline
+	}
+
+	fn timing(look: &Look) -> Timing {
+		look.timing(look[Self::WHICH].time)
+	}
+
 	/// How often the graph is read, in ms. See [`Look::rate`].
-	fn sample_ms(look: &Look) -> u32;
+	fn sample_ms(look: &Look) -> u32 {
+		look.rate(look[Self::WHICH].sample)
+	}
 
 	/// Some for a source with no fixed top, such as bytes per second: the
 	/// least its peak goes down to. See [`render::Peak`].
@@ -109,7 +124,7 @@ fn pc(x: f32) -> i32 {
 }
 
 impl Source<4> for CpuReader {
-	const SECTION: &'static str = "cpu";
+	const WHICH: Which = Which::Cpu;
 	const TITLE: &'static str = "CPU";
 
 	fn text(&self, v: &[f32; 4]) -> String {
@@ -123,26 +138,10 @@ impl Source<4> for CpuReader {
 			pc(v[0])
 		)
 	}
-
-	fn paint(look: &Look) -> Paint<'_, 4> {
-		look.cpu_paint()
-	}
-
-	fn outline(look: &Look) -> Outline {
-		look.cpu_outline
-	}
-
-	fn timing(look: &Look) -> Timing {
-		look.timing(look.cpu_time)
-	}
-
-	fn sample_ms(look: &Look) -> u32 {
-		look.rate(look.cpu_sample)
-	}
 }
 
 impl Source<3> for MemoryReader {
-	const SECTION: &'static str = "mem";
+	const WHICH: Which = Which::Mem;
 	const TITLE: &'static str = "Memory";
 
 	fn text(&self, v: &[f32; 3]) -> String {
@@ -153,46 +152,14 @@ impl Source<3> for MemoryReader {
 			pc(v[2])
 		)
 	}
-
-	fn paint(look: &Look) -> Paint<'_, 3> {
-		look.mem_paint()
-	}
-
-	fn outline(look: &Look) -> Outline {
-		look.mem_outline
-	}
-
-	fn timing(look: &Look) -> Timing {
-		look.timing(look.mem_time)
-	}
-
-	fn sample_ms(look: &Look) -> u32 {
-		look.rate(look.mem_sample)
-	}
 }
 
 impl Source<1> for GpuReader {
-	const SECTION: &'static str = "gpu";
+	const WHICH: Which = Which::Gpu;
 	const TITLE: &'static str = "GPU";
 
 	fn text(&self, v: &[f32; 1]) -> String {
 		format!("GPU {}% busy", pc(v[0]))
-	}
-
-	fn paint(look: &Look) -> Paint<'_, 1> {
-		look.gpu_paint()
-	}
-
-	fn outline(look: &Look) -> Outline {
-		look.gpu_outline
-	}
-
-	fn timing(look: &Look) -> Timing {
-		look.timing(look.gpu_time)
-	}
-
-	fn sample_ms(look: &Look) -> u32 {
-		look.rate(look.gpu_sample)
 	}
 }
 
@@ -202,7 +169,7 @@ fn gib(bytes: f64) -> String {
 }
 
 impl Source<1> for VramReader {
-	const SECTION: &'static str = "vram";
+	const WHICH: Which = Which::Vram;
 	const TITLE: &'static str = "GPU memory";
 
 	fn text(&self, v: &[f32; 1]) -> String {
@@ -214,51 +181,19 @@ impl Source<1> for VramReader {
 			gib(total)
 		)
 	}
-
-	fn paint(look: &Look) -> Paint<'_, 1> {
-		look.vram_paint()
-	}
-
-	fn outline(look: &Look) -> Outline {
-		look.vram_outline
-	}
-
-	fn timing(look: &Look) -> Timing {
-		look.timing(look.vram_time)
-	}
-
-	fn sample_ms(look: &Look) -> u32 {
-		look.rate(look.vram_sample)
-	}
 }
 
 impl Source<1> for SwapReader {
-	const SECTION: &'static str = "swap";
+	const WHICH: Which = Which::Swap;
 	const TITLE: &'static str = "Swap";
 
 	fn text(&self, v: &[f32; 1]) -> String {
 		format!("Swap {}% used", pc(v[0]))
 	}
-
-	fn paint(look: &Look) -> Paint<'_, 1> {
-		look.swap_paint()
-	}
-
-	fn outline(look: &Look) -> Outline {
-		look.swap_outline
-	}
-
-	fn timing(look: &Look) -> Timing {
-		look.timing(look.swap_time)
-	}
-
-	fn sample_ms(look: &Look) -> u32 {
-		look.rate(look.swap_sample)
-	}
 }
 
 impl Source<3> for BatteryReader {
-	const SECTION: &'static str = "battery";
+	const WHICH: Which = Which::Battery;
 	const TITLE: &'static str = "Battery";
 
 	// full counts as charging, so the tip says what the power is doing
@@ -272,26 +207,10 @@ impl Source<3> for BatteryReader {
 		};
 		format!("Battery {}%, {state}", pc(v.iter().sum()))
 	}
-
-	fn paint(look: &Look) -> Paint<'_, 3> {
-		look.battery_paint()
-	}
-
-	fn outline(look: &Look) -> Outline {
-		look.battery_outline
-	}
-
-	fn timing(look: &Look) -> Timing {
-		look.timing(look.battery_time)
-	}
-
-	fn sample_ms(look: &Look) -> u32 {
-		look.rate(look.battery_sample)
-	}
 }
 
 impl Source<1> for ZswapReader {
-	const SECTION: &'static str = "zswap";
+	const WHICH: Which = Which::Zswap;
 	const TITLE: &'static str = "Zswap";
 
 	// the ratio isn't in the history, so it's the latest whatever time is hovered
@@ -301,22 +220,6 @@ impl Source<1> for ZswapReader {
 			Some(r) => format!("{used}\nCompressed {r:.1}x now"),
 			None => used,
 		}
-	}
-
-	fn paint(look: &Look) -> Paint<'_, 1> {
-		look.zswap_paint()
-	}
-
-	fn outline(look: &Look) -> Outline {
-		look.zswap_outline
-	}
-
-	fn timing(look: &Look) -> Timing {
-		look.timing(look.zswap_time)
-	}
-
-	fn sample_ms(look: &Look) -> u32 {
-		look.rate(look.zswap_sample)
 	}
 }
 
@@ -336,7 +239,7 @@ fn per_sec(bytes: f32) -> String {
 }
 
 impl Source<5> for Traffic {
-	const SECTION: &'static str = "net";
+	const WHICH: Which = Which::Net;
 	const TITLE: &'static str = "Network";
 
 	// so a quiet line's odd packet doesn't fill the graph
@@ -355,49 +258,17 @@ impl Source<5> for Traffic {
 		)
 	}
 
-	fn paint(look: &Look) -> Paint<'_, 5> {
-		look.net_paint()
-	}
-
-	fn outline(look: &Look) -> Outline {
-		look.net_outline
-	}
-
-	fn timing(look: &Look) -> Timing {
-		look.timing(look.net_time)
-	}
-
-	fn sample_ms(look: &Look) -> u32 {
-		look.rate(look.net_sample)
-	}
-
 	fn follow(&mut self, look: &Look) {
 		self.set_split(look.net_split);
 	}
 }
 
 impl Source<1> for LoadReader {
-	const SECTION: &'static str = "load";
+	const WHICH: Which = Which::Load;
 	const TITLE: &'static str = "Load";
 
 	fn text(&self, v: &[f32; 1]) -> String {
 		format!("Load {:.2}", v[0].max(0.0))
-	}
-
-	fn paint(look: &Look) -> Paint<'_, 1> {
-		look.load_paint()
-	}
-
-	fn outline(look: &Look) -> Outline {
-		look.load_outline
-	}
-
-	fn timing(look: &Look) -> Timing {
-		look.timing(look.load_time)
-	}
-
-	fn sample_ms(look: &Look) -> u32 {
-		look.rate(look.load_sample)
 	}
 
 	// full at a load of one a CPU, as the CPU graph is at 100%
@@ -407,27 +278,11 @@ impl Source<1> for LoadReader {
 }
 
 impl Source<2> for DiskReader {
-	const SECTION: &'static str = "disk";
+	const WHICH: Which = Which::Disk;
 	const TITLE: &'static str = "Disk";
 
 	fn text(&self, v: &[f32; 2]) -> String {
 		format!("Disk\nRead {}  Write {}", per_sec(v[1]), per_sec(v[0]))
-	}
-
-	fn paint(look: &Look) -> Paint<'_, 2> {
-		look.disk_paint()
-	}
-
-	fn outline(look: &Look) -> Outline {
-		look.disk_outline
-	}
-
-	fn timing(look: &Look) -> Timing {
-		look.timing(look.disk_time)
-	}
-
-	fn sample_ms(look: &Look) -> u32 {
-		look.rate(look.disk_sample)
 	}
 
 	// so a log file's odd flush doesn't fill the graph
@@ -450,7 +305,7 @@ impl Source<2> for DiskReader {
 }
 
 impl Source<2> for TempReader {
-	const SECTION: &'static str = "temp";
+	const WHICH: Which = Which::Temp;
 	const TITLE: &'static str = "Temperature";
 
 	fn text(&self, v: &[f32; 2]) -> String {
@@ -459,22 +314,6 @@ impl Source<2> for TempReader {
 			v[0] + v[1],
 			self.limit()
 		)
-	}
-
-	fn paint(look: &Look) -> Paint<'_, 2> {
-		look.temp_paint()
-	}
-
-	fn outline(look: &Look) -> Outline {
-		look.temp_outline
-	}
-
-	fn timing(look: &Look) -> Timing {
-		look.timing(look.temp_time)
-	}
-
-	fn sample_ms(look: &Look) -> u32 {
-		look.rate(look.temp_sample)
 	}
 
 	// full at the critical level, and higher once it's over
@@ -498,7 +337,7 @@ fn fine_pc(p: f32) -> String {
 }
 
 impl Source<1> for OwnReader {
-	const SECTION: &'static str = "self";
+	const WHICH: Which = Which::Own;
 	const TITLE: &'static str = "tukzmon";
 
 	fn text(&self, v: &[f32; 1]) -> String {
@@ -511,24 +350,8 @@ impl Source<1> for OwnReader {
 		);
 		match self.host() {
 			own::Host::Panel => format!("{tip}\nThe whole panel, tukzmon in it"),
-			_ => tip,
+			own::Host::Own | own::Host::Settings => tip,
 		}
-	}
-
-	fn paint(look: &Look) -> Paint<'_, 1> {
-		look.self_paint()
-	}
-
-	fn outline(look: &Look) -> Outline {
-		look.self_outline
-	}
-
-	fn timing(look: &Look) -> Timing {
-		look.timing(look.self_time)
-	}
-
-	fn sample_ms(look: &Look) -> u32 {
-		look.rate(look.self_sample)
 	}
 
 	// full at every CPU busy, like the CPU graph
@@ -539,7 +362,9 @@ impl Source<1> for OwnReader {
 
 /// One graph: reads, history, and drawing. CPU unless said otherwise.
 pub struct Graph<S: Source<N> = CpuReader, const N: usize = 4> {
-	pub look: Look,
+	/// The same one for every graph of a panel item, or of the settings
+	/// window, so a new look is one allocation, not one per graph.
+	pub look: Rc<Look>,
 	hist: History<N>,
 	src: S,
 	clock: Instant,
@@ -548,6 +373,7 @@ pub struct Graph<S: Source<N> = CpuReader, const N: usize = 4> {
 	read_at: Option<f64>,
 	latest: Option<[f32; N]>,
 	px: Vec<u32>,
+	scratch: Scratch<N>,
 	ease: Ease,
 	/// The top, for a source with no fixed one.
 	peak: Peak,
@@ -559,35 +385,36 @@ pub struct Graph<S: Source<N> = CpuReader, const N: usize = 4> {
 }
 
 impl Graph {
-	pub fn new(look: Look) -> Graph {
+	pub fn new(look: impl Into<Rc<Look>>) -> Graph {
 		Graph::with(look, CpuReader::default())
 	}
 }
 
 impl Graph<MemoryReader, 3> {
 	/// None where memory can't be read, so the graph is left out.
-	pub fn memory(look: Look) -> Option<Self> {
+	pub fn memory(look: impl Into<Rc<Look>>) -> Option<Self> {
 		MemoryReader::probe().map(|src| Graph::with(look, src))
 	}
 }
 
 impl Graph<SwapReader, 1> {
 	/// None on a box with no swap.
-	pub fn swap(look: Look) -> Option<Self> {
+	pub fn swap(look: impl Into<Rc<Look>>) -> Option<Self> {
 		SwapReader::probe().map(|src| Graph::with(look, src))
 	}
 }
 
 impl Graph<ZswapReader, 1> {
 	/// None on a box with neither zswap on nor zram set up.
-	pub fn zswap(look: Look) -> Option<Self> {
+	pub fn zswap(look: impl Into<Rc<Look>>) -> Option<Self> {
 		ZswapReader::probe().map(|src| Graph::with(look, src))
 	}
 }
 
 impl Graph<Traffic, 5> {
 	/// None where `/proc/net/dev` can't be read.
-	pub fn net(look: Look) -> Option<Self> {
+	pub fn net(look: impl Into<Rc<Look>>) -> Option<Self> {
+		let look = look.into();
 		Traffic::probe().map(|mut src| {
 			src.set_split(look.net_split);
 			Graph::with(look, src)
@@ -597,21 +424,21 @@ impl Graph<Traffic, 5> {
 
 impl Graph<GpuReader, 1> {
 	/// None on a box with no GPU it can read.
-	pub fn gpu(look: Look) -> Option<Self> {
+	pub fn gpu(look: impl Into<Rc<Look>>) -> Option<Self> {
 		GpuReader::probe().map(|src| Graph::with(look, src))
 	}
 }
 
 impl Graph<VramReader, 1> {
 	/// None on a box with no GPU it can read.
-	pub fn vram(look: Look) -> Option<Self> {
+	pub fn vram(look: impl Into<Rc<Look>>) -> Option<Self> {
 		VramReader::probe().map(|src| Graph::with(look, src))
 	}
 }
 
 impl Graph<LoadReader, 1> {
 	/// None where `/proc/loadavg` can't be read.
-	pub fn load_avg(look: Look) -> Option<Self> {
+	pub fn load_avg(look: impl Into<Rc<Look>>) -> Option<Self> {
 		LoadReader::probe().map(|src| Graph::with(look, src))
 	}
 }
@@ -619,36 +446,37 @@ impl Graph<LoadReader, 1> {
 impl Graph<DiskReader, 2> {
 	/// None where `/proc/diskstats` can't be read, or with all disks picked
 	/// on a box that has none.
-	pub fn disk(look: Look) -> Option<Self> {
+	pub fn disk(look: impl Into<Rc<Look>>) -> Option<Self> {
+		let look = look.into();
 		DiskReader::new(look.drives()).map(|src| Graph::with(look, src))
 	}
 }
 
 impl Graph<TempReader, 2> {
 	/// None on a box with no CPU sensor it knows.
-	pub fn temp(look: Look) -> Option<Self> {
+	pub fn temp(look: impl Into<Rc<Look>>) -> Option<Self> {
 		TempReader::probe().map(|src| Graph::with(look, src))
 	}
 }
 
 impl Graph<OwnReader, 1> {
 	/// None where the process's CPU time can't be read.
-	pub fn own(look: Look) -> Option<Self> {
+	pub fn own(look: impl Into<Rc<Look>>) -> Option<Self> {
 		OwnReader::probe().map(|src| Graph::with(look, src))
 	}
 }
 
 impl Graph<BatteryReader, 3> {
 	/// None on a box with no battery in.
-	pub fn battery(look: Look) -> Option<Self> {
+	pub fn battery(look: impl Into<Rc<Look>>) -> Option<Self> {
 		BatteryReader::probe().map(|src| Graph::with(look, src))
 	}
 }
 
 impl<S: Source<N>, const N: usize> Graph<S, N> {
-	fn with(look: Look, src: S) -> Self {
+	fn with(look: impl Into<Rc<Look>>, src: S) -> Self {
 		Graph {
-			look,
+			look: look.into(),
 			hist: History::default(),
 			src,
 			clock: Instant::now(),
@@ -658,6 +486,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 			read_at: None,
 			latest: None,
 			px: Vec::new(),
+			scratch: Scratch::default(),
 			ease: Ease::default(),
 			peak: Peak::default(),
 			hover: None,
@@ -863,7 +692,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 			paint: S::paint(&self.look),
 			outline: S::outline(&self.look),
 		}
-		.draw_to(&mut px, w, h, scale, peak);
+		.draw_to(&mut px, w, h, scale, peak, &mut self.scratch);
 		if let Some(x) = self.hover {
 			let bw = self.border_px(w, h, scale);
 			render::line(&mut px, w, h, bw, x, scale, self.look.hover);
@@ -1091,7 +920,7 @@ mod tests {
 		g.sample();
 		g.render(64, 20, 1);
 		assert!(!g.easing());
-		g.look.time = Timing::Linear;
+		Rc::make_mut(&mut g.look).time = Timing::Linear;
 		g.render(64, 20, 1);
 		assert!(g.easing());
 		g.skip(axis::EASE);
@@ -1104,31 +933,37 @@ mod tests {
 	// Test ID: debj5
 	#[test]
 	fn linear_axis_follows_the_sample_rate() {
-		let g = Graph::new(Look {
-			time: Timing::Linear,
-			sample_ms: 250,
-			cpu_sample: 100,
-			..Look::default()
-		});
+		let g = Graph::new(
+			Look {
+				time: Timing::Linear,
+				sample_ms: 250,
+				..Look::default()
+			}
+			.with(Which::Cpu, |e| e.sample = 100),
+		);
 		assert_eq!(g.axis(100), Axis::linear(25.0));
 		// a graph's own rate rules its own axis
-		let g = Graph::new(Look {
-			time: Timing::Linear,
-			sample_ms: 250,
-			cpu_sample: 400,
-			..Look::default()
-		});
+		let g = Graph::new(
+			Look {
+				time: Timing::Linear,
+				sample_ms: 250,
+				..Look::default()
+			}
+			.with(Which::Cpu, |e| e.sample = 400),
+		);
 		assert_eq!(g.axis(100), Axis::linear(100.0));
 	}
 
 	// Test ID: dej9z
 	#[test]
 	fn a_graph_reads_on_the_beats_of_its_own_rate() {
-		let mut g = Graph::new(Look {
-			sample_ms: 500,
-			cpu_sample: 100,
-			..Look::default()
-		});
+		let mut g = Graph::new(
+			Look {
+				sample_ms: 500,
+				..Look::default()
+			}
+			.with(Which::Cpu, |e| e.sample = 100),
+		);
 		assert_eq!(g.sample_ms(), 500);
 		// the first call primes it, wherever it falls
 		assert_eq!(g.tick(1230.0), 270.0);
@@ -1145,18 +980,18 @@ mod tests {
 
 		// its own percentage of Sample ms default, and a gap under half a beat
 		// after the change is too short to read
-		g.look.cpu_sample = 400;
+		Rc::make_mut(&mut g.look)[Which::Cpu].sample = 400;
 		assert_eq!(g.sample_ms(), 2000);
 		assert_eq!(g.tick(2500.0), 1500.0);
 		assert_eq!(g.beat, Some((4.0, 2040.0)));
 		assert_eq!(g.tick(4000.0), 2000.0);
 		assert_eq!(g.beat, Some((2.0, 4000.0)));
 		// as fast as the finest history tier, and no faster
-		g.look.cpu_sample = 2;
+		Rc::make_mut(&mut g.look)[Which::Cpu].sample = 2;
 		assert_eq!(g.sample_ms(), FASTEST_MS);
-		g.look.cpu_sample = 100;
+		Rc::make_mut(&mut g.look)[Which::Cpu].sample = 100;
 		assert_eq!(g.sample_ms(), 500);
-		g.look.cpu_sample = 33;
+		Rc::make_mut(&mut g.look)[Which::Cpu].sample = 33;
 		assert_eq!(g.sample_ms(), 165);
 		assert_eq!(
 			(wait_ms(0.2), wait_ms(504.1), wait_ms(f64::NAN)),
@@ -1171,7 +1006,7 @@ mod tests {
 		g.hist.add(0.0, 1.0, &[0.1; 4]);
 		g.hist.add(7200.0, 7201.0, &[0.1; 4]);
 		assert_eq!(g.axis(100), Axis::log(axis::Curve::Smooth, 7201.0));
-		g.look.time = Timing::Log(axis::Curve::FixedA);
+		Rc::make_mut(&mut g.look).time = Timing::Log(axis::Curve::FixedA);
 		assert_eq!(g.axis(100), Axis::log(axis::Curve::FixedA, 7201.0));
 		assert_ne!(g.axis(100), Axis::log(axis::Curve::Smooth, 7201.0));
 	}
@@ -1212,7 +1047,7 @@ mod tests {
 		assert!(left.starts_with("1 hr ago\nCPU 80%\nUser 80%"), "{left}");
 		let right = g.hover_tip(128, w, h, 1);
 		assert!(right.starts_with("just now\nCPU 10%"), "{right}");
-		g.look.said = Said::Clock;
+		Rc::make_mut(&mut g.look).said = Said::Clock;
 		let tip = g.hover_tip(128, w, h, 1);
 		assert_eq!(tip.lines().next().map(str::len), Some(8), "{tip}");
 		// device columns on a scale 2 screen land on the same times
@@ -1222,13 +1057,15 @@ mod tests {
 	// Test ID: defz1
 	#[test]
 	fn a_still_pointer_keeps_its_age_while_its_clock_time_moves_on() {
-		let mut g = Graph::new(Look {
-			time: Timing::Linear,
-			sample_ms: 500,
-			cpu_sample: 100,
-			said: Said::Ago,
-			..Look::default()
-		});
+		let mut g = Graph::new(
+			Look {
+				time: Timing::Linear,
+				sample_ms: 500,
+				said: Said::Ago,
+				..Look::default()
+			}
+			.with(Which::Cpu, |e| e.sample = 100),
+		);
 		let now = g.now();
 		g.hist.add(now - 300.0, now, &[0.1; 4]);
 		// 128 columns of 0.5 s: column 65 is 31.75 s back, clear of a rounding edge
@@ -1284,7 +1121,7 @@ mod tests {
 	#[test]
 	fn the_hover_line_is_drawn_where_the_pointer_is() {
 		let mut g = two_hours();
-		g.look.hover = config::Rgb(1, 2, 3);
+		Rc::make_mut(&mut g.look).hover = config::Rgb(1, 2, 3);
 		let (w, h) = (40, 10);
 		let plain = g.render(w, h, 1).to_vec();
 		assert!(!plain.contains(&0xff01_0203));

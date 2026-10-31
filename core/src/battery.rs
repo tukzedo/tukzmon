@@ -4,7 +4,7 @@
 //! Battery charge and state from `power_supply`. See design.md, Data sources
 //! on Linux.
 
-use crate::collect::{Collector, slurp};
+use crate::collect::{Collector, Kept, slurp};
 
 const POWER_SUPPLY: &str = "/sys/class/power_supply";
 
@@ -31,12 +31,18 @@ struct Fill {
 struct Battery {
 	path: String,
 	base: usize,
+	/// Each file read so far, by name.
+	files: Vec<(&'static str, Kept)>,
 }
 
 impl Battery {
 	fn new(path: String) -> Self {
 		let base = path.len();
-		Battery { path, base }
+		Battery {
+			path,
+			base,
+			files: Vec::new(),
+		}
 	}
 
 	fn file(&mut self, name: &str) -> &str {
@@ -44,37 +50,55 @@ impl Battery {
 		self.path.push_str(name);
 		&self.path
 	}
+
+	fn read<'a>(&mut self, name: &'static str, buf: &'a mut String) -> Option<&'a str> {
+		let at = if let Some(at) = self.files.iter().position(|(n, _)| *n == name) {
+			at
+		} else {
+			let path = self.file(name).to_owned();
+			self.files.push((name, Kept::new(path)));
+			self.files.len() - 1
+		};
+		self.files[at].1.read(buf)
+	}
 }
 
 fn number(text: &str) -> Option<f64> {
 	text.trim().parse().ok().filter(|x: &f64| x.is_finite())
 }
 
-fn pair(bat: &mut Battery, buf: &mut String, now: &str, full: &str) -> Option<(f64, f64)> {
-	let now = slurp(bat.file(now), buf).and_then(number)?;
-	let full = slurp(bat.file(full), buf)
-		.and_then(number)
-		.filter(|f| *f > 0.0)?;
+fn pair(
+	bat: &mut Battery,
+	buf: &mut String,
+	now: &'static str,
+	full: &'static str,
+) -> Option<(f64, f64)> {
+	let now = bat.read(now, buf).and_then(number)?;
+	let full = bat.read(full, buf).and_then(number).filter(|f| *f > 0.0)?;
 	Some((now, full))
 }
 
 /// None for an empty slot, or one with no charge that reads.
 fn fill(bat: &mut Battery, buf: &mut String) -> Option<Fill> {
-	if slurp(bat.file("present"), buf).is_some_and(|s| s.trim() != "1") {
+	if bat.read("present", buf).is_some_and(|s| s.trim() != "1") {
 		return None;
 	}
 	let (unit, (now, full)) = pair(bat, buf, "energy_now", "energy_full")
 		.map(|p| (Unit::Energy, p))
 		.or_else(|| pair(bat, buf, "charge_now", "charge_full").map(|p| (Unit::Charge, p)))
 		.or_else(|| {
-			let percent = slurp(bat.file("capacity"), buf).and_then(number)?;
+			let percent = bat.read("capacity", buf).and_then(number)?;
 			Some((Unit::Percent, (percent, 100.0)))
 		})?;
-	let discharging = slurp(bat.file("status"), buf).is_some_and(|s| s.trim() == "Discharging");
-	let critical = slurp(bat.file("capacity_level"), buf).and_then(|s| match s.trim() {
-		"Unknown" => None,
-		level => Some(level == "Critical"),
-	});
+	let discharging = bat
+		.read("status", buf)
+		.is_some_and(|s| s.trim() == "Discharging");
+	let critical = bat
+		.read("capacity_level", buf)
+		.and_then(|s| match s.trim() {
+			"Unknown" => None,
+			level => Some(level == "Critical"),
+		});
 	Some(Fill {
 		unit,
 		now,

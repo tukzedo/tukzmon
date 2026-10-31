@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
-//! Disk reads and writes from `/proc/diskstats`. See design.md, Data sources
-//! on Linux.
+//! Disk reads and writes from each drive's `stat` in `/sys/class/block`.
+//! See design.md, Data sources on Linux.
 
-use std::collections::HashMap;
 use std::path::Path;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
-use crate::collect::{Climb, Collector, Counts, slurp};
+use crate::collect::{Climb, Collector, Kept};
 
-const DISKSTATS: &str = "/proc/diskstats";
+const BLOCK: &str = "/sys/block";
+const CLASS: &str = "/sys/class/block";
 
-/// diskstats counts 512 byte sectors, whatever the disk's own sector size.
+/// How often the drives are listed again, so one plugged in is counted.
+const RELIST: Duration = Duration::from_secs(10);
+
+/// `stat` counts 512 byte sectors, whatever the disk's own sector size.
 const SECTOR: f64 = 512.0;
 
 /// Which drives the graph counts.
@@ -22,31 +25,18 @@ pub enum Drives {
 	/// what sits on top of a disk, such as LVM, LUKS, RAID and loop
 	/// devices, so nothing is counted twice. zram isn't a disk either.
 	All,
-	/// These, by their `/proc/diskstats` names, such as `sda` or `nvme0n1`.
+	/// These, by their kernel names, as in `/proc/diskstats`, such as `sda`
+	/// or `nvme0n1`.
 	Only(Vec<String>),
 }
 
-/// Sectors read and written for each device `wants` takes. None on a row
-/// it takes that doesn't read.
-pub(crate) fn parse_diskstats(
-	text: &str,
-	mut wants: impl FnMut(&str) -> bool,
-	out: &mut Counts<2>,
-) -> Option<()> {
-	for line in text.lines() {
-		let mut cols = line.split_ascii_whitespace();
-		let Some(name) = cols.nth(2) else {
-			continue;
-		};
-		if !wants(name) {
-			continue;
-		}
-		let mut stats = cols.map(str::parse::<u64>);
-		let read = stats.nth(2)?.ok()?;
-		let written = stats.nth(3)?.ok()?;
-		out.push(name, [read, written]);
-	}
-	Some(())
+/// Sectors read and written, from a drive's `stat`. Kernels before 4.18
+/// have 11 columns, and later ones more.
+pub(crate) fn parse_stat(text: &str) -> Option<[u64; 2]> {
+	let mut stats = text.split_ascii_whitespace().map(str::parse::<u64>);
+	let read = stats.nth(2)?.ok()?;
+	let written = stats.nth(3)?.ok()?;
+	Some([read, written])
 }
 
 fn bin(_: &str, [read, written]: [u64; 2], sum: &mut [f64; 2]) {
@@ -54,46 +44,47 @@ fn bin(_: &str, [read, written]: [u64; 2], sum: &mut [f64; 2]) {
 	sum[1] += read as f64 * SECTOR;
 }
 
-fn rates(
-	climb: &mut Climb<2>,
-	text: &str,
-	wants: impl FnMut(&str) -> bool,
-	at: Instant,
-) -> Option<[f32; 2]> {
-	parse_diskstats(text, wants, climb.next())?;
-	climb.step(at, bin)
-}
-
 #[derive(Debug)]
 struct Picker {
 	drives: Drives,
+	/// Where [`Drives::All`] lists the disks.
 	block: String,
-	/// Whether each name seen is a disk, so `/sys` is asked once a name.
-	is_disk: HashMap<String, bool>,
+	/// Where every drive's `stat` is, partitions too.
+	class: String,
 }
 
 impl Picker {
-	fn new(drives: Drives, block: &str) -> Self {
+	fn new(drives: Drives, block: &str, class: &str) -> Self {
 		Picker {
 			drives,
 			block: block.to_owned(),
-			is_disk: HashMap::new(),
+			class: class.to_owned(),
 		}
 	}
 
-	fn wants(&mut self, name: &str) -> bool {
+	/// What's counted now, sorted for [`Drives::All`].
+	fn names(&self) -> Vec<String> {
 		match &self.drives {
-			Drives::Only(names) => names.iter().any(|n| n == name),
+			// owned, since each one goes into the disk list
+			Drives::Only(names) => names.clone(),
 			Drives::All => {
-				if let Some(&known) = self.is_disk.get(name) {
-					return known;
-				}
-				// partitions sit a level down, under their disk
-				let found = Path::new(&self.block).join(name).join("device").exists();
-				self.is_disk.insert(name.to_owned(), found);
-				found
+				let Ok(dir) = std::fs::read_dir(&self.block) else {
+					return Vec::new();
+				};
+				let mut names: Vec<String> = dir
+					.filter_map(|e| e.ok()?.file_name().into_string().ok())
+					// partitions sit a level down, under their disk
+					.filter(|n| Path::new(&self.block).join(n).join("device").exists())
+					.collect();
+				names.sort();
+				names
 			}
 		}
+	}
+
+	fn stat(&self, name: &str) -> Kept {
+		// sysfs writes a / in a kernel name as !, as in cciss!c0d0
+		Kept::new(format!("{}/{}/stat", self.class, name.replace('/', "!")))
 	}
 }
 
@@ -102,23 +93,61 @@ impl Picker {
 #[derive(Debug)]
 pub struct DiskReader {
 	picker: Picker,
+	disks: Vec<(String, Kept)>,
+	listed: Option<Instant>,
 	climb: Climb<2>,
 	buf: String,
 }
 
 impl DiskReader {
-	/// None when `/proc/diskstats` doesn't read, or for [`Drives::All`] on a
-	/// box with no disk. A chosen drive that isn't there yet reads as 0.
+	/// None for [`Drives::All`] on a box with no disk. A chosen drive that
+	/// isn't there yet reads as 0.
 	pub fn new(drives: Drives) -> Option<Self> {
+		Self::new_at(drives, BLOCK, CLASS, Instant::now())
+	}
+
+	fn new_at(drives: Drives, block: &str, class: &str, at: Instant) -> Option<Self> {
 		let all = drives == Drives::All;
 		let mut r = DiskReader {
-			picker: Picker::new(drives, "/sys/block"),
+			picker: Picker::new(drives, block, class),
+			disks: Vec::new(),
+			listed: None,
 			climb: Climb::default(),
 			buf: String::new(),
 		};
-		r.read();
+		r.read_at(at);
 		let any = !all || !r.climb.last().is_empty();
 		(r.climb.primed() && any).then_some(r)
+	}
+
+	/// The drives' files stay open from one list to the next.
+	fn list(&mut self, at: Instant) {
+		let mut was = std::mem::take(&mut self.disks);
+		for name in self.picker.names() {
+			let stat = match was.iter().position(|(n, _)| *n == name) {
+				Some(i) => was.swap_remove(i).1,
+				None => self.picker.stat(&name),
+			};
+			self.disks.push((name, stat));
+		}
+		self.listed = Some(at);
+	}
+
+	fn read_at(&mut self, at: Instant) -> Option<[f32; 2]> {
+		if self
+			.listed
+			.is_none_or(|then| at.saturating_duration_since(then) >= RELIST)
+		{
+			self.list(at);
+		}
+		let rows = self.climb.next();
+		for (name, stat) in &mut self.disks {
+			// one that doesn't read is left out, so its going is a gap
+			if let Some(counts) = stat.read(&mut self.buf).and_then(parse_stat) {
+				rows.push(name, counts);
+			}
+		}
+		self.climb.step(at, bin)
 	}
 }
 
@@ -137,155 +166,111 @@ impl Collector<2> for DiskReader {
 
 	/// Rates since the last call. The first call only primes it.
 	fn read(&mut self) -> Option<[f32; 2]> {
-		rates(
-			&mut self.climb,
-			slurp(DISKSTATS, &mut self.buf)?,
-			|name| self.picker.wants(name),
-			Instant::now(),
-		)
+		self.read_at(Instant::now())
 	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::fmt::Write;
-	use std::time::Duration;
+	use crate::collect::Tree;
 
-	/// One row per device, as 6.12 writes them, with 20 columns.
-	fn diskstats(rows: &[(&str, u64, u64)]) -> String {
-		let mut text = String::new();
-		for (name, read, written) in rows {
-			writeln!(
-				text,
-				" 259       0 {name} 9 0 {read} 3 9 0 {written} 4 0 5 6 0 0 0 0 0 0"
-			)
-			.unwrap();
-		}
-		text
+	/// A drive's `stat`, as 6.12 writes it, with 17 columns.
+	fn stat(read: u64, written: u64) -> String {
+		format!("       9        0 {read} 3 9 0 {written} 4 0 5 6 0 0 0 0 0 0\n")
 	}
 
 	// Test ID: defne
 	#[test]
-	fn reads_diskstats() {
-		let mut c = Counts::default();
-		let text = diskstats(&[("sda", 8, 16), ("sda1", 8, 16), ("dm-0", 8, 16)]);
-		assert_eq!(parse_diskstats(&text, |n| n == "sda", &mut c), Some(()));
-		assert_eq!(c.len(), 1);
-		// kernels before 4.18 have 14 columns
-		let old = "   8       0 sda 100 0 200 0 50 0 400 0 0 0 0\n";
-		let mut climb = Climb::default();
-		let t = Instant::now();
-		rates(&mut climb, old, |_| true, t);
-		let old = "   8       0 sda 100 0 202 0 50 0 404 0 0 0 0\n";
+	fn reads_a_drives_stat() {
+		assert_eq!(parse_stat(&stat(8, 16)), Some([8, 16]));
+		// kernels before 4.18 have 11 columns
 		assert_eq!(
-			rates(&mut climb, old, |_| true, t + Duration::from_secs(2)),
-			Some([1024.0, 512.0])
+			parse_stat("100 0 200 0 50 0 400 0 0 0 0\n"),
+			Some([200, 400])
 		);
-		for junk in ["   8 0 sda 1 0 2 0 3 0\n", "   8 0 sda 1 0 x 0 3 0 4\n"] {
-			assert_eq!(
-				parse_diskstats(junk, |_| true, &mut Counts::default()),
-				None,
-				"{junk}"
-			);
+		for junk in ["1 0 2 0 3 0\n", "1 0 x 0 3 0 4\n", ""] {
+			assert_eq!(parse_stat(junk), None, "{junk}");
 		}
-		// junk in a row not taken doesn't matter, and short lines are skipped
-		let text = format!("\n  8\n   8 0 sdz junk\n{}", diskstats(&[("sda", 1, 1)]));
-		let mut c = Counts::default();
-		assert_eq!(parse_diskstats(&text, |n| n == "sda", &mut c), Some(()));
-		assert_eq!(c.len(), 1);
 	}
 
 	// Test ID: defnf
 	#[test]
 	fn all_leaves_out_partitions_and_stacked_devices() {
-		let root = std::env::temp_dir().join(format!("test_tukzmon_disk_{}", std::process::id()));
-		let made = [
-			"",
-			"sda",
-			"sda/device",
-			"dm-0",
-			"loop0",
-			"nvme0n1",
-			"nvme0n1/device",
-		];
-		for rel in made {
-			let p = root.join(rel);
-			if rel.ends_with("device") {
-				std::fs::write(&p, "").unwrap();
-			} else {
-				std::fs::create_dir(&p).unwrap();
-			}
-		}
-		let mut all = Picker::new(Drives::All, &root.to_string_lossy());
-		let taken: Vec<&str> = [
-			"sda",
-			"sda1",
-			"dm-0",
-			"loop0",
-			"nvme0n1",
-			"nvme0n1p1",
-			"zram0",
-		]
-		.into_iter()
-		.filter(|n| all.wants(n))
-		.collect();
-		for rel in made.iter().rev() {
-			let p = root.join(rel);
-			std::fs::remove_file(&p)
-				.or_else(|_| std::fs::remove_dir(&p))
-				.unwrap();
-		}
-		assert_eq!(taken, ["sda", "nvme0n1"]);
-		// asked once a name
-		assert!(all.wants("sda"));
-
-		let mut only = Picker::new(
+		let t = Tree::new(
+			"disk_all",
+			&[
+				("sda/device", ""),
+				("dm-0/", ""),
+				("loop0/", ""),
+				("zram0/", ""),
+				("nvme0n1/device", ""),
+			],
+		);
+		let all = Picker::new(Drives::All, &t.at(""), "/proc/no/such");
+		assert_eq!(all.names(), ["nvme0n1", "sda"]);
+		let only = Picker::new(
 			Drives::Only(vec!["sda1".into(), "dm-0".into()]),
 			"/proc/no/such",
+			"/proc/no/such",
 		);
-		let taken: Vec<&str> = ["sda", "sda1", "dm-0"]
-			.into_iter()
-			.filter(|n| only.wants(n))
-			.collect();
-		assert_eq!(taken, ["sda1", "dm-0"]);
+		assert_eq!(only.names(), ["sda1", "dm-0"]);
+		assert!(
+			Picker::new(Drives::All, "/proc/no/such", "")
+				.names()
+				.is_empty()
+		);
 	}
 
 	// Test ID: defng
 	#[test]
 	fn the_drives_picked_add_up_and_a_change_is_a_gap() {
-		let t = Instant::now();
+		let t = Tree::new(
+			"disk_rates",
+			&[
+				("sda/device", ""),
+				("sda/stat", &stat(0, 0)),
+				("sda1/stat", &stat(0, 0)),
+				("sdb/device", ""),
+				("sdb/stat", &stat(100, 100)),
+				("sdc/stat", &stat(0, 0)),
+			],
+		);
+		let set = |name: &str, read: u64, written: u64| {
+			std::fs::write(t.at(&format!("{name}/stat")), stat(read, written)).unwrap();
+		};
+		let t0 = Instant::now();
 		let s = Duration::from_secs;
-		let mut climb = Climb::default();
-		let only = |n: &str| n.starts_with("sd") && n.len() == 3;
-		let rows = [("sda", 0, 0), ("sda1", 0, 0), ("sdb", 100, 100)];
-		assert_eq!(rates(&mut climb, &diskstats(&rows), only, t), None);
-		let rows = [("sda", 4, 8), ("sda1", 4, 8), ("sdb", 104, 108)];
-		assert_eq!(
-			rates(&mut climb, &diskstats(&rows), only, t + s(2)),
-			Some([4096.0, 2048.0])
-		);
-		// a drive plugged in, then its counters back from 0 after a replug
-		let rows = [("sda", 4, 8), ("sdb", 104, 108), ("sdc", 50, 0)];
-		assert_eq!(rates(&mut climb, &diskstats(&rows), only, t + s(3)), None);
-		let rows = [("sda", 4, 8), ("sdb", 104, 108), ("sdc", 52, 0)];
-		assert_eq!(
-			rates(&mut climb, &diskstats(&rows), only, t + s(4)),
-			Some([0.0, 1024.0])
-		);
-		let rows = [("sda", 4, 8), ("sdb", 104, 108), ("sdc", 1, 0)];
-		assert_eq!(rates(&mut climb, &diskstats(&rows), only, t + s(5)), None);
+		let root = t.at("");
+		let mut r = DiskReader::new_at(Drives::All, &root, &root, t0).unwrap();
+		set("sda", 4, 8);
+		set("sda1", 4, 8);
+		set("sdb", 104, 108);
+		assert_eq!(r.read_at(t0 + s(2)), Some([4096.0, 2048.0]));
+		// a drive plugged in counts from the next list, then its counters
+		// back from 0 after a replug
+		std::fs::write(t.at("sdc/device"), "").unwrap();
+		set("sdc", 50, 0);
+		assert_eq!(r.read_at(t0 + s(3)), Some([0.0, 0.0]));
+		assert_eq!(r.read_at(t0 + s(10)), None);
+		set("sdc", 52, 0);
+		assert_eq!(r.read_at(t0 + s(11)), Some([0.0, 1024.0]));
+		set("sdc", 1, 0);
+		assert_eq!(r.read_at(t0 + s(12)), None);
 		// a partition coming or going isn't a change in what's counted
-		let rows = [
-			("sda", 4, 8),
-			("sdb", 104, 110),
-			("sdc", 1, 0),
-			("sdc1", 1, 0),
-		];
-		assert_eq!(
-			rates(&mut climb, &diskstats(&rows), only, t + s(6)),
-			Some([1024.0, 0.0])
-		);
+		set("sdb", 104, 110);
+		std::fs::create_dir(t.at("sdc1")).unwrap();
+		set("sdc1", 1, 0);
+		assert_eq!(r.read_at(t0 + s(25)), Some([1024.0 / 13.0, 0.0]));
+		// the files stay open across a list
+		r.list(t0 + s(26));
+		let names: Vec<&str> = r.disks.iter().map(|(n, _)| n.as_str()).collect();
+		assert_eq!(names, ["sda", "sdb", "sdc"]);
+		assert!(r.disks.iter().all(|(_, k)| k.is_open()));
+		for made in ["sdc/device", "sdc1/stat"] {
+			std::fs::remove_file(t.at(made)).unwrap();
+		}
+		std::fs::remove_dir(t.at("sdc1")).unwrap();
 	}
 
 	// Test ID: defnh
@@ -296,18 +281,15 @@ mod tests {
 			return;
 		};
 		// every disk the box lists, and none of its partitions
-		let block = std::fs::read_dir("/sys/class/block").unwrap();
+		let block = std::fs::read_dir(CLASS).unwrap();
 		let partitions: Vec<String> = block
 			.filter_map(|e| e.ok()?.file_name().into_string().ok())
-			.filter(|n| {
-				Path::new("/sys/class/block")
-					.join(n)
-					.join("partition")
-					.exists()
-			})
+			.filter(|n| Path::new(CLASS).join(n).join("partition").exists())
 			.collect();
 		assert!(
-			partitions.iter().all(|p| !r.picker.wants(p)),
+			partitions
+				.iter()
+				.all(|p| r.disks.iter().all(|(n, _)| n != p)),
 			"{partitions:?}"
 		);
 		std::thread::sleep(Duration::from_millis(20));

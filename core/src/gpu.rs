@@ -6,7 +6,7 @@
 //! still starts, and AMD's from amdgpu's files in sysfs. Neither needs root.
 //! See design.md, Data sources on Linux.
 
-use crate::collect::{Collector, slurp};
+use crate::collect::{Collector, Kept};
 
 #[cfg(not(miri))]
 mod nvml {
@@ -189,39 +189,52 @@ const DRM: &str = "/sys/class/drm";
 #[derive(Debug)]
 enum Card {
 	Nvidia(&'static Nvml),
-	/// An amdgpu card's `device` folder.
-	Amd(String),
+	Amd(Amd),
+}
+
+/// An amdgpu card's files, in its `device` folder.
+#[derive(Debug)]
+struct Amd {
+	busy: Kept,
+	vram_used: Kept,
+	vram_total: Kept,
+}
+
+impl Amd {
+	fn new(dir: &str) -> Self {
+		Amd {
+			busy: Kept::new(format!("{dir}/gpu_busy_percent")),
+			vram_used: Kept::new(format!("{dir}/mem_info_vram_used")),
+			vram_total: Kept::new(format!("{dir}/mem_info_vram_total")),
+		}
+	}
 }
 
 impl Card {
 	fn find() -> Option<Card> {
 		Nvml::get()
 			.map(Card::Nvidia)
-			.or_else(|| amd_in(DRM).map(Card::Amd))
+			.or_else(|| amd_in(DRM).map(|dir| Card::Amd(Amd::new(&dir))))
 	}
 
-	fn busy(&self, buf: &mut String) -> Option<f32> {
+	fn busy(&mut self, buf: &mut String) -> Option<f32> {
 		match self {
 			Card::Nvidia(n) => n.busy(),
-			Card::Amd(dir) => {
-				let pc: f32 = slurp(&format!("{dir}/gpu_busy_percent"), buf)?
-					.trim()
-					.parse()
-					.ok()?;
+			Card::Amd(amd) => {
+				let pc: f32 = amd.busy.read(buf)?.trim().parse().ok()?;
 				Some((pc / 100.0).clamp(0.0, 1.0))
 			}
 		}
 	}
 
-	fn memory(&self, buf: &mut String) -> Option<(u64, u64)> {
+	fn memory(&mut self, buf: &mut String) -> Option<(u64, u64)> {
 		match self {
 			Card::Nvidia(n) => n.memory(),
-			Card::Amd(dir) => {
-				let mut num = |name: &str| -> Option<u64> {
-					slurp(&format!("{dir}/{name}"), buf)?.trim().parse().ok()
-				};
-				let used = num("mem_info_vram_used")?;
-				let total = num("mem_info_vram_total")?;
+			Card::Amd(amd) => {
+				let mut num =
+					|file: &mut Kept| -> Option<u64> { file.read(buf)?.trim().parse().ok() };
+				let used = num(&mut amd.vram_used)?;
+				let total = num(&mut amd.vram_total)?;
 				(total > 0).then_some((used, total))
 			}
 		}
@@ -307,11 +320,11 @@ impl Collector<1> for VramReader {
 pub(crate) fn amd_readers(dir: &str) -> (GpuReader, VramReader) {
 	(
 		GpuReader {
-			card: Card::Amd(dir.into()),
+			card: Card::Amd(Amd::new(dir)),
 			buf: String::new(),
 		},
 		VramReader {
-			card: Card::Amd(dir.into()),
+			card: Card::Amd(Amd::new(dir)),
 			buf: String::new(),
 			total: 0,
 		},

@@ -1,0 +1,39 @@
+# The C++ is one Qt file. Left out, and why:
+# - pointer-arithmetic-on-polymorphic-object crashes clang-tidy 19 on qt.cpp.
+# - Qt's parent owns what `new` makes, so owning-memory and the casts Qt's
+#   event and widget calls need say nothing useful here.
+# - The cairo pixels the live graphs draw take a reinterpret_cast.
+# - Layout pixels, short names, unbraced one-line bodies and leading return
+#   types are the file's style. So are pointers tested as bools, unnamed
+#   unused parameters, plain structs with public members, x and y side by
+#   side, and no nodiscard.
+# - Qt's headers are umbrellas, which include-cleaner can't follow.
+# - The window's builders and refresh are long by nature, and there's no GSL
+#   for at() on an index that isn't a constant.
+Checks: >
+  -*,
+  bugprone-*,
+  cppcoreguidelines-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  -bugprone-pointer-arithmetic-on-polymorphic-object,
+  -bugprone-easily-swappable-parameters,
+  -cppcoreguidelines-owning-memory,
+  -cppcoreguidelines-pro-type-static-cast-downcast,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -readability-magic-numbers,
+  -readability-identifier-length,
+  -readability-braces-around-statements,
+  -readability-implicit-bool-conversion,
+  -readability-named-parameter,
+  -modernize-use-trailing-return-type,
+  -modernize-use-nodiscard,
+  -misc-include-cleaner,
+  -misc-non-private-member-variables-in-classes,
+  -readability-function-cognitive-complexity,
+  -cppcoreguidelines-pro-bounds-constant-array-index
+WarningsAsErrors: '*'
+HeaderFilterRegex: '/qt\.h$'

@@ -24,11 +24,25 @@ pub mod ffi {
 		dim: Vec<String>,
 	}
 
+	/// How a row is drawn. A dropdown with `shown_as: radio` is Radio.
+	#[derive(Debug)]
+	enum ControlKind {
+		Heading,
+		Checkbox,
+		Slider,
+		Number,
+		Dropdown,
+		Radio,
+		Text,
+		Color,
+		File,
+	}
+
 	struct RowInfo {
 		id: String,
 		label: String,
 		tab: i32,
-		control: String,
+		control: ControlKind,
 		whole: bool,
 		min: f64,
 		max: f64,
@@ -74,14 +88,15 @@ pub mod ffi {
 		remove: bool,
 	}
 
-	/// The open picker's color, and what each value box shows for it.
+	/// The open picker's color, and what each value box shows for it: a
+	/// whole percent in each but the last, which is the hex box.
 	struct PickState {
 		h: f64,
 		s: f64,
 		v: f64,
 		hex: String,
 		labels: Vec<String>,
-		fields: Vec<String>,
+		percents: Vec<i32>,
 	}
 
 	extern "Rust" {
@@ -148,6 +163,9 @@ pub mod ffi {
 	unsafe extern "C++" {
 		include!("tukzmon-settings/src/qt.h");
 		fn run_dialog(d: &mut Dialog, snapshot: &str) -> i32;
+		/// A message box, with no window behind it, for a settings file that
+		/// can't be read.
+		fn say_unreadable(text: &str);
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn greyed_rows(d: &mut Dialog) -> Vec<String>;
 		/// Each graph list row's graph width and x, and its width box's x.
@@ -200,6 +218,14 @@ pub mod ffi {
 		/// measures it.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn empty_box_contrast(dark: bool) -> f64;
+		/// The color chips restyled by a refresh with nothing changed, then by
+		/// one after the first color row is set to `color`.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn chip_restyles(d: &mut Dialog, color: &str) -> Vec<i32>;
+		/// Microseconds per call of `times` refreshes, then of `times` steps
+		/// of the first slider, each with the events it posts.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn refresh_micros(d: &mut Dialog, times: usize) -> Vec<f64>;
 	}
 }
 
@@ -207,6 +233,7 @@ fn dialog_title(d: &Dialog) -> String {
 	format!("tukzmon settings - {}", d.path().display())
 }
 
+// cxx's structs own their text, so the spec's is copied into them
 fn dialog_tabs(d: &Dialog) -> Vec<ffi::TabInfo> {
 	d.spec()
 		.tabs
@@ -218,23 +245,33 @@ fn dialog_tabs(d: &Dialog) -> Vec<ffi::TabInfo> {
 		.collect()
 }
 
+// None for a setting with no row
+fn control_kind(s: &knobs::Setting) -> Option<ffi::ControlKind> {
+	Some(match s.control {
+		Control::Heading => ffi::ControlKind::Heading,
+		Control::Checkbox => ffi::ControlKind::Checkbox,
+		Control::Slider => ffi::ControlKind::Slider,
+		Control::Number => ffi::ControlKind::Number,
+		Control::Dropdown if tukzmon_core::config::shown_as_radio(&s.id) => ffi::ControlKind::Radio,
+		Control::Dropdown => ffi::ControlKind::Dropdown,
+		Control::Text => ffi::ControlKind::Text,
+		Control::Color => ffi::ControlKind::Color,
+		Control::File => ffi::ControlKind::File,
+		Control::None => return None,
+	})
+}
+
 fn dialog_rows(d: &Dialog) -> Vec<ffi::RowInfo> {
 	d.spec()
 		.settings
 		.iter()
 		.zip(d.sections())
-		.filter(|(s, _)| s.control != Control::None)
-		.map(|(s, section)| ffi::RowInfo {
+		.filter_map(|(s, section)| Some((s, section, control_kind(s)?)))
+		.map(|(s, section, control)| ffi::RowInfo {
 			id: s.id.clone(),
 			label: s.label.clone(),
 			tab: s.tab as i32,
-			control: if s.control == Control::Dropdown
-				&& tukzmon_core::config::shown_as_radio(&s.id)
-			{
-				"radio".into()
-			} else {
-				format!("{:?}", s.control).to_lowercase()
-			},
+			control,
 			whole: s.kind == knobs::Kind::Int,
 			min: s.min,
 			max: s.max,
@@ -251,6 +288,7 @@ fn dialog_rows(d: &Dialog) -> Vec<ffi::RowInfo> {
 
 fn row_state(d: &Dialog, id: &str) -> ffi::RowState {
 	let s = d.state(id);
+	let (options, option_labels) = s.options.into_iter().unzip();
 	ffi::RowState {
 		text: s.text,
 		on: s.on,
@@ -261,8 +299,8 @@ fn row_state(d: &Dialog, id: &str) -> ffi::RowState {
 		tip: s.tip,
 		choice: s.choice,
 		shown: s.shown,
-		option_labels: s.options.iter().map(|(_, l)| l.clone()).collect(),
-		options: s.options.into_iter().map(|(k, _)| k).collect(),
+		options,
+		option_labels,
 	}
 }
 
@@ -339,7 +377,7 @@ fn pick_state(d: &Dialog) -> ffi::PickState {
 		v: hsv.v,
 		hex: crate::pick::hex(crate::pick::to_rgb(hsv)),
 		labels: Field::ALL.iter().map(|f| f.label().to_string()).collect(),
-		fields: Field::ALL.iter().map(|f| f.text(hsv)).collect(),
+		percents: Field::ALL.iter().filter_map(|f| f.percent(hsv)).collect(),
 	}
 }
 
@@ -393,7 +431,7 @@ fn live_new(d: &Dialog) -> Box<Live> {
 }
 
 fn live_look(l: &mut Live, d: &Dialog) {
-	l.set_look(&d.look());
+	l.set_look(d.look());
 }
 
 fn live_sample(l: &mut Live) -> u32 {
@@ -428,7 +466,7 @@ fn wrap_tip(text: &str) -> String {
 }
 
 /// Breaks each line of `text` longer than `width` characters between words.
-/// Shorter lines, adn the breaks already there, are kept as they are, so a
+/// Shorter lines, and the breaks already there, are kept as they are, so a
 /// wrapped text wraps to itself. A word longer than `width` gets a line of
 /// its own.
 pub fn wrapped(text: &str, width: usize) -> String {
@@ -466,6 +504,10 @@ pub fn run(d: &mut Dialog, snapshot: &str) -> i32 {
 	ffi::run_dialog(d, snapshot)
 }
 
+pub fn say_unreadable(text: &str) {
+	ffi::say_unreadable(text);
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -491,7 +533,7 @@ mod tests {
 			"test_tukzmon-settings_{}_tips_never_written.shcl",
 			std::process::id()
 		));
-		let d = Dialog::open(path);
+		let d = Dialog::open(path).unwrap();
 		let mut long = 0;
 		for r in dialog_rows(&d) {
 			let tip = row_state(&d, &r.id).tip;
@@ -516,6 +558,48 @@ mod tests {
 		assert!(long > 10, "only {long} tips needed wrapping");
 	}
 
+	// Test ID: dendh
+	#[test]
+	fn rows_send_their_control_as_a_kind_and_the_picker_its_percents() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_kinds_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let rows = dialog_rows(&d);
+		let kind = |id: &str| rows.iter().find(|r| r.id == id).unwrap().control;
+		assert_eq!(kind("cpu_mode"), ffi::ControlKind::Radio);
+		assert_eq!(kind("back_bottom"), ffi::ControlKind::Color);
+		assert_eq!(kind("back_all"), ffi::ControlKind::Checkbox);
+		assert_eq!(kind("border"), ffi::ControlKind::Slider);
+		assert_eq!(kind("disk_drives"), ffi::ControlKind::Text);
+		for k in [
+			ffi::ControlKind::Heading,
+			ffi::ControlKind::Number,
+			ffi::ControlKind::Dropdown,
+		] {
+			assert!(rows.iter().any(|r| r.control == k), "{k:?}");
+		}
+		assert!(d.pick_open("back_bottom"));
+		let p = pick_state(&d);
+		let hsv = d.pick_hsv().unwrap();
+		assert_eq!(p.labels.len(), Field::ALL.len());
+		assert_eq!(
+			p.percents.len(),
+			Field::ALL.len() - 1,
+			"all but the hex box"
+		);
+		for (f, n) in Field::ALL.iter().zip(&p.percents) {
+			assert_eq!(f.percent(hsv), Some(*n), "{f:?}");
+		}
+		assert_eq!(
+			p.labels.last().map(String::as_str),
+			Some(Field::Hex.label())
+		);
+		assert_eq!(crate::pick::hex(crate::pick::to_rgb(hsv)), p.hex);
+		pick_close(&mut d, false);
+	}
+
 	// Test ID: defm1
 	#[test]
 	fn the_graph_list_sits_under_graphs_and_takes_its_rows() {
@@ -523,7 +607,7 @@ mod tests {
 			"test_tukzmon-settings_{}_list_never_written.shcl",
 			std::process::id()
 		));
-		let d = Dialog::open(path);
+		let d = Dialog::open(path).unwrap();
 		let rows = dialog_rows(&d);
 		let listed: Vec<&str> = rows
 			.iter()
@@ -555,7 +639,7 @@ mod tests {
 			"test_tukzmon-settings_{}_places_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		// at 100 px, a width in percent is the same number
 		d.set("width", &Value::Float(100.0));
 		d.set("cpu_width", &Value::Float(40.0));
@@ -591,10 +675,10 @@ mod tests {
 			"test_tukzmon-settings_{}_greyed_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let shown: Vec<String> = dialog_rows(&d)
 			.into_iter()
-			.filter(|r| !matches!(r.control.as_str(), "heading" | "none"))
+			.filter(|r| r.control != ffi::ControlKind::Heading)
 			.map(|r| r.id)
 			.collect();
 		let gates: Vec<String> = d
@@ -632,7 +716,7 @@ mod tests {
 			"test_tukzmon-settings_{}_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let tabs = dialog_tabs(&d);
 		let rows = dialog_rows(&d);
 		let choosers: Vec<&ffi::RowInfo> = rows.iter().filter(|r| r.chooser).collect();
@@ -657,7 +741,7 @@ mod tests {
 		let group = d.spec().group(THEME).unwrap().clone();
 		for r in rows
 			.iter()
-			.filter(|r| subs.contains(&r.tab) && r.control == "color")
+			.filter(|r| subs.contains(&r.tab) && r.control == ffi::ControlKind::Color)
 		{
 			assert!(group.members.contains(&r.id), "{}", r.id);
 		}
@@ -697,7 +781,7 @@ mod tests {
 			"test_tukzmon-settings_{}_tabs_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let tabs = dialog_tabs(&d);
 		let rows = dialog_rows(&d);
 		let shown = ffi::tabs_shown(&mut d);
@@ -741,7 +825,7 @@ mod tests {
 			"test_tukzmon-settings_{}_tabs_lit_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let tabs = dialog_tabs(&d);
 		let shown = ffi::tabs_shown(&mut d);
 		let at = |name: &str| tabs.iter().position(|t| t.label == name).unwrap();
@@ -766,7 +850,7 @@ mod tests {
 			"test_tukzmon-settings_{}_graphs_tab_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let tabs = dialog_tabs(&d);
 		let rows = dialog_rows(&d);
 		let shown = ffi::tabs_shown(&mut d);
@@ -828,7 +912,7 @@ mod tests {
 				"test_tukzmon-settings_{}_shades_never_written.shcl",
 				std::process::id()
 			));
-			let mut d = Dialog::open(path);
+			let mut d = Dialog::open(path).unwrap();
 			let got = ffi::page_shades(&mut d, dark);
 			let window = got[0].as_str();
 			assert_eq!(got.len(), dialog_tabs(&d).len() + 1, "{got:?}");
@@ -858,7 +942,7 @@ mod tests {
 			"test_tukzmon-settings_{}_tab_move_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let tabs = dialog_tabs(&d);
 		let last = graph_rows(&d).len() - 1;
 		let shown = ffi::tabs_after_move(&mut d, "Colors", last, 0);
@@ -881,7 +965,7 @@ mod tests {
 			"test_tukzmon-settings_{}_sections_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let last = graph_rows(&d).len() - 1;
 		let placed = ffi::sections_after_move(&mut d, last, 0);
 		let names: Vec<&str> = placed
@@ -907,7 +991,7 @@ mod tests {
 			"test_tukzmon-settings_{}_buttons_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		assert_eq!(
 			ffi::bottom_buttons(&mut d),
 			["Reset history", "Cancel", "&Apply", "OK"]
@@ -924,7 +1008,7 @@ mod tests {
 				"test_tukzmon-settings_{}_typing_never_written.shcl",
 				std::process::id()
 			));
-			let mut d = Dialog::open(path);
+			let mut d = Dialog::open(path).unwrap();
 			assert_eq!(
 				ffi::apply_while_typing(&mut d, number),
 				[false, true, true],
@@ -943,6 +1027,53 @@ mod tests {
 			let c = ffi::empty_box_contrast(dark);
 			assert!(c >= 3.0, "dark: {dark}, contrast {c:.2}");
 		}
+	}
+
+	// Test ID: denaq
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn a_refresh_restyles_only_the_chips_whose_color_changed() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_chips_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		assert_eq!(ffi::chip_restyles(&mut d, "#123456"), [0, 1]);
+	}
+
+	fn median_of(mut v: Vec<f64>) -> f64 {
+		v.sort_by(f64::total_cmp);
+		v[v.len() / 2]
+	}
+
+	// Test ID: denam
+	#[test]
+	#[ignore = "a timing, run by hand with --ignored --nocapture"]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn time_a_refresh_and_a_slider_step() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_timing_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let times = 50;
+		let t = ffi::refresh_micros(&mut d, times);
+		let rows = dialog_rows(&d);
+		let start = std::time::Instant::now();
+		for _ in 0..times {
+			for r in &rows {
+				std::hint::black_box(row_state(&d, &r.id));
+			}
+		}
+		let states = start.elapsed().as_secs_f64() * 1e6 / times as f64;
+		println!(
+			"refresh {:.0} us, slider step {:.0} us, row_state for {} rows {states:.0} us (medians of {times})",
+			median_of(t[..times].to_vec()),
+			median_of(t[times..].to_vec()),
+			rows.len()
+		);
 	}
 
 	// x, y, width and height
@@ -967,7 +1098,8 @@ mod tests {
 		let mut d = Dialog::open(dir.join(format!(
 			"test_tukzmon-settings_{}_fit_never_written.shcl",
 			std::process::id()
-		)));
+		)))
+		.unwrap();
 		let got = ffi::window_fit(&mut d, screens.to_str().unwrap());
 		std::fs::remove_file(&screens).unwrap();
 		let rect = |line: &str, what: &str| -> Rect {
@@ -1017,7 +1149,7 @@ mod tests {
 			"test_tukzmon-settings_{}_ctrl_tab_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		// Themes only shows Colors, so it's no stop of its own
 		let ahead = ["General", "Graphs", "Colors", "Outline", "General"];
 		let back = ["General", "Outline", "Colors", "Graphs", "General"];
@@ -1038,7 +1170,7 @@ mod tests {
 			"test_tukzmon-settings_{}_ctrl_page_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let ahead = ["General", "Graphs", "Colors", "Outline", "General"];
 		let back = ["General", "Outline", "Colors", "Graphs", "General"];
 		for from_page in [false, true] {
@@ -1058,7 +1190,7 @@ mod tests {
 			"test_tukzmon-settings_{}_section_tops_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let modes: Vec<String> = dialog_rows(&d)
 			.into_iter()
 			.filter(|r| !r.section.is_empty() && r.id.ends_with("_mode"))

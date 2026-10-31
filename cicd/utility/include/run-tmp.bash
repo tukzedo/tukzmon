@@ -33,6 +33,11 @@ fSafeRm() {
 	if ! [[ "${p}" =~ ^/(.+/)?tmp/[^/]+(/[^/]+)*$ || "${p}" == "${own}"/?* ]]; then
 		printf 'safe-rm: refused, not under a tmp folder: %s\n' "${p}" >&2; return 1
 	fi
+	## Other runs and sessions keep theirs in the temp root and each project's
+	## folder there.
+	if [[ "${p}" == "${HOST_TEMP}" || ( "${p}" == "${HOST_TEMP}"/* && "${p#"${HOST_TEMP}"/}" != */* ) ]]; then
+		printf 'safe-rm: refused, a whole project temp folder: %s\n' "${p}" >&2; return 1
+	fi
 	if [[ -L "${p}" ]]; then printf 'safe-rm: refused, a link: %s\n' "${p}" >&2; return 1; fi
 	real="$(realpath -e -- "${p}" 2> /dev/null)" || { printf 'safe-rm: refused, not there: %s\n' "${p}" >&2; return 1; }
 	if [[ "${real}" != "${p}" ]]; then printf 'safe-rm: refused, goes through a link: %s\n' "${p}" >&2; return 1; fi
@@ -145,3 +150,5 @@ fStopLeftovers() {
 ##	History:
 ##		- 2026-10-25: Created, with fSafeRm from the CICD process.
 ##		- 2026-10-25: A folder whose run is gone goes at once, unless kept.
+##		- 2026-10-30: fSafeRm refuses the temp root and a project's folder in it,
+##		  as the CICD process's copy does.

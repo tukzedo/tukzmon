@@ -3,7 +3,7 @@
 
 //! CPU temperature from `hwmon`. See design.md, Data sources on Linux.
 
-use crate::collect::{Collector, slurp};
+use crate::collect::{Collector, Kept, slurp};
 
 const HWMON: &str = "/sys/class/hwmon";
 
@@ -90,7 +90,7 @@ pub const CRIT_UNKNOWN: f32 = 95.0;
 /// socket, split at the critical level.
 #[derive(Debug, Default)]
 pub struct TempReader {
-	inputs: Vec<String>,
+	inputs: Vec<Kept>,
 	crit: Option<f32>,
 	buf: String,
 }
@@ -125,7 +125,7 @@ impl TempReader {
 				if let Some(c) = level.filter(|c| *c > 0.0) {
 					crit = Some(crit.map_or(c, |was| was.min(c)));
 				}
-				inputs.push(format!("{dir}/temp{n}_input"));
+				inputs.push(Kept::new(format!("{dir}/temp{n}_input")));
 			}
 		}
 		let mut r = TempReader { inputs, crit, buf };
@@ -148,8 +148,8 @@ impl Collector<2> for TempReader {
 		let buf = &mut self.buf;
 		let limit = self.crit.unwrap_or(CRIT_UNKNOWN);
 		self.inputs
-			.iter()
-			.filter_map(|path| slurp(path, buf).and_then(degrees))
+			.iter_mut()
+			.filter_map(|input| input.read(buf).and_then(degrees))
 			.reduce(f32::max)
 			.map(|x| [x.min(limit), (x - limit).max(0.0)])
 	}

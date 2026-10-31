@@ -6,7 +6,7 @@
 
 use std::time::Instant;
 
-use crate::collect::{Climb, Collector, Counts, slurp};
+use crate::collect::{Climb, Collector, Counts, Kept};
 use crate::config::Split;
 use crate::lan::{self, LanReader};
 
@@ -45,10 +45,21 @@ fn rates(climb: &mut Climb<2>, text: &str, at: Instant) -> Option<[f32; 3]> {
 
 /// Bytes per second over every interface. An interface that comes or goes,
 /// or a counter that wraps or resets, makes a gap.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct NetReader {
 	climb: Climb<2>,
+	dev: Kept,
 	buf: String,
+}
+
+impl Default for NetReader {
+	fn default() -> Self {
+		NetReader {
+			climb: Climb::default(),
+			dev: Kept::new(NET_DEV),
+			buf: String::new(),
+		}
+	}
 }
 
 impl Collector<3> for NetReader {
@@ -64,7 +75,7 @@ impl Collector<3> for NetReader {
 	fn read(&mut self) -> Option<[f32; 3]> {
 		rates(
 			&mut self.climb,
-			slurp(NET_DEV, &mut self.buf)?,
+			self.dev.read(&mut self.buf)?,
 			Instant::now(),
 		)
 	}

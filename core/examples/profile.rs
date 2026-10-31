@@ -12,7 +12,7 @@ use std::hint::black_box;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use tukzmon_core::config::Look;
+use tukzmon_core::config::{Look, Which};
 use tukzmon_core::graphs::Graphs;
 
 // Under the kernel's 250 Hz tick.
@@ -20,10 +20,8 @@ const FREQ: i32 = 199;
 // The unwinder, the vdso and the loader stay out, since unwinding from inside
 // them isn't safe.
 const BLOCKLIST: [&str; 3] = ["libgcc", "vdso", "ld-linux"];
-/// The panel's default sample time.
-const TICK: f64 = 0.5;
 /// The plugin saves every 15 minutes.
-const KEEP_EVERY: usize = 1800;
+const KEEP_MS: u32 = 900_000;
 
 /// pprof files a sample under the start address of each function on its
 /// stack, then names the whole bucket from the inline frames of whichever
@@ -48,11 +46,8 @@ fn cpu_us() -> (i64, i64) {
 	(us(ru.ru_utime), us(ru.ru_stime))
 }
 
-fn tick(g: &mut Graphs, round: usize, w: usize, h: usize, scale: usize) {
-	g.cpu.skip(TICK);
-	if let Some(m) = &mut g.mem {
-		m.skip(TICK);
-	}
+fn tick(g: &mut Graphs, secs: f64, round: usize, w: usize, h: usize, scale: usize) {
+	g.skip(secs);
 	g.sample();
 	g.trim();
 	let x = round % w;
@@ -71,16 +66,17 @@ fn main() -> Result<(), String> {
 		.map_err(|e| format!("ROUNDS: {e}"))?;
 	let hist = std::env::temp_dir().join(format!("tukzmon-profile_{}.hist", std::process::id()));
 	let (w, h, scale) = (96, 48, 2);
-	let mut g = Graphs::new(Look::default());
-	if g.mem.is_none() {
+	let look = Look::default();
+	// the panel's default sample time
+	let secs = f64::from(look.sample_ms) / 1000.0;
+	let keep_every = (KEEP_MS / look.sample_ms.max(1)).max(1) as usize;
+	let mut g = Graphs::new(look);
+	if !g.has(Which::Mem) {
 		return Err("no memory graph here, so half the work would be left out".into());
 	}
 	// A week at 20 s a step.
 	for _ in 0..7 * 4320 {
-		g.cpu.skip(20.0);
-		if let Some(m) = &mut g.mem {
-			m.skip(20.0);
-		}
+		g.skip(20.0);
 		g.sample();
 		g.trim();
 	}
@@ -92,8 +88,8 @@ fn main() -> Result<(), String> {
 		.map_err(|e| format!("profiler: {e}"))?;
 	let (wall0, cpu0) = (Instant::now(), cpu_us());
 	for round in 1..=rounds {
-		tick(&mut g, round, w, h, scale);
-		if round % KEEP_EVERY == 0 {
+		tick(&mut g, secs, round, w, h, scale);
+		if round % keep_every == 0 {
 			g.save(&hist)
 				.map_err(|e| format!("{}: {e}", hist.display()))?;
 			g.load(&hist)
@@ -128,7 +124,8 @@ fn main() -> Result<(), String> {
 	let mut opt = inferno::flamegraph::Options::default();
 	opt.title = "tukzmon panel tick".into();
 	opt.subtitle = Some(format!(
-		"{rounds} ticks of CPU and memory at {w}x{h} scale {scale}: {user:.2} s user + {sys:.2} s system in {wall:.2} s, {:.1} us a tick",
+		"{rounds} ticks of {} graphs at {w}x{h} scale {scale}: {user:.2} s user + {sys:.2} s system in {wall:.2} s, {:.1} us a tick",
+		g.count(),
 		(user + sys) * 1e6 / rounds as f64
 	));
 	// Colors by name, so 2 graphs of the same code look alike.

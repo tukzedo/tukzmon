@@ -143,6 +143,21 @@ pub fn blend(stops: [Rgb; 3], t: f32) -> [f32; 3] {
 	}
 }
 
+/// Buffers a draw keeps for the next one, so drawing at the same size
+/// allocates nothing.
+#[derive(Debug, Default)]
+pub struct Scratch<const N: usize> {
+	/// The background's color per plot row, top first, premultiplied.
+	back: Vec<[f32; 3]>,
+	/// The same, packed.
+	back_px: Vec<u32>,
+	/// The gradient's color per plot row, when that's the paint.
+	grad: Vec<[f32; 3]>,
+	grad_px: Vec<u32>,
+	/// Each column's reach, or None for a gap.
+	reached: Vec<Option<[f32; N]>>,
+}
+
 pub struct Frame<'a, const N: usize> {
 	pub hist: &'a History<N>,
 	pub axis: &'a dyn Ages,
@@ -157,11 +172,12 @@ impl<const N: usize> Frame<'_, N> {
 	/// Draw into `px`, `w` by `h`, rows top first. `scale` multiplies the
 	/// border for high-DPI screens.
 	pub fn draw(&self, px: &mut Vec<u32>, w: usize, h: usize, scale: usize) {
-		self.draw_to(px, w, h, scale, None);
+		self.draw_to(px, w, h, scale, None, &mut Scratch::default());
 	}
 
 	/// As [`Self::draw`], for a source with no fixed top: `scaled` sets the
-	/// top, in the source's own unit, instead of 1.
+	/// top, in the source's own unit, instead of 1. `scratch` is kept from
+	/// one draw to the next.
 	pub fn draw_to(
 		&self,
 		px: &mut Vec<u32>,
@@ -169,6 +185,7 @@ impl<const N: usize> Frame<'_, N> {
 		h: usize,
 		scale: usize,
 		scaled: Option<Scale<'_>>,
+		scratch: &mut Scratch<N>,
 	) {
 		px.clear();
 		px.resize(w * h, self.outline.border.argb());
@@ -177,49 +194,52 @@ impl<const N: usize> Frame<'_, N> {
 		if pw == 0 || ph == 0 {
 			return;
 		}
+		let Scratch {
+			back,
+			back_px,
+			grad,
+			grad_px,
+			reached,
+		} = scratch;
 		// premultiplied, so a transparent one is all zeros
 		let back_alpha = if self.look.transparent { 0.0 } else { 1.0 };
-		let back: Vec<[f32; 3]> = (0..ph)
-			.map(|r| {
-				mix(
-					self.outline.top,
-					self.outline.bottom,
-					if ph > 1 {
-						r as f32 / (ph - 1) as f32
-					} else {
-						0.0
-					},
-				)
-				.map(|v| v * back_alpha)
-			})
-			.collect();
-		let cols: Vec<[f32; 3]> = match self.paint {
-			Paint::Stack(colors) => colors
-				.iter()
-				.map(|c| [c.0 as f32, c.1 as f32, c.2 as f32])
-				.collect(),
-			Paint::Gradient(_) => Vec::new(),
+		back.clear();
+		back.extend((0..ph).map(|r| {
+			let t = if ph > 1 {
+				r as f32 / (ph - 1) as f32
+			} else {
+				0.0
+			};
+			mix(self.outline.top, self.outline.bottom, t).map(|v| v * back_alpha)
+		}));
+		back_px.clear();
+		back_px.extend(back.iter().map(|&c| pack_alpha(c, back_alpha)));
+		let (cols, solid) = match self.paint {
+			Paint::Stack(colors) => {
+				let cols = colors.map(|c| [c.0 as f32, c.1 as f32, c.2 as f32]);
+				(cols, cols.map(|c| pack_alpha(c, 1.0)))
+			}
+			Paint::Gradient(_) => ([[0.0; 3]; N], [0; N]),
 		};
 		// row by row, top first, at each row's middle
-		let grad: Vec<[f32; 3]> = match self.paint {
-			Paint::Gradient(stops) => (0..ph)
-				.map(|r| blend(stops, ((ph - r) as f32 - 0.5) / ph as f32))
-				.collect(),
-			Paint::Stack(_) => Vec::new(),
-		};
-		let reached: Vec<Option<[f32; N]>> = (0..pw)
-			.map(|cx| {
-				let u_new = (pw - cx - 1) as f64 / pw as f64;
-				let u_old = (pw - cx) as f64 / pw as f64;
-				let (a, b) = (
-					self.now - self.axis.age(u_old),
-					self.now - self.axis.age(u_new),
-				);
-				let span = self.hist.span(a, b);
-				(span.covered >= MIN_COVER)
-					.then(|| reach(&span.mean, &span.max, b - a, self.look.spikes))
-			})
-			.collect();
+		grad.clear();
+		grad_px.clear();
+		if let Paint::Gradient(stops) = self.paint {
+			grad.extend((0..ph).map(|r| blend(stops, ((ph - r) as f32 - 0.5) / ph as f32)));
+			grad_px.extend(grad.iter().map(|&g| pack_alpha(g, 1.0)));
+		}
+		reached.clear();
+		reached.extend((0..pw).map(|cx| {
+			let u_new = (pw - cx - 1) as f64 / pw as f64;
+			let u_old = (pw - cx) as f64 / pw as f64;
+			let (a, b) = (
+				self.now - self.axis.age(u_old),
+				self.now - self.axis.age(u_new),
+			);
+			let span = self.hist.span(a, b);
+			(span.covered >= MIN_COVER)
+				.then(|| reach(&span.mean, &span.max, b - a, self.look.spikes))
+		}));
 		let (top, log) = match scaled {
 			Some(Scale { peak, floor, log }) => {
 				let highest = reached
@@ -231,48 +251,79 @@ impl<const N: usize> Frame<'_, N> {
 			}
 			None => (1.0, None),
 		};
-		for (cx, v) in reached.into_iter().enumerate() {
-			let heights = v.map(|v| match log {
+		let gradient = matches!(self.paint, Paint::Gradient(_));
+		for (cx, v) in reached.iter().enumerate() {
+			let at = |r: usize| (r + bw) * w + cx + bw;
+			let Some(hs) = v.map(|v| match log {
 				Some(floor) => fit_log(v, top, floor),
 				None => fit(v, top),
-			});
-			for r in 0..ph {
-				let mut c = back[r];
-				let mut alpha = back_alpha;
-				if let Some(hs) = &heights {
-					// this pixel's slice of the stack, measured up from the bottom
+			}) else {
+				for (r, &b) in back_px.iter().enumerate() {
+					px[at(r)] = b;
+				}
+				continue;
+			};
+			if gradient {
+				let top = hs.iter().sum::<f32>() * ph as f32;
+				for r in 0..ph {
 					let (p0, p1) = ((ph - r - 1) as f32, (ph - r) as f32);
-					let mut y = 0.0f32;
+					let cover = (top.min(p1) - p0).clamp(0.0, 1.0);
+					px[at(r)] = if cover >= 1.0 {
+						grad_px[r]
+					} else if cover <= 0.0 {
+						back_px[r]
+					} else {
+						let c = std::array::from_fn(|k| {
+							back[r][k] * (1.0 - cover) + grad[r][k] * cover
+						});
+						pack_alpha(c, back_alpha * (1.0 - cover) + cover)
+					};
+				}
+				continue;
+			}
+			// each series' top, in pixels up from the bottom
+			let mut tops = [0.0f32; N];
+			let mut y = 0.0f32;
+			for (t, hgt) in tops.iter_mut().zip(hs) {
+				y += hgt * ph as f32;
+				*t = y;
+			}
+			// up from the bottom row, with s the lowest series not yet below it
+			let mut s = 0;
+			for i in 0..ph {
+				let r = ph - 1 - i;
+				let (p0, p1) = (i as f32, (i + 1) as f32);
+				while s < N && tops[s] <= p0 {
+					s += 1;
+				}
+				if s == N {
+					for r in 0..=r {
+						px[at(r)] = back_px[r];
+					}
+					break;
+				}
+				let bottom = if s == 0 { 0.0 } else { tops[s - 1] };
+				px[at(r)] = if bottom <= p0 && tops[s] >= p1 {
+					solid[s]
+				} else {
+					// this pixel's slice of the stack
+					let mut y = bottom;
 					let mut left = 1.0f32;
 					let mut acc = [0.0f32; 3];
-					if let Some(g) = grad.get(r) {
-						let top = hs.iter().sum::<f32>() * ph as f32;
-						let cover = (top.min(p1) - p0).clamp(0.0, 1.0);
-						for k in 0..3 {
-							c[k] = c[k] * (1.0 - cover) + g[k] * cover;
-						}
-						alpha = alpha * (1.0 - cover) + cover;
-						px[(r + bw) * w + cx + bw] = pack_alpha(c, alpha);
-						continue;
-					}
-					for (s, hgt) in hs.iter().enumerate() {
-						let y1 = y + hgt * ph as f32;
-						let cover = (y1.min(p1) - y.max(p0)).max(0.0);
+					for k in s..N {
+						let cover = (tops[k].min(p1) - y.max(p0)).max(0.0);
 						if cover > 0.0 {
-							for k in 0..3 {
-								acc[k] += cols[s][k] * cover;
+							for (a, c) in acc.iter_mut().zip(cols[k]) {
+								*a += c * cover;
 							}
 							left -= cover;
 						}
-						y = y1;
+						y = tops[k];
 					}
 					let left = left.max(0.0);
-					for k in 0..3 {
-						c[k] = c[k] * left + acc[k];
-					}
-					alpha = alpha * left + (1.0 - left);
-				}
-				px[(r + bw) * w + cx + bw] = pack_alpha(c, alpha);
+					let c = std::array::from_fn(|k| back[r][k] * left + acc[k]);
+					pack_alpha(c, back_alpha * left + (1.0 - left))
+				};
 			}
 		}
 	}
@@ -634,6 +685,7 @@ mod tests {
 					floor: 1e5,
 					log,
 				}),
+				&mut Scratch::default(),
 			);
 			px.iter().filter(|&&p| p == COLORS[0].argb()).count()
 		};
@@ -661,7 +713,7 @@ mod tests {
 				paint: Paint::Stack(&COLORS),
 				outline: OUTLINE,
 			}
-			.draw_to(&mut px, 22, 12, 1, peak);
+			.draw_to(&mut px, 22, 12, 1, peak, &mut Scratch::default());
 			px
 		};
 		let rates = steady([100.0, 300.0], 120.0);
@@ -681,5 +733,50 @@ mod tests {
 			drawn(&steady([0.25, 0.75], 120.0), None),
 			draw(&steady([0.25, 0.75], 120.0), &axis, 22, 12)
 		);
+	}
+
+	// Test ID: denc4
+	#[test]
+	fn a_kept_scratch_draws_as_a_fresh_one_and_allocates_nothing_again() {
+		let h = steady([0.25, 0.5], 120.0);
+		let axis = Axis::log(Curve::FixedA, 120.0);
+		let l = look();
+		let gradient = Paint::Gradient([Rgb(200, 0, 0), Rgb(255, 255, 200), Rgb(100, 200, 255)]);
+		let frame = |paint| Frame {
+			hist: &h,
+			axis: &axis,
+			now: 120.0,
+			look: &l,
+			paint,
+			outline: OUTLINE,
+		};
+		let mut scratch = Scratch::default();
+		// bigger, smaller, and a paint the last draw didn't use
+		for (paint, w, ht) in [
+			(Paint::Stack(&COLORS), 40, 20),
+			(gradient, 22, 12),
+			(Paint::Stack(&COLORS), 22, 12),
+			(gradient, 40, 20),
+		] {
+			let mut fresh = Vec::new();
+			frame(paint).draw(&mut fresh, w, ht, 1);
+			let mut kept = Vec::new();
+			frame(paint).draw_to(&mut kept, w, ht, 1, None, &mut scratch);
+			assert_eq!(kept, fresh, "{w}x{ht}");
+		}
+		let at = |s: &Scratch<2>| {
+			(
+				s.back.as_ptr(),
+				s.back_px.as_ptr(),
+				s.grad.as_ptr(),
+				s.grad_px.as_ptr(),
+				s.reached.as_ptr(),
+			)
+		};
+		let was = at(&scratch);
+		let mut px = Vec::new();
+		frame(gradient).draw_to(&mut px, 40, 20, 1, None, &mut scratch);
+		frame(Paint::Stack(&COLORS)).draw_to(&mut px, 30, 15, 1, None, &mut scratch);
+		assert_eq!(at(&scratch), was);
 	}
 }

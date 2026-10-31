@@ -4,152 +4,39 @@
 // The graph list's live graphs. The window reads them itself from when it
 // opens, and draws them with its own look, Apply or not.
 
-use tukzmon_core::battery::BatteryReader;
-use tukzmon_core::config::Look;
-use tukzmon_core::cpu::CpuReader;
-use tukzmon_core::disk::DiskReader;
-use tukzmon_core::gpu::{GpuReader, VramReader};
-use tukzmon_core::graphs::{self, Drawn};
-use tukzmon_core::load::LoadReader;
-use tukzmon_core::mem::{MemoryReader, SwapReader};
-use tukzmon_core::net::Traffic;
-use tukzmon_core::own::OwnReader;
-use tukzmon_core::temp::TempReader;
-use tukzmon_core::zswap::ZswapReader;
-use tukzmon_core::{Graph, Source};
+use tukzmon_core::config::{Look, Which};
+use tukzmon_core::graphs::{self, Drawn, Slots};
 
 pub struct Live {
-	cpu: Graph,
-	/// None on a box where memory can't be read.
-	mem: Option<Graph<MemoryReader, 3>>,
-	/// None on a box with no GPU it can read.
-	gpu: Option<Graph<GpuReader, 1>>,
-	vram: Option<Graph<VramReader, 1>>,
-	net: Option<Graph<Traffic, 5>>,
-	/// None on a box with no swap.
-	swap: Option<Graph<SwapReader, 1>>,
-	/// None on a box with neither zswap on nor zram set up.
-	zswap: Option<Graph<ZswapReader, 1>>,
-	load: Option<Graph<LoadReader, 1>>,
-	/// None on a box with no disk.
-	disk: Option<Graph<DiskReader, 2>>,
-	/// None on a box with no CPU sensor it knows.
-	temp: Option<Graph<TempReader, 2>>,
-	/// None on a box with no battery in.
-	battery: Option<Graph<BatteryReader, 3>>,
-	/// The settings window's own use, not the panel's.
-	own: Option<Graph<OwnReader, 1>>,
+	/// Every graph this box can read. The own graph is the settings window's,
+	/// not the panel's.
+	slots: Slots,
 }
 
 impl Live {
 	pub fn new(look: Look) -> Live {
 		Live {
-			mem: Graph::memory(look.clone()),
-			gpu: Graph::gpu(look.clone()),
-			vram: Graph::vram(look.clone()),
-			net: Graph::net(look.clone()),
-			swap: Graph::swap(look.clone()),
-			zswap: Graph::zswap(look.clone()),
-			load: Graph::load_avg(look.clone()),
-			disk: Graph::disk(look.clone()),
-			temp: Graph::temp(look.clone()),
-			battery: Graph::battery(look.clone()),
-			own: Graph::own(look.clone()),
-			cpu: Graph::new(look),
+			slots: Slots::new(look, |_, _| true),
 		}
 	}
 
+	// None for a name that isn't a graph's, too
 	fn get(&self, name: &str) -> Option<&dyn Drawn> {
-		match name {
-			CpuReader::SECTION => Some(&self.cpu),
-			MemoryReader::SECTION => self.mem.as_ref().map(|g| g as &dyn Drawn),
-			GpuReader::SECTION => self.gpu.as_ref().map(|g| g as &dyn Drawn),
-			VramReader::SECTION => self.vram.as_ref().map(|g| g as &dyn Drawn),
-			Traffic::SECTION => self.net.as_ref().map(|g| g as &dyn Drawn),
-			SwapReader::SECTION => self.swap.as_ref().map(|g| g as &dyn Drawn),
-			ZswapReader::SECTION => self.zswap.as_ref().map(|g| g as &dyn Drawn),
-			LoadReader::SECTION => self.load.as_ref().map(|g| g as &dyn Drawn),
-			DiskReader::SECTION => self.disk.as_ref().map(|g| g as &dyn Drawn),
-			TempReader::SECTION => self.temp.as_ref().map(|g| g as &dyn Drawn),
-			BatteryReader::SECTION => self.battery.as_ref().map(|g| g as &dyn Drawn),
-			OwnReader::SECTION => self.own.as_ref().map(|g| g as &dyn Drawn),
-			_ => None,
-		}
+		self.slots.get(Which::named(name)?)
 	}
 
 	fn get_mut(&mut self, name: &str) -> Option<&mut dyn Drawn> {
-		match name {
-			CpuReader::SECTION => Some(&mut self.cpu),
-			MemoryReader::SECTION => self.mem.as_mut().map(|g| g as &mut dyn Drawn),
-			GpuReader::SECTION => self.gpu.as_mut().map(|g| g as &mut dyn Drawn),
-			VramReader::SECTION => self.vram.as_mut().map(|g| g as &mut dyn Drawn),
-			Traffic::SECTION => self.net.as_mut().map(|g| g as &mut dyn Drawn),
-			SwapReader::SECTION => self.swap.as_mut().map(|g| g as &mut dyn Drawn),
-			ZswapReader::SECTION => self.zswap.as_mut().map(|g| g as &mut dyn Drawn),
-			LoadReader::SECTION => self.load.as_mut().map(|g| g as &mut dyn Drawn),
-			DiskReader::SECTION => self.disk.as_mut().map(|g| g as &mut dyn Drawn),
-			TempReader::SECTION => self.temp.as_mut().map(|g| g as &mut dyn Drawn),
-			BatteryReader::SECTION => self.battery.as_mut().map(|g| g as &mut dyn Drawn),
-			OwnReader::SECTION => self.own.as_mut().map(|g| g as &mut dyn Drawn),
-			_ => None,
-		}
+		self.slots.get_mut(Which::named(name)?)
 	}
 
-	fn all_mut(&mut self) -> impl Iterator<Item = (&'static str, &mut dyn Drawn)> {
-		let optional = [
-			(
-				MemoryReader::SECTION,
-				self.mem.as_mut().map(|g| g as &mut dyn Drawn),
-			),
-			(
-				GpuReader::SECTION,
-				self.gpu.as_mut().map(|g| g as &mut dyn Drawn),
-			),
-			(
-				VramReader::SECTION,
-				self.vram.as_mut().map(|g| g as &mut dyn Drawn),
-			),
-			(
-				Traffic::SECTION,
-				self.net.as_mut().map(|g| g as &mut dyn Drawn),
-			),
-			(
-				SwapReader::SECTION,
-				self.swap.as_mut().map(|g| g as &mut dyn Drawn),
-			),
-			(
-				ZswapReader::SECTION,
-				self.zswap.as_mut().map(|g| g as &mut dyn Drawn),
-			),
-			(
-				LoadReader::SECTION,
-				self.load.as_mut().map(|g| g as &mut dyn Drawn),
-			),
-			(
-				DiskReader::SECTION,
-				self.disk.as_mut().map(|g| g as &mut dyn Drawn),
-			),
-			(
-				TempReader::SECTION,
-				self.temp.as_mut().map(|g| g as &mut dyn Drawn),
-			),
-			(
-				BatteryReader::SECTION,
-				self.battery.as_mut().map(|g| g as &mut dyn Drawn),
-			),
-			(
-				OwnReader::SECTION,
-				self.own.as_mut().map(|g| g as &mut dyn Drawn),
-			),
-		];
-		std::iter::once((CpuReader::SECTION, &mut self.cpu as &mut dyn Drawn))
-			.chain(optional.into_iter().filter_map(|(n, g)| Some((n, g?))))
+	fn all_mut(&mut self) -> impl Iterator<Item = (Which, &mut dyn Drawn)> {
+		self.slots.iter_mut()
 	}
 
-	pub fn set_look(&mut self, look: &Look) {
-		for (_, g) in self.all_mut() {
-			g.set_look(look);
-		}
+	/// Each row keeps the graph it has, and one this box couldn't read
+	/// stays out.
+	pub fn set_look(&mut self, look: Look) {
+		self.slots.set_look(look);
 	}
 
 	pub fn clear(&mut self) {
@@ -177,27 +64,10 @@ impl Live {
 	/// The graph's width in the panel, in logical pixels. 0 for a name that
 	/// isn't drawn here.
 	pub fn width(&self, name: &str) -> u32 {
-		let l = &self.cpu.look;
-		let own = match name {
-			CpuReader::SECTION => l.cpu_width,
-			MemoryReader::SECTION => l.mem_width,
-			GpuReader::SECTION => l.gpu_width,
-			VramReader::SECTION => l.vram_width,
-			Traffic::SECTION => l.net_width,
-			SwapReader::SECTION => l.swap_width,
-			ZswapReader::SECTION => l.zswap_width,
-			LoadReader::SECTION => l.load_width,
-			DiskReader::SECTION => l.disk_width,
-			TempReader::SECTION => l.temp_width,
-			BatteryReader::SECTION => l.battery_width,
-			OwnReader::SECTION => l.self_width,
-			_ => return 0,
-		};
-		if self.get(name).is_some() {
-			l.share(own)
-		} else {
-			0
-		}
+		let l = self.slots.look();
+		Which::named(name)
+			.filter(|&w| self.slots.get(w).is_some())
+			.map_or(0, |w| l.share(l[w].width))
 	}
 
 	/// Cairo ARGB32 pixels, `w` by `h`, or none for a name that isn't drawn.
@@ -220,8 +90,10 @@ impl Live {
 	/// `w`, as the panel does, or with None takes it off every graph. True
 	/// when that changed what's drawn.
 	pub fn hover(&mut self, name: &str, x: Option<usize>, w: usize) -> bool {
-		let hit = x.zip(w.checked_sub(1)).map(|(x, last)| (name, x.min(last)));
-		graphs::point(self.all_mut().map(|(n, g)| (n as &str, g)), hit)
+		let hit = Which::named(name)
+			.zip(x.zip(w.checked_sub(1)))
+			.map(|(which, (x, last))| (which, x.min(last)));
+		graphs::point(self.all_mut(), hit)
 	}
 
 	/// The panel's tip for the named graph's hover line, drawn `w` by `h`, or
@@ -239,6 +111,64 @@ mod tests {
 	use super::*;
 	use crate::dialog::Dialog;
 	use knobs::Value;
+	use std::any::Any;
+	use std::rc::Rc;
+	use tukzmon_core::Graph;
+
+	impl Live {
+		fn has(&self, which: Which) -> bool {
+			self.slots.get(which).is_some()
+		}
+
+		fn cpu(&self) -> &Graph {
+			let g: &dyn Any = self.slots.get(Which::Cpu).expect("always there");
+			g.downcast_ref().expect("CPU's own reader")
+		}
+	}
+
+	// Test ID: dend2
+	#[test]
+	fn every_row_shares_the_one_look() {
+		fn looks(l: &Live) -> Vec<&Rc<Look>> {
+			Which::ALL
+				.into_iter()
+				.filter_map(|w| l.slots.get(w).map(Drawn::look))
+				.collect()
+		}
+		let mut live = Live::new(Look::default());
+		// net is read from /proc on any Linux box, so one is always there
+		assert!(live.has(Which::Net));
+		for l in looks(&live) {
+			assert!(Rc::ptr_eq(l, live.slots.look()));
+		}
+		let was = Rc::clone(live.slots.look());
+		live.set_look(Look {
+			width: 77,
+			..Look::default()
+		});
+		assert_eq!(live.slots.look().width, 77);
+		for l in looks(&live) {
+			assert!(Rc::ptr_eq(l, live.slots.look()));
+		}
+		assert_eq!(Rc::strong_count(&was), 1, "no row kept the old look");
+	}
+
+	// Test ID: dendg
+	#[test]
+	fn every_graph_the_panel_can_draw_has_a_row_by_its_name() {
+		use tukzmon_core::graphs::Graphs;
+		let mut every = Look::default();
+		for w in Which::ALL {
+			every[w].show = true;
+		}
+		let panel = Graphs::new(every.clone());
+		let live = Live::new(every);
+		for w in Which::ALL {
+			assert_eq!(live.get(w.key()).is_some(), panel.has(w), "{w:?}");
+			assert_eq!(live.width(w.key()) > 0, panel.has(w), "{w:?}");
+		}
+		assert!(live.get("nope").is_none());
+	}
 
 	// Test ID: defmj
 	#[test]
@@ -247,7 +177,7 @@ mod tests {
 			"test_tukzmon-settings_{}_live_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
 		live.sample();
 		std::thread::sleep(std::time::Duration::from_millis(30));
@@ -262,17 +192,17 @@ mod tests {
 		d.set("width", &Value::Float(100.0));
 		d.set("cpu_width", &Value::Float(40.0));
 		d.set("show_cpu", &Value::Bool(false));
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		assert_eq!(live.width("cpu"), 40);
 		let before = live.render("cpu", 40, 24, 1).to_vec();
 		assert_eq!(before.len(), 40 * 24);
 		assert!(before.iter().all(|p| p >> 24 == 0xff));
 		d.set_text("theme", "fire");
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		assert_ne!(live.render("cpu", 40, 24, 1), before.as_slice());
-		if live.mem.is_some() {
+		if live.has(Which::Mem) {
 			d.set("mem_width", &Value::Float(100.0));
-			live.set_look(&d.look());
+			live.set_look(d.look());
 			assert_eq!(live.width("mem"), 100);
 			assert_eq!(live.render("mem", 100, 24, 1).len(), 100 * 24);
 			assert!(
@@ -290,7 +220,7 @@ mod tests {
 			"test_tukzmon-settings_{}_live_hover_never_written.shcl",
 			std::process::id()
 		));
-		let d = Dialog::open(path);
+		let d = Dialog::open(path).unwrap();
 		let mut look = d.look();
 		look.hover = tukzmon_core::config::Rgb(1, 2, 3);
 		look.said = tukzmon_core::when::Said::Ago;
@@ -325,10 +255,10 @@ mod tests {
 
 		// past the right edge it stays on the graph's last column
 		assert!(live.hover("cpu", Some(500), w));
-		assert_eq!(live.cpu.hover, Some(w - 1));
-		if live.mem.is_some() {
+		assert_eq!(live.cpu().hover, Some(w - 1));
+		if live.has(Which::Mem) {
 			assert!(live.hover("mem", Some(5), 100));
-			assert_eq!(live.cpu.hover, None, "one row has the line at a time");
+			assert_eq!(live.cpu().hover, None, "one row has the line at a time");
 			assert!(lit(live.render("cpu", w, h, 1), w).is_empty());
 			assert_eq!(lit(live.render("mem", 100, h, 1), 100), [5]);
 		}
@@ -346,7 +276,7 @@ mod tests {
 			"test_tukzmon-settings_{}_live_ease_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
 		live.sample();
 		std::thread::sleep(std::time::Duration::from_millis(30));
@@ -354,7 +284,7 @@ mod tests {
 		live.render("cpu", 40, 24, 1);
 		assert!(!live.easing("cpu"));
 		d.set_text("cpu_time", "linear");
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		live.render("cpu", 40, 24, 1);
 		assert!(live.easing("cpu"));
 		assert!(!live.easing("nope"));
@@ -367,7 +297,7 @@ mod tests {
 			"test_tukzmon-settings_{}_live_rate_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		d.set("cpu_sample", &Value::Float(100.0));
 		let mut live = Live::new(d.look());
 		// a beat due a little early counts as now, so the next is a rate on
@@ -375,17 +305,17 @@ mod tests {
 		assert!(f64::from(live.tick()) <= within(1000));
 		// not applied, and still read that way
 		d.set("sample_ms", &Value::Float(5000.0));
-		live.set_look(&d.look());
-		assert_eq!(live.cpu.sample_ms(), 5000);
+		live.set_look(d.look());
+		assert_eq!(live.cpu().sample_ms(), 5000);
 		assert!(f64::from(live.tick()) <= within(5000));
 		d.set("cpu_sample", &Value::Float(2.0));
-		live.set_look(&d.look());
-		assert_eq!(live.cpu.sample_ms(), 100);
+		live.set_look(d.look());
+		assert_eq!(live.cpu().sample_ms(), 100);
 		assert!(f64::from(live.tick()) <= within(100));
 		// back to Sample ms default
 		d.set("cpu_sample", &Value::Float(100.0));
-		live.set_look(&d.look());
-		assert_eq!(live.cpu.sample_ms(), 5000);
+		live.set_look(d.look());
+		assert_eq!(live.cpu().sample_ms(), 5000);
 	}
 
 	// Test ID: defq8
@@ -395,9 +325,9 @@ mod tests {
 			"test_tukzmon-settings_{}_live_swap_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
-		if live.swap.is_none() {
+		if !live.has(Which::Swap) {
 			assert_eq!(live.width("swap"), 0);
 			return;
 		}
@@ -405,12 +335,12 @@ mod tests {
 		std::thread::sleep(std::time::Duration::from_millis(30));
 		live.sample();
 		// on by default, at a quarter of Width
-		assert!(d.look().show_swap);
+		assert!(d.look()[Which::Swap].show);
 		assert_eq!(live.width("swap"), 25);
 		// at 100 px, a width in percent is the same number
 		d.set("width", &Value::Float(100.0));
 		d.set("swap_width", &Value::Float(60.0));
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		assert_eq!(live.width("swap"), 60);
 		assert_eq!(live.render("swap", 60, 24, 1).len(), 60 * 24);
 		assert!(
@@ -427,16 +357,16 @@ mod tests {
 			"test_tukzmon-settings_{}_live_battery_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
-		let Some(_) = &live.battery else {
+		if !live.has(Which::Battery) {
 			assert_eq!(live.width("battery"), 0);
 			assert!(live.render("battery", 10, 10, 1).is_empty());
 			assert_eq!(live.tip("battery"), "");
 			return;
-		};
+		}
 		d.set("battery_width", &Value::Float(50.0));
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		assert_eq!(live.width("battery"), 50);
 		assert_eq!(live.render("battery", 50, 24, 1).len(), 50 * 24);
 		assert!(
@@ -453,18 +383,18 @@ mod tests {
 			"test_tukzmon-settings_{}_live_zswap_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
-		let Some(_) = &live.zswap else {
+		if !live.has(Which::Zswap) {
 			assert_eq!(live.width("zswap"), 0);
 			assert!(live.render("zswap", 10, 10, 1).is_empty());
 			assert_eq!(live.tip("zswap"), "");
 			return;
-		};
+		}
 		// at 100 px, a width in percent is the same number
 		d.set("width", &Value::Float(100.0));
 		d.set("zswap_width", &Value::Float(50.0));
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		assert_eq!(live.width("zswap"), 50);
 		assert_eq!(live.render("zswap", 50, 24, 1).len(), 50 * 24);
 		let tip = live.tip("zswap");
@@ -478,24 +408,24 @@ mod tests {
 			"test_tukzmon-settings_{}_live_load_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
-		assert!(live.load.is_some(), "every Linux box has /proc/loadavg");
+		assert!(live.has(Which::Load), "every Linux box has /proc/loadavg");
 		live.sample();
 		std::thread::sleep(std::time::Duration::from_millis(30));
 		live.sample();
-		assert!(!d.look().show_load && d.look().show_disk);
+		assert!(!d.look()[Which::Load].show && d.look()[Which::Disk].show);
 		// at 100 px, a width in percent is the same number
 		d.set("width", &Value::Float(100.0));
 		d.set("load_width", &Value::Float(60.0));
 		d.set("disk_width", &Value::Float(50.0));
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		assert_eq!(live.width("load"), 60);
 		assert_eq!(live.render("load", 60, 24, 1).len(), 60 * 24);
 		let tip = live.tip("load");
 		assert!(tip.starts_with("Load"), "{tip}");
 		// a container has no disk, so no disk row
-		if live.disk.is_some() {
+		if live.has(Which::Disk) {
 			assert_eq!(live.width("disk"), 50);
 			assert_eq!(live.render("disk", 50, 24, 1).len(), 50 * 24);
 			assert!(live.tip("disk").starts_with("Disk"));
@@ -509,16 +439,16 @@ mod tests {
 			"test_tukzmon-settings_{}_live_temp_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
-		assert!(d.look().show_temp);
+		assert!(d.look()[Which::Temp].show);
 		// at 100 px, a width in percent is the same number
 		d.set("width", &Value::Float(100.0));
 		d.set("temp_width", &Value::Float(40.0));
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		assert_eq!(live.width("temp"), 40);
 		// the box, or a container, may have no CPU sensor
-		if live.temp.is_some() {
+		if live.has(Which::Temp) {
 			live.sample();
 			std::thread::sleep(std::time::Duration::from_millis(20));
 			live.sample();
@@ -537,17 +467,17 @@ mod tests {
 			"test_tukzmon-settings_{}_live_gpu_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
-		assert!(!d.look().show_gpu && d.look().show_vram);
+		assert!(!d.look()[Which::Gpu].show && d.look()[Which::Vram].show);
 		d.set("width", &Value::Float(100.0));
 		d.set("gpu_width", &Value::Float(30.0));
 		d.set("vram_width", &Value::Float(40.0));
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		// an amdgpu card can have a busy share and no memory files
 		let rows = [
-			("gpu", 30, "GPU", "GPU ", live.gpu.is_some()),
-			("vram", 40, "GPU memory", " GiB", live.vram.is_some()),
+			("gpu", 30, "GPU", "GPU ", live.has(Which::Gpu)),
+			("vram", 40, "GPU memory", " GiB", live.has(Which::Vram)),
 		];
 		for (name, _, _, _, there) in rows {
 			if !there {
@@ -585,13 +515,13 @@ mod tests {
 			"test_tukzmon-settings_{}_live_self_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
-		assert!(!d.look().show_self);
+		assert!(!d.look()[Which::Own].show);
 		// at 100 px, a width in percent is the same number
 		d.set("width", &Value::Float(100.0));
 		d.set("self_width", &Value::Float(40.0));
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		assert_eq!(live.width("self"), 40);
 		live.sample();
 		std::thread::sleep(std::time::Duration::from_millis(20));
@@ -612,17 +542,17 @@ mod tests {
 			"test_tukzmon-settings_{}_live_net_never_written.shcl",
 			std::process::id()
 		));
-		let mut d = Dialog::open(path);
+		let mut d = Dialog::open(path).unwrap();
 		let mut live = Live::new(d.look());
-		assert!(live.net.is_some(), "every Linux box has /proc/net/dev");
+		assert!(live.has(Which::Net), "every Linux box has /proc/net/dev");
 		live.sample();
 		std::thread::sleep(std::time::Duration::from_millis(30));
 		live.sample();
-		assert!(!d.look().show_net);
+		assert!(!d.look()[Which::Net].show);
 		// at 100 px, a width in percent is the same number
 		d.set("width", &Value::Float(100.0));
 		d.set("net_width", &Value::Float(60.0));
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		assert_eq!(live.width("net"), 60);
 		assert_eq!(live.render("net", 60, 24, 1).len(), 60 * 24);
 		let tip = live.tip("net");

@@ -56,7 +56,7 @@ fNewest() {
 	local d="$1" best="" newest="" f b t
 	for f in "${d}"/lint_*.log; do
 		[[ -e "${f}" ]] || continue
-		b="$(basename "${f}")"; t="${b#lint_}"; t="${t%%_*}"; t="${t%.log}"
+		b="${f##*/}"; t="${b#lint_}"; t="${t%%_*}"; t="${t%.log}"
 		if [[ "${t}" > "${best}" ]]; then best="${t}"; newest="${f}"; fi
 	done
 	[[ -n "${newest}" ]] || return 1
@@ -65,7 +65,7 @@ fNewest() {
 
 if [[ -n "${file}" ]]; then
 	[[ -f "${file}" ]] || fSkip "no such file: ${file}"
-	log="${file}"; b="$(basename "${file}")"; ts="${b#lint_}"; ts="${ts%%_*}"; ts="${ts%.log}"
+	log="${file}"; b="${file##*/}"; ts="${b#lint_}"; ts="${ts%%_*}"; ts="${ts%.log}"
 else
 	[[ -d "${dir}" ]] || fSkip "no log dir: ${dir}"
 	nb="$(fNewest "${dir}")" || fSkip "no lint logs in ${dir}"
@@ -89,7 +89,7 @@ marker="${dir}/.lint-seen"
 if ((check)) && ((! force)) && [[ -z "${file}" ]]; then
 	seen=""; [[ -f "${marker}" ]] && seen="$(tr -d '[:space:]' < "${marker}" 2>/dev/null || true)"
 	if [[ -n "${ts}" && "${ts}" == "${seen}" ]]; then
-		echo "SEEN $(basename "${log}")  (nothing newer, ${age} old)"; exit 0
+		echo "SEEN ${log##*/}  (nothing newer, ${age} old)"; exit 0
 	fi
 fi
 
@@ -117,19 +117,19 @@ if [[ -n "${errs}" ]]; then e=$(printf '%s\n' "${errs}" | grep -c .); else e=0; 
 
 lead=""; ((check)) && lead="NEW "
 if ((e)); then
-	echo "${lead}FAILED $(basename "${log}")  (${e} error line(s), ${n} warning line(s), ${age} old)"
+	echo "${lead}FAILED ${log##*/}  (${e} error line(s), ${n} warning line(s), ${age} old)"
 	echo
 	printf '%s\n' "${errs}"
 	if ((n)); then echo; printf '%s\n' "${warns}"; fi
 elif ((! finished)); then
-	echo "${lead}INCOMPLETE $(basename "${log}")  (no done line: still running, or cut off; ${n} warning line(s) so far, ${age} old)"
+	echo "${lead}INCOMPLETE ${log##*/}  (no done line: still running, or cut off; ${n} warning line(s) so far, ${age} old)"
 	if ((n)); then echo; printf '%s\n' "${warns}"; fi
 elif ((n)); then
-	echo "${lead}FLAG $(basename "${log}")  (${n} warning line(s), ${age} old)"
+	echo "${lead}FLAG ${log##*/}  (${n} warning line(s), ${age} old)"
 	echo
 	printf '%s\n' "${warns}"
 else
-	echo "${lead}CLEAN $(basename "${log}")  (0 warnings, ${age} old)"
+	echo "${lead}CLEAN ${log##*/}  (0 warnings, ${age} old)"
 fi
 
 
@@ -144,3 +144,4 @@ fi
 ##		  report that isn't SEEN starts with NEW. markdownlint's error lines count.
 ##		- 2026-10-25: Copied into tukzmon. Reads the lint step's own logs, which
 ##		  end on a done line, rather than whole run logs.
+##		- 2026-10-30: No basename forks.

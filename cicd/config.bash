@@ -28,6 +28,13 @@ TOOL_PINS=(
 	## The .deb and .rpm. Pinned in the image's Dockerfile too. A go-installed
 	## one says it's version "dev", so a box with one gets the warning.
 	"nfpm|2.47.0|nfpm --version"
+	## The C++ and Python format and lint tools, in the image's Dockerfile
+	## too. clang's come with the image's clang-19, and black from its apt
+	## snapshot.
+	"clang-format|19.1.7|clang-format --version"
+	"clang-tidy|19.1.7|clang-tidy --version"
+	"black|25.1.0|black --version"
+	"ruff|0.15.22|ruff --version"
 )
 ## The sanitizers and Miri need nightly, so they run on this dated one, beside
 ## the stable toolchain rust-toolchain.toml pins. The image gets it as a build
@@ -129,3 +136,4 @@ CTR_NET_STEPS=(fStepAdvisories)
 ##		- 2026-10-25: Packages: nfpm's pin, and where they go.
 ##		- 2026-10-25: The profiler.
 ##		- 2026-10-28: The Nix step's image and store cap.
+##		- 2026-10-30: clang-format, clang-tidy, black and ruff pins.

@@ -5,7 +5,7 @@
 //   cargo run --example preview -- OUT.ppm WIDTH HEIGHT HOURS [SETTINGS]
 
 use tukzmon_core::axis::{Axis, Curve, Timing};
-use tukzmon_core::config::Look;
+use tukzmon_core::config::{Look, Which};
 use tukzmon_core::history::History;
 use tukzmon_core::render::Frame;
 
@@ -36,9 +36,14 @@ fn main() {
 		t += step;
 	}
 
-	let look = args
-		.get(4)
-		.map_or_else(Look::default, |p| Look::load(std::path::Path::new(p)));
+	let look = match args.get(4).map(|p| Look::load(std::path::Path::new(p))) {
+		None => Look::default(),
+		Some(Ok(l)) => l,
+		Some(Err(e)) => {
+			eprintln!("{}: {e}", args[4]);
+			std::process::exit(1);
+		}
+	};
 	let curve = match look.time {
 		Timing::Log(c) => c,
 		Timing::Linear => Curve::Smooth,
@@ -50,8 +55,8 @@ fn main() {
 		axis: &axis,
 		now: end,
 		look: &look,
-		paint: look.cpu_paint(),
-		outline: look.cpu_outline,
+		paint: look.paint(Which::Cpu),
+		outline: look[Which::Cpu].outline,
 	}
 	.draw(&mut px, w, h, 1);
 

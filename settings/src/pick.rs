@@ -100,18 +100,19 @@ impl Field {
 		}
 	}
 
-	/// What the box shows while nobody types in it.
-	pub fn text(self, c: Hsv) -> String {
+	/// The whole percent the box shows while nobody types in it, or None
+	/// for the hex box.
+	pub fn percent(self, c: Hsv) -> Option<i32> {
 		let mut rgb = to_rgb(c);
-		match self {
-			Field::Hex => hex(rgb),
-			Field::Brightness => whole(c.v),
-			Field::Saturation => whole(c.s),
-			Field::Red | Field::Green | Field::Blue => whole(
-				self.channel(&mut rgb)
-					.map_or(0.0, |x| f64::from(*x) / 255.0),
-			),
-		}
+		let x = match self {
+			Field::Hex => return None,
+			Field::Brightness => c.v,
+			Field::Saturation => c.s,
+			Field::Red | Field::Green | Field::Blue => self
+				.channel(&mut rgb)
+				.map_or(0.0, |x| f64::from(*x) / 255.0),
+		};
+		Some((x * 100.0).round().clamp(0.0, 100.0) as i32)
 	}
 
 	/// A typed value read back into the color. None for one that says nothing
@@ -133,10 +134,6 @@ impl Field {
 			}
 		}
 	}
-}
-
-fn whole(x: f64) -> String {
-	format!("{}", (x * 100.0).round().clamp(0.0, 100.0) as i32)
 }
 
 fn pct(typed: &str) -> Option<f64> {
@@ -222,8 +219,12 @@ mod tests {
 		assert!(Field::Hex.apply(start, "#a0b").is_none());
 		assert!(Field::Red.apply(start, "").is_none());
 		assert!(Field::Red.apply(start, "inf").is_none());
-		assert_eq!(Field::Blue.text(from_rgb(Rgb(0, 0, 255), start)), "100");
-		assert_eq!(Field::Hex.text(from_rgb(Rgb(0, 0, 255), start)), "#0000ff");
-		assert_eq!(Field::Saturation.text(hsv(0.5, 0.42, 1.0)), "42");
+		assert_eq!(
+			Field::Blue.percent(from_rgb(Rgb(0, 0, 255), start)),
+			Some(100)
+		);
+		assert_eq!(Field::Hex.percent(from_rgb(Rgb(0, 0, 255), start)), None);
+		assert_eq!(hex(to_rgb(from_rgb(Rgb(0, 0, 255), start))), "#0000ff");
+		assert_eq!(Field::Saturation.percent(hsv(0.5, 0.42, 1.0)), Some(42));
 	}
 }

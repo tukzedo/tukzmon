@@ -3,7 +3,9 @@
 
 //! Memory and swap from `/proc/meminfo`.
 
-use crate::collect::{Collector, slurp};
+use std::cell::RefCell;
+
+use crate::collect::{Collector, Kept};
 
 const MEMINFO: &str = "/proc/meminfo";
 
@@ -55,6 +57,73 @@ pub fn parse_meminfo(text: &str) -> Option<Meminfo> {
 	(got_total && got_free).then_some(m)
 }
 
+#[derive(Clone, Copy, Debug)]
+enum Tick {
+	Off,
+	Due,
+	Read(Option<Meminfo>),
+}
+
+/// `/proc/meminfo` for every graph that reads it: memory, swap and zswap.
+struct Shared {
+	file: Kept,
+	buf: String,
+	tick: Tick,
+	#[cfg(test)]
+	reads: u32,
+}
+
+thread_local! {
+	static SHARED: RefCell<Shared> = RefCell::new(Shared {
+		file: Kept::new(MEMINFO),
+		buf: String::new(),
+		tick: Tick::Off,
+		#[cfg(test)]
+		reads: 0,
+	});
+}
+
+/// What `/proc/meminfo` reads now, or read earlier in this
+/// [`once_a_tick`].
+pub(crate) fn meminfo() -> Option<Meminfo> {
+	SHARED.with_borrow_mut(|s| {
+		if let Tick::Read(m) = s.tick {
+			return m;
+		}
+		#[cfg(test)]
+		{
+			s.reads += 1;
+		}
+		let m = s.file.read(&mut s.buf).and_then(parse_meminfo);
+		if let Tick::Due = s.tick {
+			s.tick = Tick::Read(m);
+		}
+		m
+	})
+}
+
+#[cfg(test)]
+pub(crate) fn meminfo_reads() -> u32 {
+	SHARED.with_borrow(|s| s.reads)
+}
+
+/// Runs `f` with `/proc/meminfo` read at most once, however many graphs
+/// read it.
+pub(crate) fn once_a_tick<R>(f: impl FnOnce() -> R) -> R {
+	struct Over;
+	impl Drop for Over {
+		fn drop(&mut self) {
+			SHARED.with_borrow_mut(|s| s.tick = Tick::Off);
+		}
+	}
+	if SHARED.with_borrow(|s| !matches!(s.tick, Tick::Off)) {
+		return f();
+	}
+	SHARED.with_borrow_mut(|s| s.tick = Tick::Due);
+	let _over = Over;
+	f()
+}
+
 /// User, buffers and cache, as shares of all memory. User is what's left
 /// once free, buffers and cache are taken out. Cache takes in reclaimable
 /// slab, as `free` counts it (backlog 2026102508354893).
@@ -82,42 +151,38 @@ pub fn swap_share(m: &Meminfo) -> Option<[f32; 1]> {
 }
 
 #[derive(Debug, Default)]
-pub struct MemoryReader {
-	buf: String,
-}
+pub struct MemoryReader;
 
 impl Collector<3> for MemoryReader {
 	const SERIES: [&'static str; 3] = ["user", "buffers", "cache"];
 
 	fn probe() -> Option<Self> {
-		let mut r = MemoryReader::default();
+		let mut r = MemoryReader;
 		r.read()?;
 		Some(r)
 	}
 
 	fn read(&mut self) -> Option<[f32; 3]> {
-		memory_shares(&parse_meminfo(slurp(MEMINFO, &mut self.buf)?)?)
+		memory_shares(&meminfo()?)
 	}
 }
 
 /// A box with no swap at start gets none, and swap turned off later reads as
 /// a gap.
 #[derive(Debug, Default)]
-pub struct SwapReader {
-	buf: String,
-}
+pub struct SwapReader;
 
 impl Collector<1> for SwapReader {
 	const SERIES: [&'static str; 1] = ["used"];
 
 	fn probe() -> Option<Self> {
-		let mut r = SwapReader::default();
+		let mut r = SwapReader;
 		r.read()?;
 		Some(r)
 	}
 
 	fn read(&mut self) -> Option<[f32; 1]> {
-		swap_share(&parse_meminfo(slurp(MEMINFO, &mut self.buf)?)?)
+		swap_share(&meminfo()?)
 	}
 }
 

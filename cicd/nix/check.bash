@@ -28,6 +28,9 @@ work="/tmp/check"
 roots="/nix/var/nix/gcroots/tukzmon"
 jobs="${TUKZMON_JOBS:-1}"
 capMb="${TUKZMON_NIX_CAP_MB:-12000}"
+## Digits only, since bash arithmetic runs a $(...) inside an array subscript.
+[[ "${jobs}" =~ ^[1-9][0-9]{0,3}$ ]] || { printf "nix check: TUKZMON_JOBS isn't a job count: '%s'\n" "${jobs}" >&2; exit 1; }
+[[ "${capMb}" =~ ^[1-9][0-9]{0,8}$ ]] || { printf "nix check: TUKZMON_NIX_CAP_MB isn't a size in MB: '%s'\n" "${capMb}" >&2; exit 1; }
 ## No sandbox, since the container has no user namespaces to give it.
 NIX_CONFIG="$(printf '%s\n' "experimental-features = nix-command flakes" "sandbox = false" \
 	"keep-outputs = true" "keep-derivations = true" "max-jobs = 1" "cores = ${jobs}")"
@@ -118,3 +121,4 @@ fSay "store: ${mb} MB"
 
 ##	History:
 ##		- 2026-10-28: Created, from the rig that first checked the package.
+##		- 2026-10-30: TUKZMON_JOBS and TUKZMON_NIX_CAP_MB are checked for digits.
