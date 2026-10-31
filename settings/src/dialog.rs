@@ -363,10 +363,10 @@ impl Dialog {
 		let v = self.model.value(id, &NoEnv);
 		let number = v.as_f64();
 		let mut tip = self.model.tip(id, &NoEnv);
-		if let (Some(short), Some(s)) = (
-			self.short_sliders.iter().find(|s| s.id == id),
-			self.spec.get(id),
-		) {
+		// each lookup is a scan of every setting, and this runs per row per refresh
+		let setting = self.spec.get(id);
+		let short = self.short_sliders.iter().find(|s| s.id == id);
+		if let (Some(short), Some(s)) = (short, setting) {
 			if !tip.is_empty() {
 				tip.push_str("\n\n");
 			}
@@ -383,19 +383,15 @@ impl Dialog {
 			},
 			on: v.as_bool(),
 			number,
-			slider: self.slider(id).map_or(0.0, |s| s.to_t(number)),
+			slider: short.or(setting).map_or(0.0, |s| s.to_t(number)),
 			can_reset: self.model.can_reset(id, &NoEnv),
 			counts: self.model.counts(id, &NoEnv),
 			tip,
-			choice: match self.spec.get(id) {
+			choice: match setting {
 				Some(s) if s.control == Control::Dropdown => self.model.shown_choice(id, &NoEnv),
 				_ => String::new(),
 			},
-			options: self
-				.spec
-				.get(id)
-				.map(|s| s.options.clone())
-				.unwrap_or_default(),
+			options: setting.map(|s| s.options.clone()).unwrap_or_default(),
 			shown: config::shown_when(id)
 				.is_none_or(|(on, key)| self.model.value(on, &NoEnv).as_text() == key),
 		}

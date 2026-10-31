@@ -16,6 +16,7 @@
 #include <QCursor>
 #include <QDialog>
 #include <QDoubleSpinBox>
+#include <QElapsedTimer>
 #include <QFormLayout>
 #include <QFrame>
 #include <QKeyEvent>
@@ -529,6 +530,18 @@ private:
 	bool framePending = false;
 };
 
+// counts the style changes on what it watches
+class StyleCount final : public QObject {
+public:
+	int n = 0;
+
+protected:
+	bool eventFilter(QObject *o, QEvent *e) override {
+		n += int(e->type() == QEvent::StyleChange);
+		return QObject::eventFilter(o, e);
+	}
+};
+
 struct Row {
 	RowInfo info;
 	QLabel *label = nullptr;
@@ -547,6 +560,8 @@ struct Row {
 	std::vector<QRadioButton *> radios;
 	// what a dropdown's items stand for, which can change as themes are saved
 	std::vector<std::string> keys;
+	// the color the chip was last styled with
+	QString chipColor;
 	std::string id() const { return std::string(info.id); }
 };
 
@@ -831,6 +846,43 @@ public:
 				return picker(*r);
 		return nullptr;
 	}
+	// chips restyled by a refresh with nothing changed, then by one after the
+	// first color row is set to `color`
+	std::vector<int> chipRestyles(const std::string &color) {
+		StyleCount count;
+		for (auto &r : rows)
+			if (r->chip)
+				r->chip->installEventFilter(&count);
+		refresh();
+		const int still = std::exchange(count.n, 0);
+		const auto r = std::ranges::find_if(rows, [](auto &row) { return row->chip != nullptr; });
+		if (r != rows.end())
+			set_text(d, (*r)->id(), color);
+		refresh();
+		return {still, count.n};
+	}
+
+	// microseconds per call, of `times` refreshes and then `times` steps of
+	// the first slider with the events they post
+	std::vector<double> refreshTimes(int times) {
+		std::vector<double> out;
+		out.reserve(size_t(times) * 2);
+		QElapsedTimer t;
+		for (int i = 0; i < times; i++) {
+			t.start();
+			refresh();
+			out.push_back(double(t.nsecsElapsed()) / 1000);
+		}
+		const auto r = std::ranges::find_if(rows, [](auto &row) { return row->slider != nullptr; });
+		for (int i = 0; r != rows.end() && i < times; i++) {
+			t.start();
+			(*r)->slider->setValue(((*r)->slider->value() + (SLIDER_STEPS / 7)) % SLIDER_STEPS);
+			QApplication::processEvents();
+			out.push_back(double(t.nsecsElapsed()) / 1000);
+		}
+		return out;
+	}
+
 	std::vector<std::string> greyed() const {
 		std::vector<std::string> ids;
 		for (const auto &r : rows)
@@ -1662,8 +1714,11 @@ private:
 				r.line->setText(text);
 				r.line->setToolTip(tip);
 			}
-			if (r.chip)
+			// a style sheet costs a restyle, and most refreshes change no color
+			if (r.chip && text != r.chipColor) {
+				r.chipColor = text;
 				r.chip->setStyleSheet(QString("background-color: %1; border: 1px solid palette(mid);").arg(text));
+			}
 		}
 		if (list)
 			refreshList();
@@ -1944,6 +1999,26 @@ rust::Vec<rust::String> page_shades(Dialog &d, bool dark) {
 		out.push_back(rust::String(QString::fromStdString(w.tabText(i)).trimmed().toStdString() + " " +
 			in.name().toStdString() + " " + rest.name().toStdString()));
 	}
+	return out;
+}
+
+rust::Vec<std::int32_t> chip_restyles(Dialog &d, rust::Str color) {
+	const App app("offscreen");
+	Window w(d);
+	rust::Vec<std::int32_t> out;
+	for (const int n : w.chipRestyles(std::string(color)))
+		out.push_back(n);
+	return out;
+}
+
+rust::Vec<double> refresh_micros(Dialog &d, std::size_t times) {
+	const App app("offscreen");
+	Window w(d);
+	w.show();
+	tukzmon::App::processEvents();
+	rust::Vec<double> out;
+	for (const double v : w.refreshTimes(int(times)))
+		out.push_back(v);
 	return out;
 }
 

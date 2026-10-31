@@ -143,7 +143,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 3: The settings window redoes its whole refresh on each step of a slider or color drag
 	- ID: 2026103016201603
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on automated testing
+	- Needs external testing: denam on a slow VM, before and after, as `cargo test -p tukzmon-settings --release -- --ignored --nocapture time_a`. For the before, put back the old chip line in `refresh` in `qt.cpp`, `if (r.chip)`.
 	- Priority|Severity: Avg
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -153,8 +154,36 @@ Sorted per the notes in [Template](#template).
 		- Time one `refresh()` first, on b23 and on a VM, before and after.
 	- Progress log:
 		- Each step runs `refresh()`, which looks up every row's setting by a linear scan of about 400 settings, several times per row, and restyles all 101 color chips. Details in `details.md` -> "Code review 20261030".
-		- The lookup is in knobs, which stays byte-identical to silkterm, so that part goes there first.
+		- The lookup is in knobs, which stays byte-identical to silkterm, so that part goes there first. That part is in child 2026103018353670.
+		- Timed on b23, release build: of a 4.5 ms refresh, the chips' style sheets took 3.2 ms, the rows' states 0.6 ms, and the graph list 0.15 ms.
+		- A chip is restyled only when its color changed.
+		- `Dialog::state` looks up the setting once, not 4 times.
+		- Verified on b23, at a load of 11 to 23 on 32 cores, medians of 50: a refresh went from 4.7 ms to 1.0 ms, and a slider step with its events from 5.0 ms to 1.3 ms. The rows' states went from about 630 us to 480 us.
+		- Verified: denaq fails with the old chip line, 101 restyles where 0 and 1 are right, and passes now. The quick gate passed.
+	- Decisions:
+		- Refreshes aren't merged onto a timer. At about 1 ms a step there's no lag left to hide, and the tests read the window straight after a change.
+		- `graph_rows` isn't cached. The whole graph list takes 0.15 ms of a refresh.
 	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Branch: round-1030b
+	- Test case: `bridge::tests::a_refresh_restyles_only_the_chips_whose_color_changed` (denaq). `bridge::tests::time_a_refresh_and_a_slider_step` (denam) is the timing, ignored unless asked for.
+		- Swept: every `setStyleSheet` in `qt.cpp`, which is only the chip's, and every `spec.get` and `slider` call in `Dialog::state`.
+
+- Code review 20261030 item 3, part 2: Look up a setting by an index in knobs
+	- ID: 2026103018353670
+	- Type: Enhancement
+	- Status: Stalled
+		- Held for silkterm's copy of knobs to get an id index in `Spec`, since this copy stays byte-identical to it.
+	- Priority|Severity: Low
+	- Opened: 20261030-183536
+	- Opened by: t00mietum
+	- Parent ID: 2026103016201603
+	- Requirements:
+		- Copy knobs over from silkterm once `Spec` looks ids up through an index built in `finish`, with an `Option` path for an id that's unknown.
+		- Time denam before and after.
+	- Progress log:
+		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
+	- Estimated effort: Low
 
 - Code review 20261030 item 4: Nothing formats or lints the C++ and Python files
 	- ID: 2026103016201604

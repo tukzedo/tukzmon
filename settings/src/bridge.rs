@@ -203,6 +203,14 @@ pub mod ffi {
 		/// measures it.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn empty_box_contrast(dark: bool) -> f64;
+		/// The color chips restyled by a refresh with nothing changed, then by
+		/// one after the first color row is set to `color`.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn chip_restyles(d: &mut Dialog, color: &str) -> Vec<i32>;
+		/// Microseconds per call of `times` refreshes, then of `times` steps
+		/// of the first slider, each with the events it posts.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn refresh_micros(d: &mut Dialog, times: usize) -> Vec<f64>;
 	}
 }
 
@@ -950,6 +958,53 @@ mod tests {
 			let c = ffi::empty_box_contrast(dark);
 			assert!(c >= 3.0, "dark: {dark}, contrast {c:.2}");
 		}
+	}
+
+	// Test ID: denaq
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn a_refresh_restyles_only_the_chips_whose_color_changed() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_chips_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		assert_eq!(ffi::chip_restyles(&mut d, "#123456"), [0, 1]);
+	}
+
+	fn median_of(mut v: Vec<f64>) -> f64 {
+		v.sort_by(f64::total_cmp);
+		v[v.len() / 2]
+	}
+
+	// Test ID: denam
+	#[test]
+	#[ignore = "a timing, run by hand with --ignored --nocapture"]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn time_a_refresh_and_a_slider_step() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_timing_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let times = 50;
+		let t = ffi::refresh_micros(&mut d, times);
+		let rows = dialog_rows(&d);
+		let start = std::time::Instant::now();
+		for _ in 0..times {
+			for r in &rows {
+				std::hint::black_box(row_state(&d, &r.id));
+			}
+		}
+		let states = start.elapsed().as_secs_f64() * 1e6 / times as f64;
+		println!(
+			"refresh {:.0} us, slider step {:.0} us, row_state for {} rows {states:.0} us (medians of {times})",
+			median_of(t[..times].to_vec()),
+			median_of(t[times..].to_vec()),
+			rows.len()
+		);
 	}
 
 	// x, y, width and height
