@@ -22,132 +22,6 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- Graphs and Live list their 12 graph slots by hand
-	- ID: 2026103019482449
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261030-194824
-	- Opened by: t00mietum
-	- Related IDs: 2026103016201610, 2026103019230902, 2026103016201611
-	- Requirements:
-		- One table of graphs in `Graphs` and in `Live`, in place of a field per graph, so a new graph is added in one place there, not in about 5 places each.
-		- `Live::get` matches on section names with a `_` arm, so a graph left out there is skipped with no error.
-		- Weigh against the churn first. Each slot holds a different reader type, so a table holds `Box<dyn Drawn>` or an enum.
-	- Estimated effort: Avg
-	- Origin: found while sharing the look in 2026103019230902.
-	- Actual effort: Avg
-	- Progress log:
-		- `Graphs` and the settings window's `Live` keep their graphs in one `graphs::Slots`: a `Box<dyn Drawn>` per `Which`, at its own index, and the look they share. `graphs::make` is the one match that knows each graph's reader, so a new graph is one arm there, and the build asks for it.
-		- `Live` finds a graph by name through `Which::named`, so there's no `_` arm left to skip one.
-		- `Graphs::has(which)` replaces the profiler's and the soak test's reads of `g.mem`.
-		- `make` checks at build that each reader has a color per series, and in a debug build that it sits in its own graph's slot.
-		- Verified: the full run passed, with the soak and profiler steps.
-	- Decisions:
-		- `Box<dyn Drawn>`, not an enum. Every caller already went through `Drawn`, and an enum would list the 12 graphs again in each match.
-		- CPU sits in the table too, always made, so each loop is one loop. `Slots` keeps the shared look, as `cpu.look` did.
-		- `Drawn` is `Any`, so tests reach a graph's history and peak through `the::<MemoryReader, 3>()`. The test edits are mechanical.
-		- `Live::set_look` still makes none and drops none, so a graph the box couldn't read at open isn't probed again on each change. `Graphs::set_look` still makes a shown one that's missing.
-		- A graph being hidden is dropped before the new look goes out, as before, so it doesn't follow it first.
-	- Branch: round-1030b
-	- Test case: `live::tests::every_graph_the_panel_can_draw_has_a_row_by_its_name` (dendg), plus dencp and dend1 over the table. dendg fails with `Live::get` missing the own graph, and dencp with a reader in another graph's slot.
-		- 2026-10-30: dencp checks each graph `make` gives, not the old fields' types, and dend1 each slot's look, not a list of fields. What they check is the same.
-		- Swept: every `Graphs` field read (core, settings, xfce, the profiler, the soak test), every `Live` field read, both `set_look`s, and every `Source::SECTION`, which all still come from `WHICH`.
-	- Closed: 20261030-201330
-
-- Graphs share one Look
-	- ID: 2026103019230902
-	- Type: Enhancement
-	- Status: Done
-	- Needs local test suite run?: No. The full run passed on 2026-10-30.
-	- Priority|Severity: Low
-	- Opened: 20261030-192309
-	- Opened by: t00mietum
-	- Parent ID: 2026103016201610
-	- Prereq IDs: 2026103019230886
-	- Related IDs: 2026103019482449
-	- Requirements:
-		- Graphs and the settings window's `Live` share one `Look` rather than each graph keeping a clone of it.
-	- Estimated effort: Avg
-	- Actual effort: Low
-	- Progress log:
-		- `Graph::look` is an `Rc<Look>`. `Graphs` and `Live` wrap a new look once, in `new` and `set_look`, and every graph holds the same one. A new look used to be cloned once per graph, 12 times in the settings window.
-		- `Live::set_look` takes the look by value, as `Graphs::set_look` does.
-		- Verified: the full run passed, with the profiler and soak steps.
-	- Decisions:
-		- `Rc`, not `&Look` passed to each call. Passing it in would add a look to most of `Drawn`'s methods and every test that drives a lone `Graph`. Both owners are single-threaded, and `Rc` builds through cxx's `Box<Live>`.
-		- `Graph`'s constructors take `impl Into<Rc<Look>>`, so a test or example still passes a plain `Look`.
-		- The 12 slots in `Graphs` and `Live` are left as they are, since sharing the look didn't need them changed. That's 2026103019482449.
-	- Branch: round-1030b
-	- Test case: `graphs::tests::every_graph_shares_the_one_look` (dend1) and `live::tests::every_row_shares_the_one_look` (dend2). Both fail with `Drawn::set_look` giving each graph its own copy.
-		- 2026-10-30: lib.rs tests that change a lone graph's look go through `Rc::make_mut`, and `dedq4`'s compare dereferences the `Rc`. Nothing else they check changed.
-		- Swept: every `Graph` constructor caller (core, settings, the examples, the soak test, the zswap tests), both `Drawn::set_look` callers (`Graphs::set_look`, `Live::set_look`), every `Live::set_look` caller (`live_look` in the bridge, the live tests), and every write to a graph's `look`.
-	- Closed: 20261030-194750
-
-- One record per graph in Look
-	- ID: 2026103019230886
-	- Type: Enhancement
-	- Status: Done
-	- Needs local test suite run?: No. The full run passed on 2026-10-30.
-	- Priority|Severity: Low
-	- Opened: 20261030-192308
-	- Opened by: t00mietum
-	- Parent ID: 2026103016201610
-	- Requirements:
-		- One per-graph record in `Look`, indexed by `Which`, in place of the parallel fields and the 12 paint methods.
-		- `Source` gets the per-graph accessors by default from that.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- `Look` keeps each graph's show, width, sample, time, colors, mode, gradient and outline in one `config::Each`, as `look[Which::Mem].width`. `Look::paint(which)` replaces the 12 paint methods.
-		- `Which` moved from `graphs` to `config` and is public. Its `key` is the history section, the name in `graph.order` and the head of the setting ids, and `color_ids` lists its Detailed colors. `Look::from_model` reads every graph through those.
-		- A `Source` names its `WHICH`, and gets its `SECTION`, paint, outline, timing and sample rate from it by default.
-		- The settings window's graph widths go through `Which` too.
-		- Verified: the full run passed.
-	- Decisions:
-		- Done now, against the churn. They were 96 of `Look`'s 116 fields, and the test edits are mechanical.
-		- Colors are a fixed `[Rgb; 5]`, the network's count, with black past a graph's own, so `Each` is one type. `paint` checks at build that a graph's series fit.
-		- The slots in `Graphs` and `Live` are left as they are. They hold a different reader type each, and the shared look in 2026103019230902 changes them anyway.
-		- `LEADS` and `dice::ROLES` stay lists of their own, since they're about themes, not a graph's settings.
-	- Branch: round-1030b
-	- Test case: `config::tests::each_graph_reads_its_own_settings_into_its_own_record` (dencn) and `graphs::tests::each_slot_is_its_own_graph_with_a_color_per_series` (dencp). dencn fails with a graph's key changed, and dencp with a color id dropped or a reader naming another graph's `WHICH`.
-		- Swept: every `Look` field read and struct literal in core, settings, xfce, the preview example and the soak test, every `*_paint` caller, every `Source` impl, and `Live::width`. The tests changed only in how they reach a graph's settings.
-	- Closed: 20261030-193730
-
-- A panel item whose settings file can't be read draws at the defaults with no message
-	- ID: 2026103018110076
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261030-181100
-	- Opened by: t00mietum
-	- Related IDs: 2026103016201605
-	- Steps to reproduce: `chmod 000` an item's `plugin-<id>.shcl` while the panel runs, or before it starts.
-	- Incorrect behavior: `Look::load` in `core/src/config.rs` reads an unreadable file as an empty one, so the item drops to the defaults, with nothing in the log. It writes nothing, so the file isn't lost.
-	- Expected behavior: the item keeps the look it has, or the defaults at its start, and logs the read error once through `complain`. A missing file still means the defaults.
-	- Estimated effort: Low
-	- Reproduced: 2026-10-30, with the new tests against the old `Look::load`.
-	- Actual cause: `Look::load` took `read_to_string(path).unwrap_or_default()`, so any read error but a missing file became an empty file.
-	- Actual effort: Low
-	- Progress log:
-		- `Look::load` returns the read error, and a missing file is still the defaults. The plugin keeps the look it has, or starts at the defaults, logs the error once through `complain`, and shows "Settings: can't read <path>: <error>" in the tip until the file reads again.
-		- `design.md` XFCE plugin has it.
-		- Verified: the full run passed, with dena8 and dena9.
-		- Unverified: the read at the item's start, since `Plugin::new` needs a live panel. It shares `read_look` with the reload that dena9 covers.
-	- Decisions:
-		- Keep the current look, not the defaults, since a file the item can't read says nothing new about how it should look, and a sudden change to the defaults reads as lost settings.
-		- A tip line plus `complain`, the same as history trouble, since a restarted panel's stderr is out of sight.
-		- Logged once per error text, so a file that stays unreadable doesn't fill the journal. A new error, or the same one after a good read, is logged again.
-		- Each tick reads again until it works, since `chmod` back doesn't change the modified time the reload goes by. It costs one failed open a tick while the file is bad.
-		- A `chmod 000` alone isn't seen until the next write, since it doesn't move the modified time either. The item just keeps its look, which is what's asked.
-		- A file that isn't UTF-8 counts as unreadable too, as in `Dialog::open`.
-		- The preview example quits with the error rather than drawing defaults.
-	- Branch: round-1030b
-	- Test case: `config::tests::a_file_that_cant_be_read_is_an_error_not_the_defaults` (dena8) and `tests::an_unreadable_settings_file_keeps_the_look_and_says_why` (dena9). Both fail with the old `unwrap_or_default` put back.
-		- Swept: every `Look::load` caller (the plugin's start and reload, the preview example, and the tests in `config.rs` and `dialog.rs`, now with `.unwrap()`), and every `fs::read` in core, xfce and settings. `Dialog::open` was fixed in 2026103016201605, and the history reads already return their error.
-	- Acceptance signoff: Self-closed, 2026-10-30: dena8 and dena9 passed in the full run.
-	- Closed: 20261030-181911
-
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
@@ -174,94 +48,6 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: The workflow is its own test. Its first run is in the row above.
 
-- Code review 20261030 item 1: The profiler measures a mostly empty history for 4 of its 6 graphs
-	- ID: 2026103016201601
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261030-162016
-	- Opened by: t00mietum
-	- Origin: `27110e8` (profiler, 2026-10-25). Default graphs grew past CPU and memory after that, and the profiler's clock skip didn't follow. First review. Confirmed by reading.
-	- Steps to reproduce:
-		- Read `core/examples/profile.rs`. Only `g.cpu` and `g.mem` skip the clock, in the preload and in each tick.
-	- Incorrect behavior: GPU memory, disk, temperature and swap stay on the real clock, so they have only a few seconds of history and draw mostly gaps. The drawing and history shares in the flame report come out too low.
-	- Expected behavior: every shown graph is profiled with a full history, as the soak test does.
-	- Possible cause: graphs were added without touching the profiler. `TICK` still says 500 ms is the default, but it's been 1000 since `aa43398`, and the subtitle still says "CPU and memory".
-	- Actual cause [Bug]: as above. The profiler and the soak test each listed the graphs to skip by hand, so each new default graph had to be added to both. The soak test was caught the same way in 2026102816343100.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- `Graphs::skip` moves every graph's clock on, through the `Drawn` slots, and the profiler and the soak test both call it.
-		- The profiler ticks at the default sample time from `Look::default()`, 1 s, and saves every 15 minutes of it. Its subtitle gives the graph count, such as "20000 ticks of 6 graphs".
-		- First report with all 6 default graphs on this box: 231 us a tick, against 209 with CPU and memory only. History file 11.2% (was 3.9%), history lookups 8.3% (was 5.4%), drawing 10.3% (was 13.2%), the reads 65.5% (was 71.7%). One run each.
-		- Verified: the quick gate with the profile area passed, and the soak test passed.
-	- Decisions:
-		- One `Graphs` method rather than a test over the profiler's list, so a new graph needs no change in either caller.
-		- It skips every graph that exists, shown or not, as `reset` clears them all. A hidden one isn't sampled, so its clock only keeps pace.
-		- The sample time and the save interval come from `Look::default()`, so a new default doesn't leave them stale again.
-	- Actual fix [Bug]: `Graphs::skip` in `core/src/graphs.rs`, used by `core/examples/profile.rs` and `core/tests/soak.rs`.
-	- Branch: round-1030b
-	- Test case: `graphs::tests::skip_moves_the_clock_of_every_graph_shown` (den86), with every graph turned on. It fails with the skip on CPU and memory only, as the profiler had it.
-		- Swept: every `.skip(` caller (the profiler, the soak test, and 2 tests in `core/src/lib.rs` that skip one graph on purpose), and the cicd and design docs for "CPU and memory" about the profiler.
-	- Closed: 20261030-171006
-
-- Code review 20261030 item 2: The temp folder guard accepts the project's whole temp folder
-	- ID: 2026103016201602
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261030-162016
-	- Opened by: t00mietum
-	- Origin: `ff4610a` (cicd, 2026-10-25). The rule against it came later, on 2026-10-28. First review. Confirmed with a regex test in the shell.
-	- Steps to reproduce:
-		- Pass `fSafeRm` in `cicd/utility/include/run-tmp.bash` the path `${HOST_TEMP}/tukzmon`.
-	- Incorrect behavior: the path matches `^/(.+/)?tmp/[^/]+`, so it would be removed.
-	- Expected behavior: refused. `Safe removal` in the CICD process allows a run folder under it, never the project's folder itself.
-	- Possible cause: no caller passes it today, so nothing has tripped it.
-	- Actual cause: the copy in `run-tmp.bash` predates the rule, and lacked its check for the temp root and a project's folder right under it.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- `fSafeRm` refuses `${HOST_TEMP}` and any folder right under it, as the copy in `Safe removal` does.
-		- New `cicd/tests/guards.bash`, the pipeline's own tests, which the Tests step runs after `cargo test`. `test-ids.bash` reads their IDs too.
-		- Verified: den8d failed on the old `run-tmp.bash`, which took the temp root, and passed after. The quick gate passed, with den8d in its Tests step.
-	- Decisions:
-		- The test is a bash script in `cicd/tests/`, not a Rust test, since the Nix build's source has no `cicd/` folder. Each test has a `## Test ID:` line, as a Rust test has its `// Test ID:` line.
-		- Swept: `cicd.bash` and `hooks/pre-push` source this one copy. There is no other `rm -rf` outside the Dockerfile.
-	- Branch: round-1030b
-	- Test case: `fTest_safe_rm_takes_a_run_folder_but_not_the_temp_root_or_a_project_folder` (den8d)
-	- Closed: 20261030-171604
-
-- Code review 20261030 item 3: The settings window redoes its whole refresh on each step of a slider or color drag
-	- ID: 2026103016201603
-	- Type: Enhancement
-	- Status: Done
-	- Needs external testing: No
-	- Priority|Severity: Avg
-	- Opened: 20261030-162016
-	- Opened by: t00mietum
-	- Origin: `f89e55e` (proof of concept), and grew as rows were added. First review. Confirmed in the code. How much it lags hasn't been timed.
-	- Requirements:
-		- A slider drag and a color picker drag stay smooth on a slow box.
-		- Time one `refresh()` first, on b23 and on a VM, before and after.
-	- Progress log:
-		- Each step runs `refresh()`, which looks up every row's setting by a linear scan of about 400 settings, several times per row, and restyles all 101 color chips. Details in `details.md` -> "Code review 20261030".
-		- The lookup is in knobs, which stays byte-identical to silkterm, so that part goes there first. That part is in child 2026103018353670.
-		- Timed on b23, release build: of a 4.5 ms refresh, the chips' style sheets took 3.2 ms, the rows' states 0.6 ms, and the graph list 0.15 ms.
-		- A chip is restyled only when its color changed.
-		- `Dialog::state` looks up the setting once, not 4 times.
-		- Verified on b23, at a load of 11 to 23 on 32 cores, medians of 50: a refresh went from 4.7 ms to 1.0 ms, and a slider step with its events from 5.0 ms to 1.3 ms. The rows' states went from about 630 us to 480 us.
-		- Verified: denaq fails with the old chip line, 101 restyles where 0 and 1 are right, and passes now. The quick gate passed.
-		- 2026-10-30: Closed without the VM timing. VMs take smoke runs only, never timings, and the b23 run already shows the 4x drop.
-	- Decisions:
-		- Refreshes aren't merged onto a timer. At about 1 ms a step there's no lag left to hide, and the tests read the window straight after a change.
-		- `graph_rows` isn't cached. The whole graph list takes 0.15 ms of a refresh.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Branch: round-1030b
-	- Test case: `bridge::tests::a_refresh_restyles_only_the_chips_whose_color_changed` (denaq). `bridge::tests::time_a_refresh_and_a_slider_step` (denam) is the timing, ignored unless asked for.
-		- Swept: every `setStyleSheet` in `qt.cpp`, which is only the chip's, and every `spec.get` and `slider` call in `Dialog::state`.
-
 - Code review 20261030 item 3, part 2: Look up a setting by an index in knobs
 	- ID: 2026103018353670
 	- Type: Enhancement
@@ -277,240 +63,6 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
 	- Estimated effort: Low
-
-- Code review 20261030 item 4: Nothing formats or lints the C++ and Python files
-	- ID: 2026103016201604
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261030-162016
-	- Opened by: t00mietum
-	- Origin: `f89e55e` for `qt.cpp`, and `27110e8` for `flame-report.py`. First review. Confirmed: the repo has no `.clang-format`, `.clang-tidy` or `pyproject.toml`, and the lint step runs none of them.
-	- Requirements:
-		- A `.clang-format` with tabs, matching `qt.cpp` as it is now, and a `.clang-tidy`. Both run in the lint step.
-		- ruff and black for `cicd/utility/flame-report.py`, keeping its silkterm naming.
-		- Build `qt.cpp` as C++20, and fail the gate on its warnings.
-		- Fix what clang-tidy finds, such as the C arrays, the 11 copies of the test `QApplication` setup, and leaf classes not marked `final`.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- `.clang-format` keeps `qt.cpp`'s tabs, braces and 120 columns. It moved 11 wrapped lines and put west const back where the fixes added east const.
-		- `pyproject.toml` sets black and ruff to 120 columns, with ruff's naming checks off for the silkterm names. `flame-report.py` needed only `itertools.pairwise`.
-		- The image has clang-format and clang-tidy 19, black from its apt snapshot, and ruff by checksum. All 4 are pinned in `cicd/config.bash`.
-		- `qt.cpp` builds as C++20. A cicd build turns its warnings into errors, and a plain `cargo build` doesn't.
-		- Fixed what clang-tidy found: C arrays, all 13 copies of the `QApplication` setup now one `App` class, `final` on the 9 leaf classes, const locals, reserves, nested ternaries, and implicit widening.
-		- Verified: `--backlog-run-full` passed, all 11 steps. Planted faults failed the gate: an unused variable failed the build, a C array failed clang-tidy, an unused import failed ruff, and a stray space failed clang-format, as did a missing one for black.
-	- Decisions:
-		- clang-format and black run in the Format step, not Lint, next to cargo fmt. They check in the hands-off runs and format in place in the others, the same as cargo fmt.
-		- clang-tidy leaves out what fights Qt or the file's style: owning-memory and the downcast checks, since Qt's parent owns what `new` makes. Also magic numbers, short names, unbraced bodies, leading return types, include-cleaner, cognitive complexity, and constant array index, since there's no GSL. `.clang-tidy` gives the reasons.
-		- `pointer-arithmetic-on-polymorphic-object` is off, since it crashes clang-tidy 19 on `qt.cpp`.
-		- Warnings fail only cicd builds, through `TUKZMON_WERROR=1`, so a newer compiler's new warning doesn't break someone's own build or a distro's.
-	- Branch: round-1030b
-	- Test case: None in the repo, as for 2026102416252892. The gate was watched to fail on each planted fault above.
-	- Closed: 20261030-173604
-
-- Code review 20261030 item 5: A settings file that can't be read opens as defaults with no message
-	- ID: 2026103016201605
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261030-162016
-	- Opened by: t00mietum
-	- Related IDs: 2026103018110076
-	- Origin: `f89e55e` (proof of concept). First review. Plausible, only read.
-	- Steps to reproduce:
-		- `chmod 000` the settings file and open the settings window.
-	- Incorrect behavior: `Dialog::open` turns the read error into an empty file. The window shows defaults, and the user edits on top of them.
-	- Expected behavior: the window says it can't read the file, or `tukzmon-settings` exits with the error through `complain`. A missing file still opens as defaults.
-	- Estimated effort: Low
-	- Reproduced: 2026-10-30, with the new test against the old `Dialog::open`.
-	- Actual cause: `Dialog::open` took `read(&path).unwrap_or_default()`, so any read error but a missing file became an empty file.
-	- Actual effort: Low
-	- Progress log:
-		- `Dialog::open` returns the read error. `tukzmon-settings` then writes it to stderr, shows it in a message box with "Nothing was changed.", and quits with 1. A missing file still opens at the defaults.
-		- `design.md` Settings window has it.
-		- Verified: the full run passed. With `chmod 000` on a file, the window didn't open, the box showed the path and "Permission denied", the file was unchanged, and `--snapshot` quit with 1 and no box. A missing file still opened.
-	- Decisions:
-		- Both the box and stderr, since the panel starts the window with stderr out of sight, so a stderr line alone would look like Properties doing nothing.
-		- Quit after the box rather than open the window read-only, since a window that can't save is more surprising than one that says why it didn't open.
-		- `--snapshot` gets no box, since it runs unattended.
-		- A file that isn't UTF-8 counts as unreadable too, since it reads through the same `read`.
-		- The plugin's own read of the file, `Look::load`, has the same fallback. It writes nothing, so it's its own item, 2026103018110076.
-	- Branch: round-1030b
-	- Test case: `dialog::tests::a_file_that_cant_be_read_is_an_error_not_the_defaults` (den9y). It fails with the old `unwrap_or_default` put back.
-		- Swept: every `Dialog::open` caller (main and the tests in `dialog.rs`, `live.rs` and `bridge.rs`), `Dialog::apply`, which already returned the read error, and the plugin's `Look::load`, filed as 2026103018110076.
-	- Acceptance signoff: Self-closed, 2026-10-30: den9y passed in the full run, and the box was seen to name the file and the error.
-	- Closed: 20261030-181112
-
-- Code review 20261030 item 6: The Nix check puts env values into arithmetic unchecked
-	- ID: 2026103016201606
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261030-162016
-	- Opened by: t00mietum
-	- Origin: `6f7209f` (nix pipeline area, 2026-10-28). First review. Confirmed by reading.
-	- Steps to reproduce:
-		- Set `TUKZMON_NIX_CAP_MB` to `x[$(id)]` and run the Nix step.
-	- Incorrect behavior: `((mb > capMb))` in `cicd/nix/check.bash` runs the substitution. `TUKZMON_JOBS` goes into `NIX_CONFIG` unchecked too.
-	- Expected behavior: both are checked for digits first, as `cicd.bash` does for `CICD_MAX_JOBS`.
-	- Possible cause: the values come from tracked `config.bash`, inside a throwaway container, so the risk is small.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- `check.bash` stops with an error when `TUKZMON_JOBS` or `TUKZMON_NIX_CAP_MB` isn't a plain number, before it makes a folder or calls nix. Jobs take the same pattern as `CICD_MAX_JOBS`.
-		- Verified: den8e failed on the old `check.bash`, which went on to the build, and passed after. A `$(...)` in either value didn't run.
-	- Decisions:
-		- An empty value still means the default, as before.
-	- Branch: round-1030b
-	- Test case: `fTest_nix_check_refuses_env_values_that_arent_numbers` (den8e), in `cicd/tests/guards.bash`. The Nix step itself wasn't run, since the check comes before any of it.
-	- Closed: 20261030-171604
-
-- Code review 20261030 item 7: Collectors reopen their files every tick, and the disk graph reads every block device
-	- ID: 2026103016201607
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261030-162016
-	- Opened by: t00mietum
-	- Prereq IDs: 2026103016201601
-	- Origin: `940bb77` (mem collector) for `slurp`, and `1c4df3f` (net and disk collectors) for the disk read. First review. The read times were measured on b23.
-	- Requirements:
-		- The /proc and /sys reads are about 72% of a tick, and the disk graph alone about a third.
-		- Keep each file open and re-read it from the start, rather than opening it each tick.
-		- The disk graph reads only the wanted disks' `/sys/block/<disk>/stat`, kept open, and lists the disks again now and then.
-		- Read `/proc/meminfo` once a tick for memory, swap and zswap, not 2 or 3 times.
-	- Progress log:
-		- A tick is about 209 us, at 1 a second by default, so this is small. Measured numbers are in `details.md` -> "Code review 20261030".
-		- `collect::Kept` keeps a file open and reads it again from the start, and opens it again after a failed read. CPU, memory, swap, zswap and zram, load, network, disk, temperature, battery and the AMD GPU files read through it each tick. Files read only at start still use `slurp`.
-		- The disk graph reads each counted drive's `stat` under `/sys/class/block`, not `/proc/diskstats`, and lists the drives again every 10 s.
-		- Memory, swap and zswap share one read of `/proc/meminfo` within a tick (`mem::once_a_tick`, around `Graphs::sample` and `graphs::tick`).
-		- The AMD GPU's 3 paths are built once at start, not per tick.
-		- `design.md` Data sources on Linux has the details.
-		- Profiler, 20000 ticks of the 6 default graphs on b23 at a load of about 7: 233 and 235 us a tick before, 160 and 164 after, and 161 in the full run. The reads went from 65.7% of a tick to 55.6%. Per tick a file now costs an lseek and 2 reads, with no open, statx or close.
-		- Verified: the full run passed, the soak test and profiler included.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Decisions:
-		- One read of `/proc/meminfo` per tick goes through a per-thread cache that only holds during `once_a_tick`, so the readers keep their `Collector` shape and a read outside a tick is always fresh.
-		- Zswap reads the shared `/proc/meminfo` unless a test points it at another file.
-		- A drive plugged in under All is counted from the next listing, up to 10 s later, where `/proc/diskstats` showed it at once. A named drive that isn't there yet is tried each tick, as before.
-		- A drive whose `stat` stops reading drops out, which makes one gap, rather than a gap each tick while it's gone.
-		- A `/` in a typed drive name is read as sysfs's `!`, as in `cciss!c0d0`.
-	- Branch: round-1030b
-	- Test case: `collect::tests::kept_reads_the_file_anew_and_opens_it_again_after_a_failed_read` (denba), `graphs::tests::a_tick_reads_meminfo_once_for_memory_swap_and_zswap` (denbb), and `disk::tests::the_drives_picked_add_up_and_a_change_is_a_gap` (defng). denbb fails with each read on its own (3 reads, not 1), and defng with each listing opening its files anew.
-		- 2026-10-30: defne, defnf, defng and defnh read made-up `stat` files and `/sys/class/block`, where they read diskstats text. defne is now `reads_a_drives_stat`. Their checks are the same: old and new column counts and junk, partitions and stacked devices left out, rates that add up, and a gap when the drives change.
-		- Swept: every `slurp` caller (the ones left read once at start), every `/proc/meminfo` reader, every `DiskReader` and `Drives` use (the plugin through `Graphs`, the settings window's `Live`, `Source::follow`), and the design and settings text that names diskstats.
-	- Closed: 20261030-190553
-
-- Code review 20261030 item 8: Each history save reads the whole history file again first
-	- ID: 2026103016201608
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261030-162016
-	- Opened by: t00mietum
-	- Origin: `b46c961` (memory graph, 2026-10-25). First review. Plausible on the cost, not timed.
-	- Requirements:
-		- `Graphs::save` re-reads the file only to keep hidden graphs' sections, and copies every section on the way. b23's file is 11.5 MB, and it saves every 15 minutes on the panel's thread.
-		- Keep the hidden graphs' sections from the last load, or read only those.
-		- Time a save before and after.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- `Graphs::load` keeps the sections no graph there owns, and `save` writes them back from memory, not from the file. A graph hidden after a load goes into them too, so it needs no save first.
-		- A `Graphs` that hasn't loaded still reads the file at save, as before. A load that finds no file starts with none kept, and a reset with history kept clears them.
-		- Timed with an 11.5 MB hidden section, file on tmpfs, median of 15: 25.1 ms a save before, 12.1 ms after (`time_a_save_beside_a_big_hidden_section`, denb9, ignored).
-		- Verified: the quick gate passed.
-	- Decisions:
-		- Showing a graph again still reads the file for its section, as that's only at a settings change, and `set_look`'s callers stay as they are.
-	- Branch: round-1030b
-	- Test case: `graphs::tests::a_save_after_a_load_keeps_hidden_sections_without_reading_the_file` (denb8). It fails with the save reading the file, as it did.
-		- Swept: every `Graphs::save`, `load`, `reset` and `set_look` caller (the plugin, the profiler, the soak test and the graphs tests).
-	- Closed: 20261030-185052
-
-- Code review 20261030 item 9: Drawing allocates on every draw and packs every pixel
-	- ID: 2026103016201609
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261030-162016
-	- Opened by: t00mietum
-	- Prereq IDs: 2026103016201601
-	- Origin: `f89e55e` for `render.rs`, and `51ab3f4` for the tile layout. First review. Confirmed in the code, and the cost will be clearer once the profiler is fixed.
-	- Requirements:
-		- Reuse the draw's scratch buffers rather than allocating 3 or 4 each draw.
-		- Pack the background and each solid series color once, not per pixel.
-		- Work out the graph order once per settings change, not 3 times per draw and on every pointer move.
-	- Actual effort: Avg
-	- Progress log:
-		- Each graph keeps its draw buffers in a `render::Scratch`, so a draw at the same size allocates nothing. The panel's tile list is on the stack.
-		- The background per row, each series color and the gradient per row are packed once a draw. Only a pixel at a series' edge, or the stack's top, is blended.
-		- `Graphs` keeps the order from `graph.order`, worked out in `new` and `set_look`.
-		- The pixels are the same as before, checked against the old draw over 3000 random graphs (5.4 million pixels) before it was taken out.
-		- Profiler, 100000 ticks, 2 runs each, load about 6 on 32 cores: user CPU 6.45 and 6.43 s before, 4.87 and 4.81 s after. Drawing went from 14.4% and 13.4% of the tick to 4.5% and 4.8%.
-		- Verified: the full run passed.
-	- Decisions:
-		- Decided against: keeping history block totals up to date one sample at a time. At 2.3% it isn't worth the risk of drift.
-		- `Frame::draw_to` takes the scratch, and `Frame::draw` makes its own, so the tests and the preview stay as they were.
-		- The order is cached rather than worked out from the look each time. Nothing sets `cpu.look` but `set_look`, which keeps them together.
-	- Estimated effort: Avg
-	- Branch: round-1030b
-	- Test case: `render::tests::a_kept_scratch_draws_as_a_fresh_one_and_allocates_nothing_again` (denc4) and `graphs::tests::a_new_set_lays_out_in_the_saved_order` (denc5), with dedqp for an order set later. denc4 fails with a buffer left uncleared or made new each draw, and denc5 and dedqp with the order left at its default.
-		- Swept: every `Frame` built (`Graph::render`, the preview example, the render tests), every `order()` user (`shown`, so `count`, `widths` and `tiles`), and every place the look is set (`Graphs::new`, `set_look`). The settings window's `Live` draws through `Graph::render` and has no order of its own.
-	- Closed: 20261030-192006
-
-- Code review 20261030 item 10: Each graph's settings are listed by hand in about 15 places
-	- ID: 2026103016201610
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261030-162016
-	- Opened by: t00mietum
-	- Origin: grew graph by graph from round-1025 on. First review.
-	- Requirements:
-		- One per-graph record in `Look`, indexed by `Which`, in place of about 120 parallel fields and 12 near-identical paint methods.
-		- `Source` gets the per-graph accessors by default from that.
-		- Graphs share one `Look` rather than each keeping a clone of it.
-		- Weigh against the churn first. The payoff is a new graph that can't be missed somewhere.
-	- Estimated effort: High
-	- Progress log:
-		- Split in 2: the per-graph record and `Source`'s defaults are in child 2026103019230886, and the shared `Look` in child 2026103019230902.
-		- 2026-10-30: Closed with both children. The slots left in Graphs and Live are 2026103019482449.
-	- Test case: dencn and dencp (2026103019230886), dend1 and dend2 (2026103019230902).
-
-- Code review 20261030 item 11: Catch-all matches and string-typed values across the bridge
-	- ID: 2026103016201611
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261030-162016
-	- Opened by: t00mietum
-	- Origin: `0bc1224`, `35cf141`, `9e35514` and `fe76b54`. First review. Confirmed by reading.
-	- Requirements:
-		- Name the variants in the `_` arms over `Which` (`Graphs::is_shown`), `own::Host` (`OwnReader::text`) and `Part` (`Scheme::of`, which would index past the end for a new non-graph part).
-		- Send a row's control kind to `qt.cpp` as a shared enum, not a lower-cased debug string, and the picker's numbers as numbers, not text read back with `std::stoi`.
-		- Say why at each remaining `clone()` that has no comment, or borrow, as in `Dialog`'s theme member loop.
-	- Estimated effort: Low
-	- Actual effort: Avg
-	- Progress log:
-		- `OwnReader::text` and `Scheme::of` name their variants. `Part::graph` gives a part's place in a scheme's lists, or None for Back, and `of` and `back_of` go through it.
-		- `Graphs::is_shown` is an `if` on CPU, not a match.
-		- A row's control goes to `qt.cpp` as the shared enum `ControlKind`, and `buildControl` switches over every kind, so a new one is a build warning there, and an error in cicd.
-		- `PickState` gives the 5 percent boxes as `i32` in `percents`, in place of `fields`, and `qt.cpp` sets them with no `std::stoi`. `Field::percent` replaces `Field::text`.
-		- Each `clone()` outside tests borrows or moves now, or says why. `drop_theme_changes` reads the members through its own handle on the spec, not a copy of the list. `row_state` and `Dialog::state` move what they had, and `spec()` hands out `Arc::clone`.
-		- Verified: the full run passed.
-	- Decisions:
-		- `Graphs::is_shown` doesn't list the 11 other graphs, since that would be another per-graph list, which 2026103019482449 just took out. It splits on CPU, as `Which::optional` does.
-		- `Host::of` keeps its `_` arm, since it's over the process name, not the enum.
-		- A clone that only builds an owned value that a signature or a struct asks for, such as a returned `String` or cxx's structs, gets no comment, apart from one over the bridge's conversions.
-		- The spin boxes still send what's typed as text, through `pick_type`, which the hex box shares. Nothing reads it back with `stoi`.
-		- knobs isn't touched, since it stays byte-identical to silkterm's.
-	- Branch: round-1030b
-	- Test case: `bridge::tests::rows_send_their_control_as_a_kind_and_the_picker_its_percents` (dendh). It fails with the radio arm dropped from `control_kind`.
-		- 2026-10-30: decd8 and decd4 compare `Field::percent` with a number, not `Field::text` with its text, since `text` is gone. decd8 still checks `#0000ff`, through `hex`.
-		- Swept: every `r.info.control` and `state.fields` in `qt.cpp`, every `RowInfo.control` and `PickState` read in the bridge tests, every `Field::text` caller, and every `clone()` outside tests in core, settings and xfce.
-	- Closed: 20261030-201330
 
 - A dialog test leaves its scratch folder in the temp dir
 	- ID: 2026103020140879
@@ -541,84 +93,6 @@ Sorted per the notes in [Template](#template).
 		- The SAFETY note in the plugin's draw handler says why the pixel buffer outlives the cairo surface.
 		- `color.rs` takes `//!` for its module header, as the other modules do.
 	- Estimated effort: Low
-
-- Code review 20261030 item 13: Scripts fork inside loops
-	- ID: 2026103016201613
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261030-162016
-	- Opened by: t00mietum
-	- Origin: `963ab8d` (test ids, 2026-10-25) for the worst one. First review. Confirmed by reading.
-	- Requirements:
-		- `test-ids.bash` decodes each of about 1000 test IDs in a subshell, on every lint step. Decode with `printf -v` or inside the awk it already runs.
-		- One awk over all `.rs` files rather than one per file.
-		- `${f##*/}` for `basename` in `lint-report.bash` and `dev-install.bash`, and one `dpkg-query -S` call in `package.bash`.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- `test-ids.bash` decodes and encodes into a variable with `printf -v`, and reads every `.rs` file in one awk, and every `cicd/tests/*.bash` file in another. Strays get one awk too.
-		- `lint-report.bash` and `dev-install.bash` use `${f##*/}` and `${f%/*}`. `package.bash` asks `dpkg-query -S` once for every linked library.
-		- `test-ids.bash check` took 0.11 s of CPU, down from 0.31 s, over 308 tests.
-		- Verified: `list`, `check` and `new` gave the same output as before on the repo and on a test tree with bad, missing, repeated and future IDs, strays, nested and unclosed mods and an empty file, under gawk and mawk. `lint-report.bash` gave the same output in each mode. The owners from one `dpkg-query` matched the old per-library ones. The full run passed.
-	- Decisions:
-		- There are 308 tests, not about 1000.
-		- Module path, lines and the bash file's previous line are reset for each file, so the one awk reads each file as the per-file ones did.
-	- Branch: round-1030b
-	- Test case: `fTest_test_ids_reads_each_file_on_its_own` (den97), in `cicd/tests/guards.bash`. It passes on the old per-file scan too, and fails with a file's lines, or the line above a bash test, carried into the next file.
-		- Swept: every `$(basename` and `$(dirname` in `cicd/` and `utility/`, which are all once at startup now, and every caller of `fDecode` and `fEncode`.
-	- Closed: 20261030-174900
-
-- Code review 20261030 item 14: The release build's opt-level has never been measured against size
-	- ID: 2026103016201614
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261030-162016
-	- Opened by: t00mietum
-	- Origin: `f89e55e` (proof of concept). First review.
-	- Requirements:
-		- Build the plugin and the settings window at `opt-level` 3, "s" and "z". Compare size, and tick time from the profiler.
-		- Keep the winner, with the numbers in a comment beside it.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- Measured 2026-10-30 on b23, best of 3 interleaved profiler runs of 20000 ticks each. Plugin and settings window in bytes, then user CPU and time a tick:
-			- 3: 1225272 and 1545224, 1.33 s, 218 us.
-			- "s": 1016376 and 1262600 (17% and 18% smaller), 1.83 s, 247 us (13% slower a tick, 38% more user CPU).
-			- "z": 971320 and 1205256 (21% and 22% smaller), 2.74 s, 294 us (35% slower a tick, twice the user CPU).
-		- System time was about 3 s in every arm, from the `/proc` reads and saves.
-		- opt-level 3 stays, with the table in a comment over it in `Cargo.toml`.
-	- Decisions:
-		- 3 wins. The panel ticks every second by default for as long as the panel runs, and a monitor shouldn't add to the load it shows. The 200 to 340 KB saved isn't worth that.
-		- The settings window keeps 3 too, rather than a per-package "s". Its live graph runs the same tick code, fat LTO makes a per-package level hard to reason about, and one level is simpler.
-	- Test case: none. Only a comment changed, and the build is the same as before.
-	- Closed: 20261030-175606
-
-- Code review 20261030 item 15: `dev-install.bash` doesn't follow the helper script layout
-	- ID: 2026103016201615
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261030-162016
-	- Opened by: t00mietum
-	- Origin: `2a74ce3` (dev-install without sudo, 2026-10-29). First review. Confirmed by reading.
-	- Requirements:
-		- The `##` header with Purpose, copyright and license, and History at the bottom, as in `cicd/utility/package.bash`.
-		- Output through `fEcho`, and errors through an error helper.
-		- MIT like the other helper scripts, unless it should stay LGPL.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- `dev-install.bash` has the `##` header with Purpose, Syntax, Exit, copyright and the MIT license, and History at the bottom. Its output goes through `fEcho`, and its errors through `fDie` to stderr. It takes `--help`.
-		- Verified: with `~/.local` swapped for an empty folder and the panel shimmed, it built, installed the 3 files, named the old links, and restarted the panel, or didn't with `--no-restart`. A bad `XDG_DATA_HOME` failed with exit 1.
-	- Decisions:
-		- MIT, as the other helper scripts are.
-		- An unknown option is an error, exit 2, where it used to be ignored. A typo of `--no-restart` restarted the panel.
-		- A failed copy or build now says what failed before it exits.
-	- Branch: round-1030b
-	- Test case: none. It installs into the user's panel, so the pipeline can't run it.
-	- Closed: 20261030-174900
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
@@ -2652,6 +2126,64 @@ Sorted per the notes in [Template](#template).
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019
 
+- Code review 20261030 item 1: The profiler measures a mostly empty history for 4 of its 6 graphs
+	- ID: 2026103016201601
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: `27110e8` (profiler, 2026-10-25). Default graphs grew past CPU and memory after that, and the profiler's clock skip didn't follow. First review. Confirmed by reading.
+	- Steps to reproduce:
+		- Read `core/examples/profile.rs`. Only `g.cpu` and `g.mem` skip the clock, in the preload and in each tick.
+	- Incorrect behavior: GPU memory, disk, temperature and swap stay on the real clock, so they have only a few seconds of history and draw mostly gaps. The drawing and history shares in the flame report come out too low.
+	- Expected behavior: every shown graph is profiled with a full history, as the soak test does.
+	- Possible cause: graphs were added without touching the profiler. `TICK` still says 500 ms is the default, but it's been 1000 since `aa43398`, and the subtitle still says "CPU and memory".
+	- Actual cause [Bug]: as above. The profiler and the soak test each listed the graphs to skip by hand, so each new default graph had to be added to both. The soak test was caught the same way in 2026102816343100.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `Graphs::skip` moves every graph's clock on, through the `Drawn` slots, and the profiler and the soak test both call it.
+		- The profiler ticks at the default sample time from `Look::default()`, 1 s, and saves every 15 minutes of it. Its subtitle gives the graph count, such as "20000 ticks of 6 graphs".
+		- First report with all 6 default graphs on this box: 231 us a tick, against 209 with CPU and memory only. History file 11.2% (was 3.9%), history lookups 8.3% (was 5.4%), drawing 10.3% (was 13.2%), the reads 65.5% (was 71.7%). One run each.
+		- Verified: the quick gate with the profile area passed, and the soak test passed.
+	- Decisions:
+		- One `Graphs` method rather than a test over the profiler's list, so a new graph needs no change in either caller.
+		- It skips every graph that exists, shown or not, as `reset` clears them all. A hidden one isn't sampled, so its clock only keeps pace.
+		- The sample time and the save interval come from `Look::default()`, so a new default doesn't leave them stale again.
+	- Actual fix [Bug]: `Graphs::skip` in `core/src/graphs.rs`, used by `core/examples/profile.rs` and `core/tests/soak.rs`.
+	- Branch: round-1030b
+	- Test case: `graphs::tests::skip_moves_the_clock_of_every_graph_shown` (den86), with every graph turned on. It fails with the skip on CPU and memory only, as the profiler had it.
+		- Swept: every `.skip(` caller (the profiler, the soak test, and 2 tests in `core/src/lib.rs` that skip one graph on purpose), and the cicd and design docs for "CPU and memory" about the profiler.
+	- Closed: 20261030-171006
+
+- Code review 20261030 item 2: The temp folder guard accepts the project's whole temp folder
+	- ID: 2026103016201602
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: `ff4610a` (cicd, 2026-10-25). The rule against it came later, on 2026-10-28. First review. Confirmed with a regex test in the shell.
+	- Steps to reproduce:
+		- Pass `fSafeRm` in `cicd/utility/include/run-tmp.bash` the path `${HOST_TEMP}/tukzmon`.
+	- Incorrect behavior: the path matches `^/(.+/)?tmp/[^/]+`, so it would be removed.
+	- Expected behavior: refused. `Safe removal` in the CICD process allows a run folder under it, never the project's folder itself.
+	- Possible cause: no caller passes it today, so nothing has tripped it.
+	- Actual cause: the copy in `run-tmp.bash` predates the rule, and lacked its check for the temp root and a project's folder right under it.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `fSafeRm` refuses `${HOST_TEMP}` and any folder right under it, as the copy in `Safe removal` does.
+		- New `cicd/tests/guards.bash`, the pipeline's own tests, which the Tests step runs after `cargo test`. `test-ids.bash` reads their IDs too.
+		- Verified: den8d failed on the old `run-tmp.bash`, which took the temp root, and passed after. The quick gate passed, with den8d in its Tests step.
+	- Decisions:
+		- The test is a bash script in `cicd/tests/`, not a Rust test, since the Nix build's source has no `cicd/` folder. Each test has a `## Test ID:` line, as a Rust test has its `// Test ID:` line.
+		- Swept: `cicd.bash` and `hooks/pre-push` source this one copy. There is no other `rm -rf` outside the Dockerfile.
+	- Branch: round-1030b
+	- Test case: `fTest_safe_rm_takes_a_run_folder_but_not_the_temp_root_or_a_project_folder` (den8d)
+	- Closed: 20261030-171604
+
 - History file sections don't record their series count
 	- ID: 2026103010491713
 	- Type: Bug
@@ -2933,6 +2465,67 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: defx7 no longer checks hue angle between leads. dejbr checks how far apart they look.
 		- Swept: defx7 and defxd, the only checks on leads, every built-in in `settings.shcl`, and every role in `dice::ROLES` that follows its graph's lead.
 	- Closed: 20261028-161000
+
+- Code review 20261030 item 3: The settings window redoes its whole refresh on each step of a slider or color drag
+	- ID: 2026103016201603
+	- Type: Enhancement
+	- Status: Done
+	- Needs external testing: No
+	- Priority|Severity: Avg
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: `f89e55e` (proof of concept), and grew as rows were added. First review. Confirmed in the code. How much it lags hasn't been timed.
+	- Requirements:
+		- A slider drag and a color picker drag stay smooth on a slow box.
+		- Time one `refresh()` first, on b23 and on a VM, before and after.
+	- Progress log:
+		- Each step runs `refresh()`, which looks up every row's setting by a linear scan of about 400 settings, several times per row, and restyles all 101 color chips. Details in `details.md` -> "Code review 20261030".
+		- The lookup is in knobs, which stays byte-identical to silkterm, so that part goes there first. That part is in child 2026103018353670.
+		- Timed on b23, release build: of a 4.5 ms refresh, the chips' style sheets took 3.2 ms, the rows' states 0.6 ms, and the graph list 0.15 ms.
+		- A chip is restyled only when its color changed.
+		- `Dialog::state` looks up the setting once, not 4 times.
+		- Verified on b23, at a load of 11 to 23 on 32 cores, medians of 50: a refresh went from 4.7 ms to 1.0 ms, and a slider step with its events from 5.0 ms to 1.3 ms. The rows' states went from about 630 us to 480 us.
+		- Verified: denaq fails with the old chip line, 101 restyles where 0 and 1 are right, and passes now. The quick gate passed.
+		- 2026-10-30: Closed without the VM timing. VMs take smoke runs only, never timings, and the b23 run already shows the 4x drop.
+	- Decisions:
+		- Refreshes aren't merged onto a timer. At about 1 ms a step there's no lag left to hide, and the tests read the window straight after a change.
+		- `graph_rows` isn't cached. The whole graph list takes 0.15 ms of a refresh.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Branch: round-1030b
+	- Test case: `bridge::tests::a_refresh_restyles_only_the_chips_whose_color_changed` (denaq). `bridge::tests::time_a_refresh_and_a_slider_step` (denam) is the timing, ignored unless asked for.
+		- Swept: every `setStyleSheet` in `qt.cpp`, which is only the chip's, and every `spec.get` and `slider` call in `Dialog::state`.
+
+- Code review 20261030 item 4: Nothing formats or lints the C++ and Python files
+	- ID: 2026103016201604
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: `f89e55e` for `qt.cpp`, and `27110e8` for `flame-report.py`. First review. Confirmed: the repo has no `.clang-format`, `.clang-tidy` or `pyproject.toml`, and the lint step runs none of them.
+	- Requirements:
+		- A `.clang-format` with tabs, matching `qt.cpp` as it is now, and a `.clang-tidy`. Both run in the lint step.
+		- ruff and black for `cicd/utility/flame-report.py`, keeping its silkterm naming.
+		- Build `qt.cpp` as C++20, and fail the gate on its warnings.
+		- Fix what clang-tidy finds, such as the C arrays, the 11 copies of the test `QApplication` setup, and leaf classes not marked `final`.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- `.clang-format` keeps `qt.cpp`'s tabs, braces and 120 columns. It moved 11 wrapped lines and put west const back where the fixes added east const.
+		- `pyproject.toml` sets black and ruff to 120 columns, with ruff's naming checks off for the silkterm names. `flame-report.py` needed only `itertools.pairwise`.
+		- The image has clang-format and clang-tidy 19, black from its apt snapshot, and ruff by checksum. All 4 are pinned in `cicd/config.bash`.
+		- `qt.cpp` builds as C++20. A cicd build turns its warnings into errors, and a plain `cargo build` doesn't.
+		- Fixed what clang-tidy found: C arrays, all 13 copies of the `QApplication` setup now one `App` class, `final` on the 9 leaf classes, const locals, reserves, nested ternaries, and implicit widening.
+		- Verified: `--backlog-run-full` passed, all 11 steps. Planted faults failed the gate: an unused variable failed the build, a C array failed clang-tidy, an unused import failed ruff, and a stray space failed clang-format, as did a missing one for black.
+	- Decisions:
+		- clang-format and black run in the Format step, not Lint, next to cargo fmt. They check in the hands-off runs and format in place in the others, the same as cargo fmt.
+		- clang-tidy leaves out what fights Qt or the file's style: owning-memory and the downcast checks, since Qt's parent owns what `new` makes. Also magic numbers, short names, unbraced bodies, leading return types, include-cleaner, cognitive complexity, and constant array index, since there's no GSL. `.clang-tidy` gives the reasons.
+		- `pointer-arithmetic-on-polymorphic-object` is off, since it crashes clang-tidy 19 on `qt.cpp`.
+		- Warnings fail only cicd builds, through `TUKZMON_WERROR=1`, so a newer compiler's new warning doesn't break someone's own build or a distro's.
+	- Branch: round-1030b
+	- Test case: None in the repo, as for 2026102416252892. The gate was watched to fail on each planted fault above.
+	- Closed: 20261030-173604
 
 - Pre-next-cut: "Sample ms" becomes "Sample %"
 	- ID: 2026102819145599
@@ -4224,6 +3817,97 @@ Sorted per the notes in [Template](#template).
 	- Test case: None, since it was a question. The network collector's tests will cover the answer.
 	- Closed: 20261019
 
+- A panel item whose settings file can't be read draws at the defaults with no message
+	- ID: 2026103018110076
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261030-181100
+	- Opened by: t00mietum
+	- Related IDs: 2026103016201605
+	- Steps to reproduce: `chmod 000` an item's `plugin-<id>.shcl` while the panel runs, or before it starts.
+	- Incorrect behavior: `Look::load` in `core/src/config.rs` reads an unreadable file as an empty one, so the item drops to the defaults, with nothing in the log. It writes nothing, so the file isn't lost.
+	- Expected behavior: the item keeps the look it has, or the defaults at its start, and logs the read error once through `complain`. A missing file still means the defaults.
+	- Estimated effort: Low
+	- Reproduced: 2026-10-30, with the new tests against the old `Look::load`.
+	- Actual cause: `Look::load` took `read_to_string(path).unwrap_or_default()`, so any read error but a missing file became an empty file.
+	- Actual effort: Low
+	- Progress log:
+		- `Look::load` returns the read error, and a missing file is still the defaults. The plugin keeps the look it has, or starts at the defaults, logs the error once through `complain`, and shows "Settings: can't read <path>: <error>" in the tip until the file reads again.
+		- `design.md` XFCE plugin has it.
+		- Verified: the full run passed, with dena8 and dena9.
+		- Unverified: the read at the item's start, since `Plugin::new` needs a live panel. It shares `read_look` with the reload that dena9 covers.
+	- Decisions:
+		- Keep the current look, not the defaults, since a file the item can't read says nothing new about how it should look, and a sudden change to the defaults reads as lost settings.
+		- A tip line plus `complain`, the same as history trouble, since a restarted panel's stderr is out of sight.
+		- Logged once per error text, so a file that stays unreadable doesn't fill the journal. A new error, or the same one after a good read, is logged again.
+		- Each tick reads again until it works, since `chmod` back doesn't change the modified time the reload goes by. It costs one failed open a tick while the file is bad.
+		- A `chmod 000` alone isn't seen until the next write, since it doesn't move the modified time either. The item just keeps its look, which is what's asked.
+		- A file that isn't UTF-8 counts as unreadable too, as in `Dialog::open`.
+		- The preview example quits with the error rather than drawing defaults.
+	- Branch: round-1030b
+	- Test case: `config::tests::a_file_that_cant_be_read_is_an_error_not_the_defaults` (dena8) and `tests::an_unreadable_settings_file_keeps_the_look_and_says_why` (dena9). Both fail with the old `unwrap_or_default` put back.
+		- Swept: every `Look::load` caller (the plugin's start and reload, the preview example, and the tests in `config.rs` and `dialog.rs`, now with `.unwrap()`), and every `fs::read` in core, xfce and settings. `Dialog::open` was fixed in 2026103016201605, and the history reads already return their error.
+	- Acceptance signoff: Self-closed, 2026-10-30: dena8 and dena9 passed in the full run.
+	- Closed: 20261030-181911
+
+- Code review 20261030 item 5: A settings file that can't be read opens as defaults with no message
+	- ID: 2026103016201605
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Related IDs: 2026103018110076
+	- Origin: `f89e55e` (proof of concept). First review. Plausible, only read.
+	- Steps to reproduce:
+		- `chmod 000` the settings file and open the settings window.
+	- Incorrect behavior: `Dialog::open` turns the read error into an empty file. The window shows defaults, and the user edits on top of them.
+	- Expected behavior: the window says it can't read the file, or `tukzmon-settings` exits with the error through `complain`. A missing file still opens as defaults.
+	- Estimated effort: Low
+	- Reproduced: 2026-10-30, with the new test against the old `Dialog::open`.
+	- Actual cause: `Dialog::open` took `read(&path).unwrap_or_default()`, so any read error but a missing file became an empty file.
+	- Actual effort: Low
+	- Progress log:
+		- `Dialog::open` returns the read error. `tukzmon-settings` then writes it to stderr, shows it in a message box with "Nothing was changed.", and quits with 1. A missing file still opens at the defaults.
+		- `design.md` Settings window has it.
+		- Verified: the full run passed. With `chmod 000` on a file, the window didn't open, the box showed the path and "Permission denied", the file was unchanged, and `--snapshot` quit with 1 and no box. A missing file still opened.
+	- Decisions:
+		- Both the box and stderr, since the panel starts the window with stderr out of sight, so a stderr line alone would look like Properties doing nothing.
+		- Quit after the box rather than open the window read-only, since a window that can't save is more surprising than one that says why it didn't open.
+		- `--snapshot` gets no box, since it runs unattended.
+		- A file that isn't UTF-8 counts as unreadable too, since it reads through the same `read`.
+		- The plugin's own read of the file, `Look::load`, has the same fallback. It writes nothing, so it's its own item, 2026103018110076.
+	- Branch: round-1030b
+	- Test case: `dialog::tests::a_file_that_cant_be_read_is_an_error_not_the_defaults` (den9y). It fails with the old `unwrap_or_default` put back.
+		- Swept: every `Dialog::open` caller (main and the tests in `dialog.rs`, `live.rs` and `bridge.rs`), `Dialog::apply`, which already returned the read error, and the plugin's `Look::load`, filed as 2026103018110076.
+	- Acceptance signoff: Self-closed, 2026-10-30: den9y passed in the full run, and the box was seen to name the file and the error.
+	- Closed: 20261030-181112
+
+- Code review 20261030 item 6: The Nix check puts env values into arithmetic unchecked
+	- ID: 2026103016201606
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: `6f7209f` (nix pipeline area, 2026-10-28). First review. Confirmed by reading.
+	- Steps to reproduce:
+		- Set `TUKZMON_NIX_CAP_MB` to `x[$(id)]` and run the Nix step.
+	- Incorrect behavior: `((mb > capMb))` in `cicd/nix/check.bash` runs the substitution. `TUKZMON_JOBS` goes into `NIX_CONFIG` unchecked too.
+	- Expected behavior: both are checked for digits first, as `cicd.bash` does for `CICD_MAX_JOBS`.
+	- Possible cause: the values come from tracked `config.bash`, inside a throwaway container, so the risk is small.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `check.bash` stops with an error when `TUKZMON_JOBS` or `TUKZMON_NIX_CAP_MB` isn't a plain number, before it makes a folder or calls nix. Jobs take the same pattern as `CICD_MAX_JOBS`.
+		- Verified: den8e failed on the old `check.bash`, which went on to the build, and passed after. A `$(...)` in either value didn't run.
+	- Decisions:
+		- An empty value still means the default, as before.
+	- Branch: round-1030b
+	- Test case: `fTest_nix_check_refuses_env_values_that_arent_numbers` (den8e), in `cicd/tests/guards.bash`. The Nix step itself wasn't run, since the check comes before any of it.
+	- Closed: 20261030-171604
+
 - GPU memory counts the driver's reserved memory as used
 	- ID: 2026102915125135
 	- Type: Bug
@@ -4396,6 +4080,322 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
 	- Closed: 20261025-081952
+
+- Graphs and Live list their 12 graph slots by hand
+	- ID: 2026103019482449
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261030-194824
+	- Opened by: t00mietum
+	- Related IDs: 2026103016201610, 2026103019230902, 2026103016201611
+	- Requirements:
+		- One table of graphs in `Graphs` and in `Live`, in place of a field per graph, so a new graph is added in one place there, not in about 5 places each.
+		- `Live::get` matches on section names with a `_` arm, so a graph left out there is skipped with no error.
+		- Weigh against the churn first. Each slot holds a different reader type, so a table holds `Box<dyn Drawn>` or an enum.
+	- Estimated effort: Avg
+	- Origin: found while sharing the look in 2026103019230902.
+	- Actual effort: Avg
+	- Progress log:
+		- `Graphs` and the settings window's `Live` keep their graphs in one `graphs::Slots`: a `Box<dyn Drawn>` per `Which`, at its own index, and the look they share. `graphs::make` is the one match that knows each graph's reader, so a new graph is one arm there, and the build asks for it.
+		- `Live` finds a graph by name through `Which::named`, so there's no `_` arm left to skip one.
+		- `Graphs::has(which)` replaces the profiler's and the soak test's reads of `g.mem`.
+		- `make` checks at build that each reader has a color per series, and in a debug build that it sits in its own graph's slot.
+		- Verified: the full run passed, with the soak and profiler steps.
+	- Decisions:
+		- `Box<dyn Drawn>`, not an enum. Every caller already went through `Drawn`, and an enum would list the 12 graphs again in each match.
+		- CPU sits in the table too, always made, so each loop is one loop. `Slots` keeps the shared look, as `cpu.look` did.
+		- `Drawn` is `Any`, so tests reach a graph's history and peak through `the::<MemoryReader, 3>()`. The test edits are mechanical.
+		- `Live::set_look` still makes none and drops none, so a graph the box couldn't read at open isn't probed again on each change. `Graphs::set_look` still makes a shown one that's missing.
+		- A graph being hidden is dropped before the new look goes out, as before, so it doesn't follow it first.
+	- Branch: round-1030b
+	- Test case: `live::tests::every_graph_the_panel_can_draw_has_a_row_by_its_name` (dendg), plus dencp and dend1 over the table. dendg fails with `Live::get` missing the own graph, and dencp with a reader in another graph's slot.
+		- 2026-10-30: dencp checks each graph `make` gives, not the old fields' types, and dend1 each slot's look, not a list of fields. What they check is the same.
+		- Swept: every `Graphs` field read (core, settings, xfce, the profiler, the soak test), every `Live` field read, both `set_look`s, and every `Source::SECTION`, which all still come from `WHICH`.
+	- Closed: 20261030-201330
+
+- Graphs share one Look
+	- ID: 2026103019230902
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-30.
+	- Priority|Severity: Low
+	- Opened: 20261030-192309
+	- Opened by: t00mietum
+	- Parent ID: 2026103016201610
+	- Prereq IDs: 2026103019230886
+	- Related IDs: 2026103019482449
+	- Requirements:
+		- Graphs and the settings window's `Live` share one `Look` rather than each graph keeping a clone of it.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- `Graph::look` is an `Rc<Look>`. `Graphs` and `Live` wrap a new look once, in `new` and `set_look`, and every graph holds the same one. A new look used to be cloned once per graph, 12 times in the settings window.
+		- `Live::set_look` takes the look by value, as `Graphs::set_look` does.
+		- Verified: the full run passed, with the profiler and soak steps.
+	- Decisions:
+		- `Rc`, not `&Look` passed to each call. Passing it in would add a look to most of `Drawn`'s methods and every test that drives a lone `Graph`. Both owners are single-threaded, and `Rc` builds through cxx's `Box<Live>`.
+		- `Graph`'s constructors take `impl Into<Rc<Look>>`, so a test or example still passes a plain `Look`.
+		- The 12 slots in `Graphs` and `Live` are left as they are, since sharing the look didn't need them changed. That's 2026103019482449.
+	- Branch: round-1030b
+	- Test case: `graphs::tests::every_graph_shares_the_one_look` (dend1) and `live::tests::every_row_shares_the_one_look` (dend2). Both fail with `Drawn::set_look` giving each graph its own copy.
+		- 2026-10-30: lib.rs tests that change a lone graph's look go through `Rc::make_mut`, and `dedq4`'s compare dereferences the `Rc`. Nothing else they check changed.
+		- Swept: every `Graph` constructor caller (core, settings, the examples, the soak test, the zswap tests), both `Drawn::set_look` callers (`Graphs::set_look`, `Live::set_look`), every `Live::set_look` caller (`live_look` in the bridge, the live tests), and every write to a graph's `look`.
+	- Closed: 20261030-194750
+
+- One record per graph in Look
+	- ID: 2026103019230886
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-30.
+	- Priority|Severity: Low
+	- Opened: 20261030-192308
+	- Opened by: t00mietum
+	- Parent ID: 2026103016201610
+	- Requirements:
+		- One per-graph record in `Look`, indexed by `Which`, in place of the parallel fields and the 12 paint methods.
+		- `Source` gets the per-graph accessors by default from that.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- `Look` keeps each graph's show, width, sample, time, colors, mode, gradient and outline in one `config::Each`, as `look[Which::Mem].width`. `Look::paint(which)` replaces the 12 paint methods.
+		- `Which` moved from `graphs` to `config` and is public. Its `key` is the history section, the name in `graph.order` and the head of the setting ids, and `color_ids` lists its Detailed colors. `Look::from_model` reads every graph through those.
+		- A `Source` names its `WHICH`, and gets its `SECTION`, paint, outline, timing and sample rate from it by default.
+		- The settings window's graph widths go through `Which` too.
+		- Verified: the full run passed.
+	- Decisions:
+		- Done now, against the churn. They were 96 of `Look`'s 116 fields, and the test edits are mechanical.
+		- Colors are a fixed `[Rgb; 5]`, the network's count, with black past a graph's own, so `Each` is one type. `paint` checks at build that a graph's series fit.
+		- The slots in `Graphs` and `Live` are left as they are. They hold a different reader type each, and the shared look in 2026103019230902 changes them anyway.
+		- `LEADS` and `dice::ROLES` stay lists of their own, since they're about themes, not a graph's settings.
+	- Branch: round-1030b
+	- Test case: `config::tests::each_graph_reads_its_own_settings_into_its_own_record` (dencn) and `graphs::tests::each_slot_is_its_own_graph_with_a_color_per_series` (dencp). dencn fails with a graph's key changed, and dencp with a color id dropped or a reader naming another graph's `WHICH`.
+		- Swept: every `Look` field read and struct literal in core, settings, xfce, the preview example and the soak test, every `*_paint` caller, every `Source` impl, and `Live::width`. The tests changed only in how they reach a graph's settings.
+	- Closed: 20261030-193730
+
+- Code review 20261030 item 7: Collectors reopen their files every tick, and the disk graph reads every block device
+	- ID: 2026103016201607
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Prereq IDs: 2026103016201601
+	- Origin: `940bb77` (mem collector) for `slurp`, and `1c4df3f` (net and disk collectors) for the disk read. First review. The read times were measured on b23.
+	- Requirements:
+		- The /proc and /sys reads are about 72% of a tick, and the disk graph alone about a third.
+		- Keep each file open and re-read it from the start, rather than opening it each tick.
+		- The disk graph reads only the wanted disks' `/sys/block/<disk>/stat`, kept open, and lists the disks again now and then.
+		- Read `/proc/meminfo` once a tick for memory, swap and zswap, not 2 or 3 times.
+	- Progress log:
+		- A tick is about 209 us, at 1 a second by default, so this is small. Measured numbers are in `details.md` -> "Code review 20261030".
+		- `collect::Kept` keeps a file open and reads it again from the start, and opens it again after a failed read. CPU, memory, swap, zswap and zram, load, network, disk, temperature, battery and the AMD GPU files read through it each tick. Files read only at start still use `slurp`.
+		- The disk graph reads each counted drive's `stat` under `/sys/class/block`, not `/proc/diskstats`, and lists the drives again every 10 s.
+		- Memory, swap and zswap share one read of `/proc/meminfo` within a tick (`mem::once_a_tick`, around `Graphs::sample` and `graphs::tick`).
+		- The AMD GPU's 3 paths are built once at start, not per tick.
+		- `design.md` Data sources on Linux has the details.
+		- Profiler, 20000 ticks of the 6 default graphs on b23 at a load of about 7: 233 and 235 us a tick before, 160 and 164 after, and 161 in the full run. The reads went from 65.7% of a tick to 55.6%. Per tick a file now costs an lseek and 2 reads, with no open, statx or close.
+		- Verified: the full run passed, the soak test and profiler included.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Decisions:
+		- One read of `/proc/meminfo` per tick goes through a per-thread cache that only holds during `once_a_tick`, so the readers keep their `Collector` shape and a read outside a tick is always fresh.
+		- Zswap reads the shared `/proc/meminfo` unless a test points it at another file.
+		- A drive plugged in under All is counted from the next listing, up to 10 s later, where `/proc/diskstats` showed it at once. A named drive that isn't there yet is tried each tick, as before.
+		- A drive whose `stat` stops reading drops out, which makes one gap, rather than a gap each tick while it's gone.
+		- A `/` in a typed drive name is read as sysfs's `!`, as in `cciss!c0d0`.
+	- Branch: round-1030b
+	- Test case: `collect::tests::kept_reads_the_file_anew_and_opens_it_again_after_a_failed_read` (denba), `graphs::tests::a_tick_reads_meminfo_once_for_memory_swap_and_zswap` (denbb), and `disk::tests::the_drives_picked_add_up_and_a_change_is_a_gap` (defng). denbb fails with each read on its own (3 reads, not 1), and defng with each listing opening its files anew.
+		- 2026-10-30: defne, defnf, defng and defnh read made-up `stat` files and `/sys/class/block`, where they read diskstats text. defne is now `reads_a_drives_stat`. Their checks are the same: old and new column counts and junk, partitions and stacked devices left out, rates that add up, and a gap when the drives change.
+		- Swept: every `slurp` caller (the ones left read once at start), every `/proc/meminfo` reader, every `DiskReader` and `Drives` use (the plugin through `Graphs`, the settings window's `Live`, `Source::follow`), and the design and settings text that names diskstats.
+	- Closed: 20261030-190553
+
+- Code review 20261030 item 8: Each history save reads the whole history file again first
+	- ID: 2026103016201608
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: `b46c961` (memory graph, 2026-10-25). First review. Plausible on the cost, not timed.
+	- Requirements:
+		- `Graphs::save` re-reads the file only to keep hidden graphs' sections, and copies every section on the way. b23's file is 11.5 MB, and it saves every 15 minutes on the panel's thread.
+		- Keep the hidden graphs' sections from the last load, or read only those.
+		- Time a save before and after.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `Graphs::load` keeps the sections no graph there owns, and `save` writes them back from memory, not from the file. A graph hidden after a load goes into them too, so it needs no save first.
+		- A `Graphs` that hasn't loaded still reads the file at save, as before. A load that finds no file starts with none kept, and a reset with history kept clears them.
+		- Timed with an 11.5 MB hidden section, file on tmpfs, median of 15: 25.1 ms a save before, 12.1 ms after (`time_a_save_beside_a_big_hidden_section`, denb9, ignored).
+		- Verified: the quick gate passed.
+	- Decisions:
+		- Showing a graph again still reads the file for its section, as that's only at a settings change, and `set_look`'s callers stay as they are.
+	- Branch: round-1030b
+	- Test case: `graphs::tests::a_save_after_a_load_keeps_hidden_sections_without_reading_the_file` (denb8). It fails with the save reading the file, as it did.
+		- Swept: every `Graphs::save`, `load`, `reset` and `set_look` caller (the plugin, the profiler, the soak test and the graphs tests).
+	- Closed: 20261030-185052
+
+- Code review 20261030 item 9: Drawing allocates on every draw and packs every pixel
+	- ID: 2026103016201609
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Prereq IDs: 2026103016201601
+	- Origin: `f89e55e` for `render.rs`, and `51ab3f4` for the tile layout. First review. Confirmed in the code, and the cost will be clearer once the profiler is fixed.
+	- Requirements:
+		- Reuse the draw's scratch buffers rather than allocating 3 or 4 each draw.
+		- Pack the background and each solid series color once, not per pixel.
+		- Work out the graph order once per settings change, not 3 times per draw and on every pointer move.
+	- Actual effort: Avg
+	- Progress log:
+		- Each graph keeps its draw buffers in a `render::Scratch`, so a draw at the same size allocates nothing. The panel's tile list is on the stack.
+		- The background per row, each series color and the gradient per row are packed once a draw. Only a pixel at a series' edge, or the stack's top, is blended.
+		- `Graphs` keeps the order from `graph.order`, worked out in `new` and `set_look`.
+		- The pixels are the same as before, checked against the old draw over 3000 random graphs (5.4 million pixels) before it was taken out.
+		- Profiler, 100000 ticks, 2 runs each, load about 6 on 32 cores: user CPU 6.45 and 6.43 s before, 4.87 and 4.81 s after. Drawing went from 14.4% and 13.4% of the tick to 4.5% and 4.8%.
+		- Verified: the full run passed.
+	- Decisions:
+		- Decided against: keeping history block totals up to date one sample at a time. At 2.3% it isn't worth the risk of drift.
+		- `Frame::draw_to` takes the scratch, and `Frame::draw` makes its own, so the tests and the preview stay as they were.
+		- The order is cached rather than worked out from the look each time. Nothing sets `cpu.look` but `set_look`, which keeps them together.
+	- Estimated effort: Avg
+	- Branch: round-1030b
+	- Test case: `render::tests::a_kept_scratch_draws_as_a_fresh_one_and_allocates_nothing_again` (denc4) and `graphs::tests::a_new_set_lays_out_in_the_saved_order` (denc5), with dedqp for an order set later. denc4 fails with a buffer left uncleared or made new each draw, and denc5 and dedqp with the order left at its default.
+		- Swept: every `Frame` built (`Graph::render`, the preview example, the render tests), every `order()` user (`shown`, so `count`, `widths` and `tiles`), and every place the look is set (`Graphs::new`, `set_look`). The settings window's `Live` draws through `Graph::render` and has no order of its own.
+	- Closed: 20261030-192006
+
+- Code review 20261030 item 10: Each graph's settings are listed by hand in about 15 places
+	- ID: 2026103016201610
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: grew graph by graph from round-1025 on. First review.
+	- Requirements:
+		- One per-graph record in `Look`, indexed by `Which`, in place of about 120 parallel fields and 12 near-identical paint methods.
+		- `Source` gets the per-graph accessors by default from that.
+		- Graphs share one `Look` rather than each keeping a clone of it.
+		- Weigh against the churn first. The payoff is a new graph that can't be missed somewhere.
+	- Estimated effort: High
+	- Progress log:
+		- Split in 2: the per-graph record and `Source`'s defaults are in child 2026103019230886, and the shared `Look` in child 2026103019230902.
+		- 2026-10-30: Closed with both children. The slots left in Graphs and Live are 2026103019482449.
+	- Test case: dencn and dencp (2026103019230886), dend1 and dend2 (2026103019230902).
+
+- Code review 20261030 item 11: Catch-all matches and string-typed values across the bridge
+	- ID: 2026103016201611
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: `0bc1224`, `35cf141`, `9e35514` and `fe76b54`. First review. Confirmed by reading.
+	- Requirements:
+		- Name the variants in the `_` arms over `Which` (`Graphs::is_shown`), `own::Host` (`OwnReader::text`) and `Part` (`Scheme::of`, which would index past the end for a new non-graph part).
+		- Send a row's control kind to `qt.cpp` as a shared enum, not a lower-cased debug string, and the picker's numbers as numbers, not text read back with `std::stoi`.
+		- Say why at each remaining `clone()` that has no comment, or borrow, as in `Dialog`'s theme member loop.
+	- Estimated effort: Low
+	- Actual effort: Avg
+	- Progress log:
+		- `OwnReader::text` and `Scheme::of` name their variants. `Part::graph` gives a part's place in a scheme's lists, or None for Back, and `of` and `back_of` go through it.
+		- `Graphs::is_shown` is an `if` on CPU, not a match.
+		- A row's control goes to `qt.cpp` as the shared enum `ControlKind`, and `buildControl` switches over every kind, so a new one is a build warning there, and an error in cicd.
+		- `PickState` gives the 5 percent boxes as `i32` in `percents`, in place of `fields`, and `qt.cpp` sets them with no `std::stoi`. `Field::percent` replaces `Field::text`.
+		- Each `clone()` outside tests borrows or moves now, or says why. `drop_theme_changes` reads the members through its own handle on the spec, not a copy of the list. `row_state` and `Dialog::state` move what they had, and `spec()` hands out `Arc::clone`.
+		- Verified: the full run passed.
+	- Decisions:
+		- `Graphs::is_shown` doesn't list the 11 other graphs, since that would be another per-graph list, which 2026103019482449 just took out. It splits on CPU, as `Which::optional` does.
+		- `Host::of` keeps its `_` arm, since it's over the process name, not the enum.
+		- A clone that only builds an owned value that a signature or a struct asks for, such as a returned `String` or cxx's structs, gets no comment, apart from one over the bridge's conversions.
+		- The spin boxes still send what's typed as text, through `pick_type`, which the hex box shares. Nothing reads it back with `stoi`.
+		- knobs isn't touched, since it stays byte-identical to silkterm's.
+	- Branch: round-1030b
+	- Test case: `bridge::tests::rows_send_their_control_as_a_kind_and_the_picker_its_percents` (dendh). It fails with the radio arm dropped from `control_kind`.
+		- 2026-10-30: decd8 and decd4 compare `Field::percent` with a number, not `Field::text` with its text, since `text` is gone. decd8 still checks `#0000ff`, through `hex`.
+		- Swept: every `r.info.control` and `state.fields` in `qt.cpp`, every `RowInfo.control` and `PickState` read in the bridge tests, every `Field::text` caller, and every `clone()` outside tests in core, settings and xfce.
+	- Closed: 20261030-201330
+
+- Code review 20261030 item 13: Scripts fork inside loops
+	- ID: 2026103016201613
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: `963ab8d` (test ids, 2026-10-25) for the worst one. First review. Confirmed by reading.
+	- Requirements:
+		- `test-ids.bash` decodes each of about 1000 test IDs in a subshell, on every lint step. Decode with `printf -v` or inside the awk it already runs.
+		- One awk over all `.rs` files rather than one per file.
+		- `${f##*/}` for `basename` in `lint-report.bash` and `dev-install.bash`, and one `dpkg-query -S` call in `package.bash`.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `test-ids.bash` decodes and encodes into a variable with `printf -v`, and reads every `.rs` file in one awk, and every `cicd/tests/*.bash` file in another. Strays get one awk too.
+		- `lint-report.bash` and `dev-install.bash` use `${f##*/}` and `${f%/*}`. `package.bash` asks `dpkg-query -S` once for every linked library.
+		- `test-ids.bash check` took 0.11 s of CPU, down from 0.31 s, over 308 tests.
+		- Verified: `list`, `check` and `new` gave the same output as before on the repo and on a test tree with bad, missing, repeated and future IDs, strays, nested and unclosed mods and an empty file, under gawk and mawk. `lint-report.bash` gave the same output in each mode. The owners from one `dpkg-query` matched the old per-library ones. The full run passed.
+	- Decisions:
+		- There are 308 tests, not about 1000.
+		- Module path, lines and the bash file's previous line are reset for each file, so the one awk reads each file as the per-file ones did.
+	- Branch: round-1030b
+	- Test case: `fTest_test_ids_reads_each_file_on_its_own` (den97), in `cicd/tests/guards.bash`. It passes on the old per-file scan too, and fails with a file's lines, or the line above a bash test, carried into the next file.
+		- Swept: every `$(basename` and `$(dirname` in `cicd/` and `utility/`, which are all once at startup now, and every caller of `fDecode` and `fEncode`.
+	- Closed: 20261030-174900
+
+- Code review 20261030 item 14: The release build's opt-level has never been measured against size
+	- ID: 2026103016201614
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: `f89e55e` (proof of concept). First review.
+	- Requirements:
+		- Build the plugin and the settings window at `opt-level` 3, "s" and "z". Compare size, and tick time from the profiler.
+		- Keep the winner, with the numbers in a comment beside it.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Measured 2026-10-30 on b23, best of 3 interleaved profiler runs of 20000 ticks each. Plugin and settings window in bytes, then user CPU and time a tick:
+			- 3: 1225272 and 1545224, 1.33 s, 218 us.
+			- "s": 1016376 and 1262600 (17% and 18% smaller), 1.83 s, 247 us (13% slower a tick, 38% more user CPU).
+			- "z": 971320 and 1205256 (21% and 22% smaller), 2.74 s, 294 us (35% slower a tick, twice the user CPU).
+		- System time was about 3 s in every arm, from the `/proc` reads and saves.
+		- opt-level 3 stays, with the table in a comment over it in `Cargo.toml`.
+	- Decisions:
+		- 3 wins. The panel ticks every second by default for as long as the panel runs, and a monitor shouldn't add to the load it shows. The 200 to 340 KB saved isn't worth that.
+		- The settings window keeps 3 too, rather than a per-package "s". Its live graph runs the same tick code, fat LTO makes a per-package level hard to reason about, and one level is simpler.
+	- Test case: none. Only a comment changed, and the build is the same as before.
+	- Closed: 20261030-175606
+
+- Code review 20261030 item 15: `dev-install.bash` doesn't follow the helper script layout
+	- ID: 2026103016201615
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261030-162016
+	- Opened by: t00mietum
+	- Origin: `2a74ce3` (dev-install without sudo, 2026-10-29). First review. Confirmed by reading.
+	- Requirements:
+		- The `##` header with Purpose, copyright and license, and History at the bottom, as in `cicd/utility/package.bash`.
+		- Output through `fEcho`, and errors through an error helper.
+		- MIT like the other helper scripts, unless it should stay LGPL.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `dev-install.bash` has the `##` header with Purpose, Syntax, Exit, copyright and the MIT license, and History at the bottom. Its output goes through `fEcho`, and its errors through `fDie` to stderr. It takes `--help`.
+		- Verified: with `~/.local` swapped for an empty folder and the panel shimmed, it built, installed the 3 files, named the old links, and restarted the panel, or didn't with `--no-restart`. A bad `XDG_DATA_HOME` failed with exit 1.
+	- Decisions:
+		- MIT, as the other helper scripts are.
+		- An unknown option is an error, exit 2, where it used to be ignored. A typo of `--no-restart` restarted the panel.
+		- A failed copy or build now says what failed before it exits.
+	- Branch: round-1030b
+	- Test case: none. It installs into the user's panel, so the pipeline can't run it.
+	- Closed: 20261030-174900
 
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
