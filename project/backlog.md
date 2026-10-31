@@ -76,6 +76,71 @@ Sorted per the notes in [Template](#template).
 		- Themes|Colors page: There should be no horizontal line between the theme management buttons, and the scrollable region.
 			- Ditto with the Themes|Outline tab.
 
+- Every control and color chip has a tip
+	- ID: 2026103115015700
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261031-150157
+	- Opened by: t00mietum
+	- Requirements:
+		- Dialog changes to follow `project/style-guide_ux.md` (Tips).
+		- Add a tip to Border px on General.
+		- Add a tip to each color row that has none: Border, Top, and Bottom on every graph, plus Buffers, Busy, CPU use, I/O wait, In use, Load, On battery, Other users, Read, User, and Written.
+		- Add a test that fails on a control or color row with no tip.
+	- Estimated effort: Low
+
+- Destructive questions default to No
+	- ID: 2026103115020000
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261031-150157
+	- Opened by: t00mietum
+	- Requirements:
+		- Dialog change to follow `project/style-guide_ux.md` (Message boxes).
+		- The Delete theme and Reset history questions have no default button set, so Qt picks Yes. Make it No for both.
+	- Estimated effort: Low
+
+- Label wording: "and" for ampersands, and "default" on Width
+	- ID: 2026103115020300
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-150157
+	- Opened by: t00mietum
+	- Requirements:
+		- Dialog changes to follow `project/style-guide_ux.md` (Labels).
+		- "Top & bottom px" and "Left & right px" on Themes|Outline become "Top and bottom px" and "Left and right px".
+		- "Width px" on General becomes "Width px default", the same as "Sample ms default" and "Time axis default", since each graph takes a percentage of it.
+		- Update the tips and tests that quote these labels.
+	- Estimated effort: Low
+
+- No heading on the Graphs tab that repeats the tab's name
+	- ID: 2026103115020600
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-150157
+	- Opened by: t00mietum
+	- Requirements:
+		- Dialog change to follow `project/style-guide_ux.md` (Groups and headings).
+		- The Graphs tab has a heading, "Graphs", over the graph list. Remove it, and keep the list where the heading was.
+	- Estimated effort: Low
+
+- Border width is on General, but margins and border colors are on Themes
+	- ID: 2026103115020900
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261031-150157
+	- Opened by: t00mietum
+	- Requirements:
+		- Need to work out ambiguities.
+		- Border px is the only row under General's Frame heading. Margins, and the Border color, are on Themes|Outline and Themes|Colors.
+		- Decide where Border px belongs, then change the dialog and the style guide to match. Moving it to Themes|Outline next to Margins is the likely answer, but it isn't a theme value today.
+	- Estimated effort: Low
+
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
 	- Type: Bug
