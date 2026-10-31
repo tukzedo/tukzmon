@@ -92,9 +92,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Taller slider grab buttons
 	- ID: 2026103108591402
 	- Type: Enhancement
-	- Status: Waiting on UAT
-		- The handle's look in the live theme is for a person to judge. Open Properties and compare a slider's handle with its number box.
-	- Needs hand testing: The look of the taller handle on b23, in the settings window.
+	- Status: Done
+	- Stand-in: 20261031, the round's debug build in b23's own style (Orchis green compact, dark) on a private display, in place of a hand test on b23. The handles came level with the number boxes, and the groove stayed thin and centered.
 	- Priority|Severity: Avg
 	- Opened: 20261031-085914
 	- Opened by: t00mietum
@@ -111,6 +110,8 @@ Sorted per the notes in [Template](#template).
 		- The handle keeps its width.
 	- Branch: round-1031b
 	- Test case: dep6b checks the handle is at least the box's height less 2 px. Without the stretch it fails, with 15 against 26.
+	- Acceptance signoff: Self-closed: dep6b passed in the full run of 1d07a68, and the look matches what the item asks.
+	- Closed: 20261031-100000
 
 - Pre-next-cut: Same height for all buttons
 	- ID: 2026103108591403
