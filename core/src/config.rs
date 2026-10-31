@@ -15,6 +15,7 @@ use crate::disk::Drives;
 use crate::render::Paint;
 use crate::when::Said;
 
+/// The settings spec, in shcl.
 pub const SPEC_TEXT: &str = include_str!("settings.shcl");
 
 /// The parsed spec. A test proves it parses, so a bad one never gets built.
@@ -132,6 +133,7 @@ pub enum Mode {
 }
 
 impl Mode {
+	/// As the settings file spells it, in any case.
 	pub fn parse(s: &str) -> Option<Mode> {
 		match s.to_ascii_lowercase().as_str() {
 			"detailed" => Some(Mode::Detailed),
@@ -145,6 +147,7 @@ impl Mode {
 /// sent and received. See design.md, Data sources on Linux.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Split {
+	/// No split.
 	#[default]
 	Off,
 	/// Polls every TCP socket, with no root. UDP, QUIC among it, counts as
@@ -153,6 +156,7 @@ pub enum Split {
 }
 
 impl Split {
+	/// As the settings file spells it, in any case.
 	pub fn parse(s: &str) -> Option<Split> {
 		match s.to_ascii_lowercase().as_str() {
 			"off" => Some(Split::Off),
@@ -194,7 +198,9 @@ pub fn name_the_theme(m: &mut Model) {
 /// `themes.<key>`, with every color named by its setting id.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SavedTheme {
+	/// Its key under `themes.`.
 	pub key: String,
+	/// The name shown in the window.
 	pub name: String,
 	/// Setting id to `#rrggbb`, one per theme color, plus each graph's mode,
 	/// the margins and the 2 override checkboxes, as text.
@@ -230,6 +236,7 @@ fn theme_value(spec: &Spec, id: &str, raw: &str) -> Option<String> {
 	theme_typed(spec, id, raw).map(|v| theme_text(&v))
 }
 
+/// The config file's section for saved themes.
 pub const THEMES: &str = "themes";
 
 fn builtin_key(key: &str) -> bool {
@@ -472,10 +479,12 @@ pub fn model(text: &str) -> Model {
 	model_on(spec_with(&saved_themes(&doc)), &doc)
 }
 
+/// A color, red, green and blue.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Rgb(pub u8, pub u8, pub u8);
 
 impl Rgb {
+	/// From `#rrggbb`, or None.
 	pub fn parse(hex: &str) -> Option<Rgb> {
 		let h = hex.strip_prefix('#')?;
 		if h.len() != 6 || !h.bytes().all(|b| b.is_ascii_hexdigit()) {
@@ -494,8 +503,11 @@ impl Rgb {
 /// A graph's frame, and the background its plot blends from top to bottom.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Outline {
+	/// The frame around the graph.
 	pub border: Rgb,
+	/// The background at the top.
 	pub top: Rgb,
+	/// The background at the bottom.
 	pub bottom: Rgb,
 }
 
@@ -540,18 +552,31 @@ pub fn leads<'a>(get: impl Fn(&str) -> Option<&'a str>) -> Vec<Rgb> {
 /// Every graph there is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Which {
+	/// Processor use.
 	Cpu,
+	/// Memory use.
 	Mem,
+	/// GPU use.
 	Gpu,
+	/// GPU memory use.
 	Vram,
+	/// Network traffic.
 	Net,
+	/// Swap use.
 	Swap,
+	/// zswap's pool.
 	Zswap,
+	/// Load average.
 	Load,
+	/// Disk traffic.
 	Disk,
+	/// Temperatures.
 	Temp,
+	/// Battery charge.
 	Battery,
+	/// tukzmon's own CPU and memory.
 	Own,
+	/// Process counts.
 	Procs,
 }
 
@@ -595,6 +620,7 @@ impl Which {
 		}
 	}
 
+	/// The graph whose key is `key`, or None.
 	pub fn named(key: &str) -> Option<Which> {
 		Which::ALL.into_iter().find(|w| w.key() == key)
 	}
@@ -656,32 +682,41 @@ pub struct Each {
 	pub time: Option<Timing>,
 	/// In [`Which::color_ids`] order, and black past its series count.
 	pub colors: [Rgb; MOST_SERIES],
+	/// Detailed or Gradient.
 	pub mode: Mode,
 	/// Low, Medium and High.
 	pub gradient: [Rgb; 3],
+	/// Its frame and background, unless the Outline sub-tab overrides it.
 	pub outline: Outline,
 }
 
+/// Every setting a panel draws with, as read from the config file.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Look {
+	/// Each graph's width in logical pixels, before its own share.
 	pub width: u32,
 	/// What a graph with no time axis of its own follows.
 	pub time: Timing,
+	/// Milliseconds between reads, before each graph's own rate.
 	pub sample_ms: u32,
 	/// What the hover tip says about the time under the pointer.
 	pub said: Said,
 	/// 0 to 1.
 	pub spikes: f32,
+	/// The frame's width in logical pixels.
 	pub border: u32,
 	/// Logical pixels clear above and below each graph, and either side of it.
 	/// See `graphs::Graphs::tiles` for the item's ends.
 	pub margin_tb: u32,
+	/// Logical pixels clear either side of each graph.
 	pub margin_lr: u32,
 	/// Save history and load it back on start.
 	pub keep: bool,
+	/// History older than this many days is dropped.
 	pub max_days: u32,
 	/// Each graph's own, by [`Which`]: `look[Which::Mem].width`.
 	pub graphs: [Each; Which::ALL.len()],
+	/// How the network graph tells the LAN from the internet.
 	pub net_split: Split,
 	/// A log scale up the disk graph.
 	pub disk_log: bool,
@@ -694,8 +729,11 @@ pub struct Look {
 	pub border_color: Rgb,
 	/// No background, so the panel shows through, whatever the theme.
 	pub transparent: bool,
+	/// The background at the top, for every graph, when `back_all` is on.
 	pub top: Rgb,
+	/// The background at the bottom, for every graph, when `back_all` is on.
 	pub bottom: Rgb,
+	/// The hover line.
 	pub hover: Rgb,
 }
 

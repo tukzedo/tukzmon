@@ -11,13 +11,21 @@ pub const SERIES: [&str; 4] = ["iowait", "system", "user", "nice"];
 /// The jiffy counters off the `cpu` line. Guest time is already in user.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Ticks {
+	/// Time in user mode, guest included.
 	pub user: u64,
+	/// Time in user mode at low priority.
 	pub nice: u64,
+	/// Time in the kernel.
 	pub system: u64,
+	/// Time idle.
 	pub idle: u64,
+	/// Time idle waiting on I/O.
 	pub iowait: u64,
+	/// Time serving interrupts.
 	pub irq: u64,
+	/// Time serving soft interrupts.
 	pub softirq: u64,
+	/// Time a hypervisor gave to another guest.
 	pub steal: u64,
 }
 
@@ -71,6 +79,7 @@ pub fn shares(was: &Ticks, now: &Ticks) -> Option<[f32; 4]> {
 	])
 }
 
+/// Reads `/proc/stat` for the CPU graph.
 #[derive(Debug)]
 pub struct CpuReader {
 	was: Option<Ticks>,

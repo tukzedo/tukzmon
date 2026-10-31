@@ -16,10 +16,12 @@ use crate::pick::{self, Field, Hsv};
 
 const HEADER: &str = "## tukzmon settings. Only values changed from their defaults are listed.\n";
 
+/// One row as the window shows it now.
 #[allow(
 	clippy::struct_excessive_bools,
 	reason = "a snapshot of one row for the window, and each flag stands alone"
 )]
+#[derive(Debug)]
 pub struct RowState {
 	pub text: String,
 	pub on: bool,
@@ -59,6 +61,9 @@ pub struct ThemeButtons {
 	pub delete: bool,
 }
 
+/// The settings window's state: the file, what's changed in it, and the
+/// saved themes.
+#[derive(Debug)]
 pub struct Dialog {
 	path: PathBuf,
 	spec: Arc<Spec>,
@@ -83,6 +88,7 @@ pub struct Dialog {
 /// An open color picker. Its row follows every change, and Cancel puts back
 /// all that was stored when it opened, since a color change also marks the
 /// theme changed.
+#[derive(Debug)]
 struct Picker {
 	id: String,
 	hsv: Hsv,
@@ -164,10 +170,12 @@ impl Dialog {
 			.or_else(|| self.spec.get(id))
 	}
 
+	/// The config file it reads and writes.
 	pub fn path(&self) -> &Path {
 		&self.path
 	}
 
+	/// The settings spec, with the saved themes in its theme list.
 	pub fn spec(&self) -> &Spec {
 		&self.spec
 	}
@@ -177,6 +185,7 @@ impl Dialog {
 		config::Look::from_model(&self.model)
 	}
 
+	/// True when a setting or a saved theme differs from the file.
 	pub fn dirty(&self) -> bool {
 		self.model != self.saved || self.themes != self.saved_themes
 	}
@@ -208,6 +217,7 @@ impl Dialog {
 		self.themes.iter().position(|t| t.key == key)
 	}
 
+	/// Which theme buttons do anything now. None do off a saved theme.
 	pub fn theme_buttons(&self) -> ThemeButtons {
 		if self.on_saved().is_none() {
 			return ThemeButtons::default();
@@ -340,6 +350,7 @@ impl Dialog {
 		self.randomize_from(crate::dice::fresh_seed());
 	}
 
+	/// [`Self::randomize`], from `seed`, so a test gets the same colors each time.
 	pub fn randomize_from(&mut self, seed: u64) {
 		let rolled = crate::dice::theme(seed);
 		// a set turns its gate on, and a roll is colors, not the overrides
@@ -362,6 +373,7 @@ impl Dialog {
 		}
 	}
 
+	/// The row for setting `id` as it should look now.
 	pub fn state(&self, id: &str) -> RowState {
 		let v = self.model.value(id, &NoEnv);
 		let number = v.as_f64();
@@ -450,6 +462,7 @@ impl Dialog {
 		self.set(id, &Value::Float(v));
 	}
 
+	/// Puts setting `id` back to its default.
 	pub fn reset(&mut self, id: &str) {
 		if self.spec.get(id).is_some() {
 			self.model.reset(id, &NoEnv);
@@ -572,6 +585,7 @@ impl Dialog {
 		true
 	}
 
+	/// The open picker's color, or None with no picker open.
 	pub fn pick_hsv(&self) -> Option<Hsv> {
 		self.picker.as_ref().map(|p| p.hsv)
 	}

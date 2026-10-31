@@ -23,6 +23,7 @@ pub fn owner(uid: u32, me: u32) -> usize {
 	}
 }
 
+/// Counts processes under `/proc` for the procs graph.
 #[derive(Debug)]
 pub struct ProcsReader {
 	root: PathBuf,

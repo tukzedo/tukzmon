@@ -7,6 +7,8 @@
 use tukzmon_core::config::{Look, Which};
 use tukzmon_core::graphs::{self, Drawn, Slots};
 
+/// The graphs drawn in the graph list's rows, read live as the panel would.
+#[derive(Debug)]
 pub struct Live {
 	/// Every graph this box can read. The own graph is the settings window's,
 	/// not the panel's.
@@ -14,6 +16,7 @@ pub struct Live {
 }
 
 impl Live {
+	/// Every graph this box can read, shown or not.
 	pub fn new(look: Look) -> Live {
 		Live {
 			slots: Slots::new(look, |_, _| true),
@@ -39,6 +42,7 @@ impl Live {
 		self.slots.set_look(look);
 	}
 
+	/// Drops every graph's samples, so each starts over.
 	pub fn clear(&mut self) {
 		for (_, g) in self.all_mut() {
 			g.clear();
@@ -78,10 +82,12 @@ impl Live {
 		}
 	}
 
+	/// True while the named graph's axis is easing in.
 	pub fn easing(&self, name: &str) -> bool {
 		self.get(name).is_some_and(Drawn::easing)
 	}
 
+	/// The named graph's latest read, as its tooltip, or empty.
 	pub fn tip(&self, name: &str) -> String {
 		self.get(name).map(Drawn::tooltip).unwrap_or_default()
 	}

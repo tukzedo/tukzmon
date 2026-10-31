@@ -89,6 +89,7 @@ impl Peak {
 /// How a graph with no fixed top is scaled.
 #[derive(Debug)]
 pub struct Scale<'a> {
+	/// The top so far, eased.
 	pub peak: &'a mut Peak,
 	/// The least the top goes down to, in the source's own unit.
 	pub floor: f32,
@@ -158,14 +159,33 @@ pub struct Scratch<const N: usize> {
 	reached: Vec<Option<[f32; N]>>,
 }
 
+/// What one draw of a graph reads.
 pub struct Frame<'a, const N: usize> {
+	/// The samples.
 	pub hist: &'a History<N>,
+	/// Seconds old at each column.
 	pub axis: &'a dyn Ages,
 	/// Time at the right edge.
 	pub now: f64,
+	/// The settings it draws with.
 	pub look: &'a Look,
+	/// Its colors.
 	pub paint: Paint<'a, N>,
+	/// Its frame and background.
 	pub outline: Outline,
+}
+
+// By hand, since `axis` is a trait object.
+impl<const N: usize> std::fmt::Debug for Frame<'_, N> {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("Frame")
+			.field("hist", &self.hist)
+			.field("now", &self.now)
+			.field("look", &self.look)
+			.field("paint", &self.paint)
+			.field("outline", &self.outline)
+			.finish_non_exhaustive()
+	}
 }
 
 impl<const N: usize> Frame<'_, N> {

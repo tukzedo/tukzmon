@@ -26,6 +26,7 @@ fn hue_rgb(h: f64) -> [f64; 3] {
 	]
 }
 
+/// The color `c` names, rounded to 8 bits a channel.
 pub fn to_rgb(c: Hsv) -> Rgb {
 	let hue = hue_rgb(c.h);
 	let (s, v) = (c.s.clamp(0.0, 1.0), c.v.clamp(0.0, 1.0));
@@ -55,6 +56,7 @@ pub fn from_rgb(c: Rgb, keep: Hsv) -> Hsv {
 	}
 }
 
+/// As `#rrggbb`, lower case.
 pub fn hex(c: Rgb) -> String {
 	format!("#{:02x}{:02x}{:02x}", c.0, c.1, c.2)
 }
@@ -80,6 +82,7 @@ impl Field {
 		Field::Hex,
 	];
 
+	/// The text beside its box.
 	pub fn label(self) -> &'static str {
 		match self {
 			Field::Red => "Red %",

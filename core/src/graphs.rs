@@ -14,6 +14,7 @@ use crate::config::{Look, Which};
 use crate::keep;
 use crate::{Graph, Source, clock_ms, wait_ms};
 
+/// Every graph in one panel item, and how they share its space.
 pub struct Graphs {
 	/// CPU always, shown or not. Any other only while shown, and where it
 	/// can be read.
@@ -28,6 +29,17 @@ pub struct Graphs {
 	/// graph's, as of the last load. None before one, so a save reads the
 	/// file for them.
 	kept: Option<Vec<(String, Vec<u8>)>>,
+}
+
+// By hand, to leave out the pixel buffer and the kept sections' bytes.
+impl std::fmt::Debug for Graphs {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("Graphs")
+			.field("slots", &self.slots)
+			.field("stacked", &self.stacked)
+			.field("order", &self.order)
+			.finish_non_exhaustive()
+	}
 }
 
 /// A graph's place in the area: x, y, width, height.
@@ -45,24 +57,41 @@ impl Which {
 pub trait Drawn: Any {
 	/// The graph its reader says it is.
 	fn which(&self) -> Which;
+	/// The look it draws with.
 	fn look(&self) -> &Rc<Look>;
+	/// Read the source and keep it. The first call only primes it.
 	fn sample(&mut self);
+	/// Reads the source when its next beat has come, and gives the ms from `at` to the beat after.
 	fn tick(&mut self, at: f64) -> f64;
+	/// Drops history older than the max age.
 	fn trim(&mut self);
+	/// Moves the clock on, so the soak test can run days in seconds.
 	fn skip(&mut self, secs: f64);
+	/// The graph's clock, in seconds.
 	#[cfg(test)]
 	fn now(&self) -> f64;
+	/// How many series it draws.
 	#[cfg(test)]
 	fn series(&self) -> usize;
+	/// Drops every sample, so the graph starts over from the next read.
 	fn clear(&mut self);
+	/// The graph's history file section.
 	fn section(&self) -> (&'static str, Vec<u8>);
+	/// Loads its own section, if `sections` has it. False if not.
 	fn adopt(&mut self, sections: &[(String, Vec<u8>)]) -> bool;
+	/// The pointer's device column, if it's over the graph.
 	fn hover(&self) -> Option<usize>;
+	/// Sets or clears the pointer's device column.
 	fn set_hover(&mut self, x: Option<usize>);
+	/// True while the axis is still easing in after a jump.
 	fn easing(&self) -> bool;
+	/// The tip for the pointer at device column `x`.
 	fn hover_tip(&self, x: usize, w: usize, h: usize, scale: usize) -> String;
+	/// The latest read, as the panel's tooltip.
 	fn tooltip(&self) -> String;
+	/// The graph as cairo ARGB32 pixels, `w` by `h`.
 	fn render(&mut self, w: usize, h: usize, scale: usize) -> &[u32];
+	/// Draws with `look` from now on.
 	fn set_look(&mut self, look: &Rc<Look>);
 }
 
@@ -248,14 +277,17 @@ impl Slots {
 		Slots { look, all }
 	}
 
+	/// The look every graph shares.
 	pub fn look(&self) -> &Rc<Look> {
 		&self.look
 	}
 
+	/// The graph `which`, if it's made.
 	pub fn get(&self, which: Which) -> Option<&dyn Drawn> {
 		self.all[which as usize].as_deref()
 	}
 
+	/// The graph `which`, if it's made.
 	pub fn get_mut(&mut self, which: Which) -> Option<&mut dyn Drawn> {
 		self.all[which as usize]
 			.as_deref_mut()
@@ -306,6 +338,7 @@ fn shown_here(look: &Look, which: Which) -> bool {
 }
 
 impl Graphs {
+	/// The graphs `look` shows, with CPU always.
 	pub fn new(look: Look) -> Graphs {
 		Graphs {
 			order: order_of(&look.order),
@@ -316,6 +349,7 @@ impl Graphs {
 		}
 	}
 
+	/// The look every graph draws with.
 	pub fn look(&self) -> &Look {
 		self.slots.look()
 	}
@@ -354,6 +388,7 @@ impl Graphs {
 		self.order.into_iter().filter(|&w| self.is_shown(w))
 	}
 
+	/// How many graphs are shown.
 	pub fn count(&self) -> usize {
 		self.shown().count()
 	}
@@ -463,6 +498,7 @@ impl Graphs {
 		)
 	}
 
+	/// Drops history older than the max age, in each shown graph.
 	pub fn trim(&mut self) {
 		for w in Which::ALL {
 			if self.is_shown(w)
@@ -653,6 +689,7 @@ impl Graphs {
 			.any(|w| self.slot(w).is_some_and(Drawn::easing))
 	}
 
+	/// True while the pointer is over any graph.
 	pub fn hovered(&self) -> bool {
 		Which::ALL
 			.into_iter()

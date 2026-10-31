@@ -92,7 +92,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 12: Public types without Debug and public items without doc comments
 	- ID: 2026103016201612
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -103,6 +103,17 @@ Sorted per the notes in [Template](#template).
 		- The SAFETY note in the plugin's draw handler says why the pixel buffer outlives the cairo surface.
 		- `color.rs` takes `//!` for its module header, as the other modules do.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The core crate has `#![warn(missing_docs)]`, and every public item there has a `///`, 127 in all, fields and variants included.
+		- `Graph`, `Graphs` and `render::Frame` write `Debug` by hand, leaving out pixel buffers and the axis trait object. `Dialog`, its `Picker`, `RowState`, `Live` and the bridge's 7 shared structs derive it.
+		- The settings items in the list have a `///`. The plugin's draw handler says why `px` outlives the surface. `color.rs` has a `//!` header.
+		- Verified: the full run passed. The quick run failed on 2 undocumented test-only `Drawn` methods before they had a `///`.
+	- Decisions:
+		- `missing_docs` only in core. The settings crate is a binary and the plugin a cdylib with no public Rust API, so the lint checks nothing there.
+	- Branch: round-1031
+	- Test case: none, a doc and `Debug` change. The `missing_docs` lint in the lint step keeps core's docs from going missing again.
+	- Closed: 20261031-082942
 
 - Pre-next-cut: More minimum padding between buttons' inner edges and their text
 	- ID: 2026103107404601

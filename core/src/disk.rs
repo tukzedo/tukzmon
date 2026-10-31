@@ -152,6 +152,7 @@ impl DiskReader {
 }
 
 impl DiskReader {
+	/// The drives it reads.
 	pub fn drives(&self) -> &Drives {
 		&self.picker.drives
 	}

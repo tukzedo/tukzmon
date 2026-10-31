@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
-// How far apart 2 colors look, as CIEDE2000. The themes' tests and Randomize
-// both measure with it. See design.md Theme.
+//! How far apart 2 colors look, as CIEDE2000. The themes' tests and Randomize
+//! both measure with it. See design.md Theme.
 
 use crate::config::Rgb;
 
@@ -12,12 +12,16 @@ pub const APART: f64 = 10.0;
 /// CIELAB, D65.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Lab {
+	/// Lightness, 0 to 100.
 	pub l: f64,
+	/// Green to red.
 	pub a: f64,
+	/// Blue to yellow.
 	pub b: f64,
 }
 
 impl Lab {
+	/// From sRGB.
 	pub fn of(c: Rgb) -> Lab {
 		let lin = |v: u8| {
 			let v = f64::from(v) / 255.0;
@@ -97,6 +101,7 @@ pub fn ciede2000(x: Lab, y: Lab) -> f64 {
 	(dl * dl + dc * dc + dh * dh + rt * dc * dh).sqrt()
 }
 
+/// How far apart `a` and `b` look, as CIEDE2000. See [`APART`].
 pub fn apart(a: Rgb, b: Rgb) -> f64 {
 	ciede2000(Lab::of(a), Lab::of(b))
 }

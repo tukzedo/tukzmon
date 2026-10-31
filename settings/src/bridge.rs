@@ -11,6 +11,7 @@ use crate::pick::{Field, Hsv};
 
 #[cxx::bridge(namespace = "tukzmon")]
 pub mod ffi {
+	#[derive(Debug)]
 	struct TabInfo {
 		label: String,
 		parent: i32,
@@ -18,6 +19,7 @@ pub mod ffi {
 
 	/// A line of the window's tab list, as drawn, the rows it shows, and the
 	/// lines lit dimmer beside it.
+	#[derive(Debug)]
 	struct TabShown {
 		label: String,
 		rows: Vec<String>,
@@ -38,6 +40,7 @@ pub mod ffi {
 		File,
 	}
 
+	#[derive(Debug)]
 	struct RowInfo {
 		id: String,
 		label: String,
@@ -60,6 +63,7 @@ pub mod ffi {
 	}
 
 	/// The graph list's row for one graph: the ids of the settings it shows.
+	#[derive(Debug)]
 	struct GraphRow {
 		name: String,
 		show: String,
@@ -68,6 +72,7 @@ pub mod ffi {
 		time: String,
 	}
 
+	#[derive(Debug)]
 	struct RowState {
 		text: String,
 		on: bool,
@@ -82,6 +87,7 @@ pub mod ffi {
 		shown: bool,
 	}
 
+	#[derive(Debug)]
 	struct ThemeButtons {
 		save: bool,
 		rename: bool,
@@ -90,6 +96,7 @@ pub mod ffi {
 
 	/// The open picker's color, and what each value box shows for it: a
 	/// whole percent in each but the last, which is the hex box.
+	#[derive(Debug)]
 	struct PickState {
 		h: f64,
 		s: f64,

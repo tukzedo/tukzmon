@@ -3,6 +3,8 @@
 
 //! The part of tukzmon every panel shares. No GUI toolkit in here.
 
+#![warn(missing_docs)]
+
 pub mod axis;
 pub mod battery;
 pub mod collect;
@@ -88,16 +90,20 @@ pub trait Source<const N: usize>: Collector<N> {
 	const SECTION: &'static str = Self::WHICH.key();
 	/// The tip before there's anything read.
 	const TITLE: &'static str;
+	/// The hover tip's text for one read.
 	fn text(&self, v: &[f32; N]) -> String;
 
+	/// How the graph is colored, from its settings.
 	fn paint(look: &Look) -> Paint<'_, N> {
 		look.paint(Self::WHICH)
 	}
 
+	/// The graph's frame and background, from its settings.
 	fn outline(look: &Look) -> Outline {
 		look[Self::WHICH].outline
 	}
 
+	/// How the graph spreads time, its own or the Time settings'.
 	fn timing(look: &Look) -> Timing {
 		look.timing(look[Self::WHICH].time)
 	}
@@ -407,7 +413,20 @@ pub struct Graph<S: Source<N> = CpuReader, const N: usize = 4> {
 	beat: Option<(f64, f64)>,
 }
 
+// By hand, to leave out the pixel buffer and the samples.
+impl<S: Source<N>, const N: usize> std::fmt::Debug for Graph<S, N> {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("Graph")
+			.field("which", &S::WHICH)
+			.field("read_at", &self.read_at)
+			.field("latest", &self.latest)
+			.field("hover", &self.hover)
+			.finish_non_exhaustive()
+	}
+}
+
 impl Graph {
+	/// A CPU graph, the one every panel item has.
 	pub fn new(look: impl Into<Rc<Look>>) -> Graph {
 		Graph::with(look, CpuReader::default())
 	}
@@ -635,6 +654,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		(beat + 1.0) * rate - at
 	}
 
+	/// The axis for a graph `columns` wide, as of the latest read.
 	pub fn axis(&self, columns: usize) -> Axis {
 		Axis::of(&self.basis(columns))
 	}

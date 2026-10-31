@@ -13,6 +13,7 @@ pub fn parse_loadavg(text: &str) -> Option<f32> {
 	(load.is_finite() && load >= 0.0).then_some(load)
 }
 
+/// Reads `/proc/loadavg` for the load graph.
 #[derive(Debug)]
 pub struct LoadReader {
 	file: Kept,
