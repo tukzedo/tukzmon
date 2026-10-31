@@ -3,7 +3,7 @@
 
 //! The 1 minute load from `/proc/loadavg`.
 
-use crate::collect::{Collector, slurp};
+use crate::collect::{Collector, Kept};
 
 const LOADAVG: &str = "/proc/loadavg";
 
@@ -13,9 +13,19 @@ pub fn parse_loadavg(text: &str) -> Option<f32> {
 	(load.is_finite() && load >= 0.0).then_some(load)
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct LoadReader {
+	file: Kept,
 	buf: String,
+}
+
+impl Default for LoadReader {
+	fn default() -> Self {
+		LoadReader {
+			file: Kept::new(LOADAVG),
+			buf: String::new(),
+		}
+	}
 }
 
 impl Collector<1> for LoadReader {
@@ -28,7 +38,7 @@ impl Collector<1> for LoadReader {
 	}
 
 	fn read(&mut self) -> Option<[f32; 1]> {
-		parse_loadavg(slurp(LOADAVG, &mut self.buf)?).map(|x| [x])
+		parse_loadavg(self.file.read(&mut self.buf)?).map(|x| [x])
 	}
 }
 

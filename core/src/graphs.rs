@@ -264,11 +264,13 @@ pub fn point<'a, K: PartialEq + Copy>(
 /// the ms to the next one's, for a one-shot timer. The settings window's graph
 /// list goes through this too.
 pub fn tick<'a>(all: impl IntoIterator<Item = &'a mut dyn Drawn>, at: f64) -> u32 {
-	wait_ms(
-		all.into_iter()
-			.map(|g| g.tick(at))
-			.fold(f64::INFINITY, f64::min),
-	)
+	crate::mem::once_a_tick(|| {
+		wait_ms(
+			all.into_iter()
+				.map(|g| g.tick(at))
+				.fold(f64::INFINITY, f64::min),
+		)
+	})
 }
 
 // drops a graph turned off and makes one turned on. True when one was made.
@@ -545,13 +547,15 @@ impl Graphs {
 
 	/// A hidden graph isn't read, so it shows a gap when it's back.
 	pub fn sample(&mut self) {
-		for w in Which::ALL {
-			if self.is_shown(w)
-				&& let Some(g) = self.slot_mut(w)
-			{
-				g.sample();
+		crate::mem::once_a_tick(|| {
+			for w in Which::ALL {
+				if self.is_shown(w)
+					&& let Some(g) = self.slot_mut(w)
+				{
+					g.sample();
+				}
 			}
-		}
+		});
 	}
 
 	/// Reads each shown graph whose beat has come, and gives the ms to the
@@ -1273,6 +1277,27 @@ mod tests {
 		);
 	}
 
+	// Test ID: denbb
+	#[test]
+	fn a_tick_reads_meminfo_once_for_memory_swap_and_zswap() {
+		use crate::collect::Collector;
+		use crate::mem::meminfo_reads;
+		let look = two();
+		let mut g = Graphs::new(look.clone());
+		g.swap = Some(Graph::with(look.clone(), SwapReader));
+		g.zswap = Some(Graph::with(look, ZswapReader::zswap_on("/proc/no/such")));
+		let was = meminfo_reads();
+		g.sample();
+		assert_eq!(meminfo_reads() - was, 1);
+		g.tick_at(crate::clock_ms());
+		assert_eq!(meminfo_reads() - was, 2);
+		// outside a tick each read is its own
+		let mut m = MemoryReader;
+		m.read();
+		m.read();
+		assert_eq!(meminfo_reads() - was, 4);
+	}
+
 	// Test ID: denb8
 	#[test]
 	fn a_save_after_a_load_keeps_hidden_sections_without_reading_the_file() {
@@ -1607,7 +1632,7 @@ mod tests {
 			show_swap: true,
 			..two()
 		};
-		g.swap = Some(Graph::with(look.clone(), SwapReader::default()));
+		g.swap = Some(Graph::with(look.clone(), SwapReader));
 		g.set_look(look, None).unwrap();
 		let now = g.cpu.now();
 		g.swap.as_mut().unwrap().hist.add(now - 60.0, now, &[1.0]);

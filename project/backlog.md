@@ -277,7 +277,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 7: Collectors reopen their files every tick, and the disk graph reads every block device
 	- ID: 2026103016201607
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -290,7 +290,26 @@ Sorted per the notes in [Template](#template).
 		- Read `/proc/meminfo` once a tick for memory, swap and zswap, not 2 or 3 times.
 	- Progress log:
 		- A tick is about 209 us, at 1 a second by default, so this is small. Measured numbers are in `details.md` -> "Code review 20261030".
+		- `collect::Kept` keeps a file open and reads it again from the start, and opens it again after a failed read. CPU, memory, swap, zswap and zram, load, network, disk, temperature, battery and the AMD GPU files read through it each tick. Files read only at start still use `slurp`.
+		- The disk graph reads each counted drive's `stat` under `/sys/class/block`, not `/proc/diskstats`, and lists the drives again every 10 s.
+		- Memory, swap and zswap share one read of `/proc/meminfo` within a tick (`mem::once_a_tick`, around `Graphs::sample` and `graphs::tick`).
+		- The AMD GPU's 3 paths are built once at start, not per tick.
+		- `design.md` Data sources on Linux has the details.
+		- Profiler, 20000 ticks of the 6 default graphs on b23 at a load of about 7: 233 and 235 us a tick before, 160 and 164 after, and 161 in the full run. The reads went from 65.7% of a tick to 55.6%. Per tick a file now costs an lseek and 2 reads, with no open, statx or close.
+		- Verified: the full run passed, the soak test and profiler included.
 	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Decisions:
+		- One read of `/proc/meminfo` per tick goes through a per-thread cache that only holds during `once_a_tick`, so the readers keep their `Collector` shape and a read outside a tick is always fresh.
+		- Zswap reads the shared `/proc/meminfo` unless a test points it at another file.
+		- A drive plugged in under All is counted from the next listing, up to 10 s later, where `/proc/diskstats` showed it at once. A named drive that isn't there yet is tried each tick, as before.
+		- A drive whose `stat` stops reading drops out, which makes one gap, rather than a gap each tick while it's gone.
+		- A `/` in a typed drive name is read as sysfs's `!`, as in `cciss!c0d0`.
+	- Branch: round-1030b
+	- Test case: `collect::tests::kept_reads_the_file_anew_and_opens_it_again_after_a_failed_read` (denba), `graphs::tests::a_tick_reads_meminfo_once_for_memory_swap_and_zswap` (denbb), and `disk::tests::the_drives_picked_add_up_and_a_change_is_a_gap` (defng). denbb fails with each read on its own (3 reads, not 1), and defng with each listing opening its files anew.
+		- 2026-10-30: defne, defnf, defng and defnh read made-up `stat` files and `/sys/class/block`, where they read diskstats text. defne is now `reads_a_drives_stat`. Their checks are the same: old and new column counts and junk, partitions and stacked devices left out, rates that add up, and a gap when the drives change.
+		- Swept: every `slurp` caller (the ones left read once at start), every `/proc/meminfo` reader, every `DiskReader` and `Drives` use (the plugin through `Graphs`, the settings window's `Live`, `Source::follow`), and the design and settings text that names diskstats.
+	- Closed: 20261030-190553
 
 - Code review 20261030 item 8: Each history save reads the whole history file again first
 	- ID: 2026103016201608

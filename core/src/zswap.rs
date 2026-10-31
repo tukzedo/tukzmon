@@ -4,8 +4,8 @@
 //! Zswap, or zram on a box without zswap. See design.md, Data sources on
 //! Linux.
 
-use crate::collect::{Collector, slurp};
-use crate::mem::{Meminfo, parse_meminfo};
+use crate::collect::{Collector, Kept, slurp};
+use crate::mem::{Meminfo, meminfo, parse_meminfo};
 
 /// How full the pool is, 0 to 1, and how far it squeezes what it holds.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -52,7 +52,8 @@ pub fn zram_squeeze(stored: u64, packed: u64, disksize: u64) -> Option<Squeeze> 
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Roots {
-	meminfo: String,
+	/// None for the `/proc/meminfo` the other graphs share.
+	meminfo: Option<String>,
 	zswap: String,
 	block: String,
 }
@@ -60,26 +61,27 @@ struct Roots {
 impl Default for Roots {
 	fn default() -> Self {
 		Roots {
-			meminfo: "/proc/meminfo".into(),
+			meminfo: None,
 			zswap: "/sys/module/zswap/parameters".into(),
 			block: "/sys/block".into(),
 		}
 	}
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug)]
 enum Pool {
 	Zswap {
-		max_pool_percent: String,
+		max_pool_percent: Kept,
 	},
 	/// Each device's `mm_stat` and `disksize`.
-	Zram(Vec<[String; 2]>),
+	Zram(Vec<[Kept; 2]>),
 }
 
 /// Zswap when it's on, else every zram device there was at start.
 #[derive(Debug)]
 pub struct ZswapReader {
-	meminfo: String,
+	/// As [`Roots::meminfo`].
+	meminfo: Option<Kept>,
 	pool: Pool,
 	buf: String,
 	ratio: Option<f32>,
@@ -89,7 +91,7 @@ pub struct ZswapReader {
 impl Default for ZswapReader {
 	fn default() -> Self {
 		ZswapReader {
-			meminfo: String::new(),
+			meminfo: None,
 			pool: Pool::Zram(Vec::new()),
 			buf: String::new(),
 			ratio: None,
@@ -102,6 +104,16 @@ impl ZswapReader {
 	pub(crate) fn squeezed(ratio: f32) -> Self {
 		ZswapReader {
 			ratio: Some(ratio),
+			..ZswapReader::default()
+		}
+	}
+
+	/// Zswap on, reading the shared `/proc/meminfo`.
+	pub(crate) fn zswap_on(max_pool_percent: &str) -> Self {
+		ZswapReader {
+			pool: Pool::Zswap {
+				max_pool_percent: Kept::new(max_pool_percent),
+			},
 			..ZswapReader::default()
 		}
 	}
@@ -123,9 +135,9 @@ impl ZswapReader {
 
 	fn probe_at(roots: &Roots) -> Option<Self> {
 		let mut r = ZswapReader {
-			meminfo: roots.meminfo.clone(),
+			meminfo: roots.meminfo.as_deref().map(Kept::new),
 			pool: Pool::Zswap {
-				max_pool_percent: format!("{}/max_pool_percent", roots.zswap),
+				max_pool_percent: Kept::new(format!("{}/max_pool_percent", roots.zswap)),
 			},
 			buf: String::new(),
 			ratio: None,
@@ -142,20 +154,25 @@ impl ZswapReader {
 
 	fn squeeze(&mut self) -> Option<Squeeze> {
 		let buf = &mut self.buf;
-		match &self.pool {
+		match &mut self.pool {
 			Pool::Zswap { max_pool_percent } => {
-				let m = parse_meminfo(slurp(&self.meminfo, buf)?)?;
-				let pct = slurp(max_pool_percent, buf)?.trim().parse().ok()?;
+				let m = match &mut self.meminfo {
+					Some(file) => file.read(buf).and_then(parse_meminfo),
+					None => meminfo(),
+				}?;
+				let pct = max_pool_percent.read(buf)?.trim().parse().ok()?;
 				zswap_squeeze(&m, pct)
 			}
 			Pool::Zram(devices) => {
 				let (mut stored, mut packed, mut size) = (0, 0, 0);
 				// a device reset or removed since start just drops out
 				for [mm_stat, disksize] in devices {
-					let Some((s, p)) = slurp(mm_stat, buf).and_then(parse_mm_stat) else {
+					let Some((s, p)) = mm_stat.read(buf).and_then(parse_mm_stat) else {
 						continue;
 					};
-					let Some(d) = slurp(disksize, buf).and_then(|t| t.trim().parse::<u64>().ok())
+					let Some(d) = disksize
+						.read(buf)
+						.and_then(|t| t.trim().parse::<u64>().ok())
 					else {
 						continue;
 					};
@@ -169,7 +186,7 @@ impl ZswapReader {
 	}
 }
 
-fn zram_devices(block: &str) -> Vec<[String; 2]> {
+fn zram_devices(block: &str) -> Vec<[Kept; 2]> {
 	let Ok(dir) = std::fs::read_dir(block) else {
 		return Vec::new();
 	};
@@ -182,8 +199,8 @@ fn zram_devices(block: &str) -> Vec<[String; 2]> {
 		.iter()
 		.map(|n| {
 			[
-				format!("{block}/{n}/mm_stat"),
-				format!("{block}/{n}/disksize"),
+				Kept::new(format!("{block}/{n}/mm_stat")),
+				Kept::new(format!("{block}/{n}/disksize")),
 			]
 		})
 		.collect()
@@ -211,7 +228,7 @@ mod tests {
 
 	fn roots(t: &Tree) -> Roots {
 		Roots {
-			meminfo: t.at("meminfo"),
+			meminfo: Some(t.at("meminfo")),
 			zswap: t.at("zswap"),
 			block: t.at("block"),
 		}
@@ -341,7 +358,7 @@ mod tests {
 		assert!(ZswapReader::probe_at(&roots(&unset)).is_none());
 		assert!(
 			ZswapReader::probe_at(&Roots {
-				meminfo: "/proc/no/such".into(),
+				meminfo: Some("/proc/no/such".into()),
 				zswap: "/proc/no/such".into(),
 				block: "/proc/no/such".into(),
 			})

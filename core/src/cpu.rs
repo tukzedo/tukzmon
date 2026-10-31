@@ -3,7 +3,7 @@
 
 //! CPU use from `/proc/stat`.
 
-use crate::collect::{Collector, slurp};
+use crate::collect::{Collector, Kept};
 
 /// Series names, bottom of the stack first.
 pub const SERIES: [&str; 4] = ["iowait", "system", "user", "nice"];
@@ -71,10 +71,21 @@ pub fn shares(was: &Ticks, now: &Ticks) -> Option<[f32; 4]> {
 	])
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct CpuReader {
 	was: Option<Ticks>,
+	stat: Kept,
 	buf: String,
+}
+
+impl Default for CpuReader {
+	fn default() -> Self {
+		CpuReader {
+			was: None,
+			stat: Kept::new("/proc/stat"),
+			buf: String::new(),
+		}
+	}
 }
 
 impl Collector<4> for CpuReader {
@@ -88,7 +99,7 @@ impl Collector<4> for CpuReader {
 
 	/// Shares since the last call. The first call only primes it.
 	fn read(&mut self) -> Option<[f32; 4]> {
-		let now = parse_stat(slurp("/proc/stat", &mut self.buf)?)?;
+		let now = parse_stat(self.stat.read(&mut self.buf)?)?;
 		let out = self.was.and_then(|w| shares(&w, &now));
 		self.was = Some(now);
 		out

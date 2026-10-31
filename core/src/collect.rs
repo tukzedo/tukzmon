@@ -4,7 +4,8 @@
 //! What every graph's source sits behind. See design.md, Data sources on
 //! Linux.
 
-use std::io::Read;
+use std::fs::File;
+use std::io::{Read, Seek, SeekFrom};
 use std::time::Instant;
 
 /// One graph's source, with `N` series.
@@ -26,6 +27,49 @@ pub(crate) fn slurp<'a>(path: &str, buf: &'a mut String) -> Option<&'a str> {
 	buf.clear();
 	std::fs::File::open(path).ok()?.read_to_string(buf).ok()?;
 	Some(buf)
+}
+
+/// A `/proc` or `/sys` file read each tick. It's kept open and read again
+/// from the start, since the open is most of what a read costs. A read that
+/// fails, as when its device went away, closes it, and the next opens it
+/// again.
+#[derive(Debug)]
+pub(crate) struct Kept {
+	path: String,
+	file: Option<File>,
+}
+
+impl Kept {
+	pub(crate) fn new(path: impl Into<String>) -> Self {
+		Kept {
+			path: path.into(),
+			file: None,
+		}
+	}
+
+	#[cfg(test)]
+	pub(crate) fn is_open(&self) -> bool {
+		self.file.is_some()
+	}
+
+	/// As [`slurp`].
+	pub(crate) fn read<'a>(&mut self, buf: &'a mut String) -> Option<&'a str> {
+		buf.clear();
+		let file = match &mut self.file {
+			Some(f) => f,
+			None => self.file.insert(File::open(&self.path).ok()?),
+		};
+		// through Take, as File's own read_to_string asks the size first,
+		// and /proc says 0
+		let read = file
+			.seek(SeekFrom::Start(0))
+			.and_then(|_| file.take(u64::MAX).read_to_string(buf));
+		if read.is_err() {
+			self.file = None;
+			return None;
+		}
+		Some(buf)
+	}
 }
 
 /// Named rows of counters off one read, such as bytes per interface. The
@@ -232,5 +276,37 @@ mod tests {
 		let mut buf = String::from("left over");
 		assert!(slurp("/proc/self/stat", &mut buf).is_some_and(|s| !s.contains("left over")));
 		assert!(slurp("/proc/no/such/file", &mut buf).is_none());
+	}
+
+	// Test ID: denba
+	#[test]
+	fn kept_reads_the_file_anew_and_opens_it_again_after_a_failed_read() {
+		let t = Tree::new("kept", &[("a", "one\n"), ("b/", "")]);
+		let mut f = Kept::new(t.at("a"));
+		let mut buf = String::from("left over");
+		assert_eq!(f.read(&mut buf), Some("one\n"));
+		// written in place, as sysfs changes under an open file
+		std::fs::write(t.at("a"), "two, longer\n").unwrap();
+		assert_eq!(f.read(&mut buf), Some("two, longer\n"));
+		std::fs::write(t.at("a"), "3\n").unwrap();
+		assert_eq!(f.read(&mut buf), Some("3\n"));
+		// a folder opens but doesn't read, as a removed sysfs file
+		let mut b = Kept::new(t.at("b"));
+		assert_eq!(b.read(&mut buf), None);
+		assert!(!b.is_open());
+		std::fs::remove_dir(t.at("b")).unwrap();
+		assert_eq!(b.read(&mut buf), None);
+		std::fs::write(t.at("b"), "back\n").unwrap();
+		assert_eq!(b.read(&mut buf), Some("back\n"));
+		std::fs::remove_file(t.at("b")).unwrap();
+		std::fs::create_dir(t.at("b")).unwrap();
+		let mut stat = Kept::new("/proc/self/stat");
+		let pid = std::process::id().to_string();
+		for _ in 0..2 {
+			assert!(
+				stat.read(&mut buf)
+					.is_some_and(|s| s.split(' ').next() == Some(pid.as_str()))
+			);
+		}
 	}
 }
