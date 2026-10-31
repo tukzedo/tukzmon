@@ -7,6 +7,7 @@
 
 use std::io;
 use std::path::Path;
+use std::rc::Rc;
 
 use crate::battery::BatteryReader;
 use crate::config::{Look, Which};
@@ -85,7 +86,7 @@ pub trait Drawn {
 	fn hover_tip(&self, x: usize, w: usize, h: usize, scale: usize) -> String;
 	fn tooltip(&self) -> String;
 	fn render(&mut self, w: usize, h: usize, scale: usize) -> &[u32];
-	fn set_look(&mut self, look: &Look);
+	fn set_look(&mut self, look: &Rc<Look>);
 }
 
 impl<S: Source<N>, const N: usize> Drawn for Graph<S, N> {
@@ -132,9 +133,9 @@ impl<S: Source<N>, const N: usize> Drawn for Graph<S, N> {
 	fn render(&mut self, w: usize, h: usize, scale: usize) -> &[u32] {
 		Graph::render(self, w, h, scale)
 	}
-	fn set_look(&mut self, look: &Look) {
+	fn set_look(&mut self, look: &Rc<Look>) {
 		self.src.follow(look);
-		look.clone_into(&mut self.look);
+		self.look = Rc::clone(look);
 	}
 }
 
@@ -206,58 +207,59 @@ fn switch<G>(slot: &mut Option<G>, show: bool, make: impl FnOnce() -> Option<G>)
 
 impl Graphs {
 	pub fn new(look: Look) -> Graphs {
+		let look = Rc::new(look);
 		let mem = if look[Which::Mem].show {
-			Graph::memory(look.clone())
+			Graph::memory(Rc::clone(&look))
 		} else {
 			None
 		};
 		let swap = if look[Which::Swap].show {
-			Graph::swap(look.clone())
+			Graph::swap(Rc::clone(&look))
 		} else {
 			None
 		};
 		let gpu = if look[Which::Gpu].show {
-			Graph::gpu(look.clone())
+			Graph::gpu(Rc::clone(&look))
 		} else {
 			None
 		};
 		let vram = if look[Which::Vram].show {
-			Graph::vram(look.clone())
+			Graph::vram(Rc::clone(&look))
 		} else {
 			None
 		};
 		let net = if look[Which::Net].show {
-			Graph::net(look.clone())
+			Graph::net(Rc::clone(&look))
 		} else {
 			None
 		};
 		let load = if look[Which::Load].show {
-			Graph::load_avg(look.clone())
+			Graph::load_avg(Rc::clone(&look))
 		} else {
 			None
 		};
 		let disk = if look[Which::Disk].show {
-			Graph::disk(look.clone())
+			Graph::disk(Rc::clone(&look))
 		} else {
 			None
 		};
 		let temp = if look[Which::Temp].show {
-			Graph::temp(look.clone())
+			Graph::temp(Rc::clone(&look))
 		} else {
 			None
 		};
 		let zswap = if look[Which::Zswap].show {
-			Graph::zswap(look.clone())
+			Graph::zswap(Rc::clone(&look))
 		} else {
 			None
 		};
 		let battery = if look[Which::Battery].show {
-			Graph::battery(look.clone())
+			Graph::battery(Rc::clone(&look))
 		} else {
 			None
 		};
 		let own = if look[Which::Own].show {
-			Graph::own(look.clone())
+			Graph::own(Rc::clone(&look))
 		} else {
 			None
 		};
@@ -392,59 +394,60 @@ impl Graphs {
 				}
 			}
 		}
+		let look = Rc::new(look);
 		let mut added = Vec::new();
 		if switch(&mut self.mem, look[Which::Mem].show, || {
-			Graph::memory(look.clone())
+			Graph::memory(Rc::clone(&look))
 		}) {
 			added.push(Which::Mem);
 		}
 		if switch(&mut self.gpu, look[Which::Gpu].show, || {
-			Graph::gpu(look.clone())
+			Graph::gpu(Rc::clone(&look))
 		}) {
 			added.push(Which::Gpu);
 		}
 		if switch(&mut self.vram, look[Which::Vram].show, || {
-			Graph::vram(look.clone())
+			Graph::vram(Rc::clone(&look))
 		}) {
 			added.push(Which::Vram);
 		}
 		if switch(&mut self.net, look[Which::Net].show, || {
-			Graph::net(look.clone())
+			Graph::net(Rc::clone(&look))
 		}) {
 			added.push(Which::Net);
 		}
 		if switch(&mut self.swap, look[Which::Swap].show, || {
-			Graph::swap(look.clone())
+			Graph::swap(Rc::clone(&look))
 		}) {
 			added.push(Which::Swap);
 		}
 		if switch(&mut self.zswap, look[Which::Zswap].show, || {
-			Graph::zswap(look.clone())
+			Graph::zswap(Rc::clone(&look))
 		}) {
 			added.push(Which::Zswap);
 		}
 		if switch(&mut self.load, look[Which::Load].show, || {
-			Graph::load_avg(look.clone())
+			Graph::load_avg(Rc::clone(&look))
 		}) {
 			added.push(Which::Load);
 		}
 		if switch(&mut self.disk, look[Which::Disk].show, || {
-			Graph::disk(look.clone())
+			Graph::disk(Rc::clone(&look))
 		}) {
 			added.push(Which::Disk);
 		}
 		if switch(&mut self.temp, look[Which::Temp].show, || {
-			Graph::temp(look.clone())
+			Graph::temp(Rc::clone(&look))
 		}) {
 			added.push(Which::Temp);
 		}
 		if switch(&mut self.battery, look[Which::Battery].show, || {
-			Graph::battery(look.clone())
+			Graph::battery(Rc::clone(&look))
 		}) {
 			added.push(Which::Battery);
 		}
 		if switch(&mut self.own, look[Which::Own].show, || {
-			Graph::own(look.clone())
+			Graph::own(Rc::clone(&look))
 		}) {
 			added.push(Which::Own);
 		}
@@ -961,6 +964,45 @@ mod tests {
 		}
 	}
 
+	// Test ID: dend1
+	#[test]
+	fn every_graph_shares_the_one_look() {
+		fn looks(g: &Graphs) -> Vec<&Rc<Look>> {
+			let all = [
+				g.mem.as_ref().map(|g| &g.look),
+				g.gpu.as_ref().map(|g| &g.look),
+				g.vram.as_ref().map(|g| &g.look),
+				g.net.as_ref().map(|g| &g.look),
+				g.swap.as_ref().map(|g| &g.look),
+				g.zswap.as_ref().map(|g| &g.look),
+				g.load.as_ref().map(|g| &g.look),
+				g.disk.as_ref().map(|g| &g.look),
+				g.temp.as_ref().map(|g| &g.look),
+				g.battery.as_ref().map(|g| &g.look),
+				g.own.as_ref().map(|g| &g.look),
+			];
+			all.into_iter().flatten().collect()
+		}
+		let mut every = Look::default();
+		for w in Which::ALL {
+			every[w].show = true;
+		}
+		// net is off here and on below. It reads /proc, so any Linux box has one.
+		let mut g = Graphs::new(every.clone().with(Which::Net, |e| e.show = false));
+		assert!(g.net.is_none() && !looks(&g).is_empty());
+		for l in looks(&g) {
+			assert!(Rc::ptr_eq(l, &g.cpu.look));
+		}
+		let was = Rc::clone(&g.cpu.look);
+		g.set_look(Look { width: 77, ..every }, None).unwrap();
+		assert!(g.net.is_some(), "added by the new look");
+		assert_eq!(g.look().width, 77);
+		for l in looks(&g) {
+			assert!(Rc::ptr_eq(l, &g.cpu.look));
+		}
+		assert_eq!(Rc::strong_count(&was), 1, "no graph kept the old look");
+	}
+
 	// Test ID: dedq2
 	#[test]
 	fn graphs_sit_side_by_side_and_the_pointer_finds_its_own() {
@@ -1242,7 +1284,7 @@ mod tests {
 		g.save(&path).unwrap();
 		g.set_look(Look::default(), Some(&path)).unwrap();
 		assert_eq!(g.mem.as_ref().unwrap().hist.last(), had);
-		assert_eq!(g.mem.as_ref().unwrap().look, Look::default());
+		assert_eq!(*g.mem.as_ref().unwrap().look, Look::default());
 		// with history off it starts empty
 		g.set_look(hide, None).unwrap();
 		g.set_look(Look::default(), None).unwrap();

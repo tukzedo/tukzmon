@@ -22,18 +22,49 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- Graphs and Live list their 12 graph slots by hand
+	- ID: 2026103019482449
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261030-194824
+	- Opened by: t00mietum
+	- Related IDs: 2026103016201610, 2026103019230902, 2026103016201611
+	- Requirements:
+		- One table of graphs in `Graphs` and in `Live`, in place of a field per graph, so a new graph is added in one place there, not in about 5 places each.
+		- `Live::get` matches on section names with a `_` arm, so a graph left out there is skipped with no error.
+		- Weigh against the churn first. Each slot holds a different reader type, so a table holds `Box<dyn Drawn>` or an enum.
+	- Estimated effort: Avg
+	- Origin: found while sharing the look in 2026103019230902.
+
 - Graphs share one Look
 	- ID: 2026103019230902
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
+	- Needs local test suite run?: No. The full run passed on 2026-10-30.
 	- Priority|Severity: Low
 	- Opened: 20261030-192309
 	- Opened by: t00mietum
 	- Parent ID: 2026103016201610
 	- Prereq IDs: 2026103019230886
+	- Related IDs: 2026103019482449
 	- Requirements:
 		- Graphs and the settings window's `Live` share one `Look` rather than each graph keeping a clone of it.
 	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- `Graph::look` is an `Rc<Look>`. `Graphs` and `Live` wrap a new look once, in `new` and `set_look`, and every graph holds the same one. A new look used to be cloned once per graph, 12 times in the settings window.
+		- `Live::set_look` takes the look by value, as `Graphs::set_look` does.
+		- Verified: the full run passed, with the profiler and soak steps.
+	- Decisions:
+		- `Rc`, not `&Look` passed to each call. Passing it in would add a look to most of `Drawn`'s methods and every test that drives a lone `Graph`. Both owners are single-threaded, and `Rc` builds through cxx's `Box<Live>`.
+		- `Graph`'s constructors take `impl Into<Rc<Look>>`, so a test or example still passes a plain `Look`.
+		- The 12 slots in `Graphs` and `Live` are left as they are, since sharing the look didn't need them changed. That's 2026103019482449.
+	- Branch: round-1030b
+	- Test case: `graphs::tests::every_graph_shares_the_one_look` (dend1) and `live::tests::every_row_shares_the_one_look` (dend2). Both fail with `Drawn::set_look` giving each graph its own copy.
+		- 2026-10-30: lib.rs tests that change a lone graph's look go through `Rc::make_mut`, and `dedq4`'s compare dereferences the `Rc`. Nothing else they check changed.
+		- Swept: every `Graph` constructor caller (core, settings, the examples, the soak test, the zswap tests), both `Drawn::set_look` callers (`Graphs::set_look`, `Live::set_look`), every `Live::set_look` caller (`live_look` in the bridge, the live tests), and every write to a graph's `look`.
+	- Closed: 20261030-194750
 
 - One record per graph in Look
 	- ID: 2026103019230886

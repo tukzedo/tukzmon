@@ -4,6 +4,8 @@
 // The graph list's live graphs. The window reads them itself from when it
 // opens, and draws them with its own look, Apply or not.
 
+use std::rc::Rc;
+
 use tukzmon_core::battery::BatteryReader;
 use tukzmon_core::config::{Look, Which};
 use tukzmon_core::cpu::CpuReader;
@@ -43,18 +45,19 @@ pub struct Live {
 
 impl Live {
 	pub fn new(look: Look) -> Live {
+		let look = Rc::new(look);
 		Live {
-			mem: Graph::memory(look.clone()),
-			gpu: Graph::gpu(look.clone()),
-			vram: Graph::vram(look.clone()),
-			net: Graph::net(look.clone()),
-			swap: Graph::swap(look.clone()),
-			zswap: Graph::zswap(look.clone()),
-			load: Graph::load_avg(look.clone()),
-			disk: Graph::disk(look.clone()),
-			temp: Graph::temp(look.clone()),
-			battery: Graph::battery(look.clone()),
-			own: Graph::own(look.clone()),
+			mem: Graph::memory(Rc::clone(&look)),
+			gpu: Graph::gpu(Rc::clone(&look)),
+			vram: Graph::vram(Rc::clone(&look)),
+			net: Graph::net(Rc::clone(&look)),
+			swap: Graph::swap(Rc::clone(&look)),
+			zswap: Graph::zswap(Rc::clone(&look)),
+			load: Graph::load_avg(Rc::clone(&look)),
+			disk: Graph::disk(Rc::clone(&look)),
+			temp: Graph::temp(Rc::clone(&look)),
+			battery: Graph::battery(Rc::clone(&look)),
+			own: Graph::own(Rc::clone(&look)),
 			cpu: Graph::new(look),
 		}
 	}
@@ -146,9 +149,10 @@ impl Live {
 			.chain(optional.into_iter().filter_map(|(n, g)| Some((n, g?))))
 	}
 
-	pub fn set_look(&mut self, look: &Look) {
+	pub fn set_look(&mut self, look: Look) {
+		let look = Rc::new(look);
 		for (_, g) in self.all_mut() {
-			g.set_look(look);
+			g.set_look(&look);
 		}
 	}
 
@@ -224,6 +228,43 @@ mod tests {
 	use crate::dialog::Dialog;
 	use knobs::Value;
 
+	// Test ID: dend2
+	#[test]
+	fn every_row_shares_the_one_look() {
+		fn looks(l: &Live) -> Vec<&Rc<Look>> {
+			let all = [
+				l.mem.as_ref().map(|g| &g.look),
+				l.gpu.as_ref().map(|g| &g.look),
+				l.vram.as_ref().map(|g| &g.look),
+				l.net.as_ref().map(|g| &g.look),
+				l.swap.as_ref().map(|g| &g.look),
+				l.zswap.as_ref().map(|g| &g.look),
+				l.load.as_ref().map(|g| &g.look),
+				l.disk.as_ref().map(|g| &g.look),
+				l.temp.as_ref().map(|g| &g.look),
+				l.battery.as_ref().map(|g| &g.look),
+				l.own.as_ref().map(|g| &g.look),
+			];
+			all.into_iter().flatten().collect()
+		}
+		let mut live = Live::new(Look::default());
+		// net is read from /proc on any Linux box, so one is always there
+		assert!(live.net.is_some());
+		for l in looks(&live) {
+			assert!(Rc::ptr_eq(l, &live.cpu.look));
+		}
+		let was = Rc::clone(&live.cpu.look);
+		live.set_look(Look {
+			width: 77,
+			..Look::default()
+		});
+		assert_eq!(live.cpu.look.width, 77);
+		for l in looks(&live) {
+			assert!(Rc::ptr_eq(l, &live.cpu.look));
+		}
+		assert_eq!(Rc::strong_count(&was), 1, "no row kept the old look");
+	}
+
 	// Test ID: defmj
 	#[test]
 	fn each_graph_draws_at_its_width_with_the_windows_look() {
@@ -246,17 +287,17 @@ mod tests {
 		d.set("width", &Value::Float(100.0));
 		d.set("cpu_width", &Value::Float(40.0));
 		d.set("show_cpu", &Value::Bool(false));
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		assert_eq!(live.width("cpu"), 40);
 		let before = live.render("cpu", 40, 24, 1).to_vec();
 		assert_eq!(before.len(), 40 * 24);
 		assert!(before.iter().all(|p| p >> 24 == 0xff));
 		d.set_text("theme", "fire");
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		assert_ne!(live.render("cpu", 40, 24, 1), before.as_slice());
 		if live.mem.is_some() {
 			d.set("mem_width", &Value::Float(100.0));
-			live.set_look(&d.look());
+			live.set_look(d.look());
 			assert_eq!(live.width("mem"), 100);
 			assert_eq!(live.render("mem", 100, 24, 1).len(), 100 * 24);
 			assert!(
@@ -338,7 +379,7 @@ mod tests {
 		live.render("cpu", 40, 24, 1);
 		assert!(!live.easing("cpu"));
 		d.set_text("cpu_time", "linear");
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		live.render("cpu", 40, 24, 1);
 		assert!(live.easing("cpu"));
 		assert!(!live.easing("nope"));
@@ -359,16 +400,16 @@ mod tests {
 		assert!(f64::from(live.tick()) <= within(1000));
 		// not applied, and still read that way
 		d.set("sample_ms", &Value::Float(5000.0));
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		assert_eq!(live.cpu.sample_ms(), 5000);
 		assert!(f64::from(live.tick()) <= within(5000));
 		d.set("cpu_sample", &Value::Float(2.0));
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		assert_eq!(live.cpu.sample_ms(), 100);
 		assert!(f64::from(live.tick()) <= within(100));
 		// back to Sample ms default
 		d.set("cpu_sample", &Value::Float(100.0));
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		assert_eq!(live.cpu.sample_ms(), 5000);
 	}
 
@@ -394,7 +435,7 @@ mod tests {
 		// at 100 px, a width in percent is the same number
 		d.set("width", &Value::Float(100.0));
 		d.set("swap_width", &Value::Float(60.0));
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		assert_eq!(live.width("swap"), 60);
 		assert_eq!(live.render("swap", 60, 24, 1).len(), 60 * 24);
 		assert!(
@@ -420,7 +461,7 @@ mod tests {
 			return;
 		};
 		d.set("battery_width", &Value::Float(50.0));
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		assert_eq!(live.width("battery"), 50);
 		assert_eq!(live.render("battery", 50, 24, 1).len(), 50 * 24);
 		assert!(
@@ -448,7 +489,7 @@ mod tests {
 		// at 100 px, a width in percent is the same number
 		d.set("width", &Value::Float(100.0));
 		d.set("zswap_width", &Value::Float(50.0));
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		assert_eq!(live.width("zswap"), 50);
 		assert_eq!(live.render("zswap", 50, 24, 1).len(), 50 * 24);
 		let tip = live.tip("zswap");
@@ -473,7 +514,7 @@ mod tests {
 		d.set("width", &Value::Float(100.0));
 		d.set("load_width", &Value::Float(60.0));
 		d.set("disk_width", &Value::Float(50.0));
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		assert_eq!(live.width("load"), 60);
 		assert_eq!(live.render("load", 60, 24, 1).len(), 60 * 24);
 		let tip = live.tip("load");
@@ -499,7 +540,7 @@ mod tests {
 		// at 100 px, a width in percent is the same number
 		d.set("width", &Value::Float(100.0));
 		d.set("temp_width", &Value::Float(40.0));
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		assert_eq!(live.width("temp"), 40);
 		// the box, or a container, may have no CPU sensor
 		if live.temp.is_some() {
@@ -527,7 +568,7 @@ mod tests {
 		d.set("width", &Value::Float(100.0));
 		d.set("gpu_width", &Value::Float(30.0));
 		d.set("vram_width", &Value::Float(40.0));
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		// an amdgpu card can have a busy share and no memory files
 		let rows = [
 			("gpu", 30, "GPU", "GPU ", live.gpu.is_some()),
@@ -575,7 +616,7 @@ mod tests {
 		// at 100 px, a width in percent is the same number
 		d.set("width", &Value::Float(100.0));
 		d.set("self_width", &Value::Float(40.0));
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		assert_eq!(live.width("self"), 40);
 		live.sample();
 		std::thread::sleep(std::time::Duration::from_millis(20));
@@ -606,7 +647,7 @@ mod tests {
 		// at 100 px, a width in percent is the same number
 		d.set("width", &Value::Float(100.0));
 		d.set("net_width", &Value::Float(60.0));
-		live.set_look(&d.look());
+		live.set_look(d.look());
 		assert_eq!(live.width("net"), 60);
 		assert_eq!(live.render("net", 60, 24, 1).len(), 60 * 24);
 		let tip = live.tip("net");

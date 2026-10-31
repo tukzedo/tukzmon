@@ -404,7 +404,7 @@ fn live_new(d: &Dialog) -> Box<Live> {
 }
 
 fn live_look(l: &mut Live, d: &Dialog) {
-	l.set_look(&d.look());
+	l.set_look(d.look());
 }
 
 fn live_sample(l: &mut Live) -> u32 {
