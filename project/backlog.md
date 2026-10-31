@@ -29,6 +29,7 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-26: still waits for the workflow file to reach `main`, which a round never pushes to.
 		- 2026-10-28: round-1028 doesn't reach `main` either.
 		- 2026-10-29: `main` on GitHub still has no `.github/workflows`, and the repo has no workflow runs.
+		- 2026-10-31: round-1031 doesn't reach `main` either.
 	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
 	- Priority|Severity: Avg
 	- Opened: 20261025-135600
@@ -118,9 +119,10 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: More minimum padding between buttons' inner edges and their text
 	- ID: 2026103107404601
 	- Type: Enhancement
-	- Status: Waiting on UAT
+	- Status: Done
 		- The amount is a look: open Settings and judge the room around the text on the buttons.
 	- Needs hand testing: Settings on b23, with its own style, once a build with this is installed.
+	- Stand-in: 20261031, build dep51 from c1dec56 in b23's own style (gtk3 platform theme, Orchis green compact), light and dark, in place of the hand test on b23. Every tab and the color picker showed each button's text clear of its frame, and nothing else out of place.
 	- Priority|Severity: Avg
 	- Opened: 20261031-074046
 	- Opened by: t00mietum
@@ -141,6 +143,9 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1031
 	- Test case: `bridge::tests::every_button_keeps_room_around_its_text` (dep3y). It fails before the change, with 3 px over and under, and passes after.
 		- Swept: every `QPushButton` in `qt.cpp`. The window's and a question box's are in the test. The picker's take the same style. The chips have a fixed size and no text. The revert arrows are tool buttons with an icon only.
+	- Commit: 93a6705
+	- Acceptance signoff: Self-closed 20261031: dep3y passed in the full run at c1dec56, and the stand-in look above.
+	- Closed: 20261031-084400
 
 - Pre-next-cut: Monitor for the number of processes
 	- ID: 2026103107404602
