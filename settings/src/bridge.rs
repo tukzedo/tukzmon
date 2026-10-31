@@ -209,9 +209,9 @@ pub mod ffi {
 		/// the box gives it up.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn apply_while_typing(d: &mut Dialog, number: bool) -> Vec<bool>;
-		/// The window color, then per tab "label scroll rest": the most common
-		/// color in the page that scrolls and in the rest of the window, past
-		/// the tab list.
+		/// The window color, then per tab "label scroll tabs rest": the most
+		/// common color in the page that scrolls, in the tab list, and in the
+		/// rest of the window.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn page_shades(d: &mut Dialog, dark: bool) -> Vec<String>;
 		/// Per button with text, in the window and in a question box, "text
@@ -915,7 +915,7 @@ mod tests {
 	// Test ID: dekna
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn the_part_that_scrolls_is_a_shade_off_the_window() {
+	fn the_parts_set_in_are_a_shade_darker_than_the_rest() {
 		let _qt = qt_turn();
 		// WCAG's relative luminance, from "#rrggbb"
 		let lum = |hex: &str| {
@@ -945,17 +945,17 @@ mod tests {
 			assert_eq!(got.len(), dialog_tabs(&d).len() + 1, "{got:?}");
 			for line in &got[1..] {
 				let v: Vec<&str> = line.split(' ').collect();
-				let (scroll, rest) = (v[v.len() - 2], v[v.len() - 1]);
-				// the tab list, the theme's Name row and the buttons keep the window's
-				assert_eq!(rest, window, "dark: {dark}, {line}");
+				let (scroll, tabs, rest) = (v[v.len() - 3], v[v.len() - 2], v[v.len() - 1]);
+				assert_eq!(tabs, scroll, "dark: {dark}, {line}");
+				// a dark theme's own window color is the darker end
+				assert_eq!(scroll == window, dark, "dark: {dark}, {line}");
 				let (a, b) = (lum(scroll), lum(rest));
 				let ratio = (a.max(b) + 0.05) / (a.min(b) + 0.05);
 				assert!(
 					(1.05..1.3).contains(&ratio),
 					"dark: {dark}, {line}, contrast {ratio:.3}"
 				);
-				// toward the text, so darker in a light theme
-				assert_eq!(a > b, dark, "{line}");
+				assert!(a < b, "dark: {dark}, {line}");
 			}
 		}
 	}

@@ -9,6 +9,7 @@
 #include "tukzmon-settings/src/qt.h"
 #include "tukzmon-settings/src/bridge.rs.h"
 
+#include <QAbstractItemView>
 #include <QApplication>
 #include <QButtonGroup>
 #include <QCheckBox>
@@ -86,17 +87,32 @@ void softenSelection(QWidget *w) {
 	w->setPalette(pal);
 }
 
-// What scrolls sits a shade off the window, so it's plain which part moves.
-// Toward the text color goes darker in a light theme and lighter in a dark one.
-void shadeScroll(QWidget *w) {
+// The parts set in, the pages that scroll and the tab list, sit darker than the
+// rest of the window, so a page reads apart from what stays put. The two shades
+// span the step from the theme's window color 1/16 of the way to its text
+// color, with the inset parts at the darker end and the rest 3/4 of the way to
+// the lighter. So a dark theme keeps its own window color for the inset parts.
+QColor shadeOf(const QColor &back, const QColor &ink, bool inset) {
+	const float step = 1.0F / 16;
+	const float darker = ink.lightnessF() > back.lightnessF() ? 0.0F : step;
+	const float lighter = step - darker;
+	const float f = inset ? darker : darker + ((lighter - darker) * 3 / 4);
+	auto mix = [f](float a, float b) { return a + ((b - a) * f); };
+	return QColor::fromRgbF(mix(back.redF(), ink.redF()), mix(back.greenF(), ink.greenF()),
+		mix(back.blueF(), ink.blueF()));
+}
+
+// From the app's palette, so a widget shaded before it has a parent gets the
+// same as one shaded after.
+void shade(QWidget *w, bool inset) {
+	const QPalette theme = QApplication::palette();
 	QPalette pal = w->palette();
 	for (auto group : {QPalette::Active, QPalette::Inactive, QPalette::Disabled}) {
-		const QColor back = pal.color(group, QPalette::Window);
-		const QColor ink = pal.color(group, QPalette::WindowText);
-		auto mix = [](float a, float b) { return a + ((b - a) / 16); };
-		pal.setColor(group, QPalette::Window,
-			QColor::fromRgbF(mix(back.redF(), ink.redF()), mix(back.greenF(), ink.greenF()),
-				mix(back.blueF(), ink.blueF())));
+		const QColor c = shadeOf(theme.color(group, QPalette::Window), theme.color(group, QPalette::WindowText), inset);
+		pal.setColor(group, QPalette::Window, c);
+		// a list draws on Base
+		if (inset && qobject_cast<QAbstractItemView *>(w))
+			pal.setColor(group, QPalette::Base, c);
 	}
 	w->setPalette(pal);
 }
@@ -644,6 +660,9 @@ public:
 			rows.push_back(std::move(row));
 		}
 
+		shade(this, false);
+		// before the selection, which is tinted from its Base
+		shade(tabList, true);
 		softenSelection(tabList);
 
 		auto hasRows = [this](int tab) {
@@ -876,9 +895,9 @@ public:
 		const auto r = std::ranges::find_if(rows, [](auto &row) { return row->slider != nullptr; });
 		return r == rows.end() ? nullptr : r->get();
 	}
-	// the most common color in the page that scrolls, and in the rest of the
-	// window past the tab list, as drawn
-	std::pair<QColor, QColor> shadesNow() {
+	// the most common color in the page that scrolls, in the tab list, and in
+	// the rest of the window, as drawn
+	std::tuple<QColor, QColor, QColor> shadesNow() {
 		const QImage img = grab().toImage();
 		QRect inside;
 		QRect area;
@@ -888,13 +907,17 @@ public:
 				area = QRect(s->mapTo(this, QPoint()), s->size());
 			}
 		const QRect tabs(tabList->mapTo(this, QPoint()), tabList->size());
+		const QRect tabsInside(tabList->viewport()->mapTo(this, QPoint()), tabList->viewport()->size());
 		std::map<QRgb, int> in;
+		std::map<QRgb, int> list;
 		std::map<QRgb, int> out;
 		for (int y = 0; y < img.height(); y++)
 			for (int x = 0; x < img.width(); x++) {
 				const QPoint at(x, y);
 				if (inside.contains(at))
 					in[img.pixel(at)]++;
+				else if (tabsInside.contains(at))
+					list[img.pixel(at)]++;
 				else if (!area.contains(at) && !tabs.contains(at))
 					out[img.pixel(at)]++;
 			}
@@ -902,7 +925,7 @@ public:
 			auto top = std::ranges::max_element(seen, [](auto &a, auto &b) { return a.second < b.second; });
 			return top == seen.end() ? QColor() : QColor(top->first);
 		};
-		return {most(in), most(out)};
+		return {most(in), most(list), most(out)};
 	}
 	bool applyOn() const { return applyButton->isEnabled(); }
 	void commitTyped() { takeTyped(); }
@@ -1322,7 +1345,7 @@ private:
 		scroll->setWidget(page);
 		scroll->setWidgetResizable(true);
 		scroll->setFrameShape(QFrame::NoFrame);
-		shadeScroll(scroll);
+		shade(scroll, true);
 		return scroll;
 	}
 
@@ -2117,9 +2140,9 @@ rust::Vec<rust::String> page_shades(Dialog &d, bool dark) {
 	for (int i = 0; i < w.tabCount(); i++) {
 		w.select(i);
 		tukzmon::App::processEvents();
-		const auto [in, rest] = w.shadesNow();
+		const auto [in, tabs, rest] = w.shadesNow();
 		out.push_back(rust::String(QString::fromStdString(w.tabText(i)).trimmed().toStdString() + " " +
-			in.name().toStdString() + " " + rest.name().toStdString()));
+			in.name().toStdString() + " " + tabs.name().toStdString() + " " + rest.name().toStdString()));
 	}
 	return out;
 }
