@@ -41,7 +41,7 @@ use load::LoadReader;
 use mem::{MemoryReader, SwapReader};
 use net::Traffic;
 use own::OwnReader;
-use render::{Frame, Paint, Peak, Scale};
+use render::{Frame, Paint, Peak, Scale, Scratch};
 use temp::TempReader;
 use when::Said;
 use zswap::ZswapReader;
@@ -548,6 +548,7 @@ pub struct Graph<S: Source<N> = CpuReader, const N: usize = 4> {
 	read_at: Option<f64>,
 	latest: Option<[f32; N]>,
 	px: Vec<u32>,
+	scratch: Scratch<N>,
 	ease: Ease,
 	/// The top, for a source with no fixed one.
 	peak: Peak,
@@ -658,6 +659,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 			read_at: None,
 			latest: None,
 			px: Vec::new(),
+			scratch: Scratch::default(),
 			ease: Ease::default(),
 			peak: Peak::default(),
 			hover: None,
@@ -863,7 +865,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 			paint: S::paint(&self.look),
 			outline: S::outline(&self.look),
 		}
-		.draw_to(&mut px, w, h, scale, peak);
+		.draw_to(&mut px, w, h, scale, peak, &mut self.scratch);
 		if let Some(x) = self.hover {
 			let bw = self.border_px(w, h, scale);
 			render::line(&mut px, w, h, bw, x, scale, self.look.hover);

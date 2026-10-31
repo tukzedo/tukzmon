@@ -340,7 +340,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 9: Drawing allocates on every draw and packs every pixel
 	- ID: 2026103016201609
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -350,9 +350,23 @@ Sorted per the notes in [Template](#template).
 		- Reuse the draw's scratch buffers rather than allocating 3 or 4 each draw.
 		- Pack the background and each solid series color once, not per pixel.
 		- Work out the graph order once per settings change, not 3 times per draw and on every pointer move.
+	- Actual effort: Avg
+	- Progress log:
+		- Each graph keeps its draw buffers in a `render::Scratch`, so a draw at the same size allocates nothing. The panel's tile list is on the stack.
+		- The background per row, each series color and the gradient per row are packed once a draw. Only a pixel at a series' edge, or the stack's top, is blended.
+		- `Graphs` keeps the order from `graph.order`, worked out in `new` and `set_look`.
+		- The pixels are the same as before, checked against the old draw over 3000 random graphs (5.4 million pixels) before it was taken out.
+		- Profiler, 100000 ticks, 2 runs each, load about 6 on 32 cores: user CPU 6.45 and 6.43 s before, 4.87 and 4.81 s after. Drawing went from 14.4% and 13.4% of the tick to 4.5% and 4.8%.
+		- Verified: the full run passed.
 	- Decisions:
 		- Decided against: keeping history block totals up to date one sample at a time. At 2.3% it isn't worth the risk of drift.
+		- `Frame::draw_to` takes the scratch, and `Frame::draw` makes its own, so the tests and the preview stay as they were.
+		- The order is cached rather than worked out from the look each time. Nothing sets `cpu.look` but `set_look`, which keeps them together.
 	- Estimated effort: Avg
+	- Branch: round-1030b
+	- Test case: `render::tests::a_kept_scratch_draws_as_a_fresh_one_and_allocates_nothing_again` (denc4) and `graphs::tests::a_new_set_lays_out_in_the_saved_order` (denc5), with dedqp for an order set later. denc4 fails with a buffer left uncleared or made new each draw, and denc5 and dedqp with the order left at its default.
+		- Swept: every `Frame` built (`Graph::render`, the preview example, the render tests), every `order()` user (`shown`, so `count`, `widths` and `tiles`), and every place the look is set (`Graphs::new`, `set_look`). The settings window's `Live` draws through `Graph::render` and has no order of its own.
+	- Closed: 20261030-192006
 
 - Code review 20261030 item 10: Each graph's settings are listed by hand in about 15 places
 	- ID: 2026103016201610

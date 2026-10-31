@@ -48,6 +48,9 @@ pub struct Graphs {
 	pub own: Option<Graph<OwnReader, 1>>,
 	/// Top to bottom, for a vertical panel.
 	pub stacked: bool,
+	/// `graph.order` as read, kept up by [`Graphs::set_look`] so a draw or a
+	/// pointer move doesn't look the names up again.
+	order: [Which; Which::ALL.len()],
 	px: Vec<u32>,
 	/// The history file's sections that no graph here owns, such as a hidden
 	/// graph's, as of the last load. None before one, so a save reads the
@@ -344,6 +347,7 @@ impl Graphs {
 			None
 		};
 		Graphs {
+			order: order_of(&look.order),
 			cpu: Graph::new(look),
 			mem,
 			gpu,
@@ -414,13 +418,9 @@ impl Graphs {
 		}
 	}
 
-	fn order(&self) -> [Which; Which::ALL.len()] {
-		order_of(&self.cpu.look.order)
-	}
-
 	/// In the order drawn.
 	fn shown(&self) -> impl Iterator<Item = Which> + '_ {
-		self.order().into_iter().filter(|&w| self.is_shown(w))
+		self.order.into_iter().filter(|&w| self.is_shown(w))
 	}
 
 	pub fn count(&self) -> usize {
@@ -538,6 +538,7 @@ impl Graphs {
 				g.set_look(&look);
 			}
 		}
+		self.order = order_of(&look.order);
 		self.cpu.look = look;
 		if !self.cpu_shown() {
 			self.cpu.hover = None;
@@ -818,8 +819,14 @@ impl Graphs {
 		let mut px = std::mem::take(&mut self.px);
 		px.clear();
 		px.resize(w * h, 0);
-		let tiles: Vec<(Which, Tile)> = self.tiles(w, h, scale).collect();
-		for &(which, (tx, ty, tw, th)) in &tiles {
+		// on the stack, since slot_mut can't borrow while tiles does
+		let mut tiles = [(Which::Cpu, (0, 0, 0, 0)); Which::ALL.len()];
+		let mut n = 0;
+		for (slot, tile) in tiles.iter_mut().zip(self.tiles(w, h, scale)) {
+			*slot = tile;
+			n += 1;
+		}
+		for &(which, (tx, ty, tw, th)) in &tiles[..n] {
 			if tw == 0 || th == 0 {
 				continue;
 			}
@@ -1534,6 +1541,21 @@ mod tests {
 		assert_eq!(g.widths().collect::<Vec<_>>(), [none.width]);
 		assert_eq!(g.tooltip(), "CPU");
 		assert!(Graphs::new(none).cpu_shown());
+	}
+
+	// Test ID: denc5
+	#[test]
+	fn a_new_set_lays_out_in_the_saved_order() {
+		let g = Graphs::new(Look {
+			width: 100,
+			cpu_width: 40,
+			mem_width: 100,
+			order: crate::config::graph_order("mem cpu"),
+			..two()
+		});
+		if g.mem.is_some() {
+			assert_eq!(g.widths().collect::<Vec<_>>(), [100, 40]);
+		}
 	}
 
 	// Test ID: dedqp
