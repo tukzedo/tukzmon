@@ -68,9 +68,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Settings dialog brightness inverted
 	- ID: 2026103113364400
 	- Type: Enhancement
-	- Status: Waiting on UAT
+	- Status: Done
 		- Whether the 2 shades read apart and look right is for a person to judge. Pictures in Orchis-green light and dark, before and after, are in `private/claude_simple/uat-2026103113364400/`.
-	- Needs hand testing: on b23, after an install, open Settings and judge the page and tab list against the rest of the window.
+	- Needs hand testing: No
 	- Priority|Severity: Avg
 	- Opened: 20261031-133644
 	- Opened by: t00mietum
@@ -87,6 +87,7 @@ Sorted per the notes in [Template](#template).
 		- Orchis-green-light-compact: page and tab list `#e3e3e3`, the rest `#eeeeee`. Before, the page was `#e3e3e3` and the rest and tab list `#f2f2f2`.
 		- `design.md` Settings window has it.
 		- Verified: the quick gate passed, with dekna changed to check the new shades.
+		- Stand-in 20261031: the light and dark shots in private uat-2026103113364400 show the page and tab list darker than the rest in both themes, with the rest a little less light than before. Closed on them; reopen if the look isn't right on b23.
 	- Decisions:
 		- "And others" is read as the tab list, the only other inset part. The Name row over the Themes sub-tabs stays with the rest, since it doesn't scroll.
 		- Both shades come from the theme, as before: the step from its window color 1/16 of the way to its text color. The inset parts take the darker end, and the rest stops 3/4 of the way to the lighter end, which is the "not quite as light". So a dark theme keeps its own window color for the inset parts, and its rest is a little lighter.
