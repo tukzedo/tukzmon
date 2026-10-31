@@ -8,7 +8,8 @@
 ##		2026-10-24 22:00 UTC is decp8. 2 that come out the same take the next
 ##		free minute, and an ID never changes, even when its test is renamed or
 ##		moved. A Rust test carries it on a "// Test ID: decp8" line just above
-##		its attributes.
+##		its attributes, and a test of the pipeline in cicd/tests/*.bash on a
+##		"## Test ID: decp8" line just above its fTest_ function.
 ##		Ported from silkterm's cicd/utility/test-id.py, which was base 62 in ms.
 ##	Syntax:
 ##		test-ids.bash new [N]           print N fresh IDs for now (default 1)
@@ -116,6 +117,23 @@ fScan() {
 			rel="${f##*/}"; fScanFile "${rel%.rs}" "" "${f}"
 		done < <(find "${root}/${dir}/tests" -maxdepth 1 -name '*.rs' -type f | LC_ALL=C sort)
 	done < <(fMembers)
+	fScanBash
+}
+
+## The pipeline's own tests, in cicd/tests/*.bash: each is an fTest_ function
+## with a "## Test ID: decp8" line just above it. The crate is the file's name.
+fScanBash() {
+	local f
+	for f in "${root}"/cicd/tests/*.bash; do
+		[[ -f "${f}" ]] || continue
+		awk -v file="${f#"${root}/"}" -v crate="$(basename -- "${f}" .bash)" '
+			/^fTest_[A-Za-z0-9_]+\(\)/ {
+				fn = $0; sub(/\(.*/, "", fn); id = "-"
+				if (prev ~ /^##[ \t]*Test ID:/) { id = prev; sub(/^##[ \t]*Test ID:[ \t]*/, "", id); sub(/[ \t]+$/, "", id); if (id == "") id = "-" }
+				printf "%s\t%s\t%s\t%s:%d\n", id, crate, fn, file, NR
+			}
+			{ prev = $0 }' "${f}"
+	done
 }
 
 ## A #[test] in a tracked .rs file outside any member's src/ and the top of
@@ -262,3 +280,4 @@ esac
 ##		- 2026-10-25: Tests in a member's tests/ folder too.
 ##		- 2026-10-28: A commented-out test's ID still counts for the backlog,
 ##		  and isn't handed out again.
+##		- 2026-10-30: The pipeline's own tests in cicd/tests/*.bash too.

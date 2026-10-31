@@ -82,7 +82,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 2: The temp folder guard accepts the project's whole temp folder
 	- ID: 2026103016201602
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -92,8 +92,19 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: the path matches `^/(.+/)?tmp/[^/]+`, so it would be removed.
 	- Expected behavior: refused. `Safe removal` in the CICD process allows a run folder under it, never the project's folder itself.
 	- Possible cause: no caller passes it today, so nothing has tripped it.
+	- Actual cause: the copy in `run-tmp.bash` predates the rule, and lacked its check for the temp root and a project's folder right under it.
 	- Estimated effort: Low
-	- Test case: a guard test that tries `${HOST_TEMP}`, `${HOST_TEMP}/tukzmon` and a run folder, and sees only the last one go.
+	- Actual effort: Low
+	- Progress log:
+		- `fSafeRm` refuses `${HOST_TEMP}` and any folder right under it, as the copy in `Safe removal` does.
+		- New `cicd/tests/guards.bash`, the pipeline's own tests, which the Tests step runs after `cargo test`. `test-ids.bash` reads their IDs too.
+		- Verified: den8d failed on the old `run-tmp.bash`, which took the temp root, and passed after. The quick gate passed, with den8d in its Tests step.
+	- Decisions:
+		- The test is a bash script in `cicd/tests/`, not a Rust test, since the Nix build's source has no `cicd/` folder. Each test has a `## Test ID:` line, as a Rust test has its `// Test ID:` line.
+		- Swept: `cicd.bash` and `hooks/pre-push` source this one copy. There is no other `rm -rf` outside the Dockerfile.
+	- Branch: round-1030b
+	- Test case: `fTest_safe_rm_takes_a_run_folder_but_not_the_temp_root_or_a_project_folder` (den8d)
+	- Closed: 20261030-171604
 
 - Code review 20261030 item 3: The settings window redoes its whole refresh on each step of a slider or color drag
 	- ID: 2026103016201603
@@ -143,7 +154,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 6: The Nix check puts env values into arithmetic unchecked
 	- ID: 2026103016201606
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -154,6 +165,15 @@ Sorted per the notes in [Template](#template).
 	- Expected behavior: both are checked for digits first, as `cicd.bash` does for `CICD_MAX_JOBS`.
 	- Possible cause: the values come from tracked `config.bash`, inside a throwaway container, so the risk is small.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `check.bash` stops with an error when `TUKZMON_JOBS` or `TUKZMON_NIX_CAP_MB` isn't a plain number, before it makes a folder or calls nix. Jobs take the same pattern as `CICD_MAX_JOBS`.
+		- Verified: den8e failed on the old `check.bash`, which went on to the build, and passed after. A `$(...)` in either value didn't run.
+	- Decisions:
+		- An empty value still means the default, as before.
+	- Branch: round-1030b
+	- Test case: `fTest_nix_check_refuses_env_values_that_arent_numbers` (den8e), in `cicd/tests/guards.bash`. The Nix step itself wasn't run, since the check comes before any of it.
+	- Closed: 20261030-171604
 
 - Code review 20261030 item 7: Collectors reopen their files every tick, and the disk graph reads every block device
 	- ID: 2026103016201607

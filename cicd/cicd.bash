@@ -20,8 +20,9 @@
 ##	                      cicd/artifacts/lint/
 ##	   6. Advisories      cargo deny check advisories: the crates in Cargo.lock
 ##	                      against RustSec's database, per deny.toml
-##	   7. Tests           cargo test, with TMPDIR in the run's temp folder. One
-##	                      line per test: PASS, FAIL or SKIP, its ID, its name
+##	   7. Tests           cargo test, with TMPDIR in the run's temp folder, and
+##	                      the pipeline's own tests in cicd/tests/. One line per
+##	                      test: PASS, FAIL or SKIP, its ID, its name
 ##	   8. Release build   the plugin and tukzmon-settings
 ##	   9. Packages        a .deb and an .rpm of the release build through nfpm,
 ##	                      with a sha256 sums file, in cicd/artifacts/packages/
@@ -440,11 +441,16 @@ fStepLint() {
 }
 
 fStepTests() {
+	local t=''
 	fEcho_Clean "cargo test --workspace -j ${jobs} -- --test-threads ${jobs}  (TMPDIR=${TMPDIR})"
 	## No test may reach the screen in use. A quiet cargo would quiet libtest
 	## too, and its per-test lines are what get the IDs.
 	env -u DISPLAY -u WAYLAND_DISPLAY -u CARGO_TERM_QUIET cargo test --workspace "${locked[@]}" -j "${jobs}" -- --test-threads "${jobs}" 2>&1 \
 		| "${here}/utility/test-ids.bash" annotate || return 1
+	for t in "${here}"/tests/*.bash; do
+		fEcho_Clean "${t#"${root}/"}"
+		"${t}" || return 1
+	done
 }
 
 ## The fetch and the check are apart, so a database that can't be had isn't
@@ -1090,3 +1096,4 @@ exit 0
 ##		- 2026-10-25: .deb and .rpm packages, with sha256 sums.
 ##		- 2026-10-25: The profiler, with a report on each flamegraph.
 ##		- 2026-10-28: The Nix package, in --long and the nix area.
+##		- 2026-10-30: The Tests step runs cicd/tests/ too.
