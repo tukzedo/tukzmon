@@ -332,7 +332,7 @@ Sorted per the notes in [Template](#template).
 		- System time was about 3 s in every arm, from the `/proc` reads and saves.
 		- opt-level 3 stays, with the table in a comment over it in `Cargo.toml`.
 	- Decisions:
-		- 3 wins. The CPU graph ticks every 500 ms by default for as long as the panel runs, and a monitor shouldn't add to the load it shows. The 200 to 340 KB saved isn't worth that.
+		- 3 wins. The panel ticks every second by default for as long as the panel runs, and a monitor shouldn't add to the load it shows. The 200 to 340 KB saved isn't worth that.
 		- The settings window keeps 3 too, rather than a per-package "s". Its live graph runs the same tick code, fat LTO makes a per-package level hard to reason about, and one level is simpler.
 	- Test case: none. Only a comment changed, and the build is the same as before.
 	- Closed: 20261030-175606
