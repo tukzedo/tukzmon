@@ -1098,7 +1098,8 @@ mod tests {
 	// Test ID: dejbq
 	#[test]
 	fn the_default_theme_keeps_the_colors_picked_on_it() {
-		// b23's changes on Default as of 2026-10-28, kept as they were
+		// b23's changes on Default as of 2026-10-28, and 2026-10-31 for
+		// temperature and processes, kept as they were
 		let picked = [
 			("system", "#fa72f0"),
 			("net_local", "#ffed00"),
@@ -1116,9 +1117,12 @@ mod tests {
 			("disk_write", "#c60000"),
 			("disk_read", "#6bb3ff"),
 			("temp_mode", "gradient"),
-			("temp_low", "#4eb6bd"),
-			("temp_medium", "#feff40"),
+			("temp_low", "#60dae2"),
+			("temp_medium", "#d9da62"),
 			("temp_high", "#ff0000"),
+			("procs_system", "#707070"),
+			("procs_users", "#6bc9ff"),
+			("procs_me", "#fff02a"),
 			("battery_discharging", "#c46e43"),
 			("border_color", "#8b8b8b"),
 			("back_top", "#313131"),
@@ -1134,6 +1138,8 @@ mod tests {
 			("swap_used", "swap_medium"),
 			("zswap_used", "zswap_medium"),
 			("temp_normal", "temp_medium"),
+			("procs_me", "procs_medium"),
+			("procs_system", "procs_low"),
 		] {
 			assert_eq!(v(lead), v(medium), "{lead}");
 		}
@@ -1521,7 +1527,7 @@ mod tests {
 		assert_eq!(
 			d[Which::Mem].colors[..3],
 			[
-				Rgb(0xff, 0xff, 0xa3),
+				Rgb(0xff, 0xff, 0xb8),
 				Rgb(0x80, 0x40, 0x80),
 				Rgb(0x40, 0x80, 0x60)
 			]
@@ -1594,21 +1600,35 @@ mod tests {
 	// Test ID: dejbr
 	#[test]
 	fn every_graph_leads_with_a_color_that_reads_apart() {
-		use crate::color::{APART, apart, closest};
+		use crate::color::{APART, apart};
 		let spec = spec();
 		for p in &spec.group(THEME).unwrap().presets {
 			let get = |id: &str| p.values.get(id).map(knobs::Value::as_text);
 			let leads = leads(get);
 			assert_eq!(leads.len(), LEADS.len(), "{}", p.key);
-			let (d, a, b) = closest(&leads).unwrap();
+			// both picked by hand on b23, and in Default what was picked wins
+			let let_off: &[(&str, &str)] = if p.key == "default" {
+				&[("temp", "procs")]
+			} else {
+				&[]
+			};
 			// a one-color theme leads every graph alike, on purpose (dejbw)
-			assert!(
-				d >= APART || leads.iter().all(|c| *c == leads[0]),
-				"{}: {} and {} are {d:.1} apart",
-				p.key,
-				LEADS[a].0,
-				LEADS[b].0
-			);
+			let one_color = leads.iter().all(|c| *c == leads[0]);
+			for a in 0..leads.len() {
+				for b in a + 1..leads.len() {
+					if one_color || let_off.contains(&(LEADS[a].0, LEADS[b].0)) {
+						continue;
+					}
+					let d = apart(leads[a], leads[b]);
+					assert!(
+						d >= APART,
+						"{}: {} and {} are {d:.1} apart",
+						p.key,
+						LEADS[a].0,
+						LEADS[b].0
+					);
+				}
+			}
 			for alarm in ALARMS {
 				let c = Rgb::parse(get(alarm).unwrap()).unwrap();
 				for (lead, (g, _)) in leads.iter().zip(LEADS) {
@@ -1851,8 +1871,8 @@ mod tests {
 		assert_eq!(
 			Look::default().order,
 			[
-				"cpu", "mem", "gpu", "vram", "net", "disk", "temp", "swap", "zswap", "load",
-				"procs", "self", "battery"
+				"cpu", "mem", "procs", "gpu", "vram", "net", "disk", "temp", "swap", "zswap",
+				"load", "self", "battery"
 			]
 		);
 		for text in [

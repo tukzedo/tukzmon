@@ -44,6 +44,7 @@
 #include <QStackedWidget>
 #include <QStyle>
 #include <QStyleOptionButton>
+#include <QStyleOptionSlider>
 #include <QTimer>
 #include <QToolButton>
 #include <QToolTip>
@@ -124,15 +125,28 @@ protected:
 
 // Room from a button's text to the inner edge of its frame, at the least.
 // Fusion leaves 3 px over and under, and as little across on a long label.
+// One floor for every button, so a row of them is one height.
 constexpr int BUTTON_PAD_ACROSS = 12;
-constexpr int BUTTON_PAD_DOWN = 6;
+constexpr int BUTTON_PAD_DOWN = 8;
 
 // Some dark themes draw an empty checkbox with an edge close to the window
 // color, so it all but vanishes. An edge in the text color, a little faded,
 // shows in a light theme and a dark one. Buttons also get more room around
-// their text than most styles give.
+// their text than most styles give, and a slider's handle is as tall as the
+// slider.
 class BoxStyle final : public QProxyStyle {
 public:
+	QRect subControlRect(ComplexControl cc, const QStyleOptionComplex *opt, SubControl sc,
+		const QWidget *w) const override {
+		QRect r = QProxyStyle::subControlRect(cc, opt, sc, w);
+		const auto *s = qstyleoption_cast<const QStyleOptionSlider *>(opt);
+		if (cc != CC_Slider || sc != SC_SliderHandle || !s || s->orientation != Qt::Horizontal ||
+			s->tickPosition != QSlider::NoTicks)
+			return r;
+		r.setTop(s->rect.top());
+		r.setBottom(s->rect.bottom());
+		return r;
+	}
 	QSize sizeFromContents(ContentsType ct, const QStyleOption *opt, const QSize &csz,
 		const QWidget *w) const override {
 		QSize s = QProxyStyle::sizeFromContents(ct, opt, csz, w);
@@ -164,9 +178,43 @@ public:
 	}
 };
 
+// A press on the track puts the handle under the pointer and goes on as a drag,
+// where Qt's own slider pages toward it. A press on the handle drags it from
+// where it was taken, so a grab never nudges it onto the next detent.
+class TrackSlider final : public QSlider {
+public:
+	TrackSlider() : QSlider(Qt::Horizontal) {}
+	QRect part(QStyle::SubControl sc) const {
+		QStyleOptionSlider opt;
+		initStyleOption(&opt);
+		return style()->subControlRect(QStyle::CC_Slider, &opt, sc, this);
+	}
+
+protected:
+	void mousePressEvent(QMouseEvent *e) override {
+		QRect handle = part(QStyle::SC_SliderHandle);
+		if (e->buttons() != Qt::LeftButton || handle.contains(e->position().toPoint())) {
+			QSlider::mousePressEvent(e);
+			return;
+		}
+		QStyleOptionSlider opt;
+		initStyleOption(&opt);
+		const QRect groove = part(QStyle::SC_SliderGroove);
+		const int x = e->position().toPoint().x() - groove.x() - (handle.width() / 2);
+		setSliderPosition(
+			QStyle::sliderValueFromPosition(minimum(), maximum(), x, groove.width() - handle.width(), opt.upsideDown));
+		// a detent can pull it off the pointer, so take hold of it where it went
+		handle = part(QStyle::SC_SliderHandle);
+		const QPointF at = handle.center();
+		QMouseEvent grab(e->type(), at, mapToGlobal(at), e->button(), e->buttons(), e->modifiers(),
+			e->pointingDevice());
+		QSlider::mousePressEvent(&grab);
+		e->setAccepted(grab.isAccepted());
+	}
+};
+
 constexpr int SLIDER_STEPS = 1000;
 constexpr int HEAD_GAP = 22;
-constexpr int BUTTON_GROW = 8;
 
 // QScrollArea's own hint stops at about 24 lines, so a tall tab opened with a
 // scroll bar it had no need for. Every graph's colors on one page is far
@@ -566,7 +614,7 @@ struct Row {
 	RowInfo info;
 	QLabel *label = nullptr;
 	QCheckBox *check = nullptr;
-	QSlider *slider = nullptr;
+	TrackSlider *slider = nullptr;
 	QDoubleSpinBox *spin = nullptr;
 	QComboBox *combo = nullptr;
 	QLineEdit *line = nullptr;
@@ -707,8 +755,6 @@ public:
 		buttons->addSpacing(gap);
 		buttons->addWidget(closeButton);
 		bottom = {resetButton, cancel, applyButton, closeButton};
-		for (auto *b : bottom)
-			b->setMinimumHeight(b->sizeHint().height() + BUTTON_GROW);
 
 		auto *body = new QHBoxLayout;
 		body->addWidget(tabList);
@@ -826,6 +872,10 @@ public:
 		}
 		return nullptr;
 	}
+	const Row *firstSlider() const {
+		const auto r = std::ranges::find_if(rows, [](auto &row) { return row->slider != nullptr; });
+		return r == rows.end() ? nullptr : r->get();
+	}
 	// the most common color in the page that scrolls, and in the rest of the
 	// window past the tab list, as drawn
 	std::pair<QColor, QColor> shadesNow() {
@@ -909,6 +959,28 @@ public:
 			if (r->control && !r->control->isEnabled())
 				ids.push_back(r->id());
 		return ids;
+	}
+
+	// the graph list row or Colors section `w` sits in, or ""
+	std::string groupOf(const QWidget *w) const {
+		for (const auto &l : listRows)
+			for (const QWidget *c : l.cells())
+				if (c == w || c->isAncestorOf(w))
+					return l.name;
+		for (const auto &s : sections)
+			if (s.box->isAncestorOf(w))
+				return s.graph;
+		return {};
+	}
+	// where Tab starts in the graph list, or on Colors
+	QWidget *firstStop(bool colors) const {
+		if (!colors)
+			return listRows.empty() ? nullptr : listRows[0].show->check;
+		for (int i = 0; sectionList && i < sectionList->count(); i++)
+			for (auto *w : sectionList->itemAt(i)->widget()->findChildren<QWidget *>())
+				if ((w->focusPolicy() & Qt::TabFocus) && !w->focusProxy() && w->isVisible() && w->isEnabled())
+					return w;
+		return nullptr;
 	}
 
 	// graph width and x, and the width box's x, per graph list row
@@ -1022,6 +1094,9 @@ private:
 		LiveGraph *space = nullptr;
 		QToolButton *revert = nullptr;
 		Gripper *grip = nullptr;
+		std::array<QWidget *, 7> cells() const {
+			return {show->control, space, width->control, sample->control, time->control, revert, grip};
+		}
 	};
 	QWidget *list = nullptr;
 	QGridLayout *listGrid = nullptr;
@@ -1121,6 +1196,7 @@ private:
 			sectionList->removeWidget(w);
 		for (auto *w : want)
 			sectionList->addWidget(w);
+		tabInOrder(want);
 	}
 
 	// Whatever the mode shows first on the left sits level with the top of
@@ -1353,10 +1429,8 @@ private:
 	// puts each row's widgets on its grid line, in listRows' order
 	void placeList() {
 		for (size_t i = 0; i < listRows.size(); i++) {
-			const ListRow &l = listRows[i];
 			const int at = int(i) + 1;
-			const std::array<QWidget *, 7> cells = {l.show->control, l.space, l.width->control, l.sample->control,
-				l.time->control, l.revert, l.grip};
+			const auto cells = listRows[i].cells();
 			const std::array<int, 7> cols = {0, 1, 2, 3, 4, 6, 7};
 			for (size_t k = 0; k < cells.size(); k++) {
 				listGrid->removeWidget(cells[k]);
@@ -1366,6 +1440,26 @@ private:
 		}
 		// the next drag event reads the new places
 		listGrid->activate();
+		std::vector<QWidget *> cells;
+		cells.reserve(listRows.size() * 7);
+		for (const auto &l : listRows)
+			std::ranges::copy(l.cells(), std::back_inserter(cells));
+		tabInOrder(cells);
+	}
+
+	// Moving a widget in a layout leaves Tab where it was made, so Tab goes
+	// through `groups` in the order given, each keeping its own order inside.
+	static void tabInOrder(const std::vector<QWidget *> &groups) {
+		if (groups.empty())
+			return;
+		QWidget *top = groups.front()->window();
+		std::vector<QWidget *> chain;
+		for (QWidget *g : groups)
+			for (QWidget *w = top->nextInFocusChain(); w != top; w = w->nextInFocusChain())
+				if ((w->focusPolicy() & Qt::TabFocus) && !w->focusProxy() && (w == g || g->isAncestorOf(w)))
+					chain.push_back(w);
+		for (size_t i = 1; i < chain.size(); i++)
+			setTabOrder(chain[i - 1], chain[i]);
 	}
 
 	int listIndex(const std::string &name) const {
@@ -1446,9 +1540,11 @@ private:
 			return r.check;
 		}
 		case ControlKind::Slider: {
-			r.slider = new QSlider(Qt::Horizontal);
+			r.slider = new TrackSlider;
 			r.slider->setRange(0, SLIDER_STEPS);
 			r.slider->setMinimumWidth(180);
+			// as tall as the number box beside it, and the handle with it
+			r.slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 			connect(r.slider, &QSlider::valueChanged, this, [this, &r](int v) {
 				set_slider(d, r.id(), double(v) / SLIDER_STEPS);
 				refresh();
@@ -2094,6 +2190,117 @@ rust::Vec<rust::String> button_gaps(Dialog &d) {
 					std::to_string((inner.height() - text.height()) / 2)));
 		}
 	}
+	return out;
+}
+
+rust::Vec<rust::String> button_heights(Dialog &d) {
+	const App app("offscreen");
+	tukzmon::App::setStyle(new BoxStyle);
+	Window w(d);
+	openSized(w);
+	w.show();
+	rust::Vec<rust::String> out;
+	std::vector<const QPushButton *> seen;
+	auto take = [&](const QWidget &top) {
+		for (auto *b : top.findChildren<QPushButton *>()) {
+			if (b->text().isEmpty() || !b->isVisible() || std::ranges::find(seen, b) != seen.end())
+				continue;
+			seen.push_back(b);
+			out.push_back(rust::String(b->text().toStdString() + " " + std::to_string(b->height())));
+		}
+	};
+	for (int i = 0; i < w.tabCount(); i++) {
+		w.select(i);
+		tukzmon::App::processEvents();
+		take(w);
+	}
+	if (auto pick = w.firstPicker()) {
+		pick->show();
+		tukzmon::App::processEvents();
+		take(*pick);
+	}
+	QMessageBox box(QMessageBox::Question, "Reset history", "Reset history?", QMessageBox::Yes | QMessageBox::No);
+	box.show();
+	tukzmon::App::processEvents();
+	take(box);
+	return out;
+}
+
+rust::Vec<rust::String> tab_walk(Dialog &d, bool colors, std::size_t from, std::size_t to) {
+	const App app("offscreen");
+	Window w(d);
+	w.show();
+	w.activateWindow();
+	for (int i = 0; i < w.tabCount(); i++)
+		if (QString::fromStdString(w.tabText(i)).trimmed() == (colors ? "Colors" : "Graphs"))
+			w.select(i);
+	tukzmon::App::processEvents();
+	w.moveGraph(int(from), int(to));
+	tukzmon::App::processEvents();
+	rust::Vec<rust::String> out;
+	QWidget *start = w.firstStop(colors);
+	if (!start)
+		return out;
+	start->setFocus(Qt::TabFocusReason);
+	tukzmon::App::processEvents();
+	for (int i = 0; i < 5000; i++) {
+		QWidget *at = QApplication::focusWidget();
+		const std::string group = at ? w.groupOf(at) : std::string();
+		if (group.empty() || (i > 0 && at == start))
+			break;
+		if (out.empty() || std::string(out.back()) != group)
+			out.push_back(rust::String(group));
+		QKeyEvent tab(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier);
+		QApplication::sendEvent(at, &tab);
+		tukzmon::App::processEvents();
+	}
+	return out;
+}
+
+rust::Vec<rust::String> slider_clicks(Dialog &d) {
+	const App app("offscreen");
+	tukzmon::App::setStyle(new BoxStyle);
+	Window w(d);
+	openSized(w);
+	w.show();
+	const Row *row = w.firstSlider();
+	if (!row)
+		return {};
+	TrackSlider *s = row->slider;
+	for (int i = 0; i < w.tabCount() && !s->isVisible(); i++) {
+		w.select(i);
+		tukzmon::App::processEvents();
+	}
+	rust::Vec<rust::String> out;
+	auto say = [&out](const std::string &what, int v) { out.push_back(rust::String(what + " " + std::to_string(v))); };
+	const QRect handle = s->part(QStyle::SC_SliderHandle);
+	say("handle", handle.height());
+	say("box", row->spin->height());
+	// where the handle's middle sits at t, 0 to 1 along the track
+	auto at = [s](double t) {
+		const QRect g = s->part(QStyle::SC_SliderGroove);
+		const int hw = s->part(QStyle::SC_SliderHandle).width();
+		const int x = g.x() + (hw / 2) + int(std::lround(t * (g.width() - hw)));
+		return QPointF(QPoint(x, s->height() / 2));
+	};
+	auto mouse = [s](QEvent::Type type, QPointF p, Qt::MouseButton b, Qt::MouseButtons held) {
+		QMouseEvent e(type, p, s->mapToGlobal(p), b, held, Qt::NoModifier);
+		QApplication::sendEvent(s, &e);
+		tukzmon::App::processEvents();
+	};
+	auto click = [&](QPointF p) {
+		mouse(QEvent::MouseButtonPress, p, Qt::LeftButton, Qt::LeftButton);
+		mouse(QEvent::MouseButtonRelease, p, Qt::LeftButton, Qt::NoButton);
+	};
+	click(at(0.8));
+	say("jump", s->value());
+	const QRect now = s->part(QStyle::SC_SliderHandle);
+	click(QPointF(now.left() + 1, now.center().y()));
+	say("grab", s->value());
+	mouse(QEvent::MouseButtonPress, at(0.2), Qt::LeftButton, Qt::LeftButton);
+	mouse(QEvent::MouseMove, at(0.5), Qt::NoButton, Qt::LeftButton);
+	mouse(QEvent::MouseButtonRelease, at(0.5), Qt::LeftButton, Qt::NoButton);
+	say("drag", s->value());
 	return out;
 }
 

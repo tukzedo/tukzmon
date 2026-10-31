@@ -186,6 +186,44 @@ settings:
 		default: same
 		tip: "How the memory graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
 
+	show_procs:
+		label: Processes
+		tab: Graphs
+		control: checkbox
+		path: procs.show
+		default: false
+		tip: "Show how many processes are running, stacked by who runs them: the system's, other users', and yours. The top follows the highest count in view."
+
+	procs_width:
+		label: Processes width %
+		tab: Graphs
+		control: number
+		whole: true
+		range: 1, 1000
+		path: procs.width
+		default: 25
+		tip: "How wide the processes graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+
+	procs_sample:
+		label: Processes sample %
+		tab: Graphs
+		control: number
+		whole: true
+		range: 1, 1000
+		path: procs.sample
+		default: 200
+		tip: "How often the processes graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
+
+	procs_time:
+		label: Processes time axis
+		tab: Graphs
+		control: dropdown
+		options: same, linear, smooth, fixed_a, fixed_b
+		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		path: procs.time
+		default: same
+		tip: "How the processes graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+
 	show_gpu:
 		label: GPU
 		tab: Graphs
@@ -490,44 +528,6 @@ settings:
 		default: same
 		tip: "How the load graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
 
-	show_procs:
-		label: Processes
-		tab: Graphs
-		control: checkbox
-		path: procs.show
-		default: false
-		tip: "Show how many processes are running, stacked by who runs them: the system's, other users', and yours. The top follows the highest count in view."
-
-	procs_width:
-		label: Processes width %
-		tab: Graphs
-		control: number
-		whole: true
-		range: 1, 1000
-		path: procs.width
-		default: 25
-		tip: "How wide the processes graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
-
-	procs_sample:
-		label: Processes sample %
-		tab: Graphs
-		control: number
-		whole: true
-		range: 1, 1000
-		path: procs.sample
-		default: 200
-		tip: "How often the processes graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
-
-	procs_time:
-		label: Processes time axis
-		tab: Graphs
-		control: dropdown
-		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
-		path: procs.time
-		default: same
-		tip: "How the processes graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
-
 	show_self:
 		label: tukzmon
 		tab: Graphs
@@ -610,7 +610,7 @@ settings:
 		tab: Graphs
 		control: text
 		path: graph.order
-		default: "cpu mem gpu vram net disk temp swap zswap load procs self battery"
+		default: "cpu mem procs gpu vram net disk temp swap zswap load self battery"
 		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, gpu, vram for GPU memory, net for network, swap, zswap, load, procs for processes, disk, temp for temperature, battery, and self for tukzmon itself. One left out goes at the end."
 
 	NetGraphHead:
@@ -841,7 +841,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: mem.colors.user
-		default: "#ffffa3"
+		default: "#ffffb8"
 		group: theme
 		shown_when: "mem_mode = detailed"
 		tip: "Memory in use that isn't buffers or cache."
@@ -886,7 +886,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: mem.colors.medium
-		default: "#ffffa3"
+		default: "#ffffb8"
 		group: theme
 		shown_when: "mem_mode = gradient"
 		tip: "The color halfway up."
@@ -1673,7 +1673,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: temp.colors.normal
-		default: "#feff40"
+		default: "#d9da62"
 		group: theme
 		shown_when: "temp_mode = detailed"
 		tip: "Up to the critical level."
@@ -1699,7 +1699,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: temp.colors.low
-		default: "#4eb6bd"
+		default: "#60dae2"
 		group: theme
 		shown_when: "temp_mode = gradient"
 		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
@@ -1709,7 +1709,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: temp.colors.medium
-		default: "#feff40"
+		default: "#d9da62"
 		group: theme
 		shown_when: "temp_mode = gradient"
 		tip: "The color halfway up."
@@ -1995,7 +1995,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: procs.colors.system
-		default: "#705a1d"
+		default: "#707070"
 		group: theme
 		shown_when: "procs_mode = detailed"
 		tip: "Root's, the kernel's own threads, and the system accounts under user ID 1000."
@@ -2005,7 +2005,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: procs.colors.users
-		default: "#6a7b31"
+		default: "#6bc9ff"
 		group: theme
 		shown_when: "procs_mode = detailed"
 
@@ -2014,7 +2014,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: procs.colors.me
-		default: "#e0a500"
+		default: "#fff02a"
 		group: theme
 		shown_when: "procs_mode = detailed"
 		tip: "The ones running as the user tukzmon runs as."
@@ -2030,7 +2030,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: procs.colors.low
-		default: "#705a1d"
+		default: "#707070"
 		group: theme
 		shown_when: "procs_mode = gradient"
 		tip: "The color at the bottom of the graph. A column blends smoothly from Low through Medium to High as it climbs."
@@ -2040,7 +2040,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: procs.colors.medium
-		default: "#e0a500"
+		default: "#fff02a"
 		group: theme
 		shown_when: "procs_mode = gradient"
 		tip: "The color halfway up."
@@ -2208,9 +2208,9 @@ groups:
 				nice: "#205f40"
 				mem_mode: detailed
 				mem_low: "#408060"
-				mem_medium: "#ffffa3"
+				mem_medium: "#ffffb8"
 				mem_high: "#ffffe0"
-				mem_user: "#ffffa3"
+				mem_user: "#ffffb8"
 				mem_buffers: "#804080"
 				mem_cache: "#408060"
 				gpu_mode: gradient
@@ -2254,10 +2254,10 @@ groups:
 				disk_write: "#c60000"
 				disk_read: "#6bb3ff"
 				temp_mode: gradient
-				temp_low: "#4eb6bd"
-				temp_medium: "#feff40"
+				temp_low: "#60dae2"
+				temp_medium: "#d9da62"
 				temp_high: "#ff0000"
-				temp_normal: "#feff40"
+				temp_normal: "#d9da62"
 				temp_critical: "#ff0000"
 				battery_mode: detailed
 				battery_low: "#483468"
@@ -2272,12 +2272,12 @@ groups:
 				self_high: "#cffffa"
 				self_used: "#00ccb8"
 				procs_mode: detailed
-				procs_low: "#705a1d"
-				procs_medium: "#e0a500"
+				procs_low: "#707070"
+				procs_medium: "#fff02a"
 				procs_high: "#fff2cf"
-				procs_system: "#705a1d"
-				procs_users: "#6a7b31"
-				procs_me: "#e0a500"
+				procs_system: "#707070"
+				procs_users: "#6bc9ff"
+				procs_me: "#fff02a"
 				cpu_border_color: "#8b8b8b"
 				cpu_back_top: "#313131"
 				cpu_back_bottom: "#000000"

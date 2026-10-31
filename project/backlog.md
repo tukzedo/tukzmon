@@ -65,85 +65,6 @@ Sorted per the notes in [Template](#template).
 		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
 	- Estimated effort: Low
 
-- Pre-next-cut: Clicking a slider's track moves the slider there
-	- ID: 2026103108591401
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261031-085914
-	- Opened by: t00mietum
-	- Requirements:
-		- Clicking on a spot of a slider control that isn't the slider button should move the slider to that spot.
-
-- Pre-next-cut: Taller slider grab buttons
-	- ID: 2026103108591402
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261031-085914
-	- Opened by: t00mietum
-	- Requirements:
-		- Slider grab buttons should be taller, about as tall as the text boxes.
-
-- Pre-next-cut: Same height for all buttons
-	- ID: 2026103108591403
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261031-085914
-	- Opened by: t00mietum
-	- Related IDs: 2026103107404601
-	- Requirements:
-		- All buttons should have the same height. Somewhere in between the current bottom row and theme management.
-
-- Pre-next-cut: Default position and colors for Processes
-	- ID: 2026103108591404
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261031-085914
-	- Opened by: t00mietum
-	- Related IDs: 2026103107404602
-	- Requirements:
-		- Move the default position and colors of "Processes" to where I have it set, but off by default.
-		- On b23 as of 2026-10-31, in `plugin-16.shcl`:
-			- Order: `cpu mem procs gpu vram net disk temp swap zswap load self battery`, so right after memory. The default has it last.
-			- Default theme colors: system `#707070`, users `#6bc9ff`, me `#fff02a`. The defaults are `#705a1d`, `#6a7b31` and `#e0a500`.
-
-- Pre-next-cut: Default temperature colors from b23's
-	- ID: 2026103108591405
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261031-085914
-	- Opened by: t00mietum
-	- Requirements:
-		- Update the default temperature colors to my current definition.
-		- On b23 as of 2026-10-31, in `plugin-16.shcl`, Default's temperature Low is `#60dae2` and Medium is `#d9da62`. The defaults are `#4eb6bd` and `#feff40`. The rest are unchanged.
-
-- Pre-next-cut: Tab order follows a graph reorder
-	- ID: 2026103108591406
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261031-085914
-	- Opened by: t00mietum
-	- Requirements:
-		- After reordering a monitor on the "Graphs" tab, the tab order should be updated accordingly.
-	- Need to work out ambiguities:
-		- Read as the order the Tab key moves through the graph list's rows. The Themes/Colors sections already follow a move.
-
-- Pre-next-cut: Flyover tip text: one "Key: Value" pair per line
-	- ID: 2026103109002399
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261031-090023
-	- Opened by: t00mietum
-	- Requirements:
-		- Flyover tip text: Don't list multiple "Key: Value" pairs on the same line. Each pair gets its own line.
-		- Today the CPU tip has `User 3%  System 1%` on one line, and memory has `Buffers 2%  Cache 30%`. Each graph's `Source::text` in `core/src/lib.rs` builds them.
-
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
 	- Type: Bug
@@ -2515,6 +2436,190 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: defx7 no longer checks hue angle between leads. dejbr checks how far apart they look.
 		- Swept: defx7 and defxd, the only checks on leads, every built-in in `settings.shcl`, and every role in `dice::ROLES` that follows its graph's lead.
 	- Closed: 20261028-161000
+
+- Pre-next-cut: Clicking a slider's track moves the slider there
+	- ID: 2026103108591401
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261031-085914
+	- Opened by: t00mietum
+	- Related IDs: 2026103108591402
+	- Requirements:
+		- Clicking on a spot of a slider control that isn't the slider button should move the slider to that spot.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A left click anywhere on a slider but its handle puts the handle's middle there, then snaps to a detent as a drag does. Holding the button on drags it from there.
+		- A press on the handle still drags it from where it was taken.
+		- `design.md` Settings window has it.
+	- Decisions:
+		- It's a `QSlider` subclass, `TrackSlider`, not the style's absolute-set hint. The hint would also move a grabbed handle up to half its width, which can step it onto the next detent.
+		- A detent can pull the handle off the pointer, so the drag takes hold of the handle where it went.
+	- Branch: round-1031b
+	- Test case: `bridge::tests::a_click_on_a_sliders_track_moves_it_there_and_its_handle_is_tall` (dep6b). Without `TrackSlider` it fails, with a click at 80% giving 640 of 1000, not about 800. With the style hint instead, it fails on a grab of the handle's edge moving it from 789 to 773.
+		- Swept: `TrackSlider` is the window's only slider. The color picker uses number boxes.
+	- Closed: 20261031-091605
+
+- Pre-next-cut: Taller slider grab buttons
+	- ID: 2026103108591402
+	- Type: Enhancement
+	- Status: Done
+	- Stand-in: 20261031, the round's debug build in b23's own style (Orchis green compact, dark) on a private display, in place of a hand test on b23. The handles came level with the number boxes, and the groove stayed thin and centered.
+	- Priority|Severity: Avg
+	- Opened: 20261031-085914
+	- Opened by: t00mietum
+	- Related IDs: 2026103108591401
+	- Requirements:
+		- Slider grab buttons should be taller, about as tall as the text boxes.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A slider is as tall as the number box beside it, and its handle as tall as the slider: 26 px, up from 15, at the default font.
+		- Verified: in Orchis-green-light-compact and Orchis-green-dark-compact, the handles on the General tab come level with the number boxes, and the groove stays thin and centered.
+	- Decisions:
+		- The slider takes its row's height from the box, rather than a set size, so it follows the font. `BoxStyle` stretches the handle to the slider's height, for a horizontal slider without ticks.
+		- The handle keeps its width.
+	- Branch: round-1031b
+	- Test case: dep6b checks the handle is at least the box's height less 2 px. Without the stretch it fails, with 15 against 26.
+	- Acceptance signoff: Self-closed: dep6b passed in the full run of 1d07a68, and the look matches what the item asks.
+	- Closed: 20261031-100000
+
+- Pre-next-cut: Same height for all buttons
+	- ID: 2026103108591403
+	- Type: Enhancement
+	- Status: Done
+	- Stand-in: 20261031, the release build from the full run, in b23's own style (Orchis green compact), light and dark, in place of a hand test on b23. On Themes/Colors the theme buttons and the bottom row came out one height.
+	- Priority|Severity: Avg
+	- Opened: 20261031-085914
+	- Opened by: t00mietum
+	- Related IDs: 2026103107404601
+	- Requirements:
+		- All buttons should have the same height. Somewhere in between the current bottom row and theme management.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Every button with text keeps at least 8 px over and under its text, up from 6, and the bottom buttons lost their extra 8 px. At the default font they're all 35 px, where the theme buttons were 31 and the bottom row 39.
+		- The color picker and message boxes get the same height, since it's done in the style.
+		- `design.md` Settings window has it.
+		- Verified: the full run passed with the new test.
+	- Decisions:
+		- Halfway, 4 px either way, read as "somewhere in between".
+		- One floor in `BoxStyle` rather than a set height, so a style that draws taller buttons keeps its own, and every button still matches.
+		- 2026-10-31: dep3y's floor went from 6 to 8 with `BUTTON_PAD_DOWN`. What it checks is unchanged.
+	- Branch: round-1031b
+	- Test case: `bridge::tests::every_button_is_one_height` (dep6m). It fails before the change, with 39 against 31, and passes after.
+		- Swept: every `QPushButton` in `qt.cpp`. The bottom row's `setMinimumHeight` was the only height set by hand. The color chips have no text and a fixed size, so they're left alone.
+	- Acceptance signoff: Self-closed 20261031: dep6m in the full run, and the stand-in look above.
+	- Closed: 20261031-093028
+
+- Pre-next-cut: Default position and colors for Processes
+	- ID: 2026103108591404
+	- Type: Enhancement
+	- Status: Done
+		- It goes a little past the wording. Default's memory programs moved from `#ffffa3` to `#ffffb8`, to read apart from the new yellows.
+	- Priority|Severity: Avg
+	- Opened: 20261031-085914
+	- Opened by: t00mietum
+	- Related IDs: 2026103107404602
+	- Requirements:
+		- Move the default position and colors of "Processes" to where I have it set, but off by default.
+		- On b23 as of 2026-10-31, in `plugin-16.shcl`:
+			- Order: `cpu mem procs gpu vram net disk temp swap zswap load self battery`, so right after memory. The default has it last.
+			- Default theme colors: system `#707070`, users `#6bc9ff`, me `#fff02a`. The defaults are `#705a1d`, `#6a7b31` and `#e0a500`.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `graph.order` defaults to `cpu mem procs gpu vram net disk temp swap zswap load self battery`, and the graph list's spec rows follow it. Processes stays off by default.
+		- Default's processes colors are b23's. Its Low and Medium follow System and Yours, so Gradient keeps the colors.
+		- `design.md` XFCE plugin and Theme have it.
+		- Verified: the quick gate passed.
+	- Decisions:
+		- Only position and colors. b23's width 50% and sample 100% for processes weren't asked for, so they stay 25% and 200%.
+		- Temperature's Medium and processes' Yours are both picked, and 9.4 apart as CIEDE2000, under the 10 the other leads keep. They stay as picked, since in Default what was picked wins (2026102814061803). dejbr lets off that one pair in Default. A Check in questions.md has it.
+		- Memory's programs, `#ffffa3`, was 9.2 from temperature's new yellow. It was never picked, so it moved, to `#ffffb8`, the least change that reads 10 apart from both new yellows.
+	- Branch: round-1031b
+	- Test case: `config::tests::the_default_theme_keeps_the_colors_picked_on_it` (dejbq) checks the new colors, and that Low and Medium follow System and Yours. It fails on the old colors. dedqq, dep48 and defm0 check the order.
+		- 2026-10-31: new values only. dedqq's and defm0's orders, dejac's labels, and the moved list after its 2 moves, have `procs` after `mem`. dep48 reads `mem procs` at index 1, not `load procs` at 9, and dekmc reads `cpu mem procs gpu vram`. dedpz reads programs `#ffffb8`, not `#ffffa3`.
+		- 2026-10-31: dejbr now checks every pair of leads, not only the closest, so it can let off Default's temperature and processes pair.
+		- Swept: every test and doc naming the default order or Default's processes, temperature and memory programs colors, and `settings.shcl`'s row defaults, which deccf holds to Default.
+	- Acceptance signoff: Self-closed 20261031: dejbq and the order tests passed in the quick gate.
+	- Closed: 20261031-094117
+
+- Pre-next-cut: Default temperature colors from b23's
+	- ID: 2026103108591405
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261031-085914
+	- Opened by: t00mietum
+	- Requirements:
+		- Update the default temperature colors to my current definition.
+		- On b23 as of 2026-10-31, in `plugin-16.shcl`, Default's temperature Low is `#60dae2` and Medium is `#d9da62`. The defaults are `#4eb6bd` and `#feff40`. The rest are unchanged.
+	- Related IDs: 2026103108591404
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Default's temperature Low is `#60dae2` and Medium `#d9da62`, and Normal follows Medium, as before.
+		- Done with 2026103108591404, which has the lead color decisions.
+		- Verified: the quick gate passed.
+	- Branch: round-1031b
+	- Test case: `config::tests::the_default_theme_keeps_the_colors_picked_on_it` (dejbq). It fails on the old colors and passes now.
+	- Acceptance signoff: Self-closed 20261031: dejbq passed in the quick gate.
+	- Closed: 20261031-094117
+
+- Pre-next-cut: Tab order follows a graph reorder
+	- ID: 2026103108591406
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261031-085914
+	- Opened by: t00mietum
+	- Requirements:
+		- After reordering a monitor on the "Graphs" tab, the tab order should be updated accordingly.
+	- Need to work out ambiguities:
+		- Read as the order the Tab key moves through the graph list's rows. The Themes/Colors sections already follow a move.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Tab goes through the graph list's rows in the graph order, as soon as a graph is moved, and inside a row as before.
+		- The Themes/Colors sections moved on screen but Tab still went through them in the spec's order, so they follow the order now too.
+		- A saved order that differs from the default was also off before any move, since Tab went by the order the rows were made. That's fixed by the same change.
+		- `design.md` XFCE plugin has it.
+		- Verified: the full run passed with the new test.
+	- Decisions:
+		- The Colors sections are included, since a moved section that Tab still visits in its old place is the same fault.
+	- Branch: round-1031b
+	- Test case: `bridge::tests::tab_follows_a_moved_graph` (dep6n), for the graph list and Colors, with the order moved before the window opens and after. It fails with the fix taken out, with Tab leaving the list after the moved row, and passes with it.
+		- Swept: the 2 places that move widgets in a layout, `placeList` (the graph list) and `orderSections` (Colors). Nothing else reorders widgets.
+	- Acceptance signoff: Self-closed 20261031: dep6n in the full run.
+	- Closed: 20261031-093028
+
+- Pre-next-cut: Flyover tip text: one "Key: Value" pair per line
+	- ID: 2026103109002399
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261031-090023
+	- Opened by: t00mietum
+	- Requirements:
+		- Flyover tip text: Don't list multiple "Key: Value" pairs on the same line. Each pair gets its own line.
+		- Today the CPU tip has `User 3%  System 1%` on one line, and memory has `Buffers 2%  Cache 30%`. Each graph's `Source::text` in `core/src/lib.rs` builds them.
+	- Actual effort: Low
+	- Progress log:
+		- The CPU, memory, network, disk and processes tips now give each name and value on a line of their own. The other graphs' tips already did.
+		- With the split on, the network tip reads "Internet received", "Internet sent", "LAN received" and "LAN sent", one to a line.
+		- `design.md` Drawing, and the network, disk and processes notes under Theme, say so.
+		- Verified: the full run passed, with the new test.
+	- Decisions:
+		- The lines keep their "Name value" form, with no colon added, since the issue asks only for one pair a line.
+		- A sent line on its own is named "Internet sent" or "LAN sent", since a bare "Sent" under the split no longer sits beside its received.
+		- The battery's "Battery 50%, on battery" stays on one line, since the state belongs to the charge and isn't a pair of its own.
+	- Branch: round-1031b
+	- Test case: `tests::every_tip_gives_one_pair_a_line` (dep7b), which walks every graph's tip. It fails with either the old CPU line or the old network, disk and processes lines put back.
+		- 2026-10-31: new values only, for the one-pair-a-line text: dehzn, demvz and dej07 in `core/src/lib.rs`, dedq1, dej05 and dep48 in `core/src/graphs.rs`, and dep49 in `settings/src/live.rs`.
+		- Swept: every `Source::text` impl in `core/src/lib.rs`, every test and doc that quoted a two-pair line, and the other tip text in `xfce/src/lib.rs` and `qt.cpp`, which has no two-pair lines.
+	- Closed: 20261031-094952
 
 - Pre-next-cut: More minimum padding between buttons' inner edges and their text
 	- ID: 2026103107404601

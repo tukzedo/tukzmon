@@ -219,6 +219,21 @@ pub mod ffi {
 		/// on each side.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn button_gaps(d: &mut Dialog) -> Vec<String>;
+		/// Per button with text shown on any tab, in the color picker and in a
+		/// question box, "text h".
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn button_heights(d: &mut Dialog) -> Vec<String>;
+		/// Moves graph list row `from` to `to`, then gives the graph of each
+		/// graph list row, or each Themes/Colors section with `colors`, that
+		/// Tab steps through from the top.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn tab_walk(d: &mut Dialog, colors: bool, from: usize, to: usize) -> Vec<String>;
+		/// For the first slider, "handle h" and "box h", the heights of its
+		/// handle and its number box, then its 0 to 1000 value after a click
+		/// on the track at 80% ("jump"), a click on the handle's edge ("grab"),
+		/// and a press on the track at 20% dragged to 50% ("drag").
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn slider_clicks(d: &mut Dialog) -> Vec<String>;
 		/// Opens the window on the offscreen screens set in the file named, and
 		/// gives "room x y w h" for the screen less its panels, "frame x y w h"
 		/// for the window with its frame, then per tab with no tabs under it
@@ -1031,8 +1046,82 @@ mod tests {
 			let mut n = g.rsplitn(3, ' ').map(|v| v.parse::<i32>().unwrap_or(-1));
 			let (down, across) = (n.next().unwrap(), n.next().unwrap());
 			// BUTTON_PAD_ACROSS and BUTTON_PAD_DOWN in qt.cpp
-			assert!(across >= 12 && down >= 6, "{g}");
+			assert!(across >= 12 && down >= 8, "{g}");
 		}
+	}
+
+	// Test ID: dep6m
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn every_button_is_one_height() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_button_heights_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let got = ffi::button_heights(&mut d);
+		for want in ["Randomize", "Reset history", "OK", "&Yes"] {
+			assert!(
+				got.iter().any(|g| g.starts_with(&format!("{want} "))),
+				"no {want} in {got:?}"
+			);
+		}
+		let height = |g: &String| g.rsplit(' ').next().unwrap().parse::<i32>().unwrap();
+		let first = height(&got[0]);
+		assert!(got.iter().all(|g| height(g) == first), "{got:?}");
+	}
+
+	// Test ID: dep6n
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn tab_follows_a_moved_graph() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_tab_walk_never_written.shcl",
+			std::process::id()
+		));
+		let last = graph_rows(&Dialog::open(path.clone()).unwrap()).len() - 1;
+		// the first with the order moved before the window opens
+		for (from, to) in [(2, 2), (last, 0), (1, 3)] {
+			for colors in [false, true] {
+				let mut d = Dialog::open(path.clone()).unwrap();
+				if from == to {
+					assert!(d.move_graph(last, 1));
+				}
+				let got = ffi::tab_walk(&mut d, colors, from, to);
+				let want: Vec<String> = if colors {
+					d.section_order()
+				} else {
+					graph_rows(&d).into_iter().map(|r| r.name).collect()
+				};
+				assert_eq!(got, want, "{from} to {to}, colors: {colors}");
+			}
+		}
+	}
+
+	// Test ID: dep6b
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn a_click_on_a_sliders_track_moves_it_there_and_its_handle_is_tall() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_slider_clicks_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let got: std::collections::HashMap<String, i32> = ffi::slider_clicks(&mut d)
+			.iter()
+			.filter_map(|s| s.split_once(' '))
+			.map(|(k, v)| (k.to_string(), v.parse().unwrap_or(-1)))
+			.collect();
+		let near = |k: &str, want: i32| {
+			assert!((got[k] - want).abs() <= 20, "{k}: {got:?}");
+		};
+		assert!(got["handle"] >= got["box"] - 2, "{got:?}");
+		near("jump", 800);
+		assert_eq!(got["grab"], got["jump"], "a grab moved it: {got:?}");
+		near("drag", 500);
 	}
 
 	// Test ID: dej8s

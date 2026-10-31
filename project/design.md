@@ -80,10 +80,11 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- Under Disk graph, Disk drives at `disk.drives` picks what the disk graph counts: `all`, the default, or `/proc/diskstats` names such as `sda nvme0n1`, with spaces or commas. A new pick takes effect at Apply and keeps the graph's history. Disk log scale, at `disk.log`, draws it on a log scale. See [Drawing](#drawing).
 	- With every other graph off, CPU shows anyway, so the item never shrinks to nothing, and its right-click menu stays in reach.
 	- A hidden graph isn't read. Its history is kept, and shows a gap for the time it was hidden.
-	- Dragging a row's gripper, or Up and Down on it, sets the order. It's saved at `graph.order`, which names the graphs first to last, left to right or top to bottom: `cpu`, `mem`, `gpu`, `vram`, `net`, `swap`, `zswap`, `load`, `procs`, `disk`, `temp`, `battery` and `self`, by their history section names. The default is `cpu mem gpu vram net disk temp swap zswap load procs self battery`, so the busiest graphs come first, the GPU's 2 follow memory, zswap sits beside swap, processes sits beside load, and the battery is last. A saved order from before a graph was added puts it last.
+	- Dragging a row's gripper, or Up and Down on it, sets the order. It's saved at `graph.order`, which names the graphs first to last, left to right or top to bottom: `cpu`, `mem`, `gpu`, `vram`, `net`, `swap`, `zswap`, `load`, `procs`, `disk`, `temp`, `battery` and `self`, by their history section names. The default is `cpu mem procs gpu vram net disk temp swap zswap load self battery`, so the busiest graphs come first, processes follows memory, then the GPU's 2, zswap sits beside swap, and the battery is last. A saved order from before a graph was added puts it last.
 		- Spaces or commas both work, since a hand edit like `order: mem, cpu` is a list to shcl.
 		- A name it doesn't know is skipped. A graph it doesn't name goes at the end, in the order the graphs were added to tukzmon, so that way a graph added later, such as network, shows up last in a saved order.
 		- A hidden graph keeps its place for when it's shown again.
+		- Tab follows the order, through the graph list's rows and the Themes/Colors sections, from the moment a graph is moved.
 	- A name the list doesn't know stays in `graph.order` after a drag, at the end, so a file from a newer tukzmon keeps it.
 	- The row's revert arrow puts its checkbox, width, sample rate and time axis back. The order has no arrow, since dragging back undoes it.
 
@@ -127,8 +128,10 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- Cancel, Apply, and OK, with Cancel set a little apart. Enter is OK and Esc is Cancel, even from inside a field.
 		- Apply turns on as soon as a box is typed in, before it's left. Apply and OK take what's typed, Alt+A included, which leaves the focus where it was.
 	- An empty checkbox or radio button gets an edge in the text color, a little faded, over what the style draws. Some dark themes draw that edge close to the window color, and it all but vanished. `BoxStyle` in `qt.cpp` does it.
-	- Every button with text keeps at least 12 px across and 6 px over and under, from its text to the inside of its frame, in the window and in its message boxes. The style may give more. The bottom buttons are 8 px taller again. `BoxStyle` does it too.
+	- Every button with text keeps at least 12 px across and 8 px over and under, from its text to the inside of its frame, in the window and in its message boxes. The style may give more. So every button is one height, the bottom ones included. `BoxStyle` does it too.
 	- A slider can reach less far than its number box takes. The box takes any sane value, and `slider_range` in `core/src/settings.shcl` sets how far the slider goes.
+		- A click anywhere on a slider but its handle puts the handle there, and holding the button on drags it from there. A press on the handle drags it from where it was taken, so a grab doesn't nudge it onto the next detent. `TrackSlider` in `qt.cpp` does it.
+		- A slider is as tall as the number box beside it, and its handle as tall as the slider. `BoxStyle` does that.
 	- The selected tab is a tint of the theme's highlight under the normal text color, so it reads in a dark theme too.
 	- A tab with rows of its own and tabs under it, which is Themes, keeps those rows on top of whichever of its sub-tabs is picked. The sub-tabs are listed under it in the tab list, stepped in, and picking Themes itself shows the first one. The sub-tab shown and Themes over it are both lit, the one picked in the full tint and the other dimmer, so Themes stays lit while any of its sub-tabs is picked. Ctrl+Tab and Ctrl+Shift+Tab go page by page, as a tab bar does, so Themes itself isn't a stop, since it only shows Colors.
 		- Themes has the Name dropdown with Save, Save as, Rename, Delete and Randomize, over 2 sub-tabs: Colors, with every graph's colors, and Outline for the margins and the colors they share. Like every other change, the theme buttons take effect at Apply.
@@ -160,17 +163,18 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- One theme colors every graph, so no graph picks its own. A theme has a value for every graph's colors and mode, and picking one changes every section.
 	- A theme's name says nothing of color. Each graph has a lead color of its own in every theme but the one-color ones, so graphs side by side are told apart. A graph's quiet series and its gradient's Low are its hue, muted. Each graph's border and background are neutral, or lean to the theme's mood.
 	- A graph's lead is the color it reads as from across the room: its main series in Detailed, such as user for CPU or received for the network, or its Medium in Gradient. `config::LEADS` lists them.
-		- In every built-in but the one-color ones, any 2 graphs' leads are 10 or more apart as CIEDE2000. In every built-in, every lead is 10 or more from I/O wait and system. At 10 or more 2 colors read apart at a glance.
+		- In every built-in but the one-color ones, any 2 graphs' leads are 10 or more apart as CIEDE2000, but for one pair in Default, below. In every built-in, every lead is 10 or more from I/O wait and system. At 10 or more 2 colors read apart at a glance.
 		- Hue angle alone doesn't do it. An equal step in hue looks far smaller among the greens than among the blues, and 13 graphs share what's left of the circle off red and orange. So leads also differ by lightness and saturation.
 		- The measure is in `core/src/color.rs`, checked against the test pairs Sharma, Wu and Dalal published with the formula. Randomize uses the same one.
 	- I/O wait and system stay red and orange in every theme but Default, so trouble reads the same whichever is picked. No graph's own hue is red or orange, except in Fire, Earth and Vintage, where they're warm but not the alarms', and in Default.
-	- Default is b23's colors as of 2026-10-28: the earlier multiload-ng ones, with the changes made on them since. Where those break a rule the other built-ins keep, Default follows the colors picked.
+	- Default is b23's colors as of 2026-10-28, and as of 2026-10-31 for temperature and processes: the earlier multiload-ng ones, with the changes made on them since. Where those break a rule the other built-ins keep, Default follows the colors picked.
 		- System is pink, `#fa72f0`, and the battery's on battery is copper, `#c46e43`, not system's color.
-		- Swap, zswap, load and temperature draw as gradients. Load's is dark red, and temperature's runs from teal through yellow to red.
+		- Swap, zswap, load and temperature draw as gradients. Load's is dark red, and temperature's runs from light teal through a dull yellow to red.
 		- Swap's and zswap's gradients run through the colors picked for them in Detailed, amber `#a45f00` and green `#4a8e54`, and temperature's normal is its Medium. So a graph switched to the other mode keeps its color.
 		- The network's local and sent, and the disk's written, are colors of their own, not shades of the lead.
 		- The border and the top are gray, `#8b8b8b` and `#313131`.
-		- Programs on the memory graph moved from `#ffff80` to `#ffffa3`, the least change that reads apart from temperature's yellow.
+		- Programs on the memory graph moved from `#ffff80` to `#ffffb8`, the least change that reads apart from temperature's yellow and processes' yellow.
+		- Temperature's Medium and processes' Yours are both picked, and only 9.4 apart. They stay as picked, the one pair of leads under 10 in Default.
 	- Terminal, Vintage and Frost are one-color themes: a green phosphor screen, an amber one, and pale ice. Every graph has the same colors in them, so graphs are told apart by place and by the gap between them, as on a one-color multiload-ng setup.
 		- 13 graphs can't sit 10 apart by lightness alone, so these are let off the check on leads. A theme whose graphs all lead with one color is one of them, and only that lets a theme off.
 		- I/O wait and system stay red and orange, 10 or more from the lead and from each other, so trouble still reads. Each graph's own colors are 10 or more apart, and from the top.
@@ -185,7 +189,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- Fire is a Gradient theme, and each graph burns a flame of its own. CPU is dim red, yellow-white, then light blue, like a hot flame. Memory is a violet flame, swap a blue gas flame, the network a pink lithium one, zswap a cyan one, load a yellow-green barium one, the disk an indigo one, temperature a lilac potassium one, the battery a green copper one, tukzmon a bright green boron one, the GPU a sky blue one, GPU memory a cornflower one, and processes a pale salmon calcium one. Every other built-in is Detailed, and each graph's gradient runs from its muted color through its own lead to a pale tint of it.
 
 - The memory graph's colors are in the Memory section: Programs, Buffers and Cache, at `mem.colors.user`, `.buffers` and `.cache`, plus its own Low, Medium and High.
-	- Default's are multiload-ng's memory colors, `#804080` and `#408060`, with programs a little paler at `#ffffa3`.
+	- Default's are multiload-ng's memory colors, `#804080` and `#408060`, with programs a little paler at `#ffffb8`.
 	- In the other built-ins, programs take memory's own hue, cache is that hue muted, and buffers a muted color a step round from it. Fire draws memory as a gradient too.
 	- multiload-ng's memory border and background aren't Default's, so every graph keeps one look there. They can be set in the Memory section.
 
@@ -193,14 +197,14 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - The network graph's colors are in the Network section: Local, LAN sent, LAN received, Sent and Received, at `net.colors.local`, `.lan_sent`, `.lan_received`, `.sent` and `.received`, plus its own Low, Medium and High. Received is the network's own hue, local is that hue muted, the same as Low, and sent is a pale tint of it, the same as High. Default's received is light blue, `#6ad4ff`, with local yellow, `#ffed00`, and sent a light red, `#ff7777`.
 	- With the split on, sent and received are the internet's. In the built-ins LAN received sits between Low and Medium, and LAN sent between Medium and High, each moved as little as it takes to read 10 or more from the other 4.
-	- The tip gives the 3 rates in bytes a second, in decimal units, such as "Received 1.5 MB/s  Sent 30 kB/s" over "Local 2.0 kB/s". With the split on it gives "Internet received" and "LAN received" lines, each with its sent.
+	- The tip gives the 3 rates in bytes a second, in decimal units, one to a line, such as "Received 1.5 MB/s", "Sent 30 kB/s" and "Local 2.0 kB/s". With the split on it gives "Internet received", "Internet sent", "LAN received" and "LAN sent" lines.
 
 - The load graph's colors are in the Load section: Load, at `load.colors.load`, plus its own Low, Medium and High. Default's is a dark red gradient, `#553030`, `#924444` and `#eb4a4a`. Its tip reads like "Load 1.25".
 
 - The disk graph's colors are in the Disk section: Written and Read, at `disk.colors.write` and `.read`, plus its own Low, Medium and High. Read is the disk's own hue, and written a pale tint of it, the same as High. Default's read is light blue, `#6bb3ff`, and written red, `#c60000`.
-	- The tip gives both rates the way the network's does, such as "Read 1.5 MB/s  Write 30 kB/s".
+	- The tip gives both rates the way the network's does, such as "Read 1.5 MB/s" over "Write 30 kB/s".
 
-- The temperature graph's colors are in the Temperature section: Normal and Critical, at `temp.colors.normal` and `.critical`, plus its own Low, Medium and High. Normal is a hue of its own, and critical is the theme's I/O wait color, so going over reads as an alarm, as the battery's critical does. Default draws it as a gradient, from teal `#4eb6bd` through yellow `#feff40` to red.
+- The temperature graph's colors are in the Temperature section: Normal and Critical, at `temp.colors.normal` and `.critical`, plus its own Low, Medium and High. Normal is a hue of its own, and critical is the theme's I/O wait color, so going over reads as an alarm, as the battery's critical does. Default draws it as a gradient, from teal `#60dae2` through yellow `#d9da62` to red.
 	- The tip gives the reading and the level it turns critical at, in whole degrees C.
 
 - The zswap graph's colors are in the Zswap section: In use, at `zswap.colors.used`, plus its own Low, Medium and High. Every built-in gives zswap a hue and gradient of its own. Default's is green, `#4a8e54`, as a gradient.
@@ -213,8 +217,8 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - The tukzmon graph's colors are in the tukzmon section: CPU use, at `self.colors.used`, plus its own Low, Medium and High. Default's is `#00ccb8`.
 
-- The processes graph's colors are in the Processes section: System, Other users and Yours, at `procs.colors.system`, `.users` and `.me`, stacked in that order from the bottom, plus its own Low, Medium and High. Yours is the lead, and System is its Low, as memory's cache is. Default's are `#705a1d`, `#6a7b31` and `#e0a500`.
-	- The tip gives the total, then each owner's count, such as "Processes 612", "Yours 112  Other users 20" and "System 480".
+- The processes graph's colors are in the Processes section: System, Other users and Yours, at `procs.colors.system`, `.users` and `.me`, stacked in that order from the bottom, plus its own Low, Medium and High. Yours is the lead, and System is its Low, as memory's cache is. Default's are gray `#707070`, blue `#6bc9ff` and yellow `#fff02a`, and its Low and Medium are System's and Yours.
+	- The tip gives the total, then each owner's count, such as "Processes 612", "Yours 112", "Other users 20" and "System 480", one to a line.
 
 - The GPU graph's colors are in the GPU section: Busy, at `gpu.colors.busy`, plus its own Low, Medium and High. GPU memory's are in the GPU memory section: In use, at `vram.colors.used`, plus the same 3. Default's are blue `#3b6fd9` and violet `#843bd9`, and also the one-color themes give both tukzmon's color.
 	- The tip gives the share of all CPUs, then of one CPU, as top shows it, such as "tukzmon 0.014% of all CPUs" over "0.46% of one CPU". The share is often under 0.1%, so it has 2 figures or so, not whole percents.
@@ -393,7 +397,7 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - A column with data for less than half its time is drawn as a gap.
 
-- With the pointer over the graph, a line one pixel wide is drawn under it, black unless set otherwise, over the plot and not the border. The tip gives the time under the line, either as "7 hrs ago" or as the local time, with the date for anything before today. The time and date follow the locale's short formats, so 12 or 24 hour is its call too. Under that are that graph's shares across the line's column, or "No data" for a gap.
+- With the pointer over the graph, a line one pixel wide is drawn under it, black unless set otherwise, over the plot and not the border. The tip gives the time under the line, either as "7 hrs ago" or as the local time, with the date for anything before today. The time and date follow the locale's short formats, so 12 or 24 hour is its call too. Under that are that graph's shares across the line's column, each name and value on a line of its own, or "No data" for a gap.
 
 - A still pointer's tip keeps its age and moves its clock time. The right edge is always now and the graph scrolls left under the pointer, so each column is a fixed age, while the time in that column advances a sample each tick. Both describe the column under the line. The line and tip follow the column, not the moment first pointed at.
 
