@@ -73,6 +73,12 @@ pub fn clock_ms() -> f64 {
 	START.get_or_init(Instant::now).elapsed().as_secs_f64() * 1000.0
 }
 
+fn unix_now() -> f64 {
+	SystemTime::now()
+		.duration_since(SystemTime::UNIX_EPOCH)
+		.map_or(0.0, |d| d.as_secs_f64())
+}
+
 /// Milliseconds to the next graph's read, from the least of
 /// [`Graph::tick`]'s answers, for a one-shot timer.
 pub fn wait_ms(next: f64) -> u32 {
@@ -398,7 +404,13 @@ pub struct Graph<S: Source<N> = CpuReader, const N: usize = 4> {
 	src: S,
 	clock: Instant,
 	/// Unix time at `clock`'s start, so saved history lines up across runs.
+	/// Moved up to the wall clock at a read, since `clock` stops in a suspend.
 	epoch: f64,
+	/// How far [`Graph::skip`] moved the clock on.
+	skipped: f64,
+	/// How far a test set the wall clock on, or back, by itself.
+	#[cfg(test)]
+	wall_shift: f64,
 	read_at: Option<f64>,
 	latest: Option<[f32; N]>,
 	px: Vec<u32>,
@@ -530,9 +542,10 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 			hist: History::default(),
 			src,
 			clock: Instant::now(),
-			epoch: SystemTime::now()
-				.duration_since(SystemTime::UNIX_EPOCH)
-				.map_or(0.0, |d| d.as_secs_f64()),
+			epoch: unix_now(),
+			skipped: 0.0,
+			#[cfg(test)]
+			wall_shift: 0.0,
 			read_at: None,
 			latest: None,
 			px: Vec::new(),
@@ -544,14 +557,35 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		}
 	}
 
+	// what the monotonic clock has seen, so not a suspend
+	fn steady(&self) -> f64 {
+		self.clock.elapsed().as_secs_f64() + self.skipped
+	}
+
+	fn wall(&self) -> f64 {
+		let t = unix_now() + self.skipped;
+		#[cfg(test)]
+		let t = t + self.wall_shift;
+		t
+	}
+
+	/// Unix time. The wall clock, but never back: set back, the graph's time
+	/// runs on from where it was.
 	fn now(&self) -> f64 {
-		self.epoch + self.clock.elapsed().as_secs_f64()
+		(self.epoch + self.steady()).max(self.wall())
 	}
 
 	/// Moves the clock on, so the soak test can run days in seconds.
 	#[doc(hidden)]
 	pub fn skip(&mut self, secs: f64) {
-		self.epoch += secs;
+		self.skipped += secs;
+	}
+
+	/// Forgets the last read, so the next one only primes and the time
+	/// between is a gap. For a graph that isn't read for a while.
+	pub fn pause(&mut self) {
+		self.read_at = None;
+		self.latest = None;
 	}
 
 	/// Drops history older than the max age.
@@ -596,8 +630,10 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 			return false;
 		};
 		// a clock set back mustn't hide new samples behind old ones
-		if let Some(last) = saved.last() {
-			self.epoch += (last - self.now()).max(0.0);
+		if let Some(last) = saved.last()
+			&& last > self.now()
+		{
+			self.epoch = last - self.steady();
 		}
 		self.hist = saved;
 		self.read_at = None;
@@ -622,7 +658,14 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 
 	/// Read the source and keep it. The first call only primes it.
 	pub fn sample(&mut self) {
-		let now = self.now();
+		let steady = self.steady();
+		// time the monotonic clock didn't see, as in a suspend or the clock set on
+		let lost = (self.wall() - self.epoch - steady).max(0.0);
+		self.epoch += lost;
+		if lost > f64::from(self.sample_ms()) / 1000.0 {
+			self.read_at = None;
+		}
+		let now = self.epoch + steady;
 		let shares = self.src.read();
 		if let (Some(v), Some(was)) = (shares, self.read_at) {
 			self.hist.add(was, now, &v);
@@ -1283,6 +1326,50 @@ mod tests {
 		back.sample();
 		assert!(back.hist.last().unwrap() > saved);
 		std::fs::remove_file(&path).unwrap();
+	}
+
+	// Test ID: deqqs
+	#[test]
+	fn a_suspend_moves_the_clock_to_the_wall_and_is_a_gap() {
+		let mut g = Graph::with(Look::default(), MemoryReader);
+		g.sample();
+		g.skip(1.0);
+		g.sample();
+		let had = g.hist.last().unwrap();
+		g.wall_shift = 3600.0;
+		assert!(
+			(g.now() - g.wall()).abs() < 0.01,
+			"tips go by the wall clock"
+		);
+		g.sample();
+		assert_eq!(g.hist.last(), Some(had), "the first read after only primes");
+		g.skip(1.0);
+		g.sample();
+		assert!(g.hist.last().unwrap() > had + 3600.0);
+		assert_eq!(g.hist.span(had + 1.0, had + 3599.0).covered, 0.0);
+		// a step under a sample's worth is only a late read
+		g.wall_shift += f64::from(g.sample_ms()) / 2000.0;
+		g.skip(1.0);
+		g.sample();
+		assert!((g.hist.last().unwrap() - g.wall()).abs() < 0.01);
+		assert!(g.hist.span(had + 3601.0, had + 3602.0).covered > 0.99);
+	}
+
+	// Test ID: deqqt
+	#[test]
+	fn a_clock_set_back_while_running_never_runs_back() {
+		let mut g = Graph::with(Look::default(), MemoryReader);
+		g.sample();
+		g.skip(1.0);
+		g.sample();
+		let had = g.hist.last().unwrap();
+		g.wall_shift = -3600.0;
+		assert!(g.now() >= had);
+		g.skip(1.0);
+		g.sample();
+		let now = g.hist.last().unwrap();
+		assert!((now - had - 1.0).abs() < 0.01, "{}", now - had);
+		assert!(g.hist.span(had, now).covered > 0.99);
 	}
 
 	// Test ID: decbr

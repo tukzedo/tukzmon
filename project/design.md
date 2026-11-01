@@ -337,6 +337,7 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 - Tiers 0 and 1 are each kept for 1024 times the next tier's bucket. 1024 px is the top of the Width slider, so a linear graph that wide keeps one sample a pixel at any rate down to 50 ms. Past that width, or on a 2x screen at a slow rate, the left end can reach a coarser tier.
 
 - A sample is a share of the time since the read before it, so it's added over that whole stretch, to every bucket it covers. Half-second reads on quarter-second buckets would otherwise leave every other bucket empty.
+	- A stretch longer than a tier keeps only makes the buckets that tier keeps.
 
 - Each bucket keeps the min, max, and mean of each series, how many seconds of data it has, and where in the bucket that data starts and ends. Max is kept so a short spike can still be drawn once it's old. The start and end let the newest bucket, still filling, read as full where it has data.
 
@@ -351,6 +352,8 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 	- The file holds a named section per graph. A section that no graph shown owns, such as a hidden graph's, is kept at each save, so showing the graph again brings its history back. A file from other tiers, or one that doesn't read whole, is skipped. A file from before tier 0 went in, which has one tier less, still reads, with tier 0 empty. The graph starts fresh, and the next save replaces it.
 	- Since file version 2 each section starts with its graph's series count, and a section with another count is skipped. A version 1 file still reads. Its sections have no count, so only their layout can refuse one, and a hidden graph's is saved back as it was.
 	- Times are Unix seconds, so runs line up. A clock set back to before the saved history is moved up to its end, so new samples aren't dropped as old.
+		- While running, a graph's time follows the wall clock forward. A suspend, or the clock set on by more than a sample's worth, is a gap.
+		- A clock set back while running doesn't take the graph's time back with it. Its time runs on from where it was, for the same reason as at a load.
 	- "Keep across restarts" turns it off. Off stops saving and loading, and leaves the file as it is. Turned back on, the file is loaded again, so what was seen while it was off is a gap.
 	- History older than the max age, 28 days by default, is dropped at each save and load.
 	- Reset history in the settings window drops all of it, or only what's on screen while Keep across restarts is off. See [Settings window](#settings-window).

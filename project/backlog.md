@@ -98,17 +98,31 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 1: A hidden CPU graph, shown again, fills the hidden time and can take gigabytes
 	- ID: 2026103115231801
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: High
 	- Opened: 20261031-152318
 	- Opened by: t00mietum
-	- Related IDs: 2026102508393152
+	- Related IDs: 2026102508393152, 2026103115231848
 	- Steps to reproduce: Untick CPU, leave it hidden a day or more, then tick it again.
 	- Incorrect behavior: The first read after it's back covers the whole hidden time, so the graph shows that time filled with one average. The 50 ms tier makes a bucket for every step of it before trimming. 3 days hidden took the probe from 24 MB to 1.87 GB, which stayed. 30 days would want about 18 GB, and a failed allocation aborts the panel.
 	- Expected behavior: A gap for the hidden time, as 2026102508393152 says, and no more memory than the tier keeps.
 	- Possible cause: CPU keeps its slot while hidden, so `read_at` is left from before. `Tier::add` pushes every bucket from `first` to the end before it trims to `cap`.
 	- Estimated effort: Low
 	- Origin: `f89e55e` (`Tier::add`) and `bfa6a97` (hidden graphs not read). First review. Confirmed, by a probe through `Graphs::skip`.
+	- Actual cause: As the possible cause. Only CPU keeps its slot while hidden, since it's drawn whenever nothing else is, so its last read stayed. And a long add made every bucket of the stretch before trimming to the tier's cap.
+	- Actual effort: Low
+	- Progress log:
+		- A graph that isn't shown after a new look forgets its last read, so its first read back only primes and the hidden time is a gap.
+		- A tier makes only the buckets it keeps, however long the stretch added. 3 days at once leaves the 50 ms tier at its 5121 buckets.
+		- Verified: the quick gate passed, and the soak test passed.
+	- Decisions:
+		- The pause is in `Graphs::set_look`, the one place a graph's shown state changes, and covers every graph kept while hidden, not only CPU.
+		- A graph shown again drops its latest read too, so its tip has no value until its next read, as a newly shown graph's does.
+	- Actual fix: `Graph::pause`, called from `Graphs::set_look` for each graph not shown, and `Tier::add` in `core/src/history.rs`.
+	- Branch: round-1101
+	- Test case: `graphs::tests::a_hidden_cpu_shown_again_has_a_gap_for_the_hidden_time` (deqqr) and `history::tests::a_long_add_makes_no_more_buckets_than_a_tier_keeps` (deqqq). deqqr fails without the pause, and deqqq without the `Tier::add` change.
+		- Swept: every `Tier::add` caller (`History::add` only), every `Graphs` path that reads or hides a graph (`sample`, `tick_at`, `trim`, `set_look`), and the settings window's `Live`, which reads every graph and hides none.
+	- Closed: 20261101-104137
 
 - Code review 20261031 item 7: The network graph counts bridge, VM and VPN traffic as well
 	- ID: 2026103115231894
@@ -156,16 +170,34 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 4: Graph times fall behind the clock after a suspend
 	- ID: 2026103115231848
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting on UAT
+		- It departs from the wording for a clock set back while running. The graph's time runs on from where it was, ahead of the wall clock by the step, rather than going back with it.
+	- Needs hand testing: on a laptop with the panel up, suspend for a few minutes and wake it. The clock tip should match the wall clock, and the suspend should show as a gap.
 	- Priority|Severity: Avg
 	- Opened: 20261031-152318
 	- Opened by: t00mietum
+	- Related IDs: 2026103115231801, 2026103115231863
 	- Steps to reproduce: Suspend a laptop for an hour, wake it, and hover the graph.
 	- Incorrect behavior: Clock tips are an hour early, Ago tips before the suspend are an hour short, and no gap shows for it. A clock change after start does the same.
 	- Expected behavior: Times match the wall clock, and the suspend shows as a gap. design.md says times are Unix seconds, so runs line up.
 	- Possible cause: `Graph::now` is the start time plus an `Instant`, which reads `CLOCK_MONOTONIC`, and that stops during suspend.
 	- Estimated effort: Avg
 	- Origin: `87bc145` (epoch) and `f89e55e` (`Instant`). First review. Plausible. The std source and `clock_gettime` were read, but b23 never suspends.
+	- Actual cause: As the possible cause. The graph's clock fell behind by every suspend, and the read after one covered the time it was out.
+	- Actual effort: Low
+	- Progress log:
+		- A graph's time is the wall clock, but never goes back. Each read moves the graph's clock up to the wall clock when that's ahead. When it moved more than a sample's worth, the read only primes, so a suspend, or the clock set on, is a gap.
+		- `design.md` History has the rule.
+		- Verified: deqqs and deqqt passed, with the wall clock an hour on and an hour back. The quick gate and the soak test passed. A real suspend is untested, since b23 doesn't suspend.
+	- Decisions:
+		- Set back while running, the graph's time doesn't follow. New samples would sit behind old ones and be dropped until the clock caught up, which the load rule in design.md already avoids. Saved times past now are 2026103115231863's.
+		- A step under one sample period counts as a late read, not a gap, so a small clock correction doesn't cut the graph.
+		- The wall clock rather than `CLOCK_BOOTTIME`, since it also follows a clock set on, and needs no platform call.
+		- Disk, network and the beat clock (`clock_ms`) stay on `Instant`. They time spans between reads, and the counters stop in a suspend too.
+	- Actual fix: `Graph::now`, `Graph::sample` and `Graph::adopt` in `core/src/lib.rs`.
+	- Branch: round-1101
+	- Test case: `tests::a_suspend_moves_the_clock_to_the_wall_and_is_a_gap` (deqqs) and `tests::a_clock_set_back_while_running_never_runs_back` (deqqt). deqqs fails with the clock on `Instant` alone. deqqt passed before too, and guards the rule for a clock set back.
+		- Swept: every `Graph::now` user (`trim`, `adopt`, `easing`, `span_at`, `hover_tip`, `render`), every `skip` caller, which still moves both clocks together, and every other `Instant` and `SystemTime` use in core, the plugin and the settings window.
 
 - Code review 20261031 item 3: Enter on a focused button saves and closes the settings window
 	- ID: 2026103115231832

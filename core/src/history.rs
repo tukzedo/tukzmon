@@ -215,12 +215,12 @@ impl<const N: usize> Tier<N> {
 		let at0 = (t0 / self.len).floor() as i64;
 		let at1 = ((t1 / self.len).ceil() as i64 - 1).max(at0);
 		let cap = self.cap();
-		if self.buckets.is_empty()
-			|| at1 - self.first >= cap.saturating_add(self.buckets.len() as i64)
-		{
+		// only the newest cap buckets stay, so none older is made
+		let keep_from = at1.saturating_sub(cap - 1);
+		if self.buckets.is_empty() || self.first + self.buckets.len() as i64 <= keep_from {
 			// nothing kept would survive the gap
 			self.buckets.clear();
-			self.first = at0;
+			self.first = at0.max(keep_from);
 		}
 		while self.first + (self.buckets.len() as i64) <= at1 {
 			self.buckets.push_back(Bucket::default());
@@ -785,5 +785,22 @@ mod tests {
 		);
 		h.trim(t0 + 1e6);
 		assert_eq!((h.first(), h.last()), (None, None));
+	}
+
+	// Test ID: deqqq
+	#[test]
+	fn a_long_add_makes_no_more_buckets_than_a_tier_keeps() {
+		let mut h = History::<4>::default();
+		let t1 = 1.76e9;
+		h.add(t1 - 3.0 * 86400.0, t1, &[0.5; 4]);
+		for t in h.tiers.iter().filter(|t| t.keep.is_finite()) {
+			let cap = t.cap() as usize;
+			assert!(t.buckets.len() <= cap, "{} s tier", t.len);
+			assert!(t.buckets.capacity() <= 2 * cap, "{} s tier", t.len);
+			assert!(t.blocks.capacity() <= 2 * cap / BLOCK as usize + 2);
+		}
+		let s = h.span(t1 - 200.0, t1);
+		assert!(s.covered > 0.999 && (s.mean[0] - 0.5).abs() < 1e-6, "{s:?}");
+		assert!(h.span(t1 - 2.0 * 86400.0, t1 - 86400.0).covered > 0.999);
 	}
 }

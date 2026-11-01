@@ -67,6 +67,8 @@ pub trait Drawn: Any {
 	fn trim(&mut self);
 	/// Moves the clock on, so the soak test can run days in seconds.
 	fn skip(&mut self, secs: f64);
+	/// Forgets the last read, so the next one only primes.
+	fn pause(&mut self);
 	/// The graph's clock, in seconds.
 	#[cfg(test)]
 	fn now(&self) -> f64;
@@ -113,6 +115,9 @@ impl<S: Source<N> + 'static, const N: usize> Drawn for Graph<S, N> {
 	}
 	fn skip(&mut self, secs: f64) {
 		Graph::skip(self, secs);
+	}
+	fn pause(&mut self) {
+		Graph::pause(self);
 	}
 	#[cfg(test)]
 	fn now(&self) -> f64 {
@@ -463,6 +468,14 @@ impl Graphs {
 			&& let Some(cpu) = self.slot_mut(Which::Cpu)
 		{
 			cpu.set_hover(None);
+		}
+		// one kept but not read, as CPU hidden, comes back with a gap
+		for w in Which::ALL {
+			if !self.is_shown(w)
+				&& let Some(g) = self.slot_mut(w)
+			{
+				g.pause();
+			}
 		}
 		res
 	}
@@ -1527,6 +1540,34 @@ mod tests {
 		assert_eq!(g.widths().collect::<Vec<_>>(), [none.width]);
 		assert_eq!(g.tooltip(), "CPU");
 		assert!(Graphs::new(none).cpu_shown());
+	}
+
+	// Test ID: deqqr
+	#[test]
+	fn a_hidden_cpu_shown_again_has_a_gap_for_the_hidden_time() {
+		let pause = || std::thread::sleep(std::time::Duration::from_millis(30));
+		let mut g = Graphs::new(two());
+		g.sample();
+		pause();
+		g.sample();
+		let had = g.cpu().hist.last().unwrap();
+		g.set_look(two().with(Which::Cpu, |e| e.show = false), None)
+			.unwrap();
+		g.skip(3.0 * 86400.0);
+		g.sample();
+		g.set_look(two(), None).unwrap();
+		pause();
+		g.sample();
+		assert_eq!(
+			g.cpu().hist.last(),
+			Some(had),
+			"the first read back only primes"
+		);
+		pause();
+		g.sample();
+		let cpu = &g.cpu().hist;
+		assert!(cpu.last().unwrap() > had + 3.0 * 86400.0);
+		assert_eq!(cpu.span(had + 1.0, had + 86400.0).covered, 0.0);
 	}
 
 	// Test ID: denc5
