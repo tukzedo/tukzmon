@@ -250,8 +250,8 @@ Sorted per the notes in [Template](#template).
 			- Remove "Disk log scale" checkbox from "Disk graph".
 		- Themes|Colors tab:
 			- For each monitor, add "Vertical scale:", with same options (but per-monitor) as "Vertical axis"/"Scale default", but with an additional "Global default" option (default selection).
-	- Need to work out ambiguities:
-		- What the 𝜒² scale maps a value to.
+	- Decisions:
+		- 2026-11-01: 𝜒² is there to exaggerate differences. Large values get larger, and small values relatively smaller. So it's a squared curve, the height following (value / top)², the opposite of log₁₀.
 	- Estimated effort: Avg
 
 - Code review 20261031 item 23: Dead code in the settings window and public items only tests use
