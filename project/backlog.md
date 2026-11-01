@@ -665,15 +665,30 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 14: The pre-push hook keeps the gate from removing images, and any value skips it
 	- ID: 2026103115232000
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152320
 	- Opened by: t00mietum
 	- Steps to reproduce: Push to main from a checkout with any untracked file, or with TUKZMON_SKIP_HOOK=0.
 	- Incorrect behavior: The hook's own run folder looks like a live run, so the gate never removes its images. Setting the skip to 0 also skips.
 	- Expected behavior: The gate's cleanup ignores the hook that started it, and only 1 skips.
+	- Reproduced: 2026-11-01, round-1101, by deqvm and deqvn. `fOtherRun` named the folder of the shell that started it, and a skip of 0 skipped.
+	- Actual cause: `fOtherRun` counted every live run folder but its own, and the hook makes one for its worktree. The hook skipped on any value that wasn't empty.
 	- Estimated effort: Low
+	- Actual effort: Low
 	- Origin: `ff4610a` (hook) and `f95b2c6` (`fOtherRun`). First review. Confirmed with a probe, and by reading.
+	- Progress log:
+		- New `fRunAbove` in `run-tmp.bash` says whether a run folder's run is this shell or one that started it. `fOtherRun` in `cicd.bash` skips those.
+		- The hook skips only on `TUKZMON_SKIP_HOOK=1`. Empty and 0 run the gate, and any other value runs it with a note saying it isn't 1.
+		- Verified: deqvm and deqvn failed before the fix and passed after, 3 runs in a row. The quick gate's lint passed.
+	- Decisions:
+		- `fOtherRun` looks up the process tree rather than taking a variable from the hook, so it needs no new setting and holds for anything else that starts a run.
+		- A value other than 0 or 1 gets a note rather than an error, so a push isn't refused for it.
+		- Swept: `fSweepStale` leaves a live run's folder alone, and `fStopLeftovers` goes by `TMPDIR`, which the hook doesn't set, so neither touches the hook. No other place reads `TUKZMON_SKIP_HOOK`.
+	- Actual fix: `fRunAbove` in `cicd/utility/include/run-tmp.bash`, its use in `fOtherRun`, and a `case` on the skip value in `cicd/hooks/pre-push`.
+	- Branch: round-1101
+	- Test case: `a_gate_the_hook_started_doesnt_count_the_hook_as_another_run` (deqvm) and `only_1_skips_the_pre_push_hook` (deqvn), in `cicd/tests/guards.bash`.
+	- Closed: 20261101-123930
 
 - Code review 20261031 item 13: The leftover process scan stops at the first one that exits, and prints a false abort
 	- ID: 2026103115231984

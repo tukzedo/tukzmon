@@ -183,6 +183,51 @@ fTest_no_file_a_package_holds_counts_as_docs_for_the_hook() {
 	((ok))
 }
 
+## Test ID: deqvm
+fTest_a_gate_the_hook_started_doesnt_count_the_hook_as_another_run() {
+	local t="${work}/other-run" live='' out='' ok=0
+	mkdir -p -- "${t}/tukzmon/20261101-000000_001" "${t}/tukzmon/20261101-000000_002" "${t}/tukzmon/20261101-000000_003"
+	## _001 is the test's own bash, which starts the scan as the hook starts
+	## the gate. _002 is a live run that isn't above it. _003 is the scan's own.
+	fPidStamp "$$" > "${t}/tukzmon/20261101-000000_001/run.pid"
+	sleep 30 &
+	live="$!"
+	fPidStamp "${live}" > "${t}/tukzmon/20261101-000000_002/run.pid"
+	printf '%s\n' 'set -Eeuo pipefail' 'HOST_TEMP="${2}"; projectName=tukzmon' \
+		'source "${1}/utility/include/run-tmp.bash"' \
+		"eval \"\$(awk '/^fOtherRun\\(\\)/, /^}/' \"\${1}/cicd.bash\")\"" \
+		'fCtrOthers() { :; }' 'runTmp="${HOST_TEMP}/tukzmon/20261101-000000_003"' \
+		'fPidStamp "${BASHPID}" > "${runTmp}/run.pid"' 'fOtherRun' > "${t}/scan.bash"
+	out="$(bash "${t}/scan.bash" "${cicd}" "${t}" 2>&1)" && ok=1
+	((ok)) && [[ "${out}" == 20261101-000000_002 ]] || ok=0
+	kill "${live}" 2> /dev/null || true
+	wait "${live}" 2> /dev/null || true
+	((ok)) || { fWhy "with a live run beside it, got '${out}', not 20261101-000000_002"; return 1; }
+	fSafeRm "${t}/tukzmon/20261101-000000_002" || return 1
+	out="$(bash "${t}/scan.bash" "${cicd}" "${t}" 2>&1)" || { fWhy "the scan failed: ${out}"; return 1; }
+	[[ -z "${out}" ]] || { fWhy "counted '${out}' as another run, with only the one above it live"; return 1; }
+}
+
+## Test ID: deqvn
+fTest_only_1_skips_the_pre_push_hook() {
+	local t="${work}/skip" v='' out=''
+	mkdir -p -- "${t}/bin"
+	## The hook's first git call comes right after the skip, so a git that
+	## leaves a mark says it went on.
+	printf '#!/bin/sh\necho went-on >> "%s"\n' "${t}/mark" > "${t}/bin/git"
+	chmod +x "${t}/bin/git"
+	for v in '' 0 yes 1; do
+		: > "${t}/mark"
+		out="$(TUKZMON_SKIP_HOOK="${v}" PATH="${t}/bin:${PATH}" bash "${cicd}/hooks/pre-push" < /dev/null 2>&1)" || { fWhy "'${v}' failed: ${out}"; return 1; }
+		if [[ "${v}" == 1 ]]; then
+			[[ ! -s "${t}/mark" ]] || { fWhy "1 didn't skip"; return 1; }
+		else
+			[[ -s "${t}/mark" ]] || { fWhy "'${v}' skipped"; return 1; }
+		fi
+		if [[ "${v}" == yes ]]; then [[ "${out}" == *'not 1, so the gate still runs'* ]] || { fWhy "yes gave no note: ${out}"; return 1; }; fi
+	done
+}
+
 failed=0
 while read -r id fn; do
 	if "${fn}"; then echo "PASS ${id} ${fn#fTest_}"; else echo "FAIL ${id} ${fn#fTest_}"; failed=1; fi
@@ -199,3 +244,5 @@ exit "${failed}"
 ##		- 2026-11-01: The lists of files fail when git can't list them.
 ##		- 2026-11-01: The Nix step keeps the stores other checkouts pin.
 ##		- 2026-11-01: No file a package holds counts as docs for the hook.
+##		- 2026-11-01: The gate doesn't count the hook that started it as another
+##		  run, and only 1 skips the hook.

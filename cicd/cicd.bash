@@ -978,10 +978,12 @@ fCtrSweepGone() {
 
 ## The name of another live run of the project, or nothing: one with a run
 ## folder here, or with a container, which covers one with another temp root.
+## The one that started this one, such as the pre-push hook, doesn't count.
 fOtherRun() {
 	local d='' id='' run='' stamp=''
 	for d in "${HOST_TEMP}/${projectName}"/*_[0-9][0-9][0-9]; do
 		[[ "${d}" != "${runTmp}" && -d "${d}" ]] || continue
+		! fRunAbove "${d}" || continue
 		if fRunLive "${d}"; then echo "${d##*/}"; return 0; fi
 	done
 	while IFS='|' read -r id run stamp; do
@@ -1223,3 +1225,5 @@ exit 0
 ##		  lists none of a kind they check.
 ##		- 2026-11-01: The Nix store gets the dev.run label, and the Nix step
 ##		  removes only its own stores that no checkout pins.
+##		- 2026-11-01: Cleanup doesn't count the run that started this one, such
+##		  as the pre-push hook, as another live run.
