@@ -247,7 +247,10 @@ impl Plugin {
 		}
 	}
 
-	fn tick(&mut self) {
+	/// Gives the area when a still pointer's tip should be asked again, for
+	/// [`requery`] once this borrow of the Plugin ends.
+	#[must_use]
+	fn tick(&mut self) -> Option<*mut c_void> {
 		// reap a closed settings window
 		if self
 			.settings
@@ -263,14 +266,10 @@ impl Plugin {
 			self.save_history();
 		}
 		// SAFETY: area is a child of the live plugin.
-		unsafe {
-			gtk_widget_queue_draw(self.area);
-			if self.graphs.hovered() && self.moved_at.elapsed() >= TIP_SHOWN {
-				// a still pointer's time moves on too
-				gtk_widget_trigger_tooltip_query(self.area);
-			}
-		}
+		unsafe { gtk_widget_queue_draw(self.area) };
 		self.start_timer(next);
+		// a still pointer's time moves on too
+		(self.graphs.hovered() && self.moved_at.elapsed() >= TIP_SHOWN).then_some(self.area)
 	}
 
 	/// Pick up a save from the settings window.
@@ -393,9 +392,9 @@ unsafe extern "C" fn changed(
 	_event: c_int,
 	data: *mut c_void,
 ) {
-	guarded(
+	requery(guarded(
 		data,
-		|_| (),
+		|_| None,
 		|p| {
 			if p.timer != 0 {
 				// SAFETY: the timer id is ours and still running, since tick
@@ -403,14 +402,23 @@ unsafe extern "C" fn changed(
 				unsafe { g_source_remove(p.timer) };
 				p.timer = 0;
 			}
-			p.tick();
+			p.tick()
 		},
-	);
+	));
 }
 
 extern "C" fn tick(data: *mut c_void) -> Gboolean {
-	guarded(data, |_| (), Plugin::tick);
+	requery(guarded(data, |_| None, Plugin::tick));
 	0
+}
+
+/// GTK runs query-tooltip inside the trigger, and that handler takes the
+/// Plugin too, so this goes after the caller's `guarded` has returned.
+fn requery(area: Option<*mut c_void>) {
+	if let Some(area) = area {
+		// SAFETY: area is a child of the live plugin, which a tick doesn't free.
+		unsafe { gtk_widget_trigger_tooltip_query(area) };
+	}
 }
 
 extern "C" fn draw(widget: *mut c_void, cr: *mut c_void, data: *mut c_void) -> Gboolean {
@@ -979,6 +987,32 @@ mod tests {
 			bare.is_empty(),
 			"a panic in these aborts the panel: {bare:?}"
 		);
+	}
+
+	// Test ID: deqvc
+	#[test]
+	fn the_tip_is_asked_again_only_after_the_plugin_is_let_go() {
+		let text = include_str!("lib.rs");
+		let code = text.split("#[cfg(test)]\nmod tests").next().unwrap();
+		let fns: Vec<&str> = code
+			.split("\nfn ")
+			.filter(|f| f.contains("gtk_widget_trigger_tooltip_query("))
+			.map(|f| f.split('(').next().unwrap())
+			.collect();
+		assert_eq!(
+			fns,
+			["requery"],
+			"query-tooltip would borrow the Plugin twice"
+		);
+		let calls: Vec<&str> = code.split("requery(").skip(1).collect();
+		assert!(calls.len() >= 3, "{}", calls.len());
+		for call in calls {
+			assert!(
+				call.starts_with("guarded(") || call.starts_with("area: "),
+				"requery inside a borrow: {}",
+				&call[..40.min(call.len())]
+			);
+		}
 	}
 
 	// Test ID: dekpv

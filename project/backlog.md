@@ -583,7 +583,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 17: The plugin's tick makes a second mutable borrow through the tooltip requery
 	- ID: 2026103115232046
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152320
 	- Opened by: t00mietum
@@ -592,6 +592,19 @@ Sorted per the notes in [Template](#template).
 	- Expected behavior: The trigger runs after `guarded` returns, or from an idle callback.
 	- Estimated effort: Low
 	- Origin: `a9ca08f`. First review. Plausible. The GTK 3.24 call path was confirmed in its source.
+	- Actual cause: As described. Both the timer and the file watch ran `tick` inside `guarded`, with the trigger in it.
+	- Actual effort: Low
+	- Progress log:
+		- `tick` now says when the tip should be asked again, and the trigger runs after `guarded` returns, in both callers.
+		- Verified: the quick gate passed. The live panel wasn't tried.
+	- Decisions:
+		- After `guarded` rather than from an idle callback, so there's no extra source to stop at free-data, and the tip moves in the same tick as before.
+		- `tick` is `#[must_use]`, so a new caller can't drop the requery.
+	- Actual fix: `requery` in `xfce/src/lib.rs`, called with what `guarded(.., Plugin::tick)` gives.
+	- Branch: round-1101
+	- Test case: `tests::the_tip_is_asked_again_only_after_the_plugin_is_let_go` (deqvc) checks the trigger is only in `requery`, and every `requery` call wraps a `guarded`. It fails on the old code.
+		- Swept: `gtk_widget_trigger_tooltip_query` had one call. The other GTK calls made under `guarded` queue work or set state, such as `gtk_widget_queue_draw` and `gtk_widget_set_size_request`, and none was found to run a handler that takes the Plugin at once.
+	- Closed: 20261101-123400
 
 - Code review 20261031 item 16: The Nix store volume has no dev.run label, and the Nix step removes other tukzmon volumes
 	- ID: 2026103115232031
