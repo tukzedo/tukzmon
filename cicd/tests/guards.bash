@@ -138,6 +138,32 @@ fTest_test_ids_check_fails_when_git_cant_list_the_rs_files() {
 	[[ "${out}" == *"so none was checked for a stray test"* ]] || { fWhy "got: ${out}"; return 1; }
 }
 
+## Test ID: deqre
+fTest_nix_step_removes_only_its_own_stores_that_no_checkout_pins() {
+	local t="${work}/nix-stores" ok=0
+	mkdir -p -- "${t}/a/cicd" "${t}/b/cicd"
+	printf 'NIX_IMAGE="nixos/nix:1.0"\n' > "${t}/a/cicd/config.bash"
+	printf '## a note\nNIX_IMAGE="nixos/nix:2.0"\n' > "${t}/b/cicd/config.bash"
+	(
+		eval "$(awk '/^(fNixStore|fNixStoresPinned|fNixStoresUnused)\(\)/, /^}/' "${cicd}/cicd.bash")"
+		## 2 checkouts, and one that's gone.
+		git() {
+			if [[ "${1}" != worktree ]]; then command git "$@"; return; fi
+			((! gitFails)) || return 128
+			printf 'worktree %s\nHEAD 0\n\n' "${t}/a" "${t}/b" "${t}/gone"
+		}
+		local gitFails=0 keep='' one='' two='' old='' would=''
+		one="$(fNixStore nixos/nix:1.0)"; two="$(fNixStore nixos/nix:2.0)"; old="$(fNixStore nixos/nix:0.9)"
+		keep="$(fNixStoresPinned)" || { fWhy "the pins failed"; exit 1; }
+		[[ "${keep}" == "${one}"$'\n'"${two}" ]] || { fWhy "pinned: ${keep//$'\n'/ }"; exit 1; }
+		would="$(fNixStoresUnused "${keep//$'\n'/ }" "${one}" "${old}" tukzmon-cache "${two}" tukzmon-nix-notahash)"
+		[[ "${would}" == "${old}" ]] || { fWhy "would remove: ${would//$'\n'/ }"; exit 1; }
+		gitFails=1
+		if fNixStoresPinned > /dev/null; then fWhy "listed pins when git failed"; exit 1; fi
+	) && ok=1
+	((ok))
+}
+
 failed=0
 while read -r id fn; do
 	if "${fn}"; then echo "PASS ${id} ${fn#fTest_}"; else echo "FAIL ${id} ${fn#fTest_}"; failed=1; fi
@@ -152,3 +178,4 @@ exit "${failed}"
 ##		  itself.
 ##		- 2026-11-01: fRunPids skips a process that exits while it scans.
 ##		- 2026-11-01: The lists of files fail when git can't list them.
+##		- 2026-11-01: The Nix step keeps the stores other checkouts pin.

@@ -440,7 +440,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 16: The Nix store volume has no dev.run label, and the Nix step removes other tukzmon volumes
 	- ID: 2026103115232031
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152320
 	- Opened by: t00mietum
@@ -448,8 +448,23 @@ Sorted per the notes in [Template](#template).
 	- Steps to reproduce: Keep a worktree whose NIX_IMAGE pin differs, then run the Nix step in another.
 	- Incorrect behavior: The other store, about 5 GB, is removed. Any tukzmon volume added later would be too.
 	- Expected behavior: Both labels on every volume, per Containers in CICD process, and removal of only what the step owns.
+	- Reproduced: 2026-11-01, round-1101 at bedc86c. The Nix step removed a store no checkout pins, and also `tukzmon-probe-other`, a plain tukzmon volume.
 	- Estimated effort: Low
+	- Actual effort: Low
 	- Origin: `6f7209f`. First review. Confirmed with `docker volume inspect`.
+	- Progress log:
+		- A new store gets `dev.run` as well as `dev.project`.
+		- The step removes a volume only when it's named like its stores, `tukzmon-nix-<12 hex>`, and no checkout of the clone pins it. It reads the pins from each worktree's `cicd/config.bash`. When git can't list the worktrees it removes nothing, with a warning.
+		- Verified: with a second worktree pinning another image, the step kept that one's store and another tukzmon volume, removed a store nobody pins, and passed. The same setup at bedc86c removed the other volume too. deqre passes, and the quick gate's lint and tests passed in the image.
+	- Decisions:
+		- Keep a store while any checkout of this clone pins it, rather than only the current one, as 2026102808222810 had it. A store no checkout pins still goes, so an old pin doesn't keep 5 GB forever. A separate clone with its own pin isn't seen, so it can still lose its store, and its next run fetches again.
+		- Stores are known by their name, not by a new label, so the ones made before this count too.
+		- The current store, `tukzmon-nix-0d6541f7ddaf` on b23, was made before this and has no `dev.run`. Docker can't add a label, so it gets one only when it's made again.
+		- Swept: no other step makes or removes a volume, and the run's cleanup removes only containers by `dev.run`.
+	- Actual fix: `fNixStore`, `fNixStoresPinned` and `fNixStoresUnused` in `cicd/cicd.bash`, called from `fStepNix`.
+	- Branch: round-1101
+	- Test case: `nix_step_removes_only_its_own_stores_that_no_checkout_pins` in `cicd/tests/guards.bash` (deqre). The step itself has no test ID, as for 2026102808222810.
+	- Closed: 20261101-110658
 
 - Code review 20261031 item 15: license.txt counts as docs only for the pre-push hook
 	- ID: 2026103115232016

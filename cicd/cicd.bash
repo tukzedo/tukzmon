@@ -729,29 +729,62 @@ fStepSoak() {
 	return "${rc}"
 }
 
+## The Nix store volume for an image pin.
+fNixStore() { printf '%s-nix-%s\n' "${projectName}" "$(printf '%s' "${1:?}" | git hash-object --stdin | cut -c1-12)"; }
+
+## The stores every checkout of this clone pins, from each one's config.bash.
+## Fails when git can't list them, so no store is taken for unused.
+fNixStoresPinned() {
+	local listed='' line='' pin=''
+	listed="$(git worktree list --porcelain)" || return 1
+	while IFS= read -r line; do
+		[[ "${line}" == "worktree "* ]] || continue
+		pin="$(grep -m 1 -E '^NIX_IMAGE=' -- "${line#worktree }/cicd/config.bash" 2> /dev/null || true)"
+		pin="${pin#NIX_IMAGE=}"; pin="${pin//\"/}"
+		[[ -z "${pin}" ]] || fNixStore "${pin}"
+	done <<< "${listed}"
+}
+
+## Of the volumes named, the stores of this step that no pin in KEEP names.
+## Any other volume of the project isn't this step's to remove.
+fNixStoresUnused() {   ## fNixStoresUnused KEEP VOLUME...
+	local keep=" ${1} " v=''; shift
+	for v in "$@"; do
+		[[ "${v}" =~ ^${projectName}-nix-[0-9a-f]{12}$ && "${keep}" != *" ${v} "* ]] || continue
+		printf '%s\n' "${v}"
+	done
+}
+
 ## The flake's package, checked by cicd/nix/check.bash in NIX_IMAGE, as its
 ## root, so it's given a copy of the tracked files, read-only, and writes
 ## nothing here. The store is a volume named for the image, so a run reuses
-## what the last one fetched, and a new pin starts a new one and drops the
-## old. With no docker it's skipped with a warning.
+## what the last one fetched, and a new pin starts a new one. A store goes
+## once no checkout of this clone pins it. With no docker it's skipped with a
+## warning.
 fStepNix() {
-	local why='' vol='' src="${runTmp}/nix-src" old=''
-	local -a rm=(--rm)
+	local why='' vol='' src="${runTmp}/nix-src" old='' keep=''
+	local -a rm=(--rm) vols=()
 	why="$(fCtrWhyNot)"
 	if [[ -n "${why}" ]]; then fEcho_Clean "WARNING: ${why}, so the Nix package went unchecked"; return 0; fi
 	ctrTouched=1
-	vol="${projectName}-nix-$(printf '%s' "${NIX_IMAGE}" | git hash-object --stdin | cut -c1-12)"
+	vol="$(fNixStore "${NIX_IMAGE}")"
 	## What nix takes from a git checkout: the tracked files, as they are now.
 	mkdir -p -- "${src}" || return 1
 	git ls-files -z | while IFS= read -r -d '' f; do [[ ! -e "${f}" ]] || printf '%s\0' "${f}"; done \
 		| tar --null -T - -cf - | tar -xpf - -C "${src}" || return 1
-	while IFS= read -r old; do
-		[[ -n "${old}" && "${old}" != "${vol}" ]] || continue
-		if docker volume rm "${old}" > /dev/null 2>&1; then fEcho_Clean "removed ${old}, the store of an older image"; fi
-	done < <(docker volume ls -q --filter "label=dev.project=${projectName}" 2> /dev/null || true)
+	if keep="$(fNixStoresPinned)"; then
+		mapfile -t vols < <(docker volume ls -q --filter "label=dev.project=${projectName}" 2> /dev/null || true)
+		while IFS= read -r old; do
+			[[ -n "${old}" && "${old}" != "${vol}" ]] || continue
+			## Not -f, so a store a container still uses stays.
+			if docker volume rm "${old}" > /dev/null 2>&1; then fEcho_Clean "removed ${old}, a store no checkout pins"; fi
+		done < <(fNixStoresUnused "${keep//$'\n'/ }" "${vols[@]}")
+	else
+		fEcho_Clean "WARNING: git couldn't list the worktrees, so no older store was removed"
+	fi
 	if ! docker volume inspect "${vol}" > /dev/null 2>&1; then
 		fEcho_Clean "a new store, ${vol}: the first build fetches about 5 GB"
-		docker volume create --label "dev.project=${projectName}" "${vol}" > /dev/null || return 1
+		docker volume create --label "dev.project=${projectName}" --label "dev.run=${runName}" "${vol}" > /dev/null || return 1
 	fi
 	((! keepTemp)) || rm=()
 	fEcho_Clean "in ${projectName}-${runName}-nix, from ${NIX_IMAGE}"
@@ -1188,3 +1221,5 @@ exit 0
 ##		  Lint, and qt.cpp's warnings fail a build.
 ##		- 2026-11-01: Format and Lint fail when git can't list the files, or
 ##		  lists none of a kind they check.
+##		- 2026-11-01: The Nix store gets the dev.run label, and the Nix step
+##		  removes only its own stores that no checkout pins.
