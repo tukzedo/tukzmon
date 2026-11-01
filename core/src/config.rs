@@ -941,6 +941,23 @@ pub fn instance_file(dir: &Path, id: i32) -> PathBuf {
 	dir.join(format!("plugin-{id}.shcl"))
 }
 
+/// Where a write to `path` goes: the file its links end at, even one that
+/// isn't there yet, so a save keeps the link rather than putting a file over it.
+pub fn through_links(path: &Path) -> PathBuf {
+	let mut at = path.to_path_buf();
+	// the kernel's own limit; a loop fails at the read before this matters
+	for _ in 0..40 {
+		let Ok(to) = std::fs::read_link(&at) else {
+			break;
+		};
+		at = match at.parent() {
+			Some(dir) => dir.join(to),
+			None => to,
+		};
+	}
+	at
+}
+
 /// Gives `own` a copy of `shared` when it has no file yet, so an item set up
 /// before each one had its own keeps its look, and a new one starts from it.
 /// With neither, nothing is written, and the item has the defaults.
@@ -949,6 +966,7 @@ pub fn instance_file(dir: &Path, id: i32) -> PathBuf {
 ///
 /// Whatever reading `shared` or writing `own` hit.
 pub fn start_from(own: &Path, shared: &Path) -> std::io::Result<()> {
+	let own = &through_links(own);
 	if own.exists() {
 		return Ok(());
 	}
@@ -2095,6 +2113,24 @@ mod tests {
 		start_from(&fresh, &dir.join("missing.shcl")).unwrap();
 		assert!(!fresh.exists());
 		assert_eq!(Look::load(&fresh).unwrap(), Look::default());
+		let _ = std::fs::remove_dir_all(&dir);
+	}
+
+	// Test ID: deqw2
+	#[cfg(unix)]
+	#[test]
+	#[cfg_attr(miri, ignore = "makes symlinks")]
+	fn an_items_link_to_a_missing_file_is_kept_and_filled() {
+		let dir = scratch("link");
+		let shared = dir.join("tukzmon.shcl");
+		std::fs::write(&shared, "graph:\n\twidth: 77\n").unwrap();
+		let own = instance_file(&dir, 3);
+		std::os::unix::fs::symlink("elsewhere.shcl", &own).unwrap();
+		assert_eq!(through_links(&own), dir.join("elsewhere.shcl"));
+		assert_eq!(through_links(&shared), shared);
+		start_from(&own, &shared).unwrap();
+		assert!(std::fs::symlink_metadata(&own).unwrap().is_symlink());
+		assert_eq!(Look::load(&dir.join("elsewhere.shcl")).unwrap().width, 77);
 		let _ = std::fs::remove_dir_all(&dir);
 	}
 

@@ -776,15 +776,31 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 10: A non-UTF-8 config path panics, and a dangling config link is replaced
 	- ID: 2026103115231938
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152319
 	- Opened by: t00mietum
 	- Steps to reproduce: Run `tukzmon-settings --config` with a path holding byte 0xff. Or point the config at a link to a missing file and Apply.
 	- Incorrect behavior: The first exits 101 with a panic. The second opens at defaults and Apply writes a regular file over the link.
 	- Expected behavior: A message and exit 2 for the path. For the link, write through it, or say it points nowhere.
+	- Reproduced: 2026-11-01. The old build exited 101 on a 0xff path, and the new link tests failed without the fix.
+	- Actual cause: `std::env::args` panics on an argument that isn't UTF-8. shcl's atomic write follows a link only when its file is there, so a dangling one was renamed over. A panel item's first copy, `config::start_from`, did the same.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A `--config` or `--snapshot` value that isn't UTF-8, or such an option, gets a message and exit 2.
+		- Apply, and an item's first copy, write to the file at the end of the links, so the links stay and the file is made there.
+		- Verified: the quick gate passed, with deqw0, deqw1 and deqw2. The built program said "--config: ... isn't UTF-8, so it can't be used." and exited 2.
+	- Decisions:
+		- A path that isn't UTF-8 is refused rather than taken, since shcl writes only to a text path. Apply already refused one, so this only moves the message to the start.
+		- Write through the link rather than refuse, since a link to a file not made yet is a normal way to keep a config elsewhere. A missing folder at the end is made, as for a plain path.
+		- The window still opens at the defaults for a link to a missing file, the same as a missing file.
+	- Branch: round-1101
+	- Test case: `tests::a_path_that_isnt_utf8_is_a_message_not_a_panic` (deqw0), `dialog::tests::apply_writes_through_a_link_to_a_file_not_there_yet` (deqw1) and `config::tests::an_items_link_to_a_missing_file_is_kept_and_filled` (deqw2). deqw1 and deqw2 fail with `through_links` taken out. deqw0 tests the new argument reader, and the old build's panic was seen by running it.
+		- Swept: every write of a config file (`Dialog::apply`, `config::start_from`), and every `env::args` in the shipped programs. The history files in `keep.rs` aren't links a user makes. `core/examples/preview.rs` and `profile.rs` still use `env::args`, as dev tools.
+	- Acceptance signoff: Self-closed 20261101: deqw0 to deqw2 passed in the quick gate.
 	- Origin: `f89e55e` (`main.rs` args, Apply). First review. Confirmed.
+	- Closed: 20261101-125705
 
 - Code review 20261031 item 9: The graph list's Width % and Sample % header tips are the first row's
 	- ID: 2026103115231923

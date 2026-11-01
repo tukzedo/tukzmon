@@ -655,13 +655,12 @@ impl Dialog {
 		carry(&was.state, &now.state, &mut to.state);
 		config::name_the_theme(&mut fresh);
 		let (body, _) = fresh.save(&NoEnv);
-		let Some(file) = self.path.to_str() else {
-			return Err(format!(
-				"{} isn't a path shcl can write",
-				self.path.display()
-			));
+		// shcl writes through a link only when its file is there
+		let target = config::through_links(&self.path);
+		let Some(file) = target.to_str() else {
+			return Err(format!("{} isn't a path shcl can write", target.display()));
 		};
-		if let Some(dir) = self.path.parent() {
+		if let Some(dir) = target.parent() {
 			std::fs::create_dir_all(dir)
 				.map_err(|e| format!("{} can't be made: {e}", dir.display()))?;
 		}
@@ -1080,6 +1079,41 @@ mod tests {
 		assert_eq!(
 			config::Look::load(&path).unwrap()[Which::Cpu].colors[2],
 			config::Rgb(0x12, 0x3a, 0xbc)
+		);
+	}
+
+	// Test ID: deqw1
+	#[cfg(unix)]
+	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
+	fn apply_writes_through_a_link_to_a_file_not_there_yet() {
+		use std::os::unix::fs::symlink;
+		let d = scratch("dangling");
+		std::fs::create_dir_all(d.0.join("real")).unwrap();
+		// a chain, with a relative and an absolute hop
+		let path = d.0.join("t.shcl");
+		symlink("mid.shcl", &path).unwrap();
+		symlink(d.0.join("real/t.shcl"), d.0.join("mid.shcl")).unwrap();
+		let mut dlg = Dialog::open(path.clone()).unwrap();
+		assert!(dlg.set_text("user", "123abc"));
+		dlg.apply().unwrap();
+		for link in [&path, &d.0.join("mid.shcl")] {
+			assert!(
+				std::fs::symlink_metadata(link).unwrap().is_symlink(),
+				"{}",
+				link.display()
+			);
+		}
+		let text = std::fs::read_to_string(d.0.join("real/t.shcl")).unwrap();
+		assert!(text.contains("#123abc"));
+		// and once it's there, the next save still goes through
+		assert!(dlg.set_text("user", "456def"));
+		dlg.apply().unwrap();
+		assert!(std::fs::symlink_metadata(&path).unwrap().is_symlink());
+		assert!(
+			std::fs::read_to_string(d.0.join("real/t.shcl"))
+				.unwrap()
+				.contains("#456def")
 		);
 	}
 
