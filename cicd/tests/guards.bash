@@ -84,6 +84,27 @@ fTest_test_ids_reads_each_file_on_its_own() {
 	[[ "${out}" == "${want}" ]] || { fWhy "got:"; printf '%s\n' "${out}" | sed 's/^/      /'; return 1; }
 }
 
+## Test ID: deqrb
+fTest_run_pids_skips_a_process_gone_since_the_grep() {
+	local dir="${work}/pids" live='' out='' ok=0
+	mkdir -p -- "${dir}"
+	TMPDIR="${dir}" sleep 30 &
+	live="$!"
+	## Its environ is the fork's until sleep starts.
+	for _ in 1 2 3 4 5 6 7 8 9 10; do ! grep -qszF -- "TMPDIR=${dir}" "/proc/${live}/environ" || break; sleep 0.1; done
+	## A bash of its own, since the if that runs each test turns off errexit
+	## and the ERR trap all the way down. It runs as cicd.bash does, and its
+	## grep names a process that's gone, then one that's live.
+	printf '%s\n' 'set -Eeuo pipefail' "trap 'echo ABORTED; exit 1' ERR" 'projectName=tukzmon' \
+		'source "${1}/utility/include/run-tmp.bash"' \
+		'live="${3}"' 'grep() { printf "%s\n" /proc/999999999/environ "/proc/${live}/environ"; }' 'fRunPids "${2}"' > "${dir}/scan.bash"
+	out="$(bash "${dir}/scan.bash" "${cicd}" "${dir}" "${live}" 2>&1)" && ok=1
+	kill "${live}" 2> /dev/null || true
+	wait "${live}" 2> /dev/null || true
+	((ok)) || { fWhy "the scan failed: ${out}"; return 1; }
+	[[ "${out}" == "${live}" ]] || { fWhy "got '${out}', not the live pid ${live}"; return 1; }
+}
+
 failed=0
 while read -r id fn; do
 	if "${fn}"; then echo "PASS ${id} ${fn#fTest_}"; else echo "FAIL ${id} ${fn#fTest_}"; failed=1; fi
@@ -96,3 +117,4 @@ exit "${failed}"
 ##		  env values.
 ##		- 2026-10-30: test-ids.bash keeps each file's modules and lines to
 ##		  itself.
+##		- 2026-11-01: fRunPids skips a process that exits while it scans.

@@ -71,9 +71,11 @@ fRunPids() {   ## fRunPids DIR
 	while IFS= read -r p; do
 		p="${p#/proc/}"; p="${p%/environ}"
 		[[ "${p}" =~ ^[0-9]+$ ]] || continue
+		## A process can exit between the grep and here. Its failed open
+		## mustn't set off the caller's ERR trap and end the scan.
 		while IFS= read -r -d '' e; do
 			if [[ "${e}" == "TMPDIR=${dir}" || "${e}" == "TMPDIR=${dir}/"* ]]; then echo "${p}"; break; fi
-		done 2> /dev/null < "/proc/${p}/environ"
+		done 2> /dev/null < "/proc/${p}/environ" || true
 	done < <(LC_ALL=C grep -lszF -- "TMPDIR=${dir}" /proc/[0-9]*/environ 2> /dev/null || true)
 }
 
@@ -152,3 +154,4 @@ fStopLeftovers() {
 ##		- 2026-10-25: A folder whose run is gone goes at once, unless kept.
 ##		- 2026-10-30: fSafeRm refuses the temp root and a project's folder in it,
 ##		  as the CICD process's copy does.
+##		- 2026-11-01: fRunPids skips a process that exits while it scans.

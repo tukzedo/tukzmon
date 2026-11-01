@@ -465,15 +465,28 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 13: The leftover process scan stops at the first one that exits, and prints a false abort
 	- ID: 2026103115231984
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152319
 	- Opened by: t00mietum
 	- Steps to reproduce: Stop a run during an in-image step, so its processes exit while the scan reads them.
 	- Incorrect behavior: The ERR trap fires inside the process substitution, prints CICD ABORTED, and no pid after that one is stopped. Cleanup then removes the run folder under them.
 	- Expected behavior: A process gone before its read is skipped, and the rest are stopped.
+	- Reproduced: 2026-11-01, round-1101, by deqrb. The scan printed the abort and named no pid after the gone one.
+	- Actual cause: the read loop's redirect from a gone process's `environ` fails, and nothing caught that status, so the ERR trap ran in the scan's subshell and ended it.
 	- Estimated effort: Low
+	- Actual effort: Low
 	- Origin: `f95b2c6` (`fRunPids`) and `5f1bef0` (ERR trap). First review. Confirmed with a probe.
+	- Progress log:
+		- `fRunPids` skips a process whose `environ` it can't open.
+		- Verified: deqrb fails before the fix, with the abort, and passes after, 5 runs in a row. The quick gate's lint and tests passed in the image.
+	- Decisions:
+		- The test runs the scan in a bash of its own, since the `if` that runs each test turns off errexit and the ERR trap all the way down, and a test in-process passed without the fix.
+		- Swept: the other `/proc` reads in `run-tmp.bash` and `cicd.bash` already catch a failed read. The `[[ ]] && alive=1` at the end of a loop in `fStopLeftovers` doesn't set off the trap.
+	- Actual fix: `|| true` on the read loop in `fRunPids`, in `cicd/utility/include/run-tmp.bash`.
+	- Branch: round-1101
+	- Test case: `run_pids_skips_a_process_gone_since_the_grep` in `cicd/tests/guards.bash` (deqrb).
+	- Closed: 20261101-105407
 
 - Code review 20261031 item 12: dev-install.bash ignores the target dir and can't find ldconfig
 	- ID: 2026103115231969
