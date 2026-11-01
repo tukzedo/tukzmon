@@ -228,6 +228,36 @@ fTest_only_1_skips_the_pre_push_hook() {
 	done
 }
 
+## Test ID: deqvr
+fTest_dev_install_copies_what_cargo_built_and_finds_the_panel_library() {
+	local t="${work}/dev-install" out='' f='' lib=''
+	mkdir -p -- "${t}/home" "${t}/bin" "${t}/target"
+	## A cargo whose target dir is elsewhere, and an ldconfig on an arm64 box.
+	printf '%s\n' '#!/bin/sh' 'case "$1" in' \
+		"metadata) printf '{\"target_directory\":\"%s\"}\\n' '${t}/target' ;;" \
+		"build) echo \"\$*\" > '${t}/build-args'; mkdir -p '${t}/target/release'; for f in libtukzmon.so tukzmon-settings; do echo built > '${t}/target/release/'\"\$f\"; done ;;" \
+		'*) exit 1 ;;' 'esac' > "${t}/bin/cargo"
+	printf '%s\n' '#!/bin/sh' 'printf "\tlibxfce4panel-2.0.so.4 (libc6,AArch64) => /usr/lib/aarch64-linux-gnu/libxfce4panel-2.0.so.4\n"' > "${t}/bin/ldconfig"
+	printf '#!/bin/sh\n' > "${t}/bin/xfconf-query"
+	chmod +x "${t}/bin/"*
+	out="$(env -u XDG_DATA_HOME -u CARGO_TARGET_DIR HOME="${t}/home" PATH="${t}/bin:${PATH}" bash "${cicd}/../utility/dev-install.bash" --no-restart 2>&1)" || { fWhy "failed: ${out}"; return 1; }
+	lib="${t}/home/.local/lib/aarch64-linux-gnu/xfce4/panel/plugins"
+	for f in "${lib}/libtukzmon.so" "${lib}/tukzmon-settings"; do
+		cmp -s -- "${f}" <(echo built) || { fWhy "${f} isn't what cargo built: ${out}"; return 1; }
+	done
+	[[ -s "${t}/home/.local/share/xfce4/panel/plugins/tukzmon.desktop" ]] || { fWhy "no .desktop file"; return 1; }
+	[[ " $(cat -- "${t}/build-args") " == *' --locked '* ]] || { fWhy "built without --locked: $(cat -- "${t}/build-args")"; return 1; }
+	## With a Debian user's PATH and the box's own ldconfig, when it knows
+	## the panel's library.
+	mv -- "${t}/bin/ldconfig" "${t}/ldconfig.off"
+	for f in /usr/sbin/ldconfig /sbin/ldconfig; do
+		if [[ ! -x "${f}" ]] || ! grep -qF 'libxfce4panel-2.0.so.4 ' <<< "$("${f}" -p 2> /dev/null || true)"; then continue; fi
+		out="$(env -u XDG_DATA_HOME HOME="${t}/home" PATH="${t}/bin:/usr/bin:/bin" bash "${cicd}/../utility/dev-install.bash" --no-restart 2>&1)" || { fWhy "failed with a user PATH: ${out}"; return 1; }
+		[[ "${out}" != *'libxfce4panel-2.0.so.4 not found'* ]] || { fWhy "didn't find ldconfig with a user PATH: ${out}"; return 1; }
+		break
+	done
+}
+
 failed=0
 while read -r id fn; do
 	if "${fn}"; then echo "PASS ${id} ${fn#fTest_}"; else echo "FAIL ${id} ${fn#fTest_}"; failed=1; fi
@@ -246,3 +276,5 @@ exit "${failed}"
 ##		- 2026-11-01: No file a package holds counts as docs for the hook.
 ##		- 2026-11-01: The gate doesn't count the hook that started it as another
 ##		  run, and only 1 skips the hook.
+##		- 2026-11-01: dev-install.bash copies what cargo built and finds the
+##		  panel's library.

@@ -719,7 +719,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 12: dev-install.bash ignores the target dir and can't find ldconfig
 	- ID: 2026103115231969
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152319
 	- Opened by: t00mietum
@@ -727,8 +727,22 @@ Sorted per the notes in [Template](#template).
 	- Steps to reproduce: Set `CARGO_TARGET_DIR` and run it, or run it with Debian's default user PATH.
 	- Incorrect behavior: It builds into the target dir but copies the old `target/release` files, then restarts the panel on them. `ldconfig` is in `/usr/sbin`, so every Debian user gets the not found warning and the x86_64 fallback, which is wrong on arm64. The build has no `--locked`.
 	- Expected behavior: It copies what it built, finds the library, and leaves `Cargo.lock` alone.
+	- Reproduced: 2026-11-01, round-1101, by deqvr. Each of the 3 parts failed it on its own: the copy from `target/release`, the not found warning with a user PATH, and the build with no `--locked`.
 	- Estimated effort: Low
-	- Decisions: 2026103016201615 closed with no test because the pipeline can't run it. `dev-install-rig.bash` runs it under unshare, so a test can now go in `cicd/tests`.
+	- Actual effort: Low
+	- Progress log:
+		- `dev-install.bash` asks `cargo metadata` for the target dir and copies from its `release` folder, builds with `--locked`, and adds `/usr/sbin` and `/sbin` to the PATH it looks for `ldconfig` on. The fallback with no panel library found is `lib/<uname -m>-linux-gnu`.
+		- New test deqvr runs it with a stand-in cargo whose target dir is elsewhere and a stand-in `ldconfig` for an arm64 box, then again with a Debian user PATH and the box's own `ldconfig`, when it lists the panel library.
+		- Verified: deqvr failed before the fix and passed after. The quick gate passed, with deqvr in its Tests step. With `~/.local` swapped for an empty folder and a Debian user PATH, a real run built, installed the 3 files under `lib/x86_64-linux-gnu`, and gave no not found warning.
+	- Decisions:
+		- 2026103016201615 closed with no test because the pipeline can't run it. `dev-install-rig.bash` runs it under unshare, so a test can now go in `cicd/tests`.
+		- The test needs no unshare: it sets `HOME` to a temp folder and stands in for cargo, so it runs in the image too. The second half runs only where `/usr/sbin/ldconfig` or `/sbin/ldconfig` lists the panel library.
+		- `cargo metadata` rather than `CARGO_TARGET_DIR` alone, since a cargo config can set the target dir too.
+		- Swept: `cicd.bash` dogfoods through this script, and `package.bash` already reads the target dir. No other script calls `ldconfig`.
+	- Actual fix: in `utility/dev-install.bash`.
+	- Branch: round-1101
+	- Test case: `dev_install_copies_what_cargo_built_and_finds_the_panel_library` in `cicd/tests/guards.bash` (deqvr).
+	- Closed: 20261101-124500
 	- Origin: `2a74ce3` and `69dae71`. First review. ldconfig confirmed with a Debian user PATH. The target dir is Plausible, by reading.
 
 - Code review 20261031 item 11: knobs lets NaN past a range check
