@@ -125,7 +125,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 - It follows SilkTerm's settings dialog, on top of knobs:
 	- Tabs down the left, groups with a rule under the title, and a sub-group stepped in under the switch it depends on. A row is greyed while that switch is off, but its revert arrow still works.
 	- A revert arrow on every row, live when the value isn't its default.
-	- Cancel, Apply, and OK, with Cancel set a little apart. Enter is OK and Esc is Cancel, even from inside a field.
+	- Cancel, Apply, and OK, with Cancel set a little apart. Enter is OK and Esc is Cancel, even from inside a field. Enter on a focused button presses that button.
 		- Apply turns on as soon as a box is typed in, before it's left. Apply and OK take what's typed, Alt+A included, which leaves the focus where it was.
 	- An empty checkbox or radio button gets an edge in the text color, a little faded, over what the style draws. Some dark themes draw that edge close to the window color, and it all but vanished. `BoxStyle` in `qt.cpp` does it.
 	- Every button with text keeps at least 12 px across and 8 px over and under, from its text to the inside of its frame, in the window and in its message boxes. The style may give more. So every button is one height, the bottom ones included. `BoxStyle` does it too.

@@ -204,6 +204,12 @@ pub mod ffi {
 		fn section_tops(d: &mut Dialog) -> Vec<String>;
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn bottom_buttons(d: &mut Dialog) -> Vec<String>;
+		/// Enter pressed on the first button shown with this text, or with ""
+		/// in the first number box: how often the button was clicked, and
+		/// whether the window is "open" after, or closed as "ok" or "cancel".
+		/// "picker <text>" does the same in the first color picker.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn enter_on(d: &mut Dialog, button: &str) -> Vec<String>;
 		/// Whether Apply is on before and after typing into the first color
 		/// box, or number box, and whether the dialog has the change once
 		/// the box gives it up.
@@ -1140,6 +1146,37 @@ mod tests {
 				[false, true, true],
 				"number box: {number}"
 			);
+		}
+	}
+
+	// Test ID: deqsn
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn enter_presses_the_focused_button_and_is_ok_in_a_box() {
+		let _qt = qt_turn();
+		// Randomize and Reset history aren't auto default, so the dialog
+		// would hand their Enter to OK
+		let cases = [
+			("Cancel", ["1", "cancel"], false),
+			("Apply", ["1", "open"], true),
+			("Randomize", ["1", "open"], false),
+			("", ["0", "ok"], true),
+			("picker Cancel", ["1", "cancel"], false),
+			("picker OK", ["1", "ok"], false),
+		];
+		for (button, want, writes) in cases {
+			let path = std::env::temp_dir().join(format!(
+				"test_tukzmon-settings_{}_enter_on_{}.shcl",
+				std::process::id(),
+				button.replace(' ', "_")
+			));
+			let mut d = Dialog::open(path.clone()).unwrap();
+			d.set("width", &Value::Float(120.0));
+			assert_eq!(ffi::enter_on(&mut d, button), want, "{button:?}");
+			assert_eq!(path.exists(), writes, "{button:?}");
+			if writes {
+				std::fs::remove_file(&path).unwrap();
+			}
 		}
 	}
 

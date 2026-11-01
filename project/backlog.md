@@ -268,7 +268,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 3: Enter on a focused button saves and closes the settings window
 	- ID: 2026103115231832
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-152318
 	- Opened by: t00mietum
@@ -277,6 +277,15 @@ Sorted per the notes in [Template](#template).
 	- Expected behavior: Enter presses the focused button, as in any dialog. Enter in a field is still OK.
 	- Estimated effort: Low
 	- Origin: `f89e55e` (the key filter in `qt.cpp`). First review. Confirmed on a private display.
+	- Actual cause: The window's key filter took every Enter as OK, buttons included. The color picker's Cancel wasn't auto default, so Qt gave its Enter to OK too.
+	- Actual effort: Low
+	- Actual fix: The filter passes Enter on a focused push or tool button to that button. The picker's Cancel is auto default again. Enter in a field or on a checkbox is still OK.
+	- Decisions:
+		- The picker's Cancel had the same fault, so it's fixed here too.
+	- Branch: round-1101
+	- Test case: `bridge::tests::enter_presses_the_focused_button_and_is_ok_in_a_box` (deqsn), over Cancel, Apply, Randomize, a number box, and the picker's Cancel and OK. It fails before the fix on Cancel and on the picker's Cancel, and passes after.
+		- Swept: every `setAutoDefault(false)` button (Reset history and the 5 theme buttons, which the filter now handles), the picker's Cancel and OK, the revert buttons, and the other key handlers in `qt.cpp`. `design.md` Settings window says what Enter does on a button.
+	- Closed: 20261101-114200
 
 - Code review 20261031 item 24: The profiler draws into a canvas far smaller than a panel's, and one run varies 20%
 	- ID: 2026103115232157

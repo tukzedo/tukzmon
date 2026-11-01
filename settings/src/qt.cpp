@@ -408,7 +408,7 @@ public:
 
 		auto *cancel = new QPushButton("Cancel");
 		auto *ok = new QPushButton("OK");
-		cancel->setAutoDefault(false);
+		// Cancel stays auto default, so Enter on it cancels
 		ok->setDefault(true);
 		connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
 		connect(ok, &QPushButton::clicked, this, &QDialog::accept);
@@ -799,6 +799,7 @@ public:
 	}
 
 	// Enter is OK and Esc is Cancel, even from inside a field or on a checkbox.
+	// A focused button takes Enter as a press, as in any dialog.
 	bool eventFilter(QObject *obj, QEvent *ev) override {
 		if (ev->type() != QEvent::KeyPress)
 			return false;
@@ -822,6 +823,11 @@ public:
 		}
 		if (key != Qt::Key_Return && key != Qt::Key_Enter)
 			return false;
+		// the dialog would give Enter on a button that isn't auto default to OK
+		if (qobject_cast<QPushButton *>(obj) || qobject_cast<QToolButton *>(obj)) {
+			static_cast<QAbstractButton *>(obj)->click();
+			return true;
+		}
 		// leaving a field is what commits a half-typed value
 		if (QWidget *f = focusWidget())
 			f->clearFocus();
@@ -2079,6 +2085,60 @@ rust::Vec<rust::String> bottom_buttons(Dialog &d) {
 	rust::Vec<rust::String> out;
 	for (auto &t : w.buttonTexts())
 		out.push_back(rust::String(t));
+	return out;
+}
+
+rust::Vec<rust::String> enter_on(Dialog &d, rust::Str button) {
+	const App app("offscreen");
+	Window w(d);
+	w.show();
+	w.activateWindow();
+	tukzmon::App::processEvents();
+	QString name = QString::fromUtf8(button.data(), int(button.size()));
+	std::unique_ptr<ColorPicker> pick;
+	QDialog *top = &w;
+	if (name.startsWith("picker ")) {
+		pick = w.firstPicker();
+		if (!pick)
+			return {};
+		pick->show();
+		top = pick.get();
+		name.remove(0, 7);
+	}
+	QWidget *to = nullptr;
+	int clicks = 0;
+	auto find = [&] {
+		for (auto *b : top->findChildren<QPushButton *>())
+			if (QString(b->text()).remove(QChar('&')) == name && b->isVisible()) {
+				QObject::connect(b, &QPushButton::clicked, &w, [&clicks] { clicks++; });
+				to = b;
+				return;
+			}
+	};
+	if (pick) {
+		tukzmon::App::processEvents();
+		find();
+	}
+	for (int i = 0; i < w.tabCount() && !to && !pick; i++) {
+		w.select(i);
+		tukzmon::App::processEvents();
+		if (name.isEmpty())
+			to = w.firstBox(true);
+		else
+			find();
+	}
+	if (!to)
+		return {};
+	to->setFocus();
+	QKeyEvent down(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+	// the app filter runs only on the first QApplication's thread, as in tabs_by_key
+	if (!w.eventFilter(to, &down))
+		QApplication::sendEvent(to, &down);
+	tukzmon::App::processEvents();
+	const char *closed = top->result() == QDialog::Accepted ? "ok" : "cancel";
+	rust::Vec<rust::String> out;
+	out.push_back(rust::String(std::to_string(clicks)));
+	out.push_back(rust::String(top->isVisible() ? "open" : closed));
 	return out;
 }
 
