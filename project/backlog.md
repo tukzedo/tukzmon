@@ -68,16 +68,32 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 2: Apply resets Custom colors edited before another theme was picked
 	- ID: 2026103115231817
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: High
 	- Opened: 20261031-152318
 	- Opened by: t00mietum
 	- Steps to reproduce: A file on Custom with `cpu.colors.user` set. Change User, pick Default, Apply, then pick Custom again.
 	- Incorrect behavior: User is the spec default, neither the old color nor the edit. Randomize on Custom, then Default, then Apply does the same.
 	- Expected behavior: Custom keeps the edit, as the window showed before Apply.
+	- Reproduced: 2026-11-01, round-1101 at 2385b2e, by deqqp. User read `#00ff80` after Apply.
 	- Possible cause: Apply replays each touched row, judging set or reset by the window theme, then runs that against the file theme.
+	- Actual cause: as above. On Default, User has no change of its own, so Apply reset it, and the file was still on Custom then, so the reset took out Custom's User.
 	- Estimated effort: Avg
+	- Actual effort: Low
 	- Origin: `f89e55e` (`Dialog::apply`). First review. Confirmed, by scratch tests without Qt.
+	- Progress log:
+		- Apply now lays what the window changed onto the file as it is, store by store: Custom's own colors, the changes on a theme, which theme those were made on, and the pick. Each entry that differs from the file as last read is set or taken out, and the rest of the file stays.
+		- The list of touched rows is gone, since nothing reads it now.
+		- Verified: deqqp fails before the fix and passes after, and the quick gate passed.
+	- Decisions:
+		- Compare the stores, not the rows. A row's value depends on the theme in force, so any replay has to guess which theme each step meant. The stores say it outright, and a gate ticked by a set comes along with no extra step.
+		- It departs from the old behavior in one small way. A row changed and then put back to what the file had, before Apply, no longer writes over a hand edit made to that row meanwhile. The window showed no change there, so the hand edit wins.
+	- Actual fix: `carry` in `settings/src/dialog.rs`, called by `Dialog::apply` for `own`, `changes`, `changed_on` and `state`, in place of the touched-row replay.
+	- Branch: round-1101
+	- Test case: `dialog::tests::custom_keeps_its_edit_when_another_theme_is_picked_before_apply` (deqqp), with a hand edit and with Randomize. It fails at 2385b2e and passes now.
+		- 2026-11-01: decd3's `dlg.touched.is_empty()` is now `dlg.model.values == dlg.saved.values`, the same check without the touched list.
+		- Swept: every `touched` and `touch` use, the picker's Cancel, `drop_theme_changes`, `delete_theme`, and the `model_on` callers. `Dialog::apply` was the only replay. debje, dejng, deccn, deccj and decd1 still pass.
+	- Closed: 20261101-102700
 
 - Code review 20261031 item 1: A hidden CPU graph, shown again, fills the hidden time and can take gigabytes
 	- ID: 2026103115231801
