@@ -349,6 +349,8 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - History is saved under `$XDG_DATA_HOME/tukzmon/`, as `plugin-<id>.hist`, one file per plugin instance. On start the file is read back, and the time since the last sample becomes a gap.
 	- It's written every 15 minutes and when the panel quits, to a temp file renamed over the old one. A crash loses at most the 15 minutes.
+		- The temp file's name has the process id, since 2 sessions can each run an item with one id. A failed write removes it, and Reset history removes any a crash left.
+		- A file that doesn't read, such as one from a newer build, isn't saved over, so going back a version doesn't lose it. The tip says so until it reads, or Reset history deletes it.
 	- The file holds a named section per graph. A section that no graph shown owns, such as a hidden graph's, is kept at each save, so showing the graph again brings its history back. A file from other tiers, or one that doesn't read whole, is skipped. A file from before tier 0 went in, which has one tier less, still reads, with tier 0 empty. The graph starts fresh, and the next save replaces it.
 	- Since file version 2 each section starts with its graph's series count, and a section with another count is skipped. A version 1 file still reads. Its sections have no count, so only their layout can refuse one, and a hidden graph's is saved back as it was.
 	- Times are Unix seconds, so runs line up. A clock set back to before the saved history is moved up to its end, so new samples aren't dropped as old.

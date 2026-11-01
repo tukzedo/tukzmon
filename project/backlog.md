@@ -434,15 +434,37 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 18: History saves can lose hidden graphs' sections or leave a temp file
 	- ID: 2026103115232061
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152320
 	- Opened by: t00mietum
+	- Related IDs: 2026103010491713
 	- Steps to reproduce: Run an older build on a newer history file, or fill the disk during a save.
 	- Incorrect behavior: A read that fails leaves nothing kept, so the save writes only the shown graphs over the file. A failed write leaves `plugin-N.hist.tmp`, up to 14 MB, which Reset history never removes. 2 sessions with one item id share the temp name.
 	- Expected behavior: A file that can't be read isn't overwritten, and a failed write removes its temp file.
+	- Reproduced: Yes, by the new tests with the fix taken out. A version 3 file was saved over, and a failed rename left its temp file.
+	- Actual cause: As described. `Graphs::save` took a failed read as no sections, and `keep::write` returned on an error with its temp file still there.
 	- Estimated effort: Low
+	- Actual effort: Low
 	- Origin: `87bc145` (`keep::write`) and `9b0535f` (`Graphs::save`). First review. Plausible, by reading.
+	- Progress log:
+		- `Graphs::load` keeps nothing after a read that fails for any reason but a missing file, so `save` reads the file again. `save` then refuses a file that doesn't read, and the tip says "it doesn't read, so it's left as it is".
+		- Once the file reads again, or Reset history deletes it, saves go on as before.
+		- `keep::write` names its temp file `plugin-N.hist.<pid>.tmp`, and removes it when the write or the rename fails.
+		- `keep::reset` with saved history deleted also deletes temp files of both names, so one a crash left goes too.
+		- `config::start_from` removes its temp file on a failed write too.
+		- `design.md` History has the rules.
+		- Verified: the quick gate passed.
+	- Decisions:
+		- Any read error but a missing file stops the save, a broken file too. Telling a newer file from a broken one would need trust in the bytes that didn't read. Reset history is the way out, and the tip points at the file.
+		- This changes 2026103010491713's "an older build refuses a version 2 file as a whole and starts fresh". A build from now on still starts fresh, but leaves a newer file on disk.
+		- The pid, not a random name, so a temp file says whose it is, and a reset still finds it by name.
+	- Actual fix: `Graphs::load` and `Graphs::save` in `core/src/graphs.rs`, and `write`, `temp_of` and `is_history_file` in `core/src/keep.rs`.
+	- Branch: round-1101
+	- Test case: `graphs::tests::a_file_that_doesnt_read_isnt_saved_over_until_a_reset` (deqsa), `keep::tests::a_failed_write_leaves_no_temp_file_and_temp_names_are_by_pid` (deqs8) and `keep::tests::a_reset_deletes_leftover_temp_files_too` (deqs9). Each fails with its fix taken out, and deqsa's second round fails with only the load fix out.
+		- 2026-11-01: decbk (`sections_round_trip_and_no_tmp_is_left`) now checks the folder holds only the history file, not that `plugin-1.hist.tmp` is missing, since the temp file has a new name.
+		- Swept: every `keep::write`, `keep::read` and `keep::reset` caller (`Graphs::save`, `load` and `set_look`, `Graph::save`, the plugin's save, load, reset and remove, and the settings window's Reset history), and every other temp file written then renamed (`config::start_from`, fixed the same way, untested since its rename can only fail where its file already exists, and the profiler's report, left as it is in the build's artifacts). `Plugin::forget` deletes `plugin-<id>.hist` only, so a temp a crash left at that moment stays until the next Reset history.
+	- Closed: 20261101-113100
 
 - Code review 20261031 item 17: The plugin's tick makes a second mutable borrow through the tooltip requery
 	- ID: 2026103115232046

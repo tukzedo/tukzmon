@@ -564,10 +564,12 @@ impl Graphs {
 	/// Every graph's history, plus any section in the file that none of them
 	/// owns, such as a hidden graph's, so showing it again brings it back.
 	/// Those come from the last [`Self::load`], or from the file before one.
+	/// A file that doesn't read, as one from a newer build, is left as it
+	/// is, until it reads or a [`Self::reset`] deletes it.
 	///
 	/// # Errors
 	///
-	/// As [`keep::write`].
+	/// As [`keep::write`], or the file's read error when it doesn't read.
 	pub fn save(&self, path: &Path) -> io::Result<()> {
 		let ours: Vec<(&str, Vec<u8>)> = Which::ALL
 			.into_iter()
@@ -577,7 +579,16 @@ impl Graphs {
 		let others = if let Some(kept) = &self.kept {
 			kept
 		} else {
-			read = keep::read(path).unwrap_or_default();
+			read = match keep::read(path) {
+				Ok(sections) => sections,
+				Err(e) if e.kind() == io::ErrorKind::NotFound => Vec::new(),
+				Err(e) => {
+					return Err(io::Error::new(
+						e.kind(),
+						format!("it doesn't read, so it's left as it is: {e}"),
+					));
+				}
+			};
 			&read
 		};
 		let all: Vec<(&str, &[u8])> = ours
@@ -601,9 +612,8 @@ impl Graphs {
 		let mut sections = match keep::read(path) {
 			Ok(s) => s,
 			Err(e) => {
-				if e.kind() == io::ErrorKind::NotFound {
-					self.kept = Some(Vec::new());
-				}
+				// else a save would write only ours over what it can't read
+				self.kept = (e.kind() == io::ErrorKind::NotFound).then(Vec::new);
 				return Err(e);
 			}
 		};
@@ -1218,6 +1228,29 @@ mod tests {
 		g.cpu_mut().sample();
 		assert!(g.cpu().hist.last().is_some());
 		assert!(g.reset(Some(&path)).is_ok());
+	}
+
+	// Test ID: deqsa
+	#[test]
+	fn a_file_that_doesnt_read_isnt_saved_over_until_a_reset() {
+		let path = scratch("newer");
+		// as a newer build would write it
+		let newer = [&b"tukzhist"[..], &3u32.to_le_bytes(), &0u32.to_le_bytes()].concat();
+		let mut g = both();
+		for _ in 0..2 {
+			std::fs::write(&path, &newer).unwrap();
+			assert!(g.load(&path).is_err());
+			assert!(g.save(&path).is_err());
+			assert_eq!(std::fs::read(&path).unwrap(), newer);
+			// and after a load that read, as when Keep is turned back on
+			std::fs::remove_file(&path).unwrap();
+			g.save(&path).unwrap();
+			g.load(&path).unwrap();
+		}
+		g.reset(Some(&path)).unwrap();
+		g.save(&path).unwrap();
+		assert!(keep::read(&path).is_ok());
+		std::fs::remove_file(&path).unwrap();
 	}
 
 	// Test ID: defv4

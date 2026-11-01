@@ -954,8 +954,11 @@ pub fn start_from(own: &Path, shared: &Path) -> std::io::Result<()> {
 	};
 	// renamed in whole, so a crash can't leave half a file that then wins
 	let tmp = own.with_extension("shcl.tmp");
-	std::fs::write(&tmp, text)?;
-	std::fs::rename(&tmp, own)
+	std::fs::write(&tmp, text)
+		.and_then(|()| std::fs::rename(&tmp, own))
+		.inspect_err(|_| {
+			let _ = std::fs::remove_file(&tmp);
+		})
 }
 
 #[cfg(test)]

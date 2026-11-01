@@ -52,14 +52,24 @@ pub fn write(path: &Path, sections: &[(&str, &[u8])]) -> io::Result<()> {
 	if let Some(dir) = path.parent() {
 		std::fs::create_dir_all(dir)?;
 	}
+	let tmp = temp_of(path, std::process::id());
+	let put = || {
+		let mut f = std::fs::File::create(&tmp)?;
+		f.write_all(&out)?;
+		f.sync_all()?;
+		drop(f);
+		std::fs::rename(&tmp, path)
+	};
+	put().inspect_err(|_| {
+		let _ = remove(&tmp);
+	})
+}
+
+// by pid, since 2 sessions can each run an item with one id
+fn temp_of(path: &Path, pid: u32) -> PathBuf {
 	let mut tmp = path.as_os_str().to_owned();
-	tmp.push(".tmp");
-	let tmp = PathBuf::from(tmp);
-	let mut f = std::fs::File::create(&tmp)?;
-	f.write_all(&out)?;
-	f.sync_all()?;
-	drop(f);
-	std::fs::rename(&tmp, path)
+	tmp.push(format!(".{pid}.tmp"));
+	PathBuf::from(tmp)
 }
 
 /// Every section, by name. A version 1 file's sections come back with a
@@ -109,7 +119,14 @@ pub fn history_file(dir: &Path, id: i32) -> PathBuf {
 	dir.join(format!("plugin-{id}.hist"))
 }
 
+// or one's temp file, as a crash mid-write leaves, or a failed one before
+// 2026103115232061
 fn is_history_file(name: &str) -> bool {
+	let name = name.strip_suffix(".tmp").map_or(name, |n| {
+		n.rsplit_once('.')
+			.filter(|(_, pid)| pid.parse::<u32>().is_ok())
+			.map_or(n, |(n, _)| n)
+	});
 	name.strip_prefix("plugin-")
 		.and_then(|n| n.strip_suffix(".hist"))
 		.is_some_and(|id| id.parse::<i32>().is_ok())
@@ -134,9 +151,9 @@ pub fn remove(path: &Path) -> io::Result<()> {
 }
 
 /// Asks every panel item to start its graphs over. With `saved_too`, every
-/// history file in `dir` goes as well, so an item that isn't running
-/// doesn't bring it back. A running one deletes its own again, since it may
-/// save in between.
+/// history file in `dir` goes as well, and their temp files, so an item that
+/// isn't running doesn't bring it back. A running one deletes its own again,
+/// since it may save in between.
 ///
 /// # Errors
 ///
@@ -209,7 +226,11 @@ mod tests {
 			got,
 			vec![("cpu".into(), b"abc".to_vec()), ("mem".into(), Vec::new())]
 		);
-		assert!(!dir.join("sub/plugin-1.hist.tmp").exists());
+		let names: Vec<_> = std::fs::read_dir(dir.join("sub"))
+			.unwrap()
+			.map(|e| e.unwrap().file_name())
+			.collect();
+		assert_eq!(names, ["plugin-1.hist"]);
 		std::fs::remove_file(&path).unwrap();
 		std::fs::remove_dir(dir.join("sub")).unwrap();
 		std::fs::remove_dir(&dir).unwrap();
@@ -292,6 +313,46 @@ mod tests {
 		assert!(!ResetWatch::new(&dir).asked());
 		assert!(remove(&hist[0]).is_ok());
 		for p in other.iter().chain([&reset_mark(&dir)]) {
+			std::fs::remove_file(p).unwrap();
+		}
+		std::fs::remove_dir(&dir).unwrap();
+	}
+
+	// Test ID: deqs8
+	#[test]
+	fn a_failed_write_leaves_no_temp_file_and_temp_names_are_by_pid() {
+		let dir = scratch("fail");
+		// a folder in the way, so the rename fails after the temp is written
+		let path = dir.join("plugin-1.hist");
+		std::fs::create_dir_all(path.join("x")).unwrap();
+		assert!(write(&path, &[("cpu", b"abc")]).is_err());
+		let names: Vec<_> = std::fs::read_dir(&dir)
+			.unwrap()
+			.map(|e| e.unwrap().file_name())
+			.collect();
+		assert_eq!(names, ["plugin-1.hist"]);
+		assert_ne!(temp_of(&path, 1), temp_of(&path, 2));
+		std::fs::remove_dir(path.join("x")).unwrap();
+		std::fs::remove_dir(&path).unwrap();
+		std::fs::remove_dir(&dir).unwrap();
+	}
+
+	// Test ID: deqs9
+	#[test]
+	fn a_reset_deletes_leftover_temp_files_too() {
+		let dir = scratch("tmps");
+		let gone = [
+			temp_of(&history_file(&dir, 3), 4242),
+			dir.join("plugin-3.hist.tmp"),
+		];
+		let kept = [dir.join("plugin-3.hist.x.tmp"), dir.join("plugin-3.tmp")];
+		for p in gone.iter().chain(&kept) {
+			std::fs::write(p, b"x").unwrap();
+		}
+		reset(&dir, true).unwrap();
+		assert!(gone.iter().all(|p| !p.exists()));
+		assert!(kept.iter().all(|p| p.exists()));
+		for p in kept.iter().chain([&reset_mark(&dir)]) {
 			std::fs::remove_file(p).unwrap();
 		}
 		std::fs::remove_dir(&dir).unwrap();
