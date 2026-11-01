@@ -430,15 +430,26 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 19: The LAN reader doesn't check netlink sequence numbers
 	- ID: 2026103115232077
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152320
 	- Opened by: t00mietum
 	- Steps to reproduce: A sock_diag dump fails partway.
 	- Incorrect behavior: Its leftover messages are read into the next dump, so one read misses sockets and the next counts their whole life once. The interface totals bound it, since the LAN is clamped to them.
 	- Expected behavior: Messages from another request are skipped.
+	- Actual cause: `lan::parse` read every message in the socket, whatever request it answered.
 	- Estimated effort: Low
+	- Actual effort: Low
 	- Origin: `8bbd96a`. First review. Plausible, by reading.
+	- Progress log:
+		- `lan::parse` takes the dump's sequence number and skips a message with another, its error and done included.
+		- `design.md` Data sources on Linux says so.
+		- Verified: `cargo test -p tukzmon-core lan::` and the quick gate passed.
+	- Actual fix: Skip messages by sequence number.
+	- Branch: round-1101
+	- Test case: `lan::tests::whats_left_of_an_earlier_dump_is_skipped` (deqt2). It fails with the check taken out, on the old dump's error.
+		- Swept: `LanReader::poll` is the only netlink reader in the repo.
+	- Closed: 20261101-115430
 
 - Code review 20261031 item 18: History saves can lose hidden graphs' sections or leave a temp file
 	- ID: 2026103115232061

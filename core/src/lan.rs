@@ -151,17 +151,25 @@ enum Dump {
 	Bad,
 }
 
-/// Every message in one read of a dump, LAN sockets into `out`.
-fn parse(buf: &[u8], out: &mut HashMap<u64, [u64; 2]>) -> Dump {
+/// Every message of dump `seq` in one read, LAN sockets into `out`. What's
+/// left of an earlier dump that failed partway is skipped, or its sockets
+/// would count in this one.
+fn parse(buf: &[u8], seq: u32, out: &mut HashMap<u64, [u64; 2]>) -> Dump {
 	let mut at = 0;
 	while at + HEADER <= buf.len() {
-		let (Some(len), Some(kind)) = (u32_at(buf, at), u16_at(buf, at + 4)) else {
+		let (Some(len), Some(kind), Some(its_seq)) =
+			(u32_at(buf, at), u16_at(buf, at + 4), u32_at(buf, at + 8))
+		else {
 			return Dump::Bad;
 		};
 		let len = len as usize;
 		let Some(body) = buf.get(at + HEADER..at + len).filter(|_| len >= HEADER) else {
 			return Dump::Bad;
 		};
+		if its_seq != seq {
+			at += align(len);
+			continue;
+		}
 		match kind {
 			NLMSG_DONE => return Dump::Done,
 			NLMSG_ERROR => return Dump::Bad,
@@ -260,7 +268,7 @@ impl LanReader {
 				let Ok(n) = self.sock.read(&mut self.buf) else {
 					return false;
 				};
-				match parse(&self.buf[..n], &mut self.now) {
+				match parse(&self.buf[..n], self.seq, &mut self.now) {
 					Dump::More if n > 0 => {}
 					Dump::Done => break,
 					Dump::More | Dump::Bad => return false,
@@ -391,26 +399,44 @@ mod tests {
 		buf.extend(message("2001:db8::5", "fd00::2", 9, [100, 0], [1, 0]));
 		buf.extend(message("127.0.0.1", "127.0.0.1", 10, [9, 9], [1, 1]));
 		let mut out = HashMap::new();
-		assert_eq!(parse(&buf, &mut out), Dump::More);
+		assert_eq!(parse(&buf, 0, &mut out), Dump::More);
 		assert_eq!(out.len(), 2);
 		assert_eq!(out[&(1 << 40 | 7)], [1000 + 10 * 66, 5000 + 20 * 66]);
 		assert_eq!(out[&9], [100 + 86, 0]);
-		assert_eq!(parse(&wrap(NLMSG_DONE, &[0; 4]), &mut out), Dump::Done);
-		assert_eq!(parse(&wrap(NLMSG_ERROR, &[0; 20]), &mut out), Dump::Bad);
+		assert_eq!(parse(&wrap(NLMSG_DONE, &[0; 4]), 0, &mut out), Dump::Done);
+		assert_eq!(parse(&wrap(NLMSG_ERROR, &[0; 20]), 0, &mut out), Dump::Bad);
 		// a length past the read, or under a header
 		let mut cut = message("10.0.0.1", "10.0.0.2", 1, [1, 1], [1, 1]);
 		cut.truncate(100);
-		assert_eq!(parse(&cut, &mut out), Dump::Bad);
+		assert_eq!(parse(&cut, 0, &mut out), Dump::Bad);
 		let mut short = wrap(NLMSG_DONE, &[0; 4]);
 		short[0..4].copy_from_slice(&8u32.to_ne_bytes());
-		assert_eq!(parse(&short, &mut out), Dump::Bad);
+		assert_eq!(parse(&short, 0, &mut out), Dump::Bad);
 		// a tcp_info too old to count bytes is skipped
 		let mut old = message("10.0.0.1", "10.0.0.2", 77, [1, 1], [1, 1]);
 		let info_len = HEADER + DIAG_MSG + 12;
 		old[info_len..info_len + 2].copy_from_slice(&100u16.to_ne_bytes());
-		assert_eq!(parse(&old, &mut out), Dump::More);
+		assert_eq!(parse(&old, 0, &mut out), Dump::More);
 		assert!(!out.contains_key(&77));
 		assert_eq!(request(libc::AF_INET as u8, 3).len(), 72);
+	}
+
+	// Test ID: deqt2
+	#[test]
+	fn whats_left_of_an_earlier_dump_is_skipped() {
+		let seq = |mut m: Vec<u8>, seq: u32| {
+			m[8..12].copy_from_slice(&seq.to_ne_bytes());
+			m
+		};
+		let mut buf = seq(message("10.0.0.1", "10.0.0.2", 1, [5, 5], [0, 0]), 6);
+		buf.extend(seq(wrap(NLMSG_ERROR, &[0; 20]), 6));
+		buf.extend(seq(wrap(NLMSG_DONE, &[0; 4]), 6));
+		buf.extend(seq(message("10.0.0.1", "10.0.0.3", 2, [7, 7], [0, 0]), 7));
+		let mut out = HashMap::new();
+		assert_eq!(parse(&buf, 7, &mut out), Dump::More);
+		assert_eq!(out, HashMap::from([(2, [7, 7])]));
+		buf.extend(seq(wrap(NLMSG_DONE, &[0; 4]), 7));
+		assert_eq!(parse(&buf, 7, &mut out), Dump::Done);
 	}
 
 	// Test ID: dekq7
