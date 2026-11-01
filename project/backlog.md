@@ -127,7 +127,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 7: The network graph counts bridge, VM and VPN traffic as well
 	- ID: 2026103115231894
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-152318
 	- Opened by: t00mietum
@@ -136,8 +136,39 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: Over 10 s on b23 every interface but `lo` received 18.3 MB, and the physical NIC 0.23 MB, so the graph read about 80 times high. With the LAN split on, VM traffic over the bridge counts as internet.
 	- Expected behavior: Physical interfaces only by default, or a setting for which ones count.
 	- Possible cause: `net::bin` adds every interface but `lo`.
+	- Actual cause: Bridges, VM taps, container links and VPN tunnels each counted the same bytes again, on top of the NIC that carried them.
 	- Estimated effort: Low
+	- Actual effort: Low
 	- Origin: `1c4df3f`. 2026102408512202 left it for later "if it shows". Confirmed on b23.
+	- Progress log:
+		- `NetReader` counts `lo` and the interfaces with a `device` link in `/sys/class/net`, and looks again only when the list of interfaces changes. A box with none, such as a container, counts them all.
+		- A container's or VM's link coming or going is no longer a gap.
+		- `design.md` Data sources on Linux has the details.
+		- Verified: `cargo test -p tukzmon-core net::` and the quick gate passed. On b23 only enp8s0, enp9s0 and wlp7s0 have the link, and br0, docker0, nordlynx, the veths and the vnets don't.
+	- Decisions:
+		- Hardware only, with no setting. Everything a virtual interface sends out to the world crosses a hardware one, so counting both counts it twice. A setting can come later if someone needs one.
+		- Hardware is a `device` link in sysfs. Wi-Fi, USB and virtio NICs have one, so a VM guest still counts its own NIC.
+		- The LAN split still counts a TCP socket to a VM or over a VPN as LAN. That's 2026110110445455.
+	- Actual fix: `net::Wired` picks the interfaces that count.
+	- Test case: `net::tests::only_hardware_interfaces_count_unless_there_are_none` (deqr3). It fails with every interface counted.
+		- Swept: the disk collector already picks real drives. `lan::split` clamps to these totals, which is the follow-up.
+	- Branch: round-1101
+	- Closed: 20261101-104842
+
+- With the LAN split on, TCP to a VM or over a VPN counts as LAN
+	- ID: 2026110110445455
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261101-104454
+	- Opened by: t00mietum
+	- Prereq IDs: 2026103115231894
+	- Related IDs: 2026103115231894, 2026102914561218
+	- Steps to reproduce: Turn on the LAN split, then copy a file over TCP to a VM on a bridge, or to a private address over a VPN.
+	- Incorrect behavior: The LAN reader counts those sockets, since the far end is private. The network graph no longer counts the bridge or the tunnel, so the clamp in `lan::split` takes them out of the internet's share instead.
+	- Expected behavior: Only sockets that leave by a counted interface are the LAN's.
+	- Possible cause: `lan::on_lan` goes by address only. Leaving out far ends in the subnets of the uncounted interfaces' addresses may be enough.
+	- Estimated effort: Low
 
 - Code review 20261031 item 6: Format and Lint pass on no files when git ls-files fails
 	- ID: 2026103115231879
