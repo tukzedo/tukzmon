@@ -615,7 +615,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 9: The graph list's Width % and Sample % header tips are the first row's
 	- ID: 2026103115231923
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152319
 	- Opened by: t00mietum
@@ -624,6 +624,16 @@ Sorted per the notes in [Template](#template).
 	- Expected behavior: A tip about the column.
 	- Estimated effort: Low
 	- Origin: `b869164` and `bad9e01`. First review. Confirmed by reading.
+	- Actual cause: The headers took the first row's tip once, when the window was built.
+	- Actual effort: Low
+	- Actual fix: Width %, Sample % and Time axis each have a tip about the column, for every graph.
+	- Decisions:
+		- Time axis had no tip, so it gets one too, to match the other 2.
+		- The tips are fixed text in `qt.cpp`, like the buttons' tips, since a header isn't a setting in the spec.
+	- Branch: round-1101
+	- Test case: `bridge::tests::the_graph_list_headers_tip_the_column_not_a_graph` (deqsp). It fails before the fix, with the CPU width tip on Width %, and passes after.
+		- Swept: the other list headers and labels in `buildList`. No other label copies a row's tip.
+	- Closed: 20261101-114500
 
 - Code review 20261031 item 8: 2 windows saving one new theme name keep only the last one's colors
 	- ID: 2026103115231908

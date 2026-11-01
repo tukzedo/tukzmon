@@ -210,6 +210,9 @@ pub mod ffi {
 		/// "picker <text>" does the same in the first color picker.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn enter_on(d: &mut Dialog, button: &str) -> Vec<String>;
+		/// Each graph list header with its tip, as "head: tip".
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn list_head_tips(d: &mut Dialog) -> Vec<String>;
 		/// Whether Apply is on before and after typing into the first color
 		/// box, or number box, and whether the dialog has the change once
 		/// the box gives it up.
@@ -1177,6 +1180,33 @@ mod tests {
 			if writes {
 				std::fs::remove_file(&path).unwrap();
 			}
+		}
+	}
+
+	// Test ID: deqsp
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn the_graph_list_headers_tip_the_column_not_a_graph() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_head_tips_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let tips = ffi::list_head_tips(&mut d);
+		assert_eq!(tips.len(), 3, "{tips:?}");
+		let rows: Vec<String> = graph_rows(&d)
+			.iter()
+			.flat_map(|g| [&g.width, &g.sample, &g.time].map(|id| row_state(&d, id).tip))
+			.collect();
+		assert!(rows.len() >= 9, "{rows:?}");
+		for t in &tips {
+			let (head, tip) = t.split_once(": ").unwrap();
+			assert!(tip.contains("each graph"), "{head}: {tip:?}");
+			let copied = rows
+				.iter()
+				.any(|r| r.contains(tip) || tip.contains(r.as_str()));
+			assert!(!copied, "{head}: {tip:?}");
 		}
 	}
 

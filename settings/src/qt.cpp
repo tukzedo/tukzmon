@@ -1446,8 +1446,14 @@ private:
 		auto *widthHead = new QLabel("Width %");
 		auto *sampleHead = new QLabel("Sample %");
 		auto *timeHead = new QLabel("Time axis");
-		widthHead->setToolTip(listRows.empty() ? "" : qs(row_state(d, listRows[0].width->id()).tip));
-		sampleHead->setToolTip(listRows.empty() ? "" : qs(row_state(d, listRows[0].sample->id()).tip));
+		// about the column, since a row's tip names its graph and how it was set
+		widthHead->setToolTip("How wide each graph is, or how tall on a vertical panel, as a percentage of Width, "
+							  "on the General tab.");
+		sampleHead->setToolTip("How often each graph is read and redrawn, as a percentage of Sample ms default, on "
+							   "the General tab. At 200% it's read half as often, and at 50% twice as often. Under "
+							   "50 ms counts as 50 ms.");
+		timeHead->setToolTip("How each graph spreads time across its width. Default follows Time axis default, on "
+							 "the General tab, where the tip tells the curves apart.");
 		listGrid->addWidget(widthHead, 0, 2);
 		listGrid->addWidget(sampleHead, 0, 3);
 		listGrid->addWidget(timeHead, 0, 4);
@@ -2139,6 +2145,17 @@ rust::Vec<rust::String> enter_on(Dialog &d, rust::Str button) {
 	rust::Vec<rust::String> out;
 	out.push_back(rust::String(std::to_string(clicks)));
 	out.push_back(rust::String(top->isVisible() ? "open" : closed));
+	return out;
+}
+
+rust::Vec<rust::String> list_head_tips(Dialog &d) {
+	const App app("offscreen");
+	const Window w(d);
+	rust::Vec<rust::String> out;
+	for (const char *head : {"Width %", "Sample %", "Time axis"})
+		for (auto *l : w.findChildren<QLabel *>())
+			if (l->text() == head)
+				out.push_back(rust::String(std::string(head) + ": " + l->toolTip().toStdString()));
 	return out;
 }
 

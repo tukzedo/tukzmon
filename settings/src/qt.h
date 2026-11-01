@@ -20,6 +20,7 @@ rust::Vec<rust::String> tabs_by_key(Dialog &d, bool back, bool fromPage, bool pa
 rust::Vec<rust::String> section_tops(Dialog &d);
 rust::Vec<rust::String> bottom_buttons(Dialog &d);
 rust::Vec<rust::String> enter_on(Dialog &d, rust::Str button);
+rust::Vec<rust::String> list_head_tips(Dialog &d);
 rust::Vec<bool> apply_while_typing(Dialog &d, bool number);
 rust::Vec<rust::String> page_shades(Dialog &d, bool dark);
 rust::Vec<rust::String> button_gaps(Dialog &d);
