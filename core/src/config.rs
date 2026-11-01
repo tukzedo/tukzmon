@@ -221,7 +221,10 @@ pub fn theme_text(v: &knobs::Value) -> String {
 fn theme_typed(spec: &Spec, id: &str, raw: &str) -> Option<knobs::Value> {
 	let s = spec.get(id)?;
 	let v = match s.kind {
-		knobs::Kind::Int | knobs::Kind::Float => knobs::Value::Float(raw.trim().parse().ok()?),
+		// knobs' range check passes NaN (2026103115231954)
+		knobs::Kind::Int | knobs::Kind::Float => {
+			knobs::Value::Float(raw.trim().parse().ok().filter(|x: &f64| x.is_finite())?)
+		}
 		knobs::Kind::Bool => match raw.trim() {
 			"true" | "on" => knobs::Value::Bool(true),
 			"false" | "off" => knobs::Value::Bool(false),
@@ -1960,6 +1963,19 @@ mod tests {
 		assert!(saved_themes(&doc).is_empty());
 		assert_eq!(theme_problems(&doc).len(), 2);
 		assert_eq!(Look::from_model(&model(text)), Look::default());
+	}
+
+	// Test ID: deqvz
+	#[test]
+	fn a_saved_theme_number_that_isnt_finite_is_junk() {
+		for raw in ["nan", "NaN", "-nan", "inf", "-infinity", "1e999", "junk"] {
+			let text =
+				format!("theme:\n\tname: x\nthemes:\n\tx:\n\t\tname: X\n\t\tmargin_tb: {raw}\n");
+			let t = saved_themes(&shcl::Document::parse(&text));
+			assert_eq!(t[0].colors["margin_tb"], "2", "{raw}");
+			let l = Look::from_model(&model(&text));
+			assert_eq!(l.margin_tb, 2, "{raw}");
+		}
 	}
 
 	// Test ID: deccw

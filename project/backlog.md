@@ -748,7 +748,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 11: knobs lets NaN past a range check
 	- ID: 2026103115231954
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152319
 	- Opened by: t00mietum
@@ -756,9 +756,22 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: The margin is 0. Junk text gives the default 2, so nan isn't dropped as junk is. A float setting keeps NaN and saves it.
 	- Expected behavior: A number that isn't finite is refused like any out of range.
 	- Possible cause: `x < min || x > max` is false for NaN, and `theme_typed` takes `nan` through `parse::<f64>`.
+	- Reproduced: 2026-11-01, with the new test against the old `theme_typed`.
+	- Actual cause: as above. Of the ways a typed number gets in, only `theme_typed` let NaN through. The number box and the picker already drop it, and shcl doesn't read `nan` or `inf` as a number.
 	- Estimated effort: Low
-	- Decisions: The knobs fix goes to silkterm first, as its copy is the source.
+	- Actual effort: Low
+	- Progress log:
+		- A saved theme's number that isn't finite is dropped like junk, so it gets Default's value.
+		- Verified: the quick gate passed, with deqvz.
+	- Decisions:
+		- The knobs fix goes to silkterm first, as its copy is the source.
+		- The check sits in `theme_typed`, so `knobs/src/lib.rs` stays the same as silkterm's. Once silkterm's `Spec::valid` refuses NaN and the copy is taken over, the check there is spare but harmless.
+	- Branch: round-1101
+	- Test case: `config::tests::a_saved_theme_number_that_isnt_finite_is_junk` (deqvz). It fails on nan without the fix and passes with it.
+		- Swept: every `Spec::valid` caller. `Dialog::set_text` and `pick::pct` already refuse a number that isn't finite. knobs' own reads go through shcl, which doesn't take `nan`, and a rule's answer is computed. `inf` and `1e999` were already out of range.
+	- Acceptance signoff: Self-closed 20261101: deqvz passed in the quick gate.
 	- Origin: `f89e55e` (`Spec::valid`). First review. Confirmed with a scratch crate. silkterm's copy is byte-identical.
+	- Closed: 20261101-125200
 
 - Code review 20261031 item 10: A non-UTF-8 config path panics, and a dangling config link is replaced
 	- ID: 2026103115231938
