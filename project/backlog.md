@@ -25,7 +25,8 @@ Sorted per the notes in [Template](#template).
 - With the LAN split on, TCP to a VM on a bridge that also holds the NIC counts as LAN
 	- ID: 2026110111543986
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting on automated testing
+	- Needs external testing: On b23, with a VM on br0 running and the split on, copy a file to it over TCP, and check that `net::guests` lists its address and the copy doesn't show as LAN. No VM answered on 2026-11-01, so the bridge had no VM's address to find.
 	- Priority|Severity: Low
 	- Opened: 20261101-115439
 	- Opened by: t00mietum
@@ -35,7 +36,22 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: The socket's own address is the bridge's, which counts as the LAN's way out, so the copy is LAN, and the clamp takes it out of the internet's share.
 	- Expected behavior: A socket to a far end that sits behind one of the bridge's virtual ports isn't the LAN's.
 	- Possible cause: Telling it apart takes the far end's MAC, from the neighbor table, and its port in the bridge's `brforward`. Both read with no root.
+	- Actual cause: The box's own address on a bridge says nothing of which port the far end is behind.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A far end whose link address is in the bridge's `brforward` on a virtual port, such as a VM's tap, isn't the LAN's. The neighbor table, from a netlink dump with no root, gives each far end's link address, IPv4 and IPv6.
+		- Read with the away addresses, every 10 s and when the interfaces change. Each failed read keeps the last lists.
+		- `design.md` Data sources on Linux has the details.
+		- Verified: `cargo test -p tukzmon-core lan:: net::` passed. On b23 the neighbor dump read with no root and listed the VMs, and br0's `brforward` had a VM's address on vnet2's port, not local, as the test builds it.
+	- Decisions:
+		- By the bridge's forwarding table, since a VM on b23's br0 shares its subnet with the real LAN, and no address tells them apart.
+		- An idle VM's address ages out of the table, but one moving data is in it, which is when it matters.
+		- A copy to a VM can count as LAN for up to 10 s at its start, till the next read. Reading every tick would cost 2 more reads a second, for a few seconds of a share the clamp already bounds.
+	- Actual fix: `net::guests` lists the far ends behind a bridge's virtual ports, and `lan::Away` holds them with the away addresses.
+	- Branch: round-1101
+	- Test case: `lan::tests::a_socket_to_a_vm_on_the_nics_bridge_isnt_the_lans` (deqt6), `lan::tests::neighbors_read_with_their_link_addresses` (deqt7) and `net::tests::a_vm_behind_the_nics_bridge_is_found_by_its_port` (deqt8). deqt6 fails with the far end not checked, and deqt8 with the port's high byte dropped.
+		- Swept: the sock_diag dump and the neighbor dump share `lan::dump` and `lan::walk`, so both skip another request's messages.
 
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
@@ -189,7 +205,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- A socket whose own address is on an interface the network reader leaves out, such as a NAT bridge, a container's link or a VPN tunnel, isn't the LAN's. A bridge, bond or VLAN stacked on a hardware interface still is.
 		- The addresses are read again every 10 s and when the interfaces change, and a failed read keeps the last ones.
-		- A VM on a bridge that also holds the NIC, as on b23, is child 2026110111543986. This closes with it.
+		- A VM on a bridge that also holds the NIC, as on b23, is child 2026110111543986, in and waiting on a test with a running VM. This closes with it.
 		- `design.md` Data sources on Linux has the details.
 		- Verified: `cargo test -p tukzmon-core lan:: net::` passed. On b23 the away addresses are nordlynx's, docker0's and the compose bridge's, and br0 still counts.
 	- Decisions:

@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use crate::collect::{Climb, Collector, Counts, Kept};
 use crate::config::Split;
-use crate::lan::{self, LanReader};
+use crate::lan::{self, Away, LanReader};
 
 const NET_DEV: &str = "/proc/net/dev";
 const CLASS: &str = "/sys/class/net";
@@ -122,6 +122,59 @@ impl Wired {
 	fn away(&self, name: &str) -> bool {
 		self.any && name != "lo" && self.link(name) == Some(Link::Virtual)
 	}
+}
+
+/// A bridge's ports that are [`Link::Virtual`], by port number, from its
+/// `brif` folder.
+fn virtual_ports(wired: &Wired, bridge: &str) -> Vec<u16> {
+	let brif = Path::new(&wired.class).join(bridge).join("brif");
+	std::fs::read_dir(brif)
+		.into_iter()
+		.flatten()
+		.flatten()
+		.filter(|port| port.file_name().to_str().and_then(|n| wired.link(n)) == Some(Link::Virtual))
+		.filter_map(|port| {
+			let text = std::fs::read_to_string(port.path().join("port_no")).ok()?;
+			u16::from_str_radix(text.trim().trim_start_matches("0x"), 16).ok()
+		})
+		.collect()
+}
+
+/// The link addresses a bridge's `brforward` has on one of `ports`.
+fn on_ports(fdb: &[u8], ports: &[u16]) -> Vec<[u8; 6]> {
+	// struct __fdb_entry: the address, the port's low byte, is_local, the
+	// ageing timer, the port's high byte
+	fdb.chunks_exact(16)
+		.filter(|e| e[7] == 0 && ports.contains(&(u16::from(e[12]) << 8 | u16::from(e[6]))))
+		.filter_map(|e| e[..6].try_into().ok())
+		.collect()
+}
+
+/// The far ends behind a virtual port of a bridge that holds a hardware
+/// interface too, such as a VM on b23's br0. The box's own address is on
+/// that bridge, but what goes to them never crosses the NIC. False when
+/// the neighbors can't be had.
+fn guests(wired: &Wired, out: &mut Vec<IpAddr>) -> bool {
+	let mut macs = Vec::new();
+	for (bridge, _) in wired
+		.known
+		.iter()
+		.filter(|(_, link)| *link == Link::Stacked)
+	{
+		let ports = virtual_ports(wired, bridge);
+		if ports.is_empty() {
+			continue;
+		}
+		if let Ok(fdb) = std::fs::read(Path::new(&wired.class).join(bridge).join("brforward")) {
+			macs.extend(on_ports(&fdb, &ports));
+		}
+	}
+	macs.is_empty()
+		|| lan::neighbors(|ip, mac| {
+			if macs.contains(&mac) {
+				out.push(ip);
+			}
+		})
 }
 
 /// Every interface's addresses. False when they can't be had.
@@ -299,20 +352,19 @@ impl Collector<5> for Traffic {
 				let due = self.listed.is_none_or(|(then, looks)| {
 					looks != wired.looks || at.saturating_duration_since(then) >= RELIST
 				});
-				// keep the last list when there's no new one, or the away
-				// sockets would count all they have once they're left out
-				// again
-				let was = r.away.len();
+				let mut fresh = Away::default();
+				// keep the last lists when there are no new ones, or the
+				// away sockets would count all they have once they're left
+				// out again
 				if due
 					&& addresses(|name, ip| {
 						if wired.away(name) {
-							r.away.push(ip);
+							fresh.mine.push(ip);
 						}
-					}) {
-					r.away.drain(..was);
+					}) && guests(wired, &mut fresh.guests)
+				{
+					r.away = fresh;
 					self.listed = Some((at, wired.looks));
-				} else {
-					r.away.truncate(was);
 				}
 				r.read()?
 			}
@@ -568,6 +620,53 @@ mod tests {
 		let mut w = Wired::new(&sys.at("none"));
 		w.sort(&net_dev(&rows));
 		assert!(rows.iter().all(|r| !w.away(r.0)));
+	}
+
+	// Test ID: deqt8
+	#[test]
+	fn a_vm_behind_the_nics_bridge_is_found_by_its_port() {
+		let sys = Tree::new(
+			"net_guests",
+			&[
+				("enp8s0/device/", ""),
+				("enp8s0/upper_br0", ""),
+				("br0/brif/enp8s0/port_no", "0x1\n"),
+				("br0/brif/vnet0/port_no", "0x2\n"),
+				("br0/brif/vnet1/port_no", "0x104\n"),
+				("vnet0/upper_br0", ""),
+				("vnet1/upper_br0", ""),
+			],
+		);
+		let rows = [
+			("lo", 0, 0),
+			("enp8s0", 0, 0),
+			("br0", 0, 0),
+			("vnet0", 0, 0),
+			("vnet1", 0, 0),
+		];
+		let mut w = Wired::new(&sys.at(""));
+		w.sort(&net_dev(&rows));
+		let mut ports = virtual_ports(&w, "br0");
+		ports.sort_unstable();
+		assert_eq!(ports, [2, 0x104]);
+		let entry = |mac: u8, port: u16, local: bool| {
+			let mut e = [0u8; 16];
+			e[..6].copy_from_slice(&[0x52, 0x54, 0, 0, 0, mac]);
+			e[6] = port as u8;
+			e[7] = u8::from(local);
+			e[12] = (port >> 8) as u8;
+			e
+		};
+		let fdb: Vec<u8> = [
+			entry(1, 1, false),
+			entry(2, 2, false),
+			entry(3, 2, true),
+			entry(4, 0x104, false),
+			entry(5, 4, false),
+		]
+		.concat();
+		let macs: Vec<u8> = on_ports(&fdb, &ports).iter().map(|m| m[5]).collect();
+		assert_eq!(macs, [2, 4]);
 	}
 
 	// Test ID: deqt5
