@@ -383,6 +383,7 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - While running, the boundaries move smoothly by themselves, since each is a smooth function of the run's length. A jump eases in over half a second instead, from what was on screen to where the axis should be.
 	- A jump is anything but time going on: history loaded from disk, the first sample after a gap, a new curve or time axis, or a linear graph's span changing with its width or sample rate. A log axis is in fractions of the width, so a width change only stretches it.
+	- Dropping history past the max age is time going on, unless it takes more than 1% off the oldest end in `ln(1 + age / 5 s)`, as a lower max age does. A 15 minute trim of a day takes 0.2%.
 	- The two are mixed in `ln(1 + age / 5 s)`, so time still only runs older to the left. A jump part way through an ease starts from what's on screen.
 	- While an axis eases, the panel and the settings window's graph list draw about 30 times a second, then go back to once a sample.
 

@@ -496,7 +496,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 20: Each trim past the max age eases the time axis again
 	- ID: 2026103115232093
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152320
 	- Opened by: t00mietum
@@ -505,6 +505,21 @@ Sorted per the notes in [Template](#template).
 	- Expected behavior: Trimming the old end isn't a jump.
 	- Estimated effort: Low
 	- Origin: `34dffcb` (`Basis::jumps_to`). First review. Plausible, by reading.
+	- Actual cause: As described. Any change in the first time counted as a jump, including a trim.
+	- Actual effort: Low
+	- Progress log:
+		- Dropping history past the max age is time going on, unless it takes more than 1% off the oldest end in `ln(1 + age / 5 s)`. A 15 minute trim of a day takes 0.2%.
+		- A lower max age, such as 28 days down to 1, still eases, and so does older history loaded.
+		- `design.md` Time axis says so.
+		- Verified: the quick gate passed.
+	- Decisions:
+		- The cut is judged by how far it moves the left edge, in the same log units the ease mixes in, rather than by adding the max age to the basis. The trim after a lower max age comes at the next save, up to 15 minutes after the look changed, so a max age in the basis would ease at the wrong time and then jump.
+		- 1% is about a pixel on a 100 px graph.
+	- Actual fix: `Basis::jumps_to` in `core/src/axis.rs`, with `TRIM_SHOWS`.
+	- Branch: round-1101
+	- Test case: `axis::tests::a_trim_to_the_max_age_is_no_jump_but_a_shorter_max_age_is` (deqvb), over all 3 curves. It fails with the old rule, and with the cut check taken out.
+		- Swept: `Basis::jumps_to` is the only jump check, and `History::trim` the only place the first time moves later. Linear axes don't use the first time.
+	- Closed: 20261101-123300
 
 - Code review 20261031 item 19: The LAN reader doesn't check netlink sequence numbers
 	- ID: 2026103115232077
