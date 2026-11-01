@@ -368,13 +368,28 @@ fStepSync() {
 	fEcho_Clean "fast-forwarded ${behind} commit(s) from ${upstream}"
 }
 
-## The tracked and untracked files of one kind, as lint lists them.
-fFilesLike() { git ls-files --cached --others --exclude-standard -- "$@" | while IFS= read -r f; do [[ ! -f "${f}" ]] || printf '%s\n' "${f}"; done; }
+## The tracked and untracked files, of the kinds given if any, into ARRAY.
+## Untracked too, since they go out with the next commit. Not through a
+## process substitution, which would hide git failing, as an old git does on
+## a worktree with relative paths.
+fTreeFiles() {   ## fTreeFiles ARRAY [PATHSPEC...]
+	local -n treeFiles_out="${1:?}"; shift
+	local listed='' f=''
+	treeFiles_out=()
+	listed="$(git ls-files --cached --others --exclude-standard -- "$@")" || { fEcho_Clean "git couldn't list the files"; return 1; }
+	while IFS= read -r f; do [[ ! -f "${f}" ]] || treeFiles_out+=("${f}"); done <<< "${listed}"
+}
+
+## Each kind a step checks is there because the repo has some, so none means
+## the list is wrong.
+fSomeOf() {   ## fSomeOf KIND COUNT
+	(($2)) || { fEcho_Clean "no ${1} files were found; if there are none on purpose, take its tools out of the step"; return 1; }
+}
 
 fStepFormat() {
 	local -a cppFiles=() pyFiles=()
-	mapfile -t cppFiles < <(fFilesLike '*.cpp' '*.h')
-	mapfile -t pyFiles < <(fFilesLike '*.py')
+	fTreeFiles cppFiles '*.cpp' '*.h' && fTreeFiles pyFiles '*.py' || return 1
+	fSomeOf C++ "${#cppFiles[@]}" && fSomeOf Python "${#pyFiles[@]}" || return 1
 	if ((handsOff)); then
 		fEcho_Clean "cargo fmt --all --check"
 		cargo fmt --all --check || { fEcho_Clean "run cargo fmt --all and commit"; return 1; }
@@ -453,10 +468,8 @@ fStepLint() {
 		if [[ -z "${have}" ]]; then fLintRun echo "WARNING: ${pinName} isn't installed (pinned ${pinWant})"
 		elif [[ "${have}" != *"${pinWant}"* ]]; then fLintRun echo "WARNING: ${pinName} drifted from pin ${pinWant}: ${have//$'\n'/ }"; fi
 	done
-	## Untracked files too, since they go out with the next commit.
-	mapfile -t files < <(git ls-files --cached --others --exclude-standard)
+	fTreeFiles files || failed+=("git ls-files")
 	for f in "${files[@]}"; do
-		[[ -f "${f}" ]] || continue
 		case "${f}" in
 			*.bash|cicd/hooks/*) shFiles+=("${f}") ;;
 			*.md) mdFiles+=("${f}") ;;
@@ -464,6 +477,10 @@ fStepLint() {
 			*.py) pyFiles+=("${f}") ;;
 		esac
 	done
+	fSomeOf shell "${#shFiles[@]}" || failed+=("no shell files")
+	fSomeOf Markdown "${#mdFiles[@]}" || failed+=("no Markdown files")
+	fSomeOf C++ "${#cppFiles[@]}" || failed+=("no C++ files")
+	fSomeOf Python "${#pyFiles[@]}" || failed+=("no Python files")
 
 	fEcho_Clean "clippy -D warnings -j ${jobs}, the profiler's workload too"
 	if CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${root}/target}/clippy" fLintRun cargo clippy --workspace --all-targets --features tukzmon-core/profiling "${locked[@]}" -j "${jobs}" -- -D warnings; then
@@ -712,29 +729,62 @@ fStepSoak() {
 	return "${rc}"
 }
 
+## The Nix store volume for an image pin.
+fNixStore() { printf '%s-nix-%s\n' "${projectName}" "$(printf '%s' "${1:?}" | git hash-object --stdin | cut -c1-12)"; }
+
+## The stores every checkout of this clone pins, from each one's config.bash.
+## Fails when git can't list them, so no store is taken for unused.
+fNixStoresPinned() {
+	local listed='' line='' pin=''
+	listed="$(git worktree list --porcelain)" || return 1
+	while IFS= read -r line; do
+		[[ "${line}" == "worktree "* ]] || continue
+		pin="$(grep -m 1 -E '^NIX_IMAGE=' -- "${line#worktree }/cicd/config.bash" 2> /dev/null || true)"
+		pin="${pin#NIX_IMAGE=}"; pin="${pin//\"/}"
+		[[ -z "${pin}" ]] || fNixStore "${pin}"
+	done <<< "${listed}"
+}
+
+## Of the volumes named, the stores of this step that no pin in KEEP names.
+## Any other volume of the project isn't this step's to remove.
+fNixStoresUnused() {   ## fNixStoresUnused KEEP VOLUME...
+	local keep=" ${1} " v=''; shift
+	for v in "$@"; do
+		[[ "${v}" =~ ^${projectName}-nix-[0-9a-f]{12}$ && "${keep}" != *" ${v} "* ]] || continue
+		printf '%s\n' "${v}"
+	done
+}
+
 ## The flake's package, checked by cicd/nix/check.bash in NIX_IMAGE, as its
 ## root, so it's given a copy of the tracked files, read-only, and writes
 ## nothing here. The store is a volume named for the image, so a run reuses
-## what the last one fetched, and a new pin starts a new one and drops the
-## old. With no docker it's skipped with a warning.
+## what the last one fetched, and a new pin starts a new one. A store goes
+## once no checkout of this clone pins it. With no docker it's skipped with a
+## warning.
 fStepNix() {
-	local why='' vol='' src="${runTmp}/nix-src" old=''
-	local -a rm=(--rm)
+	local why='' vol='' src="${runTmp}/nix-src" old='' keep=''
+	local -a rm=(--rm) vols=()
 	why="$(fCtrWhyNot)"
 	if [[ -n "${why}" ]]; then fEcho_Clean "WARNING: ${why}, so the Nix package went unchecked"; return 0; fi
 	ctrTouched=1
-	vol="${projectName}-nix-$(printf '%s' "${NIX_IMAGE}" | git hash-object --stdin | cut -c1-12)"
+	vol="$(fNixStore "${NIX_IMAGE}")"
 	## What nix takes from a git checkout: the tracked files, as they are now.
 	mkdir -p -- "${src}" || return 1
 	git ls-files -z | while IFS= read -r -d '' f; do [[ ! -e "${f}" ]] || printf '%s\0' "${f}"; done \
 		| tar --null -T - -cf - | tar -xpf - -C "${src}" || return 1
-	while IFS= read -r old; do
-		[[ -n "${old}" && "${old}" != "${vol}" ]] || continue
-		if docker volume rm "${old}" > /dev/null 2>&1; then fEcho_Clean "removed ${old}, the store of an older image"; fi
-	done < <(docker volume ls -q --filter "label=dev.project=${projectName}" 2> /dev/null || true)
+	if keep="$(fNixStoresPinned)"; then
+		mapfile -t vols < <(docker volume ls -q --filter "label=dev.project=${projectName}" 2> /dev/null || true)
+		while IFS= read -r old; do
+			[[ -n "${old}" && "${old}" != "${vol}" ]] || continue
+			## Not -f, so a store a container still uses stays.
+			if docker volume rm "${old}" > /dev/null 2>&1; then fEcho_Clean "removed ${old}, a store no checkout pins"; fi
+		done < <(fNixStoresUnused "${keep//$'\n'/ }" "${vols[@]}")
+	else
+		fEcho_Clean "WARNING: git couldn't list the worktrees, so no older store was removed"
+	fi
 	if ! docker volume inspect "${vol}" > /dev/null 2>&1; then
 		fEcho_Clean "a new store, ${vol}: the first build fetches about 5 GB"
-		docker volume create --label "dev.project=${projectName}" "${vol}" > /dev/null || return 1
+		docker volume create --label "dev.project=${projectName}" --label "dev.run=${runName}" "${vol}" > /dev/null || return 1
 	fi
 	((! keepTemp)) || rm=()
 	fEcho_Clean "in ${projectName}-${runName}-nix, from ${NIX_IMAGE}"
@@ -928,10 +978,12 @@ fCtrSweepGone() {
 
 ## The name of another live run of the project, or nothing: one with a run
 ## folder here, or with a container, which covers one with another temp root.
+## The one that started this one, such as the pre-push hook, doesn't count.
 fOtherRun() {
 	local d='' id='' run='' stamp=''
 	for d in "${HOST_TEMP}/${projectName}"/*_[0-9][0-9][0-9]; do
 		[[ "${d}" != "${runTmp}" && -d "${d}" ]] || continue
+		! fRunAbove "${d}" || continue
 		if fRunLive "${d}"; then echo "${d##*/}"; return 0; fi
 	done
 	while IFS='|' read -r id run stamp; do
@@ -1169,3 +1221,9 @@ exit 0
 ##		- 2026-10-30: The Tests step runs cicd/tests/ too.
 ##		- 2026-10-30: clang-format and black in Format, clang-tidy and ruff in
 ##		  Lint, and qt.cpp's warnings fail a build.
+##		- 2026-11-01: Format and Lint fail when git can't list the files, or
+##		  lists none of a kind they check.
+##		- 2026-11-01: The Nix store gets the dev.run label, and the Nix step
+##		  removes only its own stores that no checkout pins.
+##		- 2026-11-01: Cleanup doesn't count the run that started this one, such
+##		  as the pre-push hook, as another live run.

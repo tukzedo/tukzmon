@@ -221,7 +221,10 @@ pub fn theme_text(v: &knobs::Value) -> String {
 fn theme_typed(spec: &Spec, id: &str, raw: &str) -> Option<knobs::Value> {
 	let s = spec.get(id)?;
 	let v = match s.kind {
-		knobs::Kind::Int | knobs::Kind::Float => knobs::Value::Float(raw.trim().parse().ok()?),
+		// knobs' range check passes NaN (2026103115231954)
+		knobs::Kind::Int | knobs::Kind::Float => {
+			knobs::Value::Float(raw.trim().parse().ok().filter(|x: &f64| x.is_finite())?)
+		}
 		knobs::Kind::Bool => match raw.trim() {
 			"true" | "on" => knobs::Value::Bool(true),
 			"false" | "off" => knobs::Value::Bool(false),
@@ -288,6 +291,7 @@ pub fn saved_themes(doc: &shcl::Document) -> Vec<SavedTheme> {
 
 /// Lines under `themes` that [`saved_themes`] can't read, so a save would
 /// drop or change them.
+#[cfg(test)]
 pub fn theme_problems(doc: &shcl::Document) -> Vec<String> {
 	let spec = spec();
 	let members = spec.group(THEME).map_or(&[][..], |g| g.members.as_slice());
@@ -937,6 +941,23 @@ pub fn instance_file(dir: &Path, id: i32) -> PathBuf {
 	dir.join(format!("plugin-{id}.shcl"))
 }
 
+/// Where a write to `path` goes: the file its links end at, even one that
+/// isn't there yet, so a save keeps the link rather than putting a file over it.
+pub fn through_links(path: &Path) -> PathBuf {
+	let mut at = path.to_path_buf();
+	// the kernel's own limit; a loop fails at the read before this matters
+	for _ in 0..40 {
+		let Ok(to) = std::fs::read_link(&at) else {
+			break;
+		};
+		at = match at.parent() {
+			Some(dir) => dir.join(to),
+			None => to,
+		};
+	}
+	at
+}
+
 /// Gives `own` a copy of `shared` when it has no file yet, so an item set up
 /// before each one had its own keeps its look, and a new one starts from it.
 /// With neither, nothing is written, and the item has the defaults.
@@ -945,6 +966,7 @@ pub fn instance_file(dir: &Path, id: i32) -> PathBuf {
 ///
 /// Whatever reading `shared` or writing `own` hit.
 pub fn start_from(own: &Path, shared: &Path) -> std::io::Result<()> {
+	let own = &through_links(own);
 	if own.exists() {
 		return Ok(());
 	}
@@ -954,8 +976,11 @@ pub fn start_from(own: &Path, shared: &Path) -> std::io::Result<()> {
 	};
 	// renamed in whole, so a crash can't leave half a file that then wins
 	let tmp = own.with_extension("shcl.tmp");
-	std::fs::write(&tmp, text)?;
-	std::fs::rename(&tmp, own)
+	std::fs::write(&tmp, text)
+		.and_then(|()| std::fs::rename(&tmp, own))
+		.inspect_err(|_| {
+			let _ = std::fs::remove_file(&tmp);
+		})
 }
 
 #[cfg(test)]
@@ -1958,6 +1983,19 @@ mod tests {
 		assert_eq!(Look::from_model(&model(text)), Look::default());
 	}
 
+	// Test ID: deqvz
+	#[test]
+	fn a_saved_theme_number_that_isnt_finite_is_junk() {
+		for raw in ["nan", "NaN", "-nan", "inf", "-infinity", "1e999", "junk"] {
+			let text =
+				format!("theme:\n\tname: x\nthemes:\n\tx:\n\t\tname: X\n\t\tmargin_tb: {raw}\n");
+			let t = saved_themes(&shcl::Document::parse(&text));
+			assert_eq!(t[0].colors["margin_tb"], "2", "{raw}");
+			let l = Look::from_model(&model(&text));
+			assert_eq!(l.margin_tb, 2, "{raw}");
+		}
+	}
+
 	// Test ID: deccw
 	#[test]
 	fn saved_themes_write_whole_and_read_back() {
@@ -2075,6 +2113,24 @@ mod tests {
 		start_from(&fresh, &dir.join("missing.shcl")).unwrap();
 		assert!(!fresh.exists());
 		assert_eq!(Look::load(&fresh).unwrap(), Look::default());
+		let _ = std::fs::remove_dir_all(&dir);
+	}
+
+	// Test ID: deqw2
+	#[cfg(unix)]
+	#[test]
+	#[cfg_attr(miri, ignore = "makes symlinks")]
+	fn an_items_link_to_a_missing_file_is_kept_and_filled() {
+		let dir = scratch("link");
+		let shared = dir.join("tukzmon.shcl");
+		std::fs::write(&shared, "graph:\n\twidth: 77\n").unwrap();
+		let own = instance_file(&dir, 3);
+		std::os::unix::fs::symlink("elsewhere.shcl", &own).unwrap();
+		assert_eq!(through_links(&own), dir.join("elsewhere.shcl"));
+		assert_eq!(through_links(&shared), shared);
+		start_from(&own, &shared).unwrap();
+		assert!(std::fs::symlink_metadata(&own).unwrap().is_symlink());
+		assert_eq!(Look::load(&dir.join("elsewhere.shcl")).unwrap().width, 77);
 		let _ = std::fs::remove_dir_all(&dir);
 	}
 

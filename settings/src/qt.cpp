@@ -408,7 +408,7 @@ public:
 
 		auto *cancel = new QPushButton("Cancel");
 		auto *ok = new QPushButton("OK");
-		cancel->setAutoDefault(false);
+		// Cancel stays auto default, so Enter on it cancels
 		ok->setDefault(true);
 		connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
 		connect(ok, &QPushButton::clicked, this, &QDialog::accept);
@@ -799,6 +799,7 @@ public:
 	}
 
 	// Enter is OK and Esc is Cancel, even from inside a field or on a checkbox.
+	// A focused button takes Enter as a press, as in any dialog.
 	bool eventFilter(QObject *obj, QEvent *ev) override {
 		if (ev->type() != QEvent::KeyPress)
 			return false;
@@ -822,6 +823,11 @@ public:
 		}
 		if (key != Qt::Key_Return && key != Qt::Key_Enter)
 			return false;
+		// the dialog would give Enter on a button that isn't auto default to OK
+		if (qobject_cast<QPushButton *>(obj) || qobject_cast<QToolButton *>(obj)) {
+			static_cast<QAbstractButton *>(obj)->click();
+			return true;
+		}
 		// leaving a field is what commits a half-typed value
 		if (QWidget *f = focusWidget())
 			f->clearFocus();
@@ -1440,8 +1446,14 @@ private:
 		auto *widthHead = new QLabel("Width %");
 		auto *sampleHead = new QLabel("Sample %");
 		auto *timeHead = new QLabel("Time axis");
-		widthHead->setToolTip(listRows.empty() ? "" : qs(row_state(d, listRows[0].width->id()).tip));
-		sampleHead->setToolTip(listRows.empty() ? "" : qs(row_state(d, listRows[0].sample->id()).tip));
+		// about the column, since a row's tip names its graph and how it was set
+		widthHead->setToolTip("How wide each graph is, or how tall on a vertical panel, as a percentage of Width, "
+							  "on the General tab.");
+		sampleHead->setToolTip("How often each graph is read and redrawn, as a percentage of Sample ms default, on "
+							   "the General tab. At 200% it's read half as often, and at 50% twice as often. Under "
+							   "50 ms counts as 50 ms.");
+		timeHead->setToolTip("How each graph spreads time across its width. Default follows Time axis default, on "
+							 "the General tab, where the tip tells the curves apart.");
 		listGrid->addWidget(widthHead, 0, 2);
 		listGrid->addWidget(sampleHead, 0, 3);
 		listGrid->addWidget(timeHead, 0, 4);
@@ -1739,12 +1751,7 @@ private:
 		for (const auto &r : rows) {
 			if (r->line && r->line->isModified())
 				return true;
-			if (!r->spin)
-				continue;
-			// a sample rate of 0 shows as Default
-			const bool special = !r->spin->specialValueText().isEmpty() && r->spin->value() == r->spin->minimum();
-			const QString shows = special ? r->spin->specialValueText() : r->spin->textFromValue(r->spin->value());
-			if (r->spin->text() != shows)
+			if (r->spin && r->spin->text() != r->spin->textFromValue(r->spin->value()))
 				return true;
 		}
 		return false;
@@ -2079,6 +2086,71 @@ rust::Vec<rust::String> bottom_buttons(Dialog &d) {
 	rust::Vec<rust::String> out;
 	for (auto &t : w.buttonTexts())
 		out.push_back(rust::String(t));
+	return out;
+}
+
+rust::Vec<rust::String> enter_on(Dialog &d, rust::Str button) {
+	const App app("offscreen");
+	Window w(d);
+	w.show();
+	w.activateWindow();
+	tukzmon::App::processEvents();
+	QString name = QString::fromUtf8(button.data(), int(button.size()));
+	std::unique_ptr<ColorPicker> pick;
+	QDialog *top = &w;
+	if (name.startsWith("picker ")) {
+		pick = w.firstPicker();
+		if (!pick)
+			return {};
+		pick->show();
+		top = pick.get();
+		name.remove(0, 7);
+	}
+	QWidget *to = nullptr;
+	int clicks = 0;
+	auto find = [&] {
+		for (auto *b : top->findChildren<QPushButton *>())
+			if (QString(b->text()).remove(QChar('&')) == name && b->isVisible()) {
+				QObject::connect(b, &QPushButton::clicked, &w, [&clicks] { clicks++; });
+				to = b;
+				return;
+			}
+	};
+	if (pick) {
+		tukzmon::App::processEvents();
+		find();
+	}
+	for (int i = 0; i < w.tabCount() && !to && !pick; i++) {
+		w.select(i);
+		tukzmon::App::processEvents();
+		if (name.isEmpty())
+			to = w.firstBox(true);
+		else
+			find();
+	}
+	if (!to)
+		return {};
+	to->setFocus();
+	QKeyEvent down(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+	// the app filter runs only on the first QApplication's thread, as in tabs_by_key
+	if (!w.eventFilter(to, &down))
+		QApplication::sendEvent(to, &down);
+	tukzmon::App::processEvents();
+	const char *closed = top->result() == QDialog::Accepted ? "ok" : "cancel";
+	rust::Vec<rust::String> out;
+	out.push_back(rust::String(std::to_string(clicks)));
+	out.push_back(rust::String(top->isVisible() ? "open" : closed));
+	return out;
+}
+
+rust::Vec<rust::String> list_head_tips(Dialog &d) {
+	const App app("offscreen");
+	const Window w(d);
+	rust::Vec<rust::String> out;
+	for (const char *head : {"Width %", "Sample %", "Time axis"})
+		for (auto *l : w.findChildren<QLabel *>())
+			if (l->text() == head)
+				out.push_back(rust::String(std::string(head) + ": " + l->toolTip().toStdString()));
 	return out;
 }
 

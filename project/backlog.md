@@ -65,105 +65,6 @@ Sorted per the notes in [Template](#template).
 		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
 	- Estimated effort: Low
 
-- Code review 20261031 item 2: Apply resets Custom colors edited before another theme was picked
-	- ID: 2026103115231817
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261031-152318
-	- Opened by: t00mietum
-	- Steps to reproduce: A file on Custom with `cpu.colors.user` set. Change User, pick Default, Apply, then pick Custom again.
-	- Incorrect behavior: User is the spec default, neither the old color nor the edit. Randomize on Custom, then Default, then Apply does the same.
-	- Expected behavior: Custom keeps the edit, as the window showed before Apply.
-	- Possible cause: Apply replays each touched row, judging set or reset by the window theme, then runs that against the file theme.
-	- Estimated effort: Avg
-	- Origin: `f89e55e` (`Dialog::apply`). First review. Confirmed, by scratch tests without Qt.
-
-- Code review 20261031 item 1: A hidden CPU graph, shown again, fills the hidden time and can take gigabytes
-	- ID: 2026103115231801
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261031-152318
-	- Opened by: t00mietum
-	- Related IDs: 2026102508393152
-	- Steps to reproduce: Untick CPU, leave it hidden a day or more, then tick it again.
-	- Incorrect behavior: The first read after it's back covers the whole hidden time, so the graph shows that time filled with one average. The 50 ms tier makes a bucket for every step of it before trimming. 3 days hidden took the probe from 24 MB to 1.87 GB, which stayed. 30 days would want about 18 GB, and a failed allocation aborts the panel.
-	- Expected behavior: A gap for the hidden time, as 2026102508393152 says, and no more memory than the tier keeps.
-	- Possible cause: CPU keeps its slot while hidden, so `read_at` is left from before. `Tier::add` pushes every bucket from `first` to the end before it trims to `cap`.
-	- Estimated effort: Low
-	- Origin: `f89e55e` (`Tier::add`) and `bfa6a97` (hidden graphs not read). First review. Confirmed, by a probe through `Graphs::skip`.
-
-- Code review 20261031 item 7: The network graph counts bridge, VM and VPN traffic as well
-	- ID: 2026103115231894
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261031-152318
-	- Opened by: t00mietum
-	- Related IDs: 2026102408512202
-	- Steps to reproduce: Run a VM or VPN and watch the network graph.
-	- Incorrect behavior: Over 10 s on b23 every interface but `lo` received 18.3 MB, and the physical NIC 0.23 MB, so the graph read about 80 times high. With the LAN split on, VM traffic over the bridge counts as internet.
-	- Expected behavior: Physical interfaces only by default, or a setting for which ones count.
-	- Possible cause: `net::bin` adds every interface but `lo`.
-	- Estimated effort: Low
-	- Origin: `1c4df3f`. 2026102408512202 left it for later "if it shows". Confirmed on b23.
-
-- Code review 20261031 item 6: Format and Lint pass on no files when git ls-files fails
-	- ID: 2026103115231879
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261031-152318
-	- Opened by: t00mietum
-	- Steps to reproduce: Run the gate on a repo with `extensions.relativeWorktrees` set, which the image git 2.47 refuses, or on a tree that is not a git repo.
-	- Incorrect behavior: shellcheck, markdownlint, clang-tidy, ruff, clang-format, black and the stray test ID check run on nothing, and the step passes.
-	- Expected behavior: The step fails when git fails, or when a kind that should have files has none.
-	- Possible cause: `mapfile < <(git ls-files ...)` loses the exit status.
-	- Estimated effort: Low
-	- Origin: `ff4610a` (Lint list) and `4993f98` (`fFilesLike`). First review. Confirmed in the image with a probe repo.
-
-- Code review 20261031 item 5: History files aren't checked for times and values out of bounds
-	- ID: 2026103115231863
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261031-152318
-	- Opened by: t00mietum
-	- Steps to reproduce: Save a history file with `last` a day ahead, or one bit flipped high in it, or a NaN or inf in a bucket, or a tier `first` near the top of i64.
-	- Incorrect behavior: A day ahead keeps the graph a day off until Reset history. A high bit freezes the graph, and that is saved back. NaN fills a column full height, and inf flattens every other column for as long as it's in view. A crafted tier start aborts the panel at every start.
-	- Expected behavior: A section with times past now, times out of order, or values that aren't finite is refused, or the bad buckets are dropped. Drawing treats a non-finite value as a gap.
-	- Possible cause: decode checks layout only, and adopt moves the clock to any saved last.
-	- Estimated effort: Avg
-	- Origin: `87bc145` (`History::decode`, `Graph::adopt`) and `90f83106` (`render::fit`). First review. Confirmed, by probes with crafted files.
-
-- Code review 20261031 item 4: Graph times fall behind the clock after a suspend
-	- ID: 2026103115231848
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261031-152318
-	- Opened by: t00mietum
-	- Steps to reproduce: Suspend a laptop for an hour, wake it, and hover the graph.
-	- Incorrect behavior: Clock tips are an hour early, Ago tips before the suspend are an hour short, and no gap shows for it. A clock change after start does the same.
-	- Expected behavior: Times match the wall clock, and the suspend shows as a gap. design.md says times are Unix seconds, so runs line up.
-	- Possible cause: `Graph::now` is the start time plus an `Instant`, which reads `CLOCK_MONOTONIC`, and that stops during suspend.
-	- Estimated effort: Avg
-	- Origin: `87bc145` (epoch) and `f89e55e` (`Instant`). First review. Plausible. The std source and `clock_gettime` were read, but b23 never suspends.
-
-- Code review 20261031 item 3: Enter on a focused button saves and closes the settings window
-	- ID: 2026103115231832
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261031-152318
-	- Opened by: t00mietum
-	- Steps to reproduce: Change a setting, Tab to Cancel, press Enter.
-	- Incorrect behavior: The change is saved and the window closes as OK. Enter on Reset history, Save, Delete or Randomize does the same, and Reset history resets nothing.
-	- Expected behavior: Enter presses the focused button, as in any dialog. Enter in a field is still OK.
-	- Estimated effort: Low
-	- Origin: `f89e55e` (the key filter in `qt.cpp`). First review. Confirmed on a private display.
-
 - Code review 20261031 item 24: The profiler draws into a canvas far smaller than a panel's, and one run varies 20%
 	- ID: 2026103115232157
 	- Type: Enhancement
@@ -254,203 +155,16 @@ Sorted per the notes in [Template](#template).
 		- 2026-11-01: 𝜒² is there to exaggerate differences. Large values get larger, and small values relatively smaller. So it's a squared curve, the height following (value / top)², the opposite of log₁₀.
 	- Estimated effort: Avg
 
-- Code review 20261031 item 23: Dead code in the settings window and public items only tests use
-	- ID: 2026103115232140
+- Profiler tick 151 us at round-1101, up from 134 us
+	- ID: 2026110113023600
 	- Type: Bug
 	- Status: Queued
 	- Priority|Severity: Low
-	- Opened: 20261031-152321
-	- Opened by: t00mietum
-	- Incorrect behavior: `typing()` in `qt.cpp` checks `specialValueText()`, which nothing sets, and its comment is from before Sample %. `config::theme_problems`, `render::column`, `Graph::save` and `Graph::load` have no caller outside tests.
-	- Expected behavior: Removed, or made test-only.
-	- Estimated effort: Low
-	- Origin: `4993f98` (`typing`) and earlier. First review. Confirmed by grep.
-
-- Code review 20261031 item 22: Stale text in the desktop file, package description, design.md and the knobs demo
-	- ID: 2026103115232125
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261031-152321
-	- Opened by: t00mietum
-	- Incorrect behavior: `tukzmon.desktop` says CPU graph with a log time axis, and `nfpm.yaml` says CPU and memory graphs, with 13 graphs now. design.md says the only globals are the spec cache and the panic hook, and that the settings window won't save an unreadable file, both out of date. `knobs/demo/demo.shcl` doesn't list `from_program`.
-	- Expected behavior: Each says what the code does now.
-	- Estimated effort: Low
-	- Origin: `f89e55e` and later. First review. Confirmed by reading.
-
-- Code review 20261031 item 21: Tests that can't fail, or check less than their names say
-	- ID: 2026103115232109
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261031-152321
-	- Opened by: t00mietum
-	- Steps to reproduce: Take out the `count > tier.cap()` check in `History::decode` and run the history tests.
-	- Incorrect behavior: All 15 pass, since decbh's file is too short and fails on length first. debj0 says a holed bucket reads as thin, but checks only the count. dep7b refuses 2 spaces in a row, so a tip line with 2 pairs and a comma passes. `procs_sits_after_load_and_stacks_by_owner` lays procs after swap.
-	- Expected behavior: Each fails when what it names breaks.
-	- Estimated effort: Low
-	- Origin: `87bc145` (decbh, debj0), `1d07a68` (dep7b). First review. decbh confirmed by mutation; the rest by reading.
-
-- Code review 20261031 item 20: Each trim past the max age eases the time axis again
-	- ID: 2026103115232093
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261031-152320
-	- Opened by: t00mietum
-	- Steps to reproduce: Keep history until it reaches the max age.
-	- Incorrect behavior: Every trim moves the first time, which counts as a jump, so each 15 minute save starts half a second of redraws every 33 ms. It can't be seen, but costs about 15 draws per item per save.
-	- Expected behavior: Trimming the old end isn't a jump.
-	- Estimated effort: Low
-	- Origin: `34dffcb` (`Basis::jumps_to`). First review. Plausible, by reading.
-
-- Code review 20261031 item 19: The LAN reader doesn't check netlink sequence numbers
-	- ID: 2026103115232077
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261031-152320
-	- Opened by: t00mietum
-	- Steps to reproduce: A sock_diag dump fails partway.
-	- Incorrect behavior: Its leftover messages are read into the next dump, so one read misses sockets and the next counts their whole life once. The interface totals bound it, since the LAN is clamped to them.
-	- Expected behavior: Messages from another request are skipped.
-	- Estimated effort: Low
-	- Origin: `8bbd96a`. First review. Plausible, by reading.
-
-- Code review 20261031 item 18: History saves can lose hidden graphs' sections or leave a temp file
-	- ID: 2026103115232061
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261031-152320
-	- Opened by: t00mietum
-	- Steps to reproduce: Run an older build on a newer history file, or fill the disk during a save.
-	- Incorrect behavior: A read that fails leaves nothing kept, so the save writes only the shown graphs over the file. A failed write leaves `plugin-N.hist.tmp`, up to 14 MB, which Reset history never removes. 2 sessions with one item id share the temp name.
-	- Expected behavior: A file that can't be read isn't overwritten, and a failed write removes its temp file.
-	- Estimated effort: Low
-	- Origin: `87bc145` (`keep::write`) and `9b0535f` (`Graphs::save`). First review. Plausible, by reading.
-
-- Code review 20261031 item 17: The plugin's tick makes a second mutable borrow through the tooltip requery
-	- ID: 2026103115232046
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261031-152320
-	- Opened by: t00mietum
-	- Steps to reproduce: Leave the pointer still on the graph for a second or more.
-	- Incorrect behavior: `gtk_widget_trigger_tooltip_query` inside `tick` fires `query-tooltip` at once, which makes a second `&mut Plugin` while the first is live. That is undefined behavior. Today the inner call only reads, so at worst a tip line is stale.
-	- Expected behavior: The trigger runs after `guarded` returns, or from an idle callback.
-	- Estimated effort: Low
-	- Origin: `a9ca08f`. First review. Plausible. The GTK 3.24 call path was confirmed in its source.
-
-- Code review 20261031 item 16: The Nix store volume has no dev.run label, and the Nix step removes other tukzmon volumes
-	- ID: 2026103115232031
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261031-152320
-	- Opened by: t00mietum
-	- Related IDs: 2026102808222810
-	- Steps to reproduce: Keep a worktree whose NIX_IMAGE pin differs, then run the Nix step in another.
-	- Incorrect behavior: The other store, about 5 GB, is removed. Any tukzmon volume added later would be too.
-	- Expected behavior: Both labels on every volume, per Containers in CICD process, and removal of only what the step owns.
-	- Estimated effort: Low
-	- Origin: `6f7209f`. First review. Confirmed with `docker volume inspect`.
-
-- Code review 20261031 item 15: license.txt counts as docs only for the pre-push hook
-	- ID: 2026103115232016
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261031-152320
-	- Opened by: t00mietum
-	- Steps to reproduce: Push to main a commit that only renames or deletes license.txt.
-	- Incorrect behavior: The gate is skipped, and the Packages step breaks on main.
-	- Expected behavior: Files that go into a package aren't docs.
-	- Estimated effort: Low
-	- Origin: `ff4610a` (`DOCS_PATHS`). First review. Confirmed by reading `nfpm.yaml`.
-
-- Code review 20261031 item 14: The pre-push hook keeps the gate from removing images, and any value skips it
-	- ID: 2026103115232000
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261031-152320
-	- Opened by: t00mietum
-	- Steps to reproduce: Push to main from a checkout with any untracked file, or with TUKZMON_SKIP_HOOK=0.
-	- Incorrect behavior: The hook's own run folder looks like a live run, so the gate never removes its images. Setting the skip to 0 also skips.
-	- Expected behavior: The gate's cleanup ignores the hook that started it, and only 1 skips.
-	- Estimated effort: Low
-	- Origin: `ff4610a` (hook) and `f95b2c6` (`fOtherRun`). First review. Confirmed with a probe, and by reading.
-
-- Code review 20261031 item 13: The leftover process scan stops at the first one that exits, and prints a false abort
-	- ID: 2026103115231984
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261031-152319
-	- Opened by: t00mietum
-	- Steps to reproduce: Stop a run during an in-image step, so its processes exit while the scan reads them.
-	- Incorrect behavior: The ERR trap fires inside the process substitution, prints CICD ABORTED, and no pid after that one is stopped. Cleanup then removes the run folder under them.
-	- Expected behavior: A process gone before its read is skipped, and the rest are stopped.
-	- Estimated effort: Low
-	- Origin: `f95b2c6` (`fRunPids`) and `5f1bef0` (ERR trap). First review. Confirmed with a probe.
-
-- Code review 20261031 item 12: dev-install.bash ignores the target dir and can't find ldconfig
-	- ID: 2026103115231969
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261031-152319
-	- Opened by: t00mietum
-	- Related IDs: 2026102820420805, 2026103016201615
-	- Steps to reproduce: Set `CARGO_TARGET_DIR` and run it, or run it with Debian's default user PATH.
-	- Incorrect behavior: It builds into the target dir but copies the old `target/release` files, then restarts the panel on them. `ldconfig` is in `/usr/sbin`, so every Debian user gets the not found warning and the x86_64 fallback, which is wrong on arm64. The build has no `--locked`.
-	- Expected behavior: It copies what it built, finds the library, and leaves `Cargo.lock` alone.
-	- Estimated effort: Low
-	- Decisions: 2026103016201615 closed with no test because the pipeline can't run it. `dev-install-rig.bash` runs it under unshare, so a test can now go in `cicd/tests`.
-	- Origin: `2a74ce3` and `69dae71`. First review. ldconfig confirmed with a Debian user PATH. The target dir is Plausible, by reading.
-
-- Code review 20261031 item 11: knobs lets NaN past a range check
-	- ID: 2026103115231954
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261031-152319
-	- Opened by: t00mietum
-	- Steps to reproduce: Put `margin_tb: nan` in a saved theme.
-	- Incorrect behavior: The margin is 0. Junk text gives the default 2, so nan isn't dropped as junk is. A float setting keeps NaN and saves it.
-	- Expected behavior: A number that isn't finite is refused like any out of range.
-	- Possible cause: `x < min || x > max` is false for NaN, and `theme_typed` takes `nan` through `parse::<f64>`.
-	- Estimated effort: Low
-	- Decisions: The knobs fix goes to silkterm first, as its copy is the source.
-	- Origin: `f89e55e` (`Spec::valid`). First review. Confirmed with a scratch crate. silkterm's copy is byte-identical.
-
-- Code review 20261031 item 10: A non-UTF-8 config path panics, and a dangling config link is replaced
-	- ID: 2026103115231938
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261031-152319
-	- Opened by: t00mietum
-	- Steps to reproduce: Run `tukzmon-settings --config` with a path holding byte 0xff. Or point the config at a link to a missing file and Apply.
-	- Incorrect behavior: The first exits 101 with a panic. The second opens at defaults and Apply writes a regular file over the link.
-	- Expected behavior: A message and exit 2 for the path. For the link, write through it, or say it points nowhere.
-	- Estimated effort: Low
-	- Origin: `f89e55e` (`main.rs` args, Apply). First review. Confirmed.
-
-- Code review 20261031 item 9: The graph list's Width % and Sample % header tips are the first row's
-	- ID: 2026103115231923
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261031-152319
-	- Opened by: t00mietum
-	- Steps to reproduce: Hover the Width % header in the graph list.
-	- Incorrect behavior: It says how wide the CPU graph is, or whichever graph is first, and can include its stale Set by hand line.
-	- Expected behavior: A tip about the column.
-	- Estimated effort: Low
-	- Origin: `b869164` and `bad9e01`. First review. Confirmed by reading.
+	- Opened: 20261101-130236
+	- Opened by:
+	- Estimated effort: 30 min
+	- Progress log:
+		- 2026-11-01: the round-1101 full run's profiler gave 151 us a tick of 6 graphs, against 134 us at 1d07a68 and 127 us at c1dec56. 63% is the /proc reads, which move with load, so profile dev and the round's merge back to back before blaming a commit.
 
 - Code review 20261031 item 8: 2 windows saving one new theme name keep only the last one's colors
 	- ID: 2026103115231908
@@ -634,6 +348,65 @@ Sorted per the notes in [Template](#template).
 		- Swept: every caller of `Dialog::apply` (the bridge's `apply`, which every save in `qt.cpp` goes through, and the tests), every user of `would_lose`, `moved_path` and `theme_problems`, the plugin's and the window's load paths, which already skip what they can't read, and `design.md` and README.md for the refusal.
 	- Acceptance signoff: Self-closed 20261029: dekm0 and the full run.
 	- Closed: 20261029-132000
+
+- Code review 20261031 item 2: Apply resets Custom colors edited before another theme was picked
+	- ID: 2026103115231817
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261031-152318
+	- Opened by: t00mietum
+	- Steps to reproduce: A file on Custom with `cpu.colors.user` set. Change User, pick Default, Apply, then pick Custom again.
+	- Incorrect behavior: User is the spec default, neither the old color nor the edit. Randomize on Custom, then Default, then Apply does the same.
+	- Expected behavior: Custom keeps the edit, as the window showed before Apply.
+	- Reproduced: 2026-11-01, round-1101 at 2385b2e, by deqqp. User read `#00ff80` after Apply.
+	- Possible cause: Apply replays each touched row, judging set or reset by the window theme, then runs that against the file theme.
+	- Actual cause: as above. On Default, User has no change of its own, so Apply reset it, and the file was still on Custom then, so the reset took out Custom's User.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Origin: `f89e55e` (`Dialog::apply`). First review. Confirmed, by scratch tests without Qt.
+	- Progress log:
+		- Apply now lays what the window changed onto the file as it is, store by store: Custom's own colors, the changes on a theme, which theme those were made on, and the pick. Each entry that differs from the file as last read is set or taken out, and the rest of the file stays.
+		- The list of touched rows is gone, since nothing reads it now.
+		- Verified: deqqp fails before the fix and passes after, and the quick gate passed.
+	- Decisions:
+		- Compare the stores, not the rows. A row's value depends on the theme in force, so any replay has to guess which theme each step meant. The stores say it outright, and a gate ticked by a set comes along with no extra step.
+		- It departs from the old behavior in one small way. A row changed and then put back to what the file had, before Apply, no longer writes over a hand edit made to that row meanwhile. The window showed no change there, so the hand edit wins.
+	- Actual fix: `carry` in `settings/src/dialog.rs`, called by `Dialog::apply` for `own`, `changes`, `changed_on` and `state`, in place of the touched-row replay.
+	- Branch: round-1101
+	- Test case: `dialog::tests::custom_keeps_its_edit_when_another_theme_is_picked_before_apply` (deqqp), with a hand edit and with Randomize. It fails at 2385b2e and passes now.
+		- 2026-11-01: decd3's `dlg.touched.is_empty()` is now `dlg.model.values == dlg.saved.values`, the same check without the touched list.
+		- Swept: every `touched` and `touch` use, the picker's Cancel, `drop_theme_changes`, `delete_theme`, and the `model_on` callers. `Dialog::apply` was the only replay. debje, dejng, deccn, deccj and decd1 still pass.
+	- Closed: 20261101-102700
+
+- Code review 20261031 item 1: A hidden CPU graph, shown again, fills the hidden time and can take gigabytes
+	- ID: 2026103115231801
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261031-152318
+	- Opened by: t00mietum
+	- Related IDs: 2026102508393152, 2026103115231848
+	- Steps to reproduce: Untick CPU, leave it hidden a day or more, then tick it again.
+	- Incorrect behavior: The first read after it's back covers the whole hidden time, so the graph shows that time filled with one average. The 50 ms tier makes a bucket for every step of it before trimming. 3 days hidden took the probe from 24 MB to 1.87 GB, which stayed. 30 days would want about 18 GB, and a failed allocation aborts the panel.
+	- Expected behavior: A gap for the hidden time, as 2026102508393152 says, and no more memory than the tier keeps.
+	- Possible cause: CPU keeps its slot while hidden, so `read_at` is left from before. `Tier::add` pushes every bucket from `first` to the end before it trims to `cap`.
+	- Estimated effort: Low
+	- Origin: `f89e55e` (`Tier::add`) and `bfa6a97` (hidden graphs not read). First review. Confirmed, by a probe through `Graphs::skip`.
+	- Actual cause: As the possible cause. Only CPU keeps its slot while hidden, since it's drawn whenever nothing else is, so its last read stayed. And a long add made every bucket of the stretch before trimming to the tier's cap.
+	- Actual effort: Low
+	- Progress log:
+		- A graph that isn't shown after a new look forgets its last read, so its first read back only primes and the hidden time is a gap.
+		- A tier makes only the buckets it keeps, however long the stretch added. 3 days at once leaves the 50 ms tier at its 5121 buckets.
+		- Verified: the quick gate passed, and the soak test passed.
+	- Decisions:
+		- The pause is in `Graphs::set_look`, the one place a graph's shown state changes, and covers every graph kept while hidden, not only CPU.
+		- A graph shown again drops its latest read too, so its tip has no value until its next read, as a newly shown graph's does.
+	- Actual fix: `Graph::pause`, called from `Graphs::set_look` for each graph not shown, and `Tier::add` in `core/src/history.rs`.
+	- Branch: round-1101
+	- Test case: `graphs::tests::a_hidden_cpu_shown_again_has_a_gap_for_the_hidden_time` (deqqr) and `history::tests::a_long_add_makes_no_more_buckets_than_a_tier_keeps` (deqqq). deqqr fails without the pause, and deqqq without the `Tier::add` change.
+		- Swept: every `Tier::add` caller (`History::add` only), every `Graphs` path that reads or hides a graph (`sample`, `tick_at`, `trim`, `set_look`), and the settings window's `Live`, which reads every graph and hides none.
+	- Closed: 20261101-104137
 
 - Pre-next-cut: Graphs aren't remembering history between restarts
 	- ID: 2026102620162195
@@ -2637,6 +2410,157 @@ Sorted per the notes in [Template](#template).
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019
 
+- Code review 20261031 item 7: The network graph counts bridge, VM and VPN traffic as well
+	- ID: 2026103115231894
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261031-152318
+	- Opened by: t00mietum
+	- Related IDs: 2026102408512202
+	- Steps to reproduce: Run a VM or VPN and watch the network graph.
+	- Incorrect behavior: Over 10 s on b23 every interface but `lo` received 18.3 MB, and the physical NIC 0.23 MB, so the graph read about 80 times high. With the LAN split on, VM traffic over the bridge counts as internet.
+	- Expected behavior: Physical interfaces only by default, or a setting for which ones count.
+	- Possible cause: `net::bin` adds every interface but `lo`.
+	- Actual cause: Bridges, VM taps, container links and VPN tunnels each counted the same bytes again, on top of the NIC that carried them.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Origin: `1c4df3f`. 2026102408512202 left it for later "if it shows". Confirmed on b23.
+	- Progress log:
+		- `NetReader` counts `lo` and the interfaces with a `device` link in `/sys/class/net`, and looks again only when the list of interfaces changes. A box with none, such as a container, counts them all.
+		- A container's or VM's link coming or going is no longer a gap.
+		- `design.md` Data sources on Linux has the details.
+		- Verified: `cargo test -p tukzmon-core net::` and the quick gate passed. On b23 only enp8s0, enp9s0 and wlp7s0 have the link, and br0, docker0, nordlynx, the veths and the vnets don't.
+	- Decisions:
+		- Hardware only, with no setting. Everything a virtual interface sends out to the world crosses a hardware one, so counting both counts it twice. A setting can come later if someone needs one.
+		- Hardware is a `device` link in sysfs. Wi-Fi, USB and virtio NICs have one, so a VM guest still counts its own NIC.
+		- The LAN split still counts a TCP socket to a VM or over a VPN as LAN. That's 2026110110445455.
+	- Actual fix: `net::Wired` picks the interfaces that count.
+	- Test case: `net::tests::only_hardware_interfaces_count_unless_there_are_none` (deqr3). It fails with every interface counted.
+		- Swept: the disk collector already picks real drives. `lan::split` clamps to these totals, which is the follow-up.
+	- Branch: round-1101
+	- Closed: 20261101-104842
+
+- Code review 20261031 item 6: Format and Lint pass on no files when git ls-files fails
+	- ID: 2026103115231879
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261031-152318
+	- Opened by: t00mietum
+	- Steps to reproduce: Run the gate on a repo with `extensions.relativeWorktrees` set, which the image git 2.47 refuses, or on a tree that is not a git repo.
+	- Incorrect behavior: shellcheck, markdownlint, clang-tidy, ruff, clang-format, black and the stray test ID check run on nothing, and the step passes.
+	- Expected behavior: The step fails when git fails, or when a kind that should have files has none.
+	- Reproduced: 2026-11-01, round-1101, on a copy of the tracked files with no repo: Format passed on no C++ or Python files, and `test-ids.bash check` passed.
+	- Possible cause: `mapfile < <(git ls-files ...)` loses the exit status.
+	- Actual cause: as above, in Format, Lint and `fStrays` in `test-ids.bash`.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Origin: `ff4610a` (Lint list) and `4993f98` (`fFilesLike`). First review. Confirmed in the image with a probe repo.
+	- Progress log:
+		- Format and Lint take their lists from `fTreeFiles`, which fails when git does. Each fails when a kind it checks has no files: C++ and Python in Format, and shell, Markdown, C++ and Python in Lint.
+		- `test-ids.bash check` counts it as a problem when git can't list the `.rs` files, or lists none.
+		- Verified: on the copy with no repo, Format and `test-ids.bash check` now fail, and the old `cicd.bash` passed Format there. deqrd fails before the fix and passes after. deqrc checks the new list and count helpers, which the old code didn't have. The quick gate's format, lint and tests passed in the image.
+	- Decisions:
+		- A kind with no files fails the step, with no list of expected kinds to keep. Each tool is in the step because the repo has that kind, so the message says to take the tool out if there are none on purpose.
+		- Lint goes on past a failed list, as it does past a failed tool, so one run shows every problem.
+		- Swept: the Nix step's `git ls-files` pipe fails with pipefail already, and the sync step's untracked check reads a failed git as dirty, which is safe. No other script lists files through git.
+	- Actual fix: `fTreeFiles` and `fSomeOf` in `cicd/cicd.bash`, in place of `fFilesLike` and the Lint step's `mapfile`, and the git check in `fStrays` in `cicd/utility/test-ids.bash`.
+	- Branch: round-1101
+	- Test case: `lists_of_files_fail_when_git_does_or_a_kind_has_none` (deqrc) and `test_ids_check_fails_when_git_cant_list_the_rs_files` (deqrd), in `cicd/tests/guards.bash`.
+	- Closed: 20261101-105821
+
+- Code review 20261031 item 5: History files aren't checked for times and values out of bounds
+	- ID: 2026103115231863
+	- Type: Bug
+	- Status: Done
+		- It departs from the wording for times past now. A section that ends up to 14 hours ahead still loads, with the clock moved up to it, as design.md had it. Only one further ahead starts over.
+	- Priority|Severity: Avg
+	- Opened: 20261031-152318
+	- Opened by: t00mietum
+	- Steps to reproduce: Save a history file with `last` a day ahead, or one bit flipped high in it, or a NaN or inf in a bucket, or a tier `first` near the top of i64.
+	- Incorrect behavior: A day ahead keeps the graph a day off until Reset history. A high bit freezes the graph, and that is saved back. NaN fills a column full height, and inf flattens every other column for as long as it's in view. A crafted tier start aborts the panel at every start.
+	- Expected behavior: A section with times past now, times out of order, or values that aren't finite is refused, or the bad buckets are dropped. Drawing treats a non-finite value as a gap.
+	- Possible cause: decode checks layout only, and adopt moves the clock to any saved last.
+	- Reproduced: Yes, by the new tests with the fix taken out. Each crafted section loaded, and the NaN and inf columns drew wrong.
+	- Actual cause: As the possible cause. Drawing also took a non-finite column as data.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Origin: `87bc145` (`History::decode`, `Graph::adopt`) and `90f83106` (`render::fit`). First review. Confirmed, by probes with crafted files.
+	- Progress log:
+		- `History::decode` refuses a section whose first is after its last, before 1970, or past year 5138, and one with a tier's buckets outside first to last. A crafted tier start is refused before any bucket math, so it can't overflow.
+		- A bucket with a value that isn't finite reads as a gap. The rest of the section still loads.
+		- `Graph::adopt` refuses a section that ends more than 14 hours after now (`AHEAD_MAX`). Within that, the clock moves up to it as before.
+		- Drawing skips a column whose value isn't finite, so it's a gap, and it doesn't count toward a scaled graph's peak.
+		- `design.md` History has the rules.
+		- Verified: the quick gate, the soak test, and defv4's real 5-tier file passed.
+	- Decisions:
+		- Refuse a section, not just its bad part, for times out of order. Bad times mean the file can't be trusted for where anything is. A bad value is one bucket, so only that bucket goes.
+		- 14 hours is the most a clock can be behind by a time zone. A dual boot that keeps local time in the hardware clock leaves Linux that far behind until it syncs, and refusing then would lose the history. A day ahead, as in the steps to reproduce, starts over.
+		- The future check is in `adopt`, which knows the graph's clock, and `decode` stays a check of the file alone.
+	- Actual fix: `History::decode` and `Bucket::sane` in `core/src/history.rs`, `Graph::adopt` and `AHEAD_MAX` in `core/src/lib.rs`, and the column filter in `Frame::draw_to` in `core/src/render.rs`.
+	- Branch: round-1101
+	- Test case: `history::tests::times_out_of_order_are_refused_and_a_bucket_that_isnt_finite_is_a_gap` (deqs5), `tests::history_saved_hours_ahead_moves_the_clock_but_a_day_ahead_starts_over` (deqs6) and `render::tests::a_value_that_isnt_finite_is_drawn_as_a_gap` (deqs7). Each fails with its fix taken out.
+		- Swept: every `History::decode` and `Graph::adopt` caller (`Graph::load`, `Graphs::load`, `Graphs::set_look`, the soak test and the profiler, which load into the graph that saved), and every `span` reader that draws (`Frame::draw_to`). The hover tip still prints what a span gives, and with decode's check only a source can hand it NaN now.
+	- Closed: 20261101-112530
+
+- Code review 20261031 item 4: Graph times fall behind the clock after a suspend
+	- ID: 2026103115231848
+	- Type: Bug
+	- Status: Done
+		- It departs from the wording for a clock set back while running. The graph's time runs on from where it was, ahead of the wall clock by the step, rather than going back with it.
+		- It closed on a stand-in for a real suspend, which b23 can't do.
+	- Priority|Severity: Avg
+	- Opened: 20261031-152318
+	- Opened by: t00mietum
+	- Related IDs: 2026103115231801, 2026103115231863
+	- Steps to reproduce: Suspend a laptop for an hour, wake it, and hover the graph.
+	- Incorrect behavior: Clock tips are an hour early, Ago tips before the suspend are an hour short, and no gap shows for it. A clock change after start does the same.
+	- Expected behavior: Times match the wall clock, and the suspend shows as a gap. design.md says times are Unix seconds, so runs line up.
+	- Possible cause: `Graph::now` is the start time plus an `Instant`, which reads `CLOCK_MONOTONIC`, and that stops during suspend.
+	- Estimated effort: Avg
+	- Origin: `87bc145` (epoch) and `f89e55e` (`Instant`). First review. Plausible. The std source and `clock_gettime` were read, but b23 never suspends.
+	- Actual cause: As the possible cause. The graph's clock fell behind by every suspend, and the read after one covered the time it was out.
+	- Actual effort: Low
+	- Progress log:
+		- A graph's time is the wall clock, but never goes back. Each read moves the graph's clock up to the wall clock when that's ahead. When it moved more than a sample's worth, the read only primes, so a suspend, or the clock set on, is a gap.
+		- `design.md` History has the rule.
+		- Verified: deqqs and deqqt passed, with the wall clock an hour on and an hour back. The quick gate and the soak test passed. A real suspend is untested, since b23 doesn't suspend.
+		- Stand-in for the hand test, 20261101 on b23 at 4c8a1e0: a live CPU graph read every 0.5 s with the wall clock moved an hour on mid-run and the monotonic clock left alone, the way a suspend leaves them. The read after the step only primed, the next was at the new wall time, the newest column's clock tip read the shifted time, and the hour between had 0 coverage.
+	- Decisions:
+		- Set back while running, the graph's time doesn't follow. New samples would sit behind old ones and be dropped until the clock caught up, which the load rule in design.md already avoids. Saved times past now are 2026103115231863's.
+		- A step under one sample period counts as a late read, not a gap, so a small clock correction doesn't cut the graph.
+		- The wall clock rather than `CLOCK_BOOTTIME`, since it also follows a clock set on, and needs no platform call.
+		- Disk, network and the beat clock (`clock_ms`) stay on `Instant`. They time spans between reads, and the counters stop in a suspend too.
+	- Actual fix: `Graph::now`, `Graph::sample` and `Graph::adopt` in `core/src/lib.rs`.
+	- Branch: round-1101
+	- Test case: `tests::a_suspend_moves_the_clock_to_the_wall_and_is_a_gap` (deqqs) and `tests::a_clock_set_back_while_running_never_runs_back` (deqqt). deqqs fails with the clock on `Instant` alone. deqqt passed before too, and guards the rule for a clock set back.
+		- Swept: every `Graph::now` user (`trim`, `adopt`, `easing`, `span_at`, `hover_tip`, `render`), every `skip` caller, which still moves both clocks together, and every other `Instant` and `SystemTime` use in core, the plugin and the settings window.
+	- Acceptance signoff: Self-closed 20261101: deqqs and deqqt passed in the full run, and the clock-step stand-in on b23.
+	- Closed: 20261101-130700
+
+- Code review 20261031 item 3: Enter on a focused button saves and closes the settings window
+	- ID: 2026103115231832
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261031-152318
+	- Opened by: t00mietum
+	- Steps to reproduce: Change a setting, Tab to Cancel, press Enter.
+	- Incorrect behavior: The change is saved and the window closes as OK. Enter on Reset history, Save, Delete or Randomize does the same, and Reset history resets nothing.
+	- Expected behavior: Enter presses the focused button, as in any dialog. Enter in a field is still OK.
+	- Estimated effort: Low
+	- Origin: `f89e55e` (the key filter in `qt.cpp`). First review. Confirmed on a private display.
+	- Actual cause: The window's key filter took every Enter as OK, buttons included. The color picker's Cancel wasn't auto default, so Qt gave its Enter to OK too.
+	- Actual effort: Low
+	- Actual fix: The filter passes Enter on a focused push or tool button to that button. The picker's Cancel is auto default again. Enter in a field or on a checkbox is still OK.
+	- Decisions:
+		- The picker's Cancel had the same fault, so it's fixed here too.
+	- Branch: round-1101
+	- Test case: `bridge::tests::enter_presses_the_focused_button_and_is_ok_in_a_box` (deqsn), over Cancel, Apply, Randomize, a number box, and the picker's Cancel and OK. It fails before the fix on Cancel and on the picker's Cancel, and passes after.
+		- Swept: every `setAutoDefault(false)` button (Reset history and the 5 theme buttons, which the filter now handles), the picker's Cancel and OK, the revert buttons, and the other key handlers in `qt.cpp`. `design.md` Settings window says what Enter does on a button.
+	- Closed: 20261101-114200
+
 - Code review 20261030 item 1: The profiler measures a mostly empty history for 4 of its 6 graphs
 	- ID: 2026103016201601
 	- Type: Bug
@@ -4613,6 +4537,472 @@ Sorted per the notes in [Template](#template).
 		- A LAN and internet split is its own item, 2026101916274800.
 	- Test case: None, since it was a question. The network collector's tests will cover the answer.
 	- Closed: 20261019
+
+- With the LAN split on, TCP to a VM on a bridge that also holds the NIC counts as LAN
+	- ID: 2026110111543986
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261101-115439
+	- Opened by: t00mietum
+	- Parent ID: 2026110110445455
+	- Related IDs: 2026103115231894
+	- Steps to reproduce: On a box whose address is on a bridge with its NIC and the VMs' taps in it, as b23's br0, turn on the LAN split and copy a file over TCP to a VM.
+	- Incorrect behavior: The socket's own address is the bridge's, which counts as the LAN's way out, so the copy is LAN, and the clamp takes it out of the internet's share.
+	- Expected behavior: A socket to a far end that sits behind one of the bridge's virtual ports isn't the LAN's.
+	- Possible cause: Telling it apart takes the far end's MAC, from the neighbor table, and its port in the bridge's `brforward`. Both read with no root.
+	- Actual cause: The box's own address on a bridge says nothing of which port the far end is behind.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A far end whose link address is in the bridge's `brforward` on a virtual port, such as a VM's tap, isn't the LAN's. The neighbor table, from a netlink dump with no root, gives each far end's link address, IPv4 and IPv6.
+		- Read with the away addresses, every 10 s and when the interfaces change. Each failed read keeps the last lists.
+		- `design.md` Data sources on Linux has the details.
+		- Verified: `cargo test -p tukzmon-core lan:: net::` passed. On b23 the neighbor dump read with no root and listed the VMs, and br0's `brforward` had a VM's address on vnet2's port, not local, as the test builds it.
+		- Verified 20261101 on b23 at 4c8a1e0, with vmFreeBSD on br0 running and the split on: `net::guests` listed 192.168.1.119 on every read for 45 s. A 3 GB copy to it over TCP, about 500 MB/s, showed under 0.5 KB/s as LAN sent.
+	- Decisions:
+		- By the bridge's forwarding table, since a VM on b23's br0 shares its subnet with the real LAN, and no address tells them apart.
+		- An idle VM's address ages out of the table, but one moving data is in it, which is when it matters.
+		- A copy to a VM can count as LAN for up to 10 s at its start, till the next read. Reading every tick would cost 2 more reads a second, for a few seconds of a share the clamp already bounds.
+	- Actual fix: `net::guests` lists the far ends behind a bridge's virtual ports, and `lan::Away` holds them with the away addresses.
+	- Branch: round-1101
+	- Test case: `lan::tests::a_socket_to_a_vm_on_the_nics_bridge_isnt_the_lans` (deqt6), `lan::tests::neighbors_read_with_their_link_addresses` (deqt7) and `net::tests::a_vm_behind_the_nics_bridge_is_found_by_its_port` (deqt8). deqt6 fails with the far end not checked, and deqt8 with the port's high byte dropped.
+		- Swept: the sock_diag dump and the neighbor dump share `lan::dump` and `lan::walk`, so both skip another request's messages.
+	- Acceptance signoff: Self-closed 20261101: deqt6 to deqt8 passed in the full run, and the copy to vmFreeBSD on b23.
+	- Closed: 20261101-130700
+
+- With the LAN split on, TCP to a VM or over a VPN counts as LAN
+	- ID: 2026110110445455
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261101-104454
+	- Opened by: t00mietum
+	- Prereq IDs: 2026103115231894
+	- Related IDs: 2026103115231894, 2026102914561218
+	- Steps to reproduce: Turn on the LAN split, then copy a file over TCP to a VM on a bridge, or to a private address over a VPN.
+	- Incorrect behavior: The LAN reader counts those sockets, since the far end is private. The network graph no longer counts the bridge or the tunnel, so the clamp in `lan::split` takes them out of the internet's share instead.
+	- Expected behavior: Only sockets that leave by a counted interface are the LAN's.
+	- Possible cause: `lan::on_lan` goes by address only. Leaving out far ends in the subnets of the uncounted interfaces' addresses may be enough.
+	- Actual cause: `lan::on_lan` went by the far end's address only, whichever interface the socket used.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A socket whose own address is on an interface the network reader leaves out, such as a NAT bridge, a container's link or a VPN tunnel, isn't the LAN's. A bridge, bond or VLAN stacked on a hardware interface still is.
+		- The addresses are read again every 10 s and when the interfaces change, and a failed read keeps the last ones.
+		- A VM on a bridge that also holds the NIC, as on b23, is child 2026110111543986, in and waiting on a test with a running VM. This closes with it.
+		- `design.md` Data sources on Linux has the details.
+		- Verified: `cargo test -p tukzmon-core lan:: net::` passed. On b23 the away addresses are nordlynx's, docker0's and the compose bridge's, and br0 still counts.
+		- 2026-11-01: closed with its child 2026110111543986. Verified: deqt3 to deqt8 PASS in the round's full-run log.
+	- Decisions:
+		- By the socket's own address, not the far end's subnet. On b23 the box's address is on br0, which holds the NIC and the VMs, so by subnet all of the real LAN would drop out. A VPN's address is often a /32 too, which no far end is in.
+		- A bridge, bond or VLAN over a hardware interface counts as a way out, by the `upper_` links in sysfs, since what it carries to the LAN crosses the NIC.
+		- Every 10 s rather than every tick, as the disk reader lists drives, since reading the addresses cost about 0.4 ms on b23.
+	- Branch: round-1101
+	- Test case: deqt3, deqt4, deqt5, and child 2026110111543986's deqt6 to deqt8 and its live copy to vmFreeBSD
+		- Swept: `LanReader` is read only through `Traffic`, and `Wired::counts` keeps its meaning, so `NetReader` counts the same interfaces.
+
+- Code review 20261031 item 23: Dead code in the settings window and public items only tests use
+	- ID: 2026103115232140
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152321
+	- Opened by: t00mietum
+	- Incorrect behavior: `typing()` in `qt.cpp` checks `specialValueText()`, which nothing sets, and its comment is from before Sample %. `config::theme_problems`, `render::column`, `Graph::save` and `Graph::load` have no caller outside tests.
+	- Expected behavior: Removed, or made test-only.
+	- Estimated effort: Low
+	- Origin: `4993f98` (`typing`) and earlier. First review. Confirmed by grep.
+	- Actual effort: Low
+	- Progress log:
+		- `typing()` compares a number box's text with its value's text, with no special text.
+		- `theme_problems`, `Graph::save` and `Graph::load` are test-only. `column` moved into the render tests, since the drawing calls `reach` and `fit` itself.
+		- Verified: the quick gate's format, build, lint and tests passed, dej8s included.
+	- Decisions:
+		- Test-only rather than removed, since their tests check what the plugin's own paths share: `saved_themes`, `adopt`, `section` and the spike reach.
+		- Swept: no other `specialValueText` or `setSpecialValueText` in `qt.cpp`, and no caller of the 4 in the examples, the soak test, xfce or settings, which use `Graphs::save` and `Graphs::load`.
+	- Actual fix: `#[cfg(test)]` on the 3, `column` in `render::tests`, and the special text check out of `typing()` in `settings/src/qt.cpp`.
+	- Branch: round-1101
+	- Test case: None new, since nothing changes what runs. dekm0, debj9, debja and dej8s still pass, and a build outside tests that called one would fail.
+	- Closed: 20261101-121541
+
+- Code review 20261031 item 22: Stale text in the desktop file, package description, design.md and the knobs demo
+	- ID: 2026103115232125
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152321
+	- Opened by: t00mietum
+	- Incorrect behavior: `tukzmon.desktop` says CPU graph with a log time axis, and `nfpm.yaml` says CPU and memory graphs, with 13 graphs now. design.md says the only globals are the spec cache and the panic hook, and that the settings window won't save an unreadable file, both out of date. `knobs/demo/demo.shcl` doesn't list `from_program`.
+	- Expected behavior: Each says what the code does now.
+	- Estimated effort: Low
+	- Origin: `f89e55e` and later. First review. Confirmed by reading.
+	- Actual effort: Low
+	- Actual fix: The desktop file and package description list the graphs now. design.md's globals line names the once-set caches, the per-thread meminfo cache and the panic hook. Its saved-theme and old-axis-lines text says unreadable lines are dropped at the next save. The demo lists `from_program`.
+	- Decisions:
+		- Checked each was still stale first. The line on a saved theme's key and colors (Themes) was stale too, so it is fixed with the rest.
+		- The desktop comment is short, since the panel shows it in a list.
+	- Branch: round-1101
+	- Test case: None, since only text changed. The quick gate passed.
+	- Closed: 20261101-122600
+
+- Code review 20261031 item 21: Tests that can't fail, or check less than their names say
+	- ID: 2026103115232109
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152321
+	- Opened by: t00mietum
+	- Steps to reproduce: Take out the `count > tier.cap()` check in `History::decode` and run the history tests.
+	- Incorrect behavior: All 15 pass, since decbh's file is too short and fails on length first. debj0 says a holed bucket reads as thin, but checks only the count. dep7b refuses 2 spaces in a row, so a tip line with 2 pairs and a comma passes. `procs_sits_after_load_and_stacks_by_owner` lays procs after swap.
+	- Expected behavior: Each fails when what it names breaks.
+	- Estimated effort: Low
+	- Origin: `87bc145` (decbh, debj0), `1d07a68` (dep7b). First review. decbh confirmed by mutation; the rest by reading.
+	- Actual effort: Low
+	- Progress log:
+		- decbh also gives a full fine tier one more bucket than it keeps, with the bytes for it in the file and the span widened to fit. The same change to a tier that isn't full still reads, so only the cap refuses it.
+		- debj0 also reads a 2 s bucket with a hole in it, after the finer tiers have let it go, and checks it covers 0.5 of its 1.75 s.
+		- dep7b also allows one value a line, with "2 of 8 GiB" as one.
+		- dep48 is `procs_sits_after_memory_and_stacks_by_owner` now, and draws with the default order, so procs sits between memory and swap.
+		- Verified: the quick gate passed. Each test failed with what it names broken: decbh with the cap check out, debj0 with a holed bucket read as full, dep7b with temperature's 2 lines joined by a comma, and dep48 with `set_look` keeping the old order.
+	- Decisions:
+		- The old asserts stay. decbh's 9000-bucket case is now said to be past what the file holds, and debj0's bucket count is the gap kept as empty buckets.
+		- Swept: demwf, the other test that changes a history file's bytes, checks a count that nothing else refuses. defq5 and defq6 lay out `three()` in its own order, with no procs.
+	- Branch: round-1101
+	- Test case: decbh, debj0, dep7b and dep48, each run with its mutation above and without.
+	- Closed: 20261101-122102
+
+- Code review 20261031 item 20: Each trim past the max age eases the time axis again
+	- ID: 2026103115232093
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152320
+	- Opened by: t00mietum
+	- Steps to reproduce: Keep history until it reaches the max age.
+	- Incorrect behavior: Every trim moves the first time, which counts as a jump, so each 15 minute save starts half a second of redraws every 33 ms. It can't be seen, but costs about 15 draws per item per save.
+	- Expected behavior: Trimming the old end isn't a jump.
+	- Estimated effort: Low
+	- Origin: `34dffcb` (`Basis::jumps_to`). First review. Plausible, by reading.
+	- Actual cause: As described. Any change in the first time counted as a jump, including a trim.
+	- Actual effort: Low
+	- Progress log:
+		- Dropping history past the max age is time going on, unless it takes more than 1% off the oldest end in `ln(1 + age / 5 s)`. A 15 minute trim of a day takes 0.2%.
+		- A lower max age, such as 28 days down to 1, still eases, and so does older history loaded.
+		- `design.md` Time axis says so.
+		- Verified: the quick gate passed.
+	- Decisions:
+		- The cut is judged by how far it moves the left edge, in the same log units the ease mixes in, rather than by adding the max age to the basis. The trim after a lower max age comes at the next save, up to 15 minutes after the look changed, so a max age in the basis would ease at the wrong time and then jump.
+		- 1% is about a pixel on a 100 px graph.
+	- Actual fix: `Basis::jumps_to` in `core/src/axis.rs`, with `TRIM_SHOWS`.
+	- Branch: round-1101
+	- Test case: `axis::tests::a_trim_to_the_max_age_is_no_jump_but_a_shorter_max_age_is` (deqvb), over all 3 curves. It fails with the old rule, and with the cut check taken out.
+		- Swept: `Basis::jumps_to` is the only jump check, and `History::trim` the only place the first time moves later. Linear axes don't use the first time.
+	- Closed: 20261101-123300
+
+- Code review 20261031 item 19: The LAN reader doesn't check netlink sequence numbers
+	- ID: 2026103115232077
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152320
+	- Opened by: t00mietum
+	- Steps to reproduce: A sock_diag dump fails partway.
+	- Incorrect behavior: Its leftover messages are read into the next dump, so one read misses sockets and the next counts their whole life once. The interface totals bound it, since the LAN is clamped to them.
+	- Expected behavior: Messages from another request are skipped.
+	- Actual cause: `lan::parse` read every message in the socket, whatever request it answered.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Origin: `8bbd96a`. First review. Plausible, by reading.
+	- Progress log:
+		- `lan::parse` takes the dump's sequence number and skips a message with another, its error and done included.
+		- `design.md` Data sources on Linux says so.
+		- Verified: `cargo test -p tukzmon-core lan::` and the quick gate passed.
+	- Actual fix: Skip messages by sequence number.
+	- Branch: round-1101
+	- Test case: `lan::tests::whats_left_of_an_earlier_dump_is_skipped` (deqt2). It fails with the check taken out, on the old dump's error.
+		- Swept: `LanReader::poll` is the only netlink reader in the repo.
+	- Closed: 20261101-115021
+
+- Code review 20261031 item 18: History saves can lose hidden graphs' sections or leave a temp file
+	- ID: 2026103115232061
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152320
+	- Opened by: t00mietum
+	- Related IDs: 2026103010491713
+	- Steps to reproduce: Run an older build on a newer history file, or fill the disk during a save.
+	- Incorrect behavior: A read that fails leaves nothing kept, so the save writes only the shown graphs over the file. A failed write leaves `plugin-N.hist.tmp`, up to 14 MB, which Reset history never removes. 2 sessions with one item id share the temp name.
+	- Expected behavior: A file that can't be read isn't overwritten, and a failed write removes its temp file.
+	- Reproduced: Yes, by the new tests with the fix taken out. A version 3 file was saved over, and a failed rename left its temp file.
+	- Actual cause: As described. `Graphs::save` took a failed read as no sections, and `keep::write` returned on an error with its temp file still there.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Origin: `87bc145` (`keep::write`) and `9b0535f` (`Graphs::save`). First review. Plausible, by reading.
+	- Progress log:
+		- `Graphs::load` keeps nothing after a read that fails for any reason but a missing file, so `save` reads the file again. `save` then refuses a file that doesn't read, and the tip says "it doesn't read, so it's left as it is".
+		- Once the file reads again, or Reset history deletes it, saves go on as before.
+		- `keep::write` names its temp file `plugin-N.hist.<pid>.tmp`, and removes it when the write or the rename fails.
+		- `keep::reset` with saved history deleted also deletes temp files of both names, so one a crash left goes too.
+		- `config::start_from` removes its temp file on a failed write too.
+		- `design.md` History has the rules.
+		- Verified: the quick gate passed.
+	- Decisions:
+		- Any read error but a missing file stops the save, a broken file too. Telling a newer file from a broken one would need trust in the bytes that didn't read. Reset history is the way out, and the tip points at the file.
+		- This changes 2026103010491713's "an older build refuses a version 2 file as a whole and starts fresh". A build from now on still starts fresh, but leaves a newer file on disk.
+		- The pid, not a random name, so a temp file says whose it is, and a reset still finds it by name.
+	- Actual fix: `Graphs::load` and `Graphs::save` in `core/src/graphs.rs`, and `write`, `temp_of` and `is_history_file` in `core/src/keep.rs`.
+	- Branch: round-1101
+	- Test case: `graphs::tests::a_file_that_doesnt_read_isnt_saved_over_until_a_reset` (deqsa), `keep::tests::a_failed_write_leaves_no_temp_file_and_temp_names_are_by_pid` (deqs8) and `keep::tests::a_reset_deletes_leftover_temp_files_too` (deqs9). Each fails with its fix taken out, and deqsa's second round fails with only the load fix out.
+		- 2026-11-01: decbk (`sections_round_trip_and_no_tmp_is_left`) now checks the folder holds only the history file, not that `plugin-1.hist.tmp` is missing, since the temp file has a new name.
+		- Swept: every `keep::write`, `keep::read` and `keep::reset` caller (`Graphs::save`, `load` and `set_look`, `Graph::save`, the plugin's save, load, reset and remove, and the settings window's Reset history), and every other temp file written then renamed (`config::start_from`, fixed the same way, untested since its rename can only fail where its file already exists, and the profiler's report, left as it is in the build's artifacts). `Plugin::forget` deletes `plugin-<id>.hist` only, so a temp a crash left at that moment stays until the next Reset history.
+	- Closed: 20261101-113100
+
+- Code review 20261031 item 17: The plugin's tick makes a second mutable borrow through the tooltip requery
+	- ID: 2026103115232046
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152320
+	- Opened by: t00mietum
+	- Steps to reproduce: Leave the pointer still on the graph for a second or more.
+	- Incorrect behavior: `gtk_widget_trigger_tooltip_query` inside `tick` fires `query-tooltip` at once, which makes a second `&mut Plugin` while the first is live. That is undefined behavior. Today the inner call only reads, so at worst a tip line is stale.
+	- Expected behavior: The trigger runs after `guarded` returns, or from an idle callback.
+	- Estimated effort: Low
+	- Origin: `a9ca08f`. First review. Plausible. The GTK 3.24 call path was confirmed in its source.
+	- Actual cause: As described. Both the timer and the file watch ran `tick` inside `guarded`, with the trigger in it.
+	- Actual effort: Low
+	- Progress log:
+		- `tick` now says when the tip should be asked again, and the trigger runs after `guarded` returns, in both callers.
+		- Verified: the quick gate passed. The live panel wasn't tried.
+	- Decisions:
+		- After `guarded` rather than from an idle callback, so there's no extra source to stop at free-data, and the tip moves in the same tick as before.
+		- `tick` is `#[must_use]`, so a new caller can't drop the requery.
+	- Actual fix: `requery` in `xfce/src/lib.rs`, called with what `guarded(.., Plugin::tick)` gives.
+	- Branch: round-1101
+	- Test case: `tests::the_tip_is_asked_again_only_after_the_plugin_is_let_go` (deqvc) checks the trigger is only in `requery`, and every `requery` call wraps a `guarded`. It fails on the old code.
+		- Swept: `gtk_widget_trigger_tooltip_query` had one call. The other GTK calls made under `guarded` queue work or set state, such as `gtk_widget_queue_draw` and `gtk_widget_set_size_request`, and none was found to run a handler that takes the Plugin at once.
+	- Closed: 20261101-123400
+
+- Code review 20261031 item 16: The Nix store volume has no dev.run label, and the Nix step removes other tukzmon volumes
+	- ID: 2026103115232031
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152320
+	- Opened by: t00mietum
+	- Related IDs: 2026102808222810
+	- Steps to reproduce: Keep a worktree whose NIX_IMAGE pin differs, then run the Nix step in another.
+	- Incorrect behavior: The other store, about 5 GB, is removed. Any tukzmon volume added later would be too.
+	- Expected behavior: Both labels on every volume, per Containers in CICD process, and removal of only what the step owns.
+	- Reproduced: 2026-11-01, round-1101 at bedc86c. The Nix step removed a store no checkout pins, and also `tukzmon-probe-other`, a plain tukzmon volume.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Origin: `6f7209f`. First review. Confirmed with `docker volume inspect`.
+	- Progress log:
+		- A new store gets `dev.run` as well as `dev.project`.
+		- The step removes a volume only when it's named like its stores, `tukzmon-nix-<12 hex>`, and no checkout of the clone pins it. It reads the pins from each worktree's `cicd/config.bash`. When git can't list the worktrees it removes nothing, with a warning.
+		- Verified: with a second worktree pinning another image, the step kept that one's store and another tukzmon volume, removed a store nobody pins, and passed. The same setup at bedc86c removed the other volume too. deqre passes, and the quick gate's lint and tests passed in the image.
+	- Decisions:
+		- Keep a store while any checkout of this clone pins it, rather than only the current one, as 2026102808222810 had it. A store no checkout pins still goes, so an old pin doesn't keep 5 GB forever. A separate clone with its own pin isn't seen, so it can still lose its store, and its next run fetches again.
+		- Stores are known by their name, not by a new label, so the ones made before this count too.
+		- The current store, `tukzmon-nix-0d6541f7ddaf` on b23, was made before this and has no `dev.run`. Docker can't add a label, so it gets one only when it's made again.
+		- Swept: no other step makes or removes a volume, and the run's cleanup removes only containers by `dev.run`.
+	- Actual fix: `fNixStore`, `fNixStoresPinned` and `fNixStoresUnused` in `cicd/cicd.bash`, called from `fStepNix`.
+	- Branch: round-1101
+	- Test case: `nix_step_removes_only_its_own_stores_that_no_checkout_pins` in `cicd/tests/guards.bash` (deqre). The step itself has no test ID, as for 2026102808222810.
+	- Closed: 20261101-110658
+
+- Code review 20261031 item 15: license.txt counts as docs only for the pre-push hook
+	- ID: 2026103115232016
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152320
+	- Opened by: t00mietum
+	- Steps to reproduce: Push to main a commit that only renames or deletes license.txt.
+	- Incorrect behavior: The gate is skipped, and the Packages step breaks on main.
+	- Expected behavior: Files that go into a package aren't docs.
+	- Reproduced: 2026-11-01, round-1101, by deqvk, which named license.txt.
+	- Actual cause: `license.txt` was in `DOCS_PATHS`, and `nfpm.yaml` puts it in both packages.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Origin: `ff4610a` (`DOCS_PATHS`). First review. Confirmed by reading `nfpm.yaml`.
+	- Progress log:
+		- `DOCS_PATHS` in `cicd/config.bash` no longer holds `license.txt`, and its comment says nothing a package holds goes there.
+		- New test deqvk fails when any literal `src:` in `nfpm.yaml` matches a `DOCS_PATHS` pattern.
+		- Verified: deqvk failed before the fix, naming license.txt, and passed after. The quick gate's lint passed.
+	- Decisions:
+		- The test reads `nfpm.yaml`, so a file added to a package later is caught too.
+		- Swept: `nix/package.nix` builds only from the Cargo files and the 4 crate folders, none under `DOCS_PATHS`. No `.md` or `project/` file goes into a package.
+	- Actual fix: dropped `license.txt` from `DOCS_PATHS`.
+	- Branch: round-1101
+	- Test case: `no_file_a_package_holds_counts_as_docs_for_the_hook` in `cicd/tests/guards.bash` (deqvk).
+	- Closed: 20261101-123700
+
+- Code review 20261031 item 14: The pre-push hook keeps the gate from removing images, and any value skips it
+	- ID: 2026103115232000
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152320
+	- Opened by: t00mietum
+	- Steps to reproduce: Push to main from a checkout with any untracked file, or with TUKZMON_SKIP_HOOK=0.
+	- Incorrect behavior: The hook's own run folder looks like a live run, so the gate never removes its images. Setting the skip to 0 also skips.
+	- Expected behavior: The gate's cleanup ignores the hook that started it, and only 1 skips.
+	- Reproduced: 2026-11-01, round-1101, by deqvm and deqvn. `fOtherRun` named the folder of the shell that started it, and a skip of 0 skipped.
+	- Actual cause: `fOtherRun` counted every live run folder but its own, and the hook makes one for its worktree. The hook skipped on any value that wasn't empty.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Origin: `ff4610a` (hook) and `f95b2c6` (`fOtherRun`). First review. Confirmed with a probe, and by reading.
+	- Progress log:
+		- New `fRunAbove` in `run-tmp.bash` says whether a run folder's run is this shell or one that started it. `fOtherRun` in `cicd.bash` skips those.
+		- The hook skips only on `TUKZMON_SKIP_HOOK=1`. Empty and 0 run the gate, and any other value runs it with a note saying it isn't 1.
+		- Verified: deqvm and deqvn failed before the fix and passed after, 3 runs in a row. The quick gate's lint passed.
+	- Decisions:
+		- `fOtherRun` looks up the process tree rather than taking a variable from the hook, so it needs no new setting and holds for anything else that starts a run.
+		- A value other than 0 or 1 gets a note rather than an error, so a push isn't refused for it.
+		- Swept: `fSweepStale` leaves a live run's folder alone, and `fStopLeftovers` goes by `TMPDIR`, which the hook doesn't set, so neither touches the hook. No other place reads `TUKZMON_SKIP_HOOK`.
+	- Actual fix: `fRunAbove` in `cicd/utility/include/run-tmp.bash`, its use in `fOtherRun`, and a `case` on the skip value in `cicd/hooks/pre-push`.
+	- Branch: round-1101
+	- Test case: `a_gate_the_hook_started_doesnt_count_the_hook_as_another_run` (deqvm) and `only_1_skips_the_pre_push_hook` (deqvn), in `cicd/tests/guards.bash`.
+	- Closed: 20261101-123930
+
+- Code review 20261031 item 13: The leftover process scan stops at the first one that exits, and prints a false abort
+	- ID: 2026103115231984
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152319
+	- Opened by: t00mietum
+	- Steps to reproduce: Stop a run during an in-image step, so its processes exit while the scan reads them.
+	- Incorrect behavior: The ERR trap fires inside the process substitution, prints CICD ABORTED, and no pid after that one is stopped. Cleanup then removes the run folder under them.
+	- Expected behavior: A process gone before its read is skipped, and the rest are stopped.
+	- Reproduced: 2026-11-01, round-1101, by deqrb. The scan printed the abort and named no pid after the gone one.
+	- Actual cause: the read loop's redirect from a gone process's `environ` fails, and nothing caught that status, so the ERR trap ran in the scan's subshell and ended it.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Origin: `f95b2c6` (`fRunPids`) and `5f1bef0` (ERR trap). First review. Confirmed with a probe.
+	- Progress log:
+		- `fRunPids` skips a process whose `environ` it can't open.
+		- Verified: deqrb fails before the fix, with the abort, and passes after, 5 runs in a row. The quick gate's lint and tests passed in the image.
+	- Decisions:
+		- The test runs the scan in a bash of its own, since the `if` that runs each test turns off errexit and the ERR trap all the way down, and a test in-process passed without the fix.
+		- Swept: the other `/proc` reads in `run-tmp.bash` and `cicd.bash` already catch a failed read. The `[[ ]] && alive=1` at the end of a loop in `fStopLeftovers` doesn't set off the trap.
+	- Actual fix: `|| true` on the read loop in `fRunPids`, in `cicd/utility/include/run-tmp.bash`.
+	- Branch: round-1101
+	- Test case: `run_pids_skips_a_process_gone_since_the_grep` in `cicd/tests/guards.bash` (deqrb).
+	- Closed: 20261101-105407
+
+- Code review 20261031 item 12: dev-install.bash ignores the target dir and can't find ldconfig
+	- ID: 2026103115231969
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152319
+	- Opened by: t00mietum
+	- Related IDs: 2026102820420805, 2026103016201615
+	- Steps to reproduce: Set `CARGO_TARGET_DIR` and run it, or run it with Debian's default user PATH.
+	- Incorrect behavior: It builds into the target dir but copies the old `target/release` files, then restarts the panel on them. `ldconfig` is in `/usr/sbin`, so every Debian user gets the not found warning and the x86_64 fallback, which is wrong on arm64. The build has no `--locked`.
+	- Expected behavior: It copies what it built, finds the library, and leaves `Cargo.lock` alone.
+	- Reproduced: 2026-11-01, round-1101, by deqvr. Each of the 3 parts failed it on its own: the copy from `target/release`, the not found warning with a user PATH, and the build with no `--locked`.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `dev-install.bash` asks `cargo metadata` for the target dir and copies from its `release` folder, builds with `--locked`, and adds `/usr/sbin` and `/sbin` to the PATH it looks for `ldconfig` on. The fallback with no panel library found is `lib/<uname -m>-linux-gnu`.
+		- New test deqvr runs it with a stand-in cargo whose target dir is elsewhere and a stand-in `ldconfig` for an arm64 box, then again with a Debian user PATH and the box's own `ldconfig`, when it lists the panel library.
+		- Verified: deqvr failed before the fix and passed after. The quick gate passed, with deqvr in its Tests step. With `~/.local` swapped for an empty folder and a Debian user PATH, a real run built, installed the 3 files under `lib/x86_64-linux-gnu`, and gave no not found warning.
+	- Decisions:
+		- 2026103016201615 closed with no test because the pipeline can't run it. `dev-install-rig.bash` runs it under unshare, so a test can now go in `cicd/tests`.
+		- The test needs no unshare: it sets `HOME` to a temp folder and stands in for cargo, so it runs in the image too. The second half runs only where `/usr/sbin/ldconfig` or `/sbin/ldconfig` lists the panel library.
+		- `cargo metadata` rather than `CARGO_TARGET_DIR` alone, since a cargo config can set the target dir too.
+		- Swept: `cicd.bash` dogfoods through this script, and `package.bash` already reads the target dir. No other script calls `ldconfig`.
+	- Actual fix: in `utility/dev-install.bash`.
+	- Branch: round-1101
+	- Test case: `dev_install_copies_what_cargo_built_and_finds_the_panel_library` in `cicd/tests/guards.bash` (deqvr).
+	- Closed: 20261101-124500
+	- Origin: `2a74ce3` and `69dae71`. First review. ldconfig confirmed with a Debian user PATH. The target dir is Plausible, by reading.
+
+- Code review 20261031 item 11: knobs lets NaN past a range check
+	- ID: 2026103115231954
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152319
+	- Opened by: t00mietum
+	- Steps to reproduce: Put `margin_tb: nan` in a saved theme.
+	- Incorrect behavior: The margin is 0. Junk text gives the default 2, so nan isn't dropped as junk is. A float setting keeps NaN and saves it.
+	- Expected behavior: A number that isn't finite is refused like any out of range.
+	- Possible cause: `x < min || x > max` is false for NaN, and `theme_typed` takes `nan` through `parse::<f64>`.
+	- Reproduced: 2026-11-01, with the new test against the old `theme_typed`.
+	- Actual cause: as above. Of the ways a typed number gets in, only `theme_typed` let NaN through. The number box and the picker already drop it, and shcl doesn't read `nan` or `inf` as a number.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A saved theme's number that isn't finite is dropped like junk, so it gets Default's value.
+		- Verified: the quick gate passed, with deqvz.
+	- Decisions:
+		- The knobs fix goes to silkterm first, as its copy is the source.
+		- The check sits in `theme_typed`, so `knobs/src/lib.rs` stays the same as silkterm's. Once silkterm's `Spec::valid` refuses NaN and the copy is taken over, the check there is spare but harmless.
+	- Branch: round-1101
+	- Test case: `config::tests::a_saved_theme_number_that_isnt_finite_is_junk` (deqvz). It fails on nan without the fix and passes with it.
+		- Swept: every `Spec::valid` caller. `Dialog::set_text` and `pick::pct` already refuse a number that isn't finite. knobs' own reads go through shcl, which doesn't take `nan`, and a rule's answer is computed. `inf` and `1e999` were already out of range.
+	- Acceptance signoff: Self-closed 20261101: deqvz passed in the quick gate.
+	- Origin: `f89e55e` (`Spec::valid`). First review. Confirmed with a scratch crate. silkterm's copy is byte-identical.
+	- Closed: 20261101-125200
+
+- Code review 20261031 item 10: A non-UTF-8 config path panics, and a dangling config link is replaced
+	- ID: 2026103115231938
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152319
+	- Opened by: t00mietum
+	- Steps to reproduce: Run `tukzmon-settings --config` with a path holding byte 0xff. Or point the config at a link to a missing file and Apply.
+	- Incorrect behavior: The first exits 101 with a panic. The second opens at defaults and Apply writes a regular file over the link.
+	- Expected behavior: A message and exit 2 for the path. For the link, write through it, or say it points nowhere.
+	- Reproduced: 2026-11-01. The old build exited 101 on a 0xff path, and the new link tests failed without the fix.
+	- Actual cause: `std::env::args` panics on an argument that isn't UTF-8. shcl's atomic write follows a link only when its file is there, so a dangling one was renamed over. A panel item's first copy, `config::start_from`, did the same.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A `--config` or `--snapshot` value that isn't UTF-8, or such an option, gets a message and exit 2.
+		- Apply, and an item's first copy, write to the file at the end of the links, so the links stay and the file is made there.
+		- Verified: the quick gate passed, with deqw0, deqw1 and deqw2. The built program said "--config: ... isn't UTF-8, so it can't be used." and exited 2.
+	- Decisions:
+		- A path that isn't UTF-8 is refused rather than taken, since shcl writes only to a text path. Apply already refused one, so this only moves the message to the start.
+		- Write through the link rather than refuse, since a link to a file not made yet is a normal way to keep a config elsewhere. A missing folder at the end is made, as for a plain path.
+		- The window still opens at the defaults for a link to a missing file, the same as a missing file.
+	- Branch: round-1101
+	- Test case: `tests::a_path_that_isnt_utf8_is_a_message_not_a_panic` (deqw0), `dialog::tests::apply_writes_through_a_link_to_a_file_not_there_yet` (deqw1) and `config::tests::an_items_link_to_a_missing_file_is_kept_and_filled` (deqw2). deqw1 and deqw2 fail with `through_links` taken out. deqw0 tests the new argument reader, and the old build's panic was seen by running it.
+		- Swept: every write of a config file (`Dialog::apply`, `config::start_from`), and every `env::args` in the shipped programs. The history files in `keep.rs` aren't links a user makes. `core/examples/preview.rs` and `profile.rs` still use `env::args`, as dev tools.
+	- Acceptance signoff: Self-closed 20261101: deqw0 to deqw2 passed in the quick gate.
+	- Origin: `f89e55e` (`main.rs` args, Apply). First review. Confirmed.
+	- Closed: 20261101-125705
+
+- Code review 20261031 item 9: The graph list's Width % and Sample % header tips are the first row's
+	- ID: 2026103115231923
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152319
+	- Opened by: t00mietum
+	- Steps to reproduce: Hover the Width % header in the graph list.
+	- Incorrect behavior: It says how wide the CPU graph is, or whichever graph is first, and can include its stale Set by hand line.
+	- Expected behavior: A tip about the column.
+	- Estimated effort: Low
+	- Origin: `b869164` and `bad9e01`. First review. Confirmed by reading.
+	- Actual cause: The headers took the first row's tip once, when the window was built.
+	- Actual effort: Low
+	- Actual fix: Width %, Sample % and Time axis each have a tip about the column, for every graph.
+	- Decisions:
+		- Time axis had no tip, so it gets one too, to match the other 2.
+		- The tips are fixed text in `qt.cpp`, like the buttons' tips, since a header isn't a setting in the spec.
+	- Branch: round-1101
+	- Test case: `bridge::tests::the_graph_list_headers_tip_the_column_not_a_graph` (deqsp). It fails before the fix, with the CPU width tip on Width %, and passes after.
+		- Swept: the other list headers and labels in `buildList`. No other label copies a row's tip.
+	- Closed: 20261101-114500
 
 - A dialog test leaves its scratch folder in the temp dir
 	- ID: 2026103020140879

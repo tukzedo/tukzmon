@@ -19,6 +19,8 @@ rust::Vec<rust::String> sections_after_move(Dialog &d, std::size_t from, std::si
 rust::Vec<rust::String> tabs_by_key(Dialog &d, bool back, bool fromPage, bool pageKeys);
 rust::Vec<rust::String> section_tops(Dialog &d);
 rust::Vec<rust::String> bottom_buttons(Dialog &d);
+rust::Vec<rust::String> enter_on(Dialog &d, rust::Str button);
+rust::Vec<rust::String> list_head_tips(Dialog &d);
 rust::Vec<bool> apply_while_typing(Dialog &d, bool number);
 rust::Vec<rust::String> page_shades(Dialog &d, bool dark);
 rust::Vec<rust::String> button_gaps(Dialog &d);

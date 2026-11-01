@@ -63,6 +63,22 @@ fRunLive() {
 	fStampLive "${got}"
 }
 
+## True when the run that made run folder DIR is this shell or one that
+## started it, such as the pre-push hook that runs the gate in a worktree.
+fRunAbove() {   ## fRunAbove DIR
+	local got='' p="${BASHPID}" stat=''
+	local -a fields=()
+	{ read -r got < "${1}/run.pid"; } 2> /dev/null || return 1
+	[[ "${got}" =~ ^[0-9]+\ [0-9]+$ ]] || return 1
+	while [[ "${p}" =~ ^[0-9]+$ ]] && ((p > 1)); do
+		[[ "$(fPidStamp "${p}" || true)" != "${got}" ]] || return 0
+		stat=''; { read -r stat < "/proc/${p}/stat"; } 2> /dev/null || return 1
+		read -r -a fields <<< "${stat##*) }"
+		p="${fields[1]}"
+	done
+	return 1
+}
+
 ## The pids of ours with DIR, or a folder in it, as their TMPDIR, which every
 ## child of a run inherits. One grep over every process for a rough match,
 ## then an exact look at the few it names.
@@ -71,9 +87,11 @@ fRunPids() {   ## fRunPids DIR
 	while IFS= read -r p; do
 		p="${p#/proc/}"; p="${p%/environ}"
 		[[ "${p}" =~ ^[0-9]+$ ]] || continue
+		## A process can exit between the grep and here. Its failed open
+		## mustn't set off the caller's ERR trap and end the scan.
 		while IFS= read -r -d '' e; do
 			if [[ "${e}" == "TMPDIR=${dir}" || "${e}" == "TMPDIR=${dir}/"* ]]; then echo "${p}"; break; fi
-		done 2> /dev/null < "/proc/${p}/environ"
+		done 2> /dev/null < "/proc/${p}/environ" || true
 	done < <(LC_ALL=C grep -lszF -- "TMPDIR=${dir}" /proc/[0-9]*/environ 2> /dev/null || true)
 }
 
@@ -152,3 +170,5 @@ fStopLeftovers() {
 ##		- 2026-10-25: A folder whose run is gone goes at once, unless kept.
 ##		- 2026-10-30: fSafeRm refuses the temp root and a project's folder in it,
 ##		  as the CICD process's copy does.
+##		- 2026-11-01: fRunPids skips a process that exits while it scans.
+##		- 2026-11-01: fRunAbove, so a run can tell the one that started it.

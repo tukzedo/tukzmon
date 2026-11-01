@@ -67,6 +67,8 @@ pub trait Drawn: Any {
 	fn trim(&mut self);
 	/// Moves the clock on, so the soak test can run days in seconds.
 	fn skip(&mut self, secs: f64);
+	/// Forgets the last read, so the next one only primes.
+	fn pause(&mut self);
 	/// The graph's clock, in seconds.
 	#[cfg(test)]
 	fn now(&self) -> f64;
@@ -113,6 +115,9 @@ impl<S: Source<N> + 'static, const N: usize> Drawn for Graph<S, N> {
 	}
 	fn skip(&mut self, secs: f64) {
 		Graph::skip(self, secs);
+	}
+	fn pause(&mut self) {
+		Graph::pause(self);
 	}
 	#[cfg(test)]
 	fn now(&self) -> f64 {
@@ -464,6 +469,14 @@ impl Graphs {
 		{
 			cpu.set_hover(None);
 		}
+		// one kept but not read, as CPU hidden, comes back with a gap
+		for w in Which::ALL {
+			if !self.is_shown(w)
+				&& let Some(g) = self.slot_mut(w)
+			{
+				g.pause();
+			}
+		}
 		res
 	}
 
@@ -551,10 +564,12 @@ impl Graphs {
 	/// Every graph's history, plus any section in the file that none of them
 	/// owns, such as a hidden graph's, so showing it again brings it back.
 	/// Those come from the last [`Self::load`], or from the file before one.
+	/// A file that doesn't read, as one from a newer build, is left as it
+	/// is, until it reads or a [`Self::reset`] deletes it.
 	///
 	/// # Errors
 	///
-	/// As [`keep::write`].
+	/// As [`keep::write`], or the file's read error when it doesn't read.
 	pub fn save(&self, path: &Path) -> io::Result<()> {
 		let ours: Vec<(&str, Vec<u8>)> = Which::ALL
 			.into_iter()
@@ -564,7 +579,16 @@ impl Graphs {
 		let others = if let Some(kept) = &self.kept {
 			kept
 		} else {
-			read = keep::read(path).unwrap_or_default();
+			read = match keep::read(path) {
+				Ok(sections) => sections,
+				Err(e) if e.kind() == io::ErrorKind::NotFound => Vec::new(),
+				Err(e) => {
+					return Err(io::Error::new(
+						e.kind(),
+						format!("it doesn't read, so it's left as it is: {e}"),
+					));
+				}
+			};
 			&read
 		};
 		let all: Vec<(&str, &[u8])> = ours
@@ -588,9 +612,8 @@ impl Graphs {
 		let mut sections = match keep::read(path) {
 			Ok(s) => s,
 			Err(e) => {
-				if e.kind() == io::ErrorKind::NotFound {
-					self.kept = Some(Vec::new());
-				}
+				// else a save would write only ours over what it can't read
+				self.kept = (e.kind() == io::ErrorKind::NotFound).then(Vec::new);
 				return Err(e);
 			}
 		};
@@ -1207,6 +1230,29 @@ mod tests {
 		assert!(g.reset(Some(&path)).is_ok());
 	}
 
+	// Test ID: deqsa
+	#[test]
+	fn a_file_that_doesnt_read_isnt_saved_over_until_a_reset() {
+		let path = scratch("newer");
+		// as a newer build would write it
+		let newer = [&b"tukzhist"[..], &3u32.to_le_bytes(), &0u32.to_le_bytes()].concat();
+		let mut g = both();
+		for _ in 0..2 {
+			std::fs::write(&path, &newer).unwrap();
+			assert!(g.load(&path).is_err());
+			assert!(g.save(&path).is_err());
+			assert_eq!(std::fs::read(&path).unwrap(), newer);
+			// and after a load that read, as when Keep is turned back on
+			std::fs::remove_file(&path).unwrap();
+			g.save(&path).unwrap();
+			g.load(&path).unwrap();
+		}
+		g.reset(Some(&path)).unwrap();
+		g.save(&path).unwrap();
+		assert!(keep::read(&path).is_ok());
+		std::fs::remove_file(&path).unwrap();
+	}
+
 	// Test ID: defv4
 	#[test]
 	fn a_file_the_5_tier_plugin_wrote_still_loads() {
@@ -1527,6 +1573,34 @@ mod tests {
 		assert_eq!(g.widths().collect::<Vec<_>>(), [none.width]);
 		assert_eq!(g.tooltip(), "CPU");
 		assert!(Graphs::new(none).cpu_shown());
+	}
+
+	// Test ID: deqqr
+	#[test]
+	fn a_hidden_cpu_shown_again_has_a_gap_for_the_hidden_time() {
+		let pause = || std::thread::sleep(std::time::Duration::from_millis(30));
+		let mut g = Graphs::new(two());
+		g.sample();
+		pause();
+		g.sample();
+		let had = g.cpu().hist.last().unwrap();
+		g.set_look(two().with(Which::Cpu, |e| e.show = false), None)
+			.unwrap();
+		g.skip(3.0 * 86400.0);
+		g.sample();
+		g.set_look(two(), None).unwrap();
+		pause();
+		g.sample();
+		assert_eq!(
+			g.cpu().hist.last(),
+			Some(had),
+			"the first read back only primes"
+		);
+		pause();
+		g.sample();
+		let cpu = &g.cpu().hist;
+		assert!(cpu.last().unwrap() > had + 3.0 * 86400.0);
+		assert_eq!(cpu.span(had + 1.0, had + 86400.0).covered, 0.0);
 	}
 
 	// Test ID: denc5
@@ -2074,14 +2148,15 @@ mod tests {
 	// Test ID: dep48
 	#[test]
 	#[cfg(unix)]
-	fn procs_sits_after_load_and_stacks_by_owner() {
+	fn procs_sits_after_memory_and_stacks_by_owner() {
 		let path = scratch("procs");
 		let mut g = three();
-		let look = g.look().clone().with(Which::Procs, |e| {
+		let mut look = g.look().clone().with(Which::Procs, |e| {
 			e.show = true;
 			e.width = 100;
 			e.mode = Mode::Detailed;
 		});
+		look.order.clone_from(&Look::default().order);
 		assert!(!Look::default()[Which::Procs].show);
 		assert_eq!(Look::default().order[1..3], ["mem", "procs"]);
 		g.put(Graph::with(look.clone(), ProcsReader::at("/nowhere", 1000)));
@@ -2094,7 +2169,7 @@ mod tests {
 		let (w, h) = (80 + 3 * G, 40 + 2 * E);
 		let procs = g.the_mut::<ProcsReader, 3>().render(20, 40, 1).to_vec();
 		let px = g.render(w, h, 1).to_vec();
-		sits(&px, w, &procs, (60 + 3 * G, E, 20, 40));
+		sits(&px, w, &procs, (40 + 2 * G, E, 20, 40));
 		// over the floor, so the top is the count
 		let top = g.the::<ProcsReader, 3>().peak.top();
 		assert!((top - 200.0).abs() < 1e-9, "{top}");
@@ -2105,7 +2180,7 @@ mod tests {
 		assert_eq!(row(ph / 4), colors[0].argb());
 		assert_eq!(row(ph * 5 / 8), colors[1].argb());
 		assert_eq!(row(ph * 7 / 8), colors[2].argb());
-		let tip = g.hover_tip(65 + 3 * G, 3, w, h, 1);
+		let tip = g.hover_tip(45 + 2 * G, 3, w, h, 1);
 		assert!(
 			tip.contains("\nProcesses 200\nYours 50\nOther users 50\nSystem 100"),
 			"{tip}"

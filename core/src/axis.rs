@@ -167,6 +167,10 @@ pub const EASE: f64 = 0.5;
 /// How finely the axis drawn when a jump came is kept, in steps of `u`.
 const STEPS: usize = 64;
 
+/// How much of the oldest end, in `ln(1 + age / A0)`, history dropped from
+/// it may take before that's a jump. A 15 minute trim of 1 day is 0.2%.
+const TRIM_SHOWS: f64 = 0.01;
+
 /// Anything that says how old the data at `u` is: an axis, or one easing in.
 pub trait Ages {
 	/// Seconds old at `u`, 0 at the right edge and 1 at the left.
@@ -209,7 +213,13 @@ impl Basis {
 					curve: c1,
 					span: Some((f1, l1)),
 				},
-			) => c0 != c1 || f0 != f1 || l1 < l0 || l1 - l0 > dt + slack,
+			) => {
+				c0 != c1
+					|| f1 < f0
+					// a trim to the max age moves the left edge by far under a pixel
+					|| to_g(l1 - f0) - to_g(l1 - f1) > TRIM_SHOWS * to_g(l1 - f0)
+					|| l1 < l0 || l1 - l0 > dt + slack
+			}
 			// the first sample isn't a jump, there was nothing drawn
 			(Basis::Log { curve: c0, .. }, Basis::Log { curve: c1, .. }) => c0 != c1,
 			(Basis::Linear(_), Basis::Log { .. }) | (Basis::Log { .. }, Basis::Linear(_)) => true,
@@ -603,6 +613,27 @@ mod tests {
 		assert!(!e.easing(1000.5));
 		step(&mut e, log(Curve::Smooth, -50.0, 1001.0), 1001.0);
 		assert!(e.easing(1001.0), "a gap");
+	}
+
+	// Test ID: deqvb
+	#[test]
+	fn a_trim_to_the_max_age_is_no_jump_but_a_shorter_max_age_is() {
+		for curve in [Curve::Smooth, Curve::FixedA, Curve::FixedB] {
+			let mut e = Ease::default();
+			let t = DAY + 900.0;
+			step(&mut e, log(curve, 0.0, t), t);
+			step(&mut e, log(curve, 900.0, t + 0.5), t + 0.5);
+			assert!(!e.easing(t + 0.5), "{curve:?} a 15 minute trim of a day");
+			let mut e = Ease::default();
+			let t = 28.0 * DAY;
+			step(&mut e, log(curve, 0.0, t), t);
+			step(&mut e, log(curve, 27.0 * DAY, t + 0.5), t + 0.5);
+			assert!(e.easing(t + 0.5), "{curve:?} 28 days down to 1");
+			let mut e = Ease::default();
+			step(&mut e, log(curve, 900.0, t), t);
+			step(&mut e, log(curve, 0.0, t + 0.5), t + 0.5);
+			assert!(e.easing(t + 0.5), "{curve:?} older history loaded");
+		}
 	}
 
 	// Test ID: defpq

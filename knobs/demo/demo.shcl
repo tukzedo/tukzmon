@@ -38,6 +38,8 @@
 ##	chooser      the dropdown setting that picks
 ##	noun         what one is called, for tips
 ##	custom       the label for the person's own set, if there is one
+##	from_program true if the program answers the presets at run time, in
+##	             which case there are no presets blocks here
 ##	presets      one block each: label, temporary: true for one that lasts
 ##	             until restart and ignores changes, then a value for every
 ##	             member

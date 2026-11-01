@@ -144,9 +144,12 @@ fScanBash() {
 ## A #[test] in a tracked .rs file outside any member's src/ and the top of
 ## its tests/, where fScan doesn't look.
 fStrays() {
-	local dir f; local -a srcs=() tracked=() strays=()
+	local dir f listed=''; local -a srcs=() tracked=() strays=()
 	while IFS=$'\t' read -r dir _; do srcs+=("${dir}/src/"); done < <(fMembers)
-	mapfile -t tracked < <(git -C "${root}" ls-files '*.rs')
+	## Not through a process substitution, which would hide git failing.
+	listed="$(git -C "${root}" ls-files '*.rs')" || { echo "git couldn't list the .rs files, so none was checked for a stray test"; return 0; }
+	[[ -n "${listed}" ]] || { echo "git listed no .rs files, so none was checked for a stray test"; return 0; }
+	mapfile -t tracked <<< "${listed}"
 	for f in "${tracked[@]}"; do
 		for dir in "${srcs[@]}"; do [[ "${f}" != "${dir}"* ]] || continue 2; done
 		for dir in "${srcs[@]}"; do
@@ -291,3 +294,4 @@ esac
 ##		- 2026-10-30: The pipeline's own tests in cicd/tests/*.bash too.
 ##		- 2026-10-30: No fork per ID or per file: decode and encode set a
 ##		  variable, and one awk reads every file.
+##		- 2026-11-01: check fails when git can't list the .rs files.

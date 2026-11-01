@@ -4,6 +4,7 @@
 //! What the settings window shows and does, with no Qt in it. The window
 //! asks this for every row's state after each change.
 
+use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -70,10 +71,6 @@ pub struct Dialog {
 	model: Model,
 	/// As the file was when it was last read or written.
 	saved: Model,
-	/// Settings changed in the window, so a save writes only those. Last
-	/// changed last, since a save sets them in this order and setting a gated
-	/// row ticks its gate.
-	touched: Vec<String>,
 	/// Sliders that reach less far than their number box takes, as copies of
 	/// the setting over the slider's own range.
 	short_sliders: Vec<Setting>,
@@ -93,7 +90,6 @@ struct Picker {
 	id: String,
 	hsv: Hsv,
 	values: knobs::Values,
-	touched: Vec<String>,
 }
 
 fn read(path: &Path) -> Result<String, String> {
@@ -122,6 +118,26 @@ fn merge_themes(file: Vec<SavedTheme>, was: &[SavedTheme], now: &[SavedTheme]) -
 		}
 	}
 	out
+}
+
+// Each entry the window changed since `was` goes onto `to`, set or taken out,
+// and the rest of `to` stays as the file has it now.
+fn carry<V: Clone + PartialEq>(
+	was: &BTreeMap<String, V>,
+	now: &BTreeMap<String, V>,
+	to: &mut BTreeMap<String, V>,
+) {
+	for key in was.keys().chain(now.keys()) {
+		match now.get(key) {
+			v if v == was.get(key) => {}
+			Some(v) => {
+				to.insert(key.clone(), v.clone());
+			}
+			None => {
+				to.remove(key);
+			}
+		}
+	}
 }
 
 impl Dialog {
@@ -153,7 +169,6 @@ impl Dialog {
 			// the saved copies tell what this window changed
 			saved: model.clone(),
 			model,
-			touched: Vec::new(),
 			short_sliders,
 			saved_themes: themes.clone(),
 			themes,
@@ -259,15 +274,14 @@ impl Dialog {
 
 	// the colors are the theme's own now, so nothing is changed on top of it
 	fn drop_theme_changes(&mut self) {
-		// a handle on the spec, so its list reads while touch takes self
-		let spec = Arc::clone(&self.spec);
-		let members = spec.group(THEME).map_or(&[][..], |g| g.members.as_slice());
+		let members = self
+			.spec
+			.group(THEME)
+			.map_or(&[][..], |g| g.members.as_slice());
 		for id in members {
 			self.model.values.changes.remove(id);
-			self.touch(id);
 		}
 		self.model.values.changed_on.remove(THEME);
-		self.touch(THEME);
 	}
 
 	fn check_name(&self, name: &str, skip: Option<usize>) -> Result<String, String> {
@@ -341,7 +355,6 @@ impl Dialog {
 		self.themes.remove(i);
 		self.model.reset(THEME, &NoEnv);
 		self.respec();
-		self.touch(THEME);
 	}
 
 	/// Random colors for every graph, as changes on the theme in force, so
@@ -413,11 +426,6 @@ impl Dialog {
 		}
 	}
 
-	fn touch(&mut self, id: &str) {
-		self.touched.retain(|t| t != id);
-		self.touched.push(id.to_string());
-	}
-
 	/// False when the value doesn't fit the setting, and nothing changes.
 	pub fn set(&mut self, id: &str, v: &Value) -> bool {
 		let Some(s) = self.spec.get(id) else {
@@ -427,7 +435,6 @@ impl Dialog {
 			return false;
 		}
 		self.model.set(id, v, &NoEnv);
-		self.touch(id);
 		true
 	}
 
@@ -466,7 +473,6 @@ impl Dialog {
 	pub fn reset(&mut self, id: &str) {
 		if self.spec.get(id).is_some() {
 			self.model.reset(id, &NoEnv);
-			self.touch(id);
 		}
 	}
 
@@ -580,7 +586,6 @@ impl Dialog {
 			hsv: pick::from_rgb(now, Hsv::default()),
 			// what Cancel puts back
 			values: self.model.values.clone(),
-			touched: self.touched.clone(),
 		});
 		true
 	}
@@ -625,7 +630,6 @@ impl Dialog {
 		};
 		if !keep {
 			self.model.values = p.values;
-			self.touched = p.touched;
 		}
 	}
 
@@ -642,22 +646,21 @@ impl Dialog {
 		let themes = merge_themes(config::saved_themes(&doc), &self.saved_themes, &self.themes);
 		let spec = config::spec_with(&themes);
 		let mut fresh = config::model_on(Arc::clone(&spec), &doc);
-		for id in &self.touched {
-			if self.model.can_reset(id, &NoEnv) {
-				fresh.set(id, &self.model.value(id, &NoEnv), &NoEnv);
-			} else {
-				fresh.reset(id, &NoEnv);
-			}
-		}
+		// Store by store rather than replaying each row, since a row's set or
+		// reset means something else on the file's theme than on the window's.
+		let (was, now, to) = (&self.saved.values, &self.model.values, &mut fresh.values);
+		carry(&was.own, &now.own, &mut to.own);
+		carry(&was.changes, &now.changes, &mut to.changes);
+		carry(&was.changed_on, &now.changed_on, &mut to.changed_on);
+		carry(&was.state, &now.state, &mut to.state);
 		config::name_the_theme(&mut fresh);
 		let (body, _) = fresh.save(&NoEnv);
-		let Some(file) = self.path.to_str() else {
-			return Err(format!(
-				"{} isn't a path shcl can write",
-				self.path.display()
-			));
+		// shcl writes through a link only when its file is there
+		let target = config::through_links(&self.path);
+		let Some(file) = target.to_str() else {
+			return Err(format!("{} isn't a path shcl can write", target.display()));
 		};
-		if let Some(dir) = self.path.parent() {
+		if let Some(dir) = target.parent() {
 			std::fs::create_dir_all(dir)
 				.map_err(|e| format!("{} can't be made: {e}", dir.display()))?;
 		}
@@ -667,9 +670,8 @@ impl Dialog {
 		self.saved = fresh.clone();
 		self.model = fresh;
 		self.spec = spec;
-		self.saved_themes = themes.clone();
+		self.saved_themes.clone_from(&themes);
 		self.themes = themes;
-		self.touched.clear();
 		Ok(())
 	}
 }
@@ -1077,6 +1079,41 @@ mod tests {
 		assert_eq!(
 			config::Look::load(&path).unwrap()[Which::Cpu].colors[2],
 			config::Rgb(0x12, 0x3a, 0xbc)
+		);
+	}
+
+	// Test ID: deqw1
+	#[cfg(unix)]
+	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
+	fn apply_writes_through_a_link_to_a_file_not_there_yet() {
+		use std::os::unix::fs::symlink;
+		let d = scratch("dangling");
+		std::fs::create_dir_all(d.0.join("real")).unwrap();
+		// a chain, with a relative and an absolute hop
+		let path = d.0.join("t.shcl");
+		symlink("mid.shcl", &path).unwrap();
+		symlink(d.0.join("real/t.shcl"), d.0.join("mid.shcl")).unwrap();
+		let mut dlg = Dialog::open(path.clone()).unwrap();
+		assert!(dlg.set_text("user", "123abc"));
+		dlg.apply().unwrap();
+		for link in [&path, &d.0.join("mid.shcl")] {
+			assert!(
+				std::fs::symlink_metadata(link).unwrap().is_symlink(),
+				"{}",
+				link.display()
+			);
+		}
+		let text = std::fs::read_to_string(d.0.join("real/t.shcl")).unwrap();
+		assert!(text.contains("#123abc"));
+		// and once it's there, the next save still goes through
+		assert!(dlg.set_text("user", "456def"));
+		dlg.apply().unwrap();
+		assert!(std::fs::symlink_metadata(&path).unwrap().is_symlink());
+		assert!(
+			std::fs::read_to_string(d.0.join("real/t.shcl"))
+				.unwrap()
+				.contains("#456def")
 		);
 	}
 
@@ -1488,6 +1525,53 @@ mod tests {
 		assert!(!dlg.dirty());
 	}
 
+	// Test ID: deqqp
+	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
+	fn custom_keeps_its_edit_when_another_theme_is_picked_before_apply() {
+		let d = scratch("custom_left");
+		let path = d.0.join("t.shcl");
+		let file = "theme:\n\tname: custom\ncpu:\n\tcolors:\n\t\tuser: \"#112233\"\n\t\tnice: \"#445566\"\n";
+		std::fs::write(&path, file).unwrap();
+		let mut dlg = Dialog::open(path.clone()).unwrap();
+		assert_eq!(dlg.state("theme").choice, "Custom");
+		assert!(dlg.set_text("user", "#abcdef"));
+		assert!(dlg.set_text("theme", "default"));
+		assert!(dlg.set_text("theme", "custom"));
+		assert_eq!(dlg.state("user").text, "#abcdef", "as the window shows it");
+		assert!(dlg.set_text("theme", "default"));
+		dlg.apply().unwrap();
+		assert_eq!(dlg.state("theme").choice, "Default");
+		for dlg in [&mut dlg, &mut Dialog::open(path.clone()).unwrap()] {
+			assert!(dlg.set_text("theme", "custom"));
+			assert_eq!(dlg.state("user").text, "#abcdef");
+			assert_eq!(dlg.state("nice").text, "#445566", "untouched");
+		}
+		// a roll on Custom is kept the same way
+		let mut dlg = Dialog::open(path.clone()).unwrap();
+		assert!(dlg.set_text("theme", "custom"));
+		dlg.randomize_from(7);
+		let rolled = crate::dice::theme(7);
+		assert!(dlg.set_text("theme", "default"));
+		dlg.apply().unwrap();
+		let mut dlg = Dialog::open(path.clone()).unwrap();
+		assert!(dlg.set_text("theme", "custom"));
+		for (id, v) in &rolled {
+			assert_eq!(&dlg.state(id).text, v, "{id}");
+		}
+		// and a hand edit made meanwhile to a row the window didn't change stays
+		std::fs::write(&path, file).unwrap();
+		let mut dlg = Dialog::open(path.clone()).unwrap();
+		assert!(dlg.set_text("user", "#fedcba"));
+		std::fs::write(&path, format!("{file}graph:\n\twidth: 300\n")).unwrap();
+		assert!(dlg.set_text("theme", "default"));
+		dlg.apply().unwrap();
+		assert_eq!(config::Look::load(&path).unwrap().width, 300);
+		let mut dlg = Dialog::open(path).unwrap();
+		assert!(dlg.set_text("theme", "custom"));
+		assert_eq!(dlg.state("user").text, "#fedcba");
+	}
+
 	// Test ID: deccy
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
@@ -1668,7 +1752,10 @@ mod tests {
 		assert_eq!(dlg.state("user").text, was);
 		assert_eq!(dlg.state("theme").choice, "Default");
 		assert!(!dlg.dirty());
-		assert!(dlg.touched.is_empty(), "a save would still write the row");
+		assert_eq!(
+			dlg.model.values, dlg.saved.values,
+			"a save would still write the row"
+		);
 		// and with it closed, nothing moves the row
 		dlg.pick_set(Hsv {
 			s: 0.0,

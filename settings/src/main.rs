@@ -4,6 +4,7 @@
 //! tukzmon-settings: the settings window, a program of its own so every panel
 //! and platform can share it.
 
+use std::ffi::OsString;
 use std::fmt::Write as _;
 use std::io::{self, ErrorKind, Write as _};
 use std::path::PathBuf;
@@ -28,38 +29,69 @@ Opens the settings window for tukzmon's graphs.
   --help           Show this and quit.
   --version        Show the version and quit.";
 
-fn main() -> ExitCode {
+#[derive(Debug, PartialEq)]
+enum Asked {
+	Open {
+		config: Option<PathBuf>,
+		snapshot: String,
+	},
+	Help,
+	Version,
+}
+
+// Err is the message for exit code 2.
+fn asked(args: impl IntoIterator<Item = OsString>) -> Result<Asked, String> {
 	let mut config = None;
 	let mut snapshot = String::new();
-	let mut args = std::env::args().skip(1);
+	let mut args = args.into_iter();
 	while let Some(a) = args.next() {
-		match a.as_str() {
+		let Some(a) = a.to_str() else {
+			return Err(format!(
+				"Unknown option: {}\n\n{USAGE}",
+				a.to_string_lossy()
+			));
+		};
+		match a {
 			"--config" | "--snapshot" => {
 				let Some(v) = args.next() else {
-					complain(&format!("{a} needs a value.\n\n{USAGE}"));
-					return ExitCode::from(2);
+					return Err(format!("{a} needs a value.\n\n{USAGE}"));
 				};
+				// shcl writes only to a path that's text
+				let v = v.into_string().map_err(|v| {
+					format!(
+						"{a}: {} isn't UTF-8, so it can't be used.",
+						v.to_string_lossy()
+					)
+				})?;
 				if a == "--config" {
 					config = Some(PathBuf::from(v));
 				} else {
 					snapshot = v;
 				}
 			}
-			"--help" | "-h" => {
-				return print_text(&mut io::stdout().lock(), USAGE);
-			}
-			"--version" => {
-				return print_text(
-					&mut io::stdout().lock(),
-					&format!("{}\n{COPYRIGHT}", version()),
-				);
-			}
-			_ => {
-				complain(&format!("Unknown option: {a}\n\n{USAGE}"));
-				return ExitCode::from(2);
-			}
+			"--help" | "-h" => return Ok(Asked::Help),
+			"--version" => return Ok(Asked::Version),
+			_ => return Err(format!("Unknown option: {a}\n\n{USAGE}")),
 		}
 	}
+	Ok(Asked::Open { config, snapshot })
+}
+
+fn main() -> ExitCode {
+	let (config, snapshot) = match asked(std::env::args_os().skip(1)) {
+		Ok(Asked::Open { config, snapshot }) => (config, snapshot),
+		Ok(Asked::Help) => return print_text(&mut io::stdout().lock(), USAGE),
+		Ok(Asked::Version) => {
+			return print_text(
+				&mut io::stdout().lock(),
+				&format!("{}\n{COPYRIGHT}", version()),
+			);
+		}
+		Err(e) => {
+			complain(&e);
+			return ExitCode::from(2);
+		}
+	};
 	let path = config.unwrap_or_else(tukzmon_core::config::config_file);
 	match dialog::Dialog::open(path) {
 		Ok(mut d) => run(&mut d, &snapshot),
@@ -190,6 +222,28 @@ mod tests {
 		);
 		assert!(version_line(0, true).ends_with(" build 0"));
 		assert!(version().starts_with(&format!("tukzmon-settings v{v} build ")));
+	}
+
+	// Test ID: deqw0
+	#[cfg(unix)]
+	#[test]
+	fn a_path_that_isnt_utf8_is_a_message_not_a_panic() {
+		use std::os::unix::ffi::OsStringExt as _;
+		let args = |a: &[&[u8]]| asked(a.iter().map(|b| OsString::from_vec(b.to_vec())));
+		let bad: &[u8] = b"/tmp/x\xff.shcl";
+		let e = args(&[b"--config", bad]).unwrap_err();
+		assert!(e.starts_with("--config: "), "{e}");
+		assert!(args(&[b"--snapshot", bad]).is_err());
+		assert!(args(&[bad]).unwrap_err().starts_with("Unknown option: "));
+		assert!(args(&[b"--config"]).is_err());
+		assert_eq!(
+			args(&[b"--config", b"/tmp/x.shcl"]),
+			Ok(Asked::Open {
+				config: Some(PathBuf::from("/tmp/x.shcl")),
+				snapshot: String::new()
+			})
+		);
+		assert_eq!(args(&[b"--version", bad]), Ok(Asked::Version));
 	}
 
 	struct Failing(ErrorKind);

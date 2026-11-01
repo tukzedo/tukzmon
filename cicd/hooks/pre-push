@@ -27,7 +27,11 @@
 
 set -Eeuo pipefail
 
-[[ -n "${TUKZMON_SKIP_HOOK:-}" ]] && exit 0
+case "${TUKZMON_SKIP_HOOK:-}" in
+	1) exit 0 ;;
+	''|0) ;;
+	*) printf '\n[ pre-push: TUKZMON_SKIP_HOOK is "%s", not 1, so the gate still runs ]\n\n' "${TUKZMON_SKIP_HOOK}" >&2 ;;
+esac
 
 ## A push from a linked worktree hands the hook GIT_DIR and friends, which
 ## would point every git call here at the wrong place.
@@ -102,3 +106,4 @@ exit 0
 ##	History:
 ##		- 2026-10-25: Created from tukfs-hash's hook. It gates main only, per
 ##		  the 2026-10-24 CICD reset.
+##		- 2026-11-01: Only TUKZMON_SKIP_HOOK=1 skips it.

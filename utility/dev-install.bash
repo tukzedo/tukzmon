@@ -39,7 +39,7 @@ esac; done
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # rustup's cargo follows rust-toolchain.toml and Debian's /bin/cargo doesn't.
-# The same toolchain as cicd.bash means the same target/release, not a rebuild.
+# The same toolchain as cicd.bash means the same release build, not a rebuild.
 # rustup looks for that file from the working folder, not the manifest.
 export PATH="${HOME}/.cargo/bin:${PATH}"
 cd "${repo}"
@@ -55,18 +55,22 @@ dataHome="${XDG_DATA_HOME:-${HOME}/.local/share}"
 if [[ "${dataHome}" != */share ]]; then
 	fDie "the panel reads no user plugins when XDG_DATA_HOME ('${dataHome}') doesn't end in /share."
 fi
-panelLib="$(grep -m1 -F 'libxfce4panel-2.0.so.4 ' <<< "$(ldconfig -p 2> /dev/null || true)" | sed 's/.*=> //' || true)"
+# ldconfig is in /usr/sbin, which a Debian user's PATH doesn't have.
+panelLib="$(grep -m1 -F 'libxfce4panel-2.0.so.4 ' <<< "$(PATH="${PATH}:/usr/sbin:/sbin" ldconfig -p 2> /dev/null || true)" | sed 's/.*=> //' || true)"
 if [[ -n "${panelLib}" ]]; then
 	panelLibDir="${panelLib%/*}"
 	libTail="lib${panelLibDir##*/lib}"
 else
-	libTail="lib/x86_64-linux-gnu"
+	libTail="lib/$(uname -m)-linux-gnu"
 	fEcho "WARNING: libxfce4panel-2.0.so.4 not found, so assuming the panel's lib dir is ${libTail}."
 fi
 shareDir="${dataHome}/xfce4/panel/plugins"
 libDir="${dataHome%/share}/${libTail}/xfce4/panel/plugins"
 
-cargo build --release -p tukzmon-xfce -p tukzmon-settings || fDie "the release build failed"
+# Wherever CARGO_TARGET_DIR or a cargo config puts the build.
+target="$(cargo metadata --format-version 1 --no-deps --locked 2> /dev/null | sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p' || true)"
+[[ -n "${target}" ]] || fDie "cargo metadata didn't give the target dir"
+cargo build --release --locked -p tukzmon-xfce -p tukzmon-settings || fDie "the release build failed"
 
 mkdir -p "${shareDir}" "${libDir}"
 # copy then rename, so a running panel keeps the old file it has open
@@ -75,9 +79,9 @@ fPut() {
 	cp "${1}" "${2}/.${name}.new" || fDie "couldn't copy ${name} to ${2}"
 	mv -f "${2}/.${name}.new" "${2}/${name}" || fDie "couldn't put ${name} in place in ${2}"
 }
-fPut "${repo}/target/release/libtukzmon.so"   "${libDir}"
-fPut "${repo}/target/release/tukzmon-settings" "${libDir}"
-fPut "${repo}/xfce/tukzmon.desktop"            "${shareDir}"
+fPut "${target}/release/libtukzmon.so"   "${libDir}"
+fPut "${target}/release/tukzmon-settings" "${libDir}"
+fPut "${repo}/xfce/tukzmon.desktop"       "${shareDir}"
 fEcho "Installed to ${libDir} and ${shareDir}"
 
 # Earlier versions linked ~/.local/lib/tukzmon into the system folders with
@@ -106,3 +110,5 @@ fi
 ##		  the old links rather than removing them.
 ##		- 2026-10-30: The helper script layout, MIT, and --help. An unknown
 ##		  option is an error rather than ignored.
+##		- 2026-11-01: Copies from the target dir cargo built into, finds
+##		  ldconfig in /usr/sbin, and builds with --locked.

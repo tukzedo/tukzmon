@@ -35,13 +35,6 @@ fn reach<const N: usize>(mean: &[f32; N], max: &[f32; N], secs: f64, spikes: f32
 	std::array::from_fn(|i| mean[i] + (max[i] - mean[i]).max(0.0) * reach)
 }
 
-/// Heights of each series in a column, 0 to 1, bottom first. Squeezed columns
-/// reach part way from their mean to their peak, less the more time they
-/// cover. A stack over 1 is scaled down to fit.
-pub fn column<const N: usize>(mean: &[f32; N], max: &[f32; N], secs: f64, spikes: f32) -> [f32; N] {
-	fit(reach(mean, max, secs, spikes), 1.0)
-}
-
 fn fit<const N: usize>(v: [f32; N], top: f32) -> [f32; N] {
 	let mut v = v.map(|x| (x / top).clamp(0.0, 1.0));
 	let total: f32 = v.iter().sum();
@@ -259,6 +252,8 @@ impl<const N: usize> Frame<'_, N> {
 			let span = self.hist.span(a, b);
 			(span.covered >= MIN_COVER)
 				.then(|| reach(&span.mean, &span.max, b - a, self.look.spikes))
+				// else NaN fills the column, and inf flattens every other one
+				.filter(|v| v.iter().all(|x| x.is_finite()))
 		}));
 		let (top, log) = match scaled {
 			Some(Scale { peak, floor, log }) => {
@@ -356,6 +351,11 @@ mod tests {
 
 	fn pack(c: [f32; 3]) -> u32 {
 		pack_alpha(c, 1.0)
+	}
+
+	// a column's heights as the drawing takes them, with a top of 1
+	fn column<const N: usize>(mean: &[f32; N], max: &[f32; N], secs: f64, spikes: f32) -> [f32; N] {
+		fit(reach(mean, max, secs, spikes), 1.0)
 	}
 
 	fn look() -> Look {
@@ -753,6 +753,44 @@ mod tests {
 			drawn(&steady([0.25, 0.75], 120.0), None),
 			draw(&steady([0.25, 0.75], 120.0), &axis, 22, 12)
 		);
+	}
+
+	// Test ID: deqs7
+	#[test]
+	fn a_value_that_isnt_finite_is_drawn_as_a_gap() {
+		let axis = Axis::log(Curve::FixedA, 120.0);
+		let mut nan = History::<2>::default();
+		nan.add(0.0, 120.0, &[f32::NAN, 0.5]);
+		let empty = History::<2>::default();
+		assert_eq!(draw(&nan, &axis, 22, 12), draw(&empty, &axis, 22, 12));
+		// inf in the newest bucket leaves the rest to their own peak
+		let l = look();
+		let mut h = steady([100.0, 300.0], 120.0);
+		h.add(120.0, 120.5, &[f32::INFINITY, 0.0]);
+		let mut peak = Peak::default();
+		let mut px = Vec::new();
+		Frame {
+			hist: &h,
+			axis: &axis,
+			now: h.last().unwrap_or(0.0),
+			look: &l,
+			paint: Paint::Stack(&COLORS),
+			outline: OUTLINE,
+		}
+		.draw_to(
+			&mut px,
+			22,
+			12,
+			1,
+			Some(Scale {
+				peak: &mut peak,
+				floor: 1.0,
+				log: false,
+			}),
+			&mut Scratch::default(),
+		);
+		assert_eq!(peak.top(), 400.0);
+		assert!(px.iter().any(|&p| p == COLORS[1].argb()));
 	}
 
 	// Test ID: denc4

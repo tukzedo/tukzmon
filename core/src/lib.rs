@@ -29,8 +29,6 @@ pub mod temp;
 pub mod when;
 pub mod zswap;
 
-use std::io;
-use std::path::Path;
 use std::rc::Rc;
 use std::time::{Instant, SystemTime};
 
@@ -60,6 +58,13 @@ pub const FASTEST_MS: u32 = 50;
 /// early. So the wait to the next read can be up to this much over the rate.
 pub const EARLY_MS: f64 = 10.0;
 
+/// How far past now saved history may end, in seconds, and still load with
+/// the clock moved up to it. A clock behind by a time zone, as a dual boot
+/// that keeps local time in the hardware clock leaves it until it syncs, is
+/// under this. Further ahead is a broken file, or a clock set back for good,
+/// and that history starts over. See design.md History.
+pub const AHEAD_MAX: f64 = 14.0 * 3600.0;
+
 /// The CPUs this process can run on, read once.
 pub(crate) fn cpus() -> f32 {
 	static CPUS: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
@@ -71,6 +76,12 @@ pub(crate) fn cpus() -> f32 {
 pub fn clock_ms() -> f64 {
 	static START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
 	START.get_or_init(Instant::now).elapsed().as_secs_f64() * 1000.0
+}
+
+fn unix_now() -> f64 {
+	SystemTime::now()
+		.duration_since(SystemTime::UNIX_EPOCH)
+		.map_or(0.0, |d| d.as_secs_f64())
 }
 
 /// Milliseconds to the next graph's read, from the least of
@@ -398,7 +409,13 @@ pub struct Graph<S: Source<N> = CpuReader, const N: usize = 4> {
 	src: S,
 	clock: Instant,
 	/// Unix time at `clock`'s start, so saved history lines up across runs.
+	/// Moved up to the wall clock at a read, since `clock` stops in a suspend.
 	epoch: f64,
+	/// How far [`Graph::skip`] moved the clock on.
+	skipped: f64,
+	/// How far a test set the wall clock on, or back, by itself.
+	#[cfg(test)]
+	wall_shift: f64,
 	read_at: Option<f64>,
 	latest: Option<[f32; N]>,
 	px: Vec<u32>,
@@ -530,9 +547,10 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 			hist: History::default(),
 			src,
 			clock: Instant::now(),
-			epoch: SystemTime::now()
-				.duration_since(SystemTime::UNIX_EPOCH)
-				.map_or(0.0, |d| d.as_secs_f64()),
+			epoch: unix_now(),
+			skipped: 0.0,
+			#[cfg(test)]
+			wall_shift: 0.0,
 			read_at: None,
 			latest: None,
 			px: Vec::new(),
@@ -544,14 +562,35 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		}
 	}
 
+	// what the monotonic clock has seen, so not a suspend
+	fn steady(&self) -> f64 {
+		self.clock.elapsed().as_secs_f64() + self.skipped
+	}
+
+	fn wall(&self) -> f64 {
+		let t = unix_now() + self.skipped;
+		#[cfg(test)]
+		let t = t + self.wall_shift;
+		t
+	}
+
+	/// Unix time. The wall clock, but never back: set back, the graph's time
+	/// runs on from where it was.
 	fn now(&self) -> f64 {
-		self.epoch + self.clock.elapsed().as_secs_f64()
+		(self.epoch + self.steady()).max(self.wall())
 	}
 
 	/// Moves the clock on, so the soak test can run days in seconds.
 	#[doc(hidden)]
 	pub fn skip(&mut self, secs: f64) {
-		self.epoch += secs;
+		self.skipped += secs;
+	}
+
+	/// Forgets the last read, so the next one only primes and the time
+	/// between is a gap. For a graph that isn't read for a while.
+	pub fn pause(&mut self) {
+		self.read_at = None;
+		self.latest = None;
 	}
 
 	/// Drops history older than the max age.
@@ -574,30 +613,37 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 	///
 	/// As [`keep::read`], or `InvalidData` with no history of this graph's
 	/// that reads. The history in memory is left as it was.
-	pub fn load(&mut self, path: &Path) -> io::Result<()> {
+	#[cfg(test)]
+	pub fn load(&mut self, path: &std::path::Path) -> std::io::Result<()> {
 		if self.adopt(&keep::read(path)?) {
 			Ok(())
 		} else {
-			Err(io::Error::new(
-				io::ErrorKind::InvalidData,
+			Err(std::io::Error::new(
+				std::io::ErrorKind::InvalidData,
 				format!("no {} history", S::SECTION),
 			))
 		}
 	}
 
-	/// [`Self::load`] from a file's sections, read once for every graph in
-	/// it. False, with nothing changed, when none of them is this graph's.
+	/// Swaps in this graph's saved history from a file's sections, read once
+	/// for every graph in it. The time since it was saved is a gap. False,
+	/// with nothing changed, when none of them is this graph's, or its
+	/// history ends more than [`AHEAD_MAX`] after now.
 	pub fn adopt(&mut self, sections: &[(String, Vec<u8>)]) -> bool {
+		let now = self.now();
 		let Some(saved) = sections
 			.iter()
 			.find(|(name, _)| name == S::SECTION)
 			.and_then(|(_, body)| History::decode(body))
+			.filter(|h| h.last().is_none_or(|last| last <= now + AHEAD_MAX))
 		else {
 			return false;
 		};
 		// a clock set back mustn't hide new samples behind old ones
-		if let Some(last) = saved.last() {
-			self.epoch += (last - self.now()).max(0.0);
+		if let Some(last) = saved.last()
+			&& last > now
+		{
+			self.epoch = last - self.steady();
 		}
 		self.hist = saved;
 		self.read_at = None;
@@ -615,14 +661,22 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 	/// # Errors
 	///
 	/// As [`keep::write`].
-	pub fn save(&self, path: &Path) -> io::Result<()> {
+	#[cfg(test)]
+	pub fn save(&self, path: &std::path::Path) -> std::io::Result<()> {
 		let (name, body) = self.section();
 		keep::write(path, &[(name, &body)])
 	}
 
 	/// Read the source and keep it. The first call only primes it.
 	pub fn sample(&mut self) {
-		let now = self.now();
+		let steady = self.steady();
+		// time the monotonic clock didn't see, as in a suspend or the clock set on
+		let lost = (self.wall() - self.epoch - steady).max(0.0);
+		self.epoch += lost;
+		if lost > f64::from(self.sample_ms()) / 1000.0 {
+			self.read_at = None;
+		}
+		let now = self.epoch + steady;
 		let shares = self.src.read();
 		if let (Some(v), Some(was)) = (shares, self.read_at) {
 			self.hist.add(was, now, &v);
@@ -1005,6 +1059,15 @@ mod tests {
 		for tip in &tips {
 			// pairs used to share a line, 2 spaces apart
 			assert!(tip.lines().all(|l| !l.contains("  ")), "{tip:?}");
+			// and a value a line, however the pairs are joined. "2 of 8 GiB" is one
+			for line in tip.lines() {
+				let values = line
+					.replace(" of ", "/")
+					.split(|c: char| !(c.is_ascii_digit() || c == '.' || c == '/'))
+					.filter(|w| w.starts_with(|c: char| c.is_ascii_digit()))
+					.count();
+				assert!(values <= 1, "{line:?} in {tip:?}");
+			}
 		}
 	}
 
@@ -1283,6 +1346,69 @@ mod tests {
 		back.sample();
 		assert!(back.hist.last().unwrap() > saved);
 		std::fs::remove_file(&path).unwrap();
+	}
+
+	// Test ID: deqqs
+	#[test]
+	fn a_suspend_moves_the_clock_to_the_wall_and_is_a_gap() {
+		let mut g = Graph::with(Look::default(), MemoryReader);
+		g.sample();
+		g.skip(1.0);
+		g.sample();
+		let had = g.hist.last().unwrap();
+		g.wall_shift = 3600.0;
+		assert!(
+			(g.now() - g.wall()).abs() < 0.01,
+			"tips go by the wall clock"
+		);
+		g.sample();
+		assert_eq!(g.hist.last(), Some(had), "the first read after only primes");
+		g.skip(1.0);
+		g.sample();
+		assert!(g.hist.last().unwrap() > had + 3600.0);
+		assert_eq!(g.hist.span(had + 1.0, had + 3599.0).covered, 0.0);
+		// a step under a sample's worth is only a late read
+		g.wall_shift += f64::from(g.sample_ms()) / 2000.0;
+		g.skip(1.0);
+		g.sample();
+		assert!((g.hist.last().unwrap() - g.wall()).abs() < 0.01);
+		assert!(g.hist.span(had + 3601.0, had + 3602.0).covered > 0.99);
+	}
+
+	// Test ID: deqqt
+	#[test]
+	fn a_clock_set_back_while_running_never_runs_back() {
+		let mut g = Graph::with(Look::default(), MemoryReader);
+		g.sample();
+		g.skip(1.0);
+		g.sample();
+		let had = g.hist.last().unwrap();
+		g.wall_shift = -3600.0;
+		assert!(g.now() >= had);
+		g.skip(1.0);
+		g.sample();
+		let now = g.hist.last().unwrap();
+		assert!((now - had - 1.0).abs() < 0.01, "{}", now - had);
+		assert!(g.hist.span(had, now).covered > 0.99);
+	}
+
+	// Test ID: deqs6
+	#[test]
+	fn history_saved_hours_ahead_moves_the_clock_but_a_day_ahead_starts_over() {
+		let ahead = |secs: f64| {
+			let mut g = Graph::with(Look::default(), MemoryReader);
+			let end = g.now() + secs;
+			let mut h = History::<3>::default();
+			h.add(end - 60.0, end, &[0.5; 3]);
+			let mut body = Vec::new();
+			h.encode(&mut body);
+			let took = g.adopt(&[(MemoryReader::SECTION.to_string(), body)]);
+			(took, g.now() - end)
+		};
+		let (took, off) = ahead(8.0 * 3600.0);
+		assert!(took && (0.0..60.0).contains(&off), "{off}");
+		let (took, off) = ahead(86400.0);
+		assert!(!took && off < -86000.0, "{off}");
 	}
 
 	// Test ID: decbr

@@ -58,7 +58,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- Every widget is an opaque pointer, so no C struct layouts are copied, and a header change can't break it quietly.
 	- The other way, a short C file built against the headers, needs `libxfce4panel-2.0-dev`. On b23 that would pull the panel library back from 4.20.7 to Debian's 4.20.4.
 	- The panel runs external plugins in a separate wrapper process, so a crash takes down the plugin adn not the panel.
-	- That's on X11. On Wayland, XFCE 4.20 loads the plugin into the panel's own process, since XEmbed is X11 only, so an abort in the plugin takes down the whole panel. Every instance shares that process too. That's safe, since the plugin's only globals are read-only caches of the settings spec and its panic hook, and it starts no threads.
+	- That's on X11. On Wayland, XFCE 4.20 loads the plugin into the panel's own process, since XEmbed is X11 only, so an abort in the plugin takes down the whole panel. Every instance shares that process too. That's safe, since the plugin's only globals are caches set once, such as the settings spec, the CPU count, the start time, and the NVML handle, a per-thread cache of `/proc/meminfo`, and its panic hook. It starts no threads.
 	- So the release build unwinds, and every handler the panel calls runs through `guarded` in `xfce/src/lib.rs`, which catches a panic and stops only that item. A stopped item drops its timers and file watches, draws nothing and saves no more history, and its tip says it stopped and why. The panic is one line, `tukzmon: stopped by a bug at <file>:<line>: <text>`. Test `dekpx` checks every handler for the guard, and `dekpv` that the release profile unwinds.
 		- Cargo can't set `panic` per package, so tukzmon-settings unwinds too. Unwinding made the plugin 7.6% bigger, about 81 KB, and tukzmon-settings 6.9%, about 92 KB.
 	- The plugin's messages go through `complain` in `xfce/src/lib.rs`, since `eprintln!` panics when stderr can't be written, such as to a full disk or a closed terminal. Test `defyn` keeps the print macros out of all the code the panel loads.
@@ -125,7 +125,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 - It follows SilkTerm's settings dialog, on top of knobs:
 	- Tabs down the left, groups with a rule under the title, and a sub-group stepped in under the switch it depends on. A row is greyed while that switch is off, but its revert arrow still works.
 	- A revert arrow on every row, live when the value isn't its default.
-	- Cancel, Apply, and OK, with Cancel set a little apart. Enter is OK and Esc is Cancel, even from inside a field.
+	- Cancel, Apply, and OK, with Cancel set a little apart. Enter is OK and Esc is Cancel, even from inside a field. Enter on a focused button presses that button.
 		- Apply turns on as soon as a box is typed in, before it's left. Apply and OK take what's typed, Alt+A included, which leaves the focus where it was.
 	- An empty checkbox or radio button gets an edge in the text color, a little faded, over what the style draws. Some dark themes draw that edge close to the window color, and it all but vanished. `BoxStyle` in `qt.cpp` does it.
 	- Every button with text keeps at least 12 px across and 8 px over and under, from its text to the inside of its frame, in the window and in its message boxes. The style may give more. So every button is one height, the bottom ones included. `BoxStyle` does it too.
@@ -234,7 +234,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - Saved themes are kept whole in the config file, under `themes.<key>`, with a `name` and every color and mode by its setting id, the same shape as a built-in in settings.shcl. The dropdown lists them after the built-ins, and before Custom.
 	- They join the `theme` group as presets on a copy of the spec, through knobs' `Spec::finish`. The plugin reads them the same way, so knobs is unchanged.
-	- The key comes from the name when the theme is made, and stays through a rename. A key that is a built-in's, or a color line that can't be read, stops a save like any other unreadable line. A missing color is Default's.
+	- The key comes from the name when the theme is made, and stays through a rename. A key that is a built-in's is left out, and a color line that can't be read is dropped at the next save, like any other. A missing color is Default's.
 	- Save puts the "*" changes into the saved theme in force. Save as makes a new theme from the colors showing and picks it. Delete picks Default. Built-in themes can't be saved over, renamed or deleted, and no two themes share a name.
 	- A save writes every saved theme. One this window didn't touch is written as the file has it, so a theme added by hand meanwhile isn't lost.
 
@@ -280,7 +280,7 @@ On panels without a native plugin, tukzmon falls back to a tray icon with one sm
 | :---        | :---
 | CPU         | `/proc/stat`. The I/O wait, system, user, and nice columns.
 | Memory      | `/proc/meminfo`. User is total minus free, buffers, and cache. Cache is `Cached` plus `SReclaimable`, as `free` counts it and as multiload-ng does with `graph-mem-procps-compliant` on. Slab that can't be reclaimed is in user.
-| Network     | `/proc/net/dev`, in bytes per second. Local is what the loopback device, `lo`, received, since it receives all it sends. Sent and received add up every other interface. An interface coming or going, or a counter that went down, makes that sample a gap.
+| Network     | `/proc/net/dev`, in bytes per second. Local is what the loopback device, `lo`, received, since it receives all it sends. Sent and received add up the interfaces on hardware, the ones with a `device` link in `/sys/class/net`. Bridges, VPN tunnels and VM and container links are left out, since what they carry either crosses a hardware one too or never leaves the box. Counting them made a VM's download show about 80 times over. A box with no hardware interface, such as a container, counts every one but `lo`. A counted interface coming or going, or a counter that went down, makes that sample a gap.
 | Swap        | `/proc/meminfo`. Used is `SwapTotal` less `SwapFree`, against `SwapTotal`. A box with no swap at start has no Swap graph, and swap turned off later is a gap.
 | Zswap       | `Zswap` and `Zswapped` in `/proc/meminfo`, on kernels new enough to have them. Used is the pool, `Zswap`, against the cap zswap stops taking pages at, `max_pool_percent` of `MemTotal`. The ratio is `Zswapped / Zswap`. `/sys/kernel/debug/zswap` needs root, so it isn't used.
 | Zram        | `/sys/block/zram*/mm_stat`, summed over every device there at start, when zswap is off. Used is `orig_data_size` against `disksize`, and the ratio is `orig_data_size / compr_data_size`. A box with neither, or with zram devices that have no size, has no Zswap graph.
@@ -313,7 +313,7 @@ The way is picked at `net.split`, a dropdown with `off` and `sockets`. The nftab
 
 - A history saved with 3 series doesn't read as 5, so the network graph starts over once after the update.
 
-With socket polling, `core/src/lan.rs` asks `sock_diag` for every TCP socket's `tcp_info`. A socket is on the LAN when its far end is a private IPv4 address (10/8, 172.16/12 or 192.168/16), a link-local one, an IPv6 unique local or link-local address, or in this end's own IPv6 /64. Loopback and the box's own addresses go through `lo`, so they stay local. Its bytes are `tcpi_bytes_acked` and `tcpi_bytes_received`, plus 66 bytes of headers for each segment on IPv4 and 86 on IPv6, since `/proc/net/dev` counts those. A socket new since the last poll moved all it has, and a failed poll is a gap.
+With socket polling, `core/src/lan.rs` asks `sock_diag` for every TCP socket's `tcp_info`. A socket is on the LAN when its far end is a private IPv4 address (10/8, 172.16/12 or 192.168/16), a link-local one, an IPv6 unique local or link-local address, or in this end's own IPv6 /64. Loopback and the box's own addresses go through `lo`, so they stay local. A socket whose own address is on an interface the network graph doesn't count, such as a VM's NAT bridge, a container's link or a VPN tunnel, isn't the LAN's either, since its bytes never cross a counted one as themselves. A bridge, bond or VLAN stacked on a hardware interface, by its `upper_` links in `/sys/class/net`, still counts as the LAN's way out. On such a bridge, a far end behind one of its virtual ports, such as a VM's tap, isn't the LAN's: its link address is in the bridge's `brforward` on that port, and the neighbor table gives the far end's link address. The addresses and the far ends behind virtual ports are read again every 10 s and when the interfaces change, so a copy to a VM can count as LAN for up to 10 s at its start. Its bytes are `tcpi_bytes_acked` and `tcpi_bytes_received`, plus 66 bytes of headers for each segment on IPv4 and 86 on IPv6, since `/proc/net/dev` counts those. A socket new since the last poll moved all it has, and a failed poll is a gap. A message from an earlier dump, left over when one failed partway, is skipped by its sequence number.
 
 The BSDs use `sysctl`, Windows uses PDH counters, and macOS uses `host_statistics64` and IOKit. Those come later.
 
@@ -337,6 +337,7 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 - Tiers 0 and 1 are each kept for 1024 times the next tier's bucket. 1024 px is the top of the Width slider, so a linear graph that wide keeps one sample a pixel at any rate down to 50 ms. Past that width, or on a 2x screen at a slow rate, the left end can reach a coarser tier.
 
 - A sample is a share of the time since the read before it, so it's added over that whole stretch, to every bucket it covers. Half-second reads on quarter-second buckets would otherwise leave every other bucket empty.
+	- A stretch longer than a tier keeps only makes the buckets that tier keeps.
 
 - Each bucket keeps the min, max, and mean of each series, how many seconds of data it has, and where in the bucket that data starts and ends. Max is kept so a short spike can still be drawn once it's old. The start and end let the newest bucket, still filling, read as full where it has data.
 
@@ -348,9 +349,15 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - History is saved under `$XDG_DATA_HOME/tukzmon/`, as `plugin-<id>.hist`, one file per plugin instance. On start the file is read back, and the time since the last sample becomes a gap.
 	- It's written every 15 minutes and when the panel quits, to a temp file renamed over the old one. A crash loses at most the 15 minutes.
+		- The temp file's name has the process id, since 2 sessions can each run an item with one id. A failed write removes it, and Reset history removes any a crash left.
+		- A file that doesn't read, such as one from a newer build, isn't saved over, so going back a version doesn't lose it. The tip says so until it reads, or Reset history deletes it.
 	- The file holds a named section per graph. A section that no graph shown owns, such as a hidden graph's, is kept at each save, so showing the graph again brings its history back. A file from other tiers, or one that doesn't read whole, is skipped. A file from before tier 0 went in, which has one tier less, still reads, with tier 0 empty. The graph starts fresh, and the next save replaces it.
 	- Since file version 2 each section starts with its graph's series count, and a section with another count is skipped. A version 1 file still reads. Its sections have no count, so only their layout can refuse one, and a hidden graph's is saved back as it was.
 	- Times are Unix seconds, so runs line up. A clock set back to before the saved history is moved up to its end, so new samples aren't dropped as old.
+		- Only up to 14 hours, the most a clock can be behind by a time zone, such as a dual boot that keeps local time in the hardware clock. A section that ends further ahead starts over, since that's a broken file or a clock set back for good, and moving up to it would keep the graph that far off.
+	- A section whose times are out of order, or whose buckets lie outside them, is skipped. A bucket with a value that isn't finite reads as a gap, and so does a column that adds up to one while drawing.
+		- While running, a graph's time follows the wall clock forward. A suspend, or the clock set on by more than a sample's worth, is a gap.
+		- A clock set back while running doesn't take the graph's time back with it. Its time runs on from where it was, for the same reason as at a load.
 	- "Keep across restarts" turns it off. Off stops saving and loading, and leaves the file as it is. Turned back on, the file is loaded again, so what was seen while it was off is a gap.
 	- History older than the max age, 28 days by default, is dropped at each save and load.
 	- Reset history in the settings window drops all of it, or only what's on screen while Keep across restarts is off. See [Settings window](#settings-window).
@@ -376,6 +383,7 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - While running, the boundaries move smoothly by themselves, since each is a smooth function of the run's length. A jump eases in over half a second instead, from what was on screen to where the axis should be.
 	- A jump is anything but time going on: history loaded from disk, the first sample after a gap, a new curve or time axis, or a linear graph's span changing with its width or sample rate. A log axis is in fractions of the width, so a width change only stretches it.
+	- Dropping history past the max age is time going on, unless it takes more than 1% off the oldest end in `ln(1 + age / 5 s)`, as a lower max age does. A 15 minute trim of a day takes 0.2%.
 	- The two are mixed in `ln(1 + age / 5 s)`, so time still only runs older to the left. A jump part way through an ease starts from what's on screen.
 	- While an axis eases, the panel and the settings window's graph list draw about 30 times a second, then go back to once a sample.
 
@@ -385,7 +393,7 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - Each graph can pick its own time axis on the Graphs tab: Linear, or one of the 3 log curves. Its Default follows Time axis default, at `graph.time`, so one setting still changes every graph that has no pick of its own.
 	- A graph's pick is `cpu.time`, `mem.time`, `gpu.time`, `vram.time`, `net.time`, `disk.time`, `temp.time`, `swap.time`, `zswap.time`, `load.time`, `procs.time`, `battery.time` or `self.time`: `same`, `linear`, `smooth`, `fixed_a` or `fixed_b`. `same` is the one shown as Default.
-	- Time axis default replaced a Log time axis checkbox and a Log curve dropdown, `graph.log_axis` and `graph.log_curve`, before any release. A file with either line has to lose it by hand, or the settings window won't save.
+	- Time axis default replaced a Log time axis checkbox and a Log curve dropdown, `graph.log_axis` and `graph.log_curve`, before any release. A file with either line loses it at the next save from the settings window, like any setting it doesn't know.
 	- Spike emphasis applies to any graph on a log curve, so it's never greyed.
 
 ## Drawing
