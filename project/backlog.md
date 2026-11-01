@@ -22,6 +22,17 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- Profiler tick 151 us at round-1101, up from 134 us
+	- ID: 2026110113023600
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261101-130236
+	- Opened by:
+	- Estimated effort: 30 min
+	- Progress log:
+		- 2026-11-01: the round-1101 full run's profiler gave 151 us a tick of 6 graphs, against 134 us at 1d07a68 and 127 us at c1dec56. 63% is the /proc reads, which move with load, so profile dev and the round's merge back to back before blaming a commit.
+
 - With the LAN split on, TCP to a VM on a bridge that also holds the NIC counts as LAN
 	- ID: 2026110111543986
 	- Type: Bug
