@@ -259,6 +259,8 @@ impl<const N: usize> Frame<'_, N> {
 			let span = self.hist.span(a, b);
 			(span.covered >= MIN_COVER)
 				.then(|| reach(&span.mean, &span.max, b - a, self.look.spikes))
+				// else NaN fills the column, and inf flattens every other one
+				.filter(|v| v.iter().all(|x| x.is_finite()))
 		}));
 		let (top, log) = match scaled {
 			Some(Scale { peak, floor, log }) => {
@@ -753,6 +755,44 @@ mod tests {
 			drawn(&steady([0.25, 0.75], 120.0), None),
 			draw(&steady([0.25, 0.75], 120.0), &axis, 22, 12)
 		);
+	}
+
+	// Test ID: deqs7
+	#[test]
+	fn a_value_that_isnt_finite_is_drawn_as_a_gap() {
+		let axis = Axis::log(Curve::FixedA, 120.0);
+		let mut nan = History::<2>::default();
+		nan.add(0.0, 120.0, &[f32::NAN, 0.5]);
+		let empty = History::<2>::default();
+		assert_eq!(draw(&nan, &axis, 22, 12), draw(&empty, &axis, 22, 12));
+		// inf in the newest bucket leaves the rest to their own peak
+		let l = look();
+		let mut h = steady([100.0, 300.0], 120.0);
+		h.add(120.0, 120.5, &[f32::INFINITY, 0.0]);
+		let mut peak = Peak::default();
+		let mut px = Vec::new();
+		Frame {
+			hist: &h,
+			axis: &axis,
+			now: h.last().unwrap_or(0.0),
+			look: &l,
+			paint: Paint::Stack(&COLORS),
+			outline: OUTLINE,
+		}
+		.draw_to(
+			&mut px,
+			22,
+			12,
+			1,
+			Some(Scale {
+				peak: &mut peak,
+				floor: 1.0,
+				log: false,
+			}),
+			&mut Scratch::default(),
+		);
+		assert_eq!(peak.top(), 400.0);
+		assert!(px.iter().any(|&p| p == COLORS[1].argb()));
 	}
 
 	// Test ID: denc4

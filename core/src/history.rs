@@ -64,6 +64,21 @@ impl<const N: usize> Bucket<N> {
 		self.lo = self.lo.min(lo);
 		self.hi = self.hi.max(hi);
 	}
+	// as add makes them, or an untouched gap
+	fn sane(&self) -> bool {
+		if *self == Bucket::default() {
+			return true;
+		}
+		let finite = |xs: &[f32]| xs.iter().all(|x| x.is_finite());
+		self.secs > 0.0
+			&& finite(&self.sum)
+			&& finite(&self.min)
+			&& finite(&self.max)
+			&& self.secs.is_finite()
+			&& self.lo.is_finite()
+			&& self.hi.is_finite()
+			&& self.lo <= self.hi
+	}
 	/// The time-weighted mean of value `i`, or 0 for a gap.
 	pub fn mean(&self, i: usize) -> f32 {
 		if self.secs > 0.0 {
@@ -410,6 +425,9 @@ impl<const N: usize> History<N> {
 	/// broken file starts fresh. Also None for another series count. A count
 	/// of 0 is a section from before counts were saved, which only its
 	/// layout can refuse.
+	///
+	/// Times out of order, or buckets outside them, are None too. A bucket
+	/// with a value that isn't finite comes back as a gap.
 	pub fn decode(bytes: &[u8]) -> Option<History<N>> {
 		let mut rd = Reader(bytes);
 		let series = rd.u32()? as usize;
@@ -418,6 +436,11 @@ impl<const N: usize> History<N> {
 		}
 		let first = Some(rd.f64()?).filter(|x| x.is_finite());
 		let last = Some(rd.f64()?).filter(|x| x.is_finite());
+		let span = match (first, last) {
+			(Some(f), Some(l)) if (0.0..=l).contains(&f) && l < LATEST => Some((f, l)),
+			(None, None) => None,
+			_ => return None,
+		};
 		let mut h = History::<N> {
 			first,
 			last,
@@ -435,6 +458,15 @@ impl<const N: usize> History<N> {
 			if count > tier.cap() {
 				return None;
 			}
+			// every bucket lies over first to last, give or take one for rounding
+			if count > 0 {
+				let (f, l) = span?;
+				let from = (f / tier.len).floor() as i64 - 1;
+				let to = (l / tier.len).ceil() as i64 + 1;
+				if tier.first < from || tier.first.checked_add(count)? > to {
+					return None;
+				}
+			}
 			for _ in 0..count {
 				let b = Bucket {
 					sum: rd.f32s()?,
@@ -444,13 +476,18 @@ impl<const N: usize> History<N> {
 					lo: rd.f64()?,
 					hi: rd.f64()?,
 				};
-				tier.buckets.push_back(b);
+				tier.buckets
+					.push_back(if b.sane() { b } else { Bucket::default() });
 			}
 			tier.reindex(0);
 		}
-		(rd.0.is_empty() && first.is_some() == last.is_some()).then_some(h)
+		rd.0.is_empty().then_some(h)
 	}
 }
+
+/// Unix seconds past this are taken as a broken file, and it keeps every
+/// bucket number far inside an i64. Year 5138.
+const LATEST: f64 = 1e11;
 
 struct Reader<'a>(&'a [u8]);
 
@@ -802,5 +839,48 @@ mod tests {
 		let s = h.span(t1 - 200.0, t1);
 		assert!(s.covered > 0.999 && (s.mean[0] - 0.5).abs() < 1e-6, "{s:?}");
 		assert!(h.span(t1 - 2.0 * 86400.0, t1 - 86400.0).covered > 0.999);
+	}
+
+	// Test ID: deqs5
+	#[test]
+	fn times_out_of_order_are_refused_and_a_bucket_that_isnt_finite_is_a_gap() {
+		let h = a_day_of_samples();
+		let mut bytes = Vec::new();
+		h.encode(&mut bytes);
+		let at = |b: &[u8], i: usize| f64::from_le_bytes(b[i..i + 8].try_into().unwrap());
+		let (first, last) = (at(&bytes, 4), at(&bytes, 12));
+		let with = |i: usize, x: &[u8]| {
+			let mut b = bytes.clone();
+			b[i..i + x.len()].copy_from_slice(x);
+			History::<2>::decode(&b)
+		};
+		// last before first, a high bit flipped in it, first before 1970
+		assert!(with(12, &(first - 1.0).to_le_bytes()).is_none());
+		let flipped = f64::from_bits(last.to_bits() ^ (1 << 62));
+		assert!(with(12, &flipped.to_le_bytes()).is_none());
+		assert!(with(4, &(-1.0f64).to_le_bytes()).is_none());
+		// tier 0's buckets past last, well before first, or near the top of i64
+		let t0 = i64::from_le_bytes(bytes[32..40].try_into().unwrap());
+		for bad in [t0 + 10, t0 - 3_000_000, i64::MAX - 3] {
+			assert!(with(32, &bad.to_le_bytes()).is_none(), "{bad}");
+		}
+		// tier 0's first bucket, with a NaN mean or an inf max
+		for (i, x) in [(44, f32::NAN), (44 + 16 + 4, f32::INFINITY)] {
+			let back = with(i, &x.to_le_bytes()).unwrap();
+			assert_eq!(back.tiers[0].buckets[0], Bucket::default());
+			assert_eq!(back.tiers[0].buckets[1], h.tiers[0].buckets[1]);
+			let a = back.tiers[0].start();
+			let s = back.span(a, a + 1.0);
+			assert!(s.mean.iter().chain(&s.max).all(|x| x.is_finite()), "{s:?}");
+		}
+		// a history with no times has no buckets
+		let mut empty = Vec::new();
+		History::<2>::default().encode(&mut empty);
+		let mut one = History::<2>::default();
+		one.add(first, first + 0.05, &[0.5; 2]);
+		let mut timed = Vec::new();
+		one.encode(&mut timed);
+		timed[4..20].copy_from_slice(&empty[4..20]);
+		assert!(History::<2>::decode(&timed).is_none());
 	}
 }

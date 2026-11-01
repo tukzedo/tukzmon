@@ -202,7 +202,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 5: History files aren't checked for times and values out of bounds
 	- ID: 2026103115231863
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
+		- It departs from the wording for times past now. A section that ends up to 14 hours ahead still loads, with the clock moved up to it, as design.md had it. Only one further ahead starts over.
 	- Priority|Severity: Avg
 	- Opened: 20261031-152318
 	- Opened by: t00mietum
@@ -210,8 +211,27 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: A day ahead keeps the graph a day off until Reset history. A high bit freezes the graph, and that is saved back. NaN fills a column full height, and inf flattens every other column for as long as it's in view. A crafted tier start aborts the panel at every start.
 	- Expected behavior: A section with times past now, times out of order, or values that aren't finite is refused, or the bad buckets are dropped. Drawing treats a non-finite value as a gap.
 	- Possible cause: decode checks layout only, and adopt moves the clock to any saved last.
+	- Reproduced: Yes, by the new tests with the fix taken out. Each crafted section loaded, and the NaN and inf columns drew wrong.
+	- Actual cause: As the possible cause. Drawing also took a non-finite column as data.
 	- Estimated effort: Avg
+	- Actual effort: Low
 	- Origin: `87bc145` (`History::decode`, `Graph::adopt`) and `90f83106` (`render::fit`). First review. Confirmed, by probes with crafted files.
+	- Progress log:
+		- `History::decode` refuses a section whose first is after its last, before 1970, or past year 5138, and one with a tier's buckets outside first to last. A crafted tier start is refused before any bucket math, so it can't overflow.
+		- A bucket with a value that isn't finite reads as a gap. The rest of the section still loads.
+		- `Graph::adopt` refuses a section that ends more than 14 hours after now (`AHEAD_MAX`). Within that, the clock moves up to it as before.
+		- Drawing skips a column whose value isn't finite, so it's a gap, and it doesn't count toward a scaled graph's peak.
+		- `design.md` History has the rules.
+		- Verified: the quick gate, the soak test, and defv4's real 5-tier file passed.
+	- Decisions:
+		- Refuse a section, not just its bad part, for times out of order. Bad times mean the file can't be trusted for where anything is. A bad value is one bucket, so only that bucket goes.
+		- 14 hours is the most a clock can be behind by a time zone. A dual boot that keeps local time in the hardware clock leaves Linux that far behind until it syncs, and refusing then would lose the history. A day ahead, as in the steps to reproduce, starts over.
+		- The future check is in `adopt`, which knows the graph's clock, and `decode` stays a check of the file alone.
+	- Actual fix: `History::decode` and `Bucket::sane` in `core/src/history.rs`, `Graph::adopt` and `AHEAD_MAX` in `core/src/lib.rs`, and the column filter in `Frame::draw_to` in `core/src/render.rs`.
+	- Branch: round-1101
+	- Test case: `history::tests::times_out_of_order_are_refused_and_a_bucket_that_isnt_finite_is_a_gap` (deqs5), `tests::history_saved_hours_ahead_moves_the_clock_but_a_day_ahead_starts_over` (deqs6) and `render::tests::a_value_that_isnt_finite_is_drawn_as_a_gap` (deqs7). Each fails with its fix taken out.
+		- Swept: every `History::decode` and `Graph::adopt` caller (`Graph::load`, `Graphs::load`, `Graphs::set_look`, the soak test and the profiler, which load into the graph that saved), and every `span` reader that draws (`Frame::draw_to`). The hover tip still prints what a span gives, and with decode's check only a source can hand it NaN now.
+	- Closed: 20261101-112530
 
 - Code review 20261031 item 4: Graph times fall behind the clock after a suspend
 	- ID: 2026103115231848

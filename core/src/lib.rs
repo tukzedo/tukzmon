@@ -60,6 +60,13 @@ pub const FASTEST_MS: u32 = 50;
 /// early. So the wait to the next read can be up to this much over the rate.
 pub const EARLY_MS: f64 = 10.0;
 
+/// How far past now saved history may end, in seconds, and still load with
+/// the clock moved up to it. A clock behind by a time zone, as a dual boot
+/// that keeps local time in the hardware clock leaves it until it syncs, is
+/// under this. Further ahead is a broken file, or a clock set back for good,
+/// and that history starts over. See design.md History.
+pub const AHEAD_MAX: f64 = 14.0 * 3600.0;
+
 /// The CPUs this process can run on, read once.
 pub(crate) fn cpus() -> f32 {
 	static CPUS: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
@@ -620,18 +627,21 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 	}
 
 	/// [`Self::load`] from a file's sections, read once for every graph in
-	/// it. False, with nothing changed, when none of them is this graph's.
+	/// it. False, with nothing changed, when none of them is this graph's,
+	/// or its history ends more than [`AHEAD_MAX`] after now.
 	pub fn adopt(&mut self, sections: &[(String, Vec<u8>)]) -> bool {
+		let now = self.now();
 		let Some(saved) = sections
 			.iter()
 			.find(|(name, _)| name == S::SECTION)
 			.and_then(|(_, body)| History::decode(body))
+			.filter(|h| h.last().is_none_or(|last| last <= now + AHEAD_MAX))
 		else {
 			return false;
 		};
 		// a clock set back mustn't hide new samples behind old ones
 		if let Some(last) = saved.last()
-			&& last > self.now()
+			&& last > now
 		{
 			self.epoch = last - self.steady();
 		}
@@ -1370,6 +1380,25 @@ mod tests {
 		let now = g.hist.last().unwrap();
 		assert!((now - had - 1.0).abs() < 0.01, "{}", now - had);
 		assert!(g.hist.span(had, now).covered > 0.99);
+	}
+
+	// Test ID: deqs6
+	#[test]
+	fn history_saved_hours_ahead_moves_the_clock_but_a_day_ahead_starts_over() {
+		let ahead = |secs: f64| {
+			let mut g = Graph::with(Look::default(), MemoryReader);
+			let end = g.now() + secs;
+			let mut h = History::<3>::default();
+			h.add(end - 60.0, end, &[0.5; 3]);
+			let mut body = Vec::new();
+			h.encode(&mut body);
+			let took = g.adopt(&[(MemoryReader::SECTION.to_string(), body)]);
+			(took, g.now() - end)
+		};
+		let (took, off) = ahead(8.0 * 3600.0);
+		assert!(took && (0.0..60.0).contains(&off), "{off}");
+		let (took, off) = ahead(86400.0);
+		assert!(!took && off < -86000.0, "{off}");
 	}
 
 	// Test ID: decbr
