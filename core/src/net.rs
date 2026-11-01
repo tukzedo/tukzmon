@@ -4,8 +4,10 @@
 //! Network traffic from `/proc/net/dev`. See design.md, Data sources on
 //! Linux.
 
+use std::ffi::CStr;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::path::Path;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::collect::{Climb, Collector, Counts, Kept};
 use crate::config::Split;
@@ -14,11 +16,27 @@ use crate::lan::{self, LanReader};
 const NET_DEV: &str = "/proc/net/dev";
 const CLASS: &str = "/sys/class/net";
 
+/// How often the LAN reader's away addresses are read again, besides when
+/// the interfaces change. One read cost about 0.4 ms on b23.
+const RELIST: Duration = Duration::from_secs(10);
+
 fn names(text: &str) -> impl Iterator<Item = &str> {
 	// the 2 header lines have no colon, and a name can't hold one
 	text.lines()
 		.filter_map(|line| line.split_once(':'))
 		.map(|(name, _)| name.trim())
+}
+
+/// What an interface is to [`Wired`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Link {
+	/// Has a `device` link, and counts.
+	Hardware,
+	/// A bridge, bond or VLAN over a hardware one, which carries it too.
+	Stacked,
+	/// A bridge, VPN tunnel, or VM or container link with no hardware under
+	/// it, so what it carries never crosses a counted one as itself.
+	Virtual,
 }
 
 /// Which interfaces count: `lo`, and those on hardware, which have a
@@ -29,8 +47,10 @@ fn names(text: &str) -> impl Iterator<Item = &str> {
 #[derive(Debug)]
 struct Wired {
 	class: String,
-	known: Vec<(String, bool)>,
+	known: Vec<(String, Link)>,
 	any: bool,
+	/// Goes up each time it looks again.
+	looks: u32,
 }
 
 impl Wired {
@@ -39,6 +59,7 @@ impl Wired {
 			class: class.to_owned(),
 			known: Vec::new(),
 			any: false,
+			looks: 0,
 		}
 	}
 
@@ -49,21 +70,97 @@ impl Wired {
 		if same {
 			return;
 		}
+		self.looks = self.looks.wrapping_add(1);
 		let class = Path::new(&self.class);
 		self.known = names(text)
 			.map(|n| {
+				let hw = n != "lo" && class.join(n).join("device").exists();
 				(
 					n.to_owned(),
-					n != "lo" && class.join(n).join("device").exists(),
+					if hw { Link::Hardware } else { Link::Virtual },
 				)
 			})
 			.collect();
-		self.any = self.known.iter().any(|(_, hw)| *hw);
+		self.any = self.known.iter().any(|(_, link)| *link == Link::Hardware);
+		// each one's upper_ links name what's stacked on it, such as br0 on
+		// enp8s0 and br0.5 on br0
+		let mut todo: Vec<usize> = (0..self.known.len())
+			.filter(|i| self.known[*i].1 == Link::Hardware)
+			.collect();
+		while let Some(at) = todo.pop() {
+			let uppers = std::fs::read_dir(class.join(&self.known[at].0))
+				.into_iter()
+				.flatten()
+				.flatten()
+				.filter_map(|e| Some(e.file_name().to_str()?.strip_prefix("upper_")?.to_owned()));
+			for up in uppers {
+				if let Some(i) = self
+					.known
+					.iter()
+					.position(|(n, link)| *n == up && *link == Link::Virtual)
+				{
+					self.known[i].1 = Link::Stacked;
+					todo.push(i);
+				}
+			}
+		}
+	}
+
+	fn link(&self, name: &str) -> Option<Link> {
+		self.known
+			.iter()
+			.find(|(n, _)| n == name)
+			.map(|(_, link)| *link)
 	}
 
 	fn counts(&self, name: &str) -> bool {
-		name == "lo" || !self.any || self.known.iter().any(|(n, hw)| *hw && n == name)
+		name == "lo" || !self.any || self.link(name) == Some(Link::Hardware)
 	}
+
+	/// True when what goes out by `name` never crosses a counted interface,
+	/// as with a VM's NAT bridge, a container's or a VPN tunnel.
+	fn away(&self, name: &str) -> bool {
+		self.any && name != "lo" && self.link(name) == Some(Link::Virtual)
+	}
+}
+
+/// Every interface's addresses. False when they can't be had.
+fn addresses(mut each: impl FnMut(&str, IpAddr)) -> bool {
+	let mut list: *mut libc::ifaddrs = std::ptr::null_mut();
+	// SAFETY: getifaddrs only writes the list head, which freeifaddrs below
+	// gives back.
+	if unsafe { libc::getifaddrs(&raw mut list) } != 0 {
+		return false;
+	}
+	let mut at = list;
+	while !at.is_null() {
+		// SAFETY: every node and what it points to lives till freeifaddrs,
+		// and ifa_addr's family says which sockaddr it is.
+		unsafe {
+			let ifa = &*at;
+			at = ifa.ifa_next;
+			if ifa.ifa_addr.is_null() || ifa.ifa_name.is_null() {
+				continue;
+			}
+			let ip = match i32::from((*ifa.ifa_addr).sa_family) {
+				libc::AF_INET => {
+					let sin = ifa.ifa_addr.cast::<libc::sockaddr_in>().read_unaligned();
+					IpAddr::V4(Ipv4Addr::from(u32::from_be(sin.sin_addr.s_addr)))
+				}
+				libc::AF_INET6 => {
+					let sin6 = ifa.ifa_addr.cast::<libc::sockaddr_in6>().read_unaligned();
+					IpAddr::V6(Ipv6Addr::from(sin6.sin6_addr.s6_addr))
+				}
+				_ => continue,
+			};
+			if let Ok(name) = CStr::from_ptr(ifa.ifa_name).to_str() {
+				each(name, ip);
+			}
+		}
+	}
+	// SAFETY: list came from getifaddrs and is freed once.
+	unsafe { libc::freeifaddrs(list) };
+	true
 }
 
 /// Received and sent bytes for each interface `keep` takes. None on a row
@@ -153,6 +250,9 @@ impl Collector<3> for NetReader {
 pub struct Traffic {
 	net: NetReader,
 	lan: Option<LanReader>,
+	/// When the LAN reader's away addresses were read, and at which look of
+	/// the interfaces.
+	listed: Option<(Instant, u32)>,
 }
 
 impl Traffic {
@@ -166,7 +266,10 @@ impl Traffic {
 	pub fn set_split(&mut self, split: Split) {
 		match split {
 			Split::Off => self.lan = None,
-			Split::Sockets if self.lan.is_none() => self.lan = LanReader::probe(),
+			Split::Sockets if self.lan.is_none() => {
+				self.lan = LanReader::probe();
+				self.listed = None;
+			}
 			Split::Sockets => {}
 		}
 	}
@@ -176,15 +279,43 @@ impl Collector<5> for Traffic {
 	const SERIES: [&'static str; 5] = ["local", "LAN sent", "LAN received", "sent", "received"];
 
 	fn probe() -> Option<Self> {
-		NetReader::probe().map(|net| Traffic { net, lan: None })
+		NetReader::probe().map(|net| Traffic {
+			net,
+			lan: None,
+			listed: None,
+		})
 	}
 
 	/// A failed LAN poll is a gap, like a failed `/proc/net/dev` read, so
-	/// the LAN's bytes never show as internet.
+	/// the LAN's bytes never show as internet. A socket that goes out by a
+	/// VM's, container's or VPN's interface isn't the LAN's, since the
+	/// network reader doesn't count those.
 	fn read(&mut self) -> Option<[f32; 5]> {
 		let net = self.net.read();
 		let lan = match &mut self.lan {
-			Some(r) => r.read()?,
+			Some(r) => {
+				let wired = &self.net.wired;
+				let at = Instant::now();
+				let due = self.listed.is_none_or(|(then, looks)| {
+					looks != wired.looks || at.saturating_duration_since(then) >= RELIST
+				});
+				// keep the last list when there's no new one, or the away
+				// sockets would count all they have once they're left out
+				// again
+				let was = r.away.len();
+				if due
+					&& addresses(|name, ip| {
+						if wired.away(name) {
+							r.away.push(ip);
+						}
+					}) {
+					r.away.drain(..was);
+					self.listed = Some((at, wired.looks));
+				} else {
+					r.away.truncate(was);
+				}
+				r.read()?
+			}
 			None => [0.0; 2],
 		};
 		Some(lan::split(net?, lan))
@@ -396,6 +527,57 @@ mod tests {
 			rates(&mut climb, &mut w, &net_dev(&rows), t + s(1)),
 			Some([0.0, 0.0, 250.0])
 		);
+	}
+
+	// Test ID: deqt3
+	#[test]
+	fn only_what_has_no_hardware_under_it_is_away() {
+		// br0 bridges the NIC and the VMs on vnet0, and br0.5 is a VLAN on
+		// it. virbr0 is a NAT bridge, and nordlynx a VPN.
+		let sys = Tree::new(
+			"net_away",
+			&[
+				("br0.5/", ""),
+				("enp8s0/device/", ""),
+				("enp8s0/upper_br0", ""),
+				("br0/upper_br0.5", ""),
+				("vnet0/upper_br0", ""),
+				("virbr0/", ""),
+				("vnet1/upper_virbr0", ""),
+				("nordlynx/", ""),
+			],
+		);
+		let rows = [
+			("lo", 0, 0),
+			("br0.5", 0, 0),
+			("enp8s0", 0, 0),
+			("br0", 0, 0),
+			("vnet0", 0, 0),
+			("virbr0", 0, 0),
+			("vnet1", 0, 0),
+			("nordlynx", 0, 0),
+		];
+		let mut w = Wired::new(&sys.at(""));
+		w.sort(&net_dev(&rows));
+		let away: Vec<&str> = rows.iter().map(|r| r.0).filter(|n| w.away(n)).collect();
+		assert_eq!(away, ["vnet0", "virbr0", "vnet1", "nordlynx"]);
+		assert!(!w.away("wlan9"), "one it hasn't seen");
+		let counted: Vec<&str> = rows.iter().map(|r| r.0).filter(|n| w.counts(n)).collect();
+		assert_eq!(counted, ["lo", "enp8s0"]);
+		// in a container nothing is away, since all of it counts
+		let mut w = Wired::new(&sys.at("none"));
+		w.sort(&net_dev(&rows));
+		assert!(rows.iter().all(|r| !w.away(r.0)));
+	}
+
+	// Test ID: deqt5
+	#[test]
+	fn this_boxs_addresses_include_loopback() {
+		let mut lo = Vec::new();
+		assert!(addresses(|name, ip| if name == "lo" {
+			lo.push(ip);
+		}));
+		assert!(lo.contains(&IpAddr::V4(Ipv4Addr::LOCALHOST)), "{lo:?}");
 	}
 
 	// Test ID: demw0

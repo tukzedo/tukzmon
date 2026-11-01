@@ -45,14 +45,17 @@ const fn overhead(v6: bool) -> u64 {
 	if v6 { 14 + 40 + 32 } else { 14 + 20 + 32 }
 }
 
+fn mapped(ip: IpAddr) -> IpAddr {
+	match ip {
+		IpAddr::V6(v6) => v6.to_ipv4_mapped().map_or(ip, IpAddr::V4),
+		IpAddr::V4(_) => ip,
+	}
+}
+
 /// Whether the far end is on the LAN. None for loopback, which the network
 /// graph counts as local from `lo`. On IPv6 a global address in this end's
 /// own /64 is on the LAN too.
 fn on_lan(near: IpAddr, far: IpAddr) -> Option<bool> {
-	let mapped = |ip: IpAddr| match ip {
-		IpAddr::V6(v6) => v6.to_ipv4_mapped().map_or(ip, IpAddr::V4),
-		IpAddr::V4(_) => ip,
-	};
 	let (near, far) = (mapped(near), mapped(far));
 	// a socket to this box's own address goes through lo too
 	if far.is_loopback() || far.is_unspecified() || far == near {
@@ -106,8 +109,9 @@ fn request(family: u8, seq: u32) -> [u8; HEADER + 56] {
 type Moved = (u64, [u64; 2]);
 
 /// One `inet_diag_msg` and its attributes. None when it isn't a LAN socket
-/// with a `tcp_info` new enough to count bytes.
-fn lan_socket(msg: &[u8]) -> Option<Moved> {
+/// with a `tcp_info` new enough to count bytes. One whose own address is in
+/// `away` goes out by an interface the network reader doesn't count.
+fn lan_socket(msg: &[u8], away: &[IpAddr]) -> Option<Moved> {
 	let v6 = match i32::from(*msg.first()?) {
 		libc::AF_INET => false,
 		libc::AF_INET6 => true,
@@ -121,7 +125,8 @@ fn lan_socket(msg: &[u8]) -> Option<Moved> {
 			IpAddr::V4(Ipv4Addr::new(b[0], b[1], b[2], b[3]))
 		})
 	};
-	if !on_lan(addr(8)?, addr(24)?)? {
+	let near = addr(8)?;
+	if !on_lan(near, addr(24)?)? || away.contains(&mapped(near)) {
 		return None;
 	}
 	let cookie = u64::from(u32_at(msg, 44)?) | u64::from(u32_at(msg, 48)?) << 32;
@@ -154,7 +159,7 @@ enum Dump {
 /// Every message of dump `seq` in one read, LAN sockets into `out`. What's
 /// left of an earlier dump that failed partway is skipped, or its sockets
 /// would count in this one.
-fn parse(buf: &[u8], seq: u32, out: &mut HashMap<u64, [u64; 2]>) -> Dump {
+fn parse(buf: &[u8], seq: u32, away: &[IpAddr], out: &mut HashMap<u64, [u64; 2]>) -> Dump {
 	let mut at = 0;
 	while at + HEADER <= buf.len() {
 		let (Some(len), Some(kind), Some(its_seq)) =
@@ -174,7 +179,7 @@ fn parse(buf: &[u8], seq: u32, out: &mut HashMap<u64, [u64; 2]>) -> Dump {
 			NLMSG_DONE => return Dump::Done,
 			NLMSG_ERROR => return Dump::Bad,
 			SOCK_DIAG_BY_FAMILY => {
-				if let Some((cookie, moved)) = lan_socket(body) {
+				if let Some((cookie, moved)) = lan_socket(body, away) {
 					out.insert(cookie, moved);
 				}
 			}
@@ -217,6 +222,10 @@ pub fn split([local, sent, received]: [f32; 3], [lan_sent, lan_received]: [f32; 
 /// loses what it moved since the last one.
 #[derive(Debug)]
 pub struct LanReader {
+	/// This box's addresses on interfaces whose traffic isn't counted, such
+	/// as a VM's NAT bridge or a VPN tunnel. A socket from one isn't the
+	/// LAN's.
+	pub(crate) away: Vec<IpAddr>,
 	sock: File,
 	buf: Vec<u8>,
 	seq: u32,
@@ -241,6 +250,7 @@ impl LanReader {
 		// SAFETY: fd is a new descriptor that nothing else owns.
 		let sock = File::from(unsafe { OwnedFd::from_raw_fd(fd) });
 		Some(LanReader {
+			away: Vec::new(),
 			sock,
 			// the kernel caps one read of a dump at 32 KiB
 			buf: vec![0; 32 * 1024],
@@ -268,7 +278,7 @@ impl LanReader {
 				let Ok(n) = self.sock.read(&mut self.buf) else {
 					return false;
 				};
-				match parse(&self.buf[..n], self.seq, &mut self.now) {
+				match parse(&self.buf[..n], self.seq, &self.away, &mut self.now) {
 					Dump::More if n > 0 => {}
 					Dump::Done => break,
 					Dump::More | Dump::Bad => return false,
@@ -399,24 +409,30 @@ mod tests {
 		buf.extend(message("2001:db8::5", "fd00::2", 9, [100, 0], [1, 0]));
 		buf.extend(message("127.0.0.1", "127.0.0.1", 10, [9, 9], [1, 1]));
 		let mut out = HashMap::new();
-		assert_eq!(parse(&buf, 0, &mut out), Dump::More);
+		assert_eq!(parse(&buf, 0, &[], &mut out), Dump::More);
 		assert_eq!(out.len(), 2);
 		assert_eq!(out[&(1 << 40 | 7)], [1000 + 10 * 66, 5000 + 20 * 66]);
 		assert_eq!(out[&9], [100 + 86, 0]);
-		assert_eq!(parse(&wrap(NLMSG_DONE, &[0; 4]), 0, &mut out), Dump::Done);
-		assert_eq!(parse(&wrap(NLMSG_ERROR, &[0; 20]), 0, &mut out), Dump::Bad);
+		assert_eq!(
+			parse(&wrap(NLMSG_DONE, &[0; 4]), 0, &[], &mut out),
+			Dump::Done
+		);
+		assert_eq!(
+			parse(&wrap(NLMSG_ERROR, &[0; 20]), 0, &[], &mut out),
+			Dump::Bad
+		);
 		// a length past the read, or under a header
 		let mut cut = message("10.0.0.1", "10.0.0.2", 1, [1, 1], [1, 1]);
 		cut.truncate(100);
-		assert_eq!(parse(&cut, 0, &mut out), Dump::Bad);
+		assert_eq!(parse(&cut, 0, &[], &mut out), Dump::Bad);
 		let mut short = wrap(NLMSG_DONE, &[0; 4]);
 		short[0..4].copy_from_slice(&8u32.to_ne_bytes());
-		assert_eq!(parse(&short, 0, &mut out), Dump::Bad);
+		assert_eq!(parse(&short, 0, &[], &mut out), Dump::Bad);
 		// a tcp_info too old to count bytes is skipped
 		let mut old = message("10.0.0.1", "10.0.0.2", 77, [1, 1], [1, 1]);
 		let info_len = HEADER + DIAG_MSG + 12;
 		old[info_len..info_len + 2].copy_from_slice(&100u16.to_ne_bytes());
-		assert_eq!(parse(&old, 0, &mut out), Dump::More);
+		assert_eq!(parse(&old, 0, &[], &mut out), Dump::More);
 		assert!(!out.contains_key(&77));
 		assert_eq!(request(libc::AF_INET as u8, 3).len(), 72);
 	}
@@ -433,10 +449,49 @@ mod tests {
 		buf.extend(seq(wrap(NLMSG_DONE, &[0; 4]), 6));
 		buf.extend(seq(message("10.0.0.1", "10.0.0.3", 2, [7, 7], [0, 0]), 7));
 		let mut out = HashMap::new();
-		assert_eq!(parse(&buf, 7, &mut out), Dump::More);
+		assert_eq!(parse(&buf, 7, &[], &mut out), Dump::More);
 		assert_eq!(out, HashMap::from([(2, [7, 7])]));
 		buf.extend(seq(wrap(NLMSG_DONE, &[0; 4]), 7));
-		assert_eq!(parse(&buf, 7, &mut out), Dump::Done);
+		assert_eq!(parse(&buf, 7, &[], &mut out), Dump::Done);
+	}
+
+	// Test ID: deqt4
+	#[test]
+	fn a_socket_from_an_away_address_isnt_the_lans() {
+		let mut buf = message("10.5.0.2", "10.5.0.1", 1, [5, 5], [0, 0]);
+		buf.extend(message(
+			"192.168.122.1",
+			"192.168.122.40",
+			2,
+			[5, 5],
+			[0, 0],
+		));
+		buf.extend(message(
+			"::ffff:10.5.0.2",
+			"::ffff:10.20.0.3",
+			3,
+			[5, 5],
+			[0, 0],
+		));
+		buf.extend(message(
+			"fe80::fc54:ff:fe01:2",
+			"fe80::5054:ff:fe01:2",
+			4,
+			[5, 5],
+			[0, 0],
+		));
+		buf.extend(message("192.168.1.123", "192.168.1.9", 5, [5, 5], [0, 0]));
+		buf.extend(message("fe80::1:2", "fe80::9", 6, [5, 5], [0, 0]));
+		let away = [
+			ip("10.5.0.2"),
+			ip("192.168.122.1"),
+			ip("fe80::fc54:ff:fe01:2"),
+		];
+		let mut out = HashMap::new();
+		assert_eq!(parse(&buf, 0, &away, &mut out), Dump::More);
+		let mut kept: Vec<u64> = out.into_keys().collect();
+		kept.sort_unstable();
+		assert_eq!(kept, [5, 6]);
 	}
 
 	// Test ID: dekq7

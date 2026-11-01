@@ -22,6 +22,21 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- With the LAN split on, TCP to a VM on a bridge that also holds the NIC counts as LAN
+	- ID: 2026110111543986
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261101-115439
+	- Opened by: t00mietum
+	- Parent ID: 2026110110445455
+	- Related IDs: 2026103115231894
+	- Steps to reproduce: On a box whose address is on a bridge with its NIC and the VMs' taps in it, as b23's br0, turn on the LAN split and copy a file over TCP to a VM.
+	- Incorrect behavior: The socket's own address is the bridge's, which counts as the LAN's way out, so the copy is LAN, and the clamp takes it out of the internet's share.
+	- Expected behavior: A socket to a far end that sits behind one of the bridge's virtual ports isn't the LAN's.
+	- Possible cause: Telling it apart takes the far end's MAC, from the neighbor table, and its port in the bridge's `brforward`. Both read with no root.
+	- Estimated effort: Low
+
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
@@ -168,7 +183,22 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: The LAN reader counts those sockets, since the far end is private. The network graph no longer counts the bridge or the tunnel, so the clamp in `lan::split` takes them out of the internet's share instead.
 	- Expected behavior: Only sockets that leave by a counted interface are the LAN's.
 	- Possible cause: `lan::on_lan` goes by address only. Leaving out far ends in the subnets of the uncounted interfaces' addresses may be enough.
+	- Actual cause: `lan::on_lan` went by the far end's address only, whichever interface the socket used.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A socket whose own address is on an interface the network reader leaves out, such as a NAT bridge, a container's link or a VPN tunnel, isn't the LAN's. A bridge, bond or VLAN stacked on a hardware interface still is.
+		- The addresses are read again every 10 s and when the interfaces change, and a failed read keeps the last ones.
+		- A VM on a bridge that also holds the NIC, as on b23, is child 2026110111543986. This closes with it.
+		- `design.md` Data sources on Linux has the details.
+		- Verified: `cargo test -p tukzmon-core lan:: net::` passed. On b23 the away addresses are nordlynx's, docker0's and the compose bridge's, and br0 still counts.
+	- Decisions:
+		- By the socket's own address, not the far end's subnet. On b23 the box's address is on br0, which holds the NIC and the VMs, so by subnet all of the real LAN would drop out. A VPN's address is often a /32 too, which no far end is in.
+		- A bridge, bond or VLAN over a hardware interface counts as a way out, by the `upper_` links in sysfs, since what it carries to the LAN crosses the NIC.
+		- Every 10 s rather than every tick, as the disk reader lists drives, since reading the addresses cost about 0.4 ms on b23.
+	- Branch: round-1101
+	- Test case: `net::tests::only_what_has_no_hardware_under_it_is_away` (deqt3), `lan::tests::a_socket_from_an_away_address_isnt_the_lans` (deqt4) and `net::tests::this_boxs_addresses_include_loopback` (deqt5). deqt4 fails with the address check taken out, and deqt3 with the `upper_` links not followed.
+		- Swept: `LanReader` is read only through `Traffic`, and `Wired::counts` keeps its meaning, so `NetReader` counts the same interfaces.
 
 - Code review 20261031 item 6: Format and Lint pass on no files when git ls-files fails
 	- ID: 2026103115231879
@@ -449,7 +479,7 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1101
 	- Test case: `lan::tests::whats_left_of_an_earlier_dump_is_skipped` (deqt2). It fails with the check taken out, on the old dump's error.
 		- Swept: `LanReader::poll` is the only netlink reader in the repo.
-	- Closed: 20261101-115430
+	- Closed: 20261101-115021
 
 - Code review 20261031 item 18: History saves can lose hidden graphs' sections or leave a temp file
 	- ID: 2026103115232061
