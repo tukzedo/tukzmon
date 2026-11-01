@@ -450,7 +450,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 22: Stale text in the desktop file, package description, design.md and the knobs demo
 	- ID: 2026103115232125
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152321
 	- Opened by: t00mietum
@@ -458,6 +458,14 @@ Sorted per the notes in [Template](#template).
 	- Expected behavior: Each says what the code does now.
 	- Estimated effort: Low
 	- Origin: `f89e55e` and later. First review. Confirmed by reading.
+	- Actual effort: Low
+	- Actual fix: The desktop file and package description list the graphs now. design.md's globals line names the once-set caches, the per-thread meminfo cache and the panic hook. Its saved-theme and old-axis-lines text says unreadable lines are dropped at the next save. The demo lists `from_program`.
+	- Decisions:
+		- Checked each was still stale first. The line on a saved theme's key and colors (Themes) was stale too, so it is fixed with the rest.
+		- The desktop comment is short, since the panel shows it in a list.
+	- Branch: round-1101
+	- Test case: None, since only text changed. The quick gate passed.
+	- Closed: 20261101-122600
 
 - Code review 20261031 item 21: Tests that can't fail, or check less than their names say
 	- ID: 2026103115232109

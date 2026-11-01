@@ -16,9 +16,10 @@ maintainer: t00mietum <73576036+t00mietum@users.noreply.github.com>
 homepage: https://github.com/tukzedo/tukzmon
 description: |
   A system monitor that lives in the XFCE panel
-  Small CPU and memory graphs on a logarithmic time axis, so one graph shows
-  the last few seconds and the last few weeks at once. History is kept
-  across restarts.
+  Small graphs for CPU, memory, GPU, network, disk, swap, temperature,
+  battery, and more, on a logarithmic time axis, so one graph shows the
+  last few seconds and the last few weeks at once. History is kept across
+  restarts.
 license: LGPL-2.1-or-later
 # The commit's time, so two builds of one commit give the same bytes.
 mtime: ${TUKZMON_MTIME}

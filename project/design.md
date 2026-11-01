@@ -58,7 +58,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- Every widget is an opaque pointer, so no C struct layouts are copied, and a header change can't break it quietly.
 	- The other way, a short C file built against the headers, needs `libxfce4panel-2.0-dev`. On b23 that would pull the panel library back from 4.20.7 to Debian's 4.20.4.
 	- The panel runs external plugins in a separate wrapper process, so a crash takes down the plugin adn not the panel.
-	- That's on X11. On Wayland, XFCE 4.20 loads the plugin into the panel's own process, since XEmbed is X11 only, so an abort in the plugin takes down the whole panel. Every instance shares that process too. That's safe, since the plugin's only globals are read-only caches of the settings spec and its panic hook, and it starts no threads.
+	- That's on X11. On Wayland, XFCE 4.20 loads the plugin into the panel's own process, since XEmbed is X11 only, so an abort in the plugin takes down the whole panel. Every instance shares that process too. That's safe, since the plugin's only globals are caches set once, such as the settings spec, the CPU count, the start time, and the NVML handle, a per-thread cache of `/proc/meminfo`, and its panic hook. It starts no threads.
 	- So the release build unwinds, and every handler the panel calls runs through `guarded` in `xfce/src/lib.rs`, which catches a panic and stops only that item. A stopped item drops its timers and file watches, draws nothing and saves no more history, and its tip says it stopped and why. The panic is one line, `tukzmon: stopped by a bug at <file>:<line>: <text>`. Test `dekpx` checks every handler for the guard, and `dekpv` that the release profile unwinds.
 		- Cargo can't set `panic` per package, so tukzmon-settings unwinds too. Unwinding made the plugin 7.6% bigger, about 81 KB, and tukzmon-settings 6.9%, about 92 KB.
 	- The plugin's messages go through `complain` in `xfce/src/lib.rs`, since `eprintln!` panics when stderr can't be written, such as to a full disk or a closed terminal. Test `defyn` keeps the print macros out of all the code the panel loads.
@@ -234,7 +234,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - Saved themes are kept whole in the config file, under `themes.<key>`, with a `name` and every color and mode by its setting id, the same shape as a built-in in settings.shcl. The dropdown lists them after the built-ins, and before Custom.
 	- They join the `theme` group as presets on a copy of the spec, through knobs' `Spec::finish`. The plugin reads them the same way, so knobs is unchanged.
-	- The key comes from the name when the theme is made, and stays through a rename. A key that is a built-in's, or a color line that can't be read, stops a save like any other unreadable line. A missing color is Default's.
+	- The key comes from the name when the theme is made, and stays through a rename. A key that is a built-in's is left out, and a color line that can't be read is dropped at the next save, like any other. A missing color is Default's.
 	- Save puts the "*" changes into the saved theme in force. Save as makes a new theme from the colors showing and picks it. Delete picks Default. Built-in themes can't be saved over, renamed or deleted, and no two themes share a name.
 	- A save writes every saved theme. One this window didn't touch is written as the file has it, so a theme added by hand meanwhile isn't lost.
 
@@ -392,7 +392,7 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - Each graph can pick its own time axis on the Graphs tab: Linear, or one of the 3 log curves. Its Default follows Time axis default, at `graph.time`, so one setting still changes every graph that has no pick of its own.
 	- A graph's pick is `cpu.time`, `mem.time`, `gpu.time`, `vram.time`, `net.time`, `disk.time`, `temp.time`, `swap.time`, `zswap.time`, `load.time`, `procs.time`, `battery.time` or `self.time`: `same`, `linear`, `smooth`, `fixed_a` or `fixed_b`. `same` is the one shown as Default.
-	- Time axis default replaced a Log time axis checkbox and a Log curve dropdown, `graph.log_axis` and `graph.log_curve`, before any release. A file with either line has to lose it by hand, or the settings window won't save.
+	- Time axis default replaced a Log time axis checkbox and a Log curve dropdown, `graph.log_axis` and `graph.log_curve`, before any release. A file with either line loses it at the next save from the settings window, like any setting it doesn't know.
 	- Spike emphasis applies to any graph on a log curve, so it's never greyed.
 
 ## Drawing
