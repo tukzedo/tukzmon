@@ -288,6 +288,7 @@ pub fn saved_themes(doc: &shcl::Document) -> Vec<SavedTheme> {
 
 /// Lines under `themes` that [`saved_themes`] can't read, so a save would
 /// drop or change them.
+#[cfg(test)]
 pub fn theme_problems(doc: &shcl::Document) -> Vec<String> {
 	let spec = spec();
 	let members = spec.group(THEME).map_or(&[][..], |g| g.members.as_slice());

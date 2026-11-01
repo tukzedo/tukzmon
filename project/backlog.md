@@ -426,7 +426,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 23: Dead code in the settings window and public items only tests use
 	- ID: 2026103115232140
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152321
 	- Opened by: t00mietum
@@ -434,6 +434,18 @@ Sorted per the notes in [Template](#template).
 	- Expected behavior: Removed, or made test-only.
 	- Estimated effort: Low
 	- Origin: `4993f98` (`typing`) and earlier. First review. Confirmed by grep.
+	- Actual effort: Low
+	- Progress log:
+		- `typing()` compares a number box's text with its value's text, with no special text.
+		- `theme_problems`, `Graph::save` and `Graph::load` are test-only. `column` moved into the render tests, since the drawing calls `reach` and `fit` itself.
+		- Verified: the quick gate's format, build, lint and tests passed, dej8s included.
+	- Decisions:
+		- Test-only rather than removed, since their tests check what the plugin's own paths share: `saved_themes`, `adopt`, `section` and the spike reach.
+		- Swept: no other `specialValueText` or `setSpecialValueText` in `qt.cpp`, and no caller of the 4 in the examples, the soak test, xfce or settings, which use `Graphs::save` and `Graphs::load`.
+	- Actual fix: `#[cfg(test)]` on the 3, `column` in `render::tests`, and the special text check out of `typing()` in `settings/src/qt.cpp`.
+	- Branch: round-1101
+	- Test case: None new, since nothing changes what runs. dekm0, debj9, debja and dej8s still pass, and a build outside tests that called one would fail.
+	- Closed: 20261101-121541
 
 - Code review 20261031 item 22: Stale text in the desktop file, package description, design.md and the knobs demo
 	- ID: 2026103115232125

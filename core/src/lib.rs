@@ -29,8 +29,6 @@ pub mod temp;
 pub mod when;
 pub mod zswap;
 
-use std::io;
-use std::path::Path;
 use std::rc::Rc;
 use std::time::{Instant, SystemTime};
 
@@ -615,20 +613,22 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 	///
 	/// As [`keep::read`], or `InvalidData` with no history of this graph's
 	/// that reads. The history in memory is left as it was.
-	pub fn load(&mut self, path: &Path) -> io::Result<()> {
+	#[cfg(test)]
+	pub fn load(&mut self, path: &std::path::Path) -> std::io::Result<()> {
 		if self.adopt(&keep::read(path)?) {
 			Ok(())
 		} else {
-			Err(io::Error::new(
-				io::ErrorKind::InvalidData,
+			Err(std::io::Error::new(
+				std::io::ErrorKind::InvalidData,
 				format!("no {} history", S::SECTION),
 			))
 		}
 	}
 
-	/// [`Self::load`] from a file's sections, read once for every graph in
-	/// it. False, with nothing changed, when none of them is this graph's,
-	/// or its history ends more than [`AHEAD_MAX`] after now.
+	/// Swaps in this graph's saved history from a file's sections, read once
+	/// for every graph in it. The time since it was saved is a gap. False,
+	/// with nothing changed, when none of them is this graph's, or its
+	/// history ends more than [`AHEAD_MAX`] after now.
 	pub fn adopt(&mut self, sections: &[(String, Vec<u8>)]) -> bool {
 		let now = self.now();
 		let Some(saved) = sections
@@ -661,7 +661,8 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 	/// # Errors
 	///
 	/// As [`keep::write`].
-	pub fn save(&self, path: &Path) -> io::Result<()> {
+	#[cfg(test)]
+	pub fn save(&self, path: &std::path::Path) -> std::io::Result<()> {
 		let (name, body) = self.section();
 		keep::write(path, &[(name, &body)])
 	}

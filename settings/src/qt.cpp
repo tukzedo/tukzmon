@@ -1751,12 +1751,7 @@ private:
 		for (const auto &r : rows) {
 			if (r->line && r->line->isModified())
 				return true;
-			if (!r->spin)
-				continue;
-			// a sample rate of 0 shows as Default
-			const bool special = !r->spin->specialValueText().isEmpty() && r->spin->value() == r->spin->minimum();
-			const QString shows = special ? r->spin->specialValueText() : r->spin->textFromValue(r->spin->value());
-			if (r->spin->text() != shows)
+			if (r->spin && r->spin->text() != r->spin->textFromValue(r->spin->value()))
 				return true;
 		}
 		return false;

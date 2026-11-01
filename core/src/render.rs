@@ -35,13 +35,6 @@ fn reach<const N: usize>(mean: &[f32; N], max: &[f32; N], secs: f64, spikes: f32
 	std::array::from_fn(|i| mean[i] + (max[i] - mean[i]).max(0.0) * reach)
 }
 
-/// Heights of each series in a column, 0 to 1, bottom first. Squeezed columns
-/// reach part way from their mean to their peak, less the more time they
-/// cover. A stack over 1 is scaled down to fit.
-pub fn column<const N: usize>(mean: &[f32; N], max: &[f32; N], secs: f64, spikes: f32) -> [f32; N] {
-	fit(reach(mean, max, secs, spikes), 1.0)
-}
-
 fn fit<const N: usize>(v: [f32; N], top: f32) -> [f32; N] {
 	let mut v = v.map(|x| (x / top).clamp(0.0, 1.0));
 	let total: f32 = v.iter().sum();
@@ -358,6 +351,11 @@ mod tests {
 
 	fn pack(c: [f32; 3]) -> u32 {
 		pack_alpha(c, 1.0)
+	}
+
+	// a column's heights as the drawing takes them, with a top of 1
+	fn column<const N: usize>(mean: &[f32; N], max: &[f32; N], secs: f64, spikes: f32) -> [f32; N] {
+		fit(reach(mean, max, secs, spikes), 1.0)
 	}
 
 	fn look() -> Look {
