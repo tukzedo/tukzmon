@@ -164,6 +164,25 @@ fTest_nix_step_removes_only_its_own_stores_that_no_checkout_pins() {
 	((ok))
 }
 
+## Test ID: deqvk
+fTest_no_file_a_package_holds_counts_as_docs_for_the_hook() {
+	local f='' pat='' n=0 ok=0
+	(
+		source "${cicd}/config.bash"
+		## The literal ones. A ${TUKZMON_*} one is a build output.
+		while IFS= read -r f; do
+			[[ -n "${f}" && "${f}" != *'${'* ]] || continue
+			n=$((n + 1))
+			for pat in "${DOCS_PATHS[@]}"; do
+				# shellcheck disable=2053  ## The pattern is meant to glob, as in the hook.
+				if [[ "${f}" == ${pat} ]]; then fWhy "${f} goes in a package, and matches DOCS_PATHS '${pat}'"; exit 1; fi
+			done
+		done < <(sed -n 's/^[[:space:]]*-[[:space:]]*src:[[:space:]]*//p' "${cicd}/packaging/nfpm.yaml")
+		((n)) || { fWhy "found no src in nfpm.yaml"; exit 1; }
+	) && ok=1
+	((ok))
+}
+
 failed=0
 while read -r id fn; do
 	if "${fn}"; then echo "PASS ${id} ${fn#fTest_}"; else echo "FAIL ${id} ${fn#fTest_}"; failed=1; fi
@@ -179,3 +198,4 @@ exit "${failed}"
 ##		- 2026-11-01: fRunPids skips a process that exits while it scans.
 ##		- 2026-11-01: The lists of files fail when git can't list them.
 ##		- 2026-11-01: The Nix step keeps the stores other checkouts pin.
+##		- 2026-11-01: No file a package holds counts as docs for the hook.

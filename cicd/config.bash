@@ -43,10 +43,11 @@ RUST_NIGHTLY="nightly-2026-10-16"
 
 ## Paths that don't change the product. A push to main that changes only
 ## these skips the merge gate. Bash patterns, matched against the whole path.
+## Nothing a package holds, such as license.txt, since the Packages step reads
+## it (test deqvk).
 DOCS_PATHS=(
 	'*.md'
 	'project/*'
-	'license.txt'
 )
 
 ## The release build dogfood copies from, and the dogfood itself.
@@ -137,3 +138,4 @@ CTR_NET_STEPS=(fStepAdvisories)
 ##		- 2026-10-25: The profiler.
 ##		- 2026-10-28: The Nix step's image and store cap.
 ##		- 2026-10-30: clang-format, clang-tidy, black and ruff pins.
+##		- 2026-11-01: license.txt isn't a docs path, since packages hold it.

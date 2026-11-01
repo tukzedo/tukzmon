@@ -638,15 +638,29 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 15: license.txt counts as docs only for the pre-push hook
 	- ID: 2026103115232016
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152320
 	- Opened by: t00mietum
 	- Steps to reproduce: Push to main a commit that only renames or deletes license.txt.
 	- Incorrect behavior: The gate is skipped, and the Packages step breaks on main.
 	- Expected behavior: Files that go into a package aren't docs.
+	- Reproduced: 2026-11-01, round-1101, by deqvk, which named license.txt.
+	- Actual cause: `license.txt` was in `DOCS_PATHS`, and `nfpm.yaml` puts it in both packages.
 	- Estimated effort: Low
+	- Actual effort: Low
 	- Origin: `ff4610a` (`DOCS_PATHS`). First review. Confirmed by reading `nfpm.yaml`.
+	- Progress log:
+		- `DOCS_PATHS` in `cicd/config.bash` no longer holds `license.txt`, and its comment says nothing a package holds goes there.
+		- New test deqvk fails when any literal `src:` in `nfpm.yaml` matches a `DOCS_PATHS` pattern.
+		- Verified: deqvk failed before the fix, naming license.txt, and passed after. The quick gate's lint passed.
+	- Decisions:
+		- The test reads `nfpm.yaml`, so a file added to a package later is caught too.
+		- Swept: `nix/package.nix` builds only from the Cargo files and the 4 crate folders, none under `DOCS_PATHS`. No `.md` or `project/` file goes into a package.
+	- Actual fix: dropped `license.txt` from `DOCS_PATHS`.
+	- Branch: round-1101
+	- Test case: `no_file_a_package_holds_counts_as_docs_for_the_hook` in `cicd/tests/guards.bash` (deqvk).
+	- Closed: 20261101-123700
 
 - Code review 20261031 item 14: The pre-push hook keeps the gate from removing images, and any value skips it
 	- ID: 2026103115232000
