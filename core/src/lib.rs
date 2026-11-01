@@ -1059,6 +1059,15 @@ mod tests {
 		for tip in &tips {
 			// pairs used to share a line, 2 spaces apart
 			assert!(tip.lines().all(|l| !l.contains("  ")), "{tip:?}");
+			// and a value a line, however the pairs are joined. "2 of 8 GiB" is one
+			for line in tip.lines() {
+				let values = line
+					.replace(" of ", "/")
+					.split(|c: char| !(c.is_ascii_digit() || c == '.' || c == '/'))
+					.filter(|w| w.starts_with(|c: char| c.is_ascii_digit()))
+					.count();
+				assert!(values <= 1, "{line:?} in {tip:?}");
+			}
 		}
 	}
 

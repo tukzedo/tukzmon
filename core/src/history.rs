@@ -633,9 +633,18 @@ mod tests {
 		assert!(close(s.mean[0], 0.5));
 		assert!(s.covered < 0.1);
 		assert_eq!(h.span(3.0, 4.0).covered, 0.0);
-		// the 2 s tier has a bucket with a hole in it, read as thin
+		// the 2 s tier keeps the gap as empty buckets
 		let s = h.tiers[2].buckets.len();
 		assert_eq!(s, 5);
+		// a 2 s bucket with a hole in it, read once the finer tiers let it go
+		let mut holed = History::<1>::default();
+		holed.add(0.0, 0.25, &[0.5]);
+		holed.add(1.5, 1.75, &[0.5]);
+		holed.add(3000.0, 3000.25, &[0.5]);
+		assert!(holed.tiers[1].start() > 2.0);
+		let s = holed.span(0.0, 1.75);
+		assert!(close(s.mean[0], 0.5));
+		assert!(close(s.covered, 0.5 / 1.75), "{}", s.covered);
 	}
 
 	// Test ID: debj1
@@ -752,10 +761,41 @@ mod tests {
 		let mut other = bytes.clone();
 		other[24..32].copy_from_slice(&0.5f64.to_le_bytes());
 		assert!(History::<2>::decode(&other).is_none());
-		// a bucket count past what the fine tier keeps
+		// a bucket count past what the file holds
 		let mut over = bytes.clone();
 		over[40..44].copy_from_slice(&9000u32.to_le_bytes());
 		assert!(History::<2>::decode(&over).is_none());
+		// one bucket past what a full tier keeps, though the file holds it
+		let mut full = History::<2>::default();
+		for i in 0..600 {
+			let t = 1.76e9 + f64::from(i) * 0.5;
+			full.add(t, t + 0.5, &[0.5, 0.25]);
+		}
+		assert_eq!(full.tiers[0].buckets.len() as i64, full.tiers[0].cap());
+		assert!((full.tiers[1].buckets.len() as i64) < full.tiers[1].cap());
+		let mut bytes = Vec::new();
+		full.encode(&mut bytes);
+		assert!(History::<2>::decode(&one_more(&bytes, 0)).is_none());
+		assert!(History::<2>::decode(&one_more(&bytes, 1)).is_some());
+	}
+
+	// a copy of tier `k`'s first bucket put in front of it, and the
+	// history's start moved back to cover it
+	fn one_more(bytes: &[u8], k: usize) -> Vec<u8> {
+		const BUCKET: usize = 4 * (3 * 2 + 1) + 2 * 8;
+		let u32_at = |at: usize| u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap());
+		let mut at = 24;
+		for _ in 0..k {
+			at += 20 + u32_at(at + 16) as usize * BUCKET;
+		}
+		let first = i64::from_le_bytes(bytes[at + 8..at + 16].try_into().unwrap());
+		let mut out = bytes.to_vec();
+		out[4..12].copy_from_slice(&0.0f64.to_le_bytes());
+		out[at + 8..at + 16].copy_from_slice(&(first - 1).to_le_bytes());
+		out[at + 16..at + 20].copy_from_slice(&(u32_at(at + 16) + 1).to_le_bytes());
+		let copy = bytes[at + 20..at + 20 + BUCKET].to_vec();
+		out.splice(at + 20..at + 20, copy);
+		out
 	}
 
 	// Test ID: demwf

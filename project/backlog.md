@@ -462,7 +462,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 21: Tests that can't fail, or check less than their names say
 	- ID: 2026103115232109
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152321
 	- Opened by: t00mietum
@@ -471,6 +471,19 @@ Sorted per the notes in [Template](#template).
 	- Expected behavior: Each fails when what it names breaks.
 	- Estimated effort: Low
 	- Origin: `87bc145` (decbh, debj0), `1d07a68` (dep7b). First review. decbh confirmed by mutation; the rest by reading.
+	- Actual effort: Low
+	- Progress log:
+		- decbh also gives a full fine tier one more bucket than it keeps, with the bytes for it in the file and the span widened to fit. The same change to a tier that isn't full still reads, so only the cap refuses it.
+		- debj0 also reads a 2 s bucket with a hole in it, after the finer tiers have let it go, and checks it covers 0.5 of its 1.75 s.
+		- dep7b also allows one value a line, with "2 of 8 GiB" as one.
+		- dep48 is `procs_sits_after_memory_and_stacks_by_owner` now, and draws with the default order, so procs sits between memory and swap.
+		- Verified: the quick gate passed. Each test failed with what it names broken: decbh with the cap check out, debj0 with a holed bucket read as full, dep7b with temperature's 2 lines joined by a comma, and dep48 with `set_look` keeping the old order.
+	- Decisions:
+		- The old asserts stay. decbh's 9000-bucket case is now said to be past what the file holds, and debj0's bucket count is the gap kept as empty buckets.
+		- Swept: demwf, the other test that changes a history file's bytes, checks a count that nothing else refuses. defq5 and defq6 lay out `three()` in its own order, with no procs.
+	- Branch: round-1101
+	- Test case: decbh, debj0, dep7b and dep48, each run with its mutation above and without.
+	- Closed: 20261101-122102
 
 - Code review 20261031 item 20: Each trim past the max age eases the time axis again
 	- ID: 2026103115232093

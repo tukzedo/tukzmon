@@ -2148,14 +2148,15 @@ mod tests {
 	// Test ID: dep48
 	#[test]
 	#[cfg(unix)]
-	fn procs_sits_after_load_and_stacks_by_owner() {
+	fn procs_sits_after_memory_and_stacks_by_owner() {
 		let path = scratch("procs");
 		let mut g = three();
-		let look = g.look().clone().with(Which::Procs, |e| {
+		let mut look = g.look().clone().with(Which::Procs, |e| {
 			e.show = true;
 			e.width = 100;
 			e.mode = Mode::Detailed;
 		});
+		look.order.clone_from(&Look::default().order);
 		assert!(!Look::default()[Which::Procs].show);
 		assert_eq!(Look::default().order[1..3], ["mem", "procs"]);
 		g.put(Graph::with(look.clone(), ProcsReader::at("/nowhere", 1000)));
@@ -2168,7 +2169,7 @@ mod tests {
 		let (w, h) = (80 + 3 * G, 40 + 2 * E);
 		let procs = g.the_mut::<ProcsReader, 3>().render(20, 40, 1).to_vec();
 		let px = g.render(w, h, 1).to_vec();
-		sits(&px, w, &procs, (60 + 3 * G, E, 20, 40));
+		sits(&px, w, &procs, (40 + 2 * G, E, 20, 40));
 		// over the floor, so the top is the count
 		let top = g.the::<ProcsReader, 3>().peak.top();
 		assert!((top - 200.0).abs() < 1e-9, "{top}");
@@ -2179,7 +2180,7 @@ mod tests {
 		assert_eq!(row(ph / 4), colors[0].argb());
 		assert_eq!(row(ph * 5 / 8), colors[1].argb());
 		assert_eq!(row(ph * 7 / 8), colors[2].argb());
-		let tip = g.hover_tip(65 + 3 * G, 3, w, h, 1);
+		let tip = g.hover_tip(45 + 2 * G, 3, w, h, 1);
 		assert!(
 			tip.contains("\nProcesses 200\nYours 50\nOther users 50\nSystem 100"),
 			"{tip}"
