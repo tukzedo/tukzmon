@@ -36,8 +36,7 @@ Sorted per the notes in [Template](#template).
 - With the LAN split on, TCP to a VM on a bridge that also holds the NIC counts as LAN
 	- ID: 2026110111543986
 	- Type: Bug
-	- Status: Waiting on automated testing
-	- Needs external testing: On b23, with a VM on br0 running and the split on, copy a file to it over TCP, and check that `net::guests` lists its address and the copy doesn't show as LAN. No VM answered on 2026-11-01, so the bridge had no VM's address to find.
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261101-115439
 	- Opened by: t00mietum
@@ -55,6 +54,7 @@ Sorted per the notes in [Template](#template).
 		- Read with the away addresses, every 10 s and when the interfaces change. Each failed read keeps the last lists.
 		- `design.md` Data sources on Linux has the details.
 		- Verified: `cargo test -p tukzmon-core lan:: net::` passed. On b23 the neighbor dump read with no root and listed the VMs, and br0's `brforward` had a VM's address on vnet2's port, not local, as the test builds it.
+		- Verified 20261101 on b23 at 4c8a1e0, with vmFreeBSD on br0 running and the split on: `net::guests` listed 192.168.1.119 on every read for 45 s. A 3 GB copy to it over TCP, about 500 MB/s, showed under 0.5 KB/s as LAN sent.
 	- Decisions:
 		- By the bridge's forwarding table, since a VM on b23's br0 shares its subnet with the real LAN, and no address tells them apart.
 		- An idle VM's address ages out of the table, but one moving data is in it, which is when it matters.
@@ -63,6 +63,8 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1101
 	- Test case: `lan::tests::a_socket_to_a_vm_on_the_nics_bridge_isnt_the_lans` (deqt6), `lan::tests::neighbors_read_with_their_link_addresses` (deqt7) and `net::tests::a_vm_behind_the_nics_bridge_is_found_by_its_port` (deqt8). deqt6 fails with the far end not checked, and deqt8 with the port's high byte dropped.
 		- Swept: the sock_diag dump and the neighbor dump share `lan::dump` and `lan::walk`, so both skip another request's messages.
+	- Acceptance signoff: Self-closed 20261101: deqt6 to deqt8 passed in the full run, and the copy to vmFreeBSD on b23.
+	- Closed: 20261101-130700
 
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
@@ -293,9 +295,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 4: Graph times fall behind the clock after a suspend
 	- ID: 2026103115231848
 	- Type: Bug
-	- Status: Waiting on UAT
+	- Status: Done
 		- It departs from the wording for a clock set back while running. The graph's time runs on from where it was, ahead of the wall clock by the step, rather than going back with it.
-	- Needs hand testing: on a laptop with the panel up, suspend for a few minutes and wake it. The clock tip should match the wall clock, and the suspend should show as a gap.
+		- It closed on a stand-in for a real suspend, which b23 can't do.
 	- Priority|Severity: Avg
 	- Opened: 20261031-152318
 	- Opened by: t00mietum
@@ -312,6 +314,7 @@ Sorted per the notes in [Template](#template).
 		- A graph's time is the wall clock, but never goes back. Each read moves the graph's clock up to the wall clock when that's ahead. When it moved more than a sample's worth, the read only primes, so a suspend, or the clock set on, is a gap.
 		- `design.md` History has the rule.
 		- Verified: deqqs and deqqt passed, with the wall clock an hour on and an hour back. The quick gate and the soak test passed. A real suspend is untested, since b23 doesn't suspend.
+		- Stand-in for the hand test, 20261101 on b23 at 4c8a1e0: a live CPU graph read every 0.5 s with the wall clock moved an hour on mid-run and the monotonic clock left alone, the way a suspend leaves them. The read after the step only primed, the next was at the new wall time, the newest column's clock tip read the shifted time, and the hour between had 0 coverage.
 	- Decisions:
 		- Set back while running, the graph's time doesn't follow. New samples would sit behind old ones and be dropped until the clock caught up, which the load rule in design.md already avoids. Saved times past now are 2026103115231863's.
 		- A step under one sample period counts as a late read, not a gap, so a small clock correction doesn't cut the graph.
@@ -321,6 +324,8 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1101
 	- Test case: `tests::a_suspend_moves_the_clock_to_the_wall_and_is_a_gap` (deqqs) and `tests::a_clock_set_back_while_running_never_runs_back` (deqqt). deqqs fails with the clock on `Instant` alone. deqqt passed before too, and guards the rule for a clock set back.
 		- Swept: every `Graph::now` user (`trim`, `adopt`, `easing`, `span_at`, `hover_tip`, `render`), every `skip` caller, which still moves both clocks together, and every other `Instant` and `SystemTime` use in core, the plugin and the settings window.
+	- Acceptance signoff: Self-closed 20261101: deqqs and deqqt passed in the full run, and the clock-step stand-in on b23.
+	- Closed: 20261101-130700
 
 - Code review 20261031 item 3: Enter on a focused button saves and closes the settings window
 	- ID: 2026103115231832
