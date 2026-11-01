@@ -213,6 +213,47 @@ Sorted per the notes in [Template](#template).
 		- The Delete theme and Reset history questions have no default button set, so Qt picks Yes. Make it No for both.
 	- Estimated effort: Low
 
+- Pre-next-cut: General tab names and layout
+	- ID: 2026110109585212
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261101-095852
+	- Opened by: t00mietum
+	- Related IDs: 2026110109585213
+	- Requirements:
+		- Tab: "General":
+			- Size "Width px" -> "Width px default"
+			- "Time" heading -> "Time axis"
+				- "Time axis default" -> "Scale default"
+				- "Hover shows": Default to "How long ago".
+			- Move "Border px" under Size/"Width px default". (And remove the "Frame" section.)
+			- Move "Max age in days" to the right of "Keep across restarts", rather than below it.
+			- "History" -> "Timespan"
+			- New section at the bottom: "Misc"
+				- Disk drives. Remove the "Disk graph" section.
+				- LAN and internet. Remove the "Network graph" section.
+	- Estimated effort: Low
+
+- Pre-next-cut: Vertical axis scale, as a default and per graph
+	- ID: 2026110109585213
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261101-095852
+	- Opened by: t00mietum
+	- Related IDs: 2026110109585212
+	- Requirements:
+		- Tab: "General":
+			- New section "Vertical axis":
+				- New dropdown "Scale default": "Linear", "log₁₀", "𝜒²"
+			- Remove "Disk log scale" checkbox from "Disk graph".
+		- Themes|Colors tab:
+			- For each monitor, add "Vertical scale:", with same options (but per-monitor) as "Vertical axis"/"Scale default", but with an additional "Global default" option (default selection).
+	- Need to work out ambiguities:
+		- What the 𝜒² scale maps a value to.
+	- Estimated effort: Avg
+
 - Code review 20261031 item 23: Dead code in the settings window and public items only tests use
 	- ID: 2026103115232140
 	- Type: Bug
