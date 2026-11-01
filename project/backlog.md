@@ -173,16 +173,31 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 6: Format and Lint pass on no files when git ls-files fails
 	- ID: 2026103115231879
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-152318
 	- Opened by: t00mietum
 	- Steps to reproduce: Run the gate on a repo with `extensions.relativeWorktrees` set, which the image git 2.47 refuses, or on a tree that is not a git repo.
 	- Incorrect behavior: shellcheck, markdownlint, clang-tidy, ruff, clang-format, black and the stray test ID check run on nothing, and the step passes.
 	- Expected behavior: The step fails when git fails, or when a kind that should have files has none.
+	- Reproduced: 2026-11-01, round-1101, on a copy of the tracked files with no repo: Format passed on no C++ or Python files, and `test-ids.bash check` passed.
 	- Possible cause: `mapfile < <(git ls-files ...)` loses the exit status.
+	- Actual cause: as above, in Format, Lint and `fStrays` in `test-ids.bash`.
 	- Estimated effort: Low
+	- Actual effort: Low
 	- Origin: `ff4610a` (Lint list) and `4993f98` (`fFilesLike`). First review. Confirmed in the image with a probe repo.
+	- Progress log:
+		- Format and Lint take their lists from `fTreeFiles`, which fails when git does. Each fails when a kind it checks has no files: C++ and Python in Format, and shell, Markdown, C++ and Python in Lint.
+		- `test-ids.bash check` counts it as a problem when git can't list the `.rs` files, or lists none.
+		- Verified: on the copy with no repo, Format and `test-ids.bash check` now fail, and the old `cicd.bash` passed Format there. deqrd fails before the fix and passes after. deqrc checks the new list and count helpers, which the old code didn't have. The quick gate's format, lint and tests passed in the image.
+	- Decisions:
+		- A kind with no files fails the step, with no list of expected kinds to keep. Each tool is in the step because the repo has that kind, so the message says to take the tool out if there are none on purpose.
+		- Lint goes on past a failed list, as it does past a failed tool, so one run shows every problem.
+		- Swept: the Nix step's `git ls-files` pipe fails with pipefail already, and the sync step's untracked check reads a failed git as dirty, which is safe. No other script lists files through git.
+	- Actual fix: `fTreeFiles` and `fSomeOf` in `cicd/cicd.bash`, in place of `fFilesLike` and the Lint step's `mapfile`, and the git check in `fStrays` in `cicd/utility/test-ids.bash`.
+	- Branch: round-1101
+	- Test case: `lists_of_files_fail_when_git_does_or_a_kind_has_none` (deqrc) and `test_ids_check_fails_when_git_cant_list_the_rs_files` (deqrd), in `cicd/tests/guards.bash`.
+	- Closed: 20261101-105821
 
 - Code review 20261031 item 5: History files aren't checked for times and values out of bounds
 	- ID: 2026103115231863

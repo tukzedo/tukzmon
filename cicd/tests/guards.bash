@@ -105,6 +105,39 @@ fTest_run_pids_skips_a_process_gone_since_the_grep() {
 	[[ "${out}" == "${live}" ]] || { fWhy "got '${out}', not the live pid ${live}"; return 1; }
 }
 
+## Test ID: deqrc
+fTest_lists_of_files_fail_when_git_does_or_a_kind_has_none() {
+	local t="${work}/tree" ok=0
+	mkdir -p -- "${t}/none" "${t}/repo"
+	(
+		## As cicd.bash has them, since sourcing it runs it.
+		eval "$(awk '/^(fTreeFiles|fSomeOf)\(\)/, /^}/' "${cicd}/cicd.bash")"
+		fEcho_Clean() { :; }
+		local -a got=()
+		## The folder above isn't a repo, as one that git refuses isn't.
+		cd "${t}/none" && export GIT_CEILING_DIRECTORIES="${t}"
+		if fTreeFiles got 2> /dev/null; then fWhy "listed ${#got[@]} file(s) with no repo"; exit 1; fi
+		cd "${t}/repo" && git init -q . && printf 'x\n' > a.md && printf 'y\n' > b.py && git add a.md
+		fTreeFiles got '*.md' '*.py' || { fWhy "failed in a repo"; exit 1; }
+		[[ "$(printf '%s\n' "${got[@]}" | LC_ALL=C sort | paste -sd ' ')" == "a.md b.py" ]] || { fWhy "listed '${got[*]}'"; exit 1; }
+		fSomeOf Python 1 || { fWhy "refused a kind with 1 file"; exit 1; }
+		if fSomeOf Python 0; then fWhy "took a kind with none"; exit 1; fi
+	) && ok=1
+	((ok))
+}
+
+## Test ID: deqrd
+fTest_test_ids_check_fails_when_git_cant_list_the_rs_files() {
+	local t="${work}/ids-nogit" out=''
+	mkdir -p -- "${t}/cicd/utility" "${t}/a/src"
+	cp -- "${cicd}/utility/test-ids.bash" "${t}/cicd/utility/"
+	printf '[workspace]\nmembers = ["a"]\n' > "${t}/Cargo.toml"
+	printf '[package]\nname = "a-pkg"\n' > "${t}/a/Cargo.toml"
+	printf 'mod tests {\n\t// Test ID: dek00\n\t#[test]\n\tfn one() {}\n}\n' > "${t}/a/src/lib.rs"
+	if out="$(GIT_CEILING_DIRECTORIES="${work}" bash "${t}/cicd/utility/test-ids.bash" check 2>&1)"; then fWhy "passed with no repo: ${out}"; return 1; fi
+	[[ "${out}" == *"so none was checked for a stray test"* ]] || { fWhy "got: ${out}"; return 1; }
+}
+
 failed=0
 while read -r id fn; do
 	if "${fn}"; then echo "PASS ${id} ${fn#fTest_}"; else echo "FAIL ${id} ${fn#fTest_}"; failed=1; fi
@@ -118,3 +151,4 @@ exit "${failed}"
 ##		- 2026-10-30: test-ids.bash keeps each file's modules and lines to
 ##		  itself.
 ##		- 2026-11-01: fRunPids skips a process that exits while it scans.
+##		- 2026-11-01: The lists of files fail when git can't list them.

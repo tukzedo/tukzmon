@@ -368,13 +368,28 @@ fStepSync() {
 	fEcho_Clean "fast-forwarded ${behind} commit(s) from ${upstream}"
 }
 
-## The tracked and untracked files of one kind, as lint lists them.
-fFilesLike() { git ls-files --cached --others --exclude-standard -- "$@" | while IFS= read -r f; do [[ ! -f "${f}" ]] || printf '%s\n' "${f}"; done; }
+## The tracked and untracked files, of the kinds given if any, into ARRAY.
+## Untracked too, since they go out with the next commit. Not through a
+## process substitution, which would hide git failing, as an old git does on
+## a worktree with relative paths.
+fTreeFiles() {   ## fTreeFiles ARRAY [PATHSPEC...]
+	local -n treeFiles_out="${1:?}"; shift
+	local listed='' f=''
+	treeFiles_out=()
+	listed="$(git ls-files --cached --others --exclude-standard -- "$@")" || { fEcho_Clean "git couldn't list the files"; return 1; }
+	while IFS= read -r f; do [[ ! -f "${f}" ]] || treeFiles_out+=("${f}"); done <<< "${listed}"
+}
+
+## Each kind a step checks is there because the repo has some, so none means
+## the list is wrong.
+fSomeOf() {   ## fSomeOf KIND COUNT
+	(($2)) || { fEcho_Clean "no ${1} files were found; if there are none on purpose, take its tools out of the step"; return 1; }
+}
 
 fStepFormat() {
 	local -a cppFiles=() pyFiles=()
-	mapfile -t cppFiles < <(fFilesLike '*.cpp' '*.h')
-	mapfile -t pyFiles < <(fFilesLike '*.py')
+	fTreeFiles cppFiles '*.cpp' '*.h' && fTreeFiles pyFiles '*.py' || return 1
+	fSomeOf C++ "${#cppFiles[@]}" && fSomeOf Python "${#pyFiles[@]}" || return 1
 	if ((handsOff)); then
 		fEcho_Clean "cargo fmt --all --check"
 		cargo fmt --all --check || { fEcho_Clean "run cargo fmt --all and commit"; return 1; }
@@ -453,10 +468,8 @@ fStepLint() {
 		if [[ -z "${have}" ]]; then fLintRun echo "WARNING: ${pinName} isn't installed (pinned ${pinWant})"
 		elif [[ "${have}" != *"${pinWant}"* ]]; then fLintRun echo "WARNING: ${pinName} drifted from pin ${pinWant}: ${have//$'\n'/ }"; fi
 	done
-	## Untracked files too, since they go out with the next commit.
-	mapfile -t files < <(git ls-files --cached --others --exclude-standard)
+	fTreeFiles files || failed+=("git ls-files")
 	for f in "${files[@]}"; do
-		[[ -f "${f}" ]] || continue
 		case "${f}" in
 			*.bash|cicd/hooks/*) shFiles+=("${f}") ;;
 			*.md) mdFiles+=("${f}") ;;
@@ -464,6 +477,10 @@ fStepLint() {
 			*.py) pyFiles+=("${f}") ;;
 		esac
 	done
+	fSomeOf shell "${#shFiles[@]}" || failed+=("no shell files")
+	fSomeOf Markdown "${#mdFiles[@]}" || failed+=("no Markdown files")
+	fSomeOf C++ "${#cppFiles[@]}" || failed+=("no C++ files")
+	fSomeOf Python "${#pyFiles[@]}" || failed+=("no Python files")
 
 	fEcho_Clean "clippy -D warnings -j ${jobs}, the profiler's workload too"
 	if CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${root}/target}/clippy" fLintRun cargo clippy --workspace --all-targets --features tukzmon-core/profiling "${locked[@]}" -j "${jobs}" -- -D warnings; then
@@ -1169,3 +1186,5 @@ exit 0
 ##		- 2026-10-30: The Tests step runs cicd/tests/ too.
 ##		- 2026-10-30: clang-format and black in Format, clang-tidy and ruff in
 ##		  Lint, and qt.cpp's warnings fail a build.
+##		- 2026-11-01: Format and Lint fail when git can't list the files, or
+##		  lists none of a kind they check.
