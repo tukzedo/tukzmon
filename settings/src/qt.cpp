@@ -42,6 +42,7 @@
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QSlider>
+#include <QSocketNotifier>
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QStyle>
@@ -53,14 +54,23 @@
 #include <QVBoxLayout>
 #include <QWindow>
 
+#include <dlfcn.h>
+#include <fcntl.h>
+#include <unistd.h>
+
 #include <algorithm>
 #include <array>
+#include <cerrno>
+#include <csignal>
 #include <climits>
 #include <cmath>
+#include <cstdint>
+#include <cstdlib>
 #include <functional>
 #include <initializer_list>
 #include <map>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <utility>
 #include <memory>
@@ -1999,6 +2009,135 @@ private:
 	}
 };
 
+// Properties on the panel item sends SIGUSR1 when this window is open
+// already. The handler only writes a byte, and the event loop does the rest.
+class Wake final {
+public:
+	explicit Wake(std::function<void()> act) {
+		if (pipe2(fds.data(), O_CLOEXEC | O_NONBLOCK) != 0)
+			return;
+		writeEnd = fds[1];
+		struct sigaction sa{};
+		sa.sa_handler = onSignal;
+		sigemptyset(&sa.sa_mask);
+		sa.sa_flags = SA_RESTART;
+		if (sigaction(SIGUSR1, &sa, &before) != 0) {
+			writeEnd = -1;
+			return;
+		}
+		caught = true;
+		notifier = std::make_unique<QSocketNotifier>(fds[0], QSocketNotifier::Read);
+		QObject::connect(notifier.get(), &QSocketNotifier::activated, [this, act = std::move(act)] {
+			std::array<char, 16> drain{};
+			while (read(fds[0], drain.data(), drain.size()) > 0) {
+			}
+			act();
+		});
+	}
+	Wake(const Wake &) = delete;
+	Wake &operator=(const Wake &) = delete;
+	Wake(Wake &&) = delete;
+	Wake &operator=(Wake &&) = delete;
+	~Wake() {
+		if (caught)
+			sigaction(SIGUSR1, &before, nullptr);
+		writeEnd = -1;
+		notifier.reset();
+		for (const int fd : fds)
+			if (fd >= 0)
+				close(fd);
+	}
+
+private:
+	static void onSignal(int) {
+		const int saved = errno;
+		if (writeEnd >= 0)
+			(void)!write(writeEnd, "w", 1);
+		errno = saved;
+	}
+	// a signal handler can reach nothing else
+	static inline volatile std::sig_atomic_t writeEnd =
+		-1; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+	std::array<int, 2> fds{-1, -1};
+	struct sigaction before{};
+	bool caught = false;
+	std::unique_ptr<QSocketNotifier> notifier;
+};
+
+// The few libxcb calls askActive makes, as libxcb declares them. Qt's xcb
+// plugin has the library loaded, so it's looked up rather than linked.
+struct XcbCookie {
+	unsigned int sequence;
+};
+struct XcbAtomReply {
+	std::uint8_t responseType, pad;
+	std::uint16_t sequence;
+	std::uint32_t length, atom;
+};
+// data points at the first screen, whose first field is its root window
+struct XcbScreens {
+	const std::uint32_t *data;
+	int rem, index;
+};
+struct XcbClientMessage {
+	std::uint8_t responseType, format;
+	std::uint16_t sequence;
+	std::uint32_t window, type;
+	std::array<std::uint32_t, 5> data;
+};
+
+// A window on another workspace is unmapped there, and Qt doesn't ask to
+// activate a window it thinks is unmapped. So this asks the way a task list
+// does, as a pager, which the window manager follows to the window's
+// workspace or brings it over, as it's set to. Nothing on Wayland.
+void askActive(QWidget &w) {
+	auto *x11 = qApp->nativeInterface<QNativeInterface::QX11Application>();
+	void *lib = x11 ? dlopen("libxcb.so.1", RTLD_LAZY | RTLD_NOLOAD) : nullptr;
+	if (!lib)
+		return;
+	auto *intern = reinterpret_cast<XcbCookie (*)(void *, std::uint8_t, std::uint16_t, const char *)>(
+		dlsym(lib, "xcb_intern_atom"));
+	auto *reply = reinterpret_cast<XcbAtomReply *(*)(void *, XcbCookie, void **)>(dlsym(lib, "xcb_intern_atom_reply"));
+	auto *setup = reinterpret_cast<const void *(*)(void *)>(dlsym(lib, "xcb_get_setup"));
+	auto *screens = reinterpret_cast<XcbScreens (*)(const void *)>(dlsym(lib, "xcb_setup_roots_iterator"));
+	auto *send = reinterpret_cast<XcbCookie (*)(void *, std::uint8_t, std::uint32_t, std::uint32_t, const char *)>(
+		dlsym(lib, "xcb_send_event"));
+	auto *flush = reinterpret_cast<int (*)(void *)>(dlsym(lib, "xcb_flush"));
+	void *c = x11->connection();
+	if (intern && reply && setup && screens && send && flush && c) {
+		static constexpr std::string_view name = "_NET_ACTIVE_WINDOW";
+		XcbAtomReply *atom = reply(c, intern(c, 0, std::uint16_t(name.size()), name.data()), nullptr);
+		const XcbScreens roots = screens(setup(c));
+		if (atom && roots.data) {
+			XcbClientMessage ev{};
+			ev.responseType = 33; // ClientMessage
+			ev.format = 32;
+			ev.window = std::uint32_t(w.winId());
+			ev.type = atom->atom;
+			ev.data[0] = 2; // from a pager, which focus-stealing guards let through
+			// SubstructureNotify and SubstructureRedirect, as EWMH asks
+			send(c, 0, *roots.data, (1U << 19) | (1U << 20), reinterpret_cast<const char *>(&ev));
+			flush(c);
+		}
+		std::free(atom); // NOLINT(cppcoreguidelines-no-malloc): libxcb mallocs its replies
+	}
+	dlclose(lib);
+}
+
+// Not minimized, on top, and focused, with a picker or question that's open
+// over it still on top of it.
+void comeForward(QWidget &w) {
+	w.setWindowState((w.windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
+	w.raise();
+	w.activateWindow();
+	QWidget *top = QApplication::activeModalWidget();
+	if (top && top != &w) {
+		top->raise();
+		top->activateWindow();
+	}
+	askActive(top ? *top : w);
+}
+
 // Qt reads argc and argv for as long as the app lives, and the platform
 // before the app is made, so both come from a base built first.
 struct AppArgs {
@@ -2041,8 +2180,10 @@ std::int32_t run_dialog(Dialog &d, rust::Str snapshot) {
 	tukzmon::App::setStyle(new BoxStyle);
 	Window w(d);
 	openSized(w);
-	if (snapshot.empty())
+	if (snapshot.empty()) {
+		const Wake wake([&w] { comeForward(w); });
 		return w.exec() == QDialog::Accepted ? 0 : 1;
+	}
 
 	// one picture per tab with rows, as base-1.png, base-2.png, and so on, then
 	// the color picker
@@ -2658,6 +2799,38 @@ rust::Vec<rust::String> window_fit(Dialog &d, rust::Str screens) {
 		tukzmon::App::processEvents();
 		out.push_back(rust::String(QString::fromStdString(w.tabText(i)).trimmed().toStdString() + " " + w.scrollNow()));
 	}
+	return out;
+}
+
+rust::Vec<rust::String> woken_by_signal(Dialog &d) {
+	const App app("offscreen");
+	Window w(d);
+	w.show();
+	tukzmon::App::processEvents();
+	w.setWindowState(Qt::WindowMinimized);
+	tukzmon::App::processEvents();
+	rust::Vec<rust::String> out;
+	auto handler = [] {
+		struct sigaction now{};
+		sigaction(SIGUSR1, nullptr, &now);
+		return now.sa_handler == SIG_DFL ? std::string("default") : std::string("caught");
+	};
+	{
+		int woken = 0;
+		const Wake wake([&] {
+			woken++;
+			comeForward(w);
+		});
+		out.push_back(rust::String("while open " + handler()));
+		std::raise(SIGUSR1);
+		QElapsedTimer t;
+		t.start();
+		while (!woken && t.elapsed() < 2000)
+			tukzmon::App::processEvents(QEventLoop::WaitForMoreEvents, 50);
+		out.push_back(rust::String("woken " + std::to_string(woken)));
+		out.push_back(rust::String(w.isMinimized() ? "minimized" : "shown"));
+	}
+	out.push_back(rust::String("after " + handler()));
 	return out;
 }
 

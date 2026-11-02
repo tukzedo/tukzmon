@@ -2189,6 +2189,36 @@ Sorted per the notes in [Template](#template).
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019
 
+- Properties seems to do nothing when the item's settings window is open already
+	- ID: 2026110210171300
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261102-101713
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232220
+	- Steps to reproduce: Open Properties, leave the window behind other windows, minimized or on another workspace, then pick Properties again.
+	- Incorrect behavior: Nothing comes up. The tip says the window is open already, but only if you hover the item.
+	- Expected behavior: The open window comes to the front.
+	- Reproduced: 20261102 on b23. Item 16's window from 2026-10-31 sat under other windows on the current workspace.
+	- Actual cause: Properties only found the window, by design in 2026103115232220. It never asked it to come forward.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Properties sends the open window SIGUSR1, and tukzmon-settings un-minimizes, raises and activates itself on it. On X11 it also sends `_NET_ACTIVE_WINDOW` as a pager, so a window on another workspace comes up too.
+		- A window from an older build doesn't catch SIGUSR1, which would end it. The plugin reads `SigCgt` in `/proc/<pid>/status` first, and leaves such a window alone with the old tip.
+		- The tip still says it's open on Wayland, where the compositor may not let it come forward.
+		- `design.md` Settings window has it.
+		- Verified: the quick gate passed. des4c failed with the signal not sent, and des4d with the handler doing nothing.
+		- Verified: under xfwm4, with `activate_action` switch or bring and focus stealing guard on or off, the window came to the top and took focus when buried, when minimized, and from another workspace.
+	- Decisions:
+		- A signal rather than a socket or D-Bus name, since the plugin already finds the window's process and signals it at Remove.
+		- libxcb is looked up from the copy Qt's xcb plugin has loaded, not linked, so no package or Nix input changes.
+	- Actual fix: `wake` in `xfce/src/lib.rs`, and `Wake`, `comeForward` and `askActive` in `settings/src/qt.cpp`.
+	- Branch: props-raise
+	- Test case: `tests::properties_brings_an_open_window_forward_and_leaves_an_older_one` (des4c) and `bridge::tests::sigusr1_brings_the_window_forward` (des4d).
+	- Closed: 20261102-103500
+
 - Code review 20261031 item 7: The network graph counts bridge, VM and VPN traffic as well
 	- ID: 2026103115231894
 	- Type: Bug

@@ -291,6 +291,12 @@ pub mod ffi {
 		/// of the first slider, each with the events it posts.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn refresh_micros(d: &mut Dialog, times: usize) -> Vec<f64>;
+		/// Minimizes the window, sends this thread SIGUSR1 with the window's
+		/// handler set, and gives the handler's state while it's set, how
+		/// many times it woke, whether the window is shown again, and the
+		/// handler's state after.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn woken_by_signal(d: &mut Dialog) -> Vec<String>;
 	}
 }
 
@@ -1280,6 +1286,22 @@ mod tests {
 		assert_eq!(
 			ffi::question_defaults(&mut d),
 			["Delete theme No", "Reset history No", "yes 00"]
+		);
+	}
+
+	// Test ID: des4d
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn sigusr1_brings_the_window_forward() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_wake_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		assert_eq!(
+			ffi::woken_by_signal(&mut d),
+			["while open caught", "woken 1", "shown", "after default"]
 		);
 	}
 
