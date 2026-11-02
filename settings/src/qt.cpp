@@ -726,7 +726,8 @@ public:
 		for (size_t side = 0; side < 2; side++) {
 			int labelWidth = 0;
 			for (auto &r : rows)
-				if (r->label && !r->info.section.empty() && size_t(r->info.beside) == side)
+				// a same_line row's label sits in the row it joins
+				if (r->label && !r->info.section.empty() && !r->info.same_line && size_t(r->info.beside) == side)
 					labelWidth = std::max(labelWidth, r->label->sizeHint().width());
 			for (auto &s : sections) {
 				s.side[side]->setColumnMinimumWidth(0, labelWidth);
@@ -1039,7 +1040,8 @@ public:
 			int left = 0;
 			int right = INT_MAX;
 			for (const auto &r : rows) {
-				if (r->info.section != s.graph || r.get() == s.title)
+				// the lead line spans both columns
+				if (r->info.section != s.graph || r.get() == s.title || (r->grid && r->grid == s.lead))
 					continue;
 				for (QWidget *w : {static_cast<QWidget *>(r->label), r->control, static_cast<QWidget *>(r->revert),
 						 static_cast<QWidget *>(r->head)}) {
@@ -1083,7 +1085,6 @@ public:
 		std::vector<std::string> out;
 		for (const auto &s : sections) {
 			std::array<int, 2> top{-1, -1};
-			bool mode = true;
 			for (const auto &r : rows) {
 				if (r->info.section != s.graph || r.get() == s.title)
 					continue;
@@ -1095,7 +1096,8 @@ public:
 						y = std::min(y, w->mapTo(s.box, QPoint()).y());
 				if (y == INT_MAX)
 					continue;
-				if (side == 0 && std::exchange(mode, false) && !r->head)
+				// the mode and what joins its line sit above both columns
+				if (r->grid && r->grid == s.lead)
 					continue;
 				if (top[side] < 0)
 					top[side] = y;
@@ -1365,7 +1367,11 @@ private:
 				auto *top = new QWidget;
 				s.lead = rowGrid(top);
 				s.lead->setContentsMargins(0, 0, 0, 0);
-				s.outer->addWidget(top, 2, 0, Qt::AlignTop);
+				s.outer->addWidget(top, 2, 0, 1, 2, Qt::AlignTop);
+				placeRow(r, info, s.lead, s.leadLine);
+				continue;
+			}
+			if (r.info.same_line && s.lead && lastPlaced && lastPlaced->grid == s.lead) {
 				placeRow(r, info, s.lead, s.leadLine);
 				continue;
 			}
@@ -2127,6 +2133,21 @@ rust::Vec<rust::String> row_spots(Dialog &d) {
 	Window w(d);
 	openSized(w);
 	w.show();
+	tukzmon::App::processEvents();
+	rust::Vec<rust::String> out;
+	for (auto &s : w.rowSpots())
+		out.push_back(rust::String(s));
+	return out;
+}
+
+rust::Vec<rust::String> colors_row_spots(Dialog &d) {
+	const App app("offscreen");
+	Window w(d);
+	openSized(w);
+	w.show();
+	for (int i = 0; i < w.tabCount(); i++)
+		if (QString::fromStdString(w.tabText(i)).trimmed() == "Colors")
+			w.select(i);
 	tukzmon::App::processEvents();
 	rust::Vec<rust::String> out;
 	for (auto &s : w.rowSpots())

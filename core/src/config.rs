@@ -12,7 +12,7 @@ use knobs::{Model, NoEnv, Spec};
 
 use crate::axis::{Curve, Timing};
 use crate::disk::Drives;
-use crate::render::Paint;
+use crate::render::{Paint, Vertical};
 use crate::when::Said;
 
 /// The settings spec, in shcl.
@@ -442,11 +442,27 @@ const OLD_SHARED: [(&str, &str); 3] = [
 	("graph.colors.bottom", "back_bottom"),
 ];
 
+// Old paths moved on load: see shared_colors_upgraded and the disk graph's
+// log scale, which became its Vertical scale.
+fn upgraded(doc: &shcl::Document) -> Option<shcl::Document> {
+	let mut out = shared_colors_upgraded(doc);
+	if doc.exists(OLD_DISK_LOG) {
+		let out = out.get_or_insert_with(|| doc.clone());
+		if doc.get_bool(OLD_DISK_LOG) == Ok(true) && !out.exists("disk.vertical") {
+			let _ = out.set_string("disk.vertical", "log10");
+		}
+		out.remove(OLD_DISK_LOG);
+	}
+	out
+}
+
+const OLD_DISK_LOG: &str = "disk.log";
+
 // A file from before each graph had its own border and background gives every
 // graph the shared ones, so it keeps its look. The old paths are how it's told
 // apart: a save leaves out a graph's colors when they're its theme's, so a
 // missing one says nothing. 2026102820512294.
-fn upgraded(doc: &shcl::Document) -> Option<shcl::Document> {
+fn shared_colors_upgraded(doc: &shcl::Document) -> Option<shcl::Document> {
 	let bases = [String::new(), format!("kept.changes.{THEME}.values.")];
 	let old_at = |base: &String| OLD_SHARED.map(|(old, shared)| (format!("{base}{old}"), shared));
 	if !bases.iter().flat_map(old_at).any(|(at, _)| doc.exists(&at)) {
@@ -695,6 +711,8 @@ pub struct Each {
 	pub sample: u32,
 	/// None follows `time`. See [`Look::timing`].
 	pub time: Option<Timing>,
+	/// None follows `vertical`. See [`Look::scaling`].
+	pub vertical: Option<Vertical>,
 	/// In [`Which::color_ids`] order, and black past its series count.
 	pub colors: [Rgb; MOST_SERIES],
 	/// Detailed or Gradient.
@@ -712,6 +730,8 @@ pub struct Look {
 	pub width: u32,
 	/// What a graph with no time axis of its own follows.
 	pub time: Timing,
+	/// What a graph with no vertical scale of its own follows.
+	pub vertical: Vertical,
 	/// Milliseconds between reads, before each graph's own rate.
 	pub sample_ms: u32,
 	/// What the hover tip says about the time under the pointer.
@@ -733,8 +753,6 @@ pub struct Look {
 	pub graphs: [Each; Which::ALL.len()],
 	/// How the network graph tells the LAN from the internet.
 	pub net_split: Split,
-	/// A log scale up the disk graph.
-	pub disk_log: bool,
 	/// `/proc/diskstats` names, or `all`. See [`Look::drives`].
 	pub disk_drives: Vec<String>,
 	/// Graph names as saved, first drawn first. See [`graph_order`].
@@ -816,6 +834,7 @@ impl Look {
 				width: num(&format!("{k}_width")) as u32,
 				sample: num(&format!("{k}_sample")) as u32,
 				time: Timing::parse(m.value(&format!("{k}_time"), &NoEnv).as_text()),
+				vertical: Vertical::parse(m.value(&format!("{k}_vertical"), &NoEnv).as_text()),
 				colors,
 				mode: Mode::parse(m.value(&format!("{k}_mode"), &NoEnv).as_text())
 					.unwrap_or_default(),
@@ -831,6 +850,8 @@ impl Look {
 			width: num("width") as u32,
 			time: Timing::parse(m.value("time_axis", &NoEnv).as_text())
 				.unwrap_or(Timing::Log(Curve::Smooth)),
+			vertical: Vertical::parse(m.value("vertical_axis", &NoEnv).as_text())
+				.unwrap_or_default(),
 			sample_ms: num("sample_ms") as u32,
 			said: Said::parse(m.value("hover_time", &NoEnv).as_text()).unwrap_or_default(),
 			spikes: (num("spikes") / 100.0) as f32,
@@ -841,7 +862,6 @@ impl Look {
 			max_days: num("max_days") as u32,
 			graphs: Which::ALL.map(each),
 			net_split: Split::parse(m.value("net_split", &NoEnv).as_text()).unwrap_or_default(),
-			disk_log: m.value("disk_log", &NoEnv).as_bool(),
 			disk_drives: graph_order(m.value("disk_drives", &NoEnv).as_text()),
 			order: graph_order(m.value("graph_order", &NoEnv).as_text()),
 			border_color: color("border_color"),
@@ -883,6 +903,11 @@ impl Look {
 	/// A graph's own pick, or else Scale default under Time axis.
 	pub fn timing(&self, own: Option<Timing>) -> Timing {
 		own.unwrap_or(self.time)
+	}
+
+	/// A graph's own vertical scale, or else Scale default under Vertical axis.
+	pub fn scaling(&self, own: Option<Vertical>) -> Vertical {
+		own.unwrap_or(self.vertical)
 	}
 
 	/// A graph's sample rate in ms from its percentage of Sample ms default,
@@ -1877,7 +1902,7 @@ mod tests {
 	#[test]
 	fn the_disk_graph_counts_every_disk_or_the_ones_named() {
 		assert_eq!(Look::default().drives(), Drives::All);
-		assert!(!Look::default().disk_log);
+		assert_eq!(Look::default()[Which::Disk].vertical, None);
 		for text in ["disk:\n\tdrives: all\n", "disk:\n\tdrives: \"\"\n"] {
 			assert_eq!(
 				Look::from_model(&model(text)).drives(),
@@ -1889,6 +1914,42 @@ mod tests {
 			Look::from_model(&model("disk:\n\tdrives: sda, nvme0n1\n\tlog: true\n")).drives(),
 			Drives::Only(vec!["sda".into(), "nvme0n1".into()])
 		);
+	}
+
+	// Test ID: der3n
+	#[test]
+	fn the_old_disk_log_scale_is_the_disk_graphs_own_log10() {
+		let disk = |text: &str| Look::from_model(&model(text))[Which::Disk].vertical;
+		assert_eq!(disk("disk:\n\tlog: true\n"), Some(Vertical::Log10));
+		assert_eq!(disk("disk:\n\tlog: false\n"), None);
+		assert_eq!(
+			disk("disk:\n\tlog: true\n\tvertical: squared\n"),
+			Some(Vertical::Squared)
+		);
+		let up = upgraded(&shcl::Document::parse("disk:\n\tlog: true\n")).unwrap();
+		assert!(!up.exists("disk.log"));
+		assert_eq!(up.get_string("disk.vertical").unwrap(), "log10");
+		assert!(upgraded(&shcl::Document::parse("disk:\n\tdrives: sda\n")).is_none());
+		// the other graphs and the default stay as they were
+		let l = Look::from_model(&model("disk:\n\tlog: true\n"));
+		assert_eq!(l.vertical, Vertical::Linear);
+		assert_eq!(l[Which::Net].vertical, None);
+	}
+
+	// Test ID: der3p
+	#[test]
+	fn a_graph_follows_the_vertical_default_unless_it_picks_its_own() {
+		let l = Look::default();
+		assert_eq!(l.vertical, Vertical::Linear);
+		assert!(Which::ALL.into_iter().all(|w| l[w].vertical.is_none()));
+		let l = Look::from_model(&model(
+			"graph:\n\tvertical: squared\ncpu:\n\tvertical: log10\nmem:\n\tvertical: linear\n",
+		));
+		assert_eq!(l.scaling(l[Which::Cpu].vertical), Vertical::Log10);
+		assert_eq!(l.scaling(l[Which::Mem].vertical), Vertical::Linear);
+		assert_eq!(l.scaling(l[Which::Disk].vertical), Vertical::Squared);
+		let wobbly = Look::from_model(&model("graph:\n\tvertical: wobbly\n"));
+		assert_eq!(wobbly.vertical, Vertical::Linear);
 	}
 
 	// Test ID: demw1

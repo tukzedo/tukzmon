@@ -57,6 +57,7 @@ fn main() {
 		look: &look,
 		paint: look.paint(Which::Cpu),
 		outline: look[Which::Cpu].outline,
+		vertical: look.scaling(look[Which::Cpu].vertical),
 	}
 	.draw(&mut px, w, h, 1);
 

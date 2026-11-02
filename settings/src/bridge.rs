@@ -209,6 +209,9 @@ pub mod ffi {
 		/// control's left edge, in the window.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn row_spots(d: &mut Dialog) -> Vec<String>;
+		/// As `row_spots`, with Themes/Colors shown.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn colors_row_spots(d: &mut Dialog) -> Vec<String>;
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn bottom_buttons(d: &mut Dialog) -> Vec<String>;
 		/// Enter pressed on the first button shown with this text, or with ""
@@ -1166,7 +1169,11 @@ mod tests {
 		let general = heads.iter().find(|l| l.starts_with("General|")).unwrap();
 		let mut got: Vec<&str> = general.split('|').nth(1).unwrap().split(';').collect();
 		got.sort_unstable();
-		assert_eq!(got, ["Misc", "Size", "Time axis", "Timespan"], "{general}");
+		assert_eq!(
+			got,
+			["Misc", "Size", "Time axis", "Timespan", "Vertical axis"],
+			"{general}"
+		);
 		let spots = ffi::row_spots(&mut d);
 		let mid = |id: &str| -> i32 {
 			let line = spots
@@ -1180,9 +1187,9 @@ mod tests {
 			"border",
 			"time_axis",
 			"hover_time",
+			"vertical_axis",
 			"keep_history",
 			"disk_drives",
-			"disk_log",
 			"net_split",
 		];
 		for pair in order.windows(2) {
@@ -1216,6 +1223,38 @@ mod tests {
 		assert!(days[0] > keep[2], "{keep:?} {days:?}");
 		// the rest of the page keeps its label column
 		assert_eq!(spot("width")[0], keep[0], "{spots:?}");
+	}
+
+	// Test ID: der3q
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn each_graphs_vertical_scale_sits_right_of_its_colors_mode() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_vertical_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let spots = ffi::colors_row_spots(&mut d);
+		let spot = |id: &str| -> Vec<i32> {
+			let line = spots
+				.iter()
+				.find(|l| l.split(' ').next() == Some(id))
+				.unwrap_or_else(|| panic!("no {id} in {spots:?}"));
+			line.split(' ')
+				.skip(1)
+				.map(|n| n.parse().unwrap())
+				.collect()
+		};
+		for w in tukzmon_core::config::Which::ALL {
+			let k = w.key();
+			let (mode, vertical) = (spot(&format!("{k}_mode")), spot(&format!("{k}_vertical")));
+			assert!(
+				(mode[1] - vertical[1]).abs() <= 2,
+				"{k}: {mode:?} {vertical:?}"
+			);
+			assert!(vertical[0] > mode[2], "{k}: {mode:?} {vertical:?}");
+		}
 	}
 
 	// Test ID: der2v

@@ -99,7 +99,7 @@ Rules for the settings window, taken from how it already behaves and adjusted wh
 - Say "graph" in text shown to people.
 
 - Units follow the thing they measure, in short form: px, ms, and %. A unit that is a plain word follows "in", as "Max age in days".
-	- A General row that each graph can take a share of says "default" after the unit, such as "Width px default" and "Sample ms default". Scale default, under Time axis, is the same.
+	- A General row that each graph can take a share of says "default" after the unit, such as "Width px default" and "Sample ms default". Scale default, under Time axis and under Vertical axis, is the same.
 
 - Write "and", not an ampersand.
 

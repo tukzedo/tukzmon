@@ -1518,6 +1518,27 @@ mod tests {
 		assert_eq!(l.border_color, config::Rgb(0x12, 0x34, 0x56));
 	}
 
+	// Test ID: der3r
+	#[test]
+	fn the_old_disk_log_scale_saves_as_the_disk_graphs_own() {
+		let d = scratch("disk_log");
+		let path = d.0.join("old.shcl");
+		std::fs::write(&path, "disk:\n\tlog: true\n").unwrap();
+		let mut dlg = Dialog::open(path.clone()).unwrap();
+		assert_eq!(dlg.state("disk_vertical").text, "log10");
+		assert!(dlg.set_text("border", "2"));
+		dlg.apply().unwrap();
+		let text = std::fs::read_to_string(&path).unwrap();
+		let doc = shcl::Document::parse(&text);
+		assert!(!doc.exists("disk.log"), "{text}");
+		assert_eq!(doc.get_string("disk.vertical").unwrap(), "log10", "{text}");
+		let l = config::Look::load(&path).unwrap();
+		assert_eq!(
+			l[Which::Disk].vertical,
+			Some(tukzmon_core::render::Vertical::Log10)
+		);
+	}
+
 	// Test ID: dejjv
 	#[test]
 	fn the_margins_go_with_the_theme_and_a_roll_leaves_them() {

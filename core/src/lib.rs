@@ -46,7 +46,7 @@ use net::Traffic;
 use own::OwnReader;
 #[cfg(unix)]
 use procs::ProcsReader;
-use render::{Frame, Paint, Peak, Scale, Scratch};
+use render::{Frame, Paint, Peak, Scale, Scratch, Vertical};
 use temp::TempReader;
 use when::Said;
 use zswap::ZswapReader;
@@ -130,9 +130,10 @@ pub trait Source<const N: usize>: Collector<N> {
 		None
 	}
 
-	/// A log scale up the graph, for a source with a peak floor.
-	fn log_y(_look: &Look) -> bool {
-		false
+	/// How height goes up the graph, its own or Scale default's under
+	/// Vertical axis.
+	fn vertical(look: &Look) -> Vertical {
+		look.scaling(look[Self::WHICH].vertical)
 	}
 
 	/// Takes up a new look's settings for the reader itself, such as which
@@ -309,10 +310,6 @@ impl Source<2> for DiskReader {
 	// so a log file's odd flush doesn't fill the graph
 	fn peak_floor(&self) -> Option<f32> {
 		Some(100_000.0)
-	}
-
-	fn log_y(look: &Look) -> bool {
-		look.disk_log
 	}
 
 	fn follow(&mut self, look: &Look) {
@@ -783,11 +780,9 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		let slack = 2.0 * f64::from(self.sample_ms()) / 1000.0 + 0.25;
 		self.ease.update(&axis, basis, t, slack);
 		let mut px = std::mem::take(&mut self.px);
-		let log = S::log_y(&self.look);
 		let peak = self.src.peak_floor().map(|floor| Scale {
 			peak: &mut self.peak,
 			floor,
-			log,
 		});
 		Frame {
 			hist: &self.hist,
@@ -796,6 +791,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 			look: &self.look,
 			paint: S::paint(&self.look),
 			outline: S::outline(&self.look),
+			vertical: S::vertical(&self.look),
 		}
 		.draw_to(&mut px, w, h, scale, peak, &mut self.scratch);
 		if let Some(x) = self.hover {
@@ -961,12 +957,11 @@ mod tests {
 			"Disk\nRead 1.5 MB/s\nWrite 30 kB/s"
 		);
 		assert_eq!(disk.peak_floor(), Some(100_000.0));
-		let log = Look {
-			disk_log: true,
-			..Look::default()
-		};
-		assert!(DiskReader::log_y(&log) && !DiskReader::log_y(&Look::default()));
-		assert!(!LoadReader::log_y(&log) && Traffic::default().peak_floor().is_some());
+		let log = Look::default().with(Which::Disk, |e| e.vertical = Some(Vertical::Log10));
+		assert_eq!(DiskReader::vertical(&log), Vertical::Log10);
+		assert_eq!(DiskReader::vertical(&Look::default()), Vertical::Linear);
+		assert_eq!(LoadReader::vertical(&log), Vertical::Linear);
+		assert!(Traffic::default().peak_floor().is_some());
 	}
 
 	// Test ID: dejb6
@@ -1001,7 +996,7 @@ mod tests {
 				.ends_with("\nThe whole panel, tukzmon in it")
 		);
 		assert_eq!(own.peak_floor(), Some(1.0));
-		assert!(!OwnReader::log_y(&Look::default()));
+		assert_eq!(OwnReader::vertical(&Look::default()), Vertical::Linear);
 	}
 
 	// Test ID: dej0t
@@ -1013,7 +1008,7 @@ mod tests {
 			"Temperature 98 \u{b0}C\nCritical at 95 \u{b0}C"
 		);
 		assert_eq!(t.peak_floor(), Some(temp::CRIT_UNKNOWN));
-		assert!(!TempReader::log_y(&Look::default()));
+		assert_eq!(TempReader::vertical(&Look::default()), Vertical::Linear);
 	}
 
 	// Test ID: dep7b

@@ -86,9 +86,39 @@ pub struct Scale<'a> {
 	pub peak: &'a mut Peak,
 	/// The least the top goes down to, in the source's own unit.
 	pub floor: f32,
-	/// Log up the graph, from a thousandth of the floor to the top. A stack
-	/// keeps its shares of the column's log height.
-	pub log: bool,
+}
+
+/// How height goes up the graph. A stack keeps its shares of the column's
+/// height on every one. See design.md, Drawing.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Vertical {
+	/// In proportion to the value.
+	#[default]
+	Linear,
+	/// Log, from a thousandth of the floor, or of a fixed top, up to the top.
+	Log10,
+	/// The value over the top, squared, so big ones stand out.
+	Squared,
+}
+
+impl Vertical {
+	/// From its saved key, or None.
+	pub fn parse(key: &str) -> Option<Vertical> {
+		match key.to_ascii_lowercase().as_str() {
+			"linear" => Some(Vertical::Linear),
+			"log10" => Some(Vertical::Log10),
+			"squared" => Some(Vertical::Squared),
+			_ => None,
+		}
+	}
+
+	fn fit<const N: usize>(self, v: [f32; N], top: f32, floor: f32) -> [f32; N] {
+		match self {
+			Vertical::Linear => fit(v, top),
+			Vertical::Log10 => fit_log(v, top, floor),
+			Vertical::Squared => fit_squared(v, top),
+		}
+	}
 }
 
 // measured up from a thousandth of the floor, so a disk's idle trickle shows
@@ -99,6 +129,15 @@ fn fit_log<const N: usize>(v: [f32; N], top: f32, floor: f32) -> [f32; N] {
 		return [0.0; N];
 	}
 	let height = ((total / unit).ln_1p() / (top / unit).ln_1p()).clamp(0.0, 1.0);
+	v.map(|x| x.max(0.0) / total * height)
+}
+
+fn fit_squared<const N: usize>(v: [f32; N], top: f32) -> [f32; N] {
+	let total: f32 = v.iter().map(|x| x.max(0.0)).sum();
+	if total <= 0.0 {
+		return [0.0; N];
+	}
+	let height = (total / top).clamp(0.0, 1.0).powi(2);
 	v.map(|x| x.max(0.0) / total * height)
 }
 
@@ -166,6 +205,8 @@ pub struct Frame<'a, const N: usize> {
 	pub paint: Paint<'a, N>,
 	/// Its frame and background.
 	pub outline: Outline,
+	/// How height goes up it.
+	pub vertical: Vertical,
 }
 
 // By hand, since `axis` is a trait object.
@@ -177,6 +218,7 @@ impl<const N: usize> std::fmt::Debug for Frame<'_, N> {
 			.field("look", &self.look)
 			.field("paint", &self.paint)
 			.field("outline", &self.outline)
+			.field("vertical", &self.vertical)
 			.finish_non_exhaustive()
 	}
 }
@@ -255,24 +297,22 @@ impl<const N: usize> Frame<'_, N> {
 				// else NaN fills the column, and inf flattens every other one
 				.filter(|v| v.iter().all(|x| x.is_finite()))
 		}));
-		let (top, log) = match scaled {
-			Some(Scale { peak, floor, log }) => {
+		// a fixed top is its own floor, for a log scale
+		let (top, floor) = match scaled {
+			Some(Scale { peak, floor }) => {
 				let highest = reached
 					.iter()
 					.flatten()
 					.map(|v| v.iter().map(|x| x.max(0.0)).sum::<f32>())
 					.fold(0.0, f32::max);
-				(peak.fit(highest, floor, self.now), log.then_some(floor))
+				(peak.fit(highest, floor, self.now), floor)
 			}
-			None => (1.0, None),
+			None => (1.0, 1.0),
 		};
 		let gradient = matches!(self.paint, Paint::Gradient(_));
 		for (cx, v) in reached.iter().enumerate() {
 			let at = |r: usize| (r + bw) * w + cx + bw;
-			let Some(hs) = v.map(|v| match log {
-				Some(floor) => fit_log(v, top, floor),
-				None => fit(v, top),
-			}) else {
+			let Some(hs) = v.map(|v| self.vertical.fit(v, top, floor)) else {
 				for (r, &b) in back_px.iter().enumerate() {
 					px[at(r)] = b;
 				}
@@ -392,6 +432,7 @@ mod tests {
 			look: &l,
 			paint: Paint::Stack(&COLORS),
 			outline: OUTLINE,
+			vertical: Vertical::Linear,
 		};
 		let mut px = Vec::new();
 		f.draw(&mut px, w, ht, 1);
@@ -506,6 +547,7 @@ mod tests {
 				look: &l,
 				paint: p,
 				outline: OUTLINE,
+				vertical: Vertical::Linear,
 			};
 			let mut px = Vec::new();
 			f.draw(&mut px, 22, 12, 1);
@@ -536,6 +578,7 @@ mod tests {
 			look: &l,
 			paint: Paint::Gradient([LO, MID, HI]),
 			outline: OUTLINE,
+			vertical: Vertical::Linear,
 		};
 		let mut px = Vec::new();
 		f.draw(&mut px, 22, 12, 1);
@@ -575,6 +618,7 @@ mod tests {
 				look: &l,
 				paint,
 				outline: OUTLINE,
+				vertical: Vertical::Linear,
 			};
 			let mut px = Vec::new();
 			f.draw(&mut px, 22, 12, 1);
@@ -618,6 +662,7 @@ mod tests {
 			look: &l,
 			paint: Paint::Stack(&COLORS),
 			outline: OUTLINE,
+			vertical: Vertical::Linear,
 		};
 		let mut px = Vec::new();
 		f.draw(&mut px, 122, 6, 1);
@@ -645,6 +690,7 @@ mod tests {
 			look: &l,
 			paint: Paint::Stack(&COLORS),
 			outline: OUTLINE,
+			vertical: Vertical::Linear,
 		};
 		let mut px = Vec::new();
 		f.draw(&mut px, 4, 4, 1);
@@ -684,7 +730,7 @@ mod tests {
 		let axis = Axis::log(Curve::FixedA, 120.0);
 		let l = look();
 		let h = steady([1000.0, 0.0], 120.0);
-		let red = |log: bool| {
+		let red = |vertical: Vertical| {
 			let mut px = Vec::new();
 			let mut peak = Peak::default();
 			Frame {
@@ -694,6 +740,7 @@ mod tests {
 				look: &l,
 				paint: Paint::Stack(&COLORS),
 				outline: OUTLINE,
+				vertical,
 			}
 			.draw_to(
 				&mut px,
@@ -703,14 +750,47 @@ mod tests {
 				Some(Scale {
 					peak: &mut peak,
 					floor: 1e5,
-					log,
 				}),
 				&mut Scratch::default(),
 			);
 			px.iter().filter(|&&p| p == COLORS[0].argb()).count()
 		};
-		assert_eq!(red(false), 0);
-		assert!(red(true) >= 3 * 20, "{}", red(true));
+		assert_eq!(red(Vertical::Linear), 0);
+		assert!(red(Vertical::Log10) >= 3 * 20, "{}", red(Vertical::Log10));
+	}
+
+	// Test ID: der3m
+	#[test]
+	fn squared_sinks_small_values_and_every_scale_takes_a_fixed_top() {
+		assert_eq!(fit_squared([0.0, 0.0], 1.0), [0.0, 0.0]);
+		assert_eq!(fit_squared([0.25, 0.25], 1.0), [0.125, 0.125]);
+		assert_eq!(fit_squared([300.0, 100.0], 800.0), [0.1875, 0.0625]);
+		assert_eq!(fit_squared([-1.0, 3.0], 2.0), [0.0, 1.0]);
+		assert_eq!(Vertical::parse("Log10"), Some(Vertical::Log10));
+		assert_eq!(Vertical::parse("squared"), Some(Vertical::Squared));
+		assert_eq!(Vertical::parse("same"), None);
+		let axis = Axis::log(Curve::FixedA, 120.0);
+		let l = look();
+		let h = steady([0.5, 0.0], 120.0);
+		// a fixed top of 1, as CPU and memory have, with no Scale
+		let red = |vertical: Vertical| {
+			let mut px = Vec::new();
+			Frame {
+				hist: &h,
+				axis: &axis,
+				now: h.last().unwrap_or(0.0),
+				look: &l,
+				paint: Paint::Stack(&COLORS),
+				outline: OUTLINE,
+				vertical,
+			}
+			.draw(&mut px, 22, 12, 1);
+			px.iter().filter(|&&p| p == COLORS[0].argb()).count()
+		};
+		// 10 rows of plot: half is 5, squared 2.5, log10 from a thousandth 9
+		assert_eq!(red(Vertical::Linear), 5 * 20);
+		assert_eq!(red(Vertical::Squared), 2 * 20);
+		assert_eq!(red(Vertical::Log10), 9 * 20);
 	}
 
 	// Test ID: dehzm
@@ -719,11 +799,7 @@ mod tests {
 		let axis = Axis::log(Curve::FixedA, 120.0);
 		let l = look();
 		let drawn = |h: &History<2>, peak: Option<(&mut Peak, f32)>| {
-			let peak = peak.map(|(peak, floor)| Scale {
-				peak,
-				floor,
-				log: false,
-			});
+			let peak = peak.map(|(peak, floor)| Scale { peak, floor });
 			let mut px = Vec::new();
 			Frame {
 				hist: h,
@@ -732,6 +808,7 @@ mod tests {
 				look: &l,
 				paint: Paint::Stack(&COLORS),
 				outline: OUTLINE,
+				vertical: Vertical::Linear,
 			}
 			.draw_to(&mut px, 22, 12, 1, peak, &mut Scratch::default());
 			px
@@ -776,6 +853,7 @@ mod tests {
 			look: &l,
 			paint: Paint::Stack(&COLORS),
 			outline: OUTLINE,
+			vertical: Vertical::Linear,
 		}
 		.draw_to(
 			&mut px,
@@ -785,7 +863,6 @@ mod tests {
 			Some(Scale {
 				peak: &mut peak,
 				floor: 1.0,
-				log: false,
 			}),
 			&mut Scratch::default(),
 		);
@@ -807,6 +884,7 @@ mod tests {
 			look: &l,
 			paint,
 			outline: OUTLINE,
+			vertical: Vertical::Linear,
 		};
 		let mut scratch = Scratch::default();
 		// bigger, smaller, and a paint the last draw didn't use

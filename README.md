@@ -11,6 +11,8 @@ Inspired by A) The "Non-linear time" scale option in XFCE4's "CPU Graph", and B)
 
 The time axis is logarithmic by default. The last minute gets the most room, and older history is squeezed to the left, so one small graph shows the last few seconds and the last few weeks at once. History is kept across restarts and reboots (by default), with gaps where the computer was off.
 
+Height can go up on a straight, log, or squared scale, for every graph or one at a time. Log lifts a trickle so it shows next to a burst, and squared makes the peaks stand out.
+
 ## Status
 
 To try it from a checkout you need Rust, XFCE 4.20, and Qt 6 (`qt6-base-dev` on Debian). Run `utility/dev-install.bash`. It installs to `~/.local`, with no sudo, and restarts the panel to load the new build.
@@ -35,7 +37,7 @@ The first version is an XFCE panel plugin. Other desktops will follow. And then 
 
 - The number of processes, split into the system's, other users', and yours.
 
-- Disk reads and writes, for all disks or the ones you pick, with an optional log scale.
+- Disk reads and writes, for all disks or the ones you pick.
 
 - CPU temperature, with the critical range on top.
 

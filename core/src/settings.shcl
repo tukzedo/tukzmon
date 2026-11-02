@@ -103,6 +103,21 @@ settings:
 		default: ago
 		tip: "What the tip says about the time under the pointer. How long ago reads like 7 hrs ago. Date and time gives just the time for today, and the date too for anything older, in your locale's short format."
 
+	VerticalHead:
+		label: Vertical axis
+		tab: General
+		control: heading
+
+	vertical_axis:
+		label: Scale default
+		tab: General
+		control: dropdown
+		options: linear, log10, squared
+		option_labels: "Linear", "log₁₀", "𝜒²"
+		path: graph.vertical
+		default: linear
+		tip: "How height goes up a graph, unless it picks its own on the Themes/Colors tab. Linear draws it in proportion to the value.\n\nlog₁₀ lifts small values, so a trickle still shows next to a big copy. It counts from a thousandth of the top, or for a graph with no fixed top, such as disk or network, a thousandth of the least its top goes down to.\n\n𝜒² squares the share of the top, so big values stand out and small ones sink. Half the top draws a quarter of the way up."
+
 	GraphsHead:
 		label: Graphs
 		tab: Graphs
@@ -342,7 +357,7 @@ settings:
 		control: checkbox
 		path: disk.show
 		default: true
-		tip: "Show disk traffic in bytes a second: written, then read, from the bottom up. The top follows the busiest moment in view, so the graph has no fixed scale. The tip gives the rates. Disk drives and Disk log scale, under Misc on the General tab, set what it counts and how it's drawn."
+		tip: "Show disk traffic in bytes a second: written, then read, from the bottom up. The top follows the busiest moment in view, so the graph has no fixed scale. The tip gives the rates. Disk drives, under Misc on the General tab, sets what it counts, and Vertical scale on the Themes/Colors tab how it's drawn."
 
 	disk_width:
 		label: Disk width %
@@ -650,15 +665,6 @@ settings:
 		gate: show_disk
 		tip: "Which drives the disk graph counts: all, or names as /proc/diskstats gives them, such as sda nvme0n1. All is every disk with hardware behind it, and leaves out partitions and what sits on a disk, such as LUKS, LVM and RAID, so nothing is counted twice. A named drive is counted as is, partitions too."
 
-	disk_log:
-		label: Disk log scale
-		tab: General
-		control: checkbox
-		path: disk.log
-		default: false
-		gate: show_disk
-		tip: "Draw the disk graph on a log scale, so a trickle still shows next to a big copy. Off, the height is in proportion to the rate."
-
 	net_split:
 		label: LAN and internet
 		tab: General
@@ -695,6 +701,17 @@ settings:
 		default: detailed
 		group: theme
 		tip: "Detailed gives each kind of CPU time a color of its own. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	cpu_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: cpu.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the CPU graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
 
 	CpuHead:
 		label: "From the bottom up"
@@ -829,6 +846,17 @@ settings:
 		group: theme
 		tip: "Detailed gives programs, buffers and cache a color each. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
+	mem_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: mem.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the memory graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
+
 	MemHead:
 		label: "From the bottom up"
 		tab: Themes/Colors
@@ -952,6 +980,17 @@ settings:
 		group: theme
 		tip: "Detailed draws how busy the GPU is in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
+	gpu_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: gpu.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the GPU graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
+
 	gpu_busy:
 		label: Busy
 		tab: Themes/Colors
@@ -1049,6 +1088,17 @@ settings:
 		group: theme
 		tip: "Detailed draws the GPU's memory in use in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
+	vram_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: vram.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the GPU memory graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
+
 	vram_used:
 		label: In use
 		tab: Themes/Colors
@@ -1145,6 +1195,17 @@ settings:
 		default: detailed
 		group: theme
 		tip: "Detailed gives local, sent and received a color each, and LAN sent and LAN received too with LAN and internet on, on the General tab. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	net_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: net.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the network graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
 
 	NetHead:
 		label: "From the bottom up"
@@ -1289,6 +1350,17 @@ settings:
 		group: theme
 		tip: "Detailed draws swap in use in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
+	swap_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: swap.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the swap graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
+
 	swap_used:
 		label: In use
 		tab: Themes/Colors
@@ -1385,6 +1457,17 @@ settings:
 		default: gradient
 		group: theme
 		tip: "Detailed draws the pool in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top. Zram shows here too, on a box that has it and no zswap."
+
+	zswap_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: zswap.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the zswap graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
 
 	zswap_used:
 		label: In use
@@ -1483,6 +1566,17 @@ settings:
 		group: theme
 		tip: "Detailed draws the load in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
+	load_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: load.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the load graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
+
 	load_used:
 		label: Load
 		tab: Themes/Colors
@@ -1579,6 +1673,17 @@ settings:
 		default: detailed
 		group: theme
 		tip: "Detailed gives written and read a color each. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	disk_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: disk.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the disk graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
 
 	DiskColorHead:
 		label: "From the bottom up"
@@ -1693,6 +1798,17 @@ settings:
 		group: theme
 		tip: "Detailed draws the temperature in one color, with any part over the critical level in another. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
+	temp_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: temp.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the temperature graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
+
 	TempColorHead:
 		label: "From the bottom up"
 		tab: Themes/Colors
@@ -1805,6 +1921,17 @@ settings:
 		default: detailed
 		group: theme
 		tip: "Detailed colors the charge by what the battery is doing. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	battery_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: battery.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the battery graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
 
 	BatteryHead:
 		label: "By state"
@@ -1929,6 +2056,17 @@ settings:
 		group: theme
 		tip: "Detailed draws tukzmon's CPU use in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
+	self_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: self.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the tukzmon graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
+
 	self_used:
 		label: CPU use
 		tab: Themes/Colors
@@ -2025,6 +2163,17 @@ settings:
 		default: detailed
 		group: theme
 		tip: "Detailed stacks a color for each owner. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	procs_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: procs.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the processes graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
 
 	ProcsHead:
 		label: "By owner"

@@ -220,7 +220,7 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Vertical axis scale, as a default and per graph
 	- ID: 2026110109585213
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261101-095852
 	- Opened by: t00mietum
@@ -234,7 +234,27 @@ Sorted per the notes in [Template](#template).
 			- For each monitor, add "Vertical scale:", with same options (but per-monitor) as "Vertical axis"/"Scale default", but with an additional "Global default" option (default selection).
 	- Decisions:
 		- 2026-11-01: 𝜒² is there to exaggerate differences. Large values get larger, and small values relatively smaller. So it's a squared curve, the height following (value / top)², the opposite of log₁₀.
+	- Stand-in: 20261101, round-1102 debug build, in b23's own style (gtk3 platform theme, Orchis green compact), light and dark. General drew Vertical axis with Scale default between Time axis and Timespan, and no Disk log scale under Misc. Themes/Colors drew Vertical scale right of each graph's Colors mode, on its line, with Global default, and the log and squared picks read as their symbols.
 	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Scale default under Vertical axis on General, at `graph.vertical`, takes `linear`, the default, `log10` or `squared`. Each graph's own Vertical scale, at `<graph>.vertical`, takes those or `same`, Global default, the default.
+		- Every graph can use any of the 3, fixed top or not. On log10 a fixed top counts up from a thousandth of the top, as disk counts up from a thousandth of its floor. Squared draws the stack's height as (value / top) squared, and each series keeps its share, as on log.
+		- Disk log scale is gone. A file with `disk.log` on loads with the disk graph's own Vertical scale at `log10`, and the next save drops the old line.
+		- `design.md` XFCE plugin, Settings window and Drawing, `style-guide_ux.md` Labels and README.md are updated.
+		- Verified: the quick gate passed, and the stand-in above.
+	- Decisions:
+		- Vertical scale isn't in the theme group, so picking a theme leaves it, and changing it doesn't add a * to the theme. It sits on the Themes/Colors tab as asked. Check in questions.md.
+		- It joins the Colors mode's line with `same_line: true`, and that line now spans both columns, so the section keeps its width. The mode's revert moves to the line's right end, as Keep across restarts' does on General.
+		- `Source::log_y` is replaced by `Source::vertical`, and `render::Frame` takes a `vertical`, since a graph with a fixed top has no `Scale`.
+		- The docs and tips write log10 and squared in plain text. Only the dropdowns show the symbols asked for.
+	- Branch: round-1102
+	- Test case: `render::tests::squared_sinks_small_values_and_every_scale_takes_a_fixed_top` (der3m), `config::tests::the_old_disk_log_scale_is_the_disk_graphs_own_log10` (der3n), `a_graph_follows_the_vertical_default_unless_it_picks_its_own` (der3p), `bridge::tests::each_graphs_vertical_scale_sits_right_of_its_colors_mode` (der3q) and `dialog::tests::the_old_disk_log_scale_saves_as_the_disk_graphs_own` (der3r). der3q fails with the same_line row left off the mode's line, and der3n with the old path not moved.
+		- 2026-11-01: new values only. der32 expects a Vertical axis heading and `vertical_axis` after `hover_time`, and no `disk_log`. dej07, dejb6 and dej0t check `Source::vertical` where they checked `log_y`.
+		- 2026-11-01: dejmb's `sectionPlaces` hook and demvn's `sectionTops` hook leave out the rows on the mode's line, since it now spans both columns. Their asserts are unchanged.
+		- Swept: every `log_y` and `disk_log` user, every `Frame` literal, every `Which` for a `<graph>_vertical` row, the disk graph's tip, and the docs naming Disk log scale.
+	- Acceptance signoff: Self-closed 20261101: der3m to der3r and the stand-in above.
+	- Closed: 20261101-170452
 
 - Profiler tick 151 us at round-1101, up from 134 us
 	- ID: 2026110113023600
