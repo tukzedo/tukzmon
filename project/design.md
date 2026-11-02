@@ -122,7 +122,8 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- `tukzmon.shcl` is the shared file. An item with no file of its own yet starts from a copy of it, so a panel set up before items had their own keeps its look. The shared file is never changed by an item, and `tukzmon-settings` with no `--config` edits it, which sets what a new item starts from.
 	- With no shared file either, a new item starts at the defaults, and writes no file until a save.
 	- A file that's there but can't be read, such as one with no read permission, isn't taken for a missing one. `tukzmon-settings` says so in a message box and on stderr, and quits with nothing changed, rather than opening at the defaults for a save to write over it.
-	- Removing an item from the panel deletes its file and its history file, as the panel's Remove dialog warns, and closes its Properties window. So a later item given the same id starts from the shared file, with no history.
+	- Removing an item from the panel deletes its file and its history file, as the panel's Remove dialog warns, and closes its Properties window, even one opened before a panel restart, which it finds by its `--config` in `/proc`. So a later item given the same id starts from the shared file, with no history.
+	- Properties with the item's window open already starts no second one, and the tip says it's open. Raising the window isn't tried, since Wayland gives a panel no way to raise another program's window, and X11 window managers may only flag it. A window that can't start, or quits with an error, is in the tip too, as well as the journal, until the next window opens or one closes cleanly.
 
 - It follows SilkTerm's settings dialog, on top of knobs:
 	- Tabs down the left, groups with a rule under the title, and a sub-group stepped in under the switch it depends on. A row is greyed while that switch is off, but its revert arrow still works.

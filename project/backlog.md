@@ -442,13 +442,30 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 28: Properties gives no sign when its window is open or fails to start
 	- ID: 2026103115232220
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on automated testing
+	- Needs external testing: in the private panel rig, on X11 and Wayland: Properties twice shows "its window is open already" in the tip, and a window opened before `xfce4-panel --restart` closes when the item is removed.
 	- Priority|Severity: Low
 	- Opened: 20261031-152322
 	- Opened by: t00mietum
 	- Requirements: Raise the open window, or say it's open. Show a failed start in the tip as well as the journal. A window opened before a panel restart is untracked, so removing the item can't close it, and its Apply makes the file again for the next item that takes that id.
 	- Estimated effort: Low
 	- Origin: `f89e55e` (`lib.rs` about 590). First review. Plausible, by reading.
+	- Actual effort: Low
+	- Progress log:
+		- Properties with the item's window open starts no second one, and the tip says "Properties: its window is open already" until it closes. A window from before a panel restart counts, found by its `--config` in `/proc`.
+		- A failed start, or a window that quits with an error, goes to the journal and the tip until the next window opens or one closes cleanly.
+		- Remove now also closes a window from before a panel restart, so its Apply can't make the file again.
+		- `design.md` Settings window has it.
+		- Verified: the quick gate passed. der61 failed with the kill at Remove taken out, and again with the `/proc` lookup taken out.
+	- Decisions:
+		- Say it's open rather than raise it. Wayland gives a panel no way to raise another program's window, and an X11 window manager's focus-stealing guard may only flag it.
+		- The tip, not a dialog, since the pointer is on the item when the menu closes, and the tip already carries the item's other troubles.
+		- Find a window from before a restart by its command line in `/proc`, the user's own processes only, rather than a lock or pid file, since that needs nothing written and can't go stale.
+		- Close it at Remove with SIGTERM, which Qt doesn't catch, so nothing is saved, as with the tracked window's kill.
+		- A panel restart leaves such a window open, since the item and its file are still there.
+	- Branch: round-1102
+	- Test case: `tests::properties_that_cant_start_or_quits_says_so_in_the_tip` (der60) and `tests::a_window_from_before_a_panel_restart_is_found_and_closed_at_remove` (der61).
+		- Swept: every `settings` child use in `xfce/src/lib.rs` (tick, configure, forget, the constructor and the test helper), and every `Command::new` in the plugin. tukzmon-settings starts no other program.
 
 - Code review 20261031 item 27: The settings window's controls have no accessible names
 	- ID: 2026103115232204
