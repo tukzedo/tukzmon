@@ -22,46 +22,6 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- Hybrid laptop: GPU memory, on by default, keeps the NVIDIA GPU awake
-	- ID: 2026110118380381
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261101-183803
-	- Opened by: t00mietum
-	- Related IDs: 2026103115232174
-	- Requirements: NVML is now open only while a GPU graph is shown, but GPU memory is on by default, so a hybrid laptop still opens it at start and holds it. Where the NVIDIA card's `power/control` is `auto`, read its `power/runtime_status`, which doesn't wake it, and leave NVML closed while it's `suspended`. Or turn GPU memory off by default on such a box. Check on a hybrid laptop, or a stand-in for the sysfs files.
-	- Estimated effort: Avg
-
-- At a panel's width, history lookups are 42% of the profiler's tick
-	- ID: 2026110116150685
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261101-161506
-	- Opened by: t00mietum
-	- Related IDs: 2026103115232157, 2026102814061812
-	- Requirements: The profiler now draws at the width the graphs ask for, 790x48 device px for the 6 default graphs. There, history lookups are 42% of a tick, `Tier::total` alone 26%, and the log axis's ages 10%. Make a column's total cheaper, or say why the cost is fine. Time it with the profiler before and after.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Origin: the profile from 2026103115232157, one run on 2026-11-01.
-	- Progress log:
-		- Each tier keeps a total per 8 buckets and per 64, where it kept one per 32. A column reads blocks of 64, then blocks of 8 at its ends, and at most 7 buckets at each end. Block numbers are shifts, not divisions. `design.md` History has it.
-		- A bucket read whole takes one division, not one per series.
-		- Drawing works out each column edge's age once, not twice. The edges are the same numbers.
-		- Profiler, run side by side at a load of 7 to 18 on 32 cores: 381 to 406 us a tick before, 307 to 314 after, about 20% less. User time went from about 305 to 234 us.
-		- After, history lookups are 34% of the tick, where they were 43%. The bucket loop is 10%, and the log axis 8%, down from 12%. The /proc reads and drawing are now about a quarter each.
-		- Verified: the quick gate with the profile area passed.
-	- Decisions:
-		- Blocks of 8 and 64 over 16 and 128. Side by side, 16 and 128 gave 329 us a tick against 309.
-		- The blocks take about 8% of the history's memory, up from 2%. That's about 330 KB more for a 4-series graph with 90 days of history.
-		- A whole bucket adds its sum, scaled by its weight over its seconds, rather than its mean times its weight. The two match to float rounding.
-	- Branch: round-1102
-	- Test case: `history::tests::block_totals_add_up_to_their_buckets_through_gaps_trims_and_reloads` (der45). It checks every kept block at both sizes and random runs of buckets against a plain bucket sum, through gaps, long samples, trims and reloads. It fails with the gap rule taken out of `reindex`, with the coarse blocks never dropped, or with a block read that starts mid-block.
-		- 2026-11-01: dejcp and deqqq check the block counts and capacities at both sizes, where they checked blocks of 32. The rest of each test is unchanged.
-		- Swept: every reader and writer of the blocks (`Tier::add`, `History::trim`, `History::decode`, `History::span`) and every `axis.age` caller. The hover tip's `span_at` in `lib.rs` reads one column, so it takes 2 ages as before.
-	- Closed: 20261101-171956
-
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
@@ -89,252 +49,6 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: The workflow is its own test. Its first run is in the row above.
 
-- Code review 20261030 item 3, part 2: Look up a setting by an index in knobs
-	- ID: 2026103018353670
-	- Type: Enhancement
-	- Status: Stalled
-		- Held for silkterm's copy of knobs to get an id index in `Spec`, since this copy stays byte-identical to it.
-	- Priority|Severity: Low
-	- Opened: 20261030-183536
-	- Opened by: t00mietum
-	- Parent ID: 2026103016201603
-	- Requirements:
-		- Copy knobs over from silkterm once `Spec` looks ids up through an index built in `finish`, with an `Option` path for an id that's unknown.
-		- Time denam before and after.
-	- Progress log:
-		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
-	- Estimated effort: Low
-
-- Code review 20261031 item 24: The profiler draws into a canvas far smaller than a panel's, and one run varies 20%
-	- ID: 2026103115232157
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261031-152321
-	- Opened by: t00mietum
-	- Related IDs: 2026103016201601, 2026110113023600, 2026110116150685
-	- Requirements: Size the canvas from `Graphs::wanted`, drive it through `Graphs::tick` with beats, and give the median of a few runs or user time alone. 6 graphs want 790 device px and get 96, so the last plot is 1 px, and 40 px are gaps. The 134 to 178 us move on 2026-10-31 came with no core change.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Origin: `27110e8`. First review. Confirmed by a probe.
-	- Progress log:
-		- The canvas is `Graphs::wanted` for a 24 px panel on a scale 2 screen: 790x48 device px for the 6 default graphs, where it was 96x48.
-		- Each tick is a wake of the panel's timer on simulated time, through `Graphs::tick_at`, so a graph reads only on its own beat. CPU's default of 50% makes 2 wakes a second, one of them for CPU alone. The subtitle gives the panel time, such as "20000 ticks of 6 graphs in 10000 s of panel time".
-		- The ticks are timed in 5 runs. The subtitle gives the median us a tick, its user part, and the range of the runs.
-		- At a load of 18 to 26 on 32 cores: 375 to 411 us a tick, against 140 to 159 with the old canvas and loop. The 5 runs inside one profile spread 1% to 8%. History lookups are 42% of the tick, drawing 20%, the reads 22%.
-		- Verified: the quick gate with the profile area passed.
-	- Decisions:
-		- `Graphs::tick_at` is public and hidden from the docs, as `skip` is, since it already takes the time to tick at.
-		- The median is of user plus system time, since the reads are system time and are part of what the panel costs. The user median is beside it.
-		- The history is trimmed at each save, as the panel does, not every tick.
-		- The count stays 20000 ticks, split into the 5 runs. The step takes about 8 s rather than 3, from the wider canvas.
-	- Branch: round-1102
-	- Test case: None in the repo. The Profiler step runs it, and it refuses a ROUNDS of 0.
-		- Swept: the soak test draws at 96x48 too. It stays, since it checks heap growth and not cost, and a graph's buffers keep their size after the first draw at any width. The cicd header and `flame-report.py`, which only prints the subtitle, needed no change.
-	- Closed: 20261101-161506
-
-- Pre-next-cut: No horizontal line between the theme buttons and the scrollable region
-	- ID: 2026103114565000
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261031-145650
-	- Opened by: t00mietum
-	- Requirements:
-		- Themes|Colors page: There should be no horizontal line between the theme management buttons, and the scrollable region.
-			- Ditto with the Themes|Outline tab.
-	- Actual effort: Low
-	- Progress log:
-		- The rule under the theme's Name row and buttons is gone, on Colors and Outline. The shade step between the Name row and the page marks the edge, as the style guide's Window layout already said.
-		- `design.md` Settings window has it.
-		- Verified: the quick gate passed with the new test.
-		- Stand-in 20261101: light and dark shots in Orchis-green compact, before and after, in private `uat-2026103114565000/`, show the page starting right under the buttons with no line. Closed on them; reopen if the look isn't right on b23.
-	- Branch: round-1102
-	- Test case: `bridge::tests::a_rule_is_drawn_only_under_a_heading_that_isnt_the_tabs_name` (der2t). It fails with the rule put back, on Themes, Colors and Outline, and passes now.
-		- Swept: every `QFrame::HLine` in `qt.cpp`. The other 2 are heading rules, which stay.
-	- Acceptance signoff: Self-closed 20261101: der2t, and the stand-in shots above.
-	- Closed: 20261101-163041
-
-- Every control and color chip has a tip
-	- ID: 2026103115015700
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261031-150157
-	- Opened by: t00mietum
-	- Requirements:
-		- Dialog changes to follow `project/style-guide_ux.md` (Tips).
-		- Add a tip to Border px on General.
-		- Add a tip to each color row that has none: Border, Top, and Bottom on every graph, plus Buffers, Busy, CPU use, I/O wait, In use, Load, On battery, Other users, Read, User, and Written.
-		- Add a test that fails on a control or color row with no tip.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- Border px and 55 color rows had no tip, and have one now. The Outline tab's Border, Top and Bottom had none either, and are in the count.
-		- Verified: the quick gate passed.
-	- Decisions:
-		- The test reads the spec's own tip, not `row_state`'s, since that adds the slider range text to a slider's tip and would hide a missing one.
-	- Branch: round-1102
-	- Test case: `bridge::tests::every_control_and_color_row_has_a_tip_of_its_own` (der3b). It failed with the tips taken out and passes with them.
-		- Swept: every row in `core/src/settings.shcl` with a control other than heading, by script.
-	- Closed: 20261101-165000
-
-- Destructive questions default to No
-	- ID: 2026103115020000
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261031-150157
-	- Opened by: t00mietum
-	- Requirements:
-		- Dialog change to follow `project/style-guide_ux.md` (Message boxes).
-		- The Delete theme and Reset history questions have no default button set, so Qt picks Yes. Make it No for both.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- Delete theme and Reset history now start on No, so Enter on either changes nothing.
-		- `design.md` Settings window has it.
-		- Verified: the quick gate passed with the new test.
-	- Decisions:
-		- Each question is its own `Window` method, `askDelete` and `askReset`, so a test opens the same box the button does.
-	- Branch: round-1102
-	- Test case: `bridge::tests::the_questions_that_cant_be_undone_start_on_no` (der2v). It fails before the change, with Yes as the default on both, and passes after.
-		- Swept: every `QMessageBox` in `qt.cpp`. The rest are warnings with one button, and the test hooks' own boxes.
-	- Acceptance signoff: Self-closed 20261101: der2v.
-	- Closed: 20261101-163041
-
-- Pre-next-cut: General tab names and layout
-	- ID: 2026110109585212
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261101-095852
-	- Opened by: t00mietum
-	- Related IDs: 2026110109585213, 2026103115020300, 2026103115020900
-	- Requirements:
-		- Tab: "General":
-			- Size "Width px" -> "Width px default"
-			- "Time" heading -> "Time axis"
-				- "Time axis default" -> "Scale default"
-				- "Hover shows": Default to "How long ago".
-			- Move "Border px" under Size/"Width px default". (And remove the "Frame" section.)
-			- Move "Max age in days" to the right of "Keep across restarts", rather than below it.
-			- "History" -> "Timespan"
-			- New section at the bottom: "Misc"
-				- Disk drives. Remove the "Disk graph" section.
-				- LAN and internet. Remove the "Network graph" section.
-	- Stand-in: 20261101, round-1102 debug build, in b23's own style (gtk3 platform theme, Orchis green compact), light and dark. General drew Size (Width px default, Border px), Time axis (Scale default, Sample ms default, Spike emphasis %, Hover shows on How long ago), Timespan (Keep across restarts with Max age in days to its right) and Misc (Disk drives, Disk log scale, LAN and internet). Outline drew Top and bottom px and Left and right px.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- General is now Size, Time axis, Timespan and Misc, with the labels and order asked for. Hover shows defaults to How long ago.
-		- Max age in days sits to the right of Keep across restarts, through a new spec key, `same_line: true`, which `placeRow` in `qt.cpp` reads.
-		- The tips that quoted Width or Time axis default, and the network and disk tips that said "further down", now name the new labels and Misc on the General tab.
-		- `design.md` Settings window, XFCE plugin and Time axis, and `style-guide_ux.md` Groups and headings and Labels, are updated.
-		- Verified: the quick gate passed, and the stand-in above.
-	- Decisions:
-		- Disk log scale moved into Misc with Disk drives, since Disk graph is gone. 2026110109585213 removes it.
-		- The rows under Misc keep their indent, since they still grey with their graph's checkbox on the Graphs tab.
-		- The same_line row keeps its own revert arrow, right after its box. The row whose line it joins keeps its label and revert where they were.
-		- The setting ids and paths are unchanged, so saved files read as before. Only a file with no hover_time line changes, to How long ago.
-	- Branch: round-1102
-	- Test case: `bridge::tests::general_is_size_then_time_axis_then_timespan_then_misc` (der32) and `max_age_sits_right_of_keep_across_restarts` (der33). Both fail on the old spec, and der33 fails with only `same_line` taken out. Both pass now.
-		- 2026-11-01: new values only. debhj and decc5 expect How long ago for no or a bad hover_time, where they expected Date and time. deknz's short screen is 1280x540, not 1280x600, since General is shorter and the window no longer fills 600 px.
-		- deqsp's `list_head_tips` hook skips bold labels, since General's Time axis heading has the graph list column's text.
-		- Swept: every tip in `settings.shcl` and `qt.cpp` naming Width, Time axis default or "further down", the code comments naming them, and the docs naming General's headings.
-	- Acceptance signoff: Self-closed 20261101: der32, der33 and the stand-in above.
-	- Closed: 20261101-164122
-
-- Pre-next-cut: Vertical axis scale, as a default and per graph
-	- ID: 2026110109585213
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261101-095852
-	- Opened by: t00mietum
-	- Related IDs: 2026110109585212
-	- Requirements:
-		- Tab: "General":
-			- New section "Vertical axis":
-				- New dropdown "Scale default": "Linear", "log₁₀", "𝜒²"
-			- Remove "Disk log scale" checkbox from "Disk graph".
-		- Themes|Colors tab:
-			- For each monitor, add "Vertical scale:", with same options (but per-monitor) as "Vertical axis"/"Scale default", but with an additional "Global default" option (default selection).
-	- Decisions:
-		- 2026-11-01: 𝜒² is there to exaggerate differences. Large values get larger, and small values relatively smaller. So it's a squared curve, the height following (value / top)², the opposite of log₁₀.
-	- Stand-in: 20261101, round-1102 debug build, in b23's own style (gtk3 platform theme, Orchis green compact), light and dark. General drew Vertical axis with Scale default between Time axis and Timespan, and no Disk log scale under Misc. Themes/Colors drew Vertical scale right of each graph's Colors mode, on its line, with Global default, and the log and squared picks read as their symbols.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- Scale default under Vertical axis on General, at `graph.vertical`, takes `linear`, the default, `log10` or `squared`. Each graph's own Vertical scale, at `<graph>.vertical`, takes those or `same`, Global default, the default.
-		- Every graph can use any of the 3, fixed top or not. On log10 a fixed top counts up from a thousandth of the top, as disk counts up from a thousandth of its floor. Squared draws the stack's height as (value / top) squared, and each series keeps its share, as on log.
-		- Disk log scale is gone. A file with `disk.log` on loads with the disk graph's own Vertical scale at `log10`, and the next save drops the old line.
-		- `design.md` XFCE plugin, Settings window and Drawing, `style-guide_ux.md` Labels and README.md are updated.
-		- Verified: the quick gate passed, and the stand-in above.
-	- Decisions:
-		- Vertical scale isn't in the theme group, so picking a theme leaves it, and changing it doesn't add a * to the theme. It sits on the Themes/Colors tab as asked. Check in questions.md.
-		- It joins the Colors mode's line with `same_line: true`, and that line now spans both columns, so the section keeps its width. The mode's revert moves to the line's right end, as Keep across restarts' does on General.
-		- `Source::log_y` is replaced by `Source::vertical`, and `render::Frame` takes a `vertical`, since a graph with a fixed top has no `Scale`.
-		- The docs and tips write log10 and squared in plain text. Only the dropdowns show the symbols asked for.
-	- Branch: round-1102
-	- Test case: `render::tests::squared_sinks_small_values_and_every_scale_takes_a_fixed_top` (der3m), `config::tests::the_old_disk_log_scale_is_the_disk_graphs_own_log10` (der3n), `a_graph_follows_the_vertical_default_unless_it_picks_its_own` (der3p), `bridge::tests::each_graphs_vertical_scale_sits_right_of_its_colors_mode` (der3q) and `dialog::tests::the_old_disk_log_scale_saves_as_the_disk_graphs_own` (der3r). der3q fails with the same_line row left off the mode's line, and der3n with the old path not moved.
-		- 2026-11-01: new values only. der32 expects a Vertical axis heading and `vertical_axis` after `hover_time`, and no `disk_log`. dej07, dejb6 and dej0t check `Source::vertical` where they checked `log_y`.
-		- 2026-11-01: dejmb's `sectionPlaces` hook and demvn's `sectionTops` hook leave out the rows on the mode's line, since it now spans both columns. Their asserts are unchanged.
-		- Swept: every `log_y` and `disk_log` user, every `Frame` literal, every `Which` for a `<graph>_vertical` row, the disk graph's tip, and the docs naming Disk log scale.
-	- Acceptance signoff: Self-closed 20261101: der3m to der3r and the stand-in above.
-	- Closed: 20261101-170452
-
-- Profiler tick 151 us at round-1101, up from 134 us
-	- ID: 2026110113023600
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261101-130236
-	- Opened by:
-	- Related IDs: 2026103115232157
-	- Reproduced: No. Back to back, the 2 commits are within each other's noise.
-	- Actual cause: load noise. No commit made the tick slower.
-	- Estimated effort: 30 min
-	- Actual effort: Low
-	- Progress log:
-		- 2026-11-01: the round-1101 full run's profiler gave 151 us a tick of 6 graphs, against 134 us at 1d07a68 and 127 us at c1dec56. 63% is the /proc reads, which move with load, so profile dev and the round's merge back to back before blaming a commit.
-		- 2026-11-01: `1d07a68` and `0242c8a` (dev, the round-1101 merge), 20000 ticks each, taken in turn 3 times at a load of 18 to 26 on 32 cores:
-			- The old profiler: 147, 147 and 142 us a tick at `1d07a68`, and 152, 140 and 159 at `0242c8a`.
-			- The profiler from 2026103115232157, at the panel's width: 397, 376 and 396 at `1d07a68`, and 400, 411 and 392 at `0242c8a`. Medians 396 and 400, 1% apart, less than the runs vary.
-	- Test case: none, since nothing changed. The measurement is above.
-	- Closed: 20261101-161506
-
-- Code review 20261031 item 8: 2 windows saving one new theme name keep only the last one's colors
-	- ID: 2026103115231908
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261031-152319
-	- Opened by: t00mietum
-	- Steps to reproduce: Open 2 windows on one file. Save "Mine" in the first and Apply, then save "Mine" in the second and Apply.
-	- Incorrect behavior: The first window's Mine is gone with no word.
-	- Expected behavior: The second gets its own key, or is asked before it overwrites.
-	- Possible cause: The theme key is picked against this window's themes only. A plugin item opens one window, so it needs a second started by hand.
-	- Estimated effort: Low
-	- Reproduced: 2026-11-01, round-1102, by der2h with the fix taken out. The file kept one theme.
-	- Actual cause: as above. The merge then wrote the second window's theme over the first's, since it had the same key.
-	- Actual effort: Low
-	- Origin: `6a78316` (`merge_themes`). First review. Confirmed by a scratch test.
-	- Progress log:
-		- At Apply, a theme made in this window since its last save, whose key or name the file now has from elsewhere, moves to a free name and key first, such as "Mine 2" at `mine_2`. The pick and the changes made on it follow.
-		- `design.md` Theme says so.
-		- Verified: der2h fails with the fix taken out and passes with it, and the quick gate passed.
-	- Decisions:
-		- Rename rather than ask. The window has no prompt at Apply for anything else, and a rename keeps both with nothing lost. The new name shows in the dropdown at once.
-		- A name clash moves the name too, not only the key, since no two themes share a name.
-		- Only themes new in this window move. One both windows knew and both changed is still the last save's, like any other setting.
-	- Actual fix: `Dialog::make_room` in `settings/src/dialog.rs`, called by `Dialog::apply` before `merge_themes`.
-	- Branch: round-1102
-	- Test case: `dialog::tests::two_windows_saving_one_new_name_keep_both` (der2h).
-		- Swept: `merge_themes`, `save_theme_as`, `rename_theme` and `theme_key`, the only places a key or name is picked. Rename can't clash on key, since a key stays. A rename to a name another window took meanwhile is left, since nothing is lost.
-	- Acceptance signoff: Self-closed 20261101: der2h and the quick gate.
-	- Closed: 20261101-162300
-
 - Code review 20261031 item 33: The workflow pins actions/checkout by tag and keeps the token in the checkout
 	- ID: 2026103115232296
 	- Type: Enhancement
@@ -357,274 +71,32 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1102
 	- Test case: The workflow is its own test, as for 2026102513560001.
 
-- Code review 20261031 item 32: A run whose named areas are all turned off checks nothing and passes
-	- ID: 2026103115232280
+- Code review 20261030 item 3, part 2: Look up a setting by an index in knobs
+	- ID: 2026103018353670
 	- Type: Enhancement
-	- Status: Done
-	- Needs local test suite run?: No. `--backlog-run-full` passed on 2026-11-01.
+	- Status: Stalled
+		- Held for silkterm's copy of knobs to get an id index in `Spec`, since this copy stays byte-identical to it.
 	- Priority|Severity: Low
-	- Opened: 20261031-152322
+	- Opened: 20261030-183536
 	- Opened by: t00mietum
-	- Requirements: `--backlog-run-quick miri --no-leakcheck` plans only the image step. Fail when the plan has no checks.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Origin: `ff4610a`. First review. Confirmed with `--list`.
+	- Parent ID: 2026103016201603
+	- Requirements:
+		- Copy knobs over from silkterm once `Spec` looks ids up through an index built in `finish`, with an `Option` path for an id that's unknown.
+		- Time denam before and after.
 	- Progress log:
-		- `cicd/cicd.bash` fails with exit 2 when its plan has no step but remote sync, the image and dogfood, before it makes a run folder. `--list` still shows the plan, with a line saying the run would fail.
-		- Verified: `--backlog-run-quick miri --no-leakcheck` and `sanitizers --no-leakcheck` fail. `miri` alone, the default areas and `--merge-gate --no-leakcheck` plan as before.
-	- Decisions:
-		- Exit 2, as for other options that make no sense together, since nothing ran.
-		- `--list` exits 0 and says the run would fail, since it only prints the plan.
-	- Branch: round-1102
-	- Test case: der4k in `cicd/tests/guards.bash`. It failed on the old `cicd.bash` and passes now.
-		- Swept: every place the plan is read (`fShowPlan`, `fInImage`, the step loop). Only `--backlog-run-quick` with areas can empty it, since every other mode plans Format, Build and Lint.
-	- Closed: 20261101-173045
-
-- Code review 20261031 item 31: knobs drops unknown spec keys with no word
-	- ID: 2026103115232265
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261031-152322
-	- Opened by: t00mietum
-	- Requirements: Warn on a spec key that neither knobs nor the program names in an allow list, so a typo shows. tukzmon reads its own keys, so it needs that list.
+		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
 	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- `config::unknown_spec_keys` lists every key in settings.shcl that neither knobs nor tukzmon reads: top level, each row, each group and each preset. A test fails on any.
-		- Verified: the quick gate passed, der4w included.
-	- Decisions: Goes to silkterm first, as its copy is the source.
-		- knobs is unchanged, since it stays byte-identical to silkterm's. The spec is compiled in, so a test catches a typo before a build ships, and no runtime warning is needed here.
-		- The knobs key lists in `config.rs` copy what `read_setting` and `read_group` read, and need a line when knobs reads a new key.
-		- A runtime warning in knobs is drafted for silkterm in the upstream folder, `2026103115232265/`.
-	- Branch: round-1102
-	- Test case: `config::tests::the_spec_has_no_key_that_nothing_reads` (der4w). It fails with one `gate:` changed to `gaet:`, and passes on the spec.
-	- Acceptance signoff: Self-closed 20261101: der4w.
-	- Closed: 20261101-173643
-	- Origin: `f89e55e`. First review. Confirmed with a probe, `gaet:` was ignored.
 
-- Code review 20261031 item 30: The settings window's teardown relies on being hidden first
-	- ID: 2026103115232250
+- Hybrid laptop: GPU memory, on by default, keeps the NVIDIA GPU awake
+	- ID: 2026110118380381
 	- Type: Enhancement
-	- Status: Done
+	- Status: Queued
 	- Priority|Severity: Low
-	- Opened: 20261031-152322
+	- Opened: 20261101-183803
 	- Opened by: t00mietum
-	- Requirements: `~Window` frees `live` and `rows` before Qt deletes the child widgets, whose lambdas point at them. `exec()` hides the window first, so nothing fires today. Hide and disconnect at the top of `~Window` so a test hook or a later caller can't reach freed memory.
-	- Estimated effort: Low
-	- Origin: `391bfce`. First review. Plausible, not reachable today.
-	- Actual effort: Low
-	- Progress log:
-		- `~Window` and `~ColorPicker` now take every handler their children have on them off first, then hide. So a box that loses the focus as the window goes runs nothing. `~Window` also takes its app event filter off.
-		- Confirmed: a test hook that types in a color box of a shown window and then destroys it aborted the test binary before the fix, with the box's handler reading a freed row.
-	- Decisions:
-		- The handlers come off before the hide, not after. A hide first would run them with everything still there, but it would also take a half-typed value into the dialog as the window went, which nothing asked for.
-		- The color picker had the same layout, its spin boxes freed before the boxes whose handlers read them, so it gets the same destructor.
-	- Branch: round-1102
-	- Test case: `bridge::tests::a_shown_window_runs_none_of_its_handlers_as_it_is_destroyed` (der53). It aborts before the fix and passes after.
-		- Swept: every `QDialog` subclass in `qt.cpp`, `Window` and `ColorPicker`. The other widget classes keep no members their children's handlers reach. Every existing hook that destroys a shown window still passes, and the quick gate's ASan run reported nothing.
-	- Closed: 20261101-175000
-
-- Code review 20261031 item 29: Apply drops comments in the config file
-	- ID: 2026103115232235
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261031-152322
-	- Opened by: t00mietum
-	- Requirements: Keep the comments a hand edit put in the file, or say in design.md and the file header that Apply rewrites it.
+	- Related IDs: 2026103115232174
+	- Requirements: NVML is now open only while a GPU graph is shown, but GPU memory is on by default, so a hybrid laptop still opens it at start and holds it. Where the NVIDIA card's `power/control` is `auto`, read its `power/runtime_status`, which doesn't wake it, and leave NVML closed while it's `suspended`. Or turn GPU memory off by default on such a box. Check on a hybrid laptop, or a stand-in for the sysfs files.
 	- Estimated effort: Avg
-	- Actual effort: Low
-	- Progress log:
-		- Apply keeps the comments in the config file, as long as the line or section they sit on stays. A changed value keeps its line's comment.
-		- `design.md` Settings window says so.
-		- Verified: der5j fails on the old Apply and passes now. The quick gate passed, and every save in the dialog tests kept its comments rather than falling back.
-	- Decisions:
-		- Took the first option. shcl 2.0.0's `Document` keeps comments through its setters and `to_canonical`, so no shcl change was needed. Apply now sets the new values on the file as loaded (`keep_notes` in `settings/src/dialog.rs`), and removes what the new values don't have, rather than writing knobs' text alone.
-		- If the result wouldn't read back as the values meant, such as with a raw block, the file is written plain as before, so the values always win over the comments.
-		- What 2026102913122701 drops is still dropped, comments on those lines included.
-	- Branch: round-1102
-	- Test case: `dialog::tests::apply_keeps_the_comments_a_hand_edit_put_there` (der5j).
-		- Swept: every config file write (`Dialog::apply`, and `config::start_from`, which copies the shared file byte for byte), and the docs naming hand edits of the file.
-	- Acceptance signoff: Self-closed 20261101: der5j and the quick gate.
-	- Origin: `f89e55e` and `6a78316`. First review. Confirmed by a scratch test.
-	- Closed: 20261101-180524
-
-- Code review 20261031 item 28: Properties gives no sign when its window is open or fails to start
-	- ID: 2026103115232220
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261031-152322
-	- Opened by: t00mietum
-	- Requirements: Raise the open window, or say it's open. Show a failed start in the tip as well as the journal. A window opened before a panel restart is untracked, so removing the item can't close it, and its Apply makes the file again for the next item that takes that id.
-	- Estimated effort: Low
-	- Origin: `f89e55e` (`lib.rs` about 590). First review. Plausible, by reading.
-	- Actual effort: Low
-	- Progress log:
-		- Properties with the item's window open starts no second one, and the tip says "Properties: its window is open already" until it closes. A window from before a panel restart counts, found by its `--config` in `/proc`.
-		- A failed start, or a window that quits with an error, goes to the journal and the tip until the next window opens or one closes cleanly.
-		- Remove now also closes a window from before a panel restart, so its Apply can't make the file again.
-		- `design.md` Settings window has it.
-		- Verified: the quick gate passed. der61 failed with the kill at Remove taken out, and again with the `/proc` lookup taken out.
-		- Verified: in a private panel on X11 and on Wayland, Properties twice opened one window and the tip said "Properties: its window is open already". After `xfce4-panel --restart` the window stayed open, Properties again opened none and the tip said the same, and Remove closed it and left no settings file.
-	- Decisions:
-		- Say it's open rather than raise it. Wayland gives a panel no way to raise another program's window, and an X11 window manager's focus-stealing guard may only flag it.
-		- The tip, not a dialog, since the pointer is on the item when the menu closes, and the tip already carries the item's other troubles.
-		- Find a window from before a restart by its command line in `/proc`, the user's own processes only, rather than a lock or pid file, since that needs nothing written and can't go stale.
-		- Close it at Remove with SIGTERM, which Qt doesn't catch, so nothing is saved, as with the tracked window's kill.
-		- A panel restart leaves such a window open, since the item and its file are still there.
-	- Branch: round-1102
-	- Commit: `7794e6b`
-	- Test case: `tests::properties_that_cant_start_or_quits_says_so_in_the_tip` (der60) and `tests::a_window_from_before_a_panel_restart_is_found_and_closed_at_remove` (der61).
-		- Swept: every `settings` child use in `xfce/src/lib.rs` (tick, configure, forget, the constructor and the test helper), and every `Command::new` in the plugin. tukzmon-settings starts no other program.
-	- Closed: 20261101-190830
-
-- Code review 20261031 item 27: The settings window's controls have no accessible names
-	- ID: 2026103115232204
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261031-152322
-	- Opened by: t00mietum
-	- Requirements: Each row label becomes its control's buddy or accessible name, so a screen reader names checkboxes, sliders, boxes, chips and revert arrows. The color picker title names the graph too, not just Low or Border.
-	- Estimated effort: Low
-	- Origin: `d621249`. First review. Plausible, by reading.
-	- Actual effort: Low
-	- Progress log:
-		- Every row's controls are named by its label, with the graph's name in front on Colors, as "CPU Low". A revert arrow is "Revert" and that name, and a chip "Pick a color for" it. The color picker's title is the same name.
-		- In the graph list, each box, revert arrow and gripper names its graph, as "CPU width %" or "Move CPU". The tab list is "Pages", and each page that scrolls has its tab's name.
-		- A row's label is its control's buddy.
-		- `design.md` Settings window has it.
-	- Decisions:
-		- The buddy is the row's control, not the slider or box inside it. Qt finds a label only beside the widget it labels, and Qt on Linux names a dropdown by its text, so a dropdown's label reaches a screen reader only that way. Sliders, boxes and chips inside a holder get their names set instead.
-		- A graph list dropdown has no label beside it, so a screen reader gives its value, with the tip that names its graph.
-	- Branch: round-1102
-	- Test case: `bridge::tests::every_control_has_a_name_a_screen_reader_can_say` (der54), over every control that takes Tab on every tab, by the name Qt gives a screen reader. It fails before the fix, with sliders, boxes, chips and revert arrows unnamed, and passes after.
-		- Swept: every control `buildControl`, `placeRow` and `buildList` make, the theme buttons and bottom buttons (named by their text), and the page scroll areas, which take focus and had no name either.
-	- Closed: 20261101-175000
-
-- Code review 20261031 item 26: ZFS ARC counts as programs in the memory graph
-	- ID: 2026103115232189
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261031-152321
-	- Opened by: t00mietum
-	- Requirements: Read `/proc/spl/kstat/zfs/arcstats` size when it exists, and count it as cache, as htop can.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Origin: `940bb77`. First review. Confirmed on b23, 7.7 GiB.
-	- Progress log:
-		- The memory graph's cache takes in the ARC's size over `c_min`, and user loses the same. It's read each sample, kept open, and a box without ZFS reads 0.
-		- On b23 that's 3.6 GiB of the ARC's 7.5 GiB, since `c_min` is 3.9 GiB there.
-		- `design.md` Data sources on Linux, Memory, has it.
-		- Verified: der6g and der6h passed, and failed with the ARC left out. The quick gate passed.
-	- Decisions:
-		- Only the part over `c_min`, as htop counts it, since the ARC won't shrink below that, and cache here means what can be given back, as with `SReclaimable`. This departs from "size" in the wording but meets "as htop can".
-		- The ARC part is capped at what user had, since the two files aren't read at the same instant.
-		- Read in the memory reader only, not the per-tick `/proc/meminfo` cache, since swap and zswap don't need it.
-	- Branch: round-1102
-	- Test case: `mem::tests::arc_over_its_floor_counts_as_cache_not_programs` (der6g) and `the_memory_reader_reads_the_arc_each_time_and_none_is_none` (der6h). Both fail with the ARC left out of `memory_shares`. der6h also parses the real arcstats where ZFS is loaded.
-		- Swept: `memory_shares` is the one place cache is worked out. Every `MemoryReader` built as a unit struct in tests now uses `default()`.
-	- Closed: 20261101-185055
-
-- Code review 20261031 item 25: NVML keeps a hybrid laptop's NVIDIA GPU open, and reads device 0
-	- ID: 2026103115232174
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261031-152321
-	- Opened by: t00mietum
-	- Related IDs: 2026110118380381
-	- Requirements: The GPU memory graph is on by default, so every NVIDIA box opens NVML at start and asks each second. On a hybrid laptop that may keep the discrete GPU from powering down, and device 0 is usually that one, not the display GPU. Check on b28l or a stand-in, and open NVML only while a GPU graph is shown.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Origin: `5b569ad`. First review. Plausible, no hybrid laptop to try.
-	- Progress log:
-		- Each GPU reader opens NVML for itself and shuts it down when dropped. NVML counts opens, so it closes when both graphs are hidden, and opens again when one is shown. The library stays loaded.
-		- On b23 the plugin held 7 `/dev/nvidia*` files while a GPU graph was shown, and none once both were hidden.
-		- GPU memory is still on by default, so a hybrid laptop opens NVML at start. 2026110118380381 has that part.
-		- `design.md` Data sources on Linux, GPU, has it.
-		- Verified: der6j and der6k passed, and failed with the shutdown taken out. dekma, dekmd, dektd and der6k passed on b23's host with the RTX 3060 Ti. The quick gate passed.
-	- Decisions:
-		- NVML's first device stays. On a hybrid laptop NVML lists only the NVIDIA GPU, so device 0 is the discrete one, and the other GPU is Intel's or AMD's, which NVML can't read. The GPU picker stays deferred, as in round-1030.
-		- Closed through the readers' drop, not `Source::follow`, since `Slots` already drops a hidden graph's reader.
-		- The library isn't unloaded, since keeping its code mapped holds no GPU.
-		- No hybrid laptop to try, so the wake-up itself is unverified. b28l has no Rust. The stand-in and b23's open files cover what the code does.
-	- Branch: round-1102
-	- Test case: `gpu::tests::nvml_is_open_only_while_a_gpu_graph_is_shown` (der6j), through `Graphs` with a stand-in NVML, and `core/tests/nvml.rs` `hiding_both_gpu_graphs_lets_go_of_the_nvidia_device` (der6k), with the real driver where there is one. Both fail with the shutdown taken out.
-		- Swept: the one NVML open in `core/src/gpu.rs`, both readers through `Card::find`, the Miri stand-in, the settings window's `Live`, which makes every graph while it's open, and `design.md` for "NVML handle".
-	- Closed: 20261101-185055
-
-- Label wording: "and" for ampersands, and "default" on Width
-	- ID: 2026103115020300
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261031-150157
-	- Opened by: t00mietum
-	- Requirements:
-		- Dialog changes to follow `project/style-guide_ux.md` (Labels).
-		- "Top & bottom px" and "Left & right px" on Themes|Outline become "Top and bottom px" and "Left and right px".
-		- "Width px" on General becomes "Width px default", the same as "Sample ms default" and "Time axis default", since each graph takes a percentage of it.
-		- Update the tips and tests that quote these labels.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- Outline's margins read Top and bottom px and Left and right px. Width px default came with 2026110109585212, as did the tips quoting it.
-		- Verified: the quick gate passed, and the stand-in shots under 2026110109585212.
-	- Decisions:
-		- Time axis default, which this item quoted, is now Scale default under Time axis, per 2026110109585212.
-	- Branch: round-1102
-	- Test case: none for the ampersands, a label's text with no behavior, which the stand-in under 2026110109585212 shows. der32 and der33 cover General.
-	- Acceptance signoff: Self-closed 20261101, with 2026110109585212.
-	- Closed: 20261101-164122
-
-- No heading on the Graphs tab that repeats the tab's name
-	- ID: 2026103115020600
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261031-150157
-	- Opened by: t00mietum
-	- Requirements:
-		- Dialog change to follow `project/style-guide_ux.md` (Groups and headings).
-		- The Graphs tab has a heading, "Graphs", over the graph list. Remove it, and keep the list where the heading was.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- The window already drew no heading there. `placeRow` in `qt.cpp` skips any heading that repeats its tab's name, and has since the first build, so the list sits at the top of the page. Only the spec row `GraphsHead` was left.
-		- Added a test that fails if a heading on any tab repeats its name, or if Graphs shows any heading.
-		- Verified: the quick gate passed with the new test, and the stand-in shots in private `uat-2026103114565000/` show no heading on Graphs.
-	- Decisions:
-		- `GraphsHead` stays in `settings.shcl`. It marks where the list goes, and dialog and bridge tests read it there. Dropping it would change nothing on screen.
-	- Branch: round-1102
-	- Test case: `bridge::tests::a_rule_is_drawn_only_under_a_heading_that_isnt_the_tabs_name` (der2t). It fails with `placeRow`'s skip taken out, showing "Graphs" with its rule, and passes now.
-	- Acceptance signoff: Self-closed 20261101: der2t.
-	- Closed: 20261101-163041
-
-- Border width is on General, but margins and border colors are on Themes
-	- ID: 2026103115020900
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261031-150157
-	- Opened by: t00mietum
-	- Requirements:
-		- Need to work out ambiguities.
-		- Border px is the only row under General's Frame heading. Margins, and the Border color, are on Themes|Outline and Themes|Colors.
-		- Decide where Border px belongs, then change the dialog and the style guide to match. Moving it to Themes|Outline next to Margins is the likely answer, but it isn't a theme value today.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- Border px is under Size on General, after Width px default, and the Frame heading is gone. `style-guide_ux.md` Groups and headings says where it goes and why.
-	- Decisions:
-		- Settled by 2026110109585212, the user's newer item, which asks for Border px under Size. It stays off Outline since it isn't a theme value.
-	- Branch: round-1102
-	- Test case: `bridge::tests::general_is_size_then_time_axis_then_timespan_then_misc` (der32), which checks Border px between Width px default and Time axis.
-	- Acceptance signoff: Self-closed 20261101, with 2026110109585212.
-	- Closed: 20261101-164122
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
@@ -3208,6 +2680,185 @@ Sorted per the notes in [Template](#template).
 		- Swept: defx7 and defxd, the only checks on leads, every built-in in `settings.shcl`, and every role in `dice::ROLES` that follows its graph's lead.
 	- Closed: 20261028-161000
 
+- Code review 20261031 item 24: The profiler draws into a canvas far smaller than a panel's, and one run varies 20%
+	- ID: 2026103115232157
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261031-152321
+	- Opened by: t00mietum
+	- Related IDs: 2026103016201601, 2026110113023600, 2026110116150685
+	- Requirements: Size the canvas from `Graphs::wanted`, drive it through `Graphs::tick` with beats, and give the median of a few runs or user time alone. 6 graphs want 790 device px and get 96, so the last plot is 1 px, and 40 px are gaps. The 134 to 178 us move on 2026-10-31 came with no core change.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Origin: `27110e8`. First review. Confirmed by a probe.
+	- Progress log:
+		- The canvas is `Graphs::wanted` for a 24 px panel on a scale 2 screen: 790x48 device px for the 6 default graphs, where it was 96x48.
+		- Each tick is a wake of the panel's timer on simulated time, through `Graphs::tick_at`, so a graph reads only on its own beat. CPU's default of 50% makes 2 wakes a second, one of them for CPU alone. The subtitle gives the panel time, such as "20000 ticks of 6 graphs in 10000 s of panel time".
+		- The ticks are timed in 5 runs. The subtitle gives the median us a tick, its user part, and the range of the runs.
+		- At a load of 18 to 26 on 32 cores: 375 to 411 us a tick, against 140 to 159 with the old canvas and loop. The 5 runs inside one profile spread 1% to 8%. History lookups are 42% of the tick, drawing 20%, the reads 22%.
+		- Verified: the quick gate with the profile area passed.
+	- Decisions:
+		- `Graphs::tick_at` is public and hidden from the docs, as `skip` is, since it already takes the time to tick at.
+		- The median is of user plus system time, since the reads are system time and are part of what the panel costs. The user median is beside it.
+		- The history is trimmed at each save, as the panel does, not every tick.
+		- The count stays 20000 ticks, split into the 5 runs. The step takes about 8 s rather than 3, from the wider canvas.
+	- Branch: round-1102
+	- Test case: None in the repo. The Profiler step runs it, and it refuses a ROUNDS of 0.
+		- Swept: the soak test draws at 96x48 too. It stays, since it checks heap growth and not cost, and a graph's buffers keep their size after the first draw at any width. The cicd header and `flame-report.py`, which only prints the subtitle, needed no change.
+	- Closed: 20261101-161506
+
+- Pre-next-cut: No horizontal line between the theme buttons and the scrollable region
+	- ID: 2026103114565000
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261031-145650
+	- Opened by: t00mietum
+	- Requirements:
+		- Themes|Colors page: There should be no horizontal line between the theme management buttons, and the scrollable region.
+			- Ditto with the Themes|Outline tab.
+	- Actual effort: Low
+	- Progress log:
+		- The rule under the theme's Name row and buttons is gone, on Colors and Outline. The shade step between the Name row and the page marks the edge, as the style guide's Window layout already said.
+		- `design.md` Settings window has it.
+		- Verified: the quick gate passed with the new test.
+		- Stand-in 20261101: light and dark shots in Orchis-green compact, before and after, in private `uat-2026103114565000/`, show the page starting right under the buttons with no line. Closed on them; reopen if the look isn't right on b23.
+	- Branch: round-1102
+	- Test case: `bridge::tests::a_rule_is_drawn_only_under_a_heading_that_isnt_the_tabs_name` (der2t). It fails with the rule put back, on Themes, Colors and Outline, and passes now.
+		- Swept: every `QFrame::HLine` in `qt.cpp`. The other 2 are heading rules, which stay.
+	- Acceptance signoff: Self-closed 20261101: der2t, and the stand-in shots above.
+	- Closed: 20261101-163041
+
+- Every control and color chip has a tip
+	- ID: 2026103115015700
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261031-150157
+	- Opened by: t00mietum
+	- Requirements:
+		- Dialog changes to follow `project/style-guide_ux.md` (Tips).
+		- Add a tip to Border px on General.
+		- Add a tip to each color row that has none: Border, Top, and Bottom on every graph, plus Buffers, Busy, CPU use, I/O wait, In use, Load, On battery, Other users, Read, User, and Written.
+		- Add a test that fails on a control or color row with no tip.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Border px and 55 color rows had no tip, and have one now. The Outline tab's Border, Top and Bottom had none either, and are in the count.
+		- Verified: the quick gate passed.
+	- Decisions:
+		- The test reads the spec's own tip, not `row_state`'s, since that adds the slider range text to a slider's tip and would hide a missing one.
+	- Branch: round-1102
+	- Test case: `bridge::tests::every_control_and_color_row_has_a_tip_of_its_own` (der3b). It failed with the tips taken out and passes with them.
+		- Swept: every row in `core/src/settings.shcl` with a control other than heading, by script.
+	- Closed: 20261101-165000
+
+- Destructive questions default to No
+	- ID: 2026103115020000
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261031-150157
+	- Opened by: t00mietum
+	- Requirements:
+		- Dialog change to follow `project/style-guide_ux.md` (Message boxes).
+		- The Delete theme and Reset history questions have no default button set, so Qt picks Yes. Make it No for both.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Delete theme and Reset history now start on No, so Enter on either changes nothing.
+		- `design.md` Settings window has it.
+		- Verified: the quick gate passed with the new test.
+	- Decisions:
+		- Each question is its own `Window` method, `askDelete` and `askReset`, so a test opens the same box the button does.
+	- Branch: round-1102
+	- Test case: `bridge::tests::the_questions_that_cant_be_undone_start_on_no` (der2v). It fails before the change, with Yes as the default on both, and passes after.
+		- Swept: every `QMessageBox` in `qt.cpp`. The rest are warnings with one button, and the test hooks' own boxes.
+	- Acceptance signoff: Self-closed 20261101: der2v.
+	- Closed: 20261101-163041
+
+- Pre-next-cut: General tab names and layout
+	- ID: 2026110109585212
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261101-095852
+	- Opened by: t00mietum
+	- Related IDs: 2026110109585213, 2026103115020300, 2026103115020900
+	- Requirements:
+		- Tab: "General":
+			- Size "Width px" -> "Width px default"
+			- "Time" heading -> "Time axis"
+				- "Time axis default" -> "Scale default"
+				- "Hover shows": Default to "How long ago".
+			- Move "Border px" under Size/"Width px default". (And remove the "Frame" section.)
+			- Move "Max age in days" to the right of "Keep across restarts", rather than below it.
+			- "History" -> "Timespan"
+			- New section at the bottom: "Misc"
+				- Disk drives. Remove the "Disk graph" section.
+				- LAN and internet. Remove the "Network graph" section.
+	- Stand-in: 20261101, round-1102 debug build, in b23's own style (gtk3 platform theme, Orchis green compact), light and dark. General drew Size (Width px default, Border px), Time axis (Scale default, Sample ms default, Spike emphasis %, Hover shows on How long ago), Timespan (Keep across restarts with Max age in days to its right) and Misc (Disk drives, Disk log scale, LAN and internet). Outline drew Top and bottom px and Left and right px.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- General is now Size, Time axis, Timespan and Misc, with the labels and order asked for. Hover shows defaults to How long ago.
+		- Max age in days sits to the right of Keep across restarts, through a new spec key, `same_line: true`, which `placeRow` in `qt.cpp` reads.
+		- The tips that quoted Width or Time axis default, and the network and disk tips that said "further down", now name the new labels and Misc on the General tab.
+		- `design.md` Settings window, XFCE plugin and Time axis, and `style-guide_ux.md` Groups and headings and Labels, are updated.
+		- Verified: the quick gate passed, and the stand-in above.
+	- Decisions:
+		- Disk log scale moved into Misc with Disk drives, since Disk graph is gone. 2026110109585213 removes it.
+		- The rows under Misc keep their indent, since they still grey with their graph's checkbox on the Graphs tab.
+		- The same_line row keeps its own revert arrow, right after its box. The row whose line it joins keeps its label and revert where they were.
+		- The setting ids and paths are unchanged, so saved files read as before. Only a file with no hover_time line changes, to How long ago.
+	- Branch: round-1102
+	- Test case: `bridge::tests::general_is_size_then_time_axis_then_timespan_then_misc` (der32) and `max_age_sits_right_of_keep_across_restarts` (der33). Both fail on the old spec, and der33 fails with only `same_line` taken out. Both pass now.
+		- 2026-11-01: new values only. debhj and decc5 expect How long ago for no or a bad hover_time, where they expected Date and time. deknz's short screen is 1280x540, not 1280x600, since General is shorter and the window no longer fills 600 px.
+		- deqsp's `list_head_tips` hook skips bold labels, since General's Time axis heading has the graph list column's text.
+		- Swept: every tip in `settings.shcl` and `qt.cpp` naming Width, Time axis default or "further down", the code comments naming them, and the docs naming General's headings.
+	- Acceptance signoff: Self-closed 20261101: der32, der33 and the stand-in above.
+	- Closed: 20261101-164122
+
+- Pre-next-cut: Vertical axis scale, as a default and per graph
+	- ID: 2026110109585213
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261101-095852
+	- Opened by: t00mietum
+	- Related IDs: 2026110109585212
+	- Requirements:
+		- Tab: "General":
+			- New section "Vertical axis":
+				- New dropdown "Scale default": "Linear", "log₁₀", "𝜒²"
+			- Remove "Disk log scale" checkbox from "Disk graph".
+		- Themes|Colors tab:
+			- For each monitor, add "Vertical scale:", with same options (but per-monitor) as "Vertical axis"/"Scale default", but with an additional "Global default" option (default selection).
+	- Decisions:
+		- 2026-11-01: 𝜒² is there to exaggerate differences. Large values get larger, and small values relatively smaller. So it's a squared curve, the height following (value / top)², the opposite of log₁₀.
+	- Stand-in: 20261101, round-1102 debug build, in b23's own style (gtk3 platform theme, Orchis green compact), light and dark. General drew Vertical axis with Scale default between Time axis and Timespan, and no Disk log scale under Misc. Themes/Colors drew Vertical scale right of each graph's Colors mode, on its line, with Global default, and the log and squared picks read as their symbols.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Scale default under Vertical axis on General, at `graph.vertical`, takes `linear`, the default, `log10` or `squared`. Each graph's own Vertical scale, at `<graph>.vertical`, takes those or `same`, Global default, the default.
+		- Every graph can use any of the 3, fixed top or not. On log10 a fixed top counts up from a thousandth of the top, as disk counts up from a thousandth of its floor. Squared draws the stack's height as (value / top) squared, and each series keeps its share, as on log.
+		- Disk log scale is gone. A file with `disk.log` on loads with the disk graph's own Vertical scale at `log10`, and the next save drops the old line.
+		- `design.md` XFCE plugin, Settings window and Drawing, `style-guide_ux.md` Labels and README.md are updated.
+		- Verified: the quick gate passed, and the stand-in above.
+	- Decisions:
+		- Vertical scale isn't in the theme group, so picking a theme leaves it, and changing it doesn't add a * to the theme. It sits on the Themes/Colors tab as asked. Check in questions.md.
+		- It joins the Colors mode's line with `same_line: true`, and that line now spans both columns, so the section keeps its width. The mode's revert moves to the line's right end, as Keep across restarts' does on General.
+		- `Source::log_y` is replaced by `Source::vertical`, and `render::Frame` takes a `vertical`, since a graph with a fixed top has no `Scale`.
+		- The docs and tips write log10 and squared in plain text. Only the dropdowns show the symbols asked for.
+	- Branch: round-1102
+	- Test case: `render::tests::squared_sinks_small_values_and_every_scale_takes_a_fixed_top` (der3m), `config::tests::the_old_disk_log_scale_is_the_disk_graphs_own_log10` (der3n), `a_graph_follows_the_vertical_default_unless_it_picks_its_own` (der3p), `bridge::tests::each_graphs_vertical_scale_sits_right_of_its_colors_mode` (der3q) and `dialog::tests::the_old_disk_log_scale_saves_as_the_disk_graphs_own` (der3r). der3q fails with the same_line row left off the mode's line, and der3n with the old path not moved.
+		- 2026-11-01: new values only. der32 expects a Vertical axis heading and `vertical_axis` after `hover_time`, and no `disk_log`. dej07, dejb6 and dej0t check `Source::vertical` where they checked `log_y`.
+		- 2026-11-01: dejmb's `sectionPlaces` hook and demvn's `sectionTops` hook leave out the rows on the mode's line, since it now spans both columns. Their asserts are unchanged.
+		- Swept: every `log_y` and `disk_log` user, every `Frame` literal, every `Which` for a `<graph>_vertical` row, the disk graph's tip, and the docs naming Disk log scale.
+	- Acceptance signoff: Self-closed 20261101: der3m to der3r and the stand-in above.
+	- Closed: 20261101-170452
+
 - Pre-next-cut: Settings dialog brightness inverted
 	- ID: 2026103113364400
 	- Type: Enhancement
@@ -4845,6 +4496,57 @@ Sorted per the notes in [Template](#template).
 	- Test case: None, since it was a question. The network collector's tests will cover the answer.
 	- Closed: 20261019
 
+- Profiler tick 151 us at round-1101, up from 134 us
+	- ID: 2026110113023600
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261101-130236
+	- Opened by:
+	- Related IDs: 2026103115232157
+	- Reproduced: No. Back to back, the 2 commits are within each other's noise.
+	- Actual cause: load noise. No commit made the tick slower.
+	- Estimated effort: 30 min
+	- Actual effort: Low
+	- Progress log:
+		- 2026-11-01: the round-1101 full run's profiler gave 151 us a tick of 6 graphs, against 134 us at 1d07a68 and 127 us at c1dec56. 63% is the /proc reads, which move with load, so profile dev and the round's merge back to back before blaming a commit.
+		- 2026-11-01: `1d07a68` and `0242c8a` (dev, the round-1101 merge), 20000 ticks each, taken in turn 3 times at a load of 18 to 26 on 32 cores:
+			- The old profiler: 147, 147 and 142 us a tick at `1d07a68`, and 152, 140 and 159 at `0242c8a`.
+			- The profiler from 2026103115232157, at the panel's width: 397, 376 and 396 at `1d07a68`, and 400, 411 and 392 at `0242c8a`. Medians 396 and 400, 1% apart, less than the runs vary.
+	- Test case: none, since nothing changed. The measurement is above.
+	- Closed: 20261101-161506
+
+- Code review 20261031 item 8: 2 windows saving one new theme name keep only the last one's colors
+	- ID: 2026103115231908
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152319
+	- Opened by: t00mietum
+	- Steps to reproduce: Open 2 windows on one file. Save "Mine" in the first and Apply, then save "Mine" in the second and Apply.
+	- Incorrect behavior: The first window's Mine is gone with no word.
+	- Expected behavior: The second gets its own key, or is asked before it overwrites.
+	- Possible cause: The theme key is picked against this window's themes only. A plugin item opens one window, so it needs a second started by hand.
+	- Estimated effort: Low
+	- Reproduced: 2026-11-01, round-1102, by der2h with the fix taken out. The file kept one theme.
+	- Actual cause: as above. The merge then wrote the second window's theme over the first's, since it had the same key.
+	- Actual effort: Low
+	- Origin: `6a78316` (`merge_themes`). First review. Confirmed by a scratch test.
+	- Progress log:
+		- At Apply, a theme made in this window since its last save, whose key or name the file now has from elsewhere, moves to a free name and key first, such as "Mine 2" at `mine_2`. The pick and the changes made on it follow.
+		- `design.md` Theme says so.
+		- Verified: der2h fails with the fix taken out and passes with it, and the quick gate passed.
+	- Decisions:
+		- Rename rather than ask. The window has no prompt at Apply for anything else, and a rename keeps both with nothing lost. The new name shows in the dropdown at once.
+		- A name clash moves the name too, not only the key, since no two themes share a name.
+		- Only themes new in this window move. One both windows knew and both changed is still the last save's, like any other setting.
+	- Actual fix: `Dialog::make_room` in `settings/src/dialog.rs`, called by `Dialog::apply` before `merge_themes`.
+	- Branch: round-1102
+	- Test case: `dialog::tests::two_windows_saving_one_new_name_keep_both` (der2h).
+		- Swept: `merge_themes`, `save_theme_as`, `rename_theme` and `theme_key`, the only places a key or name is picked. Rename can't clash on key, since a key stays. A rename to a name another window took meanwhile is left, since nothing is lost.
+	- Acceptance signoff: Self-closed 20261101: der2h and the quick gate.
+	- Closed: 20261101-162300
+
 - With the LAN split on, TCP to a VM on a bridge that also holds the NIC counts as LAN
 	- ID: 2026110111543986
 	- Type: Bug
@@ -5599,6 +5301,304 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
 	- Closed: 20261025-081952
+
+- At a panel's width, history lookups are 42% of the profiler's tick
+	- ID: 2026110116150685
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261101-161506
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232157, 2026102814061812
+	- Requirements: The profiler now draws at the width the graphs ask for, 790x48 device px for the 6 default graphs. There, history lookups are 42% of a tick, `Tier::total` alone 26%, and the log axis's ages 10%. Make a column's total cheaper, or say why the cost is fine. Time it with the profiler before and after.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Origin: the profile from 2026103115232157, one run on 2026-11-01.
+	- Progress log:
+		- Each tier keeps a total per 8 buckets and per 64, where it kept one per 32. A column reads blocks of 64, then blocks of 8 at its ends, and at most 7 buckets at each end. Block numbers are shifts, not divisions. `design.md` History has it.
+		- A bucket read whole takes one division, not one per series.
+		- Drawing works out each column edge's age once, not twice. The edges are the same numbers.
+		- Profiler, run side by side at a load of 7 to 18 on 32 cores: 381 to 406 us a tick before, 307 to 314 after, about 20% less. User time went from about 305 to 234 us.
+		- After, history lookups are 34% of the tick, where they were 43%. The bucket loop is 10%, and the log axis 8%, down from 12%. The /proc reads and drawing are now about a quarter each.
+		- Verified: the quick gate with the profile area passed.
+	- Decisions:
+		- Blocks of 8 and 64 over 16 and 128. Side by side, 16 and 128 gave 329 us a tick against 309.
+		- The blocks take about 8% of the history's memory, up from 2%. That's about 330 KB more for a 4-series graph with 90 days of history.
+		- A whole bucket adds its sum, scaled by its weight over its seconds, rather than its mean times its weight. The two match to float rounding.
+	- Branch: round-1102
+	- Test case: `history::tests::block_totals_add_up_to_their_buckets_through_gaps_trims_and_reloads` (der45). It checks every kept block at both sizes and random runs of buckets against a plain bucket sum, through gaps, long samples, trims and reloads. It fails with the gap rule taken out of `reindex`, with the coarse blocks never dropped, or with a block read that starts mid-block.
+		- 2026-11-01: dejcp and deqqq check the block counts and capacities at both sizes, where they checked blocks of 32. The rest of each test is unchanged.
+		- Swept: every reader and writer of the blocks (`Tier::add`, `History::trim`, `History::decode`, `History::span`) and every `axis.age` caller. The hover tip's `span_at` in `lib.rs` reads one column, so it takes 2 ages as before.
+	- Closed: 20261101-171956
+
+- Code review 20261031 item 32: A run whose named areas are all turned off checks nothing and passes
+	- ID: 2026103115232280
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. `--backlog-run-full` passed on 2026-11-01.
+	- Priority|Severity: Low
+	- Opened: 20261031-152322
+	- Opened by: t00mietum
+	- Requirements: `--backlog-run-quick miri --no-leakcheck` plans only the image step. Fail when the plan has no checks.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Origin: `ff4610a`. First review. Confirmed with `--list`.
+	- Progress log:
+		- `cicd/cicd.bash` fails with exit 2 when its plan has no step but remote sync, the image and dogfood, before it makes a run folder. `--list` still shows the plan, with a line saying the run would fail.
+		- Verified: `--backlog-run-quick miri --no-leakcheck` and `sanitizers --no-leakcheck` fail. `miri` alone, the default areas and `--merge-gate --no-leakcheck` plan as before.
+	- Decisions:
+		- Exit 2, as for other options that make no sense together, since nothing ran.
+		- `--list` exits 0 and says the run would fail, since it only prints the plan.
+	- Branch: round-1102
+	- Test case: der4k in `cicd/tests/guards.bash`. It failed on the old `cicd.bash` and passes now.
+		- Swept: every place the plan is read (`fShowPlan`, `fInImage`, the step loop). Only `--backlog-run-quick` with areas can empty it, since every other mode plans Format, Build and Lint.
+	- Closed: 20261101-173045
+
+- Code review 20261031 item 31: knobs drops unknown spec keys with no word
+	- ID: 2026103115232265
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152322
+	- Opened by: t00mietum
+	- Requirements: Warn on a spec key that neither knobs nor the program names in an allow list, so a typo shows. tukzmon reads its own keys, so it needs that list.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `config::unknown_spec_keys` lists every key in settings.shcl that neither knobs nor tukzmon reads: top level, each row, each group and each preset. A test fails on any.
+		- Verified: the quick gate passed, der4w included.
+	- Decisions: Goes to silkterm first, as its copy is the source.
+		- knobs is unchanged, since it stays byte-identical to silkterm's. The spec is compiled in, so a test catches a typo before a build ships, and no runtime warning is needed here.
+		- The knobs key lists in `config.rs` copy what `read_setting` and `read_group` read, and need a line when knobs reads a new key.
+		- A runtime warning in knobs is drafted for silkterm in the upstream folder, `2026103115232265/`.
+	- Branch: round-1102
+	- Test case: `config::tests::the_spec_has_no_key_that_nothing_reads` (der4w). It fails with one `gate:` changed to `gaet:`, and passes on the spec.
+	- Acceptance signoff: Self-closed 20261101: der4w.
+	- Closed: 20261101-173643
+	- Origin: `f89e55e`. First review. Confirmed with a probe, `gaet:` was ignored.
+
+- Code review 20261031 item 30: The settings window's teardown relies on being hidden first
+	- ID: 2026103115232250
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152322
+	- Opened by: t00mietum
+	- Requirements: `~Window` frees `live` and `rows` before Qt deletes the child widgets, whose lambdas point at them. `exec()` hides the window first, so nothing fires today. Hide and disconnect at the top of `~Window` so a test hook or a later caller can't reach freed memory.
+	- Estimated effort: Low
+	- Origin: `391bfce`. First review. Plausible, not reachable today.
+	- Actual effort: Low
+	- Progress log:
+		- `~Window` and `~ColorPicker` now take every handler their children have on them off first, then hide. So a box that loses the focus as the window goes runs nothing. `~Window` also takes its app event filter off.
+		- Confirmed: a test hook that types in a color box of a shown window and then destroys it aborted the test binary before the fix, with the box's handler reading a freed row.
+	- Decisions:
+		- The handlers come off before the hide, not after. A hide first would run them with everything still there, but it would also take a half-typed value into the dialog as the window went, which nothing asked for.
+		- The color picker had the same layout, its spin boxes freed before the boxes whose handlers read them, so it gets the same destructor.
+	- Branch: round-1102
+	- Test case: `bridge::tests::a_shown_window_runs_none_of_its_handlers_as_it_is_destroyed` (der53). It aborts before the fix and passes after.
+		- Swept: every `QDialog` subclass in `qt.cpp`, `Window` and `ColorPicker`. The other widget classes keep no members their children's handlers reach. Every existing hook that destroys a shown window still passes, and the quick gate's ASan run reported nothing.
+	- Closed: 20261101-175000
+
+- Code review 20261031 item 29: Apply drops comments in the config file
+	- ID: 2026103115232235
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152322
+	- Opened by: t00mietum
+	- Requirements: Keep the comments a hand edit put in the file, or say in design.md and the file header that Apply rewrites it.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- Apply keeps the comments in the config file, as long as the line or section they sit on stays. A changed value keeps its line's comment.
+		- `design.md` Settings window says so.
+		- Verified: der5j fails on the old Apply and passes now. The quick gate passed, and every save in the dialog tests kept its comments rather than falling back.
+	- Decisions:
+		- Took the first option. shcl 2.0.0's `Document` keeps comments through its setters and `to_canonical`, so no shcl change was needed. Apply now sets the new values on the file as loaded (`keep_notes` in `settings/src/dialog.rs`), and removes what the new values don't have, rather than writing knobs' text alone.
+		- If the result wouldn't read back as the values meant, such as with a raw block, the file is written plain as before, so the values always win over the comments.
+		- What 2026102913122701 drops is still dropped, comments on those lines included.
+	- Branch: round-1102
+	- Test case: `dialog::tests::apply_keeps_the_comments_a_hand_edit_put_there` (der5j).
+		- Swept: every config file write (`Dialog::apply`, and `config::start_from`, which copies the shared file byte for byte), and the docs naming hand edits of the file.
+	- Acceptance signoff: Self-closed 20261101: der5j and the quick gate.
+	- Origin: `f89e55e` and `6a78316`. First review. Confirmed by a scratch test.
+	- Closed: 20261101-180524
+
+- Code review 20261031 item 28: Properties gives no sign when its window is open or fails to start
+	- ID: 2026103115232220
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152322
+	- Opened by: t00mietum
+	- Requirements: Raise the open window, or say it's open. Show a failed start in the tip as well as the journal. A window opened before a panel restart is untracked, so removing the item can't close it, and its Apply makes the file again for the next item that takes that id.
+	- Estimated effort: Low
+	- Origin: `f89e55e` (`lib.rs` about 590). First review. Plausible, by reading.
+	- Actual effort: Low
+	- Progress log:
+		- Properties with the item's window open starts no second one, and the tip says "Properties: its window is open already" until it closes. A window from before a panel restart counts, found by its `--config` in `/proc`.
+		- A failed start, or a window that quits with an error, goes to the journal and the tip until the next window opens or one closes cleanly.
+		- Remove now also closes a window from before a panel restart, so its Apply can't make the file again.
+		- `design.md` Settings window has it.
+		- Verified: the quick gate passed. der61 failed with the kill at Remove taken out, and again with the `/proc` lookup taken out.
+		- Verified: in a private panel on X11 and on Wayland, Properties twice opened one window and the tip said "Properties: its window is open already". After `xfce4-panel --restart` the window stayed open, Properties again opened none and the tip said the same, and Remove closed it and left no settings file.
+	- Decisions:
+		- Say it's open rather than raise it. Wayland gives a panel no way to raise another program's window, and an X11 window manager's focus-stealing guard may only flag it.
+		- The tip, not a dialog, since the pointer is on the item when the menu closes, and the tip already carries the item's other troubles.
+		- Find a window from before a restart by its command line in `/proc`, the user's own processes only, rather than a lock or pid file, since that needs nothing written and can't go stale.
+		- Close it at Remove with SIGTERM, which Qt doesn't catch, so nothing is saved, as with the tracked window's kill.
+		- A panel restart leaves such a window open, since the item and its file are still there.
+	- Branch: round-1102
+	- Commit: `7794e6b`
+	- Test case: `tests::properties_that_cant_start_or_quits_says_so_in_the_tip` (der60) and `tests::a_window_from_before_a_panel_restart_is_found_and_closed_at_remove` (der61).
+		- Swept: every `settings` child use in `xfce/src/lib.rs` (tick, configure, forget, the constructor and the test helper), and every `Command::new` in the plugin. tukzmon-settings starts no other program.
+	- Closed: 20261101-190830
+
+- Code review 20261031 item 27: The settings window's controls have no accessible names
+	- ID: 2026103115232204
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152322
+	- Opened by: t00mietum
+	- Requirements: Each row label becomes its control's buddy or accessible name, so a screen reader names checkboxes, sliders, boxes, chips and revert arrows. The color picker title names the graph too, not just Low or Border.
+	- Estimated effort: Low
+	- Origin: `d621249`. First review. Plausible, by reading.
+	- Actual effort: Low
+	- Progress log:
+		- Every row's controls are named by its label, with the graph's name in front on Colors, as "CPU Low". A revert arrow is "Revert" and that name, and a chip "Pick a color for" it. The color picker's title is the same name.
+		- In the graph list, each box, revert arrow and gripper names its graph, as "CPU width %" or "Move CPU". The tab list is "Pages", and each page that scrolls has its tab's name.
+		- A row's label is its control's buddy.
+		- `design.md` Settings window has it.
+	- Decisions:
+		- The buddy is the row's control, not the slider or box inside it. Qt finds a label only beside the widget it labels, and Qt on Linux names a dropdown by its text, so a dropdown's label reaches a screen reader only that way. Sliders, boxes and chips inside a holder get their names set instead.
+		- A graph list dropdown has no label beside it, so a screen reader gives its value, with the tip that names its graph.
+	- Branch: round-1102
+	- Test case: `bridge::tests::every_control_has_a_name_a_screen_reader_can_say` (der54), over every control that takes Tab on every tab, by the name Qt gives a screen reader. It fails before the fix, with sliders, boxes, chips and revert arrows unnamed, and passes after.
+		- Swept: every control `buildControl`, `placeRow` and `buildList` make, the theme buttons and bottom buttons (named by their text), and the page scroll areas, which take focus and had no name either.
+	- Closed: 20261101-175000
+
+- Code review 20261031 item 26: ZFS ARC counts as programs in the memory graph
+	- ID: 2026103115232189
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152321
+	- Opened by: t00mietum
+	- Requirements: Read `/proc/spl/kstat/zfs/arcstats` size when it exists, and count it as cache, as htop can.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Origin: `940bb77`. First review. Confirmed on b23, 7.7 GiB.
+	- Progress log:
+		- The memory graph's cache takes in the ARC's size over `c_min`, and user loses the same. It's read each sample, kept open, and a box without ZFS reads 0.
+		- On b23 that's 3.6 GiB of the ARC's 7.5 GiB, since `c_min` is 3.9 GiB there.
+		- `design.md` Data sources on Linux, Memory, has it.
+		- Verified: der6g and der6h passed, and failed with the ARC left out. The quick gate passed.
+	- Decisions:
+		- Only the part over `c_min`, as htop counts it, since the ARC won't shrink below that, and cache here means what can be given back, as with `SReclaimable`. This departs from "size" in the wording but meets "as htop can".
+		- The ARC part is capped at what user had, since the two files aren't read at the same instant.
+		- Read in the memory reader only, not the per-tick `/proc/meminfo` cache, since swap and zswap don't need it.
+	- Branch: round-1102
+	- Test case: `mem::tests::arc_over_its_floor_counts_as_cache_not_programs` (der6g) and `the_memory_reader_reads_the_arc_each_time_and_none_is_none` (der6h). Both fail with the ARC left out of `memory_shares`. der6h also parses the real arcstats where ZFS is loaded.
+		- Swept: `memory_shares` is the one place cache is worked out. Every `MemoryReader` built as a unit struct in tests now uses `default()`.
+	- Closed: 20261101-185055
+
+- Code review 20261031 item 25: NVML keeps a hybrid laptop's NVIDIA GPU open, and reads device 0
+	- ID: 2026103115232174
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-152321
+	- Opened by: t00mietum
+	- Related IDs: 2026110118380381
+	- Requirements: The GPU memory graph is on by default, so every NVIDIA box opens NVML at start and asks each second. On a hybrid laptop that may keep the discrete GPU from powering down, and device 0 is usually that one, not the display GPU. Check on b28l or a stand-in, and open NVML only while a GPU graph is shown.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Origin: `5b569ad`. First review. Plausible, no hybrid laptop to try.
+	- Progress log:
+		- Each GPU reader opens NVML for itself and shuts it down when dropped. NVML counts opens, so it closes when both graphs are hidden, and opens again when one is shown. The library stays loaded.
+		- On b23 the plugin held 7 `/dev/nvidia*` files while a GPU graph was shown, and none once both were hidden.
+		- GPU memory is still on by default, so a hybrid laptop opens NVML at start. 2026110118380381 has that part.
+		- `design.md` Data sources on Linux, GPU, has it.
+		- Verified: der6j and der6k passed, and failed with the shutdown taken out. dekma, dekmd, dektd and der6k passed on b23's host with the RTX 3060 Ti. The quick gate passed.
+	- Decisions:
+		- NVML's first device stays. On a hybrid laptop NVML lists only the NVIDIA GPU, so device 0 is the discrete one, and the other GPU is Intel's or AMD's, which NVML can't read. The GPU picker stays deferred, as in round-1030.
+		- Closed through the readers' drop, not `Source::follow`, since `Slots` already drops a hidden graph's reader.
+		- The library isn't unloaded, since keeping its code mapped holds no GPU.
+		- No hybrid laptop to try, so the wake-up itself is unverified. b28l has no Rust. The stand-in and b23's open files cover what the code does.
+	- Branch: round-1102
+	- Test case: `gpu::tests::nvml_is_open_only_while_a_gpu_graph_is_shown` (der6j), through `Graphs` with a stand-in NVML, and `core/tests/nvml.rs` `hiding_both_gpu_graphs_lets_go_of_the_nvidia_device` (der6k), with the real driver where there is one. Both fail with the shutdown taken out.
+		- Swept: the one NVML open in `core/src/gpu.rs`, both readers through `Card::find`, the Miri stand-in, the settings window's `Live`, which makes every graph while it's open, and `design.md` for "NVML handle".
+	- Closed: 20261101-185055
+
+- Label wording: "and" for ampersands, and "default" on Width
+	- ID: 2026103115020300
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-150157
+	- Opened by: t00mietum
+	- Requirements:
+		- Dialog changes to follow `project/style-guide_ux.md` (Labels).
+		- "Top & bottom px" and "Left & right px" on Themes|Outline become "Top and bottom px" and "Left and right px".
+		- "Width px" on General becomes "Width px default", the same as "Sample ms default" and "Time axis default", since each graph takes a percentage of it.
+		- Update the tips and tests that quote these labels.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Outline's margins read Top and bottom px and Left and right px. Width px default came with 2026110109585212, as did the tips quoting it.
+		- Verified: the quick gate passed, and the stand-in shots under 2026110109585212.
+	- Decisions:
+		- Time axis default, which this item quoted, is now Scale default under Time axis, per 2026110109585212.
+	- Branch: round-1102
+	- Test case: none for the ampersands, a label's text with no behavior, which the stand-in under 2026110109585212 shows. der32 and der33 cover General.
+	- Acceptance signoff: Self-closed 20261101, with 2026110109585212.
+	- Closed: 20261101-164122
+
+- No heading on the Graphs tab that repeats the tab's name
+	- ID: 2026103115020600
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-150157
+	- Opened by: t00mietum
+	- Requirements:
+		- Dialog change to follow `project/style-guide_ux.md` (Groups and headings).
+		- The Graphs tab has a heading, "Graphs", over the graph list. Remove it, and keep the list where the heading was.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The window already drew no heading there. `placeRow` in `qt.cpp` skips any heading that repeats its tab's name, and has since the first build, so the list sits at the top of the page. Only the spec row `GraphsHead` was left.
+		- Added a test that fails if a heading on any tab repeats its name, or if Graphs shows any heading.
+		- Verified: the quick gate passed with the new test, and the stand-in shots in private `uat-2026103114565000/` show no heading on Graphs.
+	- Decisions:
+		- `GraphsHead` stays in `settings.shcl`. It marks where the list goes, and dialog and bridge tests read it there. Dropping it would change nothing on screen.
+	- Branch: round-1102
+	- Test case: `bridge::tests::a_rule_is_drawn_only_under_a_heading_that_isnt_the_tabs_name` (der2t). It fails with `placeRow`'s skip taken out, showing "Graphs" with its rule, and passes now.
+	- Acceptance signoff: Self-closed 20261101: der2t.
+	- Closed: 20261101-163041
+
+- Border width is on General, but margins and border colors are on Themes
+	- ID: 2026103115020900
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261031-150157
+	- Opened by: t00mietum
+	- Requirements:
+		- Need to work out ambiguities.
+		- Border px is the only row under General's Frame heading. Margins, and the Border color, are on Themes|Outline and Themes|Colors.
+		- Decide where Border px belongs, then change the dialog and the style guide to match. Moving it to Themes|Outline next to Margins is the likely answer, but it isn't a theme value today.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Border px is under Size on General, after Width px default, and the Frame heading is gone. `style-guide_ux.md` Groups and headings says where it goes and why.
+	- Decisions:
+		- Settled by 2026110109585212, the user's newer item, which asks for Border px under Size. It stays off Outline since it isn't a theme value.
+	- Branch: round-1102
+	- Test case: `bridge::tests::general_is_size_then_time_axis_then_timespan_then_misc` (der32), which checks Border px between Width px default and Time axis.
+	- Acceptance signoff: Self-closed 20261101, with 2026110109585212.
+	- Closed: 20261101-164122
 
 - Code review 20261030 item 12: Public types without Debug and public items without doc comments
 	- ID: 2026103016201612
