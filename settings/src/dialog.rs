@@ -739,7 +739,7 @@ impl Dialog {
 				.map_err(|e| format!("{} can't be made: {e}", dir.display()))?;
 		}
 		let themes_text = config::themes_text(&themes);
-		shcl::write_file_atomic(file, &format!("{HEADER}{body}{themes_text}"))?;
+		shcl::write_file_atomic(file, &keep_notes(doc, &format!("{body}{themes_text}")))?;
 		// as in open, kept apart to tell what changes next
 		self.saved = fresh.clone();
 		self.model = fresh;
@@ -748,6 +748,61 @@ impl Dialog {
 		self.themes = themes;
 		Ok(())
 	}
+}
+
+/// The file as `file` holds it, comments and all, with the values of `fresh`
+/// in place of its own. `fresh` as it is when that wouldn't read back the same,
+/// such as with a raw block, so the values always win (2026103115232235).
+fn keep_notes(mut file: shcl::Document, fresh: &str) -> String {
+	let plain = format!("{HEADER}{fresh}");
+	let want = shcl::Document::parse(fresh);
+	for path in file.paths().iter().rev() {
+		if !want.exists(path) {
+			file.remove(path);
+		}
+	}
+	for path in want.paths() {
+		if !want.children(&path).is_empty() {
+			continue;
+		}
+		let now = raw_text(&want, &path);
+		// an untouched line keeps its trailing comment
+		if file.exists(&path) && file.children(&path).is_empty() && raw_text(&file, &path) == now {
+			continue;
+		}
+		let set = if now.is_empty() {
+			file.set_empty(&path)
+		} else {
+			file.set_literal(&path, &now)
+		};
+		if !set {
+			return plain;
+		}
+	}
+	let mut text = file.to_canonical();
+	if !text.starts_with(HEADER) {
+		text.insert_str(0, HEADER);
+	}
+	if reads_the_same(&shcl::Document::parse(&text), &want) {
+		text
+	} else {
+		plain
+	}
+}
+
+fn raw_text(doc: &shcl::Document, path: &str) -> String {
+	doc.read_string(path).raw.unwrap_or_default()
+}
+
+fn reads_the_same(a: &shcl::Document, b: &shcl::Document) -> bool {
+	let (mut on_a, mut on_b) = (a.paths(), b.paths());
+	on_a.sort_unstable();
+	on_b.sort_unstable();
+	a.error_count() == b.error_count()
+		&& on_a == on_b
+		&& on_a
+			.iter()
+			.all(|p| a.count(p) == b.count(p) && raw_text(a, p) == raw_text(b, p))
 }
 
 #[cfg(test)]
@@ -1257,6 +1312,39 @@ mod tests {
 		// the file it wrote is one it reads back the same
 		let back = Dialog::open(path.clone()).unwrap();
 		assert_eq!(back.look(), dlg.look());
+	}
+
+	// Test ID: der5j
+	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
+	fn apply_keeps_the_comments_a_hand_edit_put_there() {
+		let d = scratch("notes");
+		let path = d.0.join("t.shcl");
+		let mine =
+			"# mine\ngraph:\n\twidth: 300  # why\n\tborder: 5  # thin\n\twidht: 120  # typo\n";
+		std::fs::write(&path, mine).unwrap();
+		let mut dlg = Dialog::open(path.clone()).unwrap();
+		assert!(dlg.set_text("border", "2"));
+		dlg.apply().unwrap();
+		let text = std::fs::read_to_string(&path).unwrap();
+		assert!(text.starts_with(HEADER), "{text}");
+		for kept in ["# mine\n", "width: 300  # why\n"] {
+			assert!(text.contains(kept), "{kept:?} in {text}");
+		}
+		for gone in ["widht", "typo", "border: 5"] {
+			assert!(!text.contains(gone), "{gone} in {text}");
+		}
+		let l = config::Look::load(&path).unwrap();
+		assert_eq!((l.width, l.border), (300, 2));
+		// a second save keeps them too, and the header only once
+		assert!(dlg.set_text("border", "3"));
+		dlg.apply().unwrap();
+		let again = std::fs::read_to_string(&path).unwrap();
+		assert!(
+			again.contains("# mine\n") && again.contains("# why"),
+			"{again}"
+		);
+		assert_eq!(again.matches(HEADER).count(), 1, "{again}");
 	}
 
 	// Test ID: debjg

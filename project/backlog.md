@@ -417,13 +417,27 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 29: Apply drops comments in the config file
 	- ID: 2026103115232235
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152322
 	- Opened by: t00mietum
 	- Requirements: Keep the comments a hand edit put in the file, or say in design.md and the file header that Apply rewrites it.
 	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- Apply keeps the comments in the config file, as long as the line or section they sit on stays. A changed value keeps its line's comment.
+		- `design.md` Settings window says so.
+		- Verified: der5j fails on the old Apply and passes now. The quick gate passed, and every save in the dialog tests kept its comments rather than falling back.
+	- Decisions:
+		- Took the first option. shcl 2.0.0's `Document` keeps comments through its setters and `to_canonical`, so no shcl change was needed. Apply now sets the new values on the file as loaded (`keep_notes` in `settings/src/dialog.rs`), and removes what the new values don't have, rather than writing knobs' text alone.
+		- If the result wouldn't read back as the values meant, such as with a raw block, the file is written plain as before, so the values always win over the comments.
+		- What 2026102913122701 drops is still dropped, comments on those lines included.
+	- Branch: round-1102
+	- Test case: `dialog::tests::apply_keeps_the_comments_a_hand_edit_put_there` (der5j).
+		- Swept: every config file write (`Dialog::apply`, and `config::start_from`, which copies the shared file byte for byte), and the docs naming hand edits of the file.
+	- Acceptance signoff: Self-closed 20261101: der5j and the quick gate.
 	- Origin: `f89e55e` and `6a78316`. First review. Confirmed by a scratch test.
+	- Closed: 20261101-180524
 
 - Code review 20261031 item 28: Properties gives no sign when its window is open or fails to start
 	- ID: 2026103115232220
