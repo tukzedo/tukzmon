@@ -87,6 +87,35 @@ Sorted per the notes in [Template](#template).
 		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
 	- Estimated effort: Low
 
+- Pre-next-cut: A spike emphasis of 100 should preserve more of prior spikes
+	- ID: 2026110215302657
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261102-153026
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013886
+	- Requirements: A spike emphasis of 100 should preserve more of prior spikes. (Trickling down to 50% also being higher.)
+
+- Pre-next-cut: Move vertical axis override from "Colors" tab, to "Graphs", next to "Time axis"
+	- ID: 2026110215302658
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261102-153026
+	- Opened by: t00mietum
+	- Related IDs: 2026110109585213
+	- Requirements: Move each graph's Vertical scale from Themes|Colors to the Graphs tab, next to its Time axis.
+
+- Pre-next-cut: Themes|Colors reset icons closer to the boxes they reset
+	- ID: 2026110215302659
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261102-153026
+	- Opened by: t00mietum
+	- Requirements: Move reset icons for right-side column, closer to the boxes they reset. Ditto with left column.
+
 - Hybrid laptop: GPU memory, on by default, keeps the NVIDIA GPU awake
 	- ID: 2026110118380381
 	- Type: Enhancement
