@@ -611,6 +611,32 @@ mod tests {
 		assert!(long > 10, "only {long} tips needed wrapping");
 	}
 
+	// Test ID: der3b
+	#[test]
+	fn every_control_and_color_row_has_a_tip_of_its_own() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_every_row_tipped_never_written.shcl",
+			std::process::id()
+		));
+		let d = Dialog::open(path).unwrap();
+		// row_state adds the slider range to a tip, so read the spec's own
+		let bare: Vec<_> = d
+			.spec()
+			.settings
+			.iter()
+			.filter(|s| !matches!(s.control, Control::Heading | Control::None))
+			.filter(|s| s.tip.trim().is_empty())
+			.map(|s| s.id.as_str())
+			.collect();
+		assert!(bare.is_empty(), "no tip: {bare:?}");
+		assert!(
+			d.spec()
+				.settings
+				.iter()
+				.any(|s| s.control == Control::Color)
+		);
+	}
+
 	// Test ID: dendh
 	#[test]
 	fn rows_send_their_control_as_a_kind_and_the_picker_its_percents() {

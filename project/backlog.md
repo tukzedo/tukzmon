@@ -130,7 +130,7 @@ Sorted per the notes in [Template](#template).
 - Every control and color chip has a tip
 	- ID: 2026103115015700
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-150157
 	- Opened by: t00mietum
@@ -140,6 +140,16 @@ Sorted per the notes in [Template](#template).
 		- Add a tip to each color row that has none: Border, Top, and Bottom on every graph, plus Buffers, Busy, CPU use, I/O wait, In use, Load, On battery, Other users, Read, User, and Written.
 		- Add a test that fails on a control or color row with no tip.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Border px and 55 color rows had no tip, and have one now. The Outline tab's Border, Top and Bottom had none either, and are in the count.
+		- Verified: the quick gate passed.
+	- Decisions:
+		- The test reads the spec's own tip, not `row_state`'s, since that adds the slider range text to a slider's tip and would hide a missing one.
+	- Branch: round-1102
+	- Test case: `bridge::tests::every_control_and_color_row_has_a_tip_of_its_own` (der3b). It failed with the tips taken out and passes with them.
+		- Swept: every row in `core/src/settings.shcl` with a control other than heading, by script.
+	- Closed: 20261101-165000
 
 - Destructive questions default to No
 	- ID: 2026103115020000

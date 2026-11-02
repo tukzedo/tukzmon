@@ -53,6 +53,7 @@ settings:
 		slider_range: 0, 4
 		path: graph.border
 		default: 1
+		tip: "How thick the line around each graph is, in pixels. 0 draws no border."
 
 	TimeHead:
 		label: Time axis
@@ -709,6 +710,7 @@ settings:
 		default: "#ff0000"
 		group: theme
 		shown_when: "cpu_mode = detailed"
+		tip: "Time the CPU sat idle waiting on the disk or network."
 
 	system:
 		label: System
@@ -728,6 +730,7 @@ settings:
 		default: "#00ff80"
 		group: theme
 		shown_when: "cpu_mode = detailed"
+		tip: "Time spent in programs, not counting Nice."
 
 	nice:
 		label: Nice
@@ -788,6 +791,7 @@ settings:
 		path: cpu.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	cpu_back_top:
 		label: Top
@@ -796,6 +800,7 @@ settings:
 		path: cpu.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	cpu_back_bottom:
 		label: Bottom
@@ -804,6 +809,7 @@ settings:
 		path: cpu.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	MemSection:
 		label: Memory
@@ -847,6 +853,7 @@ settings:
 		default: "#804080"
 		group: theme
 		shown_when: "mem_mode = detailed"
+		tip: "Memory the kernel holds for block devices and file system bookkeeping."
 
 	mem_cache:
 		label: Cache
@@ -907,6 +914,7 @@ settings:
 		path: mem.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	mem_back_top:
 		label: Top
@@ -915,6 +923,7 @@ settings:
 		path: mem.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	mem_back_bottom:
 		label: Bottom
@@ -923,6 +932,7 @@ settings:
 		path: mem.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	GpuSection:
 		label: GPU
@@ -950,6 +960,7 @@ settings:
 		default: "#3b6fd9"
 		group: theme
 		shown_when: "gpu_mode = detailed"
+		tip: "How busy the GPU is."
 
 	GpuGradHead:
 		label: "By height"
@@ -1000,6 +1011,7 @@ settings:
 		path: gpu.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	gpu_back_top:
 		label: Top
@@ -1008,6 +1020,7 @@ settings:
 		path: gpu.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	gpu_back_bottom:
 		label: Bottom
@@ -1016,6 +1029,7 @@ settings:
 		path: gpu.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	VramSection:
 		label: GPU memory
@@ -1043,6 +1057,7 @@ settings:
 		default: "#843bd9"
 		group: theme
 		shown_when: "vram_mode = detailed"
+		tip: "The GPU's memory in use."
 
 	VramGradHead:
 		label: "By height"
@@ -1093,6 +1108,7 @@ settings:
 		path: vram.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	vram_back_top:
 		label: Top
@@ -1101,6 +1117,7 @@ settings:
 		path: vram.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	vram_back_bottom:
 		label: Bottom
@@ -1109,6 +1126,7 @@ settings:
 		path: vram.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	NetSection:
 		label: Network
@@ -1233,6 +1251,7 @@ settings:
 		path: net.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	net_back_top:
 		label: Top
@@ -1241,6 +1260,7 @@ settings:
 		path: net.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	net_back_bottom:
 		label: Bottom
@@ -1249,6 +1269,7 @@ settings:
 		path: net.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	SwapSection:
 		label: Swap
@@ -1276,6 +1297,7 @@ settings:
 		default: "#a45f00"
 		group: theme
 		shown_when: "swap_mode = detailed"
+		tip: "Swap in use."
 
 	SwapGradHead:
 		label: "By height"
@@ -1326,6 +1348,7 @@ settings:
 		path: swap.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	swap_back_top:
 		label: Top
@@ -1334,6 +1357,7 @@ settings:
 		path: swap.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	swap_back_bottom:
 		label: Bottom
@@ -1342,6 +1366,7 @@ settings:
 		path: swap.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	ZswapSection:
 		label: Zswap
@@ -1369,6 +1394,7 @@ settings:
 		default: "#4a8e54"
 		group: theme
 		shown_when: "zswap_mode = detailed"
+		tip: "The compressed pool in use, in zswap or zram."
 
 	ZswapGradHead:
 		label: "By height"
@@ -1419,6 +1445,7 @@ settings:
 		path: zswap.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	zswap_back_top:
 		label: Top
@@ -1427,6 +1454,7 @@ settings:
 		path: zswap.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	zswap_back_bottom:
 		label: Bottom
@@ -1435,6 +1463,7 @@ settings:
 		path: zswap.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	LoadSection:
 		label: Load
@@ -1462,6 +1491,7 @@ settings:
 		default: "#924444"
 		group: theme
 		shown_when: "load_mode = detailed"
+		tip: "The load average."
 
 	LoadGradHead:
 		label: "By height"
@@ -1512,6 +1542,7 @@ settings:
 		path: load.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	load_back_top:
 		label: Top
@@ -1520,6 +1551,7 @@ settings:
 		path: load.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	load_back_bottom:
 		label: Bottom
@@ -1528,6 +1560,7 @@ settings:
 		path: load.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	DiskSection:
 		label: Disk
@@ -1561,6 +1594,7 @@ settings:
 		default: "#c60000"
 		group: theme
 		shown_when: "disk_mode = detailed"
+		tip: "Data written to the disks."
 
 	disk_read:
 		label: Read
@@ -1570,6 +1604,7 @@ settings:
 		default: "#6bb3ff"
 		group: theme
 		shown_when: "disk_mode = detailed"
+		tip: "Data read from the disks."
 
 	DiskGradHead:
 		label: "By height"
@@ -1620,6 +1655,7 @@ settings:
 		path: disk.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	disk_back_top:
 		label: Top
@@ -1628,6 +1664,7 @@ settings:
 		path: disk.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	disk_back_bottom:
 		label: Bottom
@@ -1636,6 +1673,7 @@ settings:
 		path: disk.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	TempSection:
 		label: Temperature
@@ -1730,6 +1768,7 @@ settings:
 		path: temp.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	temp_back_top:
 		label: Top
@@ -1738,6 +1777,7 @@ settings:
 		path: temp.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	temp_back_bottom:
 		label: Bottom
@@ -1746,6 +1786,7 @@ settings:
 		path: temp.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	BatterySection:
 		label: Battery
@@ -1789,6 +1830,7 @@ settings:
 		default: "#c46e43"
 		group: theme
 		shown_when: "battery_mode = detailed"
+		tip: "The charge while the battery is running down."
 
 	battery_critical:
 		label: Critical
@@ -1849,6 +1891,7 @@ settings:
 		path: battery.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	battery_back_top:
 		label: Top
@@ -1857,6 +1900,7 @@ settings:
 		path: battery.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	battery_back_bottom:
 		label: Bottom
@@ -1865,6 +1909,7 @@ settings:
 		path: battery.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	SelfSection:
 		label: tukzmon
@@ -1892,6 +1937,7 @@ settings:
 		default: "#00ccb8"
 		group: theme
 		shown_when: "self_mode = detailed"
+		tip: "How much CPU tukzmon itself uses."
 
 	SelfGradHead:
 		label: "By height"
@@ -1942,6 +1988,7 @@ settings:
 		path: self.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	self_back_top:
 		label: Top
@@ -1950,6 +1997,7 @@ settings:
 		path: self.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	self_back_bottom:
 		label: Bottom
@@ -1958,6 +2006,7 @@ settings:
 		path: self.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	ProcsSection:
 		label: Processes
@@ -2001,6 +2050,7 @@ settings:
 		default: "#6bc9ff"
 		group: theme
 		shown_when: "procs_mode = detailed"
+		tip: "Processes owned by other users, with a user ID of 1000 or more."
 
 	procs_me:
 		label: Yours
@@ -2061,6 +2111,7 @@ settings:
 		path: procs.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	procs_back_top:
 		label: Top
@@ -2069,6 +2120,7 @@ settings:
 		path: procs.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	procs_back_bottom:
 		label: Bottom
@@ -2077,6 +2129,7 @@ settings:
 		path: procs.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	MarginHead:
 		label: Margins
@@ -2137,6 +2190,7 @@ settings:
 		default: "#8b8b8b"
 		group: theme
 		gate: border_all
+		tip: "The border color every graph uses when One border for every graph is on. Border px on the General tab sets how thick it is."
 
 	back_all:
 		label: One background for every graph
@@ -2155,6 +2209,7 @@ settings:
 		default: "#313131"
 		group: theme
 		gate: back_all
+		tip: "The top of every graph's background when One background for every graph is on. It blends down to the Bottom color."
 
 	back_bottom:
 		label: Bottom
@@ -2164,6 +2219,7 @@ settings:
 		default: "#000000"
 		group: theme
 		gate: back_all
+		tip: "The bottom of every graph's background when One background for every graph is on. It blends up to the Top color."
 
 	hover_color:
 		label: Hover line
