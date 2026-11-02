@@ -91,7 +91,7 @@ settings:
 		range: 0, 100
 		path: graph.spikes
 		default: 75
-		tip: "How far a squeezed column reaches from its average toward its peak. At 0% every column shows only its average, so short spikes in older history are smoothed away. At 100% a column covering a few seconds shows its full peak. The reach fades as a column covers more time, so on the far left spikes melt into the background even at 100%."
+		tip: "How far a squeezed column reaches from its average toward its peak. At 0% every column shows only its average, so short spikes in older history are smoothed away. At 100% a column covering a few minutes shows nearly its full peak. The reach fades as a column covers more time, by half at about 10 minutes at 50%, and at about 5.5 hours at 100%. So on the far left spikes melt into the background even at 100%."
 
 	hover_time:
 		label: Hover shows

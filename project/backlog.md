@@ -90,12 +90,27 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: A spike emphasis of 100 should preserve more of prior spikes
 	- ID: 2026110215302657
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- How far back is enough is a look. On a panel with a day or more of history, set Spike emphasis to 100%, then 50%, and judge the CPU graph's older quarters.
 	- Priority|Severity: Avg
 	- Opened: 20261102-153026
 	- Opened by: t00mietum
 	- Related IDs: 2026101916013886
 	- Requirements: A spike emphasis of 100 should preserve more of prior spikes. (Trickling down to 50% also being higher.)
+	- Actual effort: Low
+	- Progress log:
+		- The reach toward a column's peak used to fade by half once a column covered 20 seconds, at any setting. Now the setting stretches that too: about 10 minutes at 50%, an hour at 75%, and 5.5 hours at 100%.
+		- At 100%, a 5 minute column reaches 98% of its peak, and a 3 hour one 65%. Columns covering days still melt into the background.
+		- The Spike emphasis tip and `design.md` Drawing say so.
+		- Verified: dese6 failed before the change and passed after, and the quick gate passed.
+	- Decisions:
+		- The half-way time is 20 s times 1000 to the power of the setting, so 0% still starts from the old 20 s and each third of the slider is ten times longer. One setting, rather than a second one for the fade.
+		- The history already keeps every bucket's max at every tier, so only the fade needed changing.
+	- Branch: round-1102b
+	- Test case: `render::tests::more_emphasis_keeps_spikes_further_back` (dese6). It fails with the fixed 20 s fade.
+		- 2026-11-02: `spike_reach_fades_with_time` (debj9) checks its far column at 30 days, not an hour, since an hour now keeps most of a spike at 100%. What it checks is the same.
+		- Swept: `render::reach` is the only place the setting is read, through `Frame::draw_to` and the test helper `column`. The hover tip shows means, not the reach.
+	- Needs hand testing: Judge the look at 100% and 50%, as above.
 
 - Pre-next-cut: Move vertical axis override from "Colors" tab, to "Graphs", next to "Time axis"
 	- ID: 2026110215302658

@@ -409,7 +409,8 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 - Each pixel column covers a span of time. Its value is the average of every bucket in that span, weighted by how much of each bucket falls in it. Buckets at the edges count in part. That's what keeps the graph from shimmering while boundaries move and columns slide across bucket edges.
 
 - To keep a single-pixel spike visible, a column is drawn from its mean, plus part of the way toward its max. The part gets smaller as the column covers more time. A spike that lasted a long time stays visible far to the left, and a short one fades into the background level once its column covers enough time.
-	- The part is the Spike emphasis setting times `1 / (1 + seconds / 20)`. A stack that comes out over 100% is scaled down to fit.
+	- The part is the Spike emphasis setting times `1 / (1 + seconds / T)`. T is 20 seconds times 1000 to the power of the setting, from 0 to 1. That halves the part at about 10 minutes at 50%, an hour at 75%, and 5.5 hours at 100%. A stack that comes out over 100% is scaled down to fit.
+		- T used to be a fixed 20 seconds. Even at 100% that lost nearly every spike past the first minute of a log graph.
 
 - A column with data for less than half its time is drawn as a gap.
 
