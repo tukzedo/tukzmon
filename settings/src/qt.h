@@ -25,6 +25,8 @@ rust::Vec<bool> apply_while_typing(Dialog &d, bool number);
 rust::Vec<rust::String> page_shades(Dialog &d, bool dark);
 rust::Vec<rust::String> button_gaps(Dialog &d);
 rust::Vec<rust::String> button_heights(Dialog &d);
+rust::Vec<rust::String> page_heads(Dialog &d);
+rust::Vec<rust::String> question_defaults(Dialog &d);
 rust::Vec<rust::String> tab_walk(Dialog &d, bool colors, std::size_t from, std::size_t to);
 rust::Vec<rust::String> slider_clicks(Dialog &d);
 rust::Vec<rust::String> window_fit(Dialog &d, rust::Str screens);

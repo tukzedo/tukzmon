@@ -699,14 +699,11 @@ public:
 			if (parent) {
 				stackOf[i] = new QStackedWidget;
 				subPage.back() = {.stack = stackOf[i], .index = 0};
-				auto *rule = new QFrame;
-				rule->setFrameShape(QFrame::HLine);
-				rule->setFrameShadow(QFrame::Sunken);
+				// no rule under the parent's rows: the shade change marks the edge
 				auto *holder = new QWidget;
 				auto *v = new QVBoxLayout(holder);
 				v->setContentsMargins(0, 0, 0, 0);
 				v->addWidget(page);
-				v->addWidget(rule);
 				v->addWidget(stackOf[i], 1);
 				page = holder;
 			}
@@ -937,6 +934,20 @@ public:
 	void commitTyped() { takeTyped(); }
 	bool isLeaf(int i) const { return leaf[size_t(lineTab[size_t(i)])]; }
 	void select(int i) { tabList->setCurrentRow(i); }
+
+	// Neither can be undone, so No is the default (style guide, Message boxes).
+	bool askDelete(const QString &name) {
+		return QMessageBox::question(this, "Delete theme", QString("Delete the theme %1?").arg(name),
+				   QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes;
+	}
+
+	bool askReset() {
+		return QMessageBox::question(this, "Reset history",
+				   "Keep across restarts is on, so this deletes all past history, not only what's "
+				   "on screen.\n\nReset history?",
+				   QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes;
+	}
+
 	std::string selectedText() const { return tabList->currentItem()->text().toStdString(); }
 	void moveGraph(int from, int to) { moveTo(from, to); }
 	std::unique_ptr<ColorPicker> firstPicker() {
@@ -1685,8 +1696,7 @@ private:
 			[this] { nameTheme("Rename theme", qs(theme_name(d)), true); });
 		connect(deleteTheme, &QPushButton::clicked, this, [this] {
 			const QString name = qs(theme_name(d));
-			if (QMessageBox::question(this, "Delete theme", QString("Delete the theme %1?").arg(name)) !=
-				QMessageBox::Yes)
+			if (!askDelete(name))
 				return;
 			delete_theme(d);
 			refresh();
@@ -1735,10 +1745,7 @@ private:
 
 	// an action rather than a setting, so it doesn't wait for Apply
 	void resetHistory() {
-		if (reset_deletes_saved(d) &&
-			QMessageBox::question(this, "Reset history",
-				"Keep across restarts is on, so this deletes all past history, not only what's "
-				"on screen.\n\nReset history?") != QMessageBox::Yes)
+		if (reset_deletes_saved(d) && !askReset())
 			return;
 		live_clear(*live);
 		refresh();
@@ -2318,6 +2325,50 @@ rust::Vec<rust::String> button_heights(Dialog &d) {
 	box.show();
 	tukzmon::App::processEvents();
 	take(box);
+	return out;
+}
+
+rust::Vec<rust::String> page_heads(Dialog &d) {
+	const App app("offscreen");
+	Window w(d);
+	openSized(w);
+	w.show();
+	rust::Vec<rust::String> out;
+	for (int i = 0; i < w.tabCount(); i++) {
+		w.select(i);
+		tukzmon::App::processEvents();
+		QStringList heads;
+		for (auto *l : w.findChildren<QLabel *>())
+			if (l->isVisible() && l->font().bold())
+				heads << l->text();
+		const auto rules = std::ranges::count_if(w.findChildren<QFrame *>(),
+			[](const QFrame *f) { return f->isVisible() && f->frameShape() == QFrame::HLine; });
+		out.push_back(rust::String(QString::fromStdString(w.tabText(i)).trimmed().toStdString() + "|" +
+			heads.join(";").toStdString() + "|" + std::to_string(rules)));
+	}
+	return out;
+}
+
+rust::Vec<rust::String> question_defaults(Dialog &d) {
+	const App app("offscreen");
+	Window w(d);
+	rust::Vec<rust::String> out;
+	QTimer answer;
+	QObject::connect(&answer, &QTimer::timeout, [&out] {
+		auto *box = qobject_cast<QMessageBox *>(QApplication::activeModalWidget());
+		if (!box || !box->isVisible())
+			return;
+		QString picked = "none";
+		for (auto *b : box->findChildren<QPushButton *>())
+			if (b->isDefault())
+				picked = b->text().remove('&');
+		out.push_back(rust::String((box->windowTitle() + " " + picked).toStdString()));
+		box->button(QMessageBox::No)->click();
+	});
+	answer.start(10);
+	const bool deleted = w.askDelete("Mine");
+	const bool reset = w.askReset();
+	out.push_back(rust::String(std::string("yes ") + (deleted ? "1" : "0") + (reset ? "1" : "0")));
 	return out;
 }
 

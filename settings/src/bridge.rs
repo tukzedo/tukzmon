@@ -232,6 +232,15 @@ pub mod ffi {
 		/// question box, "text h".
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn button_heights(d: &mut Dialog) -> Vec<String>;
+		/// Per tab, "label|heads|rules": the bold headings shown, joined by
+		/// ";", and how many lines are drawn across the window.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn page_heads(d: &mut Dialog) -> Vec<String>;
+		/// "title button" for the Delete theme and Reset history questions,
+		/// with the button each starts on, then "yes" and a 1 or 0 for each
+		/// after it was answered No.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn question_defaults(d: &mut Dialog) -> Vec<String>;
 		/// Moves graph list row `from` to `to`, then gives the graph of each
 		/// graph list row, or each Themes/Colors section with `colors`, that
 		/// Tab steps through from the top.
@@ -1079,6 +1088,50 @@ mod tests {
 		let height = |g: &String| g.rsplit(' ').next().unwrap().parse::<i32>().unwrap();
 		let first = height(&got[0]);
 		assert!(got.iter().all(|g| height(g) == first), "{got:?}");
+	}
+
+	// Test ID: der2t
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn a_rule_is_drawn_only_under_a_heading_that_isnt_the_tabs_name() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_page_heads_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let got = ffi::page_heads(&mut d);
+		assert_eq!(got.len(), dialog_tabs(&d).len(), "{got:?}");
+		for line in &got {
+			let v: Vec<&str> = line.split('|').collect();
+			let heads: Vec<&str> = v[1].split(';').filter(|h| !h.is_empty()).collect();
+			assert!(!heads.contains(&v[0]), "{line}");
+			assert_eq!(v[2], heads.len().to_string(), "{line}");
+		}
+		let graphs = got.iter().find(|l| l.starts_with("Graphs|")).unwrap();
+		assert_eq!(graphs, "Graphs||0");
+		for tab in ["Colors|", "Outline|"] {
+			assert!(
+				got.iter().any(|l| l.starts_with(tab)),
+				"no {tab} in {got:?}"
+			);
+		}
+	}
+
+	// Test ID: der2v
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn the_questions_that_cant_be_undone_start_on_no() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_questions_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		assert_eq!(
+			ffi::question_defaults(&mut d),
+			["Delete theme No", "Reset history No", "yes 00"]
+		);
 	}
 
 	// Test ID: dep6n

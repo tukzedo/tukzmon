@@ -108,13 +108,24 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: No horizontal line between the theme buttons and the scrollable region
 	- ID: 2026103114565000
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-145650
 	- Opened by: t00mietum
 	- Requirements:
 		- Themes|Colors page: There should be no horizontal line between the theme management buttons, and the scrollable region.
 			- Ditto with the Themes|Outline tab.
+	- Actual effort: Low
+	- Progress log:
+		- The rule under the theme's Name row and buttons is gone, on Colors and Outline. The shade step between the Name row and the page marks the edge, as the style guide's Window layout already said.
+		- `design.md` Settings window has it.
+		- Verified: the quick gate passed with the new test.
+		- Stand-in 20261101: light and dark shots in Orchis-green compact, before and after, in private `uat-2026103114565000/`, show the page starting right under the buttons with no line. Closed on them; reopen if the look isn't right on b23.
+	- Branch: round-1102
+	- Test case: `bridge::tests::a_rule_is_drawn_only_under_a_heading_that_isnt_the_tabs_name` (der2t). It fails with the rule put back, on Themes, Colors and Outline, and passes now.
+		- Swept: every `QFrame::HLine` in `qt.cpp`. The other 2 are heading rules, which stay.
+	- Acceptance signoff: Self-closed 20261101: der2t, and the stand-in shots above.
+	- Closed: 20261101-163041
 
 - Every control and color chip has a tip
 	- ID: 2026103115015700
@@ -133,7 +144,7 @@ Sorted per the notes in [Template](#template).
 - Destructive questions default to No
 	- ID: 2026103115020000
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-150157
 	- Opened by: t00mietum
@@ -141,6 +152,18 @@ Sorted per the notes in [Template](#template).
 		- Dialog change to follow `project/style-guide_ux.md` (Message boxes).
 		- The Delete theme and Reset history questions have no default button set, so Qt picks Yes. Make it No for both.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Delete theme and Reset history now start on No, so Enter on either changes nothing.
+		- `design.md` Settings window has it.
+		- Verified: the quick gate passed with the new test.
+	- Decisions:
+		- Each question is its own `Window` method, `askDelete` and `askReset`, so a test opens the same box the button does.
+	- Branch: round-1102
+	- Test case: `bridge::tests::the_questions_that_cant_be_undone_start_on_no` (der2v). It fails before the change, with Yes as the default on both, and passes after.
+		- Swept: every `QMessageBox` in `qt.cpp`. The rest are warnings with one button, and the test hooks' own boxes.
+	- Acceptance signoff: Self-closed 20261101: der2v.
+	- Closed: 20261101-163041
 
 - Pre-next-cut: General tab names and layout
 	- ID: 2026110109585212
@@ -351,7 +374,7 @@ Sorted per the notes in [Template](#template).
 - No heading on the Graphs tab that repeats the tab's name
 	- ID: 2026103115020600
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-150157
 	- Opened by: t00mietum
@@ -359,6 +382,17 @@ Sorted per the notes in [Template](#template).
 		- Dialog change to follow `project/style-guide_ux.md` (Groups and headings).
 		- The Graphs tab has a heading, "Graphs", over the graph list. Remove it, and keep the list where the heading was.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The window already drew no heading there. `placeRow` in `qt.cpp` skips any heading that repeats its tab's name, and has since the first build, so the list sits at the top of the page. Only the spec row `GraphsHead` was left.
+		- Added a test that fails if a heading on any tab repeats its name, or if Graphs shows any heading.
+		- Verified: the quick gate passed with the new test, and the stand-in shots in private `uat-2026103114565000/` show no heading on Graphs.
+	- Decisions:
+		- `GraphsHead` stays in `settings.shcl`. It marks where the list goes, and dialog and bridge tests read it there. Dropping it would change nothing on screen.
+	- Branch: round-1102
+	- Test case: `bridge::tests::a_rule_is_drawn_only_under_a_heading_that_isnt_the_tabs_name` (der2t). It fails with `placeRow`'s skip taken out, showing "Graphs" with its rule, and passes now.
+	- Acceptance signoff: Self-closed 20261101: der2t.
+	- Closed: 20261101-163041
 
 - Border width is on General, but margins and border colors are on Themes
 	- ID: 2026103115020900
