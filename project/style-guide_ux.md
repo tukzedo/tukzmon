@@ -49,12 +49,17 @@ Rules for the settings window, taken from how it already behaves and adjusted wh
 
 - A heading doesn't repeat its tab's name.
 
-- A heading is a noun or a short phrase in sentence case, with no colon. Examples are Size, Time, History, and Network graph.
+- A heading is a noun or a short phrase in sentence case, with no colon. Examples are Size, Time axis, and Timespan.
+
+- Misc is the last group on General, for a row that fits no other heading, such as Disk drives or LAN and internet.
+
+- Border px is under Size on General, with Width px default, not on Outline with the margins, since it's one width for every theme rather than a theme value.
 
 - Groups are 22 px apart. The first group on a page has no gap above it.
 
 - A row that only matters while a switch is on sits under that switch and is indented 16 px per level.
 	- The switch comes first.
+	- A switch with one short row may have it to its right, on the same line, through `same_line: true`, such as Max age in days beside Keep across restarts.
 	- While the switch is off, its rows are greyed. Their revert arrows stay live.
 
 - A row that only makes sense in one mode, such as the Gradient colors, is hidden while another mode is picked, not greyed.
@@ -94,7 +99,7 @@ Rules for the settings window, taken from how it already behaves and adjusted wh
 - Say "graph" in text shown to people.
 
 - Units follow the thing they measure, in short form: px, ms, and %. A unit that is a plain word follows "in", as "Max age in days".
-	- A General row that each graph can take a share of says "default" after the unit, such as "Sample ms default" and "Time axis default".
+	- A General row that each graph can take a share of says "default" after the unit, such as "Width px default" and "Sample ms default". Scale default, under Time axis, is the same.
 
 - Write "and", not an ampersand.
 

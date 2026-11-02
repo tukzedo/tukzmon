@@ -1062,6 +1062,21 @@ public:
 		return out;
 	}
 
+	// "id left mid control" per row shown with a label, in the window: its
+	// label's left edge and middle line, and its control's left edge
+	std::vector<std::string> rowSpots() const {
+		std::vector<std::string> out;
+		for (const auto &r : rows) {
+			if (!r->label || !r->label->isVisible())
+				continue;
+			const QRect l(r->label->mapTo(this, QPoint(0, 0)), r->label->size());
+			const int c = r->control->mapTo(this, QPoint(0, 0)).x();
+			out.push_back(r->id() + " " + std::to_string(l.left()) + " " + std::to_string(l.center().y()) + " " +
+				std::to_string(c));
+		}
+		return out;
+	}
+
 	// "graph left right" per section: how far down its box the left column's
 	// first row under the colors mode starts, and the right column's first
 	std::vector<std::string> sectionTops() const {
@@ -1212,6 +1227,8 @@ private:
 	};
 	std::vector<Section> sections;
 	QVBoxLayout *sectionList = nullptr;
+	// the last row placeRow put on a line, for a same_line row to join
+	Row *lastPlaced = nullptr;
 
 	// Sections follow the graph order, before Apply too.
 	void orderSections() {
@@ -1390,13 +1407,11 @@ private:
 			grid->addWidget(rule, line++, 0, 1, 3);
 			r.head = h;
 			r.rule = rule;
+			lastPlaced = nullptr;
 			return;
 		}
 		r.label = new QLabel(label);
-		r.label->setContentsMargins(16 * r.info.indent, 0, 12, 0);
-		grid->addWidget(r.label, line, 0);
 		r.control = buildControl(r);
-		grid->addWidget(r.control, line, 1);
 		r.revert = new QToolButton;
 		r.revert->setIcon(QIcon::fromTheme("edit-undo", style()->standardIcon(QStyle::SP_BrowserReload)));
 		r.revert->setAutoRaise(true);
@@ -1404,6 +1419,26 @@ private:
 			reset_row(d, r.id());
 			refresh();
 		});
+		Row *prev = std::exchange(lastPlaced, &r);
+		if (r.info.same_line && prev && prev->grid == grid) {
+			// the row above keeps its label and revert, and shares its
+			// control's cell with this row's 3
+			auto *holder = new QWidget;
+			auto *h = new QHBoxLayout(holder);
+			h->setContentsMargins(0, 0, 0, 0);
+			grid->removeWidget(prev->control);
+			h->addWidget(prev->control);
+			r.label->setContentsMargins(HEAD_GAP, 0, 6, 0);
+			h->addWidget(r.label);
+			h->addWidget(r.control);
+			h->addWidget(r.revert);
+			h->addStretch(1);
+			grid->addWidget(holder, line - 1, 1);
+			return;
+		}
+		r.label->setContentsMargins(16 * r.info.indent, 0, 12, 0);
+		grid->addWidget(r.label, line, 0);
+		grid->addWidget(r.control, line, 1);
 		grid->addWidget(r.revert, line, 2);
 		line++;
 	}
@@ -1458,13 +1493,13 @@ private:
 		auto *sampleHead = new QLabel("Sample %");
 		auto *timeHead = new QLabel("Time axis");
 		// about the column, since a row's tip names its graph and how it was set
-		widthHead->setToolTip("How wide each graph is, or how tall on a vertical panel, as a percentage of Width, "
-							  "on the General tab.");
+		widthHead->setToolTip("How wide each graph is, or how tall on a vertical panel, as a percentage of Width px "
+							  "default, on the General tab.");
 		sampleHead->setToolTip("How often each graph is read and redrawn, as a percentage of Sample ms default, on "
 							   "the General tab. At 200% it's read half as often, and at 50% twice as often. Under "
 							   "50 ms counts as 50 ms.");
-		timeHead->setToolTip("How each graph spreads time across its width. Default follows Time axis default, on "
-							 "the General tab, where the tip tells the curves apart.");
+		timeHead->setToolTip("How each graph spreads time across its width. Default follows Scale default under "
+							 "Time axis, on the General tab, where the tip tells the curves apart.");
 		listGrid->addWidget(widthHead, 0, 2);
 		listGrid->addWidget(sampleHead, 0, 3);
 		listGrid->addWidget(timeHead, 0, 4);
@@ -2087,6 +2122,18 @@ rust::Vec<rust::String> section_tops(Dialog &d) {
 	return out;
 }
 
+rust::Vec<rust::String> row_spots(Dialog &d) {
+	const App app("offscreen");
+	Window w(d);
+	openSized(w);
+	w.show();
+	tukzmon::App::processEvents();
+	rust::Vec<rust::String> out;
+	for (auto &s : w.rowSpots())
+		out.push_back(rust::String(s));
+	return out;
+}
+
 rust::Vec<rust::String> bottom_buttons(Dialog &d) {
 	const App app("offscreen");
 	const Window w(d);
@@ -2156,7 +2203,8 @@ rust::Vec<rust::String> list_head_tips(Dialog &d) {
 	rust::Vec<rust::String> out;
 	for (const char *head : {"Width %", "Sample %", "Time axis"})
 		for (auto *l : w.findChildren<QLabel *>())
-			if (l->text() == head)
+			// General's Time axis heading is bold, and isn't the list's
+			if (l->text() == head && !l->font().bold())
 				out.push_back(rust::String(std::string(head) + ": " + l->toolTip().toStdString()));
 	return out;
 }

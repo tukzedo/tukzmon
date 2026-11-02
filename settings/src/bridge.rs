@@ -56,6 +56,8 @@ pub mod ffi {
 		section: String,
 		/// It sits to the right of the rest of its section.
 		beside: bool,
+		/// It sits to the right of the row above it, on that row's line.
+		same_line: bool,
 		/// It picks a theme, so the theme buttons go beside it.
 		chooser: bool,
 		/// The graph list draws it, so it gets no row of its own.
@@ -202,6 +204,11 @@ pub mod ffi {
 		/// the right column's first row. -1 for a column with none shown.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn section_tops(d: &mut Dialog) -> Vec<String>;
+		/// Per row shown with a label on the page the window opens on, "id
+		/// left mid control": its label's left edge and middle line, and its
+		/// control's left edge, in the window.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn row_spots(d: &mut Dialog) -> Vec<String>;
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn bottom_buttons(d: &mut Dialog) -> Vec<String>;
 		/// Enter pressed on the first button shown with this text, or with ""
@@ -325,6 +332,7 @@ fn dialog_rows(d: &Dialog) -> Vec<ffi::RowInfo> {
 			indent: s.indent as i32,
 			section: section.map_or_else(String::new, |(g, _)| g.to_string()),
 			beside: section.is_some_and(|(_, b)| b),
+			same_line: tukzmon_core::config::same_line(&s.id),
 			chooser: d.spec().chooser_of(&s.id).is_some(),
 			in_list: d.in_graph_list(&s.id),
 		})
@@ -1118,6 +1126,72 @@ mod tests {
 		}
 	}
 
+	// Test ID: der32
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn general_is_size_then_time_axis_then_timespan_then_misc() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_general_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let heads = ffi::page_heads(&mut d);
+		let general = heads.iter().find(|l| l.starts_with("General|")).unwrap();
+		let mut got: Vec<&str> = general.split('|').nth(1).unwrap().split(';').collect();
+		got.sort_unstable();
+		assert_eq!(got, ["Misc", "Size", "Time axis", "Timespan"], "{general}");
+		let spots = ffi::row_spots(&mut d);
+		let mid = |id: &str| -> i32 {
+			let line = spots
+				.iter()
+				.find(|l| l.split(' ').next() == Some(id))
+				.unwrap_or_else(|| panic!("no {id} in {spots:?}"));
+			line.split(' ').nth(2).unwrap().parse().unwrap()
+		};
+		let order = [
+			"width",
+			"border",
+			"time_axis",
+			"hover_time",
+			"keep_history",
+			"disk_drives",
+			"disk_log",
+			"net_split",
+		];
+		for pair in order.windows(2) {
+			assert!(mid(pair[0]) < mid(pair[1]), "{pair:?} in {spots:?}");
+		}
+	}
+
+	// Test ID: der33
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn max_age_sits_right_of_keep_across_restarts() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_same_line_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let spots = ffi::row_spots(&mut d);
+		let spot = |id: &str| -> Vec<i32> {
+			let line = spots
+				.iter()
+				.find(|l| l.split(' ').next() == Some(id))
+				.unwrap_or_else(|| panic!("no {id} in {spots:?}"));
+			line.split(' ')
+				.skip(1)
+				.map(|n| n.parse().unwrap())
+				.collect()
+		};
+		let (keep, days) = (spot("keep_history"), spot("max_days"));
+		assert!((keep[1] - days[1]).abs() <= 2, "{keep:?} {days:?}");
+		assert!(days[0] > keep[2], "{keep:?} {days:?}");
+		// the rest of the page keeps its label column
+		assert_eq!(spot("width")[0], keep[0], "{spots:?}");
+	}
+
 	// Test ID: der2v
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
@@ -1372,7 +1446,7 @@ mod tests {
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
 	fn the_window_and_its_frame_stay_on_a_short_screen() {
 		let _qt = qt_turn();
-		for (w, h) in [(1280, 600), (1024, 500)] {
+		for (w, h) in [(1280, 540), (1024, 500)] {
 			let (room, frame, _) = fit_on(w, h, true);
 			let [rx, ry, rw, rh] = room;
 			let [fx, fy, fw, fh] = frame;

@@ -88,18 +88,29 @@ pub fn section_graph(id: &str) -> Option<&'static str> {
 		.map(|(_, g)| g.as_str())
 }
 
+fn rows_with(key: &str) -> Vec<String> {
+	let doc = shcl::Document::parse(SPEC_TEXT);
+	doc.children("settings")
+		.into_iter()
+		.filter(|row| doc.get_bool_or(&format!("settings.{row}.{key}"), false))
+		.collect()
+}
+
 /// Headings with `beside: true`, which sit with the rest of their section to
 /// the right of what's above them.
 pub fn beside(id: &str) -> bool {
 	static BESIDE: OnceLock<Vec<String>> = OnceLock::new();
 	BESIDE
-		.get_or_init(|| {
-			let doc = shcl::Document::parse(SPEC_TEXT);
-			doc.children("settings")
-				.into_iter()
-				.filter(|row| doc.get_bool_or(&format!("settings.{row}.beside"), false))
-				.collect()
-		})
+		.get_or_init(|| rows_with("beside"))
+		.iter()
+		.any(|row| row == id)
+}
+
+/// Rows with `same_line: true`, which sit to the right of the row above them,
+/// on its line.
+pub fn same_line(id: &str) -> bool {
+	static SAME: OnceLock<Vec<String>> = OnceLock::new();
+	SAME.get_or_init(|| rows_with("same_line"))
 		.iter()
 		.any(|row| row == id)
 }
@@ -869,7 +880,7 @@ impl Look {
 		}
 	}
 
-	/// A graph's own pick, or else Time axis default.
+	/// A graph's own pick, or else Scale default under Time axis.
 	pub fn timing(&self, own: Option<Timing>) -> Timing {
 		own.unwrap_or(self.time)
 	}
@@ -881,7 +892,7 @@ impl Look {
 		u32::try_from(ms).unwrap_or(u32::MAX).max(crate::FASTEST_MS)
 	}
 
-	/// A graph's width from its percentage of Width, rounded, and never 0.
+	/// A graph's width from its percentage of Width px default, rounded, and never 0.
 	pub fn share(&self, percent: u32) -> u32 {
 		let px = (u64::from(self.width) * u64::from(percent) + 50) / 100;
 		u32::try_from(px).unwrap_or(u32::MAX).max(1)
@@ -1044,7 +1055,7 @@ mod tests {
 		assert_eq!(l.time, Timing::Log(Curve::Smooth));
 		assert_eq!(l.spikes, 0.75);
 		assert_eq!(l.hover, Rgb(0, 0, 0));
-		assert_eq!(l.said, Said::Clock);
+		assert_eq!(l.said, Said::Ago);
 	}
 
 	// Test ID: dencn
@@ -1757,7 +1768,7 @@ mod tests {
 			),
 			(false, 64, 1000, 90)
 		);
-		// a percentage of Width, rounded, and never 0
+		// a percentage of Width px default, rounded, and never 0
 		assert_eq!((l.share(64), l.share(1000), l.share(50)), (58, 900, 45));
 		assert_eq!(
 			Look {
@@ -1832,7 +1843,7 @@ mod tests {
 		let l = Look::from_model(&model("cpu:\n\ttime: linear\nmem:\n\ttime: Fixed_B\n"));
 		assert_eq!(l[Which::Cpu].time, Some(Timing::Linear));
 		assert_eq!(l[Which::Mem].time, Some(Timing::Log(Curve::FixedB)));
-		// a file from before has neither, and Time axis default rules
+		// a file from before has neither, and Scale default rules
 		let old = Look::from_model(&model("graph:\n\ttime: linear\n"));
 		assert_eq!(old.timing(old[Which::Cpu].time), Timing::Linear);
 		let old = Look::from_model(&model("graph:\n\ttime: fixed_a\n"));
@@ -2034,7 +2045,7 @@ mod tests {
 		assert_eq!(l.said, Said::Clock);
 		assert_eq!(l.hover, Rgb(0xff, 0xff, 0xff));
 		let l = Look::from_model(&Model::load(spec(), "graph:\n\thover_time: never\n", ""));
-		assert_eq!(l.said, Said::Clock);
+		assert_eq!(l.said, Said::Ago);
 	}
 
 	// Test ID: decbx

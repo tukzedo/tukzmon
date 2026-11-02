@@ -18,6 +18,7 @@ rust::Vec<TabShown> tabs_after_move(Dialog &d, rust::Str pick, std::size_t from,
 rust::Vec<rust::String> sections_after_move(Dialog &d, std::size_t from, std::size_t to);
 rust::Vec<rust::String> tabs_by_key(Dialog &d, bool back, bool fromPage, bool pageKeys);
 rust::Vec<rust::String> section_tops(Dialog &d);
+rust::Vec<rust::String> row_spots(Dialog &d);
 rust::Vec<rust::String> bottom_buttons(Dialog &d);
 rust::Vec<rust::String> enter_on(Dialog &d, rust::Str button);
 rust::Vec<rust::String> list_head_tips(Dialog &d);

@@ -11,6 +11,8 @@
 ## 2 that lay out Themes/Colors: graph: name on a heading starts that graph's
 ## section, which moves with the graph order, and beside: true on a heading
 ## puts it and the rest of its section to the right of what's above it.
+## same_line: true, also ours, puts a row to the right of the row above it,
+## on its line.
 ##
 ## A graph's row in the Graphs list comes from its show, width, sample and
 ## time settings, in that order.
@@ -30,7 +32,7 @@ settings:
 		control: heading
 
 	width:
-		label: Width px
+		label: Width px default
 		tab: General
 		control: slider
 		whole: true
@@ -42,13 +44,23 @@ settings:
 		detents: 64, 128, 256
 		tip: "How wide a graph is in the panel at 100%. Each graph on the Graphs tab takes a percentage of it. Its height follows the panel.\n\nOn a vertical panel or a deskbar, this is how tall a graph is, and its width follows the panel. Time still runs from left to right."
 
+	border:
+		label: Border px
+		tab: General
+		control: slider
+		whole: true
+		range: 0, 16
+		slider_range: 0, 4
+		path: graph.border
+		default: 1
+
 	TimeHead:
-		label: Time
+		label: Time axis
 		tab: General
 		control: heading
 
 	time_axis:
-		label: Time axis default
+		label: Scale default
 		tab: General
 		control: dropdown
 		options: linear, smooth, fixed_a, fixed_b
@@ -87,23 +99,8 @@ settings:
 		options: ago, clock
 		option_labels: "How long ago", "Date and time"
 		path: graph.hover_time
-		default: clock
+		default: ago
 		tip: "What the tip says about the time under the pointer. How long ago reads like 7 hrs ago. Date and time gives just the time for today, and the date too for anything older, in your locale's short format."
-
-	LookHead:
-		label: Frame
-		tab: General
-		control: heading
-
-	border:
-		label: Border px
-		tab: General
-		control: slider
-		whole: true
-		range: 0, 16
-		slider_range: 0, 4
-		path: graph.border
-		default: 1
 
 	GraphsHead:
 		label: Graphs
@@ -126,7 +123,7 @@ settings:
 		range: 1, 1000
 		path: cpu.width
 		default: 100
-		tip: "How wide the CPU graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the CPU graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	cpu_sample:
 		label: CPU sample %
@@ -146,7 +143,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: cpu.time
 		default: same
-		tip: "How the CPU graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the CPU graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_memory:
 		label: Memory
@@ -164,7 +161,7 @@ settings:
 		range: 1, 1000
 		path: mem.width
 		default: 100
-		tip: "How wide the memory graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the memory graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	mem_sample:
 		label: Memory sample %
@@ -184,7 +181,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: mem.time
 		default: same
-		tip: "How the memory graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the memory graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_procs:
 		label: Processes
@@ -202,7 +199,7 @@ settings:
 		range: 1, 1000
 		path: procs.width
 		default: 25
-		tip: "How wide the processes graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the processes graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	procs_sample:
 		label: Processes sample %
@@ -222,7 +219,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: procs.time
 		default: same
-		tip: "How the processes graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the processes graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_gpu:
 		label: GPU
@@ -240,7 +237,7 @@ settings:
 		range: 1, 1000
 		path: gpu.width
 		default: 50
-		tip: "How wide the GPU graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the GPU graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	gpu_sample:
 		label: GPU sample %
@@ -260,7 +257,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: gpu.time
 		default: same
-		tip: "How the GPU graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the GPU graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_vram:
 		label: GPU memory
@@ -278,7 +275,7 @@ settings:
 		range: 1, 1000
 		path: vram.width
 		default: 50
-		tip: "How wide the GPU memory graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the GPU memory graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	vram_sample:
 		label: GPU memory sample %
@@ -298,7 +295,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: vram.time
 		default: same
-		tip: "How the GPU memory graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the GPU memory graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_net:
 		label: Network
@@ -306,7 +303,7 @@ settings:
 		control: checkbox
 		path: net.show
 		default: false
-		tip: "Show network traffic in bytes a second: local, which is the box talking to itself, then sent, then received, from the bottom up. The top follows the busiest moment in view, so the graph has no fixed scale. The tip gives the rates. LAN and internet, further down, splits sent and received into the LAN's and the internet's."
+		tip: "Show network traffic in bytes a second: local, which is the box talking to itself, then sent, then received, from the bottom up. The top follows the busiest moment in view, so the graph has no fixed scale. The tip gives the rates. LAN and internet, under Misc on the General tab, splits sent and received into the LAN's and the internet's."
 
 	net_width:
 		label: Network width %
@@ -316,7 +313,7 @@ settings:
 		range: 1, 1000
 		path: net.width
 		default: 50
-		tip: "How wide the network graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the network graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	net_sample:
 		label: Network sample %
@@ -336,7 +333,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: net.time
 		default: same
-		tip: "How the network graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the network graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_disk:
 		label: Disk
@@ -344,7 +341,7 @@ settings:
 		control: checkbox
 		path: disk.show
 		default: true
-		tip: "Show disk traffic in bytes a second: written, then read, from the bottom up. The top follows the busiest moment in view, so the graph has no fixed scale. The tip gives the rates. Disk drives and Disk log scale, further down, set what it counts and how it's drawn."
+		tip: "Show disk traffic in bytes a second: written, then read, from the bottom up. The top follows the busiest moment in view, so the graph has no fixed scale. The tip gives the rates. Disk drives and Disk log scale, under Misc on the General tab, set what it counts and how it's drawn."
 
 	disk_width:
 		label: Disk width %
@@ -354,7 +351,7 @@ settings:
 		range: 1, 1000
 		path: disk.width
 		default: 50
-		tip: "How wide the disk graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the disk graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	disk_sample:
 		label: Disk sample %
@@ -374,7 +371,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: disk.time
 		default: same
-		tip: "How the disk graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the disk graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_temp:
 		label: Temperature
@@ -392,7 +389,7 @@ settings:
 		range: 1, 1000
 		path: temp.width
 		default: 50
-		tip: "How wide the temperature graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the temperature graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	temp_sample:
 		label: Temperature sample %
@@ -412,7 +409,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: temp.time
 		default: same
-		tip: "How the temperature graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the temperature graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_swap:
 		label: Swap
@@ -430,7 +427,7 @@ settings:
 		range: 1, 1000
 		path: swap.width
 		default: 25
-		tip: "How wide the swap graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the swap graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	swap_sample:
 		label: Swap sample %
@@ -450,7 +447,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: swap.time
 		default: same
-		tip: "How the swap graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the swap graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_zswap:
 		label: Zswap
@@ -468,7 +465,7 @@ settings:
 		range: 1, 1000
 		path: zswap.width
 		default: 25
-		tip: "How wide the zswap graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the zswap graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	zswap_sample:
 		label: Zswap sample %
@@ -488,7 +485,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: zswap.time
 		default: same
-		tip: "How the zswap graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the zswap graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_load:
 		label: Load
@@ -506,7 +503,7 @@ settings:
 		range: 1, 1000
 		path: load.width
 		default: 25
-		tip: "How wide the load graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the load graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	load_sample:
 		label: Load sample %
@@ -526,7 +523,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: load.time
 		default: same
-		tip: "How the load graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the load graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_self:
 		label: tukzmon
@@ -544,7 +541,7 @@ settings:
 		range: 1, 1000
 		path: self.width
 		default: 12
-		tip: "How wide the tukzmon graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the tukzmon graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	self_sample:
 		label: tukzmon sample %
@@ -564,7 +561,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: self.time
 		default: same
-		tip: "How the tukzmon graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the tukzmon graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_battery:
 		label: Battery
@@ -582,7 +579,7 @@ settings:
 		range: 1, 1000
 		path: battery.width
 		default: 100
-		tip: "How wide the battery graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the battery graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	battery_sample:
 		label: Battery sample %
@@ -602,7 +599,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: battery.time
 		default: same
-		tip: "How the battery graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the battery graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	## The graph list's grippers write this, and it has no row of its own.
 	graph_order:
@@ -613,24 +610,33 @@ settings:
 		default: "cpu mem procs gpu vram net disk temp swap zswap load self battery"
 		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, gpu, vram for GPU memory, net for network, swap, zswap, load, procs for processes, disk, temp for temperature, battery, and self for tukzmon itself. One left out goes at the end."
 
-	NetGraphHead:
-		label: Network graph
+	HistoryHead:
+		label: Timespan
 		tab: General
 		control: heading
 
-	net_split:
-		label: LAN and internet
+	keep_history:
+		label: Keep across restarts
 		tab: General
-		control: dropdown
-		options: off, sockets
-		option_labels: "Off", "TCP sockets"
-		path: net.split
-		default: off
-		gate: show_net
-		tip: "Tell traffic to and from the LAN apart from the internet's, so the network graph draws local, LAN sent, LAN received, internet sent and internet received. Off draws local, sent and received.\n\nTCP sockets asks the kernel for each TCP connection's byte counts every read, and needs no root. UDP doesn't have them, so UDP and QUIC to the LAN count as internet. The LAN is the private address ranges and this box's own IPv6 /64."
+		control: checkbox
+		path: history.keep
+		default: true
+		tip: "Save the graph's history and load it back when the panel starts, with the time it wasn't running left as a gap. Off stops saving, but what's already saved is kept for when it's turned back on."
 
-	DiskHead:
-		label: Disk graph
+	max_days:
+		label: Max age in days
+		tab: General
+		control: number
+		whole: true
+		range: 1, 36500
+		path: history.max_days
+		same_line: true
+		default: 28
+		gate: keep_history
+		tip: "History older than this is dropped."
+
+	MiscHead:
+		label: Misc
 		tab: General
 		control: heading
 
@@ -652,29 +658,16 @@ settings:
 		gate: show_disk
 		tip: "Draw the disk graph on a log scale, so a trickle still shows next to a big copy. Off, the height is in proportion to the rate."
 
-	HistoryHead:
-		label: History
+	net_split:
+		label: LAN and internet
 		tab: General
-		control: heading
-
-	keep_history:
-		label: Keep across restarts
-		tab: General
-		control: checkbox
-		path: history.keep
-		default: true
-		tip: "Save the graph's history and load it back when the panel starts, with the time it wasn't running left as a gap. Off stops saving, but what's already saved is kept for when it's turned back on."
-
-	max_days:
-		label: Max age in days
-		tab: General
-		control: number
-		whole: true
-		range: 1, 36500
-		path: history.max_days
-		default: 28
-		gate: keep_history
-		tip: "History older than this is dropped."
+		control: dropdown
+		options: off, sockets
+		option_labels: "Off", "TCP sockets"
+		path: net.split
+		default: off
+		gate: show_net
+		tip: "Tell traffic to and from the LAN apart from the internet's, so the network graph draws local, LAN sent, LAN received, internet sent and internet received. Off draws local, sent and received.\n\nTCP sockets asks the kernel for each TCP connection's byte counts every read, and needs no root. UDP doesn't have them, so UDP and QUIC to the LAN count as internet. The LAN is the private address ranges and this box's own IPv6 /64."
 
 	theme:
 		label: Name
@@ -2091,7 +2084,7 @@ settings:
 		control: heading
 
 	margin_tb:
-		label: Top & bottom px
+		label: Top and bottom px
 		tab: Themes/Outline
 		control: slider
 		whole: true
@@ -2103,7 +2096,7 @@ settings:
 		tip: "Space left clear above and below each graph, so the panel shows through. On a vertical panel the graphs are stacked, so this is the space between 2 of them, from each. The top and bottom of the whole item get none there, since the panel spaces its items."
 
 	margin_lr:
-		label: Left & right px
+		label: Left and right px
 		tab: Themes/Outline
 		control: slider
 		whole: true

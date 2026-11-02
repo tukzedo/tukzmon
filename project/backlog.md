@@ -168,11 +168,11 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: General tab names and layout
 	- ID: 2026110109585212
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261101-095852
 	- Opened by: t00mietum
-	- Related IDs: 2026110109585213
+	- Related IDs: 2026110109585213, 2026103115020300, 2026103115020900
 	- Requirements:
 		- Tab: "General":
 			- Size "Width px" -> "Width px default"
@@ -185,7 +185,27 @@ Sorted per the notes in [Template](#template).
 			- New section at the bottom: "Misc"
 				- Disk drives. Remove the "Disk graph" section.
 				- LAN and internet. Remove the "Network graph" section.
+	- Stand-in: 20261101, round-1102 debug build, in b23's own style (gtk3 platform theme, Orchis green compact), light and dark. General drew Size (Width px default, Border px), Time axis (Scale default, Sample ms default, Spike emphasis %, Hover shows on How long ago), Timespan (Keep across restarts with Max age in days to its right) and Misc (Disk drives, Disk log scale, LAN and internet). Outline drew Top and bottom px and Left and right px.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- General is now Size, Time axis, Timespan and Misc, with the labels and order asked for. Hover shows defaults to How long ago.
+		- Max age in days sits to the right of Keep across restarts, through a new spec key, `same_line: true`, which `placeRow` in `qt.cpp` reads.
+		- The tips that quoted Width or Time axis default, and the network and disk tips that said "further down", now name the new labels and Misc on the General tab.
+		- `design.md` Settings window, XFCE plugin and Time axis, and `style-guide_ux.md` Groups and headings and Labels, are updated.
+		- Verified: the quick gate passed, and the stand-in above.
+	- Decisions:
+		- Disk log scale moved into Misc with Disk drives, since Disk graph is gone. 2026110109585213 removes it.
+		- The rows under Misc keep their indent, since they still grey with their graph's checkbox on the Graphs tab.
+		- The same_line row keeps its own revert arrow, right after its box. The row whose line it joins keeps its label and revert where they were.
+		- The setting ids and paths are unchanged, so saved files read as before. Only a file with no hover_time line changes, to How long ago.
+	- Branch: round-1102
+	- Test case: `bridge::tests::general_is_size_then_time_axis_then_timespan_then_misc` (der32) and `max_age_sits_right_of_keep_across_restarts` (der33). Both fail on the old spec, and der33 fails with only `same_line` taken out. Both pass now.
+		- 2026-11-01: new values only. debhj and decc5 expect How long ago for no or a bad hover_time, where they expected Date and time. deknz's short screen is 1280x540, not 1280x600, since General is shorter and the window no longer fills 600 px.
+		- deqsp's `list_head_tips` hook skips bold labels, since General's Time axis heading has the graph list column's text.
+		- Swept: every tip in `settings.shcl` and `qt.cpp` naming Width, Time axis default or "further down", the code comments naming them, and the docs naming General's headings.
+	- Acceptance signoff: Self-closed 20261101: der32, der33 and the stand-in above.
+	- Closed: 20261101-164122
 
 - Pre-next-cut: Vertical axis scale, as a default and per graph
 	- ID: 2026110109585213
@@ -360,7 +380,7 @@ Sorted per the notes in [Template](#template).
 - Label wording: "and" for ampersands, and "default" on Width
 	- ID: 2026103115020300
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-150157
 	- Opened by: t00mietum
@@ -370,6 +390,16 @@ Sorted per the notes in [Template](#template).
 		- "Width px" on General becomes "Width px default", the same as "Sample ms default" and "Time axis default", since each graph takes a percentage of it.
 		- Update the tips and tests that quote these labels.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Outline's margins read Top and bottom px and Left and right px. Width px default came with 2026110109585212, as did the tips quoting it.
+		- Verified: the quick gate passed, and the stand-in shots under 2026110109585212.
+	- Decisions:
+		- Time axis default, which this item quoted, is now Scale default under Time axis, per 2026110109585212.
+	- Branch: round-1102
+	- Test case: none for the ampersands, a label's text with no behavior, which the stand-in under 2026110109585212 shows. der32 and der33 cover General.
+	- Acceptance signoff: Self-closed 20261101, with 2026110109585212.
+	- Closed: 20261101-164122
 
 - No heading on the Graphs tab that repeats the tab's name
 	- ID: 2026103115020600
@@ -397,7 +427,7 @@ Sorted per the notes in [Template](#template).
 - Border width is on General, but margins and border colors are on Themes
 	- ID: 2026103115020900
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-150157
 	- Opened by: t00mietum
@@ -406,6 +436,15 @@ Sorted per the notes in [Template](#template).
 		- Border px is the only row under General's Frame heading. Margins, and the Border color, are on Themes|Outline and Themes|Colors.
 		- Decide where Border px belongs, then change the dialog and the style guide to match. Moving it to Themes|Outline next to Margins is the likely answer, but it isn't a theme value today.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Border px is under Size on General, after Width px default, and the Frame heading is gone. `style-guide_ux.md` Groups and headings says where it goes and why.
+	- Decisions:
+		- Settled by 2026110109585212, the user's newer item, which asks for Border px under Size. It stays off Outline since it isn't a theme value.
+	- Branch: round-1102
+	- Test case: `bridge::tests::general_is_size_then_time_axis_then_timespan_then_misc` (der32), which checks Border px between Width px default and Time axis.
+	- Acceptance signoff: Self-closed 20261101, with 2026110109585212.
+	- Closed: 20261101-164122
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
