@@ -25,14 +25,31 @@ Sorted per the notes in [Template](#template).
 - At a panel's width, history lookups are 42% of the profiler's tick
 	- ID: 2026110116150685
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261101-161506
 	- Opened by: t00mietum
 	- Related IDs: 2026103115232157, 2026102814061812
 	- Requirements: The profiler now draws at the width the graphs ask for, 790x48 device px for the 6 default graphs. There, history lookups are 42% of a tick, `Tier::total` alone 26%, and the log axis's ages 10%. Make a column's total cheaper, or say why the cost is fine. Time it with the profiler before and after.
 	- Estimated effort: Avg
+	- Actual effort: Avg
 	- Origin: the profile from 2026103115232157, one run on 2026-11-01.
+	- Progress log:
+		- Each tier keeps a total per 8 buckets and per 64, where it kept one per 32. A column reads blocks of 64, then blocks of 8 at its ends, and at most 7 buckets at each end. Block numbers are shifts, not divisions. `design.md` History has it.
+		- A bucket read whole takes one division, not one per series.
+		- Drawing works out each column edge's age once, not twice. The edges are the same numbers.
+		- Profiler, run side by side at a load of 7 to 18 on 32 cores: 381 to 406 us a tick before, 307 to 314 after, about 20% less. User time went from about 305 to 234 us.
+		- After, history lookups are 34% of the tick, where they were 43%. The bucket loop is 10%, and the log axis 8%, down from 12%. The /proc reads and drawing are now about a quarter each.
+		- Verified: the quick gate with the profile area passed.
+	- Decisions:
+		- Blocks of 8 and 64 over 16 and 128. Side by side, 16 and 128 gave 329 us a tick against 309.
+		- The blocks take about 8% of the history's memory, up from 2%. That's about 330 KB more for a 4-series graph with 90 days of history.
+		- A whole bucket adds its sum, scaled by its weight over its seconds, rather than its mean times its weight. The two match to float rounding.
+	- Branch: round-1102
+	- Test case: `history::tests::block_totals_add_up_to_their_buckets_through_gaps_trims_and_reloads` (der45). It checks every kept block at both sizes and random runs of buckets against a plain bucket sum, through gaps, long samples, trims and reloads. It fails with the gap rule taken out of `reindex`, with the coarse blocks never dropped, or with a block read that starts mid-block.
+		- 2026-11-01: dejcp and deqqq check the block counts and capacities at both sizes, where they checked blocks of 32. The rest of each test is unchanged.
+		- Swept: every reader and writer of the blocks (`Tier::add`, `History::trim`, `History::decode`, `History::span`) and every `axis.age` caller. The hover tip's `span_at` in `lib.rs` reads one column, so it takes 2 ages as before.
+	- Closed: 20261101-171956
 
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001

@@ -284,13 +284,12 @@ impl<const N: usize> Frame<'_, N> {
 			grad_px.extend(grad.iter().map(|&g| pack_alpha(g, 1.0)));
 		}
 		reached.clear();
+		// each column's old edge is the new edge of the one left of it
+		let mut a = self.now - self.axis.age(1.0);
 		reached.extend((0..pw).map(|cx| {
 			let u_new = (pw - cx - 1) as f64 / pw as f64;
-			let u_old = (pw - cx) as f64 / pw as f64;
-			let (a, b) = (
-				self.now - self.axis.age(u_old),
-				self.now - self.axis.age(u_new),
-			);
+			let b = self.now - self.axis.age(u_new);
+			let a = std::mem::replace(&mut a, b);
 			let span = self.hist.span(a, b);
 			(span.covered >= MIN_COVER)
 				.then(|| reach(&span.mean, &span.max, b - a, self.look.spikes))

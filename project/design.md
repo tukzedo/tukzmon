@@ -346,7 +346,7 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - Each bucket keeps the min, max, and mean of each series, how many seconds of data it has, and where in the bucket that data starts and ends. Max is kept so a short spike can still be drawn once it's old. The start and end let the newest bucket, still filling, read as full where it has data.
 
-- Each tier also keeps a total for every block of 32 buckets: its weighted sums, its seconds of data, and its max. A wide column reads the blocks it covers whole, and only the buckets at its ends one at a time. Before these, a column on a log axis could walk thousands of 50 ms buckets each draw. The totals are only in memory, and are worked out again when history loads. A block that's lost buckets off its old end is never read.
+- Each tier also keeps a total for every block of 8 buckets, and for every block of 64: its weighted sums, its seconds of data, and its max. A wide column reads the blocks of 64 it covers whole, then blocks of 8 at either end, and only the last few buckets one at a time. Before these, a column on a log axis could walk thousands of 50 ms buckets each draw. With blocks of 32 alone, the buckets at a column's ends took a quarter of a panel's tick. The totals are only in memory, and are worked out again when history loads. A block that's lost buckets off its old end is never read.
 
 - A bucket with no samples is a gap. Gaps are never counted as zero. A gap is drawn as blank, and it stays out of every average.
 
