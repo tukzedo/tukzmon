@@ -19,6 +19,7 @@ pub const GDK_BUTTON_RELEASE_MASK: c_int = 1 << 9;
 pub const GDK_LEAVE_NOTIFY_MASK: c_int = 1 << 13;
 pub const LOG_WARNING: c_int = 4;
 pub const LOG_USER: c_int = 1 << 3;
+pub const SIGUSR1: c_int = 10;
 pub const SIGTERM: c_int = 15;
 
 #[repr(C)]

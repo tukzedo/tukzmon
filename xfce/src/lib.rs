@@ -299,15 +299,16 @@ impl Plugin {
 	}
 
 	/// Properties opens the settings window on this item's file. One that's
-	/// open already is left, and the tip says so, since raising another
-	/// program's window isn't something Wayland lets a panel do.
+	/// open already is asked to come to the front. The tip says it's open
+	/// when that can't be asked, or on Wayland, which may not let it.
 	fn open_settings(&mut self, program: &Path) {
 		self.reap_settings();
 		if self.settings.is_none() && self.stray.is_none() {
 			self.stray = windows_on(&self.config).first().copied();
 		}
-		if self.settings.is_some() || self.stray.is_some() {
-			self.properties = Some("its window is open already".into());
+		if let Some(pid) = self.settings.as_ref().map(Child::id).or(self.stray) {
+			let shown = wake(pid) && std::env::var_os("WAYLAND_DISPLAY").is_none();
+			self.properties = (!shown).then(|| "its window is open already".into());
 			return;
 		}
 		match Command::new(program)
@@ -662,6 +663,28 @@ fn windows_on(config: &Path) -> Vec<u32> {
 		.filter_map(|e| e.file_name().to_str()?.parse().ok())
 		.filter(|&pid| edits(pid, config))
 		.collect()
+}
+
+/// Asks the settings window in process `pid` to come to the front. SIGUSR1
+/// ends a process that doesn't catch it, so a window from an older build is
+/// left alone, and this says false.
+fn wake(pid: u32) -> bool {
+	let Ok(id) = c_int::try_from(pid) else {
+		return false;
+	};
+	// SAFETY: a plain signal to a process of ours.
+	catches_wake(pid) && unsafe { kill(id, SIGUSR1) } == 0
+}
+
+/// Whether process `pid` has a handler for SIGUSR1, by its `SigCgt` mask.
+fn catches_wake(pid: u32) -> bool {
+	std::fs::read_to_string(format!("/proc/{pid}/status"))
+		.ok()
+		.and_then(|s| {
+			let mask = s.lines().find_map(|l| l.strip_prefix("SigCgt:"))?;
+			u64::from_str_radix(mask.trim(), 16).ok()
+		})
+		.is_some_and(|m| m & (1 << (SIGUSR1 - 1)) != 0)
 }
 
 /// Whether process `pid` is tukzmon-settings with `--config` set to `config`.
@@ -1253,6 +1276,67 @@ mod tests {
 		assert!(!started, "a second window started");
 		assert_eq!(tip, "graphs\n\nProperties: its window is open already");
 		assert!(ended.is_some(), "the window outlived its item");
+	}
+
+	// Test ID: des4c
+	#[test]
+	fn properties_brings_an_open_window_forward_and_leaves_an_older_one() {
+		use std::os::unix::process::CommandExt as _;
+		let dir =
+			std::env::temp_dir().join(format!("test_tukzmon_xfce_{}_wake", std::process::id()));
+		std::fs::create_dir_all(&dir).unwrap();
+		let own = dir.join("own.shcl");
+		let hist = dir.join("history");
+		let woke = dir.join("own.shcl.woke");
+		let window = |script: &str, config: &Path| {
+			std::process::Command::new("sh")
+				.arg0("/somewhere/tukzmon-settings")
+				.args(["-c", script, "sh", "--config"])
+				.arg(config)
+				.spawn()
+				.unwrap()
+		};
+		// a window that listens, and one from a build that doesn't
+		let mut new = window(
+			"trap 'echo woke >> \"$2.woke\"' USR1; while :; do sleep 0.02; done",
+			&own,
+		);
+		let mut old = window("sleep 30; :", &dir.join("old.shcl"));
+		let t0 = Instant::now();
+		while !super::catches_wake(new.id()) && t0.elapsed() < Duration::from_secs(5) {
+			std::thread::sleep(Duration::from_millis(10));
+		}
+		let data = plugin(&dir, &own, &hist);
+		// SAFETY: from plugin, and freed below.
+		let p = unsafe { &mut *data.cast::<super::Plugin>() };
+		p.open_settings(Path::new("true"));
+		let started = p.settings.is_some();
+		let tip = p.tip("graphs".into());
+		let t0 = Instant::now();
+		while !woke.exists() && t0.elapsed() < Duration::from_secs(5) {
+			std::thread::sleep(Duration::from_millis(10));
+		}
+		let old_asked = super::wake(old.id());
+		std::thread::sleep(Duration::from_millis(100));
+		let old_alive = old.try_wait().unwrap().is_none();
+		super::free_data(std::ptr::null_mut(), data);
+		for c in [&mut new, &mut old] {
+			let _ = c.kill();
+			let _ = c.wait();
+		}
+		let woken = std::fs::read_to_string(&woke).unwrap_or_default();
+		for f in [&woke, &hist] {
+			let _ = std::fs::remove_file(f);
+		}
+		std::fs::remove_dir(&dir).unwrap();
+		assert!(!started, "a second window started");
+		assert_eq!(woken, "woke\n");
+		if std::env::var_os("WAYLAND_DISPLAY").is_none() {
+			assert_eq!(tip, "graphs");
+		} else {
+			assert_eq!(tip, "graphs\n\nProperties: its window is open already");
+		}
+		assert!(!old_asked && old_alive, "an older window was signalled");
 	}
 
 	// Test ID: defyn
