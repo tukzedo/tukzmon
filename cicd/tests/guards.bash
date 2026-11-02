@@ -258,6 +258,19 @@ fTest_dev_install_copies_what_cargo_built_and_finds_the_panel_library() {
 	done
 }
 
+## Test ID: der4k
+fTest_a_run_with_every_check_off_fails() {
+	local out='' rc=0
+	## It stops while planning, before it makes a run folder or calls docker.
+	out="$(env -u TUKZMON_IN_IMAGE bash "${cicd}/cicd.bash" --backlog-run-quick miri --no-leakcheck 2>&1)" || rc=$?
+	((rc == 2)) || { fWhy "exit ${rc}, not 2: ${out}"; return 1; }
+	[[ "${out}" == *"every check is off"* ]] || { fWhy "got: ${out}"; return 1; }
+	out="$(env -u TUKZMON_IN_IMAGE bash "${cicd}/cicd.bash" --backlog-run-quick miri --no-leakcheck --list 2>&1)" || { fWhy "--list failed: ${out}"; return 1; }
+	[[ "${out}" == *"Fails: every check is off"* ]] || { fWhy "--list didn't say it fails: ${out}"; return 1; }
+	out="$(env -u TUKZMON_IN_IMAGE bash "${cicd}/cicd.bash" --backlog-run-quick miri --list 2>&1)" || { fWhy "--list with Miri on failed: ${out}"; return 1; }
+	[[ "${out}" != *"Fails:"* ]] || { fWhy "--list with Miri on says it fails: ${out}"; return 1; }
+}
+
 failed=0
 while read -r id fn; do
 	if "${fn}"; then echo "PASS ${id} ${fn#fTest_}"; else echo "FAIL ${id} ${fn#fTest_}"; failed=1; fi
@@ -278,3 +291,4 @@ exit "${failed}"
 ##		  run, and only 1 skips the hook.
 ##		- 2026-11-01: dev-install.bash copies what cargo built and finds the
 ##		  panel's library.
+##		- 2026-11-01: A run with every check off fails.

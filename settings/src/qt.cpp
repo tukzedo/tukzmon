@@ -10,6 +10,7 @@
 #include "tukzmon-settings/src/bridge.rs.h"
 
 #include <QAbstractItemView>
+#include <QAccessible>
 #include <QApplication>
 #include <QButtonGroup>
 #include <QCheckBox>
@@ -363,6 +364,16 @@ protected:
 	}
 };
 
+// For a dialog's destructor. Its members go before Qt deletes the children,
+// whose handlers reach them, and a shown child that loses the focus or the
+// pointer then fires one. So nothing of theirs runs once the members start
+// going.
+void quiet(QDialog *w) {
+	for (QObject *o : w->findChildren<QObject *>())
+		QObject::disconnect(o, nullptr, w, nullptr);
+	w->hide();
+}
+
 // SilkTerm's picker, not the toolkit's. The row behind follows every change,
 // and Cancel puts back all of it.
 class ColorPicker final : public QDialog {
@@ -428,6 +439,12 @@ public:
 		sync(nullptr);
 		square->setFocus();
 	}
+
+	ColorPicker(const ColorPicker &) = delete;
+	ColorPicker &operator=(const ColorPicker &) = delete;
+	ColorPicker(ColorPicker &&) = delete;
+	ColorPicker &operator=(ColorPicker &&) = delete;
+	~ColorPicker() override { quiet(this); }
 
 	void done(int r) override {
 		pick_close(d, r == QDialog::Accepted);
@@ -660,6 +677,7 @@ public:
 			rows.push_back(std::move(row));
 		}
 
+		tabList->setAccessibleName("Pages");
 		shade(this, false);
 		// before the selection, which is tinted from its Base
 		shade(tabList, true);
@@ -699,14 +717,11 @@ public:
 			if (parent) {
 				stackOf[i] = new QStackedWidget;
 				subPage.back() = {.stack = stackOf[i], .index = 0};
-				auto *rule = new QFrame;
-				rule->setFrameShape(QFrame::HLine);
-				rule->setFrameShadow(QFrame::Sunken);
+				// no rule under the parent's rows: the shade change marks the edge
 				auto *holder = new QWidget;
 				auto *v = new QVBoxLayout(holder);
 				v->setContentsMargins(0, 0, 0, 0);
 				v->addWidget(page);
-				v->addWidget(rule);
 				v->addWidget(stackOf[i], 1);
 				page = holder;
 			}
@@ -729,7 +744,8 @@ public:
 		for (size_t side = 0; side < 2; side++) {
 			int labelWidth = 0;
 			for (auto &r : rows)
-				if (r->label && !r->info.section.empty() && size_t(r->info.beside) == side)
+				// a same_line row's label sits in the row it joins
+				if (r->label && !r->info.section.empty() && !r->info.same_line && size_t(r->info.beside) == side)
 					labelWidth = std::max(labelWidth, r->label->sizeHint().width());
 			for (auto &s : sections) {
 				s.side[side]->setColumnMinimumWidth(0, labelWidth);
@@ -796,6 +812,15 @@ public:
 			// the first read only primes, and a second one ms later is noise
 			tick->start(int(live_sample(*live)));
 		}
+	}
+
+	Window(const Window &) = delete;
+	Window &operator=(const Window &) = delete;
+	Window(Window &&) = delete;
+	Window &operator=(Window &&) = delete;
+	~Window() override {
+		qApp->removeEventFilter(this);
+		quiet(this);
 	}
 
 	// Enter is OK and Esc is Cancel, even from inside a field or on a checkbox.
@@ -937,6 +962,20 @@ public:
 	void commitTyped() { takeTyped(); }
 	bool isLeaf(int i) const { return leaf[size_t(lineTab[size_t(i)])]; }
 	void select(int i) { tabList->setCurrentRow(i); }
+
+	// Neither can be undone, so No is the default (style guide, Message boxes).
+	bool askDelete(const QString &name) {
+		return QMessageBox::question(this, "Delete theme", QString("Delete the theme %1?").arg(name),
+				   QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes;
+	}
+
+	bool askReset() {
+		return QMessageBox::question(this, "Reset history",
+				   "Keep across restarts is on, so this deletes all past history, not only what's "
+				   "on screen.\n\nReset history?",
+				   QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes;
+	}
+
 	std::string selectedText() const { return tabList->currentItem()->text().toStdString(); }
 	void moveGraph(int from, int to) { moveTo(from, to); }
 	std::unique_ptr<ColorPicker> firstPicker() {
@@ -1028,7 +1067,8 @@ public:
 			int left = 0;
 			int right = INT_MAX;
 			for (const auto &r : rows) {
-				if (r->info.section != s.graph || r.get() == s.title)
+				// the lead line spans both columns
+				if (r->info.section != s.graph || r.get() == s.title || (r->grid && r->grid == s.lead))
 					continue;
 				for (QWidget *w : {static_cast<QWidget *>(r->label), r->control, static_cast<QWidget *>(r->revert),
 						 static_cast<QWidget *>(r->head)}) {
@@ -1051,13 +1091,27 @@ public:
 		return out;
 	}
 
+	// "id left mid control" per row shown with a label, in the window: its
+	// label's left edge and middle line, and its control's left edge
+	std::vector<std::string> rowSpots() const {
+		std::vector<std::string> out;
+		for (const auto &r : rows) {
+			if (!r->label || !r->label->isVisible())
+				continue;
+			const QRect l(r->label->mapTo(this, QPoint(0, 0)), r->label->size());
+			const int c = r->control->mapTo(this, QPoint(0, 0)).x();
+			out.push_back(r->id() + " " + std::to_string(l.left()) + " " + std::to_string(l.center().y()) + " " +
+				std::to_string(c));
+		}
+		return out;
+	}
+
 	// "graph left right" per section: how far down its box the left column's
 	// first row under the colors mode starts, and the right column's first
 	std::vector<std::string> sectionTops() const {
 		std::vector<std::string> out;
 		for (const auto &s : sections) {
 			std::array<int, 2> top{-1, -1};
-			bool mode = true;
 			for (const auto &r : rows) {
 				if (r->info.section != s.graph || r.get() == s.title)
 					continue;
@@ -1069,7 +1123,8 @@ public:
 						y = std::min(y, w->mapTo(s.box, QPoint()).y());
 				if (y == INT_MAX)
 					continue;
-				if (side == 0 && std::exchange(mode, false) && !r->head)
+				// the mode and what joins its line sit above both columns
+				if (r->grid && r->grid == s.lead)
 					continue;
 				if (top[side] < 0)
 					top[side] = y;
@@ -1201,6 +1256,8 @@ private:
 	};
 	std::vector<Section> sections;
 	QVBoxLayout *sectionList = nullptr;
+	// the last row placeRow put on a line, for a same_line row to join
+	Row *lastPlaced = nullptr;
 
 	// Sections follow the graph order, before Apply too.
 	void orderSections() {
@@ -1337,7 +1394,11 @@ private:
 				auto *top = new QWidget;
 				s.lead = rowGrid(top);
 				s.lead->setContentsMargins(0, 0, 0, 0);
-				s.outer->addWidget(top, 2, 0, Qt::AlignTop);
+				s.outer->addWidget(top, 2, 0, 1, 2, Qt::AlignTop);
+				placeRow(r, info, s.lead, s.leadLine);
+				continue;
+			}
+			if (r.info.same_line && s.lead && lastPlaced && lastPlaced->grid == s.lead) {
 				placeRow(r, info, s.lead, s.leadLine);
 				continue;
 			}
@@ -1351,6 +1412,7 @@ private:
 		scroll->setWidget(page);
 		scroll->setWidgetResizable(true);
 		scroll->setFrameShape(QFrame::NoFrame);
+		scroll->setAccessibleName(qs(info.label));
 		shade(scroll, true);
 		return scroll;
 	}
@@ -1379,13 +1441,11 @@ private:
 			grid->addWidget(rule, line++, 0, 1, 3);
 			r.head = h;
 			r.rule = rule;
+			lastPlaced = nullptr;
 			return;
 		}
 		r.label = new QLabel(label);
-		r.label->setContentsMargins(16 * r.info.indent, 0, 12, 0);
-		grid->addWidget(r.label, line, 0);
 		r.control = buildControl(r);
-		grid->addWidget(r.control, line, 1);
 		r.revert = new QToolButton;
 		r.revert->setIcon(QIcon::fromTheme("edit-undo", style()->standardIcon(QStyle::SP_BrowserReload)));
 		r.revert->setAutoRaise(true);
@@ -1393,6 +1453,27 @@ private:
 			reset_row(d, r.id());
 			refresh();
 		});
+		nameRow(r, spokenName(r));
+		Row *prev = std::exchange(lastPlaced, &r);
+		if (r.info.same_line && prev && prev->grid == grid) {
+			// the row above keeps its label and revert, and shares its
+			// control's cell with this row's 3
+			auto *holder = new QWidget;
+			auto *h = new QHBoxLayout(holder);
+			h->setContentsMargins(0, 0, 0, 0);
+			grid->removeWidget(prev->control);
+			h->addWidget(prev->control);
+			r.label->setContentsMargins(HEAD_GAP, 0, 6, 0);
+			h->addWidget(r.label);
+			h->addWidget(r.control);
+			h->addWidget(r.revert);
+			h->addStretch(1);
+			grid->addWidget(holder, line - 1, 1);
+			return;
+		}
+		r.label->setContentsMargins(16 * r.info.indent, 0, 12, 0);
+		grid->addWidget(r.label, line, 0);
+		grid->addWidget(r.control, line, 1);
 		grid->addWidget(r.revert, line, 2);
 		line++;
 	}
@@ -1402,6 +1483,35 @@ private:
 			if (r->info.id == id)
 				return r.get();
 		return nullptr;
+	}
+
+	// A row's label, after its graph's on Themes/Colors, where Low or Border
+	// alone doesn't say whose.
+	QString spokenName(const Row &r) const {
+		QString label = qs(r.info.label);
+		for (const auto &s : sections)
+			if (s.graph == std::string(r.info.section) && s.title)
+				return qs(s.title->info.label) + " " + label;
+		return label;
+	}
+
+	// What a screen reader calls each of the row's controls, which have no
+	// text of their own. It finds a label only beside what it labels, so the
+	// buddy is the control, not a box inside it. A dropdown takes its label
+	// from there, since Qt on Linux names it by its text.
+	static void nameRow(Row &r, const QString &name) {
+		if (r.label)
+			r.label->setBuddy(r.control);
+		for (QWidget *w : {static_cast<QWidget *>(r.slider), static_cast<QWidget *>(r.spin),
+				 static_cast<QWidget *>(r.combo), static_cast<QWidget *>(r.line), r.control})
+			if (w)
+				w->setAccessibleName(name);
+		if (r.check && r.check->text().isEmpty())
+			r.check->setAccessibleName(name);
+		if (r.chip)
+			r.chip->setAccessibleName("Pick a color for " + name);
+		if (r.revert)
+			r.revert->setAccessibleName("Revert " + name);
 	}
 
 	// The rows under Graphs as one list: show, a space for the graph, width,
@@ -1422,7 +1532,8 @@ private:
 				continue;
 			for (Row *r : {lr.show, lr.width, lr.sample, lr.time})
 				r->control = buildControl(*r);
-			lr.show->check->setText(qs(lr.show->info.label));
+			const QString graph = qs(lr.show->info.label);
+			lr.show->check->setText(graph);
 			lr.space = new LiveGraph(*live, lr.name);
 			lr.space->fit();
 			lr.revert = new QToolButton;
@@ -1431,6 +1542,12 @@ private:
 			lr.grip = new Gripper;
 			lr.grip->setToolTip("Drag up or down to move this graph, or use Up and Down here. The top one is "
 								"drawn first: on the left in a horizontal panel, on top in a vertical one.");
+			nameRow(*lr.width, graph + " width %");
+			nameRow(*lr.sample, graph + " sample %");
+			nameRow(*lr.time, graph + " time axis");
+			lr.space->setAccessibleName(graph);
+			lr.revert->setAccessibleName("Revert " + graph);
+			lr.grip->setAccessibleName("Move " + graph);
 			const std::string name = lr.name;
 			connect(lr.revert, &QToolButton::clicked, this, [this, name] {
 				for (auto &l : listRows)
@@ -1447,13 +1564,13 @@ private:
 		auto *sampleHead = new QLabel("Sample %");
 		auto *timeHead = new QLabel("Time axis");
 		// about the column, since a row's tip names its graph and how it was set
-		widthHead->setToolTip("How wide each graph is, or how tall on a vertical panel, as a percentage of Width, "
-							  "on the General tab.");
+		widthHead->setToolTip("How wide each graph is, or how tall on a vertical panel, as a percentage of Width px "
+							  "default, on the General tab.");
 		sampleHead->setToolTip("How often each graph is read and redrawn, as a percentage of Sample ms default, on "
 							   "the General tab. At 200% it's read half as often, and at 50% twice as often. Under "
 							   "50 ms counts as 50 ms.");
-		timeHead->setToolTip("How each graph spreads time across its width. Default follows Time axis default, on "
-							 "the General tab, where the tip tells the curves apart.");
+		timeHead->setToolTip("How each graph spreads time across its width. Default follows Scale default under "
+							 "Time axis, on the General tab, where the tip tells the curves apart.");
 		listGrid->addWidget(widthHead, 0, 2);
 		listGrid->addWidget(sampleHead, 0, 3);
 		listGrid->addWidget(timeHead, 0, 4);
@@ -1685,8 +1802,7 @@ private:
 			[this] { nameTheme("Rename theme", qs(theme_name(d)), true); });
 		connect(deleteTheme, &QPushButton::clicked, this, [this] {
 			const QString name = qs(theme_name(d));
-			if (QMessageBox::question(this, "Delete theme", QString("Delete the theme %1?").arg(name)) !=
-				QMessageBox::Yes)
+			if (!askDelete(name))
 				return;
 			delete_theme(d);
 			refresh();
@@ -1725,7 +1841,7 @@ private:
 	std::unique_ptr<ColorPicker> picker(Row &r) {
 		if (!pick_open(d, r.id()))
 			return nullptr;
-		return std::make_unique<ColorPicker>(d, r.label->text(), [this] { refresh(); }, this);
+		return std::make_unique<ColorPicker>(d, spokenName(r), [this] { refresh(); }, this);
 	}
 
 	void pickColor(Row &r) {
@@ -1735,10 +1851,7 @@ private:
 
 	// an action rather than a setting, so it doesn't wait for Apply
 	void resetHistory() {
-		if (reset_deletes_saved(d) &&
-			QMessageBox::question(this, "Reset history",
-				"Keep across restarts is on, so this deletes all past history, not only what's "
-				"on screen.\n\nReset history?") != QMessageBox::Yes)
+		if (reset_deletes_saved(d) && !askReset())
 			return;
 		live_clear(*live);
 		refresh();
@@ -2080,6 +2193,33 @@ rust::Vec<rust::String> section_tops(Dialog &d) {
 	return out;
 }
 
+rust::Vec<rust::String> row_spots(Dialog &d) {
+	const App app("offscreen");
+	Window w(d);
+	openSized(w);
+	w.show();
+	tukzmon::App::processEvents();
+	rust::Vec<rust::String> out;
+	for (auto &s : w.rowSpots())
+		out.push_back(rust::String(s));
+	return out;
+}
+
+rust::Vec<rust::String> colors_row_spots(Dialog &d) {
+	const App app("offscreen");
+	Window w(d);
+	openSized(w);
+	w.show();
+	for (int i = 0; i < w.tabCount(); i++)
+		if (QString::fromStdString(w.tabText(i)).trimmed() == "Colors")
+			w.select(i);
+	tukzmon::App::processEvents();
+	rust::Vec<rust::String> out;
+	for (auto &s : w.rowSpots())
+		out.push_back(rust::String(s));
+	return out;
+}
+
 rust::Vec<rust::String> bottom_buttons(Dialog &d) {
 	const App app("offscreen");
 	const Window w(d);
@@ -2149,7 +2289,8 @@ rust::Vec<rust::String> list_head_tips(Dialog &d) {
 	rust::Vec<rust::String> out;
 	for (const char *head : {"Width %", "Sample %", "Time axis"})
 		for (auto *l : w.findChildren<QLabel *>())
-			if (l->text() == head)
+			// General's Time axis heading is bold, and isn't the list's
+			if (l->text() == head && !l->font().bold())
 				out.push_back(rust::String(std::string(head) + ": " + l->toolTip().toStdString()));
 	return out;
 }
@@ -2181,6 +2322,59 @@ rust::Vec<bool> apply_while_typing(Dialog &d, bool number) {
 	out.push_back(w.applyOn());
 	w.commitTyped();
 	out.push_back(is_dirty(d));
+	return out;
+}
+
+rust::Vec<bool> teardown_while_typing(Dialog &d) {
+	const App app("offscreen");
+	auto w = std::make_unique<Window>(d);
+	w->show();
+	w->activateWindow();
+	QWidget *box = w->firstBox(false);
+	for (int i = 0; box && !box->isVisible() && i < w->tabCount(); i++) {
+		w->select(i);
+		tukzmon::App::processEvents();
+	}
+	if (!box || !box->isVisible())
+		return {};
+	box->setFocus();
+	tukzmon::App::processEvents();
+	press(box, Qt::Key_End);
+	press(box, Qt::Key_Backspace);
+	rust::Vec<bool> out;
+	out.push_back(box->hasFocus());
+	out.push_back(w->applyOn());
+	w.reset();
+	out.push_back(is_dirty(d));
+	return out;
+}
+
+rust::Vec<rust::String> control_names(Dialog &d) {
+	const App app("offscreen");
+	Window w(d);
+	rust::Vec<rust::String> out;
+	for (QWidget *c : w.findChildren<QWidget *>()) {
+		if (!(c->focusPolicy() & Qt::TabFocus))
+			continue;
+		// a box's own line edit is the box
+		bool inner = false;
+		for (QWidget *up = c->parentWidget(); up && up != &w; up = up->parentWidget())
+			inner |= qobject_cast<QAbstractSpinBox *>(up) || qobject_cast<QComboBox *>(up);
+		if (inner)
+			continue;
+		const QAccessibleInterface *a = QAccessible::queryAccessibleInterface(c);
+		QString line = QString(c->metaObject()->className()) + "|";
+		if (a) {
+			line += a->text(QAccessible::Name);
+			for (const auto &[by, how] : a->relations(QAccessible::Label))
+				line += "|" + by->text(QAccessible::Name);
+		}
+		out.push_back(rust::String(line.toStdString()));
+	}
+	if (auto pick = w.firstPicker()) {
+		out.push_back(rust::String("title|" + pick->windowTitle().toStdString()));
+		pick->reject();
+	}
 	return out;
 }
 
@@ -2318,6 +2512,50 @@ rust::Vec<rust::String> button_heights(Dialog &d) {
 	box.show();
 	tukzmon::App::processEvents();
 	take(box);
+	return out;
+}
+
+rust::Vec<rust::String> page_heads(Dialog &d) {
+	const App app("offscreen");
+	Window w(d);
+	openSized(w);
+	w.show();
+	rust::Vec<rust::String> out;
+	for (int i = 0; i < w.tabCount(); i++) {
+		w.select(i);
+		tukzmon::App::processEvents();
+		QStringList heads;
+		for (auto *l : w.findChildren<QLabel *>())
+			if (l->isVisible() && l->font().bold())
+				heads << l->text();
+		const auto rules = std::ranges::count_if(w.findChildren<QFrame *>(),
+			[](const QFrame *f) { return f->isVisible() && f->frameShape() == QFrame::HLine; });
+		out.push_back(rust::String(QString::fromStdString(w.tabText(i)).trimmed().toStdString() + "|" +
+			heads.join(";").toStdString() + "|" + std::to_string(rules)));
+	}
+	return out;
+}
+
+rust::Vec<rust::String> question_defaults(Dialog &d) {
+	const App app("offscreen");
+	Window w(d);
+	rust::Vec<rust::String> out;
+	QTimer answer;
+	QObject::connect(&answer, &QTimer::timeout, [&out] {
+		auto *box = qobject_cast<QMessageBox *>(QApplication::activeModalWidget());
+		if (!box || !box->isVisible())
+			return;
+		QString picked = "none";
+		for (auto *b : box->findChildren<QPushButton *>())
+			if (b->isDefault())
+				picked = b->text().remove('&');
+		out.push_back(rust::String((box->windowTitle() + " " + picked).toStdString()));
+		box->button(QMessageBox::No)->click();
+	});
+	answer.start(10);
+	const bool deleted = w.askDelete("Mine");
+	const bool reset = w.askReset();
+	out.push_back(rust::String(std::string("yes ") + (deleted ? "1" : "0") + (reset ? "1" : "0")));
 	return out;
 }
 

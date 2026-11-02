@@ -11,6 +11,8 @@
 ## 2 that lay out Themes/Colors: graph: name on a heading starts that graph's
 ## section, which moves with the graph order, and beside: true on a heading
 ## puts it and the rest of its section to the right of what's above it.
+## same_line: true, also ours, puts a row to the right of the row above it,
+## on its line.
 ##
 ## A graph's row in the Graphs list comes from its show, width, sample and
 ## time settings, in that order.
@@ -30,7 +32,7 @@ settings:
 		control: heading
 
 	width:
-		label: Width px
+		label: Width px default
 		tab: General
 		control: slider
 		whole: true
@@ -42,13 +44,24 @@ settings:
 		detents: 64, 128, 256
 		tip: "How wide a graph is in the panel at 100%. Each graph on the Graphs tab takes a percentage of it. Its height follows the panel.\n\nOn a vertical panel or a deskbar, this is how tall a graph is, and its width follows the panel. Time still runs from left to right."
 
+	border:
+		label: Border px
+		tab: General
+		control: slider
+		whole: true
+		range: 0, 16
+		slider_range: 0, 4
+		path: graph.border
+		default: 1
+		tip: "How thick the line around each graph is, in pixels. 0 draws no border."
+
 	TimeHead:
-		label: Time
+		label: Time axis
 		tab: General
 		control: heading
 
 	time_axis:
-		label: Time axis default
+		label: Scale default
 		tab: General
 		control: dropdown
 		options: linear, smooth, fixed_a, fixed_b
@@ -87,23 +100,23 @@ settings:
 		options: ago, clock
 		option_labels: "How long ago", "Date and time"
 		path: graph.hover_time
-		default: clock
+		default: ago
 		tip: "What the tip says about the time under the pointer. How long ago reads like 7 hrs ago. Date and time gives just the time for today, and the date too for anything older, in your locale's short format."
 
-	LookHead:
-		label: Frame
+	VerticalHead:
+		label: Vertical axis
 		tab: General
 		control: heading
 
-	border:
-		label: Border px
+	vertical_axis:
+		label: Scale default
 		tab: General
-		control: slider
-		whole: true
-		range: 0, 16
-		slider_range: 0, 4
-		path: graph.border
-		default: 1
+		control: dropdown
+		options: linear, log10, squared
+		option_labels: "Linear", "log₁₀", "𝜒²"
+		path: graph.vertical
+		default: linear
+		tip: "How height goes up a graph, unless it picks its own on the Themes/Colors tab. Linear draws it in proportion to the value.\n\nlog₁₀ lifts small values, so a trickle still shows next to a big copy. It counts from a thousandth of the top, or for a graph with no fixed top, such as disk or network, a thousandth of the least its top goes down to.\n\n𝜒² squares the share of the top, so big values stand out and small ones sink. Half the top draws a quarter of the way up."
 
 	GraphsHead:
 		label: Graphs
@@ -126,7 +139,7 @@ settings:
 		range: 1, 1000
 		path: cpu.width
 		default: 100
-		tip: "How wide the CPU graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the CPU graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	cpu_sample:
 		label: CPU sample %
@@ -146,7 +159,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: cpu.time
 		default: same
-		tip: "How the CPU graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the CPU graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_memory:
 		label: Memory
@@ -164,7 +177,7 @@ settings:
 		range: 1, 1000
 		path: mem.width
 		default: 100
-		tip: "How wide the memory graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the memory graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	mem_sample:
 		label: Memory sample %
@@ -184,7 +197,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: mem.time
 		default: same
-		tip: "How the memory graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the memory graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_procs:
 		label: Processes
@@ -202,7 +215,7 @@ settings:
 		range: 1, 1000
 		path: procs.width
 		default: 25
-		tip: "How wide the processes graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the processes graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	procs_sample:
 		label: Processes sample %
@@ -222,7 +235,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: procs.time
 		default: same
-		tip: "How the processes graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the processes graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_gpu:
 		label: GPU
@@ -240,7 +253,7 @@ settings:
 		range: 1, 1000
 		path: gpu.width
 		default: 50
-		tip: "How wide the GPU graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the GPU graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	gpu_sample:
 		label: GPU sample %
@@ -260,7 +273,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: gpu.time
 		default: same
-		tip: "How the GPU graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the GPU graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_vram:
 		label: GPU memory
@@ -278,7 +291,7 @@ settings:
 		range: 1, 1000
 		path: vram.width
 		default: 50
-		tip: "How wide the GPU memory graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the GPU memory graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	vram_sample:
 		label: GPU memory sample %
@@ -298,7 +311,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: vram.time
 		default: same
-		tip: "How the GPU memory graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the GPU memory graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_net:
 		label: Network
@@ -306,7 +319,7 @@ settings:
 		control: checkbox
 		path: net.show
 		default: false
-		tip: "Show network traffic in bytes a second: local, which is the box talking to itself, then sent, then received, from the bottom up. The top follows the busiest moment in view, so the graph has no fixed scale. The tip gives the rates. LAN and internet, further down, splits sent and received into the LAN's and the internet's."
+		tip: "Show network traffic in bytes a second: local, which is the box talking to itself, then sent, then received, from the bottom up. The top follows the busiest moment in view, so the graph has no fixed scale. The tip gives the rates. LAN and internet, under Misc on the General tab, splits sent and received into the LAN's and the internet's."
 
 	net_width:
 		label: Network width %
@@ -316,7 +329,7 @@ settings:
 		range: 1, 1000
 		path: net.width
 		default: 50
-		tip: "How wide the network graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the network graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	net_sample:
 		label: Network sample %
@@ -336,7 +349,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: net.time
 		default: same
-		tip: "How the network graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the network graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_disk:
 		label: Disk
@@ -344,7 +357,7 @@ settings:
 		control: checkbox
 		path: disk.show
 		default: true
-		tip: "Show disk traffic in bytes a second: written, then read, from the bottom up. The top follows the busiest moment in view, so the graph has no fixed scale. The tip gives the rates. Disk drives and Disk log scale, further down, set what it counts and how it's drawn."
+		tip: "Show disk traffic in bytes a second: written, then read, from the bottom up. The top follows the busiest moment in view, so the graph has no fixed scale. The tip gives the rates. Disk drives, under Misc on the General tab, sets what it counts, and Vertical scale on the Themes/Colors tab how it's drawn."
 
 	disk_width:
 		label: Disk width %
@@ -354,7 +367,7 @@ settings:
 		range: 1, 1000
 		path: disk.width
 		default: 50
-		tip: "How wide the disk graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the disk graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	disk_sample:
 		label: Disk sample %
@@ -374,7 +387,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: disk.time
 		default: same
-		tip: "How the disk graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the disk graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_temp:
 		label: Temperature
@@ -392,7 +405,7 @@ settings:
 		range: 1, 1000
 		path: temp.width
 		default: 50
-		tip: "How wide the temperature graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the temperature graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	temp_sample:
 		label: Temperature sample %
@@ -412,7 +425,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: temp.time
 		default: same
-		tip: "How the temperature graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the temperature graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_swap:
 		label: Swap
@@ -430,7 +443,7 @@ settings:
 		range: 1, 1000
 		path: swap.width
 		default: 25
-		tip: "How wide the swap graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the swap graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	swap_sample:
 		label: Swap sample %
@@ -450,7 +463,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: swap.time
 		default: same
-		tip: "How the swap graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the swap graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_zswap:
 		label: Zswap
@@ -468,7 +481,7 @@ settings:
 		range: 1, 1000
 		path: zswap.width
 		default: 25
-		tip: "How wide the zswap graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the zswap graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	zswap_sample:
 		label: Zswap sample %
@@ -488,7 +501,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: zswap.time
 		default: same
-		tip: "How the zswap graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the zswap graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_load:
 		label: Load
@@ -506,7 +519,7 @@ settings:
 		range: 1, 1000
 		path: load.width
 		default: 25
-		tip: "How wide the load graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the load graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	load_sample:
 		label: Load sample %
@@ -526,7 +539,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: load.time
 		default: same
-		tip: "How the load graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the load graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_self:
 		label: tukzmon
@@ -544,7 +557,7 @@ settings:
 		range: 1, 1000
 		path: self.width
 		default: 12
-		tip: "How wide the tukzmon graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the tukzmon graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	self_sample:
 		label: tukzmon sample %
@@ -564,7 +577,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: self.time
 		default: same
-		tip: "How the tukzmon graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the tukzmon graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	show_battery:
 		label: Battery
@@ -582,7 +595,7 @@ settings:
 		range: 1, 1000
 		path: battery.width
 		default: 100
-		tip: "How wide the battery graph is, or how tall on a vertical panel, as a percentage of Width, on the General tab."
+		tip: "How wide the battery graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	battery_sample:
 		label: Battery sample %
@@ -602,7 +615,7 @@ settings:
 		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
 		path: battery.time
 		default: same
-		tip: "How the battery graph spreads time across its width. Default follows Time axis default, on the General tab, where the tip tells the curves apart."
+		tip: "How the battery graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
 
 	## The graph list's grippers write this, and it has no row of its own.
 	graph_order:
@@ -613,47 +626,8 @@ settings:
 		default: "cpu mem procs gpu vram net disk temp swap zswap load self battery"
 		tip: "The graphs from left to right, or top to bottom on a vertical panel, by name: cpu for CPU, mem for memory, gpu, vram for GPU memory, net for network, swap, zswap, load, procs for processes, disk, temp for temperature, battery, and self for tukzmon itself. One left out goes at the end."
 
-	NetGraphHead:
-		label: Network graph
-		tab: General
-		control: heading
-
-	net_split:
-		label: LAN and internet
-		tab: General
-		control: dropdown
-		options: off, sockets
-		option_labels: "Off", "TCP sockets"
-		path: net.split
-		default: off
-		gate: show_net
-		tip: "Tell traffic to and from the LAN apart from the internet's, so the network graph draws local, LAN sent, LAN received, internet sent and internet received. Off draws local, sent and received.\n\nTCP sockets asks the kernel for each TCP connection's byte counts every read, and needs no root. UDP doesn't have them, so UDP and QUIC to the LAN count as internet. The LAN is the private address ranges and this box's own IPv6 /64."
-
-	DiskHead:
-		label: Disk graph
-		tab: General
-		control: heading
-
-	disk_drives:
-		label: Disk drives
-		tab: General
-		control: text
-		path: disk.drives
-		default: all
-		gate: show_disk
-		tip: "Which drives the disk graph counts: all, or names as /proc/diskstats gives them, such as sda nvme0n1. All is every disk with hardware behind it, and leaves out partitions and what sits on a disk, such as LUKS, LVM and RAID, so nothing is counted twice. A named drive is counted as is, partitions too."
-
-	disk_log:
-		label: Disk log scale
-		tab: General
-		control: checkbox
-		path: disk.log
-		default: false
-		gate: show_disk
-		tip: "Draw the disk graph on a log scale, so a trickle still shows next to a big copy. Off, the height is in proportion to the rate."
-
 	HistoryHead:
-		label: History
+		label: Timespan
 		tab: General
 		control: heading
 
@@ -672,9 +646,35 @@ settings:
 		whole: true
 		range: 1, 36500
 		path: history.max_days
+		same_line: true
 		default: 28
 		gate: keep_history
 		tip: "History older than this is dropped."
+
+	MiscHead:
+		label: Misc
+		tab: General
+		control: heading
+
+	disk_drives:
+		label: Disk drives
+		tab: General
+		control: text
+		path: disk.drives
+		default: all
+		gate: show_disk
+		tip: "Which drives the disk graph counts: all, or names as /proc/diskstats gives them, such as sda nvme0n1. All is every disk with hardware behind it, and leaves out partitions and what sits on a disk, such as LUKS, LVM and RAID, so nothing is counted twice. A named drive is counted as is, partitions too."
+
+	net_split:
+		label: LAN and internet
+		tab: General
+		control: dropdown
+		options: off, sockets
+		option_labels: "Off", "TCP sockets"
+		path: net.split
+		default: off
+		gate: show_net
+		tip: "Tell traffic to and from the LAN apart from the internet's, so the network graph draws local, LAN sent, LAN received, internet sent and internet received. Off draws local, sent and received.\n\nTCP sockets asks the kernel for each TCP connection's byte counts every read, and needs no root. UDP doesn't have them, so UDP and QUIC to the LAN count as internet. The LAN is the private address ranges and this box's own IPv6 /64."
 
 	theme:
 		label: Name
@@ -702,6 +702,17 @@ settings:
 		group: theme
 		tip: "Detailed gives each kind of CPU time a color of its own. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
+	cpu_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: cpu.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the CPU graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
+
 	CpuHead:
 		label: "From the bottom up"
 		tab: Themes/Colors
@@ -716,6 +727,7 @@ settings:
 		default: "#ff0000"
 		group: theme
 		shown_when: "cpu_mode = detailed"
+		tip: "Time the CPU sat idle while a disk read or write was pending."
 
 	system:
 		label: System
@@ -735,6 +747,7 @@ settings:
 		default: "#00ff80"
 		group: theme
 		shown_when: "cpu_mode = detailed"
+		tip: "Time spent in programs, not counting Nice."
 
 	nice:
 		label: Nice
@@ -795,6 +808,7 @@ settings:
 		path: cpu.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	cpu_back_top:
 		label: Top
@@ -803,6 +817,7 @@ settings:
 		path: cpu.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	cpu_back_bottom:
 		label: Bottom
@@ -811,6 +826,7 @@ settings:
 		path: cpu.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	MemSection:
 		label: Memory
@@ -829,6 +845,17 @@ settings:
 		default: detailed
 		group: theme
 		tip: "Detailed gives programs, buffers and cache a color each. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	mem_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: mem.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the memory graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
 
 	MemHead:
 		label: "From the bottom up"
@@ -854,6 +881,7 @@ settings:
 		default: "#804080"
 		group: theme
 		shown_when: "mem_mode = detailed"
+		tip: "Memory the kernel holds for block devices and file system bookkeeping."
 
 	mem_cache:
 		label: Cache
@@ -914,6 +942,7 @@ settings:
 		path: mem.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	mem_back_top:
 		label: Top
@@ -922,6 +951,7 @@ settings:
 		path: mem.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	mem_back_bottom:
 		label: Bottom
@@ -930,6 +960,7 @@ settings:
 		path: mem.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	GpuSection:
 		label: GPU
@@ -949,6 +980,17 @@ settings:
 		group: theme
 		tip: "Detailed draws how busy the GPU is in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
+	gpu_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: gpu.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the GPU graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
+
 	gpu_busy:
 		label: Busy
 		tab: Themes/Colors
@@ -957,6 +999,7 @@ settings:
 		default: "#3b6fd9"
 		group: theme
 		shown_when: "gpu_mode = detailed"
+		tip: "How busy the GPU is."
 
 	GpuGradHead:
 		label: "By height"
@@ -1007,6 +1050,7 @@ settings:
 		path: gpu.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	gpu_back_top:
 		label: Top
@@ -1015,6 +1059,7 @@ settings:
 		path: gpu.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	gpu_back_bottom:
 		label: Bottom
@@ -1023,6 +1068,7 @@ settings:
 		path: gpu.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	VramSection:
 		label: GPU memory
@@ -1042,6 +1088,17 @@ settings:
 		group: theme
 		tip: "Detailed draws the GPU's memory in use in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
+	vram_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: vram.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the GPU memory graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
+
 	vram_used:
 		label: In use
 		tab: Themes/Colors
@@ -1050,6 +1107,7 @@ settings:
 		default: "#843bd9"
 		group: theme
 		shown_when: "vram_mode = detailed"
+		tip: "The GPU's memory in use."
 
 	VramGradHead:
 		label: "By height"
@@ -1100,6 +1158,7 @@ settings:
 		path: vram.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	vram_back_top:
 		label: Top
@@ -1108,6 +1167,7 @@ settings:
 		path: vram.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	vram_back_bottom:
 		label: Bottom
@@ -1116,6 +1176,7 @@ settings:
 		path: vram.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	NetSection:
 		label: Network
@@ -1134,6 +1195,17 @@ settings:
 		default: detailed
 		group: theme
 		tip: "Detailed gives local, sent and received a color each, and LAN sent and LAN received too with LAN and internet on, on the General tab. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	net_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: net.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the network graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
 
 	NetHead:
 		label: "From the bottom up"
@@ -1240,6 +1312,7 @@ settings:
 		path: net.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	net_back_top:
 		label: Top
@@ -1248,6 +1321,7 @@ settings:
 		path: net.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	net_back_bottom:
 		label: Bottom
@@ -1256,6 +1330,7 @@ settings:
 		path: net.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	SwapSection:
 		label: Swap
@@ -1275,6 +1350,17 @@ settings:
 		group: theme
 		tip: "Detailed draws swap in use in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
+	swap_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: swap.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the swap graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
+
 	swap_used:
 		label: In use
 		tab: Themes/Colors
@@ -1283,6 +1369,7 @@ settings:
 		default: "#a45f00"
 		group: theme
 		shown_when: "swap_mode = detailed"
+		tip: "Swap in use."
 
 	SwapGradHead:
 		label: "By height"
@@ -1333,6 +1420,7 @@ settings:
 		path: swap.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	swap_back_top:
 		label: Top
@@ -1341,6 +1429,7 @@ settings:
 		path: swap.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	swap_back_bottom:
 		label: Bottom
@@ -1349,6 +1438,7 @@ settings:
 		path: swap.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	ZswapSection:
 		label: Zswap
@@ -1368,6 +1458,17 @@ settings:
 		group: theme
 		tip: "Detailed draws the pool in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top. Zram shows here too, on a box that has it and no zswap."
 
+	zswap_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: zswap.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the zswap graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
+
 	zswap_used:
 		label: In use
 		tab: Themes/Colors
@@ -1376,6 +1477,7 @@ settings:
 		default: "#4a8e54"
 		group: theme
 		shown_when: "zswap_mode = detailed"
+		tip: "The compressed pool in use, in zswap or zram."
 
 	ZswapGradHead:
 		label: "By height"
@@ -1426,6 +1528,7 @@ settings:
 		path: zswap.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	zswap_back_top:
 		label: Top
@@ -1434,6 +1537,7 @@ settings:
 		path: zswap.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	zswap_back_bottom:
 		label: Bottom
@@ -1442,6 +1546,7 @@ settings:
 		path: zswap.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	LoadSection:
 		label: Load
@@ -1461,6 +1566,17 @@ settings:
 		group: theme
 		tip: "Detailed draws the load in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
+	load_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: load.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the load graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
+
 	load_used:
 		label: Load
 		tab: Themes/Colors
@@ -1469,6 +1585,7 @@ settings:
 		default: "#924444"
 		group: theme
 		shown_when: "load_mode = detailed"
+		tip: "The load average."
 
 	LoadGradHead:
 		label: "By height"
@@ -1519,6 +1636,7 @@ settings:
 		path: load.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	load_back_top:
 		label: Top
@@ -1527,6 +1645,7 @@ settings:
 		path: load.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	load_back_bottom:
 		label: Bottom
@@ -1535,6 +1654,7 @@ settings:
 		path: load.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	DiskSection:
 		label: Disk
@@ -1554,6 +1674,17 @@ settings:
 		group: theme
 		tip: "Detailed gives written and read a color each. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
+	disk_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: disk.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the disk graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
+
 	DiskColorHead:
 		label: "From the bottom up"
 		tab: Themes/Colors
@@ -1568,6 +1699,7 @@ settings:
 		default: "#c60000"
 		group: theme
 		shown_when: "disk_mode = detailed"
+		tip: "Data written to the disks."
 
 	disk_read:
 		label: Read
@@ -1577,6 +1709,7 @@ settings:
 		default: "#6bb3ff"
 		group: theme
 		shown_when: "disk_mode = detailed"
+		tip: "Data read from the disks."
 
 	DiskGradHead:
 		label: "By height"
@@ -1627,6 +1760,7 @@ settings:
 		path: disk.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	disk_back_top:
 		label: Top
@@ -1635,6 +1769,7 @@ settings:
 		path: disk.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	disk_back_bottom:
 		label: Bottom
@@ -1643,6 +1778,7 @@ settings:
 		path: disk.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	TempSection:
 		label: Temperature
@@ -1661,6 +1797,17 @@ settings:
 		default: gradient
 		group: theme
 		tip: "Detailed draws the temperature in one color, with any part over the critical level in another. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	temp_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: temp.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the temperature graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
 
 	TempColorHead:
 		label: "From the bottom up"
@@ -1737,6 +1884,7 @@ settings:
 		path: temp.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	temp_back_top:
 		label: Top
@@ -1745,6 +1893,7 @@ settings:
 		path: temp.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	temp_back_bottom:
 		label: Bottom
@@ -1753,6 +1902,7 @@ settings:
 		path: temp.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	BatterySection:
 		label: Battery
@@ -1771,6 +1921,17 @@ settings:
 		default: detailed
 		group: theme
 		tip: "Detailed colors the charge by what the battery is doing. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	battery_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: battery.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the battery graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
 
 	BatteryHead:
 		label: "By state"
@@ -1796,6 +1957,7 @@ settings:
 		default: "#c46e43"
 		group: theme
 		shown_when: "battery_mode = detailed"
+		tip: "The charge while the battery is running down."
 
 	battery_critical:
 		label: Critical
@@ -1856,6 +2018,7 @@ settings:
 		path: battery.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	battery_back_top:
 		label: Top
@@ -1864,6 +2027,7 @@ settings:
 		path: battery.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	battery_back_bottom:
 		label: Bottom
@@ -1872,6 +2036,7 @@ settings:
 		path: battery.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	SelfSection:
 		label: tukzmon
@@ -1891,6 +2056,17 @@ settings:
 		group: theme
 		tip: "Detailed draws tukzmon's CPU use in one color. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
+	self_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: self.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the tukzmon graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
+
 	self_used:
 		label: CPU use
 		tab: Themes/Colors
@@ -1899,6 +2075,7 @@ settings:
 		default: "#00ccb8"
 		group: theme
 		shown_when: "self_mode = detailed"
+		tip: "How much CPU tukzmon itself uses."
 
 	SelfGradHead:
 		label: "By height"
@@ -1949,6 +2126,7 @@ settings:
 		path: self.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	self_back_top:
 		label: Top
@@ -1957,6 +2135,7 @@ settings:
 		path: self.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	self_back_bottom:
 		label: Bottom
@@ -1965,6 +2144,7 @@ settings:
 		path: self.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	ProcsSection:
 		label: Processes
@@ -1983,6 +2163,17 @@ settings:
 		default: detailed
 		group: theme
 		tip: "Detailed stacks a color for each owner. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+
+	procs_vertical:
+		label: Vertical scale
+		tab: Themes/Colors
+		control: dropdown
+		options: same, linear, log10, squared
+		option_labels: "Global default", "Linear", "log₁₀", "𝜒²"
+		path: procs.vertical
+		same_line: true
+		default: same
+		tip: "How height goes up the processes graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
 
 	ProcsHead:
 		label: "By owner"
@@ -2008,6 +2199,7 @@ settings:
 		default: "#6bc9ff"
 		group: theme
 		shown_when: "procs_mode = detailed"
+		tip: "Processes owned by other users, with a user ID of 1000 or more."
 
 	procs_me:
 		label: Yours
@@ -2068,6 +2260,7 @@ settings:
 		path: procs.colors.border
 		default: "#8b8b8b"
 		group: theme
+		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
 	procs_back_top:
 		label: Top
@@ -2076,6 +2269,7 @@ settings:
 		path: procs.colors.top
 		default: "#313131"
 		group: theme
+		tip: "The top of the graph's background, which blends down to the Bottom color."
 
 	procs_back_bottom:
 		label: Bottom
@@ -2084,6 +2278,7 @@ settings:
 		path: procs.colors.bottom
 		default: "#000000"
 		group: theme
+		tip: "The bottom of the graph's background, which blends up to the Top color."
 
 	MarginHead:
 		label: Margins
@@ -2091,7 +2286,7 @@ settings:
 		control: heading
 
 	margin_tb:
-		label: Top & bottom px
+		label: Top and bottom px
 		tab: Themes/Outline
 		control: slider
 		whole: true
@@ -2103,7 +2298,7 @@ settings:
 		tip: "Space left clear above and below each graph, so the panel shows through. On a vertical panel the graphs are stacked, so this is the space between 2 of them, from each. The top and bottom of the whole item get none there, since the panel spaces its items."
 
 	margin_lr:
-		label: Left & right px
+		label: Left and right px
 		tab: Themes/Outline
 		control: slider
 		whole: true
@@ -2144,6 +2339,7 @@ settings:
 		default: "#8b8b8b"
 		group: theme
 		gate: border_all
+		tip: "The border color every graph uses when One border for every graph is on. Border px on the General tab sets how thick it is."
 
 	back_all:
 		label: One background for every graph
@@ -2162,6 +2358,7 @@ settings:
 		default: "#313131"
 		group: theme
 		gate: back_all
+		tip: "The top of every graph's background when One background for every graph is on. It blends down to the Bottom color."
 
 	back_bottom:
 		label: Bottom
@@ -2171,6 +2368,7 @@ settings:
 		default: "#000000"
 		group: theme
 		gate: back_all
+		tip: "The bottom of every graph's background when One background for every graph is on. It blends up to the Top color."
 
 	hover_color:
 		label: Hover line

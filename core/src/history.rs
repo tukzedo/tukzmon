@@ -89,8 +89,12 @@ impl<const N: usize> Bucket<N> {
 	}
 }
 
-/// Buckets a total in [`Tier::blocks`] covers.
-const BLOCK: i64 = 32;
+/// Buckets a block covers at each level of [`Tier::blocks`], as a power of
+/// 2, so a bucket's block is a shift. Each level's blocks are made of whole
+/// blocks of the level below.
+const BLOCK_BITS: [u32; 2] = [3, 6];
+/// Buckets a block covers, at each level.
+const BLOCKS: [i64; 2] = [1 << BLOCK_BITS[0], 1 << BLOCK_BITS[1]];
 
 /// What [`History::span`] adds up over buckets it covers whole.
 #[derive(Clone, Copy, Debug)]
@@ -118,6 +122,14 @@ impl<const N: usize> Total<N> {
 	}
 }
 
+/// The totals of one size of block.
+#[derive(Clone, Debug, Default)]
+struct Level<const N: usize> {
+	totals: VecDeque<Total<N>>,
+	/// Block number of `totals[0]`, counted from time 0.
+	first: i64,
+}
+
 #[derive(Clone, Debug)]
 struct Tier<const N: usize> {
 	len: f64,
@@ -125,11 +137,11 @@ struct Tier<const N: usize> {
 	/// Bucket number of `buckets[0]`, counted from time 0.
 	first: i64,
 	buckets: VecDeque<Bucket<N>>,
-	/// The total of each block of [`BLOCK`] buckets, so a wide span reads a
-	/// block at a time. Only a block whose buckets are all still kept is read.
-	blocks: VecDeque<Total<N>>,
-	/// Block number of `blocks[0]`, counted from time 0.
-	block_first: i64,
+	/// A total per block at each size in [`BLOCKS`], so a wide span reads
+	/// the biggest blocks it covers whole, then smaller ones, and only the
+	/// buckets at its ends one at a time. Only a block whose buckets are all
+	/// still kept is read.
+	blocks: [Level<N>; BLOCKS.len()],
 }
 
 impl<const N: usize> Tier<N> {
@@ -139,82 +151,107 @@ impl<const N: usize> Tier<N> {
 			keep,
 			first: 0,
 			buckets: VecDeque::new(),
-			blocks: VecDeque::new(),
-			block_first: 0,
+			blocks: Default::default(),
 		}
 	}
 
-	/// The buckets from `i0` to `i1`, one by one, each over its whole data.
-	/// Absolute times, as a span works them out.
-	fn total(&self, i0: usize, i1: usize) -> Total<N> {
-		let mut out = Total::zero();
-		for i in i0..i1 {
-			let bk = &self.buckets[i];
+	/// Adds buckets `a0` to `a1` one by one, each over its whole data. Bucket
+	/// numbers are counted from time 0.
+	fn add_buckets(&self, a0: i64, a1: i64, out: &mut Total<N>) {
+		let range = (a0 - self.first) as usize..(a1 - self.first) as usize;
+		for (a, bk) in (a0..).zip(self.buckets.range(range)) {
 			if bk.secs <= 0.0 {
 				continue;
 			}
-			let start = (self.first + i as i64) as f64 * self.len;
+			let start = a as f64 * self.len;
 			let (lo, hi) = (start + bk.lo, start + bk.hi);
 			if hi <= lo {
 				continue;
 			}
-			let w = (hi - lo) * (bk.secs as f64 / (hi - lo)).min(1.0);
+			// the bucket's mean, weighted by its data, as a span weighs it
+			let secs = f64::from(bk.secs);
+			let w = secs.min(hi - lo);
+			let k = w / secs;
 			out.weight += w;
 			for s in 0..N {
-				out.sums[s] += w * bk.mean(s) as f64;
+				out.sums[s] += k * f64::from(bk.sum[s]);
 				out.max[s] = out.max[s].max(bk.max[s]);
 			}
 		}
-		out
 	}
 
-	/// As [`Self::total`], whole blocks read from `blocks`.
-	fn total_over(&self, i0: usize, i1: usize) -> Total<N> {
-		let (a0, a1) = (self.first + i0 as i64, self.first + i1 as i64);
-		let (b0, b1) = ((a0 + BLOCK - 1).div_euclid(BLOCK), a1.div_euclid(BLOCK));
+	/// Adds buckets `a0` to `a1`, reading whole blocks from the lowest
+	/// `levels` of [`Self::blocks`], biggest first.
+	fn gather(&self, levels: usize, a0: i64, a1: i64, out: &mut Total<N>) {
+		let Some(level) = levels.checked_sub(1) else {
+			self.add_buckets(a0, a1, out);
+			return;
+		};
+		let (bits, blocks) = (BLOCK_BITS[level], &self.blocks[level]);
+		let size = 1 << bits;
+		let (b0, b1) = ((a0 + size - 1) >> bits, a1 >> bits);
 		if b1 <= b0 {
-			return self.total(i0, i1);
-		}
-		let at = |a: i64| (a - self.first) as usize;
-		let mut out = self.total(i0, at(b0 * BLOCK));
-		for b in self
-			.blocks
-			.range((b0 - self.block_first) as usize..(b1 - self.block_first) as usize)
-		{
-			out.join(b);
-		}
-		out.join(&self.total(at(b1 * BLOCK), i1));
-		out
-	}
-
-	/// Works out the blocks again from the one holding bucket `from` on.
-	fn reindex(&mut self, from: usize) {
-		if self.buckets.is_empty() {
-			self.blocks.clear();
+			self.gather(level, a0, a1, out);
 			return;
 		}
-		let mut b0 = (self.first + from as i64).div_euclid(BLOCK);
-		if from == 0 || self.blocks.is_empty() {
-			self.blocks.clear();
-			self.block_first = b0;
+		self.gather(level, a0, b0 * size, out);
+		let at = |b: i64| (b - blocks.first) as usize;
+		for t in blocks.totals.range(at(b0)..at(b1)) {
+			out.join(t);
 		}
-		// buckets pushed for a gap come before the ones a sample touched
-		b0 = b0.min(self.block_first + self.blocks.len() as i64);
-		self.blocks.truncate((b0 - self.block_first) as usize);
+		self.gather(level, b1 * size, a1, out);
+	}
+
+	/// The buckets from `i0` to `i1`, as [`Self::add_buckets`] adds them.
+	fn total_over(&self, i0: usize, i1: usize) -> Total<N> {
+		let mut out = Total::zero();
+		self.gather(
+			BLOCKS.len(),
+			self.first + i0 as i64,
+			self.first + i1 as i64,
+			&mut out,
+		);
+		out
+	}
+
+	/// Works out the blocks again from the ones holding bucket `from` on.
+	fn reindex(&mut self, from: usize) {
+		if self.buckets.is_empty() {
+			for level in &mut self.blocks {
+				level.totals.clear();
+			}
+			return;
+		}
 		let end = self.first + self.buckets.len() as i64;
-		for b in b0..=(end - 1).div_euclid(BLOCK) {
-			let lo = (b * BLOCK).max(self.first) - self.first;
-			let hi = ((b + 1) * BLOCK).min(end) - self.first;
-			self.blocks.push_back(self.total(lo as usize, hi as usize));
+		for (level, &bits) in BLOCK_BITS.iter().enumerate() {
+			let size = 1 << bits;
+			let mut b0 = (self.first + from as i64) >> bits;
+			let blocks = &mut self.blocks[level];
+			if from == 0 || blocks.totals.is_empty() {
+				blocks.totals.clear();
+				blocks.first = b0;
+			}
+			// buckets pushed for a gap come before the ones a sample touched
+			b0 = b0.min(blocks.first + blocks.totals.len() as i64);
+			blocks.totals.truncate((b0 - blocks.first) as usize);
+			for b in b0..=(end - 1) >> bits {
+				let mut t = Total::zero();
+				// from the level below, done first
+				let (a0, a1) = ((b * size).max(self.first), ((b + 1) * size).min(end));
+				self.gather(level, a0, a1, &mut t);
+				self.blocks[level].totals.push_back(t);
+			}
 		}
 	}
 
 	fn pop_front(&mut self) {
 		self.buckets.pop_front();
 		self.first += 1;
-		while !self.blocks.is_empty() && (self.block_first + 1) * BLOCK <= self.first {
-			self.blocks.pop_front();
-			self.block_first += 1;
+		for (level, &size) in self.blocks.iter_mut().zip(&BLOCKS) {
+			while !level.totals.is_empty() && (level.first + 1) * size <= self.first {
+				level.totals.pop_front();
+				level.first += 1;
+			}
 		}
 	}
 
@@ -543,15 +580,17 @@ mod tests {
 		// partway into the blocks at either end
 		assert!(close(h.span(t0 + 10.0, spike + 0.2).max[0], 0.9));
 		assert!(close(h.span(spike - 0.2, t0 + 190.0).max[0], 0.9));
-		// the fine tier lets the spike go, but keeps the rest of its block
-		let block = (spike / 0.05).round() as i64 / BLOCK;
-		while h.tiers[0].first <= (spike / 0.05).round() as i64 {
+		// the fine tier lets the spike go, but keeps the rest of its blocks
+		let at = (spike / 0.05).round() as i64;
+		while h.tiers[0].first <= at {
 			step(&mut h, &mut t);
 		}
-		assert_eq!(h.tiers[0].first.div_euclid(BLOCK), block);
-		// what the tier lets go, its blocks go with
 		let kept = h.tiers[0].buckets.len() as i64;
-		assert!(h.tiers[0].blocks.len() as i64 <= kept / BLOCK + 2);
+		for (level, &size) in h.tiers[0].blocks.iter().zip(&BLOCKS) {
+			assert_eq!(h.tiers[0].first.div_euclid(size), at.div_euclid(size));
+			// what the tier lets go, its blocks go with
+			assert!(level.totals.len() as i64 <= kept / size + 2);
+		}
 		let a = h.tiers[0].start();
 		assert!(close(h.span(a, a + 60.0).max[0], 0.1));
 		let mut bytes = Vec::new();
@@ -874,7 +913,9 @@ mod tests {
 			let cap = t.cap() as usize;
 			assert!(t.buckets.len() <= cap, "{} s tier", t.len);
 			assert!(t.buckets.capacity() <= 2 * cap, "{} s tier", t.len);
-			assert!(t.blocks.capacity() <= 2 * cap / BLOCK as usize + 2);
+			for (level, &size) in t.blocks.iter().zip(&BLOCKS) {
+				assert!(level.totals.capacity() <= 2 * cap / size as usize + 2);
+			}
 		}
 		let s = h.span(t1 - 200.0, t1);
 		assert!(s.covered > 0.999 && (s.mean[0] - 0.5).abs() < 1e-6, "{s:?}");
@@ -922,5 +963,94 @@ mod tests {
 		one.encode(&mut timed);
 		timed[4..20].copy_from_slice(&empty[4..20]);
 		assert!(History::<2>::decode(&timed).is_none());
+	}
+
+	fn same_total(a: &Total<2>, b: &Total<2>) -> bool {
+		let near = |x: f64, y: f64| (x - y).abs() <= 1e-9 * (1.0 + x.abs().max(y.abs()));
+		near(a.weight, b.weight)
+			&& (0..2).all(|s| near(a.sums[s], b.sums[s]) && a.max[s] == b.max[s])
+	}
+
+	// every block a tier still has whole matches its buckets, and so does any
+	// run of buckets read through the blocks
+	fn blocks_match_buckets(h: &History<2>, rand: &mut impl FnMut() -> f64) {
+		for t in &h.tiers {
+			let end = t.first + t.buckets.len() as i64;
+			let plain = |a0: i64, a1: i64| {
+				let mut out = Total::zero();
+				t.add_buckets(a0, a1, &mut out);
+				out
+			};
+			for (level, &size) in t.blocks.iter().zip(&BLOCKS) {
+				if !t.buckets.is_empty() {
+					let last = level.first + level.totals.len() as i64 - 1;
+					assert_eq!(last, (end - 1).div_euclid(size), "{} s tier, {size}", t.len);
+				}
+				// what the tier lets go, its blocks go with
+				assert!(level.totals.len() as i64 <= t.buckets.len() as i64 / size + 2);
+				for (b, total) in (level.first..).zip(&level.totals) {
+					if b * size >= t.first {
+						let want = plain(b * size, ((b + 1) * size).min(end));
+						assert!(
+							same_total(total, &want),
+							"{} s tier, block {b} of {size}",
+							t.len
+						);
+					}
+				}
+			}
+			let n = t.buckets.len();
+			for _ in 0..20.min(n) {
+				let i0 = (rand() * n as f64) as usize;
+				let i1 = i0 + (rand() * (n - i0) as f64) as usize;
+				let want = plain(t.first + i0 as i64, t.first + i1 as i64);
+				assert!(
+					same_total(&t.total_over(i0, i1), &want),
+					"{} s tier, {i0} to {i1}",
+					t.len
+				);
+			}
+		}
+	}
+
+	// Test ID: der45
+	#[test]
+	fn block_totals_add_up_to_their_buckets_through_gaps_trims_and_reloads() {
+		let mut seed = 0x9e37_79b9_7f4a_7c15_u64;
+		let mut rand = move || {
+			seed ^= seed << 13;
+			seed ^= seed >> 7;
+			seed ^= seed << 17;
+			(seed >> 11) as f64 / (1u64 << 53) as f64
+		};
+		let mut h = History::<2>::default();
+		let mut t = 1.76e9;
+		for round in 0..600 {
+			// mostly short samples, now and then a long one or a gap
+			let r = rand();
+			let len = if r < 0.9 {
+				0.03 + rand() * 0.5
+			} else {
+				rand() * 3000.0
+			};
+			if r > 0.97 {
+				t += rand() * 20000.0;
+			}
+			h.add(t, t + len, &[rand() as f32, rand() as f32]);
+			t += len;
+			if round % 40 == 39 {
+				blocks_match_buckets(&h, &mut rand);
+			}
+			if round % 100 == 99 {
+				h.trim(t - rand() * 3000.0);
+				blocks_match_buckets(&h, &mut rand);
+			}
+			if round % 130 == 129 {
+				let mut bytes = Vec::new();
+				h.encode(&mut bytes);
+				h = History::<2>::decode(&bytes).unwrap();
+				blocks_match_buckets(&h, &mut rand);
+			}
+		}
 	}
 }

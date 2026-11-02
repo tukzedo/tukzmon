@@ -5,8 +5,10 @@
 //! with hand-declared calls instead of headers.
 
 use std::any::Any;
-use std::ffi::{CStr, CString, c_char, c_int, c_uint, c_ulong, c_void};
+use std::ffi::{CStr, CString, OsStr, c_char, c_int, c_uint, c_ulong, c_void};
 use std::io::Write as _;
+use std::os::unix::ffi::OsStrExt as _;
+use std::os::unix::fs::MetadataExt as _;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
@@ -31,6 +33,12 @@ struct Plugin {
 	config: PathBuf,
 	config_time: Option<(SystemTime, u64)>,
 	settings: Option<Child>,
+	/// A settings window on this item's file that this Plugin didn't start,
+	/// such as one opened before a panel restart.
+	stray: Option<u32>,
+	/// Why Properties did nothing, or why its window quit, shown in the tip
+	/// until the window closes or opens.
+	properties: Option<String>,
 	history: PathBuf,
 	reset: keep::ResetWatch,
 	/// File monitors on the settings file and the reset mark.
@@ -211,7 +219,11 @@ impl Plugin {
 	/// The graphs' tip, with any settings or history trouble under it.
 	fn tip(&self, graphs: String) -> String {
 		let mut tip = graphs;
-		for (head, t) in [("Settings", &self.unreadable), ("History", &self.trouble)] {
+		for (head, t) in [
+			("Settings", &self.unreadable),
+			("History", &self.trouble),
+			("Properties", &self.properties),
+		] {
 			if let Some(t) = t {
 				tip = format!("{tip}\n\n{head}: {t}");
 			}
@@ -251,14 +263,7 @@ impl Plugin {
 	/// [`requery`] once this borrow of the Plugin ends.
 	#[must_use]
 	fn tick(&mut self) -> Option<*mut c_void> {
-		// reap a closed settings window
-		if self
-			.settings
-			.as_mut()
-			.is_some_and(|c| !matches!(c.try_wait(), Ok(None)))
-		{
-			self.settings = None;
-		}
+		self.reap_settings();
 		self.reload_if_changed();
 		self.reset_if_asked();
 		let next = self.graphs.tick();
@@ -270,6 +275,56 @@ impl Plugin {
 		self.start_timer(next);
 		// a still pointer's time moves on too
 		(self.graphs.hovered() && self.moved_at.elapsed() >= TIP_SHOWN).then_some(self.area)
+	}
+
+	/// Forgets a settings window that closed, and says so in the tip when it
+	/// failed.
+	fn reap_settings(&mut self) {
+		if let Some(c) = self.settings.as_mut() {
+			match c.try_wait() {
+				Ok(None) => return,
+				Ok(Some(s)) if s.success() => self.properties = None,
+				Ok(Some(s)) => self.properties = Some(format!("the settings window quit with {s}")),
+				Err(e) => self.properties = Some(format!("lost the settings window: {e}")),
+			}
+			if let Some(why) = &self.properties {
+				complain(format_args!("{why}"));
+			}
+			self.settings = None;
+		}
+		if self.stray.is_some_and(|pid| !edits(pid, &self.config)) {
+			self.stray = None;
+			self.properties = None;
+		}
+	}
+
+	/// Properties opens the settings window on this item's file. One that's
+	/// open already is left, and the tip says so, since raising another
+	/// program's window isn't something Wayland lets a panel do.
+	fn open_settings(&mut self, program: &Path) {
+		self.reap_settings();
+		if self.settings.is_none() && self.stray.is_none() {
+			self.stray = windows_on(&self.config).first().copied();
+		}
+		if self.settings.is_some() || self.stray.is_some() {
+			self.properties = Some("its window is open already".into());
+			return;
+		}
+		match Command::new(program)
+			.arg("--config")
+			.arg(&self.config)
+			.spawn()
+		{
+			Ok(child) => {
+				self.settings = Some(child);
+				self.properties = None;
+			}
+			Err(e) => {
+				let why = format!("can't start {}: {e}", program.display());
+				complain(format_args!("{why}"));
+				self.properties = Some(why);
+			}
+		}
 	}
 
 	/// Pick up a save from the settings window.
@@ -334,6 +389,14 @@ impl Plugin {
 			let _ = c.kill();
 			let _ = c.wait();
 		}
+		// and so would one opened before a panel restart
+		self.stray = None;
+		for pid in windows_on(&self.config) {
+			if let Ok(pid) = c_int::try_from(pid) {
+				// SAFETY: a plain signal to a process of ours.
+				unsafe { kill(pid, SIGTERM) };
+			}
+		}
 		for f in [&self.config, &self.history] {
 			if let Err(e) = keep::remove(f) {
 				complain(format_args!("can't delete {}: {e}", f.display()));
@@ -353,7 +416,6 @@ unsafe fn watch(
 	changed: unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, c_int, *mut c_void),
 	data: *mut c_void,
 ) -> *mut c_void {
-	use std::os::unix::ffi::OsStrExt as _;
 	let Ok(c) = CString::new(path.as_os_str().as_bytes()) else {
 		return std::ptr::null_mut();
 	};
@@ -590,28 +652,31 @@ fn settings_program() -> PathBuf {
 	PathBuf::from("tukzmon-settings")
 }
 
+/// The settings windows of this user on `config`, by their command lines.
+fn windows_on(config: &Path) -> Vec<u32> {
+	let (Ok(me), Ok(all)) = (std::fs::metadata("/proc/self"), std::fs::read_dir("/proc")) else {
+		return Vec::new();
+	};
+	all.filter_map(Result::ok)
+		.filter(|e| e.metadata().is_ok_and(|m| m.uid() == me.uid()))
+		.filter_map(|e| e.file_name().to_str()?.parse().ok())
+		.filter(|&pid| edits(pid, config))
+		.collect()
+}
+
+/// Whether process `pid` is tukzmon-settings with `--config` set to `config`.
+fn edits(pid: u32, config: &Path) -> bool {
+	let Ok(line) = std::fs::read(format!("/proc/{pid}/cmdline")) else {
+		return false;
+	};
+	let mut args = line.split(|&b| b == 0);
+	args.next()
+		.is_some_and(|a| Path::new(OsStr::from_bytes(a)).ends_with("tukzmon-settings"))
+		&& args.skip_while(|&a| a != b"--config").nth(1) == Some(config.as_os_str().as_bytes())
+}
+
 extern "C" fn configure(_plugin: *mut c_void, data: *mut c_void) {
-	guarded(
-		data,
-		|_| (),
-		|p| {
-			if p.settings
-				.as_mut()
-				.is_some_and(|c| matches!(c.try_wait(), Ok(None)))
-			{
-				return;
-			}
-			let program = settings_program();
-			match Command::new(&program)
-				.arg("--config")
-				.arg(&p.config)
-				.spawn()
-			{
-				Ok(child) => p.settings = Some(child),
-				Err(e) => complain(format_args!("can't start {}: {e}", program.display())),
-			}
-		},
-	);
+	guarded(data, |_| (), |p| p.open_settings(&settings_program()));
 }
 
 extern "C" fn removed(_plugin: *mut c_void, data: *mut c_void) {
@@ -671,6 +736,8 @@ impl Plugin {
 			config_time,
 			config,
 			settings: None,
+			stray: None,
+			properties: None,
 			history: keep::history_file(&data, id),
 			reset: keep::ResetWatch::new(&data),
 			watches: Vec::new(),
@@ -854,6 +921,8 @@ mod tests {
 			config: config.to_path_buf(),
 			config_time: None,
 			settings: None,
+			stray: None,
+			properties: None,
 			history: history.to_path_buf(),
 			reset: keep::ResetWatch::new(dir),
 			watches: Vec::new(),
@@ -1096,6 +1165,94 @@ mod tests {
 		std::fs::remove_dir(&dir).unwrap();
 		assert_eq!(left, (false, false), "(settings, history) left behind");
 		assert_eq!(fresh, "shared\n");
+	}
+
+	/// Reaps the Plugin's settings window until it's gone, for up to 5 s.
+	fn reap_until_gone(p: &mut super::Plugin) {
+		let t0 = Instant::now();
+		while p.settings.is_some() && t0.elapsed() < Duration::from_secs(5) {
+			p.reap_settings();
+			std::thread::sleep(Duration::from_millis(10));
+		}
+	}
+
+	// Test ID: der60
+	#[test]
+	fn properties_that_cant_start_or_quits_says_so_in_the_tip() {
+		let dir =
+			std::env::temp_dir().join(format!("test_tukzmon_xfce_{}_props", std::process::id()));
+		std::fs::create_dir_all(&dir).unwrap();
+		let data = plugin(&dir, &dir.join("own.shcl"), &dir.join("history"));
+		// SAFETY: from plugin, and freed below.
+		let p = unsafe { &mut *data.cast::<super::Plugin>() };
+		p.open_settings(&dir.join("no-such-program"));
+		let missing = p.tip("graphs".into());
+		p.open_settings(Path::new("false"));
+		reap_until_gone(p);
+		let quit = p.tip("graphs".into());
+		p.open_settings(Path::new("true"));
+		reap_until_gone(p);
+		let fine = p.tip("graphs".into());
+		super::free_data(std::ptr::null_mut(), data);
+		let _ = std::fs::remove_file(dir.join("history"));
+		std::fs::remove_dir(&dir).unwrap();
+		assert!(
+			missing.starts_with("graphs\n\nProperties: can't start ")
+				&& missing.contains("no-such-program"),
+			"{missing}"
+		);
+		assert_eq!(
+			quit,
+			"graphs\n\nProperties: the settings window quit with exit status: 1"
+		);
+		assert_eq!(fine, "graphs");
+	}
+
+	// Test ID: der61
+	#[test]
+	fn a_window_from_before_a_panel_restart_is_found_and_closed_at_remove() {
+		use std::os::unix::process::CommandExt as _;
+		let dir =
+			std::env::temp_dir().join(format!("test_tukzmon_xfce_{}_stray", std::process::id()));
+		std::fs::create_dir_all(&dir).unwrap();
+		let own = dir.join("own.shcl");
+		let hist = dir.join("history");
+		// what an earlier panel's Properties left running
+		let mut stray = std::process::Command::new("sh")
+			.arg0("/somewhere/tukzmon-settings")
+			.args(["-c", "sleep 30; :", "sh", "--config"])
+			.arg(&own)
+			.spawn()
+			.unwrap();
+		let data = plugin(&dir, &own, &hist);
+		// SAFETY: from plugin, and freed below.
+		let p = unsafe { &mut *data.cast::<super::Plugin>() };
+		let t0 = Instant::now();
+		while super::windows_on(&own).is_empty() && t0.elapsed() < Duration::from_secs(5) {
+			std::thread::sleep(Duration::from_millis(10));
+		}
+		let other = super::windows_on(&dir.join("other.shcl"));
+		// a program that would show if Properties started anything
+		p.open_settings(Path::new("true"));
+		let started = p.settings.is_some();
+		let tip = p.tip("graphs".into());
+		super::removed(std::ptr::null_mut(), data);
+		super::free_data(std::ptr::null_mut(), data);
+		let mut ended = None;
+		let t0 = Instant::now();
+		while ended.is_none() && t0.elapsed() < Duration::from_secs(5) {
+			ended = stray.try_wait().ok().flatten();
+			std::thread::sleep(Duration::from_millis(10));
+		}
+		// a no-op once it ended
+		let _ = stray.kill();
+		let _ = stray.wait();
+		let _ = std::fs::remove_file(&hist);
+		std::fs::remove_dir(&dir).unwrap();
+		assert!(other.is_empty(), "{other:?}");
+		assert!(!started, "a second window started");
+		assert_eq!(tip, "graphs\n\nProperties: its window is open already");
+		assert!(ended.is_some(), "the window outlived its item");
 	}
 
 	// Test ID: defyn

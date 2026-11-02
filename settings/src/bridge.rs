@@ -56,6 +56,8 @@ pub mod ffi {
 		section: String,
 		/// It sits to the right of the rest of its section.
 		beside: bool,
+		/// It sits to the right of the row above it, on that row's line.
+		same_line: bool,
 		/// It picks a theme, so the theme buttons go beside it.
 		chooser: bool,
 		/// The graph list draws it, so it gets no row of its own.
@@ -202,6 +204,14 @@ pub mod ffi {
 		/// the right column's first row. -1 for a column with none shown.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn section_tops(d: &mut Dialog) -> Vec<String>;
+		/// Per row shown with a label on the page the window opens on, "id
+		/// left mid control": its label's left edge and middle line, and its
+		/// control's left edge, in the window.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn row_spots(d: &mut Dialog) -> Vec<String>;
+		/// As `row_spots`, with Themes/Colors shown.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn colors_row_spots(d: &mut Dialog) -> Vec<String>;
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn bottom_buttons(d: &mut Dialog) -> Vec<String>;
 		/// Enter pressed on the first button shown with this text, or with ""
@@ -218,6 +228,16 @@ pub mod ffi {
 		/// the box gives it up.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn apply_while_typing(d: &mut Dialog, number: bool) -> Vec<bool>;
+		/// With a color box typed in and focused in a shown window, whether
+		/// it has the focus and Apply is on, then whether the dialog took the
+		/// typed text as the window was destroyed.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn teardown_while_typing(d: &mut Dialog) -> Vec<bool>;
+		/// Per control that takes Tab, "class|name" with the name a screen
+		/// reader gives it, and "|label" for each label it has, then "title|"
+		/// and the first color picker's title.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn control_names(d: &mut Dialog) -> Vec<String>;
 		/// The window color, then per tab "label scroll tabs rest": the most
 		/// common color in the page that scrolls, in the tab list, and in the
 		/// rest of the window.
@@ -232,6 +252,15 @@ pub mod ffi {
 		/// question box, "text h".
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn button_heights(d: &mut Dialog) -> Vec<String>;
+		/// Per tab, "label|heads|rules": the bold headings shown, joined by
+		/// ";", and how many lines are drawn across the window.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn page_heads(d: &mut Dialog) -> Vec<String>;
+		/// "title button" for the Delete theme and Reset history questions,
+		/// with the button each starts on, then "yes" and a 1 or 0 for each
+		/// after it was answered No.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn question_defaults(d: &mut Dialog) -> Vec<String>;
 		/// Moves graph list row `from` to `to`, then gives the graph of each
 		/// graph list row, or each Themes/Colors section with `colors`, that
 		/// Tab steps through from the top.
@@ -316,6 +345,7 @@ fn dialog_rows(d: &Dialog) -> Vec<ffi::RowInfo> {
 			indent: s.indent as i32,
 			section: section.map_or_else(String::new, |(g, _)| g.to_string()),
 			beside: section.is_some_and(|(_, b)| b),
+			same_line: tukzmon_core::config::same_line(&s.id),
 			chooser: d.spec().chooser_of(&s.id).is_some(),
 			in_list: d.in_graph_list(&s.id),
 		})
@@ -592,6 +622,32 @@ mod tests {
 			assert_eq!(wrap_tip(&w), w, "{}", r.id);
 		}
 		assert!(long > 10, "only {long} tips needed wrapping");
+	}
+
+	// Test ID: der3b
+	#[test]
+	fn every_control_and_color_row_has_a_tip_of_its_own() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_every_row_tipped_never_written.shcl",
+			std::process::id()
+		));
+		let d = Dialog::open(path).unwrap();
+		// row_state adds the slider range to a tip, so read the spec's own
+		let bare: Vec<_> = d
+			.spec()
+			.settings
+			.iter()
+			.filter(|s| !matches!(s.control, Control::Heading | Control::None))
+			.filter(|s| s.tip.trim().is_empty())
+			.map(|s| s.id.as_str())
+			.collect();
+		assert!(bare.is_empty(), "no tip: {bare:?}");
+		assert!(
+			d.spec()
+				.settings
+				.iter()
+				.any(|s| s.control == Control::Color)
+		);
 	}
 
 	// Test ID: dendh
@@ -1081,6 +1137,152 @@ mod tests {
 		assert!(got.iter().all(|g| height(g) == first), "{got:?}");
 	}
 
+	// Test ID: der2t
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn a_rule_is_drawn_only_under_a_heading_that_isnt_the_tabs_name() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_page_heads_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let got = ffi::page_heads(&mut d);
+		assert_eq!(got.len(), dialog_tabs(&d).len(), "{got:?}");
+		for line in &got {
+			let v: Vec<&str> = line.split('|').collect();
+			let heads: Vec<&str> = v[1].split(';').filter(|h| !h.is_empty()).collect();
+			assert!(!heads.contains(&v[0]), "{line}");
+			assert_eq!(v[2], heads.len().to_string(), "{line}");
+		}
+		let graphs = got.iter().find(|l| l.starts_with("Graphs|")).unwrap();
+		assert_eq!(graphs, "Graphs||0");
+		for tab in ["Colors|", "Outline|"] {
+			assert!(
+				got.iter().any(|l| l.starts_with(tab)),
+				"no {tab} in {got:?}"
+			);
+		}
+	}
+
+	// Test ID: der32
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn general_is_size_then_time_axis_then_timespan_then_misc() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_general_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let heads = ffi::page_heads(&mut d);
+		let general = heads.iter().find(|l| l.starts_with("General|")).unwrap();
+		let mut got: Vec<&str> = general.split('|').nth(1).unwrap().split(';').collect();
+		got.sort_unstable();
+		assert_eq!(
+			got,
+			["Misc", "Size", "Time axis", "Timespan", "Vertical axis"],
+			"{general}"
+		);
+		let spots = ffi::row_spots(&mut d);
+		let mid = |id: &str| -> i32 {
+			let line = spots
+				.iter()
+				.find(|l| l.split(' ').next() == Some(id))
+				.unwrap_or_else(|| panic!("no {id} in {spots:?}"));
+			line.split(' ').nth(2).unwrap().parse().unwrap()
+		};
+		let order = [
+			"width",
+			"border",
+			"time_axis",
+			"hover_time",
+			"vertical_axis",
+			"keep_history",
+			"disk_drives",
+			"net_split",
+		];
+		for pair in order.windows(2) {
+			assert!(mid(pair[0]) < mid(pair[1]), "{pair:?} in {spots:?}");
+		}
+	}
+
+	// Test ID: der33
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn max_age_sits_right_of_keep_across_restarts() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_same_line_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let spots = ffi::row_spots(&mut d);
+		let spot = |id: &str| -> Vec<i32> {
+			let line = spots
+				.iter()
+				.find(|l| l.split(' ').next() == Some(id))
+				.unwrap_or_else(|| panic!("no {id} in {spots:?}"));
+			line.split(' ')
+				.skip(1)
+				.map(|n| n.parse().unwrap())
+				.collect()
+		};
+		let (keep, days) = (spot("keep_history"), spot("max_days"));
+		assert!((keep[1] - days[1]).abs() <= 2, "{keep:?} {days:?}");
+		assert!(days[0] > keep[2], "{keep:?} {days:?}");
+		// the rest of the page keeps its label column
+		assert_eq!(spot("width")[0], keep[0], "{spots:?}");
+	}
+
+	// Test ID: der3q
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn each_graphs_vertical_scale_sits_right_of_its_colors_mode() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_vertical_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let spots = ffi::colors_row_spots(&mut d);
+		let spot = |id: &str| -> Vec<i32> {
+			let line = spots
+				.iter()
+				.find(|l| l.split(' ').next() == Some(id))
+				.unwrap_or_else(|| panic!("no {id} in {spots:?}"));
+			line.split(' ')
+				.skip(1)
+				.map(|n| n.parse().unwrap())
+				.collect()
+		};
+		for w in tukzmon_core::config::Which::ALL {
+			let k = w.key();
+			let (mode, vertical) = (spot(&format!("{k}_mode")), spot(&format!("{k}_vertical")));
+			assert!(
+				(mode[1] - vertical[1]).abs() <= 2,
+				"{k}: {mode:?} {vertical:?}"
+			);
+			assert!(vertical[0] > mode[2], "{k}: {mode:?} {vertical:?}");
+		}
+	}
+
+	// Test ID: der2v
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn the_questions_that_cant_be_undone_start_on_no() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_questions_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		assert_eq!(
+			ffi::question_defaults(&mut d),
+			["Delete theme No", "Reset history No", "yes 00"]
+		);
+	}
+
 	// Test ID: dep6n
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
@@ -1148,6 +1350,68 @@ mod tests {
 				ffi::apply_while_typing(&mut d, number),
 				[false, true, true],
 				"number box: {number}"
+			);
+		}
+	}
+
+	// Test ID: der53
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn a_shown_window_runs_none_of_its_handlers_as_it_is_destroyed() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_teardown_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		// the box's handler would reach rows already freed
+		assert_eq!(ffi::teardown_while_typing(&mut d), [true, true, false]);
+	}
+
+	// Test ID: der54
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn every_control_has_a_name_a_screen_reader_can_say() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_names_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let got = ffi::control_names(&mut d);
+		let unnamed: Vec<&String> = got
+			.iter()
+			.filter(|s| s.split('|').nth(1).unwrap_or_default().is_empty())
+			.collect();
+		assert!(unnamed.is_empty(), "{unnamed:?}");
+		let count = |class: &str| got.iter().filter(|s| s.starts_with(class)).count();
+		for class in [
+			"QSlider",
+			"QDoubleSpinBox",
+			"QComboBox",
+			"QLineEdit",
+			"QToolButton",
+		] {
+			assert!(count(class) > 0, "no {class}: {got:?}");
+		}
+		// a color row names its graph, and so does its picker
+		let title = got.iter().find_map(|s| s.strip_prefix("title|")).unwrap();
+		let (graph, low) = title.split_once(' ').unwrap();
+		assert!(!graph.is_empty() && !low.is_empty(), "{title}");
+		for lead in [
+			format!("QLineEdit|{title}"),
+			format!("QPushButton|Pick a color for {title}"),
+			format!("QToolButton|Revert {title}"),
+		] {
+			assert!(got.contains(&lead), "no {lead}: {got:?}");
+		}
+		// Qt on Linux names a dropdown by its text, so its label has to be
+		// found beside it
+		for label in ["Hover shows", "Max age in days"] {
+			assert!(
+				got.iter()
+					.any(|s| s.ends_with(&format!("|{label}")) && s.matches('|').count() == 2),
+				"no label {label}: {got:?}"
 			);
 		}
 	}
@@ -1319,7 +1583,7 @@ mod tests {
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
 	fn the_window_and_its_frame_stay_on_a_short_screen() {
 		let _qt = qt_turn();
-		for (w, h) in [(1280, 600), (1024, 500)] {
+		for (w, h) in [(1280, 540), (1024, 500)] {
 			let (room, frame, _) = fit_on(w, h, true);
 			let [rx, ry, rw, rh] = room;
 			let [fx, fy, fw, fh] = frame;

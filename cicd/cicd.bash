@@ -49,6 +49,7 @@
 ##	  15. Dogfood         utility/dev-install.bash, which installs the build
 ##	                      under ~/.local and restarts the panel
 ##	  A step that's off isn't counted, and the first section says why it's off.
+##	  A run whose options leave no check on fails, with exit 2.
 ##	  Cleanup comes last, on failure and Ctrl+C too.
 ##	- Syntax:
 ##	  cicd/cicd.bash [options]
@@ -306,6 +307,11 @@ fInImage() {
 	[[ " ${CTR_STEPS[*]} " == *" $1 "* ]] || return 1
 	[[ "$1" != fStepRelease ]] || ((! dogfoodOn))
 }
+## Areas and options can turn every check off, such as the miri area with
+## --no-leakcheck, which would leave a run that passes having checked nothing.
+planChecks=0
+for fn in "${planFns[@]}"; do case "${fn}" in fStepSync|fStepImage|fStepDogfood) ;; *) planChecks=$((planChecks + 1)) ;; esac; done
+noChecksNote="every check is off, so this run would check nothing"
 
 fShowPlan() {
 	local i where=''
@@ -327,8 +333,10 @@ if ((listOnly)); then
 		fEcho_Clean "Test IDs:"
 		"${here}/utility/test-ids.bash" list | sed 's/^/	/'
 	fi
+	((planChecks)) || { fEcho_Clean; fEcho_Clean "Fails: ${noChecksNote}"; }
 	fEcho_Clean; exit 0
 fi
+((planChecks)) || fUsage "${noChecksNote}. --list shows why"
 
 
 #•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -1227,3 +1235,4 @@ exit 0
 ##		  removes only its own stores that no checkout pins.
 ##		- 2026-11-01: Cleanup doesn't count the run that started this one, such
 ##		  as the pre-push hook, as another live run.
+##		- 2026-11-01: A run whose options turn every check off fails.

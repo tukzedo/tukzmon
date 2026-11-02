@@ -13,21 +13,21 @@ mod nvml {
 	use std::ffi::{c_int, c_uint, c_void};
 	use std::sync::OnceLock;
 
-	type Device = *mut c_void;
+	pub(super) type Device = *mut c_void;
 
 	#[repr(C)]
 	#[derive(Default)]
-	struct Utilization {
-		gpu: c_uint,
+	pub(super) struct Utilization {
+		pub(super) gpu: c_uint,
 		memory: c_uint,
 	}
 
 	#[repr(C)]
 	#[derive(Default)]
-	struct Memory {
-		total: u64,
-		free: u64,
-		used: u64,
+	pub(super) struct Memory {
+		pub(super) total: u64,
+		pub(super) free: u64,
+		pub(super) used: u64,
 	}
 
 	// nvmlMemory_v2_t. Its used leaves out what the driver keeps back,
@@ -49,43 +49,77 @@ mod nvml {
 		(m.total > 0).then_some((m.used, m.total))
 	}
 
+	/// The library's calls used here. It's loaded once a process, and never
+	/// unloaded.
 	#[derive(Debug)]
-	pub(super) struct Nvml {
-		device: Device,
-		utilization: unsafe extern "C" fn(Device, *mut Utilization) -> c_int,
-		memory: unsafe extern "C" fn(Device, *mut Memory) -> c_int,
-		memory_v2: Option<unsafe extern "C" fn(Device, *mut MemoryV2) -> c_int>,
+	pub(super) struct Lib {
+		pub(super) init: unsafe extern "C" fn() -> c_int,
+		pub(super) shutdown: unsafe extern "C" fn() -> c_int,
+		pub(super) by_index: unsafe extern "C" fn(c_uint, *mut Device) -> c_int,
+		pub(super) utilization: unsafe extern "C" fn(Device, *mut Utilization) -> c_int,
+		pub(super) memory: unsafe extern "C" fn(Device, *mut Memory) -> c_int,
+		pub(super) memory_v2: Option<unsafe extern "C" fn(Device, *mut MemoryV2) -> c_int>,
 	}
 
-	// SAFETY: NVML's calls are thread safe, and the device handle is only
-	// passed back to them.
-	unsafe impl Send for Nvml {}
-	// SAFETY: as above.
-	unsafe impl Sync for Nvml {}
+	#[cfg(test)]
+	thread_local! {
+		pub(super) static STAND_IN: std::cell::Cell<Option<&'static Lib>> =
+			const { std::cell::Cell::new(None) };
+	}
+
+	fn lib() -> Option<&'static Lib> {
+		static LIB: OnceLock<Option<Lib>> = OnceLock::new();
+		#[cfg(test)]
+		if let Some(lib) = STAND_IN.get() {
+			return Some(lib);
+		}
+		LIB.get_or_init(load).as_ref()
+	}
+
+	/// NVML, opened on the first device. NVML counts its opens, and the last
+	/// one dropped shuts it down, so a GPU graph that's hidden doesn't keep a
+	/// laptop's GPU awake (2026103115232174).
+	#[derive(Debug)]
+	pub(super) struct Nvml {
+		lib: &'static Lib,
+		device: Device,
+	}
 
 	impl Nvml {
-		/// Loaded once a process, and never unloaded.
-		pub(super) fn get() -> Option<&'static Nvml> {
-			static NVML: OnceLock<Option<Nvml>> = OnceLock::new();
-			NVML.get_or_init(load).as_ref()
+		pub(super) fn open() -> Option<Nvml> {
+			let lib = lib()?;
+			// SAFETY: the calls are as nvml.h has them, and the device
+			// pointer is one for by_index to fill.
+			unsafe {
+				if (lib.init)() != 0 {
+					return None;
+				}
+				// shut down by its drop from here on
+				let mut n = Nvml {
+					lib,
+					device: std::ptr::null_mut(),
+				};
+				let r = (lib.by_index)(0, &raw mut n.device);
+				(r == 0 && !n.device.is_null()).then_some(n)
+			}
 		}
 
 		/// A share of the last sample period, 0 to 1.
 		pub(super) fn busy(&self) -> Option<f32> {
 			let mut u = Utilization::default();
 			// SAFETY: the device came from NVML, and u is the struct it fills.
-			let r = unsafe { (self.utilization)(self.device, &raw mut u) };
+			let r = unsafe { (self.lib.utilization)(self.device, &raw mut u) };
 			(r == 0).then(|| (u.gpu as f32 / 100.0).clamp(0.0, 1.0))
 		}
 
 		#[cfg(test)]
 		pub(super) fn has_v2(&self) -> bool {
-			self.memory_v2.is_some()
+			self.lib.memory_v2.is_some()
 		}
 
 		/// Used and total, in bytes. Drivers older than 510 have no v2.
 		pub(super) fn memory(&self) -> Option<(u64, u64)> {
-			if let Some(v2) = self.memory_v2 {
+			if let Some(v2) = self.lib.memory_v2 {
 				let mut m = MemoryV2 {
 					version: MEMORY_V2,
 					..MemoryV2::default()
@@ -97,8 +131,15 @@ mod nvml {
 			}
 			let mut m = Memory::default();
 			// SAFETY: as in busy.
-			let r = unsafe { (self.memory)(self.device, &raw mut m) };
+			let r = unsafe { (self.lib.memory)(self.device, &raw mut m) };
 			(r == 0 && m.total > 0).then_some((m.used, m.total))
+		}
+	}
+
+	impl Drop for Nvml {
+		fn drop(&mut self) {
+			// SAFETY: one shutdown for the init in open.
+			unsafe { (self.lib.shutdown)() };
 		}
 	}
 
@@ -108,34 +149,29 @@ mod nvml {
 		(!p.is_null()).then_some(p)
 	}
 
-	fn load() -> Option<Nvml> {
+	fn load() -> Option<Lib> {
 		// SAFETY: a plain library open. It stays open for the process.
 		let lib = unsafe { libc::dlopen(c"libnvidia-ml.so.1".as_ptr(), libc::RTLD_NOW) };
 		if lib.is_null() {
 			return None;
 		}
 		let init = sym(lib, c"nvmlInit_v2")?;
+		let shutdown = sym(lib, c"nvmlShutdown")?;
 		let by_index = sym(lib, c"nvmlDeviceGetHandleByIndex_v2")?;
 		let utilization = sym(lib, c"nvmlDeviceGetUtilizationRates")?;
 		let memory = sym(lib, c"nvmlDeviceGetMemoryInfo")?;
 		let memory_v2 = sym(lib, c"nvmlDeviceGetMemoryInfo_v2");
-		// SAFETY: each symbol has this signature in nvml.h, and the calls
-		// pass what it asks for.
+		// SAFETY: each symbol has this signature in nvml.h.
 		unsafe {
-			let init = std::mem::transmute::<*mut c_void, unsafe extern "C" fn() -> c_int>(init);
-			let by_index = std::mem::transmute::<
-				*mut c_void,
-				unsafe extern "C" fn(c_uint, *mut Device) -> c_int,
-			>(by_index);
-			if init() != 0 {
-				return None;
-			}
-			let mut device: Device = std::ptr::null_mut();
-			if by_index(0, &raw mut device) != 0 || device.is_null() {
-				return None;
-			}
-			Some(Nvml {
-				device,
+			Some(Lib {
+				init: std::mem::transmute::<*mut c_void, unsafe extern "C" fn() -> c_int>(init),
+				shutdown: std::mem::transmute::<*mut c_void, unsafe extern "C" fn() -> c_int>(
+					shutdown,
+				),
+				by_index: std::mem::transmute::<
+					*mut c_void,
+					unsafe extern "C" fn(c_uint, *mut Device) -> c_int,
+				>(by_index),
 				utilization: std::mem::transmute::<
 					*mut c_void,
 					unsafe extern "C" fn(Device, *mut Utilization) -> c_int,
@@ -162,7 +198,7 @@ mod nvml {
 	pub(super) enum Nvml {}
 
 	impl Nvml {
-		pub(super) fn get() -> Option<&'static Nvml> {
+		pub(super) fn open() -> Option<Nvml> {
 			None
 		}
 
@@ -188,7 +224,7 @@ const DRM: &str = "/sys/class/drm";
 /// Where the GPU's numbers come from.
 #[derive(Debug)]
 enum Card {
-	Nvidia(&'static Nvml),
+	Nvidia(Nvml),
 	Amd(Amd),
 }
 
@@ -212,7 +248,7 @@ impl Amd {
 
 impl Card {
 	fn find() -> Option<Card> {
-		Nvml::get()
+		Nvml::open()
 			.map(Card::Nvidia)
 			.or_else(|| amd_in(DRM).map(|dir| Card::Amd(Amd::new(&dir))))
 	}
@@ -396,11 +432,106 @@ mod tests {
 		assert_eq!(nvml::MEMORY_V2, 0x0200_0028);
 	}
 
+	// counts what's open, on this thread only, as each test has its own
+	#[cfg(not(miri))]
+	mod stand_in {
+		use super::nvml::{Device, Lib, Memory, Utilization};
+		use std::cell::Cell;
+		use std::ffi::{c_int, c_uint};
+
+		thread_local! {
+			pub(super) static OPEN: Cell<i32> = const { Cell::new(0) };
+			pub(super) static INITS: Cell<u32> = const { Cell::new(0) };
+			pub(super) static NO_DEVICE: Cell<bool> = const { Cell::new(false) };
+		}
+
+		extern "C" fn init() -> c_int {
+			OPEN.set(OPEN.get() + 1);
+			INITS.set(INITS.get() + 1);
+			0
+		}
+
+		extern "C" fn shutdown() -> c_int {
+			OPEN.set(OPEN.get() - 1);
+			0
+		}
+
+		extern "C" fn by_index(_: c_uint, device: *mut Device) -> c_int {
+			if NO_DEVICE.get() {
+				return 2;
+			}
+			// SAFETY: Nvml::open passes its own field.
+			unsafe { *device = std::ptr::NonNull::<u8>::dangling().as_ptr().cast() };
+			0
+		}
+
+		extern "C" fn utilization(_: Device, u: *mut Utilization) -> c_int {
+			// SAFETY: as above.
+			unsafe { (*u).gpu = 40 };
+			0
+		}
+
+		extern "C" fn memory(_: Device, m: *mut Memory) -> c_int {
+			// SAFETY: as above.
+			unsafe {
+				(*m).total = 8 << 30;
+				(*m).used = 2 << 30;
+			}
+			0
+		}
+
+		pub(super) static LIB: Lib = Lib {
+			init,
+			shutdown,
+			by_index,
+			utilization,
+			memory,
+			memory_v2: None,
+		};
+	}
+
+	// Test ID: der6j
+	#[test]
+	#[cfg(not(miri))]
+	fn nvml_is_open_only_while_a_gpu_graph_is_shown() {
+		use crate::config::{Look, Which};
+		use crate::graphs::Graphs;
+		use stand_in::{INITS, NO_DEVICE, OPEN};
+		nvml::STAND_IN.set(Some(&stand_in::LIB));
+		let shown = |gpu: bool, vram: bool| {
+			Look::default()
+				.with(Which::Gpu, |e| e.show = gpu)
+				.with(Which::Vram, |e| e.show = vram)
+		};
+		let mut g = Graphs::new(shown(false, false));
+		assert_eq!((OPEN.get(), INITS.get()), (0, 0));
+		g.set_look(shown(true, true), None).unwrap();
+		assert!(g.has(Which::Gpu) && g.has(Which::Vram));
+		assert_eq!(OPEN.get(), 2);
+		for _ in 0..3 {
+			g.sample();
+		}
+		assert_eq!((OPEN.get(), INITS.get()), (2, 2), "opened once, not a read");
+		g.set_look(shown(false, true), None).unwrap();
+		assert_eq!(OPEN.get(), 1);
+		g.set_look(shown(false, false), None).unwrap();
+		assert_eq!(OPEN.get(), 0);
+		g.set_look(shown(true, false), None).unwrap();
+		assert_eq!(OPEN.get(), 1);
+		drop(g);
+		assert_eq!(OPEN.get(), 0);
+		// a driver with no device is let go at once
+		NO_DEVICE.set(true);
+		assert!(Nvml::open().is_none());
+		assert_eq!(OPEN.get(), 0);
+		nvml::STAND_IN.set(None);
+	}
+
 	// Test ID: dektd
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri can't load a library")]
 	fn nvidia_memory_reads_through_v2_where_the_driver_has_it() {
-		let Some(n) = Nvml::get() else {
+		let Some(n) = Nvml::open() else {
 			return;
 		};
 		assert!(
