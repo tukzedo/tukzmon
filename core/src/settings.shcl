@@ -710,7 +710,7 @@ settings:
 		default: "#ff0000"
 		group: theme
 		shown_when: "cpu_mode = detailed"
-		tip: "Time the CPU sat idle waiting on the disk or network."
+		tip: "Time the CPU sat idle while a disk read or write was pending."
 
 	system:
 		label: System
