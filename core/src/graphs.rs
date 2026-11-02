@@ -499,7 +499,10 @@ impl Graphs {
 		self.tick_at(clock_ms())
 	}
 
-	fn tick_at(&mut self, at: f64) -> u32 {
+	/// [`Graphs::tick`] at `at` ms on a clock of the caller's, so the
+	/// profiler can run the panel's timer faster than real time.
+	#[doc(hidden)]
+	pub fn tick_at(&mut self, at: f64) -> u32 {
 		// ALL is in declaration order, so a Which is its own index
 		let shown = Which::ALL.map(|w| self.is_shown(w));
 		tick(

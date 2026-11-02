@@ -22,6 +22,18 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- At a panel's width, history lookups are 42% of the profiler's tick
+	- ID: 2026110116150685
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261101-161506
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232157, 2026102814061812
+	- Requirements: The profiler now draws at the width the graphs ask for, 790x48 device px for the 6 default graphs. There, history lookups are 42% of a tick, `Tier::total` alone 26%, and the log axis's ages 10%. Make a column's total cheaper, or say why the cost is fine. Time it with the profiler before and after.
+	- Estimated effort: Avg
+	- Origin: the profile from 2026103115232157, one run on 2026-11-01.
+
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
@@ -68,14 +80,30 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 24: The profiler draws into a canvas far smaller than a panel's, and one run varies 20%
 	- ID: 2026103115232157
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-152321
 	- Opened by: t00mietum
-	- Related IDs: 2026103016201601
+	- Related IDs: 2026103016201601, 2026110113023600, 2026110116150685
 	- Requirements: Size the canvas from `Graphs::wanted`, drive it through `Graphs::tick` with beats, and give the median of a few runs or user time alone. 6 graphs want 790 device px and get 96, so the last plot is 1 px, and 40 px are gaps. The 134 to 178 us move on 2026-10-31 came with no core change.
 	- Estimated effort: Low
+	- Actual effort: Low
 	- Origin: `27110e8`. First review. Confirmed by a probe.
+	- Progress log:
+		- The canvas is `Graphs::wanted` for a 24 px panel on a scale 2 screen: 790x48 device px for the 6 default graphs, where it was 96x48.
+		- Each tick is a wake of the panel's timer on simulated time, through `Graphs::tick_at`, so a graph reads only on its own beat. CPU's default of 50% makes 2 wakes a second, one of them for CPU alone. The subtitle gives the panel time, such as "20000 ticks of 6 graphs in 10000 s of panel time".
+		- The ticks are timed in 5 runs. The subtitle gives the median us a tick, its user part, and the range of the runs.
+		- At a load of 18 to 26 on 32 cores: 375 to 411 us a tick, against 140 to 159 with the old canvas and loop. The 5 runs inside one profile spread 1% to 8%. History lookups are 42% of the tick, drawing 20%, the reads 22%.
+		- Verified: the quick gate with the profile area passed.
+	- Decisions:
+		- `Graphs::tick_at` is public and hidden from the docs, as `skip` is, since it already takes the time to tick at.
+		- The median is of user plus system time, since the reads are system time and are part of what the panel costs. The user median is beside it.
+		- The history is trimmed at each save, as the panel does, not every tick.
+		- The count stays 20000 ticks, split into the 5 runs. The step takes about 8 s rather than 3, from the wider canvas.
+	- Branch: round-1102
+	- Test case: None in the repo. The Profiler step runs it, and it refuses a ROUNDS of 0.
+		- Swept: the soak test draws at 96x48 too. It stays, since it checks heap growth and not cost, and a graph's buffers keep their size after the first draw at any width. The cicd header and `flame-report.py`, which only prints the subtitle, needed no change.
+	- Closed: 20261101-161506
 
 - Pre-next-cut: No horizontal line between the theme buttons and the scrollable region
 	- ID: 2026103114565000
@@ -158,13 +186,22 @@ Sorted per the notes in [Template](#template).
 - Profiler tick 151 us at round-1101, up from 134 us
 	- ID: 2026110113023600
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261101-130236
 	- Opened by:
+	- Related IDs: 2026103115232157
+	- Reproduced: No. Back to back, the 2 commits are within each other's noise.
+	- Actual cause: load noise. No commit made the tick slower.
 	- Estimated effort: 30 min
+	- Actual effort: Low
 	- Progress log:
 		- 2026-11-01: the round-1101 full run's profiler gave 151 us a tick of 6 graphs, against 134 us at 1d07a68 and 127 us at c1dec56. 63% is the /proc reads, which move with load, so profile dev and the round's merge back to back before blaming a commit.
+		- 2026-11-01: `1d07a68` and `0242c8a` (dev, the round-1101 merge), 20000 ticks each, taken in turn 3 times at a load of 18 to 26 on 32 cores:
+			- The old profiler: 147, 147 and 142 us a tick at `1d07a68`, and 152, 140 and 159 at `0242c8a`.
+			- The profiler from 2026103115232157, at the panel's width: 397, 376 and 396 at `1d07a68`, and 400, 411 and 392 at `0242c8a`. Medians 396 and 400, 1% apart, less than the runs vary.
+	- Test case: none, since nothing changed. The measurement is above.
+	- Closed: 20261101-161506
 
 - Code review 20261031 item 8: 2 windows saving one new theme name keep only the last one's colors
 	- ID: 2026103115231908

@@ -3,7 +3,9 @@
 
 // The cicd profiler step's workload: the panel's tick, sampled on SIGPROF in
 // this process, since perf can't record on b23. A week of history goes in
-// first, unsampled, so the axis and the draw see a full graph.
+// first, unsampled, so the axis and the draw see a full graph. The canvas is
+// what the graphs ask a panel for, and the timer runs on the beats the panel
+// would wake on, only faster.
 //   cargo run --profile profiling --features profiling --example profile -- OUT.svg [ROUNDS]
 
 use std::fmt::Write as _;
@@ -21,7 +23,13 @@ const FREQ: i32 = 199;
 // them isn't safe.
 const BLOCKLIST: [&str; 3] = ["libgcc", "vdso", "ld-linux"];
 /// The plugin saves every 15 minutes.
-const KEEP_MS: u32 = 900_000;
+const KEEP_MS: f64 = 900_000.0;
+/// A panel's size across in logical px, on a scale 2 screen.
+const PANEL: u32 = 24;
+const SCALE: usize = 2;
+/// The ticks are timed in this many runs, and the report gives the median,
+/// since one run moved 20% with the load and no code change.
+const RUNS: usize = 5;
 
 /// pprof files a sample under the start address of each function on its
 /// stack, then names the whole bucket from the inline frames of whichever
@@ -46,15 +54,31 @@ fn cpu_us() -> (i64, i64) {
 	(us(ru.ru_utime), us(ru.ru_stime))
 }
 
-fn tick(g: &mut Graphs, secs: f64, round: usize, w: usize, h: usize, scale: usize) {
-	g.skip(secs);
-	g.sample();
-	g.trim();
+/// The panel's timer, on simulated time: when it wakes, and how long until
+/// the next wake.
+struct Timer {
+	at: f64,
+	next: u32,
+	since_save: f64,
+}
+
+fn tick(g: &mut Graphs, timer: &mut Timer, round: usize, w: usize, h: usize) {
+	let ms = f64::from(timer.next);
+	g.skip(ms / 1000.0);
+	timer.at += ms;
+	timer.since_save += ms;
+	timer.next = g.tick_at(timer.at);
 	let x = round % w;
-	g.hover(Some((x, h / 2)), w, h, scale);
-	black_box(g.render(w, h, scale));
-	black_box(g.hover_tip(x, h / 2, w, h, scale));
+	g.hover(Some((x, h / 2)), w, h, SCALE);
+	black_box(g.render(w, h, SCALE));
+	black_box(g.hover_tip(x, h / 2, w, h, SCALE));
 	black_box(g.tooltip());
+}
+
+fn median(mut v: Vec<f64>) -> f64 {
+	v.sort_by(f64::total_cmp);
+	let n = v.len();
+	f64::midpoint(v[(n - 1) / 2], v[n / 2])
 }
 
 fn main() -> Result<(), String> {
@@ -64,16 +88,16 @@ fn main() -> Result<(), String> {
 		.get(1)
 		.map_or(Ok(20_000), |s| s.parse())
 		.map_err(|e| format!("ROUNDS: {e}"))?;
+	if rounds == 0 {
+		return Err("ROUNDS: at least 1".into());
+	}
 	let hist = std::env::temp_dir().join(format!("tukzmon-profile_{}.hist", std::process::id()));
-	let (w, h, scale) = (96, 48, 2);
-	let look = Look::default();
-	// the panel's default sample time
-	let secs = f64::from(look.sample_ms) / 1000.0;
-	let keep_every = (KEEP_MS / look.sample_ms.max(1)).max(1) as usize;
-	let mut g = Graphs::new(look);
+	let mut g = Graphs::new(Look::default());
 	if !g.has(Which::Mem) {
 		return Err("no memory graph here, so half the work would be left out".into());
 	}
+	let (along, across) = g.wanted(PANEL);
+	let (w, h) = (along as usize * SCALE, across as usize * SCALE);
 	// A week at 20 s a step.
 	for _ in 0..7 * 4320 {
 		g.skip(20.0);
@@ -86,15 +110,32 @@ fn main() -> Result<(), String> {
 		.blocklist(&BLOCKLIST)
 		.build()
 		.map_err(|e| format!("profiler: {e}"))?;
+	let runs = RUNS.min(rounds);
+	let mut timer = Timer {
+		at: 0.0,
+		next: g.tick_at(0.0),
+		since_save: 0.0,
+	};
+	// per run: user and system us a tick
+	let mut per_tick = Vec::with_capacity(runs);
 	let (wall0, cpu0) = (Instant::now(), cpu_us());
-	for round in 1..=rounds {
-		tick(&mut g, secs, round, w, h, scale);
-		if round % keep_every == 0 {
-			g.save(&hist)
-				.map_err(|e| format!("{}: {e}", hist.display()))?;
-			g.load(&hist)
-				.map_err(|e| format!("{}: {e}", hist.display()))?;
+	for run in 0..runs {
+		let (first, end) = (rounds * run / runs + 1, rounds * (run + 1) / runs + 1);
+		let was = cpu_us();
+		for round in first..end {
+			tick(&mut g, &mut timer, round, w, h);
+			if timer.since_save >= KEEP_MS {
+				timer.since_save = 0.0;
+				g.trim();
+				g.save(&hist)
+					.map_err(|e| format!("{}: {e}", hist.display()))?;
+				g.load(&hist)
+					.map_err(|e| format!("{}: {e}", hist.display()))?;
+			}
 		}
+		let now = cpu_us();
+		let n = (end - first) as f64;
+		per_tick.push(((now.0 - was.0) as f64 / n, (now.1 - was.1) as f64 / n));
 	}
 	let (cpu1, wall) = (cpu_us(), wall0.elapsed().as_secs_f64());
 	let report = guard
@@ -121,12 +162,20 @@ fn main() -> Result<(), String> {
 		(cpu1.0 - cpu0.0) as f64 / 1e6,
 		(cpu1.1 - cpu0.1) as f64 / 1e6,
 	);
+	let totals: Vec<f64> = per_tick.iter().map(|(u, s)| u + s).collect();
+	let (lo, hi) = totals
+		.iter()
+		.fold((f64::INFINITY, 0.0_f64), |(lo, hi), &t| {
+			(lo.min(t), hi.max(t))
+		});
 	let mut opt = inferno::flamegraph::Options::default();
 	opt.title = "tukzmon panel tick".into();
 	opt.subtitle = Some(format!(
-		"{rounds} ticks of {} graphs at {w}x{h} scale {scale}: {user:.2} s user + {sys:.2} s system in {wall:.2} s, {:.1} us a tick",
+		"{rounds} ticks of {} graphs in {:.0} s of panel time at {w}x{h} scale {SCALE}: {user:.2} s user + {sys:.2} s system in {wall:.2} s, {:.1} us a tick, {:.1} of it user, medians of {runs} runs ({lo:.1} to {hi:.1})",
 		g.count(),
-		(user + sys) * 1e6 / rounds as f64
+		timer.at / 1000.0,
+		median(totals),
+		median(per_tick.iter().map(|p| p.0).collect()),
 	));
 	// Colors by name, so 2 graphs of the same code look alike.
 	opt.hash = true;
