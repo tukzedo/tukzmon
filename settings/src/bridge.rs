@@ -228,6 +228,16 @@ pub mod ffi {
 		/// the box gives it up.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn apply_while_typing(d: &mut Dialog, number: bool) -> Vec<bool>;
+		/// With a color box typed in and focused in a shown window, whether
+		/// it has the focus and Apply is on, then whether the dialog took the
+		/// typed text as the window was destroyed.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn teardown_while_typing(d: &mut Dialog) -> Vec<bool>;
+		/// Per control that takes Tab, "class|name" with the name a screen
+		/// reader gives it, and "|label" for each label it has, then "title|"
+		/// and the first color picker's title.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn control_names(d: &mut Dialog) -> Vec<String>;
 		/// The window color, then per tab "label scroll tabs rest": the most
 		/// common color in the page that scrolls, in the tab list, and in the
 		/// rest of the window.
@@ -1340,6 +1350,68 @@ mod tests {
 				ffi::apply_while_typing(&mut d, number),
 				[false, true, true],
 				"number box: {number}"
+			);
+		}
+	}
+
+	// Test ID: der53
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn a_shown_window_runs_none_of_its_handlers_as_it_is_destroyed() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_teardown_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		// the box's handler would reach rows already freed
+		assert_eq!(ffi::teardown_while_typing(&mut d), [true, true, false]);
+	}
+
+	// Test ID: der54
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn every_control_has_a_name_a_screen_reader_can_say() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_names_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let got = ffi::control_names(&mut d);
+		let unnamed: Vec<&String> = got
+			.iter()
+			.filter(|s| s.split('|').nth(1).unwrap_or_default().is_empty())
+			.collect();
+		assert!(unnamed.is_empty(), "{unnamed:?}");
+		let count = |class: &str| got.iter().filter(|s| s.starts_with(class)).count();
+		for class in [
+			"QSlider",
+			"QDoubleSpinBox",
+			"QComboBox",
+			"QLineEdit",
+			"QToolButton",
+		] {
+			assert!(count(class) > 0, "no {class}: {got:?}");
+		}
+		// a color row names its graph, and so does its picker
+		let title = got.iter().find_map(|s| s.strip_prefix("title|")).unwrap();
+		let (graph, low) = title.split_once(' ').unwrap();
+		assert!(!graph.is_empty() && !low.is_empty(), "{title}");
+		for lead in [
+			format!("QLineEdit|{title}"),
+			format!("QPushButton|Pick a color for {title}"),
+			format!("QToolButton|Revert {title}"),
+		] {
+			assert!(got.contains(&lead), "no {lead}: {got:?}");
+		}
+		// Qt on Linux names a dropdown by its text, so its label has to be
+		// found beside it
+		for label in ["Hover shows", "Max age in days"] {
+			assert!(
+				got.iter()
+					.any(|s| s.ends_with(&format!("|{label}")) && s.matches('|').count() == 2),
+				"no label {label}: {got:?}"
 			);
 		}
 	}

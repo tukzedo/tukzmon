@@ -395,13 +395,24 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 30: The settings window's teardown relies on being hidden first
 	- ID: 2026103115232250
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152322
 	- Opened by: t00mietum
 	- Requirements: `~Window` frees `live` and `rows` before Qt deletes the child widgets, whose lambdas point at them. `exec()` hides the window first, so nothing fires today. Hide and disconnect at the top of `~Window` so a test hook or a later caller can't reach freed memory.
 	- Estimated effort: Low
 	- Origin: `391bfce`. First review. Plausible, not reachable today.
+	- Actual effort: Low
+	- Progress log:
+		- `~Window` and `~ColorPicker` now take every handler their children have on them off first, then hide. So a box that loses the focus as the window goes runs nothing. `~Window` also takes its app event filter off.
+		- Confirmed: a test hook that types in a color box of a shown window and then destroys it aborted the test binary before the fix, with the box's handler reading a freed row.
+	- Decisions:
+		- The handlers come off before the hide, not after. A hide first would run them with everything still there, but it would also take a half-typed value into the dialog as the window went, which nothing asked for.
+		- The color picker had the same layout, its spin boxes freed before the boxes whose handlers read them, so it gets the same destructor.
+	- Branch: round-1102
+	- Test case: `bridge::tests::a_shown_window_runs_none_of_its_handlers_as_it_is_destroyed` (der53). It aborts before the fix and passes after.
+		- Swept: every `QDialog` subclass in `qt.cpp`, `Window` and `ColorPicker`. The other widget classes keep no members their children's handlers reach. Every existing hook that destroys a shown window still passes, and the quick gate's ASan run reported nothing.
+	- Closed: 20261101-175000
 
 - Code review 20261031 item 29: Apply drops comments in the config file
 	- ID: 2026103115232235
@@ -428,13 +439,26 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 27: The settings window's controls have no accessible names
 	- ID: 2026103115232204
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152322
 	- Opened by: t00mietum
 	- Requirements: Each row label becomes its control's buddy or accessible name, so a screen reader names checkboxes, sliders, boxes, chips and revert arrows. The color picker title names the graph too, not just Low or Border.
 	- Estimated effort: Low
 	- Origin: `d621249`. First review. Plausible, by reading.
+	- Actual effort: Low
+	- Progress log:
+		- Every row's controls are named by its label, with the graph's name in front on Colors, as "CPU Low". A revert arrow is "Revert" and that name, and a chip "Pick a color for" it. The color picker's title is the same name.
+		- In the graph list, each box, revert arrow and gripper names its graph, as "CPU width %" or "Move CPU". The tab list is "Pages", and each page that scrolls has its tab's name.
+		- A row's label is its control's buddy.
+		- `design.md` Settings window has it.
+	- Decisions:
+		- The buddy is the row's control, not the slider or box inside it. Qt finds a label only beside the widget it labels, and Qt on Linux names a dropdown by its text, so a dropdown's label reaches a screen reader only that way. Sliders, boxes and chips inside a holder get their names set instead.
+		- A graph list dropdown has no label beside it, so a screen reader gives its value, with the tip that names its graph.
+	- Branch: round-1102
+	- Test case: `bridge::tests::every_control_has_a_name_a_screen_reader_can_say` (der54), over every control that takes Tab on every tab, by the name Qt gives a screen reader. It fails before the fix, with sliders, boxes, chips and revert arrows unnamed, and passes after.
+		- Swept: every control `buildControl`, `placeRow` and `buildList` make, the theme buttons and bottom buttons (named by their text), and the page scroll areas, which take focus and had no name either.
+	- Closed: 20261101-175000
 
 - Code review 20261031 item 26: ZFS ARC counts as programs in the memory graph
 	- ID: 2026103115232189

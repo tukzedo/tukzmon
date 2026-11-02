@@ -10,6 +10,7 @@
 #include "tukzmon-settings/src/bridge.rs.h"
 
 #include <QAbstractItemView>
+#include <QAccessible>
 #include <QApplication>
 #include <QButtonGroup>
 #include <QCheckBox>
@@ -363,6 +364,16 @@ protected:
 	}
 };
 
+// For a dialog's destructor. Its members go before Qt deletes the children,
+// whose handlers reach them, and a shown child that loses the focus or the
+// pointer then fires one. So nothing of theirs runs once the members start
+// going.
+void quiet(QDialog *w) {
+	for (QObject *o : w->findChildren<QObject *>())
+		QObject::disconnect(o, nullptr, w, nullptr);
+	w->hide();
+}
+
 // SilkTerm's picker, not the toolkit's. The row behind follows every change,
 // and Cancel puts back all of it.
 class ColorPicker final : public QDialog {
@@ -428,6 +439,12 @@ public:
 		sync(nullptr);
 		square->setFocus();
 	}
+
+	ColorPicker(const ColorPicker &) = delete;
+	ColorPicker &operator=(const ColorPicker &) = delete;
+	ColorPicker(ColorPicker &&) = delete;
+	ColorPicker &operator=(ColorPicker &&) = delete;
+	~ColorPicker() override { quiet(this); }
 
 	void done(int r) override {
 		pick_close(d, r == QDialog::Accepted);
@@ -660,6 +677,7 @@ public:
 			rows.push_back(std::move(row));
 		}
 
+		tabList->setAccessibleName("Pages");
 		shade(this, false);
 		// before the selection, which is tinted from its Base
 		shade(tabList, true);
@@ -794,6 +812,15 @@ public:
 			// the first read only primes, and a second one ms later is noise
 			tick->start(int(live_sample(*live)));
 		}
+	}
+
+	Window(const Window &) = delete;
+	Window &operator=(const Window &) = delete;
+	Window(Window &&) = delete;
+	Window &operator=(Window &&) = delete;
+	~Window() override {
+		qApp->removeEventFilter(this);
+		quiet(this);
 	}
 
 	// Enter is OK and Esc is Cancel, even from inside a field or on a checkbox.
@@ -1385,6 +1412,7 @@ private:
 		scroll->setWidget(page);
 		scroll->setWidgetResizable(true);
 		scroll->setFrameShape(QFrame::NoFrame);
+		scroll->setAccessibleName(qs(info.label));
 		shade(scroll, true);
 		return scroll;
 	}
@@ -1425,6 +1453,7 @@ private:
 			reset_row(d, r.id());
 			refresh();
 		});
+		nameRow(r, spokenName(r));
 		Row *prev = std::exchange(lastPlaced, &r);
 		if (r.info.same_line && prev && prev->grid == grid) {
 			// the row above keeps its label and revert, and shares its
@@ -1456,6 +1485,35 @@ private:
 		return nullptr;
 	}
 
+	// A row's label, after its graph's on Themes/Colors, where Low or Border
+	// alone doesn't say whose.
+	QString spokenName(const Row &r) const {
+		QString label = qs(r.info.label);
+		for (const auto &s : sections)
+			if (s.graph == std::string(r.info.section) && s.title)
+				return qs(s.title->info.label) + " " + label;
+		return label;
+	}
+
+	// What a screen reader calls each of the row's controls, which have no
+	// text of their own. It finds a label only beside what it labels, so the
+	// buddy is the control, not a box inside it. A dropdown takes its label
+	// from there, since Qt on Linux names it by its text.
+	static void nameRow(Row &r, const QString &name) {
+		if (r.label)
+			r.label->setBuddy(r.control);
+		for (QWidget *w : {static_cast<QWidget *>(r.slider), static_cast<QWidget *>(r.spin),
+				 static_cast<QWidget *>(r.combo), static_cast<QWidget *>(r.line), r.control})
+			if (w)
+				w->setAccessibleName(name);
+		if (r.check && r.check->text().isEmpty())
+			r.check->setAccessibleName(name);
+		if (r.chip)
+			r.chip->setAccessibleName("Pick a color for " + name);
+		if (r.revert)
+			r.revert->setAccessibleName("Revert " + name);
+	}
+
 	// The rows under Graphs as one list: show, a space for the graph, width,
 	// sample rate, time axis, revert and a gripper. The grippers write the
 	// order.
@@ -1474,7 +1532,8 @@ private:
 				continue;
 			for (Row *r : {lr.show, lr.width, lr.sample, lr.time})
 				r->control = buildControl(*r);
-			lr.show->check->setText(qs(lr.show->info.label));
+			const QString graph = qs(lr.show->info.label);
+			lr.show->check->setText(graph);
 			lr.space = new LiveGraph(*live, lr.name);
 			lr.space->fit();
 			lr.revert = new QToolButton;
@@ -1483,6 +1542,12 @@ private:
 			lr.grip = new Gripper;
 			lr.grip->setToolTip("Drag up or down to move this graph, or use Up and Down here. The top one is "
 								"drawn first: on the left in a horizontal panel, on top in a vertical one.");
+			nameRow(*lr.width, graph + " width %");
+			nameRow(*lr.sample, graph + " sample %");
+			nameRow(*lr.time, graph + " time axis");
+			lr.space->setAccessibleName(graph);
+			lr.revert->setAccessibleName("Revert " + graph);
+			lr.grip->setAccessibleName("Move " + graph);
 			const std::string name = lr.name;
 			connect(lr.revert, &QToolButton::clicked, this, [this, name] {
 				for (auto &l : listRows)
@@ -1776,7 +1841,7 @@ private:
 	std::unique_ptr<ColorPicker> picker(Row &r) {
 		if (!pick_open(d, r.id()))
 			return nullptr;
-		return std::make_unique<ColorPicker>(d, r.label->text(), [this] { refresh(); }, this);
+		return std::make_unique<ColorPicker>(d, spokenName(r), [this] { refresh(); }, this);
 	}
 
 	void pickColor(Row &r) {
@@ -2257,6 +2322,59 @@ rust::Vec<bool> apply_while_typing(Dialog &d, bool number) {
 	out.push_back(w.applyOn());
 	w.commitTyped();
 	out.push_back(is_dirty(d));
+	return out;
+}
+
+rust::Vec<bool> teardown_while_typing(Dialog &d) {
+	const App app("offscreen");
+	auto w = std::make_unique<Window>(d);
+	w->show();
+	w->activateWindow();
+	QWidget *box = w->firstBox(false);
+	for (int i = 0; box && !box->isVisible() && i < w->tabCount(); i++) {
+		w->select(i);
+		tukzmon::App::processEvents();
+	}
+	if (!box || !box->isVisible())
+		return {};
+	box->setFocus();
+	tukzmon::App::processEvents();
+	press(box, Qt::Key_End);
+	press(box, Qt::Key_Backspace);
+	rust::Vec<bool> out;
+	out.push_back(box->hasFocus());
+	out.push_back(w->applyOn());
+	w.reset();
+	out.push_back(is_dirty(d));
+	return out;
+}
+
+rust::Vec<rust::String> control_names(Dialog &d) {
+	const App app("offscreen");
+	Window w(d);
+	rust::Vec<rust::String> out;
+	for (QWidget *c : w.findChildren<QWidget *>()) {
+		if (!(c->focusPolicy() & Qt::TabFocus))
+			continue;
+		// a box's own line edit is the box
+		bool inner = false;
+		for (QWidget *up = c->parentWidget(); up && up != &w; up = up->parentWidget())
+			inner |= qobject_cast<QAbstractSpinBox *>(up) || qobject_cast<QComboBox *>(up);
+		if (inner)
+			continue;
+		const QAccessibleInterface *a = QAccessible::queryAccessibleInterface(c);
+		QString line = QString(c->metaObject()->className()) + "|";
+		if (a) {
+			line += a->text(QAccessible::Name);
+			for (const auto &[by, how] : a->relations(QAccessible::Label))
+				line += "|" + by->text(QAccessible::Name);
+		}
+		out.push_back(rust::String(line.toStdString()));
+	}
+	if (auto pick = w.firstPicker()) {
+		out.push_back(rust::String("title|" + pick->windowTitle().toStdString()));
+		pick->reject();
+	}
 	return out;
 }
 

@@ -24,6 +24,8 @@ rust::Vec<rust::String> bottom_buttons(Dialog &d);
 rust::Vec<rust::String> enter_on(Dialog &d, rust::Str button);
 rust::Vec<rust::String> list_head_tips(Dialog &d);
 rust::Vec<bool> apply_while_typing(Dialog &d, bool number);
+rust::Vec<bool> teardown_while_typing(Dialog &d);
+rust::Vec<rust::String> control_names(Dialog &d);
 rust::Vec<rust::String> page_shades(Dialog &d, bool dark);
 rust::Vec<rust::String> button_gaps(Dialog &d);
 rust::Vec<rust::String> button_heights(Dialog &d);
