@@ -237,6 +237,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- The key comes from the name when the theme is made, and stays through a rename. A key that is a built-in's is left out, and a color line that can't be read is dropped at the next save, like any other. A missing color is Default's.
 	- Save puts the "*" changes into the saved theme in force. Save as makes a new theme from the colors showing and picks it. Delete picks Default. Built-in themes can't be saved over, renamed or deleted, and no two themes share a name.
 	- A save writes every saved theme. One this window didn't touch is written as the file has it, so a theme added by hand meanwhile isn't lost.
+	- A theme made in this window whose key or name another window saved meanwhile moves to a free one at save, such as "Mine 2" at `mine_2`, and stays picked. So both are kept.
 
 - The margins, on the Outline sub-tab at `graph.margins.top_bottom` and `.left_right`, are in the `theme` group, so a theme sets them, and a saved one keeps them. Every built-in has 2 and 2. Randomize leaves them as they are, since a roll is colors. A saved theme writes them as numbers, the override boxes as `true` or `false`, and the rest as text.
 

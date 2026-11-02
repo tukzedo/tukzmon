@@ -206,7 +206,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 8: 2 windows saving one new theme name keep only the last one's colors
 	- ID: 2026103115231908
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152319
 	- Opened by: t00mietum
@@ -215,7 +215,24 @@ Sorted per the notes in [Template](#template).
 	- Expected behavior: The second gets its own key, or is asked before it overwrites.
 	- Possible cause: The theme key is picked against this window's themes only. A plugin item opens one window, so it needs a second started by hand.
 	- Estimated effort: Low
+	- Reproduced: 2026-11-01, round-1102, by der2h with the fix taken out. The file kept one theme.
+	- Actual cause: as above. The merge then wrote the second window's theme over the first's, since it had the same key.
+	- Actual effort: Low
 	- Origin: `6a78316` (`merge_themes`). First review. Confirmed by a scratch test.
+	- Progress log:
+		- At Apply, a theme made in this window since its last save, whose key or name the file now has from elsewhere, moves to a free name and key first, such as "Mine 2" at `mine_2`. The pick and the changes made on it follow.
+		- `design.md` Theme says so.
+		- Verified: der2h fails with the fix taken out and passes with it, and the quick gate passed.
+	- Decisions:
+		- Rename rather than ask. The window has no prompt at Apply for anything else, and a rename keeps both with nothing lost. The new name shows in the dropdown at once.
+		- A name clash moves the name too, not only the key, since no two themes share a name.
+		- Only themes new in this window move. One both windows knew and both changed is still the last save's, like any other setting.
+	- Actual fix: `Dialog::make_room` in `settings/src/dialog.rs`, called by `Dialog::apply` before `merge_themes`.
+	- Branch: round-1102
+	- Test case: `dialog::tests::two_windows_saving_one_new_name_keep_both` (der2h).
+		- Swept: `merge_themes`, `save_theme_as`, `rename_theme` and `theme_key`, the only places a key or name is picked. Rename can't clash on key, since a key stays. A rename to a name another window took meanwhile is left, since nothing is lost.
+	- Acceptance signoff: Self-closed 20261101: der2h and the quick gate.
+	- Closed: 20261101-162300
 
 - Code review 20261031 item 33: The workflow pins actions/checkout by tag and keeps the token in the checkout
 	- ID: 2026103115232296

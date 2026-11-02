@@ -284,6 +284,78 @@ impl Dialog {
 		self.model.values.changed_on.remove(THEME);
 	}
 
+	// A theme made here since the last save, whose key or name another window
+	// has saved meanwhile, moves to a free one, so neither is lost
+	// (2026103115231908).
+	fn make_room(&mut self, file: &[SavedTheme]) {
+		// the ones this window knew are in self.themes, or deleted here
+		let mut others: Vec<SavedTheme> = file
+			.iter()
+			.filter(|f| !self.saved_themes.iter().any(|s| s.key == f.key))
+			.cloned()
+			.collect();
+		if others.is_empty() {
+			return;
+		}
+		let mut moved = false;
+		for i in 0..self.themes.len() {
+			let t = &self.themes[i];
+			if self.saved_themes.iter().any(|s| s.key == t.key) {
+				continue;
+			}
+			let key_taken = others.iter().any(|o| o.key.eq_ignore_ascii_case(&t.key));
+			let name_taken = |n: &str| {
+				others.iter().any(|o| o.name.eq_ignore_ascii_case(n))
+					|| self
+						.themes
+						.iter()
+						.enumerate()
+						.any(|(j, o)| j != i && o.name.eq_ignore_ascii_case(n))
+			};
+			if !key_taken && !name_taken(&t.name) {
+				continue;
+			}
+			let name = if name_taken(&t.name) {
+				// n names can take at most n of these
+				(2..=others.len() + self.themes.len() + 2)
+					.map(|n| format!("{} {n}", t.name))
+					.find(|n| !name_taken(n))
+					.unwrap_or_else(|| t.name.clone())
+			} else {
+				t.name.clone()
+			};
+			let old = t.key.clone();
+			let key = if key_taken {
+				let all: Vec<SavedTheme> = others.iter().chain(&self.themes).cloned().collect();
+				config::theme_key(&name, &all)
+			} else {
+				old.clone()
+			};
+			others.push(SavedTheme {
+				key: key.clone(),
+				name: name.clone(),
+				colors: BTreeMap::new(),
+			});
+			self.themes[i].name = name;
+			self.themes[i].key.clone_from(&key);
+			let v = &mut self.model.values;
+			for store in [&mut v.own, &mut v.state] {
+				if let Some(Value::Text(k)) = store.get_mut(THEME) {
+					if *k == old {
+						k.clone_from(&key);
+					}
+				}
+			}
+			if v.changed_on.get(THEME) == Some(&old) {
+				v.changed_on.insert(THEME.to_string(), key);
+			}
+			moved = true;
+		}
+		if moved {
+			self.respec();
+		}
+	}
+
 	fn check_name(&self, name: &str, skip: Option<usize>) -> Result<String, String> {
 		let name = name.trim();
 		if name.is_empty() {
@@ -643,7 +715,9 @@ impl Dialog {
 	pub fn apply(&mut self) -> Result<(), String> {
 		let text = read(&self.path)?;
 		let doc = shcl::Document::parse(&text);
-		let themes = merge_themes(config::saved_themes(&doc), &self.saved_themes, &self.themes);
+		let file_themes = config::saved_themes(&doc);
+		self.make_room(&file_themes);
+		let themes = merge_themes(file_themes, &self.saved_themes, &self.themes);
 		let spec = config::spec_with(&themes);
 		let mut fresh = config::model_on(Arc::clone(&spec), &doc);
 		// Store by store rather than replaying each row, since a row's set or
@@ -1694,6 +1768,32 @@ mod tests {
 			"{text}"
 		);
 		assert_eq!(dlg.state("theme").options.len(), 12);
+	}
+
+	// Test ID: der2h
+	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
+	fn two_windows_saving_one_new_name_keep_both() {
+		let d = scratch("two_windows");
+		let path = d.0.join("t.shcl");
+		let mut first = Dialog::open(path.clone()).unwrap();
+		let mut second = Dialog::open(path.clone()).unwrap();
+		first.save_theme_as("Mine").unwrap();
+		first.apply().unwrap();
+		let firsts = first.themes[0].clone();
+		second.randomize_from(7);
+		second.save_theme_as("mine").unwrap();
+		second.apply().unwrap();
+		let doc = shcl::Document::parse(&std::fs::read_to_string(&path).unwrap());
+		let saved = config::saved_themes(&doc);
+		assert_eq!(saved.len(), 2, "{saved:?}");
+		assert!(saved.contains(&firsts), "{saved:?}");
+		let seconds = saved.iter().find(|t| t.key != firsts.key).unwrap();
+		assert_eq!(seconds.name, "mine 2");
+		assert_ne!(seconds.colors, firsts.colors);
+		assert_eq!(second.state("theme").choice, "mine 2");
+		let reread = Dialog::open(path).unwrap();
+		assert_eq!(reread.state("theme").choice, "mine 2");
 	}
 
 	// Out since 2026-10-29: a theme line it can't read is dropped rather than
