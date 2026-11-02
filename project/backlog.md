@@ -327,24 +327,47 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 33: The workflow pins actions/checkout by tag and keeps the token in the checkout
 	- ID: 2026103115232296
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on automated testing
+	- Needs external testing: the `merge-gate` workflow's first run on GitHub, the same run 2026102513560001 waits for.
 	- Priority|Severity: Low
 	- Opened: 20261031-152322
 	- Opened by: t00mietum
+	- Related IDs: 2026102513560001
 	- Requirements: Pin by commit SHA and set `persist-credentials: false`, since the containers mount the checkout.
 	- Estimated effort: Low
+	- Actual effort: Low
 	- Origin: `5f1bef0`. First review. Plausible, the workflow has never run.
+	- Progress log:
+		- `.github/workflows/merge-gate.yml` pins actions/checkout at `3d3c42e` (v7.0.1), with the tag in a comment, and sets `persist-credentials: false`.
+		- Verified: the file parses as YAML, and GitHub's API gives that commit for the v7.0.1 tag.
+	- Decisions:
+		- v7.0.1, the newest release, so the pin keeps the major version the file had.
+		- The merge gate never syncs or pushes, so the checkout needs no token.
+	- Branch: round-1102
+	- Test case: The workflow is its own test, as for 2026102513560001.
 
 - Code review 20261031 item 32: A run whose named areas are all turned off checks nothing and passes
 	- ID: 2026103115232280
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
+	- Needs local test suite run?: No. `--backlog-run-full` passed on 2026-11-01.
 	- Priority|Severity: Low
 	- Opened: 20261031-152322
 	- Opened by: t00mietum
 	- Requirements: `--backlog-run-quick miri --no-leakcheck` plans only the image step. Fail when the plan has no checks.
 	- Estimated effort: Low
+	- Actual effort: Low
 	- Origin: `ff4610a`. First review. Confirmed with `--list`.
+	- Progress log:
+		- `cicd/cicd.bash` fails with exit 2 when its plan has no step but remote sync, the image and dogfood, before it makes a run folder. `--list` still shows the plan, with a line saying the run would fail.
+		- Verified: `--backlog-run-quick miri --no-leakcheck` and `sanitizers --no-leakcheck` fail. `miri` alone, the default areas and `--merge-gate --no-leakcheck` plan as before.
+	- Decisions:
+		- Exit 2, as for other options that make no sense together, since nothing ran.
+		- `--list` exits 0 and says the run would fail, since it only prints the plan.
+	- Branch: round-1102
+	- Test case: der4k in `cicd/tests/guards.bash`. It failed on the old `cicd.bash` and passes now.
+		- Swept: every place the plan is read (`fShowPlan`, `fInImage`, the step loop). Only `--backlog-run-quick` with areas can empty it, since every other mode plans Format, Build and Lint.
+	- Closed: 20261101-173045
 
 - Code review 20261031 item 31: knobs drops unknown spec keys with no word
 	- ID: 2026103115232265
