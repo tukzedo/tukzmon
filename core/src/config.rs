@@ -133,6 +133,75 @@ pub fn shown_when(id: &str) -> Option<(&'static str, &'static str)> {
 	.map(|(_, on, key)| (on.as_str(), key.as_str()))
 }
 
+// knobs drops a key it doesn't know with no word, and has to stay the same as
+// SilkTerm's copy, so a typo such as `gaet:` is caught here instead.
+const KNOBS_ROW_KEYS: &[&str] = &[
+	"auto",
+	"control",
+	"default",
+	"detent_labels",
+	"detents",
+	"gate",
+	"group",
+	"indent",
+	"label",
+	"option_labels",
+	"options",
+	"path",
+	"range",
+	"rule",
+	"scale",
+	"store",
+	"tab",
+	"tip",
+	"type",
+	"whole",
+];
+const OUR_ROW_KEYS: &[&str] = &[
+	"beside",
+	"graph",
+	"same_line",
+	"shown_as",
+	"shown_when",
+	"slider_range",
+];
+const KNOBS_GROUP_KEYS: &[&str] = &["chooser", "custom", "from_program", "noun", "presets"];
+const KNOBS_PRESET_WORDS: &[&str] = &["label", "temporary"];
+const TOP_KEYS: &[&str] = &["groups", "settings", "tabs"];
+
+/// Every key in a spec that neither knobs nor tukzmon reads, as its path.
+pub fn unknown_spec_keys(text: &str) -> Vec<String> {
+	let doc = shcl::Document::parse(text);
+	let mut odd = Vec::new();
+	let mut check = |at: String, known: &[&[&str]]| {
+		for key in doc.children(&at) {
+			if !known.iter().any(|k| k.contains(&key.as_str())) {
+				odd.push(if at.is_empty() {
+					key
+				} else {
+					format!("{at}.{key}")
+				});
+			}
+		}
+	};
+	check(String::new(), &[TOP_KEYS]);
+	for row in doc.children("settings") {
+		check(format!("settings.{row}"), &[KNOBS_ROW_KEYS, OUR_ROW_KEYS]);
+	}
+	let rows = doc.children("settings");
+	let rows: Vec<&str> = rows.iter().map(String::as_str).collect();
+	for group in doc.children("groups") {
+		check(format!("groups.{group}"), &[KNOBS_GROUP_KEYS]);
+		for preset in doc.children(&format!("groups.{group}.presets")) {
+			check(
+				format!("groups.{group}.presets.{preset}"),
+				&[KNOBS_PRESET_WORDS, &rows],
+			);
+		}
+	}
+	odd
+}
+
 /// How a graph's columns are colored.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Mode {
@@ -1029,6 +1098,18 @@ mod tests {
 		if let Err(e) = Spec::parse(SPEC_TEXT) {
 			panic!("{}", e.join("\n"));
 		}
+	}
+
+	// Test ID: der4w
+	#[test]
+	fn the_spec_has_no_key_that_nothing_reads() {
+		assert_eq!(unknown_spec_keys(SPEC_TEXT), Vec::<String>::new());
+		let typo = SPEC_TEXT.replacen("\t\tgate:", "\t\tgaet:", 1);
+		assert_ne!(typo, SPEC_TEXT);
+		let odd = unknown_spec_keys(&typo);
+		assert_eq!(odd.len(), 1, "{odd:?}");
+		let parts: Vec<&str> = odd[0].split('.').collect();
+		assert_eq!((parts.len(), parts[0], parts[2]), (3, "settings", "gaet"));
 	}
 
 	// Test ID: decb4

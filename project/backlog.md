@@ -372,13 +372,24 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 31: knobs drops unknown spec keys with no word
 	- ID: 2026103115232265
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152322
 	- Opened by: t00mietum
 	- Requirements: Warn on a spec key that neither knobs nor the program names in an allow list, so a typo shows. tukzmon reads its own keys, so it needs that list.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `config::unknown_spec_keys` lists every key in settings.shcl that neither knobs nor tukzmon reads: top level, each row, each group and each preset. A test fails on any.
+		- Verified: the quick gate passed, der4w included.
 	- Decisions: Goes to silkterm first, as its copy is the source.
+		- knobs is unchanged, since it stays byte-identical to silkterm's. The spec is compiled in, so a test catches a typo before a build ships, and no runtime warning is needed here.
+		- The knobs key lists in `config.rs` copy what `read_setting` and `read_group` read, and need a line when knobs reads a new key.
+		- A runtime warning in knobs is drafted for silkterm in the upstream folder, `2026103115232265/`.
+	- Branch: round-1102
+	- Test case: `config::tests::the_spec_has_no_key_that_nothing_reads` (der4w). It fails with one `gate:` changed to `gaet:`, and passes on the spec.
+	- Acceptance signoff: Self-closed 20261101: der4w.
+	- Closed: 20261101-173643
 	- Origin: `f89e55e`. First review. Confirmed with a probe, `gaet:` was ignored.
 
 - Code review 20261031 item 30: The settings window's teardown relies on being hidden first
