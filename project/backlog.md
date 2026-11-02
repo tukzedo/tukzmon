@@ -22,6 +22,17 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- Hybrid laptop: GPU memory, on by default, keeps the NVIDIA GPU awake
+	- ID: 2026110118380381
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261101-183803
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232174
+	- Requirements: NVML is now open only while a GPU graph is shown, but GPU memory is on by default, so a hybrid laptop still opens it at start and holds it. Where the NVIDIA card's `power/control` is `auto`, read its `power/runtime_status`, which doesn't wake it, and leave NVML closed while it's `suspended`. Or turn GPU memory off by default on such a box. Check on a hybrid laptop, or a stand-in for the sysfs files.
+	- Estimated effort: Avg
+
 - At a panel's width, history lookups are 42% of the profiler's tick
 	- ID: 2026110116150685
 	- Type: Enhancement
@@ -494,24 +505,55 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 26: ZFS ARC counts as programs in the memory graph
 	- ID: 2026103115232189
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152321
 	- Opened by: t00mietum
 	- Requirements: Read `/proc/spl/kstat/zfs/arcstats` size when it exists, and count it as cache, as htop can.
 	- Estimated effort: Low
+	- Actual effort: Low
 	- Origin: `940bb77`. First review. Confirmed on b23, 7.7 GiB.
+	- Progress log:
+		- The memory graph's cache takes in the ARC's size over `c_min`, and user loses the same. It's read each sample, kept open, and a box without ZFS reads 0.
+		- On b23 that's 3.6 GiB of the ARC's 7.5 GiB, since `c_min` is 3.9 GiB there.
+		- `design.md` Data sources on Linux, Memory, has it.
+		- Verified: der6g and der6h passed, and failed with the ARC left out. The quick gate passed.
+	- Decisions:
+		- Only the part over `c_min`, as htop counts it, since the ARC won't shrink below that, and cache here means what can be given back, as with `SReclaimable`. This departs from "size" in the wording but meets "as htop can".
+		- The ARC part is capped at what user had, since the two files aren't read at the same instant.
+		- Read in the memory reader only, not the per-tick `/proc/meminfo` cache, since swap and zswap don't need it.
+	- Branch: round-1102
+	- Test case: `mem::tests::arc_over_its_floor_counts_as_cache_not_programs` (der6g) and `the_memory_reader_reads_the_arc_each_time_and_none_is_none` (der6h). Both fail with the ARC left out of `memory_shares`. der6h also parses the real arcstats where ZFS is loaded.
+		- Swept: `memory_shares` is the one place cache is worked out. Every `MemoryReader` built as a unit struct in tests now uses `default()`.
+	- Closed: 20261101-185055
 
 - Code review 20261031 item 25: NVML keeps a hybrid laptop's NVIDIA GPU open, and reads device 0
 	- ID: 2026103115232174
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152321
 	- Opened by: t00mietum
+	- Related IDs: 2026110118380381
 	- Requirements: The GPU memory graph is on by default, so every NVIDIA box opens NVML at start and asks each second. On a hybrid laptop that may keep the discrete GPU from powering down, and device 0 is usually that one, not the display GPU. Check on b28l or a stand-in, and open NVML only while a GPU graph is shown.
 	- Estimated effort: Avg
+	- Actual effort: Avg
 	- Origin: `5b569ad`. First review. Plausible, no hybrid laptop to try.
+	- Progress log:
+		- Each GPU reader opens NVML for itself and shuts it down when dropped. NVML counts opens, so it closes when both graphs are hidden, and opens again when one is shown. The library stays loaded.
+		- On b23 the plugin held 7 `/dev/nvidia*` files while a GPU graph was shown, and none once both were hidden.
+		- GPU memory is still on by default, so a hybrid laptop opens NVML at start. 2026110118380381 has that part.
+		- `design.md` Data sources on Linux, GPU, has it.
+		- Verified: der6j and der6k passed, and failed with the shutdown taken out. dekma, dekmd, dektd and der6k passed on b23's host with the RTX 3060 Ti. The quick gate passed.
+	- Decisions:
+		- NVML's first device stays. On a hybrid laptop NVML lists only the NVIDIA GPU, so device 0 is the discrete one, and the other GPU is Intel's or AMD's, which NVML can't read. The GPU picker stays deferred, as in round-1030.
+		- Closed through the readers' drop, not `Source::follow`, since `Slots` already drops a hidden graph's reader.
+		- The library isn't unloaded, since keeping its code mapped holds no GPU.
+		- No hybrid laptop to try, so the wake-up itself is unverified. b28l has no Rust. The stand-in and b23's open files cover what the code does.
+	- Branch: round-1102
+	- Test case: `gpu::tests::nvml_is_open_only_while_a_gpu_graph_is_shown` (der6j), through `Graphs` with a stand-in NVML, and `core/tests/nvml.rs` `hiding_both_gpu_graphs_lets_go_of_the_nvidia_device` (der6k), with the real driver where there is one. Both fail with the shutdown taken out.
+		- Swept: the one NVML open in `core/src/gpu.rs`, both readers through `Card::find`, the Miri stand-in, the settings window's `Live`, which makes every graph while it's open, and `design.md` for "NVML handle".
+	- Closed: 20261101-185055
 
 - Label wording: "and" for ampersands, and "default" on Width
 	- ID: 2026103115020300

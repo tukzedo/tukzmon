@@ -1019,7 +1019,7 @@ mod tests {
 			"CPU 10%\nUser 3%\nSystem 2%\nNice 4%\nI/O wait 1%"
 		);
 		assert_eq!(
-			MemoryReader.text(&[0.4, 0.02, 0.3]),
+			MemoryReader::default().text(&[0.4, 0.02, 0.3]),
 			"Memory 40% in use\nBuffers 2%\nCache 30%"
 		);
 		let t = collect::Tree::new(
@@ -1036,7 +1036,7 @@ mod tests {
 		let disk = DiskReader::new(disk::Drives::Only(Vec::new())).unwrap();
 		let mut tips = vec![
 			CpuReader::default().text(&[0.01, 0.02, 0.03, 0.04]),
-			MemoryReader.text(&[0.4, 0.02, 0.3]),
+			MemoryReader::default().text(&[0.4, 0.02, 0.3]),
 			gpu.text(&[0.44]),
 			vram.text(&[0.31]),
 			SwapReader.text(&[0.1]),
@@ -1346,7 +1346,7 @@ mod tests {
 	// Test ID: deqqs
 	#[test]
 	fn a_suspend_moves_the_clock_to_the_wall_and_is_a_gap() {
-		let mut g = Graph::with(Look::default(), MemoryReader);
+		let mut g = Graph::with(Look::default(), MemoryReader::default());
 		g.sample();
 		g.skip(1.0);
 		g.sample();
@@ -1373,7 +1373,7 @@ mod tests {
 	// Test ID: deqqt
 	#[test]
 	fn a_clock_set_back_while_running_never_runs_back() {
-		let mut g = Graph::with(Look::default(), MemoryReader);
+		let mut g = Graph::with(Look::default(), MemoryReader::default());
 		g.sample();
 		g.skip(1.0);
 		g.sample();
@@ -1391,7 +1391,7 @@ mod tests {
 	#[test]
 	fn history_saved_hours_ahead_moves_the_clock_but_a_day_ahead_starts_over() {
 		let ahead = |secs: f64| {
-			let mut g = Graph::with(Look::default(), MemoryReader);
+			let mut g = Graph::with(Look::default(), MemoryReader::default());
 			let end = g.now() + secs;
 			let mut h = History::<3>::default();
 			h.add(end - 60.0, end, &[0.5; 3]);

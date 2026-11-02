@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
-//! Memory and swap from `/proc/meminfo`.
+//! Memory and swap from `/proc/meminfo`, and ZFS's ARC for the memory graph.
 
 use std::cell::RefCell;
 
 use crate::collect::{Collector, Kept};
 
 const MEMINFO: &str = "/proc/meminfo";
+const ARCSTATS: &str = "/proc/spl/kstat/zfs/arcstats";
 
 /// The `/proc/meminfo` rows used here, in kB.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -131,18 +132,38 @@ pub(crate) fn once_a_tick<R>(f: impl FnOnce() -> R) -> R {
 	f()
 }
 
+/// The part of ZFS's ARC that would give way to programs, in kB: its `size`
+/// over `c_min`, as htop counts it. None without both rows.
+pub fn parse_arcstats(text: &str) -> Option<u64> {
+	let (mut size, mut min) = (None, None);
+	for line in text.lines() {
+		let mut cols = line.split_ascii_whitespace();
+		let slot = match cols.next() {
+			Some("size") => &mut size,
+			Some("c_min") => &mut min,
+			_ => continue,
+		};
+		// name, type, data
+		*slot = Some(cols.nth(1)?.parse::<u64>().ok()?);
+	}
+	Some(size?.saturating_sub(min?) / 1024)
+}
+
 /// User, buffers and cache, as shares of all memory. User is what's left
 /// once free, buffers and cache are taken out. Cache takes in reclaimable
-/// slab, as `free` counts it (backlog 2026102508354893).
-pub fn memory_shares(m: &Meminfo) -> Option<[f32; 3]> {
+/// slab, as `free` counts it (backlog 2026102508354893), and `arc` kB of
+/// ZFS's ARC, which `Cached` leaves out.
+pub fn memory_shares(m: &Meminfo, arc: u64) -> Option<[f32; 3]> {
 	if m.total == 0 {
 		return None;
 	}
-	let cache = m.cached + m.sreclaimable;
-	let user = m
+	let used = m
 		.total
 		.saturating_sub(m.free)
-		.saturating_sub(m.buffers + cache);
+		.saturating_sub(m.buffers + m.cached + m.sreclaimable);
+	// the two files aren't read at the same instant
+	let arc = arc.min(used);
+	let (user, cache) = (used - arc, m.cached + m.sreclaimable + arc);
 	let t = m.total as f64;
 	let f = |x: u64| (x as f64 / t).clamp(0.0, 1.0) as f32;
 	Some([f(user), f(m.buffers), f(cache)])
@@ -157,21 +178,49 @@ pub fn swap_share(m: &Meminfo) -> Option<[f32; 1]> {
 	Some([(used as f64 / m.swap_total as f64).clamp(0.0, 1.0) as f32])
 }
 
-/// Reads `/proc/meminfo` for the memory graph.
-#[derive(Debug, Default)]
-pub struct MemoryReader;
+/// Reads `/proc/meminfo` for the memory graph, and ZFS's ARC where it's
+/// loaded.
+#[derive(Debug)]
+pub struct MemoryReader {
+	arc: Kept,
+	buf: String,
+}
+
+impl Default for MemoryReader {
+	fn default() -> Self {
+		MemoryReader::with_arc(ARCSTATS)
+	}
+}
+
+impl MemoryReader {
+	fn with_arc(path: &str) -> Self {
+		MemoryReader {
+			arc: Kept::new(path),
+			buf: String::new(),
+		}
+	}
+
+	// kept open and tried each read, so a pool imported after start counts
+	fn arc_kb(&mut self) -> u64 {
+		self.arc
+			.read(&mut self.buf)
+			.and_then(parse_arcstats)
+			.unwrap_or(0)
+	}
+}
 
 impl Collector<3> for MemoryReader {
 	const SERIES: [&'static str; 3] = ["user", "buffers", "cache"];
 
 	fn probe() -> Option<Self> {
-		let mut r = MemoryReader;
+		let mut r = MemoryReader::default();
 		r.read()?;
 		Some(r)
 	}
 
 	fn read(&mut self) -> Option<[f32; 3]> {
-		memory_shares(&meminfo()?)
+		let m = meminfo()?;
+		memory_shares(&m, self.arc_kb())
 	}
 }
 
@@ -197,6 +246,7 @@ impl Collector<1> for SwapReader {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::collect::Tree;
 
 	// trimmed from a 6.12 kernel, with the column spacing it uses
 	const MEMINFO_TEXT: &str = "\
@@ -238,7 +288,7 @@ Hugepagesize:       2048 kB
 	#[test]
 	fn shares() {
 		let m = parse_meminfo(MEMINFO_TEXT).unwrap();
-		assert_eq!(memory_shares(&m), Some([0.5, 0.0625, 0.1875]));
+		assert_eq!(memory_shares(&m, 0), Some([0.5, 0.0625, 0.1875]));
 		assert_eq!(swap_share(&m), Some([0.25]));
 	}
 
@@ -248,7 +298,7 @@ Hugepagesize:       2048 kB
 		assert!(parse_meminfo("MemTotal: 100 kB\n").is_none());
 		assert!(parse_meminfo("").is_none());
 		let m = parse_meminfo("MemFree: 25 kB\nMemTotal: 100 kB\n").unwrap();
-		assert_eq!(memory_shares(&m), Some([0.75, 0.0, 0.0]));
+		assert_eq!(memory_shares(&m, 0), Some([0.75, 0.0, 0.0]));
 		assert_eq!(swap_share(&m), None);
 	}
 
@@ -273,9 +323,9 @@ Hugepagesize:       2048 kB
 			swap_free: 20,
 			..Meminfo::default()
 		};
-		assert_eq!(memory_shares(&m), Some([0.0, 0.2, 0.2]));
+		assert_eq!(memory_shares(&m, 0), Some([0.0, 0.2, 0.2]));
 		assert_eq!(swap_share(&m), Some([0.0]));
-		assert_eq!(memory_shares(&Meminfo::default()), None);
+		assert_eq!(memory_shares(&Meminfo::default(), 0), None);
 	}
 
 	// Test ID: defmy
@@ -286,7 +336,52 @@ Hugepagesize:       2048 kB
 		let m = parse_meminfo(text).unwrap();
 		assert_eq!(m.sreclaimable, 250);
 		// user 400 holds the 50 of slab that can't be reclaimed
-		assert_eq!(memory_shares(&m), Some([0.4, 0.05, 0.45]));
+		assert_eq!(memory_shares(&m, 0), Some([0.4, 0.05, 0.45]));
+	}
+
+	const ARCSTATS_TEXT: &str = "\
+24 1 0x01 148 40256 21980950453 133770195738518
+name                            type data
+hits                            4    513978511
+c                               4    8589934592
+c_min                           4    4294967296
+c_max                           4    8589934592
+size                            4    8053063680
+";
+
+	// Test ID: der6g
+	#[test]
+	fn arc_over_its_floor_counts_as_cache_not_programs() {
+		assert_eq!(parse_arcstats(ARCSTATS_TEXT), Some(3_670_016));
+		assert_eq!(parse_arcstats("size 4 100\n"), None);
+		assert_eq!(parse_arcstats("c_min 4 900\nsize 4 100\n"), Some(0));
+		assert_eq!(parse_arcstats("c_min 4 1\nsize 4 lots\n"), None);
+		let m = parse_meminfo(MEMINFO_TEXT).unwrap();
+		// programs 8 GB, of which 2 GB is ARC
+		assert_eq!(memory_shares(&m, 2_000_000), Some([0.375, 0.0625, 0.3125]));
+		// never more than programs had, as the files are read apart
+		assert_eq!(memory_shares(&m, 9_000_000), Some([0.0, 0.0625, 0.6875]));
+	}
+
+	// Test ID: der6h
+	#[test]
+	fn the_memory_reader_reads_the_arc_each_time_and_none_is_none() {
+		let t = Tree::new("arcstats", &[("arcstats", ARCSTATS_TEXT)]);
+		let mut r = MemoryReader::with_arc(&t.at("arcstats"));
+		assert_eq!(r.arc_kb(), 3_670_016);
+		std::fs::write(
+			t.at("arcstats"),
+			ARCSTATS_TEXT.replace("8053063680", "5368709120"),
+		)
+		.unwrap();
+		assert_eq!(r.arc_kb(), 1_048_576);
+		let mut none = MemoryReader::with_arc(&t.at("no_zfs"));
+		assert_eq!(none.arc_kb(), 0);
+		assert!(none.read().is_some());
+		// the real file, where ZFS is loaded, has both rows
+		if let Ok(text) = std::fs::read_to_string(ARCSTATS) {
+			assert!(parse_arcstats(&text).is_some(), "{text}");
+		}
 	}
 
 	// Test ID: decb2

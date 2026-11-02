@@ -1345,7 +1345,7 @@ mod tests {
 		g.tick_at(crate::clock_ms());
 		assert_eq!(meminfo_reads() - was, 2);
 		// outside a tick each read is its own
-		let mut m = MemoryReader;
+		let mut m = MemoryReader::default();
 		m.read();
 		m.read();
 		assert_eq!(meminfo_reads() - was, 4);
