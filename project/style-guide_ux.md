@@ -124,6 +124,7 @@ Rules for the settings window, taken from how it already behaves and adjusted wh
 	- The two columns start level with what the mode shows first.
 
 - A color row is a label, a chip that opens the picker, and the hex value, then the revert arrow.
+	- The revert arrow sits right after the hex value, not at the column's edge, so it's plain which color it resets. The mode's sits after its last choice.
 	- A color is labeled with the name of the series, as the hover tip shows it.
 	- Low, Medium, High, Border, Top, and Bottom mean the same on every graph.
 

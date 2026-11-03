@@ -40,6 +40,7 @@
 #include <QScreen>
 #include <QRegularExpressionValidator>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QSignalBlocker>
 #include <QSlider>
 #include <QSocketNotifier>
@@ -252,6 +253,11 @@ public:
 	bool ownHeight = true;
 	QSize sizeHint() const override {
 		QSize s = QScrollArea::sizeHint();
+		// its width stops short too, which squeezed the graph list's dropdowns
+		if (widget())
+			s.setWidth(std::max(s.width(),
+				widget()->sizeHint().width() + (2 * frameWidth()) +
+					(ownHeight ? 0 : verticalScrollBar()->sizeHint().width())));
 		if (!ownHeight)
 			s.setHeight(minimumSizeHint().height());
 		else if (widget())
@@ -1101,8 +1107,10 @@ public:
 		return out;
 	}
 
-	// "id left mid control" per row shown with a label, in the window: its
-	// label's left edge and middle line, and its control's left edge
+	// "id left mid control right revert" per row shown with a label, in the
+	// window: its label's left edge and middle line, its control's left edge,
+	// the right edge of its last part, such as a color's hex box, and its
+	// revert's left edge
 	std::vector<std::string> rowSpots() const {
 		std::vector<std::string> out;
 		for (const auto &r : rows) {
@@ -1110,8 +1118,27 @@ public:
 				continue;
 			const QRect l(r->label->mapTo(this, QPoint(0, 0)), r->label->size());
 			const int c = r->control->mapTo(this, QPoint(0, 0)).x();
+			const QWidget *last = r->line ? static_cast<QWidget *>(r->line) : r->control;
+			if (!r->radios.empty())
+				last = r->radios.back();
+			const int right = last->mapTo(this, QPoint(last->width(), 0)).x();
+			const int back = r->revert ? r->revert->mapTo(this, QPoint(0, 0)).x() : -1;
 			out.push_back(r->id() + " " + std::to_string(l.left()) + " " + std::to_string(l.center().y()) + " " +
-				std::to_string(c));
+				std::to_string(c) + " " + std::to_string(right) + " " + std::to_string(back));
+		}
+		return out;
+	}
+
+	// "name left mid ..." per graph list row, for each of its cells in order
+	std::vector<std::string> listCells() const {
+		std::vector<std::string> out;
+		for (const auto &l : listRows) {
+			std::string line = l.name;
+			for (const QWidget *c : l.cells()) {
+				const QRect at(c->mapTo(this, QPoint(0, 0)), c->size());
+				line += " " + std::to_string(at.left()) + " " + std::to_string(at.center().y());
+			}
+			out.push_back(line);
 		}
 		return out;
 	}
@@ -1185,11 +1212,13 @@ private:
 		Row *width = nullptr;
 		Row *sample = nullptr;
 		Row *time = nullptr;
+		Row *vertical = nullptr;
 		LiveGraph *space = nullptr;
 		QToolButton *revert = nullptr;
 		Gripper *grip = nullptr;
-		std::array<QWidget *, 7> cells() const {
-			return {show->control, space, width->control, sample->control, time->control, revert, grip};
+		std::array<QWidget *, 8> cells() const {
+			return {show->control, space, width->control, sample->control, time->control, vertical->control, revert,
+				grip};
 		}
 	};
 	QWidget *list = nullptr;
@@ -1324,9 +1353,11 @@ private:
 		}
 	}
 
-	static QGridLayout *rowGrid(QWidget *on) {
+	// A section's colors are short, so the room goes after its reverts,
+	// which then sit by what they reset.
+	static QGridLayout *rowGrid(QWidget *on, bool section = false) {
 		auto *grid = new QGridLayout(on);
-		grid->setColumnStretch(1, 1);
+		grid->setColumnStretch(section ? 3 : 1, 1);
 		grid->setVerticalSpacing(6);
 		return grid;
 	}
@@ -1369,7 +1400,7 @@ private:
 		}
 		for (int side = 0; side < 2; side++) {
 			auto *col = new QWidget;
-			s.side[size_t(side)] = rowGrid(col);
+			s.side[size_t(side)] = rowGrid(col, true);
 			s.side[size_t(side)]->setContentsMargins(0, 0, 0, 0);
 			g->addWidget(col, 4, side, Qt::AlignTop);
 		}
@@ -1402,13 +1433,9 @@ private:
 			const size_t side = r.info.beside ? 1 : 0;
 			if (side == 0 && !std::exchange(s.leadDone, true) && r.info.control != ControlKind::Heading) {
 				auto *top = new QWidget;
-				s.lead = rowGrid(top);
+				s.lead = rowGrid(top, true);
 				s.lead->setContentsMargins(0, 0, 0, 0);
 				s.outer->addWidget(top, 2, 0, 1, 2, Qt::AlignTop);
-				placeRow(r, info, s.lead, s.leadLine);
-				continue;
-			}
-			if (r.info.same_line && s.lead && lastPlaced && lastPlaced->grid == s.lead) {
 				placeRow(r, info, s.lead, s.leadLine);
 				continue;
 			}
@@ -1447,8 +1474,8 @@ private:
 				r.gap = line;
 				grid->setRowMinimumHeight(line++, HEAD_GAP);
 			}
-			grid->addWidget(h, line++, 0, 1, 3);
-			grid->addWidget(rule, line++, 0, 1, 3);
+			grid->addWidget(h, line++, 0, 1, -1);
+			grid->addWidget(rule, line++, 0, 1, -1);
 			r.head = h;
 			r.rule = rule;
 			lastPlaced = nullptr;
@@ -1525,22 +1552,23 @@ private:
 	}
 
 	// The rows under Graphs as one list: show, a space for the graph, width,
-	// sample rate, time axis, revert and a gripper. The grippers write the
-	// order.
+	// sample rate, time axis, vertical scale, revert and a gripper. The
+	// grippers write the order.
 	QWidget *buildList() {
 		list = new QWidget;
 		listGrid = new QGridLayout(list);
 		listGrid->setContentsMargins(0, 0, 0, 0);
-		listGrid->setColumnStretch(5, 1);
+		listGrid->setColumnStretch(6, 1);
 		for (auto &g : graph_rows(d)) {
 			ListRow lr{.name = std::string(g.name),
 				.show = rowFor(g.show),
 				.width = rowFor(g.width),
 				.sample = rowFor(g.sample),
-				.time = rowFor(g.time)};
-			if (!lr.show || !lr.width || !lr.sample || !lr.time)
+				.time = rowFor(g.time),
+				.vertical = rowFor(g.vertical)};
+			if (!lr.show || !lr.width || !lr.sample || !lr.time || !lr.vertical)
 				continue;
-			for (Row *r : {lr.show, lr.width, lr.sample, lr.time})
+			for (Row *r : {lr.show, lr.width, lr.sample, lr.time, lr.vertical})
 				r->control = buildControl(*r);
 			const QString graph = qs(lr.show->info.label);
 			lr.show->check->setText(graph);
@@ -1555,6 +1583,7 @@ private:
 			nameRow(*lr.width, graph + " width %");
 			nameRow(*lr.sample, graph + " sample %");
 			nameRow(*lr.time, graph + " time axis");
+			nameRow(*lr.vertical, graph + " vertical scale");
 			lr.space->setAccessibleName(graph);
 			lr.revert->setAccessibleName("Revert " + graph);
 			lr.grip->setAccessibleName("Move " + graph);
@@ -1562,7 +1591,7 @@ private:
 			connect(lr.revert, &QToolButton::clicked, this, [this, name] {
 				for (auto &l : listRows)
 					if (l.name == name)
-						for (Row *r : {l.show, l.width, l.sample, l.time})
+						for (Row *r : {l.show, l.width, l.sample, l.time, l.vertical})
 							reset_row(d, r->id());
 				refresh();
 			});
@@ -1573,6 +1602,7 @@ private:
 		auto *widthHead = new QLabel("Width %");
 		auto *sampleHead = new QLabel("Sample %");
 		auto *timeHead = new QLabel("Time axis");
+		auto *verticalHead = new QLabel("Vertical scale");
 		// about the column, since a row's tip names its graph and how it was set
 		widthHead->setToolTip("How wide each graph is, or how tall on a vertical panel, as a percentage of Width px "
 							  "default, on the General tab.");
@@ -1581,9 +1611,12 @@ private:
 							   "50 ms counts as 50 ms.");
 		timeHead->setToolTip("How each graph spreads time across its width. Default follows Scale default under "
 							 "Time axis, on the General tab, where the tip tells the curves apart.");
+		verticalHead->setToolTip("How height goes up each graph. Global default follows Scale default under "
+								 "Vertical axis, on the General tab, where the tip tells the scales apart.");
 		listGrid->addWidget(widthHead, 0, 2);
 		listGrid->addWidget(sampleHead, 0, 3);
 		listGrid->addWidget(timeHead, 0, 4);
+		listGrid->addWidget(verticalHead, 0, 5);
 		placeList();
 		return list;
 	}
@@ -1593,7 +1626,7 @@ private:
 		for (size_t i = 0; i < listRows.size(); i++) {
 			const int at = int(i) + 1;
 			const auto cells = listRows[i].cells();
-			const std::array<int, 7> cols = {0, 1, 2, 3, 4, 6, 7};
+			const std::array<int, 8> cols = {0, 1, 2, 3, 4, 5, 7, 8};
 			for (size_t k = 0; k < cells.size(); k++) {
 				listGrid->removeWidget(cells[k]);
 				// narrower graphs sit left, so the column is the widest's
@@ -1603,7 +1636,7 @@ private:
 		// the next drag event reads the new places
 		listGrid->activate();
 		std::vector<QWidget *> cells;
-		cells.reserve(listRows.size() * 7);
+		cells.reserve(listRows.size() * 8);
 		for (const auto &l : listRows)
 			std::ranges::copy(l.cells(), std::back_inserter(cells));
 		tabInOrder(cells);
@@ -1670,7 +1703,7 @@ private:
 		for (auto &l : listRows) {
 			l.space->fit();
 			bool changed = false;
-			for (Row *r : {l.show, l.width, l.sample, l.time})
+			for (Row *r : {l.show, l.width, l.sample, l.time, l.vertical})
 				changed |= row_state(d, r->id()).can_reset;
 			l.revert->setEnabled(changed);
 			l.revert->setToolTip(changed ? "Back to the defaults." : "");
@@ -2157,6 +2190,10 @@ public:
 };
 
 void openSized(Window &w) {
+	// a page not shown yet keeps the size it had before its dropdowns were
+	// filled, which squeezed the graph list
+	for (auto *c : w.findChildren<QWidget *>())
+		c->updateGeometry();
 	QSize size = w.sizeHint().expandedTo(QSize(560, 420));
 	if (const QScreen *screen = w.screen())
 		size = fitSize(size, screen->availableGeometry(), QMargins());
@@ -2361,6 +2398,21 @@ rust::Vec<rust::String> colors_row_spots(Dialog &d) {
 	return out;
 }
 
+rust::Vec<rust::String> list_cells(Dialog &d) {
+	const App app("offscreen");
+	Window w(d);
+	openSized(w);
+	w.show();
+	for (int i = 0; i < w.tabCount(); i++)
+		if (QString::fromStdString(w.tabText(i)).trimmed() == "Graphs")
+			w.select(i);
+	tukzmon::App::processEvents();
+	rust::Vec<rust::String> out;
+	for (auto &s : w.listCells())
+		out.push_back(rust::String(s));
+	return out;
+}
+
 rust::Vec<rust::String> bottom_buttons(Dialog &d) {
 	const App app("offscreen");
 	const Window w(d);
@@ -2428,7 +2480,7 @@ rust::Vec<rust::String> list_head_tips(Dialog &d) {
 	const App app("offscreen");
 	const Window w(d);
 	rust::Vec<rust::String> out;
-	for (const char *head : {"Width %", "Sample %", "Time axis"})
+	for (const char *head : {"Width %", "Sample %", "Time axis", "Vertical scale"})
 		for (auto *l : w.findChildren<QLabel *>())
 			// General's Time axis heading is bold, and isn't the list's
 			if (l->text() == head && !l->font().bold())
@@ -2798,6 +2850,27 @@ rust::Vec<rust::String> window_fit(Dialog &d, rust::Str screens) {
 		w.select(i);
 		tukzmon::App::processEvents();
 		out.push_back(rust::String(QString::fromStdString(w.tabText(i)).trimmed().toStdString() + " " + w.scrollNow()));
+	}
+	return out;
+}
+
+rust::Vec<rust::String> squeezed(Dialog &d, rust::Str screens) {
+	const App app("offscreen:configfile=" + QByteArray(screens.data(), qsizetype(screens.size())));
+	tukzmon::App::setStyle(new BoxStyle);
+	Window w(d);
+	openSized(w);
+	w.show();
+	rust::Vec<rust::String> out;
+	for (int i = 0; i < w.tabCount(); i++) {
+		if (!w.isLeaf(i))
+			continue;
+		w.select(i);
+		tukzmon::App::processEvents();
+		for (const auto *c : w.findChildren<QComboBox *>())
+			if (c->isVisible() && c->width() < c->sizeHint().width())
+				out.push_back(rust::String(QString::fromStdString(w.tabText(i)).trimmed().toStdString() + ": " +
+					c->accessibleName().toStdString() + " " + std::to_string(c->width()) + " of " +
+					std::to_string(c->sizeHint().width())));
 	}
 	return out;
 }

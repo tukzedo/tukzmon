@@ -49,6 +49,7 @@ pub struct GraphRow {
 	pub width: String,
 	pub sample: String,
 	pub time: String,
+	pub vertical: String,
 }
 
 /// The setting the graph list's grippers write.
@@ -561,8 +562,8 @@ impl Dialog {
 	}
 
 	/// The graph list, first drawn first. A graph is in it once the spec has
-	/// its `<name>.show`, `.width`, `.sample` and `.time` rows, so a new
-	/// graph brings its own row.
+	/// its `<name>.show`, `.width`, `.sample`, `.time` and `.vertical` rows,
+	/// so a new graph brings its own row.
 	pub fn graph_rows(&self) -> Vec<GraphRow> {
 		tukzmon_core::graphs::draw_order(&self.saved_order())
 			.into_iter()
@@ -574,6 +575,7 @@ impl Dialog {
 					width: id("width")?,
 					sample: id("sample")?,
 					time: id("time")?,
+					vertical: id("vertical")?,
 				})
 			})
 			.collect()
@@ -622,7 +624,7 @@ impl Dialog {
 	pub fn in_graph_list(&self, id: &str) -> bool {
 		id == ORDER
 			|| self.graph_rows().iter().any(|r| {
-				[&r.show, &r.width, &r.sample, &r.time]
+				[&r.show, &r.width, &r.sample, &r.time, &r.vertical]
 					.iter()
 					.any(|s| *s == id)
 			})
@@ -1120,6 +1122,7 @@ mod tests {
 				width: "mem_width".into(),
 				sample: "mem_sample".into(),
 				time: "mem_time".into(),
+				vertical: "mem_vertical".into(),
 			}
 		);
 		// every graph the panel draws, so a new one can't be left off the list
@@ -1142,6 +1145,7 @@ mod tests {
 			"show_cpu",
 			"cpu_width",
 			"cpu_time",
+			"cpu_vertical",
 			"show_memory",
 			"mem_width",
 			"mem_time",
@@ -1149,7 +1153,7 @@ mod tests {
 		] {
 			assert!(dlg.in_graph_list(id), "{id}");
 		}
-		for id in ["width", "time_axis", "graphshead", "theme"] {
+		for id in ["width", "time_axis", "vertical_axis", "graphshead", "theme"] {
 			assert!(!dlg.in_graph_list(id), "{id}");
 		}
 		// a hidden graph's width and time axis can still be set

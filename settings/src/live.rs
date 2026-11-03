@@ -469,6 +469,10 @@ mod tests {
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri can't load a library")]
 	fn the_gpu_rows_are_there_only_with_a_gpu_to_read() {
+		if tukzmon_core::gpu::nvidia_asleep() {
+			// no total from a card asleep since start, so no GiB in its tip
+			return;
+		}
 		let path = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_live_gpu_never_written.shcl",
 			std::process::id()

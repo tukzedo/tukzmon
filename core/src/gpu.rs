@@ -86,6 +86,11 @@ mod nvml {
 	}
 
 	impl Nvml {
+		/// Whether the library loads. That touches no GPU.
+		pub(super) fn loads() -> bool {
+			lib().is_some()
+		}
+
 		pub(super) fn open() -> Option<Nvml> {
 			let lib = lib()?;
 			// SAFETY: the calls are as nvml.h has them, and the device
@@ -198,6 +203,10 @@ mod nvml {
 	pub(super) enum Nvml {}
 
 	impl Nvml {
+		pub(super) fn loads() -> bool {
+			false
+		}
+
 		pub(super) fn open() -> Option<Nvml> {
 			None
 		}
@@ -218,14 +227,211 @@ mod nvml {
 }
 
 use nvml::Nvml;
+use std::cell::Cell;
+use std::time::{Duration, Instant};
 
 const DRM: &str = "/sys/class/drm";
+const PCI: &str = "/sys/bus/pci/devices";
+
+// Idle reads in a row before NVML lets go of a card that may sleep, and
+// how long it then stays shut past the card's own autosuspend delay.
+const IDLE_READS: u32 = 5;
+const REST_PAST_DELAY: Duration = Duration::from_secs(5);
+
+thread_local! {
+	// shared, so the GPU and GPU memory readers rest together and neither
+	// keeps the card up for the other
+	static REST_UNTIL: Cell<Option<Instant>> = const { Cell::new(None) };
+}
+
+#[cfg(test)]
+thread_local! {
+	static PCI_AT: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
+fn pci() -> String {
+	#[cfg(test)]
+	if let Some(at) = PCI_AT.with_borrow(Clone::clone) {
+		return at;
+	}
+	PCI.to_owned()
+}
+
+/// Whether the first NVIDIA card is asleep, where the kernel may put it to
+/// sleep. The GPU graphs then read 0 without asking NVML.
+pub fn nvidia_asleep() -> bool {
+	let mut buf = String::new();
+	Power::find(&pci()).is_some_and(|mut p| p.may_sleep(&mut buf) && p.asleep(&mut buf))
+}
 
 /// Where the GPU's numbers come from.
 #[derive(Debug)]
 enum Card {
-	Nvidia(Nvml),
+	Nvidia(Nvidia),
 	Amd(Amd),
+}
+
+/// The NVIDIA card's runtime power files. Reading them doesn't wake the
+/// card, as an NVML call does (2026110118380381).
+#[derive(Debug)]
+struct Power {
+	control: Kept,
+	status: Kept,
+	rest: Duration,
+}
+
+impl Power {
+	/// The first function bound to the nvidia driver that's a display
+	/// card, in bus order, as NVML numbers them.
+	fn find(pci: &str) -> Option<Power> {
+		let mut names: Vec<String> = std::fs::read_dir(pci)
+			.ok()?
+			.filter_map(|e| e.ok()?.file_name().into_string().ok())
+			.collect();
+		names.sort();
+		names
+			.into_iter()
+			.map(|n| format!("{pci}/{n}"))
+			.find(|dir| is_nvidia_display(dir))
+			.map(|dir| Power::new(&dir))
+	}
+
+	fn new(dir: &str) -> Power {
+		// unreadable where the kernel doesn't autosuspend it
+		let delay = std::fs::read_to_string(format!("{dir}/power/autosuspend_delay_ms"))
+			.ok()
+			.and_then(|s| s.trim().parse::<u64>().ok())
+			.unwrap_or(0);
+		Power {
+			control: Kept::new(format!("{dir}/power/control")),
+			status: Kept::new(format!("{dir}/power/runtime_status")),
+			rest: Duration::from_millis(delay) + REST_PAST_DELAY,
+		}
+	}
+
+	fn may_sleep(&mut self, buf: &mut String) -> bool {
+		self.control.read(buf).is_some_and(|s| s.trim() == "auto")
+	}
+
+	fn asleep(&mut self, buf: &mut String) -> bool {
+		self.status
+			.read(buf)
+			.is_some_and(|s| s.trim() == "suspended")
+	}
+}
+
+fn is_nvidia_display(dir: &str) -> bool {
+	let text = |f: &str| std::fs::read_to_string(format!("{dir}/{f}")).unwrap_or_default();
+	text("vendor").trim() == "0x10de"
+		&& text("class").starts_with("0x03")
+		&& std::fs::read_link(format!("{dir}/driver"))
+			.is_ok_and(|l| l.file_name().is_some_and(|n| n == "nvidia"))
+}
+
+/// NVML on the first NVIDIA card. Where the kernel may put the card to
+/// sleep, NVML stays shut while it's asleep, and lets go of it after a few
+/// idle reads, since every NVML call keeps it awake.
+#[derive(Debug)]
+struct Nvidia {
+	nvml: Option<Nvml>,
+	power: Option<Power>,
+	sleepy: bool,
+	idle: u32,
+	used: u64,
+	total: u64,
+}
+
+impl Nvidia {
+	fn find(pci: &str) -> Option<Nvidia> {
+		let mut n = Nvidia {
+			nvml: None,
+			power: Power::find(pci),
+			sleepy: false,
+			idle: 0,
+			used: 0,
+			total: 0,
+		};
+		let mut buf = String::new();
+		let asleep = n
+			.power
+			.as_mut()
+			.is_some_and(|p| p.may_sleep(&mut buf) && p.asleep(&mut buf));
+		if asleep {
+			return Nvml::loads().then_some(n);
+		}
+		n.nvml = Some(Nvml::open()?);
+		Some(n)
+	}
+
+	fn awake(&mut self, buf: &mut String) -> Awake<'_> {
+		self.sleepy = self.power.as_mut().is_some_and(|p| p.may_sleep(buf));
+		if self.sleepy && REST_UNTIL.get().is_some_and(|t| Instant::now() < t) {
+			self.nvml = None;
+			return Awake::Resting;
+		}
+		if self.nvml.is_none() {
+			if self.sleepy && self.power.as_mut().is_some_and(|p| p.asleep(buf)) {
+				return Awake::Resting;
+			}
+			self.nvml = Nvml::open();
+			self.idle = 0;
+		}
+		self.nvml.as_ref().map_or(Awake::Failed, Awake::Open)
+	}
+
+	fn busy(&mut self, buf: &mut String) -> Option<f32> {
+		let n = match self.awake(buf) {
+			Awake::Open(n) => n,
+			// it went quiet before it rested, or it sleeps
+			Awake::Resting => return Some(0.0),
+			Awake::Failed => return None,
+		};
+		let busy = n.busy();
+		self.rest_if_idle(busy);
+		busy
+	}
+
+	fn memory(&mut self, buf: &mut String) -> Option<(u64, u64)> {
+		let n = match self.awake(buf) {
+			Awake::Open(n) => n,
+			Awake::Resting => {
+				// a card asleep holds nothing
+				if self.power.as_mut().is_some_and(|p| p.asleep(buf)) {
+					self.used = 0;
+				}
+				return Some((self.used, self.total));
+			}
+			Awake::Failed => return None,
+		};
+		let (used, total) = n.memory()?;
+		let busy = n.busy();
+		(self.used, self.total) = (used, total);
+		self.rest_if_idle(busy);
+		Some((used, total))
+	}
+
+	fn rest_if_idle(&mut self, busy: Option<f32>) {
+		if !self.sleepy {
+			return;
+		}
+		// a card with no busy share to give counts as idle
+		self.idle = if busy.is_none_or(|b| b == 0.0) {
+			self.idle + 1
+		} else {
+			0
+		};
+		if self.idle >= IDLE_READS {
+			self.nvml = None;
+			let rest = self.power.as_ref().map_or(REST_PAST_DELAY, |p| p.rest);
+			REST_UNTIL.set(Some(Instant::now() + rest));
+		}
+	}
+}
+
+enum Awake<'a> {
+	Open(&'a Nvml),
+	Resting,
+	Failed,
 }
 
 /// An amdgpu card's files, in its `device` folder.
@@ -248,14 +454,14 @@ impl Amd {
 
 impl Card {
 	fn find() -> Option<Card> {
-		Nvml::open()
+		Nvidia::find(&pci())
 			.map(Card::Nvidia)
 			.or_else(|| amd_in(DRM).map(|dir| Card::Amd(Amd::new(&dir))))
 	}
 
 	fn busy(&mut self, buf: &mut String) -> Option<f32> {
 		match self {
-			Card::Nvidia(n) => n.busy(),
+			Card::Nvidia(n) => n.busy(buf),
 			Card::Amd(amd) => {
 				let pc: f32 = amd.busy.read(buf)?.trim().parse().ok()?;
 				Some((pc / 100.0).clamp(0.0, 1.0))
@@ -265,7 +471,7 @@ impl Card {
 
 	fn memory(&mut self, buf: &mut String) -> Option<(u64, u64)> {
 		match self {
-			Card::Nvidia(n) => n.memory(),
+			Card::Nvidia(n) => n.memory(buf),
 			Card::Amd(amd) => {
 				let mut num =
 					|file: &mut Kept| -> Option<u64> { file.read(buf)?.trim().parse().ok() };
@@ -348,6 +554,10 @@ impl Collector<1> for VramReader {
 	fn read(&mut self) -> Option<[f32; 1]> {
 		let (used, total) = self.card.memory(&mut self.buf)?;
 		self.total = total;
+		// no total yet from a card asleep since start
+		if total == 0 {
+			return Some([0.0]);
+		}
 		Some([(used as f64 / total as f64).clamp(0.0, 1.0) as f32])
 	}
 }
@@ -413,6 +623,10 @@ mod tests {
 		let [busy] = gpu.read().unwrap();
 		let [used] = vram.read().unwrap();
 		assert!((0.0..=1.0).contains(&busy), "{busy}");
+		if vram.total() == 0 {
+			// asleep since start, so NVML wasn't asked
+			return;
+		}
 		assert!(used > 0.0 && used <= 1.0 && vram.total() > 0, "{used}");
 	}
 
@@ -443,6 +657,7 @@ mod tests {
 			pub(super) static OPEN: Cell<i32> = const { Cell::new(0) };
 			pub(super) static INITS: Cell<u32> = const { Cell::new(0) };
 			pub(super) static NO_DEVICE: Cell<bool> = const { Cell::new(false) };
+			pub(super) static BUSY: Cell<c_uint> = const { Cell::new(40) };
 		}
 
 		extern "C" fn init() -> c_int {
@@ -467,7 +682,7 @@ mod tests {
 
 		extern "C" fn utilization(_: Device, u: *mut Utilization) -> c_int {
 			// SAFETY: as above.
-			unsafe { (*u).gpu = 40 };
+			unsafe { (*u).gpu = BUSY.get() };
 			0
 		}
 
@@ -498,6 +713,7 @@ mod tests {
 		use crate::graphs::Graphs;
 		use stand_in::{INITS, NO_DEVICE, OPEN};
 		nvml::STAND_IN.set(Some(&stand_in::LIB));
+		PCI_AT.set(Some("/nonexistent".into()));
 		let shown = |gpu: bool, vram: bool| {
 			Look::default()
 				.with(Which::Gpu, |e| e.show = gpu)
@@ -525,6 +741,103 @@ mod tests {
 		assert!(Nvml::open().is_none());
 		assert_eq!(OPEN.get(), 0);
 		nvml::STAND_IN.set(None);
+		PCI_AT.set(None);
+	}
+
+	// Test ID: desfa
+	#[test]
+	#[cfg(not(miri))]
+	fn nvml_leaves_a_card_that_may_sleep_alone_while_it_sleeps() {
+		use stand_in::{BUSY, INITS, OPEN};
+		let t = Tree::new(
+			"gpu_power",
+			&[
+				("0000:00:02.0/vendor", "0x8086\n"),
+				("0000:00:02.0/class", "0x030000\n"),
+				("0000:00:10.0/vendor", "0x10de\n"),
+				("0000:00:10.0/class", "0x030000\n"),
+				("0000:01:00.0/vendor", "0x10de\n"),
+				("0000:01:00.0/class", "0x030200\n"),
+				("0000:01:00.0/power/control", "auto\n"),
+				("0000:01:00.0/power/runtime_status", "suspended\n"),
+				("0000:01:00.1/vendor", "0x10de\n"),
+				("0000:01:00.1/class", "0x040300\n"),
+			],
+		);
+		let links = [
+			("0000:00:10.0", "vfio-pci"),
+			("0000:01:00.0", "nvidia"),
+			("0000:01:00.1", "nvidia"),
+		];
+		for (dev, driver) in links {
+			std::os::unix::fs::symlink(
+				format!("../../../bus/pci/drivers/{driver}"),
+				t.at(&format!("{dev}/driver")),
+			)
+			.unwrap();
+		}
+		let set = |file: &str, text: &str| {
+			std::fs::write(t.at(&format!("0000:01:00.0/power/{file}")), text).unwrap();
+		};
+		nvml::STAND_IN.set(Some(&stand_in::LIB));
+		PCI_AT.set(Some(t.at("")));
+		let is = |dev: &str| is_nvidia_display(&t.at(dev));
+		assert!(is("0000:01:00.0") && !is("0000:00:10.0") && !is("0000:01:00.1"));
+
+		let (mut gpu, mut vram) = (GpuReader::probe().unwrap(), VramReader::probe().unwrap());
+		assert_eq!((gpu.read(), vram.read()), (Some([0.0]), Some([0.0])));
+		assert_eq!(
+			(OPEN.get(), INITS.get(), vram.total()),
+			(0, 0, 0),
+			"asleep at start"
+		);
+		assert!(nvidia_asleep());
+
+		set("runtime_status", "active\n");
+		assert!(!nvidia_asleep());
+		assert_eq!((gpu.read(), vram.read()), (Some([0.4]), Some([0.25])));
+		assert_eq!(OPEN.get(), 2);
+
+		// idle, so both let go together, and stay shut while it's still up
+		BUSY.set(0);
+		for _ in 0..IDLE_READS {
+			assert_eq!((gpu.read(), vram.read()), (Some([0.0]), Some([0.25])));
+		}
+		assert_eq!(OPEN.get(), 0);
+		assert_eq!((gpu.read(), vram.read()), (Some([0.0]), Some([0.25])));
+		assert_eq!((OPEN.get(), INITS.get()), (0, 2));
+
+		set("runtime_status", "suspended\n");
+		REST_UNTIL.set(None);
+		for _ in 0..3 {
+			assert_eq!((gpu.read(), vram.read()), (Some([0.0]), Some([0.0])));
+		}
+		assert_eq!((OPEN.get(), INITS.get()), (0, 2), "nothing woke it");
+
+		// woken by something else
+		set("runtime_status", "active\n");
+		BUSY.set(40);
+		assert_eq!((gpu.read(), vram.read()), (Some([0.4]), Some([0.25])));
+		assert_eq!(OPEN.get(), 2);
+
+		// runtime power management off, so idle reads keep it open
+		set("control", "on\n");
+		BUSY.set(0);
+		for _ in 0..IDLE_READS * 2 {
+			gpu.read();
+			vram.read();
+		}
+		assert_eq!(OPEN.get(), 2);
+		drop((gpu, vram));
+		assert_eq!(OPEN.get(), 0);
+
+		BUSY.set(40);
+		REST_UNTIL.set(None);
+		nvml::STAND_IN.set(None);
+		PCI_AT.set(None);
+		for (dev, _) in links {
+			std::fs::remove_file(t.at(&format!("{dev}/driver"))).unwrap();
+		}
 	}
 
 	// Test ID: dektd

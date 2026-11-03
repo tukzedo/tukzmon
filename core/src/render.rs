@@ -9,7 +9,8 @@ use crate::axis::Ages;
 use crate::config::{Look, Outline, Rgb};
 use crate::history::History;
 
-/// Seconds a column can cover before its spike emphasis is down by half.
+/// Seconds a column can cover before its spike emphasis is down by half, at
+/// an emphasis near 0. The setting stretches it, see design.md Drawing.
 const SPIKE_FADE: f64 = 20.0;
 
 /// A column with less data than this is a gap.
@@ -31,7 +32,8 @@ const PEAK_FALL: f64 = 2.0;
 
 // mean plus part of the way to max, in the source's own unit
 fn reach<const N: usize>(mean: &[f32; N], max: &[f32; N], secs: f64, spikes: f32) -> [f32; N] {
-	let reach = spikes * (1.0 / (1.0 + secs / SPIKE_FADE)) as f32;
+	let fade = SPIKE_FADE * 1000f64.powf(f64::from(spikes));
+	let reach = spikes * (1.0 / (1.0 + secs / fade)) as f32;
 	std::array::from_fn(|i| mean[i] + (max[i] - mean[i]).max(0.0) * reach)
 }
 
@@ -487,10 +489,28 @@ mod tests {
 	#[test]
 	fn spike_reach_fades_with_time() {
 		let near = column(&[0.1], &[0.9], 0.5, 1.0)[0];
-		let far = column(&[0.1], &[0.9], 3600.0, 1.0)[0];
+		let far = column(&[0.1], &[0.9], 30.0 * 86400.0, 1.0)[0];
 		assert!(near > 0.8);
 		assert!(far < 0.11);
 		assert_eq!(column(&[0.1], &[0.9], 0.5, 0.0)[0], 0.1);
+	}
+
+	// Test ID: dese6
+	#[test]
+	fn more_emphasis_keeps_spikes_further_back() {
+		// how far up from the mean a column reaches, 0 to 1
+		let part = |secs: f64, spikes: f32| (column(&[0.1], &[0.9], secs, spikes)[0] - 0.1) / 0.8;
+		// a column on a 100 px log graph, in its second, third and last quarter
+		assert!(part(300.0, 1.0) > 0.95);
+		assert!(part(3.0 * 3600.0, 1.0) > 0.6);
+		assert!(part(300.0, 0.5) > 0.3);
+		assert!(part(3600.0, 0.5) > 0.07);
+		// a column covering days still melts into the background
+		assert!(part(4.0 * 86400.0, 1.0) < 0.1);
+		for secs in [1.0, 60.0, 3600.0, 86400.0] {
+			assert!(part(secs, 0.5) < part(secs, 0.75), "{secs}");
+			assert!(part(secs, 0.75) < part(secs, 1.0), "{secs}");
+		}
 	}
 
 	// Test ID: debja

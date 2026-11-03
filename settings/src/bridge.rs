@@ -72,6 +72,7 @@ pub mod ffi {
 		width: String,
 		sample: String,
 		time: String,
+		vertical: String,
 	}
 
 	#[derive(Debug)]
@@ -205,13 +206,20 @@ pub mod ffi {
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn section_tops(d: &mut Dialog) -> Vec<String>;
 		/// Per row shown with a label on the page the window opens on, "id
-		/// left mid control": its label's left edge and middle line, and its
-		/// control's left edge, in the window.
+		/// left mid control right revert": its label's left edge and middle
+		/// line, its control's left edge, the right edge of its last part,
+		/// such as a color's hex box, and its revert arrow's left edge, in
+		/// the window.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn row_spots(d: &mut Dialog) -> Vec<String>;
 		/// As `row_spots`, with Themes/Colors shown.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn colors_row_spots(d: &mut Dialog) -> Vec<String>;
+		/// Per graph list row, with Graphs shown, "name" and then each cell's
+		/// left edge and middle line in the window: show, graph, width,
+		/// sample, time axis, vertical scale, revert and gripper.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn list_cells(d: &mut Dialog) -> Vec<String>;
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn bottom_buttons(d: &mut Dialog) -> Vec<String>;
 		/// Enter pressed on the first button shown with this text, or with ""
@@ -279,6 +287,10 @@ pub mod ffi {
 		/// page asks for.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn window_fit(d: &mut Dialog, screens: &str) -> Vec<String>;
+		/// Opened as `window_fit` opens it, each dropdown on a page that's
+		/// narrower than it asks to be, as "page: name width of asked".
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn squeezed(d: &mut Dialog, screens: &str) -> Vec<String>;
 		/// The most contrast an empty checkbox has with the window, as WCAG
 		/// measures it.
 		#[allow(dead_code, reason = "only the tests ask")]
@@ -474,6 +486,7 @@ fn graph_rows(d: &Dialog) -> Vec<ffi::GraphRow> {
 			width: r.width,
 			sample: r.sample,
 			time: r.time,
+			vertical: r.vertical,
 		})
 		.collect()
 }
@@ -714,7 +727,7 @@ mod tests {
 			.collect();
 		let mut want: Vec<String> = graph_rows(&d)
 			.into_iter()
-			.flat_map(|g| [g.show, g.width, g.sample, g.time])
+			.flat_map(|g| [g.show, g.width, g.sample, g.time, g.vertical])
 			.collect();
 		want.push(crate::dialog::ORDER.to_string());
 		assert_eq!(listed, want);
@@ -1244,33 +1257,62 @@ mod tests {
 	// Test ID: der3q
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn each_graphs_vertical_scale_sits_right_of_its_colors_mode() {
+	fn each_graphs_vertical_scale_sits_right_of_its_time_axis() {
 		let _qt = qt_turn();
 		let path = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_vertical_never_written.shcl",
 			std::process::id()
 		));
 		let mut d = Dialog::open(path).unwrap();
-		let spots = ffi::colors_row_spots(&mut d);
-		let spot = |id: &str| -> Vec<i32> {
-			let line = spots
-				.iter()
-				.find(|l| l.split(' ').next() == Some(id))
-				.unwrap_or_else(|| panic!("no {id} in {spots:?}"));
-			line.split(' ')
+		let cells = ffi::list_cells(&mut d);
+		assert_eq!(
+			cells.len(),
+			tukzmon_core::config::Which::ALL.len(),
+			"{cells:?}"
+		);
+		for line in &cells {
+			let at: Vec<i32> = line
+				.split(' ')
 				.skip(1)
 				.map(|n| n.parse().unwrap())
-				.collect()
-		};
-		for w in tukzmon_core::config::Which::ALL {
-			let k = w.key();
-			let (mode, vertical) = (spot(&format!("{k}_mode")), spot(&format!("{k}_vertical")));
-			assert!(
-				(mode[1] - vertical[1]).abs() <= 2,
-				"{k}: {mode:?} {vertical:?}"
-			);
-			assert!(vertical[0] > mode[2], "{k}: {mode:?} {vertical:?}");
+				.collect();
+			assert_eq!(at.len(), 16, "{line}");
+			// time axis, vertical scale, revert
+			let (time, vertical, revert) = ((at[8], at[9]), (at[10], at[11]), (at[12], at[13]));
+			assert!(time.0 < vertical.0 && vertical.0 < revert.0, "{line}");
+			assert!((time.1 - vertical.1).abs() <= 2, "{line}");
 		}
+	}
+
+	// Test ID: desem
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn each_colors_revert_sits_by_its_box() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_colors_revert_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let spots = ffi::colors_row_spots(&mut d);
+		let mut seen = 0;
+		for line in &spots {
+			let mut words = line.split(' ');
+			let id = words.next().unwrap();
+			let at: Vec<i32> = words.map(|n| n.parse().unwrap()).collect();
+			// the theme's revert follows its buttons, not a color
+			if id == "theme" {
+				continue;
+			}
+			let (right, revert) = (at[3], at[4]);
+			assert!(revert >= right && revert - right <= 12, "{line}");
+			seen += 1;
+		}
+		// every graph's mode and at least its background's 3
+		assert!(
+			seen >= tukzmon_core::config::Which::ALL.len() * 4,
+			"{spots:?}"
+		);
 	}
 
 	// Test ID: der2v
@@ -1480,10 +1522,12 @@ mod tests {
 		));
 		let mut d = Dialog::open(path).unwrap();
 		let tips = ffi::list_head_tips(&mut d);
-		assert_eq!(tips.len(), 3, "{tips:?}");
+		assert_eq!(tips.len(), 4, "{tips:?}");
 		let rows: Vec<String> = graph_rows(&d)
 			.iter()
-			.flat_map(|g| [&g.width, &g.sample, &g.time].map(|id| row_state(&d, id).tip))
+			.flat_map(|g| {
+				[&g.width, &g.sample, &g.time, &g.vertical].map(|id| row_state(&d, id).tip)
+			})
 			.collect();
 		assert!(rows.len() >= 9, "{rows:?}");
 		for t in &tips {
@@ -1598,6 +1642,31 @@ mod tests {
 			})
 			.collect();
 		(rect(&got[0], "room"), rect(&got[1], "frame"), tabs)
+	}
+
+	// Test ID: desen
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn no_dropdown_opens_squeezed_on_a_roomy_screen() {
+		let _qt = qt_turn();
+		let dir = std::env::temp_dir();
+		let screens = dir.join(format!(
+			"test_tukzmon-settings_{}_squeezed.json",
+			std::process::id()
+		));
+		std::fs::write(
+			&screens,
+			r#"{"windowFrameMargins": false, "screens": [{"name": "big", "x": 0, "y": 0, "width": 1920, "height": 1200, "logicalDpi": 96, "logicalBaseDpi": 96, "dpr": 1}]}"#,
+		)
+		.unwrap();
+		let mut d = Dialog::open(dir.join(format!(
+			"test_tukzmon-settings_{}_squeezed_never_written.shcl",
+			std::process::id()
+		)))
+		.unwrap();
+		let got = ffi::squeezed(&mut d, screens.to_str().unwrap());
+		std::fs::remove_file(&screens).unwrap();
+		assert!(got.is_empty(), "{got:?}");
 	}
 
 	// Test ID: deknz
