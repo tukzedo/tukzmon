@@ -170,13 +170,31 @@ Sorted per the notes in [Template](#template).
 - Hybrid laptop: GPU memory, on by default, keeps the NVIDIA GPU awake
 	- ID: 2026110118380381
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on automated testing
+	- Needs external testing: on a hybrid laptop with an NVIDIA card, whose `power/control` is `auto`, run a build with GPU memory on. Check that `power/runtime_status` goes to `suspended` and stays there while idle, and that the graph reads again when a game or CUDA job wakes it. Then run dekma, dekmd, der6k and desfa there.
 	- Priority|Severity: Low
 	- Opened: 20261101-183803
 	- Opened by: t00mietum
 	- Related IDs: 2026103115232174
 	- Requirements: NVML is now open only while a GPU graph is shown, but GPU memory is on by default, so a hybrid laptop still opens it at start and holds it. Where the NVIDIA card's `power/control` is `auto`, read its `power/runtime_status`, which doesn't wake it, and leave NVML closed while it's `suspended`. Or turn GPU memory off by default on such a box. Check on a hybrid laptop, or a stand-in for the sysfs files.
 	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The NVIDIA card's power files come from the first display function under `/sys/bus/pci/devices` bound to the nvidia driver. Where its `power/control` is `auto`, NVML stays shut while `power/runtime_status` is `suspended`, and both GPU graphs read 0.
+		- After 5 idle reads in a row, both readers shut NVML together, and leave it shut for the card's autosuspend delay plus 5 s. They open it again only if the card is still awake after that.
+		- With `power/control` at `on`, or no such card, NVML stays open as before.
+		- A card asleep since start has no total yet, so the GPU memory tip gives only its share then.
+		- `design.md` Data sources on Linux, GPU, has it.
+		- Verified: desfa passed, and failed with the asleep check taken out, and again with the idle rest taken out. der6j, der6k, dekma and dektd passed on b23's host, where the card's `power/control` is `on`. The quick gate passed.
+	- Decisions:
+		- Runtime power files, not turning GPU memory off by default, so a hybrid laptop keeps the default graph.
+		- The idle rest goes past the wording. Polling NVML each second while the card is up keeps it from sleeping again, so without it the fix holds only until the card first wakes.
+		- One rest time per thread, shared by both readers, so neither keeps the card up for the other.
+		- A busy read that fails counts as idle, so a card without a busy share can still rest.
+		- dekma returns early when the card is asleep since start, since NVML wasn't asked.
+	- Branch: round-1102b
+	- Test case: `gpu::tests::nvml_leaves_a_card_that_may_sleep_alone_while_it_sleeps` (desfa), with stand-in power files and NVML. It fails with the asleep check or the idle rest taken out.
+		- Swept: both readers through `Card::find`, the one NVML open, der6j (now pointed at no PCI folder), and dekma, dekmd and der6k, which read the real card. On a hybrid laptop with the card asleep, dekmd's GiB check and der6k's open-file count would see no NVML.
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701

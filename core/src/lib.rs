@@ -196,6 +196,9 @@ impl Source<1> for VramReader {
 
 	fn text(&self, v: &[f32; 1]) -> String {
 		let total = self.total() as f64;
+		if total == 0.0 {
+			return format!("GPU memory {}% used", pc(v[0]));
+		}
 		format!(
 			"GPU memory {}% used\n{} of {} GiB",
 			pc(v[0]),
