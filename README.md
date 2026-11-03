@@ -3,23 +3,40 @@
 <!-- markdownlint-disable MD033 -- No inline html -->
 <!-- markdownlint-disable MD055 -- Table pipe style [Expected: leading_and_trailing; Actual: leading_only; Missing trailing pipe] -->
 <!-- markdownlint-disable MD041 -- First line in a file should be a top-level heading -->
+
+<!-- TOC ignore:true -->
 # tukzmon
 
 A system monitor that lives in your panel. It draws small graphs for CPU, memory, GPU, network, disk, swap, temperature, battery, and more, right in the taskbar.
-
-Inspired by A) The "Non-linear time" scale option in XFCE4's "CPU Graph", and B) The now-abandoned and stale "Multiload-ng" project. (The latter was a revival fork of the defunct "Multiload" project, which was a reimplementation of the original monitors available in the original Gnome desktop panel - and also available in MATE.)
 
 The time axis is logarithmic by default. The last minute gets the most room, and older history is squeezed to the left, so one small graph shows the last few seconds and the last few weeks at once. History is kept across restarts and reboots (by default), with gaps where the computer was off.
 
 Height can go up on a straight, log, or squared scale, for every graph or one at a time. Log lifts a trickle so it shows next to a burst, and squared makes the peaks stand out.
 
+Inspired by A) The "Non-linear time" scale option in XFCE4's "CPU Graph", and B) The now-abandoned and stale "Multiload-ng" project. (The latter was a revival fork of the defunct "Multiload" project, which was a reimplementation of the original monitors available in the original Gnome desktop panel - and also available in MATE.)
+
+<!-- TOC ignore:true -->
+## Table of contents
+
+<!-- TOC -->
+
+- [Status](#status)
+- [Graphs](#graphs)
+- [Features](#features)
+- [Installation](#installation)
+	- [NixOS](#nixos)
+	- [DIY](#diy)
+- [Set up development environment](#set-up-development-environment)
+- [Related projects](#related-projects)
+- [Copyright and license](#copyright-and-license)
+
+<!-- /TOC -->
+
 ## Status
 
-To try it from a checkout you need Rust, XFCE 4.20, and Qt 6 (`qt6-base-dev` on Debian). Run `utility/dev-install.bash`. It installs to `~/.local`, with no sudo, and restarts the panel to load the new build.
-
-On NixOS, add `tukzmon.url = "github:tukzedo/tukzmon";` to your flake's inputs, put `tukzmon.nixosModules.default` in the system's modules, and set `programs.tukzmon.enable = true;`. After a rebuild, tukzmon is in the panel's Add New Items list. There's also `tukzmon.packages.x86_64-linux.default` and `tukzmon.overlays.default` if you'd rather add the package yourself, but then `environment.pathsToLink` needs `/share/xfce4` and `/lib/xfce4` unless the XFCE desktop is on.
-
 The first version is an XFCE panel plugin. Other desktops will follow. And then after that - Windows, macOS, and the BSDs.
+
+There are no release packages yet. For now, install it on NixOS or build it from a checkout.
 
 ## Graphs
 
@@ -44,6 +61,46 @@ The first version is an XFCE panel plugin. Other desktops will follow. And then 
 - Battery charge and discharge, with the critical level.
 
 - tukzmon's own CPU use, so you can see what it costs. (A boring indicator as it is typically a tiny fraction of a % of one CPU, and usually shows nothing.)
+
+## Features
+
+- Hover over a graph to see its values at that point, and how long ago that was.
+
+- 9 built-in color themes, plus your own saved ones. Randomize rolls a new set of colors that stay easy to tell apart.
+
+- The settings window draws live graphs, and they follow your changes before you apply them.
+
+- Each graph has its own width, sample rate, time axis, and height scale, or follows the shared ones. Drag graphs into any order.
+
+- The network graph can split LAN traffic from internet traffic, without root. It's off by default.
+
+- It works on vertical panels and deskbars too.
+
+## Installation
+
+### NixOS
+
+On NixOS, add `tukzmon.url = "github:tukzedo/tukzmon";` to your flake's inputs, put `tukzmon.nixosModules.default` in the system's modules, and set `programs.tukzmon.enable = true;`. After a rebuild, tukzmon is in the panel's Add New Items list. There's also `tukzmon.packages.x86_64-linux.default` and `tukzmon.overlays.default` if you'd rather add the package yourself, but then `environment.pathsToLink` needs `/share/xfce4` and `/lib/xfce4` unless the XFCE desktop is on.
+
+### DIY
+
+To try it from a checkout you need Rust, XFCE 4.20, and Qt 6 (`qt6-base-dev` on Debian). Run `utility/dev-install.bash`. It installs to `~/.local`, with no sudo, and restarts the panel to load the new build.
+
+## Set up development environment
+
+- Rust through rustup. `rust-toolchain.toml` pins the version, and rustup fetches it on the first build. A distro's own `cargo` ignores the pin, so put `~/.cargo/bin` first in `PATH`.
+
+- Qt 6 and a C++ compiler for the settings window (`qt6-base-dev`, `g++` and `pkg-config` on Debian).
+
+- The XFCE 4.20 panel, GTK 3 and cairo. The plugin links their runtime libraries directly, so no `-dev` packages are needed for them.
+
+- Docker, for the pipeline. `cicd/cicd.bash` builds its own image from `cicd/container/` and runs format, build, lint and tests in it, with the other tools pinned there. Without docker it runs on the host, and then it needs those tools installed. `cicd/config.bash` lists them and their versions.
+
+- `cicd/cicd.bash --help` lists the steps and options. The packages step builds a `.deb` and an `.rpm`, and every build of a commit gives the same bytes.
+
+- `git config core.hooksPath cicd/hooks` turns on the pre-push hook, which runs the full merge gate before a push to `main`.
+
+Work goes on `dev`, and `main` takes releases.
 
 ## Related projects
 
