@@ -113,10 +113,10 @@ settings:
 		tab: General
 		control: dropdown
 		options: linear, log10, squared
-		option_labels: "Linear", "log₁₀", "Ꭓ²"
+		option_labels: "Linear", "log₁₀", "χ²"
 		path: graph.vertical
 		default: linear
-		tip: "How height goes up a graph, unless it picks its own on the Graphs tab. Linear draws it in proportion to the value.\n\nlog₁₀ lifts small values, so a trickle still shows next to a big copy. It counts from a thousandth of the top, or for a graph with no fixed top, such as disk or network, a thousandth of the least its top goes down to.\n\nꞳ² squares the share of the top, so big values stand out and small ones sink. Half the top draws a quarter of the way up."
+		tip: "How height goes up a graph, unless it picks its own on the Graphs tab. Linear draws it in proportion to the value.\n\nlog₁₀ lifts small values, so a trickle still shows next to a big copy. It counts from a thousandth of the top, or for a graph with no fixed top, such as disk or network, a thousandth of the least its top goes down to.\n\nχ² squares the share of the top, so big values stand out and small ones sink. Half the top draws a quarter of the way up."
 
 	GraphsHead:
 		label: Graphs
@@ -166,7 +166,7 @@ settings:
 		tab: Graphs
 		control: dropdown
 		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "Ꭓ²"
+		option_labels: "Global default", "Linear", "log₁₀", "χ²"
 		path: cpu.vertical
 		default: same
 		tip: "How height goes up the CPU graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -214,7 +214,7 @@ settings:
 		tab: Graphs
 		control: dropdown
 		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "Ꭓ²"
+		option_labels: "Global default", "Linear", "log₁₀", "χ²"
 		path: mem.vertical
 		default: same
 		tip: "How height goes up the memory graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -262,7 +262,7 @@ settings:
 		tab: Graphs
 		control: dropdown
 		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "Ꭓ²"
+		option_labels: "Global default", "Linear", "log₁₀", "χ²"
 		path: procs.vertical
 		default: same
 		tip: "How height goes up the processes graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -310,7 +310,7 @@ settings:
 		tab: Graphs
 		control: dropdown
 		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "Ꭓ²"
+		option_labels: "Global default", "Linear", "log₁₀", "χ²"
 		path: gpu.vertical
 		default: same
 		tip: "How height goes up the GPU graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -358,7 +358,7 @@ settings:
 		tab: Graphs
 		control: dropdown
 		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "Ꭓ²"
+		option_labels: "Global default", "Linear", "log₁₀", "χ²"
 		path: vram.vertical
 		default: same
 		tip: "How height goes up the GPU memory graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -406,7 +406,7 @@ settings:
 		tab: Graphs
 		control: dropdown
 		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "Ꭓ²"
+		option_labels: "Global default", "Linear", "log₁₀", "χ²"
 		path: net.vertical
 		default: same
 		tip: "How height goes up the network graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -454,7 +454,7 @@ settings:
 		tab: Graphs
 		control: dropdown
 		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "Ꭓ²"
+		option_labels: "Global default", "Linear", "log₁₀", "χ²"
 		path: disk.vertical
 		default: same
 		tip: "How height goes up the disk graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -502,7 +502,7 @@ settings:
 		tab: Graphs
 		control: dropdown
 		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "Ꭓ²"
+		option_labels: "Global default", "Linear", "log₁₀", "χ²"
 		path: temp.vertical
 		default: same
 		tip: "How height goes up the temperature graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -550,7 +550,7 @@ settings:
 		tab: Graphs
 		control: dropdown
 		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "Ꭓ²"
+		option_labels: "Global default", "Linear", "log₁₀", "χ²"
 		path: swap.vertical
 		default: same
 		tip: "How height goes up the swap graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -598,7 +598,7 @@ settings:
 		tab: Graphs
 		control: dropdown
 		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "Ꭓ²"
+		option_labels: "Global default", "Linear", "log₁₀", "χ²"
 		path: zswap.vertical
 		default: same
 		tip: "How height goes up the zswap graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -646,7 +646,7 @@ settings:
 		tab: Graphs
 		control: dropdown
 		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "Ꭓ²"
+		option_labels: "Global default", "Linear", "log₁₀", "χ²"
 		path: load.vertical
 		default: same
 		tip: "How height goes up the load graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -694,7 +694,7 @@ settings:
 		tab: Graphs
 		control: dropdown
 		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "Ꭓ²"
+		option_labels: "Global default", "Linear", "log₁₀", "χ²"
 		path: self.vertical
 		default: same
 		tip: "How height goes up the tukzmon graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -742,7 +742,7 @@ settings:
 		tab: Graphs
 		control: dropdown
 		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "Ꭓ²"
+		option_labels: "Global default", "Linear", "log₁₀", "χ²"
 		path: battery.vertical
 		default: same
 		tip: "How height goes up the battery graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
