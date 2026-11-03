@@ -22,31 +22,6 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- GPU tests dekmd and der6k fail on a hybrid laptop whose NVIDIA card sleeps
-	- ID: 2026110216211209
-	- Type: Bug
-	- Status: Done
-	- Stand-in: 20261102, round-1102b at 4286e10 on b23, with the RTX 3060 Ti's power files shown as `auto` and `suspended`. dekma, dekmd, der6k and desfa passed, and dekmd and der6k returned early. With the card shown awake, all 4 passed and checked the real card. A hybrid laptop was not run.
-	- Priority|Severity: Low
-	- Opened: 20261102-162112
-	- Opened by:
-	- Parent ID: 2026110118380381
-	- Reproduced [Bug]: 2026-11-02 on b23, with the RTX 3060 Ti's `power/control` and `power/runtime_status` shown as `auto` and `suspended`. dekmd failed at its GiB check, with the tip "GPU memory 0% used".
-	- Actual cause [Bug]: dekmd wants " GiB" in the GPU memory tip, which a card asleep since start has no total for. der6k didn't fail. It found nothing open and passed without checking anything.
-	- Actual effort: Low
-	- Progress log:
-		- Since 36e3559, NVML isn't opened while the card's runtime_status is suspended. dekma returns early then, but dekmd's GiB check and der6k's open-file count would fail on such a box. They should skip the same way.
-		- `tukzmon_core::gpu::nvidia_asleep()` says whether the first NVIDIA card is asleep, where it may sleep. dekmd and der6k return early on it.
-		- Verified: with the card shown asleep, dekmd failed before and passed after, and der6k returned early. desfa checks `nvidia_asleep` against its stand-in files. The quick gate's lint and test areas passed.
-	- Decisions:
-		- One public call, so the settings tests and the core integration test read the same thing the readers do.
-	- Actual fix [Bug]: dekmd and der6k return early when `gpu::nvidia_asleep()` is true.
-	- Branch: round-1102b
-	- Test case: dekmd and der6k, under a stand-in for an asleep card. dekmd fails there with its early return taken out. der6k passes either way, since it found nothing to count. desfa checks `nvidia_asleep`.
-		- Swept: every test that reads the real card: dekma (already returned early), dekmd, der6k and dektd. dektd opens NVML itself, so it reads the card even when it's asleep.
-	- Acceptance signoff: Self-closed 20261102: the stand-in above stands in for the hybrid laptop's asleep card.
-	- Closed: 20261102-163600
-
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
@@ -113,120 +88,6 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
 	- Estimated effort: Low
-
-- Pre-next-cut: A spike emphasis of 100 should preserve more of prior spikes
-	- ID: 2026110215302657
-	- Type: Enhancement
-	- Status: Done
-	- Stand-in: 20261102, round-1102b at 4286e10 against 8551170's parent, drawing a CPU graph 200 px wide from 24 and 72 hours of made-up history with a 20 s spike to 85% each hour, on b23's own settings at 100%, 75% and 50%. Before, the hourly spikes were gone past the middle of the graph. Now they stand out as separate lines back to about the last tenth at 100% and 75%, and to the second quarter at 50%, lower but clear.
-		- At 100% the leftmost tenth, where each column covers hours that all hold a spike, fills to the top, and at 75% most of the way. A short blip each minute lifts the older columns' floor to about a quarter of the height, against about 5% before. Asked as a check in `questions.md`.
-	- Priority|Severity: Avg
-	- Opened: 20261102-153026
-	- Opened by: t00mietum
-	- Related IDs: 2026101916013886
-	- Requirements: A spike emphasis of 100 should preserve more of prior spikes. (Trickling down to 50% also being higher.)
-	- Actual effort: Low
-	- Progress log:
-		- The reach toward a column's peak used to fade by half once a column covered 20 seconds, at any setting. Now the setting stretches that too: about 10 minutes at 50%, an hour at 75%, and 5.5 hours at 100%.
-		- At 100%, a 5 minute column reaches 98% of its peak, and a 3 hour one 65%. Columns covering days still melt into the background.
-		- The Spike emphasis tip and `design.md` Drawing say so.
-		- Verified: dese6 failed before the change and passed after, and the quick gate passed.
-	- Decisions:
-		- The half-way time is 20 s times 1000 to the power of the setting, so 0% still starts from the old 20 s and each third of the slider is ten times longer. One setting, rather than a second one for the fade.
-		- The history already keeps every bucket's max at every tier, so only the fade needed changing.
-	- Branch: round-1102b
-	- Test case: `render::tests::more_emphasis_keeps_spikes_further_back` (dese6). It fails with the fixed 20 s fade.
-		- 2026-11-02: `spike_reach_fades_with_time` (debj9) checks its far column at 30 days, not an hour, since an hour now keeps most of a spike at 100%. What it checks is the same.
-		- Swept: `render::reach` is the only place the setting is read, through `Frame::draw_to` and the test helper `column`. The hover tip shows means, not the reach.
-	- Acceptance signoff: Self-closed 20261102: dese6 and the stand-in above, which shows older spikes kept at 100% and 50%.
-	- Closed: 20261102-163600
-
-- Pre-next-cut: Move vertical axis override from "Colors" tab, to "Graphs", next to "Time axis"
-	- ID: 2026110215302658
-	- Type: Enhancement
-	- Status: Done
-	- Stand-in: 20261102, round-1102b debug build, in b23's own style (gtk3 platform theme, Orchis green compact), light and dark. Graphs drew a Vertical scale column right of Time axis, Global default in each row, with nothing cut off. Colors drew each mode on its own line with no Vertical scale.
-	- Priority|Severity: Avg
-	- Opened: 20261102-153026
-	- Opened by: t00mietum
-	- Related IDs: 2026110109585213, 2026110215302659
-	- Requirements: Move each graph's Vertical scale from Themes|Colors to the Graphs tab, next to its Time axis.
-	- Estimated effort: Low
-	- Actual effort: Avg
-	- Progress log:
-		- Each graph list row has a Vertical scale dropdown right of its Time axis, under a Vertical scale header with its own tip. The row's revert arrow covers it too.
-		- The 13 `<graph>_vertical` rows moved to the Graphs tab in `settings.shcl`, after each graph's time axis. Their paths are unchanged, so saved files read as before.
-		- The window opens as wide as its widest page asks. A page not shown yet kept the size it had before its dropdowns were filled, which cut the list's dropdowns short. It now opens about 55 px wider.
-		- `design.md` XFCE plugin and Settings window are updated.
-		- Verified: the quick gate passed, and the stand-in above.
-	- Decisions:
-		- The header says Vertical scale, the setting's own label, and Global default stays as the dropdown's first choice.
-		- A graph needs a `.vertical` row to get a list row, as it needs `.time`. All 13 have one.
-		- The Colors mode keeps its line over both columns. Only the scale left it.
-	- Branch: round-1102b
-	- Test case: `bridge::tests::each_graphs_vertical_scale_sits_right_of_its_time_axis` (der3q) and `no_dropdown_opens_squeezed_on_a_roomy_screen` (desen). der3q fails with the time axis and vertical scale cells swapped, and desen with the window sized from the old hints.
-		- 2026-11-02: der3q checked the scale right of the Colors mode, and now checks it right of the time axis in the graph list. defm1's list takes the vertical rows, defkz's row has `vertical`, and deqsp expects 4 headers, not 3.
-		- Swept: every `GraphRow` user in Rust and `qt.cpp`, every loop over a list row's rows (build, revert, refresh), the `same_line` branch for the mode's line (now unused, removed), and the docs and tips naming Vertical scale on Themes/Colors.
-	- Acceptance signoff: Self-closed 20261102: der3q, desen and the stand-in above.
-	- Closed: 20261102-160400
-
-- Pre-next-cut: Themes|Colors reset icons closer to the boxes they reset
-	- ID: 2026110215302659
-	- Type: Enhancement
-	- Status: Done
-	- Stand-in: 20261102, round-1102b debug build, in b23's own style, light and dark. On Colors every revert arrow sat just right of its hex box, in both columns, and the mode's just right of Gradient.
-	- Priority|Severity: Avg
-	- Opened: 20261102-153026
-	- Opened by: t00mietum
-	- Related IDs: 2026110215302658
-	- Requirements: Move reset icons for right-side column, closer to the boxes they reset. Ditto with left column.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- In each Colors section the room goes after the revert arrows, not before them, so each sits right after the box it resets. The arrows in a column still line up.
-		- A heading's rule still runs the column's full width.
-		- `design.md` Settings window and `style-guide_ux.md` Colors are updated.
-		- Verified: the quick gate passed, and the stand-in above.
-	- Decisions:
-		- Only Themes/Colors, as asked. General, Graphs and Outline keep their arrows in one column at the right edge, since their sliders and text boxes take the width.
-	- Branch: round-1102b
-	- Test case: `bridge::tests::each_colors_revert_sits_by_its_box` (desem). It fails with the old layout, where the CPU mode's arrow sat 380 px from Gradient.
-		- 2026-11-02: the `row_spots` hook gives each row's last part's right edge and its revert's left edge after the old 3 numbers. der32 and der33 read only the first 3.
-		- Swept: every grid made by `rowGrid` (pages, section columns and the mode's line) and every heading `placeRow` draws.
-	- Acceptance signoff: Self-closed 20261102: desem and the stand-in above.
-	- Closed: 20261102-160400
-
-- Hybrid laptop: GPU memory, on by default, keeps the NVIDIA GPU awake
-	- ID: 2026110118380381
-	- Type: Enhancement
-	- Status: Done
-	- Stand-in: 20261102, round-1102b at 4286e10 on b23, with GPU memory on by default and the RTX 3060 Ti's power files shown as `auto` and `suspended`. The graphs held no `/dev/nvidia*` file and GPU memory read 0% while it showed asleep. Once it showed `active`, they opened NVML within a second, held 7 files, and read 2.6 of 8.0 GiB. dekma, dekmd, der6k and desfa passed under it, and with the card shown awake.
-		- The idle rest wasn't reached on the real card, which was 16% busy with the desktop. desfa covers it with stand-in NVML, and der6k shows NVML lets go of every file when shut. A hybrid laptop was not run.
-	- Priority|Severity: Low
-	- Opened: 20261101-183803
-	- Opened by: t00mietum
-	- Related IDs: 2026103115232174
-	- Requirements: NVML is now open only while a GPU graph is shown, but GPU memory is on by default, so a hybrid laptop still opens it at start and holds it. Where the NVIDIA card's `power/control` is `auto`, read its `power/runtime_status`, which doesn't wake it, and leave NVML closed while it's `suspended`. Or turn GPU memory off by default on such a box. Check on a hybrid laptop, or a stand-in for the sysfs files.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- The NVIDIA card's power files come from the first display function under `/sys/bus/pci/devices` bound to the nvidia driver. Where its `power/control` is `auto`, NVML stays shut while `power/runtime_status` is `suspended`, and both GPU graphs read 0.
-		- After 5 idle reads in a row, both readers shut NVML together, and leave it shut for the card's autosuspend delay plus 5 s. They open it again only if the card is still awake after that.
-		- With `power/control` at `on`, or no such card, NVML stays open as before.
-		- A card asleep since start has no total yet, so the GPU memory tip gives only its share then.
-		- `design.md` Data sources on Linux, GPU, has it.
-		- Verified: desfa passed, and failed with the asleep check taken out, and again with the idle rest taken out. der6j, der6k, dekma and dektd passed on b23's host, where the card's `power/control` is `on`. The quick gate passed.
-	- Decisions:
-		- Runtime power files, not turning GPU memory off by default, so a hybrid laptop keeps the default graph.
-		- The idle rest goes past the wording. Polling NVML each second while the card is up keeps it from sleeping again, so without it the fix holds only until the card first wakes.
-		- One rest time per thread, shared by both readers, so neither keeps the card up for the other.
-		- A busy read that fails counts as idle, so a card without a busy share can still rest.
-		- dekma returns early when the card is asleep since start, since NVML wasn't asked.
-	- Branch: round-1102b
-	- Test case: `gpu::tests::nvml_leaves_a_card_that_may_sleep_alone_while_it_sleeps` (desfa), with stand-in power files and NVML. It fails with the asleep check or the idle rest taken out.
-		- Swept: both readers through `Card::find`, the one NVML open, der6j (now pointed at no PCI folder), and dekma, dekmd and der6k, which read the real card. On a hybrid laptop with the card asleep, dekmd and der6k return early, since 2026110216211209.
-	- Acceptance signoff: Self-closed 20261102: desfa and the stand-in above stand in for the hybrid laptop.
-	- Closed: 20261102-163600
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
@@ -2840,6 +2701,88 @@ Sorted per the notes in [Template](#template).
 		- Swept: defx7 and defxd, the only checks on leads, every built-in in `settings.shcl`, and every role in `dice::ROLES` that follows its graph's lead.
 	- Closed: 20261028-161000
 
+- Pre-next-cut: A spike emphasis of 100 should preserve more of prior spikes
+	- ID: 2026110215302657
+	- Type: Enhancement
+	- Status: Done
+	- Stand-in: 20261102, round-1102b at 4286e10 against 8551170's parent, drawing a CPU graph 200 px wide from 24 and 72 hours of made-up history with a 20 s spike to 85% each hour, on b23's own settings at 100%, 75% and 50%. Before, the hourly spikes were gone past the middle of the graph. Now they stand out as separate lines back to about the last tenth at 100% and 75%, and to the second quarter at 50%, lower but clear.
+		- At 100% the leftmost tenth, where each column covers hours that all hold a spike, fills to the top, and at 75% most of the way. A short blip each minute lifts the older columns' floor to about a quarter of the height, against about 5% before. Asked as a check in `questions.md`.
+	- Priority|Severity: Avg
+	- Opened: 20261102-153026
+	- Opened by: t00mietum
+	- Related IDs: 2026101916013886
+	- Requirements: A spike emphasis of 100 should preserve more of prior spikes. (Trickling down to 50% also being higher.)
+	- Actual effort: Low
+	- Progress log:
+		- The reach toward a column's peak used to fade by half once a column covered 20 seconds, at any setting. Now the setting stretches that too: about 10 minutes at 50%, an hour at 75%, and 5.5 hours at 100%.
+		- At 100%, a 5 minute column reaches 98% of its peak, and a 3 hour one 65%. Columns covering days still melt into the background.
+		- The Spike emphasis tip and `design.md` Drawing say so.
+		- Verified: dese6 failed before the change and passed after, and the quick gate passed.
+	- Decisions:
+		- The half-way time is 20 s times 1000 to the power of the setting, so 0% still starts from the old 20 s and each third of the slider is ten times longer. One setting, rather than a second one for the fade.
+		- The history already keeps every bucket's max at every tier, so only the fade needed changing.
+	- Branch: round-1102b
+	- Test case: `render::tests::more_emphasis_keeps_spikes_further_back` (dese6). It fails with the fixed 20 s fade.
+		- 2026-11-02: `spike_reach_fades_with_time` (debj9) checks its far column at 30 days, not an hour, since an hour now keeps most of a spike at 100%. What it checks is the same.
+		- Swept: `render::reach` is the only place the setting is read, through `Frame::draw_to` and the test helper `column`. The hover tip shows means, not the reach.
+	- Acceptance signoff: Self-closed 20261102: dese6 and the stand-in above, which shows older spikes kept at 100% and 50%.
+	- Closed: 20261102-163600
+
+- Pre-next-cut: Move vertical axis override from "Colors" tab, to "Graphs", next to "Time axis"
+	- ID: 2026110215302658
+	- Type: Enhancement
+	- Status: Done
+	- Stand-in: 20261102, round-1102b debug build, in b23's own style (gtk3 platform theme, Orchis green compact), light and dark. Graphs drew a Vertical scale column right of Time axis, Global default in each row, with nothing cut off. Colors drew each mode on its own line with no Vertical scale.
+	- Priority|Severity: Avg
+	- Opened: 20261102-153026
+	- Opened by: t00mietum
+	- Related IDs: 2026110109585213, 2026110215302659
+	- Requirements: Move each graph's Vertical scale from Themes|Colors to the Graphs tab, next to its Time axis.
+	- Estimated effort: Low
+	- Actual effort: Avg
+	- Progress log:
+		- Each graph list row has a Vertical scale dropdown right of its Time axis, under a Vertical scale header with its own tip. The row's revert arrow covers it too.
+		- The 13 `<graph>_vertical` rows moved to the Graphs tab in `settings.shcl`, after each graph's time axis. Their paths are unchanged, so saved files read as before.
+		- The window opens as wide as its widest page asks. A page not shown yet kept the size it had before its dropdowns were filled, which cut the list's dropdowns short. It now opens about 55 px wider.
+		- `design.md` XFCE plugin and Settings window are updated.
+		- Verified: the quick gate passed, and the stand-in above.
+	- Decisions:
+		- The header says Vertical scale, the setting's own label, and Global default stays as the dropdown's first choice.
+		- A graph needs a `.vertical` row to get a list row, as it needs `.time`. All 13 have one.
+		- The Colors mode keeps its line over both columns. Only the scale left it.
+	- Branch: round-1102b
+	- Test case: `bridge::tests::each_graphs_vertical_scale_sits_right_of_its_time_axis` (der3q) and `no_dropdown_opens_squeezed_on_a_roomy_screen` (desen). der3q fails with the time axis and vertical scale cells swapped, and desen with the window sized from the old hints.
+		- 2026-11-02: der3q checked the scale right of the Colors mode, and now checks it right of the time axis in the graph list. defm1's list takes the vertical rows, defkz's row has `vertical`, and deqsp expects 4 headers, not 3.
+		- Swept: every `GraphRow` user in Rust and `qt.cpp`, every loop over a list row's rows (build, revert, refresh), the `same_line` branch for the mode's line (now unused, removed), and the docs and tips naming Vertical scale on Themes/Colors.
+	- Acceptance signoff: Self-closed 20261102: der3q, desen and the stand-in above.
+	- Closed: 20261102-160400
+
+- Pre-next-cut: Themes|Colors reset icons closer to the boxes they reset
+	- ID: 2026110215302659
+	- Type: Enhancement
+	- Status: Done
+	- Stand-in: 20261102, round-1102b debug build, in b23's own style, light and dark. On Colors every revert arrow sat just right of its hex box, in both columns, and the mode's just right of Gradient.
+	- Priority|Severity: Avg
+	- Opened: 20261102-153026
+	- Opened by: t00mietum
+	- Related IDs: 2026110215302658
+	- Requirements: Move reset icons for right-side column, closer to the boxes they reset. Ditto with left column.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- In each Colors section the room goes after the revert arrows, not before them, so each sits right after the box it resets. The arrows in a column still line up.
+		- A heading's rule still runs the column's full width.
+		- `design.md` Settings window and `style-guide_ux.md` Colors are updated.
+		- Verified: the quick gate passed, and the stand-in above.
+	- Decisions:
+		- Only Themes/Colors, as asked. General, Graphs and Outline keep their arrows in one column at the right edge, since their sliders and text boxes take the width.
+	- Branch: round-1102b
+	- Test case: `bridge::tests::each_colors_revert_sits_by_its_box` (desem). It fails with the old layout, where the CPU mode's arrow sat 380 px from Gradient.
+		- 2026-11-02: the `row_spots` hook gives each row's last part's right edge and its revert's left edge after the old 3 numbers. der32 and der33 read only the first 3.
+		- Swept: every grid made by `rowGrid` (pages, section columns and the mode's line) and every heading `placeRow` draws.
+	- Acceptance signoff: Self-closed 20261102: desem and the stand-in above.
+	- Closed: 20261102-160400
+
 - Code review 20261031 item 24: The profiler draws into a canvas far smaller than a panel's, and one run varies 20%
 	- ID: 2026103115232157
 	- Type: Enhancement
@@ -4656,6 +4599,31 @@ Sorted per the notes in [Template](#template).
 	- Test case: None, since it was a question. The network collector's tests will cover the answer.
 	- Closed: 20261019
 
+- GPU tests dekmd and der6k fail on a hybrid laptop whose NVIDIA card sleeps
+	- ID: 2026110216211209
+	- Type: Bug
+	- Status: Done
+	- Stand-in: 20261102, round-1102b at 4286e10 on b23, with the RTX 3060 Ti's power files shown as `auto` and `suspended`. dekma, dekmd, der6k and desfa passed, and dekmd and der6k returned early. With the card shown awake, all 4 passed and checked the real card. A hybrid laptop was not run.
+	- Priority|Severity: Low
+	- Opened: 20261102-162112
+	- Opened by:
+	- Parent ID: 2026110118380381
+	- Reproduced [Bug]: 2026-11-02 on b23, with the RTX 3060 Ti's `power/control` and `power/runtime_status` shown as `auto` and `suspended`. dekmd failed at its GiB check, with the tip "GPU memory 0% used".
+	- Actual cause [Bug]: dekmd wants " GiB" in the GPU memory tip, which a card asleep since start has no total for. der6k didn't fail. It found nothing open and passed without checking anything.
+	- Actual effort: Low
+	- Progress log:
+		- Since 36e3559, NVML isn't opened while the card's runtime_status is suspended. dekma returns early then, but dekmd's GiB check and der6k's open-file count would fail on such a box. They should skip the same way.
+		- `tukzmon_core::gpu::nvidia_asleep()` says whether the first NVIDIA card is asleep, where it may sleep. dekmd and der6k return early on it.
+		- Verified: with the card shown asleep, dekmd failed before and passed after, and der6k returned early. desfa checks `nvidia_asleep` against its stand-in files. The quick gate's lint and test areas passed.
+	- Decisions:
+		- One public call, so the settings tests and the core integration test read the same thing the readers do.
+	- Actual fix [Bug]: dekmd and der6k return early when `gpu::nvidia_asleep()` is true.
+	- Branch: round-1102b
+	- Test case: dekmd and der6k, under a stand-in for an asleep card. dekmd fails there with its early return taken out. der6k passes either way, since it found nothing to count. desfa checks `nvidia_asleep`.
+		- Swept: every test that reads the real card: dekma (already returned early), dekmd, der6k and dektd. dektd opens NVML itself, so it reads the card even when it's asleep.
+	- Acceptance signoff: Self-closed 20261102: the stand-in above stands in for the hybrid laptop's asleep card.
+	- Closed: 20261102-163600
+
 - Profiler tick 151 us at round-1101, up from 134 us
 	- ID: 2026110113023600
 	- Type: Bug
@@ -5461,6 +5429,38 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
 	- Closed: 20261025-081952
+
+- Hybrid laptop: GPU memory, on by default, keeps the NVIDIA GPU awake
+	- ID: 2026110118380381
+	- Type: Enhancement
+	- Status: Done
+	- Stand-in: 20261102, round-1102b at 4286e10 on b23, with GPU memory on by default and the RTX 3060 Ti's power files shown as `auto` and `suspended`. The graphs held no `/dev/nvidia*` file and GPU memory read 0% while it showed asleep. Once it showed `active`, they opened NVML within a second, held 7 files, and read 2.6 of 8.0 GiB. dekma, dekmd, der6k and desfa passed under it, and with the card shown awake.
+		- The idle rest wasn't reached on the real card, which was 16% busy with the desktop. desfa covers it with stand-in NVML, and der6k shows NVML lets go of every file when shut. A hybrid laptop was not run.
+	- Priority|Severity: Low
+	- Opened: 20261101-183803
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232174
+	- Requirements: NVML is now open only while a GPU graph is shown, but GPU memory is on by default, so a hybrid laptop still opens it at start and holds it. Where the NVIDIA card's `power/control` is `auto`, read its `power/runtime_status`, which doesn't wake it, and leave NVML closed while it's `suspended`. Or turn GPU memory off by default on such a box. Check on a hybrid laptop, or a stand-in for the sysfs files.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The NVIDIA card's power files come from the first display function under `/sys/bus/pci/devices` bound to the nvidia driver. Where its `power/control` is `auto`, NVML stays shut while `power/runtime_status` is `suspended`, and both GPU graphs read 0.
+		- After 5 idle reads in a row, both readers shut NVML together, and leave it shut for the card's autosuspend delay plus 5 s. They open it again only if the card is still awake after that.
+		- With `power/control` at `on`, or no such card, NVML stays open as before.
+		- A card asleep since start has no total yet, so the GPU memory tip gives only its share then.
+		- `design.md` Data sources on Linux, GPU, has it.
+		- Verified: desfa passed, and failed with the asleep check taken out, and again with the idle rest taken out. der6j, der6k, dekma and dektd passed on b23's host, where the card's `power/control` is `on`. The quick gate passed.
+	- Decisions:
+		- Runtime power files, not turning GPU memory off by default, so a hybrid laptop keeps the default graph.
+		- The idle rest goes past the wording. Polling NVML each second while the card is up keeps it from sleeping again, so without it the fix holds only until the card first wakes.
+		- One rest time per thread, shared by both readers, so neither keeps the card up for the other.
+		- A busy read that fails counts as idle, so a card without a busy share can still rest.
+		- dekma returns early when the card is asleep since start, since NVML wasn't asked.
+	- Branch: round-1102b
+	- Test case: `gpu::tests::nvml_leaves_a_card_that_may_sleep_alone_while_it_sleeps` (desfa), with stand-in power files and NVML. It fails with the asleep check or the idle rest taken out.
+		- Swept: both readers through `Card::find`, the one NVML open, der6j (now pointed at no PCI folder), and dekma, dekmd and der6k, which read the real card. On a hybrid laptop with the card asleep, dekmd and der6k return early, since 2026110216211209.
+	- Acceptance signoff: Self-closed 20261102: desfa and the stand-in above stand in for the hybrid laptop.
+	- Closed: 20261102-163600
 
 - At a panel's width, history lookups are 42% of the profiler's tick
 	- ID: 2026110116150685
