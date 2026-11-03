@@ -25,8 +25,8 @@ Sorted per the notes in [Template](#template).
 - GPU tests dekmd and der6k fail on a hybrid laptop whose NVIDIA card sleeps
 	- ID: 2026110216211209
 	- Type: Bug
-	- Status: Waiting on automated testing
-	- Needs external testing: on a hybrid laptop whose NVIDIA card is asleep, run dekmd and der6k, and see both return early.
+	- Status: Done
+	- Stand-in: 20261102, round-1102b at 4286e10 on b23, with the RTX 3060 Ti's power files shown as `auto` and `suspended`. dekma, dekmd, der6k and desfa passed, and dekmd and der6k returned early. With the card shown awake, all 4 passed and checked the real card. A hybrid laptop was not run.
 	- Priority|Severity: Low
 	- Opened: 20261102-162112
 	- Opened by:
@@ -44,6 +44,8 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1102b
 	- Test case: dekmd and der6k, under a stand-in for an asleep card. dekmd fails there with its early return taken out. der6k passes either way, since it found nothing to count. desfa checks `nvidia_asleep`.
 		- Swept: every test that reads the real card: dekma (already returned early), dekmd, der6k and dektd. dektd opens NVML itself, so it reads the card even when it's asleep.
+	- Acceptance signoff: Self-closed 20261102: the stand-in above stands in for the hybrid laptop's asleep card.
+	- Closed: 20261102-163600
 
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
@@ -53,6 +55,7 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: round-1028 doesn't reach `main` either.
 		- 2026-10-29: `main` on GitHub still has no `.github/workflows`, and the repo has no workflow runs.
 		- 2026-10-31: round-1031 doesn't reach `main` either.
+		- 2026-11-02: round-1102b doesn't reach `main` either.
 	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
 	- Priority|Severity: Avg
 	- Opened: 20261025-135600
@@ -76,6 +79,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026103115232296
 	- Type: Enhancement
 	- Status: Waiting on automated testing
+		- 2026-11-02: still waits for the workflow's first run, which comes after a merge to `main`.
 	- Needs external testing: the `merge-gate` workflow's first run on GitHub, the same run 2026102513560001 waits for.
 	- Priority|Severity: Low
 	- Opened: 20261031-152322
@@ -113,8 +117,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: A spike emphasis of 100 should preserve more of prior spikes
 	- ID: 2026110215302657
 	- Type: Enhancement
-	- Status: Waiting on UAT
-		- How far back is enough is a look. On a panel with a day or more of history, set Spike emphasis to 100%, then 50%, and judge the CPU graph's older quarters.
+	- Status: Done
+	- Stand-in: 20261102, round-1102b at 4286e10 against 8551170's parent, drawing a CPU graph 200 px wide from 24 and 72 hours of made-up history with a 20 s spike to 85% each hour, on b23's own settings at 100%, 75% and 50%. Before, the hourly spikes were gone past the middle of the graph. Now they stand out as separate lines back to about the last tenth at 100% and 75%, and to the second quarter at 50%, lower but clear.
+		- At 100% the leftmost tenth, where each column covers hours that all hold a spike, fills to the top, and at 75% most of the way. A short blip each minute lifts the older columns' floor to about a quarter of the height, against about 5% before. Asked as a check in `questions.md`.
 	- Priority|Severity: Avg
 	- Opened: 20261102-153026
 	- Opened by: t00mietum
@@ -133,7 +138,8 @@ Sorted per the notes in [Template](#template).
 	- Test case: `render::tests::more_emphasis_keeps_spikes_further_back` (dese6). It fails with the fixed 20 s fade.
 		- 2026-11-02: `spike_reach_fades_with_time` (debj9) checks its far column at 30 days, not an hour, since an hour now keeps most of a spike at 100%. What it checks is the same.
 		- Swept: `render::reach` is the only place the setting is read, through `Frame::draw_to` and the test helper `column`. The hover tip shows means, not the reach.
-	- Needs hand testing: Judge the look at 100% and 50%, as above.
+	- Acceptance signoff: Self-closed 20261102: dese6 and the stand-in above, which shows older spikes kept at 100% and 50%.
+	- Closed: 20261102-163600
 
 - Pre-next-cut: Move vertical axis override from "Colors" tab, to "Graphs", next to "Time axis"
 	- ID: 2026110215302658
@@ -193,8 +199,9 @@ Sorted per the notes in [Template](#template).
 - Hybrid laptop: GPU memory, on by default, keeps the NVIDIA GPU awake
 	- ID: 2026110118380381
 	- Type: Enhancement
-	- Status: Waiting on automated testing
-	- Needs external testing: on a hybrid laptop with an NVIDIA card, whose `power/control` is `auto`, run a build with GPU memory on. Check that `power/runtime_status` goes to `suspended` and stays there while idle, and that the graph reads again when a game or CUDA job wakes it. Then run dekma, dekmd, der6k and desfa there.
+	- Status: Done
+	- Stand-in: 20261102, round-1102b at 4286e10 on b23, with GPU memory on by default and the RTX 3060 Ti's power files shown as `auto` and `suspended`. The graphs held no `/dev/nvidia*` file and GPU memory read 0% while it showed asleep. Once it showed `active`, they opened NVML within a second, held 7 files, and read 2.6 of 8.0 GiB. dekma, dekmd, der6k and desfa passed under it, and with the card shown awake.
+		- The idle rest wasn't reached on the real card, which was 16% busy with the desktop. desfa covers it with stand-in NVML, and der6k shows NVML lets go of every file when shut. A hybrid laptop was not run.
 	- Priority|Severity: Low
 	- Opened: 20261101-183803
 	- Opened by: t00mietum
@@ -218,6 +225,8 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1102b
 	- Test case: `gpu::tests::nvml_leaves_a_card_that_may_sleep_alone_while_it_sleeps` (desfa), with stand-in power files and NVML. It fails with the asleep check or the idle rest taken out.
 		- Swept: both readers through `Card::find`, the one NVML open, der6j (now pointed at no PCI folder), and dekma, dekmd and der6k, which read the real card. On a hybrid laptop with the card asleep, dekmd and der6k return early, since 2026110216211209.
+	- Acceptance signoff: Self-closed 20261102: desfa and the stand-in above stand in for the hybrid laptop.
+	- Closed: 20261102-163600
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
