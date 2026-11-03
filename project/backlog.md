@@ -22,6 +22,16 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- GPU tests dekmd and der6k fail on a hybrid laptop whose NVIDIA card sleeps
+	- ID: 2026110216211209
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261102-162112
+	- Opened by:
+	- Progress log:
+		- Since 36e3559, NVML isn't opened while the card's runtime_status is suspended. dekma returns early then, but dekmd's GiB check and der6k's open-file count would fail on such a box. They should skip the same way.
+
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
