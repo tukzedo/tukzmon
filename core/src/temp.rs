@@ -24,7 +24,7 @@ fn package_sensors(driver: &str, sensors: &[(u32, Option<&str>)]) -> Vec<u32> {
 			.filter(|(_, label)| label.is_some_and(|l| l.starts_with("Package id")))
 			.map(|(n, _)| *n)
 			.collect(),
-		// Tctl can carry an offset for the fans on early Zen, and Tdie shows
+		// Tctl can have an offset for the fans on early Zen, and Tdie shows
 		// up only then. Before Zen there are no labels.
 		"k10temp" | "zenpower" => labeled("Tdie")
 			.or_else(|| labeled("Tctl"))

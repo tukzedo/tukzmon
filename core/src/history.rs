@@ -11,7 +11,7 @@
 use std::collections::VecDeque;
 
 /// Bucket length and how long it's kept, in seconds, finest first.
-/// Each fine tier holds a linear graph at the width slider's top, at any rate
+/// Each fine tier keeps a linear graph at the width slider's top, at any rate
 /// the next tier is too coarse for.
 pub const TIERS: [(f64, f64); 6] = [
 	(0.05, 256.0),
@@ -800,11 +800,11 @@ mod tests {
 		let mut other = bytes.clone();
 		other[24..32].copy_from_slice(&0.5f64.to_le_bytes());
 		assert!(History::<2>::decode(&other).is_none());
-		// a bucket count past what the file holds
+		// a bucket count past what the file has
 		let mut over = bytes.clone();
 		over[40..44].copy_from_slice(&9000u32.to_le_bytes());
 		assert!(History::<2>::decode(&over).is_none());
-		// one bucket past what a full tier keeps, though the file holds it
+		// one bucket past what a full tier keeps, though the file has it
 		let mut full = History::<2>::default();
 		for i in 0..600 {
 			let t = 1.76e9 + f64::from(i) * 0.5;

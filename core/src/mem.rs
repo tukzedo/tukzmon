@@ -29,7 +29,7 @@ pub struct Meminfo {
 	pub swap_free: u64,
 	/// zswap's pool, compressed. None on a kernel without the row.
 	pub zswap: Option<u64>,
-	/// What the pool holds, before compression.
+	/// What the pool stores, before compression.
 	pub zswapped: Option<u64>,
 }
 
@@ -335,7 +335,7 @@ Hugepagesize:       2048 kB
 			Slab: 300 kB\nSReclaimable: 250 kB\nSUnreclaim: 50 kB\n";
 		let m = parse_meminfo(text).unwrap();
 		assert_eq!(m.sreclaimable, 250);
-		// user 400 holds the 50 of slab that can't be reclaimed
+		// user 400 has the 50 of slab that can't be reclaimed
 		assert_eq!(memory_shares(&m, 0), Some([0.4, 0.05, 0.45]));
 	}
 

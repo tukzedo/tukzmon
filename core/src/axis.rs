@@ -31,7 +31,7 @@ pub enum Curve {
 }
 
 impl Curve {
-	/// As `log_curve` in settings.shcl spells it.
+	/// From the `log_curve` value in settings.shcl.
 	pub fn parse(key: &str) -> Option<Curve> {
 		match key {
 			"smooth" => Some(Curve::Smooth),
@@ -52,7 +52,7 @@ pub enum Timing {
 }
 
 impl Timing {
-	/// As a graph's own `<graph>_time` row spells it. None, for `same` or
+	/// From a graph's own `<graph>_time` value. None, for `same` or
 	/// anything else, means the graph follows the Time settings.
 	pub fn parse(key: &str) -> Option<Timing> {
 		match key {

@@ -9,7 +9,7 @@
 ##		  tukzmon-<version>-sha256sums.txt beside them in OUT_DIR.
 ##		- Two builds of one commit give the same bytes: the mtimes inside are
 ##		  SOURCE_DATE_EPOCH, else HEAD's commit time.
-##		- Checks each package holds what nfpm.yaml says, and that the .deb's
+##		- Checks each package has what nfpm.yaml says, and that the .deb's
 ##		  depends name every library the binaries link, where dpkg can say
 ##		  which package owns one.
 ##		- Writes only into OUT_DIR and WORK_DIR, and removes nothing but the
@@ -96,11 +96,11 @@ done
 want="$(printf '%s\n' /usr/bin/tukzmon-settings /usr/share/xfce4/panel/plugins/tukzmon.desktop)"
 got="$(dpkg-deb -c "${workDir}/${base}.deb" 2> /dev/null | awk '$1 !~ /^d/ { sub(/^\./, "", $6); print $6 }' | LC_ALL=C sort)"
 [[ "${got}" == "$(printf '%s\n' "${want}" /usr/lib/x86_64-linux-gnu/xfce4/panel/plugins/libtukzmon.so /usr/share/doc/tukzmon/copyright | LC_ALL=C sort)" ]] \
-	|| fDie "the .deb holds something else:"$'\n'"${got}"
+	|| fDie "the .deb has something else:"$'\n'"${got}"
 if command -v rpm > /dev/null 2>&1; then
 	got="$(rpm -qlp "${workDir}/${base}.rpm" 2> /dev/null | LC_ALL=C sort)"
 	[[ "${got}" == "$(printf '%s\n' "${want}" /usr/lib64/xfce4/panel/plugins/libtukzmon.so /usr/share/licenses/tukzmon/license.txt | LC_ALL=C sort)" ]] \
-		|| fDie "the .rpm holds something else:"$'\n'"${got}"
+		|| fDie "the .rpm has something else:"$'\n'"${got}"
 else
 	echo "WARNING: no rpm here, so the .rpm's contents went unchecked"
 fi

@@ -7,7 +7,7 @@
 
 A system monitor that lives in your panel. It draws small graphs for CPU, memory, GPU, network, disk, swap, temperature, battery, and more, right in the taskbar.
 
-Inspired by A) The "Non-linear time" scale option in XFCE4's "CPU Graph", and B) The now-abandoned and stale "Multimon-NG" project. (The latter was a revival fork of the defunct "Multimon" project, which was a reimplimentation of the original monitors available in the original Gnome desktop panel' - and also available in MATE.)
+Inspired by A) The "Non-linear time" scale option in XFCE4's "CPU Graph", and B) The now-abandoned and stale "Multiload-ng" project. (The latter was a revival fork of the defunct "Multiload" project, which was a reimplementation of the original monitors available in the original Gnome desktop panel - and also available in MATE.)
 
 The time axis is logarithmic by default. The last minute gets the most room, and older history is squeezed to the left, so one small graph shows the last few seconds and the last few weeks at once. History is kept across restarts and reboots (by default), with gaps where the computer was off.
 
@@ -47,9 +47,9 @@ The first version is an XFCE panel plugin. Other desktops will follow. And then 
 
 ## Related projects
 
-- [Tukzedo Linux](https://github.com/tukzedo/tukzedo-linux) an altra-secure distro with similar design principles.
+- [Tukzedo Linux](https://github.com/tukzedo/tukzedo-linux) an ultra-secure distro with similar design principles.
 
-- [LXQtukz](https://github.com/tukzedo/lxqtukz) a highly-configurable desktop with multiple "personnas" out-of-the-box. (An LXQt panel version of tukzmon is in the works for it.)
+- [LXQtukz](https://github.com/tukzedo/lxqtukz) a highly-configurable desktop with multiple "personas" out-of-the-box. (An LXQt panel version of tukzmon is in the works for it.)
 
 Tukzmon doesn't need either one. It should work on any distro with a supported panel.
 

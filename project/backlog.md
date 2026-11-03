@@ -6,7 +6,7 @@
 
 # Requirements
 
-This is a product backlog just for pre-v1.0.0 release. After that, bugs, features, and enhancements will be managed in Github Issues.
+This is a product backlog just for pre-v1.0.0 release. After that, bugs, features, and enhancements will be managed in GitHub Issues.
 
 <!-- TOC ignore:true -->
 ## Table of contents
@@ -26,11 +26,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102513560001
 	- Type: Task
 	- Status: Waiting on automated testing
-		- 2026-10-26: still waits for the workflow file to reach `main`, which a round never pushes to.
-		- 2026-10-28: round-1028 doesn't reach `main` either.
-		- 2026-10-29: `main` on GitHub still has no `.github/workflows`, and the repo has no workflow runs.
-		- 2026-10-31: round-1031 doesn't reach `main` either.
-		- 2026-11-02: round-1102b doesn't reach `main` either.
+		- 2026-10-26 to 2026-11-02: still waits for the workflow file to reach `main`. `main` on GitHub has no `.github/workflows` yet, and the repo has no workflow runs.
 	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
 	- Priority|Severity: Avg
 	- Opened: 20261025-135600
@@ -45,7 +41,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- `.github/workflows/merge-gate.yml` runs `cicd/cicd.bash --merge-gate` on a push or pull request against `main`, and by hand on any branch. It's one job on `ubuntu-24.04`, which builds the image from `cicd/container/` and runs the checks in it.
 	- Decisions:
-		- Asked for on 2026-10-25, in answer to the round settings question about a hosted workflow.
+		- Asked for on 2026-10-25.
 		- No layer cache between runs, to keep it small. Each run builds the image first, which takes a few minutes.
 	- Branch: round-1025
 	- Test case: The workflow is its own test. Its first run is in the row above.
@@ -210,6 +206,7 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1027
 	- Test case: `graphs::tests::a_file_the_5_tier_plugin_wrote_still_loads` (defv4). It fails with decode taking only today's tier count, and with `lo` and `hi` swapped in both encode and decode, which defp7 and decbg miss. Restarts are also covered by decbp, dedq3 and defp7.
 		- Swept: every load path (start, a graph added, keep turned back on) and every save path (the 15 minute timer, quit, keep turned off, a graph dropped) in `xfce/src/lib.rs` and `Graphs`. Nothing else reads or writes the history file.
+	- Closed: 20261026-205632
 
 - Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
 	- ID: 2026102620162196
@@ -224,13 +221,13 @@ Sorted per the notes in [Template](#template).
 	- Note: Regular time format works though.
 	- Reproduced: 2026-10-26, in core with 2 days of history. A still pointer read "32 sec ago" over 4 ticks while its clock time went 20:59:13, :14, :15, :16, on a linear axis and on Smooth log.
 	- Actual cause:
-		- Each column of the graph is a fixed age, since the right edge is always now and the graph moves left under the pointer. So a still pointer's age holds, and its clock time moves on by a sample each tick. Both say the same thing about the column under the line.
+		- Each column of the graph is a fixed age, since the right edge is always now and the graph moves left under the pointer. So a still pointer's age stays, and its clock time moves on by a sample each tick. Both say the same thing about the column under the line.
 		- The tip is asked again each tick, so nothing is stale. The round-1024 test panel saw the age count, likely because its history was only seconds old, and a log axis stretches as its history grows.
 	- Progress log:
-		- Answered 2026-10-28: the line and tip stay on the column under the pointer. No behavior change. design.md Drawing says why a still pointer's age holds, and a test pins it.
+		- 2026-10-28: The line and tip stay on the column under the pointer. No behavior change. design.md Drawing says why a still pointer's age stays, and a test pins it.
 		- Verified: the quick gate passed, with the new test.
 	- Decisions:
-		- Not a bug: each column is a fixed age, so the age holds while the clock time moves on. Both describe the column under the line.
+		- Not a bug: each column is a fixed age, so the age stays while the clock time moves on. Both describe the column under the line.
 	- Branch: round-1028
 	- Test case: `tests::a_still_pointer_keeps_its_age_while_its_clock_time_moves_on` (defz1). It pins existing behavior, so it passes before and after. No code changed.
 		- Swept: `hover_tip` and `span_at` are the only places the tip's time is made, and the settings window's live tip goes through the same `Graph::hover_tip`.
@@ -272,16 +269,17 @@ Sorted per the notes in [Template](#template).
 		- Split into 6 children, in this order: 2026102409400679 (theme presets and Default), 2026102409400684 (Themes tab and its top row), 2026102409400689 (color picker), 2026102409400695 (Gradient mode and Fire), 2026102409400700 (Randomize), and 2026102409400705 (transparent background).
 		- Closed 20261029 with its 6 children all Done.
 	- Test case: its 6 children's tests, deccf to dece0
+	- Closed: 20261029-131535
 
 - Randomize: a hue of its own for each graph
 	- ID: 2026102621562349
 	- Type: Enhancement
 	- Status: Done
 		- Measured 2026-10-28 over 10,000 seeds, as CIEDE2000: every 2 leads of a roll are 10.0 or more apart, 10.6 at the median, and every lead 21.7 or more from I/O wait and system. Before 2026102810142725 the closest 2 were 4.7 apart at the median and 1.8 at worst. A roll steps 3 of its 10 leads darker or paler at the median, and 6 at most.
-		- Stand-in, 2026-10-28, round-1028b at 84b61ad: 5 rolls, seeds 17, 423, 1999, 5150 and 8888, drawn on a test panel with all 9 graphs. Each read as one set, with every graph apart and clear of the alarms.
+		- Verified 2026-10-28, round-1028b at 84b61ad: 5 rolls, seeds 17, 423, 1999, 5150 and 8888, drawn on a test panel with all 9 graphs. Each read as one set, with every graph apart and clear of the alarms.
 	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
 	- Needs hand testing: on b23, after an install, with swap on, press Randomize a few times with Apply, and judge whether CPU, memory and swap read apart and look good together.
-	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row. dejbv checks that every roll's leads read apart.
+	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row. dejbv checks that every roll's leads read apart.
 	- Priority|Severity: High
 	- Opened: 20261026-215623
 	- Opened by: t00mietum
@@ -318,13 +316,13 @@ Sorted per the notes in [Template](#template).
 	- Type: Enhancement
 	- Status: Done
 		- It departs from the wording in one way. Randomize still gives every graph the same lead hue. That part is child 2026102621562349.
-		- Stand-in, 2026-10-26, build defyt: in the window Fire drew CPU red and brown, memory violet and swap blue, and with b23's settings a test panel drew CPU, memory and swap apart on Default. Only the look is left.
+		- Verified 2026-10-26, build defyt: in the window Fire drew CPU red and brown, memory violet and swap blue, and with b23's settings a test panel drew CPU, memory and swap apart on Default. Only the look is left.
 		- 2026-10-28: with 9 graphs now, some leads nearly match in every built-in but Fire, and in most rolls. That part is child 2026102810142725, a Bug.
 		- 2026-10-28: 2026102810142725 is fixed. As CIEDE2000, any 2 leads sit 10.4 or more apart in every built-in, and 10.0 or more in every roll over 10,000 seeds. The one-color themes from 2026102807585040 give every graph one color on purpose.
-		- Stand-in, 2026-10-28, round-1028b at 84b61ad: a test panel drew all 9 graphs in each of the 9 built-ins. Every graph read apart, outside the one-color themes, and none looked broken.
+		- Verified 2026-10-28, round-1028b at 84b61ad: a test panel drew all 9 graphs in each of the 9 built-ins. Every graph read apart, outside the one-color themes, and none looked broken.
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Needs hand testing: on b23, after an install, with swap on, pick each built-in theme on the Themes tab, Apply, and judge whether CPU, memory and swap read apart and look good together, Fire most of all.
-	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row. dejbr and dejbv check what can be measured.
+	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row. dejbr and dejbv check what can be measured.
 	- Priority|Severity: High
 	- Opened: 20261026-201621
 	- Opened by: t00mietum
@@ -344,6 +342,7 @@ Sorted per the notes in [Template](#template).
 		- Fire's graphs each burn their own flame: CPU red, yellow-white and light blue as before, memory violet, swap a blue gas flame, and the battery a green copper one.
 		- `design.md` Theme has the details.
 		- Verified: the full run passed with the new test.
+		- 2026-10-27: the Randomize part is done in child 2026102621562349 (commit 9e35514).
 	- Decisions:
 		- 6 built-ins, as before, so the theme list doesn't grow. Primary keeps Green standard's CPU colors and Pastel Blue pastel's CPU and background, so a pick of the old ones looks close to the new one.
 		- The old keys, such as `green_standard`, aren't kept as aliases. They were never in a release, and b23's file names `default`.
@@ -354,7 +353,6 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-26: new values only, for the renamed themes. deccg reads `pastel`, not `blue_pastel`. deccj reads `primary` and "Primary *", not Green standard. decct lists `primary`, `pastel`, `neon` and `earth` in place of the 4 color-named keys. decdg reads `neon`, with a gradient Medium of `#39ff14`, not `#0080ff`. deccx's built-in clash is `Earth` -> `earth_2`, not `Blue pastel` -> `blue_pastel_2`. In `dialog::tests`, deccm and deccy pick `neon`, with user `#39ff14` and nice `#1f6a10`, not `#0080ff` and `#20405f`, and deccy's clash is `nEon`. dece0 picks `pastel`.
 		- 2026-10-26: dedpz, defq5 and defqc had Fire's memory, swap and battery gradients equal to its CPU one. They now check each graph's own gradient, and dedpz that memory's differs from CPU's.
 		- Swept: every built-in key and label in the Rust tests, qt.cpp and the docs, every swap and battery row default, and the `dice` tests, which don't read the built-ins.
-	- 2026-10-27: the Randomize part is done in child 2026102621562349 (commit 9e35514).
 	- Acceptance signoff: Self-closed 20261028: every built-in drawn on a test panel, with dejbr passing.
 	- Closed: 20261028-205317
 
@@ -363,13 +361,13 @@ Sorted per the notes in [Template](#template).
 	- Type: Feature
 	- Status: Done
 		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
-		- Stand-in, 2026-10-25, build deea9: in the window a roll changed every color as "Default *", Save as kept it, and the panel graph took it at Apply. Only the look is left.
+		- Verified 2026-10-25, build deea9: in the window a roll changed every color as "Default *", Save as kept it, and the panel graph took it at Apply. Only the look is left.
 		- Measured 2026-10-28 over 2000 seeds, round-1028 at 17d3d9d, as CIEDE2000: I/O wait and system roll 23.5 or more from every lead, and each gradient step 11.0 or more. A graph's own colors roll as close as 4.8, buffers and cache, and 9.1 or more in 9 rolls of 10. CPU's Low rolls as close as 1.9 to the background top, which takes CPU's hue, and 5.6 or more in 9 of 10. Default's own nice sits 5.1 from its top, so that matches the built-in. Leads that nearly match are 2026102810142725.
 		- Measured again 2026-10-28 over 10,000 seeds, branch theme-colors, after 2026102810142725: every 2 leads 10.0 or more apart, and I/O wait and system 21.7 or more from every lead. A graph's own colors roll as close as 5.8, buffers and cache, and 9.0 or more in 9 rolls of 10. CPU's Low rolls as close as 1.3 to the top, and 6.0 or more in 9 of 10, as before. Each gradient step rolls 8.9 or more, in a graph stepped darker, and 12.4 or more in 9 of 10. Default's nice is 24.4 from its top now, so the closest rolls no longer match a built-in.
-		- Stand-in, 2026-10-28, round-1028b at 84b61ad: 5 rolls, seeds 17, 423, 1999, 5150 and 8888, drawn on a test panel with all 9 graphs. Each read as one set, with every graph apart and clear of the alarms.
+		- Verified 2026-10-28, round-1028b at 84b61ad: 5 rolls, seeds 17, 423, 1999, 5150 and 8888, drawn on a test panel with all 9 graphs. Each read as one set, with every graph apart and clear of the alarms.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
 	- Needs hand testing: on b23, after a panel restart, press Randomize a few times with Apply, and judge whether the rolls look good together.
-	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row.
+	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row.
 	- Priority|Severity: High
 	- Opened: 20261024-094007
 	- Opened by: t00mietum
@@ -402,13 +400,13 @@ Sorted per the notes in [Template](#template).
 	- Status: Done
 		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
 		- It departs from the wording in one way. b23's file sets 2 colors with no theme line, so it opens as Custom, with exactly the colors it has now. Picking Default there gives the coordinated set.
-		- Stand-in, 2026-10-25, build deea9: each built-in theme drew both graphs in a test panel, and a pick took effect at once. Only the look is left.
+		- Verified 2026-10-25, build deea9: each built-in theme drew both graphs in a test panel, and a pick took effect at once. Only the look is left.
 		- Measured 2026-10-28, round-1028 at 17d3d9d, as CIEDE2000: in every built-in, a graph's own colors sit 10.8 or more apart, I/O wait and system 24 or more from every graph's lead, and every color 16.6 or more from the background, except one. Default's nice and Low, `#205f40`, sit 5.1 from the top, `#2a543f`. They were 7.1 from multiload-ng's top, `#2a5446`, before Default moved it. That and the look are left for a person.
 		- Measured again 2026-10-28, branch theme-colors, after 2026102814061803, 2026102810142725 and 2026102807585040: any 2 graphs' leads sit 10.4 or more apart in every built-in but the one-color ones, where all are alike on purpose. In every built-in, a graph's own colors sit 10.6 or more apart, I/O wait and system 14.2 or more from every lead, 21.7 outside Default, every color 15.8 or more from the background, and each gradient step 10.6 or more. Default's nice now sits 24.4 from its gray top, `#313131`. Only the look is left.
-		- Stand-in, 2026-10-28, round-1028b at 84b61ad: a test panel drew all 9 graphs in each of the 9 built-ins. Every graph read apart, outside the one-color themes, and none looked broken.
+		- Verified 2026-10-28, round-1028b at 84b61ad: a test panel drew all 9 graphs in each of the 9 built-ins. Every graph read apart, outside the one-color themes, and none looked broken.
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
 	- Needs hand testing: on b23, after a panel restart, pick each theme on the Themes tab, Apply, and judge how it looks on the panel graph, Default most of all.
-	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row.
+	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row.
 	- Priority|Severity: High
 	- Opened: 20261024-094007
 	- Opened by: t00mietum
@@ -460,7 +458,7 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-26: Split what's left into children: 2026102621053709 (vertical and deskbar panels), 2026102621053715 (a settings file per plugin instance), 2026102621053720 (Wayland), 2026102621053725 (Nix package), and 2026102621105420 (graph sizes on a vertical panel). This closes with the last of them.
 		- 2026-10-28: Closed with its last child, graph sizes on a vertical panel. Every requirement above is covered by a closed child.
 	- Test case: the tests of its children 2026102621053709, 2026102621053715, 2026102621053720, 2026102621053725 and 2026102621105420
-	- Closed: 20261028
+	- Closed: 20261028-192930
 
 - Memory graph
 	- ID: 2026102408304625
@@ -470,7 +468,7 @@ Sorted per the notes in [Template](#template).
 		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
 		- How the 2 graphs look side by side is for a person to judge. On Default, cache is `#408060`, close to the shared top color `#2a543f`.
 		- It departs from the wording in one way. multiload-ng's memory border and background, `#404020` and `#13261d`, aren't used, since every graph shares the Background sub-tab.
-		- Stand-in, 2026-10-25, build deea9: in a test panel the memory graph drew beside CPU, its tip read "Memory 33% in use", every built-in theme recolored it, and with Memory graph off the item narrowed to CPU alone. Only the look is left.
+		- Verified 2026-10-25, build deea9: in a test panel the memory graph drew beside CPU, its tip read "Memory 33% in use", every built-in theme recolored it, and with Memory graph off the item narrowed to CPU alone. Only the look is left.
 	- Needs local test suite run?: No. The full run passed on 2026-10-25.
 	- Needs hand testing: on b23, after a panel restart, look at the memory graph beside CPU on Default, and judge whether cache (`#408060`) stands apart from the top color (`#2a543f`).
 	- Priority|Severity: High
@@ -511,7 +509,7 @@ Sorted per the notes in [Template](#template).
 		- Self-closed 2026-10-28. As CIEDE2000, plugged in, on battery and critical sit 11.1 or more apart in every built-in, and 32.8 or more where plugged in is one of the pair. The stand-in below drew all 3 states, and a real battery changes only what's read, not how it's drawn.
 		- How it looks, in each theme, is for a person to judge, and b23 has no battery, so a laptop has to show it.
 		- It departs from the wording in one way. It's off by default, like swap. Turn it on in the graph list.
-		- Stand-in, 2026-10-26, build defyt: with a made-up battery in a test window, the row drew plugged in at 80% in lavender, on battery at 60% in orange and critical at 4% in red on Default, and Fire colored the charge by its gradient. Only the look on a real laptop is left.
+		- Verified 2026-10-26, build defyt: with a made-up battery in a test window, the row drew plugged in at 80% in lavender, on battery at 60% in orange and critical at 4% in red on Default, and Fire colored the charge by its gradient. Only the look on a real laptop is left.
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Needs hand testing: on a laptop, after an install, turn on Battery graph in the graph list, Apply, and judge how plugged in, on battery and critical look in Default and Fire.
 	- Priority|Severity: High
@@ -569,11 +567,12 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-26: The swap and battery graphs are in, 2026102618353000 and 2026102618353013.
 		- 2026-10-28: The zswap graph is in, 2026102618353002.
 		- 2026-10-26: Split into one child per graph not yet drawn: 2026102618353000 (swap), 2026102618353002 (zswap or zram), 2026102618353004 (network), 2026102618353006 (load), 2026102618353008 (disk), 2026102618353011 (temperature) and 2026102618353013 (battery). This closes with the last of them.
+		- 2026-10-28: the zswap and network graphs are in.
+		- 2026-10-28: the load and disk graphs are in, 2026102618353006 and 2026102618353008.
+		- 2026-10-28: the temperature graph is in, 2026102618353011. It was the last child.
 	- Test case: its children's tests, as each child lists them: swap 2026102618353000, zswap 2026102618353002, network 2026102618353004, load 2026102618353006, disk 2026102618353008, temperature 2026102618353011 and battery 2026102618353013.
-	- 2026-10-28: the zswap and network graphs are in.
-	- 2026-10-28: the load and disk graphs are in, 2026102618353006 and 2026102618353008.
-	- 2026-10-28: the temperature graph is in, 2026102618353011. It was the last child.
-	- 2026-10-28: closed, since every graph it lists draws and all 7 children are closed. How the colors look stays on 2026102620162201.
+	- Acceptance signoff: Self-closed 20261028, since every graph it lists draws and all 7 children are closed. How the colors look stays on 2026102620162201.
+	- Closed: 20261028-100754
 
 - Live graph list on the first settings tab
 	- ID: 2026102408304639
@@ -595,7 +594,8 @@ Sorted per the notes in [Template](#template).
 		- Split into 6 children, in this order: 2026102508393152 (on or off and a width per graph), 2026102508393154 (order), 2026102508393156 (time function per graph), 2026102508393159 (theme per graph), 2026102508393161 (the list itself), and 2026102508393163 (live graphs in it).
 		- 2026-10-25: no theme dropdown per graph after all. One theme colors every graph, per the answer on 2026102508393159.
 	- Test case: its children's tests: dedqd, dedqe, dedqp, dedqq, deea2, deea4, dee9p, dee9q, defkz, defm0, defmj and defmk.
-	- 2026-10-28: closed, since all 6 children are Done.
+	- Acceptance signoff: Self-closed 20261028, since all 6 children are Done.
+	- Closed: 20261028-080039
 
 - CPU temperature graph
 	- ID: 2026102618353011
@@ -625,8 +625,8 @@ Sorted per the notes in [Template](#template).
 		- Off by default, like the other graphs since memory.
 		- After disk and before battery in the default order, as in multiload-ng.
 		- The split is multiload-ng's: normal up to the crit, critical over it, so both stack to the reading. The top is a peak with the crit as its floor, so normal fills the graph at the crit and critical shows once it's over.
-		- A sensor with no `temp*_crit`, such as `k10temp` on this box, turns critical at 95 degrees C, Zen's own limit. Without one, critical would never show there. A Check in questions.md has it.
-		- The collector does the split, as the battery's does by state, so the history holds both series.
+		- A sensor with no `temp*_crit`, such as `k10temp` on this box, turns critical at 95 degrees C, Zen's own limit. Without one, critical would never show there.
+		- The collector does the split, as the battery's does by state, so the history keeps both series.
 		- Critical is each theme's I/O wait red, and Randomize gives it the Alarm role, so going over reads as an alarm, as the battery's critical does.
 		- Built-in temperature leads sit in each theme's widest gap, at least 25 degrees from the others, so defx7 keeps its 25. Randomize's least gap is 22 degrees, down from 25, which leaves 49 degrees of play for 9 leads.
 	- Branch: round-1028
@@ -666,7 +666,7 @@ Sorted per the notes in [Template](#template).
 		- After zswap in the default order, as multiload-ng has load after swap.
 		- The floor is the CPU count, so a full graph means more work queued than CPUs, as a full CPU graph means every CPU busy. A floor of 1 fills the graph on any busy box with many CPUs.
 		- `Source::PEAK_FLOOR` is now `Source::peak_floor(&self)`, since the CPU count isn't a constant. Network's is unchanged.
-		- Built-in lead hues are at least 25 degrees apart, down from 30. 8 leads beside red and orange didn't fit at 30 without moving colors already there. Randomize's least gap is 25 degrees, down from 36, which leaves 50 degrees of play. Colors and the rest are in a Check in questions.md.
+		- Built-in lead hues are at least 25 degrees apart, down from 30. 8 leads beside red and orange didn't fit at 30 without moving colors already there. Randomize's least gap is 25 degrees, down from 36, which leaves 50 degrees of play.
 	- Branch: round-1028
 	- Test case: `graphs::tests::load_and_disk_sit_after_swap_and_fill_to_their_peak` (dej05), `tests::load_reads_as_a_number_and_disk_in_rates` (dej07) and `live::tests::the_load_and_disk_rows_draw_at_their_own_width` (dej08). dej05 and dej07 fail with the floor at 1.
 		- 2026-10-28: new values only, for both graphs. deccf and deccw count 55 theme members, not 44. deccy counts 47 saved colors, not 38. dedqq's default order, and defkz's and defm0's orders, have `load disk` after `zswap`, and defm0's past-the-end move is 8, not 6. defma's rows greyed at defaults add `load_width`, `load_time`, `disk_width`, `disk_time`, `disk_drives` and `disk_log`. defx7 checks 8 lead colors at least 25 degrees apart, not 6 at 30. defxd's `PARTS` takes load and disk too, and its least gap is 20 degrees, not 31, for the 25 degree roll.
@@ -703,7 +703,7 @@ Sorted per the notes in [Template](#template).
 		- `design.md` XFCE plugin, Theme and Drawing have the details.
 		- Verified: the full run passed. A test panel drew the disk graph after load on a log scale, and a 200 MB write showed as written. The settings window showed the Disk graph heading, its 2 rows and the Disk sub-tab.
 	- Decisions:
-		- Drives are typed as names in a text box, not ticked in a list, since the settings window has no list control. Check in questions.md.
+		- Drives are typed as names in a text box, not ticked in a list, since the settings window has no list control.
 		- A new pick of drives takes a new reader at Apply and keeps the history, so the graph doesn't go blank.
 		- The log scale runs from a thousandth of the floor, 100 B/s, to the top, so 1 kB/s under a 4 MB/s top is about a fifth of the height. Written and read keep their shares of the column's log height.
 		- A floor of 100 kB/s, 10 times the network's, so a log file's flush doesn't fill the graph.
@@ -746,7 +746,7 @@ Sorted per the notes in [Template](#template).
 		- A floor of 10 kB/s, so the odd packet on a quiet line doesn't fill the graph.
 		- Decimal units, as a download usually shows them.
 		- Sent is the pale tint and local the muted color, like the gradient's High and Low, so Randomize needs no new role.
-		- Randomize's least gap between lead hues is 36 degrees, down from 45, since 6 hues at 45 leave no play in the range. Colors and the rest are in a Check in questions.md.
+		- Randomize's least gap between lead hues is 36 degrees, down from 45, since 6 hues at 45 leave no play in the range.
 		- The LAN and internet split stays on 2026101916274800.
 	- Branch: round-1028
 	- Test case: `render::tests::a_peak_jumps_up_and_eases_down_to_whats_in_view` (dehzk), `a_graph_with_no_fixed_top_fills_to_its_peak_or_floor` (dehzm), `tests::network_rates_read_in_decimal_units` (dehzn), `graphs::tests::net_sits_after_memory_and_fills_to_its_peak` (dehzp), and `live::tests::the_net_row_draws_at_its_own_width` (dehzq). dehzm and dehzp fail with the peak ignored and the top left at 1.
@@ -783,7 +783,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: the full run passed. A test panel drew "4.7x" over the zswap graph beside CPU and memory, and the settings window drew it on the graph list's row.
 	- Decisions:
 		- Off by default, like the swap graph, so a panel doesn't widen on upgrade.
-		- A lead hue of its own in each theme, not CPU's user color as the swap Check said, since every graph has had its own since round-1027. The colors are in a Check in questions.md.
+		- A lead hue of its own in each theme, not CPU's user color as the swap item said, since every graph has had its own since round-1027.
 		- The ratio has a color of its own, Ratio, since High is hidden in Detailed mode. Its rim is the background's Bottom, so it reads over the pool too.
 		- Text that doesn't fit the plot, as on a very short panel, is left out rather than cut.
 		- `Source::text` takes the reader, so the tip can say Zswap or Zram.
@@ -1290,7 +1290,7 @@ Sorted per the notes in [Template](#template).
 	- Type: Task
 	- Status: Done
 		- It departs from the wording in one way. GTK 3 is in the image as its runtime libraries, not the dev package, since the plugin links GTK, cairo and the panel library by soname. The Debian snapshot the image reads pins them, as it does Qt.
-		- Stand-in, 2026-10-25: `--list` for the default run shows Release build and Dogfood on the host, and the merge gate on e131b57 passed in the image. Only the run that dogfoods is left, which a round may not do.
+		- Verified 2026-10-25: `--list` for the default run shows Release build and Dogfood on the host, and the merge gate on e131b57 passed in the image. Only the run that dogfoods is left, which a round may not do.
 	- Priority|Severity: High
 	- Opened: 20261024-162528
 	- Opened by: t00mietum
@@ -1304,7 +1304,7 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Avg
 	- Actual effort: Avg
 	- Progress log:
-		- `cicd/container/` holds the recipe: Debian trixie by digest, apt from a dated snapshot, Qt 6 Widgets dev, the GTK 3 and panel libraries, the Rust toolchain from `rust-toolchain.toml`, and shellcheck and markdownlint at the `cicd/config.bash` pins. The tag is a hash of the recipe, so an edit means a new image.
+		- `cicd/container/` has the recipe: Debian trixie by digest, apt from a dated snapshot, Qt 6 Widgets dev, the GTK 3 and panel libraries, the Rust toolchain from `rust-toolchain.toml`, and shellcheck and markdownlint at the `cicd/config.bash` pins. The tag is a hash of the recipe, so an edit means a new image.
 		- `cicd.bash` builds the image when its tag is missing, checks it has the pinned Rust, and fetches the crates. Format, build, lint, tests and the release build then run in it offline, as the caller's uid, into `target/container`.
 		- Remote sync and dogfood stay on the host, and so does the release build in a run that dogfoods, since that build is what gets installed. A test that needs a real panel or display gets a step left out of `CTR_STEPS` in `cicd/config.bash`. None does yet.
 		- No docker, a docker that doesn't answer, or an image that won't build is one line, and the run goes on on the host.
@@ -1314,6 +1314,7 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: None in the repo, as for 2026102416252892. The gate was watched to fail on a planted format error.
 	- Verified 2026-10-26: `cicd/cicd.bash` with no options passed all 13 steps in 2m08s on b23, Dogfood included, with `xfce4-panel` on PATH as a stand-in that logged `--restart` instead of restarting the live panel. b23 now has build defnz installed, and the panel loads it at its next restart.
+	- Closed: 20261025-090429
 
 - Battery collector
 	- ID: 2026102408512223
@@ -1348,6 +1349,7 @@ Sorted per the notes in [Template](#template).
 	- Test case: `battery::tests` (5: defnt, defnv, defnw, defnx, defny). defnx fails with the `BAT` name check taken out, defnw with one battery at `Critical` enough, defnv with the 4% rule taken out, and defnw and defnx with `present` ignored.
 		- Swept: the temperature collector, the other `/sys` reader, which also skips what it can't read and gives no collector when nothing reads at start.
 	- Verified 2026-10-26: on b28l, a laptop on AC with BAT0 full, the 5 battery tests passed from a b23 build of the core test binary, and strace showed defny reading 13 BAT0 files, so it didn't skip. The on-battery path is covered by the made-up trees in defnv and defnw only.
+	- Closed: 20261026-185753
 
 - Core library and Linux collectors
 	- ID: 2026101916013884
@@ -1364,8 +1366,9 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- CPU from `/proc/stat` works. The other graphs aren't started.
 		- 2026-10-24: Split into one child per source: 2026102408512192 (the collector trait, memory and swap), 2026102408512197 (zswap and zram), 2026102408512202 (network), 2026102408512207 (load), 2026102408512212 (disk), 2026102408512217 (temperature), and 2026102408512223 (battery). This closes with the last of them.
+		- 2026-10-26: every child is Done. Each collector's probe gives none when its source is missing, which is what hides its graph. Drawing them is The graphs, 2026101916013887.
 	- Test case: its children's tests: memory and swap on 2026102408512192, zswap defmz to defn3, slab defmy, network and disk on 2026102408512202 and 2026102408512212, load defnj and defnk, temperature defnm to defnr, battery defnt to defny
-	- 2026-10-26: every child is Done. Each collector's probe gives none when its source is missing, which is what hides its graph. Drawing them is The graphs, 2026101916013887.
+	- Closed: 20261026-180742
 
 - Load collector
 	- ID: 2026102408512207
@@ -1505,7 +1508,7 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Data sources on Linux has the details.
 		- Verified: on this box, with zswap on and no zram, the live read gives a share in range.
 	- Decisions:
-		- Zswap's % used is the pool against `max_pool_percent` of all memory, the point it stops taking pages. Zram's is what it holds, before compression, against `disksize`. Both read as how close it is to full.
+		- Zswap's % used is the pool against `max_pool_percent` of all memory, the point it stops taking pages. Zram's is what it stores, before compression, against `disksize`. Both read as how close it is to full.
 		- The ratio isn't a series, so it stays out of the history file. The overlay shows the latest.
 		- Zswap on with no rows to read, as on an old kernel, falls to zram.
 		- zram devices are summed, and one added after start is missed until the panel restarts.
@@ -1549,7 +1552,7 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261024-082803
 	- Opened by: t00mietum
 	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-		- Answered 2026-10-25 for this item and the other 9 from round-1024: a round may install with `--no-restart`, so round-1025 put this build on b23.
+		- 2026-10-25 for this item and the other 9 from round-1024: A round may install with `--no-restart`, so round-1025 put this build on b23.
 	- Requirements:
 		- The tabs are too vertically narrow.
 		- The highlight is too bright, and dark-mode text (i.e. white) is hard to read.
@@ -2010,7 +2013,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102508393159
 	- Type: Feature
 	- Status: Done
-		- Answered 2026-10-25: one theme colors every graph, so no graph picks its own. The Themes tab may already work this way. Check it, add a test, and take the theme dropdown out of the graph list item.
+		- 2026-10-25: one theme colors every graph, so no graph picks its own. That leaves checking that the Themes tab works this way, a test, and taking the theme dropdown out of the graph list item.
 	- Priority|Severity: High
 	- Opened: 20261025-083931
 	- Opened by: t00mietum
@@ -2163,7 +2166,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Finished: it should be smooth, with no obvious gate or line behind the scenes. `design.md` has how under Time axis.
 	- Test case: None, since it was a question. The log axis item's tests cover the answer.
-	- Closed: 20261019
+	- Closed: 20261019-162817
 
 - Confirm the language split
 	- ID: 2026101916013881
@@ -2178,7 +2181,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- OK'd as proposed. `design.md` now lists it as settled.
 	- Test case: None, since it was a question about the code layout.
-	- Closed: 20261019
+	- Closed: 20261019-162817
 
 - Properties seems to do nothing when the item's settings window is open already
 	- ID: 2026110210171300
@@ -2374,7 +2377,7 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: GPU memory, disk, temperature and swap stay on the real clock, so they have only a few seconds of history and draw mostly gaps. The drawing and history shares in the flame report come out too low.
 	- Expected behavior: every shown graph is profiled with a full history, as the soak test does.
 	- Possible cause: graphs were added without touching the profiler. `TICK` still says 500 ms is the default, but it's been 1000 since `aa43398`, and the subtitle still says "CPU and memory".
-	- Actual cause [Bug]: as above. The profiler and the soak test each listed the graphs to skip by hand, so each new default graph had to be added to both. The soak test was caught the same way in 2026102816343100.
+	- Actual cause: as above. The profiler and the soak test each listed the graphs to skip by hand, so each new default graph had to be added to both. The soak test was caught the same way in 2026102816343100.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
@@ -2386,7 +2389,7 @@ Sorted per the notes in [Template](#template).
 		- One `Graphs` method rather than a test over the profiler's list, so a new graph needs no change in either caller.
 		- It skips every graph that exists, shown or not, as `reset` clears them all. A hidden one isn't sampled, so its clock only keeps pace.
 		- The sample time and the save interval come from `Look::default()`, so a new default doesn't leave them stale again.
-	- Actual fix [Bug]: `Graphs::skip` in `core/src/graphs.rs`, used by `core/examples/profile.rs` and `core/tests/soak.rs`.
+	- Actual fix: `Graphs::skip` in `core/src/graphs.rs`, used by `core/examples/profile.rs` and `core/tests/soak.rs`.
 	- Branch: round-1030b
 	- Test case: `graphs::tests::skip_moves_the_clock_of_every_graph_shown` (den86), with every graph turned on. It fails with the skip on CPU and memory only, as the profiler had it.
 		- Swept: every `.skip(` caller (the profiler, the soak test, and 2 tests in `core/src/lib.rs` that skip one graph on purpose), and the cicd and design docs for "CPU and memory" about the profiler.
@@ -2434,7 +2437,7 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- Filed 2026-10-30 from the LAN split worker's report. demw3 checks the network case refuses today.
+		- Filed 2026-10-30 during the LAN split work. demw3 checks the network case refuses today.
 		- The history file is version 2. Each section starts with its series count, and decode refuses another count.
 		- A version 1 file still reads. Its sections come back with a count of 0, which decode takes to mean "go by the layout", as before.
 		- `design.md` History has the details.
@@ -2468,7 +2471,7 @@ Sorted per the notes in [Template](#template).
 		- This reverses that item's call to leave out Ctrl+PgUp and Ctrl+PgDn. Both are the usual next and previous tab keys.
 	- Branch: pgkeys
 	- Test case: `bridge::tests::ctrl_page_down_and_up_step_like_ctrl_tab` (den56), from the tab list and from a number box. It fails without the fix with General, Outline, Outline, Outline.
-	- Closed 2026-10-30.
+	- Closed: 20261030-153342
 
 - Pre-next-cut: Ctrl+Tab skips Themes|Colors
 	- ID: 2026103009394901
@@ -2490,7 +2493,8 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1030
 	- Test case: `bridge::tests::ctrl_tab_steps_through_every_page_colors_too` (demvm). It fails with the key left unhandled.
 		- Swept: Themes is the only tab with sub-tabs.
-	- Closed 2026-10-30: the window's own filter takes Ctrl+Tab before any widget sees it, so nothing else can move the page, and demvm walks every page both ways.
+	- Acceptance signoff: Self-closed 20261030: the window's own filter takes Ctrl+Tab before any widget sees it, so nothing else can move the page, and demvm walks every page both ways.
+	- Closed: 20261030-103206
 
 - Pre-next-cut: Themes|Colors labels out of vertical alignment
 	- ID: 2026103009394902
@@ -2623,7 +2627,7 @@ Sorted per the notes in [Template](#template).
 	- Test case: `tests::own_use_reads_in_fine_percents_and_fills_at_every_cpu` (dejb6) and `graphs::tests::the_own_graph_sits_last_and_fills_at_every_cpu` (dejb7), renamed from the hundredth-of-one-CPU names. 2026-10-28: dejb6 asserts a floor of 1.0, not 0.01 over the CPU count. dejb7 draws 0.5 and expects half height and a tip of "50% of all CPUs", where it drew half the old floor and expected 0.50% of one CPU. Both fail with the old floor.
 	- Swept: `OwnReader::peak_floor` is the only floor for the graph. The design.md Drawing line and the `self.show` tip in `settings.shcl` are updated. The README names no floor.
 	- Needs hand testing: No
-	- Closed: 20261028
+	- Closed: 20261028-192006
 
 - The soak check fails since swap is on by default
 	- ID: 2026102816343100
@@ -2701,12 +2705,31 @@ Sorted per the notes in [Template](#template).
 		- Swept: defx7 and defxd, the only checks on leads, every built-in in `settings.shcl`, and every role in `dice::ROLES` that follows its graph's lead.
 	- Closed: 20261028-161000
 
+- CICD gap: clang-tidy leaves out the clang analyzer checks
+	- ID: 2026110310450007
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261103-104500
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements: clang-tidy runs at least `clang-analyzer-*` and `bugprone-*` on the C++. `.clang-tidy` had only `bugprone-*`.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `.clang-tidy` turns on `clang-analyzer-*`. It found one leak in `qt.cpp`, a `QButtonGroup` made with its widget as parent, which Qt frees. It's suppressed at the line with the reason.
+		- Verified: lint failed on that finding before the suppression, and passed after.
+	- Branch: tidy
+	- Test case: The Lint step is its own check. It was watched to fail.
+	- Acceptance signoff: Self-closed 20261103: mechanical, and the lint gate passed.
+	- Closed: 20261103-104500
+
 - Pre-next-cut: A spike emphasis of 100 should preserve more of prior spikes
 	- ID: 2026110215302657
 	- Type: Enhancement
 	- Status: Done
-	- Stand-in: 20261102, round-1102b at 4286e10 against 8551170's parent, drawing a CPU graph 200 px wide from 24 and 72 hours of made-up history with a 20 s spike to 85% each hour, on b23's own settings at 100%, 75% and 50%. Before, the hourly spikes were gone past the middle of the graph. Now they stand out as separate lines back to about the last tenth at 100% and 75%, and to the second quarter at 50%, lower but clear.
-		- At 100% the leftmost tenth, where each column covers hours that all hold a spike, fills to the top, and at 75% most of the way. A short blip each minute lifts the older columns' floor to about a quarter of the height, against about 5% before. Asked as a check in `questions.md`.
+	- Verified: 20261102, round-1102b at 4286e10 against 8551170's parent, drawing a CPU graph 200 px wide from 24 and 72 hours of made-up history with a 20 s spike to 85% each hour, on b23's own settings at 100%, 75% and 50%. Before, the hourly spikes were gone past the middle of the graph. Now they stand out as separate lines back to about the last tenth at 100% and 75%, and to the second quarter at 50%, lower but clear.
+		- At 100% the leftmost tenth, where each column covers hours that all have a spike, fills to the top, and at 75% most of the way. A short blip each minute lifts the older columns' floor to about a quarter of the height, against about 5% before.
 	- Priority|Severity: Avg
 	- Opened: 20261102-153026
 	- Opened by: t00mietum
@@ -2732,7 +2755,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026110215302658
 	- Type: Enhancement
 	- Status: Done
-	- Stand-in: 20261102, round-1102b debug build, in b23's own style (gtk3 platform theme, Orchis green compact), light and dark. Graphs drew a Vertical scale column right of Time axis, Global default in each row, with nothing cut off. Colors drew each mode on its own line with no Vertical scale.
+	- Verified: 20261102, round-1102b debug build, in b23's own style (gtk3 platform theme, Orchis green compact), light and dark. Graphs drew a Vertical scale column right of Time axis, Global default in each row, with nothing cut off. Colors drew each mode on its own line with no Vertical scale.
 	- Priority|Severity: Avg
 	- Opened: 20261102-153026
 	- Opened by: t00mietum
@@ -2761,7 +2784,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026110215302659
 	- Type: Enhancement
 	- Status: Done
-	- Stand-in: 20261102, round-1102b debug build, in b23's own style, light and dark. On Colors every revert arrow sat just right of its hex box, in both columns, and the mode's just right of Gradient.
+	- Verified: 20261102, round-1102b debug build, in b23's own style, light and dark. On Colors every revert arrow sat just right of its hex box, in both columns, and the mode's just right of Gradient.
 	- Priority|Severity: Avg
 	- Opened: 20261102-153026
 	- Opened by: t00mietum
@@ -2901,7 +2924,7 @@ Sorted per the notes in [Template](#template).
 			- New section at the bottom: "Misc"
 				- Disk drives. Remove the "Disk graph" section.
 				- LAN and internet. Remove the "Network graph" section.
-	- Stand-in: 20261101, round-1102 debug build, in b23's own style (gtk3 platform theme, Orchis green compact), light and dark. General drew Size (Width px default, Border px), Time axis (Scale default, Sample ms default, Spike emphasis %, Hover shows on How long ago), Timespan (Keep across restarts with Max age in days to its right) and Misc (Disk drives, Disk log scale, LAN and internet). Outline drew Top and bottom px and Left and right px.
+	- Verified: 20261101, round-1102 debug build, in b23's own style (gtk3 platform theme, Orchis green compact), light and dark. General drew Size (Width px default, Border px), Time axis (Scale default, Sample ms default, Spike emphasis %, Hover shows on How long ago), Timespan (Keep across restarts with Max age in days to its right) and Misc (Disk drives, Disk log scale, LAN and internet). Outline drew Top and bottom px and Left and right px.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
@@ -2940,7 +2963,7 @@ Sorted per the notes in [Template](#template).
 			- For each monitor, add "Vertical scale:", with same options (but per-monitor) as "Vertical axis"/"Scale default", but with an additional "Global default" option (default selection).
 	- Decisions:
 		- 2026-11-01: 𝜒² is there to exaggerate differences. Large values get larger, and small values relatively smaller. So it's a squared curve, the height following (value / top)², the opposite of log₁₀.
-	- Stand-in: 20261101, round-1102 debug build, in b23's own style (gtk3 platform theme, Orchis green compact), light and dark. General drew Vertical axis with Scale default between Time axis and Timespan, and no Disk log scale under Misc. Themes/Colors drew Vertical scale right of each graph's Colors mode, on its line, with Global default, and the log and squared picks read as their symbols.
+	- Verified: 20261101, round-1102 debug build, in b23's own style (gtk3 platform theme, Orchis green compact), light and dark. General drew Vertical axis with Scale default between Time axis and Timespan, and no Disk log scale under Misc. Themes/Colors drew Vertical scale right of each graph's Colors mode, on its line, with Global default, and the log and squared picks read as their symbols.
 	- Estimated effort: Avg
 	- Actual effort: Avg
 	- Progress log:
@@ -2950,7 +2973,7 @@ Sorted per the notes in [Template](#template).
 		- `design.md` XFCE plugin, Settings window and Drawing, `style-guide_ux.md` Labels and README.md are updated.
 		- Verified: the quick gate passed, and the stand-in above.
 	- Decisions:
-		- Vertical scale isn't in the theme group, so picking a theme leaves it, and changing it doesn't add a * to the theme. It sits on the Themes/Colors tab as asked. Check in questions.md.
+		- Vertical scale isn't in the theme group, so picking a theme leaves it, and changing it doesn't add a * to the theme. It sits on the Themes/Colors tab as asked.
 		- It joins the Colors mode's line with `same_line: true`, and that line now spans both columns, so the section keeps its width. The mode's revert moves to the line's right end, as Keep across restarts' does on General.
 		- `Source::log_y` is replaced by `Source::vertical`, and `render::Frame` takes a `vertical`, since a graph with a fixed top has no `Scale`.
 		- The docs and tips write log10 and squared in plain text. Only the dropdowns show the symbols asked for.
@@ -2966,7 +2989,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026103113364400
 	- Type: Enhancement
 	- Status: Done
-		- Whether the 2 shades read apart and look right is for a person to judge. Pictures in Orchis-green light and dark, before and after, are in `private/claude_simple/uat-2026103113364400/`.
+		- Whether the 2 shades read apart and look right is for a person to judge.
 	- Needs hand testing: No
 	- Priority|Severity: Avg
 	- Opened: 20261031-133644
@@ -2993,6 +3016,7 @@ Sorted per the notes in [Template](#template).
 	- Test case: `bridge::tests::the_parts_set_in_are_a_shade_darker_than_the_rest` (dekna), in a light and a dark theme. It fails with the old shades, where the tab list kept the window color.
 		- 2026-10-31: dekna was `the_part_that_scrolls_is_a_shade_off_the_window`. It checked the rest equal to the window color and the page lighter in a dark theme. It now checks the tab list equal to the page, the page darker than the rest in both themes, and the page equal to the window color in a dark one. The contrast range 1.05 to 1.3 is unchanged.
 		- Swept: every `QScrollArea` and item view in `qt.cpp`. The `FitScroll` in `buildPage` and the tab list are the only ones. The color picker and message boxes are windows of their own, so they don't take the dialog's shade.
+	- Closed: 20261031-143514
 
 - Pre-next-cut: Clicking a slider's track moves the slider there
 	- ID: 2026103108591401
@@ -3022,7 +3046,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026103108591402
 	- Type: Enhancement
 	- Status: Done
-	- Stand-in: 20261031, the round's debug build in b23's own style (Orchis green compact, dark) on a private display, in place of a hand test on b23. The handles came level with the number boxes, and the groove stayed thin and centered.
+	- Verified: 20261031, the round's debug build in b23's own style (Orchis green compact, dark) on a private display, in place of a hand test on b23. The handles came level with the number boxes, and the groove stayed thin and centered.
 	- Priority|Severity: Avg
 	- Opened: 20261031-085914
 	- Opened by: t00mietum
@@ -3046,7 +3070,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026103108591403
 	- Type: Enhancement
 	- Status: Done
-	- Stand-in: 20261031, the release build from the full run, in b23's own style (Orchis green compact), light and dark, in place of a hand test on b23. On Themes/Colors the theme buttons and the bottom row came out one height.
+	- Verified: 20261031, the release build from the full run, in b23's own style (Orchis green compact), light and dark, in place of a hand test on b23. On Themes/Colors the theme buttons and the bottom row came out one height.
 	- Priority|Severity: Avg
 	- Opened: 20261031-085914
 	- Opened by: t00mietum
@@ -3093,13 +3117,13 @@ Sorted per the notes in [Template](#template).
 		- Verified: the quick gate passed.
 	- Decisions:
 		- Only position and colors. b23's width 50% and sample 100% for processes weren't asked for, so they stay 25% and 200%.
-		- Temperature's Medium and processes' Yours are both picked, and 9.4 apart as CIEDE2000, under the 10 the other leads keep. They stay as picked, since in Default what was picked wins (2026102814061803). dejbr lets off that one pair in Default. A Check in questions.md has it.
+		- Temperature's Medium and processes' Yours are both picked, and 9.4 apart as CIEDE2000, under the 10 the other leads keep. They stay as picked, since in Default what was picked wins (2026102814061803). dejbr lets off that one pair in Default.
 		- Memory's programs, `#ffffa3`, was 9.2 from temperature's new yellow. It was never picked, so it moved, to `#ffffb8`, the least change that reads 10 apart from both new yellows.
 	- Branch: round-1031b
 	- Test case: `config::tests::the_default_theme_keeps_the_colors_picked_on_it` (dejbq) checks the new colors, and that Low and Medium follow System and Yours. It fails on the old colors. dedqq, dep48 and defm0 check the order.
 		- 2026-10-31: new values only. dedqq's and defm0's orders, dejac's labels, and the moved list after its 2 moves, have `procs` after `mem`. dep48 reads `mem procs` at index 1, not `load procs` at 9, and dekmc reads `cpu mem procs gpu vram`. dedpz reads programs `#ffffb8`, not `#ffffa3`.
 		- 2026-10-31: dejbr now checks every pair of leads, not only the closest, so it can let off Default's temperature and processes pair.
-		- Swept: every test and doc naming the default order or Default's processes, temperature and memory programs colors, and `settings.shcl`'s row defaults, which deccf holds to Default.
+		- Swept: every test and doc naming the default order or Default's processes, temperature and memory programs colors, and `settings.shcl`'s row defaults, which deccf ties to Default.
 	- Acceptance signoff: Self-closed 20261031: dejbq and the order tests passed in the quick gate.
 	- Closed: 20261031-094117
 
@@ -3184,7 +3208,7 @@ Sorted per the notes in [Template](#template).
 	- Status: Done
 		- The amount is a look: open Settings and judge the room around the text on the buttons.
 	- Needs hand testing: Settings on b23, with its own style, once a build with this is installed.
-	- Stand-in: 20261031, build dep51 from c1dec56 in b23's own style (gtk3 platform theme, Orchis green compact), light and dark, in place of the hand test on b23. Every tab and the color picker showed each button's text clear of its frame, and nothing else out of place.
+	- Verified: 20261031, build dep51 from c1dec56 in b23's own style (gtk3 platform theme, Orchis green compact), light and dark, in place of the hand test on b23. Every tab and the color picker showed each button's text clear of its frame, and nothing else out of place.
 	- Priority|Severity: Avg
 	- Opened: 20261031-074046
 	- Opened by: t00mietum
@@ -3214,7 +3238,7 @@ Sorted per the notes in [Template](#template).
 	- Type: Enhancement
 	- Status: Done
 		- It departs from the wording in one way. It's off by default, like the other graphs since memory. Turn it on in the graph list.
-		- How it looks in each theme stays on 2026102620162201. A Check in questions.md has the colors and the owner rule.
+		- How it looks in each theme stays on 2026102620162201.
 	- Needs local test suite run?: No. The quick gate passed on 2026-10-31.
 	- Priority|Severity: Avg
 	- Opened: 20261031-074046
@@ -3261,7 +3285,7 @@ Sorted per the notes in [Template](#template).
 		- A slider drag and a color picker drag stay smooth on a slow box.
 		- Time one `refresh()` first, on b23 and on a VM, before and after.
 	- Progress log:
-		- Each step runs `refresh()`, which looks up every row's setting by a linear scan of about 400 settings, several times per row, and restyles all 101 color chips. Details in `details.md` -> "Code review 20261030".
+		- Each step runs `refresh()`, which looks up every row's setting by a linear scan of about 400 settings, several times per row, and restyles all 101 color chips.
 		- The lookup is in knobs, which stays byte-identical to silkterm, so that part goes there first. That part is in child 2026103018353670.
 		- Timed on b23, release build: of a 4.5 ms refresh, the chips' style sheets took 3.2 ms, the rows' states 0.6 ms, and the graph list 0.15 ms.
 		- A chip is restyled only when its color changed.
@@ -3277,6 +3301,7 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1030b
 	- Test case: `bridge::tests::a_refresh_restyles_only_the_chips_whose_color_changed` (denaq). `bridge::tests::time_a_refresh_and_a_slider_step` (denam) is the timing, ignored unless asked for.
 		- Swept: every `setStyleSheet` in `qt.cpp`, which is only the chip's, and every `spec.get` and `slider` call in `Dialog::state`.
+	- Closed: 20261030-183616
 
 - Code review 20261030 item 4: Nothing formats or lints the C++ and Python files
 	- ID: 2026103016201604
@@ -3316,7 +3341,7 @@ Sorted per the notes in [Template](#template).
 		- Whether a percentage of the time between reads, where 200% reads half as often, is what was meant is for a person to judge.
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Needs hand testing: No
-	- Stand-in: none (20261028). Turns on what the percentage was meant to be of. The rates are checked by dej9z, deja0 and deja2.
+	- Note: 20261028, no check can judge it, since it turns on what the percentage was meant to be of. The rates are checked by dej9z, deja0 and deja2.
 	- Priority|Severity: Avg
 	- Opened: 20261028-191455
 	- Opened by: t00mietum
@@ -3339,6 +3364,7 @@ Sorted per the notes in [Template](#template).
 	- Test case: `config::tests::each_graph_has_a_sample_rate_and_old_files_keep_the_default` (deja1) checks the rows, the percentage, rounding, the 50 ms floor, and an old ms line read as 100%. It fails on the ms rows. dej9z checks 400% and 33% of 500 ms, debj5 a graph's axis at 400%, deja0 200% on one timer, and deja2 an unapplied 2% in the window.
 		- 2026-10-28: new values only. dej9z, debj5, deja0 and deja2 give a graph's rate as a percentage, not ms, for the same rates as before, and deja2's Default is 100, not 0.
 		- Swept: every `<name>_sample_ms` field and id (`Look`, each `Source::sample_ms`, `Dialog::graph_rows`, the graph list in qt.cpp), every `Look::rate` caller, and the docs naming `.sample_ms`.
+	- Closed: 20261028-204016
 
 - Pre-next-cut: Scrollable region of the dialog a different color
 	- ID: 2026102913122702
@@ -3347,7 +3373,7 @@ Sorted per the notes in [Template](#template).
 		- Whether the shade is subtle enough and still plain to see is for a person to judge.
 	- Needs local test suite run?: No. The full run passed on 2026-10-29.
 	- Needs hand testing: No
-	- Stand-in: none (20261029). Turns on how subtle the shade looks, with no Check on it. Build dekpw drew every tab in Adwaita and Adwaita dark: the page at `#f4f3f2` on a `#faf9f8` window, and `#383838` on `#323232`, with the tab list, the Name row and the buttons in the window color. Pictures are in `private/claude_simple/uat-20261029/`, `s-light-*.png` and `s-dark-*.png`.
+	- Note: 20261029, no check can judge it, since it turns on how subtle the shade looks. Build dekpw drew every tab in Adwaita and Adwaita dark: the page at `#f4f3f2` on a `#faf9f8` window, and `#383838` on `#323232`, with the tab list, the Name row and the buttons in the window color. Pictures are in `private/claude_simple/uat-20261029/`, `s-light-*.png` and `s-dark-*.png`.
 	- Priority|Severity: Avg
 	- Opened: 20261029-131227
 	- Opened by: t00mietum
@@ -3368,6 +3394,7 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1029
 	- Test case: `bridge::tests::the_part_that_scrolls_is_a_shade_off_the_window` (dekna), in a light and a dark theme. It fails with the shade left out.
 		- Swept: every scroll area in `qt.cpp`. `FitScroll` in `buildPage` is the only one, and every tab and sub-tab that scrolls goes through it.
+	- Closed: 20261029-140510
 
 - Pre-next-cut: Defaults from my current settings
 	- ID: 2026102917525530
@@ -3402,7 +3429,7 @@ Sorted per the notes in [Template](#template).
 		- The battery's rows moved below tukzmon's in `settings.shcl`, so the spec lists them in the default order.
 		- A saved theme from before the Outline overrides gets Default's, now on, the way it gets Default's margins.
 	- Branch: defaults
-	- Test case: `config::tests::the_default_theme_is_the_row_defaults` (deccf) holds Default to the rows. debhj, deja1, dedqq, decc5 and decbf read the new values.
+	- Test case: `config::tests::the_default_theme_is_the_row_defaults` (deccf) ties Default to the rows. debhj, deja1, dedqq, decc5 and decbf read the new values.
 		- 2026-10-29: new values only. The layout tests in `graphs.rs` pin the old defaults in `two()`. Tests that read their own per-graph outline set both overrides off. debj5, dej9z, defz1 and deja2 set 100% sample, and the hover tests set "ago".
 		- Swept: every test in core, settings and xfce that opens on defaults, the soak (which now skips the clock for the 3 graphs newly on), and `design.md`.
 	- Acceptance signoff: Self-closed 20261029: a new item on b23 differs from the defaults only in the graphs shown, and the full run passed.
@@ -3415,7 +3442,7 @@ Sorted per the notes in [Template](#template).
 		- Measured as CIEDE2000, where 10 or more reads clearly apart. b23's colors as they were: zswap's magenta `#ff80ff` 3.2 from system's pink `#fa72f0`, swap `#40a0ff` 5.6 from the disk's read `#6bb3ff`, and memory `#ffff80` 5.7 from temperature `#feff40`. Default now: every 2 graphs' leads 10.4 or more apart, memory and temperature the closest, and every lead 14.2 or more from I/O wait and system.
 	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
 	- Needs hand testing: on b23, after an install and a panel restart, pick Default on the Themes tab with no "*" changes on it, Apply, and judge whether it looks like the colors set by hand before.
-	- Stand-in: none (20261028). Waits on the open question on Default's pink CPU system and memory `#ffffa3`, and turns on how it looks.
+	- Note: 20261028, no check can judge it. It waits on the open question on Default's pink CPU system and memory `#ffffa3`, and turns on how it looks.
 	- Priority|Severity: Avg
 	- Opened: 20261028-140618
 	- Opened by: t00mietum
@@ -3449,7 +3476,7 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: new values only. debhj reads system `#fa72f0`, the border `#8b8b8b` and the top `#313131`, not `#c64200`, `#408060` and `#2a543f`. dedpz reads programs `#ffffa3`, not `#ffff80`.
 		- 2026-10-28: defq5, dej0v and dejab read swap's, temperature's and zswap's series colors, which Default now draws as gradients, so their looks set those graphs to Detailed.
 		- 2026-10-28: defx7 no longer checks the hue angle between leads. dejbr, from 2026102810142725, checks how far apart they look instead.
-		- Swept: every test that reads a Default color or mode, in core, settings and xfce, every row default, which deccf holds to Default, and every mention of Default's colors in `design.md` and `settings.shcl`.
+		- Swept: every test that reads a Default color or mode, in core, settings and xfce, every row default, which deccf ties to Default, and every mention of Default's colors in `design.md` and `settings.shcl`.
 	- Acceptance signoff: 20261029: b23's settings were asked for as the defaults, and Default already had their colors, pink system and `#ffffa3` included (2026102917525530).
 	- Closed: 20261029-175255
 
@@ -3460,7 +3487,7 @@ Sorted per the notes in [Template](#template).
 		- It departs from the wording in one way. It's off by default, like every graph since memory. Turn it on in the graph list.
 		- 2026-10-29: the one call left for a person, reserved memory, went the way bug 2026102915125135 asked, to match `nvidia-smi`.
 	- Needs local test suite run?: No. The full run passed on 2026-10-29.
-	- Stand-in: 20261029, build dekpw from 9b72012 in a test panel on Default. The graph drew in its own violet after GPU, and its tip read "GPU memory 39% used" and "3.1 of 8.0 GiB", while `nvidia-smi` read 2818 MiB used and 351 MiB reserved. So the tip counts the reserved part as used, and reads about 4 points over `nvidia-smi`. Left for a person, since which one is right is a call on what the graph means. The rest matched 2026102819145597.
+	- Verified: 20261029, build dekpw from 9b72012 in a test panel on Default. The graph drew in its own violet after GPU, and its tip read "GPU memory 39% used" and "3.1 of 8.0 GiB", while `nvidia-smi` read 2818 MiB used and 351 MiB reserved. So the tip counts the reserved part as used, and reads about 4 points over `nvidia-smi`. Left for a person, since which one is right is a call on what the graph means. The rest matched 2026102819145597.
 	- Priority|Severity: Avg
 	- Opened: 20261028-191455
 	- Opened by: t00mietum
@@ -3489,7 +3516,7 @@ Sorted per the notes in [Template](#template).
 		- It departs from the wording in one way. It's off by default, like every graph since memory. Turn it on in the graph list.
 	- Needs local test suite run?: No. The full run passed on 2026-10-29.
 	- Needs hand testing: on b23, after an install and a panel restart, turn on GPU and GPU memory in the graph list, Apply, and judge how both look beside memory on Default. The GPU tip should be near what `nvidia-smi` shows.
-	- Stand-in: 20261029, build dekpw from 9b72012 in a test panel on Default, with CPU, memory, GPU and GPU memory on. The GPU graph drew in its own blue beside memory, and its tip read "GPU 29% busy" while `nvidia-smi` read 26% to 36%. The graph list, the GPU section on Colors and the Default colors matched the Check in questions.md, in a light and a dark theme.
+	- Verified: 20261029, build dekpw from 9b72012 in a test panel on Default, with CPU, memory, GPU and GPU memory on. The GPU graph drew in its own blue beside memory, and its tip read "GPU 29% busy" while `nvidia-smi` read 26% to 36%. The graph list, the GPU section on Colors and the Default colors drew as asked, in a light and a dark theme.
 	- Priority|Severity: Avg
 	- Opened: 20261028-191455
 	- Opened by: t00mietum
@@ -3509,23 +3536,23 @@ Sorted per the notes in [Template](#template).
 		- The first GPU only. A picker for boxes with more than one can be its own item.
 		- NVML is opened with `dlopen`, so a box without the NVIDIA driver still starts, and no crate is added. It's opened once a process and stays open.
 		- NVIDIA first, then the first amdgpu card. Intel has no busy share without root, so it has no GPU graphs.
-		- Each built-in gives GPU a lead of its own, 14 or more from every other lead as CIEDE2000. The one-color themes give it their one color. Check in questions.md.
+		- Each built-in gives GPU a lead of its own, 14 or more from every other lead as CIEDE2000. The one-color themes give it their one color.
 		- Randomize rolls 12 lead hues at least 18 degrees apart, down from 22, with the same 27 degrees of play. 12 leads often have no steps that keep every 2 of them 10 apart, so it draws up to 128 sets of hues, up from 16. At 16, 34 of 20,000 rolls had 2 leads under 10 apart, and at 128 none did.
 	- Branch: round-1029
 	- Test case: `gpu::tests::amdgpu_reads_from_the_first_card_and_skips_connectors` (dekm9), `a_live_gpu_reads_as_a_share_where_there_is_one` (dekma), `tests::gpu_tips_read_busy_and_memory_in_gib` (dekmb), `graphs::tests::gpu_and_its_memory_sit_after_memory_and_fill_at_all_of_it` (dekmc) and `live::tests::the_gpu_rows_are_there_only_with_a_gpu_to_read` (dekmd). dekm9 fails with connectors such as `card0-DP-1` read as cards.
 		- 2026-10-29: new values only, for both graphs. deccf and deccw count 115 theme members, not 99. deccy counts 99 saved colors, not 85. dedqq's default order, and defkz's, defm0's and dejac's orders, have `gpu vram` after `mem`, and defm0's past-the-end move is 12, not 10. dejkg reads 12 outlines, not 10, with tukzmon's at 11. defx7 and deja1 take gpu and vram too. defxd's least gap is 13 degrees, not 17, for the 18 degree roll.
 		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 9 built-in themes, `dice::ROLES` and `PARTS`, `config::LEADS`, every graph list in config, dialog and bridge tests, and every graph list in `design.md`. The profiler and soak test run with the defaults, so they don't draw the GPU.
-	- Acceptance signoff: Self-closed 20261029: dekm9 to dekmd passed in the full run at 9b72012, and the stand-in above, with the colors already in a Check.
+	- Acceptance signoff: Self-closed 20261029: dekm9 to dekmd passed in the full run at 9b72012, and the stand-in above.
 	- Closed: 20261029-151300
 
 - Pre-next-cut: Graphs editing section on its own tab
 	- ID: 2026102913122704
 	- Type: Enhancement
 	- Status: Done
-		- It departs from the wording in one way. The old Graph tab is now General, since Graph beside Graphs read as one tab twice. Check in questions.md.
+		- It departs from the wording in one way. The old Graph tab is now General, since Graph beside Graphs read as one tab twice.
 	- Needs local test suite run?: No. The full run passed on 2026-10-29.
 	- Needs hand testing: on b23, after an install, open Settings, pick Graphs, and judge the tab names and the list on its own tab.
-	- Stand-in: 20261029, build dekpw from 9b72012, in a light and a dark theme. The tabs read General, Graphs, Themes, Colors, Outline. Graphs drew the 12 rows with no heading over them, and General drew Size, Time, Frame, Disk graph and History.
+	- Verified: 20261029, build dekpw from 9b72012, in a light and a dark theme. The tabs read General, Graphs, Themes, Colors, Outline. Graphs drew the 12 rows with no heading over them, and General drew Size, Time, Frame, Disk graph and History.
 	- Priority|Severity: Avg
 	- Opened: 20261029-131227
 	- Opened by: t00mietum
@@ -3548,7 +3575,7 @@ Sorted per the notes in [Template](#template).
 	- Test case: `bridge::tests::the_graph_list_is_a_tab_of_its_own` (dekn9). It fails with the list on the old tab.
 		- 2026-10-29: new values only. dejac's tab list is General, Graphs, Themes, Colors, Outline, not Graph, Themes, Colors, Outline. dejmn checks that General and Graphs light nothing else, where it checked Graph.
 		- Swept: every reader of a tab's name (dejac, dejmn, `tabs_after_move` and `sections_after_move`, which pick Colors), the tips naming Time, Width and Graphs, and the docs naming the Graph tab.
-	- Acceptance signoff: Self-closed 20261029: dekn9 passed in the full run at 9b72012, and the stand-in above, with the tab name already in a Check.
+	- Acceptance signoff: Self-closed 20261029: dekn9 passed in the full run at 9b72012, and the stand-in above.
 	- Closed: 20261029-151300
 
 - Pre-next-cut: Dialog never taller than the screen
@@ -3599,7 +3626,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: the full run passed with the new test. On a 1024 px screen the window opened 657 px tall, set by the other tabs, where Colors had made it 814.
 	- Decisions:
 		- Themes counts as one of the other tabs, with its Name row over Outline, so switching to Outline never needs more room than the window has.
-		- Only the page that holds the graph sections asks for no height. Outline, built after Colors, had the old cap too, and now asks for its own height like the rest.
+		- Only the page with the graph sections asks for no height. Outline, built after Colors, had the old cap too, and now asks for its own height like the rest.
 	- Branch: round-1029
 	- Test case: `bridge::tests::the_colors_tab_scrolls_in_the_height_the_other_tabs_set` (dekp0), on a 2000 px screen: Colors scrolls, every other tab fits, and the tallest of them fills its page. It fails with Colors asking for its own height.
 		- Swept: every `FitScroll`, all made in `buildPage`, and the `design.md` line on the 2/3 cap. 2026102819315852's Decisions still name the cap, and are left as they were, since it's closed.
@@ -3638,11 +3665,11 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102819315837
 	- Type: Enhancement
 	- Status: Done
-		- Stand-in, 2026-10-28, round-1028b at 84b61ad: on a test panel, both boxes ticked put the shared border and background over every graph, CPU's own included. Unticked, CPU's own came back, but the other 8 graphs kept the shared colors.
+		- Verified 2026-10-28, round-1028b at 84b61ad: on a test panel, both boxes ticked put the shared border and background over every graph, CPU's own included. Unticked, CPU's own came back, but the other 8 graphs kept the shared colors.
 		- 2026-10-28: since Bug 2026102820512294, unticked gives every graph its own back, across a save and reload (dejng). The look is left for a person.
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Needs hand testing: No
-	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row.
+	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row.
 	- Priority|Severity: Avg
 	- Opened: 20261028-193158
 	- Opened by: t00mietum
@@ -3675,7 +3702,7 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: new values only. deccf and deccw count 99 theme members, not 97, and deccf takes a checkbox for the 2 boxes. defma's rows greyed at defaults add `border_color`, `back_top` and `back_bottom`.
 		- Swept: every reader of `border_color`, `back_top`, `back_bottom` and the per-graph outlines (`Look::from_model`, `render::Frame`, `Source::outline`, `preview.rs`), every writer of theme members in a loop (`randomize_from`, `drop_theme_changes`, the dialog's `shown_colors`), every `theme_text` and `theme_typed` caller, and the docs naming the shared colors.
 	- Acceptance signoff: closed on stand-ins, 20261028
-	- Closed: 20261028
+	- Closed: 20261028-210347
 
 - Pre-next-cut: One tab for global outline-related settings
 	- ID: 2026102807585020
@@ -3697,7 +3724,7 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: split with 2026102807585010 into 4 children. This one's are 2026102819315156 (the margins, on the Outline tab, Done) and 2026102819315837 (the overrides, on the Outline tab, Stalled for Bug 2026102820512294).
 		- 2026-10-28: Both children are Done, so this closes with them.
 	- Test case: the tests of its children 2026102819315156 (dejjs, dejjt, dejjv) and 2026102819315837 (dejky, dejkz, dejng)
-	- Closed: 20261028
+	- Closed: 20261028-210347
 
 - Pre-next-cut: All monitor colors on one tab
 	- ID: 2026102807585010
@@ -3721,10 +3748,10 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102819145601
 	- Type: Enhancement
 	- Status: Done
-		- Stand-in, 2026-10-28, round-1028b at 84b61ad: Themes showed dimly lit with Colors or Outline picked, in a light and a dark palette, and the picked line brighter.
+		- Verified 2026-10-28, round-1028b at 84b61ad: Themes showed dimly lit with Colors or Outline picked, in a light and a dark palette, and the picked line brighter.
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Needs hand testing: on b23, after an install, open Settings, pick Themes, then Colors, then Outline, and judge the dimmer highlight on the line that goes with the one picked.
-	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row.
+	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row.
 	- Priority|Severity: Avg
 	- Opened: 20261028-191455
 	- Opened by: t00mietum
@@ -3751,10 +3778,10 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102819315852
 	- Type: Enhancement
 	- Status: Done
-		- Stand-in, 2026-10-28, round-1028b at 84b61ad: the Colors tab drew each graph's section under its name with Background beside it, the colors in one column down the page, and a scrollbar, in a 735 by 800 window.
+		- Verified 2026-10-28, round-1028b at 84b61ad: the Colors tab drew each graph's section under its name with Background beside it, the colors in one column down the page, and a scrollbar, in a 735 by 800 window.
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Needs hand testing: on b23, after an install, open Settings, pick Themes/Colors, scroll through every graph's section, move a graph in the graph list and see its section move, then judge the layout.
-	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row.
+	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row.
 	- Priority|Severity: Avg
 	- Opened: 20261028-193158
 	- Opened by: t00mietum
@@ -3790,10 +3817,10 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102819315170
 	- Type: Enhancement
 	- Status: Done
-		- Stand-in, 2026-10-28, round-1028b at 84b61ad: on a test panel, CPU's own border and background drew beside the other graphs' Default ones. 5 rolls gave each graph a dark background of its own hue, with its quiet colors showing on it.
+		- Verified 2026-10-28, round-1028b at 84b61ad: on a test panel, CPU's own border and background drew beside the other graphs' Default ones. 5 rolls gave each graph a dark background of its own hue, with its quiet colors showing on it.
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Needs hand testing: on b23, after an install with 2026102819315837 in, give one graph its own Border, Top and Bottom, Apply, and judge it beside the rest. Then Randomize a few times and judge the backgrounds.
-	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row.
+	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row.
 	- Priority|Severity: Avg
 	- Opened: 20261028-193151
 	- Opened by: t00mietum
@@ -3829,11 +3856,10 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102819315156
 	- Type: Enhancement
 	- Status: Done
-		- The calls are in a Check in questions.md.
-		- Stand-in, 2026-10-28, round-1028b at 84b61ad: the Outline tab drew Margins above Background. On a test panel, Top & bottom 0 and Left & right 8 put the graphs against the panel's edges with 16 px between them, and 2 and 2 looked as before.
+		- Verified 2026-10-28, round-1028b at 84b61ad: the Outline tab drew Margins above Background. On a test panel, Top & bottom 0 and Left & right 8 put the graphs against the panel's edges with 16 px between them, and 2 and 2 looked as before.
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Needs hand testing: on b23, after an install, set Top & bottom and Left & right on Themes/Outline, Apply, and judge the panel's look.
-	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row.
+	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row.
 	- Priority|Severity: Avg
 	- Opened: 20261028-193151
 	- Opened by: t00mietum
@@ -3870,10 +3896,10 @@ Sorted per the notes in [Template](#template).
 	- Type: Enhancement
 	- Status: Done
 		- Measured 2026-10-28 as CIEDE2000: in all 3, I/O wait and system sit 13.0 or more apart and 24.9 or more from the lead, each graph's own colors 10.6 or more apart, and every color 21.0 or more from the top. Vintage's I/O wait and system are the closest pair.
-		- Stand-in, 2026-10-28, round-1028b at 84b61ad: on a test panel, Terminal, Vintage and Frost each drew all 9 graphs in their one color, clear of the background, with I/O wait and system apart.
+		- Verified 2026-10-28, round-1028b at 84b61ad: on a test panel, Terminal, Vintage and Frost each drew all 9 graphs in their one color, clear of the background, with I/O wait and system apart.
 	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
 	- Needs hand testing: on b23, after an install and a panel restart, pick Terminal, Vintage and Frost on the Themes tab in turn, Apply, and judge each on the panel.
-	- Stand-in: 2026-10-28, round-1028b at 84b61ad, per the status row.
+	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row.
 	- Priority|Severity: Avg
 	- Opened: 20261028-075850
 	- Opened by: t00mietum
@@ -3920,7 +3946,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: the full run passed, the soak test (dee6p) included. The Graph tab showed 1000.
 	- Decisions:
 		- The history tiers stay as they are, since the 50 ms floor sets them, not the default. A linear graph at the default now spans twice the time.
-		- Tests about something else that counted on 500 now set 500 themselves (deja0, defz1), so their timings hold.
+		- Tests about something else that counted on 500 now set 500 themselves (deja0, defz1), so their timings stay right.
 	- Branch: round-1028b
 	- Test case: `config::tests::defaults_are_the_multiload_colors` (debhj) and `a_file_overrides_and_bad_lines_fall_back` (debhk) check 1000 as the default.
 		- 2026-10-28: new values only. debhj and debhk: 500 -> 1000. deea2's linear axis over 100 columns: 50 s -> 100 s. deja2's first wait: within 500 -> within 1000.
@@ -3951,8 +3977,8 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- The 16 px floor on a stacked graph's height is gone, since a width has none side by side either.
 		- The labels stay "Width px" and "CPU width %" and so on, since a horizontal panel is the common case, and the tips cover the vertical one.
-	- 2026-10-28 answer: B. On a vertical panel or a deskbar, a graph's width setting is its height, as multiload-ng's Size does. The time axis still runs across the panel. dedq2's even-share line changes.
-		- The even-share line was in dedqd, not dedq2. dedq2 and defw2 lay out 2 graphs of the same width, so they're unchanged.
+		- 2026-10-28: On a vertical panel or a deskbar, a graph's width setting is its height, as multiload-ng's Size does. The time axis still runs across the panel. dedq2's even-share line changes.
+			- The even-share line was in dedqd, not dedq2. dedq2 and defw2 lay out 2 graphs of the same width, so they're unchanged.
 	- Branch: round-1028b
 	- Test case: `graphs::tests::each_graph_takes_its_own_width_and_0_is_width` (dedqd) and `the_ask_follows_the_panels_size_and_orientation` (defvs). Both fail with the even share and the old ask, and pass now.
 		- 2026-10-28: new values only. defvs asks for the widths' sum plus a gap stacked, where it asked for 48 + GAP at 48 px and 32 + GAP at 20 px, and 128 for CPU alone, where it asked 24. dedqp's stacked hover on CPU moved from row 17 to row 20, since row 17 is now the gap under the wider memory graph.
@@ -4305,20 +4331,21 @@ Sorted per the notes in [Template](#template).
 		- `rust-toolchain.toml` pins Rust 1.96.0 with rustfmt and clippy. The lint tool versions are pinned in `cicd/config.bash`, and a run warns when the box has another.
 		- Lint output goes to `cicd/artifacts/lint/`, rotated. `cicd/utility/lint-report.bash --check` prints only what's new since the last look.
 		- The rest is split into children: leak checks 2026102506591278, packages 2026102506591283, and the profiler 2026102506591288.
+		- 2026-10-25: every child is Done. Only the no-options run in the hand test row is left, which dogfoods.
 	- Decisions:
-		- Dogfood is `utility/dev-install.bash`. A panel plugin has to sit where the panel loads it, so the synced dogfood folder, which holds programs a person runs, doesn't fit.
+		- Dogfood is `utility/dev-install.bash`. A panel plugin has to sit where the panel loads it, so the synced dogfood folder, which is for programs a person runs, doesn't fit.
 		- No `dogfood_tukzmon.ps1` launcher either. The panel starts the plugin and the plugin starts tukzmon-settings, so there's nothing for a person to launch.
 		- No publish step yet, since none was asked for here.
 	- Branch: round-1025
-	- 2026-10-25: every child is Done. Only the no-options run in the hand test row is left, which dogfoods.
 	- Verified 2026-10-26: `cicd/cicd.bash` with no options passed all 13 steps in 2m08s on b23, Dogfood included, with `xfce4-panel` on PATH as a stand-in that logged `--restart` instead of restarting the live panel. b23 now has build defnz installed, and the panel loads it at its next restart.
 	- Test case: none in the repo. `cicd/cicd.bash` with no options, all 13 steps at PASS, is the check.
+	- Closed: 20261026-182052
 
 - Memory cache counts slab, the way b23's multiload-ng does
 	- ID: 2026102508354893
 	- Type: Enhancement
 	- Status: Done
-		- Answered 2026-10-25: yes, count reclaimable slab as cache, always, like `free`.
+		- 2026-10-25: Count reclaimable slab as cache, always, like `free`.
 	- Priority|Severity: Avg
 	- Opened: 20261025-083548
 	- Opened by: t00mietum
@@ -4363,6 +4390,7 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025b
 	- Test case: None in the repo, as for 2026102516060718. The step was watched to fail.
 	- Verified 2026-10-25: `cicd/cicd.bash --backlog-run-quick miri` on 5c996ac passed in 68m 51s, with 154 tests, 16 of them skipped by their ignore attributes. Log was in the round's run folder.
+	- Closed: 20261025-190640
 
 - CICD reset: leak checks
 	- ID: 2026102506591278
@@ -4377,9 +4405,10 @@ Sorted per the notes in [Template](#template).
 		- They run on a quarter of the CPUs, the heavy-step count `cicd.bash` already works out.
 	- Progress log:
 		- Split into children: clippy and the advisory scan 2026102516060718 (Done), sanitizers 2026102516060724, Miri 2026102516060729, and the soak test 2026102516060734.
+		- All 4 children are Done as of 2026-10-25: clippy and advisories, sanitizers, Miri, and the soak test.
 	- Branch: round-1025b
-	- All 4 children are Done as of 2026-10-25: clippy and advisories, sanitizers, Miri, and the soak test.
 	- Test case: Covered by its children's Test case rows.
+	- Closed: 20261025-190728
 
 - CICD reset: version line
 	- ID: 2026102416252897
@@ -4449,7 +4478,7 @@ Sorted per the notes in [Template](#template).
 	- Actual effort: Avg
 	- Progress log:
 		- A Packages step after the release build makes `tukzmon-<version>-linux-x86_64.deb` and `.rpm`, plus `tukzmon-<version>-sha256sums.txt`, in `cicd/artifacts/packages/`. It runs in the default run, `--long`, `--backlog-run-full` and `--merge-gate`, not in `--quick`.
-		- They hold the plugin in the panel's plugin folder, its `.desktop` file, `tukzmon-settings` in `/usr/bin`, and the license. The plugin's folder is Debian's for the `.deb` and Fedora's for the `.rpm`.
+		- They have the plugin in the panel's plugin folder, its `.desktop` file, `tukzmon-settings` in `/usr/bin`, and the license. The plugin's folder is Debian's for the `.deb` and Fedora's for the `.rpm`.
 		- The `.deb` names Debian's packages, and the step fails when a linked library comes from a package it doesn't name. The `.rpm` asks for each linked library by soname.
 		- Two builds of one commit give the same bytes.
 		- Verified: the step passed in the image and on the host, and with a release built on the host and packaged in the image, as in a run that dogfoods. A dropped depend failed it.
@@ -4505,7 +4534,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- A Sanitizers step runs the tests under ASan and LSan on nightly-2026-10-16, with `-Zbuild-std` and `--target`, in `target/asan`. The nightly is pinned in `cicd/config.bash`, and the image gets it with rust-src.
 		- In the same build, clang builds the C++ shim and cxx's C++ under ASan, LSan and UBSan, with `-fno-sanitize-recover=all` and `-D_GLIBCXX_ASSERTIONS`. No test reaches qt.cpp, so the step then runs `tukzmon-settings --snapshot` offscreen on that build.
-		- `cicd/lsan.supp` is loaded but holds no entries, since nothing needed one.
+		- `cicd/lsan.supp` is loaded but has no entries, since nothing needed one.
 		- The leak checks are listed in `cicd/config.bash` with a length: fast, slow or hours. `--leakcheck` adds every one to any run, and `--no-leakcheck` takes every one out. They get a quarter of the CPUs.
 		- Verified: a planted Rust leak, a C++ leak, a signed overflow, a use after free through a stale vector reference, and an index past a vector's size but inside its capacity each failed the step. The clean tree passed, in the image and with `--no-container`.
 	- Decisions:
@@ -4581,7 +4610,7 @@ Sorted per the notes in [Template](#template).
 		- A build with `TUKZMON_RELEASE=1` leaves the date off. `SOURCE_DATE_EPOCH` is used when set.
 	- Branch: build-date
 	- Test case: `tests::the_version_line_has_the_build_and_a_dev_build_its_day` (dednz), added with 2026102416252897, which also moved the stamp to the commit's time.
-	- Closed: 20261024
+	- Closed: 20261024-083155
 
 - What "Local" means on the network graph
 	- ID: 2026101916013883
@@ -4597,19 +4626,19 @@ Sorted per the notes in [Template](#template).
 		- Local is 127.0.0.1, the loopback device.
 		- A LAN and internet split is its own item, 2026101916274800.
 	- Test case: None, since it was a question. The network collector's tests will cover the answer.
-	- Closed: 20261019
+	- Closed: 20261019-162817
 
 - GPU tests dekmd and der6k fail on a hybrid laptop whose NVIDIA card sleeps
 	- ID: 2026110216211209
 	- Type: Bug
 	- Status: Done
-	- Stand-in: 20261102, round-1102b at 4286e10 on b23, with the RTX 3060 Ti's power files shown as `auto` and `suspended`. dekma, dekmd, der6k and desfa passed, and dekmd and der6k returned early. With the card shown awake, all 4 passed and checked the real card. A hybrid laptop was not run.
+	- Verified: 20261102, round-1102b at 4286e10 on b23, with the RTX 3060 Ti's power files shown as `auto` and `suspended`. dekma, dekmd, der6k and desfa passed, and dekmd and der6k returned early. With the card shown awake, all 4 passed and checked the real card. A hybrid laptop was not run.
 	- Priority|Severity: Low
 	- Opened: 20261102-162112
 	- Opened by:
 	- Parent ID: 2026110118380381
-	- Reproduced [Bug]: 2026-11-02 on b23, with the RTX 3060 Ti's `power/control` and `power/runtime_status` shown as `auto` and `suspended`. dekmd failed at its GiB check, with the tip "GPU memory 0% used".
-	- Actual cause [Bug]: dekmd wants " GiB" in the GPU memory tip, which a card asleep since start has no total for. der6k didn't fail. It found nothing open and passed without checking anything.
+	- Reproduced: 2026-11-02 on b23, with the RTX 3060 Ti's `power/control` and `power/runtime_status` shown as `auto` and `suspended`. dekmd failed at its GiB check, with the tip "GPU memory 0% used".
+	- Actual cause: dekmd wants " GiB" in the GPU memory tip, which a card asleep since start has no total for. der6k didn't fail. It found nothing open and passed without checking anything.
 	- Actual effort: Low
 	- Progress log:
 		- Since 36e3559, NVML isn't opened while the card's runtime_status is suspended. dekma returns early then, but dekmd's GiB check and der6k's open-file count would fail on such a box. They should skip the same way.
@@ -4617,7 +4646,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: with the card shown asleep, dekmd failed before and passed after, and der6k returned early. desfa checks `nvidia_asleep` against its stand-in files. The quick gate's lint and test areas passed.
 	- Decisions:
 		- One public call, so the settings tests and the core integration test read the same thing the readers do.
-	- Actual fix [Bug]: dekmd and der6k return early when `gpu::nvidia_asleep()` is true.
+	- Actual fix: dekmd and der6k return early when `gpu::nvidia_asleep()` is true.
 	- Branch: round-1102b
 	- Test case: dekmd and der6k, under a stand-in for an asleep card. dekmd fails there with its early return taken out. der6k passes either way, since it found nothing to count. desfa checks `nvidia_asleep`.
 		- Swept: every test that reads the real card: dekma (already returned early), dekmd, der6k and dektd. dektd opens NVML itself, so it reads the card even when it's asleep.
@@ -4675,7 +4704,7 @@ Sorted per the notes in [Template](#template).
 	- Acceptance signoff: Self-closed 20261101: der2h and the quick gate.
 	- Closed: 20261101-162300
 
-- With the LAN split on, TCP to a VM on a bridge that also holds the NIC counts as LAN
+- With the LAN split on, TCP to a VM on a bridge that also has the NIC counts as LAN
 	- ID: 2026110111543986
 	- Type: Bug
 	- Status: Done
@@ -4701,7 +4730,7 @@ Sorted per the notes in [Template](#template).
 		- By the bridge's forwarding table, since a VM on b23's br0 shares its subnet with the real LAN, and no address tells them apart.
 		- An idle VM's address ages out of the table, but one moving data is in it, which is when it matters.
 		- A copy to a VM can count as LAN for up to 10 s at its start, till the next read. Reading every tick would cost 2 more reads a second, for a few seconds of a share the clamp already bounds.
-	- Actual fix: `net::guests` lists the far ends behind a bridge's virtual ports, and `lan::Away` holds them with the away addresses.
+	- Actual fix: `net::guests` lists the far ends behind a bridge's virtual ports, and `lan::Away` keeps them with the away addresses.
 	- Branch: round-1101
 	- Test case: `lan::tests::a_socket_to_a_vm_on_the_nics_bridge_isnt_the_lans` (deqt6), `lan::tests::neighbors_read_with_their_link_addresses` (deqt7) and `net::tests::a_vm_behind_the_nics_bridge_is_found_by_its_port` (deqt8). deqt6 fails with the far end not checked, and deqt8 with the port's high byte dropped.
 		- Swept: the sock_diag dump and the neighbor dump share `lan::dump` and `lan::walk`, so both skip another request's messages.
@@ -4727,17 +4756,18 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- A socket whose own address is on an interface the network reader leaves out, such as a NAT bridge, a container's link or a VPN tunnel, isn't the LAN's. A bridge, bond or VLAN stacked on a hardware interface still is.
 		- The addresses are read again every 10 s and when the interfaces change, and a failed read keeps the last ones.
-		- A VM on a bridge that also holds the NIC, as on b23, is child 2026110111543986, in and waiting on a test with a running VM. This closes with it.
+		- A VM on a bridge that also has the NIC, as on b23, is child 2026110111543986, in and waiting on a test with a running VM. This closes with it.
 		- `design.md` Data sources on Linux has the details.
 		- Verified: `cargo test -p tukzmon-core lan:: net::` passed. On b23 the away addresses are nordlynx's, docker0's and the compose bridge's, and br0 still counts.
 		- 2026-11-01: closed with its child 2026110111543986. Verified: deqt3 to deqt8 PASS in the round's full-run log.
 	- Decisions:
-		- By the socket's own address, not the far end's subnet. On b23 the box's address is on br0, which holds the NIC and the VMs, so by subnet all of the real LAN would drop out. A VPN's address is often a /32 too, which no far end is in.
+		- By the socket's own address, not the far end's subnet. On b23 the box's address is on br0, which has the NIC and the VMs, so by subnet all of the real LAN would drop out. A VPN's address is often a /32 too, which no far end is in.
 		- A bridge, bond or VLAN over a hardware interface counts as a way out, by the `upper_` links in sysfs, since what it carries to the LAN crosses the NIC.
 		- Every 10 s rather than every tick, as the disk reader lists drives, since reading the addresses cost about 0.4 ms on b23.
 	- Branch: round-1101
 	- Test case: deqt3, deqt4, deqt5, and child 2026110111543986's deqt6 to deqt8 and its live copy to vmFreeBSD
 		- Swept: `LanReader` is read only through `Traffic`, and `Wired::counts` keeps its meaning, so `NetReader` counts the same interfaces.
+	- Closed: 20261101-130843
 
 - Code review 20261031 item 23: Dead code in the settings window and public items only tests use
 	- ID: 2026103115232140
@@ -4803,7 +4833,7 @@ Sorted per the notes in [Template](#template).
 		- dep48 is `procs_sits_after_memory_and_stacks_by_owner` now, and draws with the default order, so procs sits between memory and swap.
 		- Verified: the quick gate passed. Each test failed with what it names broken: decbh with the cap check out, debj0 with a holed bucket read as full, dep7b with temperature's 2 lines joined by a comma, and dep48 with `set_look` keeping the old order.
 	- Decisions:
-		- The old asserts stay. decbh's 9000-bucket case is now said to be past what the file holds, and debj0's bucket count is the gap kept as empty buckets.
+		- The old asserts stay. decbh's 9000-bucket case is now said to be past what the file has, and debj0's bucket count is the gap kept as empty buckets.
 		- Swept: demwf, the other test that changes a history file's bytes, checks a count that nothing else refuses. defq5 and defq6 lay out `three()` in its own order, with no procs.
 	- Branch: round-1101
 	- Test case: decbh, debj0, dep7b and dep48, each run with its mutation above and without.
@@ -4892,7 +4922,7 @@ Sorted per the notes in [Template](#template).
 	- Actual fix: `Graphs::load` and `Graphs::save` in `core/src/graphs.rs`, and `write`, `temp_of` and `is_history_file` in `core/src/keep.rs`.
 	- Branch: round-1101
 	- Test case: `graphs::tests::a_file_that_doesnt_read_isnt_saved_over_until_a_reset` (deqsa), `keep::tests::a_failed_write_leaves_no_temp_file_and_temp_names_are_by_pid` (deqs8) and `keep::tests::a_reset_deletes_leftover_temp_files_too` (deqs9). Each fails with its fix taken out, and deqsa's second round fails with only the load fix out.
-		- 2026-11-01: decbk (`sections_round_trip_and_no_tmp_is_left`) now checks the folder holds only the history file, not that `plugin-1.hist.tmp` is missing, since the temp file has a new name.
+		- 2026-11-01: decbk (`sections_round_trip_and_no_tmp_is_left`) now checks the folder has only the history file, not that `plugin-1.hist.tmp` is missing, since the temp file has a new name.
 		- Swept: every `keep::write`, `keep::read` and `keep::reset` caller (`Graphs::save`, `load` and `set_look`, `Graph::save`, the plugin's save, load, reset and remove, and the settings window's Reset history), and every other temp file written then renamed (`config::start_from`, fixed the same way, untested since its rename can only fail where its file already exists, and the profiler's report, left as it is in the build's artifacts). `Plugin::forget` deletes `plugin-<id>.hist` only, so a temp a crash left at that moment stays until the next Reset history.
 	- Closed: 20261101-113100
 
@@ -4967,7 +4997,7 @@ Sorted per the notes in [Template](#template).
 	- Actual effort: Low
 	- Origin: `ff4610a` (`DOCS_PATHS`). First review. Confirmed by reading `nfpm.yaml`.
 	- Progress log:
-		- `DOCS_PATHS` in `cicd/config.bash` no longer holds `license.txt`, and its comment says nothing a package holds goes there.
+		- `DOCS_PATHS` in `cicd/config.bash` no longer lists `license.txt`, and its comment says nothing a package has goes there.
 		- New test deqvk fails when any literal `src:` in `nfpm.yaml` matches a `DOCS_PATHS` pattern.
 		- Verified: deqvk failed before the fix, naming license.txt, and passed after. The quick gate's lint passed.
 	- Decisions:
@@ -4998,7 +5028,7 @@ Sorted per the notes in [Template](#template).
 		- The hook skips only on `TUKZMON_SKIP_HOOK=1`. Empty and 0 run the gate, and any other value runs it with a note saying it isn't 1.
 		- Verified: deqvm and deqvn failed before the fix and passed after, 3 runs in a row. The quick gate's lint passed.
 	- Decisions:
-		- `fOtherRun` looks up the process tree rather than taking a variable from the hook, so it needs no new setting and holds for anything else that starts a run.
+		- `fOtherRun` looks up the process tree rather than taking a variable from the hook, so it needs no new setting and works for anything else that starts a run.
 		- A value other than 0 or 1 gets a note rather than an error, so a push isn't refused for it.
 		- Swept: `fSweepStale` leaves a live run's folder alone, and `fStopLeftovers` goes by `TMPDIR`, which the hook doesn't set, so neither touches the hook. No other place reads `TUKZMON_SKIP_HOOK`.
 	- Actual fix: `fRunAbove` in `cicd/utility/include/run-tmp.bash`, its use in `fOtherRun`, and a `case` on the skip value in `cicd/hooks/pre-push`.
@@ -5113,7 +5143,7 @@ Sorted per the notes in [Template](#template).
 		- The window still opens at the defaults for a link to a missing file, the same as a missing file.
 	- Branch: round-1101
 	- Test case: `tests::a_path_that_isnt_utf8_is_a_message_not_a_panic` (deqw0), `dialog::tests::apply_writes_through_a_link_to_a_file_not_there_yet` (deqw1) and `config::tests::an_items_link_to_a_missing_file_is_kept_and_filled` (deqw2). deqw1 and deqw2 fail with `through_links` taken out. deqw0 tests the new argument reader, and the old build's panic was seen by running it.
-		- Swept: every write of a config file (`Dialog::apply`, `config::start_from`), and every `env::args` in the shipped programs. The history files in `keep.rs` aren't links a user makes. `core/examples/preview.rs` and `profile.rs` still use `env::args`, as dev tools.
+		- Swept: every write of a config file (`Dialog::apply`, `config::start_from`), and every `env::args` in the installed programs. The history files in `keep.rs` aren't links a user makes. `core/examples/preview.rs` and `profile.rs` still use `env::args`, as dev tools.
 	- Acceptance signoff: Self-closed 20261101: deqw0 to deqw2 passed in the quick gate.
 	- Origin: `f89e55e` (`main.rs` args, Apply). First review. Confirmed.
 	- Closed: 20261101-125705
@@ -5165,6 +5195,7 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1031
 	- Test case: None of its own: dejng and the other dialog tests leave the temp folder empty now. Not run before the fix, so the failing side is unverified. Folders left by older runs aren't removed by this.
 	- Swept: the only scratch `Dir` in the settings crate is this one. `cargo test -p tukzmon-core` with `TMPDIR` on an empty folder left it empty.
+	- Closed: 20261031-075153
 
 - A panel item whose settings file can't be read draws at the defaults with no message
 	- ID: 2026103018110076
@@ -5434,7 +5465,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026110118380381
 	- Type: Enhancement
 	- Status: Done
-	- Stand-in: 20261102, round-1102b at 4286e10 on b23, with GPU memory on by default and the RTX 3060 Ti's power files shown as `auto` and `suspended`. The graphs held no `/dev/nvidia*` file and GPU memory read 0% while it showed asleep. Once it showed `active`, they opened NVML within a second, held 7 files, and read 2.6 of 8.0 GiB. dekma, dekmd, der6k and desfa passed under it, and with the card shown awake.
+	- Verified: 20261102, round-1102b at 4286e10 on b23, with GPU memory on by default and the RTX 3060 Ti's power files shown as `auto` and `suspended`. The graphs held no `/dev/nvidia*` file and GPU memory read 0% while it showed asleep. Once it showed `active`, they opened NVML within a second, held 7 files, and read 2.6 of 8.0 GiB. dekma, dekmd, der6k and desfa passed under it, and with the card shown awake.
 		- The idle rest wasn't reached on the real card, which was 16% busy with the desktop. desfa covers it with stand-in NVML, and der6k shows NVML lets go of every file when shut. A hybrid laptop was not run.
 	- Priority|Severity: Low
 	- Opened: 20261101-183803
@@ -5452,7 +5483,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: desfa passed, and failed with the asleep check taken out, and again with the idle rest taken out. der6j, der6k, dekma and dektd passed on b23's host, where the card's `power/control` is `on`. The quick gate passed.
 	- Decisions:
 		- Runtime power files, not turning GPU memory off by default, so a hybrid laptop keeps the default graph.
-		- The idle rest goes past the wording. Polling NVML each second while the card is up keeps it from sleeping again, so without it the fix holds only until the card first wakes.
+		- The idle rest goes past the wording. Polling NVML each second while the card is up keeps it from sleeping again, so without it the fix works only until the card first wakes.
 		- One rest time per thread, shared by both readers, so neither keeps the card up for the other.
 		- A busy read that fails counts as idle, so a card without a busy share can still rest.
 		- dekma returns early when the card is asleep since start, since NVML wasn't asked.
@@ -5528,7 +5559,7 @@ Sorted per the notes in [Template](#template).
 		- `config::unknown_spec_keys` lists every key in settings.shcl that neither knobs nor tukzmon reads: top level, each row, each group and each preset. A test fails on any.
 		- Verified: the quick gate passed, der4w included.
 	- Decisions: Goes to silkterm first, as its copy is the source.
-		- knobs is unchanged, since it stays byte-identical to silkterm's. The spec is compiled in, so a test catches a typo before a build ships, and no runtime warning is needed here.
+		- knobs is unchanged, since it stays byte-identical to silkterm's. The spec is compiled in, so a test catches a typo before a build goes out, and no runtime warning is needed here.
 		- The knobs key lists in `config.rs` copy what `read_setting` and `read_group` read, and need a line when knobs reads a new key.
 		- A runtime warning in knobs is drafted for silkterm in the upstream folder, `2026103115232265/`.
 	- Branch: round-1102
@@ -5604,7 +5635,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: in a private panel on X11 and on Wayland, Properties twice opened one window and the tip said "Properties: its window is open already". After `xfce4-panel --restart` the window stayed open, Properties again opened none and the tip said the same, and Remove closed it and left no settings file.
 	- Decisions:
 		- Say it's open rather than raise it. Wayland gives a panel no way to raise another program's window, and an X11 window manager's focus-stealing guard may only flag it.
-		- The tip, not a dialog, since the pointer is on the item when the menu closes, and the tip already carries the item's other troubles.
+		- The tip, not a dialog, since the pointer is on the item when the menu closes, and the tip already shows the item's other troubles.
 		- Find a window from before a restart by its command line in `/proc`, the user's own processes only, rather than a lock or pid file, since that needs nothing written and can't go stale.
 		- Close it at Remove with SIGTERM, which Qt doesn't catch, so nothing is saved, as with the tracked window's kill.
 		- A panel restart leaves such a window open, since the item and its file are still there.
@@ -5684,7 +5715,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- NVML's first device stays. On a hybrid laptop NVML lists only the NVIDIA GPU, so device 0 is the discrete one, and the other GPU is Intel's or AMD's, which NVML can't read. The GPU picker stays deferred, as in round-1030.
 		- Closed through the readers' drop, not `Source::follow`, since `Slots` already drops a hidden graph's reader.
-		- The library isn't unloaded, since keeping its code mapped holds no GPU.
+		- The library isn't unloaded, since keeping its code mapped keeps no GPU awake.
 		- No hybrid laptop to try, so the wake-up itself is unverified. b28l has no Rust. The stand-in and b23's open files cover what the code does.
 	- Branch: round-1102
 	- Test case: `gpu::tests::nvml_is_open_only_while_a_gpu_graph_is_shown` (der6j), through `Graphs` with a stand-in NVML, and `core/tests/nvml.rs` `hiding_both_gpu_graphs_lets_go_of_the_nvidia_device` (der6k), with the real driver where there is one. Both fail with the shutdown taken out.
@@ -5770,7 +5801,7 @@ Sorted per the notes in [Template](#template).
 	- Origin: across the tree. First review. Confirmed by reading.
 	- Requirements:
 		- Derive or write `Debug` for `Graph`, `Graphs`, `render::Frame`, `Dialog`, `RowState`, `Live` and the bridge's shared structs.
-		- One-line `///` on the public items that have none. The list is in `details.md` -> "Code review 20261030".
+		- One-line `///` on the public items that have none.
 		- The SAFETY note in the plugin's draw handler says why the pixel buffer outlives the cairo surface.
 		- `color.rs` takes `//!` for its module header, as the other modules do.
 	- Estimated effort: Low
@@ -5797,7 +5828,7 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- One table of graphs in `Graphs` and in `Live`, in place of a field per graph, so a new graph is added in one place there, not in about 5 places each.
 		- `Live::get` matches on section names with a `_` arm, so a graph left out there is skipped with no error.
-		- Weigh against the churn first. Each slot holds a different reader type, so a table holds `Box<dyn Drawn>` or an enum.
+		- Weigh against the churn first. Each slot has a different reader type, so a table needs `Box<dyn Drawn>` or an enum.
 	- Estimated effort: Avg
 	- Origin: found while sharing the look in 2026103019230902.
 	- Actual effort: Avg
@@ -5835,7 +5866,7 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Avg
 	- Actual effort: Low
 	- Progress log:
-		- `Graph::look` is an `Rc<Look>`. `Graphs` and `Live` wrap a new look once, in `new` and `set_look`, and every graph holds the same one. A new look used to be cloned once per graph, 12 times in the settings window.
+		- `Graph::look` is an `Rc<Look>`. `Graphs` and `Live` wrap a new look once, in `new` and `set_look`, and every graph shares it. A new look used to be cloned once per graph, 12 times in the settings window.
 		- `Live::set_look` takes the look by value, as `Graphs::set_look` does.
 		- Verified: the full run passed, with the profiler and soak steps.
 	- Decisions:
@@ -5871,7 +5902,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- Done now, against the churn. They were 96 of `Look`'s 116 fields, and the test edits are mechanical.
 		- Colors are a fixed `[Rgb; 5]`, the network's count, with black past a graph's own, so `Each` is one type. `paint` checks at build that a graph's series fit.
-		- The slots in `Graphs` and `Live` are left as they are. They hold a different reader type each, and the shared look in 2026103019230902 changes them anyway.
+		- The slots in `Graphs` and `Live` are left as they are. They have a different reader type each, and the shared look in 2026103019230902 changes them anyway.
 		- `LEADS` and `dice::ROLES` stay lists of their own, since they're about themes, not a graph's settings.
 	- Branch: round-1030b
 	- Test case: `config::tests::each_graph_reads_its_own_settings_into_its_own_record` (dencn) and `graphs::tests::each_slot_is_its_own_graph_with_a_color_per_series` (dencp). dencn fails with a graph's key changed, and dencp with a color id dropped or a reader naming another graph's `WHICH`.
@@ -5893,7 +5924,7 @@ Sorted per the notes in [Template](#template).
 		- The disk graph reads only the wanted disks' `/sys/block/<disk>/stat`, kept open, and lists the disks again now and then.
 		- Read `/proc/meminfo` once a tick for memory, swap and zswap, not 2 or 3 times.
 	- Progress log:
-		- A tick is about 209 us, at 1 a second by default, so this is small. Measured numbers are in `details.md` -> "Code review 20261030".
+		- A tick is about 209 us, at 1 a second by default, so this is small.
 		- `collect::Kept` keeps a file open and reads it again from the start, and opens it again after a failed read. CPU, memory, swap, zswap and zram, load, network, disk, temperature, battery and the AMD GPU files read through it each tick. Files read only at start still use `slurp`.
 		- The disk graph reads each counted drive's `stat` under `/sys/class/block`, not `/proc/diskstats`, and lists the drives again every 10 s.
 		- Memory, swap and zswap share one read of `/proc/meminfo` within a tick (`mem::once_a_tick`, around `Graphs::sample` and `graphs::tick`).
@@ -5904,7 +5935,7 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Avg
 	- Actual effort: Avg
 	- Decisions:
-		- One read of `/proc/meminfo` per tick goes through a per-thread cache that only holds during `once_a_tick`, so the readers keep their `Collector` shape and a read outside a tick is always fresh.
+		- One read of `/proc/meminfo` per tick goes through a per-thread cache that's only kept during `once_a_tick`, so the readers keep their `Collector` shape and a read outside a tick is always fresh.
 		- Zswap reads the shared `/proc/meminfo` unless a test points it at another file.
 		- A drive plugged in under All is counted from the next listing, up to 10 s later, where `/proc/diskstats` showed it at once. A named drive that isn't there yet is tried each tick, as before.
 		- A drive whose `stat` stops reading drops out, which makes one gap, rather than a gap each tick while it's gone.
@@ -5990,6 +6021,7 @@ Sorted per the notes in [Template](#template).
 		- Split in 2: the per-graph record and `Source`'s defaults are in child 2026103019230886, and the shared `Look` in child 2026103019230902.
 		- 2026-10-30: Closed with both children. The slots left in Graphs and Live are 2026103019482449.
 	- Test case: dencn and dencp (2026103019230886), dend1 and dend2 (2026103019230902).
+	- Closed: 20261030-194917
 
 - Code review 20261030 item 11: Catch-all matches and string-typed values across the bridge
 	- ID: 2026103016201611
@@ -6117,11 +6149,13 @@ Sorted per the notes in [Template](#template).
 			- Off, the default. 3 series: local, sent, and received.
 			- Polling TCP sockets. No root, but UDP and QUIC traffic isn't split.
 			- An nftables counter set. Close to no overhead, but needs root to install once.
+	- Progress log:
+		- 2026-10-29: split into 3 children: the TCP socket reader 2026102914561218, the setting and the 5-series graph 2026102914561233, and the nftables counter set 2026102914561248. This closes with the last of them.
 	- Decisions:
-		- Answered 2026-10-19: optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+		- 2026-10-19: Optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
 	- Test case: the children's tests, demvz, demw0, demw1, demw2 and demw3 for the setting and graph, and the socket reader's tests from 2026102914561218.
-	- 2026-10-29: split into 3 children: the TCP socket reader 2026102914561218, the setting and the 5-series graph 2026102914561233, and the nftables counter set 2026102914561248. This closes with the last of them.
-	- Closed 2026-10-30: the socket reader and the setting with the 5-series graph are Done. The nftables way is Deferred in 2026102914561248, so the setting offers Off and TCP sockets.
+	- Acceptance signoff: Self-closed 20261030: the socket reader and the setting with the 5-series graph are Done. The nftables way is Deferred in 2026102914561248, so the setting offers Off and TCP sockets.
+	- Closed: 20261030-104917
 
 - LAN and internet split: setting and the 5-series network graph
 	- ID: 2026102914561233
@@ -6135,7 +6169,6 @@ Sorted per the notes in [Template](#template).
 	- Parent ID: 2026101916274800
 	- Requirements: A setting for the split, off by default, with socket polling and the nftables counter set as its other choices. With it on, the network graph shows local, LAN sent, LAN received, internet sent and internet received, with theme colors for each.
 	- Prereq IDs: 2026102914561218
-	- 2026-10-29: `lan::LanReader` gives the LAN's sent and received, and `lan::split` turns those and the network reader's 3 series into the 5, from 2026102914561218. Nothing draws them yet.
 	- Estimated effort: Avg
 	- Actual effort: Avg
 	- Progress log:
@@ -6144,6 +6177,7 @@ Sorted per the notes in [Template](#template).
 		- LAN sent and LAN received are new colors in the Network section, at `net.colors.lan_sent` and `.lan_received`, in every built-in theme and in Randomize.
 		- `design.md` XFCE plugin, Theme and Data sources on Linux have the details.
 		- Verified: the full run passed. The settings window showed the Network graph heading and its dropdown on TCP sockets.
+		- 2026-10-29: `lan::LanReader` gives the LAN's sent and received, and `lan::split` turns those and the network reader's 3 series into the 5, from 2026102914561218. Nothing draws them yet.
 	- Decisions:
 		- The setting is a dropdown of values, not a checkbox, so nftables can join it later as a third value without changing the setting's name or values (answered 2026-10-30).
 		- Sent and received keep their names and colors, and mean the internet's with the split on. So a saved theme or config reads as before, and only the 2 LAN colors are new.
@@ -6151,7 +6185,6 @@ Sorted per the notes in [Template](#template).
 		- A failed LAN poll is a gap, as a failed `/proc/net/dev` read is, so the LAN's bytes never show as internet. A LAN reader that can't start leaves the split off, and the next Apply tries again.
 		- In the built-ins, LAN received is between the network's Low and Medium, and LAN sent between Medium and High, each moved as little as it takes to read 10 or more apart from the network's other colors and its background. Plain midpoints were under 10 in Default, Pastel, Terminal and Frost.
 		- In Randomize, the LAN's 2 sit on the buffers' side of the lead and step till they're 11 or more from the other 3. A fixed rule left a third of 2,000 seeds with a pair under 10.
-		- Check in questions.md for the setting's name and values, and the LAN colors.
 	- Branch: round-1030
 	- Commit: 9be5b33
 	- Test case: `tests::the_split_tip_names_the_lan_and_the_internet` (demvz), `net::tests::with_the_split_off_sent_and_received_hold_it_all` (demw0), `config::tests::the_lan_split_is_off_unless_picked` (demw1), `dice::tests::the_lan_rolls_colors_that_read_apart_from_the_rest` (demw2) and `tests::a_network_history_from_before_the_split_starts_over` (demw3). demw2 fails with LAN received as the buffers' color, as rolled before.
@@ -6166,7 +6199,7 @@ Sorted per the notes in [Template](#template).
 	- Status: Done
 		- Removing b23's 2 old links and `~/.local/lib/tukzmon` is left as a root step by hand. The script names them on each run.
 	- Needs hand testing: on b23, run `utility/dev-install.bash` and see the panel load the new build. Then remove the 2 old sudo links it names, and `~/.local/lib/tukzmon`.
-	- Stand-in: 20261029, on b23 with an empty folder in place of `~/.local` and the panel calls stubbed. It installed the 3 files under that `~/.local`, named both old `/usr` links with the `sudo rm` for each and the old `~/.local/lib/tukzmon`, and exited 0. The panel loading a user install was checked in a test panel before.
+	- Verified: 20261029, on b23 with an empty folder in place of `~/.local` and the panel calls stubbed. It installed the 3 files under that `~/.local`, named both old `/usr` links with the `sudo rm` for each and the old `~/.local/lib/tukzmon`, and exited 0. The panel loading a user install was checked in a test panel before.
 	- Priority|Severity: Low
 	- Opened: 20261028-204208
 	- Opened by: t00mietum
@@ -6210,7 +6243,7 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Data sources on Linux has the details.
 		- Verified: the full run passed. A live read on this box found 16 LAN sockets, the same as `ss` counts, as a user.
 	- Decisions:
-		- Only the LAN is counted, and the internet is the rest of the interfaces' traffic. UDP and QUIC go mostly to the internet, video above all, so they land on the right side more often that way. The nftables set can count the same way.
+		- Only the LAN is counted, and the internet is the rest of the interfaces' traffic. UDP and QUIC go mostly to the internet, video above all, so they end up on the right side more often that way. The nftables set can count the same way.
 		- The LAN is private IPv4, link-local, IPv6 unique local, and this end's own IPv6 /64, so a LAN box with a global IPv6 address counts too. 100.64/10 isn't, since that's a carrier's NAT more often than a LAN.
 		- A socket to the box's own address goes through `lo`, so it stays local and isn't the LAN's.
 		- Each segment adds 66 bytes of headers on IPv4 and 86 on IPv6, since `/proc/net/dev` counts them. Without them a 1 GB/s copy on the LAN would show about 4% of it as internet.
@@ -6290,11 +6323,12 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026102621053725
 	- Requirements: design.md XFCE plugin and README say XDG_DATA_DIRS and ~/.local aren't searched, so dev-install.bash needs sudo once. The 4.20.4 and 4.20.7 panel source pairs each XDG_DATA_DIRS entry and ~/.local/share with the lib dir under the same prefix, which on Debian is lib/x86_64-linux-gnu. Try ~/.local/share/xfce4/panel/plugins with ~/.local/lib/x86_64-linux-gnu/xfce4/panel/plugins on b23, and if it works, drop the sudo step and fix both docs.
 	- Actual effort: Low
+	- Progress log:
+		- design.md XFCE plugin and README fixed. Dropping the sudo step is 2026102820420805.
 	- Branch: round-1028b
 	- Test case: none in the repo. Checked by hand in a private panel.
 	- Closed: 20261028-204500
 	- Verified 2026-10-28, Debian xfce4-panel 4.20.7 on a private Xvfb (:130), HOME and XDG_DATA_HOME in a temp folder, XDG_DATA_DIRS without it: with the .desktop file only in .local/share/xfce4/panel/plugins and the library only in .local/lib/x86_64-linux-gnu/xfce4/panel/plugins, PANEL_DEBUG=all logged reading the .local/share dir and new module tukzmon with the .local/lib/x86_64-linux-gnu filename, and the plugin was embedded.
-	- design.md XFCE plugin and README fixed. Dropping the sudo step is 2026102820420805.
 
 - The panel's tick costs about a third more since the 50 ms history tier
 	- ID: 2026102618573801
@@ -6306,7 +6340,7 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026101916013885, 2026102814061812
 	- Requirements:
 		- The profiler's tick went from about 275 us to about 385 us on b23 on 2026-10-26, starting with the run for the finer history tiers (commit `6753a2b`). `History::span` went from about 28% to 38% of self time.
-		- Measure it against `dev` before that commit at the same load first. If it holds, make `span` cheaper over the new tier, or say why the cost is fine.
+		- Measure it against `dev` before that commit at the same load first. If it's still slower, make `span` cheaper over the new tier, or say why the cost is fine.
 	- Progress log:
 		- It held. On 2026-10-28 at a load of about 14, run in turn: 274 and 289 us a tick at `6753a2b^`, and 383 and 385 us at `6753a2b`. A log axis column over the newest 256 s reads 5 times as many buckets at 50 ms as at 250 ms.
 		- Fixed under 2026102814061812 with block totals per tier. The tick is now 137 to 142 us at the same load, well under the 275 us from before the finer tier.
@@ -6389,11 +6423,96 @@ Sorted per the notes in [Template](#template).
 	- Parent ID: 2026101916274800
 	- Requirements: An nftables counter set that counts bytes to and from private address ranges, installed once as root, and a reader for it.
 	- Prereq IDs: 2026102914561233
-	- 2026-10-29: waits on the question in questions.md on how the plugin reads the counters, since `nft list counters` needs root too, not just the install.
-	- Installing the set and the reader's test on b23 are a sudo path, so they're a hand test.
-	- Answered 2026-10-30: deferred with no date. The LAN split uses the non-root socket reader for now.
+	- Progress log:
+		- 2026-10-29: waits on how the plugin reads the counters, since `nft list counters` needs root too, not only the install.
+		- Installing the set and the reader's test on b23 are a sudo path, so they're a hand test.
+	- Decisions:
+		- 2026-10-30: Deferred with no date. The LAN split uses the non-root socket reader for now.
 
 **Stop here for a next release**
+
+- CICD gap: Fuzz the parsers of files and kernel messages
+	- ID: 2026110310450001
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261103-104500
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- There's no fuzz testing yet. The CICD rules ask for adversarial fuzzing of our code and the libraries it leans on.
+		- Cover what reads input the program doesn't control: the history file decode, the netlink socket and neighbor dumps, the bridge forwarding table, the `/proc` and `/sys` readers, and a settings file that loads through shcl.
+		- Plain tests on stable, each case a pure function of one seed, a time budget from an env var, and asserts on properties such as no panic and no read past the end. Keep some bit flips over real files, such as `core/tests/data/plugin-5-tiers.hist`.
+		- Each one gets a test ID, and is watched to fail on a planted bug before it's trusted.
+
+- CICD gap: Animated demo for the README
+	- ID: 2026110310450002
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261103-104500
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- A demo step, left out of `--quick`, renders a GIF at 960x540 and 50 fps and a video at 1920x1080 and 60 fps, headless, from a short plain-text script in `cicd/utility/demo/script.txt`.
+		- It shows the panel graphs filling, a hover tip, and the settings window with live graphs and a theme change, in about 20 to 30 seconds. Anonymous content only.
+		- The newest GIF goes to `assets/demo.gif` when it changed, and sits near the top of README.md at its own size.
+
+- CICD gap: Slow leak checks still missing
+	- ID: 2026110310450003
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261103-104500
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- CodeQL from a pinned CLI, run locally, over the Rust and the C++, as a slow leak check. The repo is public on GitHub under the LGPL, so its license allows it. Vendor the crates first, and build from a clean folder so the C++ database isn't empty.
+		- A soak of the settings window, with the heap read at round N and 2N, under heaptrack. The panel item's soak covers only the Rust side.
+	- Decisions:
+		- No `_GLIBCXX_DEBUG` build. Every linked C++ library has to be built with it, and Qt comes prebuilt.
+		- No cross-file analyzer run, since the C++ is one file.
+
+- Installer script for a direct install
+	- ID: 2026110310450005
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261103-104500
+	- Opened by: t00mietum
+	- Related IDs: 2026110310450001
+	- Requirements:
+		- An `install.bash` that a person runs as a one-liner, per the shared installer rules. It finds the newest stable or dev release through GitHub's API, checks its sha256, and installs.
+		- `--release dev|stable`, `--target user|system`, `--yes`, `--help` and `--version`. It finds the OS and arch itself, says its plan, and asks before it touches anything. It runs on bash 3.2 and can run twice safely.
+		- User installs go where `utility/dev-install.bash` puts them, with no sudo. System installs use the `.deb` or `.rpm`.
+		- No PowerShell version for now, since there's no Windows or macOS build.
+		- README.md gets the one-liner and the install folders, and notes `--help`.
+	- Needs more detail:
+		- It needs a first release to download. Until then, test it against a stand-in release.
+
+- CICD gap: Run the content scrub from the pipeline and the pre-push hook
+	- ID: 2026110310450004
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261103-104500
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- When the private content scrub script is there, the lint step and the pre-push hook run it, and fail on what it finds. A fresh clone without it still builds, with one line saying it was skipped.
+		- Repo-side names for it stay neutral, such as "content scrub".
+
+- CICD gap: arm64 Linux build and packages
+	- ID: 2026110310450006
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261103-104500
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- A release build for arm64 Linux, and its `.deb` and `.rpm`, named `linux-arm64` beside `linux-x86_64`.
+		- Behind a flag such as `--include-arm` if it's much slower than x86_64. Qt and the panel libraries for arm64 are the hard part.
 
 - Other Linux and BSD panels
 	- ID: 2026101916013890
@@ -6437,7 +6556,7 @@ Sorted per the notes in [Template](#template).
 			- Granularity: [ ] Per-monitor  [ ] Global
 				- Disabled if 'Colors: Detailed' is selected.
 	- Decided against: I'm leaving it per-monitor.
-	- Closed: 20261028
+	- Closed: 20261028-140707
 
 ## Template
 

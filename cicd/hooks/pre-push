@@ -104,6 +104,5 @@ exit 0
 
 
 ##	History:
-##		- 2026-10-25: Created from tukfs-hash's hook. It gates main only, per
-##		  the 2026-10-24 CICD reset.
+##		- 2026-10-25: Created from tukfs-hash's hook. It gates main only.
 ##		- 2026-11-01: Only TUKZMON_SKIP_HOOK=1 skips it.

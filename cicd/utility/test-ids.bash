@@ -7,7 +7,7 @@
 ##		minutes since 2000-01-01 00:00 UTC, in lower-case Crockford base 32, so
 ##		2026-10-24 22:00 UTC is decp8. 2 that come out the same take the next
 ##		free minute, and an ID never changes, even when its test is renamed or
-##		moved. A Rust test carries it on a "// Test ID: decp8" line just above
+##		moved. A Rust test has it on a "// Test ID: decp8" line just above
 ##		its attributes, and a test of the pipeline in cicd/tests/*.bash on a
 ##		"## Test ID: decp8" line just above its fTest_ function.
 ##		Ported from silkterm's cicd/utility/test-id.py, which was base 62 in ms.

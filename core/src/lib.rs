@@ -1208,7 +1208,7 @@ mod tests {
 		Rc::make_mut(&mut g.look).said = Said::Clock;
 		let tip = g.hover_tip(128, w, h, 1);
 		assert_eq!(tip.lines().next().map(str::len), Some(8), "{tip}");
-		// device columns on a scale 2 screen land on the same times
+		// device columns on a scale 2 screen fall on the same times
 		assert_eq!(g.span_at(2, 2 * w, 2 * h, 2), g.span_at(1, w, h, 1));
 	}
 

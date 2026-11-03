@@ -213,7 +213,7 @@ pub enum Mode {
 }
 
 impl Mode {
-	/// As the settings file spells it, in any case.
+	/// From the settings file's value, in any case.
 	pub fn parse(s: &str) -> Option<Mode> {
 		match s.to_ascii_lowercase().as_str() {
 			"detailed" => Some(Mode::Detailed),
@@ -236,7 +236,7 @@ pub enum Split {
 }
 
 impl Split {
-	/// As the settings file spells it, in any case.
+	/// From the settings file's value, in any case.
 	pub fn parse(s: &str) -> Option<Split> {
 		match s.to_ascii_lowercase().as_str() {
 			"off" => Some(Split::Off),

@@ -103,7 +103,7 @@ if ((check)) && ((! noMark)) && ((finished)) && [[ -z "${file}" && "${ts}" =~ ^[
 	printf '%s\n' "${ts}" > "${marker}" 2>/dev/null || echo "lint-report: could not write marker: ${marker}" >&2
 fi
 
-## Warnings. Drop the "0 warnings" noise, and the echoed command lines that hold
+## Warnings. Drop the "0 warnings" noise, and the echoed command lines that have
 ## the word, such as clippy's `-D warnings`.
 warns="$(grep -inE 'warning|rustsec-|vulnerab|unmaintained|yanked' "${log}" 2>/dev/null \
 	| grep -viE 'generated 0 warnings|: 0 warnings|no warnings|0 warnings emitted|-D warnings' || true)"

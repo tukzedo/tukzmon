@@ -63,7 +63,7 @@
 ##	   --no-leakcheck      take every leak check out. The advisory scan and
 ##	                       clippy's leak lints aren't leak check steps, and stay
 ##	   --backlog-run-quick [AREA...]
-##	                       what a backlog worker runs before it commits: the
+##	                       what to run before committing backlog work: the
 ##	                       format check, build, lint, tests and the fast leak
 ##	                       checks, or only the areas named:
 ##	                         format  cargo fmt, clang-format and black,
@@ -83,8 +83,8 @@
 ##	                         nix     the Nix package, only when named. The
 ##	                                 first one fetches about 5 GB
 ##	   --gate [AREA...]    another name for --backlog-run-quick
-##	   --backlog-run-full  what a backlog round runs once at its end: every
-##	                       check of the default run, so not Miri
+##	   --backlog-run-full  what to run once after a batch of backlog work:
+##	                       every check of the default run, so not Miri
 ##	   --merge-gate        the same checks, before a merge to main. The
 ##	                       pre-push hook runs it. Also --ci
 ##	                       None of those 3 syncs, dogfoods, installs, commits,
@@ -251,7 +251,7 @@ fPlan "Format" fStepFormat format
 fPlan "Build (debug)" fStepBuild build
 fPlan "Lint" fStepLint lint
 ## It needs the network, and finds what a dependency change brings in, so a
-## worker's quick run takes it only when it's named.
+## --backlog-run-quick takes it only when it's named.
 if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" advisories "* ]]; then offLines+=("Advisories: --backlog-run-quick runs it only when the advisories area is named")
 else fPlan "Advisories" fStepAdvisories ""; fi
 fPlan "Tests" fStepTests test
@@ -661,7 +661,7 @@ fStepSanitizers() {
 ## in reach, since the collectors and the history file are what's tested.
 ## Miri runs a whole test binary on one core, so each test gets a Miri of its
 ## own, the step's jobs at a time. A test Miri can't run, such as one that
-## calls C, carries cfg_attr(miri, ignore) with the reason.
+## calls C, has cfg_attr(miri, ignore) with the reason.
 ## TUKZMON_MIRI_FILTER, a part of a test's name, runs only the tests that have
 ## it, such as to rerun one that failed.
 fStepMiri() {
@@ -917,7 +917,7 @@ trap 'rc=$?; runSaid=1; printf "\n[ CICD ABORTED (exit %s) at line %s: %s ]\n" "
 
 #•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Container. The image is built from CTR_DIR, and the CTR_STEPS run in it as
-## this script again. Everything here carries the project's and the run's
+## this script again. Everything here gets the project's and the run's
 ## labels, and cleanup touches nothing without them.
 
 runName="${runTmp##*/}"

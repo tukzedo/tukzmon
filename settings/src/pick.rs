@@ -6,7 +6,7 @@
 
 use tukzmon_core::config::Rgb;
 
-/// Hue 0 to 1 (wrapping), saturation and brightness 0 to 1. The picker holds
+/// Hue 0 to 1 (wrapping), saturation and brightness 0 to 1. The picker keeps
 /// this rather than the bytes, since a gray has no hue to read back and black
 /// has no saturation either.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]

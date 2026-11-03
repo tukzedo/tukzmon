@@ -2,7 +2,7 @@
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
 //! NVML lets go of the GPU once both GPU graphs are hidden. Its own test
-//! binary, so no other test holds NVML open in the same process. A box with
+//! binary, so no other test keeps NVML open in the same process. A box with
 //! no NVIDIA GPU opens nothing, and passes on that.
 
 use tukzmon_core::config::{Look, Which};

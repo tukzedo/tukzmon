@@ -7,7 +7,7 @@
 use crate::collect::{Collector, Kept, slurp};
 use crate::mem::{Meminfo, meminfo, parse_meminfo};
 
-/// How full the pool is, 0 to 1, and how far it squeezes what it holds.
+/// How full the pool is, 0 to 1, and how far it squeezes what it stores.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Squeeze {
 	/// How full the pool is, 0 to 1.
@@ -42,7 +42,7 @@ pub fn parse_mm_stat(text: &str) -> Option<(u64, u64)> {
 	Some((cols.next()?.ok()?, cols.next()?.ok()?))
 }
 
-/// Used is what the devices hold, before compression, against their size.
+/// Used is what the devices store, before compression, against their size.
 /// None while none of them is set up.
 pub fn zram_squeeze(stored: u64, packed: u64, disksize: u64) -> Option<Squeeze> {
 	(disksize > 0).then(|| Squeeze {

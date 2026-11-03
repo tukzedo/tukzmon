@@ -1775,7 +1775,7 @@ private:
 				});
 				h->addWidget(b);
 			}
-			h->addStretch(1);
+			h->addStretch(1); // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks): w is group's Qt parent
 			return w;
 		}
 		case ControlKind::Dropdown: {

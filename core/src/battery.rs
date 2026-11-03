@@ -167,7 +167,7 @@ impl BatteryReader {
 }
 
 impl Collector<3> for BatteryReader {
-	/// Only one of them holds the charge, by state. Full, `Not charging`
+	/// Only one of them has the charge, by state. Full, `Not charging`
 	/// and `Unknown` count as charging, since they mean the power's in.
 	/// Critical is discharging at the critical level.
 	const SERIES: [&'static str; 3] = ["charging", "discharging", "critical"];
