@@ -3373,7 +3373,7 @@ Sorted per the notes in [Template](#template).
 		- Whether the shade is subtle enough and still plain to see is for a person to judge.
 	- Needs local test suite run?: No. The full run passed on 2026-10-29.
 	- Needs hand testing: No
-	- Note: 20261029, no check can judge it, since it turns on how subtle the shade looks. Build dekpw drew every tab in Adwaita and Adwaita dark: the page at `#f4f3f2` on a `#faf9f8` window, and `#383838` on `#323232`, with the tab list, the Name row and the buttons in the window color. Pictures are in `private/claude_simple/uat-20261029/`, `s-light-*.png` and `s-dark-*.png`.
+	- Note: 20261029, no check can judge it, since it turns on how subtle the shade looks. Build dekpw drew every tab in Adwaita and Adwaita dark: the page at `#f4f3f2` on a `#faf9f8` window, and `#383838` on `#323232`, with the tab list, the Name row and the buttons in the window color.
 	- Priority|Severity: Avg
 	- Opened: 20261029-131227
 	- Opened by: t00mietum
@@ -5081,8 +5081,8 @@ Sorted per the notes in [Template](#template).
 		- New test deqvr runs it with a stand-in cargo whose target dir is elsewhere and a stand-in `ldconfig` for an arm64 box, then again with a Debian user PATH and the box's own `ldconfig`, when it lists the panel library.
 		- Verified: deqvr failed before the fix and passed after. The quick gate passed, with deqvr in its Tests step. With `~/.local` swapped for an empty folder and a Debian user PATH, a real run built, installed the 3 files under `lib/x86_64-linux-gnu`, and gave no not found warning.
 	- Decisions:
-		- 2026103016201615 closed with no test because the pipeline can't run it. `dev-install-rig.bash` runs it under unshare, so a test can now go in `cicd/tests`.
-		- The test needs no unshare: it sets `HOME` to a temp folder and stands in for cargo, so it runs in the image too. The second half runs only where `/usr/sbin/ldconfig` or `/sbin/ldconfig` lists the panel library.
+		- 2026103016201615 closed with no test because the pipeline couldn't run it. A test can now go in `cicd/tests`.
+		- The test sets `HOME` to a temp folder and stands in for cargo, so it runs in the image too. The second half runs only where `/usr/sbin/ldconfig` or `/sbin/ldconfig` lists the panel library.
 		- `cargo metadata` rather than `CARGO_TARGET_DIR` alone, since a cargo config can set the target dir too.
 		- Swept: `cicd.bash` dogfoods through this script, and `package.bash` already reads the target dir. No other script calls `ldconfig`.
 	- Actual fix: in `utility/dev-install.bash`.
