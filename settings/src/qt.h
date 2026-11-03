@@ -20,6 +20,7 @@ rust::Vec<rust::String> tabs_by_key(Dialog &d, bool back, bool fromPage, bool pa
 rust::Vec<rust::String> section_tops(Dialog &d);
 rust::Vec<rust::String> row_spots(Dialog &d);
 rust::Vec<rust::String> colors_row_spots(Dialog &d);
+rust::Vec<rust::String> list_cells(Dialog &d);
 rust::Vec<rust::String> bottom_buttons(Dialog &d);
 rust::Vec<rust::String> enter_on(Dialog &d, rust::Str button);
 rust::Vec<rust::String> list_head_tips(Dialog &d);
@@ -34,6 +35,7 @@ rust::Vec<rust::String> question_defaults(Dialog &d);
 rust::Vec<rust::String> tab_walk(Dialog &d, bool colors, std::size_t from, std::size_t to);
 rust::Vec<rust::String> slider_clicks(Dialog &d);
 rust::Vec<rust::String> window_fit(Dialog &d, rust::Str screens);
+rust::Vec<rust::String> squeezed(Dialog &d, rust::Str screens);
 double empty_box_contrast(bool dark);
 rust::Vec<std::int32_t> chip_restyles(Dialog &d, rust::Str color);
 rust::Vec<double> refresh_micros(Dialog &d, std::size_t times);

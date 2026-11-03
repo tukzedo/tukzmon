@@ -115,21 +115,57 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Move vertical axis override from "Colors" tab, to "Graphs", next to "Time axis"
 	- ID: 2026110215302658
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
+	- Stand-in: 20261102, round-1102b debug build, in b23's own style (gtk3 platform theme, Orchis green compact), light and dark. Graphs drew a Vertical scale column right of Time axis, Global default in each row, with nothing cut off. Colors drew each mode on its own line with no Vertical scale.
 	- Priority|Severity: Avg
 	- Opened: 20261102-153026
 	- Opened by: t00mietum
-	- Related IDs: 2026110109585213
+	- Related IDs: 2026110109585213, 2026110215302659
 	- Requirements: Move each graph's Vertical scale from Themes|Colors to the Graphs tab, next to its Time axis.
+	- Estimated effort: Low
+	- Actual effort: Avg
+	- Progress log:
+		- Each graph list row has a Vertical scale dropdown right of its Time axis, under a Vertical scale header with its own tip. The row's revert arrow covers it too.
+		- The 13 `<graph>_vertical` rows moved to the Graphs tab in `settings.shcl`, after each graph's time axis. Their paths are unchanged, so saved files read as before.
+		- The window opens as wide as its widest page asks. A page not shown yet kept the size it had before its dropdowns were filled, which cut the list's dropdowns short. It now opens about 55 px wider.
+		- `design.md` XFCE plugin and Settings window are updated.
+		- Verified: the quick gate passed, and the stand-in above.
+	- Decisions:
+		- The header says Vertical scale, the setting's own label, and Global default stays as the dropdown's first choice.
+		- A graph needs a `.vertical` row to get a list row, as it needs `.time`. All 13 have one.
+		- The Colors mode keeps its line over both columns. Only the scale left it.
+	- Branch: round-1102b
+	- Test case: `bridge::tests::each_graphs_vertical_scale_sits_right_of_its_time_axis` (der3q) and `no_dropdown_opens_squeezed_on_a_roomy_screen` (desen). der3q fails with the time axis and vertical scale cells swapped, and desen with the window sized from the old hints.
+		- 2026-11-02: der3q checked the scale right of the Colors mode, and now checks it right of the time axis in the graph list. defm1's list takes the vertical rows, defkz's row has `vertical`, and deqsp expects 4 headers, not 3.
+		- Swept: every `GraphRow` user in Rust and `qt.cpp`, every loop over a list row's rows (build, revert, refresh), the `same_line` branch for the mode's line (now unused, removed), and the docs and tips naming Vertical scale on Themes/Colors.
+	- Acceptance signoff: Self-closed 20261102: der3q, desen and the stand-in above.
+	- Closed: 20261102-160400
 
 - Pre-next-cut: Themes|Colors reset icons closer to the boxes they reset
 	- ID: 2026110215302659
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
+	- Stand-in: 20261102, round-1102b debug build, in b23's own style, light and dark. On Colors every revert arrow sat just right of its hex box, in both columns, and the mode's just right of Gradient.
 	- Priority|Severity: Avg
 	- Opened: 20261102-153026
 	- Opened by: t00mietum
+	- Related IDs: 2026110215302658
 	- Requirements: Move reset icons for right-side column, closer to the boxes they reset. Ditto with left column.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- In each Colors section the room goes after the revert arrows, not before them, so each sits right after the box it resets. The arrows in a column still line up.
+		- A heading's rule still runs the column's full width.
+		- `design.md` Settings window and `style-guide_ux.md` Colors are updated.
+		- Verified: the quick gate passed, and the stand-in above.
+	- Decisions:
+		- Only Themes/Colors, as asked. General, Graphs and Outline keep their arrows in one column at the right edge, since their sliders and text boxes take the width.
+	- Branch: round-1102b
+	- Test case: `bridge::tests::each_colors_revert_sits_by_its_box` (desem). It fails with the old layout, where the CPU mode's arrow sat 380 px from Gradient.
+		- 2026-11-02: the `row_spots` hook gives each row's last part's right edge and its revert's left edge after the old 3 numbers. der32 and der33 read only the first 3.
+		- Swept: every grid made by `rowGrid` (pages, section columns and the mode's line) and every heading `placeRow` draws.
+	- Acceptance signoff: Self-closed 20261102: desem and the stand-in above.
+	- Closed: 20261102-160400
 
 - Hybrid laptop: GPU memory, on by default, keeps the NVIDIA GPU awake
 	- ID: 2026110118380381
