@@ -25,12 +25,25 @@ Sorted per the notes in [Template](#template).
 - GPU tests dekmd and der6k fail on a hybrid laptop whose NVIDIA card sleeps
 	- ID: 2026110216211209
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting on automated testing
+	- Needs external testing: on a hybrid laptop whose NVIDIA card is asleep, run dekmd and der6k, and see both return early.
 	- Priority|Severity: Low
 	- Opened: 20261102-162112
 	- Opened by:
+	- Parent ID: 2026110118380381
+	- Reproduced [Bug]: 2026-11-02 on b23, with the RTX 3060 Ti's `power/control` and `power/runtime_status` shown as `auto` and `suspended`. dekmd failed at its GiB check, with the tip "GPU memory 0% used".
+	- Actual cause [Bug]: dekmd wants " GiB" in the GPU memory tip, which a card asleep since start has no total for. der6k didn't fail. It found nothing open and passed without checking anything.
+	- Actual effort: Low
 	- Progress log:
 		- Since 36e3559, NVML isn't opened while the card's runtime_status is suspended. dekma returns early then, but dekmd's GiB check and der6k's open-file count would fail on such a box. They should skip the same way.
+		- `tukzmon_core::gpu::nvidia_asleep()` says whether the first NVIDIA card is asleep, where it may sleep. dekmd and der6k return early on it.
+		- Verified: with the card shown asleep, dekmd failed before and passed after, and der6k returned early. desfa checks `nvidia_asleep` against its stand-in files. The quick gate's lint and test areas passed.
+	- Decisions:
+		- One public call, so the settings tests and the core integration test read the same thing the readers do.
+	- Actual fix [Bug]: dekmd and der6k return early when `gpu::nvidia_asleep()` is true.
+	- Branch: round-1102b
+	- Test case: dekmd and der6k, under a stand-in for an asleep card. dekmd fails there with its early return taken out. der6k passes either way, since it found nothing to count. desfa checks `nvidia_asleep`.
+		- Swept: every test that reads the real card: dekma (already returned early), dekmd, der6k and dektd. dektd opens NVML itself, so it reads the card even when it's asleep.
 
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
@@ -204,7 +217,7 @@ Sorted per the notes in [Template](#template).
 		- dekma returns early when the card is asleep since start, since NVML wasn't asked.
 	- Branch: round-1102b
 	- Test case: `gpu::tests::nvml_leaves_a_card_that_may_sleep_alone_while_it_sleeps` (desfa), with stand-in power files and NVML. It fails with the asleep check or the idle rest taken out.
-		- Swept: both readers through `Card::find`, the one NVML open, der6j (now pointed at no PCI folder), and dekma, dekmd and der6k, which read the real card. On a hybrid laptop with the card asleep, dekmd's GiB check and der6k's open-file count would see no NVML.
+		- Swept: both readers through `Card::find`, the one NVML open, der6j (now pointed at no PCI folder), and dekma, dekmd and der6k, which read the real card. On a hybrid laptop with the card asleep, dekmd and der6k return early, since 2026110216211209.
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701

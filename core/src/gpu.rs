@@ -257,6 +257,13 @@ fn pci() -> String {
 	PCI.to_owned()
 }
 
+/// Whether the first NVIDIA card is asleep, where the kernel may put it to
+/// sleep. The GPU graphs then read 0 without asking NVML.
+pub fn nvidia_asleep() -> bool {
+	let mut buf = String::new();
+	Power::find(&pci()).is_some_and(|mut p| p.may_sleep(&mut buf) && p.asleep(&mut buf))
+}
+
 /// Where the GPU's numbers come from.
 #[derive(Debug)]
 enum Card {
@@ -784,8 +791,10 @@ mod tests {
 			(0, 0, 0),
 			"asleep at start"
 		);
+		assert!(nvidia_asleep());
 
 		set("runtime_status", "active\n");
+		assert!(!nvidia_asleep());
 		assert_eq!((gpu.read(), vram.read()), (Some([0.4]), Some([0.25])));
 		assert_eq!(OPEN.get(), 2);
 
