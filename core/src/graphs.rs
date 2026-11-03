@@ -680,7 +680,7 @@ impl Graphs {
 		})
 	}
 
-	// which graph holds device pixel (x, y), and the column in it. The edges
+	// which graph has device pixel (x, y), and the column in it. The edges
 	// count as the graph beside them, so a pointer pushed to the screen's edge
 	// still finds it. A gap between 2 finds neither.
 	fn find(

@@ -150,7 +150,7 @@ fn on_ports(fdb: &[u8], ports: &[u16]) -> Vec<[u8; 6]> {
 		.collect()
 }
 
-/// The far ends behind a virtual port of a bridge that holds a hardware
+/// The far ends behind a virtual port of a bridge that has a hardware
 /// interface too, such as a VM on b23's br0. The box's own address is on
 /// that bridge, but what goes to them never crosses the NIC. False when
 /// the neighbors can't be had.
@@ -298,7 +298,7 @@ impl Collector<3> for NetReader {
 
 /// What the network graph draws: [`NetReader`]'s 3 series split 5 ways by
 /// [`lan::split`]. With the split off, or no LAN reader, the LAN's 2 are 0
-/// and sent and received hold it all.
+/// and sent and received have it all.
 #[derive(Debug, Default)]
 pub struct Traffic {
 	net: NetReader,

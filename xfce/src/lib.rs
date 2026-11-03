@@ -231,7 +231,7 @@ impl Plugin {
 		tip
 	}
 
-	/// Ends the timers and file watches, which hold a pointer to this.
+	/// Ends the timers and file watches, which keep a pointer to this.
 	fn quiet(&mut self) {
 		for id in [&mut self.timer, &mut self.frame] {
 			if *id != 0 {

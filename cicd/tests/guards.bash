@@ -286,7 +286,7 @@ exit "${failed}"
 ##		- 2026-11-01: fRunPids skips a process that exits while it scans.
 ##		- 2026-11-01: The lists of files fail when git can't list them.
 ##		- 2026-11-01: The Nix step keeps the stores other checkouts pin.
-##		- 2026-11-01: No file a package holds counts as docs for the hook.
+##		- 2026-11-01: No file in a package counts as docs for the hook.
 ##		- 2026-11-01: The gate doesn't count the hook that started it as another
 ##		  run, and only 1 skips the hook.
 ##		- 2026-11-01: dev-install.bash copies what cargo built and finds the

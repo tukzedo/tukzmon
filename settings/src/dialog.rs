@@ -752,7 +752,7 @@ impl Dialog {
 	}
 }
 
-/// The file as `file` holds it, comments and all, with the values of `fresh`
+/// The file as `file` has it, comments and all, with the values of `fresh`
 /// in place of its own. `fresh` as it is when that wouldn't read back the same,
 /// such as with a raw block, so the values always win (2026103115232235).
 fn keep_notes(mut file: shcl::Document, fresh: &str) -> String {

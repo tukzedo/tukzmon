@@ -127,7 +127,7 @@ pub(crate) struct Away {
 	/// This box's addresses on a VM's NAT bridge, a container's link or a
 	/// VPN tunnel. A socket from one isn't the LAN's.
 	pub(crate) mine: Vec<IpAddr>,
-	/// Far ends behind a virtual port of a bridge that also holds the NIC,
+	/// Far ends behind a virtual port of a bridge that also has the NIC,
 	/// such as a VM on b23's br0.
 	pub(crate) guests: Vec<IpAddr>,
 }

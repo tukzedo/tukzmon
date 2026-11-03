@@ -20,7 +20,7 @@
 ## Every color is in the theme group, and so are each graph's mode, the
 ## margins and the 2 checkboxes that put the Outline tab's colors over every
 ## graph's. A row's default is the Default theme's value, and config::tests
-## holds the two to each other.
+## ties the two together.
 
 tabs: "General", "Graphs", "Themes", "Themes/Colors", "Themes/Outline"
 
@@ -561,7 +561,7 @@ settings:
 		control: checkbox
 		path: zswap.show
 		default: false
-		tip: "Show how full the compressed swap pool is, zswap's or else zram's, with how far it squeezes what it holds written over it, such as 2.1x. It's left out on a box with neither."
+		tip: "Show how full the compressed swap pool is, zswap's or else zram's, with how far it squeezes what it stores written over it, such as 2.1x. It's left out on a box with neither."
 
 	zswap_width:
 		label: Zswap width %
@@ -989,7 +989,7 @@ settings:
 		default: "#804080"
 		group: theme
 		shown_when: "mem_mode = detailed"
-		tip: "Memory the kernel holds for block devices and file system bookkeeping."
+		tip: "Memory the kernel uses for block devices and file system bookkeeping."
 
 	mem_cache:
 		label: Cache

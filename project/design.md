@@ -156,7 +156,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 
 - Reset history sits on the left of the bottom strip, under the pages, and starts every graph over at once, in the window and in every panel item. With Keep across restarts on, as the window shows it or as last applied, it asks first, since that deletes the saved history too. It's an action, not a setting, so it doesn't wait for Apply, and Cancel doesn't take it back.
 	- It writes `reset` in the history folder. When the saved history goes too, it deletes every `plugin-*.hist` there first, so an item that isn't running doesn't bring old history back.
-	- A running plugin watches that file, as it does the settings file, and checks its modified time at each sample too. It drops what it holds, and when history is kept it deletes its own file again, since it may have saved in between.
+	- A running plugin watches that file, as it does the settings file, and checks its modified time at each sample too. It drops what it has in memory, and when history is kept it deletes its own file again, since it may have saved in between.
 	- With Keep across restarts off, the file is left as it is, the same as Off always does.
 
 - Not there yet: a live preview in the panel before Apply, and the search box.
@@ -186,7 +186,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- Terminal, Vintage and Frost are one-color themes: a green phosphor screen, an amber one, and pale ice. Every graph has the same colors in them, so graphs are told apart by place and by the gap between them, as on a one-color multiload-ng setup.
 		- 13 graphs can't sit 10 apart by lightness alone, so these are let off the check on leads. A theme whose graphs all lead with one color is one of them, and only that lets a theme off.
 		- I/O wait and system stay red and orange, 10 or more from the lead and from each other, so trouble still reads. Each graph's own colors are 10 or more apart, and from the top.
-	- Each color row's default is Default's color, so Custom starts from it. `config::tests::the_default_theme_is_the_row_defaults` holds the two together.
+	- Each color row's default is Default's color, so Custom starts from it. `config::tests::the_default_theme_is_the_row_defaults` ties the two together.
 	- A color changed on a theme is kept apart from it, and the dropdown says "Name *", the way SilkTerm's does. Picking another theme drops those changes.
 	- knobs reads a color line at its own path as the Custom set. A file with colors and no theme line reads as Custom, so a hand edit or an older file isn't hidden under Default. A save names the theme whenever Custom colors are stored, even Default, or the file would read back as Custom.
 
@@ -360,7 +360,7 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 	- It's written every 15 minutes and when the panel quits, to a temp file renamed over the old one. A crash loses at most the 15 minutes.
 		- The temp file's name has the process id, since 2 sessions can each run an item with one id. A failed write removes it, and Reset history removes any a crash left.
 		- A file that doesn't read, such as one from a newer build, isn't saved over, so going back a version doesn't lose it. The tip says so until it reads, or Reset history deletes it.
-	- The file holds a named section per graph. A section that no graph shown owns, such as a hidden graph's, is kept at each save, so showing the graph again brings its history back. A file from other tiers, or one that doesn't read whole, is skipped. A file from before tier 0 went in, which has one tier less, still reads, with tier 0 empty. The graph starts fresh, and the next save replaces it.
+	- The file has a named section per graph. A section that no graph shown owns, such as a hidden graph's, is kept at each save, so showing the graph again brings its history back. A file from other tiers, or one that doesn't read whole, is skipped. A file from before tier 0 went in, which has one tier less, still reads, with tier 0 empty. The graph starts fresh, and the next save replaces it.
 	- Since file version 2 each section starts with its graph's series count, and a section with another count is skipped. A version 1 file still reads. Its sections have no count, so only their layout can refuse one, and a hidden graph's is saved back as it was.
 	- Times are Unix seconds, so runs line up. A clock set back to before the saved history is moved up to its end, so new samples aren't dropped as old.
 		- Only up to 14 hours, the most a clock can be behind by a time zone, such as a dual boot that keeps local time in the hardware clock. A section that ends further ahead starts over, since that's a broken file or a clock set back for good, and moving up to it would keep the graph that far off.

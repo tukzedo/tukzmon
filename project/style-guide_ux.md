@@ -32,7 +32,7 @@ Rules for the settings window, taken from how it already behaves and adjusted wh
 - The window has a tab list on the left, a page on the right, and a strip of buttons along the bottom.
 
 - Tabs are General, Graphs, and Themes. Themes has two sub-tabs, Colors and Outline, listed indented under it in the tab list.
-	- A tab holds one kind of thing. General is what every graph shares, Graphs is the per-graph list, Themes is looks.
+	- A tab has one kind of thing. General is what every graph shares, Graphs is the per-graph list, Themes is looks.
 	- Tab names are one word.
 
 - The page and the tab list are a shade darker than the rest of the window. Whatever stays put while a page scrolls is the lighter shade, so that way the page reads as set in, and no rule is drawn between the two. That covers the theme Name row and its buttons over the sub-tabs, and the bottom strip.
@@ -132,7 +132,7 @@ Rules for the settings window, taken from how it already behaves and adjusted wh
 
 - A theme is picked in the Name dropdown. A color changed since adds a "*" to the name.
 	- The theme buttons are Save, Save as..., Rename..., Delete, and Randomize, in that order.
-	- Outline holds what all graphs share: margins, transparency, and the two checkboxes that put one border or one background over every graph's own.
+	- Outline has what all graphs share: margins, transparency, and the two checkboxes that put one border or one background over every graph's own.
 
 ## Buttons
 
