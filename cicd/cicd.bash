@@ -115,9 +115,9 @@
 ##	  at their own paths. It builds into target/container, beside the host's
 ##	  target/. A run that dogfoods builds the release on the host instead,
 ##	  since that's what gets installed. With no docker, or an image that won't
-##	  build, the run says so in one line and goes on on the host. Containers,
-##	  images and build cache are cleaned up at the end, only what has the
-##	  dev.project=tukzmon label. Images are left alone while another run is
+##	  build, the run says so in one line and goes on on the host. Containers
+##	  and images are cleaned up at the end, only what has the
+##	  dev.project=tukzmon label. The shared build cache is left to docker. Images are left alone while another run is
 ##	  live. The image step stops containers whose run is gone.
 ##	- Lint: utility/lint-report.bash reports on the newest lint log, and its
 ##	  --check prints only what's new since the last look.
@@ -1116,12 +1116,12 @@ fCtrImagesBytes() {
 }
 
 ## The run's containers, the project's dangling images, and its older tags
-## once this run's image has answered, keeping it and the one before. Then a
-## week of build cache is kept for every project. No image goes while another
-## run is live, since its half-built image has no tag yet, and the tag it
+## once this run's image has answered, keeping it and the one before. The
+## build cache is shared by every project, so the daemon's builder.gc trims it,
+## not us. No image goes while another run is live, since its half-built image has no tag yet, and the tag it
 ## runs from may be an older one.
 fCtrCleanup() {
-	local tag='' seen=0 kept=0 before=0 after=0 freed='' pruned='' other='' i
+	local tag='' seen=0 kept=0 before=0 after=0 freed='' other='' i
 	local -a ids=() doomed=() gone=() tags=() built=() order=()
 	mapfile -t ids < <(docker ps -aq --filter "label=dev.project=${projectName}" --filter "label=dev.run=${runName}" 2> /dev/null || true)
 	if ((keepTemp)); then
@@ -1165,8 +1165,7 @@ fCtrCleanup() {
 		if ((${before:-0} > ${after:-0})); then freed=$((before - after)); else freed=0; fi
 		freed=", about $((freed / 1000000)) MB"
 	fi
-	pruned="$(docker builder prune -f --filter until=168h 2> /dev/null | sed -n 's/^Total\( reclaimed space\)\{0,1\}:[[:space:]]*//p' || true)"
-	fEcho_Clean "docker: removed ${gone[*]:-no image}${freed}, and ${pruned:-0B} of build cache"
+	fEcho_Clean "docker: removed ${gone[*]:-no image}${freed}"
 }
 
 
