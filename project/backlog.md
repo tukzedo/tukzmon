@@ -6349,6 +6349,22 @@ Sorted per the notes in [Template](#template).
 		- Swept: as in 2026102814061812.
 	- Closed: 20261028-162800
 
+- The memory graph reads ZFS's arcstats every tick
+	- ID: 2026110316100001
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261103-161000
+	- Opened by: t00mietum
+	- Requirements:
+		- arcstats is about 8 times the cost of a meminfo read, and was about 19% of the profiler's tick. The ARC moves slowly, so read it every 10th memory sample and reuse the last value between.
+	- Progress log:
+		- `MemoryReader` reads it on the first sample and every 10th after (`ARC_EVERY` in `core/src/mem.rs`). A box with no ZFS still tries it then, so a pool imported later counts.
+		- Profiler tick went from 398 to 321 us, and system time from 2.83 to 1.46 s.
+	- Branch: arc-every-10th
+	- Test case: der6h.
+	- Closed: 20261103-161600
+
 - Nix package build as a pipeline area
 	- ID: 2026102808222810
 	- Type: Task
