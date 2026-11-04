@@ -69,21 +69,27 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1102
 	- Test case: The workflow is its own test, as for 2026102513560001.
 
-- Code review 20261030 item 3, part 2: Look up a setting by an index in knobs
-	- ID: 2026103018353670
-	- Type: Enhancement
-	- Status: Stalled
-		- Held for silkterm's copy of knobs to get an id index in `Spec`, since this copy stays byte-identical to it.
-	- Priority|Severity: Low
-	- Opened: 20261030-183536
-	- Opened by: t00mietum
-	- Parent ID: 2026103016201603
-	- Requirements:
-		- Copy knobs over from silkterm once `Spec` looks ids up through an index built in `finish`, with an `Option` path for an id that's unknown.
-		- Time denam before and after.
-	- Progress log:
-		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
+- The pipeline prunes every project's docker build cache
+	- ID: 2026110311291910
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261103-112919
+	- Opened by: JC
+	- Related IDs: common 2026110311291900
+	- Incorrect behavior: The pipeline runs `docker builder prune` after a run, in `cicd/cicd.bash`. That prunes docker's default builder, which every project shares, so a run here drops any other project's cache once it's a week unused. common's `Cleanup after a run` rule said to do it.
+	- Expected behavior: The pipeline doesn't prune docker's build cache at all. Docker trims the cache itself on b23, through `builder.gc` in `/etc/docker/daemon.json`. Cache unused for a week goes first, then the rest is cut to 120 GB, or further when the disk is under 10% free, but never below 20 GB. The label cleanup of this project's containers, dangling images and old tags stays.
+		- Do it once b23's `/etc/docker/daemon.json` has the `builder.gc` block. `grep -q '"gc"' /etc/docker/daemon.json` checks. Until then the prune stays.
+	- Decisions:
+		- Don't move to a buildx builder of the project's own instead. shcl tried that on 2026-11-02. A cold build of a 2 GB image took 299 s against 266 s on the default builder, and the builder kept a second 3 GB copy of the layers for a week. shcl is going back to the default builder. (JC, me)
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- b23's `/etc/docker/daemon.json` has the `builder.gc` block. The prune is gone from `fCtrCleanup`, and the cleanup line names only the images it removed.
+		- Verified: the quick gate passed, and its cleanup ran with no prune.
+	- Branch: no-prune
+	- Test case: none, as it removes a call. The gate's cleanup step runs it.
+	- Closed: 20261103-171500
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
@@ -6445,22 +6451,24 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- 2026-10-30: Deferred with no date. The LAN split uses the non-root socket reader for now.
 
-- The pipeline prunes every project's docker build cache
-	- ID: 2026110311291910
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261103-112919
-	- Opened by: JC
-	- Related IDs: common 2026110311291900
-	- Incorrect behavior: The pipeline runs `docker builder prune` after a run, in `cicd/cicd.bash`. That prunes docker's default builder, which every project shares, so a run here drops any other project's cache once it's a week unused. common's `Cleanup after a run` rule said to do it.
-	- Expected behavior: The pipeline doesn't prune docker's build cache at all. Docker trims the cache itself on b23, through `builder.gc` in `/etc/docker/daemon.json`. Cache unused for a week goes first, then the rest is cut to 120 GB, or further when the disk is under 10% free, but never below 20 GB. The label cleanup of this project's containers, dangling images and old tags stays.
-		- Do it once b23's `/etc/docker/daemon.json` has the `builder.gc` block. `grep -q '"gc"' /etc/docker/daemon.json` checks. Until then the prune stays.
-	- Decisions:
-		- Don't move to a buildx builder of the project's own instead. shcl tried that on 2026-11-02. A cold build of a 2 GB image took 299 s against 266 s on the default builder, and the builder kept a second 3 GB copy of the layers for a week. shcl is going back to the default builder. (JC, me)
-	- Estimated effort: Low
-
 **Stop here for a next release**
+
+- Code review 20261030 item 3, part 2: Look up a setting by an index in knobs
+	- ID: 2026103018353670
+	- Type: Enhancement
+	- Status: Stalled
+		- Held for silkterm's copy of knobs to get an id index in `Spec`, since this copy stays byte-identical to it.
+		- 2026-11-03: moved below the stop line. It's a small speedup and doesn't need to block a release.
+	- Priority|Severity: Low
+	- Opened: 20261030-183536
+	- Opened by: t00mietum
+	- Parent ID: 2026103016201603
+	- Requirements:
+		- Copy knobs over from silkterm once `Spec` looks ids up through an index built in `finish`, with an `Option` path for an id that's unknown.
+		- Time denam before and after.
+	- Progress log:
+		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
+	- Estimated effort: Low
 
 - CICD gap: Fuzz the parsers of files and kernel messages
 	- ID: 2026110310450001
