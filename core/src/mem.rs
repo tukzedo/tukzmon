@@ -9,6 +9,8 @@ use crate::collect::{Collector, Kept};
 
 const MEMINFO: &str = "/proc/meminfo";
 const ARCSTATS: &str = "/proc/spl/kstat/zfs/arcstats";
+// memory graph samples per read of ARCSTATS
+const ARC_EVERY: u32 = 10;
 
 /// The `/proc/meminfo` rows used here, in kB.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -184,6 +186,8 @@ pub fn swap_share(m: &Meminfo) -> Option<[f32; 1]> {
 pub struct MemoryReader {
 	arc: Kept,
 	buf: String,
+	arc_was: u64,
+	reads: u32,
 }
 
 impl Default for MemoryReader {
@@ -197,15 +201,23 @@ impl MemoryReader {
 		MemoryReader {
 			arc: Kept::new(path),
 			buf: String::new(),
+			arc_was: 0,
+			reads: 0,
 		}
 	}
 
-	// kept open and tried each read, so a pool imported after start counts
+	// arcstats costs about 8 meminfo reads, and the ARC moves slowly. Still
+	// tried, so a pool imported after start counts.
 	fn arc_kb(&mut self) -> u64 {
-		self.arc
-			.read(&mut self.buf)
-			.and_then(parse_arcstats)
-			.unwrap_or(0)
+		if self.reads.is_multiple_of(ARC_EVERY) {
+			self.arc_was = self
+				.arc
+				.read(&mut self.buf)
+				.and_then(parse_arcstats)
+				.unwrap_or(0);
+		}
+		self.reads = (self.reads + 1) % ARC_EVERY;
+		self.arc_was
 	}
 }
 
@@ -365,7 +377,7 @@ size                            4    8053063680
 
 	// Test ID: der6h
 	#[test]
-	fn the_memory_reader_reads_the_arc_each_time_and_none_is_none() {
+	fn the_memory_reader_reads_the_arc_every_tenth_time_and_none_is_none() {
 		let t = Tree::new("arcstats", &[("arcstats", ARCSTATS_TEXT)]);
 		let mut r = MemoryReader::with_arc(&t.at("arcstats"));
 		assert_eq!(r.arc_kb(), 3_670_016);
@@ -374,6 +386,10 @@ size                            4    8053063680
 			ARCSTATS_TEXT.replace("8053063680", "5368709120"),
 		)
 		.unwrap();
+		for _ in 1..ARC_EVERY {
+			assert_eq!(r.arc_kb(), 3_670_016);
+		}
+		assert_eq!(r.arc_kb(), 1_048_576);
 		assert_eq!(r.arc_kb(), 1_048_576);
 		let mut none = MemoryReader::with_arc(&t.at("no_zfs"));
 		assert_eq!(none.arc_kb(), 0);
