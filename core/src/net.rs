@@ -671,6 +671,7 @@ mod tests {
 
 	// Test ID: deqt5
 	#[test]
+	#[cfg_attr(miri, ignore = "getifaddrs is C, which Miri can't call")]
 	fn this_boxs_addresses_include_loopback() {
 		let mut lo = Vec::new();
 		assert!(addresses(|name, ip| if name == "lo" {
@@ -681,6 +682,7 @@ mod tests {
 
 	// Test ID: demw0
 	#[test]
+	#[cfg_attr(miri, ignore = "Miri has no netlink sockets")]
 	fn with_the_split_off_sent_and_received_hold_it_all() {
 		let mut t = Traffic::probe().expect("every Linux box has /proc/net/dev");
 		assert!(!t.split());

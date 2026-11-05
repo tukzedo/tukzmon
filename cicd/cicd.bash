@@ -34,7 +34,8 @@
 ##	                      ASan, LSan and UBSan too
 ##	  11. Miri            a leak check that takes hours: the tests under Miri on
 ##	                      the same nightly, one Miri per test.
-##	                      TUKZMON_MIRI_FILTER=<part of a name> runs only those
+##	                      TUKZMON_MIRI_FILTER=<part of a name> runs only those.
+##	                      A test past TUKZMON_MIRI_MINUTES (30) fails
 ##	  12. Soak            a slow leak check: core/tests/soak.rs, the panel's
 ##	                      work over days of skipped clock, with the heap read at
 ##	                      round N and 2N. Its report goes to cicd/artifacts/soak/
@@ -663,7 +664,9 @@ fStepSanitizers() {
 ## own, the step's jobs at a time. A test Miri can't run, such as one that
 ## calls C, has cfg_attr(miri, ignore) with the reason.
 ## TUKZMON_MIRI_FILTER, a part of a test's name, runs only the tests that have
-## it, such as to rerun one that failed.
+## it, such as to rerun one that failed. A test past MIRI_MINUTES fails, so one
+## gone slow is named, not left running for days. timeout signals the test's
+## whole process group, so the miri under cargo goes too.
 fStepMiri() {
 	local dir="${CARGO_TARGET_DIR:-${root}/target}" logs="${TMPDIR}/miri" sel pkg kind name n=0 rc=0
 	local -a miriEnv=()
@@ -692,14 +695,16 @@ fStepMiri() {
 	done
 	[[ -z "${TUKZMON_MIRI_FILTER:-}" ]] || fEcho_Clean "only the tests with '${TUKZMON_MIRI_FILTER}' in their name"
 	((n > 0)) || { fEcho_Clean "Miri found no tests"; return 1; }
-	fEcho_Clean "${n} test(s), one Miri each, ${jobs} at a time"
+	fEcho_Clean "${n} test(s), one Miri each, ${jobs} at a time, ${MIRI_MINUTES} min at most"
 	## A leak is found after the test's own ok line, so a Miri that failed has
 	## that line swapped for a FAILED one. The order's kept, so the IDs go on
 	## the right lines.
 	# shellcheck disable=2016  ## The inner bash expands them.
-	env -u DISPLAY -u WAYLAND_DISPLAY -u CARGO_TERM_QUIET "${miriEnv[@]}" MIRI_LOGS="${logs}" NIGHTLY="${RUST_NIGHTLY}" LOCKED="${locked[*]}" \
-		xargs -P "${jobs}" -L 1 bash -c 'log="${MIRI_LOGS}/$1.log"
-			cargo "+${NIGHTLY}" miri test ${LOCKED} -p "$2" "$3" -- --exact "$4" > "${log}" 2>&1 && exit 0
+	env -u DISPLAY -u WAYLAND_DISPLAY -u CARGO_TERM_QUIET "${miriEnv[@]}" MIRI_LOGS="${logs}" NIGHTLY="${RUST_NIGHTLY}" LOCKED="${locked[*]}" MINUTES="${MIRI_MINUTES}" \
+		xargs -P "${jobs}" -L 1 bash -c 'log="${MIRI_LOGS}/$1.log" rc=0
+			timeout -k 30s "${MINUTES}m" cargo "+${NIGHTLY}" miri test ${LOCKED} -p "$2" "$3" -- --exact "$4" > "${log}" 2>&1 || rc=$?
+			((rc)) || exit 0
+			((rc != 124 && rc != 137)) || printf "%s ran past %s min under Miri\n" "$4" "${MINUTES}" >> "${log}"
 			sed -i "/^test .* \.\.\. ok\$/d" "${log}"
 			grep -q "^test .* \.\.\. FAILED\$" "${log}" || printf "test %s ... FAILED\n" "$4" >> "${log}"; exit 1' _ < "${logs}/list" || rc=1
 	cat -- "${logs}"/[0-9]*.log | "${here}/utility/test-ids.bash" annotate | awk '
@@ -1091,7 +1096,7 @@ fCtrStep() {   ## fCtrStep FUNCTION
 	env=(-e "TUKZMON_IN_IMAGE=${fn}" -e "TUKZMON_JOBS=${jobs}" -e "HOME=${runTmp}/home"
 		-e "TMPDIR=${runTmp}" -e "TEMP=${runTmp}" -e "TMP=${runTmp}"
 		-e "CARGO_HOME=${ctrBase}/cargo-home" -e "CARGO_TARGET_DIR=${ctrBase}/target" -e CARGO_NET_OFFLINE=true
-		-e CARGO_TERM_QUIET -e SOURCE_DATE_EPOCH -e TUKZMON_RELEASE -e TUKZMON_MIRI_FILTER)
+		-e CARGO_TERM_QUIET -e SOURCE_DATE_EPOCH -e TUKZMON_RELEASE -e TUKZMON_MIRI_FILTER -e TUKZMON_MIRI_MINUTES)
 	[[ ! -t 1 ]] || env+=(-e CARGO_TERM_COLOR=always)
 	## A run that dogfoods built the release here, so the packages come from
 	## that one.

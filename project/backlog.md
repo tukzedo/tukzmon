@@ -22,6 +22,33 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- The Miri step ran over 31 hours and never finished
+	- ID: 2026110514461968
+	- Type: Bug
+	- Status: Waiting for answers
+		- 2026-11-05: what to do about the spec parse, below.
+	- Priority|Severity: Avg
+	- Opened: 20261105-144619
+	- Opened by: JC
+	- Related IDs: 2026102516060729, 2026103018353670
+	- Steps to reproduce: `cicd/cicd.bash --long`.
+	- Incorrect behavior: The Miri step of the 2026-11-04 run was still going after 31 hours, with 25 of its 371 tests left. 9 had failed already.
+	- Expected behavior: The step finishes in a few hours, and a test that runs too long fails by name.
+	- Reproduced: 2026-11-04, b23.
+	- Actual cause:
+		- 9 tests added since the step went in reach things Miri can't do and had no `cfg_attr(miri, ignore)`: netlink sockets, `getifaddrs`, an fsync of a folder, and a seek on a folder.
+		- The Randomize tests loop over 2000 seeds, about 18 s a seed under Miri, so 10 hours a test.
+		- Parsing the settings spec takes 0.11 s natively and over 30 minutes under Miri. The spec is 3544 lines, against 576 on 2026-10-25, when such a test took 3 to 11 minutes. Each test is its own Miri process, so each one that reads the spec pays it again.
+	- Progress log:
+		- The 9 tests are ignored under Miri, with the reason. A sweep found no others of their kind.
+		- The Randomize tests take 16 seeds under Miri, the fewest that pass every one of them. The count of distinct leads is now a share of the seeds.
+		- Each test under Miri fails past `MIRI_MINUTES` (30), with a line naming it. `TUKZMON_MIRI_MINUTES` changes it.
+		- Verified: at a 1 minute limit all 11 Randomize tests failed by name, with nothing left running. At 30, 9 passed in 2 to 5 minutes each, and the 2 that read the spec ran past it.
+	- Decisions:
+		- Open: what to do about the spec parse. A 30 minute limit fails every test that reads it.
+	- Branch: miri-trim
+	- Test case: the Miri step itself, as above.
+
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task

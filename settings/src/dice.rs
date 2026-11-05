@@ -624,7 +624,8 @@ mod tests {
 		d.min(1.0 - d)
 	}
 
-	const SEEDS: std::ops::Range<u64> = 0..2000;
+	// Under Miri each seed takes about 18 s, so 2000 of them took 10 hours a test
+	const SEEDS: std::ops::Range<u64> = if cfg!(miri) { 0..16 } else { 0..2000 };
 
 	// Test ID: decdr
 	#[test]
@@ -874,7 +875,7 @@ mod tests {
 		let leads: std::collections::BTreeSet<String> = SEEDS
 			.map(|s| theme(s).into_iter().find(|(i, _)| *i == "user").unwrap().1)
 			.collect();
-		assert!(leads.len() > 1900, "{}", leads.len());
+		assert!(leads.len() * 100 > SEEDS.count() * 95, "{}", leads.len());
 		assert_ne!(fresh_seed(), fresh_seed());
 	}
 }

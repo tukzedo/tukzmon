@@ -98,6 +98,11 @@ MIRI_TARGETS=(
 	"knobs --lib"
 	"tukzmon-settings --bins"
 )
+## A test that runs longer under Miri fails. The slowest took about 11
+## minutes on 2026-10-25, and 10 hours once a test looped over 2000 seeds.
+## Whole minutes only, as with CICD_MAX_JOBS.
+MIRI_MINUTES=30
+[[ ! "${TUKZMON_MIRI_MINUTES:-}" =~ ^[1-9][0-9]{0,3}$ ]] || MIRI_MINUTES="${TUKZMON_MIRI_MINUTES}"
 ## The soak test's reports, and dhat's heap profile when it fails, rotated.
 SOAK_DIR="cicd/artifacts/soak"
 ## LeakSanitizer's suppressions. Prebuilt libraries only, by name.

@@ -1612,6 +1612,7 @@ mod tests {
 
 	// Test ID: der3r
 	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
 	fn the_old_disk_log_scale_saves_as_the_disk_graphs_own() {
 		let d = scratch("disk_log");
 		let path = d.0.join("old.shcl");
@@ -1633,6 +1634,7 @@ mod tests {
 
 	// Test ID: dejjv
 	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
 	fn the_margins_go_with_the_theme_and_a_roll_leaves_them() {
 		let d = scratch("margins");
 		let path = d.0.join("t.shcl");

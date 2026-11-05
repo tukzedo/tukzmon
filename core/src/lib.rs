@@ -912,6 +912,7 @@ mod tests {
 
 	// Test ID: demvz
 	#[test]
+	#[cfg_attr(miri, ignore = "Miri has no netlink sockets")]
 	fn the_split_tip_names_the_lan_and_the_internet() {
 		let mut t = Traffic::default();
 		t.set_split(config::Split::Sockets);
@@ -1016,6 +1017,7 @@ mod tests {
 
 	// Test ID: dep7b
 	#[test]
+	#[cfg_attr(miri, ignore = "Miri has no netlink sockets")]
 	fn every_tip_gives_one_pair_a_line() {
 		assert_eq!(
 			CpuReader::default().text(&[0.01, 0.02, 0.03, 0.04]),
