@@ -297,6 +297,8 @@ fTest_a_miri_module_names_the_test_that_stopped_it() {
 		grep -qxF -- "${c}" "${log}" || { fWhy "past the limit, no '${c}' in: $(cat -- "${log}")"; return 1; }
 	done
 	grep -qF 'test m::a ... FAILED' "${log}" && { fWhy "a, which finished, failed too"; return 1; }
+	## b was cut off mid-line, and what follows still starts a line of its own
+	grep -qx 'error: memory leaked' "${log}" || { fWhy "b's cut-off line ran on: $(cat -- "${log}")"; return 1; }
 	## A leak comes after every test, so the module fails.
 	fRun 0003 'test m::a ... ok\ntest m::b ... ok\ntest m::c ... ok\n|' 1
 	((rc == 1)) || { fWhy "a leak gave ${rc}"; return 1; }
