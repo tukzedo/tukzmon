@@ -271,6 +271,46 @@ fTest_a_run_with_every_check_off_fails() {
 	[[ "${out}" != *"Fails:"* ]] || { fWhy "--list with Miri on says it fails: ${out}"; return 1; }
 }
 
+## Test ID: dexn3
+fTest_a_miri_module_names_the_test_that_stopped_it() {
+	local dir="${work}/miri-group" log='' rc=0 c=''
+	mkdir -p -- "${dir}/bin"
+	## cargo stands in for Miri: it prints STUB_OUT, with a warning on stderr
+	## where the first one says, and exits STUB_RC.
+	printf '#!/usr/bin/env bash\nprintf "     Running unittests (x/pkg-0a1b)\\n" >&2\nprintf "%%b" "${STUB_OUT%%%%|*}"\nprintf "warning: files in /proc\\nerror: memory leaked\\n" >&2\nprintf "%%b" "${STUB_OUT#*|}"\nexit "${STUB_RC}"\n' > "${dir}/bin/cargo"
+	chmod +x -- "${dir}/bin/cargo"
+	fRun() {   ## fRun NUM OUT RC -> the group's exit in rc, its log in log
+		rc=0; log="${dir}/$1.log"
+		PATH="${dir}/bin:${PATH}" STUB_OUT="$2" STUB_RC="$3" NIGHTLY=x LOCKED='' MINUTES=1 \
+			bash "${cicd}/utility/miri-group.bash" "${dir}" "$1" pkg --lib m::a m::b m::c || rc=$?
+	}
+	fRun 0001 'test m::a ... |ok\ntest m::b ... ok\ntest m::c ... ignored\n' 0
+	((rc == 0)) || { fWhy "a clean run failed: $(cat -- "${log}")"; return 1; }
+	## a warning between a test and its result doesn't split it, and the
+	## crate's line comes first, with no error text on a clean run
+	[[ "$(cat -- "${log}")" == "     Running unittests (x/pkg-0a1b)"$'\n'"test m::a ... ok"$'\n'* ]] || { fWhy "a clean run's log: $(cat -- "${log}")"; return 1; }
+	grep -q '^error' "${log}" && { fWhy "a clean run has error text"; return 1; }
+	## Past the limit: b was running, and c never ran.
+	fRun 0002 'test m::a ... ok\ntest m::b ... |' 124
+	((rc == 1)) || { fWhy "past the limit gave ${rc}"; return 1; }
+	for c in 'm::b ran past 1 min under Miri, with the rest of m' 'test m::b ... FAILED' 'test m::c ... ignored, not run since m::b stopped Miri'; do
+		grep -qxF -- "${c}" "${log}" || { fWhy "past the limit, no '${c}' in: $(cat -- "${log}")"; return 1; }
+	done
+	grep -qF 'test m::a ... FAILED' "${log}" && { fWhy "a, which finished, failed too"; return 1; }
+	## b was cut off mid-line, and what follows still starts a line of its own
+	grep -qx 'error: memory leaked' "${log}" || { fWhy "b's cut-off line ran on: $(cat -- "${log}")"; return 1; }
+	## A leak comes after every test, so the module fails.
+	fRun 0003 'test m::a ... ok\ntest m::b ... ok\ntest m::c ... ok\n|' 1
+	((rc == 1)) || { fWhy "a leak gave ${rc}"; return 1; }
+	grep -qx 'error: memory leaked' "${log}" || { fWhy "a leak's error isn't in: $(cat -- "${log}")"; return 1; }
+	grep -qF 'FAIL ----- m: Miri failed after its tests, exit 1' "${log}" || { fWhy "a leak: $(cat -- "${log}")"; return 1; }
+	## A failed assert has its own line, and nothing is added.
+	fRun 0004 'test m::a ... FAILED\ntest m::b ... ok\ntest m::c ... ok\n|' 101
+	((rc == 1)) || { fWhy "a failed test gave ${rc}"; return 1; }
+	## the Running line, 3 results and the stand-in's error line
+	(($(wc -l < "${log}") == 5)) || { fWhy "a failed test got more lines: $(cat -- "${log}")"; return 1; }
+}
+
 failed=0
 while read -r id fn; do
 	if "${fn}"; then echo "PASS ${id} ${fn#fTest_}"; else echo "FAIL ${id} ${fn#fTest_}"; failed=1; fi
@@ -292,3 +332,4 @@ exit "${failed}"
 ##		- 2026-11-01: dev-install.bash copies what cargo built and finds the
 ##		  panel's library.
 ##		- 2026-11-01: A run with every check off fails.
+##		- 2026-11-05: A Miri module names the test that stopped it.

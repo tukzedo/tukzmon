@@ -280,6 +280,7 @@ mod tests {
 
 	// Test ID: denba
 	#[test]
+	#[cfg_attr(miri, ignore = "Miri can't seek on a folder")]
 	fn kept_reads_the_file_anew_and_opens_it_again_after_a_failed_read() {
 		let t = Tree::new("kept", &[("a", "one\n"), ("b/", "")]);
 		let mut f = Kept::new(t.at("a"));

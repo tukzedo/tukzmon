@@ -612,6 +612,7 @@ mod tests {
 
 	// Test ID: deqt7
 	#[test]
+	#[cfg_attr(miri, ignore = "Miri has no netlink sockets")]
 	fn neighbors_read_with_their_link_addresses() {
 		let attr = |kind: u16, data: &[u8]| {
 			let mut a = Vec::new();
@@ -681,6 +682,7 @@ mod tests {
 
 	// Test ID: dekq9
 	#[test]
+	#[cfg_attr(miri, ignore = "Miri has no netlink sockets")]
 	fn live_sockets_read_with_no_root() {
 		let mut r = LanReader::probe().expect("sock_diag needs no root");
 		std::thread::sleep(std::time::Duration::from_millis(20));

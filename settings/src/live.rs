@@ -277,6 +277,7 @@ mod tests {
 
 	// Test ID: defps
 	#[test]
+	#[cfg_attr(miri, ignore = "Miri runs too slow for the real clock's margins")]
 	fn a_time_axis_picked_in_the_window_eases_into_its_row() {
 		let path = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_live_ease_never_written.shcl",
