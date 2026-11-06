@@ -1025,7 +1025,9 @@ mod tests {
 		};
 		let mut h = History::<2>::default();
 		let mut t = 1.76e9;
-		for round in 0..600 {
+		// 140 still checks, trims and reloads, and 600 take Miri hours
+		let rounds = if cfg!(miri) { 140 } else { 600 };
+		for round in 0..rounds {
 			// mostly short samples, now and then a long one or a gap
 			let r = rand();
 			let len = if r < 0.9 {

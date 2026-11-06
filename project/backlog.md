@@ -25,29 +25,35 @@ Sorted per the notes in [Template](#template).
 - The Miri step ran over 31 hours and never finished
 	- ID: 2026110514461968
 	- Type: Bug
-	- Status: Waiting for answers
-		- 2026-11-05: what to do about the spec parse, below.
+	- Status: Testing
+		- 2026-11-05: a full Miri run, one Miri per module, is going.
 	- Priority|Severity: Avg
 	- Opened: 20261105-144619
 	- Opened by: JC
 	- Related IDs: 2026102516060729, 2026103018353670
 	- Steps to reproduce: `cicd/cicd.bash --long`.
-	- Incorrect behavior: The Miri step of the 2026-11-04 run was still going after 31 hours, with 25 of its 371 tests left. 9 had failed already.
+	- Incorrect behavior: The Miri step of the 2026-11-04 run was still going after 31 hours, with 25 of its 371 tests left. 13 had failed already.
 	- Expected behavior: The step finishes in a few hours, and a test that runs too long fails by name.
 	- Reproduced: 2026-11-04, b23.
 	- Actual cause:
 		- 9 tests added since the step went in reach things Miri can't do and had no `cfg_attr(miri, ignore)`: netlink sockets, `getifaddrs`, an fsync of a folder, and a seek on a folder.
+		- 5 tests check the real clock to a hundredth of a second, which Miri is far too slow for: the ease after a new time axis, in the core and in a settings row, a clock set back or moved on, and a still pointer's age.
 		- The Randomize tests loop over 2000 seeds, about 18 s a seed under Miri, so 10 hours a test.
-		- Parsing the settings spec takes 0.11 s natively and over 30 minutes under Miri. The spec is 3544 lines, against 576 on 2026-10-25, when such a test took 3 to 11 minutes. Each test is its own Miri process, so each one that reads the spec pays it again.
+		- Parsing the settings spec takes 0.11 s natively and about 65 minutes under Miri. The spec is 3544 lines, against 576 on 2026-10-25, when such a test took 3 to 11 minutes. Each test was its own Miri process, so each one that read the spec paid it again. `Look::default()` reads it, so nearly every module does.
 	- Progress log:
 		- The 9 tests are ignored under Miri, with the reason. A sweep found no others of their kind.
 		- The Randomize tests take 16 seeds under Miri, the fewest that pass every one of them. The count of distinct leads is now a share of the seeds.
 		- Each test under Miri fails past `MIRI_MINUTES` (30), with a line naming it. `TUKZMON_MIRI_MINUTES` changes it.
 		- Verified: at a 1 minute limit all 11 Randomize tests failed by name, with nothing left running. At 30, 9 passed in 2 to 5 minutes each, and the 2 that read the spec ran past it.
+		- Each module's tests now share one Miri, so they parse the spec once, through `cicd/utility/miri-group.bash`. The limit is per module. Past it, or when Miri stops on an error, the test it was on fails and the rest are listed as not run. An error after every test passed, such as a leak, fails the module.
+		- libtest's stdout and Miri's stderr are kept apart, since Miri's `/proc` warnings land between a test's name and its result.
+		- The 5 real clock tests are ignored under Miri.
+		- Verified: dexn3 covers the time limit, an error, a leak and a failed assert, and failed with each part broken. Under Miri, `load::tests` passed with its results split by warnings, and `dice::tests` at a 1 minute limit failed the test it was on and listed the rest.
 	- Decisions:
-		- Open: what to do about the spec parse. A 30 minute limit fails every test that reads it.
-	- Branch: miri-trim
-	- Test case: the Miri step itself, as above.
+		- 2026-11-05: one Miri per module, rather than a longer limit or skipping the tests that read the spec. (JC)
+		- 2026-11-05: the knobs copy doesn't have to stay the same as silkterm's, so its speedups can go in here first. (JC)
+	- Branch: miri-trim, then miri-out
+	- Test case: dexn3, and the Miri step itself.
 
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
@@ -6496,6 +6502,20 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
 	- Estimated effort: Low
+
+- Parse the settings spec faster
+	- ID: 2026110519470058
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261105-194700
+	- Opened by: JC
+	- Related IDs: 2026110514461968, 2026103018353670
+	- Requirements:
+		- `config::spec()` and what reads `settings.shcl` beside it take less time, measured natively and under Miri.
+	- Progress log:
+		- 2026-11-05: 0.11 s in a debug build, and about 65 minutes under Miri, which nearly every Miri module pays once. The text is parsed by shcl 4 times, by `Spec::parse`, `slider_ranges` and 2 more readers in `config.rs`, each then looking rows up by dotted path. Measure which part costs before changing it.
+	- Estimated effort: Avg
 
 - CICD gap: Fuzz the parsers of files and kernel messages
 	- ID: 2026110310450001
