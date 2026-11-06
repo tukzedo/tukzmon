@@ -25,8 +25,7 @@ Sorted per the notes in [Template](#template).
 - The Miri step ran over 31 hours and never finished
 	- ID: 2026110514461968
 	- Type: Bug
-	- Status: Testing
-		- 2026-11-05: a full Miri run, one Miri per module, is going.
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261105-144619
 	- Opened by: JC
@@ -47,13 +46,16 @@ Sorted per the notes in [Template](#template).
 		- Verified: at a 1 minute limit all 11 Randomize tests failed by name, with nothing left running. At 30, 9 passed in 2 to 5 minutes each, and the 2 that read the spec ran past it.
 		- Each module's tests now share one Miri, so they parse the spec once, through `cicd/utility/miri-group.bash`. The limit is per module. Past it, or when Miri stops on an error, the test it was on fails and the rest are listed as not run. An error after every test passed, such as a leak, fails the module.
 		- libtest's stdout and Miri's stderr are kept apart, since Miri's `/proc` warnings land between a test's name and its result.
-		- The 5 real clock tests are ignored under Miri.
+		- The 5 real clock tests are ignored under Miri. A history test's 600 rounds are 140 under Miri, which still checks, trims and reloads.
+		- The limit is 480 minutes a module.
 		- Verified: dexn3 covers the time limit, an error, a leak and a failed assert, and failed with each part broken. Under Miri, `load::tests` passed with its results split by warnings, and `dice::tests` at a 1 minute limit failed the test it was on and listed the rest.
+		- Verified: the whole Miri step passed on 2026-11-06 in 6h 12m, with 291 tests passed, 80 ignored and none failed. `config::tests` was the longest, at 6 hours.
 	- Decisions:
 		- 2026-11-05: one Miri per module, rather than a longer limit or skipping the tests that read the spec. (JC)
 		- 2026-11-05: the knobs copy doesn't have to stay the same as silkterm's, so its speedups can go in here first. (JC)
 	- Branch: miri-trim, then miri-out
 	- Test case: dexn3, and the Miri step itself.
+	- Closed: 20261106-023000
 
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
