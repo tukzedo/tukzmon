@@ -97,9 +97,10 @@ MIRI_TARGETS=(
 	"knobs --lib"
 	"tukzmon-settings --bins"
 )
-## A module's tests that run longer than this under Miri fail.
+## A module's tests that run longer than this under Miri fail. config::tests,
+## the longest, took about 5 hours on 2026-11-05, most of it building models.
 ## Whole minutes only, as with CICD_MAX_JOBS.
-MIRI_MINUTES=30
+MIRI_MINUTES=480
 [[ ! "${TUKZMON_MIRI_MINUTES:-}" =~ ^[1-9][0-9]{0,3}$ ]] || MIRI_MINUTES="${TUKZMON_MIRI_MINUTES}"
 ## The soak test's reports, and dhat's heap profile when it fails, rotated.
 SOAK_DIR="cicd/artifacts/soak"
