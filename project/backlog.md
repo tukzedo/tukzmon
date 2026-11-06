@@ -22,6 +22,30 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- Move to shcl 3.0.0-beta1
+	- ID: 2026110610124433
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261106-101244
+	- Opened by: JC
+	- Requirements:
+		- Build on shcl 3.0.0-beta1.
+		- A settings file written under shcl 2 still loads with the same values.
+	- Progress log:
+		- The settings spec and the knobs demo spec use brackets for lists, and `◉NEWLINE◉` for a line break in a tip, as shcl 3 wants.
+		- A file with no Format line that doesn't load clean under shcl 3 is read the way shcl 2 read it (`config::as_shcl3`).
+		- A panel item at start, and the settings window when it opens, rewrite such a file for shcl 3, with the old one kept beside it (`config::upgrade_file`).
+		- The settings window writes shcl's Format line under its header, so a later build never takes its file for shcl 2.
+		- `graph.order` and `disk.drives` also take a list in brackets.
+		- Verified: deyr0, deyr1 and deyr2 failed with the upgrade or the Format line taken out.
+	- Decisions:
+		- 2026-11-06: a file is taken for shcl 2 only when it has no Format line and has an error under shcl 3. A clean file without one is read as written, so a hand-made shcl 3 file isn't misread. (me)
+		- 2026-11-06: in a shcl 3 file, `order: mem, cpu` is now an error and the line is dropped. `mem cpu`, `mem,cpu` and `[mem, cpu]` all work. That's shcl's rule, so it isn't worked around. (me)
+	- Branch: shcl3
+	- Test case: deyr0, deyr1, deyr2
+	- Closed: 20261106-101244
+
 - The Miri step ran over 31 hours and never finished
 	- ID: 2026110514461968
 	- Type: Bug

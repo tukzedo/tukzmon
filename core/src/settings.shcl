@@ -22,7 +22,7 @@
 ## graph's. A row's default is the Default theme's value, and config::tests
 ## ties the two together.
 
-tabs: "General", "Graphs", "Themes", "Themes/Colors", "Themes/Outline"
+tabs: ["General", "Graphs", "Themes", "Themes/Colors", "Themes/Outline"]
 
 settings:
 
@@ -36,21 +36,21 @@ settings:
 		tab: General
 		control: slider
 		whole: true
-		range: 16, 4096
-		slider_range: 24, 1024
+		range: [16, 4096]
+		slider_range: [24, 1024]
 		scale: log
 		path: graph.width
 		default: 100
-		detents: 64, 128, 256
-		tip: "How wide a graph is in the panel at 100%. Each graph on the Graphs tab takes a percentage of it. Its height follows the panel.\n\nOn a vertical panel or a deskbar, this is how tall a graph is, and its width follows the panel. Time still runs from left to right."
+		detents: [64, 128, 256]
+		tip: "How wide a graph is in the panel at 100%. Each graph on the Graphs tab takes a percentage of it. Its height follows the panel.◉NEWLINE◉◉NEWLINE◉On a vertical panel or a deskbar, this is how tall a graph is, and its width follows the panel. Time still runs from left to right."
 
 	border:
 		label: Border px
 		tab: General
 		control: slider
 		whole: true
-		range: 0, 16
-		slider_range: 0, 4
+		range: [0, 16]
+		slider_range: [0, 4]
 		path: graph.border
 		default: 1
 		tip: "How thick the line around each graph is, in pixels. 0 draws no border."
@@ -64,23 +64,23 @@ settings:
 		label: Scale default
 		tab: General
 		control: dropdown
-		options: linear, smooth, fixed_a, fixed_b
-		option_labels: "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		options: [linear, smooth, fixed_a, fixed_b]
+		option_labels: ["Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: graph.time
 		default: smooth
-		tip: "How a graph spreads time across its width, unless it picks its own on the Graphs tab. Linear is a plain scrolling graph. The log curves squeeze older history to the left, so the last minute and the last day fit in one graph.\n\nSmooth log is one log curve across the whole run, with each pixel covering a little more time than the one to its right.\n\nLog A and Log B split the graph into 4 fixed divisions. From the right, they cover at most the last minute, the next 59 minutes, the next 23 hours, and everything older. Log A fills them early: the first after about half an hour of history, and all 3 within a week. Log B follows Smooth log until a division fills, after about a day and a half for the first and 4 months for all 3."
+		tip: "How a graph spreads time across its width, unless it picks its own on the Graphs tab. Linear is a plain scrolling graph. The log curves squeeze older history to the left, so the last minute and the last day fit in one graph.◉NEWLINE◉◉NEWLINE◉Smooth log is one log curve across the whole run, with each pixel covering a little more time than the one to its right.◉NEWLINE◉◉NEWLINE◉Log A and Log B split the graph into 4 fixed divisions. From the right, they cover at most the last minute, the next 59 minutes, the next 23 hours, and everything older. Log A fills them early: the first after about half an hour of history, and all 3 within a week. Log B follows Smooth log until a division fills, after about a day and a half for the first and 4 months for all 3."
 
 	sample_ms:
 		label: Sample ms default
 		tab: General
 		control: slider
 		whole: true
-		range: 50, 60000
-		slider_range: 100, 5000
+		range: [50, 60000]
+		slider_range: [100, 5000]
 		scale: log
 		path: graph.sample_ms
 		default: 1000
-		detents: 250, 500, 1000, 2000
+		detents: [250, 500, 1000, 2000]
 		tip: "How often a graph is read and redrawn, in ms. Each graph on the Graphs tab takes a percentage of it."
 
 	spikes:
@@ -88,7 +88,7 @@ settings:
 		tab: General
 		control: slider
 		whole: true
-		range: 0, 100
+		range: [0, 100]
 		path: graph.spikes
 		default: 75
 		tip: "How far a squeezed column reaches from its average toward its peak. At 0% every column shows only its average, so short spikes in older history are smoothed away. At 100% a column covering a few minutes shows nearly its full peak. The reach fades as a column covers more time, by half at about 10 minutes at 50%, and at about 5.5 hours at 100%. So on the far left spikes melt into the background even at 100%."
@@ -97,8 +97,8 @@ settings:
 		label: Hover shows
 		tab: General
 		control: dropdown
-		options: ago, clock
-		option_labels: "How long ago", "Date and time"
+		options: [ago, clock]
+		option_labels: ["How long ago", "Date and time"]
 		path: graph.hover_time
 		default: ago
 		tip: "What the tip says about the time under the pointer. How long ago reads like 7 hrs ago. Date and time gives just the time for today, and the date too for anything older, in your locale's short format."
@@ -112,11 +112,11 @@ settings:
 		label: Scale default
 		tab: General
 		control: dropdown
-		options: linear, log10, squared
-		option_labels: "Linear", "log₁₀", "χ²"
+		options: [linear, log10, squared]
+		option_labels: ["Linear", "log₁₀", "χ²"]
 		path: graph.vertical
 		default: linear
-		tip: "How height goes up a graph, unless it picks its own on the Graphs tab. Linear draws it in proportion to the value.\n\nlog₁₀ lifts small values, so a trickle still shows next to a big copy. It counts from a thousandth of the top, or for a graph with no fixed top, such as disk or network, a thousandth of the least its top goes down to.\n\nχ² squares the share of the top, so big values stand out and small ones sink. Half the top draws a quarter of the way up."
+		tip: "How height goes up a graph, unless it picks its own on the Graphs tab. Linear draws it in proportion to the value.◉NEWLINE◉◉NEWLINE◉log₁₀ lifts small values, so a trickle still shows next to a big copy. It counts from a thousandth of the top, or for a graph with no fixed top, such as disk or network, a thousandth of the least its top goes down to.◉NEWLINE◉◉NEWLINE◉χ² squares the share of the top, so big values stand out and small ones sink. Half the top draws a quarter of the way up."
 
 	GraphsHead:
 		label: Graphs
@@ -136,7 +136,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: cpu.width
 		default: 100
 		tip: "How wide the CPU graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
@@ -146,7 +146,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: cpu.sample
 		default: 50
 		tip: "How often the CPU graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
@@ -155,8 +155,8 @@ settings:
 		label: CPU time axis
 		tab: Graphs
 		control: dropdown
-		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		options: [same, linear, smooth, fixed_a, fixed_b]
+		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: cpu.time
 		default: same
 		tip: "How the CPU graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
@@ -165,8 +165,8 @@ settings:
 		label: CPU vertical scale
 		tab: Graphs
 		control: dropdown
-		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "χ²"
+		options: [same, linear, log10, squared]
+		option_labels: ["Global default", "Linear", "log₁₀", "χ²"]
 		path: cpu.vertical
 		default: same
 		tip: "How height goes up the CPU graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -184,7 +184,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: mem.width
 		default: 100
 		tip: "How wide the memory graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
@@ -194,7 +194,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: mem.sample
 		default: 50
 		tip: "How often the memory graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
@@ -203,8 +203,8 @@ settings:
 		label: Memory time axis
 		tab: Graphs
 		control: dropdown
-		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		options: [same, linear, smooth, fixed_a, fixed_b]
+		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: mem.time
 		default: same
 		tip: "How the memory graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
@@ -213,8 +213,8 @@ settings:
 		label: Memory vertical scale
 		tab: Graphs
 		control: dropdown
-		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "χ²"
+		options: [same, linear, log10, squared]
+		option_labels: ["Global default", "Linear", "log₁₀", "χ²"]
 		path: mem.vertical
 		default: same
 		tip: "How height goes up the memory graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -232,7 +232,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: procs.width
 		default: 25
 		tip: "How wide the processes graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
@@ -242,7 +242,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: procs.sample
 		default: 200
 		tip: "How often the processes graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
@@ -251,8 +251,8 @@ settings:
 		label: Processes time axis
 		tab: Graphs
 		control: dropdown
-		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		options: [same, linear, smooth, fixed_a, fixed_b]
+		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: procs.time
 		default: same
 		tip: "How the processes graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
@@ -261,8 +261,8 @@ settings:
 		label: Processes vertical scale
 		tab: Graphs
 		control: dropdown
-		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "χ²"
+		options: [same, linear, log10, squared]
+		option_labels: ["Global default", "Linear", "log₁₀", "χ²"]
 		path: procs.vertical
 		default: same
 		tip: "How height goes up the processes graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -280,7 +280,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: gpu.width
 		default: 50
 		tip: "How wide the GPU graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
@@ -290,7 +290,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: gpu.sample
 		default: 100
 		tip: "How often the GPU graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
@@ -299,8 +299,8 @@ settings:
 		label: GPU time axis
 		tab: Graphs
 		control: dropdown
-		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		options: [same, linear, smooth, fixed_a, fixed_b]
+		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: gpu.time
 		default: same
 		tip: "How the GPU graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
@@ -309,8 +309,8 @@ settings:
 		label: GPU vertical scale
 		tab: Graphs
 		control: dropdown
-		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "χ²"
+		options: [same, linear, log10, squared]
+		option_labels: ["Global default", "Linear", "log₁₀", "χ²"]
 		path: gpu.vertical
 		default: same
 		tip: "How height goes up the GPU graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -328,7 +328,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: vram.width
 		default: 50
 		tip: "How wide the GPU memory graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
@@ -338,7 +338,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: vram.sample
 		default: 100
 		tip: "How often the GPU memory graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
@@ -347,8 +347,8 @@ settings:
 		label: GPU memory time axis
 		tab: Graphs
 		control: dropdown
-		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		options: [same, linear, smooth, fixed_a, fixed_b]
+		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: vram.time
 		default: same
 		tip: "How the GPU memory graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
@@ -357,8 +357,8 @@ settings:
 		label: GPU memory vertical scale
 		tab: Graphs
 		control: dropdown
-		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "χ²"
+		options: [same, linear, log10, squared]
+		option_labels: ["Global default", "Linear", "log₁₀", "χ²"]
 		path: vram.vertical
 		default: same
 		tip: "How height goes up the GPU memory graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -376,7 +376,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: net.width
 		default: 50
 		tip: "How wide the network graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
@@ -386,7 +386,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: net.sample
 		default: 100
 		tip: "How often the network graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
@@ -395,8 +395,8 @@ settings:
 		label: Network time axis
 		tab: Graphs
 		control: dropdown
-		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		options: [same, linear, smooth, fixed_a, fixed_b]
+		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: net.time
 		default: same
 		tip: "How the network graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
@@ -405,8 +405,8 @@ settings:
 		label: Network vertical scale
 		tab: Graphs
 		control: dropdown
-		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "χ²"
+		options: [same, linear, log10, squared]
+		option_labels: ["Global default", "Linear", "log₁₀", "χ²"]
 		path: net.vertical
 		default: same
 		tip: "How height goes up the network graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -424,7 +424,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: disk.width
 		default: 50
 		tip: "How wide the disk graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
@@ -434,7 +434,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: disk.sample
 		default: 100
 		tip: "How often the disk graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
@@ -443,8 +443,8 @@ settings:
 		label: Disk time axis
 		tab: Graphs
 		control: dropdown
-		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		options: [same, linear, smooth, fixed_a, fixed_b]
+		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: disk.time
 		default: same
 		tip: "How the disk graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
@@ -453,8 +453,8 @@ settings:
 		label: Disk vertical scale
 		tab: Graphs
 		control: dropdown
-		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "χ²"
+		options: [same, linear, log10, squared]
+		option_labels: ["Global default", "Linear", "log₁₀", "χ²"]
 		path: disk.vertical
 		default: same
 		tip: "How height goes up the disk graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -472,7 +472,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: temp.width
 		default: 50
 		tip: "How wide the temperature graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
@@ -482,7 +482,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: temp.sample
 		default: 100
 		tip: "How often the temperature graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
@@ -491,8 +491,8 @@ settings:
 		label: Temperature time axis
 		tab: Graphs
 		control: dropdown
-		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		options: [same, linear, smooth, fixed_a, fixed_b]
+		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: temp.time
 		default: same
 		tip: "How the temperature graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
@@ -501,8 +501,8 @@ settings:
 		label: Temperature vertical scale
 		tab: Graphs
 		control: dropdown
-		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "χ²"
+		options: [same, linear, log10, squared]
+		option_labels: ["Global default", "Linear", "log₁₀", "χ²"]
 		path: temp.vertical
 		default: same
 		tip: "How height goes up the temperature graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -520,7 +520,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: swap.width
 		default: 25
 		tip: "How wide the swap graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
@@ -530,7 +530,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: swap.sample
 		default: 200
 		tip: "How often the swap graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
@@ -539,8 +539,8 @@ settings:
 		label: Swap time axis
 		tab: Graphs
 		control: dropdown
-		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		options: [same, linear, smooth, fixed_a, fixed_b]
+		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: swap.time
 		default: same
 		tip: "How the swap graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
@@ -549,8 +549,8 @@ settings:
 		label: Swap vertical scale
 		tab: Graphs
 		control: dropdown
-		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "χ²"
+		options: [same, linear, log10, squared]
+		option_labels: ["Global default", "Linear", "log₁₀", "χ²"]
 		path: swap.vertical
 		default: same
 		tip: "How height goes up the swap graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -568,7 +568,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: zswap.width
 		default: 25
 		tip: "How wide the zswap graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
@@ -578,7 +578,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: zswap.sample
 		default: 200
 		tip: "How often the zswap graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
@@ -587,8 +587,8 @@ settings:
 		label: Zswap time axis
 		tab: Graphs
 		control: dropdown
-		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		options: [same, linear, smooth, fixed_a, fixed_b]
+		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: zswap.time
 		default: same
 		tip: "How the zswap graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
@@ -597,8 +597,8 @@ settings:
 		label: Zswap vertical scale
 		tab: Graphs
 		control: dropdown
-		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "χ²"
+		options: [same, linear, log10, squared]
+		option_labels: ["Global default", "Linear", "log₁₀", "χ²"]
 		path: zswap.vertical
 		default: same
 		tip: "How height goes up the zswap graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -616,7 +616,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: load.width
 		default: 25
 		tip: "How wide the load graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
@@ -626,7 +626,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: load.sample
 		default: 200
 		tip: "How often the load graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
@@ -635,8 +635,8 @@ settings:
 		label: Load time axis
 		tab: Graphs
 		control: dropdown
-		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		options: [same, linear, smooth, fixed_a, fixed_b]
+		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: load.time
 		default: same
 		tip: "How the load graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
@@ -645,8 +645,8 @@ settings:
 		label: Load vertical scale
 		tab: Graphs
 		control: dropdown
-		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "χ²"
+		options: [same, linear, log10, squared]
+		option_labels: ["Global default", "Linear", "log₁₀", "χ²"]
 		path: load.vertical
 		default: same
 		tip: "How height goes up the load graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -664,7 +664,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: self.width
 		default: 12
 		tip: "How wide the tukzmon graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
@@ -674,7 +674,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: self.sample
 		default: 400
 		tip: "How often the tukzmon graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
@@ -683,8 +683,8 @@ settings:
 		label: tukzmon time axis
 		tab: Graphs
 		control: dropdown
-		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		options: [same, linear, smooth, fixed_a, fixed_b]
+		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: self.time
 		default: same
 		tip: "How the tukzmon graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
@@ -693,8 +693,8 @@ settings:
 		label: tukzmon vertical scale
 		tab: Graphs
 		control: dropdown
-		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "χ²"
+		options: [same, linear, log10, squared]
+		option_labels: ["Global default", "Linear", "log₁₀", "χ²"]
 		path: self.vertical
 		default: same
 		tip: "How height goes up the tukzmon graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -712,7 +712,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: battery.width
 		default: 100
 		tip: "How wide the battery graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
@@ -722,7 +722,7 @@ settings:
 		tab: Graphs
 		control: number
 		whole: true
-		range: 1, 1000
+		range: [1, 1000]
 		path: battery.sample
 		default: 100
 		tip: "How often the battery graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
@@ -731,8 +731,8 @@ settings:
 		label: Battery time axis
 		tab: Graphs
 		control: dropdown
-		options: same, linear, smooth, fixed_a, fixed_b
-		option_labels: "Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"
+		options: [same, linear, smooth, fixed_a, fixed_b]
+		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: battery.time
 		default: same
 		tip: "How the battery graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where the tip tells the curves apart."
@@ -741,8 +741,8 @@ settings:
 		label: Battery vertical scale
 		tab: Graphs
 		control: dropdown
-		options: same, linear, log10, squared
-		option_labels: "Global default", "Linear", "log₁₀", "χ²"
+		options: [same, linear, log10, squared]
+		option_labels: ["Global default", "Linear", "log₁₀", "χ²"]
 		path: battery.vertical
 		default: same
 		tip: "How height goes up the battery graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
@@ -774,7 +774,7 @@ settings:
 		tab: General
 		control: number
 		whole: true
-		range: 1, 36500
+		range: [1, 36500]
 		path: history.max_days
 		same_line: true
 		default: 28
@@ -799,12 +799,12 @@ settings:
 		label: LAN and internet
 		tab: General
 		control: dropdown
-		options: off, sockets
-		option_labels: "Off", "TCP sockets"
+		options: [off, sockets]
+		option_labels: ["Off", "TCP sockets"]
 		path: net.split
 		default: off
 		gate: show_net
-		tip: "Tell traffic to and from the LAN apart from the internet's, so the network graph draws local, LAN sent, LAN received, internet sent and internet received. Off draws local, sent and received.\n\nTCP sockets asks the kernel for each TCP connection's byte counts every read, and needs no root. UDP doesn't have them, so UDP and QUIC to the LAN count as internet. The LAN is the private address ranges and this box's own IPv6 /64."
+		tip: "Tell traffic to and from the LAN apart from the internet's, so the network graph draws local, LAN sent, LAN received, internet sent and internet received. Off draws local, sent and received.◉NEWLINE◉◉NEWLINE◉TCP sockets asks the kernel for each TCP connection's byte counts every read, and needs no root. UDP doesn't have them, so UDP and QUIC to the LAN count as internet. The LAN is the private address ranges and this box's own IPv6 /64."
 
 	theme:
 		label: Name
@@ -825,8 +825,8 @@ settings:
 		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
-		options: detailed, gradient
-		option_labels: "Detailed", "Gradient"
+		options: [detailed, gradient]
+		option_labels: ["Detailed", "Gradient"]
 		path: cpu.mode
 		default: detailed
 		group: theme
@@ -958,8 +958,8 @@ settings:
 		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
-		options: detailed, gradient
-		option_labels: "Detailed", "Gradient"
+		options: [detailed, gradient]
+		option_labels: ["Detailed", "Gradient"]
 		path: mem.mode
 		default: detailed
 		group: theme
@@ -1081,8 +1081,8 @@ settings:
 		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
-		options: detailed, gradient
-		option_labels: "Detailed", "Gradient"
+		options: [detailed, gradient]
+		option_labels: ["Detailed", "Gradient"]
 		path: gpu.mode
 		default: gradient
 		group: theme
@@ -1178,8 +1178,8 @@ settings:
 		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
-		options: detailed, gradient
-		option_labels: "Detailed", "Gradient"
+		options: [detailed, gradient]
+		option_labels: ["Detailed", "Gradient"]
 		path: vram.mode
 		default: gradient
 		group: theme
@@ -1275,8 +1275,8 @@ settings:
 		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
-		options: detailed, gradient
-		option_labels: "Detailed", "Gradient"
+		options: [detailed, gradient]
+		option_labels: ["Detailed", "Gradient"]
 		path: net.mode
 		default: detailed
 		group: theme
@@ -1418,8 +1418,8 @@ settings:
 		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
-		options: detailed, gradient
-		option_labels: "Detailed", "Gradient"
+		options: [detailed, gradient]
+		option_labels: ["Detailed", "Gradient"]
 		path: swap.mode
 		default: gradient
 		group: theme
@@ -1515,8 +1515,8 @@ settings:
 		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
-		options: detailed, gradient
-		option_labels: "Detailed", "Gradient"
+		options: [detailed, gradient]
+		option_labels: ["Detailed", "Gradient"]
 		path: zswap.mode
 		default: gradient
 		group: theme
@@ -1612,8 +1612,8 @@ settings:
 		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
-		options: detailed, gradient
-		option_labels: "Detailed", "Gradient"
+		options: [detailed, gradient]
+		option_labels: ["Detailed", "Gradient"]
 		path: load.mode
 		default: gradient
 		group: theme
@@ -1709,8 +1709,8 @@ settings:
 		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
-		options: detailed, gradient
-		option_labels: "Detailed", "Gradient"
+		options: [detailed, gradient]
+		option_labels: ["Detailed", "Gradient"]
 		path: disk.mode
 		default: detailed
 		group: theme
@@ -1822,8 +1822,8 @@ settings:
 		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
-		options: detailed, gradient
-		option_labels: "Detailed", "Gradient"
+		options: [detailed, gradient]
+		option_labels: ["Detailed", "Gradient"]
 		path: temp.mode
 		default: gradient
 		group: theme
@@ -1935,8 +1935,8 @@ settings:
 		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
-		options: detailed, gradient
-		option_labels: "Detailed", "Gradient"
+		options: [detailed, gradient]
+		option_labels: ["Detailed", "Gradient"]
 		path: battery.mode
 		default: detailed
 		group: theme
@@ -2058,8 +2058,8 @@ settings:
 		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
-		options: detailed, gradient
-		option_labels: "Detailed", "Gradient"
+		options: [detailed, gradient]
+		option_labels: ["Detailed", "Gradient"]
 		path: self.mode
 		default: detailed
 		group: theme
@@ -2155,8 +2155,8 @@ settings:
 		tab: Themes/Colors
 		control: dropdown
 		shown_as: radio
-		options: detailed, gradient
-		option_labels: "Detailed", "Gradient"
+		options: [detailed, gradient]
+		option_labels: ["Detailed", "Gradient"]
 		path: procs.mode
 		default: detailed
 		group: theme
@@ -2277,8 +2277,8 @@ settings:
 		tab: Themes/Outline
 		control: slider
 		whole: true
-		range: 0, 64
-		slider_range: 0, 8
+		range: [0, 64]
+		slider_range: [0, 8]
 		path: graph.margins.top_bottom
 		default: 2
 		group: theme
@@ -2289,8 +2289,8 @@ settings:
 		tab: Themes/Outline
 		control: slider
 		whole: true
-		range: 0, 64
-		slider_range: 0, 8
+		range: [0, 64]
+		slider_range: [0, 8]
 		path: graph.margins.left_right
 		default: 2
 		group: theme

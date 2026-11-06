@@ -1484,12 +1484,14 @@ impl Model {
 }
 
 fn put(doc: &mut shcl::Document, path: &str, v: &Value) {
-	match v {
+	let set = match v {
 		Value::Bool(b) => doc.set_bool(path, *b),
 		Value::Int(i) => doc.set_int(path, *i),
 		Value::Float(f) => doc.set_float(path, *f),
 		Value::Text(t) => doc.set_string(path, t),
 	};
+	// paths are the spec's and values passed its checks, so a refusal is a bug
+	debug_assert_eq!(set, shcl::SetStatus::Ok, "{path}");
 }
 
 fn take(doc: &shcl::Document, path: &str, s: &Setting) -> Option<Value> {
