@@ -1573,7 +1573,6 @@ mod tests {
 	// Test ID: denam
 	#[test]
 	#[ignore = "a timing, run by hand with --ignored --nocapture"]
-	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
 	fn time_a_refresh_and_a_slider_step() {
 		let _qt = qt_turn();
 		let path = std::env::temp_dir().join(format!(

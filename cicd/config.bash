@@ -82,9 +82,8 @@ LEAK_CHECKS=(
 	## its C++ under UBSan too. 1m 25s from a fresh target dir and about 5 s
 	## with nothing to rebuild, at 8 jobs and load 14 (2026-10-25).
 	"Sanitizers|fStepSanitizers|fast"
-	## The tests under Miri, one Miri per test. About 7 hours of CPU, so
-	## nearly an hour at 8 at a time, which would push the default run past
-	## its hour (2026-10-25).
+	## The tests under Miri, one Miri per module. Hours, which would push the
+	## default run past its hour.
 	"Miri|fStepMiri|hours"
 	## The soak test, core/tests/soak.rs. About 1 minute in a debug build.
 	"Soak|fStepSoak|slow"
@@ -98,8 +97,7 @@ MIRI_TARGETS=(
 	"knobs --lib"
 	"tukzmon-settings --bins"
 )
-## A test that runs longer under Miri fails. The slowest took about 11
-## minutes on 2026-10-25, and 10 hours once a test looped over 2000 seeds.
+## A module's tests that run longer than this under Miri fail.
 ## Whole minutes only, as with CICD_MAX_JOBS.
 MIRI_MINUTES=30
 [[ ! "${TUKZMON_MIRI_MINUTES:-}" =~ ^[1-9][0-9]{0,3}$ ]] || MIRI_MINUTES="${TUKZMON_MIRI_MINUTES}"

@@ -6483,15 +6483,15 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 3, part 2: Look up a setting by an index in knobs
 	- ID: 2026103018353670
 	- Type: Enhancement
-	- Status: Stalled
-		- Held for silkterm's copy of knobs to get an id index in `Spec`, since this copy stays byte-identical to it.
+	- Status: Queued
+		- Was held for silkterm's copy of knobs to get the index first. 2026-11-05: the copy here doesn't have to match silkterm's, so it can go in here first.
 		- 2026-11-03: moved below the stop line. It's a small speedup and doesn't need to block a release.
 	- Priority|Severity: Low
 	- Opened: 20261030-183536
 	- Opened by: t00mietum
 	- Parent ID: 2026103016201603
 	- Requirements:
-		- Copy knobs over from silkterm once `Spec` looks ids up through an index built in `finish`, with an `Option` path for an id that's unknown.
+		- `Spec` looks ids up through an index built in `finish`, with an `Option` path for an id that's unknown.
 		- Time denam before and after.
 	- Progress log:
 		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
