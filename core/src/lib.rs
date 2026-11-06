@@ -1073,6 +1073,7 @@ mod tests {
 
 	// Test ID: defpr
 	#[test]
+	#[cfg_attr(miri, ignore = "Miri runs too slow for the real clock's margins")]
 	fn a_new_time_axis_eases_in_and_then_stops() {
 		let mut g = Graph::new(Look::default());
 		g.sample();
@@ -1216,6 +1217,7 @@ mod tests {
 
 	// Test ID: defz1
 	#[test]
+	#[cfg_attr(miri, ignore = "Miri runs too slow for the real clock's margins")]
 	fn a_still_pointer_keeps_its_age_while_its_clock_time_moves_on() {
 		let mut g = Graph::new(
 			Look {
@@ -1350,6 +1352,7 @@ mod tests {
 
 	// Test ID: deqqs
 	#[test]
+	#[cfg_attr(miri, ignore = "Miri runs too slow for the real clock's margins")]
 	fn a_suspend_moves_the_clock_to_the_wall_and_is_a_gap() {
 		let mut g = Graph::with(Look::default(), MemoryReader::default());
 		g.sample();
@@ -1377,6 +1380,7 @@ mod tests {
 
 	// Test ID: deqqt
 	#[test]
+	#[cfg_attr(miri, ignore = "Miri runs too slow for the real clock's margins")]
 	fn a_clock_set_back_while_running_never_runs_back() {
 		let mut g = Graph::with(Look::default(), MemoryReader::default());
 		g.sample();
