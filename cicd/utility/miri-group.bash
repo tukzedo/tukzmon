@@ -12,7 +12,8 @@
 ##		  fails and the ones after it are listed as not run
 ##		- an error after every test finished, such as a leak, fails the module,
 ##		  since Miri can't say which test it came from
-##		A test that fails its asserts already has its own FAILED line.
+##		A test that fails its asserts already has its own FAILED line. stdout and
+##		stderr stay in NUM.out and NUM.err, and NUM.log is what the step reads.
 ##	Syntax:
 ##		miri-group.bash LOGDIR NUM PKG KIND NAME...
 ##		NIGHTLY, LOCKED and MINUTES come from the environment, with Miri's own.
@@ -25,11 +26,19 @@
 set -Euo pipefail
 
 logs="$1" num="$2" pkg="$3" kind="$4"; shift 4
-log="${logs}/${num}.log" module='' rc=0 name='' gone='' finished=''
+out="${logs}/${num}.out" err="${logs}/${num}.err" log="${logs}/${num}.log" module='' rc=0 name='' gone='' finished=''
 module="${1%::*}"; [[ "${module}" != "${1}" ]] || module="${pkg} top level"
 
 # shellcheck disable=2086  ## LOCKED is empty or --locked, and goes unquoted.
-timeout -k 30s "${MINUTES}m" cargo "+${NIGHTLY}" miri test ${LOCKED} -p "${pkg}" "${kind}" -- --exact --test-threads=1 "$@" > "${log}" 2>&1 || rc=$?
+timeout -k 30s "${MINUTES}m" cargo "+${NIGHTLY}" miri test ${LOCKED} -p "${pkg}" "${kind}" -- --exact --test-threads=1 "$@" > "${out}" 2> "${err}" || rc=$?
+## Apart, since Miri's warnings land between libtest's "test X ... " and its
+## result. cargo's Running line goes first, as test-ids.bash finds the crate
+## by it, then Miri's own error when there is one.
+{
+	sed -n 's/\x1b\[[0-9;]*m//g; /^ *Running /{p;q}' "${err}"
+	cat -- "${out}"
+	((rc == 0)) || sed -n 's/\x1b\[[0-9;]*m//g; /^error/,$p' "${err}"
+} > "${log}"
 ((rc)) || exit 0
 
 finished="$(sed -n 's/^test \(.*\) \.\.\. \(ok\|FAILED\|ignored\)\(, .*\)\{0,1\}$/\1/p' "${log}")"
@@ -55,3 +64,5 @@ exit 1
 
 ##	History:
 ##		- 2026-11-05: Created, from the one-Miri-per-test runner in cicd.bash.
+##		- 2026-11-05: stdout and stderr apart, so a result split by a warning
+##		  still reads.
