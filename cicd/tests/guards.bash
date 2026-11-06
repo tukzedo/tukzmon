@@ -291,7 +291,7 @@ fTest_a_miri_module_names_the_test_that_stopped_it() {
 	[[ "$(cat -- "${log}")" == "     Running unittests (x/pkg-0a1b)"$'\n'"test m::a ... ok"$'\n'* ]] || { fWhy "a clean run's log: $(cat -- "${log}")"; return 1; }
 	grep -q '^error' "${log}" && { fWhy "a clean run has error text"; return 1; }
 	## Past the limit: b was running, and c never ran.
-	fRun 0002 'test m::a ... ok\n|' 124
+	fRun 0002 'test m::a ... ok\ntest m::b ... |' 124
 	((rc == 1)) || { fWhy "past the limit gave ${rc}"; return 1; }
 	for c in 'm::b ran past 1 min under Miri, with the rest of m' 'test m::b ... FAILED' 'test m::c ... ignored, not run since m::b stopped Miri'; do
 		grep -qxF -- "${c}" "${log}" || { fWhy "past the limit, no '${c}' in: $(cat -- "${log}")"; return 1; }

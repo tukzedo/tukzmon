@@ -37,6 +37,8 @@ timeout -k 30s "${MINUTES}m" cargo "+${NIGHTLY}" miri test ${LOCKED} -p "${pkg}"
 {
 	sed -n 's/\x1b\[[0-9;]*m//g; /^ *Running /{p;q}' "${err}"
 	cat -- "${out}"
+	## A test cut off leaves "test X ... " with no newline.
+	[[ -z "$(tail -c 1 -- "${out}")" ]] || echo
 	((rc == 0)) || sed -n 's/\x1b\[[0-9;]*m//g; /^error/,$p' "${err}"
 } > "${log}"
 ((rc)) || exit 0
