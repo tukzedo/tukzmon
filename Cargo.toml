@@ -10,7 +10,7 @@ license = "LGPL-2.1-or-later"
 repository = "https://github.com/tukzedo/tukzmon"
 
 [workspace.dependencies]
-shcl = "2.0.0"
+shcl = "3.0.0-beta1"
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "warn"

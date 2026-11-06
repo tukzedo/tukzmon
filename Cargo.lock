@@ -714,9 +714,9 @@ dependencies = [
 
 [[package]]
 name = "shcl"
-version = "2.0.0"
+version = "3.0.0-beta1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df2d47163f69bf015a0c1a525bf6c01f09af05c6c37b35e85d38942ebdeb5862"
+checksum = "1b9cbb73188d404c783b3790d45841978ed9f205b73d49d512e92d406a7b3a76"
 
 [[package]]
 name = "shlex"

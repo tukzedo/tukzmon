@@ -95,7 +95,7 @@ struct Picker {
 
 fn read(path: &Path) -> Result<String, String> {
 	match std::fs::read_to_string(path) {
-		Ok(t) => Ok(t),
+		Ok(t) => Ok(config::as_shcl3(&t).into_owned()),
 		Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
 		Err(e) => Err(format!("{} can't be read: {e}", path.display())),
 	}
@@ -146,6 +146,8 @@ impl Dialog {
 	/// defaults. One that can't be read is an error, so a save can't write the
 	/// defaults over it.
 	pub fn open(path: PathBuf) -> Result<Dialog, String> {
+		// one that can't be made over still reads as shcl 2 through read
+		let _ = config::upgrade_file(&path);
 		let text = read(&path)?;
 		let doc = shcl::Document::parse(&text);
 		let themes = config::saved_themes(&doc);
@@ -741,7 +743,8 @@ impl Dialog {
 				.map_err(|e| format!("{} can't be made: {e}", dir.display()))?;
 		}
 		let themes_text = config::themes_text(&themes);
-		shcl::write_file_atomic(file, &keep_notes(doc, &format!("{body}{themes_text}")))?;
+		let text = stamped(keep_notes(doc, &format!("{body}{themes_text}")));
+		shcl::write_file_atomic(file, &text).map_err(|e| e.message)?;
 		// as in open, kept apart to tell what changes next
 		self.saved = fresh.clone();
 		self.model = fresh;
@@ -750,6 +753,20 @@ impl Dialog {
 		self.themes = themes;
 		Ok(())
 	}
+}
+
+/// `text` with shcl's Format line under the header when it has none, so a
+/// later build never takes it for shcl 2.
+fn stamped(mut text: String) -> String {
+	if shcl::format_version(&text).is_none() {
+		let at = if text.starts_with(HEADER) {
+			HEADER.len()
+		} else {
+			0
+		};
+		text.insert_str(at, &format!("{}\n", shcl::FORMAT_LINE));
+	}
+	text
 }
 
 /// The file as `file` has it, comments and all, with the values of `fresh`
@@ -777,7 +794,7 @@ fn keep_notes(mut file: shcl::Document, fresh: &str) -> String {
 		} else {
 			file.set_literal(&path, &now)
 		};
-		if !set {
+		if set != shcl::SetStatus::Ok {
 			return plain;
 		}
 	}
@@ -895,6 +912,37 @@ mod tests {
 		std::fs::remove_file(&hist).unwrap();
 		std::fs::remove_file(keep::reset_mark(&data)).unwrap();
 		std::fs::remove_dir(&data).unwrap();
+	}
+
+	// Test ID: deyr2
+	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
+	fn a_shcl_2_file_is_rewritten_on_open_and_every_save_names_its_format() {
+		let d = scratch("shcl2");
+		let path = d.0.join("t.shcl");
+		std::fs::write(&path, "graph:\n\torder: mem, cpu\n").unwrap();
+		let mut dlg = Dialog::open(path.clone()).unwrap();
+		assert_eq!(dlg.look().order, ["mem", "cpu"]);
+		let opened = std::fs::read_to_string(&path).unwrap();
+		assert_eq!(
+			shcl::format_version(&opened),
+			Some(shcl::FORMAT_MAJOR),
+			"{opened}"
+		);
+		assert!(dlg.set_text("border", "2"));
+		dlg.apply().unwrap();
+		let saved = std::fs::read_to_string(&path).unwrap();
+		assert_eq!(saved.matches(shcl::FORMAT_LINE).count(), 1, "{saved}");
+
+		let fresh = d.0.join("fresh.shcl");
+		let mut dlg = Dialog::open(fresh.clone()).unwrap();
+		assert!(dlg.set_text("border", "2"));
+		dlg.apply().unwrap();
+		let text = std::fs::read_to_string(&fresh).unwrap();
+		assert!(
+			text.starts_with(&format!("{HEADER}{}\n", shcl::FORMAT_LINE)),
+			"{text}"
+		);
 	}
 
 	// Test ID: debjc
