@@ -353,7 +353,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 7: Public items in knobs and the settings crate have no doc comments
 	- ID: 2026110618502907
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -361,13 +361,26 @@ Sorted per the notes in [Template](#template).
 	- Origin: `f89e55e`, mostly. The 20261030 item 12 fix put `missing_docs` on core only, and knobs was kept the same as silkterm's then. Breaks the rules on `///` for public items and Debug on public types. Confirmed by reading: 64 items in knobs, and the settings crate's bridge structs and a few functions. knobs' `NoEnv` has no Debug, and `OwnReader`'s comment says it reads memory, which it doesn't.
 	- Requirements:
 		- `missing_docs` on both crates, and lint stays clean.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- knobs has `#![warn(missing_docs)]`, and every public item there has a `///`, fields and variants included. `NoEnv` derives Debug.
+		- The settings program also has clippy's `missing_docs_in_private_items`, set in `clippy.toml` to look only at what the crate can see. Its shown items, the bridge's shared structs and fields, and the crate root's own items have a `///`. Its module headers are `//!`.
+		- `OwnReader`'s comment says it reads CPU use only.
+		- Verified: lint passed, and failed with one doc taken out in knobs and one in the settings program.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- The settings program gets the clippy lint as well, since `missing_docs` checks only a crate's exported items, and a program exports none. The lint looks at `pub` items and the crate root, not at private items in a module.
+		- The bridge's `extern "Rust"` functions get no `///`, since no lint sees inside the cxx macro and their names say what they do.
+		- `SilkTerm` is in `clippy.toml`'s `doc-valid-idents`, so a doc can name it without backticks.
+	- Branch: round-1107
+	- Test case: none, a doc change. The lint step's `missing_docs` and `missing_docs_in_private_items` keep the docs from going missing.
+	- Closed: 20261106-215421
 
 - Code review 20261106 item 8: Catch-all arms on knobs' own enums
 	- ID: 2026110618502908
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -376,8 +389,19 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- Name every variant of `Kind` and `Value` where they're matched.
 		- An index into the changes that can't miss says why.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- knobs' `as_f64`, `as_text`, `stored_choice`, `valid`, `take` and the preset reader name every variant, and so do core's `theme_text`, `theme_typed` and `themes_text`, and the settings window's row text and `set_text`. A new `Kind` or `Value` is a build error at each.
+		- `Model::lines` says why its index into the changes can't miss.
+		- Verified: lint and tests passed.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- `valid`'s last arm names every `Kind` with any value, so a new `Kind` must be placed there, and a new `Value` is still the wrong type for every kind it doesn't fit.
+	- Branch: round-1107
+	- Test case: none, the compiler's check that each match is whole covers it.
+		- Swept: every `match` on a `Kind` or `Value` in knobs, core, settings and xfce, the knobs test helper included.
+	- Closed: 20261106-215421
 
 - Code review 20261106 item 9: Clones and a collect with no reason given
 	- ID: 2026110618502909

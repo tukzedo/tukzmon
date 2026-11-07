@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
-// Randomize on the Themes tab. One scheme from one seed: a lead hue of its
-// own for each graph, the quiet series that hue muted, and the ones to watch
-// kept red and orange like every built-in. See design.md Theme.
+//! Randomize on the Themes tab. One scheme from one seed: a lead hue of its
+//! own for each graph, the quiet series that hue muted, and the ones to watch
+//! kept red and orange like every built-in. See design.md Theme.
 
 use crate::pick::{self, Hsv};
 use tukzmon_core::color::{APART, Lab, ciede2000};
@@ -29,9 +29,13 @@ pub enum Role {
 	Pale,
 	/// LAN received: Hush's hue, between Calm and the lead, kept apart too.
 	Deep,
+	/// A graph's border.
 	Border,
+	/// The top of a graph's background.
 	Top,
+	/// The bottom of a graph's background.
 	Bottom,
+	/// The hover line.
 	Hover,
 	/// A graph's mode, which Randomize always sets to Detailed.
 	Mode,

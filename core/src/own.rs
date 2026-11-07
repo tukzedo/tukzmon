@@ -68,7 +68,7 @@ fn cpu_ns() -> Option<u64> {
 	None
 }
 
-/// Reads this process's own CPU and memory use.
+/// Reads this process's own CPU use.
 #[derive(Debug, Default)]
 pub struct OwnReader {
 	pub(crate) host: Host,

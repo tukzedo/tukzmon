@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
-// The color picker's model, the same as SilkTerm's: a saturation and
-// brightness square, a hue strip, and value boxes, all over one HSV color.
+//! The color picker's model, the same as SilkTerm's: a saturation and
+//! brightness square, a hue strip, and value boxes, all over one HSV color.
 
 use tukzmon_core::config::Rgb;
 
@@ -11,8 +11,11 @@ use tukzmon_core::config::Rgb;
 /// has no saturation either.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Hsv {
+	/// Hue.
 	pub h: f64,
+	/// Saturation.
 	pub s: f64,
+	/// Brightness.
 	pub v: f64,
 }
 
@@ -64,15 +67,22 @@ pub fn hex(c: Rgb) -> String {
 /// The value boxes, top to bottom.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Field {
+	/// Percent.
 	Red,
+	/// Percent.
 	Green,
+	/// Percent.
 	Blue,
+	/// Percent.
 	Brightness,
+	/// Percent.
 	Saturation,
+	/// `#rrggbb`.
 	Hex,
 }
 
 impl Field {
+	/// In order.
 	pub const ALL: [Field; 6] = [
 		Field::Red,
 		Field::Green,

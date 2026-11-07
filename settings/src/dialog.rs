@@ -24,13 +24,19 @@ const HEADER: &str = "## tukzmon settings. Only values changed from their defaul
 )]
 #[derive(Debug)]
 pub struct RowState {
+	/// The value as text.
 	pub text: String,
+	/// The value as a checkbox.
 	pub on: bool,
+	/// The value as a number.
 	pub number: f64,
 	/// Slider position, 0 to 1.
 	pub slider: f64,
+	/// The revert arrow has something to do.
 	pub can_reset: bool,
+	/// Every gate above it is on.
 	pub counts: bool,
+	/// The flyover text.
 	pub tip: String,
 	/// What a dropdown shows, with " *" on a theme changed on top of.
 	pub choice: String,
@@ -44,11 +50,17 @@ pub struct RowState {
 /// ids of the settings it shows.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GraphRow {
+	/// The graph's history name.
 	pub name: String,
+	/// Its Show checkbox.
 	pub show: String,
+	/// Its width.
 	pub width: String,
+	/// How often it samples.
 	pub sample: String,
+	/// Its time axis.
 	pub time: String,
+	/// Its vertical scale.
 	pub vertical: String,
 }
 
@@ -58,8 +70,11 @@ pub const ORDER: &str = "graph_order";
 /// Which theme buttons do anything right now.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ThemeButtons {
+	/// Save.
 	pub save: bool,
+	/// Rename.
 	pub rename: bool,
+	/// Delete.
 	pub delete: bool,
 }
 
@@ -483,7 +498,7 @@ impl Dialog {
 		RowState {
 			text: match v {
 				Value::Text(t) => t,
-				other => other.show(),
+				Value::Bool(_) | Value::Int(_) | Value::Float(_) => v.show(),
 			},
 			on,
 			number,
@@ -530,7 +545,7 @@ impl Dialog {
 				_ => return false,
 			},
 			Kind::Color if !t.starts_with('#') => Value::Text(format!("#{t}")),
-			_ => Value::Text(t.to_string()),
+			Kind::Text | Kind::Color | Kind::Choice => Value::Text(t.to_string()),
 		};
 		self.set(id, &v)
 	}

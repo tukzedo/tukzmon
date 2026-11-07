@@ -7,7 +7,8 @@ description = "Settings declared in shcl, and what a change to one does to the o
 license = "MIT"
 publish = false
 
-# Same source as SilkTerm's knobs. Keep lib.rs and tests.rs in step with it.
+# Started as SilkTerm's knobs, and free to change on its own since. A fix here
+# that SilkTerm's copy needs too goes in its backlog.
 
 [lib]
 doctest = false

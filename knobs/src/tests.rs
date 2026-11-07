@@ -470,7 +470,7 @@ fn plain(id: &str, kind: Kind, path: &str, default: Value) -> Setting {
 			Kind::Bool => Control::Checkbox,
 			Kind::Choice => Control::Dropdown,
 			Kind::Color => Control::Color,
-			_ => Control::Text,
+			Kind::Int | Kind::Float | Kind::Text => Control::Text,
 		},
 		kind,
 		path: path.into(),

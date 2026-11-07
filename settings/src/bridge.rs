@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
-// The calls between the Rust model and the Qt window in qt.cpp.
+//! The calls between the Rust model and the Qt window in qt.cpp.
 
 use knobs::{Control, Value};
 
@@ -9,11 +9,15 @@ use crate::dialog::Dialog;
 use crate::live::Live;
 use crate::pick::{Field, Hsv};
 
+/// What `qt.cpp` and the Rust side hand each other.
 #[cxx::bridge(namespace = "tukzmon")]
 pub mod ffi {
+	/// A tab of the window.
 	#[derive(Debug)]
 	struct TabInfo {
+		/// What it says.
 		label: String,
+		/// Index of the tab it's under, or -1 on the top row.
 		parent: i32,
 	}
 
@@ -21,36 +25,59 @@ pub mod ffi {
 	/// lines lit dimmer beside it.
 	#[derive(Debug)]
 	struct TabShown {
+		/// What it says.
 		label: String,
+		/// The ids of the rows it shows.
 		rows: Vec<String>,
+		/// The lines lit dimmer.
 		dim: Vec<String>,
 	}
 
 	/// How a row is drawn. A dropdown with `shown_as: radio` is Radio.
 	#[derive(Debug)]
 	enum ControlKind {
+		/// A bold title.
 		Heading,
+		/// On or off.
 		Checkbox,
+		/// A slider with a number box.
 		Slider,
+		/// A number box.
 		Number,
+		/// A pick from a list.
 		Dropdown,
+		/// A pick from a row of radio buttons.
 		Radio,
+		/// A line of text.
 		Text,
+		/// A color button and hex box.
 		Color,
+		/// A file name.
 		File,
 	}
 
+	/// A row of the window, as the spec has it.
 	#[derive(Debug)]
 	struct RowInfo {
+		/// The setting id.
 		id: String,
+		/// What it says.
 		label: String,
+		/// Index of its tab, in `dialog_tabs`.
 		tab: i32,
+		/// How it's drawn.
 		control: ControlKind,
+		/// Its number takes whole values only.
 		whole: bool,
+		/// The lowest number it takes.
 		min: f64,
+		/// The highest number it takes.
 		max: f64,
+		/// A dropdown's keys.
 		options: Vec<String>,
+		/// What a dropdown shows for each key.
 		option_labels: Vec<String>,
+		/// Steps in from the left.
 		indent: i32,
 		/// The graph whose section it's in, or "" outside one.
 		section: String,
@@ -67,33 +94,55 @@ pub mod ffi {
 	/// The graph list's row for one graph: the ids of the settings it shows.
 	#[derive(Debug)]
 	struct GraphRow {
+		/// The graph's history name.
 		name: String,
+		/// Its Show checkbox.
 		show: String,
+		/// Its width.
 		width: String,
+		/// How often it samples.
 		sample: String,
+		/// Its time axis.
 		time: String,
+		/// Its vertical scale.
 		vertical: String,
 	}
 
+	/// A row's value and look right now. See the Rust `RowState`.
 	#[derive(Debug)]
 	struct RowState {
+		/// The value as text.
 		text: String,
+		/// The value as a checkbox.
 		on: bool,
+		/// The value as a number.
 		number: f64,
+		/// Slider position, 0 to 1.
 		slider: f64,
+		/// The revert arrow has something to do.
 		can_reset: bool,
+		/// Every gate above it is on.
 		counts: bool,
+		/// The flyover text.
 		tip: String,
+		/// What a dropdown shows.
 		choice: String,
+		/// A dropdown's keys, which change as themes are saved.
 		options: Vec<String>,
+		/// What a dropdown shows for each key.
 		option_labels: Vec<String>,
+		/// False while its `shown_when` dropdown is on another key.
 		shown: bool,
 	}
 
+	/// Which theme buttons do anything right now.
 	#[derive(Debug)]
 	struct ThemeButtons {
+		/// Save.
 		save: bool,
+		/// Rename.
 		rename: bool,
+		/// Delete, a C++ keyword.
 		remove: bool,
 	}
 
@@ -101,11 +150,17 @@ pub mod ffi {
 	/// whole percent in each but the last, which is the hex box.
 	#[derive(Debug)]
 	struct PickState {
+		/// Hue, 0 to 1.
 		h: f64,
+		/// Saturation, 0 to 1.
 		s: f64,
+		/// Brightness, 0 to 1.
 		v: f64,
+		/// `#rrggbb`.
 		hex: String,
+		/// Each value box's label, top to bottom.
 		labels: Vec<String>,
+		/// Each percent box's value, top to bottom.
 		percents: Vec<i32>,
 	}
 
@@ -596,10 +651,13 @@ fn live_easing(l: &Live, name: &str) -> bool {
 	l.easing(name)
 }
 
+/// Shows the window until it closes, or saves pictures of it to `snapshot`
+/// when that isn't "". The exit code.
 pub fn run(d: &mut Dialog, snapshot: &str) -> i32 {
 	ffi::run_dialog(d, snapshot)
 }
 
+/// A message box for a settings file that can't be read.
 pub fn say_unreadable(text: &str) {
 	ffi::say_unreadable(text);
 }

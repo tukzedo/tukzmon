@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
-// The graph list's live graphs. The window reads them itself from when it
-// opens, and draws them with its own look, Apply or not.
+//! The graph list's live graphs. The window reads them itself from when it
+//! opens, and draws them with its own look, Apply or not.
 
 use tukzmon_core::config::{Look, Which};
 use tukzmon_core::graphs::{self, Drawn, Slots};

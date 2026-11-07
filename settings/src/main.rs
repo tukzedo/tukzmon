@@ -4,6 +4,10 @@
 //! tukzmon-settings: the settings window, a program of its own so every panel
 //! and platform can share it.
 
+// missing_docs alone checks nothing in a program, so the clippy lint looks at
+// what the crate can see (clippy.toml)
+#![warn(missing_docs, clippy::missing_docs_in_private_items)]
+
 use std::ffi::OsString;
 use std::fmt::Write as _;
 use std::io::{self, ErrorKind, Write as _};
@@ -18,6 +22,7 @@ mod dice;
 mod live;
 mod pick;
 
+/// For `--help`.
 const USAGE: &str = "Usage: tukzmon-settings [--config FILE]
 
 Opens the settings window for tukzmon's graphs.
@@ -29,17 +34,23 @@ Opens the settings window for tukzmon's graphs.
   --help           Show this and quit.
   --version        Show the version and quit.";
 
+/// What the command line asks for.
 #[derive(Debug, PartialEq)]
 enum Asked {
+	/// The window.
 	Open {
+		/// `--config`.
 		config: Option<PathBuf>,
+		/// `--snapshot`, or "".
 		snapshot: String,
 	},
+	/// `--help`.
 	Help,
+	/// `--version`.
 	Version,
 }
 
-// Err is the message for exit code 2.
+/// Err is the message for exit code 2.
 fn asked(args: impl IntoIterator<Item = OsString>) -> Result<Asked, String> {
 	let mut config = None;
 	let mut snapshot = String::new();
@@ -106,9 +117,9 @@ fn main() -> ExitCode {
 	}
 }
 
-// Writes a line to stdout without println!, which panics (and aborts in a
-// release build) when the write fails. A closed pipe quits quietly, as `head`
-// expects, and any other failure gets one line on stderr and a failure code.
+/// Writes a line to stdout without println!, which panics (and aborts in a
+/// release build) when the write fails. A closed pipe quits quietly, as `head`
+/// expects, and any other failure gets one line on stderr and a failure code.
 fn print_text(out: &mut impl io::Write, text: &str) -> ExitCode {
 	match writeln!(out, "{text}").and_then(|()| out.flush()) {
 		Ok(()) => ExitCode::SUCCESS,
@@ -120,14 +131,16 @@ fn print_text(out: &mut impl io::Write, text: &str) -> ExitCode {
 	}
 }
 
-// eprintln! panics on a failed write too, and a closed stderr is no reason to
-// hide the exit code.
+/// A line on stderr. eprintln! panics on a failed write too, and a closed
+/// stderr is no reason to hide the exit code.
 fn complain(text: &str) {
 	let _ = writeln!(io::stderr().lock(), "{text}");
 }
 
+/// For `--version`.
 const COPYRIGHT: &str = "Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)";
 
+/// This build's `version_line`.
 fn version() -> String {
 	version_line(
 		env!("TUKZMON_BUILT_MIN").parse().unwrap_or(0),
@@ -135,9 +148,9 @@ fn version() -> String {
 	)
 }
 
-// "tukzmon-settings v0.1.0 build decp8 (2026-10-24)". The build number is
-// minutes since 2000 in Crockford base 32, and a dev build adds the day in
-// the local time zone of whoever asks.
+/// "tukzmon-settings v0.1.0 build decp8 (2026-10-24)". The build number is
+/// minutes since 2000 in Crockford base 32, and a dev build adds the day in
+/// the local time zone of whoever asks.
 fn version_line(minutes: u64, release: bool) -> String {
 	const DIGITS: &[u8; 32] = b"0123456789abcdefghjkmnpqrstvwxyz";
 	let mut build = Vec::new();
@@ -164,6 +177,7 @@ fn version_line(minutes: u64, release: bool) -> String {
 	line
 }
 
+/// A Unix time's day, as YYYY-MM-DD in the local time zone.
 fn local_date(secs: i64) -> Option<String> {
 	let t = libc::time_t::try_from(secs).ok()?;
 	// SAFETY: localtime_r only writes the tm we hand it.
@@ -182,19 +196,23 @@ fn local_date(secs: i64) -> Option<String> {
 	))
 }
 
+/// Shows the window, or saves pictures of it to `snapshot`.
 #[cfg(feature = "qt")]
 fn run(d: &mut dialog::Dialog, snapshot: &str) -> ExitCode {
 	ExitCode::from(bridge::run(d, snapshot).clamp(0, 255) as u8)
 }
 
+/// A message box for a settings file that can't be read.
 #[cfg(feature = "qt")]
 fn say_unreadable(text: &str) {
 	bridge::say_unreadable(text);
 }
 
+/// No Qt, no box. main says it on stderr too.
 #[cfg(not(feature = "qt"))]
 fn say_unreadable(_text: &str) {}
 
+/// No window without Qt.
 #[cfg(not(feature = "qt"))]
 fn run(_d: &mut dialog::Dialog, _snapshot: &str) -> ExitCode {
 	complain("This tukzmon-settings was built without Qt, so it has no window.");

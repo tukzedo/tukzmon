@@ -290,7 +290,7 @@ pub struct SavedTheme {
 pub fn theme_text(v: &knobs::Value) -> String {
 	match v {
 		knobs::Value::Text(t) => t.clone(),
-		_ => v.show(),
+		knobs::Value::Bool(_) | knobs::Value::Int(_) | knobs::Value::Float(_) => v.show(),
 	}
 }
 
@@ -307,7 +307,9 @@ fn theme_typed(spec: &Spec, id: &str, raw: &str) -> Option<knobs::Value> {
 			"false" | "off" => knobs::Value::Bool(false),
 			_ => return None,
 		},
-		_ => knobs::Value::Text(raw.to_string()),
+		knobs::Kind::Text | knobs::Kind::Color | knobs::Kind::Choice => {
+			knobs::Value::Text(raw.to_string())
+		}
 	};
 	spec.valid(s, &v).ok()
 }
@@ -448,7 +450,8 @@ pub fn themes_text(themes: &[SavedTheme]) -> String {
 				Some(knobs::Value::Bool(b)) => {
 					let _ = doc.set_bool(&at(id), b);
 				}
-				_ => {
+				// the rest keep the text they came as, refused ones too
+				Some(knobs::Value::Float(_) | knobs::Value::Text(_)) | None => {
 					let _ = doc.set_string(&at(id), raw);
 				}
 			}

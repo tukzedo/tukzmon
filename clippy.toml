@@ -1,2 +1,6 @@
 allow-unwrap-in-tests = true
 allow-expect-in-tests = true
+# missing_docs_in_private_items, which only the settings program turns on,
+# looks at what the crate can see and not at private items in a module
+missing-docs-in-crate-items = true
+doc-valid-idents = ["SilkTerm", ".."]
