@@ -3,7 +3,6 @@
 
 //! Settings, as knobs reads them from `settings.shcl` and the config file.
 
-use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::ops::{Index, IndexMut};
 use std::path::{Path, PathBuf};
@@ -593,7 +592,7 @@ pub fn model_on(spec: Arc<Spec>, doc: &shcl::Document) -> Model {
 
 /// A config file's text as a model, saved themes and all.
 pub fn model(text: &str) -> Model {
-	let doc = shcl::Document::parse(&as_shcl3(text));
+	let doc = shcl::Document::parse(text);
 	model_on(spec_with(&saved_themes(&doc)), &doc)
 }
 
@@ -1067,43 +1066,6 @@ pub fn graph_order(text: &str) -> Vec<String> {
 		}
 	}
 	names
-}
-
-/// `text` as shcl 3 reads it. One with no Format line that doesn't load clean
-/// was written for shcl 2, so it's read the way 2 read it.
-pub fn as_shcl3(text: &str) -> Cow<'_, str> {
-	if is_shcl3(text) {
-		Cow::Borrowed(text)
-	} else {
-		Cow::Owned(shcl::upgrade(text, true).text)
-	}
-}
-
-fn is_shcl3(text: &str) -> bool {
-	shcl::format_version(text).is_some() || shcl::upgrade(text, false).current
-}
-
-/// Rewrites a settings file written for shcl 2, by the rule in [`as_shcl3`],
-/// and keeps the old one beside it. Gives the old one's path when it wrote.
-///
-/// # Errors
-///
-/// What reading, keeping or writing it hit. The file can still be read
-/// through [`as_shcl3`].
-pub fn upgrade_file(path: &Path) -> Result<Option<PathBuf>, String> {
-	let path = through_links(path);
-	let text = match std::fs::read_to_string(&path) {
-		Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-		r => r.map_err(|e| format!("{} can't be read: {e}", path.display()))?,
-	};
-	if is_shcl3(&text) {
-		return Ok(None);
-	}
-	let Some(file) = path.to_str() else {
-		return Err(format!("{} isn't a path shcl can write", path.display()));
-	};
-	let up = shcl::upgrade_file(file, true).map_err(|e| e.to_string())?;
-	Ok((!up.backup.is_empty()).then(|| PathBuf::from(up.backup)))
 }
 
 /// `$XDG_CONFIG_HOME/tukzmon`, else `~/.config/tukzmon`.
@@ -2075,7 +2037,7 @@ mod tests {
 			);
 		}
 		assert_eq!(
-			Look::from_model(&model("disk:\n\tdrives: sda, nvme0n1\n\tlog: true\n")).drives(),
+			Look::from_model(&model("disk:\n\tdrives: [sda, nvme0n1]\n\tlog: true\n")).drives(),
 			Drives::Only(vec!["sda".into(), "nvme0n1".into()])
 		);
 	}
@@ -2138,9 +2100,9 @@ mod tests {
 		);
 		for text in [
 			"graph:\n\torder: mem cpu\n",
-			"graph:\n\torder: mem, cpu\n",
+			"graph:\n\torder: mem,cpu\n",
 			"graph:\n\torder: \"MEM  cpu\"\n",
-			"graph:\n\torder: mem, mem, cpu\n",
+			"graph:\n\torder: [mem, mem, cpu]\n",
 			"graph:\n\torder: [mem, cpu]\n",
 		] {
 			assert_eq!(
@@ -2324,57 +2286,70 @@ mod tests {
 		dir
 	}
 
-	// Test ID: deyr0
+	// Out since 2026-11-07: nothing reads or rewrites a file by shcl 2 rules, per
+	// backlog 2026110709261106. df03n checks a file with no Format line reads by
+	// shcl 3 rules.
+	// // Test ID: deyr0
+	// #[test]
+	// fn a_file_for_shcl_2_reads_the_way_2_read_it() {
+	// 	let old = "graph:\n\torder: mem, cpu\n\ndisk:\n\tdrives: sda, nvme0n1\n\n\
+	// 		themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n";
+	// 	let l = Look::from_model(&model(old));
+	// 	assert_eq!(l.order, ["mem", "cpu"]);
+	// 	assert_eq!(
+	// 		l.drives(),
+	// 		Drives::Only(vec!["sda".into(), "nvme0n1".into()])
+	// 	);
+	// 	let t = saved_themes(&shcl::Document::parse(&as_shcl3(old)));
+	// 	assert_eq!(t[0].name, "Say \"hi\"");
+	//
+	// 	// a file that loads clean, or says it's for shcl 3, is read as written
+	// 	for text in ["graph:\n\torder: mem cpu\n", "graph:\n\twidth: [1, 2]\n"] {
+	// 		assert!(matches!(as_shcl3(text), Cow::Borrowed(_)), "{text}");
+	// 	}
+	// 	let stamped = format!("{}\ngraph:\n\torder: mem, cpu\n", shcl::FORMAT_LINE);
+	// 	assert!(matches!(as_shcl3(&stamped), Cow::Borrowed(_)));
+	// }
+
+	// // Test ID: deyr1
+	// #[test]
+	// #[cfg_attr(miri, ignore = "the write fsyncs its folder, which Miri can't")]
+	// fn upgrade_file_rewrites_a_shcl_2_file_once_and_keeps_the_old_one() {
+	// 	let dir = scratch("upgrade");
+	// 	let path = dir.join("plugin-3.shcl");
+	// 	assert_eq!(upgrade_file(&path), Ok(None));
+	// 	let old = "graph:\n\torder: mem, cpu\n";
+	// 	std::fs::write(&path, old).unwrap();
+	// 	let kept = upgrade_file(&path).unwrap().unwrap();
+	// 	assert_eq!(std::fs::read_to_string(&kept).unwrap(), old);
+	// 	let new = std::fs::read_to_string(&path).unwrap();
+	// 	assert_eq!(
+	// 		shcl::format_version(&new),
+	// 		Some(shcl::FORMAT_MAJOR),
+	// 		"{new}"
+	// 	);
+	// 	assert_eq!(Look::load(&path).unwrap().order, ["mem", "cpu"]);
+	// 	assert_eq!(upgrade_file(&path), Ok(None));
+	// 	assert_eq!(std::fs::read_to_string(&path).unwrap(), new);
+	//
+	// 	let clean = dir.join("plugin-4.shcl");
+	// 	std::fs::write(&clean, "graph:\n\twidth: 77\n").unwrap();
+	// 	assert_eq!(upgrade_file(&clean), Ok(None));
+	// 	assert_eq!(
+	// 		std::fs::read_to_string(&clean).unwrap(),
+	// 		"graph:\n\twidth: 77\n"
+	// 	);
+	// 	let _ = std::fs::remove_dir_all(&dir);
+	// }
+
+	// Test ID: df03n
 	#[test]
-	fn a_file_for_shcl_2_reads_the_way_2_read_it() {
-		let old = "graph:\n\torder: mem, cpu\n\ndisk:\n\tdrives: sda, nvme0n1\n\n\
-			themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n";
-		let l = Look::from_model(&model(old));
+	fn a_file_with_no_format_line_reads_by_shcl_3_rules() {
+		// a 2.x list is an error in 3, so its line goes
+		let l = Look::from_model(&model("graph:\n\torder: mem, cpu\n"));
+		assert_eq!(l.order, Look::default().order);
+		let l = Look::from_model(&model("graph:\n\torder: [mem, cpu]\n"));
 		assert_eq!(l.order, ["mem", "cpu"]);
-		assert_eq!(
-			l.drives(),
-			Drives::Only(vec!["sda".into(), "nvme0n1".into()])
-		);
-		let t = saved_themes(&shcl::Document::parse(&as_shcl3(old)));
-		assert_eq!(t[0].name, "Say \"hi\"");
-
-		// a file that loads clean, or says it's for shcl 3, is read as written
-		for text in ["graph:\n\torder: mem cpu\n", "graph:\n\twidth: [1, 2]\n"] {
-			assert!(matches!(as_shcl3(text), Cow::Borrowed(_)), "{text}");
-		}
-		let stamped = format!("{}\ngraph:\n\torder: mem, cpu\n", shcl::FORMAT_LINE);
-		assert!(matches!(as_shcl3(&stamped), Cow::Borrowed(_)));
-	}
-
-	// Test ID: deyr1
-	#[test]
-	#[cfg_attr(miri, ignore = "the write fsyncs its folder, which Miri can't")]
-	fn upgrade_file_rewrites_a_shcl_2_file_once_and_keeps_the_old_one() {
-		let dir = scratch("upgrade");
-		let path = dir.join("plugin-3.shcl");
-		assert_eq!(upgrade_file(&path), Ok(None));
-		let old = "graph:\n\torder: mem, cpu\n";
-		std::fs::write(&path, old).unwrap();
-		let kept = upgrade_file(&path).unwrap().unwrap();
-		assert_eq!(std::fs::read_to_string(&kept).unwrap(), old);
-		let new = std::fs::read_to_string(&path).unwrap();
-		assert_eq!(
-			shcl::format_version(&new),
-			Some(shcl::FORMAT_MAJOR),
-			"{new}"
-		);
-		assert_eq!(Look::load(&path).unwrap().order, ["mem", "cpu"]);
-		assert_eq!(upgrade_file(&path), Ok(None));
-		assert_eq!(std::fs::read_to_string(&path).unwrap(), new);
-
-		let clean = dir.join("plugin-4.shcl");
-		std::fs::write(&clean, "graph:\n\twidth: 77\n").unwrap();
-		assert_eq!(upgrade_file(&clean), Ok(None));
-		assert_eq!(
-			std::fs::read_to_string(&clean).unwrap(),
-			"graph:\n\twidth: 77\n"
-		);
-		let _ = std::fs::remove_dir_all(&dir);
 	}
 
 	// Test ID: defy3
