@@ -7016,23 +7016,6 @@ Sorted per the notes in [Template](#template).
 
 **Stop here for a next release**
 
-- Code review 20261107 item 1: A shcl 2 settings file with one bad line loses its graph order, drives and theme names, and Apply makes the loss stick
-	- ID: 2026110709074401
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026110610124433
-	- Origin: `dbbe34f` (2026-11-06), merged at `8900d3d`. New since the last full review. Confirmed, by probes against core and against the settings window's code, found by 2 reviewers apart.
-	- Steps to reproduce: A settings file with no Format line, with `order: mem, cpu` under `graph:`, and one line that is still an error once converted, such as `show true` with its colon missing. Start the plugin, or open the settings window, change any color, and Apply.
-	- Incorrect behavior: The graph order falls back to the default, `disk.drives` to all, and a quoted theme name to its key. The plugin logs that the file would still have an error once converted, and makes no backup. Apply then writes the file without the order and stamps it Format 3, so the old values are gone with no copy left.
-	- Expected behavior: The file reads the way shcl 2 read it, with only the bad line dropped, as 2026110610124433 asks. A file that gets rewritten keeps a backup first.
-	- Possible cause: `config::as_shcl3` reads `shcl::upgrade(text, true).text`. When the converted text would still have an error, shcl gives back the input as it was, and shcl 3 then reads its 2.x lists and quotes by the new rules.
-	- Sweep: `config::model`, the window's `read` and through it `Dialog::open` and `apply`, both `upgrade_file` callers, and the ambiguous case, which also gives back the input.
-	- Note: shcl friction, a rough edge. Reading a 2.x file that has an error the way 2.x read it takes `shcl::migrate_unstamped`, not `upgrade`, and only shcl's doc comments say so.
-	- Estimated effort: Low
-
 - Code review 20261107 item 2: Reset history in a window whose item keeps no history asks nothing, then deletes the saved history of items that keep it
 	- ID: 2026110709074402
 	- Type: Bug
@@ -7201,6 +7184,24 @@ Sorted per the notes in [Template](#template).
 	- Needs more detail:
 		- It needs a first release to download. Until then, test it against a stand-in release.
 
+- Code review 20261107 item 1: A shcl 2 settings file with one bad line loses its graph order, drives and theme names, and Apply makes the loss stick
+	- ID: 2026110709074401
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110610124433, 2026110709074410
+	- Origin: `dbbe34f` (2026-11-06), merged at `8900d3d`. New since the last full review. Confirmed, by probes against core and against the settings window's code, found by 2 reviewers apart.
+	- Steps to reproduce: A settings file with no Format line, with `order: mem, cpu` under `graph:`, and one line that is still an error once converted, such as `show true` with its colon missing. Start the plugin, or open the settings window, change any color, and Apply.
+	- Incorrect behavior: The graph order falls back to the default, `disk.drives` to all, and a quoted theme name to its key. The plugin logs that the file would still have an error once converted, and makes no backup. Apply then writes the file without the order and stamps it Format 3, so the old values are gone with no copy left.
+	- Expected behavior: The file reads the way shcl 2 read it, with only the bad line dropped, as 2026110610124433 asks. A file that gets rewritten keeps a backup first.
+	- Possible cause: `config::as_shcl3` reads `shcl::upgrade(text, true).text`. When the converted text would still have an error, shcl gives back the input as it was, and shcl 3 then reads its 2.x lists and quotes by the new rules.
+	- Sweep: `config::model`, the window's `read` and through it `Dialog::open` and `apply`, both `upgrade_file` callers, and the ambiguous case, which also gives back the input.
+	- Decisions:
+		- 2026-11-07: Low, since nobody else uses tukzmon yet, and only my own files were ever shcl 2. (me)
+	- Estimated effort: Low
+
 - Code review 20261107 item 8: A setting changed and changed back keeps Apply on, and Apply writes the default into the file
 	- ID: 2026110709074408
 	- Type: Bug
@@ -7244,6 +7245,8 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: The new item's file is a copy of the 2.x text, which is then converted at once. That leaves `plugin-N_backup_<time>_format-v2.shcl` and a journal line saying the file is rewritten, for every item added.
 	- Expected behavior: A new item starts with a shcl 3 file and no backup.
 	- Possible cause: `start_from` copies the shared file as it is.
+	- Decisions:
+		- 2026-11-07: Low, since nobody else uses tukzmon yet, and only my own files were ever shcl 2. (me)
 	- Estimated effort: Low
 
 - Code review 20261107 item 11: With the LAN split on, a socket that stops counting as away adds its whole life as LAN in one sample
