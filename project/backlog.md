@@ -7016,6 +7016,134 @@ Sorted per the notes in [Template](#template).
 
 **Stop here for a next release**
 
+- Code review 20261107 item 1: A shcl 2 settings file with one bad line loses its graph order, drives and theme names, and Apply makes the loss stick
+	- ID: 2026110709074401
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110610124433
+	- Origin: `dbbe34f` (2026-11-06), merged at `8900d3d`. New since the last full review. Confirmed, by probes against core and against the settings window's code, found by 2 reviewers apart.
+	- Steps to reproduce: A settings file with no Format line, with `order: mem, cpu` under `graph:`, and one line that is still an error once converted, such as `show true` with its colon missing. Start the plugin, or open the settings window, change any color, and Apply.
+	- Incorrect behavior: The graph order falls back to the default, `disk.drives` to all, and a quoted theme name to its key. The plugin logs that the file would still have an error once converted, and makes no backup. Apply then writes the file without the order and stamps it Format 3, so the old values are gone with no copy left.
+	- Expected behavior: The file reads the way shcl 2 read it, with only the bad line dropped, as 2026110610124433 asks. A file that gets rewritten keeps a backup first.
+	- Possible cause: `config::as_shcl3` reads `shcl::upgrade(text, true).text`. When the converted text would still have an error, shcl gives back the input as it was, and shcl 3 then reads its 2.x lists and quotes by the new rules.
+	- Sweep: `config::model`, the window's `read` and through it `Dialog::open` and `apply`, both `upgrade_file` callers, and the ambiguous case, which also gives back the input.
+	- Note: shcl friction, a rough edge. Reading a 2.x file that has an error the way 2.x read it takes `shcl::migrate_unstamped`, not `upgrade`, and only shcl's doc comments say so.
+	- Estimated effort: Low
+
+- Code review 20261107 item 2: Reset history in a window whose item keeps no history asks nothing, then deletes the saved history of items that keep it
+	- ID: 2026110709074402
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026102814061807, 2026102620162202
+	- Origin: `58c5251` (2026-10-26) and `207e4ff` (2026-10-28). Not seen before. Confirmed, by a probe through the window's and the plugin's code.
+	- Steps to reproduce: 2 panel items, the first with Keep across restarts on and the second with it off. Open the second one's settings window and press Reset history.
+	- Incorrect behavior: No question. The first item sees the reset and deletes its own saved history, up to 28 days of it. The other way round, Reset in the first item's window asks, then deletes the second item's file too, which its Keep tip says is kept for later.
+	- Expected behavior: The question guards every reset that deletes saved history, as 2026102814061807 and design.md's Settings window section say.
+	- Possible cause: The window asks by its own item's Keep, while each running item deletes by its own.
+	- Sweep: `Dialog::reset_deletes_saved`, `keep::reset` and the plugin's `reset_if_asked`.
+	- Against: 2026102814061807, "It asks when Keep across restarts is on, as the window shows it or as applied". That reads one item's Keep. A fix that asks when any item keeps history goes past it.
+	- Estimated effort: Low
+
+- Code review 20261107 item 3: The demo's window manager, panel and settings window join the live desktop session
+	- ID: 2026110709074403
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110310450002
+	- Origin: `15993d9` (2026-11-06). Not seen before. Confirmed for the connection, by a probe with a stand-in session manager. What the live session does when the demo stops them is Plausible, and wasn't tried on purpose.
+	- Steps to reproduce: Run the Demo step, or the demo script, from a terminal in the desktop session.
+	- Incorrect behavior: `SESSION_MANAGER` is passed through, so xfwm4 and xfce4-panel on the private display connect to the live xfce4-session. Both ask to be restarted at once, so stopping them may make the live session start them again, and a logout during a recording may save them into the session.
+	- Expected behavior: Nothing the demo starts talks to the live session.
+	- Possible cause: `Screen.env` copies the whole environment and drops only 4 names from it.
+	- Sweep: `Panel.desk_env`, `start_wm`, and the settings window the demo's plugin starts.
+	- Estimated effort: Low
+
+- Code review 20261107 item 4: With 2 windows on one file, or a hand edit, Apply drops or reverts theme edits
+	- ID: 2026110709074404
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115231817, 2026103115231908
+	- Origin: `5351443` (2026-11-01, 20261031 item 2) and `6a78316` (2026-10-24). New ground, in the same place as 20261031 items 2 and 8, both fixed. Confirmed, by 2 probes on the window's code.
+	- Steps to reproduce:
+		- Window B saves a theme and picks it. Window A, still on Default, sets a color and applies.
+		- Or window B saves a color into a saved theme, and window A only renames that theme and applies.
+	- Incorrect behavior: In the first, A's color comes through but marked as made on Default, which is no longer picked, so it's dropped while Apply says it saved. In the second, A writes the theme whole with its old colors, so B's color is lost.
+	- Expected behavior: Each window's own edits reach the file, and the other one's stay.
+	- Possible cause: Apply copies each store on its own, so the theme pick and the changes made on a theme can come from different windows. A changed theme is written whole.
+	- Note: This is the third fault in how Apply merges with a changed file, in 2 rounds. A table in design.md of what Apply does for each kind of change made elsewhere would stop each case being answered on its own.
+	- Estimated effort: Avg
+
+- Code review 20261107 item 5: Cancel, Esc or the close button leaves a false error in the panel's tip and the journal
+	- ID: 2026110709074405
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232220
+	- Origin: `7794e6b` (2026-11-01, 20261031 item 28), meeting `f89e55e` (2026-10-23), where the window quits with 1 on Cancel. A regression from 20261031 item 28, whose test, der60, tries only a program that fails. Confirmed, by the real window started through the plugin's code.
+	- Steps to reproduce: Open Properties, then press Cancel.
+	- Incorrect behavior: The tip says "Properties: the settings window quit with exit status: 1" until the next Properties, and the same line goes to the journal.
+	- Expected behavior: A tip line only when the window failed, as 20261031 item 28 says.
+	- Possible cause: `run_dialog` gives 1 for a rejected dialog, the same code as a file that can't be read.
+	- Estimated effort: Low
+
+- Code review 20261107 item 6: The pre-push hook can pass a commit it never tested
+	- ID: 2026110709074406
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232000
+	- Origin: `ff4610a` (2026-10-25). Not seen before. Confirmed, by the real hook with a stand-in gate.
+	- Steps to reproduce: Push `main` from a clean checkout at the pushed commit, so the gate runs in place. While it runs, another session edits the tree.
+	- Incorrect behavior: Each step checks the tree as it is right then, and the hook never looks at the tree again, so a commit can pass on edits that aren't in it.
+	- Expected behavior: The gate checks the commit being pushed, as the hook's header says.
+	- Possible cause: The in-place path trusts a tree that was clean at the start to stay clean.
+	- Estimated effort: Low
+
+- Code review 20261107 item 7: A demo stopped by TERM leaves its X session running, a FUSE mount, and a folder no sweep removes
+	- ID: 2026110709074407
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110310450002
+	- Origin: `15993d9` and `0f1d264` (2026-11-06). Not seen before. Confirmed, by a probe that sent TERM to a run started by hand.
+	- Steps to reproduce: Start the demo script by hand, then send it TERM, as `timeout` does.
+	- Incorrect behavior: No cleanup runs. 18 processes stay up, among them Xvfb, xfwm4 and its bus, xfconfd, gvfsd, the panel with its plugin wrappers, and xfce4-notifyd. gvfsd-fuse keeps a mount inside the run folder, and the folder has no `run.pid`, so the stale run sweep never takes it. Under cicd.bash the leftover scan stops the processes, but not a dead mount.
+	- Expected behavior: TERM cleans up as an error does, and a folder left behind can be swept later.
+	- Possible cause: Python's default TERM skips the `finally` blocks, and the demo makes its folder without the pipeline's run marker.
+	- Sweep: the demo's `safe_rmtree`, which crosses mount points where the pipeline's removal stays on one file system.
+	- Estimated effort: Low
+
+- Code review 20261107 item 25: With the LAN split on, each network read spends about 20 ms in the kernel on the panel's thread
+	- ID: 2026110709074425
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026102914561218
+	- Origin: `8bbd96a` (2026-10-29). It was never timed. Confirmed, by a release probe on b23: 18 to 22 ms a read with 55 sockets, about 70 times a tick of the 6 default graphs. `ss -tn` takes the same.
+	- Requirements:
+		- Make a LAN read cheap enough for the panel's thread, or move it off that thread. Time it before and after.
+	- Note: Each dump walks the kernel's whole table of open TCP connections, which is sized by RAM, so few sockets cost about the same as many. An open settings window runs a second reader.
+	- Estimated effort: Avg
+
 - Video & GIF: Bigger font for the fake text
 	- ID: 2026110708212499
 	- Type: Enhancement
@@ -7072,6 +7200,292 @@ Sorted per the notes in [Template](#template).
 		- README.md gets the one-liner and the install folders, and notes `--help`.
 	- Needs more detail:
 		- It needs a first release to download. Until then, test it against a stand-in release.
+
+- Code review 20261107 item 8: A setting changed and changed back keeps Apply on, and Apply writes the default into the file
+	- ID: 2026110709074408
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Origin: `f89e55e` (2026-10-23). Not seen before. Confirmed, by 2 probes on the window's code.
+	- Steps to reproduce: Change Max age from 28 to 29, then back to 28.
+	- Incorrect behavior: The revert arrow goes off, but Apply stays on. Apply writes `max_days: 28`, against the file's own header that lists only values changed from their defaults, and the setting stops following a later change to its default. A slider does the same at many of its positions.
+	- Expected behavior: A value back at its default counts as no change.
+	- Possible cause: knobs' `Model::set` always stores a value of its own, and `Dialog::dirty` compares the stores.
+	- Estimated effort: Low
+
+- Code review 20261107 item 9: Randomize gives 2 graphs leads that don't read apart in about 1 roll in 7,500
+	- ID: 2026110709074409
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103107404602, 2026102810142725
+	- Origin: `c3c52ee` (2026-10-31), the 13th graph. The rule held over 10,000 seeds with 12 graphs, and dejbv checks only 2,000. A regression. Confirmed, by a probe over 105,000 seeds, where 14 fail, the first at seed 2615.
+	- Steps to reproduce: A roll with seed 2615.
+	- Incorrect behavior: 2 leads are about 3 apart as CIEDE2000, where the rule is 10.
+	- Expected behavior: Every roll's leads read apart, which dejbv's item asks for.
+	- Possible cause: After 256 draws with no fit, the roll keeps the last draw.
+	- Note: The least gap and the draw count have been tuned twice to the seeds tested. A fallback that always meets the rule would end that.
+	- Estimated effort: Low
+
+- Code review 20261107 item 10: A new panel item makes a shcl 2 backup and a "rewritten" log line for a file it never had
+	- ID: 2026110709074410
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110610124433
+	- Origin: `dbbe34f` (2026-11-06), on `config::start_from` from `60e885c` (2026-10-26). Confirmed, by a probe.
+	- Steps to reproduce: Leave the shared `tukzmon.shcl` as shcl 2, then add a tukzmon item to the panel.
+	- Incorrect behavior: The new item's file is a copy of the 2.x text, which is then converted at once. That leaves `plugin-N_backup_<time>_format-v2.shcl` and a journal line saying the file is rewritten, for every item added.
+	- Expected behavior: A new item starts with a shcl 3 file and no backup.
+	- Possible cause: `start_from` copies the shared file as it is.
+	- Estimated effort: Low
+
+- Code review 20261107 item 11: With the LAN split on, a socket that stops counting as away adds its whole life as LAN in one sample
+	- ID: 2026110709074411
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110111543986, 2026102914561218
+	- Origin: `8bbd96a` (2026-10-29), with `16d86c6` and `6594a7a` (2026-11-01). Not seen before. Confirmed, by a probe where a 4 GB socket made one sample show all the interface's traffic as LAN.
+	- Steps to reproduce: With the split on, keep an ssh session open to a VM on a bridge. Let the VM idle until its address leaves the bridge's table, or drop a VPN that leaves sockets on its old address.
+	- Incorrect behavior: At the next 10 s relist the socket counts as LAN for the first time, and every byte it ever moved counts as new. That sample shows all internet traffic as LAN, and it happens again each time.
+	- Expected behavior: Only bytes moved since the last read count.
+	- Possible cause: Only LAN sockets are kept between reads, so one that's new to the LAN rates from 0.
+	- Estimated effort: Low
+
+- Code review 20261107 item 12: Work that starts during the GPU's idle rest reads as 0% until the rest ends
+	- ID: 2026110709074412
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110118380381
+	- Origin: `36e3559` (2026-11-02). That item notes the rest was never reached on a real card. Confirmed, with stand-in NVML, where a card at 90% read 0% for 5 s and then 90%.
+	- Steps to reproduce: A card whose `power/control` is `auto` and that stays awake, idle for 5 reads, then busy.
+	- Incorrect behavior: Both GPU graphs read 0 for the card's autosuspend delay plus 5 s. A rest starts after 5 reads, not a set time, so at a 50 ms sample after a quarter second of idle. Each rest ends with an NVML open of about 15 to 20 ms on the panel's thread.
+	- Expected behavior: A busy card doesn't read as idle.
+	- Against: 2026110118380381's idle rest, which lets the card sleep. A fix keeps that.
+	- Estimated effort: Low
+
+- Code review 20261107 item 13: An IPv4 client on a dual-stack socket is counted with IPv6 header bytes
+	- ID: 2026110709074413
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026102914561218
+	- Origin: `8bbd96a` (2026-10-29). Not seen before. Confirmed, by a probe that counted 86,000 bytes where the wire took 66,000.
+	- Incorrect behavior: The LAN split reads such a socket about 1.3% high at full segments.
+	- Expected behavior: The header size follows the address the far end uses.
+	- Possible cause: The overhead is picked by the socket's family, not by its addresses.
+	- Estimated effort: Low
+
+- Code review 20261107 item 14: A LAN dump left partway makes a gap at each read until the old dump runs out
+	- ID: 2026110709074414
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232077
+	- Origin: `a83280a` (2026-11-01), the fix for 20261031 item 19. It skips other requests' replies, but the kernel refuses a new dump while one is still going. A gap in that fix. Confirmed, by a probe with 3,000 sockets: 10 gaps in a row, and a second request got EBUSY.
+	- Steps to reproduce: A read error, or a reply that doesn't parse, in the middle of a dump.
+	- Incorrect behavior: Each later read gets EBUSY for its own request, so the LAN part of the network graph is a gap until the old dump's replies are used up.
+	- Expected behavior: One gap, then reads as before.
+	- Possible cause: The socket is kept after a failed dump. deqt2 builds a reply stream the kernel doesn't send while a dump runs.
+	- Estimated effort: Low
+
+- Code review 20261107 item 15: With no display, tukzmon-settings aborts with a core dump instead of exiting 1
+	- ID: 2026110709074415
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103016201605
+	- Origin: `07399b9` (2026-10-30). Not seen before. Confirmed: exit 134 and a core dump, both for a file that can't be read and for opening the window.
+	- Steps to reproduce: `env -u DISPLAY -u WAYLAND_DISPLAY tukzmon-settings --config <a file that can't be read>`
+	- Incorrect behavior: It prints its line, then Qt aborts trying to open the message box.
+	- Expected behavior: The line, then exit 1.
+	- Estimated effort: Low
+
+- Code review 20261107 item 16: An item the panel drops without Remove keeps its files, and a later item on that id takes them over
+	- ID: 2026110709074416
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026102622311676
+	- Origin: `f68f673` (2026-10-29). Not seen before. Plausible, from the xfce4-panel 4.20.7 source.
+	- Steps to reproduce: The panel drops an item without calling the plugin's `removed`, such as Remove after the wrapper crashed twice, or yes to "could not be loaded" after the library went away. Then restart the panel and add a tukzmon item.
+	- Incorrect behavior: `plugin-N.shcl` and `plugin-N.hist` stay, and the new item, given the lowest free id, opens with the old item's look and history.
+	- Expected behavior: A later item that gets the same id starts fresh, as 2026102622311676 asks.
+	- Possible cause: Only `removed` deletes the files. The panel deletes its own file for an id when it makes a new item on it, so a mark kept there could tell old files from a live item's.
+	- Estimated effort: Avg
+
+- Code review 20261107 item 17: A save through a linked item settings file shows in the panel only at the next read
+	- ID: 2026110709074417
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115231938
+	- Origin: `a9ca08f` (2026-10-29), with `4c8a1e0` (2026-11-01), which made saves keep the link. Not seen before. Confirmed, by a probe that got no watch event for a save to the link's target.
+	- Steps to reproduce: Make `plugin-N.shcl` a link into another folder, as stow or home-manager do, then Apply in Properties.
+	- Incorrect behavior: The change waits for the next graph read, 1 s by default and longer with slow graphs.
+	- Expected behavior: It shows at once, as design.md's XFCE plugin section says.
+	- Possible cause: The file monitor watches the link, and the save writes the file it points to.
+	- Estimated effort: Low
+
+- Code review 20261107 item 18: With the .deb or .rpm, Properties runs whichever tukzmon-settings comes first on PATH
+	- ID: 2026110709074418
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Origin: `59037f4` (2026-10-25). The Nix package got a link beside the library later, in `a4087bd`, and the .deb and .rpm never did. Not seen before. Plausible, from reading.
+	- Steps to reproduce: Install the .deb on a box with an older `tukzmon-settings` in `~/.local/bin`, ahead of `/usr/bin` on the panel's PATH, then open Properties.
+	- Incorrect behavior: The older window opens on the item's file.
+	- Expected behavior: The package's own window, which is why design.md gives the Nix package its link.
+	- Possible cause: The plugin looks beside its library, then on PATH, and the packages put the program only in `/usr/bin`.
+	- Estimated effort: Low
+
+- Code review 20261107 item 19: knobs' spec checks let a relation loop, case-only twins, a NaN range end, and a text chooser through
+	- ID: 2026110709074419
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232265, 2026103115231954
+	- Origin: `f89e55e` (2026-10-23), from silkterm, whose copy has the same code. Not seen before. Confirmed, by probes against knobs. tukzmon's own spec has none of the 4 today.
+	- Incorrect behavior:
+		- A loop through group members and automatic choosers parses clean, then the first read overflows the stack. On Wayland that takes the panel down too.
+		- 2 paths that differ only in case pass, and shcl folds them onto one key, so a round trip loses one value.
+		- `range: [nan, 10]` passes, and then every number is in range.
+		- A chooser with `type: text` passes and takes any text as a pick.
+	- Expected behavior: Each is refused when the spec loads.
+	- Note: silkterm's backlog needs the same fix.
+	- Estimated effort: Avg
+
+- Code review 20261107 item 20: The Miri step drops a target whose test list fails and still passes
+	- ID: 2026110709074420
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110514461968
+	- Origin: `4a7f217` (2026-10-25), kept by `34329c6` (2026-11-05). Not seen before. Confirmed, by a stand-in cargo whose knobs list fails, which gave "3 test(s) in 2 module(s)" and a pass.
+	- Incorrect behavior: Each target's list hides its errors and its exit status, and only a total of 0 tests fails the step. A target that won't build or list loses its tests with no word.
+	- Expected behavior: A target that can't list its tests fails the step.
+	- Estimated effort: Low
+
+- Code review 20261107 item 21: The demo's video encodes use every core
+	- ID: 2026110709074421
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110310450002
+	- Origin: `15993d9` (2026-11-06). Not seen before. Plausible, from reading.
+	- Incorrect behavior: No ffmpeg call sets a thread count, the Demo step passes the demo no job count, and the step isn't in `HEAVY_STEPS`. x265 at its slow preset takes every core.
+	- Expected behavior: The demo gets the run's job count, at a quarter of the CPUs like the other heavy steps.
+	- Estimated effort: Low
+
+- Code review 20261107 item 22: The demo judges a display free by its lock file alone
+	- ID: 2026110709074422
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110310450002
+	- Origin: `15993d9` (2026-11-06). Not seen before. Confirmed, by a probe with an X server whose lock file the demo can't see.
+	- Incorrect behavior: The demo takes a display number that already answers, waits 10 s, and fails with "never came up as ours" rather than trying the next number. It fails safe.
+	- Expected behavior: A number that answers a connection counts as taken, so the demo moves on to the next one.
+	- Estimated effort: Low
+
+- Code review 20261107 item 23: The color picker has no tips, and 2 message boxes break the UX guide
+	- ID: 2026110709074423
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Origin: `801ac42` (2026-10-24) for the picker, `f89e55e` and `6a78316` for the boxes. Not seen before. Confirmed, by reading and by a probe with a folder that can't be written.
+	- Incorrect behavior:
+		- None of the picker's controls has a tip: the square, the hue strip, the 5 percent boxes, the hex box, Cancel and OK.
+		- "Settings weren't saved" gives shcl's own error text, and no "Nothing was changed." line.
+		- A theme name that won't do shows a warning titled with the action, "Save theme as", rather than what didn't happen.
+	- Expected behavior: Every control has a tip, and a failure box's title says what didn't happen, per `project/style-guide_ux.md`.
+	- Estimated effort: Low
+
+- Code review 20261107 item 24: design.md gives a stale count of the plugin's library calls
+	- ID: 2026110709074424
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232125
+	- Origin: `f89e55e` (2026-10-23). Not seen before. Confirmed, by counting the declarations in `xfce/src/sys.rs`: 36 GLib, GTK, cairo and panel calls, plus 3 from libc, where design.md says "20 or so".
+	- Expected behavior: The XFCE plugin section gives a count that holds, or none.
+	- Estimated effort: Low
+
+- Code review 20261107 item 26: The amdgpu reads have none of the NVIDIA path's runtime power checks
+	- ID: 2026110709074426
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232174, 2026110118380381
+	- Origin: `a50f0c6` and `5b569ad` (2026-10-29). Plausible, from reading, since there's no AMD card here.
+	- Requirements:
+		- Read an AMD card's runtime power state before its busy share, as the NVIDIA path does, and read 0 while it sleeps.
+		- Depending on the kernel, a busy read today either wakes a sleeping card or fails, which shows as a gap.
+	- Estimated effort: Low
+
+- Code review 20261107 item 27: A demo run of only some scenes writes over assets/demo.gif
+	- ID: 2026110709074427
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110310450002
+	- Origin: `15993d9` (2026-11-06).
+	- Requirements:
+		- Update the README's gif only from a run of every scene, unless asked. Today only `--no-asset` keeps a `--scenes` run from replacing it.
+	- Estimated effort: Low
+
+- Code review 20261107 item 28: A docs-only push to main skips the 2 checks that read docs
+	- ID: 2026110709074428
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232016
+	- Origin: `ff4610a` (2026-10-25).
+	- Requirements:
+		- On a docs-only push, still run markdownlint on the changed files and the backlog's test ID check, which take seconds. Today a backlog-only push can put a Lint failure on `main` that the next code push then trips over.
+	- Estimated effort: Low
 
 - Code review 20261030 item 3, part 2: Look up a setting by an index in knobs
 	- ID: 2026103018353670
