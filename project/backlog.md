@@ -465,7 +465,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 11: The demo script doesn't follow the Python rules
 	- ID: 2026110618502911
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -478,6 +478,22 @@ Sorted per the notes in [Template](#template).
 		- A failed probe or rotation stops the run rather than reading as 0.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- One kind of section comment: the file's own `##•••` line with a `##` title, at the top level only. The `# ---` ones inside the class went with the split.
+		- The empty-frame-extents fallback stays, since the window placing measures and corrects anyway. A failed xprop or xdotool call stops the run now.
+		- The `audio` profile field was never read, so it's gone. The video always has sound.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Every function is hinted, and ruff's ANN rules are on in `pyproject.toml`. mypy `--strict` is clean too, outside python-xlib, which has no types.
+		- The take's profile, options, events, captions and timeline are dataclasses, and takes and sounds are enums.
+		- The recorder is split into the screen, the panel, the settings window and the capture, with a small `Rec` that holds them for the scenes.
+		- ffprobe giving no duration, and a failed rotation, now stop the run.
+		- Rotation had never run: the include was passed as `$0`, so it took itself for run rather than sourced and exited 3, which `check=False` hid. Fixed, and a take now gives `_first` and `_latest`.
+		- Verified: a gif take recorded with rotation, frames checked against the old script's take scene by scene, `--shot` ran, ruff failed on a hint taken out, and the quick gate's format and lint passed.
+	- Branch: round-1107
+	- Test case: none, since it's the recording script with no test harness. Verified by recording a take, as above.
+		- Swept: every `check=False` and every `except` in the script.
+	- Closed: 20261106-222430
 
 - Code review 20261106 item 12: Comments that say the wrong thing, and comment layout in scripts
 	- ID: 2026110618502912
@@ -525,7 +541,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 15: The demo scans every process while it records
 	- ID: 2026110618502915
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -536,6 +552,20 @@ Sorted per the notes in [Template](#template).
 		- Move the pointer without a process start for each step.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- The pointer moves through XTEST on one X connection. Clicks stay on xdotool, since the click sound's timing was measured against it.
+		- The panel's processes are still found by one scan of `/proc` at the stop, since the settings window and the bus's helpers aren't children of the panel by then.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The panel stop scans once, then waits on pidfds, and stops what's left all at once.
+		- The caption band's strut is a window on the same X connection, not a process of its own.
+		- The days scene is 3 s shorter, 9.2 s against 12.2 s, and the gif 41 s against 44 s. The old stop waited 3 s on one of the processes it found, likely one that had already exited, since a signal 0 check still finds a process that's exited but not yet reaped.
+		- A gif take used 78.2 s of CPU against 81.8 s, at a load of 2.5 to 4 on 32 cores.
+		- Verified: a gif take recorded, and its frames match the old script's take scene by scene, the hover tips included.
+	- Branch: round-1107
+	- Test case: none, since it's the recording script with no test harness. Verified by recording a take, as above.
+		- Swept: every process scan and every per-step process start in the script. The window searches still start xdotool on each poll, at 0.2 s.
+	- Closed: 20261106-222430
 
 - Code review 20261106 item 16: Scripts still start a process per file or folder in a few loops
 	- ID: 2026110618502916

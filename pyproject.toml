@@ -9,6 +9,6 @@ line-length = 120
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "B", "I", "N", "UP", "SIM", "RUF"]
+select = ["E", "F", "W", "B", "I", "N", "UP", "SIM", "RUF", "ANN"]
 # fName functions and camelCase locals are the house naming, as in silkterm.
 ignore = ["N802", "N806"]
