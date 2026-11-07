@@ -343,6 +343,7 @@ pub fn saved_themes(doc: &shcl::Document) -> Vec<SavedTheme> {
 			let colors = g
 				.members
 				.iter()
+				// a saved theme owns its ids, apart from the spec's
 				.map(|id| {
 					let read = |id: &str| {
 						doc.get_string(&at(id))
@@ -361,7 +362,7 @@ pub fn saved_themes(doc: &shcl::Document) -> Vec<SavedTheme> {
 				.ok()
 				.map(|n| n.trim().to_string())
 				.filter(|n| !n.is_empty())
-				// with no name of its own it goes by its key
+				// with no name of its own it goes by its key, a copy since both are kept
 				.unwrap_or_else(|| key.clone());
 			SavedTheme { key, name, colors }
 		})
@@ -460,8 +461,13 @@ pub fn themes_text(themes: &[SavedTheme]) -> String {
 	doc.to_canonical()
 }
 
-/// A key for a new theme from its name, not one that's taken.
-pub fn theme_key(name: &str, themes: &[SavedTheme]) -> String {
+/// A key for a new theme from its name, not a built-in's nor one of `keys`.
+pub fn theme_key<'a, I>(name: &str, keys: I) -> String
+where
+	I: IntoIterator<Item = &'a str>,
+	I::IntoIter: Clone,
+{
+	let keys = keys.into_iter();
 	let mut slug = String::new();
 	for c in name.chars() {
 		if c.is_ascii_alphanumeric() {
@@ -476,12 +482,12 @@ pub fn theme_key(name: &str, themes: &[SavedTheme]) -> String {
 	} else {
 		slug.to_string()
 	};
-	let taken = |k: &str| builtin_key(k) || themes.iter().any(|t| t.key.eq_ignore_ascii_case(k));
+	let taken = |k: &str| builtin_key(k) || keys.clone().any(|t| t.eq_ignore_ascii_case(k));
 	if !taken(&slug) {
 		return slug;
 	}
 	// n themes can take at most n of these
-	(2..=themes.len() + 2)
+	(2..=keys.clone().count() + 2)
 		.map(|n| format!("{slug}_{n}"))
 		.find(|k| !taken(k))
 		.unwrap_or(slug)
@@ -522,6 +528,7 @@ fn upgraded(doc: &shcl::Document) -> Option<shcl::Document> {
 	if doc.exists(OLD_DISK_LOG) {
 		let out = out.get_or_insert_with(|| doc.clone());
 		if doc.get_bool(OLD_DISK_LOG) == Ok(true) && !out.exists("disk.vertical") {
+			// a fixed path and value, which always take
 			let _ = out.set_string("disk.vertical", "log10");
 		}
 		out.remove(OLD_DISK_LOG);
@@ -543,27 +550,26 @@ fn shared_colors_upgraded(doc: &shcl::Document) -> Option<shcl::Document> {
 	}
 	let spec = spec();
 	let mut out = doc.clone();
-	for base in &bases {
-		for (at, shared) in old_at(base) {
-			let Ok(v) = doc.get_string(&at) else {
-				continue;
-			};
-			let ids = std::iter::once(shared.to_string()).chain(
-				outline_pairs()
-					.filter(|(s, _)| *s == shared)
-					.map(|(_, own)| own),
-			);
-			for id in ids {
-				let Some(s) = spec.get(&id) else {
-					continue;
-				};
-				let path = format!("{base}{}", s.path);
-				if !out.exists(&path) {
-					let _ = out.set_string(&path, &v);
-				}
+	let olds = bases
+		.iter()
+		.flat_map(|base| old_at(base).map(move |(at, shared)| (base, at, shared)));
+	for (base, at, shared) in olds {
+		let Ok(v) = doc.get_string(&at) else {
+			continue;
+		};
+		let ids = std::iter::once(shared.to_string()).chain(
+			outline_pairs()
+				.filter(|(s, _)| *s == shared)
+				.map(|(_, own)| own),
+		);
+		let paths = ids.filter_map(|id| Some(format!("{base}{}", spec.get(&id)?.path)));
+		for path in paths {
+			// a spec path, and text the file held already, so it takes
+			if !out.exists(&path) {
+				let _ = out.set_string(&path, &v);
 			}
-			out.remove(&at);
 		}
+		out.remove(&at);
 	}
 	Some(out)
 }
@@ -1152,6 +1158,7 @@ pub fn start_from(own: &Path, shared: &Path) -> std::io::Result<()> {
 	std::fs::write(&tmp, text)
 		.and_then(|()| std::fs::rename(&tmp, own))
 		.inspect_err(|_| {
+			// the write's error is the one to give
 			let _ = std::fs::remove_file(&tmp);
 		})
 }
@@ -2227,7 +2234,7 @@ mod tests {
 		assert_eq!(t[0].name, "Say \"hi\"");
 		assert_eq!(t[0].colors.len(), 127);
 		t.push(SavedTheme {
-			key: theme_key("Default", &t),
+			key: theme_key("Default", t.iter().map(|t| t.key.as_str())),
 			name: "Default".into(),
 			colors: t[0].colors.clone(),
 		});
@@ -2240,12 +2247,12 @@ mod tests {
 	// Test ID: deccx
 	#[test]
 	fn theme_keys_are_plain_and_free() {
-		assert_eq!(theme_key("My Green!", &[]), "my_green");
-		assert_eq!(theme_key("  -- ", &[]), "theme");
-		assert_eq!(theme_key("1984", &[]), "theme_1984");
-		assert_eq!(theme_key("Gr\u{fc}n", &[]), "gr_n");
-		assert_eq!(theme_key("custom", &[]), "custom_2");
-		assert_eq!(theme_key("Earth", &[]), "earth_2");
+		assert_eq!(theme_key("My Green!", []), "my_green");
+		assert_eq!(theme_key("  -- ", []), "theme");
+		assert_eq!(theme_key("1984", []), "theme_1984");
+		assert_eq!(theme_key("Gr\u{fc}n", []), "gr_n");
+		assert_eq!(theme_key("custom", []), "custom_2");
+		assert_eq!(theme_key("Earth", []), "earth_2");
 	}
 
 	// Test ID: decc5

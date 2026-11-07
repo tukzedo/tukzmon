@@ -149,9 +149,10 @@ fn main() -> Result<(), String> {
 		.build()
 		.map_err(|e| format!("profiler: {e}"))?;
 	drop(guard);
+	// only scratch, and the report is what matters
 	let _ = std::fs::remove_file(&hist);
 
-	// Folded by hand, root first, for inferno.
+	// Folded by hand, root first, for inferno. A write to a String can't fail.
 	let mut folded = String::new();
 	for (frames, n) in &report.data {
 		folded.push_str(&frames.thread_name);

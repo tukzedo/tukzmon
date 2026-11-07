@@ -158,16 +158,16 @@ fn fit_squared<const N: usize>(v: [f32; N], top: f32) -> [f32; N] {
 }
 
 /// A vertical line `thick` pixels wide from column `x`, over the plot only, so
-/// a pointer on the border puts it at the plot's edge. `bw` is the border.
-pub fn line(px: &mut [u32], w: usize, h: usize, bw: usize, x: usize, thick: usize, color: Rgb) {
-	if px.len() < w * h || w <= 2 * bw || h <= 2 * bw {
+/// a pointer on the border puts it at the plot's edge. `border` is how wide the border is.
+pub fn line(px: &mut [u32], w: usize, h: usize, border: usize, x: usize, thick: usize, color: Rgb) {
+	if px.len() < w * h || w <= 2 * border || h <= 2 * border {
 		return;
 	}
-	let (pw, ph) = (w - 2 * bw, h - 2 * bw);
-	let thick = thick.clamp(1, pw);
-	let x0 = x.clamp(bw, bw + pw - thick);
+	let (plot_w, plot_h) = (w - 2 * border, h - 2 * border);
+	let thick = thick.clamp(1, plot_w);
+	let x0 = x.clamp(border, border + plot_w - thick);
 	let c = color.argb();
-	for row in px[bw * w..(bw + ph) * w].chunks_exact_mut(w) {
+	for row in px[border * w..(border + plot_h) * w].chunks_exact_mut(w) {
 		row[x0..x0 + thick].fill(c);
 	}
 }
@@ -260,9 +260,9 @@ impl<const N: usize> Frame<'_, N> {
 	) {
 		px.clear();
 		px.resize(w * h, self.outline.border.argb());
-		let bw = (self.look.border as usize * scale).min(w / 2).min(h / 2);
-		let (pw, ph) = (w - 2 * bw, h - 2 * bw);
-		if pw == 0 || ph == 0 {
+		let border = (self.look.border as usize * scale).min(w / 2).min(h / 2);
+		let (plot_w, plot_h) = (w - 2 * border, h - 2 * border);
+		if plot_w == 0 || plot_h == 0 {
 			return;
 		}
 		let Scratch {
@@ -275,9 +275,9 @@ impl<const N: usize> Frame<'_, N> {
 		// premultiplied, so a transparent one is all zeros
 		let back_alpha = if self.look.transparent { 0.0 } else { 1.0 };
 		back.clear();
-		back.extend((0..ph).map(|r| {
-			let t = if ph > 1 {
-				r as f32 / (ph - 1) as f32
+		back.extend((0..plot_h).map(|r| {
+			let t = if plot_h > 1 {
+				r as f32 / (plot_h - 1) as f32
 			} else {
 				0.0
 			};
@@ -296,15 +296,17 @@ impl<const N: usize> Frame<'_, N> {
 		grad.clear();
 		grad_px.clear();
 		if let Paint::Gradient(stops) = self.paint {
-			grad.extend((0..ph).map(|r| blend(stops, ((ph - r) as f32 - 0.5) / ph as f32)));
+			grad.extend(
+				(0..plot_h).map(|r| blend(stops, ((plot_h - r) as f32 - 0.5) / plot_h as f32)),
+			);
 			grad_px.extend(grad.iter().map(|&g| pack_alpha(g, 1.0)));
 		}
 		reached.clear();
 		let emphasis = Reach::new(self.look.spikes);
 		// each column's old edge is the new edge of the one left of it
 		let mut a = self.now - self.axis.age(1.0);
-		reached.extend((0..pw).map(|cx| {
-			let u_new = (pw - cx - 1) as f64 / pw as f64;
+		reached.extend((0..plot_w).map(|cx| {
+			let u_new = (plot_w - cx - 1) as f64 / plot_w as f64;
 			let b = self.now - self.axis.age(u_new);
 			let a = std::mem::replace(&mut a, b);
 			let span = self.hist.span(a, b);
@@ -327,7 +329,7 @@ impl<const N: usize> Frame<'_, N> {
 		};
 		let gradient = matches!(self.paint, Paint::Gradient(_));
 		for (cx, v) in reached.iter().enumerate() {
-			let at = |r: usize| (r + bw) * w + cx + bw;
+			let at = |r: usize| (r + border) * w + cx + border;
 			let Some(hs) = v.map(|v| self.vertical.fit(v, top, floor)) else {
 				for (r, &b) in back_px.iter().enumerate() {
 					px[at(r)] = b;
@@ -335,9 +337,9 @@ impl<const N: usize> Frame<'_, N> {
 				continue;
 			};
 			if gradient {
-				let top = hs.iter().sum::<f32>() * ph as f32;
-				for r in 0..ph {
-					let (p0, p1) = ((ph - r - 1) as f32, (ph - r) as f32);
+				let top = hs.iter().sum::<f32>() * plot_h as f32;
+				for r in 0..plot_h {
+					let (p0, p1) = ((plot_h - r - 1) as f32, (plot_h - r) as f32);
 					let cover = (top.min(p1) - p0).clamp(0.0, 1.0);
 					px[at(r)] = if cover >= 1.0 {
 						grad_px[r]
@@ -356,13 +358,13 @@ impl<const N: usize> Frame<'_, N> {
 			let mut tops = [0.0f32; N];
 			let mut y = 0.0f32;
 			for (t, hgt) in tops.iter_mut().zip(hs) {
-				y += hgt * ph as f32;
+				y += hgt * plot_h as f32;
 				*t = y;
 			}
 			// up from the bottom row, with s the lowest series not yet below it
 			let mut s = 0;
-			for i in 0..ph {
-				let r = ph - 1 - i;
+			for i in 0..plot_h {
+				let r = plot_h - 1 - i;
 				let (p0, p1) = (i as f32, (i + 1) as f32);
 				while s < N && tops[s] <= p0 {
 					s += 1;

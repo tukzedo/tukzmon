@@ -405,6 +405,7 @@ fn control_kind(s: &knobs::Setting) -> Option<ffi::ControlKind> {
 	})
 }
 
+// copied, as in dialog_tabs
 fn dialog_rows(d: &Dialog) -> Vec<ffi::RowInfo> {
 	let listed = d.graph_list_ids();
 	d.spec()

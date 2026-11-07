@@ -410,7 +410,7 @@ impl Graphs {
 
 	/// Each shown graph's width in logical pixels, in the order drawn.
 	pub fn widths(&self) -> impl Iterator<Item = u32> + '_ {
-		self.shown().map(|w| self.width_of(w))
+		self.shown().map(|which| self.width_of(which))
 	}
 
 	/// The size to ask a panel of `size` logical pixels for: the widths' sum
@@ -454,18 +454,14 @@ impl Graphs {
 			}
 		}
 		let added = self.slots.switch(look, shown_here);
-		let mut res = Ok(());
-		if let Some(path) = history.filter(|_| !added.is_empty()) {
-			match keep::read(path) {
-				Ok(sections) => {
-					for &w in &added {
-						if let Some(g) = self.slot_mut(w) {
-							g.adopt(&sections);
-						}
-					}
-				}
-				Err(e) if e.kind() == io::ErrorKind::NotFound => {}
-				Err(e) => res = Err(e),
+		let (sections, res) = match history.filter(|_| !added.is_empty()).map(keep::read) {
+			Some(Ok(sections)) => (sections, Ok(())),
+			Some(Err(e)) if e.kind() != io::ErrorKind::NotFound => (Vec::new(), Err(e)),
+			Some(Err(_)) | None => (Vec::new(), Ok(())),
+		};
+		for &w in &added {
+			if let Some(g) = self.slot_mut(w) {
+				g.adopt(&sections);
 			}
 		}
 		self.order = order_of(&self.look().order);
@@ -1447,7 +1443,7 @@ mod tests {
 			None,
 		)
 		.unwrap();
-		assert_eq!(axes(&g), (linear.clone(), Axis::log(Curve::FixedB, total)));
+		assert_eq!(axes(&g), (linear, Axis::log(Curve::FixedB, total)));
 		// one with no pick of its own follows Time axis default
 		g.set_look(
 			Look {

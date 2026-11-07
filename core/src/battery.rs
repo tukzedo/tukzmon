@@ -55,6 +55,7 @@ impl Battery {
 		let at = if let Some(at) = self.files.iter().position(|(n, _)| *n == name) {
 			at
 		} else {
+			// self.path is made over for the next name
 			let path = self.file(name).to_owned();
 			self.files.push((name, Kept::new(path)));
 			self.files.len() - 1

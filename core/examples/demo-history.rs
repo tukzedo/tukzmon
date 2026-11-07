@@ -56,7 +56,7 @@ fn daytime(t: f64) -> f64 {
 	up * down * lunch
 }
 
-struct Box {
+struct Machine {
 	cpu: History<4>,
 	mem: History<3>,
 	vram: History<1>,
@@ -103,7 +103,7 @@ fn main() -> Result<(), String> {
 	}
 	let in_build = |t: f64| builds.iter().any(|&(a, b)| t >= a && t < b);
 
-	let mut b = Box {
+	let mut machine = Machine {
 		cpu: History::default(),
 		mem: History::default(),
 		vram: History::default(),
@@ -134,7 +134,7 @@ fn main() -> Result<(), String> {
 		let system = cpu * 0.2;
 		let iowait = if building { 0.04 * dice.next() } else { 0.005 };
 		let nice = cpu * 0.04;
-		b.cpu.add(
+		machine.cpu.add(
 			t,
 			t1,
 			&[iowait as f32, system as f32, user as f32, nice as f32],
@@ -151,7 +151,9 @@ fn main() -> Result<(), String> {
 		let c = cache
 			.toward(0.18 + 0.25 * day, dt, &mut dice, 0.02)
 			.clamp(0.05, 0.6);
-		b.mem.add(t, t1, &[u as f32, 0.02, c.min(0.95 - u) as f32]);
+		machine
+			.mem
+			.add(t, t1, &[u as f32, 0.02, c.min(0.95 - u) as f32]);
 
 		let evening = ((clock(t).rem_euclid(DAY) / HOUR - 19.0) / 3.0).clamp(0.0, 1.0);
 		let v = vram
@@ -162,7 +164,7 @@ fn main() -> Result<(), String> {
 				0.03,
 			)
 			.clamp(0.05, 0.95);
-		b.vram.add(t, t1, &[v as f32]);
+		machine.vram.add(t, t1, &[v as f32]);
 
 		// bytes a second: a trickle, bursts while building
 		let burst = |dice: &mut Dice, base: f64, top: f64| {
@@ -181,12 +183,13 @@ fn main() -> Result<(), String> {
 				burst(&mut dice, 20e3 + 200e3 * day, 20e6),
 			)
 		};
-		b.disk.add(t, t1, &[w as f32, r as f32]);
+		machine.disk.add(t, t1, &[w as f32, r as f32]);
 
 		let deg = heat
 			.toward(36.0 + 52.0 * cpu, dt, &mut dice, 1.5)
 			.clamp(30.0, 99.0);
-		b.temp
+		machine
+			.temp
 			.add(t, t1, &[deg.min(95.0) as f32, (deg - 95.0).max(0.0) as f32]);
 
 		let s = swap.toward(
@@ -195,7 +198,7 @@ fn main() -> Result<(), String> {
 			&mut dice,
 			0.002,
 		);
-		b.swap.add(t, t1, &[s.clamp(0.0, 1.0) as f32]);
+		machine.swap.add(t, t1, &[s.clamp(0.0, 1.0) as f32]);
 		t = t1;
 	}
 
@@ -205,12 +208,12 @@ fn main() -> Result<(), String> {
 		f(&mut body);
 		bodies.push((w.key(), body));
 	};
-	put(Which::Cpu, &|o| b.cpu.encode(o));
-	put(Which::Mem, &|o| b.mem.encode(o));
-	put(Which::Vram, &|o| b.vram.encode(o));
-	put(Which::Disk, &|o| b.disk.encode(o));
-	put(Which::Temp, &|o| b.temp.encode(o));
-	put(Which::Swap, &|o| b.swap.encode(o));
+	put(Which::Cpu, &|o| machine.cpu.encode(o));
+	put(Which::Mem, &|o| machine.mem.encode(o));
+	put(Which::Vram, &|o| machine.vram.encode(o));
+	put(Which::Disk, &|o| machine.disk.encode(o));
+	put(Which::Temp, &|o| machine.temp.encode(o));
+	put(Which::Swap, &|o| machine.swap.encode(o));
 	let sections: Vec<(&str, &[u8])> = bodies.iter().map(|(n, b)| (*n, b.as_slice())).collect();
 	keep::write(&out, &sections).map_err(|e| format!("{}: {e}", out.display()))
 }

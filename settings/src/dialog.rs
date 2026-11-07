@@ -146,6 +146,7 @@ fn carry<V: Clone + PartialEq>(
 	for key in was.keys().chain(now.keys()) {
 		match now.get(key) {
 			v if v == was.get(key) => {}
+			// was and now stay the window's
 			Some(v) => {
 				to.insert(key.clone(), v.clone());
 			}
@@ -262,7 +263,7 @@ impl Dialog {
 		}
 	}
 
-	/// The saved theme in force, or "".
+	/// The saved theme in force, or "". Owned, for the window's side.
 	pub fn theme_name(&self) -> String {
 		self.on_saved()
 			.map(|i| self.themes[i].name.clone())
@@ -275,6 +276,7 @@ impl Dialog {
 			.map(|g| {
 				g.members
 					.iter()
+					// a saved theme owns its ids, apart from the spec's
 					.map(|id| {
 						let v = self.model.value(id, &NoEnv);
 						(id.clone(), config::theme_text(&v))
@@ -307,15 +309,15 @@ impl Dialog {
 	// (2026103115231908).
 	fn make_room(&mut self, file: &[SavedTheme]) {
 		// the ones this window knew are in self.themes, or deleted here
-		let mut others: Vec<SavedTheme> = file
+		let others: Vec<&SavedTheme> = file
 			.iter()
 			.filter(|f| !self.saved_themes.iter().any(|s| s.key == f.key))
-			.cloned()
 			.collect();
 		if others.is_empty() {
 			return;
 		}
 		let mut moved = false;
+		// one moved already is checked by its new name and key in self.themes
 		for i in 0..self.themes.len() {
 			let t = &self.themes[i];
 			if self.saved_themes.iter().any(|s| s.key == t.key) {
@@ -330,44 +332,46 @@ impl Dialog {
 						.enumerate()
 						.any(|(j, o)| j != i && o.name.eq_ignore_ascii_case(n))
 			};
-			if !key_taken && !name_taken(&t.name) {
-				continue;
-			}
-			let name = if name_taken(&t.name) {
+			let new_name = name_taken(&t.name).then(|| {
 				// n names can take at most n of these
 				(2..=others.len() + self.themes.len() + 2)
 					.map(|n| format!("{} {n}", t.name))
 					.find(|n| !name_taken(n))
 					.unwrap_or_else(|| t.name.clone())
-			} else {
-				t.name.clone()
-			};
-			let old = t.key.clone();
-			let key = if key_taken {
-				let all: Vec<SavedTheme> = others.iter().chain(&self.themes).cloned().collect();
-				config::theme_key(&name, &all)
-			} else {
-				old.clone()
-			};
-			others.push(SavedTheme {
-				key: key.clone(),
-				name: name.clone(),
-				colors: BTreeMap::new(),
 			});
-			self.themes[i].name = name;
-			self.themes[i].key.clone_from(&key);
-			let v = &mut self.model.values;
-			for store in [&mut v.own, &mut v.state] {
-				if let Some(Value::Text(k)) = store.get_mut(THEME) {
-					if *k == old {
-						k.clone_from(&key);
-					}
-				}
-			}
-			if v.changed_on.get(THEME) == Some(&old) {
-				v.changed_on.insert(THEME.to_string(), key);
+			let new_key = key_taken.then(|| {
+				let keys = others
+					.iter()
+					.copied()
+					.chain(&self.themes)
+					.map(|o| o.key.as_str());
+				config::theme_key(new_name.as_deref().unwrap_or(&t.name), keys)
+			});
+			if new_name.is_none() && new_key.is_none() {
+				continue;
 			}
 			moved = true;
+			if let Some(name) = new_name {
+				self.themes[i].name = name;
+			}
+			let Some(key) = new_key else {
+				continue;
+			};
+			let old = std::mem::replace(&mut self.themes[i].key, key);
+			let key = &self.themes[i].key;
+			let v = &mut self.model.values;
+			for store in [&mut v.own, &mut v.state] {
+				if let Some(Value::Text(k)) = store.get_mut(THEME)
+					&& *k == old
+				{
+					k.clone_from(key);
+				}
+			}
+			if let Some(k) = v.changed_on.get_mut(THEME)
+				&& *k == old
+			{
+				k.clone_from(key);
+			}
 		}
 		if moved {
 			self.respec();
@@ -412,7 +416,7 @@ impl Dialog {
 	pub fn save_theme_as(&mut self, name: &str) -> Result<(), String> {
 		let name = self.check_name(name, None)?;
 		let theme = SavedTheme {
-			key: config::theme_key(&name, &self.themes),
+			key: config::theme_key(&name, self.themes.iter().map(|t| t.key.as_str())),
 			name,
 			colors: self.shown_colors(),
 		};
@@ -510,6 +514,7 @@ impl Dialog {
 				Some(s) if s.control == Control::Dropdown => self.model.shown_choice(id, &NoEnv),
 				_ => String::new(),
 			},
+			// the window's side owns its text
 			options: setting.map(|s| s.options.clone()).unwrap_or_default(),
 			shown: config::shown_when(id)
 				.is_none_or(|(on, key)| self.model.value(on, &NoEnv).as_text() == key),
@@ -1973,6 +1978,40 @@ mod tests {
 		assert_eq!(second.state("theme").choice, "mine 2");
 		let reread = Dialog::open(path).unwrap();
 		assert_eq!(reread.state("theme").choice, "mine 2");
+	}
+
+	// Test ID: dezea
+	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
+	fn two_new_themes_each_move_past_the_other_windows_and_each_other() {
+		let d = scratch("two_moved");
+		let path = d.0.join("t.shcl");
+		let mut first = Dialog::open(path.clone()).unwrap();
+		let mut second = Dialog::open(path.clone()).unwrap();
+		first.save_theme_as("A").unwrap();
+		first.save_theme_as("A 2").unwrap();
+		first.apply().unwrap();
+		second.save_theme_as("a").unwrap();
+		second.save_theme_as("a 2").unwrap();
+		second.apply().unwrap();
+		let doc = shcl::Document::parse(&std::fs::read_to_string(&path).unwrap());
+		let saved: Vec<(String, String)> = config::saved_themes(&doc)
+			.into_iter()
+			.map(|t| (t.key, t.name))
+			.collect();
+		let want = [
+			("a", "A"),
+			("a_2", "A 2"),
+			("a_3", "a 3"),
+			("a_2_2", "a 2 2"),
+		];
+		let want: Vec<(String, String)> = want
+			.iter()
+			.map(|(k, n)| ((*k).into(), (*n).into()))
+			.collect();
+		assert_eq!(saved, want);
+		assert_eq!(second.state("theme").choice, "a 2 2");
+		assert_eq!(second.model.values.changed_on.get(THEME), None);
 	}
 
 	// Out since 2026-10-29: a theme line it can't read is dropped rather than
