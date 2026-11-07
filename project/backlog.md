@@ -84,7 +84,7 @@ Sorted per the notes in [Template](#template).
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
-	- Status: Waiting on automated testing
+	- Status: Stalled
 		- 2026-10-26 to 2026-11-02: still waits for the workflow file to reach `main`. `main` on GitHub has no `.github/workflows` yet, and the repo has no workflow runs.
 	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
 	- Priority|Severity: Avg
@@ -99,6 +99,7 @@ Sorted per the notes in [Template](#template).
 	- Actual effort: Low
 	- Progress log:
 		- `.github/workflows/merge-gate.yml` runs `cicd/cicd.bash --merge-gate` on a push or pull request against `main`, and by hand on any branch. It's one job on `ubuntu-24.04`, which builds the image from `cicd/container/` and runs the checks in it.
+		- Held for the merge-gate workflow's first run on main, which only a release merge to main starts.
 	- Decisions:
 		- Asked for on 2026-10-25.
 		- No layer cache between runs, to keep it small. Each run builds the image first, which takes a few minutes.
@@ -108,7 +109,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 33: The workflow pins actions/checkout by tag and keeps the token in the checkout
 	- ID: 2026103115232296
 	- Type: Enhancement
-	- Status: Waiting on automated testing
+	- Status: Stalled
 		- 2026-11-02: still waits for the workflow's first run, which comes after a merge to `main`.
 	- Needs external testing: the `merge-gate` workflow's first run on GitHub, the same run 2026102513560001 waits for.
 	- Priority|Severity: Low
@@ -122,6 +123,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- `.github/workflows/merge-gate.yml` pins actions/checkout at `3d3c42e` (v7.0.1), with the tag in a comment, and sets `persist-credentials: false`.
 		- Verified: the file parses as YAML, and GitHub's API gives that commit for the v7.0.1 tag.
+		- Held for the same first merge-gate run on main as 2026102513560001.
 	- Decisions:
 		- v7.0.1, the newest release, so the pin keeps the major version the file had.
 		- The merge gate never syncs or pushes, so the checkout needs no token.
@@ -5889,6 +5891,7 @@ Sorted per the notes in [Template](#template).
 		- knobs is unchanged, since it stays byte-identical to silkterm's. The spec is compiled in, so a test catches a typo before a build goes out, and no runtime warning is needed here.
 		- The knobs key lists in `config.rs` copy what `read_setting` and `read_group` read, and need a line when knobs reads a new key.
 		- A runtime warning in knobs is drafted for silkterm in the upstream folder, `2026103115232265/`.
+		- 20261107: answered File it. The draft goes to silkterm's backlog in silkterm's own round.
 	- Branch: round-1102
 	- Test case: `config::tests::the_spec_has_no_key_that_nothing_reads` (der4w). It fails with one `gate:` changed to `gaet:`, and passes on the spec.
 	- Acceptance signoff: Self-closed 20261101: der4w.
