@@ -160,7 +160,7 @@ Sorted per the notes in [Template](#template).
 - Every finished feature and fixed bug on the backlog has a regression test in CI
 	- ID: 2026110618355727
 	- Type: Task
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261106-183557
 	- Opened by: t00mietum
@@ -169,6 +169,20 @@ Sorted per the notes in [Template](#template).
 		- Where a test could exist and would make sense, but doesn't, write it. At the least, file each one that's missing.
 		- An item with no test gives the reason in its `Test case` row, such as the workflow being its own test.
 		- Each new test is watched to fail with its fix taken out.
+	- Estimated effort: High
+	- Actual effort: Avg
+	- Progress log:
+		- Of 222 Done items, 182 name test IDs, and the lint step's ID check finds each one. The 3 ignored tests they name run in the Soak step or are timings named beside a real test.
+		- Of the 40 with no ID, 13 said "None in the repo" because the pipeline had no tests of its own then. It has since round-1101. 10 new pipeline tests now cover 10 of those and 2026110311291910, and the other 3 give a reason that stands on its own.
+		- The other 26 keep their reasons: questions, parents that point at their children, a removed or text-only change, a look, a recording, a measurement, a check by hand in a private panel, or a step that is its own check.
+		- Verified: each new test failed with its fix taken out, 14 faults in all, and passed with it back. Each fault failed only its own test.
+	- Decisions:
+		- No children. The tests fit the time cap, and every other Done item gives a reason.
+		- The cleanup and step line tests need no docker daemon or format tools, so they run in the gate's Tests step and change nothing outside their own temp folder.
+		- The profiler's refusal of a ROUNDS of 0 (2026103115232157) keeps its reason. A test would build the profiling example, which only the Profiler step does.
+	- Branch: round-1107
+	- Test case: in `cicd/tests/guards.bash`: dezan, dezap, dezaq, dezar, dezas, dezat, dezav, dezaw, dezax and dezay.
+	- Closed: 20261106-201352
 
 - Code review 20261106 item 1: Each draw works out the spike fade again for every column
 	- ID: 2026110618502901
@@ -424,7 +438,7 @@ Sorted per the notes in [Template](#template).
 		- b23's `/etc/docker/daemon.json` has the `builder.gc` block. The prune is gone from `fCtrCleanup`, and the cleanup line names only the images it removed.
 		- Verified: the quick gate passed, and its cleanup ran with no prune.
 	- Branch: no-prune
-	- Test case: none, as it removes a call. The gate's cleanup step runs it.
+	- Test case: `the_pipeline_never_prunes_dockers_build_cache` (dezas), in `cicd/tests/guards.bash`.
 	- Closed: 20261103-171500
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
@@ -1654,7 +1668,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- The image has its own target dir. The paths inside differ from the host's, so a shared `target/` would rebuild everything each time a run switched sides.
 	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892. The gate was watched to fail on a planted format error.
+	- Test case: None in the repo. Every run but `--no-container` builds and checks the image in its Container image step, which needs docker. The gate was watched to fail in the image on a planted format error.
 	- Verified 2026-10-26: `cicd/cicd.bash` with no options passed all 13 steps in 2m08s on b23, Dogfood included, with `xfce4-panel` on PATH as a stand-in that logged `--restart` instead of restarting the live panel. b23 now has build defnz installed, and the panel loads it at its next restart.
 	- Closed: 20261025-090429
 
@@ -2289,7 +2303,7 @@ Sorted per the notes in [Template](#template).
 		- `--list` prints the steps and what's off. Test IDs come with 2026102416252895.
 		- The hook is turned on by a documented step, not by the pipeline, so nobody's pushes get gated without them knowing.
 	- Branch: round-1025
-	- Test case: None in the repo, since `cicd.bash` has no harness of its own yet. The gate was watched to fail on a planted format error and a planted lint error.
+	- Test case: `the_shared_flags_are_taken_and_a_wrong_mix_is_refused` (dezar), and the hook's deqvk, deqvm and deqvn, in `cicd/tests/guards.bash`. The gate was watched to fail on a planted format error and a planted lint error.
 	- Closed: 20261025-190500
 
 - CICD reset: CPU and priority
@@ -2317,7 +2331,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: a container ran with 8 CPUs and a share of 256, with its cargo at nice 19.
 		- Verified, 2026-10-25: a merge gate on e131b57 used 8 of 32 CPUs with the cap set, at load 40, and said busy.
 	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892.
+	- Test case: `jobs_are_half_the_cpus_a_quarter_when_busy_and_never_none` (dezaq), in `cicd/tests/guards.bash`. The priority and the container caps have none, since they only pass settings on.
 	- Closed: 20261025-190500
 
 - CICD reset: test IDs
@@ -2348,7 +2362,7 @@ Sorted per the notes in [Template](#template).
 		- The name on each line is the test's path as cargo gives it, such as `when::tests::ago_reads_like_the_backlog_says`, so it can be found in the code.
 		- The tool is bash and awk, since the build image has no Python.
 	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892. The check was watched to fail on each kind of bad ID.
+	- Test case: `test_ids_check_fails_on_each_kind_of_bad_id` (dezan), `test_ids_reads_each_file_on_its_own` (den97) and `test_ids_check_fails_when_git_cant_list_the_rs_files` (deqrd), in `cicd/tests/guards.bash`.
 	- Closed: 20261025-190500
 
 - A theme per graph
@@ -2399,7 +2413,7 @@ Sorted per the notes in [Template](#template).
 		- The test ID check in lint now fails on a Done item with no `Test case` row, and on an ID a `Test case` row names that no test has.
 		- Verified: the check failed on a planted Done item with no row, and on a row naming an unknown ID.
 	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892. The check was watched to fail on both.
+	- Test case: `test_ids_check_reads_the_backlogs_test_case_rows` (dezap), in `cicd/tests/guards.bash`.
 	- Closed: 20261025-075906
 
 - CICD reset: container cleanup
@@ -2427,7 +2441,7 @@ Sorted per the notes in [Template](#template).
 		- No volumes. The image's cargo home and target dir are folders under `target/container`, so `cargo clean` takes them too.
 		- Tags are ordered by a `dev.built` label set at build time, since a build from cache gives every tag the same creation time.
 	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892.
+	- Test case: `the_cleanup_takes_only_the_projects_own_and_no_image_while_another_run_is_live` (dezav) and `containers_whose_run_is_gone_are_stopped_but_not_a_kept_or_live_ones` (dezaw), in `cicd/tests/guards.bash`. The labels on what a run makes have no test.
 	- Closed: 20261025-073422
 
 - CICD reset: step output
@@ -2448,7 +2462,7 @@ Sorted per the notes in [Template](#template).
 		- The first section lists the steps, then every step that's off, with the flag or the reason.
 		- Verified: in a quick run, a full run, and runs that failed at Format and at Lint.
 	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892.
+	- Test case: `a_step_prints_the_rule_its_start_and_its_pass_or_fail` (dezay), in `cicd/tests/guards.bash`. The list of steps that are off is checked by dezar and der4k.
 	- Closed: 20261025-071028
 
 - Update default colors to my current selection
@@ -3673,7 +3687,7 @@ Sorted per the notes in [Template](#template).
 		- `pointer-arithmetic-on-polymorphic-object` is off, since it crashes clang-tidy 19 on `qt.cpp`.
 		- Warnings fail only cicd builds, through `TUKZMON_WERROR=1`, so a newer compiler's new warning doesn't break someone's own build or a distro's.
 	- Branch: round-1030b
-	- Test case: None in the repo, as for 2026102416252892. The gate was watched to fail on each planted fault above.
+	- Test case: None in the repo for the tools themselves, since the Format and Lint steps run them on every file, and the gate was watched to fail on each planted fault above. `lists_of_files_fail_when_git_does_or_a_kind_has_none` (deqrc) covers a kind with no files.
 	- Closed: 20261030-173604
 
 - Pre-next-cut: "Sample ms" becomes "Sample %"
@@ -4907,7 +4921,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- The advisory scan isn't a leak check, so `--no-leakcheck` leaves it in.
 	- Branch: round-1025b
-	- Test case: None in the repo, as for 2026102416252892. Each check was watched to fail.
+	- Test case: None in the repo, since each check is a step of its own that the gate runs. Each was watched to fail.
 	- Closed: 20261025-160906
 
 - CICD reset: temp files and safe removal
@@ -4934,7 +4948,7 @@ Sorted per the notes in [Template](#template).
 		- None of the tests starts a session bus now. A bus a test starts, and what the bus starts, inherit the run's `TMPDIR`, so the stop at the end takes them down without each test doing it.
 		- Only folders with a `run.pid` count as stale runs, so a temp folder made by hand is left alone.
 	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892.
+	- Test case: `a_run_folder_counts_up_and_the_sweep_takes_only_runs_that_are_gone` (dezat), `safe_rm_takes_a_run_folder_but_not_the_temp_root_or_a_project_folder` (den8d) and `run_pids_skips_a_process_gone_since_the_grep` (deqrb), in `cicd/tests/guards.bash`.
 	- Closed: 20261025-071028
 
 - Build date after the version, for non-release builds
@@ -5756,7 +5770,7 @@ Sorted per the notes in [Template](#template).
 		- `--keep-temp` writes a `keep` file in the folder at the start, so a kept run that was killed keeps the 2-day wait.
 		- A container's run is its `dev.pid` label, so a run with another temp root isn't taken for gone. One from before that label goes by its run folder.
 	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
+	- Test case: dezat, which sweeps a killed run's folder, and `containers_whose_run_is_gone_are_stopped_but_not_a_kept_or_live_ones` (dezaw), in `cicd/tests/guards.bash`. The kill itself was run both ways by hand.
 	- Closed: 20261025-190500
 
 - Dogfood install and cicd build with different Rust versions
@@ -5778,7 +5792,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: after the pipeline's host release build, dev-install.bash run from another folder finished in 0.05 s with nothing compiled. The old line rebuilt 3 crates with 1.95, and the pipeline then rebuilt the plugin.
 		- Note: `--backlog-run-full` builds in the image, into its own target folder, so it never shares `target/release`. Only the default run, which dogfoods, builds the release on the host.
 	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
+	- Test case: `dev_install_builds_with_rustups_cargo_from_the_repo_wherever_its_run` (dezax), in `cicd/tests/guards.bash`. Also run both ways by hand.
 	- Closed: 20261025-081952
 
 - 2 pipeline runs at once can remove each other's image
@@ -5800,7 +5814,7 @@ Sorted per the notes in [Template](#template).
 		- Took the second way, none while another run is live. An image from a killed run has no live owner either way, so it still goes at the next quiet run.
 		- A run that starts in the moment between the check and the removal isn't covered.
 	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
+	- Test case: `the_cleanup_takes_only_the_projects_own_and_no_image_while_another_run_is_live` (dezav), in `cicd/tests/guards.bash`. Also run both ways by hand.
 	- Closed: 20261025-081952
 
 - Hybrid laptop: GPU memory, on by default, keeps the NVIDIA GPU awake
