@@ -63,6 +63,8 @@ pub trait Drawn: Any {
 	fn sample(&mut self);
 	/// Reads the source when its next beat has come, and gives the ms from `at` to the beat after.
 	fn tick(&mut self, at: f64) -> f64;
+	/// When `tick` last read the source, on [`crate::clock_ms`].
+	fn last_read_ms(&self) -> Option<f64>;
 	/// Drops history older than the max age.
 	fn trim(&mut self);
 	/// Moves the clock on, so the soak test can run days in seconds.
@@ -109,6 +111,9 @@ impl<S: Source<N> + 'static, const N: usize> Drawn for Graph<S, N> {
 	}
 	fn tick(&mut self, at: f64) -> f64 {
 		Graph::tick(self, at)
+	}
+	fn last_read_ms(&self) -> Option<f64> {
+		Graph::last_read_ms(self)
 	}
 	fn trim(&mut self) {
 		Graph::trim(self);

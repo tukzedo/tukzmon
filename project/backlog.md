@@ -238,7 +238,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 3: Each settings refresh sets every tip and row height again
 	- ID: 2026110618502903
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -248,8 +248,21 @@ Sorted per the notes in [Template](#template).
 		- Set a tip or a row's height only when it changed.
 		- The graph list reads each row's state once a refresh, not twice.
 		- While there, check whether the live graphs repaint graphs that weren't read that beat. That part isn't measured.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A refresh sets a tip or a grid row's height only when it differs. A Colors section heading's gap is set once, by `lineUpSections`, where `refresh()` set it first and `lineUpSections` set it back each time.
+		- The graph list's revert reads `can_reset` from the row state the refresh just read.
+		- They did repaint them. Each live graph tick repainted every row, and a graph at 200% drew the same picture on the beat between its reads. `Live::read` now says which graphs a tick read, and only those repaint. A tip left up still follows each tick.
+		- Verified, release build, load about 9 on 32 cores, 3 runs of medians of 50: a refresh went from 1070 to 830 us, and a slider step from 1260-1320 to 980-1030 us.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- A graph's last read time comes from core's `Drawn::last_read_ms`, so the window doesn't guess beats on its own.
+		- The repaint of every live graph on each refresh stays. A refresh sets the look again, and they're drawn only while the Graphs page shows.
+	- Branch: round-1107
+	- Test case: `bridge::tests::a_refresh_sets_only_the_tips_and_gaps_that_changed` (dezcc) and `live::tests::a_tick_says_which_graphs_it_read` (dezcb). dezcc fails with the tip check taken out (2585 tips set on 5 pages), with the height check taken out (120 layouts), and with the heading gap set in both places (75 layouts).
+		- Swept: every `setToolTip` and `setRowMinimumHeight` in `qt.cpp`, the rest being at build time, every `row_state` call in a refresh, and every `LiveGraph::tick` and `Drawn` caller.
+	- Closed: 20261106-211619
 
 - Code review 20261106 item 4: Building the look for the settings window allocates about 700 times
 	- ID: 2026110618502904
@@ -298,15 +311,24 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 6: Opening the settings window works out the graph list once per setting
 	- ID: 2026110618502906
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
 	- Origin: `b869164` and `bad9e01`, before the 20261030 review, which timed refresh only. Breaks the rule on repeated work. Confirmed, measured: about 5 ms of the 8 to 10 ms the rows take to build.
 	- Requirements:
 		- Work out the graph list once when the window opens.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `Dialog::graph_list_ids` gives every setting the graph list draws, once, and the rows check it, in place of `in_graph_list` building the list again for each setting.
+		- Verified, release build, load about 9 on 32 cores, medians of 50: building the rows went from 3.7 ms to 85 us.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+	- Branch: round-1107
+	- Test case: `dialog::tests::the_graph_list_has_a_row_per_graph_in_the_saved_order` (defkz) reads `graph_list_ids` now, with the same ids in and out. The timing is in denam (`time_a_refresh_and_a_slider_step`, ignored unless asked for).
+		- Swept: `in_graph_list` had one caller outside tests, `dialog_rows`.
+	- Closed: 20261106-211619
 
 - Code review 20261106 item 7: Public items in knobs and the settings crate have no doc comments
 	- ID: 2026110618502907

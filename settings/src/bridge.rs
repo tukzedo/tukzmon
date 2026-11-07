@@ -147,6 +147,8 @@ pub mod ffi {
 		/// Reads each graph whose beat has come, and gives the ms to the next
 		/// one's.
 		fn live_sample(l: &mut Live) -> u32;
+		/// True when the last `live_sample` read the named graph.
+		fn live_read(l: &Live, name: &str) -> bool;
 		fn live_width(l: &Live, name: &str) -> u32;
 		/// The pixels live until the next call on `l`. cxx asks for `unsafe`
 		/// to name the lifetime, and the body is safe.
@@ -299,6 +301,10 @@ pub mod ffi {
 		/// one after the first color row is set to `color`.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn chip_restyles(d: &mut Dialog, color: &str) -> Vec<i32>;
+		/// The tips set and layouts asked for by a refresh with nothing
+		/// changed, then the tips set by one after `id` is set to `number`.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn refresh_churn(d: &mut Dialog, id: &str, number: f64) -> Vec<i32>;
 		/// Microseconds per call of `times` refreshes, then of `times` steps
 		/// of the first slider, each with the events it posts.
 		#[allow(dead_code, reason = "only the tests ask")]
@@ -345,6 +351,7 @@ fn control_kind(s: &knobs::Setting) -> Option<ffi::ControlKind> {
 }
 
 fn dialog_rows(d: &Dialog) -> Vec<ffi::RowInfo> {
+	let listed = d.graph_list_ids();
 	d.spec()
 		.settings
 		.iter()
@@ -365,7 +372,7 @@ fn dialog_rows(d: &Dialog) -> Vec<ffi::RowInfo> {
 			beside: section.is_some_and(|(_, b)| b),
 			same_line: tukzmon_core::config::same_line(&s.id),
 			chooser: d.spec().chooser_of(&s.id).is_some(),
-			in_list: d.in_graph_list(&s.id),
+			in_list: listed.contains(&s.id),
 		})
 		.collect()
 }
@@ -521,6 +528,10 @@ fn live_look(l: &mut Live, d: &Dialog) {
 
 fn live_sample(l: &mut Live) -> u32 {
 	l.tick()
+}
+
+fn live_read(l: &Live, name: &str) -> bool {
+	l.read(name)
 }
 
 fn live_width(l: &Live, name: &str) -> u32 {
@@ -1565,6 +1576,22 @@ mod tests {
 		assert_eq!(ffi::chip_restyles(&mut d, "#123456"), [0, 1]);
 	}
 
+	// Test ID: dezcc
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn a_refresh_sets_only_the_tips_and_gaps_that_changed() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_churn_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		let n = ffi::refresh_churn(&mut d, "width", 77.0);
+		assert_eq!(n[..2], [0, 0], "tips and layouts with nothing changed");
+		// its revert says what it does once there's a change
+		assert!(n[2] >= 1, "{n:?}");
+	}
+
 	fn median_of(mut v: Vec<f64>) -> f64 {
 		v.sort_by(f64::total_cmp);
 		v[v.len() / 2]
@@ -1590,8 +1617,13 @@ mod tests {
 			}
 		}
 		let states = start.elapsed().as_secs_f64() * 1e6 / times as f64;
+		let start = std::time::Instant::now();
+		for _ in 0..times {
+			std::hint::black_box(dialog_rows(&d));
+		}
+		let built = start.elapsed().as_secs_f64() * 1e6 / times as f64;
 		println!(
-			"refresh {:.0} us, slider step {:.0} us, row_state for {} rows {states:.0} us (medians of {times})",
+			"refresh {:.0} us, slider step {:.0} us, row_state for {} rows {states:.0} us, dialog_rows {built:.0} us (medians of {times})",
 			median_of(t[..times].to_vec()),
 			median_of(t[times..].to_vec()),
 			rows.len()

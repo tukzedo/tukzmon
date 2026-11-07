@@ -708,6 +708,12 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		(beat + 1.0) * rate - at
 	}
 
+	/// When [`Self::tick`] last read the source, on [`clock_ms`], so a caller
+	/// can tell which graphs a tick read.
+	pub fn last_read_ms(&self) -> Option<f64> {
+		self.beat.map(|(_, at)| at)
+	}
+
 	/// The axis for a graph `columns` wide, as of the latest read.
 	pub fn axis(&self, columns: usize) -> Axis {
 		Axis::of(&self.basis(columns))

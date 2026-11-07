@@ -4,7 +4,7 @@
 //! What the settings window shows and does, with no Qt in it. The window
 //! asks this for every row's state after each change.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -621,15 +621,15 @@ impl Dialog {
 			.collect()
 	}
 
-	/// Drawn in the graph list rather than as a row of its own, the order
-	/// included.
-	pub fn in_graph_list(&self, id: &str) -> bool {
-		id == ORDER
-			|| self.graph_rows().iter().any(|r| {
-				[&r.show, &r.width, &r.sample, &r.time, &r.vertical]
-					.iter()
-					.any(|s| *s == id)
-			})
+	/// The settings drawn in the graph list rather than as rows of their
+	/// own, the order included. One call per window, since `graph_rows` scans
+	/// the spec.
+	pub fn graph_list_ids(&self) -> HashSet<String> {
+		self.graph_rows()
+			.into_iter()
+			.flat_map(|r| [r.show, r.width, r.sample, r.time, r.vertical])
+			.chain([ORDER.to_string()])
+			.collect()
 	}
 
 	/// Moves the graph list's row `from` to `to`, and keeps that as the order.
@@ -1189,6 +1189,7 @@ mod tests {
 				"battery", "self", "procs"
 			]
 		);
+		let listed = dlg.graph_list_ids();
 		for id in [
 			"show_cpu",
 			"cpu_width",
@@ -1199,10 +1200,10 @@ mod tests {
 			"mem_time",
 			ORDER,
 		] {
-			assert!(dlg.in_graph_list(id), "{id}");
+			assert!(listed.contains(id), "{id}");
 		}
 		for id in ["width", "time_axis", "vertical_axis", "graphshead", "theme"] {
-			assert!(!dlg.in_graph_list(id), "{id}");
+			assert!(!listed.contains(id), "{id}");
 		}
 		// a hidden graph's width and time axis can still be set
 		assert!(dlg.set(&dlg.graph_rows()[0].show.clone(), &Value::Bool(false)));

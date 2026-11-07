@@ -13,6 +13,9 @@ pub struct Live {
 	/// Every graph this box can read. The own graph is the settings window's,
 	/// not the panel's.
 	slots: Slots,
+	/// Which graphs the last tick read, by [`Which`] index. The rest draw
+	/// as they did.
+	read: [bool; Which::ALL.len()],
 }
 
 impl Live {
@@ -20,6 +23,7 @@ impl Live {
 	pub fn new(look: Look) -> Live {
 		Live {
 			slots: Slots::new(look, |_, _| true),
+			read: [false; Which::ALL.len()],
 		}
 	}
 
@@ -62,7 +66,22 @@ impl Live {
 	/// one's, as the panel does. A hidden graph is read too, since its row
 	/// still draws it. See [`Graph::tick`].
 	pub fn tick(&mut self) -> u32 {
-		graphs::tick(self.all_mut().map(|(_, g)| g), tukzmon_core::clock_ms())
+		self.tick_at(tukzmon_core::clock_ms())
+	}
+
+	fn tick_at(&mut self, at: f64) -> u32 {
+		let last = |slots: &Slots| Which::ALL.map(|w| slots.get(w).and_then(Drawn::last_read_ms));
+		let was = last(&self.slots);
+		let wait = graphs::tick(self.all_mut().map(|(_, g)| g), at);
+		let now = last(&self.slots);
+		self.read = std::array::from_fn(|i| now[i] != was[i]);
+		wait
+	}
+
+	/// True when the last tick read the named graph, so its row wants
+	/// drawing again.
+	pub fn read(&self, name: &str) -> bool {
+		Which::named(name).is_some_and(|w| self.read[w as usize])
 	}
 
 	/// The graph's width in the panel, in logical pixels. 0 for a name that
@@ -295,6 +314,34 @@ mod tests {
 		live.render("cpu", 40, 24, 1);
 		assert!(live.easing("cpu"));
 		assert!(!live.easing("nope"));
+	}
+
+	// Test ID: dezcb
+	#[test]
+	fn a_tick_says_which_graphs_it_read() {
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_live_read_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		d.set("sample_ms", &Value::Float(1000.0));
+		d.set("cpu_sample", &Value::Float(100.0));
+		d.set("mem_sample", &Value::Float(200.0));
+		let mut live = Live::new(d.look());
+		assert!(!live.read("cpu"), "nothing read before a tick");
+		// on a beat of both rates, so the first tick reads every graph
+		let at = 2_000_000.0;
+		live.tick_at(at);
+		assert!(live.read("cpu") && live.read("mem") && live.read("net"));
+		// memory's next beat is a second off
+		live.tick_at(at + 1000.0);
+		assert!(live.read("cpu") && !live.read("mem"));
+		live.tick_at(at + 2000.0);
+		assert!(live.read("cpu") && live.read("mem"));
+		// a wake before anyone's beat reads nothing
+		live.tick_at(at + 2300.0);
+		assert!(Which::ALL.iter().all(|w| !live.read(w.key())));
+		assert!(!live.read("nope"));
 	}
 
 	// Test ID: deja2
