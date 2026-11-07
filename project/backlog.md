@@ -142,6 +142,19 @@ Sorted per the notes in [Template](#template).
 		- E.g. right-aligned with tukzmon, status tray, notification tray, time, logout/shutdown menu.
 		- Change `cicd/utility/demo/script.txt` first, then the demo's panel and scenes, then record both again.
 
+- Every finished feature and fixed bug on the backlog has a regression test in CI
+	- ID: 2026110618355727
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261106-183557
+	- Opened by: t00mietum
+	- Requirements:
+		- Go through every Done item and check its `Test case` row against the tests CI runs.
+		- Where a test could exist and would make sense, but doesn't, write it. At the least, file each one that's missing.
+		- An item with no test gives the reason in its `Test case` row, such as the workflow being its own test.
+		- Each new test is watched to fail with its fix taken out.
+
 - The pipeline prunes every project's docker build cache
 	- ID: 2026110311291910
 	- Type: Bug
