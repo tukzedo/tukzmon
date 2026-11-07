@@ -22,33 +22,6 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- Video & GIF: Make the XFCE task bar more realistic.
-	- ID: 2026110618335731
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- Watch the new `assets/demo.gif` and say whether the panel looks real enough.
-	- Needs hand testing: whether the panel in the gif and the video looks like a real one.
-	- Stand-in: none (20261106). Whether it looks real is a judgment by eye.
-	- Priority|Severity: Avg
-	- Opened: 20261106-183357
-	- Opened by: t00mietum
-	- Related IDs: 2026110310450002
-	- Decisions:
-		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-		- 2026-11-06: the logout menu's button says "sam", since its default shows the full name of whoever records it.
-		- 2026-11-06: the default icon theme, not Papirus, since this box's Papirus copy has broken links and a tray icon crashed on it.
-	- Requirements:
-		- E.g. right-aligned with tukzmon, status tray, notification tray, time, logout/shutdown menu.
-		- Change `cicd/utility/demo/script.txt` first, then the demo's panel and scenes, then record both again.
-	- Progress log:
-		- `script.txt` says what the panel has now.
-		- Left: the applications menu and the window buttons, where the settings window shows up when it opens. Right: tukzmon, the status tray with a volume and a network icon, notifications, the clock with time over date, and the logout menu.
-		- The scenes' panel points are from tukzmon's left edge, found once the panel shows, so the items beside it can change.
-		- The gif and the video are recorded again, and `assets/demo.gif` is updated.
-	- Actual effort: Low
-	- Branch: round-1107
-	- Test case: None, since it's a recording. Frames of the gif and the video were checked at each scene. The quick gate's format, lint and test steps passed.
-
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
@@ -2774,6 +2747,35 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: defx7 no longer checks hue angle between leads. dejbr checks how far apart they look.
 		- Swept: defx7 and defxd, the only checks on leads, every built-in in `settings.shcl`, and every role in `dice::ROLES` that follows its graph's lead.
 	- Closed: 20261028-161000
+
+- Video & GIF: Make the XFCE task bar more realistic.
+	- ID: 2026110618335731
+	- Type: Enhancement
+	- Status: Done
+		- Watch the new `assets/demo.gif` and say whether the panel looks real enough.
+	- Needs hand testing: No
+	- Stand-in: frames of assets/demo.gif at 20261107 build 8990d9b, checked by eye.
+	- Priority|Severity: Avg
+	- Opened: 20261106-183357
+	- Opened by: t00mietum
+	- Related IDs: 2026110310450002
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- 2026-11-06: the logout menu's button says "sam", since its default shows the full name of whoever records it.
+		- 2026-11-06: the default icon theme, not Papirus, since this box's Papirus copy has broken links and a tray icon crashed on it.
+	- Requirements:
+		- E.g. right-aligned with tukzmon, status tray, notification tray, time, logout/shutdown menu.
+		- Change `cicd/utility/demo/script.txt` first, then the demo's panel and scenes, then record both again.
+	- Progress log:
+		- `script.txt` says what the panel has now.
+		- Left: the applications menu and the window buttons, where the settings window shows up when it opens. Right: tukzmon, the status tray with a volume and a network icon, notifications, the clock with time over date, and the logout menu.
+		- The scenes' panel points are from tukzmon's left edge, found once the panel shows, so the items beside it can change.
+		- The gif and the video are recorded again, and `assets/demo.gif` is updated.
+	- Actual effort: Low
+	- Branch: round-1107
+	- Test case: None, since it's a recording. Frames of the gif and the video were checked at each scene. The quick gate's format, lint and test steps passed.
+	- Acceptance signoff: Self-closed 20261107: the gif's panel has the app menu and window button on the left, then tukzmon, the tray, notifications, the clock with time over date, and the logout menu on the right, as asked.
+	- Closed: 20261107-153311
 
 - Move to shcl 3.0.0-beta1
 	- ID: 2026110610124433
