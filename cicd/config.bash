@@ -2,11 +2,13 @@
 # shellcheck disable=2034  ## 'appears unused.' Read by cicd.bash and hooks/pre-push, which source this.
 
 ##	Purpose:
-##		- tukzmon's settings for cicd.bash and the pre-push hook. Plain
-##		  assignments only, since the hook sources it too.
-##		- Tool pins live here, all in one place. The Rust toolchain is pinned
-##		  in rust-toolchain.toml, since rustup reads it from there. Bump a pin
-##		  on purpose: change it, run the full pipeline, commit.
+##		- tukzmon's settings for cicd.bash and the pre-push hook.
+##		  Assignments, and tests that run no command, since the hook sources
+##		  it too.
+##		- Tool pins live here. The image's Dockerfile repeats the ones it
+##		  installs, and the Rust toolchain is pinned in rust-toolchain.toml,
+##		  since rustup reads it from there. Bump a pin on purpose: change it,
+##		  run the full pipeline, commit.
 ##	History: At bottom of file.
 
 ##	Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
@@ -144,3 +146,6 @@ CTR_NET_STEPS=(fStepAdvisories)
 ##		- 2026-10-28: The Nix step's image and store cap.
 ##		- 2026-10-30: clang-format, clang-tidy, black and ruff pins.
 ##		- 2026-11-01: license.txt isn't a docs path, since packages include it.
+##		- 2026-11-05: A time limit per Miri test, which TUKZMON_MIRI_MINUTES
+##		  changes, then per module, at 480 minutes.
+##		- 2026-11-06: assets/ is a docs path.

@@ -43,7 +43,7 @@ Settled on 2026-10-19: a Rust core, with C only where a panel's API needs it.
 	- Drawing into a plain pixel buffer. Stacked columns are filled by hand, with the top pixel of each series shaded by how much of it the series covers. [tiny-skia](https://crates.io/crates/tiny-skia) comes in once there are lines or curves to draw.
 	- The settings spec, `core/src/settings.shcl`, which the plugin and the settings window both compile in.
 
-- `knobs` is SilkTerm's settings model: settings declared in shcl, and what a change to one does to the others. It's MIT, copyright Bubbles, and the copy here is kept the same as SilkTerm's.
+- `knobs` is SilkTerm's settings model: settings declared in shcl, and what a change to one does to the others. It's MIT, copyright Bubbles, and the copy here is free to change on its own.
 
 - `tukzmon-settings` is the settings window, a program of its own. See [Settings window](#settings-window).
 

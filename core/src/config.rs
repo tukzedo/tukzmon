@@ -134,8 +134,8 @@ pub fn shown_when(id: &str) -> Option<(&'static str, &'static str)> {
 	.map(|(_, on, key)| (on.as_str(), key.as_str()))
 }
 
-// knobs drops a key it doesn't know with no word, and has to stay the same as
-// SilkTerm's copy, so a typo such as `gaet:` is caught here instead.
+// knobs drops a key it doesn't know with no word, so a typo such as `gaet:`
+// is caught here instead.
 const KNOBS_ROW_KEYS: &[&str] = &[
 	"auto",
 	"control",

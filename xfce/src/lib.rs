@@ -407,7 +407,8 @@ impl Plugin {
 }
 
 /// Calls `changed` with `data` whenever `path` is written, made, or removed.
-/// Null where it can't be watched, and the tick still checks it then.
+/// Null where it can't be watched. The tick checks the settings file and the
+/// reset mark either way, so a watch only gets a change in sooner.
 ///
 /// # Safety
 ///

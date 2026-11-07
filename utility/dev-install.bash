@@ -38,9 +38,9 @@ esac; done
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# rustup's cargo follows rust-toolchain.toml and Debian's /bin/cargo doesn't.
-# The same toolchain as cicd.bash means the same release build, not a rebuild.
-# rustup looks for that file from the working folder, not the manifest.
+## rustup's cargo follows rust-toolchain.toml and Debian's /bin/cargo doesn't.
+## The same toolchain as cicd.bash means the same release build, not a rebuild.
+## rustup looks for that file from the working folder, not the manifest.
 export PATH="${HOME}/.cargo/bin:${PATH}"
 cd "${repo}"
 pin="$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)"
@@ -49,13 +49,13 @@ if [[ "${have}" != "rustc ${pin} "* ]]; then
 	fEcho "WARNING: building with '${have:-no rustc}', not the pinned ${pin}. Install rustup to get it."
 fi
 
-# The panel pairs its user data dir with a lib dir under the same prefix,
-# with its own lib dir's tail on it, such as lib/x86_64-linux-gnu on Debian.
+## The panel pairs its user data dir with a lib dir under the same prefix,
+## with its own lib dir's tail on it, such as lib/x86_64-linux-gnu on Debian.
 dataHome="${XDG_DATA_HOME:-${HOME}/.local/share}"
 if [[ "${dataHome}" != */share ]]; then
 	fDie "the panel reads no user plugins when XDG_DATA_HOME ('${dataHome}') doesn't end in /share."
 fi
-# ldconfig is in /usr/sbin, which a Debian user's PATH doesn't have.
+## ldconfig is in /usr/sbin, which a Debian user's PATH doesn't have.
 panelLib="$(grep -m1 -F 'libxfce4panel-2.0.so.4 ' <<< "$(PATH="${PATH}:/usr/sbin:/sbin" ldconfig -p 2> /dev/null || true)" | sed 's/.*=> //' || true)"
 if [[ -n "${panelLib}" ]]; then
 	panelLibDir="${panelLib%/*}"
@@ -67,13 +67,13 @@ fi
 shareDir="${dataHome}/xfce4/panel/plugins"
 libDir="${dataHome%/share}/${libTail}/xfce4/panel/plugins"
 
-# Wherever CARGO_TARGET_DIR or a cargo config puts the build.
+## Wherever CARGO_TARGET_DIR or a cargo config puts the build.
 target="$(cargo metadata --format-version 1 --no-deps --locked 2> /dev/null | sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p' || true)"
 [[ -n "${target}" ]] || fDie "cargo metadata didn't give the target dir"
 cargo build --release --locked -p tukzmon-xfce -p tukzmon-settings || fDie "the release build failed"
 
 mkdir -p "${shareDir}" "${libDir}"
-# copy then rename, so a running panel keeps the old file it has open
+## copy then rename, so a running panel keeps the old file it has open
 fPut() {
 	local name="${1##*/}"
 	cp "${1}" "${2}/.${name}.new" || fDie "couldn't copy ${name} to ${2}"
@@ -84,8 +84,8 @@ fPut "${target}/release/tukzmon-settings" "${libDir}"
 fPut "${repo}/xfce/tukzmon.desktop"       "${shareDir}"
 fEcho "Installed to ${libDir} and ${shareDir}"
 
-# Earlier versions linked ~/.local/lib/tukzmon into the system folders with
-# sudo. The panel reads the user folders first, so those links are shadowed.
+## Earlier versions linked ~/.local/lib/tukzmon into the system folders with
+## sudo. The panel reads the user folders first, so those links are shadowed.
 old="${HOME}/.local/lib/tukzmon"
 for f in "${panelLibDir:-/usr/lib/x86_64-linux-gnu}/xfce4/panel/plugins/libtukzmon.so" "/usr/share/xfce4/panel/plugins/tukzmon.desktop"; do
 	if [[ "$(readlink "${f}" || true)" == "${old}/"* ]]; then
@@ -112,3 +112,4 @@ fi
 ##		  option is an error rather than ignored.
 ##		- 2026-11-01: Copies from the target dir cargo built into, finds
 ##		  ldconfig in /usr/sbin, and builds with --locked.
+##		- 2026-11-07: ## comments, as in the other scripts.

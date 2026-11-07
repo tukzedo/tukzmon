@@ -615,6 +615,48 @@ fTest_containers_whose_run_is_gone_are_stopped_but_not_a_kept_or_live_ones() {
 	((ok))
 }
 
+## Test ID: dezf4
+fTest_the_stale_sweep_scans_the_processes_once() {
+	local root="${work}/sweep-once" live='' ok=0
+	mkdir -p -- "${root}/${projectName}"
+	(
+		HOST_TEMP="${root}"
+		source "${cicd}/utility/include/run-tmp.bash"
+		local base="${HOST_TEMP}/${projectName}" d='' n=''
+		for d in 20990101-000000_00{1..4}; do mkdir -- "${base}/${d}"; printf '999999999 1' > "${base}/${d}/run.pid"; done
+		TMPDIR="${base}/20990101-000000_003/sub" sleep 30 &
+		live="$!"
+		trap 'kill "${live}" 2> /dev/null || true' EXIT
+		for _ in 1 2 3 4 5 6 7 8 9 10; do ! grep -qszF -- "TMPDIR=${base}/20990101-000000_003" "/proc/${live}/environ" || break; sleep 0.1; done
+		grep() { echo x >> "${root}/greps"; command grep "$@"; }
+		n="$(fSweepStale)"
+		[[ "$(wc -l < "${root}/greps")" == 1 ]] || { fWhy "scanned $(wc -l < "${root}/greps") times"; exit 1; }
+		[[ "${n}" == 3 && -d "${base}/20990101-000000_003" ]] || { fWhy "took ${n}: $(ls -- "${base}")"; exit 1; }
+	) && ok=1
+	((ok))
+}
+
+## Test ID: dezf5
+fTest_markdownlint_runs_once_per_set_of_rules() {
+	local t="${work}/mdlint" ok=0
+	mkdir -p -- "${t}"
+	(
+		eval "$(awk '/^fLintMarkdown\(\)/, /^}/' "${cicd}/cicd.bash")"
+		fLintRun() { "$@"; }
+		markdownlint() { printf '%s\n' "$*" >> "${t}/calls"; [[ " $* " != *" ${bad:-} "* ]]; }
+		# shellcheck disable=2034  ## Read by fLintMarkdown, from cicd.bash.
+		{ MARKDOWNLINT_DISABLE=(MD013); MARKDOWNLINT_DISABLE_FOR=("b.md|MD036" "c.md|MD001 MD002" "c.md|MD003"); }
+		local want='' bad=''
+		want="$(printf '%s\n' '--disable MD013 -- a.md d.md' '--disable MD013 MD036 -- b.md' '--disable MD013 MD001 MD002 MD003 -- c.md')"
+		fLintMarkdown a.md b.md c.md d.md || { fWhy "failed with nothing wrong"; exit 1; }
+		[[ "$(cat -- "${t}/calls")" == "${want}" ]] || { fWhy "calls: $(cat -- "${t}/calls")"; exit 1; }
+		: > "${t}/calls"; bad=b.md
+		if fLintMarkdown a.md b.md c.md d.md; then fWhy "passed with b.md failing"; exit 1; fi
+		[[ "$(cat -- "${t}/calls")" == "${want}" ]] || { fWhy "stopped at the failure: $(cat -- "${t}/calls")"; exit 1; }
+	) && ok=1
+	((ok))
+}
+
 failed=0
 while read -r id fn; do
 	if "${fn}"; then echo "PASS ${id} ${fn#fTest_}"; else echo "FAIL ${id} ${fn#fTest_}"; failed=1; fi
@@ -640,3 +682,5 @@ exit "${failed}"
 ##		- 2026-11-06: The test ID check's faults and backlog rows, the job
 ##		  counts, the shared flags, no build cache prune, the stale sweep, the
 ##		  container cleanup, dev-install's cargo, and the step lines.
+##		- 2026-11-07: One process scan per stale sweep, and one markdownlint
+##		  per set of skipped rules.

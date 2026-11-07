@@ -498,7 +498,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 12: Comments that say the wrong thing, and comment layout in scripts
 	- ID: 2026110618502912
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -508,8 +508,21 @@ Sorted per the notes in [Template](#template).
 		- The plugin's watch comment says the tick always checks both files, as it does.
 		- `config.bash`'s header and history match its body.
 		- `dev-install.bash` uses `##` comments like every other script, and long comment lines are wrapped.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- knobs' `Cargo.toml` already said it's free to change, since `21edccf`. `design.md` and the spec key check in `core/src/config.rs` don't say it stays the same as silkterm's any more.
+		- The plugin's `watch` comment says the tick checks the settings file and the reset mark either way.
+		- `config.bash`'s header allows the tests in it, and says the Dockerfile repeats some pins. Its history has the Miri limit and `assets/`.
+		- `dev-install.bash` uses `##` comments. Its comment lines were under 80 columns already. 2 unwrapped comment lines in `cicd.bash` are wrapped.
+		- Verified: shellcheck is clean, and `cicd/tests/guards.bash` passes, dev-install's deqvr and dezax included.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- The comments above `fCtrOthers`, `fOtherRun` and `fCtrCleanup` each describe their own function, so they stay as they are.
+		- The long lines in `lint-report.bash` and `gfs-rotate.bash` stay, since those came from other projects.
+	- Branch: round-1107
+	- Test case: none, since only comments changed.
+	- Closed: 20261106-223030
 
 - Code review 20261106 item 13: The panel item clears its whole image, then copies each graph in
 	- ID: 2026110618502913
@@ -570,7 +583,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 16: Scripts still start a process per file or folder in a few loops
 	- ID: 2026110618502916
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -579,8 +592,20 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- One markdownlint per set of rule overrides.
 		- One process scan per sweep, not per folder.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `fLintMarkdown` in `cicd.bash` runs one markdownlint per set of skipped rules, so 2 runs over the 4 docs. Their CPU time went from 2.98 s to 2.43 s, most of it the backlog.
+		- `fRunsInUse` in `run-tmp.bash` scans the processes once and gives the run folders in use. `fSweepStale` calls it once a sweep, and only when a folder gets that far. `fCtrSweepGone` calls it once a retry.
+		- Verified: dezf4 failed before, with 4 scans for 4 folders, and passes with 1. dezf5 failed before and passes. dezat and dezaw still pass.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- `fRunPids` stays for `fStopLeftovers`, which needs the pids.
+		- `fPidStamp` per check and `miri-group.bash`'s grep per test name stay. The item didn't ask for them, and the second runs only when a module fails.
+	- Branch: round-1107
+	- Test case: dezf4 and dezf5, in `cicd/tests/guards.bash`.
+		- Swept: every caller of `fRunPids` (`fSweepStale`, `fCtrSweepGone`, `fStopLeftovers`, deqrb), and every markdownlint call in `cicd/` and `utility/`.
+	- Closed: 20261106-223030
 
 - The pipeline prunes every project's docker build cache
 	- ID: 2026110311291910
