@@ -110,9 +110,8 @@ struct Picker {
 
 fn read(path: &Path) -> Result<String, String> {
 	match std::fs::read_to_string(path) {
-		Ok(t) => Ok(config::as_shcl3(&t).into_owned()),
 		Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
-		Err(e) => Err(format!("{} can't be read: {e}", path.display())),
+		r => r.map_err(|e| format!("{} can't be read: {e}", path.display())),
 	}
 }
 
@@ -162,8 +161,6 @@ impl Dialog {
 	/// defaults. One that can't be read is an error, so a save can't write the
 	/// defaults over it.
 	pub fn open(path: PathBuf) -> Result<Dialog, String> {
-		// one that can't be made over still reads as shcl 2 through read
-		let _ = config::upgrade_file(&path);
 		let text = read(&path)?;
 		let doc = shcl::Document::parse(&text);
 		let themes = config::saved_themes(&doc);
@@ -776,7 +773,7 @@ impl Dialog {
 }
 
 /// `text` with shcl's Format line under the header when it has none, so a
-/// later build never takes it for shcl 2.
+/// later format change can tell what it was written for.
 fn stamped(mut text: String) -> String {
 	if shcl::format_version(&text).is_none() {
 		let at = if text.starts_with(HEADER) {
@@ -934,21 +931,51 @@ mod tests {
 		std::fs::remove_dir(&data).unwrap();
 	}
 
-	// Test ID: deyr2
+	// Out since 2026-11-07: opening a file no longer rewrites it for shcl 3, per
+	// backlog 2026110709261106. df03p checks what's left, the Format line on save.
+	// // Test ID: deyr2
+	// #[test]
+	// #[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
+	// fn a_shcl_2_file_is_rewritten_on_open_and_every_save_names_its_format() {
+	// 	let d = scratch("shcl2");
+	// 	let path = d.0.join("t.shcl");
+	// 	std::fs::write(&path, "graph:\n\torder: mem, cpu\n").unwrap();
+	// 	let mut dlg = Dialog::open(path.clone()).unwrap();
+	// 	assert_eq!(dlg.look().order, ["mem", "cpu"]);
+	// 	let opened = std::fs::read_to_string(&path).unwrap();
+	// 	assert_eq!(
+	// 		shcl::format_version(&opened),
+	// 		Some(shcl::FORMAT_MAJOR),
+	// 		"{opened}"
+	// 	);
+	// 	assert!(dlg.set_text("border", "2"));
+	// 	dlg.apply().unwrap();
+	// 	let saved = std::fs::read_to_string(&path).unwrap();
+	// 	assert_eq!(saved.matches(shcl::FORMAT_LINE).count(), 1, "{saved}");
+	//
+	// 	let fresh = d.0.join("fresh.shcl");
+	// 	let mut dlg = Dialog::open(fresh.clone()).unwrap();
+	// 	assert!(dlg.set_text("border", "2"));
+	// 	dlg.apply().unwrap();
+	// 	let text = std::fs::read_to_string(&fresh).unwrap();
+	// 	assert!(
+	// 		text.starts_with(&format!("{HEADER}{}\n", shcl::FORMAT_LINE)),
+	// 		"{text}"
+	// 	);
+	// }
+
+	// Test ID: df03p
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn a_shcl_2_file_is_rewritten_on_open_and_every_save_names_its_format() {
-		let d = scratch("shcl2");
+	fn opening_writes_nothing_and_every_save_names_its_format() {
+		let d = scratch("format");
 		let path = d.0.join("t.shcl");
-		std::fs::write(&path, "graph:\n\torder: mem, cpu\n").unwrap();
+		let old = "graph:\n\torder: mem, cpu\n";
+		std::fs::write(&path, old).unwrap();
 		let mut dlg = Dialog::open(path.clone()).unwrap();
-		assert_eq!(dlg.look().order, ["mem", "cpu"]);
-		let opened = std::fs::read_to_string(&path).unwrap();
-		assert_eq!(
-			shcl::format_version(&opened),
-			Some(shcl::FORMAT_MAJOR),
-			"{opened}"
-		);
+		// a 2.x list is an error in 3, so its line goes
+		assert_eq!(dlg.look().order, config::Look::default().order);
+		assert_eq!(std::fs::read_to_string(&path).unwrap(), old);
 		assert!(dlg.set_text("border", "2"));
 		dlg.apply().unwrap();
 		let saved = std::fs::read_to_string(&path).unwrap();

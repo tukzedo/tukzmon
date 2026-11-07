@@ -2795,6 +2795,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- 2026-11-06: a file is taken for shcl 2 only when it has no Format line and has an error under shcl 3. A clean file without one is read as written, so a hand-made shcl 3 file isn't misread. (me)
 		- 2026-11-06: in a shcl 3 file, `order: mem, cpu` is now an error and the line is dropped. `mem cpu`, `mem,cpu` and `[mem, cpu]` all work. That's shcl's rule, so it isn't worked around. (me)
+		- 2026-11-07: the shcl 2 reading and rewrite are gone, per 2026110709261106, since only my own files were ever shcl 2. deyr0, deyr1 and deyr2 are retired. (me)
 	- Branch: shcl3
 	- Test case: deyr0, deyr1, deyr2
 	- Closed: 20261106-101244
@@ -5726,6 +5727,32 @@ Sorted per the notes in [Template](#template).
 	- Test case: `the_cleanup_takes_only_the_projects_own_and_no_image_while_another_run_is_live` (dezav), in `cicd/tests/guards.bash`. Also run both ways by hand.
 	- Closed: 20261025-081952
 
+- Drop the shcl 2 reading and rewrite of settings files
+	- ID: 2026110709261106
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261107-092611
+	- Opened by: t00mietum
+	- Related IDs: 2026110610124433, 2026110709074401, 2026110709074410
+	- Requirements:
+		- Remove old shcl files. Nobody else uses tukzmon yet, and only my own files were ever shcl 2.
+	- Progress log:
+		- Every settings file is read by shcl 3 rules, with or without a Format line. `config::as_shcl3` and `config::upgrade_file` are gone, so neither a panel item at start nor the settings window at open rewrites the file or leaves a backup.
+		- The settings window still writes the Format line under its header at each save.
+		- `design.md` Settings window and Graph order say so.
+		- Verified: df03n and df03p failed on the old code and pass now. The quick gate's format, build, lint and test areas passed.
+	- Decisions:
+		- 2026-11-07: asked for once b23's 2 settings files, the only ones there are, were found to read clean as shcl 3 and the same by 2.x rules. (me)
+		- The Format line stays on save, so a later format change can tell the version.
+		- dedqq and dej09 fed bare comma lists, which only the shcl 2 reading took. They take `mem,cpu` and bracket lists now, the forms design.md gives.
+	- Against: 2026110610124433's requirement that a settings file written under shcl 2 still loads with the same values.
+	- Branch: no-shcl2
+	- Test case: `config::tests::a_file_with_no_format_line_reads_by_shcl_3_rules` (df03n) and `dialog::tests::opening_writes_nothing_and_every_save_names_its_format` (df03p). deyr0, deyr1 and deyr2 are retired, commented out with the reason.
+		- Swept: every caller of `as_shcl3` and `upgrade_file`, which were `config::model`, the window's `read` and `Dialog::open`, and `Plugin::new`, and every test that fed a 2.x list.
+	- Acceptance signoff: Self-closed 20261107: asked for outright, and df03n and df03p fail on the old code.
+	- Closed: 20261107-093526
+
 - Code review 20261106 item 6: Opening the settings window works out the graph list once per setting
 	- ID: 2026110618502906
 	- Type: Enhancement
@@ -7583,7 +7610,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 1: A shcl 2 settings file with one bad line loses its graph order, drives and theme names, and Apply makes the loss stick
 	- ID: 2026110709074401
 	- Type: Bug
-	- Status: Canceled
+	- Status: Moot
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7597,14 +7624,14 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- 2026-11-07: Low, since nobody else uses tukzmon yet, and only my own files were ever shcl 2. (me)
 	- Verified: 2026-11-07, the only tukzmon settings files there are, b23's `plugin-16.shcl` and `tukzmon.shcl`, load clean as shcl 3, have nothing to convert, and read to the same look by 2.x rules. b28l has none. The same check reads a file with a line still in error differently, so it can see this fault.
-	- Decided against: no file can hit it, so the code stays as it is.
+	- Superseded by ID: 2026110709261106, which takes out the shcl 2 reading.
 	- Test case: none, since nothing was changed.
 	- Closed: 20261107-092134
 
 - Code review 20261107 item 10: A new panel item makes a shcl 2 backup and a "rewritten" log line for a file it never had
 	- ID: 2026110709074410
 	- Type: Bug
-	- Status: Canceled
+	- Status: Moot
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7617,7 +7644,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- 2026-11-07: Low, since nobody else uses tukzmon yet, and only my own files were ever shcl 2. (me)
 	- Verified: 2026-11-07, b23's shared `tukzmon.shcl` loads clean as shcl 3 with nothing to convert, so a new item's copy isn't converted. It's the only shared file there is.
-	- Decided against: no file can hit it, so the code stays as it is.
+	- Superseded by ID: 2026110709261106, which takes out the shcl 2 rewrite.
 	- Test case: none, since nothing was changed.
 	- Closed: 20261107-092134
 

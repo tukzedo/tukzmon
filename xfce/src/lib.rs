@@ -760,18 +760,6 @@ impl Plugin {
 				config.display()
 			));
 		}
-		match config::upgrade_file(&config) {
-			Ok(Some(old)) => complain(format_args!(
-				"{} was written for shcl 2 and is rewritten, with the old one at {}",
-				config.display(),
-				old.display()
-			)),
-			Ok(None) => {}
-			Err(e) => complain(format_args!(
-				"can't rewrite {} for shcl 3: {e}",
-				config.display()
-			)),
-		}
 		let data = keep::data_dir();
 		// so the reset mark's folder can be watched from the start
 		if let Err(e) = std::fs::create_dir_all(&data) {
