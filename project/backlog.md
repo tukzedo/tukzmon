@@ -212,7 +212,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 2: knobs lists a theme's changes again for each row it reads
 	- ID: 2026110618502902
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -220,8 +220,20 @@ Sorted per the notes in [Template](#template).
 	- Origin: `f89e55e` (2026-10-23). The 20261030 review read only knobs' lookups. Breaks the rules on repeated work and needless `collect()`. Confirmed, measured: the settings rows read in about 350 us with no changes on the theme, and 800 to 1100 us with 1 to 5 of them, as on b23.
 	- Requirements:
 		- Asking whether one setting is changed, or whether any are, doesn't walk every setting or build a list.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- knobs' `Model::has_changes` says whether a group has changes without listing them, and a row's own state checks only its own entry. The list walks only the group's members.
+		- `shown_choice`, `source`, `can_reset` and the Save theme button use them. A group's pick is read without a second copy of its key.
+		- Verified: the settings rows read in about 600 us with 0, 1 or 5 changes on the theme, against 600, 1200 and 1700 us before, on one loaded core. Every row's value, tip, arrow and dropdown text came out the same before and after.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- `changed` stays for the tip that names the changes and for the save, which need the list.
+		- The rest of a row's time is `Spec::at` scanning every setting, which is 2026103018353670.
+	- Branch: round-1107
+	- Test case: `has_changes_and_each_rows_star_agree_with_the_list` (dezbq) and `asking_about_changes_costs_the_same_however_many_there_are` (dezbr, `knobs/tests/allocs.rs`). dezbr fails before, with 2 allocations for a group with no changes and more for 5 changes than for 1. dezbq fails with `has_changes` ignoring a temporary preset.
+		- Swept: every `changed` and `changes_on` caller in knobs, core, settings and xfce. The tip's "Changed here" line and `Model::lines` still list them, since they need the names.
+	- Closed: 20261106-205212
 
 - Code review 20261106 item 3: Each settings refresh sets every tip and row height again
 	- ID: 2026110618502903
@@ -242,7 +254,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 4: Building the look for the settings window allocates about 700 times
 	- ID: 2026110618502904
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -252,8 +264,22 @@ Sorted per the notes in [Template](#template).
 		- Make each graph's setting names once, not on every build.
 		- The mode, split and vertical scale parsers don't allocate.
 		- Loading saved themes doesn't build 39 names to look one up.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Each graph's setting ids are made once a run, in `Which::ids`, and `Look::from_model` reads through them.
+		- `Mode::parse`, `Split::parse` and `Vertical::parse` compare without case, and allocate nothing.
+		- `shared_of` reads a graph's own outline id by its ends, rather than listing all 39.
+		- A theme member's value costs 2 allocations, not 3, from the knobs change in 2026110618502902.
+		- Verified: a build allocates 300 times, not 694, and loading a saved theme 2544, not 10812. The look and the saved themes came out the same before and after.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- The build's time didn't move, about 100 us either way on one loaded core. Nearly all of it is `Spec::at` scanning every setting for each id, which is 2026103018353670.
+		- The ids are in a `OnceLock` made from `Which::key`, rather than a table of literals, so a graph's names have one source.
+	- Branch: round-1107
+	- Test case: `the_mode_split_and_scale_parsers_dont_allocate` (dezbs), `a_look_makes_no_setting_names` (dezbt) and `a_saved_theme_loads_without_listing_every_outline_id` (dezbv), all in `core/tests/allocs.rs`, and `shared_of_names_the_outline_id_each_graphs_own_stands_for` (dezbw). dezbs, dezbt and dezbv fail before, with 8, 694 and 10812 allocations. dezbw checks `shared_of` against the full list, and fails with the `_` check dropped.
+		- Swept: every `format!` of a per-graph id in core's non-test code, every `to_ascii_lowercase` in core, knobs, settings and xfce, and both `outline_pairs` callers. `leads` still makes its ids, but only tests call it. The lowercasing left builds names it keeps.
+	- Closed: 20261106-205212
 
 - Code review 20261106 item 5: The processes graph takes about 4 ms a read
 	- ID: 2026110618502905

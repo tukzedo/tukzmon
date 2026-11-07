@@ -241,7 +241,7 @@ impl Dialog {
 			return ThemeButtons::default();
 		}
 		ThemeButtons {
-			save: !self.model.changed(THEME, &NoEnv).is_empty(),
+			save: self.model.has_changes(THEME, &NoEnv),
 			rename: true,
 			delete: true,
 		}

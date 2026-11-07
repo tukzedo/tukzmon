@@ -930,9 +930,12 @@ impl Model {
 
 	/// The group's pick with no temporary preset, the one a restart comes back to.
 	pub fn stored_choice(&self, group: &str, env: &dyn Env) -> String {
-		match self.spec.group(group) {
-			Some(g) => self.value(&g.chooser, env).as_text().to_string(),
-			None => String::new(),
+		let Some(g) = self.spec.group(group) else {
+			return String::new();
+		};
+		match self.value(&g.chooser, env) {
+			Value::Text(key) => key,
+			_ => String::new(),
 		}
 	}
 
@@ -967,18 +970,42 @@ impl Model {
 		self.changes_on(group, &self.chosen(group, env))
 	}
 
-	fn changes_on(&self, group: &str, key: &str) -> Vec<&str> {
+	/// Whether anything is changed on top of the group's preset, without
+	/// listing it.
+	pub fn has_changes(&self, group: &str, env: &dyn Env) -> bool {
+		// most groups have none, so the pick isn't worth working out
+		self.values.changed_on.contains_key(group)
+			&& self.any_changes_on(group, &self.chosen(group, env))
+	}
+
+	// The group's members, if its changes were made on `key`.
+	fn kept_on(&self, group: &str, key: &str) -> &[String] {
 		if self.values.changed_on.get(group).map(String::as_str) != Some(key) {
-			return Vec::new();
+			return &[];
 		}
-		self.spec
-			.settings
+		self.spec.group(group).map_or(&[], |g| g.members.as_slice())
+	}
+
+	fn changes_on(&self, group: &str, key: &str) -> Vec<&str> {
+		self.kept_on(group, key)
 			.iter()
-			.filter(|s| {
-				s.group.as_deref() == Some(group) && self.values.changes.contains_key(&s.id)
-			})
-			.map(|s| s.id.as_str())
+			.filter(|m| self.values.changes.contains_key(*m))
+			.map(String::as_str)
 			.collect()
+	}
+
+	fn any_changes_on(&self, group: &str, key: &str) -> bool {
+		self.kept_on(group, key)
+			.iter()
+			.any(|m| self.values.changes.contains_key(m))
+	}
+
+	// A group member changed on top of `key`, its group's pick.
+	fn is_changed(&self, s: &Setting, key: &str) -> bool {
+		self.values.changes.contains_key(&s.id)
+			&& s.group
+				.as_deref()
+				.is_some_and(|g| self.values.changed_on.get(g).map(String::as_str) == Some(key))
 	}
 
 	/// What a dropdown shows for its current value. A chooser shows its
@@ -991,19 +1018,16 @@ impl Model {
 				.options
 				.iter()
 				.find(|(k, _)| *k == key)
-				.map_or(key.clone(), |(_, l)| l.clone());
+				.map_or(key, |(_, l)| l.clone());
 		};
 		let key = self.chosen(&g.id, env);
+		let starred = self.any_changes_on(&g.id, &key);
 		let label = match preset_of(g, &key, env) {
 			Some(p) => p.label.clone(),
 			None if key == CUSTOM => g.custom.clone().unwrap_or(key),
 			None => key,
 		};
-		if self.changed(&g.id, env).is_empty() {
-			label
-		} else {
-			format!("{label} *")
-		}
+		if starred { format!("{label} *") } else { label }
 	}
 
 	/// Only counts while every gate above it is on.
@@ -1037,7 +1061,7 @@ impl Model {
 				kept: if s.group.is_some() { None } else { kept },
 			};
 		}
-		if let Some((_, p)) = self.preset_for(s, env) {
+		if let Some((key, p)) = self.preset_for(s, env) {
 			let group = s.group.as_deref().unwrap_or("");
 			let noun = self
 				.spec
@@ -1049,7 +1073,7 @@ impl Model {
 				.get(id)
 				.cloned()
 				.unwrap_or_else(|| s.default.clone());
-			if self.changed(group, env).contains(&id) {
+			if self.is_changed(s, &key) {
 				return Source::Changed {
 					preset: p.label.clone(),
 					noun,
@@ -1145,9 +1169,7 @@ impl Model {
 		match s.store {
 			Store::State => self.values.state.contains_key(id),
 			Store::Config => match self.preset_for(s, env) {
-				Some((_, p)) if !p.temporary => self
-					.changed(s.group.as_deref().unwrap_or(""), env)
-					.contains(&id),
+				Some((key, p)) if !p.temporary => self.is_changed(s, &key),
 				Some(_) => false,
 				None => self.has_own(s),
 			},

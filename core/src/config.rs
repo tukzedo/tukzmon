@@ -216,11 +216,9 @@ pub enum Mode {
 impl Mode {
 	/// From the settings file's value, in any case.
 	pub fn parse(s: &str) -> Option<Mode> {
-		match s.to_ascii_lowercase().as_str() {
-			"detailed" => Some(Mode::Detailed),
-			"gradient" => Some(Mode::Gradient),
-			_ => None,
-		}
+		[("detailed", Mode::Detailed), ("gradient", Mode::Gradient)]
+			.into_iter()
+			.find_map(|(key, m)| s.eq_ignore_ascii_case(key).then_some(m))
 	}
 }
 
@@ -239,11 +237,9 @@ pub enum Split {
 impl Split {
 	/// From the settings file's value, in any case.
 	pub fn parse(s: &str) -> Option<Split> {
-		match s.to_ascii_lowercase().as_str() {
-			"off" => Some(Split::Off),
-			"sockets" => Some(Split::Sockets),
-			_ => None,
-		}
+		[("off", Split::Off), ("sockets", Split::Sockets)]
+			.into_iter()
+			.find_map(|(key, v)| s.eq_ignore_ascii_case(key).then_some(v))
 	}
 }
 
@@ -488,21 +484,25 @@ pub fn theme_key(name: &str, themes: &[SavedTheme]) -> String {
 		.unwrap_or(slug)
 }
 
+// The Outline sub-tab's border and background ids. Each graph's own is
+// `<graph>_<id>`.
+const SHARED_OUTLINE: [&str; 3] = ["border_color", "back_top", "back_bottom"];
+
 // The Outline sub-tab's border and background ids, each with one graph's.
 fn outline_pairs() -> impl Iterator<Item = (&'static str, String)> {
-	["border_color", "back_top", "back_bottom"]
-		.into_iter()
-		.flat_map(|shared| {
-			LEADS
-				.iter()
-				.map(move |(g, _)| (shared, format!("{g}_{shared}")))
-		})
+	SHARED_OUTLINE.into_iter().flat_map(|shared| {
+		LEADS
+			.iter()
+			.map(move |(g, _)| (shared, format!("{g}_{shared}")))
+	})
 }
 
 fn shared_of(id: &str) -> Option<&'static str> {
-	outline_pairs()
-		.find(|(_, own)| own == id)
-		.map(|(shared, _)| shared)
+	SHARED_OUTLINE.into_iter().find(|shared| {
+		id.strip_suffix(shared)
+			.and_then(|g| g.strip_suffix('_'))
+			.is_some_and(|g| LEADS.iter().any(|(k, _)| *k == g))
+	})
 }
 
 // Where the Outline sub-tab's colors were kept before each graph had its own.
@@ -764,6 +764,42 @@ impl Which {
 			format!("show_{}", self.key())
 		}
 	}
+
+	// Made once, since a Look reads them on every refresh.
+	fn ids(self) -> &'static GraphIds {
+		static IDS: OnceLock<[GraphIds; Which::ALL.len()]> = OnceLock::new();
+		&IDS.get_or_init(|| Which::ALL.map(GraphIds::of))[self as usize]
+	}
+}
+
+// A graph's setting ids, but its Detailed colors, which are `color_ids`.
+#[derive(Debug)]
+struct GraphIds {
+	show: String,
+	width: String,
+	sample: String,
+	time: String,
+	vertical: String,
+	mode: String,
+	gradient: [String; 3],
+	// Border, Top and Bottom, in SHARED_OUTLINE order.
+	outline: [String; 3],
+}
+
+impl GraphIds {
+	fn of(w: Which) -> GraphIds {
+		let at = |s: &str| format!("{}_{s}", w.key());
+		GraphIds {
+			show: w.show_id(),
+			width: at("width"),
+			sample: at("sample"),
+			time: at("time"),
+			vertical: at("vertical"),
+			mode: at("mode"),
+			gradient: ["low", "medium", "high"].map(at),
+			outline: SHARED_OUTLINE.map(at),
+		}
+	}
 }
 
 /// The most series a graph stacks, the network's.
@@ -878,42 +914,34 @@ impl Look {
 		let color = |id: &str| Rgb::parse(m.value(id, &NoEnv).as_text()).unwrap_or(Rgb(0, 0, 0));
 		let on = |id: &str| m.value(id, &NoEnv).as_bool();
 		let (border_all, back_all) = (on("border_all"), on("back_all"));
-		// the Outline sub-tab's go over every graph's own when ticked
-		let outline = |g: &str| {
-			let pick = |all: bool, shared: &str| {
-				color(&if all {
-					shared.to_string()
-				} else {
-					format!("{g}_{shared}")
-				})
-			};
-			Outline {
-				border: pick(border_all, "border_color"),
-				top: pick(back_all, "back_top"),
-				bottom: pick(back_all, "back_bottom"),
-			}
-		};
 		let each = |w: Which| {
-			let k = w.key();
+			let ids = w.ids();
 			let mut colors = [Rgb(0, 0, 0); MOST_SERIES];
 			for (c, id) in colors.iter_mut().zip(w.color_ids()) {
 				*c = color(id);
 			}
+			// the Outline sub-tab's go over every graph's own when ticked
+			let pick = |all: bool, i: usize| {
+				color(if all {
+					SHARED_OUTLINE[i]
+				} else {
+					&ids.outline[i]
+				})
+			};
 			Each {
-				show: on(&w.show_id()),
-				width: num(&format!("{k}_width")) as u32,
-				sample: num(&format!("{k}_sample")) as u32,
-				time: Timing::parse(m.value(&format!("{k}_time"), &NoEnv).as_text()),
-				vertical: Vertical::parse(m.value(&format!("{k}_vertical"), &NoEnv).as_text()),
+				show: on(&ids.show),
+				width: num(&ids.width) as u32,
+				sample: num(&ids.sample) as u32,
+				time: Timing::parse(m.value(&ids.time, &NoEnv).as_text()),
+				vertical: Vertical::parse(m.value(&ids.vertical, &NoEnv).as_text()),
 				colors,
-				mode: Mode::parse(m.value(&format!("{k}_mode"), &NoEnv).as_text())
-					.unwrap_or_default(),
-				gradient: [
-					color(&format!("{k}_low")),
-					color(&format!("{k}_medium")),
-					color(&format!("{k}_high")),
-				],
-				outline: outline(k),
+				mode: Mode::parse(m.value(&ids.mode, &NoEnv).as_text()).unwrap_or_default(),
+				gradient: ids.gradient.each_ref().map(|id| color(id)),
+				outline: Outline {
+					border: pick(border_all, 0),
+					top: pick(back_all, 1),
+					bottom: pick(back_all, 2),
+				},
 			}
 		};
 		Look {
@@ -2436,6 +2464,38 @@ mod tests {
 			"#+12345",
 		] {
 			assert_eq!(Rgb::parse(bad), None, "{bad}");
+		}
+	}
+
+	// Test ID: dezbw
+	#[test]
+	fn shared_of_names_the_outline_id_each_graphs_own_stands_for() {
+		let listed = |id: &str| {
+			outline_pairs()
+				.find(|(_, own)| own == id)
+				.map(|(shared, _)| shared)
+		};
+		let spec = spec();
+		let odd = [
+			"border_color",
+			"_border_color",
+			"x_border_color",
+			"cpuback_top",
+			"cpu__back_top",
+			"cpu_back_top_",
+			"Cpu_back_top",
+		];
+		let ids = spec.settings.iter().map(|s| s.id.as_str()).chain(odd);
+		let mut found = 0;
+		for id in ids {
+			assert_eq!(shared_of(id), listed(id), "{id}");
+			found += usize::from(shared_of(id).is_some());
+		}
+		assert_eq!(found, 3 * LEADS.len());
+		for w in Which::ALL {
+			for (shared, own) in SHARED_OUTLINE.iter().zip(&w.ids().outline) {
+				assert_eq!(shared_of(own), Some(*shared), "{own}");
+			}
 		}
 	}
 }

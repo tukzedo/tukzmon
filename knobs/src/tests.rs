@@ -684,3 +684,53 @@ fn the_chooser_s_arrow_ends_a_temporary_preset_and_drops_the_changes() {
 		"with nothing of its own, Remote is still something to undo"
 	);
 }
+
+// Test ID: dezbq
+#[test]
+fn has_changes_and_each_rows_star_agree_with_the_list() {
+	let mut m = demo();
+	let agree = |m: &Model| {
+		for g in ["perf", "theme"] {
+			assert_eq!(
+				m.has_changes(g, &DESK),
+				!m.changed(g, &DESK).is_empty(),
+				"{g}"
+			);
+		}
+		for id in ["strength", "radius", "cursor", "bg"] {
+			let group = m.spec.at(id).group.as_deref().unwrap_or("");
+			let listed = m.changed(group, &DESK).contains(&id);
+			assert_eq!(
+				matches!(m.source(id, &DESK), Source::Changed { .. }),
+				listed,
+				"{id}"
+			);
+			assert_eq!(m.can_reset(id, &DESK), listed, "{id}");
+		}
+	};
+	m.set("profile", &text("low"), &DESK);
+	m.set("theme", &text("dark"), &DESK);
+	agree(&m);
+	assert!(!m.has_changes("perf", &DESK));
+	m.set("strength", &int(80), &DESK);
+	m.set("cursor", &text("#123456"), &DESK);
+	agree(&m);
+	// the cursor ends Automatic, so fg keeps what it showed as a change too
+	assert_eq!(m.changed("theme", &DESK), ["fg", "cursor"]);
+	assert_eq!(m.changed("perf", &DESK), ["scrim", "strength"]);
+	assert_eq!(m.shown_choice("theme", &DESK), "Dark *");
+	m.set("profile", &text("remote"), &DESK);
+	agree(&m);
+	assert!(!m.has_changes("perf", &DESK), "they wait under Remote");
+	assert_eq!(m.shown_choice("profile", &DESK), "Remote (temporary)");
+	m.temporary("perf", None);
+	agree(&m);
+	assert!(m.has_changes("perf", &DESK), "and come back after it");
+	m.set("theme", &text("light"), &DESK);
+	agree(&m);
+	assert!(!m.has_changes("theme", &DESK));
+	assert!(
+		m.has_changes("perf", &DESK),
+		"another group's pick leaves them"
+	);
+}

@@ -119,12 +119,13 @@ pub enum Vertical {
 impl Vertical {
 	/// From its saved key, or None.
 	pub fn parse(key: &str) -> Option<Vertical> {
-		match key.to_ascii_lowercase().as_str() {
-			"linear" => Some(Vertical::Linear),
-			"log10" => Some(Vertical::Log10),
-			"squared" => Some(Vertical::Squared),
-			_ => None,
-		}
+		[
+			("linear", Vertical::Linear),
+			("log10", Vertical::Log10),
+			("squared", Vertical::Squared),
+		]
+		.into_iter()
+		.find_map(|(k, v)| key.eq_ignore_ascii_case(k).then_some(v))
 	}
 
 	fn fit<const N: usize>(self, v: [f32; N], top: f32, floor: f32) -> [f32; N] {
