@@ -22,8 +22,8 @@
 ## Resolved once, since a temp root behind a link would fail fSafeRm's check.
 HOST_TEMP="$(realpath -e -- "${HOST_TEMP:-${TMPDIR:-/tmp}}" 2> /dev/null || realpath -e /tmp)"
 
-## The shared guard, per the CICD process. Also takes a path under our own
-## temp root, whose name needn't be tmp.
+## The usual guard for a recursive delete under a tmp folder. Also takes a
+## path under our own temp root, whose name needn't be tmp.
 fSafeRm() {
 	local p="${1:-}" real='' own="${HOST_TEMP:?}/${projectName:?}"
 	if [[ "${#}" -ne 1 || -z "${p}" || "${p}" == *..* || "${p}" == *//* || "${p}" == *$'\n'* ]]; then
@@ -187,10 +187,10 @@ fStopLeftovers() {
 
 
 ##	History:
-##		- 2026-10-25: Created, with fSafeRm from the CICD process.
+##		- 2026-10-25: Created, with fSafeRm.
 ##		- 2026-10-25: A folder whose run is gone goes at once, unless kept.
 ##		- 2026-10-30: fSafeRm refuses the temp root and a project's folder in it,
-##		  as the CICD process's copy does.
+##		  where other runs keep theirs.
 ##		- 2026-11-01: fRunPids skips a process that exits while it scans.
 ##		- 2026-11-01: fRunAbove, so a run can tell the one that started it.
 ##		- 2026-11-07: fRunsInUse, so a sweep scans the processes once.

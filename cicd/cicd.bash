@@ -60,7 +60,7 @@
 ##	  cicd/cicd.bash [options]
 ##	  Options:
 ##	   (none)              the default run: every step
-##	   --quick             the fast steps: the default run but the packages,
+##	   --quick             the fast steps: the default run without the packages,
 ##	                       the profiler, the demo and the slow leak checks,
 ##	                       so no Soak
 ##	   --long              everything, Miri and the Nix package included, which
@@ -122,7 +122,7 @@
 ##	  at their own paths. It builds into target/container, beside the host's
 ##	  target/. A run that dogfoods builds the release on the host instead,
 ##	  since that's what gets installed. With no docker, or an image that won't
-##	  build, the run says so in one line and goes on on the host. Containers
+##	  build, the run says so in one line and runs on the host. Containers
 ##	  and images are cleaned up at the end, only what has the
 ##	  dev.project=tukzmon label. The shared build cache is left to docker.
 ##	  Images are left alone while another run is live. The image step stops
@@ -604,8 +604,8 @@ fStepRelease() {
 }
 
 ## A .deb and an .rpm of whichever release build the run made, which is the
-## host's in a run that dogfoods. The version is the workspace's, per the Rust
-## pipeline notes. Each version's set replaces the last one of that version.
+## host's in a run that dogfoods. The version is the workspace's, from
+## Cargo.toml alone. Each version's set replaces the last one of that version.
 fStepPackage() {
 	local ver='' rel="${TUKZMON_RELEASE_DIR:-${CARGO_TARGET_DIR:-${root}/target}/release}" work="${TMPDIR}/packages"
 	ver="$(sed -n '/^\[workspace\.package\]/,/^\[/s/^version *= *"\(.*\)"/\1/p' "${root}/Cargo.toml")"

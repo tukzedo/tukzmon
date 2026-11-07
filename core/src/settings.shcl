@@ -101,7 +101,7 @@ settings:
 		option_labels: ["How long ago", "Date and time"]
 		path: graph.hover_time
 		default: ago
-		tip: "What the tip says about the time under the pointer. How long ago reads like 7 hrs ago. Date and time gives just the time for today, and the date too for anything older, in your locale's short format."
+		tip: "What the tip says about the time under the pointer. How long ago reads like 7 hrs ago. Date and time gives only the time for today, and the date too for anything older, in your locale's short format."
 
 	VerticalHead:
 		label: Vertical axis
@@ -417,7 +417,7 @@ settings:
 		control: checkbox
 		path: disk.show
 		default: true
-		tip: "Show disk traffic in bytes a second: written, then read, from the bottom up. The top follows the busiest moment in view, so the graph has no fixed scale. The tip gives the rates. Disk drives, under Misc on the General tab, sets what it counts, and Vertical scale on the Themes/Colors tab how it's drawn."
+		tip: "Show disk traffic in bytes a second: written, then read, from the bottom up. The top follows the busiest moment in view, so the graph has no fixed scale. The tip gives the rates. Disk drives under Misc on the General tab sets what it counts. Vertical scale on the Graphs tab sets how it's drawn."
 
 	disk_width:
 		label: Disk width %
@@ -1280,7 +1280,7 @@ settings:
 		path: net.mode
 		default: detailed
 		group: theme
-		tip: "Detailed gives local, sent and received a color each, and LAN sent and LAN received too with LAN and internet on, on the General tab. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
+		tip: "Detailed gives local, sent and received a color each. LAN sent and LAN received get one too when LAN and internet is on, under Misc on the General tab. Gradient colors the whole column by how high it reaches, from Low at the bottom through Medium to High at the top."
 
 	NetHead:
 		label: "From the bottom up"
@@ -1306,7 +1306,7 @@ settings:
 		default: "#c0effc"
 		group: theme
 		shown_when: "net_mode = detailed"
-		tip: "Sent to the LAN, with LAN and internet on, on the General tab."
+		tip: "Sent to the LAN. It's drawn only while LAN and internet is on, under Misc on the General tab."
 
 	net_lan_received:
 		label: LAN received
@@ -1316,7 +1316,7 @@ settings:
 		default: "#4e93af"
 		group: theme
 		shown_when: "net_mode = detailed"
-		tip: "Received from the LAN, with LAN and internet on, on the General tab."
+		tip: "Received from the LAN. It's drawn only while LAN and internet is on, under Misc on the General tab."
 
 	net_sent:
 		label: Sent
@@ -1326,7 +1326,7 @@ settings:
 		default: "#ff7777"
 		group: theme
 		shown_when: "net_mode = detailed"
-		tip: "Everything sent, or what went to the internet with LAN and internet on, on the General tab."
+		tip: "Everything sent. While LAN and internet is on, under Misc on the General tab, it's what went to the internet."
 
 	net_received:
 		label: Received
@@ -1336,7 +1336,7 @@ settings:
 		default: "#6ad4ff"
 		group: theme
 		shown_when: "net_mode = detailed"
-		tip: "Everything received, or what came from the internet with LAN and internet on, on the General tab."
+		tip: "Everything received. While LAN and internet is on, under Misc on the General tab, it's what came from the internet."
 
 	NetGradHead:
 		label: "By height"
@@ -2294,7 +2294,7 @@ settings:
 		path: graph.margins.left_right
 		default: 2
 		group: theme
-		tip: "Space left clear either side of each graph, so 2 graphs side by side have twice this between them. The two ends of the whole item get none, since the panel spaces its items. On a vertical panel this is the space either side of every graph."
+		tip: "Space left clear either side of each graph, so 2 graphs side by side have twice this between them. The 2 ends of the whole item get none, since the panel spaces its items. On a vertical panel this is the space either side of every graph."
 
 	BackHead:
 		label: Background
