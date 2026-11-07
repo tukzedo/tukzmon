@@ -157,18 +157,78 @@ fn fit_squared<const N: usize>(v: [f32; N], top: f32) -> [f32; N] {
 	v.map(|x| x.max(0.0) / total * height)
 }
 
-/// A vertical line `thick` pixels wide from column `x`, over the plot only, so
-/// a pointer on the border puts it at the plot's edge. `border` is how wide the border is.
-pub fn line(px: &mut [u32], w: usize, h: usize, border: usize, x: usize, thick: usize, color: Rgb) {
-	if px.len() < w * h || w <= 2 * border || h <= 2 * border {
-		return;
+/// A `w` by `h` part of a bigger image, whose rows are `stride` pixels apart,
+/// so a graph draws straight into the panel item's image.
+#[derive(Debug)]
+pub struct Canvas<'a> {
+	px: &'a mut [u32],
+	stride: usize,
+	w: usize,
+	h: usize,
+}
+
+impl<'a> Canvas<'a> {
+	/// The `(x, y, w, h)` part of `px`, an image `stride` pixels wide, or
+	/// None when it doesn't fit.
+	pub fn new(
+		px: &'a mut [u32],
+		stride: usize,
+		(x, y, w, h): (usize, usize, usize, usize),
+	) -> Option<Self> {
+		if w == 0 || h == 0 {
+			return Some(Canvas {
+				px: &mut [],
+				stride,
+				w: 0,
+				h: 0,
+			});
+		}
+		if x + w > stride || (y + h - 1) * stride + x + w > px.len() {
+			return None;
+		}
+		Some(Canvas {
+			px: &mut px[y * stride + x..],
+			stride,
+			w,
+			h,
+		})
 	}
-	let (plot_w, plot_h) = (w - 2 * border, h - 2 * border);
-	let thick = thick.clamp(1, plot_w);
-	let x0 = x.clamp(border, border + plot_w - thick);
-	let c = color.argb();
-	for row in px[border * w..(border + plot_h) * w].chunks_exact_mut(w) {
-		row[x0..x0 + thick].fill(c);
+
+	/// All of `px`, `w` by `h`, or None when it's shorter than that.
+	pub fn whole(px: &'a mut [u32], w: usize, h: usize) -> Option<Self> {
+		Self::new(px, w, (0, 0, w, h))
+	}
+
+	/// Width.
+	pub fn w(&self) -> usize {
+		self.w
+	}
+
+	/// Height.
+	pub fn h(&self) -> usize {
+		self.h
+	}
+
+	fn row(&mut self, r: usize) -> &mut [u32] {
+		let at = r * self.stride;
+		&mut self.px[at..at + self.w]
+	}
+
+	/// A vertical line `thick` pixels wide from column `x`, over the plot
+	/// only, so a pointer on the border puts it at the plot's edge. `border`
+	/// is how wide the border is.
+	pub fn line(&mut self, border: usize, x: usize, thick: usize, color: Rgb) {
+		let (w, h) = (self.w, self.h);
+		if w <= 2 * border || h <= 2 * border {
+			return;
+		}
+		let (plot_w, plot_h) = (w - 2 * border, h - 2 * border);
+		let thick = thick.clamp(1, plot_w);
+		let x0 = x.clamp(border, border + plot_w - thick);
+		let c = color.argb();
+		for r in border..border + plot_h {
+			self.row(r)[x0..x0 + thick].fill(c);
+		}
 	}
 }
 
@@ -258,13 +318,40 @@ impl<const N: usize> Frame<'_, N> {
 		scaled: Option<Scale<'_>>,
 		scratch: &mut Scratch<N>,
 	) {
-		px.clear();
-		px.resize(w * h, self.outline.border.argb());
+		px.resize(w * h, 0);
+		if let Some(mut canvas) = Canvas::whole(px, w, h) {
+			self.draw_in(&mut canvas, scale, scaled, scratch);
+		}
+	}
+
+	/// As [`Self::draw_to`], into a part of a bigger image. Every pixel of
+	/// `canvas` is written.
+	pub fn draw_in(
+		&self,
+		canvas: &mut Canvas<'_>,
+		scale: usize,
+		scaled: Option<Scale<'_>>,
+		scratch: &mut Scratch<N>,
+	) {
+		let (w, h) = (canvas.w, canvas.h);
 		let border = (self.look.border as usize * scale).min(w / 2).min(h / 2);
 		let (plot_w, plot_h) = (w - 2 * border, h - 2 * border);
+		let edge = self.outline.border.argb();
+		// the plot below writes all of itself, so only the border is filled
+		for r in 0..h {
+			let row = canvas.row(r);
+			if plot_w == 0 || r < border || r >= border + plot_h {
+				row.fill(edge);
+			} else {
+				row[..border].fill(edge);
+				row[border + plot_w..].fill(edge);
+			}
+		}
 		if plot_w == 0 || plot_h == 0 {
 			return;
 		}
+		let stride = canvas.stride;
+		let px = &mut *canvas.px;
 		let Scratch {
 			back,
 			back_px,
@@ -329,7 +416,7 @@ impl<const N: usize> Frame<'_, N> {
 		};
 		let gradient = matches!(self.paint, Paint::Gradient(_));
 		for (cx, v) in reached.iter().enumerate() {
-			let at = |r: usize| (r + border) * w + cx + border;
+			let at = |r: usize| (r + border) * stride + cx + border;
 			let Some(hs) = v.map(|v| self.vertical.fit(v, top, floor)) else {
 				for (r, &b) in back_px.iter().enumerate() {
 					px[at(r)] = b;
@@ -544,7 +631,9 @@ mod tests {
 		let back = 0xff11_1111;
 		let draw_at = |x: usize, thick: usize| {
 			let mut px = vec![back; 8 * 4];
-			line(&mut px, 8, 4, 1, x, thick, Rgb(0, 0, 0));
+			Canvas::whole(&mut px, 8, 4)
+				.unwrap()
+				.line(1, x, thick, Rgb(0, 0, 0));
 			px
 		};
 		let px = draw_at(3, 2);
@@ -561,7 +650,9 @@ mod tests {
 		assert_eq!(draw_at(99, 2)[8 + 7], back);
 		// too small to have a plot is left alone
 		let mut px = vec![back; 4];
-		line(&mut px, 2, 2, 1, 0, 1, Rgb(0, 0, 0));
+		Canvas::whole(&mut px, 2, 2)
+			.unwrap()
+			.line(1, 0, 1, Rgb(0, 0, 0));
 		assert!(px.iter().all(|&p| p == back));
 	}
 

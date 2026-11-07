@@ -44,9 +44,21 @@ fn text(t: &str) -> Value {
 #[test]
 fn the_demo_spec_parses_and_works_out_indents() {
 	let m = demo();
-	assert_eq!(m.spec.at("strength").indent, 1, "under Text scrim");
-	assert_eq!(m.spec.at("profile").indent, 1, "under Choose automatically");
-	assert_eq!(m.spec.at("scrim").indent, 0, "a group is not a parent");
+	assert_eq!(
+		m.spec.at("strength").indent,
+		Indent::Steps(1),
+		"under Text scrim"
+	);
+	assert_eq!(
+		m.spec.at("profile").indent,
+		Indent::Steps(1),
+		"under Choose automatically"
+	);
+	assert_eq!(
+		m.spec.at("scrim").indent,
+		Indent::Steps(0),
+		"a group is not a parent"
+	);
 	let profile = m.spec.at("profile");
 	let keys: Vec<&str> = profile.options.iter().map(|(k, _)| k.as_str()).collect();
 	assert_eq!(
@@ -75,6 +87,24 @@ fn a_bad_spec_names_every_mistake() {
 	assert!(all.contains("x: gate nothing"), "{all}");
 	assert!(all.contains("x: a slider needs a range"), "{all}");
 	assert!(all.contains("y: no tab"), "{all}");
+}
+
+// Test ID: dezfh
+#[test]
+fn a_group_has_the_specs_presets_or_the_programs_not_both() {
+	let m = demo();
+	assert!(matches!(
+		m.spec.group("theme").map(|g| &g.presets),
+		Some(Presets::Listed(list)) if list.len() == 2
+	));
+	let at = "\ttheme:\n\t\tchooser: theme\n";
+	assert!(DEMO.contains(at));
+	let both = DEMO.replace(at, &format!("{at}\t\tfrom_program: true\n"));
+	let all = Spec::parse(&both).err().unwrap_or_default().join("\n");
+	assert!(
+		all.contains("group theme: presets given, but they're from the program"),
+		"{all}"
+	);
 }
 
 // Test ID: ddqpv
@@ -482,7 +512,7 @@ fn plain(id: &str, kind: Kind, path: &str, default: Value) -> Setting {
 		detents: Vec::new(),
 		options: Vec::new(),
 		tip: String::new(),
-		indent: u8::MAX,
+		indent: Indent::FromRelations,
 		gate: None,
 		auto: None,
 		rule: None,
@@ -511,8 +541,7 @@ fn shop() -> Model {
 			chooser: "theme".into(),
 			noun: "theme".into(),
 			custom: Some("Custom".into()),
-			presets: Vec::new(),
-			from_program: true,
+			presets: Presets::FromProgram,
 			members: Vec::new(),
 		}],
 	};
@@ -529,7 +558,7 @@ fn a_spec_built_in_code_is_checked_like_a_parsed_one() {
 	);
 	let mut broken = (*m.spec).clone();
 	broken.settings[1].gate = Some("nothing".into());
-	broken.groups[0].from_program = false;
+	broken.groups[0].presets = Presets::Listed(Vec::new());
 	let errs = broken.finish().err().unwrap_or_default().join("\n");
 	assert!(errs.contains("gate nothing"), "{errs}");
 	assert!(errs.contains("no presets"), "{errs}");

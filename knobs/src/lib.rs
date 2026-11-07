@@ -174,9 +174,8 @@ pub struct Setting {
 	pub options: Vec<(String, String)>,
 	/// The flyover text.
 	pub tip: String,
-	/// Steps in from the left, worked out from the relations unless the spec
-	/// gives one.
-	pub indent: u8,
+	/// Steps in from the left.
+	pub indent: Indent,
 	/// A checkbox this only counts under.
 	pub gate: Option<String>,
 	/// A checkbox that makes this automatic.
@@ -186,6 +185,25 @@ pub struct Setting {
 	pub rule: Option<Rule>,
 	/// The preset group this belongs to.
 	pub group: Option<String>,
+}
+
+/// How far a setting steps in from the left.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Indent {
+	/// Worked out from the relations, by [`Spec::finish`].
+	FromRelations,
+	/// This many steps, as the spec gives or as worked out.
+	Steps(u8),
+}
+
+impl Indent {
+	/// The steps, with none for one not worked out yet.
+	pub fn steps(self) -> u8 {
+		match self {
+			Indent::Steps(n) => n,
+			Indent::FromRelations => 0,
+		}
+	}
 }
 
 /// A tab of the dialog.
@@ -223,13 +241,29 @@ pub struct Group {
 	pub noun: String,
 	/// The label for the person's own set, if there is one.
 	pub custom: Option<String>,
-	/// From the spec, in order.
-	pub presets: Vec<Preset>,
-	/// The presets are the program's, asked for through [`Env::preset`], and
-	/// `presets` is empty.
-	pub from_program: bool,
+	/// Its presets.
+	pub presets: Presets,
 	/// Setting ids, in spec order.
 	pub members: Vec<String>,
+}
+
+/// Where a group's presets come from.
+#[derive(Clone, Debug)]
+pub enum Presets {
+	/// From the spec, in order.
+	Listed(Vec<Preset>),
+	/// The program's, asked for through [`Env::preset`].
+	FromProgram,
+}
+
+impl Presets {
+	/// The spec's, or none when they're the program's.
+	pub fn listed(&self) -> &[Preset] {
+		match self {
+			Presets::Listed(list) => list,
+			Presets::FromProgram => &[],
+		}
+	}
 }
 
 /// The key a group's own set of values is stored under.
@@ -238,7 +272,7 @@ pub const CUSTOM: &str = "custom";
 impl Group {
 	/// One of the spec's presets, by key.
 	pub fn preset(&self, key: &str) -> Option<&Preset> {
-		self.presets.iter().find(|p| p.key == key)
+		self.presets.listed().iter().find(|p| p.key == key)
 	}
 }
 
@@ -367,6 +401,7 @@ impl Spec {
 		for g in &self.groups {
 			let mut options: Vec<(String, String)> = g
 				.presets
+				.listed()
 				.iter()
 				.map(|p| (p.key.clone(), p.label.clone()))
 				.collect();
@@ -469,7 +504,7 @@ impl Spec {
 		for g in &self.groups {
 			match self.get(&g.chooser) {
 				Some(c) if c.control == Control::Dropdown => {
-					if !g.from_program
+					if matches!(g.presets, Presets::Listed(_))
 						&& g.preset(c.default.as_text()).is_none()
 						&& c.default.as_text() != CUSTOM
 					{
@@ -481,7 +516,7 @@ impl Spec {
 					g.id, g.chooser
 				)),
 			}
-			if g.presets.is_empty() && !g.from_program {
+			if matches!(&g.presets, Presets::Listed(list) if list.is_empty()) {
 				errs.push(format!("group {}: no presets", g.id));
 			}
 		}
@@ -505,8 +540,8 @@ impl Spec {
 			})
 			.collect();
 		for (s, d) in self.settings.iter_mut().zip(depth) {
-			if s.indent == u8::MAX {
-				s.indent = d;
+			if s.indent == Indent::FromRelations {
+				s.indent = Indent::Steps(d);
 			}
 		}
 	}
@@ -550,7 +585,9 @@ impl Spec {
 					Ok(Value::Text(k.clone()))
 				} else if chooser.is_some() && word.eq_ignore_ascii_case(CUSTOM) {
 					Ok(Value::Text(CUSTOM.to_string()))
-				} else if chooser.is_some_and(|g| g.from_program && !t.is_empty()) {
+				} else if chooser
+					.is_some_and(|g| matches!(g.presets, Presets::FromProgram) && !t.is_empty())
+				{
 					Ok(v.clone())
 				} else {
 					Err(format!("{t} is not one of the choices"))
@@ -678,7 +715,10 @@ fn read_setting(doc: &shcl::Document, id: &str, tabs: &[Tab]) -> Result<Setting,
 		tip: text("tip"),
 		indent: doc
 			.get_int(&at("indent"))
-			.map_or(u8::MAX, |n| n.clamp(0, 8) as u8),
+			.map_or(
+				Indent::FromRelations,
+				|n| Indent::Steps(n.clamp(0, 8) as u8),
+			),
 		gate: opt("gate"),
 		auto: opt("auto"),
 		rule,
@@ -761,6 +801,11 @@ fn read_group(doc: &shcl::Document, id: &str, settings: &[Setting]) -> Result<Gr
 			values,
 		});
 	}
+	if from_program && !presets.is_empty() {
+		errs.push(format!(
+			"group {id}: presets given, but they're from the program"
+		));
+	}
 	if !errs.is_empty() {
 		return Err(errs);
 	}
@@ -771,8 +816,11 @@ fn read_group(doc: &shcl::Document, id: &str, settings: &[Setting]) -> Result<Gr
 			.get_string(&at("noun"))
 			.unwrap_or_else(|_| "preset".into()),
 		custom: doc.get_string(&at("custom")).ok(),
-		presets,
-		from_program,
+		presets: if from_program {
+			Presets::FromProgram
+		} else {
+			Presets::Listed(presets)
+		},
 		members,
 	})
 }
@@ -920,10 +968,9 @@ fn preset_of<'a>(g: &'a Group, key: &str, env: &dyn Env) -> Option<Cow<'a, Prese
 	if key == CUSTOM {
 		return None;
 	}
-	if g.from_program {
-		env.preset(&g.id, key).map(Cow::Owned)
-	} else {
-		g.preset(key).map(Cow::Borrowed)
+	match g.presets {
+		Presets::FromProgram => env.preset(&g.id, key).map(Cow::Owned),
+		Presets::Listed(_) => g.preset(key).map(Cow::Borrowed),
 	}
 }
 
@@ -1577,10 +1624,9 @@ impl Model {
 				continue;
 			};
 			// the program's presets can't be asked for yet, so only Custom is ruled out
-			let gone = if g.from_program {
-				on == CUSTOM
-			} else {
-				g.preset(&on).is_none_or(|p| p.temporary)
+			let gone = match g.presets {
+				Presets::FromProgram => on == CUSTOM,
+				Presets::Listed(_) => g.preset(&on).is_none_or(|p| p.temporary),
 			};
 			if m.stored_choice(&g.id, &NoEnv) != on || gone {
 				continue;

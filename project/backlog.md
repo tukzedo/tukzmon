@@ -527,20 +527,32 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 13: The panel item clears its whole image, then copies each graph in
 	- ID: 2026110618502913
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
 	- Origin: `b46c961` (2026-10-25), before the 20261030 review, whose item 9 looked at allocations. Idea. Confirmed, measured: about 16% of a draw at scale 2, little at scale 1.
 	- Requirements:
 		- Each graph draws straight into the item's image, or only the gaps get cleared.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Each graph draws into its own part of the item's image, through `render::Canvas`, and only the edges and gaps are cleared. A graph fills only its border before the plot, since the plot writes every pixel of itself.
+		- The panel item no longer keeps a pixel buffer per graph, about 140 KB at the profiler's 848x48.
+		- Verified: the quick gate passed. Release build, load about 1.5 on 32 cores, medians of 200 draws at 848x48: the clear and copy were 4 to 5 us of a draw, and the draw stayed at 34 us with no history and about 195 us with a week, before and after.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- Kept, though it isn't faster. The 16% didn't hold here, and the clear and copy saved go to the plot's writes a whole image row apart. The buffers saved are the gain.
+		- `Graph::render` still draws into the graph's own buffer, for the settings window's live rows.
+	- Branch: round-1107
+	- Test case: `graphs::tests::graphs_draw_straight_into_the_image_and_only_the_gaps_are_cleared` (dezfg). It fails with each graph drawn into its own buffer and copied, with the gaps left uncleared, and with a graph's right border left unfilled.
+		- Swept: every `Frame::draw_to`, `render::line` and `Drawn::render` caller, in core, the examples, the soak test, xfce and the settings window.
+	- Closed: 20261106-230200
 
 - Code review 20261106 item 14: States that exclude each other kept in separate fields
 	- ID: 2026110618502914
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -548,8 +560,20 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- The plugin's own settings window and a stray one are one enum.
 		- knobs' "work out the indent" value and its program-filled presets get types of their own, if it's cheap.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The plugin keeps `Option<SettingsWindow>`, `Ours(Child)` or `Stray(pid)`.
+		- knobs' `Setting::indent` is `Indent::FromRelations` or `Indent::Steps(n)`, in place of `u8::MAX` for "work it out". `Group::presets` is `Presets::Listed` or `Presets::FromProgram`, in place of a list plus `from_program`.
+		- A spec group with `from_program` and presets blocks is now an error, as the demo spec's notes already said there are none then.
+		- Verified: the quick gate passed.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- `Presets::listed()` gives the spec's presets, or none, so readers that only list them stay one line.
+	- Branch: round-1107
+	- Test case: `tests::a_group_has_the_specs_presets_or_the_programs_not_both` in knobs (dezfh), which fails without the new check. The rest is a type change, which the compiler holds, and der60, der61, des4c and ddqs9 cover the same paths.
+		- Swept: every read of `stray`, `settings`, `indent`, `presets` and `from_program` in xfce, knobs, core and the settings crate, `qt.cpp`'s `info.indent` included.
+	- Closed: 20261106-230200
 
 - Code review 20261106 item 15: The demo scans every process while it records
 	- ID: 2026110618502915

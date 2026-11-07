@@ -423,7 +423,7 @@ fn dialog_rows(d: &Dialog) -> Vec<ffi::RowInfo> {
 			max: s.max,
 			options: s.options.iter().map(|(k, _)| k.clone()).collect(),
 			option_labels: s.options.iter().map(|(_, l)| l.clone()).collect(),
-			indent: s.indent as i32,
+			indent: i32::from(s.indent.steps()),
 			section: section.map_or_else(String::new, |(g, _)| g.to_string()),
 			beside: section.is_some_and(|(_, b)| b),
 			same_line: tukzmon_core::config::same_line(&s.id),
@@ -931,7 +931,7 @@ mod tests {
 		}
 		let before: Vec<String> = group.members.iter().map(|id| d.state(id).text).collect();
 		let mut moved: Vec<i32> = Vec::new();
-		for p in &group.presets {
+		for p in group.presets.listed() {
 			assert!(d.set_text("theme", &p.key), "{}", p.key);
 			for (id, was) in group.members.iter().zip(&before) {
 				let want = p.values.get(id);

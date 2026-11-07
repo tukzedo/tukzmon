@@ -46,7 +46,7 @@ use net::Traffic;
 use own::OwnReader;
 #[cfg(unix)]
 use procs::ProcsReader;
-use render::{Frame, Paint, Peak, Scale, Scratch, Vertical};
+use render::{Canvas, Frame, Paint, Peak, Scale, Scratch, Vertical};
 use temp::TempReader;
 use when::Said;
 use zswap::ZswapReader;
@@ -782,13 +782,24 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 
 	/// The graph as cairo ARGB32 pixels, `w` by `h`.
 	pub fn render(&mut self, w: usize, h: usize, scale: usize) -> &[u32] {
+		let mut px = std::mem::take(&mut self.px);
+		px.resize(w * h, 0);
+		if let Some(mut canvas) = Canvas::whole(&mut px, w, h) {
+			self.render_in(&mut canvas, scale);
+		}
+		self.px = px;
+		&self.px
+	}
+
+	/// As [`Self::render`], into a part of a bigger image.
+	pub fn render_in(&mut self, canvas: &mut Canvas<'_>, scale: usize) {
+		let (w, h) = (canvas.w(), canvas.h());
 		let basis = self.basis(self.columns(w, scale));
 		let axis = Axis::of(&basis);
 		let t = self.now();
 		// a sample may come late by most of a tick, and a tick may be missed
 		let slack = 2.0 * f64::from(self.sample_ms()) / 1000.0 + 0.25;
 		self.ease.update(&axis, basis, t, slack);
-		let mut px = std::mem::take(&mut self.px);
 		let peak = self.src.peak_floor().map(|floor| Scale {
 			peak: &mut self.peak,
 			floor,
@@ -802,13 +813,11 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 			outline: S::outline(&self.look),
 			vertical: S::vertical(&self.look),
 		}
-		.draw_to(&mut px, w, h, scale, peak, &mut self.scratch);
+		.draw_in(canvas, scale, peak, &mut self.scratch);
 		if let Some(x) = self.hover {
 			let border = self.border_px(w, h, scale);
-			render::line(&mut px, w, h, border, x, scale, self.look.hover);
+			canvas.line(border, x, scale, self.look.hover);
 		}
-		self.px = px;
-		&self.px
 	}
 
 	/// The latest read, as the panel's tooltip.

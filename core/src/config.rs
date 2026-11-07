@@ -323,9 +323,12 @@ pub const THEMES: &str = "themes";
 
 fn builtin_key(key: &str) -> bool {
 	key.eq_ignore_ascii_case(knobs::CUSTOM)
-		|| spec()
-			.group(THEME)
-			.is_some_and(|g| g.presets.iter().any(|p| p.key.eq_ignore_ascii_case(key)))
+		|| spec().group(THEME).is_some_and(|g| {
+			g.presets
+				.listed()
+				.iter()
+				.any(|p| p.key.eq_ignore_ascii_case(key))
+		})
 }
 
 /// The saved themes in a config file, in file order. A value that's missing
@@ -415,9 +418,14 @@ pub fn spec_with(themes: &[SavedTheme]) -> Arc<Spec> {
 	}
 	// a copy, since the one spec() hands out is shared
 	let mut s = (*base).clone();
-	if let Some(g) = s.groups.iter_mut().find(|g| g.id == THEME) {
+	if let Some(knobs::Presets::Listed(list)) = s
+		.groups
+		.iter_mut()
+		.find(|g| g.id == THEME)
+		.map(|g| &mut g.presets)
+	{
 		for t in themes {
-			g.presets.push(knobs::Preset {
+			list.push(knobs::Preset {
 				key: t.key.clone(),
 				label: t.name.clone(),
 				temporary: false,
@@ -1403,7 +1411,7 @@ mod tests {
 		for id in ["margin_tb", "margin_lr"] {
 			assert_eq!(s.get(id).and_then(|r| r.group.as_deref()), Some("theme"));
 		}
-		for p in &s.group("theme").unwrap().presets {
+		for p in s.group("theme").unwrap().presets.listed() {
 			for id in ["margin_tb", "margin_lr"] {
 				assert_eq!(p.values[id].as_f64(), 2.0, "{} {id}", p.key);
 			}
@@ -1519,7 +1527,7 @@ mod tests {
 				assert!(g.members.contains(&id), "{id}");
 				let shared = &s.get(part).unwrap().default;
 				assert_eq!(&s.get(&id).unwrap().default, shared, "{id}");
-				for p in &g.presets {
+				for p in g.presets.listed() {
 					assert_eq!(p.values[&id], p.values[part], "{} {id}", p.key);
 				}
 			}
@@ -1712,7 +1720,7 @@ mod tests {
 			crate::render::Paint::Gradient(l[Which::Cpu].gradient)
 		);
 		let spec = spec();
-		for p in &spec.group(THEME).unwrap().presets {
+		for p in spec.group(THEME).unwrap().presets.listed() {
 			let want = if p.key == "fire" {
 				"gradient"
 			} else {
@@ -1756,7 +1764,7 @@ mod tests {
 			crate::render::Paint::Stack(d[Which::Mem].colors.first_chunk().unwrap())
 		);
 		let spec = spec();
-		for p in &spec.group(THEME).unwrap().presets {
+		for p in spec.group(THEME).unwrap().presets.listed() {
 			let v = |id: &str| p.values[id].as_text().to_string();
 			assert_eq!(v("mem_mode"), v("cpu_mode"), "{}", p.key);
 			assert_ne!(v("mem_buffers"), v("mem_cache"), "{}", p.key);
@@ -1788,7 +1796,7 @@ mod tests {
 			"magenta", "teal", "brown", "gray", "grey",
 		];
 		let spec = spec();
-		let presets = &spec.group(THEME).unwrap().presets;
+		let presets = spec.group(THEME).unwrap().presets.listed();
 		assert!(presets.len() > 2);
 		for p in presets {
 			let label = p.label.to_lowercase();
@@ -1819,7 +1827,7 @@ mod tests {
 	fn every_graph_leads_with_a_color_that_reads_apart() {
 		use crate::color::{APART, apart};
 		let spec = spec();
-		for p in &spec.group(THEME).unwrap().presets {
+		for p in spec.group(THEME).unwrap().presets.listed() {
 			let get = |id: &str| p.values.get(id).map(knobs::Value::as_text);
 			let leads = leads(get);
 			assert_eq!(leads.len(), LEADS.len(), "{}", p.key);
@@ -1874,7 +1882,7 @@ mod tests {
 		let spec = spec();
 		let g = spec.group(THEME).unwrap();
 		let mut one_color = vec![];
-		for p in &g.presets {
+		for p in g.presets.listed() {
 			let get = |id: &str| p.values.get(id).map(knobs::Value::as_text);
 			let leads = leads(get);
 			if leads.iter().any(|c| *c != leads[0]) {
