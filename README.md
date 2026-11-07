@@ -7,7 +7,9 @@
 <!-- TOC ignore:true -->
 # tukzmon
 
-A system monitor that lives in your panel. It draws small graphs for CPU, memory, GPU, network, disk, swap, temperature, battery, and more, right in the taskbar.
+![Rust 1.96](https://img.shields.io/badge/rust-1.96-orange)
+
+A system monitor that lives in your panel. Its small graphs show CPU, memory, GPU, network, disk, and more, with the last few seconds and the last few weeks in one graph.
 
 ![tukzmon in an XFCE panel: a fresh start, days of history on the log time axis, and the settings window](assets/demo.gif)
 
@@ -16,8 +18,6 @@ A system monitor that lives in your panel. It draws small graphs for CPU, memory
 The time axis is logarithmic by default. The last minute gets the most room, and older history is squeezed to the left, so one small graph shows the last few seconds and the last few weeks at once. History is kept across restarts and reboots (by default), with gaps where the computer was off.
 
 Height can go up on a straight, log, or squared scale, for every graph or one at a time. Log lifts a trickle so it shows next to a burst, and squared makes the peaks stand out.
-
-Inspired by A) The "Non-linear time" scale option in XFCE4's "CPU Graph", and B) The now-abandoned and stale "Multiload-ng" project. (The latter was a revival fork of the defunct "Multiload" project, which was a reimplementation of the original monitors available in the original Gnome desktop panel - and also available in MATE.)
 
 <!-- TOC ignore:true -->
 ## Table of contents
@@ -32,13 +32,16 @@ Inspired by A) The "Non-linear time" scale option in XFCE4's "CPU Graph", and B)
 	- [DIY](#diy)
 - [Set up development environment](#set-up-development-environment)
 - [Related projects](#related-projects)
+- [Background](#background)
 - [Copyright and license](#copyright-and-license)
 
 <!-- /TOC -->
 
 ## Status
 
-The first version is an XFCE panel plugin. Other desktops will follow. And then after that - Windows, macOS, and the BSDs.
+The first version is an XFCE panel plugin. Other desktops will follow. And then after that - Windows, macOS, and the BSDs. Both are deferred items on the [backlog](project/backlog.md).
+
+Tukzmon doesn't need any of the [related projects](#related-projects). It should work on any distro with a supported panel.
 
 There are no release packages yet. For now, install it on NixOS or build it from a checkout.
 
@@ -46,7 +49,7 @@ There are no release packages yet. For now, install it on NixOS or build it from
 
 - CPU, split into I/O wait, system, user, and nice.
 
-- Memory, split into user, buffers, and cache.
+- Memory, split into programs, buffers, and cache.
 
 - GPU use and GPU memory, for an NVIDIA or AMD card.
 
@@ -80,6 +83,12 @@ There are no release packages yet. For now, install it on NixOS or build it from
 
 - It works on vertical panels and deskbars too.
 
+- Each panel item has its own settings, so 2 items on one panel can show different graphs.
+
+- Colors come stacked, a color per series, or as one gradient by how high the graph reaches.
+
+- It works under X11 and Wayland on XFCE 4.20.
+
 ## Installation
 
 ### NixOS
@@ -112,7 +121,9 @@ Work goes on `dev`, and `main` takes releases.
 
 - [LXQtukz](https://github.com/tukzedo/lxqtukz), a highly configurable desktop with multiple "personas" out-of-the-box. (An LXQt panel version of tukzmon is in the works for it.)
 
-Tukzmon doesn't need either one. It should work on any distro with a supported panel.
+## Background
+
+Inspired by A) The "Non-linear time" scale option in XFCE4's "CPU Graph", and B) The now-abandoned and stale "Multiload-ng" project. (The latter was a revival fork of the defunct "Multiload" project, which was a reimplementation of the original monitors available in the original Gnome desktop panel - and also available in MATE.)
 
 ## Copyright and license
 

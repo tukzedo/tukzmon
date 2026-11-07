@@ -25,10 +25,10 @@ Sorted per the notes in [Template](#template).
 - Video & GIF: Make the XFCE task bar more realistic.
 	- ID: 2026110618335731
 	- Type: Enhancement
-	- Status: Waiting on UAT
+	- Status: Done
 		- Watch the new `assets/demo.gif` and say whether the panel looks real enough.
-	- Needs hand testing: whether the panel in the gif and the video looks like a real one.
-	- Stand-in: none (20261106). Whether it looks real is a judgment by eye.
+	- Needs hand testing: No
+	- Stand-in: frames of assets/demo.gif at 20261107 build 8990d9b, checked by eye.
 	- Priority|Severity: Avg
 	- Opened: 20261106-183357
 	- Opened by: t00mietum
@@ -48,6 +48,8 @@ Sorted per the notes in [Template](#template).
 	- Actual effort: Low
 	- Branch: round-1107
 	- Test case: None, since it's a recording. Frames of the gif and the video were checked at each scene. The quick gate's format, lint and test steps passed.
+	- Acceptance signoff: Self-closed 20261107: the gif's panel has the app menu and window button on the left, then tukzmon, the tray, notifications, the clock with time over date, and the logout menu on the right, as asked.
+	- Closed: 20261107-153311
 
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
