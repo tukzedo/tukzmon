@@ -187,15 +187,27 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 1: Each draw works out the spike fade again for every column
 	- ID: 2026110618502901
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
 	- Origin: `8551170` (2026-11-02), newer than the last style review. Breaks the rule on hoisting invariant work out of loops. Confirmed, the `powf` in `render::reach` is 3.6% of the tick in the 2026-11-06 profile.
 	- Requirements:
 		- Work out the fade once a draw, not once a column.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `render::Reach` holds the emphasis and its fade. `Frame::draw_to` makes one a draw, and each column calls `Reach::of`. The math is the same, in the same order, so the pixels are too.
+		- Profiler, load 6 to 9 on 32 cores: 260.0 us user a tick before, 232.2 and 248.3 after. `powf` went from 3.0% of the tick to 0.08%, and the reach from 4.6% to 0.6 to 0.7%.
+		- Verified: the quick gate and the Sanitizers step passed.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- A small struct, not a fade passed in beside the emphasis, so the two can't be mixed up at a call.
+		- Left as is: `fit_log` works out the log of the top for each column too. It's only on log10 graphs, none on by default, and not in the profile.
+	- Branch: round-1107
+	- Test case: none of its own, since the pixels don't change. dese6, debj9 and denc4 check the draw, and the profiler the time.
+		- Swept: every reach caller (`Frame::draw_to`, the test helper `column`), and every `powf`, `exp` and `ln` in `render.rs` and `axis.rs`. `Peak::fit`'s `exp` is once a draw, and the axis's `exp_m1` in `age` turns on each column's own place, so it can't move out.
+	- Closed: 20261106-203001
 
 - Code review 20261106 item 2: knobs lists a theme's changes again for each row it reads
 	- ID: 2026110618502902

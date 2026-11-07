@@ -30,11 +30,24 @@ fn pack_alpha(c: [f32; 3], alpha: f32) -> u32 {
 /// Seconds for a falling peak to come most of the way down to what's in view.
 const PEAK_FALL: f64 = 2.0;
 
-// mean plus part of the way to max, in the source's own unit
-fn reach<const N: usize>(mean: &[f32; N], max: &[f32; N], secs: f64, spikes: f32) -> [f32; N] {
-	let fade = SPIKE_FADE * 1000f64.powf(f64::from(spikes));
-	let reach = spikes * (1.0 / (1.0 + secs / fade)) as f32;
-	std::array::from_fn(|i| mean[i] + (max[i] - mean[i]).max(0.0) * reach)
+// the spike emphasis, with its fade worked out once a draw
+#[derive(Clone, Copy, Debug)]
+struct Reach {
+	spikes: f32,
+	fade: f64,
+}
+
+impl Reach {
+	fn new(spikes: f32) -> Self {
+		let fade = SPIKE_FADE * 1000f64.powf(f64::from(spikes));
+		Reach { spikes, fade }
+	}
+
+	// mean plus part of the way to max, in the source's own unit
+	fn of<const N: usize>(self, mean: &[f32; N], max: &[f32; N], secs: f64) -> [f32; N] {
+		let reach = self.spikes * (1.0 / (1.0 + secs / self.fade)) as f32;
+		std::array::from_fn(|i| mean[i] + (max[i] - mean[i]).max(0.0) * reach)
+	}
 }
 
 fn fit<const N: usize>(v: [f32; N], top: f32) -> [f32; N] {
@@ -286,6 +299,7 @@ impl<const N: usize> Frame<'_, N> {
 			grad_px.extend(grad.iter().map(|&g| pack_alpha(g, 1.0)));
 		}
 		reached.clear();
+		let emphasis = Reach::new(self.look.spikes);
 		// each column's old edge is the new edge of the one left of it
 		let mut a = self.now - self.axis.age(1.0);
 		reached.extend((0..pw).map(|cx| {
@@ -294,7 +308,7 @@ impl<const N: usize> Frame<'_, N> {
 			let a = std::mem::replace(&mut a, b);
 			let span = self.hist.span(a, b);
 			(span.covered >= MIN_COVER)
-				.then(|| reach(&span.mean, &span.max, b - a, self.look.spikes))
+				.then(|| emphasis.of(&span.mean, &span.max, b - a))
 				// else NaN fills the column, and inf flattens every other one
 				.filter(|v| v.iter().all(|x| x.is_finite()))
 		}));
@@ -396,7 +410,7 @@ mod tests {
 
 	// a column's heights as the drawing takes them, with a top of 1
 	fn column<const N: usize>(mean: &[f32; N], max: &[f32; N], secs: f64, spikes: f32) -> [f32; N] {
-		fit(reach(mean, max, secs, spikes), 1.0)
+		fit(Reach::new(spikes).of(mean, max, secs), 1.0)
 	}
 
 	fn look() -> Look {
