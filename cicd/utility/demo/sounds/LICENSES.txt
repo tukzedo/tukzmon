@@ -1,0 +1,13 @@
+Sound sources and licenses
+==========================
+
+mouse/click.wav and mouse/click_quiet.wav
+  Single clicks cut, with edge fades, from "Computer Mouse Clicks -
+  Single, Double and Soft Clicks" by ApeinCave.
+  Source: https://freesound.org/people/ApeinCave/sounds/855467/
+  License: CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/)
+  Attribution: none required (CC0)
+  click.wav       = the click at 23.18 s of the source
+  click_quiet.wav = the click at 20.55 s of the source
+  Each has about 0.16 s of quiet before the click, which demo-video.py trims
+  when it loads them.

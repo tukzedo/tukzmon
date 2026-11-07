@@ -6560,7 +6560,7 @@ Sorted per the notes in [Template](#template).
 - CICD gap: Animated demo for the README
 	- ID: 2026110310450002
 	- Type: Task
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261103-104500
 	- Opened by: t00mietum
@@ -6569,6 +6569,19 @@ Sorted per the notes in [Template](#template).
 		- A demo step, left out of `--quick`, renders a GIF at 960x540 and 50 fps and a video at 1920x1080 and 60 fps, headless, from a short plain-text script in `cicd/utility/demo/script.txt`.
 		- It shows the panel graphs filling, a hover tip, and the settings window with live graphs and a theme change, in about 20 to 30 seconds. Anonymous content only.
 		- The newest GIF goes to `assets/demo.gif` when it changed, and sits near the top of README.md at its own size.
+	- Progress log:
+		- `cicd/utility/demo/demo-video.py` records it from `script.txt`, on a private Xvfb with a real panel and window manager.
+		- It shows a fresh start settling, then 4 days of made-up history with the hover tip going back to "3 days ago", then Properties, the Graphs tab, and a theme change.
+		- The made-up history comes from `core/examples/demo-history.rs`.
+		- The Demo step runs in the default run and `--long`. `--quick`, `--no-demo` and the hands-off runs leave it out.
+		- Clicks have sound in the video, and land within 0.1 s of what they do on screen.
+	- Decisions:
+		- 2026-11-06: about 36 s, over the 30 s aimed for, since it also shows days of history and the Graphs tab.
+		- 2026-11-06: the video is the gif's layout at scale 2, so one set of click positions works for both.
+		- 2026-11-06: the settings window's title shows its file's path, so the panel runs with its home at `/home/sam`.
+	- Branch: demo
+	- Test case: None, since it's a recording. The gif and the video were checked frame by frame.
+	- Closed: 20261106-182817
 
 - CICD gap: Slow leak checks still missing
 	- ID: 2026110310450003

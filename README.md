@@ -9,6 +9,10 @@
 
 A system monitor that lives in your panel. It draws small graphs for CPU, memory, GPU, network, disk, swap, temperature, battery, and more, right in the taskbar.
 
+![tukzmon in an XFCE panel: a fresh start, days of history on the log time axis, and the settings window](assets/demo.gif)
+
+<!-- Video: [Watch the demo on YouTube](https://www.youtube.com/watch?v=VIDEO_ID) -->
+
 The time axis is logarithmic by default. The last minute gets the most room, and older history is squeezed to the left, so one small graph shows the last few seconds and the last few weeks at once. History is kept across restarts and reboots (by default), with gaps where the computer was off.
 
 Height can go up on a straight, log, or squared scale, for every graph or one at a time. Log lifts a trickle so it shows next to a burst, and squared makes the peaks stand out.
