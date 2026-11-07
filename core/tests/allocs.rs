@@ -89,3 +89,27 @@ fn a_saved_theme_loads_without_listing_every_outline_id() {
 	// about 20 a value now, nearly all in reading the file. It was 85.
 	assert!(n <= 40 * members, "{n} allocations for {members} values");
 }
+
+// Test ID: dezd3
+#[cfg(unix)]
+#[test]
+#[cfg_attr(miri, ignore = "Miri has no rewinddir")]
+fn a_procs_read_allocates_nothing() {
+	use tukzmon_core::collect::Collector;
+	use tukzmon_core::procs::ProcsReader;
+	let dir = std::env::temp_dir().join(format!(
+		"test_tukzmon-core_{}_allocs_procs",
+		std::process::id()
+	));
+	let _ = std::fs::remove_dir_all(&dir);
+	for pid in 1..=50 {
+		std::fs::create_dir_all(dir.join(pid.to_string())).unwrap();
+	}
+	let mut r = ProcsReader::at(&dir, 0);
+	let first = r.read();
+	let n = allocs_in(|| assert_eq!(r.read(), first));
+	let _ = std::fs::remove_dir_all(&dir);
+	assert_eq!(first.map(|c| c.iter().sum::<f32>()), Some(50.0));
+	// it was 2 an entry
+	assert_eq!(n, 0);
+}

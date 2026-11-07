@@ -297,7 +297,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 5: The processes graph takes about 4 ms a read
 	- ID: 2026110618502905
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
+		- It departs from the wording in one way. A read is still one `stat` a process, so the system calls a process are the same, and the kernel's part of the read, nearly all of it, is the same.
 	- Priority|Severity: Avg
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -305,8 +306,27 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- Read `/proc` with fewer allocations and system calls a process.
 		- The profiler times a run with the processes graph on.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The `/proc` folder is kept open and listed again from the start each read, and each process is a `fstatat` by name off it. A read allocates nothing, against 2 an entry before, and the open and close each read are gone.
+		- On b23 with about 1,380 processes a read went from 1.44 to 1.54 ms of CPU to 1.28 to 1.35 ms, and its user time from about 160 us to 55. About 1.25 ms is the kernel's, which no change here can avoid: about 0.5 ms to list the folder and 0.65 us a stat.
+		- The profiler runs with processes on: 7 graphs, 747 us a tick against 272 with the 6 default ones. fstatat and getdents are its top 2, at 30% and 26% of self time. Its week of history now reads `/proc` 30,240 times first, so the step takes about 45 s longer.
+		- Under Miri there's no processes graph, as on a box it can't read, since Miri has no `rewinddir`.
+		- `design.md` Data sources on Linux has it.
+		- Verified: the quick gate passed, and the profile area. dezd3 failed on the old read, at 102 allocations for 50 folders, and dezd2 failed with the rewind taken out. Under Miri the procs tests passed, with the 3 that list a folder ignored.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- libc's `opendir`, `rewinddir`, `readdir` and `fstatat` rather than raw `getdents64` with a bigger buffer, which timed the same and is Linux only.
+		- No cache of owners by pid. A process that runs `sudo` or drops root keeps its pid, so a cache would count it wrong until it's checked again, and a check is the same `stat`.
+		- The week of history in the profiler keeps processes on too, so its draw sees a full graph like the others. Turning it on after the week would save the 45 s.
+		- `ProcsReader` holds a `DIR` pointer now, so it isn't `Send`. Nothing needs it to be.
+	- Branch: round-1107
+	- Test case: `procs::tests::each_read_lists_the_folder_again` (dezd2), `a_procs_read_allocates_nothing` in `core/tests/allocs.rs` (dezd3), and dep4j, dep4k, dep48 and dep49 as before.
+		- 2026-11-06: dep4j and dep4k are ignored under Miri now, since Miri has no `rewinddir`.
+		- Swept: every `ProcsReader` and `Which::Procs` use. dencp, dend1 and den86 turn every graph on, and under Miri now get no processes graph, as on a box without `/proc`. The other `/proc` readers already keep their files open through `Kept`.
+	- Acceptance signoff: Self-closed, 2026-11-06: dezd2 and dezd3 passed in the quick gate, and the profile area ran with processes on.
+	- Closed: 20261106-214137
 
 - Code review 20261106 item 6: Opening the settings window works out the graph list once per setting
 	- ID: 2026110618502906
