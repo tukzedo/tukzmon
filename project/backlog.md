@@ -128,6 +128,20 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1102
 	- Test case: The workflow is its own test, as for 2026102513560001.
 
+- Video & GIF: Make the XFCE task bar more realistic.
+	- ID: 2026110618335731
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261106-183357
+	- Opened by: t00mietum
+	- Related IDs: 2026110310450002
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+	- Requirements:
+		- E.g. right-aligned with tukzmon, status tray, notification tray, time, logout/shutdown menu.
+		- Change `cicd/utility/demo/script.txt` first, then the demo's panel and scenes, then record both again.
+
 - The pipeline prunes every project's docker build cache
 	- ID: 2026110311291910
 	- Type: Bug
@@ -6582,18 +6596,6 @@ Sorted per the notes in [Template](#template).
 	- Branch: demo
 	- Test case: None, since it's a recording. The gif and the video were checked frame by frame.
 	- Closed: 20261106-182817
-
-- Video & GIF: Make the XFCE task bar more realistic.
-	- ID: 2026110618335731
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261106-183357
-	- Opened by: t00mietum
-	- Related IDs: 2026110310450002
-	- Requirements:
-		- E.g. right-aligned with tukzmon, status tray, notification tray, time, logout/shutdown menu.
-		- Change `cicd/utility/demo/script.txt` first, then the demo's panel and scenes, then record both again.
 
 - CICD gap: Slow leak checks still missing
 	- ID: 2026110310450003
