@@ -1358,7 +1358,7 @@ mod tests {
 		} else {
 			assert_eq!(tip, "graphs\n\nProperties: its window is open already");
 		}
-		assert!(!old_asked && old_alive, "an older window was signalled");
+		assert!(!old_asked && old_alive, "an older window was signaled");
 	}
 
 	// Test ID: defyn

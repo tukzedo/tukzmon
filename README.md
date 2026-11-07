@@ -88,7 +88,7 @@ On NixOS, add `tukzmon.url = "github:tukzedo/tukzmon";` to your flake's inputs, 
 
 ### DIY
 
-To try it from a checkout you need Rust, XFCE 4.20, and Qt 6 (`qt6-base-dev` on Debian). Run `utility/dev-install.bash`. It installs to `~/.local`, with no sudo, and restarts the panel to load the new build.
+To try it from a checkout you need Rust, XFCE 4.20, Qt 6, a C++ compiler, and pkg-config (`qt6-base-dev`, `g++`, and `pkg-config` on Debian). Run `utility/dev-install.bash`. It installs to `~/.local`, with no sudo, and restarts the panel to load the new build.
 
 ## Set up development environment
 
@@ -100,7 +100,7 @@ To try it from a checkout you need Rust, XFCE 4.20, and Qt 6 (`qt6-base-dev` on 
 
 - Docker, for the pipeline. `cicd/cicd.bash` builds its own image from `cicd/container/` and runs format, build, lint and tests in it, with the other tools pinned there. Without docker it runs on the host, and then it needs those tools installed. `cicd/config.bash` lists them and their versions.
 
-- `cicd/cicd.bash --help` lists the steps and options. The packages step builds a `.deb` and an `.rpm`, and every build of a commit gives the same bytes.
+- `cicd/cicd.bash --help` lists the steps and options. The packages step builds a `.deb` and an `.rpm`.
 
 - `git config core.hooksPath cicd/hooks` turns on the pre-push hook, which runs the full merge gate before a push to `main`.
 
@@ -108,9 +108,9 @@ Work goes on `dev`, and `main` takes releases.
 
 ## Related projects
 
-- [Tukzedo Linux](https://github.com/tukzedo/tukzedo-linux) an ultra-secure distro with similar design principles.
+- [Tukzedo Linux](https://github.com/tukzedo/tukzedo-linux), an ultra-secure distro with similar design principles.
 
-- [LXQtukz](https://github.com/tukzedo/lxqtukz) a highly-configurable desktop with multiple "personas" out-of-the-box. (An LXQt panel version of tukzmon is in the works for it.)
+- [LXQtukz](https://github.com/tukzedo/lxqtukz), a highly configurable desktop with multiple "personas" out-of-the-box. (An LXQt panel version of tukzmon is in the works for it.)
 
 Tukzmon doesn't need either one. It should work on any distro with a supported panel.
 

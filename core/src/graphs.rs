@@ -234,7 +234,7 @@ fn make(which: Which, look: &Rc<Look>) -> Option<Box<dyn Drawn>> {
 		const { assert!(S::WHICH.color_ids().len() == N, "a color per series") };
 		// before the probe's answer, so a test of every graph catches one
 		// put in another's slot on a box that can't read it
-		debug_assert_eq!(S::WHICH, which, "a slot holds its own graph");
+		debug_assert_eq!(S::WHICH, which, "each slot has its own graph");
 		Some(Box::new(g?))
 	}
 	let look = Rc::clone(look);

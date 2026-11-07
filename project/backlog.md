@@ -41,7 +41,7 @@ Sorted per the notes in [Template](#template).
 		- E.g. right-aligned with tukzmon, status tray, notification tray, time, logout/shutdown menu.
 		- Change `cicd/utility/demo/script.txt` first, then the demo's panel and scenes, then record both again.
 	- Progress log:
-		- `script.txt` says what the panel holds now.
+		- `script.txt` says what the panel has now.
 		- Left: the applications menu and the window buttons, where the settings window shows up when it opens. Right: tukzmon, the status tray with a volume and a network icon, notifications, the clock with time over date, and the logout menu.
 		- The scenes' panel points are from tukzmon's left edge, found once the panel shows, so the items beside it can change.
 		- The gif and the video are recorded again, and `assets/demo.gif` is updated.
@@ -136,7 +136,7 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261103-112919
 	- Opened by: JC
 	- Related IDs: common 2026110311291900
-	- Incorrect behavior: The pipeline runs `docker builder prune` after a run, in `cicd/cicd.bash`. That prunes docker's default builder, which every project shares, so a run here drops any other project's cache once it's a week unused. common's `Cleanup after a run` rule said to do it.
+	- Incorrect behavior: The pipeline runs `docker builder prune` after a run, in `cicd/cicd.bash`. That prunes docker's default builder, which every project shares, so a run here drops any other project's cache once it's a week unused.
 	- Expected behavior: The pipeline doesn't prune docker's build cache at all. Docker trims the cache itself on b23, through `builder.gc` in `/etc/docker/daemon.json`. Cache unused for a week goes first, then the rest is cut to 120 GB, or further when the disk is under 10% free, but never below 20 GB. The label cleanup of this project's containers, dangling images and old tags stays.
 		- Do it once b23's `/etc/docker/daemon.json` has the `builder.gc` block. `grep -q '"gc"' /etc/docker/daemon.json` checks. Until then the prune stays.
 	- Decisions:
@@ -2241,7 +2241,7 @@ Sorted per the notes in [Template](#template).
 		- Each test under Miri fails past `MIRI_MINUTES` (30), with a line naming it. `TUKZMON_MIRI_MINUTES` changes it.
 		- Verified: at a 1 minute limit all 11 Randomize tests failed by name, with nothing left running. At 30, 9 passed in 2 to 5 minutes each, and the 2 that read the spec ran past it.
 		- Each module's tests now share one Miri, so they parse the spec once, through `cicd/utility/miri-group.bash`. The limit is per module. Past it, or when Miri stops on an error, the test it was on fails and the rest are listed as not run. An error after every test passed, such as a leak, fails the module.
-		- libtest's stdout and Miri's stderr are kept apart, since Miri's `/proc` warnings land between a test's name and its result.
+		- libtest's stdout and Miri's stderr are kept apart, since Miri's `/proc` warnings show up between a test's name and its result.
 		- The 5 real clock tests are ignored under Miri. A history test's 600 rounds are 140 under Miri, which still checks, trims and reloads.
 		- The limit is 480 minutes a module.
 		- Verified: dexn3 covers the time limit, an error, a leak and a failed assert, and failed with each part broken. Under Miri, `load::tests` passed with its results split by warnings, and `dice::tests` at a 1 minute limit failed the test it was on and listed the rest.
@@ -2295,7 +2295,7 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: Over 10 s on b23 every interface but `lo` received 18.3 MB, and the physical NIC 0.23 MB, so the graph read about 80 times high. With the LAN split on, VM traffic over the bridge counts as internet.
 	- Expected behavior: Physical interfaces only by default, or a setting for which ones count.
 	- Possible cause: `net::bin` adds every interface but `lo`.
-	- Actual cause: Bridges, VM taps, container links and VPN tunnels each counted the same bytes again, on top of the NIC that carried them.
+	- Actual cause: Bridges, VM taps, container links and VPN tunnels each counted the same bytes again, on top of the NIC they went through.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Origin: `1c4df3f`. 2026102408512202 left it for later "if it shows". Confirmed on b23.
@@ -2476,13 +2476,13 @@ Sorted per the notes in [Template](#template).
 	- Steps to reproduce:
 		- Pass `fSafeRm` in `cicd/utility/include/run-tmp.bash` the path `${HOST_TEMP}/tukzmon`.
 	- Incorrect behavior: the path matches `^/(.+/)?tmp/[^/]+`, so it would be removed.
-	- Expected behavior: refused. `Safe removal` in the CICD process allows a run folder under it, never the project's folder itself.
+	- Expected behavior: refused. A run folder under it may go, never the project's folder itself.
 	- Possible cause: no caller passes it today, so nothing has tripped it.
 	- Actual cause: the copy in `run-tmp.bash` predates the rule, and lacked its check for the temp root and a project's folder right under it.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- `fSafeRm` refuses `${HOST_TEMP}` and any folder right under it, as the copy in `Safe removal` does.
+		- `fSafeRm` refuses `${HOST_TEMP}` and any folder right under it.
 		- New `cicd/tests/guards.bash`, the pipeline's own tests, which the Tests step runs after `cargo test`. `test-ids.bash` reads their IDs too.
 		- Verified: den8d failed on the old `run-tmp.bash`, which took the temp root, and passed after. The quick gate passed, with den8d in its Tests step.
 	- Decisions:
@@ -2840,7 +2840,7 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- `render::Reach` holds the emphasis and its fade. `Frame::draw_to` makes one a draw, and each column calls `Reach::of`. The math is the same, in the same order, so the pixels are too.
+		- `render::Reach` keeps the emphasis and its fade. `Frame::draw_to` makes one a draw, and each column calls `Reach::of`. The math is the same, in the same order, so the pixels are too.
 		- Profiler, load 6 to 9 on 32 cores: 260.0 us user a tick before, 232.2 and 248.3 after. `powf` went from 3.0% of the tick to 0.08%, and the reach from 4.6% to 0.6 to 0.7%.
 		- Verified: the quick gate and the Sanitizers step passed.
 	- Decisions:
@@ -2963,7 +2963,7 @@ Sorted per the notes in [Template](#template).
 		- libc's `opendir`, `rewinddir`, `readdir` and `fstatat` rather than raw `getdents64` with a bigger buffer, which timed the same and is Linux only.
 		- No cache of owners by pid. A process that runs `sudo` or drops root keeps its pid, so a cache would count it wrong until it's checked again, and a check is the same `stat`.
 		- The week of history in the profiler keeps processes on too, so its draw sees a full graph like the others. Turning it on after the week would save the 45 s.
-		- `ProcsReader` holds a `DIR` pointer now, so it isn't `Send`. Nothing needs it to be.
+		- `ProcsReader` keeps a `DIR` pointer now, so it isn't `Send`. Nothing needs it to be.
 	- Branch: round-1107
 	- Test case: `procs::tests::each_read_lists_the_folder_again` (dezd2), `a_procs_read_allocates_nothing` in `core/tests/allocs.rs` (dezd3), and dep4j, dep4k, dep48 and dep49 as before.
 		- 2026-11-06: dep4j and dep4k are ignored under Miri now, since Miri has no `rewinddir`.
@@ -4587,7 +4587,7 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Requirements:
 		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- A `cicd.bash` per the shared CICD rules, with remote sync first, format, build, lint, tests, release build, dogfood, and cleanup.
+		- A `cicd.bash` with remote sync first, format, build, lint, tests, release build, dogfood, and cleanup.
 		- `rust-toolchain.toml` pins the toolchain, and lint and audit tools are pinned in one place.
 		- Lint output rotated into `cicd/artifacts/lint/`, with a `--check` that prints only what's new.
 		- Leak checks: ASan, LSan, and UBSan over the Rust and the C++ shim, Miri, a soak test, clippy's `mem_forget` and `undocumented_unsafe_blocks`, and the known-advisory scan.
@@ -4777,7 +4777,7 @@ Sorted per the notes in [Template](#template).
 		- `test-ids.bash` reads the tests in a crate's `tests/` folder too.
 		- Verified: a planted static Vec that grew 8 bytes a round failed it, with dhat's profile kept. The clean tree passed in the image, at the same bytes in the same blocks at both reads.
 	- Decisions:
-		- dhat, as the CICD rules name for Rust, so the profile shows where the growth was allocated. Its crates are dev dependencies of the core crate only.
+		- dhat, so the profile shows where the growth was allocated. Its crates are dev dependencies of the core crate only.
 	- Branch: round-1025b
 	- Test case: dee6p
 	- Closed: 20261025-172239
@@ -4893,6 +4893,32 @@ Sorted per the notes in [Template](#template).
 		- A LAN and internet split is its own item, 2026101916274800.
 	- Test case: None, since it was a question. The network collector's tests will cover the answer.
 	- Closed: 20261019-162817
+
+- CICD gap: Animated demo for the README
+	- ID: 2026110310450002
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261103-104500
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- A demo step, left out of `--quick`, renders a GIF at 960x540 and 50 fps and a video at 1920x1080 and 60 fps, headless, from a short plain-text script in `cicd/utility/demo/script.txt`.
+		- It shows the panel graphs filling, a hover tip, and the settings window with live graphs and a theme change, in about 20 to 30 seconds. Anonymous content only.
+		- The newest GIF goes to `assets/demo.gif` when it changed, and sits near the top of README.md at its own size.
+	- Progress log:
+		- `cicd/utility/demo/demo-video.py` records it from `script.txt`, on a private Xvfb with a real panel and window manager.
+		- It shows a fresh start settling, then 4 days of made-up history with the hover tip going back to "3 days ago", then Properties, the Graphs tab, and a theme change.
+		- The made-up history comes from `core/examples/demo-history.rs`.
+		- The Demo step runs in the default run and `--long`. `--quick`, `--no-demo` and the hands-off runs leave it out.
+		- Clicks have sound in the video, within 0.1 s of what they do on screen.
+	- Decisions:
+		- 2026-11-06: about 36 s, over the 30 s aimed for, since it also shows days of history and the Graphs tab.
+		- 2026-11-06: the video is the gif's layout at scale 2, so one set of click positions works for both.
+		- 2026-11-06: the settings window's title shows its file's path, so the panel runs with its home at `/home/sam`.
+	- Branch: demo
+	- Test case: None, since it's a recording. The gif and the video were checked frame by frame.
+	- Closed: 20261106-182817
 
 - GPU tests dekmd and der6k fail on a hybrid laptop whose NVIDIA card sleeps
 	- ID: 2026110216211209
@@ -5228,7 +5254,7 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026102808222810
 	- Steps to reproduce: Keep a worktree whose NIX_IMAGE pin differs, then run the Nix step in another.
 	- Incorrect behavior: The other store, about 5 GB, is removed. Any tukzmon volume added later would be too.
-	- Expected behavior: Both labels on every volume, per Containers in CICD process, and removal of only what the step owns.
+	- Expected behavior: Both labels on every volume, and removal of only what the step owns.
 	- Reproduced: 2026-11-01, round-1101 at bedc86c. The Nix step removed a store no checkout pins, and also `tukzmon-probe-other`, a plain tukzmon volume.
 	- Estimated effort: Low
 	- Actual effort: Low
@@ -5911,7 +5937,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Every function is hinted, and ruff's ANN rules are on in `pyproject.toml`. mypy `--strict` is clean too, outside python-xlib, which has no types.
 		- The take's profile, options, events, captions and timeline are dataclasses, and takes and sounds are enums.
-		- The recorder is split into the screen, the panel, the settings window and the capture, with a small `Rec` that holds them for the scenes.
+		- The recorder is split into the screen, the panel, the settings window and the capture, with a small `Rec` that keeps them for the scenes.
 		- ffprobe giving no duration, and a failed rotation, now stop the run.
 		- Rotation had never run: the include was passed as `$0`, so it took itself for run rather than sourced and exited 3, which `check=False` hid. Fixed, and a take now gives `_first` and `_latest`.
 		- Verified: a gif take recorded with rotation, frames checked against the old script's take scene by scene, `--shot` ran, ruff failed on a hint taken out, and the quick gate's format and lint passed.
@@ -5967,7 +5993,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: the quick gate passed. Release build, load about 1.5 on 32 cores, medians of 200 draws at 848x48: the clear and copy were 4 to 5 us of a draw, and the draw stayed at 34 us with no history and about 195 us with a week, before and after.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-		- Kept, though it isn't faster. The 16% didn't hold here, and the clear and copy saved go to the plot's writes a whole image row apart. The buffers saved are the gain.
+		- Kept, though it isn't faster. The 16% didn't show up here, and the clear and copy saved go to the plot's writes a whole image row apart. The buffers saved are the gain.
 		- `Graph::render` still draws into the graph's own buffer, for the settings window's live rows.
 	- Branch: round-1107
 	- Test case: `graphs::tests::graphs_draw_straight_into_the_image_and_only_the_gaps_are_cleared` (dezfg). It fails with each graph drawn into its own buffer and copied, with the gaps left uncleared, and with a graph's right border left unfilled.
@@ -5996,7 +6022,7 @@ Sorted per the notes in [Template](#template).
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
 		- `Presets::listed()` gives the spec's presets, or none, so readers that only list them stay one line.
 	- Branch: round-1107
-	- Test case: `tests::a_group_has_the_specs_presets_or_the_programs_not_both` in knobs (dezfh), which fails without the new check. The rest is a type change, which the compiler holds, and der60, der61, des4c and ddqs9 cover the same paths.
+	- Test case: `tests::a_group_has_the_specs_presets_or_the_programs_not_both` in knobs (dezfh), which fails without the new check. The rest is a type change, which the compiler checks, and der60, der61, des4c and ddqs9 cover the same paths.
 		- Swept: every read of `stray`, `settings`, `indent`, `presets` and `from_program` in xfce, knobs, core and the settings crate, `qt.cpp`'s `info.indent` included.
 	- Closed: 20261106-230200
 
@@ -6066,7 +6092,7 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261101-183803
 	- Opened by: t00mietum
 	- Related IDs: 2026103115232174
-	- Requirements: NVML is now open only while a GPU graph is shown, but GPU memory is on by default, so a hybrid laptop still opens it at start and holds it. Where the NVIDIA card's `power/control` is `auto`, read its `power/runtime_status`, which doesn't wake it, and leave NVML closed while it's `suspended`. Or turn GPU memory off by default on such a box. Check on a hybrid laptop, or a stand-in for the sysfs files.
+	- Requirements: NVML is now open only while a GPU graph is shown, but GPU memory is on by default, so a hybrid laptop still opens it at start and keeps it open. Where the NVIDIA card's `power/control` is `auto`, read its `power/runtime_status`, which doesn't wake it, and leave NVML closed while it's `suspended`. Or turn GPU memory off by default on such a box. Check on a hybrid laptop, or a stand-in for the sysfs files.
 	- Estimated effort: Avg
 	- Actual effort: Avg
 	- Progress log:
@@ -6953,9 +6979,9 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261103-161000
 	- Opened by: t00mietum
 	- Requirements:
-		- arcstats is about 8 times the cost of a meminfo read, and was about 19% of the profiler's tick. The ARC moves slowly, so read it every 10th memory sample and reuse the last value between.
+		- arcstats is about 8 times the cost of a meminfo read, and was about 19% of the profiler's tick. The ARC moves slowly, so read it every tenth memory sample and reuse the last value between.
 	- Progress log:
-		- `MemoryReader` reads it on the first sample and every 10th after (`ARC_EVERY` in `core/src/mem.rs`). A box with no ZFS still tries it then, so a pool imported later counts.
+		- `MemoryReader` reads it on the first sample and every tenth after (`ARC_EVERY` in `core/src/mem.rs`). A box with no ZFS still tries it then, so a pool imported later counts.
 		- Profiler tick went from 398 to 321 us, and system time from 2.83 to 1.46 s.
 	- Branch: arc-every-10th
 	- Test case: der6h.
@@ -7174,7 +7200,7 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Parent ID: 2026102416252898
 	- Requirements:
-		- There's no fuzz testing yet. The CICD rules ask for adversarial fuzzing of our code and the libraries it leans on.
+		- There's no fuzz testing yet. It should be adversarial, and cover our code and the libraries it leans on.
 		- Cover what reads input the program doesn't control: the history file decode, the netlink socket and neighbor dumps, the bridge forwarding table, the `/proc` and `/sys` readers, and a settings file that loads through shcl.
 		- Plain tests on stable, each case a pure function of one seed, a time budget from an env var, and asserts on properties such as no panic and no read past the end. Keep some bit flips over real files, such as `core/tests/data/plugin-5-tiers.hist`.
 		- Each one gets a test ID, and is watched to fail on a planted bug before it's trusted.
@@ -7203,13 +7229,45 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Related IDs: 2026110310450001
 	- Requirements:
-		- An `install.bash` that a person runs as a one-liner, per the shared installer rules. It finds the newest stable or dev release through GitHub's API, checks its sha256, and installs.
+		- An `install.bash` that a person runs as a one-liner. It finds the newest stable or dev release through GitHub's API, checks its sha256, and installs.
+		- With no stable release yet, it takes the newest prerelease. Releases sort by version, not by date, with a prerelease below its release.
 		- `--release dev|stable`, `--target user|system`, `--yes`, `--help` and `--version`. It finds the OS and arch itself, says its plan, and asks before it touches anything. It runs on bash 3.2 and can run twice safely.
 		- User installs go where `utility/dev-install.bash` puts them, with no sudo. System installs use the `.deb` or `.rpm`.
 		- No PowerShell version for now, since there's no Windows or macOS build.
 		- README.md gets the one-liner and the install folders, and notes `--help`.
 	- Needs more detail:
 		- It needs a first release to download. Until then, test it against a stand-in release.
+
+- CICD gap: tukzmon-settings built in another folder gives different bytes
+	- ID: 2026110710005013
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261107-100050
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- 2 release builds of one commit give the same bytes, from any checkout folder, target folder or home.
+		- The build maps its own paths out of the C++ and the Rust, such as through the compilers' path prefix options.
+		- The pipeline builds twice in 2 folders and compares the checksums. It's watched to fail first.
+		- README.md says builds are reproducible once that check passes.
+	- Reproduced: 20261107, 2 fresh release builds of one tree into 2 target folders. `libtukzmon.so` matched. `tukzmon-settings` didn't, since it keeps the full path of the cxx bridge's `cxx.h` from the build folder.
+	- Progress log:
+		- README.md's line that every build of a commit gives the same bytes is out until this is done.
+
+- Most test names are whole sentences, and over half start the same way
+	- ID: 2026110710005014
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261107-100050
+	- Opened by: t00mietum
+	- Requirements:
+		- Short test names, a few words each, and not all built the same way. About 320 of 400 Rust tests and all 25 bash tests have 7 words or more, and over half start with a, the, every or each.
+		- Each test keeps its ID.
+		- The bash tests in `cicd/tests/` too, since their names print on each PASS and FAIL line.
+		- knobs' tests too. SilkTerm's copy gets an item of its own there.
+		- The `live_` names can stay, since they mark the tests that read this computer.
 
 - Code review 20261107 item 8: A setting changed and changed back keeps Apply on, and Apply writes the default into the file
 	- ID: 2026110709074408
@@ -7233,7 +7291,7 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
 	- Related IDs: 2026103107404602, 2026102810142725
-	- Origin: `c3c52ee` (2026-10-31), the 13th graph. The rule held over 10,000 seeds with 12 graphs, and dejbv checks only 2,000. A regression. Confirmed, by a probe over 105,000 seeds, where 14 fail, the first at seed 2615.
+	- Origin: `c3c52ee` (2026-10-31), the thirteenth graph. The rule held over 10,000 seeds with 12 graphs, and dejbv checks only 2,000. A regression. Confirmed, by a probe over 105,000 seeds, where 14 fail, the first at seed 2615.
 	- Steps to reproduce: A roll with seed 2615.
 	- Incorrect behavior: 2 leads are about 3 apart as CIEDE2000, where the rule is 10.
 	- Expected behavior: Every roll's leads read apart, which dejbv's item asks for.
@@ -7439,7 +7497,7 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Related IDs: 2026103115232125
 	- Origin: `f89e55e` (2026-10-23). Not seen before. Confirmed, by counting the declarations in `xfce/src/sys.rs`: 36 GLib, GTK, cairo and panel calls, plus 3 from libc, where design.md says "20 or so".
-	- Expected behavior: The XFCE plugin section gives a count that holds, or none.
+	- Expected behavior: The XFCE plugin section gives a count that stays right, or none.
 	- Estimated effort: Low
 
 - Code review 20261107 item 26: The amdgpu reads have none of the NVIDIA path's runtime power checks
@@ -7537,31 +7595,19 @@ Sorted per the notes in [Template](#template).
 		- A release build for arm64 Linux, and its `.deb` and `.rpm`, named `linux-arm64` beside `linux-x86_64`.
 		- Behind a flag such as `--include-arm` if it's much slower than x86_64. Qt and the panel libraries for arm64 are the hard part.
 
-- CICD gap: Animated demo for the README
-	- ID: 2026110310450002
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261103-104500
+- Some settings tips are long and technical, and stack asides
+	- ID: 2026110710005015
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-100050
 	- Opened by: t00mietum
-	- Parent ID: 2026102416252898
 	- Requirements:
-		- A demo step, left out of `--quick`, renders a GIF at 960x540 and 50 fps and a video at 1920x1080 and 60 fps, headless, from a short plain-text script in `cicd/utility/demo/script.txt`.
-		- It shows the panel graphs filling, a hover tip, and the settings window with live graphs and a theme change, in about 20 to 30 seconds. Anonymous content only.
-		- The newest GIF goes to `assets/demo.gif` when it changed, and sits near the top of README.md at its own size.
-	- Progress log:
-		- `cicd/utility/demo/demo-video.py` records it from `script.txt`, on a private Xvfb with a real panel and window manager.
-		- It shows a fresh start settling, then 4 days of made-up history with the hover tip going back to "3 days ago", then Properties, the Graphs tab, and a theme change.
-		- The made-up history comes from `core/examples/demo-history.rs`.
-		- The Demo step runs in the default run and `--long`. `--quick`, `--no-demo` and the hands-off runs leave it out.
-		- Clicks have sound in the video, and land within 0.1 s of what they do on screen.
-	- Decisions:
-		- 2026-11-06: about 36 s, over the 30 s aimed for, since it also shows days of history and the Graphs tab.
-		- 2026-11-06: the video is the gif's layout at scale 2, so one set of click positions works for both.
-		- 2026-11-06: the settings window's title shows its file's path, so the panel runs with its home at `/home/sam`.
-	- Branch: demo
-	- Test case: None, since it's a recording. The gif and the video were checked frame by frame.
-	- Closed: 20261106-182817
+		- The tips for both Scale defaults, LAN and internet, Spike emphasis and Disk drives say what the setting does in a sentence or 2. Numbers and kernel terms stay in design.md.
+		- The width and time axis tips, the same on every graph, say it with fewer asides.
+		- "Box" means the number box only, and "computer" the computer.
+		- The Margins tip says plainly that 2 graphs side by side get both margins between them.
+		- History and settings errors in the tip and in message boxes use plain words, not the file reader's own, such as "short" or "trailing bytes", or the name of the file format.
 
 - Other Linux and BSD panels
 	- ID: 2026101916013890
@@ -7657,10 +7703,11 @@ Sorted per the notes in [Template](#template).
 	- The ID is the local time to the hundredth of a second. Opened is when it was written down, which may differ. (Use a keyboard macro and possibly something like project 'zuid' to generate.)
 
 	- Status values meaning: Testing means the fix is in and checks are running or still to run. Waiting on UAT means automated testing passed and a person has to try it. Moot means something else changed that made it irrelevant. Canceled means it still applies but was decided against. Waiting on automated testing means the fix is in and waits on a long CI run or an outside test host, with no person needed. Can't reproduce means a real attempt to reproduce it failed.
-		- An item with nothing left for a person to judge skips Waiting on UAT and goes straight to Done. `Clean up the backlog` in the directives says when.
+		- An item with nothing left for a person to judge skips Waiting on UAT and goes straight to Done, such as a mechanical fix, or one whose test failed before the fix and passes after.
+		- Waiting on a full CICD run means the test left is a whole pipeline run. Waiting on a partial CICD run means only some of its steps, such as a quick run. Either one can be started by a person or a round.
 
 	- As issues are worked, and statuses change, place them in correct sorting order within the list:
-		- First by status: Waiting for answers, Waiting on UAT, Testing, Waiting on automated testing, Can't reproduce, Stalled, Started, Queued, Done, Deferred, Canceled, Moot
+		- First by status: Waiting for answers, Waiting on UAT, Testing, Waiting on automated testing, Waiting on a full CICD run, Waiting on a partial CICD run, Can't reproduce, Stalled, Started, Queued, Done, Deferred, Canceled, Moot
 		- Then by severity|priority: Critical, High, Avg, Low
 		- Then by type: Bugs, [not bugs together]
 
@@ -7671,7 +7718,7 @@ Template:
 - Title
 	- ID: YYYYmmDDHHMMSSNN
 	- Type: [Bug|Feature|Enhancement|Task]
-	- Status: [Queued|Waiting for answers|Waiting on UAT|Waiting on automated testing|Started|Testing|Stalled|Can't reproduce|Moot|Canceled|Deferred|Done]
+	- Status: [Queued|Waiting for answers|Waiting on UAT|Waiting on automated testing|Waiting on a full CICD run|Waiting on a partial CICD run|Started|Testing|Stalled|Can't reproduce|Moot|Canceled|Deferred|Done]
 	- Needs local test suite run?:
 	- Needs external testing:
 	- Priority [Feature|Enhancement] | Severity [Bug]: [Critical|High|Avg|Low]

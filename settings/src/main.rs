@@ -31,7 +31,7 @@ Opens the settings window for tukzmon's graphs.
                    ~/.config/tukzmon/tukzmon.shcl, what a new item starts from.
   --snapshot PNG   Save a picture of each tab and the color picker, and quit, for
                    checking the layout.
-  --help           Show this and quit.
+  -h, --help       Show this and quit.
   --version        Show the version and quit.";
 
 /// What the command line asks for.
