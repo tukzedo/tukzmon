@@ -69,6 +69,60 @@ BAND = 46  # captions, at the bottom
 PANEL = 56  # panel height
 DESK = "#1d2430"  # root color, the band's too
 
+# a panel like a real one, with tukzmon at the right among the usual items.
+# tukzmon stays plugin-1, which names its history file.
+PANEL_ORDER = (2, 3, 4, 1, 5, 6, 7, 8, 9, 11, 10)
+PANEL_PLUGINS = """\
+    <property name="plugin-1" type="string" value="tukzmon"/>
+    <property name="plugin-2" type="string" value="applicationsmenu">
+      <property name="show-button-title" type="bool" value="false"/>
+    </property>
+    <property name="plugin-3" type="string" value="tasklist">
+      <property name="grouping" type="uint" value="0"/>
+      <property name="show-handle" type="bool" value="false"/>
+    </property>
+    <property name="plugin-4" type="string" value="separator">
+      <property name="expand" type="bool" value="true"/>
+      <property name="style" type="uint" value="0"/>
+    </property>
+    <property name="plugin-5" type="string" value="separator">
+      <property name="style" type="uint" value="0"/>
+    </property>
+    <property name="plugin-6" type="string" value="systray">
+      <property name="square-icons" type="bool" value="false"/>
+      <property name="single-row" type="bool" value="true"/>
+      <property name="icon-size" type="uint" value="24"/>
+    </property>
+    <property name="plugin-7" type="string" value="notification-plugin"/>
+    <property name="plugin-8" type="string" value="separator">
+      <property name="style" type="uint" value="0"/>
+    </property>
+    <property name="plugin-9" type="string" value="clock">
+      <property name="mode" type="uint" value="2"/>
+      <property name="digital-layout" type="uint" value="1"/>
+      <property name="digital-time-format" type="string" value="%R"/>
+      <property name="digital-date-format" type="string" value="%a %b %-d"/>
+    </property>
+    <property name="plugin-10" type="string" value="actions">
+      <property name="appearance" type="uint" value="1"/>
+      <property name="button-title" type="uint" value="3"/>
+      <property name="custom-title" type="string" value="sam"/>
+    </property>
+    <property name="plugin-11" type="string" value="separator">
+      <property name="style" type="uint" value="0"/>
+    </property>"""
+
+# the status tray's icons, as an app would put them there
+TRAY_ICONS = ("audio-volume-high-symbolic", "network-wireless-signal-excellent-symbolic")
+TRAY = """
+import sys
+import gi
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gtk
+icons = [Gtk.StatusIcon.new_from_icon_name(name) for name in sys.argv[1:]]
+Gtk.main()
+"""
+
 WM_BASE_THEME = "Material-Black-Pistachio"  # square corners
 WM_THEME = "TukzDemo"
 DECO_BG = "#44506b"
@@ -220,6 +274,7 @@ class Rec:
         self.flash2_e = 0.0
         self.t0_e = 0.0
         self.settings_origin = (0, 0)
+        self.item_x = 0  # tukzmon's left edge in the panel, gif px
         self.logs = []
         # --shot also saves a picture at each peek, beside the shot
         self.peeks = Path(args.shot).with_suffix("") if args.shot else None
@@ -289,6 +344,7 @@ class Rec:
             "gtk-font-name=Lato 10\ngtk-enable-animations=0\n",
             encoding="utf-8",
         )
+        ids = "\n".join(f'        <value type="int" value="{n}"/>' for n in PANEL_ORDER)
         panel = f"""<?xml version="1.0" encoding="UTF-8"?>
 <channel name="xfce4-panel" version="1.0">
   <property name="configver" type="int" value="2"/>
@@ -299,13 +355,14 @@ class Rec:
       <property name="length" type="double" value="100"/>
       <property name="position-locked" type="bool" value="true"/>
       <property name="size" type="uint" value="{PANEL}"/>
+      <property name="icon-size" type="uint" value="24"/>
       <property name="plugin-ids" type="array">
-        <value type="int" value="1"/>
+{ids}
       </property>
     </property>
   </property>
   <property name="plugins" type="empty">
-    <property name="plugin-1" type="string" value="tukzmon"/>
+{PANEL_PLUGINS}
   </property>
 </channel>
 """
@@ -453,6 +510,15 @@ class Rec:
             stdin=subprocess.DEVNULL,
             start_new_session=True,
         )
+        # has the panel side's mark, so stop_panel takes it down too
+        subprocess.Popen(
+            [*self.sandbox(), sys.executable, "-c", TRAY, *TRAY_ICONS],
+            env=self.desk_env(),
+            stdout=self.log_to("tray.log", "a"),
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+        )
 
     def wait_panel(self, timeout=20):
         deadline = time.time() + timeout
@@ -464,9 +530,28 @@ class Rec:
                 text=True,
             )
             if r.stdout.split() and self.plugin_pids():
+                self.item_x = self.find_item()
                 return
             time.sleep(0.2)
         raise RuntimeError("the panel never showed (see panel.log)")
+
+    def find_item(self, timeout=10):
+        # the items beside it set where it lands, so it's measured rather than fixed
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            for pid in self.plugin_pids():
+                r = subprocess.run(
+                    ["xdotool", "search", "--all", "--onlyvisible", "--pid", str(pid)],
+                    env=self.env(),
+                    capture_output=True,
+                    text=True,
+                )
+                for win in r.stdout.split():
+                    x, y, w, _ = self.client_geom(win)
+                    if w > 50 and y < PANEL * self.scale:
+                        return x // self.scale
+            time.sleep(0.2)
+        raise RuntimeError("couldn't find tukzmon in the panel")
 
     def plugin_pids(self):
         return [p for p, args in self.ours() if "wrapper-2.0" in args and "libtukzmon" in args]
@@ -766,12 +851,13 @@ class Banner:
 ##•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ##	Scenes, in gif px. script.txt says what each one shows.
 
-# the graphs, left to right, at the defaults and a 56 px panel
+# panel points are from tukzmon's left edge, at the default graphs and a 56 px panel
 CPU_X = (2, 102)
 GRAPH_Y = 28
 TIP_STOPS = (96, 40, 3)  # across the CPU graph, newest to oldest
 
-PROPS_ITEM = (118, 100)  # the item menu's Properties, with the menu opened at (60, GRAPH_Y)
+MENU_AT = 60
+PROPS_ITEM = (118, 100)  # the item menu's Properties, with the menu opened at (MENU_AT, GRAPH_Y)
 GRAPHS_TAB = (35, 60)  # in the settings window
 NET_SHOW = (121, 209)  # the network row's show box
 THEMES_TAB = (37, 92)
@@ -799,20 +885,20 @@ def scene_days(r, m):
         r.wait_panel()
         time.sleep(2.2)
     with Banner(r, "Hover for the value, and how long ago"):
-        m.move(TIP_STOPS[0], GRAPH_Y, 0.6)
+        m.move(r.item_x + TIP_STOPS[0], GRAPH_Y, 0.6)
         time.sleep(1.5)
         r.peek(f"tip{TIP_STOPS[0]}")
         for x in TIP_STOPS[1:]:
-            m.move(x, GRAPH_Y, 0.5)
+            m.move(r.item_x + x, GRAPH_Y, 0.5)
             time.sleep(1.4)
             r.peek(f"tip{x}")
 
 
 def scene_settings(r, m):
     with Banner(r, "Right-click, Properties"):
-        m.at(60, GRAPH_Y, button="3", settle=0.8)
+        m.at(r.item_x + MENU_AT, GRAPH_Y, button="3", settle=0.8)
         r.peek("menu")
-        m.at(*PROPS_ITEM, settle=0.3)
+        m.at(r.item_x + PROPS_ITEM[0], PROPS_ITEM[1], settle=0.3)
         win = r.settings_window()
         r.place_settings(win)
         time.sleep(0.8)
@@ -1261,3 +1347,5 @@ if __name__ == "__main__":
 ##		- 2026-11-06: Created, from nemo-anywhere's recorder, with the panel, the
 ##		  days of history from core/examples/demo-history.rs, and the settings
 ##		  window's Graphs tab.
+##		- 2026-11-06: The panel has the usual items, with tukzmon at the right,
+##		  and the scenes' panel points are from wherever it lands.

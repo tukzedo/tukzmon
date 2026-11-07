@@ -133,16 +133,29 @@ Sorted per the notes in [Template](#template).
 - Video & GIF: Make the XFCE task bar more realistic.
 	- ID: 2026110618335731
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- Watch the new `assets/demo.gif` and say whether the panel looks real enough.
+	- Needs hand testing: whether the panel in the gif and the video looks like a real one.
+	- Stand-in: none (20261106). Whether it looks real is a judgment by eye.
 	- Priority|Severity: Avg
 	- Opened: 20261106-183357
 	- Opened by: t00mietum
 	- Related IDs: 2026110310450002
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- 2026-11-06: the logout menu's button says "sam", since its default shows the full name of whoever records it.
+		- 2026-11-06: the default icon theme, not Papirus, since this box's Papirus copy has broken links and a tray icon crashed on it.
 	- Requirements:
 		- E.g. right-aligned with tukzmon, status tray, notification tray, time, logout/shutdown menu.
 		- Change `cicd/utility/demo/script.txt` first, then the demo's panel and scenes, then record both again.
+	- Progress log:
+		- `script.txt` says what the panel holds now.
+		- Left: the applications menu and the window buttons, where the settings window shows up when it opens. Right: tukzmon, the status tray with a volume and a network icon, notifications, the clock with time over date, and the logout menu.
+		- The scenes' panel points are from tukzmon's left edge, found once the panel shows, so the items beside it can change.
+		- The gif and the video are recorded again, and `assets/demo.gif` is updated.
+	- Actual effort: Low
+	- Branch: round-1107
+	- Test case: None, since it's a recording. Frames of the gif and the video were checked at each scene. The quick gate's format, lint and test steps passed.
 
 - Every finished feature and fixed bug on the backlog has a regression test in CI
 	- ID: 2026110618355727
