@@ -406,7 +406,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 9: Clones and a collect with no reason given
 	- ID: 2026110618502909
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -414,13 +414,27 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- Drop the clones that aren't needed, and give the rest a reason.
 		- `Axis` can be `Copy`.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Making room for a theme name borrows the other window's themes, and `config::theme_key` takes the taken keys rather than whole themes, so nothing is copied to hand them over.
+		- `Axis` and the eased axis it keeps are `Copy`.
+		- The clones left in the settings crate, and in core's theme reads and battery files, each say why.
+		- Verified: the quick gate passed, with dezea passing before the change and after.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- A theme moved to a free name or key isn't added to the other window's list anymore. It's checked by its new name and key in the window's own list, which held it already.
+		- An owned field built from a borrowed one, such as a `to_owned` for a struct, isn't given a reason. Only a `clone` is.
+	- Branch: round-1107
+	- Commit: `cd18099`
+	- Test case: `two_new_themes_each_move_past_the_other_windows_and_each_other` (dezea), with der2h and `theme_keys_are_plain_and_free`.
+		- Swept: every `theme_key` caller, every clone of an `Axis`, and each `clone` outside tests in core, settings and xfce.
+	- Closed: 20261106-221025
 
 - Code review 20261106 item 10: Short names, deep nesting and dropped results in core
 	- ID: 2026110618502910
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -430,8 +444,23 @@ Sorted per the notes in [Template](#template).
 		- The demo history example's `Box` gets another name, since it hides std's.
 		- The 6-deep nesting in `Graphs::load` and 5-deep in the shared colors upgrade are flattened.
 		- Each `let _ =` that drops an error says why.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `pc` is `percent`, `bw` `border`, `pw` and `ph` `plot_w` and `plot_h`, `bk` `bucket` and `rd` `reader`. The graph widths name each graph `which`.
+		- The demo history's `Box` is `Machine`.
+		- The history read when graphs are added, in `Graphs::set_look`, and the shared colors upgrade are 3 deep at most.
+		- Each `let _ =` in core outside tests says why, the profiler's included.
+		- Verified: the quick gate passed.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- The 6-deep nesting was in `Graphs::set_look`, which reads the history for graphs it adds. `Graphs::load` is 3 deep.
+		- The profiler's `pc` stays, since it's the C argument of the unwinder call it stands in for.
+	- Branch: round-1107
+	- Commit: `cd18099`
+	- Test case: none new, since names and layout change no behavior. The graphs, config and history tests cover the code moved, deea2 and the upgrade tests among them.
+		- Swept: every `pc`, `bw`, `pw`, `bk` and `rd` in core, and each `let _ =` in core outside tests.
+	- Closed: 20261106-221025
 
 - Code review 20261106 item 11: The demo script doesn't follow the Python rules
 	- ID: 2026110618502911
