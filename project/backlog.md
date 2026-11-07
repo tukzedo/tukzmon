@@ -7016,6 +7016,17 @@ Sorted per the notes in [Template](#template).
 
 **Stop here for a next release**
 
+- Video & GIF: Bigger font for the fake text
+	- ID: 2026110708212499
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261107-082124
+	- Opened by: t00mietum
+	- Related IDs: 2026110618335731, 2026110310450002
+	- Requirements:
+		- Bigger and non-narrow font for the fake text elements.
+
 - CICD gap: Fuzz the parsers of files and kernel messages
 	- ID: 2026110310450001
 	- Type: Task
