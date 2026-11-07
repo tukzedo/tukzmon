@@ -155,6 +155,241 @@ Sorted per the notes in [Template](#template).
 		- An item with no test gives the reason in its `Test case` row, such as the workflow being its own test.
 		- Each new test is watched to fail with its fix taken out.
 
+- Code review 20261106 item 1: Each draw works out the spike fade again for every column
+	- ID: 2026110618502901
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Origin: `8551170` (2026-11-02), newer than the last style review. Breaks the rule on hoisting invariant work out of loops. Confirmed, the `powf` in `render::reach` is 3.6% of the tick in the 2026-11-06 profile.
+	- Requirements:
+		- Work out the fade once a draw, not once a column.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+
+- Code review 20261106 item 2: knobs lists a theme's changes again for each row it reads
+	- ID: 2026110618502902
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Related IDs: 2026103018353670
+	- Origin: `f89e55e` (2026-10-23). The 20261030 review read only knobs' lookups. Breaks the rules on repeated work and needless `collect()`. Confirmed, measured: the settings rows read in about 350 us with no changes on the theme, and 800 to 1100 us with 1 to 5 of them, as on b23.
+	- Requirements:
+		- Asking whether one setting is changed, or whether any are, doesn't walk every setting or build a list.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+
+- Code review 20261106 item 3: Each settings refresh sets every tip and row height again
+	- ID: 2026110618502903
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Related IDs: 2026103016201603
+	- Origin: `f89e55e`, `fe76b54`, `b869164` and `df9a517`, all before the 20261030 review, whose profile was mostly the color chips. Breaks the rule on repeated work. Confirmed, measured: a refresh went from 1.74 to 1.51 ms with the fix tried, and a slider step from 2.02 to 1.74 ms.
+	- Requirements:
+		- Set a tip or a row's height only when it changed.
+		- The graph list reads each row's state once a refresh, not twice.
+		- While there, check whether the live graphs repaint graphs that weren't read that beat. That part isn't measured.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+
+- Code review 20261106 item 4: Building the look for the settings window allocates about 700 times
+	- ID: 2026110618502904
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Related IDs: 2026103016201610
+	- Origin: `81e0054` (2026-10-30) for most of it, newer. The case-folding parsers are older, named in the 20261030 item 10 notes and left as they were. Breaks the rule on repeated work. Confirmed, measured: 694 allocations and 72 to 81 us a call, against 430 at `ae703bb`. It runs on every refresh.
+	- Requirements:
+		- Make each graph's setting names once, not on every build.
+		- The mode, split and vertical scale parsers don't allocate.
+		- Loading saved themes doesn't build 39 names to look one up.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+
+- Code review 20261106 item 5: The processes graph takes about 4 ms a read
+	- ID: 2026110618502905
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Origin: `c3c52ee` (2026-10-31), newer. Idea. Confirmed, measured on b23 with about 1450 processes: 3.4 to 4.9 ms a read, about 10 times the whole tick of the 6 default graphs. It's off by default, so neither the profiler nor the soak test runs it.
+	- Requirements:
+		- Read `/proc` with fewer allocations and system calls a process.
+		- The profiler times a run with the processes graph on.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+
+- Code review 20261106 item 6: Opening the settings window works out the graph list once per setting
+	- ID: 2026110618502906
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Origin: `b869164` and `bad9e01`, before the 20261030 review, which timed refresh only. Breaks the rule on repeated work. Confirmed, measured: about 5 ms of the 8 to 10 ms the rows take to build.
+	- Requirements:
+		- Work out the graph list once when the window opens.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+
+- Code review 20261106 item 7: Public items in knobs and the settings crate have no doc comments
+	- ID: 2026110618502907
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Related IDs: 2026103016201612
+	- Origin: `f89e55e`, mostly. The 20261030 item 12 fix put `missing_docs` on core only, and knobs was kept the same as silkterm's then. Breaks the rules on `///` for public items and Debug on public types. Confirmed by reading: 64 items in knobs, and the settings crate's bridge structs and a few functions. knobs' `NoEnv` has no Debug, and `OwnReader`'s comment says it reads memory, which it doesn't.
+	- Requirements:
+		- `missing_docs` on both crates, and lint stays clean.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+
+- Code review 20261106 item 8: Catch-all arms on knobs' own enums
+	- ID: 2026110618502908
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Related IDs: 2026103016201611
+	- Origin: `f89e55e`, `e4cfcbb` and `bfd6a3a`, before the 20261030 review. Its item 11 left knobs out while it matched silkterm's. Breaks the rule against catch-all arms. Confirmed by reading: core's theme save and load, and knobs' setting reads, send any new `Kind` to text without a word.
+	- Requirements:
+		- Name every variant of `Kind` and `Value` where they're matched.
+		- An index into the changes that can't miss says why.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+
+- Code review 20261106 item 9: Clones and a collect with no reason given
+	- ID: 2026110618502909
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Origin: `4da8fed` (2026-11-01) for the worst one, newer, and older ones in the settings crate and `axis.rs`. Breaks the rule that a needed clone says why. Confirmed by reading. Making room for a theme name copies every saved theme to hand over their keys.
+	- Requirements:
+		- Drop the clones that aren't needed, and give the rest a reason.
+		- `Axis` can be `Copy`.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+
+- Code review 20261106 item 10: Short names, deep nesting and dropped results in core
+	- ID: 2026110618502910
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Origin: across core, older and newer than the 20261030 review, which didn't sweep naming. Breaks the rules on full names, the happy path at low indent, and errors as values. Confirmed by reading.
+	- Requirements:
+		- Full names where the short ones are cryptic, such as `pc`, `bw`, `pw`, `bk` and `rd`, and `which` for a `Which` where a width is in scope too.
+		- The demo history example's `Box` gets another name, since it hides std's.
+		- The 6-deep nesting in `Graphs::load` and 5-deep in the shared colors upgrade are flattened.
+		- Each `let _ =` that drops an error says why.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+
+- Code review 20261106 item 11: The demo script doesn't follow the Python rules
+	- ID: 2026110618502911
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Related IDs: 2026110310450002
+	- Origin: `15993d9` (2026-11-06), newer, and never reviewed. Breaks the rules on type hints, dataclasses and enums, small functions, full names, and errors that aren't swallowed. Confirmed by reading: none of its 74 functions has hints, and lint can't see it.
+	- Requirements:
+		- Type hints throughout, and ruff's ANN rules on so they stay.
+		- Records and kinds become dataclasses and enums, and the 480-line recorder class is split.
+		- One kind of section comment.
+		- A failed probe or rotation stops the run rather than reading as 0.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+
+- Code review 20261106 item 12: Comments that say the wrong thing, and comment layout in scripts
+	- ID: 2026110618502912
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Origin: various, older and newer. Breaks the comment rules. Confirmed by reading.
+	- Requirements:
+		- knobs' `Cargo.toml` no longer says to keep it the same as silkterm's.
+		- The plugin's watch comment says the tick always checks both files, as it does.
+		- `config.bash`'s header and history match its body.
+		- `dev-install.bash` uses `##` comments like every other script, and long comment lines are wrapped.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+
+- Code review 20261106 item 13: The panel item clears its whole image, then copies each graph in
+	- ID: 2026110618502913
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Origin: `b46c961` (2026-10-25), before the 20261030 review, whose item 9 looked at allocations. Idea. Confirmed, measured: about 16% of a draw at scale 2, little at scale 1.
+	- Requirements:
+		- Each graph draws straight into the item's image, or only the gaps get cleared.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+
+- Code review 20261106 item 14: States that exclude each other kept in separate fields
+	- ID: 2026110618502914
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Origin: `7794e6b` (2026-11-01) for the plugin's settings window, newer. The knobs ones are older. Idea. Confirmed by reading.
+	- Requirements:
+		- The plugin's own settings window and a stray one are one enum.
+		- knobs' "work out the indent" value and its program-filled presets get types of their own, if it's cheap.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+
+- Code review 20261106 item 15: The demo scans every process while it records
+	- ID: 2026110618502915
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Related IDs: 2026110310450002
+	- Origin: `15993d9`, newer. Idea. Confirmed, measured: a scan of about 1500 processes takes 30 ms, and the panel stop polls it every 50 ms, about 38% of a core beside the capture.
+	- Requirements:
+		- Wait on the panel's own processes rather than scanning all of them.
+		- Move the pointer without a process start for each step.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+
+- Code review 20261106 item 16: Scripts still start a process per file or folder in a few loops
+	- ID: 2026110618502916
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Related IDs: 2026103016201613
+	- Origin: `ff4610a` and `f95b2c6`, before the 20261030 review, whose item 13 took the worst ones. `97052f4` and `34329c6` are newer. Idea. Confirmed, measured: markdownlint once per file takes 0.82 s for 3 docs against 0.37 s once, and each leftover folder scans every process at 17 ms.
+	- Requirements:
+		- One markdownlint per set of rule overrides.
+		- One process scan per sweep, not per folder.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+
 - The pipeline prunes every project's docker build cache
 	- ID: 2026110311291910
 	- Type: Bug
@@ -6538,209 +6773,6 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-30: Deferred with no date. The LAN split uses the non-root socket reader for now.
 
 **Stop here for a next release**
-
-- Code review 20261106 item 1: Each draw works out the spike fade again for every column
-	- ID: 2026110618502901
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Origin: `8551170` (2026-11-02), newer than the last style review. Breaks the rule on hoisting invariant work out of loops. Confirmed, the `powf` in `render::reach` is 3.6% of the tick in the 2026-11-06 profile.
-	- Requirements:
-		- Work out the fade once a draw, not once a column.
-
-- Code review 20261106 item 2: knobs lists a theme's changes again for each row it reads
-	- ID: 2026110618502902
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Related IDs: 2026103018353670
-	- Origin: `f89e55e` (2026-10-23). The 20261030 review read only knobs' lookups. Breaks the rules on repeated work and needless `collect()`. Confirmed, measured: the settings rows read in about 350 us with no changes on the theme, and 800 to 1100 us with 1 to 5 of them, as on b23.
-	- Requirements:
-		- Asking whether one setting is changed, or whether any are, doesn't walk every setting or build a list.
-
-- Code review 20261106 item 3: Each settings refresh sets every tip and row height again
-	- ID: 2026110618502903
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Related IDs: 2026103016201603
-	- Origin: `f89e55e`, `fe76b54`, `b869164` and `df9a517`, all before the 20261030 review, whose profile was mostly the color chips. Breaks the rule on repeated work. Confirmed, measured: a refresh went from 1.74 to 1.51 ms with the fix tried, and a slider step from 2.02 to 1.74 ms.
-	- Requirements:
-		- Set a tip or a row's height only when it changed.
-		- The graph list reads each row's state once a refresh, not twice.
-		- While there, check whether the live graphs repaint graphs that weren't read that beat. That part isn't measured.
-
-- Code review 20261106 item 4: Building the look for the settings window allocates about 700 times
-	- ID: 2026110618502904
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Related IDs: 2026103016201610
-	- Origin: `81e0054` (2026-10-30) for most of it, newer. The case-folding parsers are older, named in the 20261030 item 10 notes and left as they were. Breaks the rule on repeated work. Confirmed, measured: 694 allocations and 72 to 81 us a call, against 430 at `ae703bb`. It runs on every refresh.
-	- Requirements:
-		- Make each graph's setting names once, not on every build.
-		- The mode, split and vertical scale parsers don't allocate.
-		- Loading saved themes doesn't build 39 names to look one up.
-
-- Code review 20261106 item 5: The processes graph takes about 4 ms a read
-	- ID: 2026110618502905
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Origin: `c3c52ee` (2026-10-31), newer. Idea. Confirmed, measured on b23 with about 1450 processes: 3.4 to 4.9 ms a read, about 10 times the whole tick of the 6 default graphs. It's off by default, so neither the profiler nor the soak test runs it.
-	- Requirements:
-		- Read `/proc` with fewer allocations and system calls a process.
-		- The profiler times a run with the processes graph on.
-
-- Code review 20261106 item 6: Opening the settings window works out the graph list once per setting
-	- ID: 2026110618502906
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Origin: `b869164` and `bad9e01`, before the 20261030 review, which timed refresh only. Breaks the rule on repeated work. Confirmed, measured: about 5 ms of the 8 to 10 ms the rows take to build.
-	- Requirements:
-		- Work out the graph list once when the window opens.
-
-- Code review 20261106 item 7: Public items in knobs and the settings crate have no doc comments
-	- ID: 2026110618502907
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Related IDs: 2026103016201612
-	- Origin: `f89e55e`, mostly. The 20261030 item 12 fix put `missing_docs` on core only, and knobs was kept the same as silkterm's then. Breaks the rules on `///` for public items and Debug on public types. Confirmed by reading: 64 items in knobs, and the settings crate's bridge structs and a few functions. knobs' `NoEnv` has no Debug, and `OwnReader`'s comment says it reads memory, which it doesn't.
-	- Requirements:
-		- `missing_docs` on both crates, and lint stays clean.
-
-- Code review 20261106 item 8: Catch-all arms on knobs' own enums
-	- ID: 2026110618502908
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Related IDs: 2026103016201611
-	- Origin: `f89e55e`, `e4cfcbb` and `bfd6a3a`, before the 20261030 review. Its item 11 left knobs out while it matched silkterm's. Breaks the rule against catch-all arms. Confirmed by reading: core's theme save and load, and knobs' setting reads, send any new `Kind` to text without a word.
-	- Requirements:
-		- Name every variant of `Kind` and `Value` where they're matched.
-		- An index into the changes that can't miss says why.
-
-- Code review 20261106 item 9: Clones and a collect with no reason given
-	- ID: 2026110618502909
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Origin: `4da8fed` (2026-11-01) for the worst one, newer, and older ones in the settings crate and `axis.rs`. Breaks the rule that a needed clone says why. Confirmed by reading. Making room for a theme name copies every saved theme to hand over their keys.
-	- Requirements:
-		- Drop the clones that aren't needed, and give the rest a reason.
-		- `Axis` can be `Copy`.
-
-- Code review 20261106 item 10: Short names, deep nesting and dropped results in core
-	- ID: 2026110618502910
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Origin: across core, older and newer than the 20261030 review, which didn't sweep naming. Breaks the rules on full names, the happy path at low indent, and errors as values. Confirmed by reading.
-	- Requirements:
-		- Full names where the short ones are cryptic, such as `pc`, `bw`, `pw`, `bk` and `rd`, and `which` for a `Which` where a width is in scope too.
-		- The demo history example's `Box` gets another name, since it hides std's.
-		- The 6-deep nesting in `Graphs::load` and 5-deep in the shared colors upgrade are flattened.
-		- Each `let _ =` that drops an error says why.
-
-- Code review 20261106 item 11: The demo script doesn't follow the Python rules
-	- ID: 2026110618502911
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Related IDs: 2026110310450002
-	- Origin: `15993d9` (2026-11-06), newer, and never reviewed. Breaks the rules on type hints, dataclasses and enums, small functions, full names, and errors that aren't swallowed. Confirmed by reading: none of its 74 functions has hints, and lint can't see it.
-	- Requirements:
-		- Type hints throughout, and ruff's ANN rules on so they stay.
-		- Records and kinds become dataclasses and enums, and the 480-line recorder class is split.
-		- One kind of section comment.
-		- A failed probe or rotation stops the run rather than reading as 0.
-
-- Code review 20261106 item 12: Comments that say the wrong thing, and comment layout in scripts
-	- ID: 2026110618502912
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Origin: various, older and newer. Breaks the comment rules. Confirmed by reading.
-	- Requirements:
-		- knobs' `Cargo.toml` no longer says to keep it the same as silkterm's.
-		- The plugin's watch comment says the tick always checks both files, as it does.
-		- `config.bash`'s header and history match its body.
-		- `dev-install.bash` uses `##` comments like every other script, and long comment lines are wrapped.
-
-- Code review 20261106 item 13: The panel item clears its whole image, then copies each graph in
-	- ID: 2026110618502913
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Origin: `b46c961` (2026-10-25), before the 20261030 review, whose item 9 looked at allocations. Idea. Confirmed, measured: about 16% of a draw at scale 2, little at scale 1.
-	- Requirements:
-		- Each graph draws straight into the item's image, or only the gaps get cleared.
-
-- Code review 20261106 item 14: States that exclude each other kept in separate fields
-	- ID: 2026110618502914
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Origin: `7794e6b` (2026-11-01) for the plugin's settings window, newer. The knobs ones are older. Idea. Confirmed by reading.
-	- Requirements:
-		- The plugin's own settings window and a stray one are one enum.
-		- knobs' "work out the indent" value and its program-filled presets get types of their own, if it's cheap.
-
-- Code review 20261106 item 15: The demo scans every process while it records
-	- ID: 2026110618502915
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Related IDs: 2026110310450002
-	- Origin: `15993d9`, newer. Idea. Confirmed, measured: a scan of about 1500 processes takes 30 ms, and the panel stop polls it every 50 ms, about 38% of a core beside the capture.
-	- Requirements:
-		- Wait on the panel's own processes rather than scanning all of them.
-		- Move the pointer without a process start for each step.
-
-- Code review 20261106 item 16: Scripts still start a process per file or folder in a few loops
-	- ID: 2026110618502916
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Related IDs: 2026103016201613
-	- Origin: `ff4610a` and `f95b2c6`, before the 20261030 review, whose item 13 took the worst ones. `97052f4` and `34329c6` are newer. Idea. Confirmed, measured: markdownlint once per file takes 0.82 s for 3 docs against 0.37 s once, and each leftover folder scans every process at 17 ms.
-	- Requirements:
-		- One markdownlint per set of rule overrides.
-		- One process scan per sweep, not per folder.
 
 - Code review 20261030 item 3, part 2: Look up a setting by an index in knobs
 	- ID: 2026103018353670
