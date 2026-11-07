@@ -1,0 +1,30 @@
+@ The demo, in plain words. demo-video.py records it. Change this first, then the scenes.
+@ Gif: 960x540, 50 fps, scale 1. Ends on the last frame held 2 s, then 3 s of black. No fades.
+@ Video: 1920x1080, 60 fps, scale 2, so the same layout doubled. Fades in over 0.5 s, out to black over 2 s. Click sounds.
+@ Everything anonymous: a throwaway home seen as /home/sam, no real names or paths.
+@ A dark XFCE panel across the top with only tukzmon in it, at the default graphs. Captions in a band at the bottom.
+@ Keep it near 30 seconds. The README shows the gif.
+
+tukzmon: system graphs for the XFCE panel
+	@ the panel starts with no history
+
+From a fresh start, the graphs fill in and settle
+	@ hold while the time axis eases out
+
+A few days later, the log time axis still fits them all
+	@ panel restarts with 4 days of made-up history: busy days, quiet nights, a few builds, one night off
+
+Hover for the value, and how long ago
+	@ pointer onto the CPU graph's right edge, then steps left: seconds, minutes, hours, days ago
+
+Right-click, Properties
+	@ the settings window opens in the middle
+
+The Graphs tab: which graphs, in what order, how wide
+	@ Graphs tab, tick Network, Apply. The network graph shows up in the panel
+
+One theme colors every graph
+	@ Themes tab, pick Neon, Apply, OK
+
+github.com/tukzedo/tukzmon
+	@ pointer rests, hold

@@ -48,6 +48,7 @@ RUST_NIGHTLY="nightly-2026-10-16"
 DOCS_PATHS=(
 	'*.md'
 	'project/*'
+	'assets/*'
 )
 
 ## The release build dogfood copies from, and the dogfood itself.

@@ -47,7 +47,11 @@
 ##	                      pprof's sampler, on this box. The flamegraph goes to
 ##	                      cicd/artifacts/profiling/, with a report on its hot
 ##	                      spots from utility/flame-report.py
-##	  15. Dogfood         utility/dev-install.bash, which installs the build
+##	  15. Demo            the README gif and a video, from
+##	                      utility/demo/script.txt, on a private Xvfb. They go
+##	                      to private/demo/ beside the repo, and the gif to
+##	                      assets/demo.gif when it changed
+##	  16. Dogfood         utility/dev-install.bash, which installs the build
 ##	                      under ~/.local and restarts the panel
 ##	  A step that's off isn't counted, and the first section says why it's off.
 ##	  A run whose options leave no check on fails, with exit 2.
@@ -57,7 +61,8 @@
 ##	  Options:
 ##	   (none)              the default run: every step
 ##	   --quick             the fast steps: the default run but the packages,
-##	                       the profiler and the slow leak checks, so no Soak
+##	                       the profiler, the demo and the slow leak checks,
+##	                       so no Soak
 ##	   --long              everything, Miri and the Nix package included, which
 ##	                       only it runs. Also --slow
 ##	   --leakcheck         add every leak check to any run
@@ -93,6 +98,7 @@
 ##	   --no-container      run every step on this box
 ##	   --no-remote         skip other hosts. There are none yet
 ##	   --no-sync           skip the remote sync
+##	   --no-demo           skip the demo
 ##	   --keep-temp         keep the run's temp folder and containers, and print
 ##	                       where they are
 ##	   --list              print the steps and test IDs the other options
@@ -193,7 +199,7 @@ fGitRemote() { if command -v gitsby > /dev/null 2>&1; then gitsby raw git "$@"; 
 
 ## Each container step runs this script again in the image, with these.
 cliArgs=("$@")
-mode="default"; areas=(); aliasNote=""; quiet=0; keepTemp=0; listOnly=0; syncOn=1; leakOpt=""; noRemote=0; noContainer=0; cliMessage=""
+mode="default"; areas=(); aliasNote=""; quiet=0; keepTemp=0; listOnly=0; syncOn=1; demoOn=1; leakOpt=""; noRemote=0; noContainer=0; cliMessage=""
 fMode() { [[ "${mode}" == default || "${mode}" == "$1" ]] || fUsage "${mode/#/--} and --$1 are separate runs; give one"; mode="$1"; }
 while (($#)); do case "$1" in
 	--quick)              fMode quick; shift ;;
@@ -212,6 +218,7 @@ while (($#)); do case "$1" in
 	--no-container)       noContainer=1; shift ;;
 	--no-remote)          noRemote=1; shift ;;
 	--no-sync)            syncOn=0; shift ;;
+	--no-demo)            demoOn=0; shift ;;
 	--keep-temp)          keepTemp=1; shift ;;
 	--list)               listOnly=1; shift ;;
 	-q|--quiet)           quiet=1; shift ;;
@@ -294,6 +301,10 @@ else offLines+=("Nix package: fetches about 5 GB the first time, so only in --lo
 if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" profile "* ]]; then offLines+=("Profiler: --backlog-run-quick runs it only when the profile area is named")
 elif [[ "${mode}" == quick ]]; then offLines+=("Profiler: --quick")
 else fPlan "Profiler" fStepProfile ""; fi
+if ((handsOff)); then offLines+=("Demo: --${mode} never records it, since it rewrites assets/demo.gif")
+elif [[ "${mode}" == quick ]]; then offLines+=("Demo: --quick")
+elif ((! demoOn)); then offLines+=("Demo: --no-demo")
+else fPlan "Demo" fStepDemo ""; fi
 if ((handsOff)); then offLines+=("Dogfood: --${mode} never dogfoods")
 else fPlan "Dogfood" fStepDogfood ""; fi
 ## Off by name, until they're built.
@@ -311,7 +322,7 @@ fInImage() {
 ## Areas and options can turn every check off, such as the miri area with
 ## --no-leakcheck, which would leave a run that passes having checked nothing.
 planChecks=0
-for fn in "${planFns[@]}"; do case "${fn}" in fStepSync|fStepImage|fStepDogfood) ;; *) planChecks=$((planChecks + 1)) ;; esac; done
+for fn in "${planFns[@]}"; do case "${fn}" in fStepSync|fStepImage|fStepDemo|fStepDogfood) ;; *) planChecks=$((planChecks + 1)) ;; esac; done
 noChecksNote="every check is off, so this run would check nothing"
 
 fShowPlan() {
@@ -822,6 +833,18 @@ fStepProfile() {
 	python3 -I "${here}/utility/flame-report.py" --dir "${art}" || fEcho_Clean "WARNING: flame-report.py couldn't read the flamegraph"
 }
 
+## The demo, recorded by utility/demo/demo-video.py from the host's release
+## build, since it runs a real panel and window manager on a private Xvfb.
+## Takes about 3 minutes.
+fStepDemo() {
+	local rel="${hostTarget}/release"
+	fEcho_Clean "cargo build --release ${RELEASE_PACKAGES[*]} -p tukzmon-core --example demo-history -j ${jobs}"
+	cargo build --release "${locked[@]}" "${RELEASE_PACKAGES[@]}" -j "${jobs}" || return 1
+	cargo build --release "${locked[@]}" -p tukzmon-core --example demo-history -j "${jobs}" || return 1
+	fEcho_Clean "cicd/utility/demo/demo-video.py"
+	python3 -I "${here}/utility/demo/demo-video.py" --lib-dir "${rel}" --history-bin "${rel}/examples/demo-history" || return 1
+}
+
 fStepDogfood() {
 	fEcho_Clean "${DOGFOOD_CMD[*]}"
 	"${root}/${DOGFOOD_CMD[0]}" "${DOGFOOD_CMD[@]:1}" || return 1
@@ -1234,3 +1257,4 @@ exit 0
 ##		- 2026-11-01: Cleanup doesn't count the run that started this one, such
 ##		  as the pre-push hook, as another live run.
 ##		- 2026-11-01: A run whose options turn every check off fails.
+##		- 2026-11-06: The demo step, with --no-demo.
