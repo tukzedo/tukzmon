@@ -258,6 +258,54 @@ fTest_dev_install_copies_what_cargo_built_and_finds_the_panel_library() {
 	done
 }
 
+## Test ID: dezax
+fTest_dev_install_builds_with_rustups_cargo_from_the_repo_wherever_its_run() {
+	local t="${work}/dev-install-pin" out='' pin='' repo=''
+	repo="$(cd "${cicd}/.." && pwd)"
+	pin="$(sed -n 's/^channel *= *"\(.*\)"/\1/p' "${repo}/rust-toolchain.toml")"
+	mkdir -p -- "${t}/home/.cargo/bin" "${t}/bin" "${t}/target"
+	## rustup's, which says where it ran, and Debian's ahead of it in PATH.
+	printf '%s\n' '#!/bin/sh' 'case "$1" in' \
+		"metadata) printf '{\"target_directory\":\"%s\"}\\n' '${t}/target' ;;" \
+		"build) pwd > '${t}/build-dir'; mkdir -p '${t}/target/release'; for f in libtukzmon.so tukzmon-settings; do echo built > '${t}/target/release/'\"\$f\"; done ;;" \
+		'*) exit 1 ;;' 'esac' > "${t}/home/.cargo/bin/cargo"
+	printf '#!/bin/sh\necho "rustc %s (stub)"\n' "${pin}" > "${t}/home/.cargo/bin/rustc"
+	printf '#!/bin/sh\ntouch "%s"\nexit 1\n' "${t}/debian-ran" > "${t}/bin/cargo"
+	printf '#!/bin/sh\necho "rustc 1.95.0 (debian)"\n' > "${t}/bin/rustc"
+	printf '%s\n' '#!/bin/sh' 'printf "\tlibxfce4panel-2.0.so.4 (libc6,x86-64) => /usr/lib/x86_64-linux-gnu/libxfce4panel-2.0.so.4\n"' > "${t}/bin/ldconfig"
+	printf '#!/bin/sh\n' > "${t}/bin/xfconf-query"
+	chmod +x "${t}/bin/"* "${t}/home/.cargo/bin/"*
+	out="$(cd / && env -u XDG_DATA_HOME -u CARGO_TARGET_DIR HOME="${t}/home" PATH="${t}/bin:${PATH}" bash "${repo}/utility/dev-install.bash" --no-restart 2>&1)" || { fWhy "failed: ${out}"; return 1; }
+	[[ ! -e "${t}/debian-ran" ]] || { fWhy "ran the cargo ahead of ~/.cargo/bin"; return 1; }
+	[[ "$(cat -- "${t}/build-dir")" == "${repo}" ]] || { fWhy "built in $(cat -- "${t}/build-dir"), not ${repo}"; return 1; }
+	[[ "${out}" != *WARNING* ]] || { fWhy "warned on the pinned ${pin}: ${out}"; return 1; }
+	## No rustup rustc, so the build isn't on the pinned version.
+	mv -- "${t}/home/.cargo/bin/rustc" "${t}/rustc.off"
+	out="$(cd / && env -u XDG_DATA_HOME -u CARGO_TARGET_DIR HOME="${t}/home" PATH="${t}/bin:${PATH}" bash "${repo}/utility/dev-install.bash" --no-restart 2>&1)" || { fWhy "failed off the pin: ${out}"; return 1; }
+	[[ "${out}" == *"building with 'rustc 1.95.0 (debian)', not the pinned ${pin}"* ]] || { fWhy "no warning off the pin: ${out}"; return 1; }
+}
+
+## Test ID: dezay
+fTest_a_step_prints_the_rule_its_start_and_its_pass_or_fail() {
+	local t="${work}/step-lines" out='' rc=0 rule='' f='' result=''
+	mkdir -p -- "${t}/bin" "${t}/host"
+	## Format's tools stand in, exiting STUB_RC, in a temp root of the test's own.
+	for f in cargo clang-format black; do printf '#!/bin/sh\nexit "${STUB_RC:-0}"\n' > "${t}/bin/${f}"; done
+	chmod +x -- "${t}/bin/"*
+	rule="$(printf '%.0s•' {1..79})"
+	for result in PASS FAIL; do
+		rc=0
+		out="$(env -u TUKZMON_IN_IMAGE STUB_RC="$([[ "${result}" == PASS ]] && echo 0 || echo 1)" HOST_TEMP="${t}/host" PATH="${t}/bin:${PATH}" \
+			bash "${cicd}/cicd.bash" --backlog-run-quick format --no-container 2>&1)" || rc=$?
+		[[ "${result}" == PASS ]] && ((rc != 0)) && { fWhy "a passing Format gave exit ${rc}: ${out}"; return 1; }
+		[[ "${result}" == FAIL ]] && ((rc == 0)) && { fWhy "a failing Format passed: ${out}"; return 1; }
+		## The rule, then the start line, and the result in the same form.
+		grep -A1 -xF -- "${rule}" <<< "${out}" | grep -qE '^\[ [0-9]{8}-[0-9]{6}\.[0-9]{2}: Step 1 of 1; Starting Format \]$' \
+			|| { fWhy "${result}: no rule and start line: ${out}"; return 1; }
+		grep -qE "^\[ [0-9]{8}-[0-9]{6}\.[0-9]{2}: Step 1 of 1; ${result} Format \]$" <<< "${out}" || { fWhy "no ${result} line: ${out}"; return 1; }
+	done
+}
+
 ## Test ID: der4k
 fTest_a_run_with_every_check_off_fails() {
 	local out='' rc=0
@@ -311,6 +359,304 @@ fTest_a_miri_module_names_the_test_that_stopped_it() {
 	(($(wc -l < "${log}") == 5)) || { fWhy "a failed test got more lines: $(cat -- "${log}")"; return 1; }
 }
 
+## A tree of one crate in a repo of its own, for test-ids.bash check.
+fIdsTree() {   ## fIdsTree DIR LIB_RS
+	mkdir -p -- "$1/cicd/utility" "$1/a/src" "$1/project"
+	cp -- "${cicd}/utility/test-ids.bash" "$1/cicd/utility/"
+	printf '[workspace]\nmembers = ["a"]\n' > "$1/Cargo.toml"
+	printf '[package]\nname = "a-pkg"\n' > "$1/a/Cargo.toml"
+	printf '%b' "$2" > "$1/a/src/lib.rs"
+	git -C "$1" init -q . && git -C "$1" add -- Cargo.toml a
+}
+
+## Test ID: dezan
+fTest_test_ids_check_fails_on_each_kind_of_bad_id() {
+	local t="${work}/ids-bad" out='' lib='' want=''
+	local -a cases=(
+		'mod tests {\n\t#[test]\n\tfn one() {}\n}\n|has no Test ID line'
+		'mod tests {\n\t// Test ID: dek00\n\t#[test]\n\tfn one() {}\n\t// Test ID: dek00\n\t#[test]\n\tfn two() {}\n}\n|dek00 is already used at'
+		'mod tests {\n\t// Test ID: DEK00\n\t#[test]\n\tfn one() {}\n}\n|DEK00 isn'"'"'t lower-case Crockford base 32'
+		'mod tests {\n\t// Test ID: 00000\n\t#[test]\n\tfn one() {}\n}\n|00000 stands for 2000-01-01'
+	)
+	fIdsTree "${t}/good" 'mod tests {\n\t// Test ID: dek00\n\t#[test]\n\tfn one() {}\n}\n'
+	out="$(bash "${t}/good/cicd/utility/test-ids.bash" check 2>&1)" || { fWhy "a good tree failed: ${out}"; return 1; }
+	for lib in "${!cases[@]}"; do
+		want="${cases[lib]#*|}"
+		fIdsTree "${t}/${lib}" "${cases[lib]%%|*}"
+		if out="$(bash "${t}/${lib}/cicd/utility/test-ids.bash" check 2>&1)"; then fWhy "passed, not '${want}': ${out}"; return 1; fi
+		[[ "${out}" == *"${want}"* ]] || { fWhy "no '${want}' in: ${out}"; return 1; }
+	done
+	## A tracked test outside src/ and tests/, where nothing reads its ID.
+	mkdir -p -- "${t}/good/a/benches"
+	printf '// Test ID: dek01\n#[test]\nfn far() {}\n' > "${t}/good/a/benches/b.rs"
+	git -C "${t}/good" add -- a/benches/b.rs
+	if out="$(bash "${t}/good/cicd/utility/test-ids.bash" check 2>&1)"; then fWhy "passed with a stray test: ${out}"; return 1; fi
+	[[ "${out}" == *"a/benches/b.rs:2: a test outside every src/"* ]] || { fWhy "the stray test: ${out}"; return 1; }
+}
+
+## Test ID: dezap
+fTest_test_ids_check_reads_the_backlogs_test_case_rows() {
+	local t="${work}/ids-backlog" out='' row=''
+	fIdsTree "${t}" 'mod tests {\n\t// Test ID: dek00\n\t#[test]\n\tfn one() {}\n}\n'
+	fItem() { printf -- '- %s\n\t- ID: %s\n\t- Status: %s\n' "$1" "$2" "$3"; [[ -z "$4" ]] || printf '\t- Test case: %s\n' "$4"; }
+	## A queued item needs no row, and nothing under the template counts.
+	{ fItem Named 1001 Done '`one` (dek00)'; fItem Asked 1002 Done 'none, since it was a question.'; fItem Later 1003 Queued ''
+		printf '\n## Template\n\n'; fItem Title 1004 Done ''; } > "${t}/project/backlog.md"
+	out="$(bash "${t}/cicd/utility/test-ids.bash" check 2>&1)" || { fWhy "a good backlog failed: ${out}"; return 1; }
+	for row in '' dek07; do
+		## The last item, with no template under it, so the end of the file closes it.
+		{ fItem Named 1001 Done '`one` (dek00)'; fItem Bad 1005 Done "${row:+\`two\` (${row})}"; } > "${t}/project/backlog.md"
+		if out="$(bash "${t}/cicd/utility/test-ids.bash" check 2>&1)"; then fWhy "passed with row '${row}': ${out}"; return 1; fi
+		if [[ -z "${row}" ]]; then
+			[[ "${out}" == *"1005 is Done with no Test case row"* ]] || { fWhy "no row: ${out}"; return 1; }
+		else
+			[[ "${out}" == *"1005 names dek07, which no test has"* ]] || { fWhy "an unknown ID: ${out}"; return 1; }
+		fi
+	done
+}
+
+## Test ID: dezaq
+fTest_jobs_are_half_the_cpus_a_quarter_when_busy_and_never_none() {
+	local dir="${work}/jobs" ok=0
+	mkdir -p -- "${dir}"
+	(
+		## As cicd.bash has it, reading a load of this test's.
+		eval "$(awk '/^fJobs\(\)/, /^}/' "${cicd}/cicd.bash" | sed "s|/proc/loadavg|${dir}/loadavg|")"
+		fCase() {   ## fCase CORES LOAD CAP KIND WANT
+			cores="$1"; printf '%s 0.00 0.00 1/100 1\n' "$2" > "${dir}/loadavg"
+			CICD_MAX_JOBS="$3" fJobs "$4"
+			[[ "${jobs}" == "$5" && "${CARGO_BUILD_JOBS}" == "$5" ]] || { fWhy "${cores} CPUs, load $2, cap '$3' $4: ${jobs} jobs, not $5"; return 1; }
+		}
+		## Busy is a load over half the CPUs.
+		fCase 16 1.00 '' '' 8 && fCase 16 8.00 '' '' 8 && fCase 16 8.01 '' '' 4 \
+			&& fCase 16 0.50 '' heavy 4 && fCase 16 12.00 '' heavy 4 \
+			&& fCase 3 9.00 '' '' 1 && fCase 1 0.10 '' '' 1 && fCase 1 0.10 '' heavy 1 \
+			&& fCase 16 1.00 3 '' 3 && fCase 16 1.00 3 heavy 3 && fCase 16 1.00 0 '' 8 \
+			&& fCase 16 1.00 'x[$(touch '"${dir}/ran"')]' '' 8 || exit 1
+		[[ ! -e "${dir}/ran" ]] || { fWhy "a \$(...) in CICD_MAX_JOBS ran"; exit 1; }
+		fCase 16 8.01 '' '' 4 && [[ "${loadNote}" == "4 of 16 CPUs, load 8.01, busy" ]] || { fWhy "busy note: '${loadNote}'"; exit 1; }
+	) && ok=1
+	((ok))
+}
+
+## Test ID: dezar
+fTest_the_shared_flags_are_taken_and_a_wrong_mix_is_refused() {
+	local out='' rc=0 flags='' mode='' want=''
+	fCicd() { rc=0; out="$(env -u TUKZMON_IN_IMAGE bash "${cicd}/cicd.bash" "$@" 2>&1)" || rc=$?; }
+	## Each with the run it names, and --list so nothing runs.
+	for flags in ':default' '--quick:quick' '--long:long' '--slow:long' '--leakcheck:default' '--no-leakcheck:default' \
+		'--backlog-run-quick format lint:backlog-run-quick' '--gate:backlog-run-quick' '--backlog-run-full:backlog-run-full' \
+		'--merge-gate:merge-gate' '--ci:merge-gate' '--no-container --no-remote --no-sync --keep-temp --quiet:default' \
+		'--message x:default' '-m x:default' '--msg=x:default'; do
+		mode="${flags##*:}"; flags="${flags%:*}"
+		# shellcheck disable=2086  ## Split on purpose, into its flags.
+		fCicd ${flags} --list
+		((rc == 0)) || { fWhy "'${flags} --list' gave exit ${rc}: ${out}"; return 1; }
+		[[ "${out}" == *"[ tukzmon cicd: ${mode} ]"* ]] || { fWhy "'${flags}' isn't a ${mode} run: ${out}"; return 1; }
+		[[ "${mode}" == backlog-run-* || "${mode}" == merge-gate ]] || continue
+		for want in "--${mode} never syncs" "--${mode} never dogfoods"; do
+			[[ "${out}" == *"${want}"* ]] || { fWhy "'${flags}' doesn't say '${want}': ${out}"; return 1; }
+		done
+	done
+	for flags in '--bogus:unknown option' '--quick --long:are separate runs' '--leakcheck --no-leakcheck:are opposites' \
+		'--merge-gate --message x:takes no --message' '--backlog-run-quick nope:no area' '--message:needs a message'; do
+		want="${flags#*:}"; flags="${flags%%:*}"
+		# shellcheck disable=2086  ## Split on purpose, into its flags.
+		fCicd --list ${flags}
+		((rc == 2)) && [[ "${out}" == *"${want}"* ]] || { fWhy "'${flags}' gave exit ${rc}, not 2 with '${want}': ${out}"; return 1; }
+	done
+	fCicd --help
+	((rc == 0)) && [[ "${out}" == *"--backlog-run-quick"* ]] || { fWhy "--help gave exit ${rc}: ${out}"; return 1; }
+}
+
+## Test ID: dezas
+fTest_the_pipeline_never_prunes_dockers_build_cache() {
+	local hits=''
+	## That cache is every project's, and docker trims it itself.
+	hits="$(find "${cicd}" "${cicd}/../utility" -type f \( -name '*.bash' -o -path '*/hooks/*' \) \
+		-exec awk '!/^[ \t]*#/ && /(builder|buildx|system)[ \t]+prune/ { print FILENAME ":" FNR ": " $0 }' {} +)"
+	[[ -z "${hits}" ]] || { fWhy "prunes it:"; printf '      %s\n' "${hits}"; return 1; }
+}
+
+## Test ID: dezat
+fTest_a_run_folder_counts_up_and_the_sweep_takes_only_runs_that_are_gone() {
+	local root="${work}/sweep" live='' ok=0
+	mkdir -p -- "${root}/${projectName}"
+	(
+		HOST_TEMP="${root}"
+		source "${cicd}/utility/include/run-tmp.bash"
+		local base="${HOST_TEMP}/${projectName}" old='' now='' stamp='' d='' n=''
+		fRun() {   ## fRun NAME RUN_PID|none [keep]
+			mkdir -p -- "${base}/$1"
+			[[ "$2" == none ]] || printf '%s' "$2" > "${base}/$1/run.pid"
+			[[ -z "${3:-}" ]] || : > "${base}/$1/keep"
+		}
+		printf -v old '%(%Y%m%d-%H%M%S)T' "$((EPOCHSECONDS - 3 * 86400))"
+		printf -v now '%(%Y%m%d-%H%M%S)T' "$((EPOCHSECONDS - 60))"
+		fRun "${old}_001" '999999999 1'
+		fRun "${old}_002" none
+		fRun "${old}_003" '999999999 1' keep
+		## Killed, kept by --keep-temp, live, gone but a process runs on in
+		## it, and starting, with no pid written yet.
+		fRun "${now}_001" '999999999 1'
+		fRun "${now}_002" '999999999 1' keep
+		fRun "${now}_003" "$(fPidStamp "$$")"
+		fRun "${now}_004" '999999999 1'
+		fRun "${now}_005" ''
+		TMPDIR="${base}/${now}_004" sleep 30 &
+		live="$!"
+		trap 'kill "${live}" 2> /dev/null || true' EXIT
+		for _ in 1 2 3 4 5 6 7 8 9 10; do ! grep -qszF -- "TMPDIR=${base}/${now}_004" "/proc/${live}/environ" || break; sleep 0.1; done
+		## A name that's taken gets the next number.
+		printf -v stamp '%(%Y%m%d-%H%M%S)T' -1
+		mkdir -- "${base}/${stamp}_001"
+		fRunTmpMake || { fWhy "made no run folder"; exit 1; }
+		[[ "${runTmp}" == "${base}/${stamp}_002" || ( "${runTmp}" != "${base}/${stamp}_"* && "${runTmp}" == *_001 ) ]] || { fWhy "made ${runTmp}"; exit 1; }
+		[[ "$(cat -- "${runTmp}/run.pid")" == "$(fPidStamp "$$")" ]] || { fWhy "run.pid is '$(cat -- "${runTmp}/run.pid")'"; exit 1; }
+		n="$(fSweepStale)"
+		kill "${live}" 2> /dev/null || true
+		wait "${live}" 2> /dev/null || true
+		for d in "${old}_001" "${old}_003" "${now}_001"; do [[ ! -e "${base}/${d}" ]] || { fWhy "left ${d}"; exit 1; }; done
+		for d in "${old}_002" "${now}_002" "${now}_003" "${now}_004" "${now}_005" "${runTmp##*/}"; do [[ -d "${base}/${d}" ]] || { fWhy "took ${d}"; exit 1; }; done
+		[[ "${n}" == 3 ]] || { fWhy "counted ${n} gone, not 3"; exit 1; }
+	) && ok=1
+	((ok))
+}
+
+## cicd.bash's container cleanup, with docker a function that logs each call
+## to DIR/calls and answers from STUB_PS, the project's containers as
+## "id|run|stamp" lines. Run in a subshell.
+fCtrRig() {   ## fCtrRig DIR
+	dir="$1"
+	mkdir -p -- "${dir}/host/${projectName}"
+	HOST_TEMP="${dir}/host"
+	source "${cicd}/utility/include/run-tmp.bash"
+	eval "$(awk '/^(fCtrCleanup|fOtherRun|fCtrOthers|fCtrRunLive|fCtrSweepGone|fCtrImagesBytes)\(\)/, /^}/' "${cicd}/cicd.bash")"
+	fEcho_Clean() { printf '%s\n' "$*" >> "${dir}/said"; }
+	docker() {
+		printf '%s\n' "$*" >> "${dir}/calls"
+		case "$*" in
+			"ps -aq "*"label=dev.run=${runName}"*) echo c-mine ;;
+			"ps -a "*) printf '%s\n' "c-mine|${runName}|$(fPidStamp "$$")" "${STUB_PS:-}" | sed '/^$/d' ;;
+			"image ls -q "*dangling=true*) echo sha256:0123456789abcdef ;;
+			"image ls ${CTR_IMAGE} "*) printf '%s\n' "${CTR_IMAGE}":{a,b,c,d,e} ;;
+			"image inspect "*) printf '%s\n' 100 300 200 '' 50 ;;
+		esac
+	}
+	# shellcheck disable=2034  ## Read by the cleanup, from cicd.bash.
+	{ CTR_IMAGE=tukzmon-ci; ctrTag="${CTR_IMAGE}:c"; ctrPassed=1; keepTemp=0; staleGone=0; }
+	fRunTmpMake || return 1
+	runName="${runTmp##*/}"
+	: > "${dir}/calls"; : > "${dir}/said"
+}
+
+## Test ID: dezav
+fTest_the_cleanup_takes_only_the_projects_own_and_no_image_while_another_run_is_live() {
+	local t="${work}/ctr-cleanup" live='' ok=0
+	(
+		local dir='' calls='' other=''
+		fCtrRig "${t}/quiet" || exit 1
+		fCtrCleanup
+		calls="$(cat -- "${dir}/calls")"
+		## Newest first is b, c, a, e, d: c is this run's, a the one before
+		## it, b is newer, and d has no stamp, so it's the oldest.
+		[[ "$(grep '^rmi' <<< "${calls}")" == "$(printf 'rmi %s\n' sha256:0123456789abcdef tukzmon-ci:e tukzmon-ci:d)" ]] || { fWhy "removed: ${calls}"; exit 1; }
+		grep -qx 'stop -t 5 c-mine' <<< "${calls}" && grep -qx 'rm c-mine' <<< "${calls}" || { fWhy "left its own container: ${calls}"; exit 1; }
+		if grep -E '^(ps|image ls)' <<< "${calls}" | grep -qvF 'label=dev.project=tukzmon'; then fWhy "looked past the label: ${calls}"; exit 1; fi
+		if grep -qE -- ' -f( |$)|prune' <<< "${calls}"; then fWhy "forced or pruned: ${calls}"; exit 1; fi
+		## Another run, live in a folder here, then in a container only.
+		sleep 30 &
+		live="$!"
+		trap 'kill "${live}" 2> /dev/null || true' EXIT
+		for other in folder container; do
+			fCtrRig "${t}/${other}" || exit 1
+			if [[ "${other}" == folder ]]; then
+				mkdir -- "${HOST_TEMP}/${projectName}/20990101-000000_001"
+				fPidStamp "${live}" > "${HOST_TEMP}/${projectName}/20990101-000000_001/run.pid"
+			else
+				STUB_PS="c-other|20990101-000000_001|$(fPidStamp "${live}")"
+			fi
+			fCtrCleanup
+			calls="$(cat -- "${dir}/calls")"
+			if grep -q '^rmi' <<< "${calls}"; then fWhy "another run in a ${other}, and it removed: ${calls}"; exit 1; fi
+			grep -qx 'left the images alone, since run 20990101-000000_001 is live' "${dir}/said" || { fWhy "said: $(cat -- "${dir}/said")"; exit 1; }
+			unset STUB_PS
+		done
+		## --keep-temp keeps the run's containers.
+		fCtrRig "${t}/kept" || exit 1
+		# shellcheck disable=2034  ## As above.
+		keepTemp=1; fCtrCleanup
+		if grep -qE '^(stop|rm) ' "${dir}/calls"; then fWhy "--keep-temp, and it removed: $(cat -- "${dir}/calls")"; exit 1; fi
+	) && ok=1
+	((ok))
+}
+
+## Test ID: dezaw
+fTest_containers_whose_run_is_gone_are_stopped_but_not_a_kept_or_live_ones() {
+	local t="${work}/ctr-gone" live='' ok=0
+	(
+		local dir='' base=''
+		fCtrRig "${t}" || exit 1
+		base="${HOST_TEMP}/${projectName}"
+		sleep 30 &
+		live="$!"
+		trap 'kill "${live}" 2> /dev/null || true' EXIT
+		mkdir -- "${base}/20990101-000000_003" "${base}/20990101-000000_004"
+		: > "${base}/20990101-000000_003/keep"
+		fPidStamp "${live}" > "${base}/20990101-000000_004/run.pid"
+		## Gone, live, a kept run's, one with no labels, and one from before
+		## dev.pid whose run folder is live.
+		STUB_PS="$(printf '%s\n' 'c-gone|20990101-000000_001|999999999 1' "c-live|20990101-000000_002|$(fPidStamp "${live}")" \
+			'c-kept|20990101-000000_003|999999999 1' 'c-bare||' 'c-older|20990101-000000_004|')"
+		fCtrSweepGone
+		[[ "$(grep -E '^(stop|rm) ' "${dir}/calls")" == "$(printf '%s\n' 'stop -t 5 c-gone c-bare' 'rm c-gone c-bare')" ]] || { fWhy "calls: $(cat -- "${dir}/calls")"; exit 1; }
+		[[ -d "${runTmp}" ]] || { fWhy "swept this run's folder"; exit 1; }
+	) && ok=1
+	((ok))
+}
+
+## Test ID: dezf4
+fTest_the_stale_sweep_scans_the_processes_once() {
+	local root="${work}/sweep-once" live='' ok=0
+	mkdir -p -- "${root}/${projectName}"
+	(
+		HOST_TEMP="${root}"
+		source "${cicd}/utility/include/run-tmp.bash"
+		local base="${HOST_TEMP}/${projectName}" d='' n=''
+		for d in 20990101-000000_00{1..4}; do mkdir -- "${base}/${d}"; printf '999999999 1' > "${base}/${d}/run.pid"; done
+		TMPDIR="${base}/20990101-000000_003/sub" sleep 30 &
+		live="$!"
+		trap 'kill "${live}" 2> /dev/null || true' EXIT
+		for _ in 1 2 3 4 5 6 7 8 9 10; do ! grep -qszF -- "TMPDIR=${base}/20990101-000000_003" "/proc/${live}/environ" || break; sleep 0.1; done
+		grep() { echo x >> "${root}/greps"; command grep "$@"; }
+		n="$(fSweepStale)"
+		[[ "$(wc -l < "${root}/greps")" == 1 ]] || { fWhy "scanned $(wc -l < "${root}/greps") times"; exit 1; }
+		[[ "${n}" == 3 && -d "${base}/20990101-000000_003" ]] || { fWhy "took ${n}: $(ls -- "${base}")"; exit 1; }
+	) && ok=1
+	((ok))
+}
+
+## Test ID: dezf5
+fTest_markdownlint_runs_once_per_set_of_rules() {
+	local t="${work}/mdlint" ok=0
+	mkdir -p -- "${t}"
+	(
+		eval "$(awk '/^fLintMarkdown\(\)/, /^}/' "${cicd}/cicd.bash")"
+		fLintRun() { "$@"; }
+		markdownlint() { printf '%s\n' "$*" >> "${t}/calls"; [[ " $* " != *" ${bad:-} "* ]]; }
+		# shellcheck disable=2034  ## Read by fLintMarkdown, from cicd.bash.
+		{ MARKDOWNLINT_DISABLE=(MD013); MARKDOWNLINT_DISABLE_FOR=("b.md|MD036" "c.md|MD001 MD002" "c.md|MD003"); }
+		local want='' bad=''
+		want="$(printf '%s\n' '--disable MD013 -- a.md d.md' '--disable MD013 MD036 -- b.md' '--disable MD013 MD001 MD002 MD003 -- c.md')"
+		fLintMarkdown a.md b.md c.md d.md || { fWhy "failed with nothing wrong"; exit 1; }
+		[[ "$(cat -- "${t}/calls")" == "${want}" ]] || { fWhy "calls: $(cat -- "${t}/calls")"; exit 1; }
+		: > "${t}/calls"; bad=b.md
+		if fLintMarkdown a.md b.md c.md d.md; then fWhy "passed with b.md failing"; exit 1; fi
+		[[ "$(cat -- "${t}/calls")" == "${want}" ]] || { fWhy "stopped at the failure: $(cat -- "${t}/calls")"; exit 1; }
+	) && ok=1
+	((ok))
+}
+
 failed=0
 while read -r id fn; do
 	if "${fn}"; then echo "PASS ${id} ${fn#fTest_}"; else echo "FAIL ${id} ${fn#fTest_}"; failed=1; fi
@@ -333,3 +679,8 @@ exit "${failed}"
 ##		  panel's library.
 ##		- 2026-11-01: A run with every check off fails.
 ##		- 2026-11-05: A Miri module names the test that stopped it.
+##		- 2026-11-06: The test ID check's faults and backlog rows, the job
+##		  counts, the shared flags, no build cache prune, the stale sweep, the
+##		  container cleanup, dev-install's cargo, and the step lines.
+##		- 2026-11-07: One process scan per stale sweep, and one markdownlint
+##		  per set of skipped rules.

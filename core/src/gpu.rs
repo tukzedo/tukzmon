@@ -463,8 +463,8 @@ impl Card {
 		match self {
 			Card::Nvidia(n) => n.busy(buf),
 			Card::Amd(amd) => {
-				let pc: f32 = amd.busy.read(buf)?.trim().parse().ok()?;
-				Some((pc / 100.0).clamp(0.0, 1.0))
+				let percent: f32 = amd.busy.read(buf)?.trim().parse().ok()?;
+				Some((percent / 100.0).clamp(0.0, 1.0))
 			}
 		}
 	}

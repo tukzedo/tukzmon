@@ -92,9 +92,15 @@ fn main() -> Result<(), String> {
 		return Err("ROUNDS: at least 1".into());
 	}
 	let hist = std::env::temp_dir().join(format!("tukzmon-profile_{}.hist", std::process::id()));
-	let mut g = Graphs::new(Look::default());
+	let mut look = Look::default();
+	// off by default, and the costliest read when on
+	look[Which::Procs].show = true;
+	let mut g = Graphs::new(look);
 	if !g.has(Which::Mem) {
 		return Err("no memory graph here, so half the work would be left out".into());
+	}
+	if !g.has(Which::Procs) {
+		return Err("no processes graph here, so its /proc read would be left out".into());
 	}
 	let (along, across) = g.wanted(PANEL);
 	let (w, h) = (along as usize * SCALE, across as usize * SCALE);
@@ -143,9 +149,10 @@ fn main() -> Result<(), String> {
 		.build()
 		.map_err(|e| format!("profiler: {e}"))?;
 	drop(guard);
+	// only scratch, and the report is what matters
 	let _ = std::fs::remove_file(&hist);
 
-	// Folded by hand, root first, for inferno.
+	// Folded by hand, root first, for inferno. A write to a String can't fail.
 	let mut folded = String::new();
 	for (frames, n) in &report.data {
 		folded.push_str(&frames.thread_name);

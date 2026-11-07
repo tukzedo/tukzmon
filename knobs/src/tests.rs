@@ -44,9 +44,21 @@ fn text(t: &str) -> Value {
 #[test]
 fn the_demo_spec_parses_and_works_out_indents() {
 	let m = demo();
-	assert_eq!(m.spec.at("strength").indent, 1, "under Text scrim");
-	assert_eq!(m.spec.at("profile").indent, 1, "under Choose automatically");
-	assert_eq!(m.spec.at("scrim").indent, 0, "a group is not a parent");
+	assert_eq!(
+		m.spec.at("strength").indent,
+		Indent::Steps(1),
+		"under Text scrim"
+	);
+	assert_eq!(
+		m.spec.at("profile").indent,
+		Indent::Steps(1),
+		"under Choose automatically"
+	);
+	assert_eq!(
+		m.spec.at("scrim").indent,
+		Indent::Steps(0),
+		"a group is not a parent"
+	);
 	let profile = m.spec.at("profile");
 	let keys: Vec<&str> = profile.options.iter().map(|(k, _)| k.as_str()).collect();
 	assert_eq!(
@@ -75,6 +87,24 @@ fn a_bad_spec_names_every_mistake() {
 	assert!(all.contains("x: gate nothing"), "{all}");
 	assert!(all.contains("x: a slider needs a range"), "{all}");
 	assert!(all.contains("y: no tab"), "{all}");
+}
+
+// Test ID: dezfh
+#[test]
+fn a_group_has_the_specs_presets_or_the_programs_not_both() {
+	let m = demo();
+	assert!(matches!(
+		m.spec.group("theme").map(|g| &g.presets),
+		Some(Presets::Listed(list)) if list.len() == 2
+	));
+	let at = "\ttheme:\n\t\tchooser: theme\n";
+	assert!(DEMO.contains(at));
+	let both = DEMO.replace(at, &format!("{at}\t\tfrom_program: true\n"));
+	let all = Spec::parse(&both).err().unwrap_or_default().join("\n");
+	assert!(
+		all.contains("group theme: presets given, but they're from the program"),
+		"{all}"
+	);
 }
 
 // Test ID: ddqpv
@@ -470,7 +500,7 @@ fn plain(id: &str, kind: Kind, path: &str, default: Value) -> Setting {
 			Kind::Bool => Control::Checkbox,
 			Kind::Choice => Control::Dropdown,
 			Kind::Color => Control::Color,
-			_ => Control::Text,
+			Kind::Int | Kind::Float | Kind::Text => Control::Text,
 		},
 		kind,
 		path: path.into(),
@@ -482,7 +512,7 @@ fn plain(id: &str, kind: Kind, path: &str, default: Value) -> Setting {
 		detents: Vec::new(),
 		options: Vec::new(),
 		tip: String::new(),
-		indent: u8::MAX,
+		indent: Indent::FromRelations,
 		gate: None,
 		auto: None,
 		rule: None,
@@ -511,8 +541,7 @@ fn shop() -> Model {
 			chooser: "theme".into(),
 			noun: "theme".into(),
 			custom: Some("Custom".into()),
-			presets: Vec::new(),
-			from_program: true,
+			presets: Presets::FromProgram,
 			members: Vec::new(),
 		}],
 	};
@@ -529,7 +558,7 @@ fn a_spec_built_in_code_is_checked_like_a_parsed_one() {
 	);
 	let mut broken = (*m.spec).clone();
 	broken.settings[1].gate = Some("nothing".into());
-	broken.groups[0].from_program = false;
+	broken.groups[0].presets = Presets::Listed(Vec::new());
 	let errs = broken.finish().err().unwrap_or_default().join("\n");
 	assert!(errs.contains("gate nothing"), "{errs}");
 	assert!(errs.contains("no presets"), "{errs}");
@@ -682,5 +711,55 @@ fn the_chooser_s_arrow_ends_a_temporary_preset_and_drops_the_changes() {
 	assert!(
 		plain.can_reset("profile", &DESK),
 		"with nothing of its own, Remote is still something to undo"
+	);
+}
+
+// Test ID: dezbq
+#[test]
+fn has_changes_and_each_rows_star_agree_with_the_list() {
+	let mut m = demo();
+	let agree = |m: &Model| {
+		for g in ["perf", "theme"] {
+			assert_eq!(
+				m.has_changes(g, &DESK),
+				!m.changed(g, &DESK).is_empty(),
+				"{g}"
+			);
+		}
+		for id in ["strength", "radius", "cursor", "bg"] {
+			let group = m.spec.at(id).group.as_deref().unwrap_or("");
+			let listed = m.changed(group, &DESK).contains(&id);
+			assert_eq!(
+				matches!(m.source(id, &DESK), Source::Changed { .. }),
+				listed,
+				"{id}"
+			);
+			assert_eq!(m.can_reset(id, &DESK), listed, "{id}");
+		}
+	};
+	m.set("profile", &text("low"), &DESK);
+	m.set("theme", &text("dark"), &DESK);
+	agree(&m);
+	assert!(!m.has_changes("perf", &DESK));
+	m.set("strength", &int(80), &DESK);
+	m.set("cursor", &text("#123456"), &DESK);
+	agree(&m);
+	// the cursor ends Automatic, so fg keeps what it showed as a change too
+	assert_eq!(m.changed("theme", &DESK), ["fg", "cursor"]);
+	assert_eq!(m.changed("perf", &DESK), ["scrim", "strength"]);
+	assert_eq!(m.shown_choice("theme", &DESK), "Dark *");
+	m.set("profile", &text("remote"), &DESK);
+	agree(&m);
+	assert!(!m.has_changes("perf", &DESK), "they wait under Remote");
+	assert_eq!(m.shown_choice("profile", &DESK), "Remote (temporary)");
+	m.temporary("perf", None);
+	agree(&m);
+	assert!(m.has_changes("perf", &DESK), "and come back after it");
+	m.set("theme", &text("light"), &DESK);
+	agree(&m);
+	assert!(!m.has_changes("theme", &DESK));
+	assert!(
+		m.has_changes("perf", &DESK),
+		"another group's pick leaves them"
 	);
 }

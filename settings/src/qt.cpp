@@ -575,9 +575,11 @@ public:
 		update();
 	}
 
-	// after a read, so a tip left up keeps up, as the panel's does
-	void tick() {
-		update();
+	// after a tick, so a tip left up keeps up, as the panel's does. One the
+	// tick didn't read would draw the same.
+	void tick(bool read) {
+		if (read)
+			update();
 		if (underMouse() && QToolTip::isVisible())
 			showTip(QCursor::pos());
 	}
@@ -659,6 +661,33 @@ protected:
 	}
 };
 
+// Qt sends a change event for a tip set to what it was, and lays the grid
+// out again for a height set to what it was, and a refresh sets most to
+// what they were.
+void setTip(QWidget *w, const QString &tip) {
+	if (w->toolTip() != tip)
+		w->setToolTip(tip);
+}
+
+void setMinHeight(QGridLayout *grid, int row, int height) {
+	if (grid->rowMinimumHeight(row) != height)
+		grid->setRowMinimumHeight(row, height);
+}
+
+// counts the events of one type that reach what it watches
+class EventCount final : public QObject {
+public:
+	explicit EventCount(QEvent::Type type) : type(type) {}
+	QEvent::Type type;
+	int n = 0;
+
+protected:
+	bool eventFilter(QObject *o, QEvent *e) override {
+		n += int(e->type() == type);
+		return QObject::eventFilter(o, e);
+	}
+};
+
 struct Row {
 	RowInfo info;
 	QLabel *label = nullptr;
@@ -674,6 +703,10 @@ struct Row {
 	QFrame *rule = nullptr;
 	QGridLayout *grid = nullptr;
 	int gap = -1;
+	// in a section's column, where lineUpSections sets the gap
+	bool sided = false;
+	// as the last refresh read it, for the graph list's revert
+	bool canReset = false;
 	std::vector<QRadioButton *> radios;
 	// what a dropdown's items stand for, which can change as themes are saved
 	std::vector<std::string> keys;
@@ -823,7 +856,7 @@ public:
 			connect(tick, &QTimer::timeout, this, [this, tick] {
 				tick->setInterval(int(live_sample(*live)));
 				for (auto &l : listRows)
-					l.space->tick();
+					l.space->tick(live_read(*live, l.name));
 			});
 			// the first read only primes, and a second one ms later is noise
 			tick->start(int(live_sample(*live)));
@@ -1014,6 +1047,39 @@ public:
 			set_text(d, (*r)->id(), color);
 		refresh();
 		return {still, count.n};
+	}
+
+	// tips set and layouts asked for by a refresh with nothing changed, on
+	// each page in turn, then the tips set by one after setting `id` to
+	// `number`
+	std::vector<int> refreshChurn(const std::string &id, double number) {
+		EventCount tips(QEvent::ToolTipChange);
+		EventCount layouts(QEvent::LayoutRequest);
+		// on each widget, since an app's filters see only the first app's thread
+		QList<QWidget *> all = findChildren<QWidget *>();
+		all.push_back(this);
+		for (QWidget *w : all) {
+			w->installEventFilter(&tips);
+			w->installEventFilter(&layouts);
+		}
+		int stillTips = 0;
+		int stillLayouts = 0;
+		for (int i = 0; i < tabCount(); i++) {
+			select(i);
+			// a layout can ask for another as it settles
+			for (int k = 0; k < 5; k++)
+				QApplication::processEvents();
+			tips.n = layouts.n = 0;
+			refresh();
+			QApplication::processEvents();
+			stillTips += tips.n;
+			stillLayouts += layouts.n;
+		}
+		tips.n = 0;
+		set_number(d, id, number);
+		refresh();
+		QApplication::processEvents();
+		return {stillTips, stillLayouts, tips.n};
 	}
 
 	// microseconds per call, of `times` refreshes and then `times` steps of
@@ -1332,7 +1398,7 @@ private:
 			std::array<bool, 2> above{};
 			bool headFirst = false;
 			for (auto &rp : rows) {
-				Row &r = *rp;
+				const Row &r = *rp;
 				size_t side = 2;
 				if (r.grid == s.side[0])
 					side = 0;
@@ -1346,10 +1412,10 @@ private:
 				if (side == 0 && !above[0])
 					headFirst = r.head != nullptr;
 				if (r.head && r.gap >= 0)
-					r.grid->setRowMinimumHeight(r.gap, above[side] ? HEAD_GAP : 0);
+					setMinHeight(r.grid, r.gap, above[side] ? HEAD_GAP : 0);
 				above[side] = true;
 			}
-			s.outer->setRowMinimumHeight(3, s.lead && headFirst ? HEAD_GAP : 0);
+			setMinHeight(s.outer, 3, s.lead && headFirst ? HEAD_GAP : 0);
 		}
 	}
 
@@ -1459,6 +1525,7 @@ private:
 	void placeRow(Row &r, const TabInfo &info, QGridLayout *grid, int &line, bool inSection = false) {
 		const QString label = qs(r.info.label);
 		r.grid = grid;
+		r.sided = inSection;
 		if (r.info.control == ControlKind::Heading) {
 			// a heading that only repeats the tab's name says nothing
 			if (label == qs(info.label))
@@ -1704,9 +1771,9 @@ private:
 			l.space->fit();
 			bool changed = false;
 			for (Row *r : {l.show, l.width, l.sample, l.time, l.vertical})
-				changed |= row_state(d, r->id()).can_reset;
+				changed |= r->canReset;
 			l.revert->setEnabled(changed);
-			l.revert->setToolTip(changed ? "Back to the defaults." : "");
+			setTip(l.revert, changed ? "Back to the defaults." : "");
 		}
 	}
 
@@ -1956,13 +2023,14 @@ private:
 				const bool shown = row_state(d, r.id()).shown;
 				r.head->setVisible(shown);
 				r.rule->setVisible(shown);
-				if (r.gap >= 0)
-					r.grid->setRowMinimumHeight(r.gap, shown ? HEAD_GAP : 0);
+				if (r.gap >= 0 && !(shown && r.sided))
+					setMinHeight(r.grid, r.gap, shown ? HEAD_GAP : 0);
 			}
 			// the graph list's rows have a control and no label or revert
 			if (!r.control)
 				continue;
 			auto st = row_state(d, r.id());
+			r.canReset = st.can_reset;
 			for (QWidget *w : {static_cast<QWidget *>(r.label), r.control, static_cast<QWidget *>(r.revert)})
 				if (w)
 					w->setVisible(st.shown);
@@ -1973,24 +2041,24 @@ private:
 			const QString tip = qs(st.tip);
 			const QString text = qs(st.text);
 			if (r.label) {
-				r.label->setToolTip(tip);
+				setTip(r.label, tip);
 				r.revert->setEnabled(st.can_reset);
-				r.revert->setToolTip(st.can_reset ? "Back to the default." : "");
+				setTip(r.revert, st.can_reset ? "Back to the default." : "");
 			}
 			if (r.check) {
 				const QSignalBlocker b(r.check);
 				r.check->setChecked(st.on);
-				r.check->setToolTip(tip);
+				setTip(r.check, tip);
 			}
 			if (r.slider) {
 				const QSignalBlocker b(r.slider);
 				r.slider->setValue(int(std::lround(st.slider * SLIDER_STEPS)));
-				r.slider->setToolTip(tip);
+				setTip(r.slider, tip);
 			}
 			if (r.spin) {
 				const QSignalBlocker b(r.spin);
 				r.spin->setValue(st.number);
-				r.spin->setToolTip(tip);
+				setTip(r.spin, tip);
 			}
 			if (r.combo) {
 				const QSignalBlocker b(r.combo);
@@ -2010,17 +2078,17 @@ private:
 					if (on)
 						r.combo->setCurrentIndex(int(i));
 				}
-				r.combo->setToolTip(tip);
+				setTip(r.combo, tip);
 			}
 			for (size_t i = 0; i < r.radios.size(); i++) {
 				const QSignalBlocker b(r.radios[i]);
 				r.radios[i]->setChecked(QString::fromStdString(r.keys[i]) == text);
-				r.radios[i]->setToolTip(tip);
+				setTip(r.radios[i], tip);
 			}
 			if (r.line) {
 				const QSignalBlocker b(r.line);
 				r.line->setText(text);
-				r.line->setToolTip(tip);
+				setTip(r.line, tip);
 			}
 			// a style sheet costs a restyle, and most refreshes change no color
 			if (r.chip && text != r.chipColor) {
@@ -2611,6 +2679,17 @@ rust::Vec<std::int32_t> chip_restyles(Dialog &d, rust::Str color) {
 	Window w(d);
 	rust::Vec<std::int32_t> out;
 	for (const int n : w.chipRestyles(std::string(color)))
+		out.push_back(n);
+	return out;
+}
+
+rust::Vec<std::int32_t> refresh_churn(Dialog &d, rust::Str id, double number) {
+	const App app("offscreen");
+	Window w(d);
+	w.show();
+	tukzmon::App::processEvents();
+	rust::Vec<std::int32_t> out;
+	for (const int n : w.refreshChurn(std::string(id), number))
 		out.push_back(n);
 	return out;
 }

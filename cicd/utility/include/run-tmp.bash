@@ -95,6 +95,25 @@ fRunPids() {   ## fRunPids DIR
 	done < <(LC_ALL=C grep -lszF -- "TMPDIR=${dir}" /proc/[0-9]*/environ 2> /dev/null || true)
 }
 
+## The run folders some process of ours has as its TMPDIR, or a folder in
+## it, as keys of the associative array named. One scan for a whole sweep,
+## the same as fRunPids does for one folder.
+fRunsInUse() {   ## fRunsInUse ASSOC_NAME
+	local -n inUse_fRIU="${1:?}"
+	local base="${HOST_TEMP}/${projectName}/" p='' e='' name=''
+	inUse_fRIU=()
+	while IFS= read -r p; do
+		p="${p#/proc/}"; p="${p%/environ}"
+		[[ "${p}" =~ ^[0-9]+$ ]] || continue
+		while IFS= read -r -d '' e; do
+			[[ "${e}" == "TMPDIR=${base}"* ]] || continue
+			name="${e#"TMPDIR=${base}"}"; name="${name%%/*}"
+			[[ -z "${name}" ]] || inUse_fRIU["${name}"]=1
+			break
+		done 2> /dev/null < "/proc/${p}/environ" || true
+	done < <(LC_ALL=C grep -lszF -- "TMPDIR=${base}" /proc/[0-9]*/environ 2> /dev/null || true)
+}
+
 ## Sets runTmp. A plain mkdir, counting up while the name is taken.
 runTmp=''
 fRunTmpMake() {
@@ -117,7 +136,8 @@ fRunTmpMake() {
 ## such as one a kill -9 left. A kept one waits 2 days. Only folders with a
 ## run.pid, so a temp folder made by hand is left alone. Prints how many went.
 fSweepStale() {
-	local d='' name='' got='' old=0 epoch='' cutoff='' n=0
+	local d='' name='' got='' old=0 epoch='' cutoff='' n=0 scanned=0
+	local -A inUse=()
 	printf -v epoch '%(%s)T' -1
 	printf -v cutoff '%(%Y%m%d-%H%M%S)T' "$((epoch - 172800))"
 	for d in "${HOST_TEMP}/${projectName}"/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]_[0-9][0-9][0-9]; do
@@ -129,7 +149,8 @@ fSweepStale() {
 		got=''; { read -r got < "${d}/run.pid"; } 2> /dev/null || true
 		if [[ ! "${got}" =~ ^[0-9]+\ [0-9]+$ ]] && ((! old)); then continue; fi
 		! fStampLive "${got}" || continue
-		[[ -z "$(fRunPids "${d}")" ]] || continue
+		((scanned)) || { fRunsInUse inUse; scanned=1; }
+		[[ -z "${inUse[${name}]:-}" ]] || continue
 		if fSafeRm "${d}"; then n=$((n + 1)); fi
 	done
 	echo "${n}"
@@ -172,3 +193,4 @@ fStopLeftovers() {
 ##		  as the CICD process's copy does.
 ##		- 2026-11-01: fRunPids skips a process that exits while it scans.
 ##		- 2026-11-01: fRunAbove, so a run can tell the one that started it.
+##		- 2026-11-07: fRunsInUse, so a sweep scans the processes once.

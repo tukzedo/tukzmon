@@ -22,6 +22,24 @@ mod sys;
 #[allow(clippy::wildcard_imports, reason = "sys is only the C declarations")]
 use sys::*;
 
+/// The settings window Properties opened or found.
+enum SettingsWindow {
+	/// Started by this Plugin.
+	Ours(Child),
+	/// On this item's file but not started by this Plugin, such as one opened
+	/// before a panel restart.
+	Stray(u32),
+}
+
+impl SettingsWindow {
+	fn pid(&self) -> u32 {
+		match self {
+			SettingsWindow::Ours(c) => c.id(),
+			SettingsWindow::Stray(pid) => *pid,
+		}
+	}
+}
+
 struct Plugin {
 	xpp: *mut c_void,
 	area: *mut c_void,
@@ -32,10 +50,7 @@ struct Plugin {
 	frame: c_uint,
 	config: PathBuf,
 	config_time: Option<(SystemTime, u64)>,
-	settings: Option<Child>,
-	/// A settings window on this item's file that this Plugin didn't start,
-	/// such as one opened before a panel restart.
-	stray: Option<u32>,
+	settings: Option<SettingsWindow>,
 	/// Why Properties did nothing, or why its window quit, shown in the tip
 	/// until the window closes or opens.
 	properties: Option<String>,
@@ -280,21 +295,25 @@ impl Plugin {
 	/// Forgets a settings window that closed, and says so in the tip when it
 	/// failed.
 	fn reap_settings(&mut self) {
-		if let Some(c) = self.settings.as_mut() {
-			match c.try_wait() {
-				Ok(None) => return,
-				Ok(Some(s)) if s.success() => self.properties = None,
-				Ok(Some(s)) => self.properties = Some(format!("the settings window quit with {s}")),
-				Err(e) => self.properties = Some(format!("lost the settings window: {e}")),
+		match &mut self.settings {
+			Some(SettingsWindow::Ours(c)) => {
+				let why = match c.try_wait() {
+					Ok(None) => return,
+					Ok(Some(s)) if s.success() => None,
+					Ok(Some(s)) => Some(format!("the settings window quit with {s}")),
+					Err(e) => Some(format!("lost the settings window: {e}")),
+				};
+				if let Some(why) = &why {
+					complain(format_args!("{why}"));
+				}
+				self.properties = why;
+				self.settings = None;
 			}
-			if let Some(why) = &self.properties {
-				complain(format_args!("{why}"));
+			Some(SettingsWindow::Stray(pid)) if !edits(*pid, &self.config) => {
+				self.settings = None;
+				self.properties = None;
 			}
-			self.settings = None;
-		}
-		if self.stray.is_some_and(|pid| !edits(pid, &self.config)) {
-			self.stray = None;
-			self.properties = None;
+			Some(SettingsWindow::Stray(_)) | None => {}
 		}
 	}
 
@@ -303,10 +322,13 @@ impl Plugin {
 	/// when that can't be asked, or on Wayland, which may not let it.
 	fn open_settings(&mut self, program: &Path) {
 		self.reap_settings();
-		if self.settings.is_none() && self.stray.is_none() {
-			self.stray = windows_on(&self.config).first().copied();
+		if self.settings.is_none() {
+			self.settings = windows_on(&self.config)
+				.first()
+				.copied()
+				.map(SettingsWindow::Stray);
 		}
-		if let Some(pid) = self.settings.as_ref().map(Child::id).or(self.stray) {
+		if let Some(pid) = self.settings.as_ref().map(SettingsWindow::pid) {
 			let shown = wake(pid) && std::env::var_os("WAYLAND_DISPLAY").is_none();
 			self.properties = (!shown).then(|| "its window is open already".into());
 			return;
@@ -317,7 +339,7 @@ impl Plugin {
 			.spawn()
 		{
 			Ok(child) => {
-				self.settings = Some(child);
+				self.settings = Some(SettingsWindow::Ours(child));
 				self.properties = None;
 			}
 			Err(e) => {
@@ -386,12 +408,11 @@ impl Plugin {
 		// deleting the settings file would wake its watch
 		self.quiet();
 		// its window would write the file back at Apply
-		if let Some(mut c) = self.settings.take() {
+		if let Some(SettingsWindow::Ours(mut c)) = self.settings.take() {
 			let _ = c.kill();
 			let _ = c.wait();
 		}
 		// and so would one opened before a panel restart
-		self.stray = None;
 		for pid in windows_on(&self.config) {
 			if let Ok(pid) = c_int::try_from(pid) {
 				// SAFETY: a plain signal to a process of ours.
@@ -407,7 +428,8 @@ impl Plugin {
 }
 
 /// Calls `changed` with `data` whenever `path` is written, made, or removed.
-/// Null where it can't be watched, and the tick still checks it then.
+/// Null where it can't be watched. The tick checks the settings file and the
+/// reset mark either way, so a watch only gets a change in sooner.
 ///
 /// # Safety
 ///
@@ -771,7 +793,6 @@ impl Plugin {
 			config_time,
 			config,
 			settings: None,
-			stray: None,
 			properties: None,
 			history: keep::history_file(&data, id),
 			reset: keep::ResetWatch::new(&data),
@@ -956,7 +977,6 @@ mod tests {
 			config: config.to_path_buf(),
 			config_time: None,
 			settings: None,
-			stray: None,
 			properties: None,
 			history: history.to_path_buf(),
 			reset: keep::ResetWatch::new(dir),
@@ -1205,7 +1225,9 @@ mod tests {
 	/// Reaps the Plugin's settings window until it's gone, for up to 5 s.
 	fn reap_until_gone(p: &mut super::Plugin) {
 		let t0 = Instant::now();
-		while p.settings.is_some() && t0.elapsed() < Duration::from_secs(5) {
+		while matches!(p.settings, Some(super::SettingsWindow::Ours(_)))
+			&& t0.elapsed() < Duration::from_secs(5)
+		{
 			p.reap_settings();
 			std::thread::sleep(Duration::from_millis(10));
 		}
@@ -1269,7 +1291,7 @@ mod tests {
 		let other = super::windows_on(&dir.join("other.shcl"));
 		// a program that would show if Properties started anything
 		p.open_settings(Path::new("true"));
-		let started = p.settings.is_some();
+		let started = matches!(p.settings, Some(super::SettingsWindow::Ours(_)));
 		let tip = p.tip("graphs".into());
 		super::removed(std::ptr::null_mut(), data);
 		super::free_data(std::ptr::null_mut(), data);
@@ -1322,7 +1344,7 @@ mod tests {
 		// SAFETY: from plugin, and freed below.
 		let p = unsafe { &mut *data.cast::<super::Plugin>() };
 		p.open_settings(Path::new("true"));
-		let started = p.settings.is_some();
+		let started = matches!(p.settings, Some(super::SettingsWindow::Ours(_)));
 		let tip = p.tip("graphs".into());
 		let t0 = Instant::now();
 		while !woke.exists() && t0.elapsed() < Duration::from_secs(5) {

@@ -225,6 +225,7 @@ impl Drop for Tree {
 	fn drop(&mut self) {
 		self.made
 			.sort_by_key(|p| std::cmp::Reverse(p.components().count()));
+		// a drop can't fail, and a leftover under temp_dir does no harm
 		for p in &self.made {
 			let _ = std::fs::remove_file(p).or_else(|_| std::fs::remove_dir(p));
 		}

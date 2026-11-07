@@ -63,7 +63,7 @@ impl Timing {
 }
 
 /// Age as a function of `u`, 0 at the right edge and 1 at the left.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Axis {
 	/// Knot values and slopes in g = ln(1 + age/A0), at u = 0, 1/4, 1/2, 3/4, 1.
 	Log {
@@ -232,7 +232,7 @@ fn smoothstep(x: f64) -> f64 {
 	x * x * (3.0 - 2.0 * x)
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 struct Drawn {
 	basis: Basis,
 	axis: Axis,
@@ -265,7 +265,7 @@ impl Ease {
 		}
 		self.drawn = Some(Drawn {
 			basis,
-			axis: axis.clone(),
+			axis: *axis,
 			at: t,
 		});
 	}

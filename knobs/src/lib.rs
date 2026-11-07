@@ -9,35 +9,44 @@
 //! documents the spec format.
 
 #![allow(clippy::must_use_candidate)]
+#![warn(missing_docs)]
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::sync::Arc;
 
+/// A setting's value. Colors and choices are text.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {
+	/// A checkbox.
 	Bool(bool),
+	/// A whole number.
 	Int(i64),
+	/// Any other number.
 	Float(f64),
+	/// Text, a color as `#rrggbb`, or a choice's key.
 	Text(String),
 }
 
 impl Value {
+	/// True only for `Bool(true)`.
 	pub fn as_bool(&self) -> bool {
 		matches!(self, Value::Bool(true))
 	}
+	/// A number as a float, or 0 for anything else.
 	pub fn as_f64(&self) -> f64 {
 		match self {
 			Value::Int(i) => *i as f64,
 			Value::Float(f) => *f,
-			_ => 0.0,
+			Value::Bool(_) | Value::Text(_) => 0.0,
 		}
 	}
+	/// Text, or "" for anything else.
 	pub fn as_text(&self) -> &str {
 		match self {
 			Value::Text(s) => s,
-			_ => "",
+			Value::Bool(_) | Value::Int(_) | Value::Float(_) => "",
 		}
 	}
 	/// The value as a person would read it in a tip.
@@ -56,42 +65,67 @@ impl Value {
 	}
 }
 
+/// What a setting's row shows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Control {
+	/// A title over the rows below it, with no value of its own.
 	Heading,
+	/// On or off.
 	Checkbox,
+	/// A slider with a number box.
 	Slider,
+	/// A number box.
 	Number,
+	/// A pick from a list.
 	Dropdown,
+	/// A line of text.
 	Text,
+	/// A color button.
 	Color,
+	/// A file name with a browse button.
 	File,
+	/// No row, for a value nobody edits by hand.
 	None,
 }
 
+/// What a setting holds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
+	/// On or off.
 	Bool,
+	/// A whole number.
 	Int,
+	/// Any number.
 	Float,
+	/// Free text.
 	Text,
+	/// `#rrggbb`.
 	Color,
+	/// One of the setting's options, by key.
 	Choice,
 }
 
+/// How a slider spreads its range.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Scale {
+	/// Evenly.
 	Linear,
+	/// More room for the low end.
 	Log,
+	/// More room for the high end.
 	Exp,
 }
 
+/// Which file a setting is saved to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Store {
+	/// The person's settings.
 	Config,
+	/// What the program works out by itself.
 	State,
 }
 
+/// Where an automatic setting's value comes from while its switch is on.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Rule {
 	/// A stored state value, by setting id.
@@ -100,79 +134,156 @@ pub enum Rule {
 	Named(String),
 }
 
+/// A value a slider snaps to.
 #[derive(Clone, Debug)]
 pub struct Detent {
+	/// Where it snaps.
 	pub value: f64,
+	/// Shown under the slider, or "" for none.
 	pub label: String,
 }
 
+/// One setting, as the spec declares it.
 #[derive(Clone, Debug)]
 pub struct Setting {
+	/// What presets and relations call it.
 	pub id: String,
+	/// What its row says.
 	pub label: String,
 	/// Index into [`Spec::tabs`]. Unused for `Control::None`.
 	pub tab: usize,
+	/// What its row shows.
 	pub control: Control,
+	/// What it holds.
 	pub kind: Kind,
+	/// Where it lives in its file.
 	pub path: String,
+	/// Which file that is.
 	pub store: Store,
+	/// The value with nothing stored.
 	pub default: Value,
+	/// The lowest number it takes.
 	pub min: f64,
+	/// The highest number it takes.
 	pub max: f64,
+	/// How a slider spreads `min` to `max`.
 	pub scale: Scale,
+	/// Values a slider snaps to.
 	pub detents: Vec<Detent>,
 	/// Key and label. A group's chooser gets its presets here, then Custom.
 	pub options: Vec<(String, String)>,
+	/// The flyover text.
 	pub tip: String,
-	pub indent: u8,
+	/// Steps in from the left.
+	pub indent: Indent,
+	/// A checkbox this only counts under.
 	pub gate: Option<String>,
+	/// A checkbox that makes this automatic.
 	pub auto: Option<String>,
+	/// Where the value comes from while `auto` is on, or always when there is
+	/// no `auto`.
 	pub rule: Option<Rule>,
+	/// The preset group this belongs to.
 	pub group: Option<String>,
 }
 
+/// How far a setting steps in from the left.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Indent {
+	/// Worked out from the relations, by [`Spec::finish`].
+	FromRelations,
+	/// This many steps, as the spec gives or as worked out.
+	Steps(u8),
+}
+
+impl Indent {
+	/// The steps, with none for one not worked out yet.
+	pub fn steps(self) -> u8 {
+		match self {
+			Indent::Steps(n) => n,
+			Indent::FromRelations => 0,
+		}
+	}
+}
+
+/// A tab of the dialog.
 #[derive(Clone, Debug)]
 pub struct Tab {
 	/// "Look/Text" for Text under Look.
 	pub path: String,
+	/// The last part of `path`.
 	pub label: String,
+	/// Index of the tab it's nested under.
 	pub parent: Option<usize>,
 }
 
+/// A named set of values for a group's members.
 #[derive(Clone, Debug)]
 pub struct Preset {
+	/// What the chooser stores.
 	pub key: String,
+	/// What the chooser shows.
 	pub label: String,
+	/// Lasts until restart, and takes no changes.
 	pub temporary: bool,
+	/// A value for every member, by setting id.
 	pub values: BTreeMap<String, Value>,
 }
 
+/// Settings picked together by one dropdown, such as a theme.
 #[derive(Clone, Debug)]
 pub struct Group {
+	/// What members name in their `group`.
 	pub id: String,
+	/// The dropdown setting that picks.
 	pub chooser: String,
+	/// What one preset is called, for tips.
 	pub noun: String,
+	/// The label for the person's own set, if there is one.
 	pub custom: Option<String>,
-	pub presets: Vec<Preset>,
-	/// The presets are the program's, asked for through [`Env::preset`], and
-	/// `presets` is empty.
-	pub from_program: bool,
+	/// Its presets.
+	pub presets: Presets,
+	/// Setting ids, in spec order.
 	pub members: Vec<String>,
+}
+
+/// Where a group's presets come from.
+#[derive(Clone, Debug)]
+pub enum Presets {
+	/// From the spec, in order.
+	Listed(Vec<Preset>),
+	/// The program's, asked for through [`Env::preset`].
+	FromProgram,
+}
+
+impl Presets {
+	/// The spec's, or none when they're the program's.
+	pub fn listed(&self) -> &[Preset] {
+		match self {
+			Presets::Listed(list) => list,
+			Presets::FromProgram => &[],
+		}
+	}
 }
 
 /// The key a group's own set of values is stored under.
 pub const CUSTOM: &str = "custom";
 
 impl Group {
+	/// One of the spec's presets, by key.
 	pub fn preset(&self, key: &str) -> Option<&Preset> {
-		self.presets.iter().find(|p| p.key == key)
+		self.presets.listed().iter().find(|p| p.key == key)
 	}
 }
 
+/// Every tab, setting and group, from a spec file.
 #[derive(Clone, Debug, Default)]
 pub struct Spec {
+	/// In order.
 	pub tabs: Vec<Tab>,
+	/// In screen order.
 	pub settings: Vec<Setting>,
+	/// In spec order.
 	pub groups: Vec<Group>,
 }
 
@@ -180,6 +291,7 @@ pub struct Spec {
 const PRESET_WORDS: &[&str] = &["label", "temporary"];
 
 impl Spec {
+	/// A setting by id.
 	pub fn get(&self, id: &str) -> Option<&Setting> {
 		self.settings.iter().find(|s| s.id == id)
 	}
@@ -187,6 +299,7 @@ impl Spec {
 		// ids come from the spec itself, checked at parse time
 		self.get(id).unwrap_or_else(|| panic!("no setting {id}"))
 	}
+	/// A group by id.
 	pub fn group(&self, id: &str) -> Option<&Group> {
 		self.groups.iter().find(|g| g.id == id)
 	}
@@ -202,6 +315,7 @@ impl Spec {
 			.map(|s| s.id.as_str())
 			.collect()
 	}
+	/// Whether a checkbox makes any setting automatic.
 	pub fn is_switch(&self, id: &str) -> bool {
 		self.settings.iter().any(|s| s.auto.as_deref() == Some(id))
 	}
@@ -287,6 +401,7 @@ impl Spec {
 		for g in &self.groups {
 			let mut options: Vec<(String, String)> = g
 				.presets
+				.listed()
 				.iter()
 				.map(|p| (p.key.clone(), p.label.clone()))
 				.collect();
@@ -389,7 +504,7 @@ impl Spec {
 		for g in &self.groups {
 			match self.get(&g.chooser) {
 				Some(c) if c.control == Control::Dropdown => {
-					if !g.from_program
+					if matches!(g.presets, Presets::Listed(_))
 						&& g.preset(c.default.as_text()).is_none()
 						&& c.default.as_text() != CUSTOM
 					{
@@ -401,7 +516,7 @@ impl Spec {
 					g.id, g.chooser
 				)),
 			}
-			if g.presets.is_empty() && !g.from_program {
+			if matches!(&g.presets, Presets::Listed(list) if list.is_empty()) {
 				errs.push(format!("group {}: no presets", g.id));
 			}
 		}
@@ -425,8 +540,8 @@ impl Spec {
 			})
 			.collect();
 		for (s, d) in self.settings.iter_mut().zip(depth) {
-			if s.indent == u8::MAX {
-				s.indent = d;
+			if s.indent == Indent::FromRelations {
+				s.indent = Indent::Steps(d);
 			}
 		}
 	}
@@ -470,13 +585,17 @@ impl Spec {
 					Ok(Value::Text(k.clone()))
 				} else if chooser.is_some() && word.eq_ignore_ascii_case(CUSTOM) {
 					Ok(Value::Text(CUSTOM.to_string()))
-				} else if chooser.is_some_and(|g| g.from_program && !t.is_empty()) {
+				} else if chooser
+					.is_some_and(|g| matches!(g.presets, Presets::FromProgram) && !t.is_empty())
+				{
 					Ok(v.clone())
 				} else {
 					Err(format!("{t} is not one of the choices"))
 				}
 			}
-			_ => Err(format!("{} is the wrong type", v.show())),
+			(Kind::Bool | Kind::Int | Kind::Float | Kind::Text | Kind::Color | Kind::Choice, _) => {
+				Err(format!("{} is the wrong type", v.show()))
+			}
 		}
 	}
 }
@@ -596,7 +715,10 @@ fn read_setting(doc: &shcl::Document, id: &str, tabs: &[Tab]) -> Result<Setting,
 		tip: text("tip"),
 		indent: doc
 			.get_int(&at("indent"))
-			.map_or(u8::MAX, |n| n.clamp(0, 8) as u8),
+			.map_or(
+				Indent::FromRelations,
+				|n| Indent::Steps(n.clamp(0, 8) as u8),
+			),
 		gate: opt("gate"),
 		auto: opt("auto"),
 		rule,
@@ -655,7 +777,9 @@ fn read_group(doc: &shcl::Document, id: &str, settings: &[Setting]) -> Result<Gr
 			let raw = match s.kind {
 				Kind::Bool => doc.get_bool(&path).map(Value::Bool).ok(),
 				Kind::Int | Kind::Float => number(doc, &path).map(Value::Float),
-				_ => doc.get_string(&path).map(Value::Text).ok(),
+				Kind::Text | Kind::Color | Kind::Choice => {
+					doc.get_string(&path).map(Value::Text).ok()
+				}
 			};
 			match raw.map(|v| Spec::default().valid(s, &v)) {
 				Some(Ok(v)) => {
@@ -677,6 +801,11 @@ fn read_group(doc: &shcl::Document, id: &str, settings: &[Setting]) -> Result<Gr
 			values,
 		});
 	}
+	if from_program && !presets.is_empty() {
+		errs.push(format!(
+			"group {id}: presets given, but they're from the program"
+		));
+	}
 	if !errs.is_empty() {
 		return Err(errs);
 	}
@@ -687,8 +816,11 @@ fn read_group(doc: &shcl::Document, id: &str, settings: &[Setting]) -> Result<Gr
 			.get_string(&at("noun"))
 			.unwrap_or_else(|_| "preset".into()),
 		custom: doc.get_string(&at("custom")).ok(),
-		presets,
-		from_program,
+		presets: if from_program {
+			Presets::FromProgram
+		} else {
+			Presets::Listed(presets)
+		},
 		members,
 	})
 }
@@ -734,13 +866,16 @@ impl Setting {
 /// font or colors picked from the wallpaper, and the presets of a group that
 /// has the program's own. `None` when there is nothing to follow.
 pub trait Env {
+	/// The answer to a named rule.
 	fn rule(&self, name: &str) -> Option<Value>;
+	/// A preset of a group that has the program's own.
 	fn preset(&self, _group: &str, _key: &str) -> Option<Preset> {
 		None
 	}
 }
 
 /// No answers, for code that never reaches a named rule.
+#[derive(Clone, Copy, Debug, Default)]
 pub struct NoEnv;
 impl Env for NoEnv {
 	fn rule(&self, _: &str) -> Option<Value> {
@@ -757,6 +892,7 @@ pub struct Values {
 	pub changes: BTreeMap<String, Value>,
 	/// Group id to the preset its changes were made on.
 	pub changed_on: BTreeMap<String, String>,
+	/// What the program worked out, for [`Store::State`] settings.
 	pub state: BTreeMap<String, Value>,
 	/// Group id to a temporary preset. Never saved.
 	pub session: BTreeMap<String, String>,
@@ -768,21 +904,32 @@ pub struct Values {
 /// Where a setting's value comes from right now, for its tip.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Source {
+	/// Nothing set.
 	Default,
+	/// Set by hand.
 	Own,
 	/// From its rule. The value set by hand, if any, is kept.
 	Automatic {
+		/// The value set by hand.
 		kept: Option<Value>,
 	},
+	/// From the preset its group is on.
 	Preset {
+		/// The preset's label.
 		preset: String,
+		/// What the group calls one.
 		noun: String,
 	},
+	/// Changed on top of the preset its group is on.
 	Changed {
+		/// The preset's label.
 		preset: String,
+		/// What the group calls one.
 		noun: String,
+		/// The preset's own value.
 		was: Value,
 	},
+	/// Worked out by the program.
 	State,
 	/// Held for this run.
 	Held,
@@ -791,14 +938,21 @@ pub enum Source {
 /// What the files hold, in spec order. `kept` lines have their full path.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Lines {
+	/// The settings file, by path.
 	pub config: Vec<(String, Value)>,
+	/// Also the settings file, under `kept`: values set aside under a switch
+	/// that is on, and changes on a preset.
 	pub kept: Vec<(String, Value)>,
+	/// The state file, by path.
 	pub state: Vec<(String, Value)>,
 }
 
+/// A spec and what is stored for it.
 #[derive(Clone, Debug)]
 pub struct Model {
+	/// Shared by every model of one spec.
 	pub spec: Arc<Spec>,
+	/// What is stored.
 	pub values: Values,
 }
 
@@ -814,14 +968,14 @@ fn preset_of<'a>(g: &'a Group, key: &str, env: &dyn Env) -> Option<Cow<'a, Prese
 	if key == CUSTOM {
 		return None;
 	}
-	if g.from_program {
-		env.preset(&g.id, key).map(Cow::Owned)
-	} else {
-		g.preset(key).map(Cow::Borrowed)
+	match g.presets {
+		Presets::FromProgram => env.preset(&g.id, key).map(Cow::Owned),
+		Presets::Listed(_) => g.preset(key).map(Cow::Borrowed),
 	}
 }
 
 impl Model {
+	/// Nothing stored yet.
 	pub fn new(spec: impl Into<Arc<Spec>>) -> Model {
 		Model {
 			spec: spec.into(),
@@ -829,6 +983,7 @@ impl Model {
 		}
 	}
 
+	/// What a setting is right now, from wherever it comes from.
 	pub fn value(&self, id: &str, env: &dyn Env) -> Value {
 		let s = self.spec.at(id);
 		if let Some(v) = self.values.held.get(id) {
@@ -930,9 +1085,12 @@ impl Model {
 
 	/// The group's pick with no temporary preset, the one a restart comes back to.
 	pub fn stored_choice(&self, group: &str, env: &dyn Env) -> String {
-		match self.spec.group(group) {
-			Some(g) => self.value(&g.chooser, env).as_text().to_string(),
-			None => String::new(),
+		let Some(g) = self.spec.group(group) else {
+			return String::new();
+		};
+		match self.value(&g.chooser, env) {
+			Value::Text(key) => key,
+			Value::Bool(_) | Value::Int(_) | Value::Float(_) => String::new(),
 		}
 	}
 
@@ -958,6 +1116,7 @@ impl Model {
 		}
 	}
 
+	/// Stop holding a value, so the stored one counts again.
 	pub fn release(&mut self, id: &str) {
 		self.values.held.remove(id);
 	}
@@ -967,18 +1126,42 @@ impl Model {
 		self.changes_on(group, &self.chosen(group, env))
 	}
 
-	fn changes_on(&self, group: &str, key: &str) -> Vec<&str> {
+	/// Whether anything is changed on top of the group's preset, without
+	/// listing it.
+	pub fn has_changes(&self, group: &str, env: &dyn Env) -> bool {
+		// most groups have none, so the pick isn't worth working out
+		self.values.changed_on.contains_key(group)
+			&& self.any_changes_on(group, &self.chosen(group, env))
+	}
+
+	// The group's members, if its changes were made on `key`.
+	fn kept_on(&self, group: &str, key: &str) -> &[String] {
 		if self.values.changed_on.get(group).map(String::as_str) != Some(key) {
-			return Vec::new();
+			return &[];
 		}
-		self.spec
-			.settings
+		self.spec.group(group).map_or(&[], |g| g.members.as_slice())
+	}
+
+	fn changes_on(&self, group: &str, key: &str) -> Vec<&str> {
+		self.kept_on(group, key)
 			.iter()
-			.filter(|s| {
-				s.group.as_deref() == Some(group) && self.values.changes.contains_key(&s.id)
-			})
-			.map(|s| s.id.as_str())
+			.filter(|m| self.values.changes.contains_key(*m))
+			.map(String::as_str)
 			.collect()
+	}
+
+	fn any_changes_on(&self, group: &str, key: &str) -> bool {
+		self.kept_on(group, key)
+			.iter()
+			.any(|m| self.values.changes.contains_key(m))
+	}
+
+	// A group member changed on top of `key`, its group's pick.
+	fn is_changed(&self, s: &Setting, key: &str) -> bool {
+		self.values.changes.contains_key(&s.id)
+			&& s.group
+				.as_deref()
+				.is_some_and(|g| self.values.changed_on.get(g).map(String::as_str) == Some(key))
 	}
 
 	/// What a dropdown shows for its current value. A chooser shows its
@@ -991,19 +1174,16 @@ impl Model {
 				.options
 				.iter()
 				.find(|(k, _)| *k == key)
-				.map_or(key.clone(), |(_, l)| l.clone());
+				.map_or(key, |(_, l)| l.clone());
 		};
 		let key = self.chosen(&g.id, env);
+		let starred = self.any_changes_on(&g.id, &key);
 		let label = match preset_of(g, &key, env) {
 			Some(p) => p.label.clone(),
 			None if key == CUSTOM => g.custom.clone().unwrap_or(key),
 			None => key,
 		};
-		if self.changed(&g.id, env).is_empty() {
-			label
-		} else {
-			format!("{label} *")
-		}
+		if starred { format!("{label} *") } else { label }
 	}
 
 	/// Only counts while every gate above it is on.
@@ -1018,6 +1198,7 @@ impl Model {
 		true
 	}
 
+	/// Where a setting's value comes from, for its tip.
 	pub fn source(&self, id: &str, env: &dyn Env) -> Source {
 		let s = self.spec.at(id);
 		if self.values.held.contains_key(id) {
@@ -1037,7 +1218,7 @@ impl Model {
 				kept: if s.group.is_some() { None } else { kept },
 			};
 		}
-		if let Some((_, p)) = self.preset_for(s, env) {
+		if let Some((key, p)) = self.preset_for(s, env) {
 			let group = s.group.as_deref().unwrap_or("");
 			let noun = self
 				.spec
@@ -1049,7 +1230,7 @@ impl Model {
 				.get(id)
 				.cloned()
 				.unwrap_or_else(|| s.default.clone());
-			if self.changed(group, env).contains(&id) {
+			if self.is_changed(s, &key) {
 				return Source::Changed {
 					preset: p.label.clone(),
 					noun,
@@ -1145,9 +1326,7 @@ impl Model {
 		match s.store {
 			Store::State => self.values.state.contains_key(id),
 			Store::Config => match self.preset_for(s, env) {
-				Some((_, p)) if !p.temporary => self
-					.changed(s.group.as_deref().unwrap_or(""), env)
-					.contains(&id),
+				Some((key, p)) if !p.temporary => self.is_changed(s, &key),
 				Some(_) => false,
 				None => self.has_own(s),
 			},
@@ -1365,6 +1544,7 @@ impl Model {
 				let s = self.spec.at(id);
 				out.kept.push((
 					format!("{base}.values.{}", s.path),
+					// changes_on gave only ids that are in changes
 					self.values.changes[id].clone(),
 				));
 			}
@@ -1444,10 +1624,9 @@ impl Model {
 				continue;
 			};
 			// the program's presets can't be asked for yet, so only Custom is ruled out
-			let gone = if g.from_program {
-				on == CUSTOM
-			} else {
-				g.preset(&on).is_none_or(|p| p.temporary)
+			let gone = match g.presets {
+				Presets::FromProgram => on == CUSTOM,
+				Presets::Listed(_) => g.preset(&on).is_none_or(|p| p.temporary),
 			};
 			if m.stored_choice(&g.id, &NoEnv) != on || gone {
 				continue;
@@ -1501,7 +1680,7 @@ fn take(doc: &shcl::Document, path: &str, s: &Setting) -> Option<Value> {
 	match s.kind {
 		Kind::Bool => doc.get_bool(path).ok().map(Value::Bool),
 		Kind::Int | Kind::Float => number(doc, path).map(Value::Float),
-		_ => doc.get_string(path).ok().map(Value::Text),
+		Kind::Text | Kind::Color | Kind::Choice => doc.get_string(path).ok().map(Value::Text),
 	}
 }
 

@@ -134,8 +134,8 @@ pub fn shown_when(id: &str) -> Option<(&'static str, &'static str)> {
 	.map(|(_, on, key)| (on.as_str(), key.as_str()))
 }
 
-// knobs drops a key it doesn't know with no word, and has to stay the same as
-// SilkTerm's copy, so a typo such as `gaet:` is caught here instead.
+// knobs drops a key it doesn't know with no word, so a typo such as `gaet:`
+// is caught here instead.
 const KNOBS_ROW_KEYS: &[&str] = &[
 	"auto",
 	"control",
@@ -216,11 +216,9 @@ pub enum Mode {
 impl Mode {
 	/// From the settings file's value, in any case.
 	pub fn parse(s: &str) -> Option<Mode> {
-		match s.to_ascii_lowercase().as_str() {
-			"detailed" => Some(Mode::Detailed),
-			"gradient" => Some(Mode::Gradient),
-			_ => None,
-		}
+		[("detailed", Mode::Detailed), ("gradient", Mode::Gradient)]
+			.into_iter()
+			.find_map(|(key, m)| s.eq_ignore_ascii_case(key).then_some(m))
 	}
 }
 
@@ -239,11 +237,9 @@ pub enum Split {
 impl Split {
 	/// From the settings file's value, in any case.
 	pub fn parse(s: &str) -> Option<Split> {
-		match s.to_ascii_lowercase().as_str() {
-			"off" => Some(Split::Off),
-			"sockets" => Some(Split::Sockets),
-			_ => None,
-		}
+		[("off", Split::Off), ("sockets", Split::Sockets)]
+			.into_iter()
+			.find_map(|(key, v)| s.eq_ignore_ascii_case(key).then_some(v))
 	}
 }
 
@@ -294,7 +290,7 @@ pub struct SavedTheme {
 pub fn theme_text(v: &knobs::Value) -> String {
 	match v {
 		knobs::Value::Text(t) => t.clone(),
-		_ => v.show(),
+		knobs::Value::Bool(_) | knobs::Value::Int(_) | knobs::Value::Float(_) => v.show(),
 	}
 }
 
@@ -311,7 +307,9 @@ fn theme_typed(spec: &Spec, id: &str, raw: &str) -> Option<knobs::Value> {
 			"false" | "off" => knobs::Value::Bool(false),
 			_ => return None,
 		},
-		_ => knobs::Value::Text(raw.to_string()),
+		knobs::Kind::Text | knobs::Kind::Color | knobs::Kind::Choice => {
+			knobs::Value::Text(raw.to_string())
+		}
 	};
 	spec.valid(s, &v).ok()
 }
@@ -325,9 +323,12 @@ pub const THEMES: &str = "themes";
 
 fn builtin_key(key: &str) -> bool {
 	key.eq_ignore_ascii_case(knobs::CUSTOM)
-		|| spec()
-			.group(THEME)
-			.is_some_and(|g| g.presets.iter().any(|p| p.key.eq_ignore_ascii_case(key)))
+		|| spec().group(THEME).is_some_and(|g| {
+			g.presets
+				.listed()
+				.iter()
+				.any(|p| p.key.eq_ignore_ascii_case(key))
+		})
 }
 
 /// The saved themes in a config file, in file order. A value that's missing
@@ -345,6 +346,7 @@ pub fn saved_themes(doc: &shcl::Document) -> Vec<SavedTheme> {
 			let colors = g
 				.members
 				.iter()
+				// a saved theme owns its ids, apart from the spec's
 				.map(|id| {
 					let read = |id: &str| {
 						doc.get_string(&at(id))
@@ -363,7 +365,7 @@ pub fn saved_themes(doc: &shcl::Document) -> Vec<SavedTheme> {
 				.ok()
 				.map(|n| n.trim().to_string())
 				.filter(|n| !n.is_empty())
-				// with no name of its own it goes by its key
+				// with no name of its own it goes by its key, a copy since both are kept
 				.unwrap_or_else(|| key.clone());
 			SavedTheme { key, name, colors }
 		})
@@ -416,9 +418,14 @@ pub fn spec_with(themes: &[SavedTheme]) -> Arc<Spec> {
 	}
 	// a copy, since the one spec() hands out is shared
 	let mut s = (*base).clone();
-	if let Some(g) = s.groups.iter_mut().find(|g| g.id == THEME) {
+	if let Some(knobs::Presets::Listed(list)) = s
+		.groups
+		.iter_mut()
+		.find(|g| g.id == THEME)
+		.map(|g| &mut g.presets)
+	{
 		for t in themes {
-			g.presets.push(knobs::Preset {
+			list.push(knobs::Preset {
 				key: t.key.clone(),
 				label: t.name.clone(),
 				temporary: false,
@@ -452,7 +459,8 @@ pub fn themes_text(themes: &[SavedTheme]) -> String {
 				Some(knobs::Value::Bool(b)) => {
 					let _ = doc.set_bool(&at(id), b);
 				}
-				_ => {
+				// the rest keep the text they came as, refused ones too
+				Some(knobs::Value::Float(_) | knobs::Value::Text(_)) | None => {
 					let _ = doc.set_string(&at(id), raw);
 				}
 			}
@@ -461,8 +469,13 @@ pub fn themes_text(themes: &[SavedTheme]) -> String {
 	doc.to_canonical()
 }
 
-/// A key for a new theme from its name, not one that's taken.
-pub fn theme_key(name: &str, themes: &[SavedTheme]) -> String {
+/// A key for a new theme from its name, not a built-in's nor one of `keys`.
+pub fn theme_key<'a, I>(name: &str, keys: I) -> String
+where
+	I: IntoIterator<Item = &'a str>,
+	I::IntoIter: Clone,
+{
+	let keys = keys.into_iter();
 	let mut slug = String::new();
 	for c in name.chars() {
 		if c.is_ascii_alphanumeric() {
@@ -477,32 +490,36 @@ pub fn theme_key(name: &str, themes: &[SavedTheme]) -> String {
 	} else {
 		slug.to_string()
 	};
-	let taken = |k: &str| builtin_key(k) || themes.iter().any(|t| t.key.eq_ignore_ascii_case(k));
+	let taken = |k: &str| builtin_key(k) || keys.clone().any(|t| t.eq_ignore_ascii_case(k));
 	if !taken(&slug) {
 		return slug;
 	}
 	// n themes can take at most n of these
-	(2..=themes.len() + 2)
+	(2..=keys.clone().count() + 2)
 		.map(|n| format!("{slug}_{n}"))
 		.find(|k| !taken(k))
 		.unwrap_or(slug)
 }
 
+// The Outline sub-tab's border and background ids. Each graph's own is
+// `<graph>_<id>`.
+const SHARED_OUTLINE: [&str; 3] = ["border_color", "back_top", "back_bottom"];
+
 // The Outline sub-tab's border and background ids, each with one graph's.
 fn outline_pairs() -> impl Iterator<Item = (&'static str, String)> {
-	["border_color", "back_top", "back_bottom"]
-		.into_iter()
-		.flat_map(|shared| {
-			LEADS
-				.iter()
-				.map(move |(g, _)| (shared, format!("{g}_{shared}")))
-		})
+	SHARED_OUTLINE.into_iter().flat_map(|shared| {
+		LEADS
+			.iter()
+			.map(move |(g, _)| (shared, format!("{g}_{shared}")))
+	})
 }
 
 fn shared_of(id: &str) -> Option<&'static str> {
-	outline_pairs()
-		.find(|(_, own)| own == id)
-		.map(|(shared, _)| shared)
+	SHARED_OUTLINE.into_iter().find(|shared| {
+		id.strip_suffix(shared)
+			.and_then(|g| g.strip_suffix('_'))
+			.is_some_and(|g| LEADS.iter().any(|(k, _)| *k == g))
+	})
 }
 
 // Where the Outline sub-tab's colors were kept before each graph had its own.
@@ -519,6 +536,7 @@ fn upgraded(doc: &shcl::Document) -> Option<shcl::Document> {
 	if doc.exists(OLD_DISK_LOG) {
 		let out = out.get_or_insert_with(|| doc.clone());
 		if doc.get_bool(OLD_DISK_LOG) == Ok(true) && !out.exists("disk.vertical") {
+			// a fixed path and value, which always take
 			let _ = out.set_string("disk.vertical", "log10");
 		}
 		out.remove(OLD_DISK_LOG);
@@ -540,27 +558,26 @@ fn shared_colors_upgraded(doc: &shcl::Document) -> Option<shcl::Document> {
 	}
 	let spec = spec();
 	let mut out = doc.clone();
-	for base in &bases {
-		for (at, shared) in old_at(base) {
-			let Ok(v) = doc.get_string(&at) else {
-				continue;
-			};
-			let ids = std::iter::once(shared.to_string()).chain(
-				outline_pairs()
-					.filter(|(s, _)| *s == shared)
-					.map(|(_, own)| own),
-			);
-			for id in ids {
-				let Some(s) = spec.get(&id) else {
-					continue;
-				};
-				let path = format!("{base}{}", s.path);
-				if !out.exists(&path) {
-					let _ = out.set_string(&path, &v);
-				}
+	let olds = bases
+		.iter()
+		.flat_map(|base| old_at(base).map(move |(at, shared)| (base, at, shared)));
+	for (base, at, shared) in olds {
+		let Ok(v) = doc.get_string(&at) else {
+			continue;
+		};
+		let ids = std::iter::once(shared.to_string()).chain(
+			outline_pairs()
+				.filter(|(s, _)| *s == shared)
+				.map(|(_, own)| own),
+		);
+		let paths = ids.filter_map(|id| Some(format!("{base}{}", spec.get(&id)?.path)));
+		for path in paths {
+			// a spec path, and text the file held already, so it takes
+			if !out.exists(&path) {
+				let _ = out.set_string(&path, &v);
 			}
-			out.remove(&at);
 		}
+		out.remove(&at);
 	}
 	Some(out)
 }
@@ -764,6 +781,42 @@ impl Which {
 			format!("show_{}", self.key())
 		}
 	}
+
+	// Made once, since a Look reads them on every refresh.
+	fn ids(self) -> &'static GraphIds {
+		static IDS: OnceLock<[GraphIds; Which::ALL.len()]> = OnceLock::new();
+		&IDS.get_or_init(|| Which::ALL.map(GraphIds::of))[self as usize]
+	}
+}
+
+// A graph's setting ids, but its Detailed colors, which are `color_ids`.
+#[derive(Debug)]
+struct GraphIds {
+	show: String,
+	width: String,
+	sample: String,
+	time: String,
+	vertical: String,
+	mode: String,
+	gradient: [String; 3],
+	// Border, Top and Bottom, in SHARED_OUTLINE order.
+	outline: [String; 3],
+}
+
+impl GraphIds {
+	fn of(w: Which) -> GraphIds {
+		let at = |s: &str| format!("{}_{s}", w.key());
+		GraphIds {
+			show: w.show_id(),
+			width: at("width"),
+			sample: at("sample"),
+			time: at("time"),
+			vertical: at("vertical"),
+			mode: at("mode"),
+			gradient: ["low", "medium", "high"].map(at),
+			outline: SHARED_OUTLINE.map(at),
+		}
+	}
 }
 
 /// The most series a graph stacks, the network's.
@@ -878,42 +931,34 @@ impl Look {
 		let color = |id: &str| Rgb::parse(m.value(id, &NoEnv).as_text()).unwrap_or(Rgb(0, 0, 0));
 		let on = |id: &str| m.value(id, &NoEnv).as_bool();
 		let (border_all, back_all) = (on("border_all"), on("back_all"));
-		// the Outline sub-tab's go over every graph's own when ticked
-		let outline = |g: &str| {
-			let pick = |all: bool, shared: &str| {
-				color(&if all {
-					shared.to_string()
-				} else {
-					format!("{g}_{shared}")
-				})
-			};
-			Outline {
-				border: pick(border_all, "border_color"),
-				top: pick(back_all, "back_top"),
-				bottom: pick(back_all, "back_bottom"),
-			}
-		};
 		let each = |w: Which| {
-			let k = w.key();
+			let ids = w.ids();
 			let mut colors = [Rgb(0, 0, 0); MOST_SERIES];
 			for (c, id) in colors.iter_mut().zip(w.color_ids()) {
 				*c = color(id);
 			}
+			// the Outline sub-tab's go over every graph's own when ticked
+			let pick = |all: bool, i: usize| {
+				color(if all {
+					SHARED_OUTLINE[i]
+				} else {
+					&ids.outline[i]
+				})
+			};
 			Each {
-				show: on(&w.show_id()),
-				width: num(&format!("{k}_width")) as u32,
-				sample: num(&format!("{k}_sample")) as u32,
-				time: Timing::parse(m.value(&format!("{k}_time"), &NoEnv).as_text()),
-				vertical: Vertical::parse(m.value(&format!("{k}_vertical"), &NoEnv).as_text()),
+				show: on(&ids.show),
+				width: num(&ids.width) as u32,
+				sample: num(&ids.sample) as u32,
+				time: Timing::parse(m.value(&ids.time, &NoEnv).as_text()),
+				vertical: Vertical::parse(m.value(&ids.vertical, &NoEnv).as_text()),
 				colors,
-				mode: Mode::parse(m.value(&format!("{k}_mode"), &NoEnv).as_text())
-					.unwrap_or_default(),
-				gradient: [
-					color(&format!("{k}_low")),
-					color(&format!("{k}_medium")),
-					color(&format!("{k}_high")),
-				],
-				outline: outline(k),
+				mode: Mode::parse(m.value(&ids.mode, &NoEnv).as_text()).unwrap_or_default(),
+				gradient: ids.gradient.each_ref().map(|id| color(id)),
+				outline: Outline {
+					border: pick(border_all, 0),
+					top: pick(back_all, 1),
+					bottom: pick(back_all, 2),
+				},
 			}
 		};
 		Look {
@@ -1121,6 +1166,7 @@ pub fn start_from(own: &Path, shared: &Path) -> std::io::Result<()> {
 	std::fs::write(&tmp, text)
 		.and_then(|()| std::fs::rename(&tmp, own))
 		.inspect_err(|_| {
+			// the write's error is the one to give
 			let _ = std::fs::remove_file(&tmp);
 		})
 }
@@ -1365,7 +1411,7 @@ mod tests {
 		for id in ["margin_tb", "margin_lr"] {
 			assert_eq!(s.get(id).and_then(|r| r.group.as_deref()), Some("theme"));
 		}
-		for p in &s.group("theme").unwrap().presets {
+		for p in s.group("theme").unwrap().presets.listed() {
 			for id in ["margin_tb", "margin_lr"] {
 				assert_eq!(p.values[id].as_f64(), 2.0, "{} {id}", p.key);
 			}
@@ -1481,7 +1527,7 @@ mod tests {
 				assert!(g.members.contains(&id), "{id}");
 				let shared = &s.get(part).unwrap().default;
 				assert_eq!(&s.get(&id).unwrap().default, shared, "{id}");
-				for p in &g.presets {
+				for p in g.presets.listed() {
 					assert_eq!(p.values[&id], p.values[part], "{} {id}", p.key);
 				}
 			}
@@ -1674,7 +1720,7 @@ mod tests {
 			crate::render::Paint::Gradient(l[Which::Cpu].gradient)
 		);
 		let spec = spec();
-		for p in &spec.group(THEME).unwrap().presets {
+		for p in spec.group(THEME).unwrap().presets.listed() {
 			let want = if p.key == "fire" {
 				"gradient"
 			} else {
@@ -1718,7 +1764,7 @@ mod tests {
 			crate::render::Paint::Stack(d[Which::Mem].colors.first_chunk().unwrap())
 		);
 		let spec = spec();
-		for p in &spec.group(THEME).unwrap().presets {
+		for p in spec.group(THEME).unwrap().presets.listed() {
 			let v = |id: &str| p.values[id].as_text().to_string();
 			assert_eq!(v("mem_mode"), v("cpu_mode"), "{}", p.key);
 			assert_ne!(v("mem_buffers"), v("mem_cache"), "{}", p.key);
@@ -1750,7 +1796,7 @@ mod tests {
 			"magenta", "teal", "brown", "gray", "grey",
 		];
 		let spec = spec();
-		let presets = &spec.group(THEME).unwrap().presets;
+		let presets = spec.group(THEME).unwrap().presets.listed();
 		assert!(presets.len() > 2);
 		for p in presets {
 			let label = p.label.to_lowercase();
@@ -1781,7 +1827,7 @@ mod tests {
 	fn every_graph_leads_with_a_color_that_reads_apart() {
 		use crate::color::{APART, apart};
 		let spec = spec();
-		for p in &spec.group(THEME).unwrap().presets {
+		for p in spec.group(THEME).unwrap().presets.listed() {
 			let get = |id: &str| p.values.get(id).map(knobs::Value::as_text);
 			let leads = leads(get);
 			assert_eq!(leads.len(), LEADS.len(), "{}", p.key);
@@ -1836,7 +1882,7 @@ mod tests {
 		let spec = spec();
 		let g = spec.group(THEME).unwrap();
 		let mut one_color = vec![];
-		for p in &g.presets {
+		for p in g.presets.listed() {
 			let get = |id: &str| p.values.get(id).map(knobs::Value::as_text);
 			let leads = leads(get);
 			if leads.iter().any(|c| *c != leads[0]) {
@@ -2196,7 +2242,7 @@ mod tests {
 		assert_eq!(t[0].name, "Say \"hi\"");
 		assert_eq!(t[0].colors.len(), 127);
 		t.push(SavedTheme {
-			key: theme_key("Default", &t),
+			key: theme_key("Default", t.iter().map(|t| t.key.as_str())),
 			name: "Default".into(),
 			colors: t[0].colors.clone(),
 		});
@@ -2209,12 +2255,12 @@ mod tests {
 	// Test ID: deccx
 	#[test]
 	fn theme_keys_are_plain_and_free() {
-		assert_eq!(theme_key("My Green!", &[]), "my_green");
-		assert_eq!(theme_key("  -- ", &[]), "theme");
-		assert_eq!(theme_key("1984", &[]), "theme_1984");
-		assert_eq!(theme_key("Gr\u{fc}n", &[]), "gr_n");
-		assert_eq!(theme_key("custom", &[]), "custom_2");
-		assert_eq!(theme_key("Earth", &[]), "earth_2");
+		assert_eq!(theme_key("My Green!", []), "my_green");
+		assert_eq!(theme_key("  -- ", []), "theme");
+		assert_eq!(theme_key("1984", []), "theme_1984");
+		assert_eq!(theme_key("Gr\u{fc}n", []), "gr_n");
+		assert_eq!(theme_key("custom", []), "custom_2");
+		assert_eq!(theme_key("Earth", []), "earth_2");
 	}
 
 	// Test ID: decc5
@@ -2436,6 +2482,38 @@ mod tests {
 			"#+12345",
 		] {
 			assert_eq!(Rgb::parse(bad), None, "{bad}");
+		}
+	}
+
+	// Test ID: dezbw
+	#[test]
+	fn shared_of_names_the_outline_id_each_graphs_own_stands_for() {
+		let listed = |id: &str| {
+			outline_pairs()
+				.find(|(_, own)| own == id)
+				.map(|(shared, _)| shared)
+		};
+		let spec = spec();
+		let odd = [
+			"border_color",
+			"_border_color",
+			"x_border_color",
+			"cpuback_top",
+			"cpu__back_top",
+			"cpu_back_top_",
+			"Cpu_back_top",
+		];
+		let ids = spec.settings.iter().map(|s| s.id.as_str()).chain(odd);
+		let mut found = 0;
+		for id in ids {
+			assert_eq!(shared_of(id), listed(id), "{id}");
+			found += usize::from(shared_of(id).is_some());
+		}
+		assert_eq!(found, 3 * LEADS.len());
+		for w in Which::ALL {
+			for (shared, own) in SHARED_OUTLINE.iter().zip(&w.ids().outline) {
+				assert_eq!(shared_of(own), Some(*shared), "{own}");
+			}
 		}
 	}
 }

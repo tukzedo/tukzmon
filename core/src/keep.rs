@@ -61,6 +61,7 @@ pub fn write(path: &Path, sections: &[(&str, &[u8])]) -> io::Result<()> {
 		std::fs::rename(&tmp, path)
 	};
 	put().inspect_err(|_| {
+		// the write's error is the one to give
 		let _ = remove(&tmp);
 	})
 }

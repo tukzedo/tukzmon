@@ -22,69 +22,37 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- Move to shcl 3.0.0-beta1
-	- ID: 2026110610124433
-	- Type: Task
-	- Status: Done
+- Video & GIF: Make the XFCE task bar more realistic.
+	- ID: 2026110618335731
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- Watch the new `assets/demo.gif` and say whether the panel looks real enough.
+	- Needs hand testing: whether the panel in the gif and the video looks like a real one.
+	- Stand-in: none (20261106). Whether it looks real is a judgment by eye.
 	- Priority|Severity: Avg
-	- Opened: 20261106-101244
-	- Opened by: JC
+	- Opened: 20261106-183357
+	- Opened by: t00mietum
+	- Related IDs: 2026110310450002
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- 2026-11-06: the logout menu's button says "sam", since its default shows the full name of whoever records it.
+		- 2026-11-06: the default icon theme, not Papirus, since this box's Papirus copy has broken links and a tray icon crashed on it.
 	- Requirements:
-		- Build on shcl 3.0.0-beta1.
-		- A settings file written under shcl 2 still loads with the same values.
+		- E.g. right-aligned with tukzmon, status tray, notification tray, time, logout/shutdown menu.
+		- Change `cicd/utility/demo/script.txt` first, then the demo's panel and scenes, then record both again.
 	- Progress log:
-		- The settings spec and the knobs demo spec use brackets for lists, and `◉NEWLINE◉` for a line break in a tip, as shcl 3 wants.
-		- A file with no Format line that doesn't load clean under shcl 3 is read the way shcl 2 read it (`config::as_shcl3`).
-		- A panel item at start, and the settings window when it opens, rewrite such a file for shcl 3, with the old one kept beside it (`config::upgrade_file`).
-		- The settings window writes shcl's Format line under its header, so a later build never takes its file for shcl 2.
-		- `graph.order` and `disk.drives` also take a list in brackets.
-		- Verified: deyr0, deyr1 and deyr2 failed with the upgrade or the Format line taken out.
-	- Decisions:
-		- 2026-11-06: a file is taken for shcl 2 only when it has no Format line and has an error under shcl 3. A clean file without one is read as written, so a hand-made shcl 3 file isn't misread. (me)
-		- 2026-11-06: in a shcl 3 file, `order: mem, cpu` is now an error and the line is dropped. `mem cpu`, `mem,cpu` and `[mem, cpu]` all work. That's shcl's rule, so it isn't worked around. (me)
-	- Branch: shcl3
-	- Test case: deyr0, deyr1, deyr2
-	- Closed: 20261106-101244
-
-- The Miri step ran over 31 hours and never finished
-	- ID: 2026110514461968
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261105-144619
-	- Opened by: JC
-	- Related IDs: 2026102516060729, 2026103018353670
-	- Steps to reproduce: `cicd/cicd.bash --long`.
-	- Incorrect behavior: The Miri step of the 2026-11-04 run was still going after 31 hours, with 25 of its 371 tests left. 13 had failed already.
-	- Expected behavior: The step finishes in a few hours, and a test that runs too long fails by name.
-	- Reproduced: 2026-11-04, b23.
-	- Actual cause:
-		- 9 tests added since the step went in reach things Miri can't do and had no `cfg_attr(miri, ignore)`: netlink sockets, `getifaddrs`, an fsync of a folder, and a seek on a folder.
-		- 5 tests check the real clock to a hundredth of a second, which Miri is far too slow for: the ease after a new time axis, in the core and in a settings row, a clock set back or moved on, and a still pointer's age.
-		- The Randomize tests loop over 2000 seeds, about 18 s a seed under Miri, so 10 hours a test.
-		- Parsing the settings spec takes 0.11 s natively and about 65 minutes under Miri. The spec is 3544 lines, against 576 on 2026-10-25, when such a test took 3 to 11 minutes. Each test was its own Miri process, so each one that read the spec paid it again. `Look::default()` reads it, so nearly every module does.
-	- Progress log:
-		- The 9 tests are ignored under Miri, with the reason. A sweep found no others of their kind.
-		- The Randomize tests take 16 seeds under Miri, the fewest that pass every one of them. The count of distinct leads is now a share of the seeds.
-		- Each test under Miri fails past `MIRI_MINUTES` (30), with a line naming it. `TUKZMON_MIRI_MINUTES` changes it.
-		- Verified: at a 1 minute limit all 11 Randomize tests failed by name, with nothing left running. At 30, 9 passed in 2 to 5 minutes each, and the 2 that read the spec ran past it.
-		- Each module's tests now share one Miri, so they parse the spec once, through `cicd/utility/miri-group.bash`. The limit is per module. Past it, or when Miri stops on an error, the test it was on fails and the rest are listed as not run. An error after every test passed, such as a leak, fails the module.
-		- libtest's stdout and Miri's stderr are kept apart, since Miri's `/proc` warnings land between a test's name and its result.
-		- The 5 real clock tests are ignored under Miri. A history test's 600 rounds are 140 under Miri, which still checks, trims and reloads.
-		- The limit is 480 minutes a module.
-		- Verified: dexn3 covers the time limit, an error, a leak and a failed assert, and failed with each part broken. Under Miri, `load::tests` passed with its results split by warnings, and `dice::tests` at a 1 minute limit failed the test it was on and listed the rest.
-		- Verified: the whole Miri step passed on 2026-11-06 in 6h 12m, with 291 tests passed, 80 ignored and none failed. `config::tests` was the longest, at 6 hours.
-	- Decisions:
-		- 2026-11-05: one Miri per module, rather than a longer limit or skipping the tests that read the spec. (JC)
-		- 2026-11-05: the knobs copy doesn't have to stay the same as silkterm's, so its speedups can go in here first. (JC)
-	- Branch: miri-trim, then miri-out
-	- Test case: dexn3, and the Miri step itself.
-	- Closed: 20261106-023000
+		- `script.txt` says what the panel holds now.
+		- Left: the applications menu and the window buttons, where the settings window shows up when it opens. Right: tukzmon, the status tray with a volume and a network icon, notifications, the clock with time over date, and the logout menu.
+		- The scenes' panel points are from tukzmon's left edge, found once the panel shows, so the items beside it can change.
+		- The gif and the video are recorded again, and `assets/demo.gif` is updated.
+	- Actual effort: Low
+	- Branch: round-1107
+	- Test case: None, since it's a recording. Frames of the gif and the video were checked at each scene. The quick gate's format, lint and test steps passed.
 
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
-	- Status: Waiting on automated testing
+	- Status: Stalled
 		- 2026-10-26 to 2026-11-02: still waits for the workflow file to reach `main`. `main` on GitHub has no `.github/workflows` yet, and the repo has no workflow runs.
 	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
 	- Priority|Severity: Avg
@@ -99,6 +67,7 @@ Sorted per the notes in [Template](#template).
 	- Actual effort: Low
 	- Progress log:
 		- `.github/workflows/merge-gate.yml` runs `cicd/cicd.bash --merge-gate` on a push or pull request against `main`, and by hand on any branch. It's one job on `ubuntu-24.04`, which builds the image from `cicd/container/` and runs the checks in it.
+		- Held for the merge-gate workflow's first run on main, which only a release merge to main starts.
 	- Decisions:
 		- Asked for on 2026-10-25.
 		- No layer cache between runs, to keep it small. Each run builds the image first, which takes a few minutes.
@@ -108,7 +77,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 33: The workflow pins actions/checkout by tag and keeps the token in the checkout
 	- ID: 2026103115232296
 	- Type: Enhancement
-	- Status: Waiting on automated testing
+	- Status: Stalled
 		- 2026-11-02: still waits for the workflow's first run, which comes after a merge to `main`.
 	- Needs external testing: the `merge-gate` workflow's first run on GitHub, the same run 2026102513560001 waits for.
 	- Priority|Severity: Low
@@ -122,295 +91,12 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- `.github/workflows/merge-gate.yml` pins actions/checkout at `3d3c42e` (v7.0.1), with the tag in a comment, and sets `persist-credentials: false`.
 		- Verified: the file parses as YAML, and GitHub's API gives that commit for the v7.0.1 tag.
+		- Held for the same first merge-gate run on main as 2026102513560001.
 	- Decisions:
 		- v7.0.1, the newest release, so the pin keeps the major version the file had.
 		- The merge gate never syncs or pushes, so the checkout needs no token.
 	- Branch: round-1102
 	- Test case: The workflow is its own test, as for 2026102513560001.
-
-- Video & GIF: Make the XFCE task bar more realistic.
-	- ID: 2026110618335731
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261106-183357
-	- Opened by: t00mietum
-	- Related IDs: 2026110310450002
-	- Decisions:
-		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-	- Requirements:
-		- E.g. right-aligned with tukzmon, status tray, notification tray, time, logout/shutdown menu.
-		- Change `cicd/utility/demo/script.txt` first, then the demo's panel and scenes, then record both again.
-
-- Every finished feature and fixed bug on the backlog has a regression test in CI
-	- ID: 2026110618355727
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261106-183557
-	- Opened by: t00mietum
-	- Requirements:
-		- Go through every Done item and check its `Test case` row against the tests CI runs.
-		- Where a test could exist and would make sense, but doesn't, write it. At the least, file each one that's missing.
-		- An item with no test gives the reason in its `Test case` row, such as the workflow being its own test.
-		- Each new test is watched to fail with its fix taken out.
-
-- Code review 20261106 item 1: Each draw works out the spike fade again for every column
-	- ID: 2026110618502901
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Origin: `8551170` (2026-11-02), newer than the last style review. Breaks the rule on hoisting invariant work out of loops. Confirmed, the `powf` in `render::reach` is 3.6% of the tick in the 2026-11-06 profile.
-	- Requirements:
-		- Work out the fade once a draw, not once a column.
-	- Decisions:
-		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-
-- Code review 20261106 item 2: knobs lists a theme's changes again for each row it reads
-	- ID: 2026110618502902
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Related IDs: 2026103018353670
-	- Origin: `f89e55e` (2026-10-23). The 20261030 review read only knobs' lookups. Breaks the rules on repeated work and needless `collect()`. Confirmed, measured: the settings rows read in about 350 us with no changes on the theme, and 800 to 1100 us with 1 to 5 of them, as on b23.
-	- Requirements:
-		- Asking whether one setting is changed, or whether any are, doesn't walk every setting or build a list.
-	- Decisions:
-		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-
-- Code review 20261106 item 3: Each settings refresh sets every tip and row height again
-	- ID: 2026110618502903
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Related IDs: 2026103016201603
-	- Origin: `f89e55e`, `fe76b54`, `b869164` and `df9a517`, all before the 20261030 review, whose profile was mostly the color chips. Breaks the rule on repeated work. Confirmed, measured: a refresh went from 1.74 to 1.51 ms with the fix tried, and a slider step from 2.02 to 1.74 ms.
-	- Requirements:
-		- Set a tip or a row's height only when it changed.
-		- The graph list reads each row's state once a refresh, not twice.
-		- While there, check whether the live graphs repaint graphs that weren't read that beat. That part isn't measured.
-	- Decisions:
-		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-
-- Code review 20261106 item 4: Building the look for the settings window allocates about 700 times
-	- ID: 2026110618502904
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Related IDs: 2026103016201610
-	- Origin: `81e0054` (2026-10-30) for most of it, newer. The case-folding parsers are older, named in the 20261030 item 10 notes and left as they were. Breaks the rule on repeated work. Confirmed, measured: 694 allocations and 72 to 81 us a call, against 430 at `ae703bb`. It runs on every refresh.
-	- Requirements:
-		- Make each graph's setting names once, not on every build.
-		- The mode, split and vertical scale parsers don't allocate.
-		- Loading saved themes doesn't build 39 names to look one up.
-	- Decisions:
-		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-
-- Code review 20261106 item 5: The processes graph takes about 4 ms a read
-	- ID: 2026110618502905
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Origin: `c3c52ee` (2026-10-31), newer. Idea. Confirmed, measured on b23 with about 1450 processes: 3.4 to 4.9 ms a read, about 10 times the whole tick of the 6 default graphs. It's off by default, so neither the profiler nor the soak test runs it.
-	- Requirements:
-		- Read `/proc` with fewer allocations and system calls a process.
-		- The profiler times a run with the processes graph on.
-	- Decisions:
-		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-
-- Code review 20261106 item 6: Opening the settings window works out the graph list once per setting
-	- ID: 2026110618502906
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Origin: `b869164` and `bad9e01`, before the 20261030 review, which timed refresh only. Breaks the rule on repeated work. Confirmed, measured: about 5 ms of the 8 to 10 ms the rows take to build.
-	- Requirements:
-		- Work out the graph list once when the window opens.
-	- Decisions:
-		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-
-- Code review 20261106 item 7: Public items in knobs and the settings crate have no doc comments
-	- ID: 2026110618502907
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Related IDs: 2026103016201612
-	- Origin: `f89e55e`, mostly. The 20261030 item 12 fix put `missing_docs` on core only, and knobs was kept the same as silkterm's then. Breaks the rules on `///` for public items and Debug on public types. Confirmed by reading: 64 items in knobs, and the settings crate's bridge structs and a few functions. knobs' `NoEnv` has no Debug, and `OwnReader`'s comment says it reads memory, which it doesn't.
-	- Requirements:
-		- `missing_docs` on both crates, and lint stays clean.
-	- Decisions:
-		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-
-- Code review 20261106 item 8: Catch-all arms on knobs' own enums
-	- ID: 2026110618502908
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Related IDs: 2026103016201611
-	- Origin: `f89e55e`, `e4cfcbb` and `bfd6a3a`, before the 20261030 review. Its item 11 left knobs out while it matched silkterm's. Breaks the rule against catch-all arms. Confirmed by reading: core's theme save and load, and knobs' setting reads, send any new `Kind` to text without a word.
-	- Requirements:
-		- Name every variant of `Kind` and `Value` where they're matched.
-		- An index into the changes that can't miss says why.
-	- Decisions:
-		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-
-- Code review 20261106 item 9: Clones and a collect with no reason given
-	- ID: 2026110618502909
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Origin: `4da8fed` (2026-11-01) for the worst one, newer, and older ones in the settings crate and `axis.rs`. Breaks the rule that a needed clone says why. Confirmed by reading. Making room for a theme name copies every saved theme to hand over their keys.
-	- Requirements:
-		- Drop the clones that aren't needed, and give the rest a reason.
-		- `Axis` can be `Copy`.
-	- Decisions:
-		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-
-- Code review 20261106 item 10: Short names, deep nesting and dropped results in core
-	- ID: 2026110618502910
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Origin: across core, older and newer than the 20261030 review, which didn't sweep naming. Breaks the rules on full names, the happy path at low indent, and errors as values. Confirmed by reading.
-	- Requirements:
-		- Full names where the short ones are cryptic, such as `pc`, `bw`, `pw`, `bk` and `rd`, and `which` for a `Which` where a width is in scope too.
-		- The demo history example's `Box` gets another name, since it hides std's.
-		- The 6-deep nesting in `Graphs::load` and 5-deep in the shared colors upgrade are flattened.
-		- Each `let _ =` that drops an error says why.
-	- Decisions:
-		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-
-- Code review 20261106 item 11: The demo script doesn't follow the Python rules
-	- ID: 2026110618502911
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Related IDs: 2026110310450002
-	- Origin: `15993d9` (2026-11-06), newer, and never reviewed. Breaks the rules on type hints, dataclasses and enums, small functions, full names, and errors that aren't swallowed. Confirmed by reading: none of its 74 functions has hints, and lint can't see it.
-	- Requirements:
-		- Type hints throughout, and ruff's ANN rules on so they stay.
-		- Records and kinds become dataclasses and enums, and the 480-line recorder class is split.
-		- One kind of section comment.
-		- A failed probe or rotation stops the run rather than reading as 0.
-	- Decisions:
-		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-
-- Code review 20261106 item 12: Comments that say the wrong thing, and comment layout in scripts
-	- ID: 2026110618502912
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Origin: various, older and newer. Breaks the comment rules. Confirmed by reading.
-	- Requirements:
-		- knobs' `Cargo.toml` no longer says to keep it the same as silkterm's.
-		- The plugin's watch comment says the tick always checks both files, as it does.
-		- `config.bash`'s header and history match its body.
-		- `dev-install.bash` uses `##` comments like every other script, and long comment lines are wrapped.
-	- Decisions:
-		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-
-- Code review 20261106 item 13: The panel item clears its whole image, then copies each graph in
-	- ID: 2026110618502913
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Origin: `b46c961` (2026-10-25), before the 20261030 review, whose item 9 looked at allocations. Idea. Confirmed, measured: about 16% of a draw at scale 2, little at scale 1.
-	- Requirements:
-		- Each graph draws straight into the item's image, or only the gaps get cleared.
-	- Decisions:
-		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-
-- Code review 20261106 item 14: States that exclude each other kept in separate fields
-	- ID: 2026110618502914
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Origin: `7794e6b` (2026-11-01) for the plugin's settings window, newer. The knobs ones are older. Idea. Confirmed by reading.
-	- Requirements:
-		- The plugin's own settings window and a stray one are one enum.
-		- knobs' "work out the indent" value and its program-filled presets get types of their own, if it's cheap.
-	- Decisions:
-		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-
-- Code review 20261106 item 15: The demo scans every process while it records
-	- ID: 2026110618502915
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Related IDs: 2026110310450002
-	- Origin: `15993d9`, newer. Idea. Confirmed, measured: a scan of about 1500 processes takes 30 ms, and the panel stop polls it every 50 ms, about 38% of a core beside the capture.
-	- Requirements:
-		- Wait on the panel's own processes rather than scanning all of them.
-		- Move the pointer without a process start for each step.
-	- Decisions:
-		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-
-- Code review 20261106 item 16: Scripts still start a process per file or folder in a few loops
-	- ID: 2026110618502916
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Related IDs: 2026103016201613
-	- Origin: `ff4610a` and `f95b2c6`, before the 20261030 review, whose item 13 took the worst ones. `97052f4` and `34329c6` are newer. Idea. Confirmed, measured: markdownlint once per file takes 0.82 s for 3 docs against 0.37 s once, and each leftover folder scans every process at 17 ms.
-	- Requirements:
-		- One markdownlint per set of rule overrides.
-		- One process scan per sweep, not per folder.
-	- Decisions:
-		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-
-- The pipeline prunes every project's docker build cache
-	- ID: 2026110311291910
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: High
-	- Opened: 20261103-112919
-	- Opened by: JC
-	- Related IDs: common 2026110311291900
-	- Incorrect behavior: The pipeline runs `docker builder prune` after a run, in `cicd/cicd.bash`. That prunes docker's default builder, which every project shares, so a run here drops any other project's cache once it's a week unused. common's `Cleanup after a run` rule said to do it.
-	- Expected behavior: The pipeline doesn't prune docker's build cache at all. Docker trims the cache itself on b23, through `builder.gc` in `/etc/docker/daemon.json`. Cache unused for a week goes first, then the rest is cut to 120 GB, or further when the disk is under 10% free, but never below 20 GB. The label cleanup of this project's containers, dangling images and old tags stays.
-		- Do it once b23's `/etc/docker/daemon.json` has the `builder.gc` block. `grep -q '"gc"' /etc/docker/daemon.json` checks. Until then the prune stays.
-	- Decisions:
-		- Don't move to a buildx builder of the project's own instead. shcl tried that on 2026-11-02. A cold build of a 2 GB image took 299 s against 266 s on the default builder, and the builder kept a second 3 GB copy of the layers for a week. shcl is going back to the default builder. (JC, me)
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- b23's `/etc/docker/daemon.json` has the `builder.gc` block. The prune is gone from `fCtrCleanup`, and the cleanup line names only the images it removed.
-		- Verified: the quick gate passed, and its cleanup ran with no prune.
-	- Branch: no-prune
-	- Test case: none, as it removes a call. The gate's cleanup step runs it.
-	- Closed: 20261103-171500
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
@@ -441,6 +127,28 @@ Sorted per the notes in [Template](#template).
 		- Swept: every caller of `Dialog::apply` (the bridge's `apply`, which every save in `qt.cpp` goes through, and the tests), every user of `would_lose`, `moved_path` and `theme_problems`, the plugin's and the window's load paths, which already skip what they can't read, and `design.md` and README.md for the refusal.
 	- Acceptance signoff: Self-closed 20261029: dekm0 and the full run.
 	- Closed: 20261029-132000
+
+- The pipeline prunes every project's docker build cache
+	- ID: 2026110311291910
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261103-112919
+	- Opened by: JC
+	- Related IDs: common 2026110311291900
+	- Incorrect behavior: The pipeline runs `docker builder prune` after a run, in `cicd/cicd.bash`. That prunes docker's default builder, which every project shares, so a run here drops any other project's cache once it's a week unused. common's `Cleanup after a run` rule said to do it.
+	- Expected behavior: The pipeline doesn't prune docker's build cache at all. Docker trims the cache itself on b23, through `builder.gc` in `/etc/docker/daemon.json`. Cache unused for a week goes first, then the rest is cut to 120 GB, or further when the disk is under 10% free, but never below 20 GB. The label cleanup of this project's containers, dangling images and old tags stays.
+		- Do it once b23's `/etc/docker/daemon.json` has the `builder.gc` block. `grep -q '"gc"' /etc/docker/daemon.json` checks. Until then the prune stays.
+	- Decisions:
+		- Don't move to a buildx builder of the project's own instead. shcl tried that on 2026-11-02. A cold build of a 2 GB image took 299 s against 266 s on the default builder, and the builder kept a second 3 GB copy of the layers for a week. shcl is going back to the default builder. (JC, me)
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- b23's `/etc/docker/daemon.json` has the `builder.gc` block. The prune is gone from `fCtrCleanup`, and the cleanup line names only the images it removed.
+		- Verified: the quick gate passed, and its cleanup ran with no prune.
+	- Branch: no-prune
+	- Test case: `the_pipeline_never_prunes_dockers_build_cache` (dezas), in `cicd/tests/guards.bash`.
+	- Closed: 20261103-171500
 
 - Code review 20261031 item 2: Apply resets Custom colors edited before another theme was picked
 	- ID: 2026103115231817
@@ -1639,7 +1347,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- The image has its own target dir. The paths inside differ from the host's, so a shared `target/` would rebuild everything each time a run switched sides.
 	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892. The gate was watched to fail on a planted format error.
+	- Test case: None in the repo. Every run but `--no-container` builds and checks the image in its Container image step, which needs docker. The gate was watched to fail in the image on a planted format error.
 	- Verified 2026-10-26: `cicd/cicd.bash` with no options passed all 13 steps in 2m08s on b23, Dogfood included, with `xfce4-panel` on PATH as a stand-in that logged `--restart` instead of restarting the live panel. b23 now has build defnz installed, and the panel loads it at its next restart.
 	- Closed: 20261025-090429
 
@@ -2274,7 +1982,7 @@ Sorted per the notes in [Template](#template).
 		- `--list` prints the steps and what's off. Test IDs come with 2026102416252895.
 		- The hook is turned on by a documented step, not by the pipeline, so nobody's pushes get gated without them knowing.
 	- Branch: round-1025
-	- Test case: None in the repo, since `cicd.bash` has no harness of its own yet. The gate was watched to fail on a planted format error and a planted lint error.
+	- Test case: `the_shared_flags_are_taken_and_a_wrong_mix_is_refused` (dezar), and the hook's deqvk, deqvm and deqvn, in `cicd/tests/guards.bash`. The gate was watched to fail on a planted format error and a planted lint error.
 	- Closed: 20261025-190500
 
 - CICD reset: CPU and priority
@@ -2302,7 +2010,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: a container ran with 8 CPUs and a share of 256, with its cargo at nice 19.
 		- Verified, 2026-10-25: a merge gate on e131b57 used 8 of 32 CPUs with the cap set, at load 40, and said busy.
 	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892.
+	- Test case: `jobs_are_half_the_cpus_a_quarter_when_busy_and_never_none` (dezaq), in `cicd/tests/guards.bash`. The priority and the container caps have none, since they only pass settings on.
 	- Closed: 20261025-190500
 
 - CICD reset: test IDs
@@ -2333,7 +2041,7 @@ Sorted per the notes in [Template](#template).
 		- The name on each line is the test's path as cargo gives it, such as `when::tests::ago_reads_like_the_backlog_says`, so it can be found in the code.
 		- The tool is bash and awk, since the build image has no Python.
 	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892. The check was watched to fail on each kind of bad ID.
+	- Test case: `test_ids_check_fails_on_each_kind_of_bad_id` (dezan), `test_ids_reads_each_file_on_its_own` (den97) and `test_ids_check_fails_when_git_cant_list_the_rs_files` (deqrd), in `cicd/tests/guards.bash`.
 	- Closed: 20261025-190500
 
 - A theme per graph
@@ -2384,7 +2092,7 @@ Sorted per the notes in [Template](#template).
 		- The test ID check in lint now fails on a Done item with no `Test case` row, and on an ID a `Test case` row names that no test has.
 		- Verified: the check failed on a planted Done item with no row, and on a row naming an unknown ID.
 	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892. The check was watched to fail on both.
+	- Test case: `test_ids_check_reads_the_backlogs_test_case_rows` (dezap), in `cicd/tests/guards.bash`.
 	- Closed: 20261025-075906
 
 - CICD reset: container cleanup
@@ -2412,7 +2120,7 @@ Sorted per the notes in [Template](#template).
 		- No volumes. The image's cargo home and target dir are folders under `target/container`, so `cargo clean` takes them too.
 		- Tags are ordered by a `dev.built` label set at build time, since a build from cache gives every tag the same creation time.
 	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892.
+	- Test case: `the_cleanup_takes_only_the_projects_own_and_no_image_while_another_run_is_live` (dezav) and `containers_whose_run_is_gone_are_stopped_but_not_a_kept_or_live_ones` (dezaw), in `cicd/tests/guards.bash`. The labels on what a run makes have no test.
 	- Closed: 20261025-073422
 
 - CICD reset: step output
@@ -2433,7 +2141,7 @@ Sorted per the notes in [Template](#template).
 		- The first section lists the steps, then every step that's off, with the flag or the reason.
 		- Verified: in a quick run, a full run, and runs that failed at Format and at Lint.
 	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892.
+	- Test case: `a_step_prints_the_rule_its_start_and_its_pass_or_fail` (dezay), in `cicd/tests/guards.bash`. The list of steps that are off is checked by dezar and der4k.
 	- Closed: 20261025-071028
 
 - Update default colors to my current selection
@@ -2509,6 +2217,41 @@ Sorted per the notes in [Template](#template).
 		- OK'd as proposed. `design.md` now lists it as settled.
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019-162817
+
+- The Miri step ran over 31 hours and never finished
+	- ID: 2026110514461968
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261105-144619
+	- Opened by: JC
+	- Related IDs: 2026102516060729, 2026103018353670
+	- Steps to reproduce: `cicd/cicd.bash --long`.
+	- Incorrect behavior: The Miri step of the 2026-11-04 run was still going after 31 hours, with 25 of its 371 tests left. 13 had failed already.
+	- Expected behavior: The step finishes in a few hours, and a test that runs too long fails by name.
+	- Reproduced: 2026-11-04, b23.
+	- Actual cause:
+		- 9 tests added since the step went in reach things Miri can't do and had no `cfg_attr(miri, ignore)`: netlink sockets, `getifaddrs`, an fsync of a folder, and a seek on a folder.
+		- 5 tests check the real clock to a hundredth of a second, which Miri is far too slow for: the ease after a new time axis, in the core and in a settings row, a clock set back or moved on, and a still pointer's age.
+		- The Randomize tests loop over 2000 seeds, about 18 s a seed under Miri, so 10 hours a test.
+		- Parsing the settings spec takes 0.11 s natively and about 65 minutes under Miri. The spec is 3544 lines, against 576 on 2026-10-25, when such a test took 3 to 11 minutes. Each test was its own Miri process, so each one that read the spec paid it again. `Look::default()` reads it, so nearly every module does.
+	- Progress log:
+		- The 9 tests are ignored under Miri, with the reason. A sweep found no others of their kind.
+		- The Randomize tests take 16 seeds under Miri, the fewest that pass every one of them. The count of distinct leads is now a share of the seeds.
+		- Each test under Miri fails past `MIRI_MINUTES` (30), with a line naming it. `TUKZMON_MIRI_MINUTES` changes it.
+		- Verified: at a 1 minute limit all 11 Randomize tests failed by name, with nothing left running. At 30, 9 passed in 2 to 5 minutes each, and the 2 that read the spec ran past it.
+		- Each module's tests now share one Miri, so they parse the spec once, through `cicd/utility/miri-group.bash`. The limit is per module. Past it, or when Miri stops on an error, the test it was on fails and the rest are listed as not run. An error after every test passed, such as a leak, fails the module.
+		- libtest's stdout and Miri's stderr are kept apart, since Miri's `/proc` warnings land between a test's name and its result.
+		- The 5 real clock tests are ignored under Miri. A history test's 600 rounds are 140 under Miri, which still checks, trims and reloads.
+		- The limit is 480 minutes a module.
+		- Verified: dexn3 covers the time limit, an error, a leak and a failed assert, and failed with each part broken. Under Miri, `load::tests` passed with its results split by warnings, and `dice::tests` at a 1 minute limit failed the test it was on and listed the rest.
+		- Verified: the whole Miri step passed on 2026-11-06 in 6h 12m, with 291 tests passed, 80 ignored and none failed. `config::tests` was the longest, at 6 hours.
+	- Decisions:
+		- 2026-11-05: one Miri per module, rather than a longer limit or skipping the tests that read the spec. (JC)
+		- 2026-11-05: the knobs copy doesn't have to stay the same as silkterm's, so its speedups can go in here first. (JC)
+	- Branch: miri-trim, then miri-out
+	- Test case: dexn3, and the Miri step itself.
+	- Closed: 20261106-023000
 
 - Properties seems to do nothing when the item's settings window is open already
 	- ID: 2026110210171300
@@ -3031,6 +2774,201 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: defx7 no longer checks hue angle between leads. dejbr checks how far apart they look.
 		- Swept: defx7 and defxd, the only checks on leads, every built-in in `settings.shcl`, and every role in `dice::ROLES` that follows its graph's lead.
 	- Closed: 20261028-161000
+
+- Move to shcl 3.0.0-beta1
+	- ID: 2026110610124433
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261106-101244
+	- Opened by: JC
+	- Requirements:
+		- Build on shcl 3.0.0-beta1.
+		- A settings file written under shcl 2 still loads with the same values.
+	- Progress log:
+		- The settings spec and the knobs demo spec use brackets for lists, and `◉NEWLINE◉` for a line break in a tip, as shcl 3 wants.
+		- A file with no Format line that doesn't load clean under shcl 3 is read the way shcl 2 read it (`config::as_shcl3`).
+		- A panel item at start, and the settings window when it opens, rewrite such a file for shcl 3, with the old one kept beside it (`config::upgrade_file`).
+		- The settings window writes shcl's Format line under its header, so a later build never takes its file for shcl 2.
+		- `graph.order` and `disk.drives` also take a list in brackets.
+		- Verified: deyr0, deyr1 and deyr2 failed with the upgrade or the Format line taken out.
+	- Decisions:
+		- 2026-11-06: a file is taken for shcl 2 only when it has no Format line and has an error under shcl 3. A clean file without one is read as written, so a hand-made shcl 3 file isn't misread. (me)
+		- 2026-11-06: in a shcl 3 file, `order: mem, cpu` is now an error and the line is dropped. `mem cpu`, `mem,cpu` and `[mem, cpu]` all work. That's shcl's rule, so it isn't worked around. (me)
+	- Branch: shcl3
+	- Test case: deyr0, deyr1, deyr2
+	- Closed: 20261106-101244
+
+- Every finished feature and fixed bug on the backlog has a regression test in CI
+	- ID: 2026110618355727
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261106-183557
+	- Opened by: t00mietum
+	- Requirements:
+		- Go through every Done item and check its `Test case` row against the tests CI runs.
+		- Where a test could exist and would make sense, but doesn't, write it. At the least, file each one that's missing.
+		- An item with no test gives the reason in its `Test case` row, such as the workflow being its own test.
+		- Each new test is watched to fail with its fix taken out.
+	- Estimated effort: High
+	- Actual effort: Avg
+	- Progress log:
+		- Of 222 Done items, 182 name test IDs, and the lint step's ID check finds each one. The 3 ignored tests they name run in the Soak step or are timings named beside a real test.
+		- Of the 40 with no ID, 13 said "None in the repo" because the pipeline had no tests of its own then. It has since round-1101. 10 new pipeline tests now cover 10 of those and 2026110311291910, and the other 3 give a reason that stands on its own.
+		- The other 26 keep their reasons: questions, parents that point at their children, a removed or text-only change, a look, a recording, a measurement, a check by hand in a private panel, or a step that is its own check.
+		- Verified: each new test failed with its fix taken out, 14 faults in all, and passed with it back. Each fault failed only its own test.
+	- Decisions:
+		- No children. The tests fit the time cap, and every other Done item gives a reason.
+		- The cleanup and step line tests need no docker daemon or format tools, so they run in the gate's Tests step and change nothing outside their own temp folder.
+		- The profiler's refusal of a ROUNDS of 0 (2026103115232157) keeps its reason. A test would build the profiling example, which only the Profiler step does.
+	- Branch: round-1107
+	- Test case: in `cicd/tests/guards.bash`: dezan, dezap, dezaq, dezar, dezas, dezat, dezav, dezaw, dezax and dezay.
+	- Closed: 20261106-201352
+
+- Code review 20261106 item 1: Each draw works out the spike fade again for every column
+	- ID: 2026110618502901
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Origin: `8551170` (2026-11-02), newer than the last style review. Breaks the rule on hoisting invariant work out of loops. Confirmed, the `powf` in `render::reach` is 3.6% of the tick in the 2026-11-06 profile.
+	- Requirements:
+		- Work out the fade once a draw, not once a column.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `render::Reach` holds the emphasis and its fade. `Frame::draw_to` makes one a draw, and each column calls `Reach::of`. The math is the same, in the same order, so the pixels are too.
+		- Profiler, load 6 to 9 on 32 cores: 260.0 us user a tick before, 232.2 and 248.3 after. `powf` went from 3.0% of the tick to 0.08%, and the reach from 4.6% to 0.6 to 0.7%.
+		- Verified: the quick gate and the Sanitizers step passed.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- A small struct, not a fade passed in beside the emphasis, so the two can't be mixed up at a call.
+		- Left as is: `fit_log` works out the log of the top for each column too. It's only on log10 graphs, none on by default, and not in the profile.
+	- Branch: round-1107
+	- Test case: none of its own, since the pixels don't change. dese6, debj9 and denc4 check the draw, and the profiler the time.
+		- Swept: every reach caller (`Frame::draw_to`, the test helper `column`), and every `powf`, `exp` and `ln` in `render.rs` and `axis.rs`. `Peak::fit`'s `exp` is once a draw, and the axis's `exp_m1` in `age` turns on each column's own place, so it can't move out.
+	- Closed: 20261106-203001
+
+- Code review 20261106 item 2: knobs lists a theme's changes again for each row it reads
+	- ID: 2026110618502902
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Related IDs: 2026103018353670
+	- Origin: `f89e55e` (2026-10-23). The 20261030 review read only knobs' lookups. Breaks the rules on repeated work and needless `collect()`. Confirmed, measured: the settings rows read in about 350 us with no changes on the theme, and 800 to 1100 us with 1 to 5 of them, as on b23.
+	- Requirements:
+		- Asking whether one setting is changed, or whether any are, doesn't walk every setting or build a list.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- knobs' `Model::has_changes` says whether a group has changes without listing them, and a row's own state checks only its own entry. The list walks only the group's members.
+		- `shown_choice`, `source`, `can_reset` and the Save theme button use them. A group's pick is read without a second copy of its key.
+		- Verified: the settings rows read in about 600 us with 0, 1 or 5 changes on the theme, against 600, 1200 and 1700 us before, on one loaded core. Every row's value, tip, arrow and dropdown text came out the same before and after.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- `changed` stays for the tip that names the changes and for the save, which need the list.
+		- The rest of a row's time is `Spec::at` scanning every setting, which is 2026103018353670.
+	- Branch: round-1107
+	- Test case: `has_changes_and_each_rows_star_agree_with_the_list` (dezbq) and `asking_about_changes_costs_the_same_however_many_there_are` (dezbr, `knobs/tests/allocs.rs`). dezbr fails before, with 2 allocations for a group with no changes and more for 5 changes than for 1. dezbq fails with `has_changes` ignoring a temporary preset.
+		- Swept: every `changed` and `changes_on` caller in knobs, core, settings and xfce. The tip's "Changed here" line and `Model::lines` still list them, since they need the names.
+	- Closed: 20261106-205212
+
+- Code review 20261106 item 3: Each settings refresh sets every tip and row height again
+	- ID: 2026110618502903
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Related IDs: 2026103016201603
+	- Origin: `f89e55e`, `fe76b54`, `b869164` and `df9a517`, all before the 20261030 review, whose profile was mostly the color chips. Breaks the rule on repeated work. Confirmed, measured: a refresh went from 1.74 to 1.51 ms with the fix tried, and a slider step from 2.02 to 1.74 ms.
+	- Requirements:
+		- Set a tip or a row's height only when it changed.
+		- The graph list reads each row's state once a refresh, not twice.
+		- While there, check whether the live graphs repaint graphs that weren't read that beat. That part isn't measured.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A refresh sets a tip or a grid row's height only when it differs. A Colors section heading's gap is set once, by `lineUpSections`, where `refresh()` set it first and `lineUpSections` set it back each time.
+		- The graph list's revert reads `can_reset` from the row state the refresh just read.
+		- They did repaint them. Each live graph tick repainted every row, and a graph at 200% drew the same picture on the beat between its reads. `Live::read` now says which graphs a tick read, and only those repaint. A tip left up still follows each tick.
+		- Verified, release build, load about 9 on 32 cores, 3 runs of medians of 50: a refresh went from 1070 to 830 us, and a slider step from 1260-1320 to 980-1030 us.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- A graph's last read time comes from core's `Drawn::last_read_ms`, so the window doesn't guess beats on its own.
+		- The repaint of every live graph on each refresh stays. A refresh sets the look again, and they're drawn only while the Graphs page shows.
+	- Branch: round-1107
+	- Test case: `bridge::tests::a_refresh_sets_only_the_tips_and_gaps_that_changed` (dezcc) and `live::tests::a_tick_says_which_graphs_it_read` (dezcb). dezcc fails with the tip check taken out (2585 tips set on 5 pages), with the height check taken out (120 layouts), and with the heading gap set in both places (75 layouts).
+		- Swept: every `setToolTip` and `setRowMinimumHeight` in `qt.cpp`, the rest being at build time, every `row_state` call in a refresh, and every `LiveGraph::tick` and `Drawn` caller.
+	- Closed: 20261106-211619
+
+- Code review 20261106 item 4: Building the look for the settings window allocates about 700 times
+	- ID: 2026110618502904
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Related IDs: 2026103016201610
+	- Origin: `81e0054` (2026-10-30) for most of it, newer. The case-folding parsers are older, named in the 20261030 item 10 notes and left as they were. Breaks the rule on repeated work. Confirmed, measured: 694 allocations and 72 to 81 us a call, against 430 at `ae703bb`. It runs on every refresh.
+	- Requirements:
+		- Make each graph's setting names once, not on every build.
+		- The mode, split and vertical scale parsers don't allocate.
+		- Loading saved themes doesn't build 39 names to look one up.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Each graph's setting ids are made once a run, in `Which::ids`, and `Look::from_model` reads through them.
+		- `Mode::parse`, `Split::parse` and `Vertical::parse` compare without case, and allocate nothing.
+		- `shared_of` reads a graph's own outline id by its ends, rather than listing all 39.
+		- A theme member's value costs 2 allocations, not 3, from the knobs change in 2026110618502902.
+		- Verified: a build allocates 300 times, not 694, and loading a saved theme 2544, not 10812. The look and the saved themes came out the same before and after.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- The build's time didn't move, about 100 us either way on one loaded core. Nearly all of it is `Spec::at` scanning every setting for each id, which is 2026103018353670.
+		- The ids are in a `OnceLock` made from `Which::key`, rather than a table of literals, so a graph's names have one source.
+	- Branch: round-1107
+	- Test case: `the_mode_split_and_scale_parsers_dont_allocate` (dezbs), `a_look_makes_no_setting_names` (dezbt) and `a_saved_theme_loads_without_listing_every_outline_id` (dezbv), all in `core/tests/allocs.rs`, and `shared_of_names_the_outline_id_each_graphs_own_stands_for` (dezbw). dezbs, dezbt and dezbv fail before, with 8, 694 and 10812 allocations. dezbw checks `shared_of` against the full list, and fails with the `_` check dropped.
+		- Swept: every `format!` of a per-graph id in core's non-test code, every `to_ascii_lowercase` in core, knobs, settings and xfce, and both `outline_pairs` callers. `leads` still makes its ids, but only tests call it. The lowercasing left builds names it keeps.
+	- Closed: 20261106-205212
+
+- Code review 20261106 item 5: The processes graph takes about 4 ms a read
+	- ID: 2026110618502905
+	- Type: Enhancement
+	- Status: Done
+		- It departs from the wording in one way. A read is still one `stat` a process, so the system calls a process are the same, and the kernel's part of the read, nearly all of it, is the same.
+	- Priority|Severity: Avg
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Origin: `c3c52ee` (2026-10-31), newer. Idea. Confirmed, measured on b23 with about 1450 processes: 3.4 to 4.9 ms a read, about 10 times the whole tick of the 6 default graphs. It's off by default, so neither the profiler nor the soak test runs it.
+	- Requirements:
+		- Read `/proc` with fewer allocations and system calls a process.
+		- The profiler times a run with the processes graph on.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The `/proc` folder is kept open and listed again from the start each read, and each process is a `fstatat` by name off it. A read allocates nothing, against 2 an entry before, and the open and close each read are gone.
+		- On b23 with about 1,380 processes a read went from 1.44 to 1.54 ms of CPU to 1.28 to 1.35 ms, and its user time from about 160 us to 55. About 1.25 ms is the kernel's, which no change here can avoid: about 0.5 ms to list the folder and 0.65 us a stat.
+		- The profiler runs with processes on: 7 graphs, 747 us a tick against 272 with the 6 default ones. fstatat and getdents are its top 2, at 30% and 26% of self time. Its week of history now reads `/proc` 30,240 times first, so the step takes about 45 s longer.
+		- Under Miri there's no processes graph, as on a box it can't read, since Miri has no `rewinddir`.
+		- `design.md` Data sources on Linux has it.
+		- Verified: the quick gate passed, and the profile area. dezd3 failed on the old read, at 102 allocations for 50 folders, and dezd2 failed with the rewind taken out. Under Miri the procs tests passed, with the 3 that list a folder ignored.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- libc's `opendir`, `rewinddir`, `readdir` and `fstatat` rather than raw `getdents64` with a bigger buffer, which timed the same and is Linux only.
+		- No cache of owners by pid. A process that runs `sudo` or drops root keeps its pid, so a cache would count it wrong until it's checked again, and a check is the same `stat`.
+		- The week of history in the profiler keeps processes on too, so its draw sees a full graph like the others. Turning it on after the week would save the 45 s.
+		- `ProcsReader` holds a `DIR` pointer now, so it isn't `Send`. Nothing needs it to be.
+	- Branch: round-1107
+	- Test case: `procs::tests::each_read_lists_the_folder_again` (dezd2), `a_procs_read_allocates_nothing` in `core/tests/allocs.rs` (dezd3), and dep4j, dep4k, dep48 and dep49 as before.
+		- 2026-11-06: dep4j and dep4k are ignored under Miri now, since Miri has no `rewinddir`.
+		- Swept: every `ProcsReader` and `Which::Procs` use. dencp, dend1 and den86 turn every graph on, and under Miri now get no processes graph, as on a box without `/proc`. The other `/proc` readers already keep their files open through `Kept`.
+	- Acceptance signoff: Self-closed, 2026-11-06: dezd2 and dezd3 passed in the quick gate, and the profile area ran with processes on.
+	- Closed: 20261106-214137
 
 - CICD gap: clang-tidy leaves out the clang analyzer checks
 	- ID: 2026110310450007
@@ -3658,7 +3596,7 @@ Sorted per the notes in [Template](#template).
 		- `pointer-arithmetic-on-polymorphic-object` is off, since it crashes clang-tidy 19 on `qt.cpp`.
 		- Warnings fail only cicd builds, through `TUKZMON_WERROR=1`, so a newer compiler's new warning doesn't break someone's own build or a distro's.
 	- Branch: round-1030b
-	- Test case: None in the repo, as for 2026102416252892. The gate was watched to fail on each planted fault above.
+	- Test case: None in the repo for the tools themselves, since the Format and Lint steps run them on every file, and the gate was watched to fail on each planted fault above. `lists_of_files_fail_when_git_does_or_a_kind_has_none` (deqrc) covers a kind with no files.
 	- Closed: 20261030-173604
 
 - Pre-next-cut: "Sample ms" becomes "Sample %"
@@ -4892,7 +4830,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- The advisory scan isn't a leak check, so `--no-leakcheck` leaves it in.
 	- Branch: round-1025b
-	- Test case: None in the repo, as for 2026102416252892. Each check was watched to fail.
+	- Test case: None in the repo, since each check is a step of its own that the gate runs. Each was watched to fail.
 	- Closed: 20261025-160906
 
 - CICD reset: temp files and safe removal
@@ -4919,7 +4857,7 @@ Sorted per the notes in [Template](#template).
 		- None of the tests starts a session bus now. A bus a test starts, and what the bus starts, inherit the run's `TMPDIR`, so the stop at the end takes them down without each test doing it.
 		- Only folders with a `run.pid` count as stale runs, so a temp folder made by hand is left alone.
 	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892.
+	- Test case: `a_run_folder_counts_up_and_the_sweep_takes_only_runs_that_are_gone` (dezat), `safe_rm_takes_a_run_folder_but_not_the_temp_root_or_a_project_folder` (den8d) and `run_pids_skips_a_process_gone_since_the_grep` (deqrb), in `cicd/tests/guards.bash`.
 	- Closed: 20261025-071028
 
 - Build date after the version, for non-release builds
@@ -5741,7 +5679,7 @@ Sorted per the notes in [Template](#template).
 		- `--keep-temp` writes a `keep` file in the folder at the start, so a kept run that was killed keeps the 2-day wait.
 		- A container's run is its `dev.pid` label, so a run with another temp root isn't taken for gone. One from before that label goes by its run folder.
 	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
+	- Test case: dezat, which sweeps a killed run's folder, and `containers_whose_run_is_gone_are_stopped_but_not_a_kept_or_live_ones` (dezaw), in `cicd/tests/guards.bash`. The kill itself was run both ways by hand.
 	- Closed: 20261025-190500
 
 - Dogfood install and cicd build with different Rust versions
@@ -5763,7 +5701,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: after the pipeline's host release build, dev-install.bash run from another folder finished in 0.05 s with nothing compiled. The old line rebuilt 3 crates with 1.95, and the pipeline then rebuilt the plugin.
 		- Note: `--backlog-run-full` builds in the image, into its own target folder, so it never shares `target/release`. Only the default run, which dogfoods, builds the release on the host.
 	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
+	- Test case: `dev_install_builds_with_rustups_cargo_from_the_repo_wherever_its_run` (dezax), in `cicd/tests/guards.bash`. Also run both ways by hand.
 	- Closed: 20261025-081952
 
 - 2 pipeline runs at once can remove each other's image
@@ -5785,8 +5723,311 @@ Sorted per the notes in [Template](#template).
 		- Took the second way, none while another run is live. An image from a killed run has no live owner either way, so it still goes at the next quiet run.
 		- A run that starts in the moment between the check and the removal isn't covered.
 	- Branch: round-1025
-	- Test case: None in the repo, as for 2026102416252892. Run both ways by hand.
+	- Test case: `the_cleanup_takes_only_the_projects_own_and_no_image_while_another_run_is_live` (dezav), in `cicd/tests/guards.bash`. Also run both ways by hand.
 	- Closed: 20261025-081952
+
+- Code review 20261106 item 6: Opening the settings window works out the graph list once per setting
+	- ID: 2026110618502906
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Origin: `b869164` and `bad9e01`, before the 20261030 review, which timed refresh only. Breaks the rule on repeated work. Confirmed, measured: about 5 ms of the 8 to 10 ms the rows take to build.
+	- Requirements:
+		- Work out the graph list once when the window opens.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `Dialog::graph_list_ids` gives every setting the graph list draws, once, and the rows check it, in place of `in_graph_list` building the list again for each setting.
+		- Verified, release build, load about 9 on 32 cores, medians of 50: building the rows went from 3.7 ms to 85 us.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+	- Branch: round-1107
+	- Test case: `dialog::tests::the_graph_list_has_a_row_per_graph_in_the_saved_order` (defkz) reads `graph_list_ids` now, with the same ids in and out. The timing is in denam (`time_a_refresh_and_a_slider_step`, ignored unless asked for).
+		- Swept: `in_graph_list` had one caller outside tests, `dialog_rows`.
+	- Closed: 20261106-211619
+
+- Code review 20261106 item 7: Public items in knobs and the settings crate have no doc comments
+	- ID: 2026110618502907
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Related IDs: 2026103016201612
+	- Origin: `f89e55e`, mostly. The 20261030 item 12 fix put `missing_docs` on core only, and knobs was kept the same as silkterm's then. Breaks the rules on `///` for public items and Debug on public types. Confirmed by reading: 64 items in knobs, and the settings crate's bridge structs and a few functions. knobs' `NoEnv` has no Debug, and `OwnReader`'s comment says it reads memory, which it doesn't.
+	- Requirements:
+		- `missing_docs` on both crates, and lint stays clean.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- knobs has `#![warn(missing_docs)]`, and every public item there has a `///`, fields and variants included. `NoEnv` derives Debug.
+		- The settings program also has clippy's `missing_docs_in_private_items`, set in `clippy.toml` to look only at what the crate can see. Its shown items, the bridge's shared structs and fields, and the crate root's own items have a `///`. Its module headers are `//!`.
+		- `OwnReader`'s comment says it reads CPU use only.
+		- Verified: lint passed, and failed with one doc taken out in knobs and one in the settings program.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- The settings program gets the clippy lint as well, since `missing_docs` checks only a crate's exported items, and a program exports none. The lint looks at `pub` items and the crate root, not at private items in a module.
+		- The bridge's `extern "Rust"` functions get no `///`, since no lint sees inside the cxx macro and their names say what they do.
+		- `SilkTerm` is in `clippy.toml`'s `doc-valid-idents`, so a doc can name it without backticks.
+	- Branch: round-1107
+	- Test case: none, a doc change. The lint step's `missing_docs` and `missing_docs_in_private_items` keep the docs from going missing.
+	- Closed: 20261106-215421
+
+- Code review 20261106 item 8: Catch-all arms on knobs' own enums
+	- ID: 2026110618502908
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Related IDs: 2026103016201611
+	- Origin: `f89e55e`, `e4cfcbb` and `bfd6a3a`, before the 20261030 review. Its item 11 left knobs out while it matched silkterm's. Breaks the rule against catch-all arms. Confirmed by reading: core's theme save and load, and knobs' setting reads, send any new `Kind` to text without a word.
+	- Requirements:
+		- Name every variant of `Kind` and `Value` where they're matched.
+		- An index into the changes that can't miss says why.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- knobs' `as_f64`, `as_text`, `stored_choice`, `valid`, `take` and the preset reader name every variant, and so do core's `theme_text`, `theme_typed` and `themes_text`, and the settings window's row text and `set_text`. A new `Kind` or `Value` is a build error at each.
+		- `Model::lines` says why its index into the changes can't miss.
+		- Verified: lint and tests passed.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- `valid`'s last arm names every `Kind` with any value, so a new `Kind` must be placed there, and a new `Value` is still the wrong type for every kind it doesn't fit.
+	- Branch: round-1107
+	- Test case: none, the compiler's check that each match is whole covers it.
+		- Swept: every `match` on a `Kind` or `Value` in knobs, core, settings and xfce, the knobs test helper included.
+	- Closed: 20261106-215421
+
+- Code review 20261106 item 9: Clones and a collect with no reason given
+	- ID: 2026110618502909
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Origin: `4da8fed` (2026-11-01) for the worst one, newer, and older ones in the settings crate and `axis.rs`. Breaks the rule that a needed clone says why. Confirmed by reading. Making room for a theme name copies every saved theme to hand over their keys.
+	- Requirements:
+		- Drop the clones that aren't needed, and give the rest a reason.
+		- `Axis` can be `Copy`.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Making room for a theme name borrows the other window's themes, and `config::theme_key` takes the taken keys rather than whole themes, so nothing is copied to hand them over.
+		- `Axis` and the eased axis it keeps are `Copy`.
+		- The clones left in the settings crate, and in core's theme reads and battery files, each say why.
+		- Verified: the quick gate passed, with dezea passing before the change and after.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- A theme moved to a free name or key isn't added to the other window's list anymore. It's checked by its new name and key in the window's own list, which held it already.
+		- An owned field built from a borrowed one, such as a `to_owned` for a struct, isn't given a reason. Only a `clone` is.
+	- Branch: round-1107
+	- Commit: `cd18099`
+	- Test case: `two_new_themes_each_move_past_the_other_windows_and_each_other` (dezea), with der2h and `theme_keys_are_plain_and_free`.
+		- Swept: every `theme_key` caller, every clone of an `Axis`, and each `clone` outside tests in core, settings and xfce.
+	- Closed: 20261106-221025
+
+- Code review 20261106 item 10: Short names, deep nesting and dropped results in core
+	- ID: 2026110618502910
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Origin: across core, older and newer than the 20261030 review, which didn't sweep naming. Breaks the rules on full names, the happy path at low indent, and errors as values. Confirmed by reading.
+	- Requirements:
+		- Full names where the short ones are cryptic, such as `pc`, `bw`, `pw`, `bk` and `rd`, and `which` for a `Which` where a width is in scope too.
+		- The demo history example's `Box` gets another name, since it hides std's.
+		- The 6-deep nesting in `Graphs::load` and 5-deep in the shared colors upgrade are flattened.
+		- Each `let _ =` that drops an error says why.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `pc` is `percent`, `bw` `border`, `pw` and `ph` `plot_w` and `plot_h`, `bk` `bucket` and `rd` `reader`. The graph widths name each graph `which`.
+		- The demo history's `Box` is `Machine`.
+		- The history read when graphs are added, in `Graphs::set_look`, and the shared colors upgrade are 3 deep at most.
+		- Each `let _ =` in core outside tests says why, the profiler's included.
+		- Verified: the quick gate passed.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- The 6-deep nesting was in `Graphs::set_look`, which reads the history for graphs it adds. `Graphs::load` is 3 deep.
+		- The profiler's `pc` stays, since it's the C argument of the unwinder call it stands in for.
+	- Branch: round-1107
+	- Commit: `cd18099`
+	- Test case: none new, since names and layout change no behavior. The graphs, config and history tests cover the code moved, deea2 and the upgrade tests among them.
+		- Swept: every `pc`, `bw`, `pw`, `bk` and `rd` in core, and each `let _ =` in core outside tests.
+	- Closed: 20261106-221025
+
+- Code review 20261106 item 11: The demo script doesn't follow the Python rules
+	- ID: 2026110618502911
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Related IDs: 2026110310450002
+	- Origin: `15993d9` (2026-11-06), newer, and never reviewed. Breaks the rules on type hints, dataclasses and enums, small functions, full names, and errors that aren't swallowed. Confirmed by reading: none of its 74 functions has hints, and lint can't see it.
+	- Requirements:
+		- Type hints throughout, and ruff's ANN rules on so they stay.
+		- Records and kinds become dataclasses and enums, and the 480-line recorder class is split.
+		- One kind of section comment.
+		- A failed probe or rotation stops the run rather than reading as 0.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- One kind of section comment: the file's own `##•••` line with a `##` title, at the top level only. The `# ---` ones inside the class went with the split.
+		- The empty-frame-extents fallback stays, since the window placing measures and corrects anyway. A failed xprop or xdotool call stops the run now.
+		- The `audio` profile field was never read, so it's gone. The video always has sound.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Every function is hinted, and ruff's ANN rules are on in `pyproject.toml`. mypy `--strict` is clean too, outside python-xlib, which has no types.
+		- The take's profile, options, events, captions and timeline are dataclasses, and takes and sounds are enums.
+		- The recorder is split into the screen, the panel, the settings window and the capture, with a small `Rec` that holds them for the scenes.
+		- ffprobe giving no duration, and a failed rotation, now stop the run.
+		- Rotation had never run: the include was passed as `$0`, so it took itself for run rather than sourced and exited 3, which `check=False` hid. Fixed, and a take now gives `_first` and `_latest`.
+		- Verified: a gif take recorded with rotation, frames checked against the old script's take scene by scene, `--shot` ran, ruff failed on a hint taken out, and the quick gate's format and lint passed.
+	- Branch: round-1107
+	- Test case: none, since it's the recording script with no test harness. Verified by recording a take, as above.
+		- Swept: every `check=False` and every `except` in the script.
+	- Closed: 20261106-222430
+
+- Code review 20261106 item 12: Comments that say the wrong thing, and comment layout in scripts
+	- ID: 2026110618502912
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Origin: various, older and newer. Breaks the comment rules. Confirmed by reading.
+	- Requirements:
+		- knobs' `Cargo.toml` no longer says to keep it the same as silkterm's.
+		- The plugin's watch comment says the tick always checks both files, as it does.
+		- `config.bash`'s header and history match its body.
+		- `dev-install.bash` uses `##` comments like every other script, and long comment lines are wrapped.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- knobs' `Cargo.toml` already said it's free to change, since `21edccf`. `design.md` and the spec key check in `core/src/config.rs` don't say it stays the same as silkterm's any more.
+		- The plugin's `watch` comment says the tick checks the settings file and the reset mark either way.
+		- `config.bash`'s header allows the tests in it, and says the Dockerfile repeats some pins. Its history has the Miri limit and `assets/`.
+		- `dev-install.bash` uses `##` comments. Its comment lines were under 80 columns already. 2 unwrapped comment lines in `cicd.bash` are wrapped.
+		- Verified: shellcheck is clean, and `cicd/tests/guards.bash` passes, dev-install's deqvr and dezax included.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- The comments above `fCtrOthers`, `fOtherRun` and `fCtrCleanup` each describe their own function, so they stay as they are.
+		- The long lines in `lint-report.bash` and `gfs-rotate.bash` stay, since those came from other projects.
+	- Branch: round-1107
+	- Test case: none, since only comments changed.
+	- Closed: 20261106-223030
+
+- Code review 20261106 item 13: The panel item clears its whole image, then copies each graph in
+	- ID: 2026110618502913
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Origin: `b46c961` (2026-10-25), before the 20261030 review, whose item 9 looked at allocations. Idea. Confirmed, measured: about 16% of a draw at scale 2, little at scale 1.
+	- Requirements:
+		- Each graph draws straight into the item's image, or only the gaps get cleared.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Each graph draws into its own part of the item's image, through `render::Canvas`, and only the edges and gaps are cleared. A graph fills only its border before the plot, since the plot writes every pixel of itself.
+		- The panel item no longer keeps a pixel buffer per graph, about 140 KB at the profiler's 848x48.
+		- Verified: the quick gate passed. Release build, load about 1.5 on 32 cores, medians of 200 draws at 848x48: the clear and copy were 4 to 5 us of a draw, and the draw stayed at 34 us with no history and about 195 us with a week, before and after.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- Kept, though it isn't faster. The 16% didn't hold here, and the clear and copy saved go to the plot's writes a whole image row apart. The buffers saved are the gain.
+		- `Graph::render` still draws into the graph's own buffer, for the settings window's live rows.
+	- Branch: round-1107
+	- Test case: `graphs::tests::graphs_draw_straight_into_the_image_and_only_the_gaps_are_cleared` (dezfg). It fails with each graph drawn into its own buffer and copied, with the gaps left uncleared, and with a graph's right border left unfilled.
+		- Swept: every `Frame::draw_to`, `render::line` and `Drawn::render` caller, in core, the examples, the soak test, xfce and the settings window.
+	- Closed: 20261106-230200
+
+- Code review 20261106 item 14: States that exclude each other kept in separate fields
+	- ID: 2026110618502914
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Origin: `7794e6b` (2026-11-01) for the plugin's settings window, newer. The knobs ones are older. Idea. Confirmed by reading.
+	- Requirements:
+		- The plugin's own settings window and a stray one are one enum.
+		- knobs' "work out the indent" value and its program-filled presets get types of their own, if it's cheap.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The plugin keeps `Option<SettingsWindow>`, `Ours(Child)` or `Stray(pid)`.
+		- knobs' `Setting::indent` is `Indent::FromRelations` or `Indent::Steps(n)`, in place of `u8::MAX` for "work it out". `Group::presets` is `Presets::Listed` or `Presets::FromProgram`, in place of a list plus `from_program`.
+		- A spec group with `from_program` and presets blocks is now an error, as the demo spec's notes already said there are none then.
+		- Verified: the quick gate passed.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- `Presets::listed()` gives the spec's presets, or none, so readers that only list them stay one line.
+	- Branch: round-1107
+	- Test case: `tests::a_group_has_the_specs_presets_or_the_programs_not_both` in knobs (dezfh), which fails without the new check. The rest is a type change, which the compiler holds, and der60, der61, des4c and ddqs9 cover the same paths.
+		- Swept: every read of `stray`, `settings`, `indent`, `presets` and `from_program` in xfce, knobs, core and the settings crate, `qt.cpp`'s `info.indent` included.
+	- Closed: 20261106-230200
+
+- Code review 20261106 item 15: The demo scans every process while it records
+	- ID: 2026110618502915
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Related IDs: 2026110310450002
+	- Origin: `15993d9`, newer. Idea. Confirmed, measured: a scan of about 1500 processes takes 30 ms, and the panel stop polls it every 50 ms, about 38% of a core beside the capture.
+	- Requirements:
+		- Wait on the panel's own processes rather than scanning all of them.
+		- Move the pointer without a process start for each step.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- The pointer moves through XTEST on one X connection. Clicks stay on xdotool, since the click sound's timing was measured against it.
+		- The panel's processes are still found by one scan of `/proc` at the stop, since the settings window and the bus's helpers aren't children of the panel by then.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The panel stop scans once, then waits on pidfds, and stops what's left all at once.
+		- The caption band's strut is a window on the same X connection, not a process of its own.
+		- The days scene is 3 s shorter, 9.2 s against 12.2 s, and the gif 41 s against 44 s. The old stop waited 3 s on one of the processes it found, likely one that had already exited, since a signal 0 check still finds a process that's exited but not yet reaped.
+		- A gif take used 78.2 s of CPU against 81.8 s, at a load of 2.5 to 4 on 32 cores.
+		- Verified: a gif take recorded, and its frames match the old script's take scene by scene, the hover tips included.
+	- Branch: round-1107
+	- Test case: none, since it's the recording script with no test harness. Verified by recording a take, as above.
+		- Swept: every process scan and every per-step process start in the script. The window searches still start xdotool on each poll, at 0.2 s.
+	- Closed: 20261106-222430
+
+- Code review 20261106 item 16: Scripts still start a process per file or folder in a few loops
+	- ID: 2026110618502916
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Related IDs: 2026103016201613
+	- Origin: `ff4610a` and `f95b2c6`, before the 20261030 review, whose item 13 took the worst ones. `97052f4` and `34329c6` are newer. Idea. Confirmed, measured: markdownlint once per file takes 0.82 s for 3 docs against 0.37 s once, and each leftover folder scans every process at 17 ms.
+	- Requirements:
+		- One markdownlint per set of rule overrides.
+		- One process scan per sweep, not per folder.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `fLintMarkdown` in `cicd.bash` runs one markdownlint per set of skipped rules, so 2 runs over the 4 docs. Their CPU time went from 2.98 s to 2.43 s, most of it the backlog.
+		- `fRunsInUse` in `run-tmp.bash` scans the processes once and gives the run folders in use. `fSweepStale` calls it once a sweep, and only when a folder gets that far. `fCtrSweepGone` calls it once a retry.
+		- Verified: dezf4 failed before, with 4 scans for 4 folders, and passes with 1. dezf5 failed before and passes. dezat and dezaw still pass.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- `fRunPids` stays for `fStopLeftovers`, which needs the pids.
+		- `fPidStamp` per check and `miri-group.bash`'s grep per test name stay. The item didn't ask for them, and the second runs only when a module fails.
+	- Branch: round-1107
+	- Test case: dezf4 and dezf5, in `cicd/tests/guards.bash`.
+		- Swept: every caller of `fRunPids` (`fSweepStale`, `fCtrSweepGone`, `fStopLeftovers`, deqrb), and every markdownlint call in `cicd/` and `utility/`.
+	- Closed: 20261106-223030
 
 - Hybrid laptop: GPU memory, on by default, keeps the NVIDIA GPU awake
 	- ID: 2026110118380381
@@ -5889,6 +6130,7 @@ Sorted per the notes in [Template](#template).
 		- knobs is unchanged, since it stays byte-identical to silkterm's. The spec is compiled in, so a test catches a typo before a build goes out, and no runtime warning is needed here.
 		- The knobs key lists in `config.rs` copy what `read_setting` and `read_group` read, and need a line when knobs reads a new key.
 		- A runtime warning in knobs is drafted for silkterm in the upstream folder, `2026103115232265/`.
+		- 20261107: answered File it. The draft goes to silkterm's backlog in silkterm's own round.
 	- Branch: round-1102
 	- Test case: `config::tests::the_spec_has_no_key_that_nothing_reads` (der4w). It fails with one `gate:` changed to `gaet:`, and passes on the spec.
 	- Acceptance signoff: Self-closed 20261101: der4w.
@@ -6774,37 +7016,6 @@ Sorted per the notes in [Template](#template).
 
 **Stop here for a next release**
 
-- Code review 20261030 item 3, part 2: Look up a setting by an index in knobs
-	- ID: 2026103018353670
-	- Type: Enhancement
-	- Status: Queued
-		- Was held for silkterm's copy of knobs to get the index first. 2026-11-05: the copy here doesn't have to match silkterm's, so it can go in here first.
-		- 2026-11-03: moved below the stop line. It's a small speedup and doesn't need to block a release.
-	- Priority|Severity: Low
-	- Opened: 20261030-183536
-	- Opened by: t00mietum
-	- Parent ID: 2026103016201603
-	- Requirements:
-		- `Spec` looks ids up through an index built in `finish`, with an `Option` path for an id that's unknown.
-		- Time denam before and after.
-	- Progress log:
-		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
-	- Estimated effort: Low
-
-- Parse the settings spec faster
-	- ID: 2026110519470058
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261105-194700
-	- Opened by: JC
-	- Related IDs: 2026110514461968, 2026103018353670
-	- Requirements:
-		- `config::spec()` and what reads `settings.shcl` beside it take less time, measured natively and under Miri.
-	- Progress log:
-		- 2026-11-05: 0.11 s in a debug build, and about 65 minutes under Miri, which nearly every Miri module pays once. The text is parsed by shcl 4 times, by `Spec::parse`, `slider_ranges` and 2 more readers in `config.rs`, each then looking rows up by dotted path. Measure which part costs before changing it.
-	- Estimated effort: Avg
-
 - CICD gap: Fuzz the parsers of files and kernel messages
 	- ID: 2026110310450001
 	- Type: Task
@@ -6818,32 +7029,6 @@ Sorted per the notes in [Template](#template).
 		- Cover what reads input the program doesn't control: the history file decode, the netlink socket and neighbor dumps, the bridge forwarding table, the `/proc` and `/sys` readers, and a settings file that loads through shcl.
 		- Plain tests on stable, each case a pure function of one seed, a time budget from an env var, and asserts on properties such as no panic and no read past the end. Keep some bit flips over real files, such as `core/tests/data/plugin-5-tiers.hist`.
 		- Each one gets a test ID, and is watched to fail on a planted bug before it's trusted.
-
-- CICD gap: Animated demo for the README
-	- ID: 2026110310450002
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261103-104500
-	- Opened by: t00mietum
-	- Parent ID: 2026102416252898
-	- Requirements:
-		- A demo step, left out of `--quick`, renders a GIF at 960x540 and 50 fps and a video at 1920x1080 and 60 fps, headless, from a short plain-text script in `cicd/utility/demo/script.txt`.
-		- It shows the panel graphs filling, a hover tip, and the settings window with live graphs and a theme change, in about 20 to 30 seconds. Anonymous content only.
-		- The newest GIF goes to `assets/demo.gif` when it changed, and sits near the top of README.md at its own size.
-	- Progress log:
-		- `cicd/utility/demo/demo-video.py` records it from `script.txt`, on a private Xvfb with a real panel and window manager.
-		- It shows a fresh start settling, then 4 days of made-up history with the hover tip going back to "3 days ago", then Properties, the Graphs tab, and a theme change.
-		- The made-up history comes from `core/examples/demo-history.rs`.
-		- The Demo step runs in the default run and `--long`. `--quick`, `--no-demo` and the hands-off runs leave it out.
-		- Clicks have sound in the video, and land within 0.1 s of what they do on screen.
-	- Decisions:
-		- 2026-11-06: about 36 s, over the 30 s aimed for, since it also shows days of history and the Graphs tab.
-		- 2026-11-06: the video is the gif's layout at scale 2, so one set of click positions works for both.
-		- 2026-11-06: the settings window's title shows its file's path, so the panel runs with its home at `/home/sam`.
-	- Branch: demo
-	- Test case: None, since it's a recording. The gif and the video were checked frame by frame.
-	- Closed: 20261106-182817
 
 - CICD gap: Slow leak checks still missing
 	- ID: 2026110310450003
@@ -6877,6 +7062,37 @@ Sorted per the notes in [Template](#template).
 	- Needs more detail:
 		- It needs a first release to download. Until then, test it against a stand-in release.
 
+- Code review 20261030 item 3, part 2: Look up a setting by an index in knobs
+	- ID: 2026103018353670
+	- Type: Enhancement
+	- Status: Queued
+		- Was held for silkterm's copy of knobs to get the index first. 2026-11-05: the copy here doesn't have to match silkterm's, so it can go in here first.
+		- 2026-11-03: moved below the stop line. It's a small speedup and doesn't need to block a release.
+	- Priority|Severity: Low
+	- Opened: 20261030-183536
+	- Opened by: t00mietum
+	- Parent ID: 2026103016201603
+	- Requirements:
+		- `Spec` looks ids up through an index built in `finish`, with an `Option` path for an id that's unknown.
+		- Time denam before and after.
+	- Progress log:
+		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
+	- Estimated effort: Low
+
+- Parse the settings spec faster
+	- ID: 2026110519470058
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261105-194700
+	- Opened by: JC
+	- Related IDs: 2026110514461968, 2026103018353670
+	- Requirements:
+		- `config::spec()` and what reads `settings.shcl` beside it take less time, measured natively and under Miri.
+	- Progress log:
+		- 2026-11-05: 0.11 s in a debug build, and about 65 minutes under Miri, which nearly every Miri module pays once. The text is parsed by shcl 4 times, by `Spec::parse`, `slider_ranges` and 2 more readers in `config.rs`, each then looking rows up by dotted path. Measure which part costs before changing it.
+	- Estimated effort: Avg
+
 - CICD gap: Run the content scrub from the pipeline and the pre-push hook
 	- ID: 2026110310450004
 	- Type: Task
@@ -6900,6 +7116,32 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- A release build for arm64 Linux, and its `.deb` and `.rpm`, named `linux-arm64` beside `linux-x86_64`.
 		- Behind a flag such as `--include-arm` if it's much slower than x86_64. Qt and the panel libraries for arm64 are the hard part.
+
+- CICD gap: Animated demo for the README
+	- ID: 2026110310450002
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261103-104500
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- A demo step, left out of `--quick`, renders a GIF at 960x540 and 50 fps and a video at 1920x1080 and 60 fps, headless, from a short plain-text script in `cicd/utility/demo/script.txt`.
+		- It shows the panel graphs filling, a hover tip, and the settings window with live graphs and a theme change, in about 20 to 30 seconds. Anonymous content only.
+		- The newest GIF goes to `assets/demo.gif` when it changed, and sits near the top of README.md at its own size.
+	- Progress log:
+		- `cicd/utility/demo/demo-video.py` records it from `script.txt`, on a private Xvfb with a real panel and window manager.
+		- It shows a fresh start settling, then 4 days of made-up history with the hover tip going back to "3 days ago", then Properties, the Graphs tab, and a theme change.
+		- The made-up history comes from `core/examples/demo-history.rs`.
+		- The Demo step runs in the default run and `--long`. `--quick`, `--no-demo` and the hands-off runs leave it out.
+		- Clicks have sound in the video, and land within 0.1 s of what they do on screen.
+	- Decisions:
+		- 2026-11-06: about 36 s, over the 30 s aimed for, since it also shows days of history and the Graphs tab.
+		- 2026-11-06: the video is the gif's layout at scale 2, so one set of click positions works for both.
+		- 2026-11-06: the settings window's title shows its file's path, so the panel runs with its home at `/home/sam`.
+	- Branch: demo
+	- Test case: None, since it's a recording. The gif and the video were checked frame by frame.
+	- Closed: 20261106-182817
 
 - Other Linux and BSD panels
 	- ID: 2026101916013890

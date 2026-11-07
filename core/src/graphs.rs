@@ -12,6 +12,7 @@ use std::rc::Rc;
 
 use crate::config::{Look, Which};
 use crate::keep;
+use crate::render::Canvas;
 use crate::{Graph, Source, clock_ms, wait_ms};
 
 /// Every graph in one panel item, and how they share its space.
@@ -63,6 +64,8 @@ pub trait Drawn: Any {
 	fn sample(&mut self);
 	/// Reads the source when its next beat has come, and gives the ms from `at` to the beat after.
 	fn tick(&mut self, at: f64) -> f64;
+	/// When `tick` last read the source, on [`crate::clock_ms`].
+	fn last_read_ms(&self) -> Option<f64>;
 	/// Drops history older than the max age.
 	fn trim(&mut self);
 	/// Moves the clock on, so the soak test can run days in seconds.
@@ -93,6 +96,8 @@ pub trait Drawn: Any {
 	fn tooltip(&self) -> String;
 	/// The graph as cairo ARGB32 pixels, `w` by `h`.
 	fn render(&mut self, w: usize, h: usize, scale: usize) -> &[u32];
+	/// As `render`, into a part of a bigger image.
+	fn render_in(&mut self, canvas: &mut Canvas<'_>, scale: usize);
 	/// Draws with `look` from now on.
 	fn set_look(&mut self, look: &Rc<Look>);
 }
@@ -109,6 +114,9 @@ impl<S: Source<N> + 'static, const N: usize> Drawn for Graph<S, N> {
 	}
 	fn tick(&mut self, at: f64) -> f64 {
 		Graph::tick(self, at)
+	}
+	fn last_read_ms(&self) -> Option<f64> {
+		Graph::last_read_ms(self)
 	}
 	fn trim(&mut self) {
 		Graph::trim(self);
@@ -153,6 +161,9 @@ impl<S: Source<N> + 'static, const N: usize> Drawn for Graph<S, N> {
 	}
 	fn render(&mut self, w: usize, h: usize, scale: usize) -> &[u32] {
 		Graph::render(self, w, h, scale)
+	}
+	fn render_in(&mut self, canvas: &mut Canvas<'_>, scale: usize) {
+		Graph::render_in(self, canvas, scale);
 	}
 	fn set_look(&mut self, look: &Rc<Look>) {
 		self.src.follow(look);
@@ -405,7 +416,7 @@ impl Graphs {
 
 	/// Each shown graph's width in logical pixels, in the order drawn.
 	pub fn widths(&self) -> impl Iterator<Item = u32> + '_ {
-		self.shown().map(|w| self.width_of(w))
+		self.shown().map(|which| self.width_of(which))
 	}
 
 	/// The size to ask a panel of `size` logical pixels for: the widths' sum
@@ -449,18 +460,14 @@ impl Graphs {
 			}
 		}
 		let added = self.slots.switch(look, shown_here);
-		let mut res = Ok(());
-		if let Some(path) = history.filter(|_| !added.is_empty()) {
-			match keep::read(path) {
-				Ok(sections) => {
-					for &w in &added {
-						if let Some(g) = self.slot_mut(w) {
-							g.adopt(&sections);
-						}
-					}
-				}
-				Err(e) if e.kind() == io::ErrorKind::NotFound => {}
-				Err(e) => res = Err(e),
+		let (sections, res) = match history.filter(|_| !added.is_empty()).map(keep::read) {
+			Some(Ok(sections)) => (sections, Ok(())),
+			Some(Err(e)) if e.kind() != io::ErrorKind::NotFound => (Vec::new(), Err(e)),
+			Some(Err(_)) | None => (Vec::new(), Ok(())),
+		};
+		for &w in &added {
+			if let Some(g) = self.slot_mut(w) {
+				g.adopt(&sections);
 			}
 		}
 		self.order = order_of(&self.look().order);
@@ -743,7 +750,7 @@ impl Graphs {
 	/// Every graph as cairo ARGB32 pixels, `w` by `h`.
 	pub fn render(&mut self, w: usize, h: usize, scale: usize) -> &[u32] {
 		let mut px = std::mem::take(&mut self.px);
-		px.clear();
+		// what's left from the last draw is either drawn over or cleared
 		px.resize(w * h, 0);
 		// on the stack, since slot_mut can't borrow while tiles does
 		let mut tiles = [(Which::Cpu, (0, 0, 0, 0)); Which::ALL.len()];
@@ -752,21 +759,43 @@ impl Graphs {
 			*slot = tile;
 			n += 1;
 		}
-		for &(which, (tx, ty, tw, th)) in &tiles[..n] {
-			if tw == 0 || th == 0 {
+		let mut drawn = [(0, 0, 0, 0); Which::ALL.len()];
+		let mut m = 0;
+		for &(which, tile) in &tiles[..n] {
+			let Some(mut canvas) = Canvas::new(&mut px, w, tile) else {
+				continue;
+			};
+			if canvas.w() == 0 {
 				continue;
 			}
 			let Some(g) = self.slot_mut(which) else {
 				continue;
 			};
-			let one = g.render(tw, th, scale);
-			for (r, row) in one.chunks_exact(tw).enumerate() {
-				let at = (ty + r) * w + tx;
-				px[at..at + tw].copy_from_slice(row);
-			}
+			g.render_in(&mut canvas, scale);
+			drawn[m] = tile;
+			m += 1;
 		}
+		clear_around(&mut px, w, &drawn[..m]);
 		self.px = px;
 		&self.px
+	}
+}
+
+// Zeroes every pixel of the image `w` wide that's outside `drawn`. Tiles
+// sharing a row come left to right, as `tiles` gives them.
+fn clear_around(px: &mut [u32], w: usize, drawn: &[Tile]) {
+	for (y, row) in px.chunks_exact_mut(w.max(1)).enumerate() {
+		let mut x = 0;
+		for &(tx, ty, tw, th) in drawn {
+			if !(ty..ty + th).contains(&y) {
+				continue;
+			}
+			if tx > x {
+				row[x..tx].fill(0);
+			}
+			x = x.max(tx + tw);
+		}
+		row[x.min(w)..].fill(0);
 	}
 }
 
@@ -1048,6 +1077,46 @@ mod tests {
 		assert_eq!(g.the::<MemoryReader, 3>().hover, None);
 		assert_eq!(g.render(14, 24, 1).len(), 14 * 24);
 		assert!(g.tooltip().starts_with("CPU\n\nMemory"));
+	}
+
+	// Test ID: dezfg
+	#[test]
+	fn graphs_draw_straight_into_the_image_and_only_the_gaps_are_cleared() {
+		let mut g = both();
+		for (stacked, w, h) in [(false, 40 + G, 10 + 2 * E), (true, 10 + 2 * E, 40 + G)] {
+			g.stacked = stacked;
+			let (second, cpu_at) = if stacked {
+				((E, 20 + G, 10, 20), (E, 0, 10, 20))
+			} else {
+				((20 + G, E, 20, 10), (0, E, 20, 10))
+			};
+			g.cpu_mut().px.clear();
+			// last draw's leftovers, as from another layout
+			g.px = vec![0xdead_beef; w * h];
+			let px = g.render(w, h, 1).to_vec();
+			assert!(g.cpu().px.is_empty(), "drawn through its own buffer");
+			let left = g.cpu_mut().render(cpu_at.2, cpu_at.3, 1).to_vec();
+			let right = g
+				.the_mut::<MemoryReader, 3>()
+				.render(second.2, second.3, 1)
+				.to_vec();
+			sits(&px, w, &left, cpu_at);
+			sits(&px, w, &right, second);
+			let inside = |x: usize, y: usize, (tx, ty, tw, th): Tile| {
+				(tx..tx + tw).contains(&x) && (ty..ty + th).contains(&y)
+			};
+			for y in 0..h {
+				for x in 0..w {
+					if !inside(x, y, cpu_at) && !inside(x, y, second) {
+						assert_eq!(px[y * w + x], 0, "{x},{y} stacked {stacked}");
+					}
+				}
+			}
+		}
+		// a panel too short for any graph is all clear
+		g.stacked = false;
+		g.px = vec![0xdead_beef; 3 * 40];
+		assert!(g.render(3, 40, 1).iter().all(|&p| p == 0));
 	}
 
 	// Test ID: dejkh
@@ -1442,7 +1511,7 @@ mod tests {
 			None,
 		)
 		.unwrap();
-		assert_eq!(axes(&g), (linear.clone(), Axis::log(Curve::FixedB, total)));
+		assert_eq!(axes(&g), (linear, Axis::log(Curve::FixedB, total)));
 		// one with no pick of its own follows Time axis default
 		g.set_look(
 			Look {

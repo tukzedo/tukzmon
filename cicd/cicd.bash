@@ -124,8 +124,9 @@
 ##	  since that's what gets installed. With no docker, or an image that won't
 ##	  build, the run says so in one line and goes on on the host. Containers
 ##	  and images are cleaned up at the end, only what has the
-##	  dev.project=tukzmon label. The shared build cache is left to docker. Images are left alone while another run is
-##	  live. The image step stops containers whose run is gone.
+##	  dev.project=tukzmon label. The shared build cache is left to docker.
+##	  Images are left alone while another run is live. The image step stops
+##	  containers whose run is gone.
 ##	- Lint: utility/lint-report.bash reports on the newest lint log, and its
 ##	  --check prints only what's new since the last look.
 ##	- Profiler: utility/flame-report.py reports on the newest flamegraph, and
@@ -452,6 +453,27 @@ fStepBuild() {
 lintLog="/dev/null"
 fLintRun() { local rc=0; "$@" 2>&1 | tee -a "${lintLog}" || rc=$?; return "${rc}"; }
 
+## One markdownlint per set of rules it skips, MARKDOWNLINT_DISABLE plus a
+## file's own in MARKDOWNLINT_DISABLE_FOR, since it starts slow.
+fLintMarkdown() {   ## fLintMarkdown FILE...
+	local f entry off i rc=0
+	local -a files=("$@") offOf=() sets=() group=() rules=()
+	local -A known=()
+	for f in "${files[@]}"; do
+		off="${MARKDOWNLINT_DISABLE[*]}"
+		for entry in "${MARKDOWNLINT_DISABLE_FOR[@]}"; do [[ "${entry%%|*}" != "${f}" ]] || off+=" ${entry#*|}"; done
+		offOf+=("${off}")
+		[[ -n "${known[=${off}]:-}" ]] || { known["=${off}"]=1; sets+=("${off}"); }
+	done
+	for off in "${sets[@]}"; do
+		group=()
+		for i in "${!files[@]}"; do [[ "${offOf[i]}" != "${off}" ]] || group+=("${files[i]}"); done
+		read -r -a rules <<< "${off}"
+		fLintRun markdownlint --disable "${rules[@]}" -- "${group[@]}" || rc=1
+	done
+	return "${rc}"
+}
+
 ## clang-tidy over the C++, per .clang-tidy. It reads the cxx bridge's headers
 ## from the clippy build just before it, and qt.cpp's own include of
 ## tukzmon-settings/src/qt.h through a link to settings/ in the run's temp,
@@ -475,8 +497,8 @@ fLintTidy() {
 }
 
 fStepLint() {
-	local f entry pin pinName pinWant pinCmd have
-	local -a failed=() files=() shFiles=() mdFiles=() mdOff=() rules=() pinArgv=() cppFiles=() pyFiles=()
+	local f pin pinName pinWant pinCmd have
+	local -a failed=() files=() shFiles=() mdFiles=() pinArgv=() cppFiles=() pyFiles=()
 	if mkdir -p -- "${root}/${LINT_LOG_DIR}" 2> /dev/null; then
 		lintLog="${root}/${LINT_LOG_DIR}/lint_$(printf '%(%Y%m%d-%H%M%S)T' -1).log"
 		: > "${lintLog}"
@@ -516,16 +538,7 @@ fStepLint() {
 		((handsOff)) && failed+=("markdownlint (not installed)")
 	else
 		fEcho_Clean "markdownlint: ${#mdFiles[@]} file(s)"
-		for f in "${mdFiles[@]}"; do
-			mdOff=("${MARKDOWNLINT_DISABLE[@]}")
-			for entry in "${MARKDOWNLINT_DISABLE_FOR[@]}"; do
-				[[ "${entry%%|*}" == "${f}" ]] || continue
-				read -r -a rules <<< "${entry#*|}"
-				mdOff+=("${rules[@]}")
-			done
-			fLintRun markdownlint --disable "${mdOff[@]}" -- "${f}" || failed+=("markdownlint ${f}")
-		done
-		[[ " ${failed[*]} " == *" markdownlint "* ]] || fEcho_Clean "markdownlint: clean"
+		if fLintMarkdown "${mdFiles[@]}"; then fEcho_Clean "markdownlint: clean"; else failed+=(markdownlint); fi
 	fi
 	if ! command -v clang-tidy > /dev/null 2>&1; then
 		((handsOff)) && failed+=("clang-tidy (not installed)")
@@ -984,6 +997,7 @@ fCtrOthers() {
 fCtrSweepGone() {
 	local id='' run='' stamp='' n=0 left=0
 	local -a gone=() runs=()
+	local -A inUse=()
 	while IFS='|' read -r id run stamp; do
 		[[ -n "${id}" ]] || continue
 		! fCtrRunLive "${run}" "${stamp}" || continue
@@ -997,8 +1011,9 @@ fCtrSweepGone() {
 	fi
 	## The gone run's docker client outlives its container by a moment.
 	for n in {1..25}; do
-		left=0
-		for run in "${runs[@]}"; do [[ -z "$(fRunPids "${HOST_TEMP}/${projectName}/${run}")" ]] || left=1; done
+		((${#runs[@]})) || break
+		left=0; fRunsInUse inUse
+		for run in "${runs[@]}"; do [[ -z "${inUse[${run}]:-}" ]] || left=1; done
 		((left)) || break
 		sleep 0.2
 	done
@@ -1140,8 +1155,8 @@ fCtrImagesBytes() {
 ## The run's containers, the project's dangling images, and its older tags
 ## once this run's image has answered, keeping it and the one before. The
 ## build cache is shared by every project, so the daemon's builder.gc trims it,
-## not us. No image goes while another run is live, since its half-built image has no tag yet, and the tag it
-## runs from may be an older one.
+## not us. No image goes while another run is live, since its half-built
+## image has no tag yet, and the tag it runs from may be an older one.
 fCtrCleanup() {
 	local tag='' seen=0 kept=0 before=0 after=0 freed='' other='' i
 	local -a ids=() doomed=() gone=() tags=() built=() order=()
@@ -1258,3 +1273,5 @@ exit 0
 ##		  as the pre-push hook, as another live run.
 ##		- 2026-11-01: A run whose options turn every check off fails.
 ##		- 2026-11-06: The demo step, with --no-demo.
+##		- 2026-11-07: One markdownlint per set of skipped rules, and one
+##		  process scan per stale sweep.

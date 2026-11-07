@@ -46,7 +46,7 @@ use net::Traffic;
 use own::OwnReader;
 #[cfg(unix)]
 use procs::ProcsReader;
-use render::{Frame, Paint, Peak, Scale, Scratch, Vertical};
+use render::{Canvas, Frame, Paint, Peak, Scale, Scratch, Vertical};
 use temp::TempReader;
 use when::Said;
 use zswap::ZswapReader;
@@ -141,7 +141,7 @@ pub trait Source<const N: usize>: Collector<N> {
 	fn follow(&mut self, _look: &Look) {}
 }
 
-fn pc(x: f32) -> i32 {
+fn percent(x: f32) -> i32 {
 	(x * 100.0).round() as i32
 }
 
@@ -153,11 +153,11 @@ impl Source<4> for CpuReader {
 		let busy: f32 = v.iter().sum();
 		format!(
 			"CPU {}%\nUser {}%\nSystem {}%\nNice {}%\nI/O wait {}%",
-			pc(busy),
-			pc(v[2]),
-			pc(v[1]),
-			pc(v[3]),
-			pc(v[0])
+			percent(busy),
+			percent(v[2]),
+			percent(v[1]),
+			percent(v[3]),
+			percent(v[0])
 		)
 	}
 }
@@ -169,9 +169,9 @@ impl Source<3> for MemoryReader {
 	fn text(&self, v: &[f32; 3]) -> String {
 		format!(
 			"Memory {}% in use\nBuffers {}%\nCache {}%",
-			pc(v[0]),
-			pc(v[1]),
-			pc(v[2])
+			percent(v[0]),
+			percent(v[1]),
+			percent(v[2])
 		)
 	}
 }
@@ -181,7 +181,7 @@ impl Source<1> for GpuReader {
 	const TITLE: &'static str = "GPU";
 
 	fn text(&self, v: &[f32; 1]) -> String {
-		format!("GPU {}% busy", pc(v[0]))
+		format!("GPU {}% busy", percent(v[0]))
 	}
 }
 
@@ -197,11 +197,11 @@ impl Source<1> for VramReader {
 	fn text(&self, v: &[f32; 1]) -> String {
 		let total = self.total() as f64;
 		if total == 0.0 {
-			return format!("GPU memory {}% used", pc(v[0]));
+			return format!("GPU memory {}% used", percent(v[0]));
 		}
 		format!(
 			"GPU memory {}% used\n{} of {} GiB",
-			pc(v[0]),
+			percent(v[0]),
 			gib(f64::from(v[0].clamp(0.0, 1.0)) * total),
 			gib(total)
 		)
@@ -213,7 +213,7 @@ impl Source<1> for SwapReader {
 	const TITLE: &'static str = "Swap";
 
 	fn text(&self, v: &[f32; 1]) -> String {
-		format!("Swap {}% used", pc(v[0]))
+		format!("Swap {}% used", percent(v[0]))
 	}
 }
 
@@ -230,7 +230,7 @@ impl Source<3> for BatteryReader {
 		} else {
 			"plugged in"
 		};
-		format!("Battery {}%, {state}", pc(v.iter().sum()))
+		format!("Battery {}%, {state}", percent(v.iter().sum()))
 	}
 }
 
@@ -240,7 +240,7 @@ impl Source<1> for ZswapReader {
 
 	// the ratio isn't in the history, so it's the latest whatever time is hovered
 	fn text(&self, v: &[f32; 1]) -> String {
-		let used = format!("{} {}% used", self.name(), pc(v[0]));
+		let used = format!("{} {}% used", self.name(), percent(v[0]));
 		match self.ratio() {
 			Some(r) => format!("{used}\nCompressed {r:.1}x now"),
 			None => used,
@@ -708,6 +708,12 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		(beat + 1.0) * rate - at
 	}
 
+	/// When [`Self::tick`] last read the source, on [`clock_ms`], so a caller
+	/// can tell which graphs a tick read.
+	pub fn last_read_ms(&self) -> Option<f64> {
+		self.beat.map(|(_, at)| at)
+	}
+
 	/// The axis for a graph `columns` wide, as of the latest read.
 	pub fn axis(&self, columns: usize) -> Axis {
 		Axis::of(&self.basis(columns))
@@ -742,16 +748,16 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 	/// `render` at that size draws it. None with no history yet.
 	pub fn span_at(&self, x: usize, w: usize, h: usize, scale: usize) -> Option<(f64, f64)> {
 		let now = self.hist.last()?;
-		let bw = self.border_px(w, h, scale);
-		if w <= 2 * bw || h <= 2 * bw {
+		let border = self.border_px(w, h, scale);
+		if w <= 2 * border || h <= 2 * border {
 			return None;
 		}
-		let pw = w - 2 * bw;
-		let thick = scale.clamp(1, pw);
-		let x0 = x.clamp(bw, bw + pw - thick) - bw;
+		let plot_w = w - 2 * border;
+		let thick = scale.clamp(1, plot_w);
+		let x0 = x.clamp(border, border + plot_w - thick) - border;
 		let axis = self.axis(self.columns(w, scale));
 		let axis = self.ease.view(&axis, self.now());
-		let u = |cx: usize| (pw - cx) as f64 / pw as f64;
+		let u = |cx: usize| (plot_w - cx) as f64 / plot_w as f64;
 		Some((now - axis.age(u(x0)), now - axis.age(u(x0 + thick))))
 	}
 
@@ -776,13 +782,24 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 
 	/// The graph as cairo ARGB32 pixels, `w` by `h`.
 	pub fn render(&mut self, w: usize, h: usize, scale: usize) -> &[u32] {
+		let mut px = std::mem::take(&mut self.px);
+		px.resize(w * h, 0);
+		if let Some(mut canvas) = Canvas::whole(&mut px, w, h) {
+			self.render_in(&mut canvas, scale);
+		}
+		self.px = px;
+		&self.px
+	}
+
+	/// As [`Self::render`], into a part of a bigger image.
+	pub fn render_in(&mut self, canvas: &mut Canvas<'_>, scale: usize) {
+		let (w, h) = (canvas.w(), canvas.h());
 		let basis = self.basis(self.columns(w, scale));
 		let axis = Axis::of(&basis);
 		let t = self.now();
 		// a sample may come late by most of a tick, and a tick may be missed
 		let slack = 2.0 * f64::from(self.sample_ms()) / 1000.0 + 0.25;
 		self.ease.update(&axis, basis, t, slack);
-		let mut px = std::mem::take(&mut self.px);
 		let peak = self.src.peak_floor().map(|floor| Scale {
 			peak: &mut self.peak,
 			floor,
@@ -796,13 +813,11 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 			outline: S::outline(&self.look),
 			vertical: S::vertical(&self.look),
 		}
-		.draw_to(&mut px, w, h, scale, peak, &mut self.scratch);
+		.draw_in(canvas, scale, peak, &mut self.scratch);
 		if let Some(x) = self.hover {
-			let bw = self.border_px(w, h, scale);
-			render::line(&mut px, w, h, bw, x, scale, self.look.hover);
+			let border = self.border_px(w, h, scale);
+			canvas.line(border, x, scale, self.look.hover);
 		}
-		self.px = px;
-		&self.px
 	}
 
 	/// The latest read, as the panel's tooltip.

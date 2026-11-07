@@ -4,7 +4,7 @@
 //! What the settings window shows and does, with no Qt in it. The window
 //! asks this for every row's state after each change.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -24,13 +24,19 @@ const HEADER: &str = "## tukzmon settings. Only values changed from their defaul
 )]
 #[derive(Debug)]
 pub struct RowState {
+	/// The value as text.
 	pub text: String,
+	/// The value as a checkbox.
 	pub on: bool,
+	/// The value as a number.
 	pub number: f64,
 	/// Slider position, 0 to 1.
 	pub slider: f64,
+	/// The revert arrow has something to do.
 	pub can_reset: bool,
+	/// Every gate above it is on.
 	pub counts: bool,
+	/// The flyover text.
 	pub tip: String,
 	/// What a dropdown shows, with " *" on a theme changed on top of.
 	pub choice: String,
@@ -44,11 +50,17 @@ pub struct RowState {
 /// ids of the settings it shows.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GraphRow {
+	/// The graph's history name.
 	pub name: String,
+	/// Its Show checkbox.
 	pub show: String,
+	/// Its width.
 	pub width: String,
+	/// How often it samples.
 	pub sample: String,
+	/// Its time axis.
 	pub time: String,
+	/// Its vertical scale.
 	pub vertical: String,
 }
 
@@ -58,8 +70,11 @@ pub const ORDER: &str = "graph_order";
 /// Which theme buttons do anything right now.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ThemeButtons {
+	/// Save.
 	pub save: bool,
+	/// Rename.
 	pub rename: bool,
+	/// Delete.
 	pub delete: bool,
 }
 
@@ -131,6 +146,7 @@ fn carry<V: Clone + PartialEq>(
 	for key in was.keys().chain(now.keys()) {
 		match now.get(key) {
 			v if v == was.get(key) => {}
+			// was and now stay the window's
 			Some(v) => {
 				to.insert(key.clone(), v.clone());
 			}
@@ -241,13 +257,13 @@ impl Dialog {
 			return ThemeButtons::default();
 		}
 		ThemeButtons {
-			save: !self.model.changed(THEME, &NoEnv).is_empty(),
+			save: self.model.has_changes(THEME, &NoEnv),
 			rename: true,
 			delete: true,
 		}
 	}
 
-	/// The saved theme in force, or "".
+	/// The saved theme in force, or "". Owned, for the window's side.
 	pub fn theme_name(&self) -> String {
 		self.on_saved()
 			.map(|i| self.themes[i].name.clone())
@@ -260,6 +276,7 @@ impl Dialog {
 			.map(|g| {
 				g.members
 					.iter()
+					// a saved theme owns its ids, apart from the spec's
 					.map(|id| {
 						let v = self.model.value(id, &NoEnv);
 						(id.clone(), config::theme_text(&v))
@@ -292,15 +309,15 @@ impl Dialog {
 	// (2026103115231908).
 	fn make_room(&mut self, file: &[SavedTheme]) {
 		// the ones this window knew are in self.themes, or deleted here
-		let mut others: Vec<SavedTheme> = file
+		let others: Vec<&SavedTheme> = file
 			.iter()
 			.filter(|f| !self.saved_themes.iter().any(|s| s.key == f.key))
-			.cloned()
 			.collect();
 		if others.is_empty() {
 			return;
 		}
 		let mut moved = false;
+		// one moved already is checked by its new name and key in self.themes
 		for i in 0..self.themes.len() {
 			let t = &self.themes[i];
 			if self.saved_themes.iter().any(|s| s.key == t.key) {
@@ -315,44 +332,46 @@ impl Dialog {
 						.enumerate()
 						.any(|(j, o)| j != i && o.name.eq_ignore_ascii_case(n))
 			};
-			if !key_taken && !name_taken(&t.name) {
-				continue;
-			}
-			let name = if name_taken(&t.name) {
+			let new_name = name_taken(&t.name).then(|| {
 				// n names can take at most n of these
 				(2..=others.len() + self.themes.len() + 2)
 					.map(|n| format!("{} {n}", t.name))
 					.find(|n| !name_taken(n))
 					.unwrap_or_else(|| t.name.clone())
-			} else {
-				t.name.clone()
-			};
-			let old = t.key.clone();
-			let key = if key_taken {
-				let all: Vec<SavedTheme> = others.iter().chain(&self.themes).cloned().collect();
-				config::theme_key(&name, &all)
-			} else {
-				old.clone()
-			};
-			others.push(SavedTheme {
-				key: key.clone(),
-				name: name.clone(),
-				colors: BTreeMap::new(),
 			});
-			self.themes[i].name = name;
-			self.themes[i].key.clone_from(&key);
-			let v = &mut self.model.values;
-			for store in [&mut v.own, &mut v.state] {
-				if let Some(Value::Text(k)) = store.get_mut(THEME) {
-					if *k == old {
-						k.clone_from(&key);
-					}
-				}
-			}
-			if v.changed_on.get(THEME) == Some(&old) {
-				v.changed_on.insert(THEME.to_string(), key);
+			let new_key = key_taken.then(|| {
+				let keys = others
+					.iter()
+					.copied()
+					.chain(&self.themes)
+					.map(|o| o.key.as_str());
+				config::theme_key(new_name.as_deref().unwrap_or(&t.name), keys)
+			});
+			if new_name.is_none() && new_key.is_none() {
+				continue;
 			}
 			moved = true;
+			if let Some(name) = new_name {
+				self.themes[i].name = name;
+			}
+			let Some(key) = new_key else {
+				continue;
+			};
+			let old = std::mem::replace(&mut self.themes[i].key, key);
+			let key = &self.themes[i].key;
+			let v = &mut self.model.values;
+			for store in [&mut v.own, &mut v.state] {
+				if let Some(Value::Text(k)) = store.get_mut(THEME)
+					&& *k == old
+				{
+					k.clone_from(key);
+				}
+			}
+			if let Some(k) = v.changed_on.get_mut(THEME)
+				&& *k == old
+			{
+				k.clone_from(key);
+			}
 		}
 		if moved {
 			self.respec();
@@ -397,7 +416,7 @@ impl Dialog {
 	pub fn save_theme_as(&mut self, name: &str) -> Result<(), String> {
 		let name = self.check_name(name, None)?;
 		let theme = SavedTheme {
-			key: config::theme_key(&name, &self.themes),
+			key: config::theme_key(&name, self.themes.iter().map(|t| t.key.as_str())),
 			name,
 			colors: self.shown_colors(),
 		};
@@ -483,7 +502,7 @@ impl Dialog {
 		RowState {
 			text: match v {
 				Value::Text(t) => t,
-				other => other.show(),
+				Value::Bool(_) | Value::Int(_) | Value::Float(_) => v.show(),
 			},
 			on,
 			number,
@@ -495,6 +514,7 @@ impl Dialog {
 				Some(s) if s.control == Control::Dropdown => self.model.shown_choice(id, &NoEnv),
 				_ => String::new(),
 			},
+			// the window's side owns its text
 			options: setting.map(|s| s.options.clone()).unwrap_or_default(),
 			shown: config::shown_when(id)
 				.is_none_or(|(on, key)| self.model.value(on, &NoEnv).as_text() == key),
@@ -530,7 +550,7 @@ impl Dialog {
 				_ => return false,
 			},
 			Kind::Color if !t.starts_with('#') => Value::Text(format!("#{t}")),
-			_ => Value::Text(t.to_string()),
+			Kind::Text | Kind::Color | Kind::Choice => Value::Text(t.to_string()),
 		};
 		self.set(id, &v)
 	}
@@ -621,15 +641,15 @@ impl Dialog {
 			.collect()
 	}
 
-	/// Drawn in the graph list rather than as a row of its own, the order
-	/// included.
-	pub fn in_graph_list(&self, id: &str) -> bool {
-		id == ORDER
-			|| self.graph_rows().iter().any(|r| {
-				[&r.show, &r.width, &r.sample, &r.time, &r.vertical]
-					.iter()
-					.any(|s| *s == id)
-			})
+	/// The settings drawn in the graph list rather than as rows of their
+	/// own, the order included. One call per window, since `graph_rows` scans
+	/// the spec.
+	pub fn graph_list_ids(&self) -> HashSet<String> {
+		self.graph_rows()
+			.into_iter()
+			.flat_map(|r| [r.show, r.width, r.sample, r.time, r.vertical])
+			.chain([ORDER.to_string()])
+			.collect()
 	}
 
 	/// Moves the graph list's row `from` to `to`, and keeps that as the order.
@@ -1189,6 +1209,7 @@ mod tests {
 				"battery", "self", "procs"
 			]
 		);
+		let listed = dlg.graph_list_ids();
 		for id in [
 			"show_cpu",
 			"cpu_width",
@@ -1199,10 +1220,10 @@ mod tests {
 			"mem_time",
 			ORDER,
 		] {
-			assert!(dlg.in_graph_list(id), "{id}");
+			assert!(listed.contains(id), "{id}");
 		}
 		for id in ["width", "time_axis", "vertical_axis", "graphshead", "theme"] {
-			assert!(!dlg.in_graph_list(id), "{id}");
+			assert!(!listed.contains(id), "{id}");
 		}
 		// a hidden graph's width and time axis can still be set
 		assert!(dlg.set(&dlg.graph_rows()[0].show.clone(), &Value::Bool(false)));
@@ -1957,6 +1978,40 @@ mod tests {
 		assert_eq!(second.state("theme").choice, "mine 2");
 		let reread = Dialog::open(path).unwrap();
 		assert_eq!(reread.state("theme").choice, "mine 2");
+	}
+
+	// Test ID: dezea
+	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
+	fn two_new_themes_each_move_past_the_other_windows_and_each_other() {
+		let d = scratch("two_moved");
+		let path = d.0.join("t.shcl");
+		let mut first = Dialog::open(path.clone()).unwrap();
+		let mut second = Dialog::open(path.clone()).unwrap();
+		first.save_theme_as("A").unwrap();
+		first.save_theme_as("A 2").unwrap();
+		first.apply().unwrap();
+		second.save_theme_as("a").unwrap();
+		second.save_theme_as("a 2").unwrap();
+		second.apply().unwrap();
+		let doc = shcl::Document::parse(&std::fs::read_to_string(&path).unwrap());
+		let saved: Vec<(String, String)> = config::saved_themes(&doc)
+			.into_iter()
+			.map(|t| (t.key, t.name))
+			.collect();
+		let want = [
+			("a", "A"),
+			("a_2", "A 2"),
+			("a_3", "a 3"),
+			("a_2_2", "a 2 2"),
+		];
+		let want: Vec<(String, String)> = want
+			.iter()
+			.map(|(k, n)| ((*k).into(), (*n).into()))
+			.collect();
+		assert_eq!(saved, want);
+		assert_eq!(second.state("theme").choice, "a 2 2");
+		assert_eq!(second.model.values.changed_on.get(THEME), None);
 	}
 
 	// Out since 2026-10-29: a theme line it can't read is dropped rather than

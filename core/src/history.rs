@@ -159,23 +159,23 @@ impl<const N: usize> Tier<N> {
 	/// numbers are counted from time 0.
 	fn add_buckets(&self, a0: i64, a1: i64, out: &mut Total<N>) {
 		let range = (a0 - self.first) as usize..(a1 - self.first) as usize;
-		for (a, bk) in (a0..).zip(self.buckets.range(range)) {
-			if bk.secs <= 0.0 {
+		for (a, bucket) in (a0..).zip(self.buckets.range(range)) {
+			if bucket.secs <= 0.0 {
 				continue;
 			}
 			let start = a as f64 * self.len;
-			let (lo, hi) = (start + bk.lo, start + bk.hi);
+			let (lo, hi) = (start + bucket.lo, start + bucket.hi);
 			if hi <= lo {
 				continue;
 			}
 			// the bucket's mean, weighted by its data, as a span weighs it
-			let secs = f64::from(bk.secs);
+			let secs = f64::from(bucket.secs);
 			let w = secs.min(hi - lo);
 			let k = w / secs;
 			out.weight += w;
 			for s in 0..N {
-				out.sums[s] += k * f64::from(bk.sum[s]);
-				out.max[s] = out.max[s].max(bk.max[s]);
+				out.sums[s] += k * f64::from(bucket.sum[s]);
+				out.max[s] = out.max[s].max(bucket.max[s]);
 			}
 		}
 	}
@@ -388,22 +388,22 @@ impl<const N: usize> History<N> {
 		}
 		let ends = if i1 - i0 > 1 { [i0, i1 - 1] } else { [i0, i1] };
 		for i in ends.into_iter().filter(|&i| i < i1) {
-			let bk = &tier.buckets[i as usize];
-			if bk.secs <= 0.0 {
+			let bucket = &tier.buckets[i as usize];
+			if bucket.secs <= 0.0 {
 				continue;
 			}
 			let start = (tier.first + i) as f64 * tier.len;
-			let (lo, hi) = (start + bk.lo, start + bk.hi);
+			let (lo, hi) = (start + bucket.lo, start + bucket.hi);
 			let overlap = b.min(hi) - a.max(lo);
 			if overlap <= 0.0 {
 				continue;
 			}
 			// a bucket with a hole in it is taken as evenly thin
-			let w = overlap * (bk.secs as f64 / (hi - lo)).min(1.0);
+			let w = overlap * (bucket.secs as f64 / (hi - lo)).min(1.0);
 			weight += w;
 			for s in 0..N {
-				sums[s] += w * bk.mean(s) as f64;
-				max[s] = max[s].max(bk.max[s]);
+				sums[s] += w * bucket.mean(s) as f64;
+				max[s] = max[s].max(bucket.max[s]);
 			}
 		}
 		if weight > 0.0 {
@@ -466,13 +466,13 @@ impl<const N: usize> History<N> {
 	/// Times out of order, or buckets outside them, are None too. A bucket
 	/// with a value that isn't finite comes back as a gap.
 	pub fn decode(bytes: &[u8]) -> Option<History<N>> {
-		let mut rd = Reader(bytes);
-		let series = rd.u32()? as usize;
+		let mut reader = Reader(bytes);
+		let series = reader.u32()? as usize;
 		if series != 0 && series != N {
 			return None;
 		}
-		let first = Some(rd.f64()?).filter(|x| x.is_finite());
-		let last = Some(rd.f64()?).filter(|x| x.is_finite());
+		let first = Some(reader.f64()?).filter(|x| x.is_finite());
+		let last = Some(reader.f64()?).filter(|x| x.is_finite());
 		let span = match (first, last) {
 			(Some(f), Some(l)) if (0.0..=l).contains(&f) && l < LATEST => Some((f, l)),
 			(None, None) => None,
@@ -484,14 +484,14 @@ impl<const N: usize> History<N> {
 			..History::default()
 		};
 		// a file from before a finer tier went in has none of it
-		let count = rd.u32()? as usize;
+		let count = reader.u32()? as usize;
 		let skip = h.tiers.len().checked_sub(count)?;
 		for tier in &mut h.tiers[skip..] {
-			if rd.f64()? != tier.len {
+			if reader.f64()? != tier.len {
 				return None;
 			}
-			tier.first = rd.i64()?;
-			let count = rd.u32()? as i64;
+			tier.first = reader.i64()?;
+			let count = reader.u32()? as i64;
 			if count > tier.cap() {
 				return None;
 			}
@@ -506,19 +506,19 @@ impl<const N: usize> History<N> {
 			}
 			for _ in 0..count {
 				let b = Bucket {
-					sum: rd.f32s()?,
-					min: rd.f32s()?,
-					max: rd.f32s()?,
-					secs: rd.f32s::<1>()?[0],
-					lo: rd.f64()?,
-					hi: rd.f64()?,
+					sum: reader.f32s()?,
+					min: reader.f32s()?,
+					max: reader.f32s()?,
+					secs: reader.f32s::<1>()?[0],
+					lo: reader.f64()?,
+					hi: reader.f64()?,
 				};
 				tier.buckets
 					.push_back(if b.sane() { b } else { Bucket::default() });
 			}
 			tier.reindex(0);
 		}
-		rd.0.is_empty().then_some(h)
+		reader.0.is_empty().then_some(h)
 	}
 }
 
