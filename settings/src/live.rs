@@ -500,9 +500,9 @@ mod tests {
 		d.set("width", &Value::Float(100.0));
 		d.set("temp_width", &Value::Float(40.0));
 		live.set_look(d.look());
-		assert_eq!(live.width("temp"), 40);
-		// the box, or a container, may have no CPU sensor
+		// the box, or a container, may have no CPU sensor, and then no row
 		if live.has(Which::Temp) {
+			assert_eq!(live.width("temp"), 40);
 			live.sample();
 			std::thread::sleep(std::time::Duration::from_millis(20));
 			live.sample();
