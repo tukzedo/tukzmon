@@ -9,7 +9,7 @@
 
 ![Release](https://img.shields.io/github/v/release/tukzedo/tukzmon?include_prereleases) ![Rust 1.96](https://img.shields.io/badge/rust-1.96-orange)
 
-A system monitor for your desktop panel. Its small graphs show CPU, memory, GPU, network, disk, and more, with the last few seconds and the last few weeks in one graph.
+Tukzmon is a system monitor for your desktop panel. It shows graphs for CPU, memory, GPU, network, disk, and more, with the last few seconds and the last few weeks in one graph.
 
 ![tukzmon in an XFCE panel: a fresh start, days of history on the log time axis, and the settings window](assets/demo.gif)
 
@@ -17,7 +17,7 @@ A system monitor for your desktop panel. Its small graphs show CPU, memory, GPU,
 
 The time axis is logarithmic by default. The last minute gets the most room, and older history is squeezed to the left, so one small graph shows the last few seconds and the last few weeks at once. History is kept across restarts and reboots (by default), with gaps where the computer was off.
 
-Height can go up on a straight, log, or squared scale, for every graph or one at a time. Log lifts a trickle so it shows next to a burst, and squared makes the peaks stand out.
+Height can go up on a straight, log, or squared scale, for every graph or one at a time. Log allows trickles to be visible next to large bursts; whereas squared exaggerates differences.
 
 <!-- TOC ignore:true -->
 ## Table of contents
@@ -40,11 +40,11 @@ Height can go up on a straight, log, or squared scale, for every graph or one at
 
 ## Status
 
-The first version is an XFCE panel plugin. Other desktops will follow. And then after that - Windows, macOS, and the BSDs. Both are deferred items on the [backlog](project/backlog.md).
+The first version is an XFCE panel plugin. Other desktops will follow. And then after that - Windows, macOS, and the BSDs.
 
-Tukzmon doesn't need any of the [related projects](#related-projects). It should work on any distro with a supported panel.
+Tukzmon doesn't need any of the [related projects](#related-projects). It works on any distro with a supported panel.
 
-The first release is 1.0.0-beta.1, and it's still a beta. Packages for Debian, Ubuntu, and Fedora are on the [releases page](https://github.com/tukzedo/tukzmon/releases).
+The first release is 1.0.0-beta.1. Although beta, it's very solid. Packages for Debian, Ubuntu, and Fedora are on the [releases page](https://github.com/tukzedo/tukzmon/releases).
 
 ## Graphs
 
