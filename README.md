@@ -7,7 +7,7 @@
 <!-- TOC ignore:true -->
 # tukzmon
 
-![Rust 1.96](https://img.shields.io/badge/rust-1.96-orange)
+![Release](https://img.shields.io/github/v/release/tukzedo/tukzmon?include_prereleases) ![Rust 1.96](https://img.shields.io/badge/rust-1.96-orange)
 
 A system monitor that lives in your panel. Its small graphs show CPU, memory, GPU, network, disk, and more, with the last few seconds and the last few weeks in one graph.
 
@@ -28,6 +28,7 @@ Height can go up on a straight, log, or squared scale, for every graph or one at
 - [Graphs](#graphs)
 - [Features](#features)
 - [Installation](#installation)
+	- [Debian, Ubuntu, Fedora](#debian-ubuntu-fedora)
 	- [NixOS](#nixos)
 	- [DIY](#diy)
 - [Set up development environment](#set-up-development-environment)
@@ -43,7 +44,7 @@ The first version is an XFCE panel plugin. Other desktops will follow. And then 
 
 Tukzmon doesn't need any of the [related projects](#related-projects). It should work on any distro with a supported panel.
 
-There are no release packages yet. For now, install it on NixOS or build it from a checkout.
+1.0.0-beta.1 is the first release, and it's a beta. Packages for Debian, Ubuntu and Fedora are on the [releases page](https://github.com/tukzedo/tukzmon/releases).
 
 ## Graphs
 
@@ -90,6 +91,18 @@ There are no release packages yet. For now, install it on NixOS or build it from
 - It works under X11 and Wayland on XFCE 4.20.
 
 ## Installation
+
+### Debian, Ubuntu, Fedora
+
+Get the `.deb` or `.rpm` from the [releases page](https://github.com/tukzedo/tukzmon/releases). It needs XFCE 4.20, which is in Debian 13, Ubuntu 25.04 and Fedora 42 or later.
+
+~~~bash
+sudo apt install ./tukzmon-1.0.0-beta.1-linux-x86_64.deb    ## Debian, Ubuntu
+sudo dnf install ./tukzmon-1.0.0-beta.1-linux-x86_64.rpm    ## Fedora
+xfce4-panel -r
+~~~
+
+After the panel restarts, tukzmon is in its Add New Items list.
 
 ### NixOS
 
