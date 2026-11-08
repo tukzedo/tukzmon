@@ -1,0 +1,1045 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+// Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
+
+//! Stacked column graphs into a pixel buffer. Pixels are cairo's ARGB32:
+//! premultiplied, native-endian `0xAARRGGBB`. Only a transparent background
+//! is less than opaque.
+
+use crate::axis::Ages;
+use crate::config::{Look, Outline, Rgb};
+use crate::history::History;
+
+/// Seconds a column can cover before its spike emphasis is down by half, at
+/// an emphasis near 0. The setting stretches it, see design.md Drawing.
+const SPIKE_FADE: f64 = 20.0;
+
+/// A column with less data than this is a gap.
+pub(crate) const MIN_COVER: f32 = 0.5;
+
+fn mix(a: Rgb, b: Rgb, t: f32) -> [f32; 3] {
+	let m = |x: u8, y: u8| x as f32 + (y as f32 - x as f32) * t;
+	[m(a.0, b.0), m(a.1, b.1), m(a.2, b.2)]
+}
+
+/// `c` already premultiplied by `alpha`, 0 to 1.
+fn pack_alpha(c: [f32; 3], alpha: f32) -> u32 {
+	let q = |v: f32| v.round().clamp(0.0, 255.0) as u32;
+	q(alpha * 255.0) << 24 | q(c[0]) << 16 | q(c[1]) << 8 | q(c[2])
+}
+
+/// Seconds for a falling peak to come most of the way down to what's in view.
+const PEAK_FALL: f64 = 2.0;
+
+// the spike emphasis, with its fade worked out once a draw
+#[derive(Clone, Copy, Debug)]
+struct Reach {
+	spikes: f32,
+	fade: f64,
+}
+
+impl Reach {
+	fn new(spikes: f32) -> Self {
+		let fade = SPIKE_FADE * 1000f64.powf(f64::from(spikes));
+		Reach { spikes, fade }
+	}
+
+	// mean plus part of the way to max, in the source's own unit
+	fn of<const N: usize>(self, mean: &[f32; N], max: &[f32; N], secs: f64) -> [f32; N] {
+		let reach = self.spikes * (1.0 / (1.0 + secs / self.fade)) as f32;
+		std::array::from_fn(|i| mean[i] + (max[i] - mean[i]).max(0.0) * reach)
+	}
+}
+
+fn fit<const N: usize>(v: [f32; N], top: f32) -> [f32; N] {
+	let mut v = v.map(|x| (x / top).clamp(0.0, 1.0));
+	let total: f32 = v.iter().sum();
+	if total > 1.0 {
+		for x in &mut v {
+			*x /= total;
+		}
+	}
+	v
+}
+
+/// The top of a graph with no fixed one, such as bytes per second. It jumps
+/// up to the highest column in view, so nothing is cut off, and eases down
+/// once that has gone. See design.md Drawing.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Peak {
+	top: f32,
+	/// Graph time of the last fit.
+	at: Option<f64>,
+}
+
+impl Peak {
+	/// The top to draw to at time `t`, with `highest` the tallest stack in
+	/// view. It never goes under `floor`, so a quiet line isn't blown up to
+	/// fill the graph.
+	pub fn fit(&mut self, highest: f32, floor: f32, t: f64) -> f32 {
+		let want = highest.max(floor);
+		self.top = match self.at {
+			Some(was) if want < self.top => {
+				let keep = (-(t - was).max(0.0) / PEAK_FALL).exp() as f32;
+				want + (self.top - want) * keep
+			}
+			_ => want,
+		};
+		self.at = Some(t);
+		self.top
+	}
+
+	/// The last top fitted, or 0 before any.
+	pub fn top(&self) -> f32 {
+		self.top
+	}
+}
+
+/// How a graph with no fixed top is scaled.
+#[derive(Debug)]
+pub struct Scale<'a> {
+	/// The top so far, eased.
+	pub peak: &'a mut Peak,
+	/// The least the top goes down to, in the source's own unit.
+	pub floor: f32,
+}
+
+/// How height goes up the graph. A stack keeps its shares of the column's
+/// height on every one. See design.md, Drawing.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Vertical {
+	/// In proportion to the value.
+	#[default]
+	Linear,
+	/// Log, from a thousandth of the floor, or of a fixed top, up to the top.
+	Log10,
+	/// The value over the top, squared, so big ones stand out.
+	Squared,
+}
+
+impl Vertical {
+	/// From its saved key, or None.
+	pub fn parse(key: &str) -> Option<Vertical> {
+		[
+			("linear", Vertical::Linear),
+			("log10", Vertical::Log10),
+			("squared", Vertical::Squared),
+		]
+		.into_iter()
+		.find_map(|(k, v)| key.eq_ignore_ascii_case(k).then_some(v))
+	}
+
+	fn fit<const N: usize>(self, v: [f32; N], top: f32, floor: f32) -> [f32; N] {
+		match self {
+			Vertical::Linear => fit(v, top),
+			Vertical::Log10 => fit_log(v, top, floor),
+			Vertical::Squared => fit_squared(v, top),
+		}
+	}
+}
+
+// measured up from a thousandth of the floor, so a disk's idle trickle shows
+fn fit_log<const N: usize>(v: [f32; N], top: f32, floor: f32) -> [f32; N] {
+	let unit = floor / 1000.0;
+	let total: f32 = v.iter().map(|x| x.max(0.0)).sum();
+	if total <= 0.0 {
+		return [0.0; N];
+	}
+	let height = ((total / unit).ln_1p() / (top / unit).ln_1p()).clamp(0.0, 1.0);
+	v.map(|x| x.max(0.0) / total * height)
+}
+
+fn fit_squared<const N: usize>(v: [f32; N], top: f32) -> [f32; N] {
+	let total: f32 = v.iter().map(|x| x.max(0.0)).sum();
+	if total <= 0.0 {
+		return [0.0; N];
+	}
+	let height = (total / top).clamp(0.0, 1.0).powi(2);
+	v.map(|x| x.max(0.0) / total * height)
+}
+
+/// A `w` by `h` part of a bigger image, whose rows are `stride` pixels apart,
+/// so a graph draws straight into the panel item's image.
+#[derive(Debug)]
+pub struct Canvas<'a> {
+	px: &'a mut [u32],
+	stride: usize,
+	w: usize,
+	h: usize,
+}
+
+impl<'a> Canvas<'a> {
+	/// The `(x, y, w, h)` part of `px`, an image `stride` pixels wide, or
+	/// None when it doesn't fit.
+	pub fn new(
+		px: &'a mut [u32],
+		stride: usize,
+		(x, y, w, h): (usize, usize, usize, usize),
+	) -> Option<Self> {
+		if w == 0 || h == 0 {
+			return Some(Canvas {
+				px: &mut [],
+				stride,
+				w: 0,
+				h: 0,
+			});
+		}
+		if x + w > stride || (y + h - 1) * stride + x + w > px.len() {
+			return None;
+		}
+		Some(Canvas {
+			px: &mut px[y * stride + x..],
+			stride,
+			w,
+			h,
+		})
+	}
+
+	/// All of `px`, `w` by `h`, or None when it's shorter than that.
+	pub fn whole(px: &'a mut [u32], w: usize, h: usize) -> Option<Self> {
+		Self::new(px, w, (0, 0, w, h))
+	}
+
+	/// Width.
+	pub fn w(&self) -> usize {
+		self.w
+	}
+
+	/// Height.
+	pub fn h(&self) -> usize {
+		self.h
+	}
+
+	fn row(&mut self, r: usize) -> &mut [u32] {
+		let at = r * self.stride;
+		&mut self.px[at..at + self.w]
+	}
+
+	/// A vertical line `thick` pixels wide from column `x`, over the plot
+	/// only, so a pointer on the border puts it at the plot's edge. `border`
+	/// is how wide the border is.
+	pub fn line(&mut self, border: usize, x: usize, thick: usize, color: Rgb) {
+		let (w, h) = (self.w, self.h);
+		if w <= 2 * border || h <= 2 * border {
+			return;
+		}
+		let (plot_w, plot_h) = (w - 2 * border, h - 2 * border);
+		let thick = thick.clamp(1, plot_w);
+		let x0 = x.clamp(border, border + plot_w - thick);
+		let c = color.argb();
+		for r in border..border + plot_h {
+			self.row(r)[x0..x0 + thick].fill(c);
+		}
+	}
+}
+
+/// How a column is colored.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Paint<'a, const N: usize> {
+	/// A color per series, stacked from the bottom.
+	Stack(&'a [Rgb; N]),
+	/// Low, Medium and High. The whole column takes the blend at each
+	/// pixel's height in the plot, so the colors stay put as it grows.
+	Gradient([Rgb; 3]),
+}
+
+/// The gradient's color `t` of the way up, 0 to 1.
+pub fn blend(stops: [Rgb; 3], t: f32) -> [f32; 3] {
+	let t = t.clamp(0.0, 1.0) * 2.0;
+	if t <= 1.0 {
+		mix(stops[0], stops[1], t)
+	} else {
+		mix(stops[1], stops[2], t - 1.0)
+	}
+}
+
+/// Buffers a draw keeps for the next one, so drawing at the same size
+/// allocates nothing.
+#[derive(Debug, Default)]
+pub struct Scratch<const N: usize> {
+	/// The background's color per plot row, top first, premultiplied.
+	back: Vec<[f32; 3]>,
+	/// The same, packed.
+	back_px: Vec<u32>,
+	/// The gradient's color per plot row, when that's the paint.
+	grad: Vec<[f32; 3]>,
+	grad_px: Vec<u32>,
+	/// Each column's reach, or None for a gap.
+	reached: Vec<Option<[f32; N]>>,
+}
+
+/// What one draw of a graph reads.
+pub struct Frame<'a, const N: usize> {
+	/// The samples.
+	pub hist: &'a History<N>,
+	/// Seconds old at each column.
+	pub axis: &'a dyn Ages,
+	/// Time at the right edge.
+	pub now: f64,
+	/// The settings it draws with.
+	pub look: &'a Look,
+	/// Its colors.
+	pub paint: Paint<'a, N>,
+	/// Its frame and background.
+	pub outline: Outline,
+	/// How height goes up it.
+	pub vertical: Vertical,
+}
+
+// By hand, since `axis` is a trait object.
+impl<const N: usize> std::fmt::Debug for Frame<'_, N> {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("Frame")
+			.field("hist", &self.hist)
+			.field("now", &self.now)
+			.field("look", &self.look)
+			.field("paint", &self.paint)
+			.field("outline", &self.outline)
+			.field("vertical", &self.vertical)
+			.finish_non_exhaustive()
+	}
+}
+
+impl<const N: usize> Frame<'_, N> {
+	/// Draw into `px`, `w` by `h`, rows top first. `scale` multiplies the
+	/// border for high-DPI screens.
+	pub fn draw(&self, px: &mut Vec<u32>, w: usize, h: usize, scale: usize) {
+		self.draw_to(px, w, h, scale, None, &mut Scratch::default());
+	}
+
+	/// As [`Self::draw`], for a source with no fixed top: `scaled` sets the
+	/// top, in the source's own unit, instead of 1. `scratch` is kept from
+	/// one draw to the next.
+	pub fn draw_to(
+		&self,
+		px: &mut Vec<u32>,
+		w: usize,
+		h: usize,
+		scale: usize,
+		scaled: Option<Scale<'_>>,
+		scratch: &mut Scratch<N>,
+	) {
+		px.resize(w * h, 0);
+		if let Some(mut canvas) = Canvas::whole(px, w, h) {
+			self.draw_in(&mut canvas, scale, scaled, scratch);
+		}
+	}
+
+	/// As [`Self::draw_to`], into a part of a bigger image. Every pixel of
+	/// `canvas` is written.
+	pub fn draw_in(
+		&self,
+		canvas: &mut Canvas<'_>,
+		scale: usize,
+		scaled: Option<Scale<'_>>,
+		scratch: &mut Scratch<N>,
+	) {
+		let (w, h) = (canvas.w, canvas.h);
+		let border = (self.look.border as usize * scale).min(w / 2).min(h / 2);
+		let (plot_w, plot_h) = (w - 2 * border, h - 2 * border);
+		let edge = self.outline.border.argb();
+		// the plot below writes all of itself, so only the border is filled
+		for r in 0..h {
+			let row = canvas.row(r);
+			if plot_w == 0 || r < border || r >= border + plot_h {
+				row.fill(edge);
+			} else {
+				row[..border].fill(edge);
+				row[border + plot_w..].fill(edge);
+			}
+		}
+		if plot_w == 0 || plot_h == 0 {
+			return;
+		}
+		let stride = canvas.stride;
+		let px = &mut *canvas.px;
+		let Scratch {
+			back,
+			back_px,
+			grad,
+			grad_px,
+			reached,
+		} = scratch;
+		// premultiplied, so a transparent one is all zeros
+		let back_alpha = if self.look.transparent { 0.0 } else { 1.0 };
+		back.clear();
+		back.extend((0..plot_h).map(|r| {
+			let t = if plot_h > 1 {
+				r as f32 / (plot_h - 1) as f32
+			} else {
+				0.0
+			};
+			mix(self.outline.top, self.outline.bottom, t).map(|v| v * back_alpha)
+		}));
+		back_px.clear();
+		back_px.extend(back.iter().map(|&c| pack_alpha(c, back_alpha)));
+		let (cols, solid) = match self.paint {
+			Paint::Stack(colors) => {
+				let cols = colors.map(|c| [c.0 as f32, c.1 as f32, c.2 as f32]);
+				(cols, cols.map(|c| pack_alpha(c, 1.0)))
+			}
+			Paint::Gradient(_) => ([[0.0; 3]; N], [0; N]),
+		};
+		// row by row, top first, at each row's middle
+		grad.clear();
+		grad_px.clear();
+		if let Paint::Gradient(stops) = self.paint {
+			grad.extend(
+				(0..plot_h).map(|r| blend(stops, ((plot_h - r) as f32 - 0.5) / plot_h as f32)),
+			);
+			grad_px.extend(grad.iter().map(|&g| pack_alpha(g, 1.0)));
+		}
+		reached.clear();
+		let emphasis = Reach::new(self.look.spikes);
+		// each column's old edge is the new edge of the one left of it
+		let mut a = self.now - self.axis.age(1.0);
+		reached.extend((0..plot_w).map(|cx| {
+			let u_new = (plot_w - cx - 1) as f64 / plot_w as f64;
+			let b = self.now - self.axis.age(u_new);
+			let a = std::mem::replace(&mut a, b);
+			let span = self.hist.span(a, b);
+			(span.covered >= MIN_COVER)
+				.then(|| emphasis.of(&span.mean, &span.max, b - a))
+				// else NaN fills the column, and inf flattens every other one
+				.filter(|v| v.iter().all(|x| x.is_finite()))
+		}));
+		// a fixed top is its own floor, for a log scale
+		let (top, floor) = match scaled {
+			Some(Scale { peak, floor }) => {
+				let highest = reached
+					.iter()
+					.flatten()
+					.map(|v| v.iter().map(|x| x.max(0.0)).sum::<f32>())
+					.fold(0.0, f32::max);
+				(peak.fit(highest, floor, self.now), floor)
+			}
+			None => (1.0, 1.0),
+		};
+		let gradient = matches!(self.paint, Paint::Gradient(_));
+		for (cx, v) in reached.iter().enumerate() {
+			let at = |r: usize| (r + border) * stride + cx + border;
+			let Some(hs) = v.map(|v| self.vertical.fit(v, top, floor)) else {
+				for (r, &b) in back_px.iter().enumerate() {
+					px[at(r)] = b;
+				}
+				continue;
+			};
+			if gradient {
+				let top = hs.iter().sum::<f32>() * plot_h as f32;
+				for r in 0..plot_h {
+					let (p0, p1) = ((plot_h - r - 1) as f32, (plot_h - r) as f32);
+					let cover = (top.min(p1) - p0).clamp(0.0, 1.0);
+					px[at(r)] = if cover >= 1.0 {
+						grad_px[r]
+					} else if cover <= 0.0 {
+						back_px[r]
+					} else {
+						let c = std::array::from_fn(|k| {
+							back[r][k] * (1.0 - cover) + grad[r][k] * cover
+						});
+						pack_alpha(c, back_alpha * (1.0 - cover) + cover)
+					};
+				}
+				continue;
+			}
+			// each series' top, in pixels up from the bottom
+			let mut tops = [0.0f32; N];
+			let mut y = 0.0f32;
+			for (t, hgt) in tops.iter_mut().zip(hs) {
+				y += hgt * plot_h as f32;
+				*t = y;
+			}
+			// up from the bottom row, with s the lowest series not yet below it
+			let mut s = 0;
+			for i in 0..plot_h {
+				let r = plot_h - 1 - i;
+				let (p0, p1) = (i as f32, (i + 1) as f32);
+				while s < N && tops[s] <= p0 {
+					s += 1;
+				}
+				if s == N {
+					for r in 0..=r {
+						px[at(r)] = back_px[r];
+					}
+					break;
+				}
+				let bottom = if s == 0 { 0.0 } else { tops[s - 1] };
+				px[at(r)] = if bottom <= p0 && tops[s] >= p1 {
+					solid[s]
+				} else {
+					// this pixel's slice of the stack
+					let mut y = bottom;
+					let mut left = 1.0f32;
+					let mut acc = [0.0f32; 3];
+					for k in s..N {
+						let cover = (tops[k].min(p1) - y.max(p0)).max(0.0);
+						if cover > 0.0 {
+							for (a, c) in acc.iter_mut().zip(cols[k]) {
+								*a += c * cover;
+							}
+							left -= cover;
+						}
+						y = tops[k];
+					}
+					let left = left.max(0.0);
+					let c = std::array::from_fn(|k| back[r][k] * left + acc[k]);
+					pack_alpha(c, back_alpha * left + (1.0 - left))
+				};
+			}
+		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::axis::{Axis, Curve};
+
+	fn pack(c: [f32; 3]) -> u32 {
+		pack_alpha(c, 1.0)
+	}
+
+	// a column's heights as the drawing takes them, with a top of 1
+	fn column<const N: usize>(mean: &[f32; N], max: &[f32; N], secs: f64, spikes: f32) -> [f32; N] {
+		fit(Reach::new(spikes).of(mean, max, secs), 1.0)
+	}
+
+	fn look() -> Look {
+		Look {
+			border: 1,
+			..Look::default()
+		}
+	}
+
+	const OUTLINE: Outline = Outline {
+		border: Rgb(9, 9, 9),
+		top: Rgb(0, 0, 100),
+		bottom: Rgb(0, 0, 0),
+	};
+
+	const COLORS: [Rgb; 2] = [Rgb(255, 0, 0), Rgb(0, 255, 0)];
+
+	fn steady(v: [f32; 2], secs: f64) -> History<2> {
+		let mut h = History::default();
+		let mut t = 0.0;
+		while t < secs {
+			h.add(t, t + 0.5, &v);
+			t += 0.5;
+		}
+		h
+	}
+
+	fn draw(h: &History<2>, axis: &Axis, w: usize, ht: usize) -> Vec<u32> {
+		let l = look();
+		let f = Frame {
+			hist: h,
+			axis,
+			now: h.last().unwrap_or(0.0),
+			look: &l,
+			paint: Paint::Stack(&COLORS),
+			outline: OUTLINE,
+			vertical: Vertical::Linear,
+		};
+		let mut px = Vec::new();
+		f.draw(&mut px, w, ht, 1);
+		px
+	}
+
+	// Test ID: debj6
+	#[test]
+	fn border_and_gradient_with_no_data() {
+		let h = History::<2>::default();
+		let px = draw(&h, &Axis::log(Curve::FixedA, 0.0), 10, 12);
+		assert_eq!(px.len(), 120);
+		assert_eq!(px[0], 0xff09_0909);
+		assert_eq!(px[119], 0xff09_0909);
+		// top inside row is the top color, bottom inside row the bottom one
+		assert_eq!(px[12 + 1], 0xff00_0064);
+		assert_eq!(px[10 * 10 + 1], 0xff00_0000);
+	}
+
+	// Test ID: debj7
+	#[test]
+	fn stack_heights_are_exact() {
+		// a quarter red, a half green, on a 10 px tall plot
+		let h = steady([0.25, 0.5], 120.0);
+		let px = draw(&h, &Axis::log(Curve::FixedA, 120.0), 22, 12);
+		let col = 12;
+		let at = |row: usize| px[(row + 1) * 22 + col];
+		// rows counted from the bottom of the plot: 0..2.5 red, 2.5..7.5 green
+		assert_eq!(at(9), 0xffff_0000);
+		assert_eq!(at(8), 0xffff_0000);
+		let shared = at(7);
+		assert_eq!(shared & 0x00ff_0000, 0x0080_0000);
+		assert_eq!(shared & 0x0000_ff00, 0x0000_8000);
+		assert_eq!(at(5), 0xff00_ff00);
+		assert_ne!(at(1) & 0xff, 0);
+	}
+
+	// Test ID: debj8
+	#[test]
+	fn gaps_draw_as_background() {
+		let mut h = History::<2>::default();
+		h.add(0.0, 30.0, &[1.0, 0.0]);
+		h.add(90.0, 120.0, &[1.0, 0.0]);
+		let px = draw(&h, &Axis::linear(120.0), 122, 6);
+		let mid_row = 3;
+		let at = |x: usize| px[mid_row * 122 + x + 1];
+		assert_eq!(at(10), 0xffff_0000);
+		assert_eq!(at(110), 0xffff_0000);
+		assert_ne!(at(60), 0xffff_0000);
+	}
+
+	// Test ID: debj9
+	#[test]
+	fn spike_reach_fades_with_time() {
+		let near = column(&[0.1], &[0.9], 0.5, 1.0)[0];
+		let far = column(&[0.1], &[0.9], 30.0 * 86400.0, 1.0)[0];
+		assert!(near > 0.8);
+		assert!(far < 0.11);
+		assert_eq!(column(&[0.1], &[0.9], 0.5, 0.0)[0], 0.1);
+	}
+
+	// Test ID: dese6
+	#[test]
+	fn more_emphasis_keeps_spikes_further_back() {
+		// how far up from the mean a column reaches, 0 to 1
+		let part = |secs: f64, spikes: f32| (column(&[0.1], &[0.9], secs, spikes)[0] - 0.1) / 0.8;
+		// a column on a 100 px log graph, in its second, third and last quarter
+		assert!(part(300.0, 1.0) > 0.95);
+		assert!(part(3.0 * 3600.0, 1.0) > 0.6);
+		assert!(part(300.0, 0.5) > 0.3);
+		assert!(part(3600.0, 0.5) > 0.07);
+		// a column covering days still melts into the background
+		assert!(part(4.0 * 86400.0, 1.0) < 0.1);
+		for secs in [1.0, 60.0, 3600.0, 86400.0] {
+			assert!(part(secs, 0.5) < part(secs, 0.75), "{secs}");
+			assert!(part(secs, 0.75) < part(secs, 1.0), "{secs}");
+		}
+	}
+
+	// Test ID: debja
+	#[test]
+	fn an_overfull_stack_is_scaled_to_fit() {
+		let v = column(&[0.5, 0.4], &[1.0, 1.0], 0.0, 1.0);
+		assert!((v[0] + v[1] - 1.0).abs() < 1e-6);
+		assert!(v[0] == v[1]);
+	}
+
+	// Test ID: decc9
+	#[test]
+	fn the_hover_line_stays_off_the_border() {
+		let back = 0xff11_1111;
+		let draw_at = |x: usize, thick: usize| {
+			let mut px = vec![back; 8 * 4];
+			Canvas::whole(&mut px, 8, 4)
+				.unwrap()
+				.line(1, x, thick, Rgb(0, 0, 0));
+			px
+		};
+		let px = draw_at(3, 2);
+		for r in 0..4 {
+			let want = |x: usize| (1..3).contains(&r) && (3..5).contains(&x);
+			for x in 0..8 {
+				assert_eq!(px[r * 8 + x] == 0xff00_0000, want(x), "{x},{r}");
+			}
+		}
+		// pointer on the border, or past it, puts it at the plot's edge
+		assert_eq!(draw_at(0, 1)[8 + 1], 0xff00_0000);
+		assert_eq!(draw_at(7, 2)[8 + 5], 0xff00_0000);
+		assert_eq!(draw_at(99, 2)[8 + 6], 0xff00_0000);
+		assert_eq!(draw_at(99, 2)[8 + 7], back);
+		// too small to have a plot is left alone
+		let mut px = vec![back; 4];
+		Canvas::whole(&mut px, 2, 2)
+			.unwrap()
+			.line(1, 0, 1, Rgb(0, 0, 0));
+		assert!(px.iter().all(|&p| p == back));
+	}
+
+	// Test ID: decdk
+	#[test]
+	fn the_gradient_goes_by_height_not_by_series() {
+		const LO: Rgb = Rgb(200, 0, 0);
+		const MID: Rgb = Rgb(255, 255, 200);
+		const HI: Rgb = Rgb(100, 200, 255);
+		// a quarter and a half, as in stack_heights_are_exact, on a 10 px plot
+		let h = steady([0.25, 0.5], 120.0);
+		let l = look();
+		let axis = Axis::log(Curve::FixedA, 120.0);
+		let paint = |p: Paint<'_, 2>| {
+			let f = Frame {
+				hist: &h,
+				axis: &axis,
+				now: 120.0,
+				look: &l,
+				paint: p,
+				outline: OUTLINE,
+				vertical: Vertical::Linear,
+			};
+			let mut px = Vec::new();
+			f.draw(&mut px, 22, 12, 1);
+			px
+		};
+		let px = paint(Paint::Gradient([LO, MID, HI]));
+		let at = |row: usize| px[(row + 1) * 22 + 12];
+		let want = |row: usize| pack(blend([LO, MID, HI], ((10 - row) as f32 - 0.5) / 10.0));
+		// rows from the bottom of the plot up to 7.5 take the blend at their height
+		for row in 3..10 {
+			assert_eq!(at(row), want(row), "{row}");
+		}
+		assert_ne!(at(9), at(8));
+		// the row the column ends in is half blend, half background
+		let half = at(2);
+		assert_ne!(half, want(2));
+		assert_ne!(half, at(0));
+		// above it is background, the same as the stack
+		let stack = paint(Paint::Stack(&COLORS));
+		assert_eq!(at(0), stack[22 + 12]);
+		assert_eq!(at(1), stack[2 * 22 + 12]);
+		// a full column runs Low at the bottom through Medium to High at the top
+		let full = steady([1.0, 0.0], 120.0);
+		let f = Frame {
+			hist: &full,
+			axis: &axis,
+			now: 120.0,
+			look: &l,
+			paint: Paint::Gradient([LO, MID, HI]),
+			outline: OUTLINE,
+			vertical: Vertical::Linear,
+		};
+		let mut px = Vec::new();
+		f.draw(&mut px, 22, 12, 1);
+		let red = |row: usize| (px[(row + 1) * 22 + 12] >> 16) & 0xff;
+		let blue = |row: usize| px[(row + 1) * 22 + 12] & 0xff;
+		assert!(red(9) > 200 && blue(9) < 25, "{:x}", px[10 * 22 + 12]);
+		assert!(blue(0) > 240 && red(0) < 120, "{:x}", px[22 + 12]);
+		assert!((0..9).all(|r| blue(r) >= blue(r + 1)));
+	}
+
+	// Test ID: decdm
+	#[test]
+	fn the_blend_hits_its_stops() {
+		let stops = [Rgb(10, 20, 30), Rgb(100, 110, 120), Rgb(200, 210, 220)];
+		assert_eq!(pack(blend(stops, 0.0)), 0xff0a_141e);
+		assert_eq!(pack(blend(stops, 0.5)), 0xff64_6e78);
+		assert_eq!(pack(blend(stops, 1.0)), 0xffc8_d2dc);
+		assert_eq!(pack(blend(stops, 0.25)), pack(mix(stops[0], stops[1], 0.5)));
+		assert_eq!(blend(stops, -1.0), blend(stops, 0.0));
+		assert_eq!(blend(stops, 2.0), blend(stops, 1.0));
+	}
+
+	// Test ID: decdz
+	#[test]
+	fn a_transparent_background_lets_the_panel_through() {
+		let h = steady([0.25, 0.5], 120.0);
+		let axis = Axis::log(Curve::FixedA, 120.0);
+		let l = Look {
+			transparent: true,
+			..look()
+		};
+		let f = |hist: &History<2>, paint: Paint<'_, 2>| {
+			let f = Frame {
+				hist,
+				axis: &axis,
+				now: 120.0,
+				look: &l,
+				paint,
+				outline: OUTLINE,
+				vertical: Vertical::Linear,
+			};
+			let mut px = Vec::new();
+			f.draw(&mut px, 22, 12, 1);
+			px
+		};
+		let opaque = draw(&h, &axis, 22, 12);
+		for paint in [
+			Paint::Stack(&COLORS),
+			Paint::Gradient([Rgb(200, 0, 0), Rgb(255, 255, 200), Rgb(100, 200, 255)]),
+		] {
+			let px = f(&h, paint);
+			let at = |row: usize| px[(row + 1) * 22 + 12];
+			// border stays, the empty top of the plot is clear
+			assert_eq!(px[0], 0xff09_0909);
+			assert_eq!(at(0), 0);
+			assert_eq!(at(1), 0);
+			// the column is opaque, and the stack the same as on a background
+			assert_eq!(at(9) >> 24, 0xff);
+			assert_eq!(at(4) >> 24, 0xff);
+			if let Paint::Stack(_) = paint {
+				assert_eq!(at(9), opaque[10 * 22 + 12]);
+				assert_eq!(at(5), opaque[6 * 22 + 12]);
+			}
+			// its top row is half covered, so half clear, and premultiplied
+			let edge = at(2);
+			let a = edge >> 24;
+			assert!((120..136).contains(&a), "{edge:x}");
+			assert!(
+				[16, 8, 0].iter().all(|s| (edge >> s) & 0xff <= a),
+				"{edge:x}"
+			);
+		}
+		// a gap is clear too
+		let mut gap = History::<2>::default();
+		gap.add(0.0, 30.0, &[1.0, 0.0]);
+		gap.add(90.0, 120.0, &[1.0, 0.0]);
+		let f = Frame {
+			hist: &gap,
+			axis: &Axis::linear(120.0),
+			now: 120.0,
+			look: &l,
+			paint: Paint::Stack(&COLORS),
+			outline: OUTLINE,
+			vertical: Vertical::Linear,
+		};
+		let mut px = Vec::new();
+		f.draw(&mut px, 122, 6, 1);
+		assert_eq!(px[3 * 122 + 61], 0);
+		assert_eq!(px[3 * 122 + 11], 0xffff_0000);
+	}
+
+	// Test ID: debjb
+	#[test]
+	fn tiny_and_borderless() {
+		let h = steady([0.5, 0.0], 10.0);
+		assert!(
+			draw(&h, &Axis::log(Curve::FixedA, 10.0), 2, 2)
+				.iter()
+				.all(|&p| p == 0xff09_0909)
+		);
+		let l = Look {
+			border: 0,
+			..look()
+		};
+		let f = Frame {
+			hist: &h,
+			axis: &Axis::log(Curve::FixedA, 10.0),
+			now: 10.0,
+			look: &l,
+			paint: Paint::Stack(&COLORS),
+			outline: OUTLINE,
+			vertical: Vertical::Linear,
+		};
+		let mut px = Vec::new();
+		f.draw(&mut px, 4, 4, 1);
+		assert_eq!(px[3 * 4 + 2], 0xffff_0000);
+	}
+
+	// Test ID: dehzk
+	#[test]
+	fn a_peak_jumps_up_and_eases_down_to_whats_in_view() {
+		let mut p = Peak::default();
+		assert_eq!(p.fit(0.0, 10.0, 0.0), 10.0);
+		assert_eq!(p.fit(500.0, 10.0, 1.0), 500.0);
+		// no time gone, so no fall
+		assert_eq!(p.fit(100.0, 10.0, 1.0), 500.0);
+		let t = p.fit(100.0, 10.0, 1.0 + PEAK_FALL);
+		assert!(
+			(t - (100.0 + 400.0 / std::f32::consts::E)).abs() < 0.01,
+			"{t}"
+		);
+		let t = p.fit(100.0, 10.0, 1.0 + 10.0 * PEAK_FALL);
+		assert!(t > 100.0 && t < 100.1, "{t}");
+		// a clock set back still lets it jump up
+		assert_eq!(p.fit(2000.0, 10.0, 0.5), 2000.0);
+		assert_eq!(p.top(), 2000.0);
+	}
+
+	// Test ID: dej06
+	#[test]
+	fn a_log_scale_lifts_a_trickle_and_keeps_the_shares() {
+		assert_eq!(fit_log([0.0, 0.0], 4e6, 1e5), [0.0, 0.0]);
+		let [a, b] = fit_log([1e6, 3e6], 4e6, 1e5);
+		assert!((a + b - 1.0).abs() < 1e-6 && (b - 3.0 * a).abs() < 1e-6);
+		// 1 kB/s under a 4 MB/s top is a 4000th as a line, a fifth as a log
+		let [lo, _] = fit_log([1000.0, 0.0], 4e6, 1e5);
+		assert!(lo > 0.2 && lo < 0.3, "{lo}");
+		assert_eq!(fit_log([-5.0, 8e6], 4e6, 1e5), [0.0, 1.0]);
+		let axis = Axis::log(Curve::FixedA, 120.0);
+		let l = look();
+		let h = steady([1000.0, 0.0], 120.0);
+		let red = |vertical: Vertical| {
+			let mut px = Vec::new();
+			let mut peak = Peak::default();
+			Frame {
+				hist: &h,
+				axis: &axis,
+				now: h.last().unwrap_or(0.0),
+				look: &l,
+				paint: Paint::Stack(&COLORS),
+				outline: OUTLINE,
+				vertical,
+			}
+			.draw_to(
+				&mut px,
+				22,
+				12,
+				1,
+				Some(Scale {
+					peak: &mut peak,
+					floor: 1e5,
+				}),
+				&mut Scratch::default(),
+			);
+			px.iter().filter(|&&p| p == COLORS[0].argb()).count()
+		};
+		assert_eq!(red(Vertical::Linear), 0);
+		assert!(red(Vertical::Log10) >= 3 * 20, "{}", red(Vertical::Log10));
+	}
+
+	// Test ID: der3m
+	#[test]
+	fn squared_sinks_small_values_and_every_scale_takes_a_fixed_top() {
+		assert_eq!(fit_squared([0.0, 0.0], 1.0), [0.0, 0.0]);
+		assert_eq!(fit_squared([0.25, 0.25], 1.0), [0.125, 0.125]);
+		assert_eq!(fit_squared([300.0, 100.0], 800.0), [0.1875, 0.0625]);
+		assert_eq!(fit_squared([-1.0, 3.0], 2.0), [0.0, 1.0]);
+		assert_eq!(Vertical::parse("Log10"), Some(Vertical::Log10));
+		assert_eq!(Vertical::parse("squared"), Some(Vertical::Squared));
+		assert_eq!(Vertical::parse("same"), None);
+		let axis = Axis::log(Curve::FixedA, 120.0);
+		let l = look();
+		let h = steady([0.5, 0.0], 120.0);
+		// a fixed top of 1, as CPU and memory have, with no Scale
+		let red = |vertical: Vertical| {
+			let mut px = Vec::new();
+			Frame {
+				hist: &h,
+				axis: &axis,
+				now: h.last().unwrap_or(0.0),
+				look: &l,
+				paint: Paint::Stack(&COLORS),
+				outline: OUTLINE,
+				vertical,
+			}
+			.draw(&mut px, 22, 12, 1);
+			px.iter().filter(|&&p| p == COLORS[0].argb()).count()
+		};
+		// 10 rows of plot: half is 5, squared 2.5, log10 from a thousandth 9
+		assert_eq!(red(Vertical::Linear), 5 * 20);
+		assert_eq!(red(Vertical::Squared), 2 * 20);
+		assert_eq!(red(Vertical::Log10), 9 * 20);
+	}
+
+	// Test ID: dehzm
+	#[test]
+	fn a_graph_with_no_fixed_top_fills_to_its_peak_or_floor() {
+		let axis = Axis::log(Curve::FixedA, 120.0);
+		let l = look();
+		let drawn = |h: &History<2>, peak: Option<(&mut Peak, f32)>| {
+			let peak = peak.map(|(peak, floor)| Scale { peak, floor });
+			let mut px = Vec::new();
+			Frame {
+				hist: h,
+				axis: &axis,
+				now: h.last().unwrap_or(0.0),
+				look: &l,
+				paint: Paint::Stack(&COLORS),
+				outline: OUTLINE,
+				vertical: Vertical::Linear,
+			}
+			.draw_to(&mut px, 22, 12, 1, peak, &mut Scratch::default());
+			px
+		};
+		let rates = steady([100.0, 300.0], 120.0);
+		let mut p = Peak::default();
+		assert_eq!(
+			drawn(&rates, Some((&mut p, 1.0))),
+			draw(&steady([0.25, 0.75], 120.0), &axis, 22, 12)
+		);
+		assert_eq!(p.top(), 400.0);
+		let mut p = Peak::default();
+		assert_eq!(
+			drawn(&rates, Some((&mut p, 800.0))),
+			draw(&steady([0.125, 0.375], 120.0), &axis, 22, 12)
+		);
+		// shares, as every other graph
+		assert_eq!(
+			drawn(&steady([0.25, 0.75], 120.0), None),
+			draw(&steady([0.25, 0.75], 120.0), &axis, 22, 12)
+		);
+	}
+
+	// Test ID: deqs7
+	#[test]
+	fn a_value_that_isnt_finite_is_drawn_as_a_gap() {
+		let axis = Axis::log(Curve::FixedA, 120.0);
+		let mut nan = History::<2>::default();
+		nan.add(0.0, 120.0, &[f32::NAN, 0.5]);
+		let empty = History::<2>::default();
+		assert_eq!(draw(&nan, &axis, 22, 12), draw(&empty, &axis, 22, 12));
+		// inf in the newest bucket leaves the rest to their own peak
+		let l = look();
+		let mut h = steady([100.0, 300.0], 120.0);
+		h.add(120.0, 120.5, &[f32::INFINITY, 0.0]);
+		let mut peak = Peak::default();
+		let mut px = Vec::new();
+		Frame {
+			hist: &h,
+			axis: &axis,
+			now: h.last().unwrap_or(0.0),
+			look: &l,
+			paint: Paint::Stack(&COLORS),
+			outline: OUTLINE,
+			vertical: Vertical::Linear,
+		}
+		.draw_to(
+			&mut px,
+			22,
+			12,
+			1,
+			Some(Scale {
+				peak: &mut peak,
+				floor: 1.0,
+			}),
+			&mut Scratch::default(),
+		);
+		assert_eq!(peak.top(), 400.0);
+		assert!(px.iter().any(|&p| p == COLORS[1].argb()));
+	}
+
+	// Test ID: denc4
+	#[test]
+	fn a_kept_scratch_draws_as_a_fresh_one_and_allocates_nothing_again() {
+		let h = steady([0.25, 0.5], 120.0);
+		let axis = Axis::log(Curve::FixedA, 120.0);
+		let l = look();
+		let gradient = Paint::Gradient([Rgb(200, 0, 0), Rgb(255, 255, 200), Rgb(100, 200, 255)]);
+		let frame = |paint| Frame {
+			hist: &h,
+			axis: &axis,
+			now: 120.0,
+			look: &l,
+			paint,
+			outline: OUTLINE,
+			vertical: Vertical::Linear,
+		};
+		let mut scratch = Scratch::default();
+		// bigger, smaller, and a paint the last draw didn't use
+		for (paint, w, ht) in [
+			(Paint::Stack(&COLORS), 40, 20),
+			(gradient, 22, 12),
+			(Paint::Stack(&COLORS), 22, 12),
+			(gradient, 40, 20),
+		] {
+			let mut fresh = Vec::new();
+			frame(paint).draw(&mut fresh, w, ht, 1);
+			let mut kept = Vec::new();
+			frame(paint).draw_to(&mut kept, w, ht, 1, None, &mut scratch);
+			assert_eq!(kept, fresh, "{w}x{ht}");
+		}
+		let at = |s: &Scratch<2>| {
+			(
+				s.back.as_ptr(),
+				s.back_px.as_ptr(),
+				s.grad.as_ptr(),
+				s.grad_px.as_ptr(),
+				s.reached.as_ptr(),
+			)
+		};
+		let was = at(&scratch);
+		let mut px = Vec::new();
+		frame(gradient).draw_to(&mut px, 40, 20, 1, None, &mut scratch);
+		frame(Paint::Stack(&COLORS)).draw_to(&mut px, 30, 15, 1, None, &mut scratch);
+		assert_eq!(at(&scratch), was);
+	}
+}

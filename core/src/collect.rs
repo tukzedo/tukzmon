@@ -1,0 +1,314 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+// Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
+
+//! What every graph's source sits behind. See design.md, Data sources on
+//! Linux.
+
+use std::fs::File;
+use std::io::{Read, Seek, SeekFrom};
+use std::time::Instant;
+
+/// One graph's source, with `N` series.
+pub trait Collector<const N: usize>: Sized {
+	/// Series names, bottom of the stack first.
+	const SERIES: [&'static str; N];
+
+	/// None when the source isn't on this box, so its graph is hidden.
+	fn probe() -> Option<Self>;
+
+	/// Each series in the source's own unit, [`Self::SERIES`] order. Shares
+	/// are 0 to 1. None is a gap. A source that counts up, like CPU, only
+	/// primes on its first call.
+	fn read(&mut self) -> Option<[f32; N]>;
+}
+
+/// Reads a `/proc` or `/sys` file into `buf`, keeping its memory between reads.
+pub(crate) fn slurp<'a>(path: &str, buf: &'a mut String) -> Option<&'a str> {
+	buf.clear();
+	std::fs::File::open(path).ok()?.read_to_string(buf).ok()?;
+	Some(buf)
+}
+
+/// A `/proc` or `/sys` file read each tick. It's kept open and read again
+/// from the start, since the open is most of what a read costs. A read that
+/// fails, as when its device went away, closes it, and the next opens it
+/// again.
+#[derive(Debug)]
+pub(crate) struct Kept {
+	path: String,
+	file: Option<File>,
+}
+
+impl Kept {
+	pub(crate) fn new(path: impl Into<String>) -> Self {
+		Kept {
+			path: path.into(),
+			file: None,
+		}
+	}
+
+	#[cfg(test)]
+	pub(crate) fn is_open(&self) -> bool {
+		self.file.is_some()
+	}
+
+	/// As [`slurp`].
+	pub(crate) fn read<'a>(&mut self, buf: &'a mut String) -> Option<&'a str> {
+		buf.clear();
+		let file = match &mut self.file {
+			Some(f) => f,
+			None => self.file.insert(File::open(&self.path).ok()?),
+		};
+		// through Take, as File's own read_to_string asks the size first,
+		// and /proc says 0
+		let read = file
+			.seek(SeekFrom::Start(0))
+			.and_then(|_| file.take(u64::MAX).read_to_string(buf));
+		if read.is_err() {
+			self.file = None;
+			return None;
+		}
+		Some(buf)
+	}
+}
+
+/// Named rows of counters off one read, such as bytes per interface. The
+/// names keep their memory between reads.
+#[derive(Debug, Default)]
+pub(crate) struct Counts<const K: usize> {
+	names: Vec<String>,
+	values: Vec<[u64; K]>,
+}
+
+impl<const K: usize> Counts<K> {
+	pub(crate) fn push(&mut self, name: &str, values: [u64; K]) {
+		let row = self.values.len();
+		if let Some(slot) = self.names.get_mut(row) {
+			slot.clear();
+			slot.push_str(name);
+		} else {
+			self.names.push(name.to_owned());
+		}
+		self.values.push(values);
+	}
+
+	#[cfg(test)]
+	pub(crate) fn len(&self) -> usize {
+		self.values.len()
+	}
+
+	pub(crate) fn is_empty(&self) -> bool {
+		self.values.is_empty()
+	}
+
+	fn names(&self) -> &[String] {
+		&self.names[..self.values.len()]
+	}
+
+	/// Each row's rise since `was`. None when the rows aren't the same ones,
+	/// or a counter went down, as when it wraps or resets.
+	fn rise_since<'a>(
+		&'a self,
+		was: &'a Self,
+	) -> Option<impl Iterator<Item = (&'a str, [u64; K])>> {
+		if self.names() != was.names() {
+			return None;
+		}
+		let pairs = || self.values.iter().zip(&was.values);
+		if pairs().any(|(now, then)| now.iter().zip(then).any(|(n, t)| n < t)) {
+			return None;
+		}
+		Some(
+			self.names()
+				.iter()
+				.map(String::as_str)
+				.zip(pairs().map(|(now, then)| std::array::from_fn(|i| now[i] - then[i]))),
+		)
+	}
+}
+
+/// Counters that only go up, read as rates per second.
+#[derive(Debug, Default)]
+pub(crate) struct Climb<const K: usize> {
+	now: Counts<K>,
+	was: Counts<K>,
+	at: Option<Instant>,
+}
+
+impl<const K: usize> Climb<K> {
+	/// The next read's rows, emptied for the caller to fill before
+	/// [`Self::step`].
+	pub(crate) fn next(&mut self) -> &mut Counts<K> {
+		self.now.values.clear();
+		&mut self.now
+	}
+
+	/// Whether a read has gone through, so the next step can give rates.
+	pub(crate) fn primed(&self) -> bool {
+		self.at.is_some()
+	}
+
+	/// The rows of the last read stepped.
+	pub(crate) fn last(&self) -> &Counts<K> {
+		&self.was
+	}
+
+	/// Rates since the last step, with `bin` adding each row's rise into
+	/// its series. None on the first step, when no time passed, and as a
+	/// gap rather than a spike when [`Counts::rise_since`] gives none.
+	pub(crate) fn step<const N: usize>(
+		&mut self,
+		at: Instant,
+		bin: impl Fn(&str, [u64; K], &mut [f64; N]),
+	) -> Option<[f32; N]> {
+		let secs = self
+			.at
+			.replace(at)
+			.map(|then| at.saturating_duration_since(then).as_secs_f64());
+		let out = secs.filter(|s| *s > 0.0).and_then(|secs| {
+			let mut sum = [0.0; N];
+			for (name, rise) in self.now.rise_since(&self.was)? {
+				bin(name, rise, &mut sum);
+			}
+			Some(sum.map(|x| (x / secs) as f32))
+		});
+		std::mem::swap(&mut self.now, &mut self.was);
+		out
+	}
+}
+
+/// A made-up /proc or /sys for tests, removed file by file when dropped. A
+/// path ending in `/` is a folder.
+#[cfg(test)]
+pub(crate) struct Tree {
+	root: std::path::PathBuf,
+	made: Vec<std::path::PathBuf>,
+}
+
+#[cfg(test)]
+impl Tree {
+	pub(crate) fn new(name: &str, files: &[(&str, &str)]) -> Tree {
+		let root = std::env::temp_dir().join(format!("test_tukzmon_{}_{name}", std::process::id()));
+		std::fs::create_dir(&root).unwrap();
+		let mut t = Tree {
+			root,
+			made: Vec::new(),
+		};
+		for (rel, text) in files {
+			let path = t.root.join(rel);
+			let is_dir = rel.ends_with('/');
+			let missing: Vec<std::path::PathBuf> = path
+				.ancestors()
+				.skip(usize::from(!is_dir))
+				.take_while(|d| *d != t.root && !d.exists())
+				.map(std::path::Path::to_path_buf)
+				.collect();
+			for dir in missing.into_iter().rev() {
+				std::fs::create_dir(&dir).unwrap();
+				t.made.push(dir);
+			}
+			if !is_dir {
+				std::fs::write(&path, text).unwrap();
+				t.made.push(path);
+			}
+		}
+		t
+	}
+
+	pub(crate) fn at(&self, rel: &str) -> String {
+		self.root.join(rel).to_string_lossy().into_owned()
+	}
+}
+
+#[cfg(test)]
+impl Drop for Tree {
+	fn drop(&mut self) {
+		self.made
+			.sort_by_key(|p| std::cmp::Reverse(p.components().count()));
+		// a drop can't fail, and a leftover under temp_dir does no harm
+		for p in &self.made {
+			let _ = std::fs::remove_file(p).or_else(|_| std::fs::remove_dir(p));
+		}
+		let _ = std::fs::remove_dir(&self.root);
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use std::time::Duration;
+
+	fn add(_: &str, [x]: [u64; 1], sum: &mut [f64; 1]) {
+		sum[0] += x as f64;
+	}
+
+	fn step(c: &mut Climb<1>, at: Instant, rows: &[(&str, u64)]) -> Option<[f32; 1]> {
+		let next = c.next();
+		for (name, x) in rows {
+			next.push(name, [*x]);
+		}
+		c.step(at, add)
+	}
+
+	// Test ID: defnd
+	#[test]
+	fn climb_primes_then_gives_rates_and_gaps() {
+		let t = Instant::now();
+		let s = Duration::from_secs;
+		let mut c = Climb::default();
+		assert!(!c.primed());
+		assert_eq!(step(&mut c, t, &[("a", 10), ("b", 5)]), None);
+		assert!(c.primed());
+		assert_eq!(step(&mut c, t + s(2), &[("a", 30), ("b", 9)]), Some([12.0]));
+		// no time passed
+		assert_eq!(step(&mut c, t + s(2), &[("a", 30), ("b", 9)]), None);
+		// same count of rows, but another name
+		assert_eq!(step(&mut c, t + s(3), &[("a", 31), ("c", 9)]), None);
+		assert_eq!(step(&mut c, t + s(4), &[("a", 31), ("c", 10)]), Some([1.0]));
+		assert_eq!(c.last().len(), 2);
+		assert_eq!(step(&mut c, t + s(5), &[("a", 0), ("c", 10)]), None);
+		assert_eq!(step(&mut c, t + s(7), &[]), None);
+		assert_eq!(step(&mut c, t + s(9), &[]), Some([0.0]));
+	}
+
+	// Test ID: decaw
+	#[test]
+	fn slurp_reuses_and_misses() {
+		let mut buf = String::from("left over");
+		assert!(slurp("/proc/self/stat", &mut buf).is_some_and(|s| !s.contains("left over")));
+		assert!(slurp("/proc/no/such/file", &mut buf).is_none());
+	}
+
+	// Test ID: denba
+	#[test]
+	#[cfg_attr(miri, ignore = "Miri can't seek on a folder")]
+	fn kept_reads_the_file_anew_and_opens_it_again_after_a_failed_read() {
+		let t = Tree::new("kept", &[("a", "one\n"), ("b/", "")]);
+		let mut f = Kept::new(t.at("a"));
+		let mut buf = String::from("left over");
+		assert_eq!(f.read(&mut buf), Some("one\n"));
+		// written in place, as sysfs changes under an open file
+		std::fs::write(t.at("a"), "two, longer\n").unwrap();
+		assert_eq!(f.read(&mut buf), Some("two, longer\n"));
+		std::fs::write(t.at("a"), "3\n").unwrap();
+		assert_eq!(f.read(&mut buf), Some("3\n"));
+		// a folder opens but doesn't read, as a removed sysfs file
+		let mut b = Kept::new(t.at("b"));
+		assert_eq!(b.read(&mut buf), None);
+		assert!(!b.is_open());
+		std::fs::remove_dir(t.at("b")).unwrap();
+		assert_eq!(b.read(&mut buf), None);
+		std::fs::write(t.at("b"), "back\n").unwrap();
+		assert_eq!(b.read(&mut buf), Some("back\n"));
+		std::fs::remove_file(t.at("b")).unwrap();
+		std::fs::create_dir(t.at("b")).unwrap();
+		let mut stat = Kept::new("/proc/self/stat");
+		let pid = std::process::id().to_string();
+		for _ in 0..2 {
+			assert!(
+				stat.read(&mut buf)
+					.is_some_and(|s| s.split(' ').next() == Some(pid.as_str()))
+			);
+		}
+	}
+}

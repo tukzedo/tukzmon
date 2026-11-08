@@ -1,0 +1,151 @@
+# shellcheck shell=bash
+# shellcheck disable=2034  ## 'appears unused.' Read by cicd.bash and hooks/pre-push, which source this.
+
+##	Purpose:
+##		- tukzmon's settings for cicd.bash and the pre-push hook.
+##		  Assignments, and tests that run no command, since the hook sources
+##		  it too.
+##		- Tool pins live here. The image's Dockerfile repeats the ones it
+##		  installs, and the Rust toolchain is pinned in rust-toolchain.toml,
+##		  since rustup reads it from there. Bump a pin on purpose: change it,
+##		  run the full pipeline, commit.
+##	History: At bottom of file.
+
+##	Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
+##	Licensed under The MIT License (MIT). Full text at:
+##		https://mit-license.org/
+##	SPDX-License-Identifier: MIT
+
+
+projectName="tukzmon"
+
+## "name|version|command that prints it". A box with something else gets a
+## warning, so a lint result that moved can be traced to the tool.
+TOOL_PINS=(
+	"shellcheck|0.11.0|shellcheck --version"
+	## markdownlint-cli, the `markdownlint` command, not markdownlint-cli2.
+	"markdownlint|0.49.1|markdownlint --version"
+	## The known-advisory scan. Pinned in the image's Dockerfile too.
+	"cargo-deny|0.19.9|cargo deny --version"
+	## The .deb and .rpm. Pinned in the image's Dockerfile too. A go-installed
+	## one says it's version "dev", so a box with one gets the warning.
+	"nfpm|2.47.0|nfpm --version"
+	## The C++ and Python format and lint tools, in the image's Dockerfile
+	## too. clang's come with the image's clang-19, and black from its apt
+	## snapshot.
+	"clang-format|19.1.7|clang-format --version"
+	"clang-tidy|19.1.7|clang-tidy --version"
+	"black|25.1.0|black --version"
+	"ruff|0.15.22|ruff --version"
+)
+## The sanitizers and Miri need nightly, so they run on this dated one, beside
+## the stable toolchain rust-toolchain.toml pins. The image gets it as a build
+## arg, with rust-src and miri.
+RUST_NIGHTLY="nightly-2026-10-16"
+
+## Paths that don't change the product. A push to main that changes only
+## these skips the merge gate. Bash patterns, matched against the whole path.
+## Nothing a package has, such as license.txt, since the Packages step reads
+## it (test deqvk).
+DOCS_PATHS=(
+	'*.md'
+	'project/*'
+	'assets/*'
+)
+
+## The release build dogfood copies from, and the dogfood itself.
+RELEASE_PACKAGES=(-p tukzmon-xfce -p tukzmon-settings)
+DOGFOOD_CMD=(utility/dev-install.bash)
+
+## Rules markdownlint skips. Every doc is one line per paragraph, so MD013 is
+## always off. The backlog's next-cut marker is bold on purpose.
+MARKDOWNLINT_DISABLE=(MD013)
+MARKDOWNLINT_DISABLE_FOR=(
+	"project/backlog.md|MD036"
+)
+
+## The .deb, .rpm and sha256 sums from cicd/packaging/nfpm.yaml, one set per
+## version, gitignored.
+PACKAGE_DIR="cicd/artifacts/packages"
+
+## The profiler: core/examples/profile.rs, the panel's tick under pprof's
+## sampler, since perf can't record on b23. Its flamegraphs go here as
+## flame_<stamp>.svg, rotated, gitignored, and flame-report.py's summary of the
+## newest goes in the log. 20000 ticks are about 7 s of CPU (2026-10-25).
+PROFILE_DIR="cicd/artifacts/profiling"
+PROFILE_ROUNDS=20000
+
+## The leak checks, "name|step function|length". The length is by measured
+## time: fast ones run in every run, slow ones in all but --quick and
+## --backlog-run-quick, and hours ones only in --long. --leakcheck adds every
+## one to any run, and --no-leakcheck takes every one out. The name, in lower
+## case, is its --backlog-run-quick area.
+LEAK_CHECKS=(
+	## The tests under ASan and LSan, then tukzmon-settings --snapshot with
+	## its C++ under UBSan too. 1m 25s from a fresh target dir and about 5 s
+	## with nothing to rebuild, at 8 jobs and load 14 (2026-10-25).
+	"Sanitizers|fStepSanitizers|fast"
+	## The tests under Miri, one Miri per module. Hours, which would push the
+	## default run past its hour.
+	"Miri|fStepMiri|hours"
+	## The soak test, core/tests/soak.rs. About 1 minute in a debug build.
+	"Soak|fStepSoak|slow"
+)
+## Steps that get a quarter of the CPUs, busy or not.
+HEAVY_STEPS=(fStepSanitizers fStepMiri fStepSoak)
+## The test targets Miri runs, as "package target-option". The soak test is
+## left out, since it's already ignored and its allocator is dhat's.
+MIRI_TARGETS=(
+	"tukzmon-core --lib"
+	"knobs --lib"
+	"tukzmon-settings --bins"
+)
+## A module's tests that run longer than this under Miri fail. config::tests,
+## the longest, took 6 hours on 2026-11-05, and the whole step 6h 12m.
+## Whole minutes only, as with CICD_MAX_JOBS.
+MIRI_MINUTES=480
+[[ ! "${TUKZMON_MIRI_MINUTES:-}" =~ ^[1-9][0-9]{0,3}$ ]] || MIRI_MINUTES="${TUKZMON_MIRI_MINUTES}"
+## The soak test's reports, and dhat's heap profile when it fails, rotated.
+SOAK_DIR="cicd/artifacts/soak"
+## LeakSanitizer's suppressions. Prebuilt libraries only, by name.
+LSAN_SUPP="cicd/lsan.supp"
+
+## The Nix step: cicd/nix/check.bash in this image, as its root. The store is
+## a docker volume named for the image, kept between runs, since the first
+## build fetches about 5 GB. Past NIX_STORE_CAP_MB a run collects it down to
+## what it used.
+NIX_IMAGE="nixos/nix:2.35.4"
+NIX_STORE_CAP_MB=12000
+
+## Rotated lint logs, gitignored. utility/lint-report.bash reads them.
+LINT_LOG_DIR="cicd/artifacts/lint"
+
+## The build image: CTR_DIR plus CTR_CONTEXT_EXTRA, tagged with a hash of them
+## all. The steps in CTR_STEPS run in it, and the rest on the host. A test that
+## needs a real panel or display gets a step of its own, left out of the list.
+CTR_IMAGE="tukzmon-cicd"
+CTR_DIR="cicd/container"
+CTR_CONTEXT_EXTRA=(rust-toolchain.toml)
+## NAME=value, passed to docker build and part of the tag's hash.
+CTR_BUILD_ARGS=("RUST_NIGHTLY=${RUST_NIGHTLY}")
+CTR_STEPS=(fStepFormat fStepBuild fStepLint fStepAdvisories fStepTests fStepRelease fStepPackage fStepSanitizers fStepMiri fStepSoak)
+## The image steps that get the network. The rest run with none.
+CTR_NET_STEPS=(fStepAdvisories)
+
+
+##	History:
+##		- 2026-10-25: Created.
+##		- 2026-10-25: The build image's settings.
+##		- 2026-10-25: cargo-deny pin, and the advisory step in the image.
+##		- 2026-10-25: The nightly pin, the leak checks and their lengths, and
+##		  the image's build args.
+##		- 2026-10-25: Miri.
+##		- 2026-10-25: The soak test.
+##		- 2026-10-25: Packages: nfpm's pin, and where they go.
+##		- 2026-10-25: The profiler.
+##		- 2026-10-28: The Nix step's image and store cap.
+##		- 2026-10-30: clang-format, clang-tidy, black and ruff pins.
+##		- 2026-11-01: license.txt isn't a docs path, since packages include it.
+##		- 2026-11-05: A time limit per Miri test, which TUKZMON_MIRI_MINUTES
+##		  changes, then per module, at 480 minutes.
+##		- 2026-11-06: assets/ is a docs path.

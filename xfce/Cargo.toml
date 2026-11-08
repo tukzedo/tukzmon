@@ -1,0 +1,20 @@
+[package]
+name = "tukzmon-xfce"
+description = "tukzmon as an XFCE panel plugin"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+# libtukzmon.so, which the .desktop file names as X-XFCE-Module=tukzmon
+name = "tukzmon"
+crate-type = ["cdylib"]
+
+[dependencies]
+tukzmon-core = { path = "../core" }
+
+[lints]
+workspace = true

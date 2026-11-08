@@ -1,0 +1,62 @@
+[workspace]
+resolver = "3"
+members = ["core", "knobs", "settings", "xfce"]
+
+[workspace.package]
+version = "1.0.0-beta.1"
+edition = "2024"
+rust-version = "1.88"
+license = "LGPL-2.1-or-later"
+repository = "https://github.com/tukzedo/tukzmon"
+
+[workspace.dependencies]
+shcl = "3.0.0-beta1"
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "warn"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# Pixel and time math casts all over the place, on purpose.
+cast_possible_truncation = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+cast_possible_wrap = "allow"
+cast_lossless = "allow"
+float_cmp = "allow"
+collapsible_if = "allow"
+similar_names = "allow"
+many_single_char_names = "allow"
+too_many_lines = "allow"
+must_use_candidate = "allow"
+missing_panics_doc = "allow"
+module_name_repetitions = "allow"
+unwrap_used = "warn"
+expect_used = "warn"
+undocumented_unsafe_blocks = "warn"
+# A leak in safe Rust. Lint runs with -D warnings, so warn fails it.
+mem_forget = "warn"
+
+[profile.release]
+# The panel ticks several times a second for as long as it runs, so speed
+# wins over a few hundred KB. Measured 2026-10-30, plugin / settings window
+# bytes, and the profiler's 20000 ticks, user CPU and us a tick, best of 3:
+#   3     1225272 / 1545224   1.33 s   218 us
+#   "s"   1016376 / 1262600   1.83 s   247 us
+#   "z"    971320 / 1205256   2.74 s   294 us
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+# On Wayland the plugin runs in the panel's own process, so a panic in it
+# must unwind to the handler, which stops only that item. Test dekpv.
+panic = "unwind"
+strip = true
+
+# Release with the names kept, for the cicd profiler step.
+[profile.profiling]
+inherits = "release"
+strip = false
+debug = "limited"
+
+[profile.dev]
+debug = "line-tables-only"

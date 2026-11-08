@@ -1,0 +1,290 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+// Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
+
+//! tukzmon-settings: the settings window, a program of its own so every panel
+//! and platform can share it.
+
+// missing_docs alone checks nothing in a program, so the clippy lint looks at
+// what the crate can see (clippy.toml)
+#![warn(missing_docs, clippy::missing_docs_in_private_items)]
+
+use std::ffi::OsString;
+use std::fmt::Write as _;
+use std::io::{self, ErrorKind, Write as _};
+use std::path::PathBuf;
+use std::process::ExitCode;
+
+#[cfg(feature = "qt")]
+mod bridge;
+mod dialog;
+mod dice;
+#[cfg(feature = "qt")]
+mod live;
+mod pick;
+
+/// For `--help`.
+const USAGE: &str = "Usage: tukzmon-settings [--config FILE]
+
+Opens the settings window for tukzmon's graphs.
+
+  --config FILE    Settings file to edit. A panel item passes its own. Default:
+                   ~/.config/tukzmon/tukzmon.shcl, what a new item starts from.
+  --snapshot PNG   Save a picture of each tab and the color picker, and quit, for
+                   checking the layout.
+  -h, --help       Show this and quit.
+  --version        Show the version and quit.";
+
+/// What the command line asks for.
+#[derive(Debug, PartialEq)]
+enum Asked {
+	/// The window.
+	Open {
+		/// `--config`.
+		config: Option<PathBuf>,
+		/// `--snapshot`, or "".
+		snapshot: String,
+	},
+	/// `--help`.
+	Help,
+	/// `--version`.
+	Version,
+}
+
+/// Err is the message for exit code 2.
+fn asked(args: impl IntoIterator<Item = OsString>) -> Result<Asked, String> {
+	let mut config = None;
+	let mut snapshot = String::new();
+	let mut args = args.into_iter();
+	while let Some(a) = args.next() {
+		let Some(a) = a.to_str() else {
+			return Err(format!(
+				"Unknown option: {}\n\n{USAGE}",
+				a.to_string_lossy()
+			));
+		};
+		match a {
+			"--config" | "--snapshot" => {
+				let Some(v) = args.next() else {
+					return Err(format!("{a} needs a value.\n\n{USAGE}"));
+				};
+				// shcl writes only to a path that's text
+				let v = v.into_string().map_err(|v| {
+					format!(
+						"{a}: {} isn't UTF-8, so it can't be used.",
+						v.to_string_lossy()
+					)
+				})?;
+				if a == "--config" {
+					config = Some(PathBuf::from(v));
+				} else {
+					snapshot = v;
+				}
+			}
+			"--help" | "-h" => return Ok(Asked::Help),
+			"--version" => return Ok(Asked::Version),
+			_ => return Err(format!("Unknown option: {a}\n\n{USAGE}")),
+		}
+	}
+	Ok(Asked::Open { config, snapshot })
+}
+
+fn main() -> ExitCode {
+	let (config, snapshot) = match asked(std::env::args_os().skip(1)) {
+		Ok(Asked::Open { config, snapshot }) => (config, snapshot),
+		Ok(Asked::Help) => return print_text(&mut io::stdout().lock(), USAGE),
+		Ok(Asked::Version) => {
+			return print_text(
+				&mut io::stdout().lock(),
+				&format!("{}\n{COPYRIGHT}", version()),
+			);
+		}
+		Err(e) => {
+			complain(&e);
+			return ExitCode::from(2);
+		}
+	};
+	let path = config.unwrap_or_else(tukzmon_core::config::config_file);
+	match dialog::Dialog::open(path) {
+		Ok(mut d) => run(&mut d, &snapshot),
+		Err(e) => {
+			complain(&format!("tukzmon-settings: {e}"));
+			// A panel starts the window with stderr out of sight.
+			if snapshot.is_empty() {
+				say_unreadable(&e);
+			}
+			ExitCode::FAILURE
+		}
+	}
+}
+
+/// Writes a line to stdout without println!, which panics (and aborts in a
+/// release build) when the write fails. A closed pipe quits quietly, as `head`
+/// expects, and any other failure gets one line on stderr and a failure code.
+fn print_text(out: &mut impl io::Write, text: &str) -> ExitCode {
+	match writeln!(out, "{text}").and_then(|()| out.flush()) {
+		Ok(()) => ExitCode::SUCCESS,
+		Err(e) if e.kind() == ErrorKind::BrokenPipe => ExitCode::SUCCESS,
+		Err(e) => {
+			complain(&format!("tukzmon-settings: can't write the output: {e}"));
+			ExitCode::FAILURE
+		}
+	}
+}
+
+/// A line on stderr. eprintln! panics on a failed write too, and a closed
+/// stderr is no reason to hide the exit code.
+fn complain(text: &str) {
+	let _ = writeln!(io::stderr().lock(), "{text}");
+}
+
+/// For `--version`.
+const COPYRIGHT: &str = "Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)";
+
+/// This build's `version_line`.
+fn version() -> String {
+	version_line(
+		env!("TUKZMON_BUILT_MIN").parse().unwrap_or(0),
+		env!("TUKZMON_RELEASE") == "1",
+	)
+}
+
+/// "tukzmon-settings v0.1.0 build decp8 (2026-10-24)". The build number is
+/// minutes since 2000 in Crockford base 32, and a dev build adds the day in
+/// the local time zone of whoever asks.
+fn version_line(minutes: u64, release: bool) -> String {
+	const DIGITS: &[u8; 32] = b"0123456789abcdefghjkmnpqrstvwxyz";
+	let mut build = Vec::new();
+	let mut n = minutes;
+	loop {
+		build.push(DIGITS[(n % 32) as usize]);
+		n /= 32;
+		if n == 0 {
+			break;
+		}
+	}
+	build.reverse();
+	let mut line = format!(
+		"tukzmon-settings v{} build {}",
+		env!("CARGO_PKG_VERSION"),
+		String::from_utf8_lossy(&build)
+	);
+	let day = i64::try_from(minutes)
+		.ok()
+		.and_then(|m| local_date(946_684_800 + m * 60));
+	if let (false, Some(d)) = (release, day) {
+		let _ = write!(line, " ({d})");
+	}
+	line
+}
+
+/// A Unix time's day, as YYYY-MM-DD in the local time zone.
+fn local_date(secs: i64) -> Option<String> {
+	let t = libc::time_t::try_from(secs).ok()?;
+	// SAFETY: localtime_r only writes the tm we hand it.
+	let tm = unsafe {
+		let mut tm: libc::tm = std::mem::zeroed();
+		if libc::localtime_r(&raw const t, &raw mut tm).is_null() {
+			return None;
+		}
+		tm
+	};
+	Some(format!(
+		"{:04}-{:02}-{:02}",
+		tm.tm_year + 1900,
+		tm.tm_mon + 1,
+		tm.tm_mday
+	))
+}
+
+/// Shows the window, or saves pictures of it to `snapshot`.
+#[cfg(feature = "qt")]
+fn run(d: &mut dialog::Dialog, snapshot: &str) -> ExitCode {
+	ExitCode::from(bridge::run(d, snapshot).clamp(0, 255) as u8)
+}
+
+/// A message box for a settings file that can't be read.
+#[cfg(feature = "qt")]
+fn say_unreadable(text: &str) {
+	bridge::say_unreadable(text);
+}
+
+/// No Qt, no box. main says it on stderr too.
+#[cfg(not(feature = "qt"))]
+fn say_unreadable(_text: &str) {}
+
+/// No window without Qt.
+#[cfg(not(feature = "qt"))]
+fn run(_d: &mut dialog::Dialog, _snapshot: &str) -> ExitCode {
+	complain("This tukzmon-settings was built without Qt, so it has no window.");
+	ExitCode::FAILURE
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	// Test ID: dednz
+	#[test]
+	fn the_version_line_has_the_build_and_a_dev_build_its_day() {
+		let v = env!("CARGO_PKG_VERSION");
+		// 2026-10-24 22:00 UTC, the 24th or 25th in every time zone.
+		let line = version_line(14_103_240, false);
+		let day = line
+			.strip_prefix(&format!("tukzmon-settings v{v} build decp8"))
+			.unwrap_or_else(|| panic!("{line}"));
+		assert!([" (2026-10-24)", " (2026-10-25)"].contains(&day), "{line}");
+		assert_eq!(day, format!(" ({})", local_date(1_792_879_200).unwrap()));
+		assert_eq!(
+			version_line(14_103_240, true),
+			format!("tukzmon-settings v{v} build decp8")
+		);
+		assert!(version_line(0, true).ends_with(" build 0"));
+		assert!(version().starts_with(&format!("tukzmon-settings v{v} build ")));
+	}
+
+	// Test ID: deqw0
+	#[cfg(unix)]
+	#[test]
+	fn a_path_that_isnt_utf8_is_a_message_not_a_panic() {
+		use std::os::unix::ffi::OsStringExt as _;
+		let args = |a: &[&[u8]]| asked(a.iter().map(|b| OsString::from_vec(b.to_vec())));
+		let bad: &[u8] = b"/tmp/x\xff.shcl";
+		let e = args(&[b"--config", bad]).unwrap_err();
+		assert!(e.starts_with("--config: "), "{e}");
+		assert!(args(&[b"--snapshot", bad]).is_err());
+		assert!(args(&[bad]).unwrap_err().starts_with("Unknown option: "));
+		assert!(args(&[b"--config"]).is_err());
+		assert_eq!(
+			args(&[b"--config", b"/tmp/x.shcl"]),
+			Ok(Asked::Open {
+				config: Some(PathBuf::from("/tmp/x.shcl")),
+				snapshot: String::new()
+			})
+		);
+		assert_eq!(args(&[b"--version", bad]), Ok(Asked::Version));
+	}
+
+	struct Failing(ErrorKind);
+
+	impl io::Write for Failing {
+		fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+			Err(self.0.into())
+		}
+		fn flush(&mut self) -> io::Result<()> {
+			Err(self.0.into())
+		}
+	}
+
+	// Test ID: defks
+	#[test]
+	fn a_failed_write_of_the_output_is_no_panic() {
+		let ok = |c: ExitCode| format!("{c:?}") == format!("{:?}", ExitCode::SUCCESS);
+		let mut out = Vec::new();
+		assert!(ok(print_text(&mut out, "x")));
+		assert_eq!(out, b"x\n");
+		// A closed pipe quits quietly.
+		assert!(ok(print_text(&mut Failing(ErrorKind::BrokenPipe), "x")));
+		// Anything else, such as /dev/full, is a failure.
+		assert!(!ok(print_text(&mut Failing(ErrorKind::StorageFull), "x")));
+	}
+}

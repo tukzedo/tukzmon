@@ -1,0 +1,20 @@
+[package]
+name = "knobs"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Settings declared in shcl, and what a change to one does to the others"
+license = "MIT"
+publish = false
+
+# Started as SilkTerm's knobs, and free to change on its own since. A fix here
+# that SilkTerm's copy needs too goes in its backlog.
+
+[lib]
+doctest = false
+
+[dependencies]
+shcl.workspace = true
+
+[lints]
+workspace = true
