@@ -7069,8 +7069,6 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- 2026-10-30: Deferred with no date. The LAN split uses the non-root socket reader for now.
 
-**Stop here for a next release**
-
 - Code review 20261107 item 2: Reset history in a window whose item keeps no history asks nothing, then deletes the saved history of items that keep it
 	- ID: 2026110709074402
 	- Type: Bug
@@ -7695,6 +7693,8 @@ Sorted per the notes in [Template](#template).
 	- Superseded by ID: 2026110709261106, which takes out the shcl 2 rewrite.
 	- Test case: none, since nothing was changed.
 	- Closed: 20261107-092134
+
+**Stop here for a next release**
 
 ## Template
 
