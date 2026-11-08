@@ -9,7 +9,7 @@
 
 ![Release](https://img.shields.io/github/v/release/tukzedo/tukzmon?include_prereleases) ![Rust 1.96](https://img.shields.io/badge/rust-1.96-orange)
 
-A system monitor that lives in your panel. Its small graphs show CPU, memory, GPU, network, disk, and more, with the last few seconds and the last few weeks in one graph.
+A system monitor for your desktop panel. Its small graphs show CPU, memory, GPU, network, disk, and more, with the last few seconds and the last few weeks in one graph.
 
 ![tukzmon in an XFCE panel: a fresh start, days of history on the log time axis, and the settings window](assets/demo.gif)
 
@@ -44,29 +44,29 @@ The first version is an XFCE panel plugin. Other desktops will follow. And then 
 
 Tukzmon doesn't need any of the [related projects](#related-projects). It should work on any distro with a supported panel.
 
-1.0.0-beta.1 is the first release, and it's a beta. Packages for Debian, Ubuntu and Fedora are on the [releases page](https://github.com/tukzedo/tukzmon/releases).
+The first release is 1.0.0-beta.1, and it's still a beta. Packages for Debian, Ubuntu, and Fedora are on the [releases page](https://github.com/tukzedo/tukzmon/releases).
 
 ## Graphs
 
-- CPU, split into I/O wait, system, user, and nice.
+- CPU use is split into I/O wait, system, user, and nice.
 
-- Memory, split into programs, buffers, and cache.
+- Memory is split the same way into programs, buffers, and cache.
 
-- GPU use and GPU memory, for an NVIDIA or AMD card.
+- GPU use and GPU memory each have a graph, for an NVIDIA or AMD card.
 
-- Network, with local, sent, and received traffic.
+- The network graph shows local, sent, and received traffic.
 
-- Swap use, and zswap or zram use with its compression ratio.
+- Swap use has a graph, and so does zswap or zram use, with its compression ratio in the tip.
 
-- Load average.
+- There's a load average graph.
 
-- The number of processes, split into the system's, other users', and yours.
+- Processes are counted and split into the system's, other users', and yours.
 
-- Disk reads and writes, for all disks or the ones you pick.
+- Disk reads and writes are shown for all disks, or for the ones you pick.
 
-- CPU temperature, with the critical range on top.
+- CPU temperature has the critical range drawn on top.
 
-- Battery charge and discharge, with the critical level.
+- Battery charge and discharge are shown with the critical level.
 
 - tukzmon's own CPU use, so you can see what it costs. (A boring indicator as it is typically a tiny fraction of a % of one CPU, and usually shows nothing.)
 
@@ -74,7 +74,7 @@ Tukzmon doesn't need any of the [related projects](#related-projects). It should
 
 - Hover over a graph to see its values at that point, and how long ago that was.
 
-- 9 built-in color themes, plus your own saved ones. Randomize rolls a new set of colors that stay easy to tell apart.
+- There are 9 built-in color themes, plus any you save yourself. Randomize rolls a new set of colors that stay easy to tell apart.
 
 - The settings window draws live graphs, and they follow your changes before you apply them.
 
@@ -86,7 +86,7 @@ Tukzmon doesn't need any of the [related projects](#related-projects). It should
 
 - Each panel item has its own settings, so 2 items on one panel can show different graphs.
 
-- Colors come stacked, a color per series, or as one gradient by how high the graph reaches.
+- A graph's colors are stacked with one per series, or drawn as one gradient that goes by the graph's height.
 
 - It works under X11 and Wayland on XFCE 4.20.
 
@@ -94,7 +94,7 @@ Tukzmon doesn't need any of the [related projects](#related-projects). It should
 
 ### Debian, Ubuntu, Fedora
 
-Get the `.deb` or `.rpm` from the [releases page](https://github.com/tukzedo/tukzmon/releases). It needs XFCE 4.20, which is in Debian 13, Ubuntu 25.04 and Fedora 42 or later.
+Get the `.deb` or `.rpm` from the [releases page](https://github.com/tukzedo/tukzmon/releases). It needs XFCE 4.20, which is in Debian 13, Ubuntu 25.04, and Fedora 42 or later.
 
 ~~~bash
 sudo apt install ./tukzmon-1.0.0-beta.1-linux-x86_64.deb    ## Debian, Ubuntu
@@ -110,23 +110,23 @@ On NixOS, add `tukzmon.url = "github:tukzedo/tukzmon";` to your flake's inputs, 
 
 ### DIY
 
-To try it from a checkout you need Rust, XFCE 4.20, Qt 6, a C++ compiler, and pkg-config (`qt6-base-dev`, `g++`, and `pkg-config` on Debian). Run `utility/dev-install.bash`. It installs to `~/.local`, with no sudo, and restarts the panel to load the new build.
+To try it from a checkout you need Rust, XFCE 4.20, Qt 6, a C++ compiler, and pkg-config (`qt6-base-dev`, `g++`, and `pkg-config` on Debian). Run `utility/dev-install.bash`. It installs to `~/.local` without sudo, and restarts the panel to load the new build.
 
 ## Set up development environment
 
 - Rust through rustup. `rust-toolchain.toml` pins the version, and rustup fetches it on the first build. A distro's own `cargo` ignores the pin, so put `~/.cargo/bin` first in `PATH`.
 
-- Qt 6 and a C++ compiler for the settings window (`qt6-base-dev`, `g++` and `pkg-config` on Debian).
+- Qt 6 and a C++ compiler for the settings window (`qt6-base-dev`, `g++`, and `pkg-config` on Debian).
 
-- The XFCE 4.20 panel, GTK 3 and cairo. The plugin links their runtime libraries directly, so no `-dev` packages are needed for them.
+- The XFCE 4.20 panel, GTK 3 and cairo. The plugin links their runtime libraries directly, so their `-dev` packages aren't needed.
 
-- Docker, for the pipeline. `cicd/cicd.bash` builds its own image from `cicd/container/` and runs format, build, lint and tests in it, with the other tools pinned there. Without docker it runs on the host, and then it needs those tools installed. `cicd/config.bash` lists them and their versions.
+- Docker, for the pipeline. `cicd/cicd.bash` builds its own image from `cicd/container/` and runs the format, build, lint, and test steps in it, with the other tools pinned there. Without docker it runs on the host, and then it needs those tools installed. `cicd/config.bash` lists them and their versions.
 
 - `cicd/cicd.bash --help` lists the steps and options. The packages step builds a `.deb` and an `.rpm`.
 
 - `git config core.hooksPath cicd/hooks` turns on the pre-push hook, which runs the full merge gate before a push to `main`.
 
-Work goes on `dev`, and `main` takes releases.
+Work is done on `dev`, and releases are merged into `main`.
 
 ## Related projects
 
