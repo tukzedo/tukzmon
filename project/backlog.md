@@ -25,8 +25,7 @@ Sorted per the notes in [Template](#template).
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
-	- Status: Stalled
-		- 2026-10-26 to 2026-11-02: still waits for the workflow file to reach `main`. `main` on GitHub has no `.github/workflows` yet, and the repo has no workflow runs.
+	- Status: Done
 	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
 	- Priority|Severity: Avg
 	- Opened: 20261025-135600
@@ -41,17 +40,19 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- `.github/workflows/merge-gate.yml` runs `cicd/cicd.bash --merge-gate` on a push or pull request against `main`, and by hand on any branch. It's one job on `ubuntu-24.04`, which builds the image from `cicd/container/` and runs the checks in it.
 		- Held for the merge-gate workflow's first run on main, which only a release merge to main starts.
+		- 2026-11-08: The first run on `main`, after the v1.0.0-beta.1 merge, failed 2 settings tests. The runner has no CPU sensor, which `live::tests::the_temp_row_draws_at_its_own_width` didn't allow for, so that one's fixed. The other, the refresh test dezcc, failed once and passed on 3 runs since, so it's filed as 2026110810505772.
+		- 2026-11-08: A run by hand on `runner-tests`, with the fix, passed all 11 steps in 15m 30s.
 	- Decisions:
 		- Asked for on 2026-10-25.
 		- No layer cache between runs, to keep it small. Each run builds the image first, which takes a few minutes.
 	- Branch: round-1025
 	- Test case: The workflow is its own test. Its first run is in the row above.
+	- Closed: 20261108-105057
 
 - Code review 20261031 item 33: The workflow pins actions/checkout by tag and keeps the token in the checkout
 	- ID: 2026103115232296
 	- Type: Enhancement
-	- Status: Stalled
-		- 2026-11-02: still waits for the workflow's first run, which comes after a merge to `main`.
+	- Status: Done
 	- Needs external testing: the `merge-gate` workflow's first run on GitHub, the same run 2026102513560001 waits for.
 	- Priority|Severity: Low
 	- Opened: 20261031-152322
@@ -65,11 +66,13 @@ Sorted per the notes in [Template](#template).
 		- `.github/workflows/merge-gate.yml` pins actions/checkout at `3d3c42e` (v7.0.1), with the tag in a comment, and sets `persist-credentials: false`.
 		- Verified: the file parses as YAML, and GitHub's API gives that commit for the v7.0.1 tag.
 		- Held for the same first merge-gate run on main as 2026102513560001.
+		- 2026-11-08: The checkout by SHA worked on every run since, and the gate's steps ran with no token.
 	- Decisions:
 		- v7.0.1, the newest release, so the pin keeps the major version the file had.
 		- The merge gate never syncs or pushes, so the checkout needs no token.
 	- Branch: round-1102
 	- Test case: The workflow is its own test, as for 2026102513560001.
+	- Closed: 20261108-105057
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
@@ -7608,6 +7611,21 @@ Sorted per the notes in [Template](#template).
 		- "Box" means the number box only, and "computer" the computer.
 		- The Margins tip says plainly that 2 graphs side by side get both margins between them.
 		- History and settings errors in the tip and in message boxes use plain words, not the file reader's own, such as "short" or "trailing bytes", or the name of the file format.
+
+- A settings window refresh test fails now and then on GitHub's runner
+	- ID: 2026110810505772
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261108-105057
+	- Opened by: t00mietum
+	- Related IDs: 2026102513560001
+	- Test environment: GitHub's `ubuntu-24.04` runner, in the pipeline's image.
+	- Steps to reproduce: Run the `merge-gate` workflow.
+	- Incorrect behavior: `bridge::tests::a_refresh_sets_only_the_tips_and_gaps_that_changed` (dezcc) saw 1 layout request with nothing changed (`[0, 1]` against `[0, 0]`), on the first run on `main`.
+	- Expected behavior: No layout request from a refresh with nothing changed.
+	- Reproduced: No. It passed on the 2 Dependabot runs and the run by hand on `runner-tests` that day, and never failed on b23, pinned to one CPU or with the sensors, battery and zswap hidden.
+	- Possible cause: Something the live graphs do between the settle loop and the refresh, such as a sample tick, on a slow 4-CPU runner.
 
 - Other Linux and BSD panels
 	- ID: 2026101916013890
