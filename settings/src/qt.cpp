@@ -3028,4 +3028,30 @@ rust::Vec<rust::String> exit_on_close(Dialog &d) {
 	return out;
 }
 
+namespace {
+std::vector<std::string> &heard() {
+	static std::vector<std::string> said;
+	return said;
+}
+
+void hear(QtMsgType, const QMessageLogContext &, const QString &m) { heard().push_back(m.toStdString()); }
+} // namespace
+
+rust::Vec<rust::String> qt_warnings() {
+	heard().clear();
+	const QtMessageHandler was = qInstallMessageHandler(hear);
+	{
+		const App app("offscreen");
+		// a standard icon reads its image through the image format plugins
+		const QPixmap icon = QApplication::style()->standardIcon(QStyle::SP_DialogOkButton).pixmap(16);
+		if (icon.isNull())
+			heard().emplace_back("no icon");
+	}
+	qInstallMessageHandler(was);
+	rust::Vec<rust::String> out;
+	for (const auto &m : heard())
+		out.push_back(rust::String(m));
+	return out;
+}
+
 } // namespace tukzmon

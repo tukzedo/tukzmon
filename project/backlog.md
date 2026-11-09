@@ -25,12 +25,23 @@ Sorted per the notes in [Template](#template).
 - The settings tests print about 95,000 QObject::moveToThread warnings
 	- ID: 2026110912124929
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261109-121249
 	- Opened by:
+	- Reproduced: Yes. 33,443 on round-1109 and 11,233 on `6c5557f`, from the settings tests at default threads, and about 600,000 at `--test-threads=1` on both. So it's older than df32n's close hook, which only adds one more window test.
+	- Actual cause: Each cargo test runs on its own thread and built its `QApplication` there. Qt keeps the plugins it loads, such as the image formats, on the thread that first loaded them, and once that thread is gone each plugin lookup from a later app tried to move them and warned. The same cause gave the "not created in the main() thread" and `startTimer` lines.
 	- Progress log:
 		- 2026-11-09: Seen in the quick gate's test log on round-1109, starting near dej8s, while 2026110709074405 was worked. Every test passed. Not yet known whether it's older than df32n's offscreen close hook. A flood that size hides real warnings in the log.
+		- 2026-11-09: Every test that builds a `QApplication` now runs it through `on_qt`, on one thread they all share, in place of `qt_turn`. The settings tests print no `moveToThread`, `startTimer` or main-thread lines now, and take about as long.
+		- Verified: the worker quick gate (format, build, lint, test) passed, with none of those lines in its log. df349 failed with `on_qt` made to run the test in place, as before, and passes with it.
+		- Swept: all 36 tests that took `qt_turn`, and every test calling an `ffi::` hook. The 2 others that call one only read `ffi::ControlKind` and `ffi::RowInfo`.
+	- Decisions:
+		- Fixed in the test harness, not in `qt.cpp`. The app runs once on the main thread, so it never saw this.
+	- Actual fix: `on_qt` in `settings/src/bridge.rs` runs each window test on one long-lived thread, and passes its panic back to the test.
+	- Branch: round-1109
+	- Test case: df349, `qt_stays_quiet_when_tests_on_3_threads_load_its_plugins`, which runs `qt_warnings` from 3 threads in turn and wants Qt to say nothing.
+	- Closed: 20261109-130358
 
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
