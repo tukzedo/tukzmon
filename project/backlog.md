@@ -2945,7 +2945,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 5: The processes graph takes about 4 ms a read
 	- ID: 2026110618502905
 	- Type: Enhancement
-	- Status: Done
+	- Status: Queued
 		- It departs from the wording in one way. A read is still one `stat` a process, so the system calls a process are the same, and the kernel's part of the read, nearly all of it, is the same.
 	- Priority|Severity: Avg
 	- Opened: 20261106-185029
@@ -2963,6 +2963,7 @@ Sorted per the notes in [Template](#template).
 		- Under Miri there's no processes graph, as on a box it can't read, since Miri has no `rewinddir`.
 		- `design.md` Data sources on Linux has it.
 		- Verified: the quick gate passed, and the profile area. dezd3 failed on the old read, at 102 allocations for 50 folders, and dezd2 failed with the rewind taken out. Under Miri the procs tests passed, with the 3 that list a folder ignored.
+		- 2026-11-09: Answer on the profiler question: That sounds pretty expensive. Can the process graph be done cheaper, or should the default update frequency be raised? Reopened for that.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
 		- libc's `opendir`, `rewinddir`, `readdir` and `fstatat` rather than raw `getdents64` with a bigger buffer, which timed the same and is Linux only.
@@ -2974,7 +2975,6 @@ Sorted per the notes in [Template](#template).
 		- 2026-11-06: dep4j and dep4k are ignored under Miri now, since Miri has no `rewinddir`.
 		- Swept: every `ProcsReader` and `Which::Procs` use. dencp, dend1 and den86 turn every graph on, and under Miri now get no processes graph, as on a box without `/proc`. The other `/proc` readers already keep their files open through `Kept`.
 	- Acceptance signoff: Self-closed, 2026-11-06: dezd2 and dezd3 passed in the quick gate, and the profile area ran with processes on.
-	- Closed: 20261106-214137
 
 - CICD gap: clang-tidy leaves out the clang analyzer checks
 	- ID: 2026110310450007
