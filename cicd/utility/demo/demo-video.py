@@ -80,6 +80,8 @@ DESK = "#1d2430"  # root color, the band's too
 
 # a panel like a real one, with tukzmon at the right among the usual items.
 # tukzmon stays plugin-1, which names its history file.
+# The tray's square icons are XFCE's default. Without them its icons sit 2 px
+# apart, nearly touching.
 PANEL_ORDER = (2, 3, 4, 1, 5, 6, 7, 8, 9, 11, 10)
 PANEL_PLUGINS = """\
     <property name="plugin-1" type="string" value="tukzmon"/>
@@ -98,7 +100,7 @@ PANEL_PLUGINS = """\
       <property name="style" type="uint" value="0"/>
     </property>
     <property name="plugin-6" type="string" value="systray">
-      <property name="square-icons" type="bool" value="false"/>
+      <property name="square-icons" type="bool" value="true"/>
       <property name="single-row" type="bool" value="true"/>
       <property name="icon-size" type="uint" value="24"/>
     </property>

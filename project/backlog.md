@@ -7280,7 +7280,7 @@ Sorted per the notes in [Template](#template).
 - Demo GIF: Status tray and notification icons too close together
 	- ID: 2026110911114063
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261109-111140
 	- Opened by: t00mietum
@@ -7288,6 +7288,17 @@ Sorted per the notes in [Template](#template).
 	- Steps to reproduce: Watch the demo GIF, `assets/demo.gif`.
 	- Incorrect behavior: The icons in the status tray and/or notification tray are too close together, almost overlapping.
 	- Expected behavior: The tray icons have normal spacing between them.
+	- Reproduced: 20261109, in the gif and in a `--shot` of the demo panel. The network and volume icons were about 2 px apart.
+	- Actual cause: The demo's status tray had square icons off. Then the tray packs its icons 2 px apart, and these icons fill their cells.
+	- Actual effort: Low
+	- Decisions:
+		- Square icons on, as in XFCE's own default panel. Each tray icon gets a cell as wide as the panel is high, so it's spaced like the bell beside it.
+	- Actual fix: The demo panel's tray has square icons on. The gif is recorded again.
+	- Branch: round-1109
+	- Test case: None, since it's a recording. A `--shot` before the fix showed the icons nearly touching, and one after showed them about 32 px apart, like the bell. The new gif's frames were checked at each scene. The quick gate's format and lint passed.
+		- Swept: the video take uses the same panel config, and no other script in the repo or the private tools sets up a tray.
+	- Acceptance signoff: Self-closed 20261109: in the new gif the network, volume and bell icons are evenly spaced.
+	- Closed: 20261109-124233
 
 - Code review 20261107 item 25: With the LAN split on, each network read spends about 20 ms in the kernel on the panel's thread
 	- ID: 2026110709074425
