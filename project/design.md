@@ -92,7 +92,7 @@ The code is a Rust core, with C only where a panel's API needs it. That was sett
 
 - The drawing area has a window of its own, so it has to take button events and be an action widget, or a right-click never opens the panel's menu.
 
-- The plugin watches the settings file, and reads it again when its modified time or size changes. That's how a save in the settings window shows up, at once rather than at the next graph's read, which can be a minute away. Each timer tick checks it too, in case the watch couldn't be set up.
+- The plugin watches the settings file, and reads it again when its modified time or size changes. That's how a save in the settings window shows up, at once rather than at the next graph's read, which can be a minute away. Each timer tick checks it too, in case the watch couldn't be set up. When the settings file is a link, as stow or home-manager make, the file at the end of the link is watched too, since a save writes there. A link pointed somewhere else later shows at once, but saves to its new file wait for the next graph read until the item starts again.
 
 - Each graph reads at its own rate, on one timer. A graph reads on whole multiples of its rate, counted on one clock every graph shares, so graphs whose rates divide each other read on the same tick and the panel draws once for them. The timer is one-shot, set again each tick for the next graph due, so a mix of rates doesn't wake the panel any more than it has to. `Graph::tick` in `core/src/lib.rs` has the beats.
 	- A read that would come less than half its rate after the one before is skipped, such as right after the rate changes. A very short span is mostly noise.

@@ -204,7 +204,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 17: A save through a linked item settings file shows in the panel only at the next read
 	- ID: 2026110709074417
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -213,8 +213,23 @@ Sorted per the notes in [Template](#template).
 	- Steps to reproduce: Make `plugin-N.shcl` a link into another folder, as stow or home-manager do, then Apply in Properties.
 	- Incorrect behavior: The change waits for the next graph read, 1 s by default and longer with slow graphs.
 	- Expected behavior: It shows at once, as design.md's XFCE plugin section says.
+	- Reproduced: 2026-11-09, by the new test with the fix taken out. A save to the file at the end of the link gave no call in 5 s.
 	- Possible cause: The file monitor watches the link, and the save writes the file it points to.
+	- Actual cause: As the possible cause. A GIO watch on a path sees changes to that name in its folder, so a write in the link's target folder never reaches it.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Each panel item now watches its settings file and, when that's a link, the file at the end of the link too. A save there shows at once.
+		- `design.md` XFCE plugin has it.
+		- Verified: the quick gate passed, with the Sanitizers step run on its own, and df38m with it.
+	- Decisions:
+		- The end of the link is found once, when the item starts. A link pointed somewhere else later still shows at once, through the link's own watch, but a save to its new file waits for the next read until the item starts again. Moving the watch at each change costs more code for a case stow and home-manager rarely make, and the read at each tick still catches it.
+		- The link itself stays watched, so a link replaced or pointed elsewhere shows at once.
+	- Actual fix: `watch_settings` in `xfce/src/lib.rs`, which `Plugin::start` calls, watches `config::through_links` of the settings file as well as the file.
+	- Branch: round-1109b
+	- Test case: `tests::a_save_through_a_linked_settings_file_calls_back_at_once` (df38m). It fails with the end's watch taken out, and passes after.
+		- Swept: every `watch` call (the settings file and the reset mark in `Plugin::start`, and dejae). The reset mark is the window's own file in the data folder, not a link a user makes. Every config write goes through `through_links` already (`Dialog::apply`, `config::start_from`).
+	- Closed: 20261109-152251
 
 - Code review 20261107 item 18: With the .deb or .rpm, Properties runs whichever tukzmon-settings comes first on PATH
 	- ID: 2026110709074418

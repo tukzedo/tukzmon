@@ -56,7 +56,8 @@ struct Plugin {
 	properties: Option<String>,
 	history: PathBuf,
 	reset: keep::ResetWatch,
-	/// File monitors on the settings file and the reset mark.
+	/// File monitors on the settings file, the file its links end at, and the
+	/// reset mark.
 	watches: Vec<*mut c_void>,
 	saved_at: Instant,
 	moved_at: Instant,
@@ -453,6 +454,28 @@ unsafe fn watch(
 		}
 		monitor
 	}
+}
+
+/// [`watch`] on the settings file, and on the file its links end at when it's
+/// a link. A save writes the file at the end, and a watch on the link sees
+/// only the link.
+///
+/// # Safety
+///
+/// As for [`watch`].
+unsafe fn watch_settings(
+	path: &Path,
+	changed: unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, c_int, *mut c_void),
+	data: *mut c_void,
+) -> Vec<*mut c_void> {
+	let end = config::through_links(path);
+	// SAFETY: as said above.
+	let mut watches = vec![unsafe { watch(path, changed, data) }];
+	if end != path {
+		// SAFETY: as said above.
+		watches.push(unsafe { watch(&end, changed, data) });
+	}
+	watches
 }
 
 /// # Safety
@@ -873,10 +896,9 @@ impl Plugin {
 			xfce_panel_plugin_menu_show_configure(plugin);
 			// before anything below can panic, so a stopped item's tip shows
 			gtk_widget_show_all(plugin);
-			self.watches = vec![
-				watch(&self.config, changed, data),
-				watch(&mark, changed, data),
-			];
+			let mut watches = watch_settings(&self.config, changed, data);
+			watches.push(watch(&mark, changed, data));
+			self.watches = watches;
 		}
 		let first = self.graphs.tick();
 		self.fit();
@@ -1199,6 +1221,56 @@ mod tests {
 		// SAFETY: from watch, and not used again.
 		unsafe { super::unwatch(w) };
 		std::fs::remove_file(keep::reset_mark(&dir)).unwrap();
+		std::fs::remove_dir(&dir).unwrap();
+		assert!(HITS.load(Ordering::SeqCst) > 0, "no call in {took:?}");
+		assert!(took < Duration::from_millis(500), "{took:?}");
+	}
+
+	// Test ID: df38m
+	#[test]
+	#[cfg_attr(miri, ignore = "GIO is C")]
+	fn a_save_through_a_linked_settings_file_calls_back_at_once() {
+		static HITS: AtomicUsize = AtomicUsize::new(0);
+		unsafe extern "C" fn hit(
+			_: *mut c_void,
+			_: *mut c_void,
+			_: *mut c_void,
+			_: c_int,
+			_: *mut c_void,
+		) {
+			HITS.fetch_add(1, Ordering::SeqCst);
+		}
+		let dir =
+			std::env::temp_dir().join(format!("test_tukzmon_xfce_{}_link", std::process::id()));
+		let (item, real) = (dir.join("item"), dir.join("real"));
+		std::fs::create_dir_all(&item).unwrap();
+		std::fs::create_dir_all(&real).unwrap();
+		let (own, end) = (item.join("plugin-1.shcl"), real.join("plugin-1.shcl"));
+		std::fs::write(&end, "graphs = cpu\n").unwrap();
+		// relative, as stow makes them
+		std::os::unix::fs::symlink("../real/plugin-1.shcl", &own).unwrap();
+		// SAFETY: hit takes no data.
+		let ws = unsafe { super::watch_settings(&own, hit, std::ptr::null_mut()) };
+		assert!(ws.iter().all(|w| !w.is_null()));
+		// as Apply saves: a new file renamed over the one the link ends at
+		let tmp = real.join("plugin-1.shcl.tmp");
+		std::fs::write(&tmp, "graphs = mem\n").unwrap();
+		std::fs::rename(&tmp, &end).unwrap();
+		let t0 = Instant::now();
+		while HITS.load(Ordering::SeqCst) == 0 && t0.elapsed() < Duration::from_secs(5) {
+			// SAFETY: the default context, which only these tests run.
+			unsafe { super::sys::g_main_context_iteration(std::ptr::null_mut(), 0) };
+			std::thread::sleep(Duration::from_millis(2));
+		}
+		let took = t0.elapsed();
+		for w in ws {
+			// SAFETY: from watch_settings, and not used again.
+			unsafe { super::unwatch(w) };
+		}
+		std::fs::remove_file(&own).unwrap();
+		std::fs::remove_file(&end).unwrap();
+		std::fs::remove_dir(&item).unwrap();
+		std::fs::remove_dir(&real).unwrap();
 		std::fs::remove_dir(&dir).unwrap();
 		assert!(HITS.load(Ordering::SeqCst) > 0, "no call in {took:?}");
 		assert!(took < Duration::from_millis(500), "{took:?}");
