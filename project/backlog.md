@@ -7169,6 +7169,18 @@ Sorted per the notes in [Template](#template).
 	- Sweep: the demo's `safe_rmtree`, which crosses mount points where the pipeline's removal stays on one file system.
 	- Estimated effort: Low
 
+- Demo GIF: Status tray and notification icons too close together
+	- ID: 2026110911114063
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261109-111140
+	- Opened by: t00mietum
+	- Related IDs: 2026110618335731, 2026110310450002
+	- Steps to reproduce: Watch the demo GIF, `assets/demo.gif`.
+	- Incorrect behavior: The icons in the status tray and/or notification tray are too close together, almost overlapping.
+	- Expected behavior: The tray icons have normal spacing between them.
+
 - Code review 20261107 item 25: With the LAN split on, each network read spends about 20 ms in the kernel on the panel's thread
 	- ID: 2026110709074425
 	- Type: Enhancement
@@ -7193,6 +7205,48 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026110618335731, 2026110310450002
 	- Requirements:
 		- Bigger and non-narrow font for the fake text elements.
+
+- Smoothly animate each graph on each tick
+	- ID: 2026110911114024
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261109-111140
+	- Opened by: t00mietum
+	- Related IDs: 2026110911114037
+	- Requirements:
+		- Settings option, on by default if the CPU has 8 or more cores: Smoothly animate the graph on each tick, rather than wholesale replace previous contents.
+		- Maybe animate over 1/2 of each graph's update ms? Smooth animation at high fps.
+		- If this makes sense: An even division of the screen refresh rate, minimum 30, max 60. With smooth antialiasing.
+		- It should look absolutely incredibly buttery smooth.
+
+- Reduce motion if a remote desktop session is detected
+	- ID: 2026110911114037
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261109-111140
+	- Opened by: t00mietum
+	- Related IDs: 2026110911114024
+	- Requirements:
+		- Add a setting, "Reduce motion if remote desktop session detected."
+		- If a VNC, RDP, RustDesk, etc. session is detected:
+			- Double the ms for every graph, with a minimum floor of 1000 ms.
+			- Disable smooth animation.
+			- Disable the controls for the overridden settings, with flyover text explaining why.
+			- Don't store the temporarily overridden values.
+		- Resume the previous animation settings when the desktop is connected normally.
+
+- Keep logging but don't display updates while the desktop is locked
+	- ID: 2026110911114050
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261109-111140
+	- Opened by: t00mietum
+	- Requirements:
+		- When the desktop is locked, keep logging values but don't display updates.
+		- Then catch up once unlocked.
 
 - CICD gap: Fuzz the parsers of files and kernel messages
 	- ID: 2026110310450001
