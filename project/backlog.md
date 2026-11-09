@@ -611,7 +611,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 2: Reset history in a window whose item keeps no history asks nothing, then deletes the saved history of items that keep it
 	- ID: 2026110709074402
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: High
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -624,7 +624,7 @@ Sorted per the notes in [Template](#template).
 	- Possible cause: The window asks by its own item's Keep, while each running item deletes by its own.
 	- Actual cause: As the possible cause. The window also deleted every item's history file by its own item's Keep.
 	- Sweep: `Dialog::reset_deletes_saved`, `keep::reset` and the plugin's `reset_if_asked`.
-	- Against: 2026102814061807, "It asks when Keep across restarts is on, as the window shows it or as applied". That reads one item's Keep. A fix that asks when any item keeps history goes past it.
+	- Against: 2026102814061807, "It asks when Keep across restarts is on, as the window shows it or as applied", and 2026102620162202, where Keep across restarts off leaves the file alone at a reset. Since the 2026-11-09 answer, Reset history deletes every item's saved history, Keep on or off, and asks whenever a saved history file exists, so it goes past both.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
@@ -634,15 +634,23 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Settings window has it.
 		- Verified: the quick gate passed, with the Sanitizers step run on its own.
 		- 2026-11-09: Answer on the Check: when the button is pressed, all monitors should be cleared whether active or not. So Reset history clears every item's history, Keep across restarts on or off, and every running item resets. Reopened for that.
+		- 2026-11-09: Reset history now deletes every item's history file, Keep across restarts on or off, and asks first whenever any history file exists. Every running item starts its graphs over, as before.
+		- The question now says it deletes the saved history of every panel item, whether Keep across restarts is on or off.
+		- `design.md` Settings window and History have it.
+		- Verified: the quick gate passed, with the Sanitizers step run on its own.
 	- Decisions:
-		- It asks when any item keeps history, which goes past 2026102814061807's wording, as the Against row says. Its reason holds per item, since each running item that keeps history deletes its own file whichever window pressed Reset.
-		- The plugin is unchanged. It deletes its own file by its own Keep, which is what the window now goes by too.
-		- A settings file that can't be read counts as keeping history, since that's the default, so it asks rather than not.
-	- Actual fix: `Dialog::reset_deletes_saved` and `Dialog::keeps_history` in `settings/src/dialog.rs`, `keep::reset` and `keep::history_ids` in `core/src/keep.rs`, `config::instance_id`, `instance_ids` and `shared_file` in `core/src/config.rs`, and the question in `askReset` in `settings/src/qt.cpp`.
-	- Branch: round-1109
-	- Test case: `dialog::tests::reset_history_asks_and_deletes_by_each_items_own_keep` (df315). It fails with the fix taken out, at the question in the window of the item that keeps no history, and passes after.
+		- 2026-11-09, per the answer on the Check: the window deletes every history file, Keep across restarts on or off, and asks whenever one exists. It no longer reads any item's Keep, so a settings file that can't be read no longer matters here.
+		- The plugin is unchanged. A running item with Keep off doesn't save, so the file the window deleted stays gone. One with Keep on deletes its own again, since it may save in between.
+		- `keep::reset` keeps its pick of which ids go, so its tests are unchanged. The window passes every id.
+		- `config::instance_id` and `instance_ids`, added only for the earlier fix, are gone, since nothing reads them now.
+	- Actual fix: `Dialog::reset_deletes_saved` and `Dialog::reset_history` in `settings/src/dialog.rs`, which go by `keep::history_ids` and pass every id to `keep::reset`, and the question in `askReset` in `settings/src/qt.cpp`. `Dialog::keeps_history`, `config::instance_id` and `instance_ids` are gone.
+	- Branch: round-1109, round-1109b
+	- Test case: `dialog::tests::reset_history_asks_when_any_saved_history_exists_and_deletes_all_of_it` (df38a). It fails with the window's earlier per-item logic put back, and passes after.
+		- 2026-11-09: df315 is commented out, since it checked the per-item Keep that the answer reversed. df38a has what's left of it.
+		- 2026-11-09: new values only. dejaf, renamed `reset_history_goes_at_once_and_deletes_saved_history_kept_or_not`, now expects the question and the file deleted with Keep off and applied, where it expected no question and the file kept.
 		- 2026-11-09: dejaf opens `plugin-3.shcl` rather than `t.shcl`, so its window is the item its history file belongs to. Its asserts are unchanged.
-		- Swept: every `Dialog::reset_deletes_saved` caller (the button in `qt.cpp`, through the bridge), every `keep::reset` caller (the window, defxq, deqs9 and dejae), and the plugin's `reset_if_asked`, which deletes only its own file by its own Keep.
+		- Swept: every `Dialog::reset_deletes_saved` and `reset_history` caller (the button in `qt.cpp`, through the bridge), every `keep::reset` caller (the window, defxq, deqs9 and dejae), the plugin's `reset_if_asked`, every `instance_id` use, and every Reset history line in `design.md`, `style-guide_ux.md` and the code.
+	- Closed: 20261109-151407
 
 - Code review 20261107 item 3: The demo's window manager, panel and settings window join the live desktop session
 	- ID: 2026110709074403

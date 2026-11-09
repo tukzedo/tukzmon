@@ -172,8 +172,8 @@ The code is a Rust core, with C only where a panel's API needs it. That was sett
 	| A saved theme deleted                 | Changed, or picked here and changed on             | It comes back as this window has it.
 	| A saved theme deleted                 | Nothing on it                                      | It stays deleted.
 
-- Reset history is on the left of the bottom strip, under the pages, and starts every graph over at once, in the window and in every panel item. When any panel item keeps history, it asks first, since that deletes the saved history too. For the window's own item that's Keep across restarts as the window shows it or as last applied, and for another item as its own settings file has it. It's an action rather than a setting, so it doesn't wait for Apply, and Cancel doesn't take it back.
-	- It writes `reset` in the history folder. First it deletes the `plugin-<id>.hist` of each item that keeps history, so an item that isn't running doesn't bring old history back. An item with Keep across restarts off keeps its file, as Off always does.
+- Reset history is on the left of the bottom strip, under the pages, and starts every graph over at once, in the window and in every panel item. It also deletes every panel item's saved history, whether its Keep across restarts is on or off. When any saved history file exists, it asks first. It's an action rather than a setting, so it doesn't wait for Apply, and Cancel doesn't take it back.
+	- It writes `reset` in the history folder. First it deletes every `plugin-<id>.hist` there, so an item that isn't running doesn't bring old history back. A running item that keeps history deletes its own again, since it may have saved in between.
 	- A running plugin watches that file, as it does the settings file, and checks its modified time at each sample too. It drops what it has in memory, and when history is kept it deletes its own file again, since it may have saved in between.
 	- With Keep across restarts off, the file is left as it is, the same as Off always does.
 
@@ -385,9 +385,9 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 	- A section whose times are out of order, or whose buckets lie outside them, is skipped. A bucket with a value that isn't finite reads as a gap, and so does a column that adds up to one while drawing.
 		- While running, a graph's time follows the wall clock forward. A suspend, or the clock set on by more than a sample's worth, is a gap.
 		- A clock set back while running doesn't take the graph's time back with it. Its time runs on from where it was, for the same reason as at a load.
-	- "Keep across restarts" turns it off. Off stops saving and loading, and leaves the file as it is. Turned back on, the file is loaded again, so what was seen while it was off is a gap.
+	- "Keep across restarts" turns it off. Off stops saving and loading, and leaves the file as it is, unless Reset history deletes it. Turned back on, the file is loaded again, so what was seen while it was off is a gap.
 	- History older than the max age, 28 days by default, is dropped at each save and load.
-	- Reset history in the settings window drops all of it, or only what's on screen while Keep across restarts is off. See [Settings window](#settings-window).
+	- Reset history in the settings window drops all of it, and deletes the file whether Keep across restarts is on or off. See [Settings window](#settings-window).
 	- Removing the item from the panel deletes its file, and it isn't saved after that.
 
 ## Time axis

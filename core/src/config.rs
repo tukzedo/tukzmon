@@ -1095,29 +1095,6 @@ pub fn instance_file(dir: &Path, id: i32) -> PathBuf {
 	dir.join(format!("plugin-{id}.shcl"))
 }
 
-/// The panel item id an [`instance_file`] is named for.
-pub fn instance_id(path: &Path) -> Option<i32> {
-	path.file_name()?
-		.to_str()?
-		.strip_prefix("plugin-")?
-		.strip_suffix(".shcl")?
-		.parse()
-		.ok()
-}
-
-/// The panel item ids with an [`instance_file`] in `dir`. A folder that
-/// doesn't read has none.
-pub fn instance_ids(dir: &Path) -> Vec<i32> {
-	let Ok(entries) = std::fs::read_dir(dir) else {
-		return Vec::new();
-	};
-	let mut ids: Vec<i32> = entries
-		.filter_map(|e| instance_id(&e.ok()?.path()))
-		.collect();
-	ids.sort_unstable();
-	ids
-}
-
 /// Where a write to `path` goes: the file its links end at, even one that
 /// isn't there yet, so a save keeps the link rather than putting a file over it.
 pub fn through_links(path: &Path) -> PathBuf {
