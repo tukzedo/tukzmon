@@ -657,6 +657,109 @@ fTest_markdownlint_runs_once_per_set_of_rules() {
 	((ok))
 }
 
+## Test ID: df2sr
+fTest_the_memory_cap_is_a_third_of_the_ram_or_a_size_or_none() {
+	local dir="${work}/memcap" ok=0
+	mkdir -p -- "${dir}"
+	(
+		## As cicd.bash has it, reading a meminfo of this test's.
+		eval "$(awk '/^fMemCap\(\)/, /^}/' "${cicd}/cicd.bash" | sed "s|/proc/meminfo|${dir}/meminfo|")"
+		fCase() {   ## fCase MEMTOTAL_KB CAP WANT
+			if [[ -n "$1" ]]; then printf 'MemTotal:       %s kB\nMemFree:  1 kB\n' "$1" > "${dir}/meminfo"; else printf 'MemFree:  1 kB\n' > "${dir}/meminfo"; fi
+			memCap="unset"
+			CICD_MEM_CAP="$2" fMemCap || { fWhy "${1:-no} kB, cap '$2': refused"; return 1; }
+			[[ "${memCap}" == "$3" ]] || { fWhy "${1:-no} kB, cap '$2': '${memCap}', not '$3'"; return 1; }
+		}
+		## 125, 48 and 8 GiB, and no MemTotal at all.
+		fCase 131072000 '' 32g && fCase 50331648 '' 16g && fCase 8388608 '' 4g && fCase '' '' 4g \
+			&& fCase 50331648 7g 7g && fCase 50331648 7G 7g && fCase 50331648 512m 512m && fCase 50331648 none '' || exit 1
+		local bad=''
+		for bad in 'x[$(touch '"${dir}/ran"')]' '0' '07g' '7gb' '7 g' '-1' 'None' '1.5g'; do
+			if CICD_MEM_CAP="${bad}" fMemCap; then fWhy "took '${bad}' as '${memCap}'"; exit 1; fi
+		done
+		[[ ! -e "${dir}/ran" ]] || { fWhy "a \$(...) in CICD_MEM_CAP ran"; exit 1; }
+	) && ok=1
+	((ok))
+}
+
+## Test ID: df2ss
+fTest_every_container_gets_the_memory_cap_with_no_swap() {
+	local dir="${work}/ctrmem" ok=0 hits=''
+	mkdir -p -- "${dir}"
+	printf 'MemTotal:       50331648 kB\n' > "${dir}/meminfo"
+	(
+		## fMemCap and the lines that make ctrMem from it, as cicd.bash has them.
+		eval "$(awk '/^fMemCap\(\)/, /^}/' "${cicd}/cicd.bash" | sed "s|/proc/meminfo|${dir}/meminfo|")"
+		eval "$(awk '/^fCtrRun\(\)/, /^}/' "${cicd}/cicd.bash")"
+		local ctrMemLines=''
+		ctrMemLines="$(awk '/^memCap=""$/, /ctrMem=\(--memory/' "${cicd}/cicd.bash")"
+		[[ -n "${ctrMemLines}" ]] || { fWhy "cicd.bash makes no ctrMem"; exit 1; }
+		fDie() { printf 'DIE %s\n' "$*" >> "${dir}/calls"; return 1; }
+		docker() { printf '%s\n' "$*" >> "${dir}/calls"; }
+		# shellcheck disable=2034  ## Read by fCtrRun, from cicd.bash.
+		{ keepTemp=0; runName=run; ctrLabels=(--label dev.project=tukzmon); jobs=2; }
+		fCase() {   ## fCase CAP WANT
+			: > "${dir}/calls"
+			# shellcheck disable=2034  ## Read by fMemCap, from cicd.bash.
+			CICD_MEM_CAP="$1"
+			eval "${ctrMemLines}"
+			fCtrRun build img true
+			if [[ -n "$2" ]]; then
+				[[ " $(cat -- "${dir}/calls") " == *" --memory $2 --memory-swap $2 --oom-score-adj 1000 "* ]] || { fWhy "cap '$1': $(cat -- "${dir}/calls")"; return 1; }
+			else
+				[[ " $(cat -- "${dir}/calls") " != *" --memory"* && " $(cat -- "${dir}/calls") " != *"--oom-score-adj"* ]] || { fWhy "cap '$1' is capped: $(cat -- "${dir}/calls")"; return 1; }
+			fi
+		}
+		fCase '' 16g && fCase 7g 7g && fCase none '' || exit 1
+	) && ok=1
+	((ok)) || return 1
+	## Every docker or podman run and create in cicd.bash, continuation lines
+	## joined, takes ctrMem, Nix's too.
+	hits="$(awk '!/^[ \t]*#/ { line = line $0; if (/\\$/) { sub(/\\$/, "", line); next }
+		if (line ~ /(docker|podman)[ \t]+(run|create)[ \t]/ && index(line, "${ctrMem[@]}") == 0) print FNR ": " line; line = "" }' "${cicd}/cicd.bash")"
+	[[ -z "${hits}" ]] || { fWhy "uncapped:"; printf '      %s\n' "${hits}"; return 1; }
+}
+
+## Test ID: df2st
+fTest_a_bad_memory_cap_starts_nothing_and_a_good_one_reruns_the_run_in_a_capped_scope() {
+	local t="${work}/memscope" out='' rc=0 f='' want=''
+	mkdir -p -- "${t}/bin" "${t}/home" "${t}/host/${projectName}"
+	## Format's tools stand in, and systemd-run logs its arguments and exits
+	## STUB_SR_RC without running anything.
+	for f in cargo clang-format black choom; do printf '#!/bin/sh\nexit 0\n' > "${t}/bin/${f}"; done
+	printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "%s"\nexit "${STUB_SR_RC:-0}"\n' "${t}/calls" > "${t}/bin/systemd-run"
+	chmod +x -- "${t}/bin/"*
+	fRun() {   ## fRun CAP [ENV...]
+		local cap="$1"; shift
+		rc=0; : > "${t}/calls"
+		out="$(env -u TUKZMON_IN_IMAGE -u TUKZMON_MEM_SCOPE CICD_MEM_CAP="${cap}" HOME="${t}/home" HOST_TEMP="${t}/host" PATH="${t}/bin:${PATH}" "$@" \
+			bash "${cicd}/cicd.bash" --backlog-run-quick format --no-container 2>&1)" || rc=$?
+	}
+	fRun 7g
+	want="--user --scope --quiet -p MemoryMax=7G -p MemorySwapMax=0 -p OOMPolicy=continue choom -n 1000 -- bash ${cicd}/cicd.bash --backlog-run-quick format --no-container"
+	((rc == 0)) && [[ "$(cat -- "${t}/calls")" == "$(printf '%s\n' '--user --scope --quiet true' "${want}")" ]] \
+		|| { fWhy "7g, exit ${rc}, systemd-run got: $(cat -- "${t}/calls")"; return 1; }
+	[[ "${out}" != *"Starting Format"* ]] || { fWhy "7g ran Format outside the scope: ${out}"; return 1; }
+	for f in 'x[$(touch '"${t}/ran"')]' 0 24gb; do
+		fRun "${f}"
+		((rc != 0)) && [[ "${out}" == *"CICD_MEM_CAP '${f}' isn't a size like 24g, or none"* ]] || { fWhy "'${f}' gave exit ${rc}: ${out}"; return 1; }
+		[[ ! -s "${t}/calls" && "${out}" != *"Starting"* ]] || { fWhy "'${f}' started something: ${out}"; return 1; }
+		[[ -z "$(ls -A -- "${t}/host/${projectName}")" ]] || { fWhy "'${f}' made a run folder"; return 1; }
+	done
+	[[ ! -e "${t}/ran" ]] || { fWhy "a \$(...) in CICD_MEM_CAP ran"; return 1; }
+	## none, a run already in its scope, and a box with no user systemd run
+	## Format here, with no scope.
+	for f in none 'scope' 'no-systemd'; do
+		case "${f}" in
+			none) fRun none ;;
+			scope) fRun 7g TUKZMON_MEM_SCOPE=7g ;;
+			no-systemd) fRun 7g STUB_SR_RC=1 ;;
+		esac
+		((rc == 0)) && [[ "${out}" == *"PASS Format"* ]] || { fWhy "${f} gave exit ${rc}: ${out}"; return 1; }
+		[[ "$(cat -- "${t}/calls")" != *MemoryMax* ]] || { fWhy "${f} reran in a scope: $(cat -- "${t}/calls")"; return 1; }
+	done
+}
+
 failed=0
 while read -r id fn; do
 	if "${fn}"; then echo "PASS ${id} ${fn#fTest_}"; else echo "FAIL ${id} ${fn#fTest_}"; failed=1; fi
@@ -684,3 +787,5 @@ exit "${failed}"
 ##		  container cleanup, dev-install's cargo, and the step lines.
 ##		- 2026-11-07: One process scan per stale sweep, and one markdownlint
 ##		  per set of skipped rules.
+##		- 2026-11-09: The memory cap: its default and values, on every
+##		  container, and the run's rerun in a capped scope.

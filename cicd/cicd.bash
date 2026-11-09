@@ -112,6 +112,11 @@
 ##	  and --test-threads. The leak checks get a quarter either way.
 ##	  CICD_MAX_JOBS, when set, caps them all. The whole run is under nice 19
 ##	  and ionice idle.
+##	- Memory: CICD_MEM_CAP, a docker size such as 24g, or none. The default
+##	  is a third of the RAM, 4g to 32g. Each container gets it with no swap
+##	  and --oom-score-adj 1000, and the run on the host gets it in a systemd
+##	  user scope under choom 1000, where there is one. A step killed at the
+##	  cap exits 137. Any other value fails the run before it starts.
 ##	- Temp: each run works in <HOST_TEMP>/tukzmon/<YYYYmmDD-HHMMSS>_<NNN>, with
 ##	  TMPDIR, TEMP and TMP pointed into it. It's removed at the end, along with
 ##	  anything still running from it. A run folder whose run is gone, such as
@@ -820,7 +825,7 @@ fStepNix() {
 	((! keepTemp)) || rm=()
 	fEcho_Clean "in ${projectName}-${runName}-nix, from ${NIX_IMAGE}"
 	docker run "${rm[@]}" --init -e TINI_KILL_PROCESS_GROUP=1 --name "${projectName}-${runName}-nix" "${ctrLabels[@]}" \
-		--cpus "${jobs}" --cpu-shares 256 -v "${vol}:/nix" -v "${src}:/src:ro" \
+		--cpus "${jobs}" --cpu-shares 256 "${ctrMem[@]}" -v "${vol}:/nix" -v "${src}:/src:ro" \
 		-e "TUKZMON_JOBS=${jobs}" -e "TUKZMON_NIX_CAP_MB=${NIX_STORE_CAP_MB}" \
 		"${NIX_IMAGE}" nice -n 19 bash /src/cicd/nix/check.bash || return 1
 }
@@ -881,6 +886,44 @@ fi
 
 #•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Machine use
+
+## Memory. A runaway step has to die alone, before the OOM killer reaches for
+## the desktop. Every container gets the cap with no swap, first in line for
+## the OOM killer, and so does this run on the host, in a user scope. A step
+## killed at the cap exits 137, and fails. CICD_MEM_CAP is a docker size such
+## as 24g, or none. The default is a third of the RAM, 4g to 32g. No step
+## needs a higher one: the peaks on b23 to 2026-11-08 were Miri 13.3 GB, Soak
+## 11.3 GB, Nix 5.8 GB and Packages 3.5 GB, page cache included. Sets memCap,
+## empty for none, and fails on anything else.
+fMemCap() {
+	local kb=''
+	memCap="${CICD_MEM_CAP:-}"
+	if [[ "${memCap}" == none ]]; then memCap=""; return 0; fi
+	if [[ -z "${memCap}" ]]; then
+		kb="$(awk '/^MemTotal:/ { print $2 }' /proc/meminfo 2> /dev/null || true)"
+		[[ "${kb}" =~ ^[0-9]{1,12}$ ]] || kb=0
+		memCap=$((kb / 3 / 1048576)); ((memCap <= 32)) || memCap=32; ((memCap >= 4)) || memCap=4
+		memCap+="g"
+	fi
+	## Matched, never read as arithmetic, so x[$(cmd)] can't run.
+	[[ "${memCap}" =~ ^[1-9][0-9]{0,14}[kmgKMG]?$ ]] || return 1
+	memCap="${memCap,,}"
+}
+memCap=""
+fMemCap || fDie "CICD_MEM_CAP '${CICD_MEM_CAP:-}' isn't a size like 24g, or none"
+## Every docker run takes these.
+ctrMem=()
+[[ -z "${memCap}" ]] || ctrMem=(--memory "${memCap}" --memory-swap "${memCap}" --oom-score-adj 1000)
+## The whole run goes in the scope, once, so the host steps are capped. The
+## containers are dockerd's children, not ours, so they're capped apart. With
+## no user systemd, as on a bare CI runner, it runs as before. OOMPolicy
+## continue, so a step the kernel kills fails, and cleanup still runs.
+if [[ -n "${memCap}" && -z "${TUKZMON_MEM_SCOPE:-}" ]] && command -v choom > /dev/null 2>&1 \
+	&& systemd-run --user --scope --quiet true > /dev/null 2>&1; then
+	export TUKZMON_MEM_SCOPE="${memCap}"
+	exec systemd-run --user --scope --quiet -p "MemoryMax=${memCap^^}" -p MemorySwapMax=0 -p OOMPolicy=continue \
+		choom -n 1000 -- bash "${here}/${BASH_SOURCE[0]##*/}" "${cliArgs[@]}"
+fi
 
 ## Children inherit both.
 renice -n 19 -p "$$" > /dev/null 2>&1 || true
@@ -1049,17 +1092,17 @@ fCtrContext() {   ## fCtrContext DIR
 	ctrTag="${CTR_IMAGE}:$({ (cd "${ctx}" && for f in "${ctxFiles[@]}"; do echo "${f}"; cat "${f}"; done); printf 'build-arg %s\n' "${CTR_BUILD_ARGS[@]}"; } | git hash-object --stdin | cut -c1-12)"
 }
 
-## Every container goes through here. nice on the client doesn't reach a
-## container, so each gets the run's job count at a low share, and the ones
-## that build run nice inside too. The init passes a Ctrl+C to the whole
-## group inside, or cargo would run on to the end.
+## Every container but Nix's goes through here. nice on the client doesn't
+## reach a container, so each gets the run's job count at a low share, and the
+## ones that build run nice inside too. The memory cap is ctrMem's. The init
+## passes a Ctrl+C to the whole group inside, or cargo would run on to the end.
 fCtrRun() {   ## fCtrRun STEP DOCKER_RUN_ARG...
 	local step="$1"
 	local -a rm=(--rm)
 	shift
 	((! keepTemp)) || rm=()
 	docker run "${rm[@]}" --init -e TINI_KILL_PROCESS_GROUP=1 --name "${projectName}-${runName}-${step}" "${ctrLabels[@]}" \
-		--cpus "${jobs}" --cpu-shares 256 --user "$(id -u):$(id -g)" "$@"
+		--cpus "${jobs}" --cpu-shares 256 "${ctrMem[@]}" --user "$(id -u):$(id -g)" "$@"
 }
 
 ## Builds the image when this recipe has none, checks it answers, and fills
@@ -1275,3 +1318,5 @@ exit 0
 ##		- 2026-11-06: The demo step, with --no-demo.
 ##		- 2026-11-07: One markdownlint per set of skipped rules, and one
 ##		  process scan per stale sweep.
+##		- 2026-11-09: A memory cap with no swap, CICD_MEM_CAP, on every
+##		  container and on the run in a user scope.
