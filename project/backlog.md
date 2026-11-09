@@ -265,7 +265,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 19: knobs' spec checks let a relation loop, case-only twins, a NaN range end, and a text chooser through
 	- ID: 2026110709074419
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -277,8 +277,32 @@ Sorted per the notes in [Template](#template).
 		- `range: [nan, 10]` passes, and then every number is in range.
 		- A chooser with `type: text` passes and takes any text as a pick.
 	- Expected behavior: Each is refused when the spec loads.
+	- Reproduced: 2026-11-09, with the 4 new tests, each of which parsed clean on the old checks.
+	- Actual cause:
+		- `Model::value` reads a setting's auto switch, its rule's state value and its group's chooser, and nothing checked that those can't lead back to it.
+		- Paths were compared as written, and shcl folds key case.
+		- `x < min || x > max` is false for a NaN end, and `numbers` reads `nan` from text.
+		- A chooser was checked for its control only, not its type.
 	- Note: silkterm's backlog needs the same fix.
 	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- `Spec::finish` refuses a loop through what a value reads, naming each setting on it.
+		- Paths, and the `kept` check, compare without case.
+		- A range end or detent that isn't a number is refused.
+		- A group's chooser must be of type choice.
+		- `demo/demo.shcl`'s format notes say the same.
+		- Verified: the quick gate and Sanitizers passed.
+	- Decisions:
+		- Also refused: a dropdown's options that differ only in case, since a choice is matched without case and the second could never be picked. Same shape as the path twins.
+		- The loop check is a walk over the reads with an index, once per spec, rather than a chain walk per setting, since a setting reads up to 3 others.
+		- A range with its ends swapped was already refused through its default, so it gets no check of its own.
+		- A patch for silkterm's copy is drafted in the upstream folder, `2026110709074419/`.
+	- Branch: round-1109b
+	- Test case: `tests::a_chooser_switched_by_its_own_member_is_a_loop` (df399), `paths_and_options_that_differ_only_in_case_are_twins` (df39a), `a_range_end_or_detent_that_isnt_a_number_is_refused` (df39b) and `a_chooser_holds_a_choice` (df39c), in knobs. Each failed before the fix and passes after.
+		- Swept: every check in `check_links` that compares paths, ranges or detents, the gate loop check, and `set_indents`, which caps its walk at 8. A loop through 2 groups is caught too, checked with a probe.
+	- Acceptance signoff: Self-closed 20261109: df399, df39a, df39b and df39c.
+	- Closed: 20261109-154520
 
 - Code review 20261107 item 20: The Miri step drops a target whose test list fails and still passes
 	- ID: 2026110709074420
