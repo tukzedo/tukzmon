@@ -7553,7 +7553,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 12: Work that starts during the GPU's idle rest reads as 0% until the rest ends
 	- ID: 2026110709074412
 	- Type: Bug
-	- Status: Waiting on UAT
+	- Status: Done
 		- Less than the wording. Work that starts on a card still awake in the rest reads 0 until the rest is up. The rest now comes only after 5 s idle, and ends as soon as the card sleeps. Accept that window, or ask for a shorter rest, which risks keeping the card up.
 	- Stand-in: none (20261109). Whether the window left is small enough is a scope call.
 	- Priority|Severity: Low
@@ -7584,6 +7584,8 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1109
 	- Test case: `gpu::tests::nvml_leaves_a_card_that_may_sleep_alone_while_it_sleeps` (desfa). It fails with the rest resting on the first idle read, and with the rest not ending when the card sleeps.
 		- Swept: both readers go through `Nvidia::awake` and `rest_if_idle`. No other code used the idle count or `IDLE_READS`. `design.md` was the only doc that gave the 5 reads.
+	- Acceptance signoff: Self-closed, 2026-11-09: desfa passed and failed with either half taken out. The window left, a card kept awake by something else during a rest, is in design.md's GPU row. Asking NVML there would keep the card awake, which undoes the rest. Reopen if it shows on a real laptop.
+	- Closed: 20261109-134826
 
 - Code review 20261107 item 13: An IPv4 client on a dual-stack socket is counted with IPv6 header bytes
 	- ID: 2026110709074413
