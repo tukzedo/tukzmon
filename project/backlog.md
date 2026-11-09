@@ -7218,7 +7218,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 6: The pre-push hook can pass a commit it never tested
 	- ID: 2026110709074406
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7228,7 +7228,22 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: Each step checks the tree as it is right then, and the hook never looks at the tree again, so a commit can pass on edits that aren't in it.
 	- Expected behavior: The gate checks the commit being pushed, as the hook's header says.
 	- Possible cause: The in-place path trusts a tree that was clean at the start to stay clean.
+	- Reproduced: 2026-11-09, round-1109, by df32x. A commit that fails the gate went through on an edit made to the checkout while the gate ran.
+	- Actual cause: When the checkout was at the pushed commit with nothing uncommitted, the hook ran the gate in the checkout itself, so edits made after that check reached the gate.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The hook always gates in a detached worktree of the pushed commit, in its run's temp folder, building into `target/gate`. The in-place path is gone.
+		- New test df32x runs the real hook with a stand-in gate that edits the checkout while it runs, once on a commit that fails and once on one that passes.
+		- Verified: df32x failed on the old hook and passed after. The quick gate's format, build, lint and test areas passed.
+	- Decisions:
+		- Always a worktree, rather than checking the tree again after the gate. A check after can't see an edit that was undone before it, nor ignored files.
+		- The cost is a checkout per push, and a first push that builds cold in `target/gate` and its container target, since the in-place path used `target/`. Later pushes reuse it.
+		- Swept: `cicd/hooks` holds only pre-push. The hosted `merge-gate.yml` checks out the commit it gates. Nothing else starts `--merge-gate`.
+	- Actual fix: the worktree branch in `cicd/hooks/pre-push` is the only path, and its header says so.
+	- Branch: round-1109
+	- Test case: `the_pre_push_hook_gates_the_commit_not_the_checkout` (df32x), in `cicd/tests/guards.bash`.
+	- Closed: 20261109-121929
 
 - Code review 20261107 item 7: A demo stopped by TERM leaves its X session running, a FUSE mount, and a folder no sweep removes
 	- ID: 2026110709074407

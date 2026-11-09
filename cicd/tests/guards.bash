@@ -228,6 +228,38 @@ fTest_only_1_skips_the_pre_push_hook() {
 	done
 }
 
+## Test ID: df32x
+fTest_the_pre_push_hook_gates_the_commit_not_the_checkout() {
+	local t="${work}/pushed" r="${work}/pushed/repo" sha='' out='' rc=0 v=''
+	local -a g=(git -C "${r}" -c user.name=t -c user.email=t@t.invalid -c commit.gpgsign=false)
+	mkdir -p -- "${r}/cicd/hooks" "${r}/cicd/utility/include" "${t}/tmp"
+	cp -- "${cicd}/hooks/pre-push" "${r}/cicd/hooks/"
+	cp -- "${cicd}/config.bash" "${r}/cicd/"
+	cp -- "${cicd}/utility/include/run-tmp.bash" "${r}/cicd/utility/include/"
+	## The stand-in gate passes on its tree's verdict, after another session
+	## writes the opposite one into the checkout.
+	printf '%s\n' '#!/usr/bin/env bash' 'echo "${GATE_EDIT}" > "${GATE_CHECKOUT}/verdict"' \
+		'[[ "$(< "$(dirname "$0")/../verdict")" == pass ]]' > "${r}/cicd/cicd.bash"
+	chmod +x "${r}/cicd/cicd.bash"
+	"${g[@]}" init -q || { fWhy "git init failed"; return 1; }
+	for v in fail pass; do
+		echo "${v}" > "${r}/verdict"
+		{ "${g[@]}" add -- verdict cicd && "${g[@]}" commit -qm "${v}"; } || { fWhy "commit failed"; return 1; }
+		sha="$("${g[@]}" rev-parse HEAD)"
+		[[ -z "$("${g[@]}" status --porcelain)" ]] || { fWhy "the checkout isn't clean"; return 1; }
+		rc=0
+		out="$(printf 'refs/heads/main %s refs/heads/main %040d\n' "${sha}" 0 \
+			| HOST_TEMP="${t}/tmp" GATE_CHECKOUT="${r}" GATE_EDIT="$([[ "${v}" == pass ]] && echo fail || echo pass)" \
+			bash "${r}/cicd/hooks/pre-push" 2>&1)" || rc=$?
+		[[ "$(< "${r}/verdict")" != "${v}" ]] || { fWhy "the stand-in gate never ran: ${out}"; return 1; }
+		if [[ "${v}" == fail ]]; then
+			((rc)) || { fWhy "a commit that fails the gate went through, on the checkout's edit"; return 1; }
+		else
+			((rc == 0)) || { fWhy "a commit that passes the gate was refused, on the checkout's edit: ${out}"; return 1; }
+		fi
+	done
+}
+
 ## Test ID: deqvr
 fTest_dev_install_copies_what_cargo_built_and_finds_the_panel_library() {
 	local t="${work}/dev-install" out='' f='' lib=''
@@ -821,3 +853,4 @@ exit "${failed}"
 ##		  container, and the run's rerun in a capped scope.
 ##		- 2026-11-09: The demo's WM, panel and settings window get nothing of
 ##		  the live session's env.
+##		- 2026-11-09: The pre-push hook gates the commit, not the checkout.
