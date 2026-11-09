@@ -419,7 +419,7 @@ impl Plugin {
 				unsafe { kill(pid, SIGTERM) };
 			}
 		}
-		for f in [&self.config, &self.history] {
+		for f in [&self.config, &self.history, &config::mark_of(&self.config)] {
 			if let Err(e) = keep::remove(f) {
 				complain(format_args!("can't delete {}: {e}", f.display()));
 			}
@@ -720,6 +720,20 @@ fn edits(pid: u32, config: &Path) -> bool {
 		&& args.skip_while(|&a| a != b"--config").nth(1) == Some(config.as_os_str().as_bytes())
 }
 
+/// The panel's own file for the item, `xfce4/panel/<name>-<id>.rc`.
+fn panel_file(plugin: *mut c_void) -> Option<PathBuf> {
+	// SAFETY: plugin is a live XfcePanelPlugin, and the string is ours to free.
+	unsafe {
+		let path = xfce_panel_plugin_save_location(plugin, 1);
+		if path.is_null() {
+			return None;
+		}
+		let owned = PathBuf::from(OsStr::from_bytes(CStr::from_ptr(path).to_bytes()));
+		g_free(path.cast());
+		Some(owned)
+	}
+}
+
 extern "C" fn configure(_plugin: *mut c_void, data: *mut c_void) {
 	guarded(data, |_| (), |p| p.open_settings(&settings_program()));
 }
@@ -754,13 +768,23 @@ impl Plugin {
 		// SAFETY: plugin is a live XfcePanelPlugin.
 		let id = unsafe { xfce_panel_plugin_get_unique_id(plugin) };
 		let config = config::instance_file(&config::config_dir(), id);
+		let data = keep::data_dir();
+		let history = keep::history_file(&data, id);
+		// an item the panel dropped without a Remove left its files
+		match panel_file(plugin) {
+			Some(rc) => {
+				if let Err(e) = config::claim(&rc, &config, &history) {
+					complain(format_args!("can't check {}: {e}", rc.display()));
+				}
+			}
+			None => complain(format_args!("no panel file for item {id}")),
+		}
 		if let Err(e) = config::start_from(&config, &config::config_file()) {
 			complain(format_args!(
 				"can't start {} from the shared file: {e}",
 				config.display()
 			));
 		}
-		let data = keep::data_dir();
 		// so the reset mark's folder can be watched from the start
 		if let Err(e) = std::fs::create_dir_all(&data) {
 			complain(format_args!("can't make {}: {e}", data.display()));
@@ -782,7 +806,7 @@ impl Plugin {
 			config,
 			settings: None,
 			properties: None,
-			history: keep::history_file(&data, id),
+			history,
 			reset: keep::ResetWatch::new(&data),
 			watches: Vec::new(),
 			saved_at: Instant::now(),
@@ -1208,6 +1232,29 @@ mod tests {
 		std::fs::remove_dir(&dir).unwrap();
 		assert_eq!(left, (false, false), "(settings, history) left behind");
 		assert_eq!(fresh, "shared\n");
+	}
+
+	// Test ID: df36d
+	#[test]
+	fn a_removed_item_takes_its_mark_too() {
+		use tukzmon_core::config;
+		let dir =
+			std::env::temp_dir().join(format!("test_tukzmon_xfce_{}_mark", std::process::id()));
+		std::fs::create_dir_all(&dir).unwrap();
+		let own = config::instance_file(&dir, 9);
+		let hist = keep::history_file(&dir, 9);
+		config::claim(&dir.join("tukzmon-9.rc"), &own, &hist).unwrap();
+		let mark = config::mark_of(&own);
+		let made = mark.exists();
+		let data = plugin(&dir, &own, &hist);
+		super::removed(std::ptr::null_mut(), data);
+		super::free_data(std::ptr::null_mut(), data);
+		let left = mark.exists();
+		std::fs::remove_file(dir.join("tukzmon-9.rc")).unwrap();
+		let _ = std::fs::remove_file(&mark);
+		std::fs::remove_dir(&dir).unwrap();
+		assert!(made);
+		assert!(!left, "mark left behind");
 	}
 
 	/// Reaps the Plugin's settings window until it's gone, for up to 5 s.
