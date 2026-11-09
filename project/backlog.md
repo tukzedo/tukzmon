@@ -22,6 +22,16 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- The settings tests print about 95,000 QObject::moveToThread warnings
+	- ID: 2026110912124929
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261109-121249
+	- Opened by:
+	- Progress log:
+		- 2026-11-09: Seen in the quick gate's test log on round-1109, starting near dej8s, while 2026110709074405 was worked. Every test passed. Not yet known whether it's older than df32n's offscreen close hook. A flood that size hides real warnings in the log.
+
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
@@ -7203,6 +7213,7 @@ Sorted per the notes in [Template](#template).
 	- Test case: `bridge::tests::cancel_esc_and_the_close_button_quit_0` (df32n). der60 already covers the plugin's tip for a window that quits 0 or 1.
 		- Swept: every exit path in `settings/src/main.rs` and `run_dialog`, and every `QDialog::Accepted` check in `qt.cpp`. The others are the color picker's own result, which stays as it is.
 	- Closed: 20261109-121212
+	- Commit: 74b811e
 
 - Code review 20261107 item 6: The pre-push hook can pass a commit it never tested
 	- ID: 2026110709074406
