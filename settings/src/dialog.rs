@@ -116,20 +116,28 @@ fn read(path: &Path) -> Result<String, String> {
 }
 
 // Saved themes as the file has them, with what this window changed since
-// `was` laid over them. One changed here is written whole.
+// `was` laid over them. A theme the file still has gets only the name and
+// colors changed here, so another window's edits to it stay (2026110709074404).
 fn merge_themes(file: Vec<SavedTheme>, was: &[SavedTheme], now: &[SavedTheme]) -> Vec<SavedTheme> {
 	let mut out: Vec<SavedTheme> = file
 		.into_iter()
 		.filter(|t| now.iter().any(|n| n.key == t.key) || !was.iter().any(|w| w.key == t.key))
 		.collect();
 	for t in now {
-		if was.contains(t) {
+		let before = was.iter().find(|w| w.key == t.key);
+		if before == Some(t) {
 			continue;
 		}
 		// the window keeps its own list too
-		match out.iter_mut().find(|o| o.key == t.key) {
-			Some(o) => *o = t.clone(),
-			None => out.push(t.clone()),
+		match (out.iter_mut().find(|o| o.key == t.key), before) {
+			(Some(o), Some(w)) => {
+				if t.name != w.name {
+					o.name.clone_from(&t.name);
+				}
+				carry(&w.colors, &t.colors, &mut o.colors);
+			}
+			(Some(o), None) => *o = t.clone(),
+			(None, _) => out.push(t.clone()),
 		}
 	}
 	out
@@ -154,6 +162,53 @@ fn carry<V: Clone + PartialEq>(
 			}
 		}
 	}
+}
+
+// The theme pick and the changes made on it are one thing. Once the file picks
+// another theme than this window, and this window changed either, its own go
+// whole, or its changes would land on the file's pick (2026110709074404).
+fn carry_theme(was: &Model, now: &Model, file_pick: &str, to: &mut Model) {
+	if now.stored_choice(THEME, &NoEnv) == file_pick || !theme_touched(was, now) {
+		return;
+	}
+	let now_v = &now.values;
+	let to = &mut to.values;
+	copy_one(&now_v.own, &mut to.own, THEME);
+	copy_one(&now_v.changed_on, &mut to.changed_on, THEME);
+	for m in theme_members(now) {
+		copy_one(&now_v.changes, &mut to.changes, m);
+	}
+}
+
+fn theme_members(m: &Model) -> &[String] {
+	m.spec
+		.group(THEME)
+		.map_or(&[][..], |g| g.members.as_slice())
+}
+
+// The pick, or the changes on it, differ from the file as last read.
+fn theme_touched(was: &Model, now: &Model) -> bool {
+	let members = theme_members(now);
+	// a Custom color edited while Custom shows is an edit on the pick too
+	let on_custom = now.stored_choice(THEME, &NoEnv) == knobs::CUSTOM;
+	let (was, now) = (&was.values, &now.values);
+	let differs = |a: &BTreeMap<String, Value>, b: &BTreeMap<String, Value>| {
+		members.iter().any(|m| a.get(m) != b.get(m))
+	};
+	let has_changes = |v: &knobs::Values| members.iter().any(|m| v.changes.contains_key(m));
+	was.own.get(THEME) != now.own.get(THEME)
+		|| differs(&was.changes, &now.changes)
+		// with no changes left, what they were made on doesn't count
+		|| (was.changed_on.get(THEME) != now.changed_on.get(THEME)
+			&& (has_changes(was) || has_changes(now)))
+		|| (on_custom && differs(&was.own, &now.own))
+}
+
+fn copy_one<V: Clone>(from: &BTreeMap<String, V>, to: &mut BTreeMap<String, V>, key: &str) {
+	match from.get(key) {
+		Some(v) => to.insert(key.to_string(), v.clone()),
+		None => to.remove(key),
+	};
 }
 
 impl Dialog {
@@ -221,20 +276,44 @@ impl Dialog {
 		self.model != self.saved || self.themes != self.saved_themes
 	}
 
-	/// Whether Reset history deletes the saved history too: Keep across
-	/// restarts is on, as shown or as the panel has it.
+	/// Whether Reset history deletes any saved history: some panel item, this
+	/// one or another, keeps history. See [`Self::keeps_history`].
 	pub fn reset_deletes_saved(&self) -> bool {
-		self.look().keep || config::Look::from_model(&self.saved).keep
+		let dir = self.path.parent().unwrap_or(Path::new(""));
+		config::instance_ids(dir)
+			.into_iter()
+			.chain(keep::history_ids(&self.history_dir))
+			.chain(config::instance_id(&self.path))
+			.any(|id| self.keeps_history(id))
 	}
 
-	/// Starts every graph in every panel item over now. See
-	/// [`Self::reset_deletes_saved`] for when the saved history goes too.
+	/// Whether the panel item `id` has Keep across restarts on. For this
+	/// window's item that's as shown or as applied, since its running item
+	/// deletes its own file either way. Another item's is in its file, or in
+	/// the shared one it would start from. One that can't be read counts as
+	/// on, since that's the default.
+	fn keeps_history(&self, id: i32) -> bool {
+		if config::instance_id(&self.path) == Some(id) {
+			return self.look().keep || config::Look::from_model(&self.saved).keep;
+		}
+		let dir = self.path.parent().unwrap_or(Path::new(""));
+		let own = config::instance_file(dir, id);
+		let file = if own.exists() {
+			own
+		} else {
+			config::shared_file(dir)
+		};
+		config::Look::load(&file).map_or(true, |l| l.keep)
+	}
+
+	/// Starts every graph in every panel item over now. The saved history of
+	/// each item that keeps it goes too, per backlog 2026110709074402.
 	///
 	/// # Errors
 	///
 	/// Why the panel wasn't told.
 	pub fn reset_history(&self) -> Result<(), String> {
-		keep::reset(&self.history_dir, self.reset_deletes_saved()).map_err(|e| {
+		keep::reset(&self.history_dir, |id| self.keeps_history(id)).map_err(|e| {
 			format!(
 				"History in {} wasn't reset: {e}",
 				self.history_dir.display()
@@ -738,9 +817,17 @@ impl Dialog {
 		let doc = shcl::Document::parse(&text);
 		let file_themes = config::saved_themes(&doc);
 		self.make_room(&file_themes);
-		let themes = merge_themes(file_themes, &self.saved_themes, &self.themes);
+		let mut themes = merge_themes(file_themes, &self.saved_themes, &self.themes);
+		// deleted elsewhere, but picked and changed on here, so carry_theme keeps the pick
+		if let Some(i) = self.on_saved()
+			&& theme_touched(&self.saved, &self.model)
+			&& !themes.iter().any(|t| t.key == self.themes[i].key)
+		{
+			themes.push(self.themes[i].clone());
+		}
 		let spec = config::spec_with(&themes);
 		let mut fresh = config::model_on(Arc::clone(&spec), &doc);
+		let file_pick = fresh.stored_choice(THEME, &NoEnv);
 		// Store by store rather than replaying each row, since a row's set or
 		// reset means something else on the file's theme than on the window's.
 		let (was, now, to) = (&self.saved.values, &self.model.values, &mut fresh.values);
@@ -748,6 +835,7 @@ impl Dialog {
 		carry(&was.changes, &now.changes, &mut to.changes);
 		carry(&was.changed_on, &now.changed_on, &mut to.changed_on);
 		carry(&was.state, &now.state, &mut to.state);
+		carry_theme(&self.saved, &self.model, &file_pick, &mut fresh);
 		config::name_the_theme(&mut fresh);
 		let (body, _) = fresh.save(&NoEnv);
 		// shcl writes through a link only when its file is there
@@ -903,7 +991,7 @@ mod tests {
 		let data = d.0.join("data");
 		let hist = keep::history_file(&data, 3);
 		keep::write(&hist, &[("cpu", b"x")]).unwrap();
-		let mut dlg = Dialog::open(d.0.join("t.shcl")).unwrap();
+		let mut dlg = Dialog::open(d.0.join("plugin-3.shcl")).unwrap();
 		dlg.history_dir.clone_from(&data);
 		assert!(dlg.reset_deletes_saved());
 		dlg.reset_history().unwrap();
@@ -928,6 +1016,53 @@ mod tests {
 		assert!(watch.asked() && hist.exists());
 		std::fs::remove_file(&hist).unwrap();
 		std::fs::remove_file(keep::reset_mark(&data)).unwrap();
+		std::fs::remove_dir(&data).unwrap();
+	}
+
+	// Test ID: df315
+	#[test]
+	fn reset_history_asks_and_deletes_by_each_items_own_keep() {
+		let d = scratch("reset_two");
+		let data = d.0.join("data");
+		let hist = [keep::history_file(&data, 1), keep::history_file(&data, 2)];
+		let off = "history:\n\tkeep: false\n";
+		std::fs::write(config::instance_file(&d.0, 1), "").unwrap();
+		std::fs::write(config::instance_file(&d.0, 2), off).unwrap();
+		let at = |id| {
+			let mut dlg = Dialog::open(config::instance_file(&d.0, id)).unwrap();
+			dlg.history_dir.clone_from(&data);
+			dlg
+		};
+		let write_both = || {
+			for p in &hist {
+				keep::write(p, &[("cpu", b"x")]).unwrap();
+			}
+		};
+		// pressed in the window of the item that doesn't keep it
+		write_both();
+		let dlg = at(2);
+		assert!(dlg.reset_deletes_saved());
+		dlg.reset_history().unwrap();
+		assert!(!hist[0].exists() && hist[1].exists());
+		// and in the one that does
+		write_both();
+		at(1).reset_history().unwrap();
+		assert!(!hist[0].exists() && hist[1].exists());
+		// neither keeps it: no question, and both files stay
+		write_both();
+		std::fs::write(config::instance_file(&d.0, 1), off).unwrap();
+		let dlg = at(2);
+		assert!(!dlg.reset_deletes_saved());
+		dlg.reset_history().unwrap();
+		assert!(hist.iter().all(|p| p.exists()));
+		// an item with no file of its own goes by the shared one
+		std::fs::remove_file(config::instance_file(&d.0, 1)).unwrap();
+		assert!(at(2).reset_deletes_saved());
+		std::fs::write(config::shared_file(&d.0), off).unwrap();
+		assert!(!at(2).reset_deletes_saved());
+		for p in hist.iter().chain([&keep::reset_mark(&data)]) {
+			std::fs::remove_file(p).unwrap();
+		}
 		std::fs::remove_dir(&data).unwrap();
 	}
 
@@ -1287,6 +1422,31 @@ mod tests {
 		assert_eq!(
 			dlg.state(ORDER).text,
 			"cpu mem gpu vram net swap zswap load disk temp battery self procs nope"
+		);
+	}
+
+	// Test ID: df34m
+	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
+	fn a_setting_changed_and_changed_back_is_no_change() {
+		let d = scratch("back");
+		let path = d.0.join("t.shcl");
+		let mut dlg = Dialog::open(path.clone()).unwrap();
+		assert!(dlg.set_text("max_days", "29"));
+		assert!(dlg.dirty());
+		assert!(dlg.set_text("max_days", "28"));
+		assert!(!dlg.dirty(), "back at the default");
+		let t = dlg.slider("sample_ms").map(|s| s.to_t(1000.0)).unwrap();
+		dlg.set_slider("sample_ms", 0.9);
+		assert!(dlg.dirty());
+		dlg.set_slider("sample_ms", t + 0.001);
+		assert!(!dlg.dirty(), "a slider back on its default");
+		assert!(dlg.set_text("user", "123abc"));
+		dlg.apply().unwrap();
+		let text = std::fs::read_to_string(&path).unwrap();
+		assert!(
+			!text.contains("max_days") && !text.contains("sample_ms"),
+			"{text}"
 		);
 	}
 
@@ -2005,6 +2165,95 @@ mod tests {
 		assert_eq!(second.state("theme").choice, "mine 2");
 		let reread = Dialog::open(path).unwrap();
 		assert_eq!(reread.state("theme").choice, "mine 2");
+	}
+
+	// Test ID: df320
+	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
+	fn a_color_set_here_stays_when_another_window_picked_another_theme() {
+		let d = scratch("picked_elsewhere");
+		let path = d.0.join("t.shcl");
+		let mut first = Dialog::open(path.clone()).unwrap();
+		let mut second = Dialog::open(path.clone()).unwrap();
+		let mut third = Dialog::open(path.clone()).unwrap();
+		second.save_theme_as("Mine").unwrap();
+		second.apply().unwrap();
+		assert!(first.set_text("user", "#abcdef"));
+		assert_eq!(first.state("theme").choice, "Default *");
+		first.apply().unwrap();
+		for dlg in [&first, &Dialog::open(path.clone()).unwrap()] {
+			assert_eq!(dlg.state("theme").choice, "Default *");
+			assert_eq!(dlg.state("user").text, "#abcdef");
+			assert_eq!(dlg.themes.len(), 1, "the other window's theme stays");
+		}
+		// one that changed nothing on the theme leaves the file's pick alone
+		assert!(third.set_text("width", "300"));
+		third.apply().unwrap();
+		let reread = Dialog::open(path.clone()).unwrap();
+		assert_eq!(reread.state("theme").choice, "Default *");
+		assert_eq!(reread.state("user").text, "#abcdef");
+		assert_eq!(config::Look::load(&path).unwrap().width, 300);
+		// a Custom color edited on Custom brings Custom with it
+		let mut first = Dialog::open(path.clone()).unwrap();
+		let mut second = Dialog::open(path.clone()).unwrap();
+		assert!(first.set_text("theme", "custom"));
+		first.apply().unwrap();
+		let mut first = Dialog::open(path.clone()).unwrap();
+		assert!(second.set_text("theme", "mine"));
+		second.apply().unwrap();
+		assert!(first.set_text("nice", "#123456"));
+		first.apply().unwrap();
+		let reread = Dialog::open(path.clone()).unwrap();
+		assert_eq!(reread.state("theme").choice, "Custom");
+		assert_eq!(reread.state("nice").text, "#123456");
+		// a theme deleted elsewhere, but changed on here, comes back with the change
+		let mut dlg = Dialog::open(path.clone()).unwrap();
+		assert!(dlg.set_text("theme", "mine"));
+		dlg.apply().unwrap();
+		let mut first = Dialog::open(path.clone()).unwrap();
+		let mut second = Dialog::open(path.clone()).unwrap();
+		second.delete_theme();
+		second.apply().unwrap();
+		assert!(first.set_text("user", "#0a0b0c"));
+		first.apply().unwrap();
+		let reread = Dialog::open(path).unwrap();
+		assert_eq!(reread.state("theme").choice, "Mine *");
+		assert_eq!(reread.state("user").text, "#0a0b0c");
+	}
+
+	// Test ID: df321
+	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
+	fn a_rename_here_keeps_the_colors_another_window_saved_into_the_theme() {
+		let d = scratch("renamed_here");
+		let path = d.0.join("t.shcl");
+		let mut dlg = Dialog::open(path.clone()).unwrap();
+		dlg.save_theme_as("Mine").unwrap();
+		dlg.apply().unwrap();
+		let mut first = Dialog::open(path.clone()).unwrap();
+		let mut second = Dialog::open(path.clone()).unwrap();
+		assert!(second.set_text("user", "#abcdef"));
+		second.save_theme();
+		second.apply().unwrap();
+		first.rename_theme("Ours").unwrap();
+		first.apply().unwrap();
+		for dlg in [&first, &Dialog::open(path.clone()).unwrap()] {
+			assert_eq!(dlg.state("theme").choice, "Ours");
+			assert_eq!(dlg.state("user").text, "#abcdef");
+		}
+		// a color each, saved into the theme in 2 windows, both stay
+		let mut first = Dialog::open(path.clone()).unwrap();
+		let mut second = Dialog::open(path.clone()).unwrap();
+		assert!(first.set_text("nice", "#123456"));
+		first.save_theme();
+		first.apply().unwrap();
+		assert!(second.set_text("user", "#654321"));
+		second.save_theme();
+		second.apply().unwrap();
+		let reread = Dialog::open(path).unwrap();
+		assert_eq!(reread.state("theme").choice, "Ours");
+		assert_eq!(reread.state("nice").text, "#123456");
+		assert_eq!(reread.state("user").text, "#654321");
 	}
 
 	// Test ID: dezea

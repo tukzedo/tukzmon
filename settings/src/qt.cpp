@@ -66,6 +66,7 @@
 #include <climits>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <functional>
 #include <initializer_list>
@@ -1020,8 +1021,8 @@ public:
 
 	bool askReset() {
 		return QMessageBox::question(this, "Reset history",
-				   "Keep across restarts is on, so this deletes all past history, not only what's "
-				   "on screen.\n\nReset history?",
+				   "Keep across restarts is on for this or another panel item, so this deletes saved "
+				   "history, not only what's on screen.\n\nReset history?",
 				   QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes;
 	}
 
@@ -2239,22 +2240,46 @@ void comeForward(QWidget &w) {
 	askActive(top ? *top : w);
 }
 
+// the handler that was in place before App, for while it starts
+QtMessageHandler &qtSaidBefore() {
+	static QtMessageHandler was = nullptr;
+	return was;
+}
+
+// A platform that can't start, such as xcb with no display, is a qFatal,
+// which aborts with a core dump. Qt's own lines say why, so pass them on and
+// quit with 1, as for any other failure.
+void quitOnFatal(QtMsgType type, const QMessageLogContext &where, const QString &text) {
+	if (qtSaidBefore())
+		qtSaidBefore()(type, where, text);
+	else
+		std::fputs(qPrintable(qFormatLogMessage(type, where, text) + '\n'), stderr);
+	if (type == QtFatalMsg) {
+		std::fflush(stderr);
+		std::_Exit(1);
+	}
+}
+
 // Qt reads argc and argv for as long as the app lives, and the platform
 // before the app is made, so both come from a base built first.
 struct AppArgs {
 	explicit AppArgs(const QByteArray &platform) {
 		if (!platform.isEmpty())
 			qputenv("QT_QPA_PLATFORM", platform);
+		qtSaidBefore() = qInstallMessageHandler(quitOnFatal);
 	}
 	int argc = 1;
 	std::array<char, sizeof("tukzmon-settings")> name{"tukzmon-settings"};
 	std::array<char *, 2> argv{name.data(), nullptr};
 };
 
-// One per call. The test hooks pass an offscreen platform.
+// One per call. The test hooks pass an offscreen platform. Only a platform
+// that fails to start quits on its fatal message. A later one still aborts.
 class App final : AppArgs, public QApplication {
 public:
-	explicit App(const QByteArray &platform = {}) : AppArgs(platform), QApplication(argc, argv.data()) {}
+	explicit App(const QByteArray &platform = {}) : AppArgs(platform), QApplication(argc, argv.data()) {
+		qInstallMessageHandler(qtSaidBefore());
+	}
 };
 
 void openSized(Window &w) {
@@ -2266,6 +2291,13 @@ void openSized(Window &w) {
 	if (const QScreen *screen = w.screen())
 		size = fitSize(size, screen->availableGeometry(), QMargins());
 	w.resize(size);
+}
+
+// Cancel, Esc and the close button aren't failures, and the panel puts a
+// nonzero exit in the item's tip.
+int shownUntilClosed(Window &w) {
+	w.exec();
+	return 0;
 }
 
 } // namespace
@@ -2287,7 +2319,7 @@ std::int32_t run_dialog(Dialog &d, rust::Str snapshot) {
 	openSized(w);
 	if (snapshot.empty()) {
 		const Wake wake([&w] { comeForward(w); });
-		return w.exec() == QDialog::Accepted ? 0 : 1;
+		return shownUntilClosed(w);
 	}
 
 	// one picture per tab with rows, as base-1.png, base-2.png, and so on, then
@@ -2983,6 +3015,67 @@ rust::Vec<rust::String> woken_by_signal(Dialog &d) {
 		out.push_back(rust::String(w.isMinimized() ? "minimized" : "shown"));
 	}
 	out.push_back(rust::String("after " + handler()));
+	return out;
+}
+
+rust::Vec<rust::String> exit_on_close(Dialog &d) {
+	const App app("offscreen");
+	rust::Vec<rust::String> out;
+	const std::array<std::string, 3> ways{"cancel", "esc", "close"};
+	for (const auto &way : ways) {
+		Window w(d);
+		openSized(w);
+		bool closed = false;
+		QTimer::singleShot(0, &w, [&w, &way, &closed] {
+			closed = true;
+			if (way == "cancel") {
+				for (auto *b : w.findChildren<QPushButton *>())
+					if (b->isVisible() && b->text() == "Cancel") {
+						b->click();
+						return;
+					}
+				closed = false;
+			} else if (way == "esc") {
+				QKeyEvent esc(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+				QApplication::sendEvent(&w, &esc);
+			} else {
+				w.close();
+			}
+		});
+		// so a way that doesn't close can't hang the test
+		QTimer::singleShot(5000, &w, [&w, &closed] {
+			closed = false;
+			w.done(QDialog::Accepted);
+		});
+		const int code = shownUntilClosed(w);
+		out.push_back(rust::String(way + " " + (closed && w.isHidden() ? std::to_string(code) : "stayed open")));
+	}
+	return out;
+}
+
+namespace {
+std::vector<std::string> &heard() {
+	static std::vector<std::string> said;
+	return said;
+}
+
+void hear(QtMsgType, const QMessageLogContext &, const QString &m) { heard().push_back(m.toStdString()); }
+} // namespace
+
+rust::Vec<rust::String> qt_warnings() {
+	heard().clear();
+	const QtMessageHandler was = qInstallMessageHandler(hear);
+	{
+		const App app("offscreen");
+		// a standard icon reads its image through the image format plugins
+		const QPixmap icon = QApplication::style()->standardIcon(QStyle::SP_DialogOkButton).pixmap(16);
+		if (icon.isNull())
+			heard().emplace_back("no icon");
+	}
+	qInstallMessageHandler(was);
+	rust::Vec<rust::String> out;
+	for (const auto &m : heard())
+		out.push_back(rust::String(m));
 	return out;
 }
 

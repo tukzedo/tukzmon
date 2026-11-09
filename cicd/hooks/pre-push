@@ -9,9 +9,9 @@
 ##	- A push to main whose changes are all under DOCS_PATHS in
 ##	  cicd/config.bash skips the gate. That's judged against what the remote's
 ##	  main has, so a new or unknown remote commit runs the gate.
-##	- The gate runs on the commit being pushed. When that's the checkout's HEAD
-##	  with nothing uncommitted, it runs in place. Otherwise it runs in a
-##	  detached worktree in the run's temp folder, building into target/gate.
+##	- The gate runs on the commit being pushed, in a detached worktree in the
+##	  run's temp folder, building into target/gate. Edits to the checkout,
+##	  made before or during the run, don't reach it.
 ##	- A commit with no cicd/cicd.bash in it, from before the pipeline, isn't
 ##	  gated.
 ##	- Escape hatch: TUKZMON_SKIP_HOOK=1, or `git push --no-verify`.
@@ -85,16 +85,13 @@ for sha in "${gated[@]}"; do
 		fSay "${sha:0:12} has no cicd/cicd.bash, so there's no gate to run on it"
 		continue
 	fi
-	gateRoot="${root}"
-	if [[ "$(git -C "${root}" rev-parse HEAD)" != "${sha}" || -n "$(git -C "${root}" status --porcelain)" ]]; then
-		[[ -n "${runTmp}" ]] || fRunTmpMake || { fSay "could not make a temp folder, so the push is refused"; exit 1; }
-		worktree="${runTmp}/tree"
-		git -C "${root}" worktree add --detach --quiet "${worktree}" "${sha}" || { fSay "could not check ${sha:0:12} out to gate it"; exit 1; }
-		gateRoot="${worktree}"
-		export CARGO_TARGET_DIR="${root}/target/gate"
-	fi
+	## Never in place. A clean checkout can still change while the gate runs.
+	[[ -n "${runTmp}" ]] || fRunTmpMake || { fSay "could not make a temp folder, so the push is refused"; exit 1; }
+	worktree="${runTmp}/tree"
+	git -C "${root}" worktree add --detach --quiet "${worktree}" "${sha}" || { fSay "could not check ${sha:0:12} out to gate it"; exit 1; }
+	export CARGO_TARGET_DIR="${root}/target/gate"
 	fSay "running the merge gate on ${sha:0:12} before it goes to main"
-	if ! "${gateRoot}/cicd/cicd.bash" --merge-gate; then
+	if ! "${worktree}/cicd/cicd.bash" --merge-gate; then
 		fSay "the merge gate failed on ${sha:0:12}, so the push is refused" >&2
 		exit 1
 	fi
@@ -106,3 +103,5 @@ exit 0
 ##	History:
 ##		- 2026-10-25: Created from tukfs-hash's hook. It gates main only.
 ##		- 2026-11-01: Only TUKZMON_SKIP_HOOK=1 skips it.
+##		- 2026-11-09: Always gates in a worktree, since a clean checkout can
+##		  change while the gate runs.

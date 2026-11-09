@@ -50,6 +50,7 @@ unsafe extern "C" {
 	pub fn g_log_writer_is_journald(fd: c_int) -> Gboolean;
 	pub fn g_object_new(t: GType, first: *const c_char, ...) -> *mut c_void;
 	pub fn g_object_unref(object: *mut c_void);
+	pub fn g_free(mem: *mut c_void);
 	pub fn g_signal_connect_data(
 		instance: *mut c_void,
 		signal: *const c_char,
@@ -117,6 +118,7 @@ unsafe extern "C" {
 	pub fn xfce_panel_plugin_get_size(plugin: *mut c_void) -> c_int;
 	pub fn xfce_panel_plugin_get_mode(plugin: *mut c_void) -> c_int;
 	pub fn xfce_panel_plugin_get_unique_id(plugin: *mut c_void) -> c_int;
+	pub fn xfce_panel_plugin_save_location(plugin: *mut c_void, create: Gboolean) -> *mut c_char;
 	pub fn xfce_panel_plugin_menu_show_configure(plugin: *mut c_void);
 	pub fn xfce_panel_plugin_add_action_widget(plugin: *mut c_void, widget: *mut c_void);
 }

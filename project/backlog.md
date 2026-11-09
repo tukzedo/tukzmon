@@ -22,57 +22,421 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- Hosted workflow for the merge gate
-	- ID: 2026102513560001
-	- Type: Task
-	- Status: Done
-	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
-	- Priority|Severity: Avg
-	- Opened: 20261025-135600
-	- Opened by: t00mietum
-	- Prereq IDs: 2026102416252892
-	- Related IDs: 2026102416252889
-	- Requirements:
-		- It's one small GitHub workflow on push and pull request against `main`, plus a manual trigger so any branch can be run by hand.
-		- It runs `cicd.bash --merge-gate`, as far as the runner can. No matrix, and no macOS runner, since it's Linux only for now.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- `.github/workflows/merge-gate.yml` runs `cicd/cicd.bash --merge-gate` on a push or pull request against `main`, and by hand on any branch. It's one job on `ubuntu-24.04`, which builds the image from `cicd/container/` and runs the checks in it.
-		- Held for the merge-gate workflow's first run on main, which only a release merge to main starts.
-		- 2026-11-08: The first run on `main`, after the v1.0.0-beta.1 merge, failed 2 settings tests. The runner has no CPU sensor, which `live::tests::the_temp_row_draws_at_its_own_width` didn't allow for, so that one's fixed. The other, the refresh test dezcc, failed once and passed on 3 runs since, so it's filed as 2026110810505772.
-		- 2026-11-08: A run by hand on `runner-tests`, with the fix, passed all 11 steps in 15m 30s.
-	- Decisions:
-		- Asked for on 2026-10-25.
-		- No layer cache between runs, to keep it small. Each run builds the image first, which takes a few minutes.
-	- Branch: round-1025
-	- Test case: The workflow is its own test. Its first run is in the row above.
-	- Closed: 20261108-105057
-
-- Code review 20261031 item 33: The workflow pins actions/checkout by tag and keeps the token in the checkout
-	- ID: 2026103115232296
+- Code review 20261106 item 5: The processes graph takes about 4 ms a read
+	- ID: 2026110618502905
 	- Type: Enhancement
-	- Status: Done
-	- Needs external testing: the `merge-gate` workflow's first run on GitHub, the same run 2026102513560001 waits for.
+	- Status: Queued
+		- It departs from the wording in one way. A read is still one `stat` a process, so the system calls a process are the same, and the kernel's part of the read, nearly all of it, is the same.
+	- Priority|Severity: Avg
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Origin: `c3c52ee` (2026-10-31), newer. Idea. Confirmed, measured on b23 with about 1450 processes: 3.4 to 4.9 ms a read, about 10 times the whole tick of the 6 default graphs. It's off by default, so neither the profiler nor the soak test runs it.
+	- Requirements:
+		- Read `/proc` with fewer allocations and system calls a process.
+		- The profiler times a run with the processes graph on.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The `/proc` folder is kept open and listed again from the start each read, and each process is a `fstatat` by name off it. A read allocates nothing, against 2 an entry before, and the open and close each read are gone.
+		- On b23 with about 1,380 processes a read went from 1.44 to 1.54 ms of CPU to 1.28 to 1.35 ms, and its user time from about 160 us to 55. About 1.25 ms is the kernel's, which no change here can avoid: about 0.5 ms to list the folder and 0.65 us a stat.
+		- The profiler runs with processes on: 7 graphs, 747 us a tick against 272 with the 6 default ones. fstatat and getdents are its top 2, at 30% and 26% of self time. Its week of history now reads `/proc` 30,240 times first, so the step takes about 45 s longer.
+		- Under Miri there's no processes graph, as on a box it can't read, since Miri has no `rewinddir`.
+		- `design.md` Data sources on Linux has it.
+		- Verified: the quick gate passed, and the profile area. dezd3 failed on the old read, at 102 allocations for 50 folders, and dezd2 failed with the rewind taken out. Under Miri the procs tests passed, with the 3 that list a folder ignored.
+		- 2026-11-09: Answer on the profiler question: That sounds pretty expensive. Can the process graph be done cheaper, or should the default update frequency be raised? Reopened for that.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- libc's `opendir`, `rewinddir`, `readdir` and `fstatat` rather than raw `getdents64` with a bigger buffer, which timed the same and is Linux only.
+		- No cache of owners by pid. A process that runs `sudo` or drops root keeps its pid, so a cache would count it wrong until it's checked again, and a check is the same `stat`.
+		- The week of history in the profiler keeps processes on too, so its draw sees a full graph like the others. Turning it on after the week would save the 45 s.
+		- `ProcsReader` keeps a `DIR` pointer now, so it isn't `Send`. Nothing needs it to be.
+	- Branch: round-1107
+	- Test case: `procs::tests::each_read_lists_the_folder_again` (dezd2), `a_procs_read_allocates_nothing` in `core/tests/allocs.rs` (dezd3), and dep4j, dep4k, dep48 and dep49 as before.
+		- 2026-11-06: dep4j and dep4k are ignored under Miri now, since Miri has no `rewinddir`.
+		- Swept: every `ProcsReader` and `Which::Procs` use. dencp, dend1 and den86 turn every graph on, and under Miri now get no processes graph, as on a box without `/proc`. The other `/proc` readers already keep their files open through `Kept`.
+	- Acceptance signoff: Self-closed, 2026-11-06: dezd2 and dezd3 passed in the quick gate, and the profile area ran with processes on.
+
+- Code review 20261107 item 25: With the LAN split on, each network read spends about 20 ms in the kernel on the panel's thread
+	- ID: 2026110709074425
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026102914561218
+	- Origin: `8bbd96a` (2026-10-29). It was never timed. Confirmed, by a release probe on b23: 18 to 22 ms a read with 55 sockets, about 70 times a tick of the 6 default graphs. `ss -tn` takes the same.
+	- Requirements:
+		- Make a LAN read cheap enough for the panel's thread, or move it off that thread. Time it before and after.
+	- Note: Each dump walks the kernel's whole table of open TCP connections, which is sized by RAM, so few sockets cost about the same as many. An open settings window runs a second reader.
+	- Estimated effort: Avg
+
+- Video & GIF: Bigger font for the fake text
+	- ID: 2026110708212499
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261107-082124
+	- Opened by: t00mietum
+	- Related IDs: 2026110618335731, 2026110310450002
+	- Requirements:
+		- Bigger and non-narrow font for the fake text elements.
+
+- Smoothly animate each graph on each tick
+	- ID: 2026110911114024
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261109-111140
+	- Opened by: t00mietum
+	- Related IDs: 2026110911114037
+	- Requirements:
+		- Settings option, on by default if the CPU has 8 or more cores: Smoothly animate the graph on each tick, rather than wholesale replace previous contents.
+		- Maybe animate over 1/2 of each graph's update ms? Smooth animation at high fps.
+		- If this makes sense: An even division of the screen refresh rate, minimum 30, max 60. With smooth antialiasing.
+		- It should look absolutely incredibly buttery smooth.
+
+- Reduce motion if a remote desktop session is detected
+	- ID: 2026110911114037
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261109-111140
+	- Opened by: t00mietum
+	- Related IDs: 2026110911114024
+	- Requirements:
+		- Add a setting, "Reduce motion if remote desktop session detected."
+		- If a VNC, RDP, RustDesk, etc. session is detected:
+			- Double the ms for every graph, with a minimum floor of 1000 ms.
+			- Disable smooth animation.
+			- Disable the controls for the overridden settings, with flyover text explaining why.
+			- Don't store the temporarily overridden values.
+		- Resume the previous animation settings when the desktop is connected normally.
+
+- Keep logging but don't display updates while the desktop is locked
+	- ID: 2026110911114050
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261109-111140
+	- Opened by: t00mietum
+	- Requirements:
+		- When the desktop is locked, keep logging values but don't display updates.
+		- Then catch up once unlocked.
+
+- CICD gap: Fuzz the parsers of files and kernel messages
+	- ID: 2026110310450001
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261103-104500
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- There's no fuzz testing yet. It should be adversarial, and cover our code and the libraries it leans on.
+		- Cover what reads input the program doesn't control: the history file decode, the netlink socket and neighbor dumps, the bridge forwarding table, the `/proc` and `/sys` readers, and a settings file that loads through shcl.
+		- Plain tests on stable, each case a pure function of one seed, a time budget from an env var, and asserts on properties such as no panic and no read past the end. Keep some bit flips over real files, such as `core/tests/data/plugin-5-tiers.hist`.
+		- Each one gets a test ID, and is watched to fail on a planted bug before it's trusted.
+
+- CICD gap: Slow leak checks still missing
+	- ID: 2026110310450003
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261103-104500
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- CodeQL from a pinned CLI, run locally, over the Rust and the C++, as a slow leak check. The repo is public on GitHub under the LGPL, so its license allows it. Vendor the crates first, and build from a clean folder so the C++ database isn't empty.
+		- A soak of the settings window, with the heap read at round N and 2N, under heaptrack. The panel item's soak covers only the Rust side.
+	- Decisions:
+		- No `_GLIBCXX_DEBUG` build. Every linked C++ library has to be built with it, and Qt comes prebuilt.
+		- No cross-file analyzer run, since the C++ is one file.
+
+- Installer script for a direct install
+	- ID: 2026110310450005
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261103-104500
+	- Opened by: t00mietum
+	- Related IDs: 2026110310450001
+	- Requirements:
+		- An `install.bash` that a person runs as a one-liner. It finds the newest stable or dev release through GitHub's API, checks its sha256, and installs.
+		- With no stable release yet, it takes the newest prerelease. Releases sort by version, not by date, with a prerelease below its release.
+		- `--release dev|stable`, `--target user|system`, `--yes`, `--help` and `--version`. It finds the OS and arch itself, says its plan, and asks before it touches anything. It runs on bash 3.2 and can run twice safely.
+		- User installs go where `utility/dev-install.bash` puts them, with no sudo. System installs use the `.deb` or `.rpm`.
+		- No PowerShell version for now, since there's no Windows or macOS build.
+		- README.md gets the one-liner and the install folders, and notes `--help`.
+	- Needs more detail:
+		- It needs a first release to download. Until then, test it against a stand-in release.
+
+- CICD gap: tukzmon-settings built in another folder gives different bytes
+	- ID: 2026110710005013
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261107-100050
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- Release builds of one commit give the same bytes, from any checkout folder, target folder, or home.
+		- The build maps its own paths out of the C++ and the Rust, such as through the compilers' path prefix options.
+		- The pipeline builds twice in 2 folders and compares the checksums. It's watched to fail first.
+		- README.md says builds are reproducible once that check passes.
+	- Reproduced: 20261107, 2 fresh release builds of one tree into 2 target folders. `libtukzmon.so` matched. `tukzmon-settings` didn't, since it keeps the full path of the cxx bridge's `cxx.h` from the build folder.
+	- Progress log:
+		- README.md's line that every build of a commit gives the same bytes is out until this is done.
+
+- Most test names are whole sentences, and over half start the same way
+	- ID: 2026110710005014
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261107-100050
+	- Opened by: t00mietum
+	- Requirements:
+		- Short test names, a few words each, and not all built the same way. About 320 of 400 Rust tests and all 25 bash tests have 7 words or more, and over half start with a, the, every or each.
+		- Each test keeps its ID.
+		- The bash tests in `cicd/tests/` too, since their names print on each PASS and FAIL line.
+		- knobs' tests too. SilkTerm's copy gets an item of its own there.
+		- The `live_` names can stay, since they mark the tests that read this computer.
+
+- Code review 20261107 item 17: A save through a linked item settings file shows in the panel only at the next read
+	- ID: 2026110709074417
+	- Type: Bug
+	- Status: Queued
 	- Priority|Severity: Low
-	- Opened: 20261031-152322
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115231938
+	- Origin: `a9ca08f` (2026-10-29), with `4c8a1e0` (2026-11-01), which made saves keep the link. Not seen before. Confirmed, by a probe that got no watch event for a save to the link's target.
+	- Steps to reproduce: Make `plugin-N.shcl` a link into another folder, as stow or home-manager do, then Apply in Properties.
+	- Incorrect behavior: The change waits for the next graph read, 1 s by default and longer with slow graphs.
+	- Expected behavior: It shows at once, as design.md's XFCE plugin section says.
+	- Possible cause: The file monitor watches the link, and the save writes the file it points to.
+	- Estimated effort: Low
+
+- Code review 20261107 item 18: With the .deb or .rpm, Properties runs whichever tukzmon-settings comes first on PATH
+	- ID: 2026110709074418
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Origin: `59037f4` (2026-10-25). The Nix package got a link beside the library later, in `a4087bd`, and the .deb and .rpm never did. Not seen before. Plausible, from reading.
+	- Steps to reproduce: Install the .deb on a box with an older `tukzmon-settings` in `~/.local/bin`, ahead of `/usr/bin` on the panel's PATH, then open Properties.
+	- Incorrect behavior: The older window opens on the item's file.
+	- Expected behavior: The package's own window, which is why design.md gives the Nix package its link.
+	- Possible cause: The plugin looks beside its library, then on PATH, and the packages put the program only in `/usr/bin`.
+	- Estimated effort: Low
+
+- Code review 20261107 item 19: knobs' spec checks let a relation loop, case-only twins, a NaN range end, and a text chooser through
+	- ID: 2026110709074419
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232265, 2026103115231954
+	- Origin: `f89e55e` (2026-10-23), from silkterm, whose copy has the same code. Not seen before. Confirmed, by probes against knobs. tukzmon's own spec has none of the 4 today.
+	- Incorrect behavior:
+		- A loop through group members and automatic choosers parses clean, then the first read overflows the stack. On Wayland that takes the panel down too.
+		- Paths that differ only in case pass, and shcl folds them onto one key, so a round trip loses one value.
+		- `range: [nan, 10]` passes, and then every number is in range.
+		- A chooser with `type: text` passes and takes any text as a pick.
+	- Expected behavior: Each is refused when the spec loads.
+	- Note: silkterm's backlog needs the same fix.
+	- Estimated effort: Avg
+
+- Code review 20261107 item 20: The Miri step drops a target whose test list fails and still passes
+	- ID: 2026110709074420
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110514461968
+	- Origin: `4a7f217` (2026-10-25), kept by `34329c6` (2026-11-05). Not seen before. Confirmed, by a stand-in cargo whose knobs list fails, which gave "3 test(s) in 2 module(s)" and a pass.
+	- Incorrect behavior: Each target's list hides its errors and its exit status, and only a total of 0 tests fails the step. A target that won't build or list loses its tests with no word.
+	- Expected behavior: A target that can't list its tests fails the step.
+	- Estimated effort: Low
+
+- Code review 20261107 item 21: The demo's video encodes use every core
+	- ID: 2026110709074421
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110310450002
+	- Origin: `15993d9` (2026-11-06). Not seen before. Plausible, from reading.
+	- Incorrect behavior: No ffmpeg call sets a thread count, the Demo step passes the demo no job count, and the step isn't in `HEAVY_STEPS`. x265 at its slow preset takes every core.
+	- Expected behavior: The demo gets the run's job count, at a quarter of the CPUs like the other heavy steps.
+	- Estimated effort: Low
+
+- Code review 20261107 item 22: The demo judges a display free by its lock file alone
+	- ID: 2026110709074422
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110310450002
+	- Origin: `15993d9` (2026-11-06). Not seen before. Confirmed, by a probe with an X server whose lock file the demo can't see.
+	- Incorrect behavior: The demo takes a display number that already answers, waits 10 s, and fails with "never came up as ours" rather than trying the next number. It fails safe.
+	- Expected behavior: A number that answers a connection counts as taken, so the demo moves on to the next one.
+	- Estimated effort: Low
+
+- Code review 20261107 item 23: The color picker has no tips, and 2 message boxes break the UX guide
+	- ID: 2026110709074423
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Origin: `801ac42` (2026-10-24) for the picker, `f89e55e` and `6a78316` for the boxes. Not seen before. Confirmed, by reading and by a probe with a folder that can't be written.
+	- Incorrect behavior:
+		- None of the picker's controls has a tip: the square, the hue strip, the 5 percent boxes, the hex box, Cancel and OK.
+		- "Settings weren't saved" gives shcl's own error text, and no "Nothing was changed." line.
+		- A theme name that won't do shows a warning titled with the action, "Save theme as", rather than what didn't happen.
+	- Expected behavior: Every control has a tip, and a failure box's title says what didn't happen, per `project/style-guide_ux.md`.
+	- Estimated effort: Low
+
+- Code review 20261107 item 24: design.md gives a stale count of the plugin's library calls
+	- ID: 2026110709074424
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232125
+	- Origin: `f89e55e` (2026-10-23). Not seen before. Confirmed, by counting the declarations in `xfce/src/sys.rs`: 36 GLib, GTK, cairo and panel calls, plus 3 from libc, where design.md says "20 or so".
+	- Expected behavior: The XFCE plugin section gives a count that stays right, or none.
+	- Estimated effort: Low
+
+- A settings window refresh test fails now and then on GitHub's runner
+	- ID: 2026110810505772
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261108-105057
 	- Opened by: t00mietum
 	- Related IDs: 2026102513560001
-	- Requirements: Pin by commit SHA and set `persist-credentials: false`, since the containers mount the checkout.
+	- Test environment: GitHub's `ubuntu-24.04` runner, in the pipeline's image.
+	- Steps to reproduce: Run the `merge-gate` workflow.
+	- Incorrect behavior: `bridge::tests::a_refresh_sets_only_the_tips_and_gaps_that_changed` (dezcc) saw 1 layout request with nothing changed (`[0, 1]` against `[0, 0]`), on the first run on `main`.
+	- Expected behavior: No layout request from a refresh with nothing changed.
+	- Reproduced: No. It passed on the 2 Dependabot runs and the run by hand on `runner-tests` that day, and never failed on b23, pinned to one CPU or with the sensors, battery and zswap hidden.
+	- Possible cause: Something the live graphs do between the settle loop and the refresh, such as a sample tick, on a slow 4-CPU runner.
+
+- Code review 20261107 item 26: The amdgpu reads have none of the NVIDIA path's runtime power checks
+	- ID: 2026110709074426
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232174, 2026110118380381
+	- Origin: `a50f0c6` and `5b569ad` (2026-10-29). Plausible, from reading, since there's no AMD card here.
+	- Requirements:
+		- Read an AMD card's runtime power state before its busy share, as the NVIDIA path does, and read 0 while it sleeps.
+		- Depending on the kernel, a busy read today either wakes a sleeping card or fails, which shows as a gap.
 	- Estimated effort: Low
-	- Actual effort: Low
-	- Origin: `5f1bef0`. First review. Plausible, the workflow has never run.
+
+- Code review 20261107 item 27: A demo run of only some scenes writes over assets/demo.gif
+	- ID: 2026110709074427
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110310450002
+	- Origin: `15993d9` (2026-11-06).
+	- Requirements:
+		- Update the README's gif only from a run of every scene, unless asked. Today only `--no-asset` keeps a `--scenes` run from replacing it.
+	- Estimated effort: Low
+
+- Code review 20261107 item 28: A docs-only push to main skips the 2 checks that read docs
+	- ID: 2026110709074428
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232016
+	- Origin: `ff4610a` (2026-10-25).
+	- Requirements:
+		- On a docs-only push, still run markdownlint on the changed files and the backlog's test ID check, which take seconds. Today a backlog-only push can put a Lint failure on `main` that the next code push then trips over.
+	- Estimated effort: Low
+
+- Code review 20261030 item 3, part 2: Look up a setting by an index in knobs
+	- ID: 2026103018353670
+	- Type: Enhancement
+	- Status: Queued
+		- Was held for silkterm's copy of knobs to get the index first. 2026-11-05: the copy here doesn't have to match silkterm's, so it can go in here first.
+		- 2026-11-03: moved below the stop line. It's a small speedup and doesn't need to block a release.
+	- Priority|Severity: Low
+	- Opened: 20261030-183536
+	- Opened by: t00mietum
+	- Parent ID: 2026103016201603
+	- Requirements:
+		- `Spec` looks ids up through an index built in `finish`, with an `Option` path for an id that's unknown.
+		- Time denam before and after.
 	- Progress log:
-		- `.github/workflows/merge-gate.yml` pins actions/checkout at `3d3c42e` (v7.0.1), with the tag in a comment, and sets `persist-credentials: false`.
-		- Verified: the file parses as YAML, and GitHub's API gives that commit for the v7.0.1 tag.
-		- Held for the same first merge-gate run on main as 2026102513560001.
-		- 2026-11-08: The checkout by SHA worked on every run since, and the gate's steps ran with no token.
-	- Decisions:
-		- v7.0.1, the newest release, so the pin keeps the major version the file had.
-		- The merge gate never syncs or pushes, so the checkout needs no token.
-	- Branch: round-1102
-	- Test case: The workflow is its own test, as for 2026102513560001.
-	- Closed: 20261108-105057
+		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
+	- Estimated effort: Low
+
+- Parse the settings spec faster
+	- ID: 2026110519470058
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261105-194700
+	- Opened by: JC
+	- Related IDs: 2026110514461968, 2026103018353670
+	- Requirements:
+		- `config::spec()` and what reads `settings.shcl` beside it take less time, measured natively and under Miri.
+	- Progress log:
+		- 2026-11-05: 0.11 s in a debug build, and about 65 minutes under Miri, which nearly every Miri module pays once. The text is parsed by shcl 4 times, by `Spec::parse`, `slider_ranges` and 2 more readers in `config.rs`, each then looking rows up by dotted path. Measure which part costs before changing it.
+	- Estimated effort: Avg
+
+- CICD gap: Run the content scrub from the pipeline and the pre-push hook
+	- ID: 2026110310450004
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261103-104500
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- When the private content scrub script is there, the lint step and the pre-push hook run it, and fail on what it finds. A fresh clone without it still builds, with one line saying it was skipped.
+		- Repo-side names for it stay neutral, such as "content scrub".
+
+- CICD gap: arm64 Linux build and packages
+	- ID: 2026110310450006
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261103-104500
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- A release build for arm64 Linux, and its `.deb` and `.rpm`, named `linux-arm64` beside `linux-x86_64`.
+		- Behind a flag such as `--include-arm` if it's much slower than x86_64. Qt and the panel libraries for arm64 are the hard part.
+
+- Some settings tips are long and technical, and stack asides
+	- ID: 2026110710005015
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261107-100050
+	- Opened by: t00mietum
+	- Requirements:
+		- The tips for both Scale defaults, LAN and internet, Spike emphasis and Disk drives say what the setting does in a sentence or 2. Numbers and kernel terms stay in design.md.
+		- The width and time axis tips, the same on every graph, say it with fewer asides.
+		- "Box" means the number box only, and "computer" the computer.
+		- The Margins tip says plainly that 2 graphs side by side get both margins between them.
+		- History and settings errors in the tip and in message boxes use plain words, not the file reader's own, such as "short" or "trailing bytes", or the name of the file format.
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
@@ -243,6 +607,72 @@ Sorted per the notes in [Template](#template).
 	- Test case: `tests::a_still_pointer_keeps_its_age_while_its_clock_time_moves_on` (defz1). It pins existing behavior, so it passes before and after. No code changed.
 		- Swept: `hover_tip` and `span_at` are the only places the tip's time is made, and the settings window's live tip goes through the same `Graph::hover_tip`.
 	- Closed: 20261028-080400
+
+- Code review 20261107 item 2: Reset history in a window whose item keeps no history asks nothing, then deletes the saved history of items that keep it
+	- ID: 2026110709074402
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026102814061807, 2026102620162202
+	- Origin: `58c5251` (2026-10-26) and `207e4ff` (2026-10-28). Not seen before. Confirmed, by a probe through the window's and the plugin's code.
+	- Steps to reproduce: 2 panel items, the first with Keep across restarts on and the second with it off. Open the second one's settings window and press Reset history.
+	- Incorrect behavior: No question. The first item sees the reset and deletes its own saved history, up to 28 days of it. The other way round, Reset in the first item's window asks, then deletes the second item's file too, which its Keep tip says is kept for later.
+	- Expected behavior: The question guards every reset that deletes saved history, as 2026102814061807 and design.md's Settings window section say.
+	- Reproduced: Yes, by the new test with the fix taken out. The window of the item that keeps no history said no question was needed.
+	- Possible cause: The window asks by its own item's Keep, while each running item deletes by its own.
+	- Actual cause: As the possible cause. The window also deleted every item's history file by its own item's Keep.
+	- Sweep: `Dialog::reset_deletes_saved`, `keep::reset` and the plugin's `reset_if_asked`.
+	- Against: 2026102814061807, "It asks when Keep across restarts is on, as the window shows it or as applied". That reads one item's Keep. A fix that asks when any item keeps history goes past it.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Reset history now asks when any panel item keeps history, and deletes only the history files of the items that keep it. An item with Keep across restarts off keeps its file.
+		- The window reads each other item's Keep from its own settings file, or from the shared file when it has none yet. Its own item's is as shown or as applied, as before.
+		- The question now says Keep across restarts is on for this or another panel item.
+		- `design.md` Settings window has it.
+		- Verified: the quick gate passed, with the Sanitizers step run on its own.
+	- Decisions:
+		- It asks when any item keeps history, which goes past 2026102814061807's wording, as the Against row says. Its reason holds per item, since each running item that keeps history deletes its own file whichever window pressed Reset.
+		- The plugin is unchanged. It deletes its own file by its own Keep, which is what the window now goes by too.
+		- A settings file that can't be read counts as keeping history, since that's the default, so it asks rather than not.
+	- Actual fix: `Dialog::reset_deletes_saved` and `Dialog::keeps_history` in `settings/src/dialog.rs`, `keep::reset` and `keep::history_ids` in `core/src/keep.rs`, `config::instance_id`, `instance_ids` and `shared_file` in `core/src/config.rs`, and the question in `askReset` in `settings/src/qt.cpp`.
+	- Branch: round-1109
+	- Test case: `dialog::tests::reset_history_asks_and_deletes_by_each_items_own_keep` (df315). It fails with the fix taken out, at the question in the window of the item that keeps no history, and passes after.
+		- 2026-11-09: dejaf opens `plugin-3.shcl` rather than `t.shcl`, so its window is the item its history file belongs to. Its asserts are unchanged.
+		- Swept: every `Dialog::reset_deletes_saved` caller (the button in `qt.cpp`, through the bridge), every `keep::reset` caller (the window, defxq, deqs9 and dejae), and the plugin's `reset_if_asked`, which deletes only its own file by its own Keep.
+	- Closed: 20261109-112716
+
+- Code review 20261107 item 3: The demo's window manager, panel and settings window join the live desktop session
+	- ID: 2026110709074403
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110310450002
+	- Origin: `15993d9` (2026-11-06). Not seen before. Confirmed for the connection, by a probe with a stand-in session manager. What the live session does when the demo stops them is Plausible, and wasn't tried on purpose.
+	- Steps to reproduce: Run the Demo step, or the demo script, from a terminal in the desktop session.
+	- Incorrect behavior: `SESSION_MANAGER` is passed through, so xfwm4 and xfce4-panel on the private display connect to the live xfce4-session. Both ask to be restarted at once, so stopping them may make the live session start them again, and a logout during a recording may save them into the session.
+	- Expected behavior: Nothing the demo starts talks to the live session.
+	- Possible cause: `Screen.env` copies the whole environment and drops only 4 names from it.
+	- Sweep: `Panel.desk_env`, `start_wm`, and the settings window the demo's plugin starts.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Actual cause: `Screen.env` passed on everything but 4 names, so `SESSION_MANAGER`, the ssh agent, `GTK_MODULES` and the session's XDG names all reached the WM, the panel and what they start.
+	- Actual fix: `Screen.env` keeps only `KEPT_ENV` (path, home, user, shell, locale, time zone and temp names) plus `LC_*`. `start_wm` and `Panel.desk_env` build on it, and the settings window inherits the panel's.
+	- Decisions:
+		- 2026-11-09: a short list of names to keep, rather than a longer list to drop, so a session name nobody thought of can't get through either.
+		- 2026-11-09: the desktop's own GTK and XDG settings no longer reach the recording, so it looks the same whoever records it. The settings scene's shots looked as before.
+	- Progress log:
+		- Verified: df31j failed on the old script, with `SESSION_MANAGER`, `SSH_AUTH_SOCK`, `GTK_MODULES` and `XDG_SESSION_ID` getting through, and passes now.
+		- Verified: the settings scene ran with a stand-in `SESSION_MANAGER` and ssh agent, and none of the demo's processes had either. The only bus address they held was the one `dbus-run-session` gave them.
+		- Verified: the quick gate's format, lint and test areas passed.
+		- Swept: `Screen.env`, `start_wm`, `Panel.desk_env`, the tray, the settings window, and each subprocess call with no `env=`. Xvfb, ffmpeg's audio step, ffprobe and gifsicle still take the whole environment, but none of them is a session client.
+	- Branch: round-1109
+	- Test case: df31j
+	- Closed: 20261109-113915
 
 - Color themes tab
 	- ID: 2026102408304612
@@ -2751,6 +3181,185 @@ Sorted per the notes in [Template](#template).
 		- Swept: defx7 and defxd, the only checks on leads, every built-in in `settings.shcl`, and every role in `dice::ROLES` that follows its graph's lead.
 	- Closed: 20261028-161000
 
+- Code review 20261107 item 4: With 2 windows on one file, or a hand edit, Apply drops or reverts theme edits
+	- ID: 2026110709074404
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115231817, 2026103115231908
+	- Origin: `5351443` (2026-11-01, 20261031 item 2) and `6a78316` (2026-10-24). New ground, in the same place as 20261031 items 2 and 8, both fixed. Confirmed, by 2 probes on the window's code.
+	- Steps to reproduce:
+		- Window B saves a theme and picks it. Window A, still on Default, sets a color and applies.
+		- Or window B saves a color into a saved theme, and window A only renames that theme and applies.
+	- Incorrect behavior: In the first, A's color comes through but marked as made on Default, which is no longer picked, so it's dropped while Apply says it saved. In the second, A writes the theme whole with its old colors, so B's color is lost.
+	- Expected behavior: Each window's own edits reach the file, and the other one's stay.
+	- Possible cause: Apply copies each store on its own, so the theme pick and the changes made on a theme can come from different windows. A changed theme is written whole.
+	- Note: This is the third fault in how Apply merges with a changed file, in 2 rounds. A table in design.md of what Apply does for each kind of change made elsewhere would stop each case being answered on its own.
+	- Estimated effort: Avg
+	- Reproduced: 2026-11-09, round-1109, by df320 and df321 with the fix taken out. The first read "Mine" after Apply, and the second lost the other window's color.
+	- Actual cause: as above. The pick and the changes on it were carried one store at a time, so the changes kept the window's Default while the pick stayed the file's. And a theme changed here, even only renamed, was written whole over the file's copy.
+	- Actual effort: Avg
+	- Progress log:
+		- When the file picks another theme than the window and the window changed its pick or the "*" colors on it, the window's pick and its "*" colors go together. A Custom color edited while on Custom counts too.
+		- A saved theme both knew gets only the name and colors changed here, each one on its own.
+		- A theme deleted elsewhere, but picked and changed on here, comes back.
+		- `design.md` Settings window has a table of what Apply does for each kind of change made elsewhere, and Theme says how a changed theme is merged.
+		- Verified: df320 and df321 fail with the fix taken out and pass with it, and the quick gate passed, sanitizers included.
+	- Decisions:
+		- The pick and its "*" colors are one setting at Apply, and the last save wins, as for any other. Moving the window's "*" colors onto the other window's pick was the other way, but they were made against another theme's colors.
+		- The two windows' picks can't both stay, so the other window's pick goes in the first case. Its saved theme stays.
+		- Last save wins per name and per color in a saved theme now, not per theme. That narrows 2026103115231908's "a theme both windows changed is still the last save's".
+		- A theme deleted elsewhere comes back when the window has it picked and changed on, so what the window showed is what it saved. A theme deleted elsewhere and only changed here already came back.
+	- Actual fix: `carry_theme` and `theme_touched` in `settings/src/dialog.rs`, called by `Dialog::apply` after the store carries, and `merge_themes` now carries a known theme's name and colors.
+	- Branch: round-1109
+	- Test case: `dialog::tests::a_color_set_here_stays_when_another_window_picked_another_theme` (df320), with a window that changed nothing on the theme, Custom, and a deleted theme, and `a_rename_here_keeps_the_colors_another_window_saved_into_the_theme` (df321).
+		- Swept: every `merge_themes`, `carry` and `themes_text` use, and `Dialog::apply` as the one place a file is merged. deqqp, der2h, dezea and the rest of `dialog::tests` still pass.
+	- Closed: 20261109-120236
+
+- Code review 20261107 item 5: Cancel, Esc or the close button leaves a false error in the panel's tip and the journal
+	- ID: 2026110709074405
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232220
+	- Origin: `7794e6b` (2026-11-01, 20261031 item 28), meeting `f89e55e` (2026-10-23), where the window quits with 1 on Cancel. A regression from 20261031 item 28, whose test, der60, tries only a program that fails. Confirmed, by the real window started through the plugin's code.
+	- Steps to reproduce: Open Properties, then press Cancel.
+	- Incorrect behavior: The tip says "Properties: the settings window quit with exit status: 1" until the next Properties, and the same line goes to the journal.
+	- Expected behavior: A tip line only when the window failed, as 20261031 item 28 says.
+	- Possible cause: `run_dialog` gives 1 for a rejected dialog, the same code as a file that can't be read.
+	- Estimated effort: Low
+	- Reproduced: 2026-11-09, by df32n against the old exit code. Cancel, Esc and the close button each quit with 1.
+	- Actual cause: as above. `run_dialog` gave 1 for any close but OK, and the plugin's tip takes every nonzero exit as a failure.
+	- Actual effort: Low
+	- Progress log:
+		- The window quits with 0 however it's closed. 1 is left for a file that can't be read, 2 for a bad command line and 3 for a picture that can't be saved.
+		- `design.md` Settings window has it.
+		- Verified: df32n fails with the old exit code put back and passes with the fix. The quick gate's steps passed, with Sanitizers run on its own after the whole run hit the call's time limit during it.
+	- Decisions:
+		- Fix the window's exit code, not the plugin's reading of it. Closing without saving isn't a failure, and the plugin shouldn't have to guess which 1 meant Cancel.
+	- Actual fix: `shownUntilClosed` in `settings/src/qt.cpp`, which `run_dialog` calls.
+	- Branch: round-1109
+	- Test case: `bridge::tests::cancel_esc_and_the_close_button_quit_0` (df32n). der60 already covers the plugin's tip for a window that quits 0 or 1.
+		- Swept: every exit path in `settings/src/main.rs` and `run_dialog`, and every `QDialog::Accepted` check in `qt.cpp`. The others are the color picker's own result, which stays as it is.
+	- Closed: 20261109-121212
+	- Commit: 74b811e
+
+- Code review 20261107 item 6: The pre-push hook can pass a commit it never tested
+	- ID: 2026110709074406
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232000
+	- Origin: `ff4610a` (2026-10-25). Not seen before. Confirmed, by the real hook with a stand-in gate.
+	- Steps to reproduce: Push `main` from a clean checkout at the pushed commit, so the gate runs in place. While it runs, another session edits the tree.
+	- Incorrect behavior: Each step checks the tree as it is right then, and the hook never looks at the tree again, so a commit can pass on edits that aren't in it.
+	- Expected behavior: The gate checks the commit being pushed, as the hook's header says.
+	- Possible cause: The in-place path trusts a tree that was clean at the start to stay clean.
+	- Reproduced: 2026-11-09, round-1109, by df32x. A commit that fails the gate went through on an edit made to the checkout while the gate ran.
+	- Actual cause: When the checkout was at the pushed commit with nothing uncommitted, the hook ran the gate in the checkout itself, so edits made after that check reached the gate.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The hook always gates in a detached worktree of the pushed commit, in its run's temp folder, building into `target/gate`. The in-place path is gone.
+		- New test df32x runs the real hook with a stand-in gate that edits the checkout while it runs, once on a commit that fails and once on one that passes.
+		- Verified: df32x failed on the old hook and passed after. The quick gate's format, build, lint and test areas passed.
+	- Decisions:
+		- Always a worktree, rather than checking the tree again after the gate. A check after can't see an edit that was undone before it, nor ignored files.
+		- The cost is a checkout per push, and a first push that builds cold in `target/gate` and its container target, since the in-place path used `target/`. Later pushes reuse it.
+		- Swept: `cicd/hooks` holds only pre-push. The hosted `merge-gate.yml` checks out the commit it gates. Nothing else starts `--merge-gate`.
+	- Actual fix: the worktree branch in `cicd/hooks/pre-push` is the only path, and its header says so.
+	- Branch: round-1109
+	- Test case: `the_pre_push_hook_gates_the_commit_not_the_checkout` (df32x), in `cicd/tests/guards.bash`.
+	- Closed: 20261109-121929
+
+- Code review 20261107 item 7: A demo stopped by TERM leaves its X session running, a FUSE mount, and a folder no sweep removes
+	- ID: 2026110709074407
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110310450002
+	- Origin: `15993d9` and `0f1d264` (2026-11-06). Not seen before. Confirmed, by a probe that sent TERM to a run started by hand.
+	- Steps to reproduce: Start the demo script by hand, then send it TERM, as `timeout` does.
+	- Incorrect behavior: No cleanup runs. There are 18 processes that stay up, among them Xvfb, xfwm4 and its bus, xfconfd, gvfsd, the panel with its plugin wrappers, and xfce4-notifyd. gvfsd-fuse keeps a mount inside the run folder, and the folder has no `run.pid`, so the stale run sweep never takes it. Under cicd.bash the leftover scan stops the processes, but not a dead mount.
+	- Expected behavior: TERM cleans up as an error does, and a folder left behind can be swept later.
+	- Possible cause: Python's default TERM skips the `finally` blocks, and the demo makes its folder without the pipeline's run marker.
+	- Sweep: the demo's `safe_rmtree`, which crosses mount points where the pipeline's removal stays on one file system.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Actual cause: as above. Also, `shutil.rmtree` walked into a live mount inside the folder and deleted what it showed.
+	- Actual fix: `exit_on_term` turns TERM and HUP into an exit that runs every `finally`. The folder the demo makes gets a `run.pid` in `fPidStamp`'s form. `safe_rmtree` unmounts a FUSE mount inside the folder, and leaves the folder with a warning if any mount is still there.
+	- Progress log:
+		- Verified: df336 fails on the old script and passes now.
+		- Verified: TERM to a settings scene run gave exit 143, and the 22 processes and the mount it had were gone, with its folder.
+		- Verified: `safe_rmtree` took a folder with a live FUSE mount and one with a dead one, and kept what the mount showed. The old one deleted those files through the live mount.
+		- Verified: the quick gate's format, lint and test areas passed.
+	- Decisions:
+		- HUP goes the same way as TERM, since a closed terminal leaves the same mess. A second signal during cleanup is ignored, so the cleanup isn't cut short. Ctrl+C was already an exception.
+		- A mount that isn't FUSE isn't ours to unmount, so the folder is left for a person rather than walked into.
+	- Branch: round-1109
+	- Commit: ac434da
+	- Test case: df336
+		- Swept: every removal in the script (`Rec.cleanup` and `main`, both through `safe_rmtree`), and every place it makes a folder. Under cicd the demo works in the run's own folder, which has its `run.pid`.
+	- Closed: 20261109-123206
+
+- Demo GIF: Status tray and notification icons too close together
+	- ID: 2026110911114063
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261109-111140
+	- Opened by: t00mietum
+	- Related IDs: 2026110618335731, 2026110310450002
+	- Steps to reproduce: Watch the demo GIF, `assets/demo.gif`.
+	- Incorrect behavior: The icons in the status tray and/or notification tray are too close together, almost overlapping.
+	- Expected behavior: The tray icons have normal spacing between them.
+	- Reproduced: 20261109, in the gif and in a `--shot` of the demo panel. The network and volume icons were about 2 px apart.
+	- Actual cause: The demo's status tray had square icons off. Then the tray packs its icons 2 px apart, and these icons fill their cells.
+	- Actual effort: Low
+	- Decisions:
+		- Square icons on, as in XFCE's own default panel. Each tray icon gets a cell as wide as the panel is high, so it's spaced like the bell beside it.
+	- Actual fix: The demo panel's tray has square icons on. The gif is recorded again.
+	- Branch: round-1109
+	- Test case: None, since it's a recording. A `--shot` before the fix showed the icons nearly touching, and one after showed them about 32 px apart, like the bell. The new gif's frames were checked at each scene. The quick gate's format and lint passed.
+		- Swept: the video take uses the same panel config, and no other script in the repo or the private tools sets up a tray.
+	- Acceptance signoff: Self-closed 20261109: in the new gif the network, volume and bell icons are evenly spaced.
+	- Closed: 20261109-124233
+
+- Hosted workflow for the merge gate
+	- ID: 2026102513560001
+	- Type: Task
+	- Status: Done
+	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
+	- Priority|Severity: Avg
+	- Opened: 20261025-135600
+	- Opened by: t00mietum
+	- Prereq IDs: 2026102416252892
+	- Related IDs: 2026102416252889
+	- Requirements:
+		- It's one small GitHub workflow on push and pull request against `main`, plus a manual trigger so any branch can be run by hand.
+		- It runs `cicd.bash --merge-gate`, as far as the runner can. No matrix, and no macOS runner, since it's Linux only for now.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `.github/workflows/merge-gate.yml` runs `cicd/cicd.bash --merge-gate` on a push or pull request against `main`, and by hand on any branch. It's one job on `ubuntu-24.04`, which builds the image from `cicd/container/` and runs the checks in it.
+		- Held for the merge-gate workflow's first run on main, which only a release merge to main starts.
+		- 2026-11-08: The first run on `main`, after the v1.0.0-beta.1 merge, failed 2 settings tests. The runner has no CPU sensor, which `live::tests::the_temp_row_draws_at_its_own_width` didn't allow for, so that one's fixed. The other, the refresh test dezcc, failed once and passed on 3 runs since, so it's filed as 2026110810505772.
+		- 2026-11-08: A run by hand on `runner-tests`, with the fix, passed all 11 steps in 15m 30s.
+	- Decisions:
+		- Asked for on 2026-10-25.
+		- No layer cache between runs, to keep it small. Each run builds the image first, which takes a few minutes.
+	- Branch: round-1025
+	- Test case: The workflow is its own test. Its first run is in the row above.
+	- Closed: 20261108-105057
+
 - Video & GIF: Make the XFCE task bar more realistic.
 	- ID: 2026110618335731
 	- Type: Enhancement
@@ -2941,40 +3550,6 @@ Sorted per the notes in [Template](#template).
 	- Test case: `the_mode_split_and_scale_parsers_dont_allocate` (dezbs), `a_look_makes_no_setting_names` (dezbt) and `a_saved_theme_loads_without_listing_every_outline_id` (dezbv), all in `core/tests/allocs.rs`, and `shared_of_names_the_outline_id_each_graphs_own_stands_for` (dezbw). dezbs, dezbt and dezbv fail before, with 8, 694 and 10812 allocations. dezbw checks `shared_of` against the full list, and fails with the `_` check dropped.
 		- Swept: every `format!` of a per-graph id in core's non-test code, every `to_ascii_lowercase` in core, knobs, settings and xfce, and both `outline_pairs` callers. `leads` still makes its ids, but only tests call it. The lowercasing left builds names it keeps.
 	- Closed: 20261106-205212
-
-- Code review 20261106 item 5: The processes graph takes about 4 ms a read
-	- ID: 2026110618502905
-	- Type: Enhancement
-	- Status: Done
-		- It departs from the wording in one way. A read is still one `stat` a process, so the system calls a process are the same, and the kernel's part of the read, nearly all of it, is the same.
-	- Priority|Severity: Avg
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Origin: `c3c52ee` (2026-10-31), newer. Idea. Confirmed, measured on b23 with about 1450 processes: 3.4 to 4.9 ms a read, about 10 times the whole tick of the 6 default graphs. It's off by default, so neither the profiler nor the soak test runs it.
-	- Requirements:
-		- Read `/proc` with fewer allocations and system calls a process.
-		- The profiler times a run with the processes graph on.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- The `/proc` folder is kept open and listed again from the start each read, and each process is a `fstatat` by name off it. A read allocates nothing, against 2 an entry before, and the open and close each read are gone.
-		- On b23 with about 1,380 processes a read went from 1.44 to 1.54 ms of CPU to 1.28 to 1.35 ms, and its user time from about 160 us to 55. About 1.25 ms is the kernel's, which no change here can avoid: about 0.5 ms to list the folder and 0.65 us a stat.
-		- The profiler runs with processes on: 7 graphs, 747 us a tick against 272 with the 6 default ones. fstatat and getdents are its top 2, at 30% and 26% of self time. Its week of history now reads `/proc` 30,240 times first, so the step takes about 45 s longer.
-		- Under Miri there's no processes graph, as on a box it can't read, since Miri has no `rewinddir`.
-		- `design.md` Data sources on Linux has it.
-		- Verified: the quick gate passed, and the profile area. dezd3 failed on the old read, at 102 allocations for 50 folders, and dezd2 failed with the rewind taken out. Under Miri the procs tests passed, with the 3 that list a folder ignored.
-	- Decisions:
-		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-		- libc's `opendir`, `rewinddir`, `readdir` and `fstatat` rather than raw `getdents64` with a bigger buffer, which timed the same and is Linux only.
-		- No cache of owners by pid. A process that runs `sudo` or drops root keeps its pid, so a cache would count it wrong until it's checked again, and a check is the same `stat`.
-		- The week of history in the profiler keeps processes on too, so its draw sees a full graph like the others. Turning it on after the week would save the 45 s.
-		- `ProcsReader` keeps a `DIR` pointer now, so it isn't `Send`. Nothing needs it to be.
-	- Branch: round-1107
-	- Test case: `procs::tests::each_read_lists_the_folder_again` (dezd2), `a_procs_read_allocates_nothing` in `core/tests/allocs.rs` (dezd3), and dep4j, dep4k, dep48 and dep49 as before.
-		- 2026-11-06: dep4j and dep4k are ignored under Miri now, since Miri has no `rewinddir`.
-		- Swept: every `ProcsReader` and `Which::Procs` use. dencp, dend1 and den86 turn every graph on, and under Miri now get no processes graph, as on a box without `/proc`. The other `/proc` readers already keep their files open through `Kept`.
-	- Acceptance signoff: Self-closed, 2026-11-06: dezd2 and dezd3 passed in the quick gate, and the profile area ran with processes on.
-	- Closed: 20261106-214137
 
 - CICD gap: clang-tidy leaves out the clang analyzer checks
 	- ID: 2026110310450007
@@ -4925,6 +5500,27 @@ Sorted per the notes in [Template](#template).
 	- Test case: None, since it's a recording. The gif and the video were checked frame by frame.
 	- Closed: 20261106-182817
 
+- The settings tests print about 95,000 QObject::moveToThread warnings
+	- ID: 2026110912124929
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261109-121249
+	- Opened by:
+	- Reproduced: Yes. 33,443 on round-1109 and 11,233 on `6c5557f`, from the settings tests at default threads, and about 600,000 at `--test-threads=1` on both. So it's older than df32n's close hook, which only adds one more window test.
+	- Actual cause: Each cargo test runs on its own thread and built its `QApplication` there. Qt keeps the plugins it loads, such as the image formats, on the thread that first loaded them, and once that thread is gone each plugin lookup from a later app tried to move them and warned. The same cause gave the "not created in the main() thread" and `startTimer` lines.
+	- Progress log:
+		- 2026-11-09: Seen in the quick gate's test log on round-1109, starting near dej8s, while 2026110709074405 was worked. Every test passed. Not yet known whether it's older than df32n's offscreen close hook. A flood that size hides real warnings in the log.
+		- 2026-11-09: Every test that builds a `QApplication` now runs it through `on_qt`, on one thread they all share, in place of `qt_turn`. The settings tests print no `moveToThread`, `startTimer` or main-thread lines now, and take about as long.
+		- Verified: the worker quick gate (format, build, lint, test) passed, with none of those lines in its log. df349 failed with `on_qt` made to run the test in place, as before, and passes with it.
+		- Swept: all 36 tests that took `qt_turn`, and every test calling an `ffi::` hook. The 2 others that call one only read `ffi::ControlKind` and `ffi::RowInfo`.
+	- Decisions:
+		- Fixed in the test harness, not in `qt.cpp`. The app runs once on the main thread, so it never saw this.
+	- Actual fix: `on_qt` in `settings/src/bridge.rs` runs each window test on one long-lived thread, and passes its panic back to the test.
+	- Branch: round-1109
+	- Test case: df349, `qt_stays_quiet_when_tests_on_3_threads_load_its_plugins`, which runs `qt_warnings` from 3 threads in turn and wants Qt to say nothing.
+	- Closed: 20261109-130358
+
 - GPU tests dekmd and der6k fail on a hybrid laptop whose NVIDIA card sleeps
 	- ID: 2026110216211209
 	- Type: Bug
@@ -5757,6 +6353,279 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1025
 	- Test case: `the_cleanup_takes_only_the_projects_own_and_no_image_while_another_run_is_live` (dezav), in `cicd/tests/guards.bash`. Also run both ways by hand.
 	- Closed: 20261025-081952
+
+- Code review 20261107 item 8: A setting changed and changed back keeps Apply on, and Apply writes the default into the file
+	- ID: 2026110709074408
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Origin: `f89e55e` (2026-10-23). Not seen before. Confirmed, by 2 probes on the window's code.
+	- Steps to reproduce: Change Max age from 28 to 29, then back to 28.
+	- Incorrect behavior: The revert arrow goes off, but Apply stays on. Apply writes `max_days: 28`, against the file's own header that lists only values changed from their defaults, and the setting stops following a later change to its default. A slider does the same at many of its positions.
+	- Expected behavior: A value back at its default counts as no change.
+	- Reproduced: 2026-11-09, round-1109 at 101791a, by df34m and df34k.
+	- Possible cause: knobs' `Model::set` always stores a value of its own, and `Dialog::dirty` compares the stores.
+	- Actual cause: as above. knobs' `has_own` already took a value equal to its default as none, so the revert arrow went off, but the store still held it.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A value set back to its default now stores nothing, so Apply goes off and the file gets no line for it.
+		- Loading a file drops a line that only names a default, so the next save leaves out the ones older builds wrote.
+		- `design.md` Settings window says so.
+		- Verified: df34k and df34m fail at 101791a and pass now. The quick gate's format, build, lint and tests passed. Sanitizers are left to the gate step.
+	- Decisions:
+		- The fix is in knobs, where the value is stored, not in `Dialog::dirty`. A looser dirty check would still let Apply write the default.
+		- Theme members and the theme pick still store a default. Members are Custom's set, and the file's colors are read by its pick (`config::unthemed`). A setting whose default is a rule's answer keeps its value too, the same as `has_own` judges it.
+		- Dropping default lines at load cleans files this bug wrote, such as the user's own. Those settings follow a later change to the default again.
+	- Actual fix: `Spec::stores_nothing` and `Model::put_own` in `knobs/src/lib.rs`, used by `write`, the switch-off keep path, `pin_chooser`'s switch, and `load_docs`.
+	- Branch: round-1109
+	- Test case: `tests::a_value_put_back_to_its_default_stores_nothing` (df34k) in knobs, and `dialog::tests::a_setting_changed_and_changed_back_is_no_change` (df34m), with Max age and the Sample ms slider.
+		- 2026-11-09: ddqsd (`lines_put_set_aside_values_and_changes_under_kept`) checked that `font.use_system_family: true`, its default, was written. It now checks there is no such line.
+		- Swept: every `own.insert` in knobs, core, settings and xfce. `fill_custom` fills theme members only. `config::name_the_theme` writes the pick on purpose. Every `own.contains_key` and `own.get` reader, which read only the theme pick and members, or ask `has_own`. The State store is left as it is, since it holds the program's own values.
+	- Acceptance signoff: Self-closed 20261109: df34k and df34m fail before the fix and pass after.
+	- Closed: 20261109-131312
+
+- Code review 20261107 item 9: Randomize gives 2 graphs leads that don't read apart in about 1 roll in 7,500
+	- ID: 2026110709074409
+	- Type: Bug
+	- Status: Done
+	- Needs local test suite run?: No. The quick gate's format, build, lint and tests passed on 2026-11-09.
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103107404602, 2026102810142725
+	- Origin: `c3c52ee` (2026-10-31), the thirteenth graph. The rule held over 10,000 seeds with 12 graphs, and dejbv checks only 2,000. A regression. Confirmed, by a probe over 105,000 seeds, where 14 fail, the first at seed 2615.
+	- Steps to reproduce: A roll with seed 2615.
+	- Incorrect behavior: 2 leads are about 3 apart as CIEDE2000, where the rule is 10.
+	- Expected behavior: Every roll's leads read apart, which dejbv's item asks for.
+	- Reproduced: 2026-11-09, round-1109 at f3ff18b. Seeds 0 to 109,999 gave 15 rolls with 2 leads 2.7 to 4.0 apart, every one near the pale end of the roll.
+	- Possible cause: After 256 draws with no fit, the roll keeps the last draw.
+	- Actual cause: the possible cause. Near the pale end a roll's saturation and brightness sometimes have no set of hues that reads apart, so more hue draws don't help.
+	- Actual fix: when the hue draws run out, the roll draws its saturation, brightness and alarms again, and tries again. After 64 of those it would start over from seed 0, whose first draw reads apart. A roll that never ran out comes out as before.
+	- Note: The least gap and the draw count have been tuned twice to the seeds tested. A fallback that always meets the rule would end that.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Verified: seeds 0 to 111,999 all read apart, and the quick gate's format, build, lint and tests passed.
+		- `design.md` Theme has the details.
+	- Decisions:
+		- Draw the whole base again rather than more hue draws or a narrower gap, since the misses come from the saturation and brightness, not the hues. So the gap and draw count no longer need tuning to the seeds tested.
+		- Seed 0 as the last resort, so the loop always ends, with df34z checking it still reads apart.
+	- Branch: round-1109
+	- Test case: `dice::tests::a_roll_whose_hue_draws_run_out_draws_again` (df34y), over the 15 seeds that ran out, and `seed_0_reads_apart_at_its_first_draw_for_the_last_resort` (df34z). df34y fails on the old code at seed 2615, 3.4 apart, and passes now.
+		- Swept: `scheme` is the only caller of `lead_hues` and `steps`, and `theme` the only caller of `scheme` outside the tests. `clear_of` keeps its own fallback to the wanted color, for the LAN's 2 colors, which demw2 checks over 2,000 seeds.
+	- Acceptance signoff: Self-closed: df34y failed before the fix and passes after.
+	- Closed: 20261109-132921
+
+- Code review 20261107 item 11: With the LAN split on, a socket that stops counting as away adds its whole life as LAN in one sample
+	- ID: 2026110709074411
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110111543986, 2026102914561218
+	- Origin: `8bbd96a` (2026-10-29), with `16d86c6` and `6594a7a` (2026-11-01). Not seen before. Confirmed, by a probe where a 4 GB socket made one sample show all the interface's traffic as LAN.
+	- Steps to reproduce: With the split on, keep an ssh session open to a VM on a bridge. Let the VM idle until its address leaves the bridge's table, or drop a VPN that leaves sockets on its old address.
+	- Incorrect behavior: At the next 10 s relist the socket counts as LAN for the first time, and every byte it ever moved counts as new. That sample shows all internet traffic as LAN, and it happens again each time.
+	- Expected behavior: Only bytes moved since the last read count.
+	- Possible cause: Only LAN sockets are kept between reads, so one that's new to the LAN rates from 0.
+	- Estimated effort: Low
+	- Actual cause: Only LAN sockets were kept between reads, so one that stopped being away had nothing to rate from.
+	- Actual effort: Low
+	- Progress log:
+		- Every socket with a private far end is kept between reads, flagged by whether it's away, and only the LAN's are summed. One that stops being away counts from what it had at the last read.
+		- `design.md` Data sources on Linux says so.
+		- Verified: `cargo test -p tukzmon-core lan::`, the quick gate's format, build, lint and tests, the Sanitizers step, and Miri over `lan::` passed.
+	- Decisions:
+		- Kept by the far end being private, not every TCP socket, since only the away lists can change whether a socket is the LAN's. Its addresses never change.
+	- Actual fix: `lan::Sock` keeps a socket's bytes with its LAN flag, and `rise` sums the LAN's against any earlier read.
+	- Branch: round-1109
+	- Test case: `lan::tests::a_socket_that_stops_being_away_counts_from_its_last_read` (df35c). It fails with away sockets left out of the last read.
+		- 20261109: deqt2, deqt4, deqt6 and dekq7 now build or read `Sock` values, and deqt4 and deqt6 count only sockets flagged LAN. Their values are the same.
+		- Swept: `rise` is the only per-socket rate. `LanReader` is read only through `net::Traffic`.
+	- Closed: 20261109-134022
+
+- Code review 20261107 item 12: Work that starts during the GPU's idle rest reads as 0% until the rest ends
+	- ID: 2026110709074412
+	- Type: Bug
+	- Status: Done
+		- Less than the wording. Work that starts on a card still awake in the rest reads 0 until the rest is up. The rest now comes only after 5 s idle, and ends as soon as the card sleeps. Accept that window, or ask for a shorter rest, which risks keeping the card up.
+	- Stand-in: none (20261109). Whether the window left is small enough is a scope call.
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110118380381
+	- Origin: `36e3559` (2026-11-02). That item notes the rest was never reached on a real card. Confirmed, with stand-in NVML, where a card at 90% read 0% for 5 s and then 90%.
+	- Steps to reproduce: A card whose `power/control` is `auto` and that stays awake, idle for 5 reads, then busy.
+	- Incorrect behavior: Both GPU graphs read 0 for the card's autosuspend delay plus 5 s. A rest starts after 5 reads, not a set time, so at a 50 ms sample after a quarter second of idle. Each rest ends with an NVML open of about 15 to 20 ms on the panel's thread.
+	- Expected behavior: A busy card doesn't read as idle.
+	- Against: 2026110118380381's idle rest, which lets the card sleep. A fix keeps that.
+	- Reproduced: 2026-11-09, desfa with stand-in NVML and power files. A rest started on the first idle read with no wait, and ran its whole length after the card slept.
+	- Actual cause:
+		- The rest started after 5 idle reads, however short the sample time.
+		- Once started it ran its whole length, even after the card slept, so work that woke it read 0 until the rest was up. NVML isn't asked during a rest, so a busy share can't be seen then.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The rest starts once the card has read idle for 5 s, not after 5 reads.
+		- It ends as soon as `power/runtime_status` reads `suspended`. From then the asleep check takes over, so work that wakes the card reads on the next sample.
+		- `design.md` Data sources on Linux, GPU, has it.
+		- Verified: desfa passed, and failed with either half of the fix taken out. The gpu tests and the quick gate passed.
+	- Decisions:
+		- 5 s idle, the same as the old 5 reads at a 1 s sample, so the default case rests as before.
+		- The 5 s past the autosuspend delay stays. A shorter one risks opening NVML before the card sleeps, and nothing here measured how long a real card takes.
+		- The 15 to 20 ms NVML open at the end of a rest stays on the panel's thread. Rests now need 5 s idle, so it comes far less often at a fast sample.
+	- Actual fix: `Nvidia::rest_if_idle` rests after `IDLE_FOR` (5 s) idle, and `Nvidia::awake` ends the rest once the card is asleep.
+	- Branch: round-1109
+	- Test case: `gpu::tests::nvml_leaves_a_card_that_may_sleep_alone_while_it_sleeps` (desfa). It fails with the rest resting on the first idle read, and with the rest not ending when the card sleeps.
+		- Swept: both readers go through `Nvidia::awake` and `rest_if_idle`. No other code used the idle count or `IDLE_READS`. `design.md` was the only doc that gave the 5 reads.
+	- Acceptance signoff: Self-closed, 2026-11-09: desfa passed and failed with either half taken out. The window left, a card kept awake by something else during a rest, is in design.md's GPU row. Asking NVML there would keep the card awake, which undoes the rest. Reopen if it shows on a real laptop.
+	- Closed: 20261109-134826
+
+- Code review 20261107 item 13: An IPv4 client on a dual-stack socket is counted with IPv6 header bytes
+	- ID: 2026110709074413
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026102914561218
+	- Origin: `8bbd96a` (2026-10-29). Not seen before. Confirmed, by a probe that counted 86,000 bytes where the wire took 66,000.
+	- Incorrect behavior: The LAN split reads such a socket about 1.3% high at full segments.
+	- Expected behavior: The header size follows the address the far end uses.
+	- Possible cause: The overhead is picked by the socket's family, not by its addresses.
+	- Estimated effort: Low
+	- Actual cause: The header size went by the socket's family, so an IPv4-mapped far end on an IPv6 socket got 86 bytes a segment.
+	- Actual effort: Low
+	- Progress log:
+		- The header size goes by the far end's address after unmapping, so a dual-stack socket's IPv4 client gets 66 bytes a segment.
+		- `design.md` Data sources on Linux says so.
+		- Verified: `cargo test -p tukzmon-core lan::`, the quick gate's format, build, lint and tests, the Sanitizers step, and Miri over `lan::` passed.
+	- Actual fix: `lan_socket` picks `overhead` by `mapped(far)`.
+	- Branch: round-1109
+	- Test case: `lan::tests::a_dual_stack_socket_to_an_ipv4_client_counts_ipv4_headers` (df35d). It fails with the overhead picked by the family.
+		- Swept: `overhead` has no other caller.
+	- Closed: 20261109-134022
+
+- Code review 20261107 item 14: A LAN dump left partway makes a gap at each read until the old dump runs out
+	- ID: 2026110709074414
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232077
+	- Origin: `a83280a` (2026-11-01), the fix for 20261031 item 19. It skips other requests' replies, but the kernel refuses a new dump while one is still going. A gap in that fix. Confirmed, by a probe with 3,000 sockets: 10 gaps in a row, and a second request got EBUSY.
+	- Steps to reproduce: A read error, or a reply that doesn't parse, in the middle of a dump.
+	- Incorrect behavior: Each later read gets EBUSY for its own request, so the LAN part of the network graph is a gap until the old dump's replies are used up.
+	- Expected behavior: One gap, then reads as before.
+	- Possible cause: The socket is kept after a failed dump. deqt2 builds a reply stream the kernel doesn't send while a dump runs.
+	- Estimated effort: Low
+	- Actual cause: The netlink socket was kept after a failed dump, and the kernel refuses a new dump on it with EBUSY until the old one runs out.
+	- Actual effort: Low
+	- Progress log:
+		- A failed dump closes the socket, which ends it, and the next read opens a new one. A failed open is a gap, and the next read tries again.
+		- `design.md` Data sources on Linux says so.
+		- Verified: `cargo test -p tukzmon-core lan::`, the quick gate's format, build, lint and tests, the Sanitizers step, and Miri over `lan::` passed.
+	- Decisions:
+		- A new socket rather than reading the old dump to its end, since that takes as many reads as the dump has left, and a read error may not end.
+	- Actual fix: `LanReader::sock` is dropped on a failed dump and opened again at the next poll.
+	- Branch: round-1109
+	- Test case: `lan::tests::a_dump_left_partway_is_one_gap` (df35e), with 400 sockets of its own and a read cut short. It fails with the socket kept, on the read after the gap.
+		- Swept: `neighbors` opens its own socket for each dump, so it has no dump to leave partway for the next one.
+	- Closed: 20261109-134022
+
+- Code review 20261107 item 15: With no display, tukzmon-settings aborts with a core dump instead of exiting 1
+	- ID: 2026110709074415
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103016201605
+	- Origin: `07399b9` (2026-10-30). Not seen before. Confirmed: exit 134 and a core dump, both for a file that can't be read and for opening the window.
+	- Steps to reproduce: `env -u DISPLAY -u WAYLAND_DISPLAY tukzmon-settings --config <a file that can't be read>`
+	- Incorrect behavior: It prints its line, then Qt aborts trying to open the message box.
+	- Expected behavior: The line, then exit 1.
+	- Reproduced: 2026-11-09, by the new test with the fix taken out: SIGABRT after "could not connect to display".
+	- Actual cause: A Qt platform that can't start, such as xcb with no display, is a `qFatal` in the `QApplication` constructor, and `qFatal` aborts.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- While an `App` is being built, a message handler passes Qt's lines on and quits with 1 on a fatal one. It's put back once the app is up, so a later `qFatal` still aborts.
+		- `design.md` Settings window has it.
+		- Verified: the worker quick gate (format, build, lint, test) and the Sanitizers step passed. With no display, an unreadable file and a missing one each printed Qt's lines and quit with 1.
+	- Decisions:
+		- Caught at Qt's fatal message rather than by guessing from `DISPLAY` and `WAYLAND_DISPLAY`, since a display that's set but can't be reached, or a missing platform plugin, fails the same way.
+		- The window quits with 1 too, as the box does, since both are a window that couldn't open.
+	- Actual fix: `quitOnFatal`, `AppArgs` and `App` in `settings/src/qt.cpp`.
+	- Branch: round-1109
+	- Test case: `bridge::tests::with_no_display_the_unreadable_box_quits_with_1_not_a_core_dump` (df35x). It runs itself again with xcb and no display, and wants exit 1 and no signal. It got SIGABRT with the handler left out.
+		- Swept: every place a `QApplication` is made, which is only `App` (the box, the window and every test hook).
+	- Closed: 20261109-135912
+
+- Code review 20261107 item 16: An item the panel drops without Remove keeps its files, and a later item on that id takes them over
+	- ID: 2026110709074416
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026102622311676
+	- Origin: `f68f673` (2026-10-29). Not seen before. Plausible, from the xfce4-panel 4.20.7 source.
+	- Steps to reproduce: The panel drops an item without calling the plugin's `removed`, such as Remove after the wrapper crashed twice, or yes to "could not be loaded" after the library went away. Then restart the panel and add a tukzmon item.
+	- Incorrect behavior: `plugin-N.shcl` and `plugin-N.hist` stay, and the new item, given the lowest free id, opens with the old item's look and history.
+	- Expected behavior: A later item that gets the same id starts fresh, as 2026102622311676 asks.
+	- Possible cause: Only `removed` deletes the files. The panel deletes its own file for an id when it makes a new item on it, so a mark kept there could tell old files from a live item's.
+	- Reproduced: Yes, by the new test with the fix taken out. The dropped item's settings and history files were still there for the new item.
+	- Actual cause: As the possible cause. xfce4-panel 4.20.7 deletes `xfce4/panel/<name>-<id>.rc` only on its own Remove and when it makes a new item on an id, before the item starts.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- Each item writes the panel's `xfce4/panel/tukzmon-<id>.rc` at start, then `plugin-<id>.mark` beside its settings file. An item that finds the mark but no rc deletes `plugin-<id>.shcl` and `.hist` first, so it starts from the shared file with no history.
+		- Remove deletes the mark too.
+		- `design.md` Settings window has it.
+		- Verified: the quick gate passed.
+		- Verified on xfce4-panel 4.20.7 with 2 items, at `3f04603`: item 1's wrapper killed twice, then Remove on the restart dialog, left `plugin-1.shcl` and `.hist`. A new item took id 1, started from the shared `tukzmon.shcl` with no history, and wrote a new mark and rc. Item 2, and both items across 2 panel restarts, kept their settings and history. Passed twice.
+		- The dialog's Remove deletes the panel's `tukzmon-<id>.rc` too, but not our mark, so the new item still finds old files.
+	- Decisions:
+		- A mark of our own as well as the panel's rc, since an item from an older build has no rc either. With neither, the files stay, so the first start after an update keeps every item's look and history. Files a dropped item left before this build stay too.
+		- The rc is written before the mark, and the mark only once the rc is there, so a failed write can't make the next start take a live item's files for old ones.
+		- Deleting the panel's rc by hand makes the item start fresh at the next start, as a new item would.
+	- Actual fix: `config::claim` and `config::mark_of` in `core/src/config.rs`, called from `Plugin::new`, and `Plugin::forget` in `xfce/src/lib.rs`.
+	- Branch: round-1109
+	- Commit: `3f04603`
+	- Test case: `config::tests::a_new_item_on_a_dropped_items_id_starts_fresh` (df36b), `a_running_item_and_one_from_before_the_marks_keep_their_files` (df36c), and `tests::a_removed_item_takes_its_mark_too` (df36d) in the plugin crate. df36b fails with the deletes taken out, and df36d with the mark left out of `forget`.
+		- Swept: every place an item's files are made or deleted (`Plugin::new`, `start_from`, `forget`, `Graphs::save` through `keep::write`), and every `instance_file` and `xfce_panel_plugin_get_unique_id` caller. The settings window's `keeps_history` still reads an old `plugin-<id>.shcl` until a new item takes the id, as before.
+	- Closed: 20261109-142358
+
+- Code review 20261031 item 33: The workflow pins actions/checkout by tag and keeps the token in the checkout
+	- ID: 2026103115232296
+	- Type: Enhancement
+	- Status: Done
+	- Needs external testing: the `merge-gate` workflow's first run on GitHub, the same run 2026102513560001 waits for.
+	- Priority|Severity: Low
+	- Opened: 20261031-152322
+	- Opened by: t00mietum
+	- Related IDs: 2026102513560001
+	- Requirements: Pin by commit SHA and set `persist-credentials: false`, since the containers mount the checkout.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Origin: `5f1bef0`. First review. Plausible, the workflow has never run.
+	- Progress log:
+		- `.github/workflows/merge-gate.yml` pins actions/checkout at `3d3c42e` (v7.0.1), with the tag in a comment, and sets `persist-credentials: false`.
+		- Verified: the file parses as YAML, and GitHub's API gives that commit for the v7.0.1 tag.
+		- Held for the same first merge-gate run on main as 2026102513560001.
+		- 2026-11-08: The checkout by SHA worked on every run since, and the gate's steps ran with no token.
+	- Decisions:
+		- v7.0.1, the newest release, so the pin keeps the major version the file had.
+		- The merge gate never syncs or pushes, so the checkout needs no token.
+	- Branch: round-1102
+	- Test case: The workflow is its own test, as for 2026102513560001.
+	- Closed: 20261108-105057
 
 - Drop the shcl 2 reading and rewrite of settings files
 	- ID: 2026110709261106
@@ -7022,6 +7891,21 @@ Sorted per the notes in [Template](#template).
 	- Test case: the `nix` area of cicd.bash, run with `--backlog-run-quick nix`. It has no test ID, since it isn't a cargo test.
 	- Closed: 20261028-091315
 
+- Other Linux and BSD panels
+	- ID: 2026101916013890
+	- Type: Feature
+	- Status: Deferred
+	- Priority|Severity: Avg
+	- Opened: 20261019-160138
+	- Opened by: t00mietum
+	- Prereq IDs: 2026101916013889
+	- Requirements:
+		- Supporting all the most popular DE panels.
+		- LXQt first, for lxqtukz.
+		- Then KDE Plasma, GNOME Shell, Cinnamon, MATE, Budgie, the Wayfire panel, and Waybar. `design.md` has how each one would work.
+		- For some platforms, may need to run as a system tray. For others, taskbar-specific plugins.
+		- BSD collectors through `sysctl`.
+
 - Code review 20261031 item 34: The history save's fsync runs on the panel's main thread
 	- ID: 2026103115232312
 	- Type: Enhancement
@@ -7071,630 +7955,6 @@ Sorted per the notes in [Template](#template).
 		- Installing the set and the reader's test on b23 are a sudo path, so they're a hand test.
 	- Decisions:
 		- 2026-10-30: Deferred with no date. The LAN split uses the non-root socket reader for now.
-
-- Code review 20261107 item 2: Reset history in a window whose item keeps no history asks nothing, then deletes the saved history of items that keep it
-	- ID: 2026110709074402
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026102814061807, 2026102620162202
-	- Origin: `58c5251` (2026-10-26) and `207e4ff` (2026-10-28). Not seen before. Confirmed, by a probe through the window's and the plugin's code.
-	- Steps to reproduce: 2 panel items, the first with Keep across restarts on and the second with it off. Open the second one's settings window and press Reset history.
-	- Incorrect behavior: No question. The first item sees the reset and deletes its own saved history, up to 28 days of it. The other way round, Reset in the first item's window asks, then deletes the second item's file too, which its Keep tip says is kept for later.
-	- Expected behavior: The question guards every reset that deletes saved history, as 2026102814061807 and design.md's Settings window section say.
-	- Possible cause: The window asks by its own item's Keep, while each running item deletes by its own.
-	- Sweep: `Dialog::reset_deletes_saved`, `keep::reset` and the plugin's `reset_if_asked`.
-	- Against: 2026102814061807, "It asks when Keep across restarts is on, as the window shows it or as applied". That reads one item's Keep. A fix that asks when any item keeps history goes past it.
-	- Estimated effort: Low
-
-- Code review 20261107 item 3: The demo's window manager, panel and settings window join the live desktop session
-	- ID: 2026110709074403
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026110310450002
-	- Origin: `15993d9` (2026-11-06). Not seen before. Confirmed for the connection, by a probe with a stand-in session manager. What the live session does when the demo stops them is Plausible, and wasn't tried on purpose.
-	- Steps to reproduce: Run the Demo step, or the demo script, from a terminal in the desktop session.
-	- Incorrect behavior: `SESSION_MANAGER` is passed through, so xfwm4 and xfce4-panel on the private display connect to the live xfce4-session. Both ask to be restarted at once, so stopping them may make the live session start them again, and a logout during a recording may save them into the session.
-	- Expected behavior: Nothing the demo starts talks to the live session.
-	- Possible cause: `Screen.env` copies the whole environment and drops only 4 names from it.
-	- Sweep: `Panel.desk_env`, `start_wm`, and the settings window the demo's plugin starts.
-	- Estimated effort: Low
-
-- Code review 20261107 item 4: With 2 windows on one file, or a hand edit, Apply drops or reverts theme edits
-	- ID: 2026110709074404
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026103115231817, 2026103115231908
-	- Origin: `5351443` (2026-11-01, 20261031 item 2) and `6a78316` (2026-10-24). New ground, in the same place as 20261031 items 2 and 8, both fixed. Confirmed, by 2 probes on the window's code.
-	- Steps to reproduce:
-		- Window B saves a theme and picks it. Window A, still on Default, sets a color and applies.
-		- Or window B saves a color into a saved theme, and window A only renames that theme and applies.
-	- Incorrect behavior: In the first, A's color comes through but marked as made on Default, which is no longer picked, so it's dropped while Apply says it saved. In the second, A writes the theme whole with its old colors, so B's color is lost.
-	- Expected behavior: Each window's own edits reach the file, and the other one's stay.
-	- Possible cause: Apply copies each store on its own, so the theme pick and the changes made on a theme can come from different windows. A changed theme is written whole.
-	- Note: This is the third fault in how Apply merges with a changed file, in 2 rounds. A table in design.md of what Apply does for each kind of change made elsewhere would stop each case being answered on its own.
-	- Estimated effort: Avg
-
-- Code review 20261107 item 5: Cancel, Esc or the close button leaves a false error in the panel's tip and the journal
-	- ID: 2026110709074405
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026103115232220
-	- Origin: `7794e6b` (2026-11-01, 20261031 item 28), meeting `f89e55e` (2026-10-23), where the window quits with 1 on Cancel. A regression from 20261031 item 28, whose test, der60, tries only a program that fails. Confirmed, by the real window started through the plugin's code.
-	- Steps to reproduce: Open Properties, then press Cancel.
-	- Incorrect behavior: The tip says "Properties: the settings window quit with exit status: 1" until the next Properties, and the same line goes to the journal.
-	- Expected behavior: A tip line only when the window failed, as 20261031 item 28 says.
-	- Possible cause: `run_dialog` gives 1 for a rejected dialog, the same code as a file that can't be read.
-	- Estimated effort: Low
-
-- Code review 20261107 item 6: The pre-push hook can pass a commit it never tested
-	- ID: 2026110709074406
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026103115232000
-	- Origin: `ff4610a` (2026-10-25). Not seen before. Confirmed, by the real hook with a stand-in gate.
-	- Steps to reproduce: Push `main` from a clean checkout at the pushed commit, so the gate runs in place. While it runs, another session edits the tree.
-	- Incorrect behavior: Each step checks the tree as it is right then, and the hook never looks at the tree again, so a commit can pass on edits that aren't in it.
-	- Expected behavior: The gate checks the commit being pushed, as the hook's header says.
-	- Possible cause: The in-place path trusts a tree that was clean at the start to stay clean.
-	- Estimated effort: Low
-
-- Code review 20261107 item 7: A demo stopped by TERM leaves its X session running, a FUSE mount, and a folder no sweep removes
-	- ID: 2026110709074407
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026110310450002
-	- Origin: `15993d9` and `0f1d264` (2026-11-06). Not seen before. Confirmed, by a probe that sent TERM to a run started by hand.
-	- Steps to reproduce: Start the demo script by hand, then send it TERM, as `timeout` does.
-	- Incorrect behavior: No cleanup runs. There are 18 processes that stay up, among them Xvfb, xfwm4 and its bus, xfconfd, gvfsd, the panel with its plugin wrappers, and xfce4-notifyd. gvfsd-fuse keeps a mount inside the run folder, and the folder has no `run.pid`, so the stale run sweep never takes it. Under cicd.bash the leftover scan stops the processes, but not a dead mount.
-	- Expected behavior: TERM cleans up as an error does, and a folder left behind can be swept later.
-	- Possible cause: Python's default TERM skips the `finally` blocks, and the demo makes its folder without the pipeline's run marker.
-	- Sweep: the demo's `safe_rmtree`, which crosses mount points where the pipeline's removal stays on one file system.
-	- Estimated effort: Low
-
-- Demo GIF: Status tray and notification icons too close together
-	- ID: 2026110911114063
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261109-111140
-	- Opened by: t00mietum
-	- Related IDs: 2026110618335731, 2026110310450002
-	- Steps to reproduce: Watch the demo GIF, `assets/demo.gif`.
-	- Incorrect behavior: The icons in the status tray and/or notification tray are too close together, almost overlapping.
-	- Expected behavior: The tray icons have normal spacing between them.
-
-- Code review 20261107 item 25: With the LAN split on, each network read spends about 20 ms in the kernel on the panel's thread
-	- ID: 2026110709074425
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026102914561218
-	- Origin: `8bbd96a` (2026-10-29). It was never timed. Confirmed, by a release probe on b23: 18 to 22 ms a read with 55 sockets, about 70 times a tick of the 6 default graphs. `ss -tn` takes the same.
-	- Requirements:
-		- Make a LAN read cheap enough for the panel's thread, or move it off that thread. Time it before and after.
-	- Note: Each dump walks the kernel's whole table of open TCP connections, which is sized by RAM, so few sockets cost about the same as many. An open settings window runs a second reader.
-	- Estimated effort: Avg
-
-- Video & GIF: Bigger font for the fake text
-	- ID: 2026110708212499
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261107-082124
-	- Opened by: t00mietum
-	- Related IDs: 2026110618335731, 2026110310450002
-	- Requirements:
-		- Bigger and non-narrow font for the fake text elements.
-
-- Smoothly animate each graph on each tick
-	- ID: 2026110911114024
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261109-111140
-	- Opened by: t00mietum
-	- Related IDs: 2026110911114037
-	- Requirements:
-		- Settings option, on by default if the CPU has 8 or more cores: Smoothly animate the graph on each tick, rather than wholesale replace previous contents.
-		- Maybe animate over 1/2 of each graph's update ms? Smooth animation at high fps.
-		- If this makes sense: An even division of the screen refresh rate, minimum 30, max 60. With smooth antialiasing.
-		- It should look absolutely incredibly buttery smooth.
-
-- Reduce motion if a remote desktop session is detected
-	- ID: 2026110911114037
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261109-111140
-	- Opened by: t00mietum
-	- Related IDs: 2026110911114024
-	- Requirements:
-		- Add a setting, "Reduce motion if remote desktop session detected."
-		- If a VNC, RDP, RustDesk, etc. session is detected:
-			- Double the ms for every graph, with a minimum floor of 1000 ms.
-			- Disable smooth animation.
-			- Disable the controls for the overridden settings, with flyover text explaining why.
-			- Don't store the temporarily overridden values.
-		- Resume the previous animation settings when the desktop is connected normally.
-
-- Keep logging but don't display updates while the desktop is locked
-	- ID: 2026110911114050
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261109-111140
-	- Opened by: t00mietum
-	- Requirements:
-		- When the desktop is locked, keep logging values but don't display updates.
-		- Then catch up once unlocked.
-
-- CICD gap: Fuzz the parsers of files and kernel messages
-	- ID: 2026110310450001
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261103-104500
-	- Opened by: t00mietum
-	- Parent ID: 2026102416252898
-	- Requirements:
-		- There's no fuzz testing yet. It should be adversarial, and cover our code and the libraries it leans on.
-		- Cover what reads input the program doesn't control: the history file decode, the netlink socket and neighbor dumps, the bridge forwarding table, the `/proc` and `/sys` readers, and a settings file that loads through shcl.
-		- Plain tests on stable, each case a pure function of one seed, a time budget from an env var, and asserts on properties such as no panic and no read past the end. Keep some bit flips over real files, such as `core/tests/data/plugin-5-tiers.hist`.
-		- Each one gets a test ID, and is watched to fail on a planted bug before it's trusted.
-
-- CICD gap: Slow leak checks still missing
-	- ID: 2026110310450003
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261103-104500
-	- Opened by: t00mietum
-	- Parent ID: 2026102416252898
-	- Requirements:
-		- CodeQL from a pinned CLI, run locally, over the Rust and the C++, as a slow leak check. The repo is public on GitHub under the LGPL, so its license allows it. Vendor the crates first, and build from a clean folder so the C++ database isn't empty.
-		- A soak of the settings window, with the heap read at round N and 2N, under heaptrack. The panel item's soak covers only the Rust side.
-	- Decisions:
-		- No `_GLIBCXX_DEBUG` build. Every linked C++ library has to be built with it, and Qt comes prebuilt.
-		- No cross-file analyzer run, since the C++ is one file.
-
-- Installer script for a direct install
-	- ID: 2026110310450005
-	- Type: Feature
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261103-104500
-	- Opened by: t00mietum
-	- Related IDs: 2026110310450001
-	- Requirements:
-		- An `install.bash` that a person runs as a one-liner. It finds the newest stable or dev release through GitHub's API, checks its sha256, and installs.
-		- With no stable release yet, it takes the newest prerelease. Releases sort by version, not by date, with a prerelease below its release.
-		- `--release dev|stable`, `--target user|system`, `--yes`, `--help` and `--version`. It finds the OS and arch itself, says its plan, and asks before it touches anything. It runs on bash 3.2 and can run twice safely.
-		- User installs go where `utility/dev-install.bash` puts them, with no sudo. System installs use the `.deb` or `.rpm`.
-		- No PowerShell version for now, since there's no Windows or macOS build.
-		- README.md gets the one-liner and the install folders, and notes `--help`.
-	- Needs more detail:
-		- It needs a first release to download. Until then, test it against a stand-in release.
-
-- CICD gap: tukzmon-settings built in another folder gives different bytes
-	- ID: 2026110710005013
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261107-100050
-	- Opened by: t00mietum
-	- Parent ID: 2026102416252898
-	- Requirements:
-		- Release builds of one commit give the same bytes, from any checkout folder, target folder, or home.
-		- The build maps its own paths out of the C++ and the Rust, such as through the compilers' path prefix options.
-		- The pipeline builds twice in 2 folders and compares the checksums. It's watched to fail first.
-		- README.md says builds are reproducible once that check passes.
-	- Reproduced: 20261107, 2 fresh release builds of one tree into 2 target folders. `libtukzmon.so` matched. `tukzmon-settings` didn't, since it keeps the full path of the cxx bridge's `cxx.h` from the build folder.
-	- Progress log:
-		- README.md's line that every build of a commit gives the same bytes is out until this is done.
-
-- Most test names are whole sentences, and over half start the same way
-	- ID: 2026110710005014
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261107-100050
-	- Opened by: t00mietum
-	- Requirements:
-		- Short test names, a few words each, and not all built the same way. About 320 of 400 Rust tests and all 25 bash tests have 7 words or more, and over half start with a, the, every or each.
-		- Each test keeps its ID.
-		- The bash tests in `cicd/tests/` too, since their names print on each PASS and FAIL line.
-		- knobs' tests too. SilkTerm's copy gets an item of its own there.
-		- The `live_` names can stay, since they mark the tests that read this computer.
-
-- Code review 20261107 item 8: A setting changed and changed back keeps Apply on, and Apply writes the default into the file
-	- ID: 2026110709074408
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Origin: `f89e55e` (2026-10-23). Not seen before. Confirmed, by 2 probes on the window's code.
-	- Steps to reproduce: Change Max age from 28 to 29, then back to 28.
-	- Incorrect behavior: The revert arrow goes off, but Apply stays on. Apply writes `max_days: 28`, against the file's own header that lists only values changed from their defaults, and the setting stops following a later change to its default. A slider does the same at many of its positions.
-	- Expected behavior: A value back at its default counts as no change.
-	- Possible cause: knobs' `Model::set` always stores a value of its own, and `Dialog::dirty` compares the stores.
-	- Estimated effort: Low
-
-- Code review 20261107 item 9: Randomize gives 2 graphs leads that don't read apart in about 1 roll in 7,500
-	- ID: 2026110709074409
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026103107404602, 2026102810142725
-	- Origin: `c3c52ee` (2026-10-31), the thirteenth graph. The rule held over 10,000 seeds with 12 graphs, and dejbv checks only 2,000. A regression. Confirmed, by a probe over 105,000 seeds, where 14 fail, the first at seed 2615.
-	- Steps to reproduce: A roll with seed 2615.
-	- Incorrect behavior: 2 leads are about 3 apart as CIEDE2000, where the rule is 10.
-	- Expected behavior: Every roll's leads read apart, which dejbv's item asks for.
-	- Possible cause: After 256 draws with no fit, the roll keeps the last draw.
-	- Note: The least gap and the draw count have been tuned twice to the seeds tested. A fallback that always meets the rule would end that.
-	- Estimated effort: Low
-
-- Code review 20261107 item 11: With the LAN split on, a socket that stops counting as away adds its whole life as LAN in one sample
-	- ID: 2026110709074411
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026110111543986, 2026102914561218
-	- Origin: `8bbd96a` (2026-10-29), with `16d86c6` and `6594a7a` (2026-11-01). Not seen before. Confirmed, by a probe where a 4 GB socket made one sample show all the interface's traffic as LAN.
-	- Steps to reproduce: With the split on, keep an ssh session open to a VM on a bridge. Let the VM idle until its address leaves the bridge's table, or drop a VPN that leaves sockets on its old address.
-	- Incorrect behavior: At the next 10 s relist the socket counts as LAN for the first time, and every byte it ever moved counts as new. That sample shows all internet traffic as LAN, and it happens again each time.
-	- Expected behavior: Only bytes moved since the last read count.
-	- Possible cause: Only LAN sockets are kept between reads, so one that's new to the LAN rates from 0.
-	- Estimated effort: Low
-
-- Code review 20261107 item 12: Work that starts during the GPU's idle rest reads as 0% until the rest ends
-	- ID: 2026110709074412
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026110118380381
-	- Origin: `36e3559` (2026-11-02). That item notes the rest was never reached on a real card. Confirmed, with stand-in NVML, where a card at 90% read 0% for 5 s and then 90%.
-	- Steps to reproduce: A card whose `power/control` is `auto` and that stays awake, idle for 5 reads, then busy.
-	- Incorrect behavior: Both GPU graphs read 0 for the card's autosuspend delay plus 5 s. A rest starts after 5 reads, not a set time, so at a 50 ms sample after a quarter second of idle. Each rest ends with an NVML open of about 15 to 20 ms on the panel's thread.
-	- Expected behavior: A busy card doesn't read as idle.
-	- Against: 2026110118380381's idle rest, which lets the card sleep. A fix keeps that.
-	- Estimated effort: Low
-
-- Code review 20261107 item 13: An IPv4 client on a dual-stack socket is counted with IPv6 header bytes
-	- ID: 2026110709074413
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026102914561218
-	- Origin: `8bbd96a` (2026-10-29). Not seen before. Confirmed, by a probe that counted 86,000 bytes where the wire took 66,000.
-	- Incorrect behavior: The LAN split reads such a socket about 1.3% high at full segments.
-	- Expected behavior: The header size follows the address the far end uses.
-	- Possible cause: The overhead is picked by the socket's family, not by its addresses.
-	- Estimated effort: Low
-
-- Code review 20261107 item 14: A LAN dump left partway makes a gap at each read until the old dump runs out
-	- ID: 2026110709074414
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026103115232077
-	- Origin: `a83280a` (2026-11-01), the fix for 20261031 item 19. It skips other requests' replies, but the kernel refuses a new dump while one is still going. A gap in that fix. Confirmed, by a probe with 3,000 sockets: 10 gaps in a row, and a second request got EBUSY.
-	- Steps to reproduce: A read error, or a reply that doesn't parse, in the middle of a dump.
-	- Incorrect behavior: Each later read gets EBUSY for its own request, so the LAN part of the network graph is a gap until the old dump's replies are used up.
-	- Expected behavior: One gap, then reads as before.
-	- Possible cause: The socket is kept after a failed dump. deqt2 builds a reply stream the kernel doesn't send while a dump runs.
-	- Estimated effort: Low
-
-- Code review 20261107 item 15: With no display, tukzmon-settings aborts with a core dump instead of exiting 1
-	- ID: 2026110709074415
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026103016201605
-	- Origin: `07399b9` (2026-10-30). Not seen before. Confirmed: exit 134 and a core dump, both for a file that can't be read and for opening the window.
-	- Steps to reproduce: `env -u DISPLAY -u WAYLAND_DISPLAY tukzmon-settings --config <a file that can't be read>`
-	- Incorrect behavior: It prints its line, then Qt aborts trying to open the message box.
-	- Expected behavior: The line, then exit 1.
-	- Estimated effort: Low
-
-- Code review 20261107 item 16: An item the panel drops without Remove keeps its files, and a later item on that id takes them over
-	- ID: 2026110709074416
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026102622311676
-	- Origin: `f68f673` (2026-10-29). Not seen before. Plausible, from the xfce4-panel 4.20.7 source.
-	- Steps to reproduce: The panel drops an item without calling the plugin's `removed`, such as Remove after the wrapper crashed twice, or yes to "could not be loaded" after the library went away. Then restart the panel and add a tukzmon item.
-	- Incorrect behavior: `plugin-N.shcl` and `plugin-N.hist` stay, and the new item, given the lowest free id, opens with the old item's look and history.
-	- Expected behavior: A later item that gets the same id starts fresh, as 2026102622311676 asks.
-	- Possible cause: Only `removed` deletes the files. The panel deletes its own file for an id when it makes a new item on it, so a mark kept there could tell old files from a live item's.
-	- Estimated effort: Avg
-
-- Code review 20261107 item 17: A save through a linked item settings file shows in the panel only at the next read
-	- ID: 2026110709074417
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026103115231938
-	- Origin: `a9ca08f` (2026-10-29), with `4c8a1e0` (2026-11-01), which made saves keep the link. Not seen before. Confirmed, by a probe that got no watch event for a save to the link's target.
-	- Steps to reproduce: Make `plugin-N.shcl` a link into another folder, as stow or home-manager do, then Apply in Properties.
-	- Incorrect behavior: The change waits for the next graph read, 1 s by default and longer with slow graphs.
-	- Expected behavior: It shows at once, as design.md's XFCE plugin section says.
-	- Possible cause: The file monitor watches the link, and the save writes the file it points to.
-	- Estimated effort: Low
-
-- Code review 20261107 item 18: With the .deb or .rpm, Properties runs whichever tukzmon-settings comes first on PATH
-	- ID: 2026110709074418
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Origin: `59037f4` (2026-10-25). The Nix package got a link beside the library later, in `a4087bd`, and the .deb and .rpm never did. Not seen before. Plausible, from reading.
-	- Steps to reproduce: Install the .deb on a box with an older `tukzmon-settings` in `~/.local/bin`, ahead of `/usr/bin` on the panel's PATH, then open Properties.
-	- Incorrect behavior: The older window opens on the item's file.
-	- Expected behavior: The package's own window, which is why design.md gives the Nix package its link.
-	- Possible cause: The plugin looks beside its library, then on PATH, and the packages put the program only in `/usr/bin`.
-	- Estimated effort: Low
-
-- Code review 20261107 item 19: knobs' spec checks let a relation loop, case-only twins, a NaN range end, and a text chooser through
-	- ID: 2026110709074419
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026103115232265, 2026103115231954
-	- Origin: `f89e55e` (2026-10-23), from silkterm, whose copy has the same code. Not seen before. Confirmed, by probes against knobs. tukzmon's own spec has none of the 4 today.
-	- Incorrect behavior:
-		- A loop through group members and automatic choosers parses clean, then the first read overflows the stack. On Wayland that takes the panel down too.
-		- Paths that differ only in case pass, and shcl folds them onto one key, so a round trip loses one value.
-		- `range: [nan, 10]` passes, and then every number is in range.
-		- A chooser with `type: text` passes and takes any text as a pick.
-	- Expected behavior: Each is refused when the spec loads.
-	- Note: silkterm's backlog needs the same fix.
-	- Estimated effort: Avg
-
-- Code review 20261107 item 20: The Miri step drops a target whose test list fails and still passes
-	- ID: 2026110709074420
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026110514461968
-	- Origin: `4a7f217` (2026-10-25), kept by `34329c6` (2026-11-05). Not seen before. Confirmed, by a stand-in cargo whose knobs list fails, which gave "3 test(s) in 2 module(s)" and a pass.
-	- Incorrect behavior: Each target's list hides its errors and its exit status, and only a total of 0 tests fails the step. A target that won't build or list loses its tests with no word.
-	- Expected behavior: A target that can't list its tests fails the step.
-	- Estimated effort: Low
-
-- Code review 20261107 item 21: The demo's video encodes use every core
-	- ID: 2026110709074421
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026110310450002
-	- Origin: `15993d9` (2026-11-06). Not seen before. Plausible, from reading.
-	- Incorrect behavior: No ffmpeg call sets a thread count, the Demo step passes the demo no job count, and the step isn't in `HEAVY_STEPS`. x265 at its slow preset takes every core.
-	- Expected behavior: The demo gets the run's job count, at a quarter of the CPUs like the other heavy steps.
-	- Estimated effort: Low
-
-- Code review 20261107 item 22: The demo judges a display free by its lock file alone
-	- ID: 2026110709074422
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026110310450002
-	- Origin: `15993d9` (2026-11-06). Not seen before. Confirmed, by a probe with an X server whose lock file the demo can't see.
-	- Incorrect behavior: The demo takes a display number that already answers, waits 10 s, and fails with "never came up as ours" rather than trying the next number. It fails safe.
-	- Expected behavior: A number that answers a connection counts as taken, so the demo moves on to the next one.
-	- Estimated effort: Low
-
-- Code review 20261107 item 23: The color picker has no tips, and 2 message boxes break the UX guide
-	- ID: 2026110709074423
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Origin: `801ac42` (2026-10-24) for the picker, `f89e55e` and `6a78316` for the boxes. Not seen before. Confirmed, by reading and by a probe with a folder that can't be written.
-	- Incorrect behavior:
-		- None of the picker's controls has a tip: the square, the hue strip, the 5 percent boxes, the hex box, Cancel and OK.
-		- "Settings weren't saved" gives shcl's own error text, and no "Nothing was changed." line.
-		- A theme name that won't do shows a warning titled with the action, "Save theme as", rather than what didn't happen.
-	- Expected behavior: Every control has a tip, and a failure box's title says what didn't happen, per `project/style-guide_ux.md`.
-	- Estimated effort: Low
-
-- Code review 20261107 item 24: design.md gives a stale count of the plugin's library calls
-	- ID: 2026110709074424
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026103115232125
-	- Origin: `f89e55e` (2026-10-23). Not seen before. Confirmed, by counting the declarations in `xfce/src/sys.rs`: 36 GLib, GTK, cairo and panel calls, plus 3 from libc, where design.md says "20 or so".
-	- Expected behavior: The XFCE plugin section gives a count that stays right, or none.
-	- Estimated effort: Low
-
-- Code review 20261107 item 26: The amdgpu reads have none of the NVIDIA path's runtime power checks
-	- ID: 2026110709074426
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026103115232174, 2026110118380381
-	- Origin: `a50f0c6` and `5b569ad` (2026-10-29). Plausible, from reading, since there's no AMD card here.
-	- Requirements:
-		- Read an AMD card's runtime power state before its busy share, as the NVIDIA path does, and read 0 while it sleeps.
-		- Depending on the kernel, a busy read today either wakes a sleeping card or fails, which shows as a gap.
-	- Estimated effort: Low
-
-- Code review 20261107 item 27: A demo run of only some scenes writes over assets/demo.gif
-	- ID: 2026110709074427
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026110310450002
-	- Origin: `15993d9` (2026-11-06).
-	- Requirements:
-		- Update the README's gif only from a run of every scene, unless asked. Today only `--no-asset` keeps a `--scenes` run from replacing it.
-	- Estimated effort: Low
-
-- Code review 20261107 item 28: A docs-only push to main skips the 2 checks that read docs
-	- ID: 2026110709074428
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026103115232016
-	- Origin: `ff4610a` (2026-10-25).
-	- Requirements:
-		- On a docs-only push, still run markdownlint on the changed files and the backlog's test ID check, which take seconds. Today a backlog-only push can put a Lint failure on `main` that the next code push then trips over.
-	- Estimated effort: Low
-
-- Code review 20261030 item 3, part 2: Look up a setting by an index in knobs
-	- ID: 2026103018353670
-	- Type: Enhancement
-	- Status: Queued
-		- Was held for silkterm's copy of knobs to get the index first. 2026-11-05: the copy here doesn't have to match silkterm's, so it can go in here first.
-		- 2026-11-03: moved below the stop line. It's a small speedup and doesn't need to block a release.
-	- Priority|Severity: Low
-	- Opened: 20261030-183536
-	- Opened by: t00mietum
-	- Parent ID: 2026103016201603
-	- Requirements:
-		- `Spec` looks ids up through an index built in `finish`, with an `Option` path for an id that's unknown.
-		- Time denam before and after.
-	- Progress log:
-		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
-	- Estimated effort: Low
-
-- Parse the settings spec faster
-	- ID: 2026110519470058
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261105-194700
-	- Opened by: JC
-	- Related IDs: 2026110514461968, 2026103018353670
-	- Requirements:
-		- `config::spec()` and what reads `settings.shcl` beside it take less time, measured natively and under Miri.
-	- Progress log:
-		- 2026-11-05: 0.11 s in a debug build, and about 65 minutes under Miri, which nearly every Miri module pays once. The text is parsed by shcl 4 times, by `Spec::parse`, `slider_ranges` and 2 more readers in `config.rs`, each then looking rows up by dotted path. Measure which part costs before changing it.
-	- Estimated effort: Avg
-
-- CICD gap: Run the content scrub from the pipeline and the pre-push hook
-	- ID: 2026110310450004
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261103-104500
-	- Opened by: t00mietum
-	- Parent ID: 2026102416252898
-	- Requirements:
-		- When the private content scrub script is there, the lint step and the pre-push hook run it, and fail on what it finds. A fresh clone without it still builds, with one line saying it was skipped.
-		- Repo-side names for it stay neutral, such as "content scrub".
-
-- CICD gap: arm64 Linux build and packages
-	- ID: 2026110310450006
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261103-104500
-	- Opened by: t00mietum
-	- Parent ID: 2026102416252898
-	- Requirements:
-		- A release build for arm64 Linux, and its `.deb` and `.rpm`, named `linux-arm64` beside `linux-x86_64`.
-		- Behind a flag such as `--include-arm` if it's much slower than x86_64. Qt and the panel libraries for arm64 are the hard part.
-
-- Some settings tips are long and technical, and stack asides
-	- ID: 2026110710005015
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261107-100050
-	- Opened by: t00mietum
-	- Requirements:
-		- The tips for both Scale defaults, LAN and internet, Spike emphasis and Disk drives say what the setting does in a sentence or 2. Numbers and kernel terms stay in design.md.
-		- The width and time axis tips, the same on every graph, say it with fewer asides.
-		- "Box" means the number box only, and "computer" the computer.
-		- The Margins tip says plainly that 2 graphs side by side get both margins between them.
-		- History and settings errors in the tip and in message boxes use plain words, not the file reader's own, such as "short" or "trailing bytes", or the name of the file format.
-
-- A settings window refresh test fails now and then on GitHub's runner
-	- ID: 2026110810505772
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261108-105057
-	- Opened by: t00mietum
-	- Related IDs: 2026102513560001
-	- Test environment: GitHub's `ubuntu-24.04` runner, in the pipeline's image.
-	- Steps to reproduce: Run the `merge-gate` workflow.
-	- Incorrect behavior: `bridge::tests::a_refresh_sets_only_the_tips_and_gaps_that_changed` (dezcc) saw 1 layout request with nothing changed (`[0, 1]` against `[0, 0]`), on the first run on `main`.
-	- Expected behavior: No layout request from a refresh with nothing changed.
-	- Reproduced: No. It passed on the 2 Dependabot runs and the run by hand on `runner-tests` that day, and never failed on b23, pinned to one CPU or with the sensors, battery and zswap hidden.
-	- Possible cause: Something the live graphs do between the settle loop and the refresh, such as a sample tick, on a slow 4-CPU runner.
-
-- Other Linux and BSD panels
-	- ID: 2026101916013890
-	- Type: Feature
-	- Status: Deferred
-	- Priority|Severity: Avg
-	- Opened: 20261019-160138
-	- Opened by: t00mietum
-	- Prereq IDs: 2026101916013889
-	- Requirements:
-		- Supporting all the most popular DE panels.
-		- LXQt first, for lxqtukz.
-		- Then KDE Plasma, GNOME Shell, Cinnamon, MATE, Budgie, the Wayfire panel, and Waybar. `design.md` has how each one would work.
-		- For some platforms, may need to run as a system tray. For others, taskbar-specific plugins.
-		- BSD collectors through `sysctl`.
 
 - Windows and macOS
 	- ID: 2026101916013892

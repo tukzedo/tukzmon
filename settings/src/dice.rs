@@ -209,9 +209,13 @@ const WARN_HUES: (f64, f64) = (18.0 / 360.0, 32.0 / 360.0);
 // 45 degrees of the lead range to roll in. At 16 or more some seeds take
 // hundreds of draws to read apart, or never do.
 const LEAD_GAP: f64 = 15.0 / 360.0;
-// Hue draws tried for leads that all read apart, before settling for the
-// last. The worst of dejbv's seeds takes 140.
+// Hue draws tried for leads that all read apart, before the roll's
+// saturation, brightness and alarms are drawn again. The worst of dejbv's
+// seeds takes 140. About 1 roll in 7,500 runs out, all near the pastel end.
 const TRIES: usize = 256;
+// Fresh draws of those, past which a roll starts over from seed 0, whose
+// first draw reads apart (df34z).
+const REROLLS: usize = 64;
 
 // splitmix64, so a seed always rolls the same theme
 struct Roll(u64);
@@ -320,6 +324,55 @@ fn steps(hues: &[f64; GRAPHS], s: f64, v: f64, alarms: &[Lab]) -> Option<[usize;
 	place(0, &mut pick, &fits).then_some(pick)
 }
 
+/// What every graph's colors start from: the shared saturation and
+/// brightness, the alarms, and each graph's lead hue with its step.
+struct Base {
+	soft: f64,
+	s: f64,
+	v: f64,
+	calm_s: f64,
+	calm_v: f64,
+	alarm: Hsv,
+	warn: Hsv,
+	hues: [f64; GRAPHS],
+	picked: [usize; GRAPHS],
+}
+
+// None when no hue draw reads apart at this saturation and brightness
+fn base(r: &mut Roll) -> Option<Base> {
+	let soft = r.unit();
+	let s = lerp(1.0, 0.33, soft) * r.within((0.85, 1.0));
+	let v = r.within((0.85, 1.0));
+	let calm_s = s * r.within((0.55, 0.75));
+	let calm_v = lerp(0.37, 0.54, soft) * r.within((0.9, 1.1));
+	let alarm = Hsv {
+		h: r.within(ALARM_HUES).rem_euclid(1.0),
+		s: lerp(1.0, 0.62, soft) * r.within((0.95, 1.0)),
+		v: r.within((0.95, 1.0)),
+	};
+	let warn = Hsv {
+		h: r.within(WARN_HUES),
+		s: lerp(1.0, 0.53, soft) * r.within((0.95, 1.0)),
+		v: lerp(0.78, 0.94, soft) * r.within((0.95, 1.05)),
+	};
+	let alarms = [alarm, warn].map(|c| Lab::of(pick::to_rgb(c)));
+	let (hues, picked) = (0..TRIES).find_map(|_| {
+		let hues = lead_hues(r);
+		steps(&hues, s, v, &alarms).map(|picked| (hues, picked))
+	})?;
+	Some(Base {
+		soft,
+		s,
+		v,
+		calm_s,
+		calm_v,
+		alarm,
+		warn,
+		hues,
+		picked,
+	})
+}
+
 /// One graph's colors.
 #[derive(Clone, Copy, Debug)]
 struct Hues {
@@ -413,32 +466,26 @@ impl Scheme {
 // read apart.
 fn scheme(seed: u64) -> Scheme {
 	let mut r = Roll(seed);
-	let soft = r.unit();
-	let s = lerp(1.0, 0.33, soft) * r.within((0.85, 1.0));
-	let v = r.within((0.85, 1.0));
-	let calm_s = s * r.within((0.55, 0.75));
-	let calm_v = lerp(0.37, 0.54, soft) * r.within((0.9, 1.1));
-	let alarm = Hsv {
-		h: r.within(ALARM_HUES).rem_euclid(1.0),
-		s: lerp(1.0, 0.62, soft) * r.within((0.95, 1.0)),
-		v: r.within((0.95, 1.0)),
-	};
-	let warn = Hsv {
-		h: r.within(WARN_HUES),
-		s: lerp(1.0, 0.53, soft) * r.within((0.95, 1.0)),
-		v: lerp(0.78, 0.94, soft) * r.within((0.95, 1.05)),
-	};
-	let alarms = [alarm, warn].map(|c| Lab::of(pick::to_rgb(c)));
-	let mut hues = lead_hues(&mut r);
-	let mut picked = steps(&hues, s, v, &alarms);
-	for _ in 1..TRIES {
-		if picked.is_some() {
-			break;
+	let mut drawn = 0;
+	let Base {
+		soft,
+		s,
+		v,
+		calm_s,
+		calm_v,
+		alarm,
+		warn,
+		hues,
+		picked,
+	} = loop {
+		if let Some(b) = base(&mut r) {
+			break b;
 		}
-		hues = lead_hues(&mut r);
-		picked = steps(&hues, s, v, &alarms);
-	}
-	let picked = picked.unwrap_or_default();
+		drawn += 1;
+		if drawn == REROLLS {
+			r = Roll(0);
+		}
+	};
 	let mut calm_hs = [0.0; GRAPHS];
 	let mut graphs: [Hues; GRAPHS] = std::array::from_fn(|i| {
 		let h = hues[i];
@@ -852,24 +899,49 @@ mod tests {
 		assert!(cpu.0 < 90.0 / 360.0 && cpu.1 > 285.0 / 360.0, "{cpu:?}");
 	}
 
+	fn leads_read_apart(seed: u64) {
+		use tukzmon_core::color::{apart, closest};
+		let t = theme(seed);
+		let get = |id: &str| t.iter().find(|(i, _)| *i == id).map(|(_, v)| v.as_str());
+		let leads = config::leads(get);
+		assert_eq!(leads.len(), GRAPHS);
+		let (d, a, b) = closest(&leads).unwrap();
+		assert!(d >= APART, "{seed}: {a} and {b} are {d:.1} apart");
+		for alarm in config::ALARMS {
+			let c = Rgb::parse(get(alarm).unwrap()).unwrap();
+			for lead in &leads {
+				assert!(apart(*lead, c) >= APART, "{seed} {alarm} {lead:?}");
+			}
+		}
+	}
+
 	// Test ID: dejbv
 	#[test]
 	fn every_roll_leads_each_graph_with_a_color_that_reads_apart() {
-		use tukzmon_core::color::{apart, closest};
 		for seed in SEEDS {
-			let t = theme(seed);
-			let get = |id: &str| t.iter().find(|(i, _)| *i == id).map(|(_, v)| v.as_str());
-			let leads = config::leads(get);
-			assert_eq!(leads.len(), GRAPHS);
-			let (d, a, b) = closest(&leads).unwrap();
-			assert!(d >= APART, "{seed}: {a} and {b} are {d:.1} apart");
-			for alarm in config::ALARMS {
-				let c = Rgb::parse(get(alarm).unwrap()).unwrap();
-				for lead in &leads {
-					assert!(apart(*lead, c) >= APART, "{seed} {alarm} {lead:?}");
-				}
-			}
+			leads_read_apart(seed);
 		}
+	}
+
+	// Test ID: df34y
+	#[test]
+	fn a_roll_whose_hue_draws_run_out_draws_again() {
+		// each ran out of hue draws near the pastel end, and kept 2 leads
+		// about 3 apart
+		let ran_out = [
+			2_615, 14_998, 15_441, 18_671, 31_350, 35_377, 48_426, 66_870, 68_202, 71_463, 85_226,
+			91_247, 97_577, 103_322, 109_093,
+		];
+		for seed in ran_out {
+			assert!(base(&mut Roll(seed)).is_none(), "{seed}");
+			leads_read_apart(seed);
+		}
+	}
+
+	// Test ID: df34z
+	#[test]
+	fn seed_0_reads_apart_at_its_first_draw_for_the_last_resort() {
+		assert!(base(&mut Roll(0)).is_some());
 	}
 
 	// Test ID: decdx

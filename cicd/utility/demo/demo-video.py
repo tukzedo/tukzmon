@@ -80,6 +80,8 @@ DESK = "#1d2430"  # root color, the band's too
 
 # a panel like a real one, with tukzmon at the right among the usual items.
 # tukzmon stays plugin-1, which names its history file.
+# The tray's square icons are XFCE's default. Without them its icons sit 2 px
+# apart, nearly touching.
 PANEL_ORDER = (2, 3, 4, 1, 5, 6, 7, 8, 9, 11, 10)
 PANEL_PLUGINS = """\
     <property name="plugin-1" type="string" value="tukzmon"/>
@@ -98,7 +100,7 @@ PANEL_PLUGINS = """\
       <property name="style" type="uint" value="0"/>
     </property>
     <property name="plugin-6" type="string" value="systray">
-      <property name="square-icons" type="bool" value="false"/>
+      <property name="square-icons" type="bool" value="true"/>
       <property name="single-row" type="bool" value="true"/>
       <property name="icon-size" type="uint" value="24"/>
     </property>
@@ -152,6 +154,13 @@ DEMO_PREFIX = "/opt/tukzmon"
 # the settings window and anything else the panel spawned
 MARK = "TUKZMON_DEMO_RUN"
 DESK_MARK = "TUKZMON_DEMO_DESK"
+
+# The clients on the private display get only these, plus LC_*. Anything else
+# from the desktop it's started in, such as SESSION_MANAGER, the session bus or
+# the ssh agent, would let the WM, panel or settings window reach the live session.
+KEPT_ENV = frozenset(
+    ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LANGUAGE", "TZ", "TMPDIR", "TMP", "TEMP", "HOST_TEMP")
+)
 
 
 class Take(enum.Enum):
@@ -254,10 +263,30 @@ def temp_root() -> tuple[Path, bool]:
         base = proj / f"{stamp}_{n:03d}"
         try:
             base.mkdir(parents=True)
-            return base, True
         except FileExistsError:
             continue
+        # cicd's stale sweep takes a run folder by this, once its run is gone
+        (base / "run.pid").write_text(pid_stamp(os.getpid()) + "\n", encoding="utf-8")
+        return base, True
     raise RuntimeError(f"no free run folder under {proj}")
+
+
+def pid_stamp(pid: int) -> str:
+    """The pid and its start time, as run-tmp.bash's fPidStamp writes them."""
+    stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+    return f"{pid} {stat.rsplit(')', 1)[1].split()[19]}"
+
+
+def mounts_under(path: Path) -> list[tuple[Path, str]]:
+    """Mount points inside path, with their fs types, deepest first."""
+    found = []
+    with open("/proc/self/mountinfo", encoding="utf-8") as f:
+        for line in f:
+            fields = line.split()
+            point = Path(re.sub(r"\\([0-7]{3})", lambda m: chr(int(m[1], 8)), fields[4]))
+            if point.is_relative_to(path) and point != path:
+                found.append((point, fields[fields.index("-") + 1]))
+    return sorted(found, key=lambda m: len(m[0].parts), reverse=True)
 
 
 def safe_rmtree(path: Path) -> None:
@@ -273,6 +302,15 @@ def safe_rmtree(path: Path) -> None:
         return
     if not (real / ".demo-run").is_file():
         log(f"WARNING: not removing {path}: no run marker")
+        return
+    # gvfsd-fuse mounts in the take's runtime folder, and a killed one leaves
+    # it dead. rmtree would walk into a live mount of anything else.
+    for point, kind in mounts_under(real):
+        if kind.startswith("fuse"):
+            with contextlib.suppress(FileNotFoundError):
+                subprocess.run(["fusermount3", "-u", "-z", str(point)], check=False, stderr=subprocess.DEVNULL)
+    if left := mounts_under(real):
+        log(f"WARNING: not removing {path}: still mounted at {', '.join(str(p) for p, _ in left)}")
         return
     shutil.rmtree(real)
 
@@ -395,12 +433,9 @@ class Screen:
         self.x: xdisplay.Display | None = None
 
     def env(self) -> dict[str, str]:
-        e = dict(os.environ)
+        e = {k: v for k, v in os.environ.items() if k in KEPT_ENV or k.startswith("LC_")}
         e.update(DISPLAY=self.display)
         e[MARK] = str(self.work.path)
-        # with these set a GTK or Qt app would open on the real desktop
-        for k in ("WAYLAND_DISPLAY", "XDG_SESSION_TYPE", "DBUS_SESSION_BUS_ADDRESS", "XAUTHORITY"):
-            e.pop(k, None)
         return e
 
     def px(self, lx: float, ly: float) -> tuple[int, int]:
@@ -1507,7 +1542,21 @@ def parse_args() -> Options:
     )
 
 
+def exit_on_term() -> None:
+    # Python's default TERM skips every finally, which left the take's X
+    # session, panel and mounts up.
+    def stop(signum: int, _frame: object) -> None:
+        for sig in (signal.SIGTERM, signal.SIGHUP):
+            # not SIG_IGN, which what the cleanup starts would inherit
+            signal.signal(sig, lambda *_: None)
+        sys.exit(128 + signum)
+
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, stop)
+
+
 def main() -> None:
+    exit_on_term()
     opts = parse_args()
     base, made = temp_root()
     (base / ".demo-run").touch()
@@ -1538,3 +1587,8 @@ if __name__ == "__main__":
 ##		  rotation stops the run. The pointer moves through XTEST, the caption
 ##		  band's strut is on the same connection, and the panel stop waits on
 ##		  pidfds after one scan.
+##		- 2026-11-09: Its processes get only a short list of env names, so the
+##		  WM, panel and settings window never reach the live session.
+##		- 2026-11-09: TERM and HUP clean up as an error does. Its own run folder
+##		  gets a run.pid for cicd's stale sweep, and the removal unmounts a
+##		  FUSE mount inside it and won't walk into any other.

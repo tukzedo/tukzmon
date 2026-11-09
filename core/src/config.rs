@@ -1081,13 +1081,41 @@ pub fn config_dir() -> PathBuf {
 /// The shared file: what tukzmon-settings edits with no `--config`, and what
 /// a new panel item starts from. See [`instance_file`].
 pub fn config_file() -> PathBuf {
-	config_dir().join("tukzmon.shcl")
+	shared_file(&config_dir())
+}
+
+/// The shared file in `dir`, as [`config_file`] is in the config folder.
+pub fn shared_file(dir: &Path) -> PathBuf {
+	dir.join("tukzmon.shcl")
 }
 
 /// One panel item's own settings file in `dir`, by its unique id, named like
 /// its history file.
 pub fn instance_file(dir: &Path, id: i32) -> PathBuf {
 	dir.join(format!("plugin-{id}.shcl"))
+}
+
+/// The panel item id an [`instance_file`] is named for.
+pub fn instance_id(path: &Path) -> Option<i32> {
+	path.file_name()?
+		.to_str()?
+		.strip_prefix("plugin-")?
+		.strip_suffix(".shcl")?
+		.parse()
+		.ok()
+}
+
+/// The panel item ids with an [`instance_file`] in `dir`. A folder that
+/// doesn't read has none.
+pub fn instance_ids(dir: &Path) -> Vec<i32> {
+	let Ok(entries) = std::fs::read_dir(dir) else {
+		return Vec::new();
+	};
+	let mut ids: Vec<i32> = entries
+		.filter_map(|e| instance_id(&e.ok()?.path()))
+		.collect();
+	ids.sort_unstable();
+	ids
 }
 
 /// Where a write to `path` goes: the file its links end at, even one that
@@ -1131,6 +1159,51 @@ pub fn start_from(own: &Path, shared: &Path) -> std::io::Result<()> {
 			// the write's error is the one to give
 			let _ = std::fs::remove_file(&tmp);
 		})
+}
+
+/// The mark beside an [`instance_file`] that says its item made its panel
+/// file. See [`claim`].
+pub fn mark_of(own: &Path) -> PathBuf {
+	own.with_extension("mark")
+}
+
+/// Clears an earlier item's `own` settings file and `history` when the panel
+/// has made a new item on the same id, then marks the id for the next start.
+///
+/// The panel can drop an item without telling the plugin, but it deletes its
+/// `rc` file for an id when it makes a new item on it. So an id with our mark
+/// and no `rc` belongs to a new item. With neither, the id is new, or its item
+/// ran a build from before the marks, and its files stay. See `design.md`
+/// Settings window.
+///
+/// # Errors
+///
+/// Whatever checking, deleting, or writing hit. Nothing is marked then.
+pub fn claim(rc: &Path, own: &Path, history: &Path) -> std::io::Result<()> {
+	let mark = mark_of(own);
+	if !rc.try_exists()? {
+		if mark.try_exists()? {
+			for f in [own, history, &mark] {
+				crate::keep::remove(f)?;
+			}
+		}
+		// the panel reads nothing from it
+		std::fs::write(
+			rc,
+			format!(
+				"# tukzmon keeps this item's settings in {}\n",
+				own.display()
+			),
+		)?;
+	}
+	// only once the rc is there, or the next start would take this id for new
+	if !mark.try_exists()? {
+		if let Some(dir) = mark.parent() {
+			std::fs::create_dir_all(dir)?;
+		}
+		std::fs::write(&mark, "")?;
+	}
+	Ok(())
 }
 
 #[cfg(test)]
@@ -2414,6 +2487,52 @@ mod tests {
 		assert!(Look::load(&two).unwrap()[Which::Mem].show);
 		assert_eq!(Look::load(&two).unwrap().width, 77);
 		assert_eq!(Look::load(&two).unwrap(), Look::load(&shared).unwrap());
+		let _ = std::fs::remove_dir_all(&dir);
+	}
+
+	// Test ID: df36b
+	#[test]
+	fn a_new_item_on_a_dropped_items_id_starts_fresh() {
+		let dir = scratch("claim");
+		let shared = dir.join("tukzmon.shcl");
+		std::fs::write(&shared, "shared\n").unwrap();
+		let rc = dir.join("tukzmon-4.rc");
+		let own = instance_file(&dir, 4);
+		let hist = dir.join("plugin-4.hist");
+		std::fs::write(&own, "old look\n").unwrap();
+		std::fs::write(&hist, "old history").unwrap();
+		std::fs::write(mark_of(&own), "").unwrap();
+		// the panel dropped the item and made a new one, deleting its rc
+		claim(&rc, &own, &hist).unwrap();
+		assert_eq!((own.exists(), hist.exists()), (false, false));
+		assert!(rc.exists() && mark_of(&own).exists());
+		start_from(&own, &shared).unwrap();
+		assert_eq!(std::fs::read_to_string(&own).unwrap(), "shared\n");
+		let _ = std::fs::remove_dir_all(&dir);
+	}
+
+	// Test ID: df36c
+	#[test]
+	fn a_running_item_and_one_from_before_the_marks_keep_their_files() {
+		let dir = scratch("keep");
+		let rc = dir.join("tukzmon-5.rc");
+		let own = instance_file(&dir, 5);
+		let hist = dir.join("plugin-5.hist");
+		std::fs::write(&own, "mine\n").unwrap();
+		std::fs::write(&hist, "history").unwrap();
+		// neither mark yet, as an older build left it
+		claim(&rc, &own, &hist).unwrap();
+		assert!(rc.exists() && mark_of(&own).exists());
+		// and every start after
+		claim(&rc, &own, &hist).unwrap();
+		assert_eq!(std::fs::read_to_string(&own).unwrap(), "mine\n");
+		assert_eq!(std::fs::read_to_string(&hist).unwrap(), "history");
+		assert_eq!(mark_of(&own), dir.join("plugin-5.mark"));
+		// an rc that can't be written leaves no mark, so the files aren't
+		// taken for an earlier item's at the next start
+		let blocked = dir.join("plugin-6.shcl");
+		assert!(claim(&dir.join("no/tukzmon-6.rc"), &blocked, &hist).is_err());
+		assert!(!mark_of(&blocked).exists());
 		let _ = std::fs::remove_dir_all(&dir);
 	}
 

@@ -228,6 +228,38 @@ fTest_only_1_skips_the_pre_push_hook() {
 	done
 }
 
+## Test ID: df32x
+fTest_the_pre_push_hook_gates_the_commit_not_the_checkout() {
+	local t="${work}/pushed" r="${work}/pushed/repo" sha='' out='' rc=0 v=''
+	local -a g=(git -C "${r}" -c user.name=t -c user.email=t@t.invalid -c commit.gpgsign=false)
+	mkdir -p -- "${r}/cicd/hooks" "${r}/cicd/utility/include" "${t}/tmp"
+	cp -- "${cicd}/hooks/pre-push" "${r}/cicd/hooks/"
+	cp -- "${cicd}/config.bash" "${r}/cicd/"
+	cp -- "${cicd}/utility/include/run-tmp.bash" "${r}/cicd/utility/include/"
+	## The stand-in gate passes on its tree's verdict, after another session
+	## writes the opposite one into the checkout.
+	printf '%s\n' '#!/usr/bin/env bash' 'echo "${GATE_EDIT}" > "${GATE_CHECKOUT}/verdict"' \
+		'[[ "$(< "$(dirname "$0")/../verdict")" == pass ]]' > "${r}/cicd/cicd.bash"
+	chmod +x "${r}/cicd/cicd.bash"
+	"${g[@]}" init -q || { fWhy "git init failed"; return 1; }
+	for v in fail pass; do
+		echo "${v}" > "${r}/verdict"
+		{ "${g[@]}" add -- verdict cicd && "${g[@]}" commit -qm "${v}"; } || { fWhy "commit failed"; return 1; }
+		sha="$("${g[@]}" rev-parse HEAD)"
+		[[ -z "$("${g[@]}" status --porcelain)" ]] || { fWhy "the checkout isn't clean"; return 1; }
+		rc=0
+		out="$(printf 'refs/heads/main %s refs/heads/main %040d\n' "${sha}" 0 \
+			| HOST_TEMP="${t}/tmp" GATE_CHECKOUT="${r}" GATE_EDIT="$([[ "${v}" == pass ]] && echo fail || echo pass)" \
+			bash "${r}/cicd/hooks/pre-push" 2>&1)" || rc=$?
+		[[ "$(< "${r}/verdict")" != "${v}" ]] || { fWhy "the stand-in gate never ran: ${out}"; return 1; }
+		if [[ "${v}" == fail ]]; then
+			((rc)) || { fWhy "a commit that fails the gate went through, on the checkout's edit"; return 1; }
+		else
+			((rc == 0)) || { fWhy "a commit that passes the gate was refused, on the checkout's edit: ${out}"; return 1; }
+		fi
+	done
+}
+
 ## Test ID: deqvr
 fTest_dev_install_copies_what_cargo_built_and_finds_the_panel_library() {
 	local t="${work}/dev-install" out='' f='' lib=''
@@ -760,6 +792,87 @@ fTest_a_bad_memory_cap_starts_nothing_and_a_good_one_reruns_the_run_in_a_capped_
 	done
 }
 
+## Test ID: df31j
+fTest_the_demos_wm_panel_and_settings_window_get_nothing_of_the_live_session() {
+	local out=''
+	## numpy and python-xlib are stubbed, since the image has neither and only
+	## the env is checked.
+	if ! out="$(SESSION_MANAGER='local/x:@/tmp/.ICE-unix/1' DBUS_SESSION_BUS_ADDRESS='unix:path=/run/x' SSH_AUTH_SOCK=/run/x/ssh \
+		XDG_SESSION_ID=2 XAUTHORITY=/run/x/xa WAYLAND_DISPLAY=wayland-0 GTK_MODULES=atk-bridge TUKZMON_STRAY=1 LANG=C.UTF-8 LC_TIME=C.UTF-8 \
+		python3 -I -B - "${cicd}/utility/demo/demo-video.py" 2>&1 <<- 'EOF'
+			import importlib.util, sys, types
+			from pathlib import Path
+			stub = types.ModuleType("stub")
+			stub.__getattr__ = lambda name: object
+			sys.modules.update({"numpy": stub, "Xlib": stub, "Xlib.X": stub, "Xlib.display": stub})
+			spec = importlib.util.spec_from_file_location("demo", sys.argv[1])
+			demo = importlib.util.module_from_spec(spec)
+			spec.loader.exec_module(demo)
+			profile = types.SimpleNamespace(scale=1, size=(960, 540), band=0)
+			screen = demo.Screen(":89", profile, types.SimpleNamespace(path=Path("/nowhere")))
+			panel = demo.Panel(screen, Path("/nowhere"), Path("/nowhere"))
+			for name, env in (("Screen.env", screen.env()), ("Panel.desk_env", panel.desk_env())):
+			    live = sorted(k for k in env if k in ("SESSION_MANAGER", "DBUS_SESSION_BUS_ADDRESS", "SSH_AUTH_SOCK", "XDG_SESSION_ID", "XAUTHORITY", "WAYLAND_DISPLAY", "GTK_MODULES", "TUKZMON_STRAY"))
+			    if live or env.get("DISPLAY") != ":89" or "PATH" not in env or env.get("LC_TIME") != "C.UTF-8":
+			        sys.exit(f"{name}: live {live}, DISPLAY {env.get('DISPLAY')}, PATH {'PATH' in env}, LC_TIME {env.get('LC_TIME')}")
+		EOF
+	)"; then
+		fWhy "${out}"
+		return 1
+	fi
+}
+
+## Test ID: df336
+fTest_a_demo_stopped_by_term_cleans_up_and_one_killed_leaves_a_folder_the_sweep_takes() {
+	local root="${work}/demo-term" pid='' rc=0 base='' sig='' ok=0
+	mkdir -p -- "${root}"
+	## The take is a stand-in that waits, so only the run folder and the
+	## signal are checked.
+	cat > "${root}/take.py" <<- 'EOF'
+		import importlib.util, sys, time, types
+		from pathlib import Path
+		stub = types.ModuleType("stub")
+		stub.__getattr__ = lambda name: object
+		sys.modules.update({"numpy": stub, "Xlib": stub, "Xlib.X": stub, "Xlib.display": stub})
+		spec = importlib.util.spec_from_file_location("demo", sys.argv[1])
+		demo = importlib.util.module_from_spec(spec)
+		spec.loader.exec_module(demo)
+		ready = Path(sys.argv[2])
+		demo.parse_args = lambda: types.SimpleNamespace(display=":89", takes=["gif"], shot=None, keep_work=False)
+		def record(opts, take, base):
+		    ready.write_text(str(base))
+		    time.sleep(30)
+		demo.record = record
+		demo.main()
+	EOF
+	for sig in TERM KILL; do
+		: > "${root}/ready"
+		env -u TMPDIR HOST_TEMP="${root}" python3 -I -B "${root}/take.py" "${cicd}/utility/demo/demo-video.py" "${root}/ready" > /dev/null 2>&1 &
+		pid="$!"
+		for _ in $(seq 50); do [[ ! -s "${root}/ready" ]] || break; sleep 0.1; done
+		base="$(cat -- "${root}/ready" 2> /dev/null || true)"
+		[[ -n "${base}" ]] || { kill -KILL "${pid}" 2> /dev/null || true; fWhy "${sig}: the take never started"; return 1; }
+		if [[ "${sig}" == TERM ]]; then
+			( source "${cicd}/utility/include/run-tmp.bash"; fRunLive "${base}" ) || { fWhy "run.pid doesn't name the live run: $(cat -- "${base}/run.pid" 2> /dev/null || true)"; kill -KILL "${pid}" 2> /dev/null || true; return 1; }
+		fi
+		kill "-${sig}" "${pid}"
+		## quiet, or bash reports the KILL
+		rc=0; wait "${pid}" 2> /dev/null || rc=$?
+		if [[ "${sig}" == TERM ]]; then
+			((rc == 143)) && [[ ! -e "${base}" ]] || { fWhy "TERM gave exit ${rc}, folder $(find "${base}" -mindepth 1 -maxdepth 1 -printf '%f ' 2> /dev/null || true)"; return 1; }
+			continue
+		fi
+		[[ -d "${base}" ]] || { fWhy "KILL left no folder to sweep"; return 1; }
+		(
+			HOST_TEMP="${root}"
+			source "${cicd}/utility/include/run-tmp.bash"
+			n="$(fSweepStale)"
+			[[ "${n}" == 1 && ! -e "${base}" ]] || { fWhy "the sweep took ${n}: $(find "${base}" -mindepth 1 -maxdepth 1 -printf '%f ' 2> /dev/null || true)"; exit 1; }
+		) && ok=1
+	done
+	((ok))
+}
+
 failed=0
 while read -r id fn; do
 	if "${fn}"; then echo "PASS ${id} ${fn#fTest_}"; else echo "FAIL ${id} ${fn#fTest_}"; failed=1; fi
@@ -789,3 +902,8 @@ exit "${failed}"
 ##		  per set of skipped rules.
 ##		- 2026-11-09: The memory cap: its default and values, on every
 ##		  container, and the run's rerun in a capped scope.
+##		- 2026-11-09: The demo's WM, panel and settings window get nothing of
+##		  the live session's env.
+##		- 2026-11-09: The pre-push hook gates the commit, not the checkout.
+##		- 2026-11-09: A demo stopped by TERM cleans up, and one killed leaves a
+##		  folder the stale sweep takes.
