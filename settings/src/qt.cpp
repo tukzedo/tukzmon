@@ -2268,6 +2268,13 @@ void openSized(Window &w) {
 	w.resize(size);
 }
 
+// Cancel, Esc and the close button aren't failures, and the panel puts a
+// nonzero exit in the item's tip.
+int shownUntilClosed(Window &w) {
+	w.exec();
+	return 0;
+}
+
 } // namespace
 
 void say_unreadable(rust::Str text) {
@@ -2287,7 +2294,7 @@ std::int32_t run_dialog(Dialog &d, rust::Str snapshot) {
 	openSized(w);
 	if (snapshot.empty()) {
 		const Wake wake([&w] { comeForward(w); });
-		return w.exec() == QDialog::Accepted ? 0 : 1;
+		return shownUntilClosed(w);
 	}
 
 	// one picture per tab with rows, as base-1.png, base-2.png, and so on, then
@@ -2983,6 +2990,41 @@ rust::Vec<rust::String> woken_by_signal(Dialog &d) {
 		out.push_back(rust::String(w.isMinimized() ? "minimized" : "shown"));
 	}
 	out.push_back(rust::String("after " + handler()));
+	return out;
+}
+
+rust::Vec<rust::String> exit_on_close(Dialog &d) {
+	const App app("offscreen");
+	rust::Vec<rust::String> out;
+	const std::array<std::string, 3> ways{"cancel", "esc", "close"};
+	for (const auto &way : ways) {
+		Window w(d);
+		openSized(w);
+		bool closed = false;
+		QTimer::singleShot(0, &w, [&w, &way, &closed] {
+			closed = true;
+			if (way == "cancel") {
+				for (auto *b : w.findChildren<QPushButton *>())
+					if (b->isVisible() && b->text() == "Cancel") {
+						b->click();
+						return;
+					}
+				closed = false;
+			} else if (way == "esc") {
+				QKeyEvent esc(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+				QApplication::sendEvent(&w, &esc);
+			} else {
+				w.close();
+			}
+		});
+		// so a way that doesn't close can't hang the test
+		QTimer::singleShot(5000, &w, [&w, &closed] {
+			closed = false;
+			w.done(QDialog::Accepted);
+		});
+		const int code = shownUntilClosed(w);
+		out.push_back(rust::String(way + " " + (closed && w.isHidden() ? std::to_string(code) : "stayed open")));
+	}
 	return out;
 }
 

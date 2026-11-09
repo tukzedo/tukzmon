@@ -7178,7 +7178,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 5: Cancel, Esc or the close button leaves a false error in the panel's tip and the journal
 	- ID: 2026110709074405
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7189,6 +7189,20 @@ Sorted per the notes in [Template](#template).
 	- Expected behavior: A tip line only when the window failed, as 20261031 item 28 says.
 	- Possible cause: `run_dialog` gives 1 for a rejected dialog, the same code as a file that can't be read.
 	- Estimated effort: Low
+	- Reproduced: 2026-11-09, by df32n against the old exit code. Cancel, Esc and the close button each quit with 1.
+	- Actual cause: as above. `run_dialog` gave 1 for any close but OK, and the plugin's tip takes every nonzero exit as a failure.
+	- Actual effort: Low
+	- Progress log:
+		- The window quits with 0 however it's closed. 1 is left for a file that can't be read, 2 for a bad command line and 3 for a picture that can't be saved.
+		- `design.md` Settings window has it.
+		- Verified: df32n fails with the old exit code put back and passes with the fix. The quick gate's steps passed, with Sanitizers run on its own after the whole run hit the call's time limit during it.
+	- Decisions:
+		- Fix the window's exit code, not the plugin's reading of it. Closing without saving isn't a failure, and the plugin shouldn't have to guess which 1 meant Cancel.
+	- Actual fix: `shownUntilClosed` in `settings/src/qt.cpp`, which `run_dialog` calls.
+	- Branch: round-1109
+	- Test case: `bridge::tests::cancel_esc_and_the_close_button_quit_0` (df32n). der60 already covers the plugin's tip for a window that quits 0 or 1.
+		- Swept: every exit path in `settings/src/main.rs` and `run_dialog`, and every `QDialog::Accepted` check in `qt.cpp`. The others are the color picker's own result, which stays as it is.
+	- Closed: 20261109-121212
 
 - Code review 20261107 item 6: The pre-push hook can pass a commit it never tested
 	- ID: 2026110709074406

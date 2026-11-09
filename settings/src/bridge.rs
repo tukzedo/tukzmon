@@ -370,6 +370,11 @@ pub mod ffi {
 		/// handler's state after.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn woken_by_signal(d: &mut Dialog) -> Vec<String>;
+		/// Opens the window and closes it by Cancel, by Esc and by the close
+		/// button, and gives each way's exit code as `run` would, as "cancel
+		/// 0", or "stayed open".
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn exit_on_close(d: &mut Dialog) -> Vec<String>;
 	}
 }
 
@@ -1415,6 +1420,19 @@ mod tests {
 			ffi::woken_by_signal(&mut d),
 			["while open caught", "woken 1", "shown", "after default"]
 		);
+	}
+
+	// Test ID: df32n
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn cancel_esc_and_the_close_button_quit_0() {
+		let _qt = qt_turn();
+		let path = std::env::temp_dir().join(format!(
+			"test_tukzmon-settings_{}_exit_never_written.shcl",
+			std::process::id()
+		));
+		let mut d = Dialog::open(path).unwrap();
+		assert_eq!(ffi::exit_on_close(&mut d), ["cancel 0", "esc 0", "close 0"]);
 	}
 
 	// Test ID: dep6n
