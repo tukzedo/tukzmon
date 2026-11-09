@@ -1020,8 +1020,8 @@ public:
 
 	bool askReset() {
 		return QMessageBox::question(this, "Reset history",
-				   "Keep across restarts is on, so this deletes all past history, not only what's "
-				   "on screen.\n\nReset history?",
+				   "Keep across restarts is on for this or another panel item, so this deletes saved "
+				   "history, not only what's on screen.\n\nReset history?",
 				   QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes;
 	}
 

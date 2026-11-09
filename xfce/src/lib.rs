@@ -1164,7 +1164,7 @@ mod tests {
 		// SAFETY: hit takes no data.
 		let w = unsafe { super::watch(&keep::reset_mark(&dir), hit, std::ptr::null_mut()) };
 		assert!(!w.is_null());
-		keep::reset(&dir, false).unwrap();
+		keep::reset(&dir, |_| false).unwrap();
 		let t0 = Instant::now();
 		while HITS.load(Ordering::SeqCst) == 0 && t0.elapsed() < Duration::from_secs(5) {
 			// SAFETY: the default context, which only this test runs.

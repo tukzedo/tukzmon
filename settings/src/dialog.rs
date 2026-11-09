@@ -221,20 +221,44 @@ impl Dialog {
 		self.model != self.saved || self.themes != self.saved_themes
 	}
 
-	/// Whether Reset history deletes the saved history too: Keep across
-	/// restarts is on, as shown or as the panel has it.
+	/// Whether Reset history deletes any saved history: some panel item, this
+	/// one or another, keeps history. See [`Self::keeps_history`].
 	pub fn reset_deletes_saved(&self) -> bool {
-		self.look().keep || config::Look::from_model(&self.saved).keep
+		let dir = self.path.parent().unwrap_or(Path::new(""));
+		config::instance_ids(dir)
+			.into_iter()
+			.chain(keep::history_ids(&self.history_dir))
+			.chain(config::instance_id(&self.path))
+			.any(|id| self.keeps_history(id))
 	}
 
-	/// Starts every graph in every panel item over now. See
-	/// [`Self::reset_deletes_saved`] for when the saved history goes too.
+	/// Whether the panel item `id` has Keep across restarts on. For this
+	/// window's item that's as shown or as applied, since its running item
+	/// deletes its own file either way. Another item's is in its file, or in
+	/// the shared one it would start from. One that can't be read counts as
+	/// on, since that's the default.
+	fn keeps_history(&self, id: i32) -> bool {
+		if config::instance_id(&self.path) == Some(id) {
+			return self.look().keep || config::Look::from_model(&self.saved).keep;
+		}
+		let dir = self.path.parent().unwrap_or(Path::new(""));
+		let own = config::instance_file(dir, id);
+		let file = if own.exists() {
+			own
+		} else {
+			config::shared_file(dir)
+		};
+		config::Look::load(&file).map_or(true, |l| l.keep)
+	}
+
+	/// Starts every graph in every panel item over now. The saved history of
+	/// each item that keeps it goes too, per backlog 2026110709074402.
 	///
 	/// # Errors
 	///
 	/// Why the panel wasn't told.
 	pub fn reset_history(&self) -> Result<(), String> {
-		keep::reset(&self.history_dir, self.reset_deletes_saved()).map_err(|e| {
+		keep::reset(&self.history_dir, |id| self.keeps_history(id)).map_err(|e| {
 			format!(
 				"History in {} wasn't reset: {e}",
 				self.history_dir.display()
@@ -903,7 +927,7 @@ mod tests {
 		let data = d.0.join("data");
 		let hist = keep::history_file(&data, 3);
 		keep::write(&hist, &[("cpu", b"x")]).unwrap();
-		let mut dlg = Dialog::open(d.0.join("t.shcl")).unwrap();
+		let mut dlg = Dialog::open(d.0.join("plugin-3.shcl")).unwrap();
 		dlg.history_dir.clone_from(&data);
 		assert!(dlg.reset_deletes_saved());
 		dlg.reset_history().unwrap();
@@ -928,6 +952,53 @@ mod tests {
 		assert!(watch.asked() && hist.exists());
 		std::fs::remove_file(&hist).unwrap();
 		std::fs::remove_file(keep::reset_mark(&data)).unwrap();
+		std::fs::remove_dir(&data).unwrap();
+	}
+
+	// Test ID: df315
+	#[test]
+	fn reset_history_asks_and_deletes_by_each_items_own_keep() {
+		let d = scratch("reset_two");
+		let data = d.0.join("data");
+		let hist = [keep::history_file(&data, 1), keep::history_file(&data, 2)];
+		let off = "history:\n\tkeep: false\n";
+		std::fs::write(config::instance_file(&d.0, 1), "").unwrap();
+		std::fs::write(config::instance_file(&d.0, 2), off).unwrap();
+		let at = |id| {
+			let mut dlg = Dialog::open(config::instance_file(&d.0, id)).unwrap();
+			dlg.history_dir.clone_from(&data);
+			dlg
+		};
+		let write_both = || {
+			for p in &hist {
+				keep::write(p, &[("cpu", b"x")]).unwrap();
+			}
+		};
+		// pressed in the window of the item that doesn't keep it
+		write_both();
+		let dlg = at(2);
+		assert!(dlg.reset_deletes_saved());
+		dlg.reset_history().unwrap();
+		assert!(!hist[0].exists() && hist[1].exists());
+		// and in the one that does
+		write_both();
+		at(1).reset_history().unwrap();
+		assert!(!hist[0].exists() && hist[1].exists());
+		// neither keeps it: no question, and both files stay
+		write_both();
+		std::fs::write(config::instance_file(&d.0, 1), off).unwrap();
+		let dlg = at(2);
+		assert!(!dlg.reset_deletes_saved());
+		dlg.reset_history().unwrap();
+		assert!(hist.iter().all(|p| p.exists()));
+		// an item with no file of its own goes by the shared one
+		std::fs::remove_file(config::instance_file(&d.0, 1)).unwrap();
+		assert!(at(2).reset_deletes_saved());
+		std::fs::write(config::shared_file(&d.0), off).unwrap();
+		assert!(!at(2).reset_deletes_saved());
+		for p in hist.iter().chain([&keep::reset_mark(&data)]) {
+			std::fs::remove_file(p).unwrap();
+		}
 		std::fs::remove_dir(&data).unwrap();
 	}
 

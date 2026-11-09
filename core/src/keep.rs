@@ -120,9 +120,9 @@ pub fn history_file(dir: &Path, id: i32) -> PathBuf {
 	dir.join(format!("plugin-{id}.hist"))
 }
 
-// or one's temp file, as a crash mid-write leaves, or a failed one before
-// 2026103115232061
-fn is_history_file(name: &str) -> bool {
+// the item id of a history file, or of its temp file, as a crash mid-write
+// leaves, or a failed one before 2026103115232061
+fn history_id(name: &str) -> Option<i32> {
 	let name = name.strip_suffix(".tmp").map_or(name, |n| {
 		n.rsplit_once('.')
 			.filter(|(_, pid)| pid.parse::<u32>().is_ok())
@@ -130,7 +130,21 @@ fn is_history_file(name: &str) -> bool {
 	});
 	name.strip_prefix("plugin-")
 		.and_then(|n| n.strip_suffix(".hist"))
-		.is_some_and(|id| id.parse::<i32>().is_ok())
+		.and_then(|id| id.parse().ok())
+}
+
+/// The panel item ids with a history file in `dir`, temp files included.
+/// A folder that doesn't read has none.
+pub fn history_ids(dir: &Path) -> Vec<i32> {
+	let Ok(entries) = std::fs::read_dir(dir) else {
+		return Vec::new();
+	};
+	let mut ids: Vec<i32> = entries
+		.filter_map(|e| history_id(e.ok()?.file_name().to_str()?))
+		.collect();
+	ids.sort_unstable();
+	ids.dedup();
+	ids
 }
 
 /// The file whose modified time tells every running panel item to start its
@@ -151,22 +165,25 @@ pub fn remove(path: &Path) -> io::Result<()> {
 	}
 }
 
-/// Asks every panel item to start its graphs over. With `saved_too`, every
-/// history file in `dir` goes as well, and their temp files, so an item that
-/// isn't running doesn't bring it back. A running one deletes its own again,
-/// since it may save in between.
+/// Asks every panel item to start its graphs over. The history file of each
+/// item id that `goes` picks goes as well, and its temp files, so an item that
+/// isn't running doesn't bring it back. A running one that keeps history
+/// deletes its own again, since it may save in between.
 ///
 /// # Errors
 ///
 /// Whatever reading `dir`, deleting, or writing the mark hit.
-pub fn reset(dir: &Path, saved_too: bool) -> io::Result<()> {
+pub fn reset(dir: &Path, goes: impl Fn(i32) -> bool) -> io::Result<()> {
 	std::fs::create_dir_all(dir)?;
-	if saved_too {
-		for entry in std::fs::read_dir(dir)? {
-			let entry = entry?;
-			if entry.file_name().to_str().is_some_and(is_history_file) {
-				remove(&entry.path())?;
-			}
+	for entry in std::fs::read_dir(dir)? {
+		let entry = entry?;
+		if entry
+			.file_name()
+			.to_str()
+			.and_then(history_id)
+			.is_some_and(&goes)
+		{
+			remove(&entry.path())?;
 		}
 	}
 	let now = SystemTime::now()
@@ -300,13 +317,13 @@ mod tests {
 		}
 		let mut watch = ResetWatch::new(&dir);
 		assert!(!watch.asked());
-		reset(&dir, false).unwrap();
+		reset(&dir, |_| false).unwrap();
 		assert!(watch.asked());
 		assert!(!watch.asked());
 		assert!(hist.iter().chain(&other).all(|p| p.exists()));
 		// timestamps are coarse, so the next reset must be told apart
 		std::thread::sleep(std::time::Duration::from_millis(50));
-		reset(&dir, true).unwrap();
+		reset(&dir, |_| true).unwrap();
 		assert!(watch.asked());
 		assert!(hist.iter().all(|p| !p.exists()));
 		assert!(other.iter().all(|p| p.exists()));
@@ -350,7 +367,7 @@ mod tests {
 		for p in gone.iter().chain(&kept) {
 			std::fs::write(p, b"x").unwrap();
 		}
-		reset(&dir, true).unwrap();
+		reset(&dir, |_| true).unwrap();
 		assert!(gone.iter().all(|p| !p.exists()));
 		assert!(kept.iter().all(|p| p.exists()));
 		for p in kept.iter().chain([&reset_mark(&dir)]) {
