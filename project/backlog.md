@@ -7492,7 +7492,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 9: Randomize gives 2 graphs leads that don't read apart in about 1 roll in 7,500
 	- ID: 2026110709074409
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
+	- Needs local test suite run?: No. The quick gate's format, build, lint and tests passed on 2026-11-09.
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7501,9 +7502,24 @@ Sorted per the notes in [Template](#template).
 	- Steps to reproduce: A roll with seed 2615.
 	- Incorrect behavior: 2 leads are about 3 apart as CIEDE2000, where the rule is 10.
 	- Expected behavior: Every roll's leads read apart, which dejbv's item asks for.
+	- Reproduced: 2026-11-09, round-1109 at f3ff18b. Seeds 0 to 109,999 gave 15 rolls with 2 leads 2.7 to 4.0 apart, every one near the pale end of the roll.
 	- Possible cause: After 256 draws with no fit, the roll keeps the last draw.
+	- Actual cause: the possible cause. Near the pale end a roll's saturation and brightness sometimes have no set of hues that reads apart, so more hue draws don't help.
+	- Actual fix: when the hue draws run out, the roll draws its saturation, brightness and alarms again, and tries again. After 64 of those it would start over from seed 0, whose first draw reads apart. A roll that never ran out comes out as before.
 	- Note: The least gap and the draw count have been tuned twice to the seeds tested. A fallback that always meets the rule would end that.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Verified: seeds 0 to 111,999 all read apart, and the quick gate's format, build, lint and tests passed.
+		- `design.md` Theme has the details.
+	- Decisions:
+		- Draw the whole base again rather than more hue draws or a narrower gap, since the misses come from the saturation and brightness, not the hues. So the gap and draw count no longer need tuning to the seeds tested.
+		- Seed 0 as the last resort, so the loop always ends, with df34z checking it still reads apart.
+	- Branch: round-1109
+	- Test case: `dice::tests::a_roll_whose_hue_draws_run_out_draws_again` (df34y), over the 15 seeds that ran out, and `seed_0_reads_apart_at_its_first_draw_for_the_last_resort` (df34z). df34y fails on the old code at seed 2615, 3.4 apart, and passes now.
+		- Swept: `scheme` is the only caller of `lead_hues` and `steps`, and `theme` the only caller of `scheme` outside the tests. `clear_of` keeps its own fallback to the wanted color, for the LAN's 2 colors, which demw2 checks over 2,000 seeds.
+	- Acceptance signoff: Self-closed: df34y failed before the fix and passes after.
+	- Closed: 20261109-132921
 
 - Code review 20261107 item 11: With the LAN split on, a socket that stops counting as away adds its whole life as LAN in one sample
 	- ID: 2026110709074411
