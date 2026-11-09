@@ -7553,7 +7553,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 12: Work that starts during the GPU's idle rest reads as 0% until the rest ends
 	- ID: 2026110709074412
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting on UAT
+		- Less than the wording. Work that starts on a card still awake in the rest reads 0 until the rest is up. The rest now comes only after 5 s idle, and ends as soon as the card sleeps. Accept that window, or ask for a shorter rest, which risks keeping the card up.
+	- Stand-in: none (20261109). Whether the window left is small enough is a scope call.
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7563,7 +7565,25 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: Both GPU graphs read 0 for the card's autosuspend delay plus 5 s. A rest starts after 5 reads, not a set time, so at a 50 ms sample after a quarter second of idle. Each rest ends with an NVML open of about 15 to 20 ms on the panel's thread.
 	- Expected behavior: A busy card doesn't read as idle.
 	- Against: 2026110118380381's idle rest, which lets the card sleep. A fix keeps that.
+	- Reproduced: 2026-11-09, desfa with stand-in NVML and power files. A rest started on the first idle read with no wait, and ran its whole length after the card slept.
+	- Actual cause:
+		- The rest started after 5 idle reads, however short the sample time.
+		- Once started it ran its whole length, even after the card slept, so work that woke it read 0 until the rest was up. NVML isn't asked during a rest, so a busy share can't be seen then.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The rest starts once the card has read idle for 5 s, not after 5 reads.
+		- It ends as soon as `power/runtime_status` reads `suspended`. From then the asleep check takes over, so work that wakes the card reads on the next sample.
+		- `design.md` Data sources on Linux, GPU, has it.
+		- Verified: desfa passed, and failed with either half of the fix taken out. The gpu tests and the quick gate passed.
+	- Decisions:
+		- 5 s idle, the same as the old 5 reads at a 1 s sample, so the default case rests as before.
+		- The 5 s past the autosuspend delay stays. A shorter one risks opening NVML before the card sleeps, and nothing here measured how long a real card takes.
+		- The 15 to 20 ms NVML open at the end of a rest stays on the panel's thread. Rests now need 5 s idle, so it comes far less often at a fast sample.
+	- Actual fix: `Nvidia::rest_if_idle` rests after `IDLE_FOR` (5 s) idle, and `Nvidia::awake` ends the rest once the card is asleep.
+	- Branch: round-1109
+	- Test case: `gpu::tests::nvml_leaves_a_card_that_may_sleep_alone_while_it_sleeps` (desfa). It fails with the rest resting on the first idle read, and with the rest not ending when the card sleeps.
+		- Swept: both readers go through `Nvidia::awake` and `rest_if_idle`. No other code used the idle count or `IDLE_READS`. `design.md` was the only doc that gave the 5 reads.
 
 - Code review 20261107 item 13: An IPv4 client on a dual-stack socket is counted with IPv6 header bytes
 	- ID: 2026110709074413

@@ -233,9 +233,10 @@ use std::time::{Duration, Instant};
 const DRM: &str = "/sys/class/drm";
 const PCI: &str = "/sys/bus/pci/devices";
 
-// Idle reads in a row before NVML lets go of a card that may sleep, and
-// how long it then stays shut past the card's own autosuspend delay.
-const IDLE_READS: u32 = 5;
+// How long a card that may sleep reads idle before NVML lets go of it, and
+// how long it then stays shut past the card's own autosuspend delay. A set
+// time, not a count of reads, so a fast sample doesn't rest it in a lull.
+const IDLE_FOR: Duration = Duration::from_secs(5);
 const REST_PAST_DELAY: Duration = Duration::from_secs(5);
 
 thread_local! {
@@ -247,6 +248,15 @@ thread_local! {
 #[cfg(test)]
 thread_local! {
 	static PCI_AT: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+	static IDLE_FOR_AT: Cell<Option<Duration>> = const { Cell::new(None) };
+}
+
+fn idle_for() -> Duration {
+	#[cfg(test)]
+	if let Some(at) = IDLE_FOR_AT.get() {
+		return at;
+	}
+	IDLE_FOR
 }
 
 fn pci() -> String {
@@ -329,14 +339,14 @@ fn is_nvidia_display(dir: &str) -> bool {
 }
 
 /// NVML on the first NVIDIA card. Where the kernel may put the card to
-/// sleep, NVML stays shut while it's asleep, and lets go of it after a few
-/// idle reads, since every NVML call keeps it awake.
+/// sleep, NVML stays shut while it's asleep, and lets go of it once it's
+/// been idle a while, since every NVML call keeps it awake.
 #[derive(Debug)]
 struct Nvidia {
 	nvml: Option<Nvml>,
 	power: Option<Power>,
 	sleepy: bool,
-	idle: u32,
+	idle_since: Option<Instant>,
 	used: u64,
 	total: u64,
 }
@@ -347,7 +357,7 @@ impl Nvidia {
 			nvml: None,
 			power: Power::find(pci),
 			sleepy: false,
-			idle: 0,
+			idle_since: None,
 			used: 0,
 			total: 0,
 		};
@@ -367,6 +377,11 @@ impl Nvidia {
 		self.sleepy = self.power.as_mut().is_some_and(|p| p.may_sleep(buf));
 		if self.sleepy && REST_UNTIL.get().is_some_and(|t| Instant::now() < t) {
 			self.nvml = None;
+			// once it sleeps the rest has done its job, and whatever wakes it
+			// next is work to read, not something to wait out (2026110709074412)
+			if self.power.as_mut().is_some_and(|p| p.asleep(buf)) {
+				REST_UNTIL.set(None);
+			}
 			return Awake::Resting;
 		}
 		if self.nvml.is_none() {
@@ -374,7 +389,7 @@ impl Nvidia {
 				return Awake::Resting;
 			}
 			self.nvml = Nvml::open();
-			self.idle = 0;
+			self.idle_since = None;
 		}
 		self.nvml.as_ref().map_or(Awake::Failed, Awake::Open)
 	}
@@ -415,15 +430,16 @@ impl Nvidia {
 			return;
 		}
 		// a card with no busy share to give counts as idle
-		self.idle = if busy.is_none_or(|b| b == 0.0) {
-			self.idle + 1
-		} else {
-			0
-		};
-		if self.idle >= IDLE_READS {
+		if busy.is_some_and(|b| b > 0.0) {
+			self.idle_since = None;
+			return;
+		}
+		let now = Instant::now();
+		if now.duration_since(*self.idle_since.get_or_insert(now)) >= idle_for() {
 			self.nvml = None;
+			self.idle_since = None;
 			let rest = self.power.as_ref().map_or(REST_PAST_DELAY, |p| p.rest);
-			REST_UNTIL.set(Some(Instant::now() + rest));
+			REST_UNTIL.set(Some(now + rest));
 		}
 	}
 }
@@ -798,20 +814,29 @@ mod tests {
 		assert_eq!((gpu.read(), vram.read()), (Some([0.4]), Some([0.25])));
 		assert_eq!(OPEN.get(), 2);
 
-		// idle, so both let go together, and stay shut while it's still up
+		// idle reads alone don't rest it, however many come in a lull
 		BUSY.set(0);
-		for _ in 0..IDLE_READS {
+		IDLE_FOR_AT.set(Some(Duration::from_secs(3600)));
+		for _ in 0..20 {
 			assert_eq!((gpu.read(), vram.read()), (Some([0.0]), Some([0.25])));
 		}
+		assert_eq!((OPEN.get(), INITS.get()), (2, 2));
+
+		// idle long enough, so both let go together, and stay shut while it's
+		// still up
+		IDLE_FOR_AT.set(Some(Duration::ZERO));
+		assert_eq!((gpu.read(), vram.read()), (Some([0.0]), Some([0.25])));
 		assert_eq!(OPEN.get(), 0);
 		assert_eq!((gpu.read(), vram.read()), (Some([0.0]), Some([0.25])));
 		assert_eq!((OPEN.get(), INITS.get()), (0, 2));
 
+		// asleep, so the rest is over, and work that wakes it reads at once
 		set("runtime_status", "suspended\n");
-		REST_UNTIL.set(None);
+		assert!(REST_UNTIL.get().is_some());
 		for _ in 0..3 {
 			assert_eq!((gpu.read(), vram.read()), (Some([0.0]), Some([0.0])));
 		}
+		assert_eq!(REST_UNTIL.get(), None);
 		assert_eq!((OPEN.get(), INITS.get()), (0, 2), "nothing woke it");
 
 		// woken by something else
@@ -823,7 +848,7 @@ mod tests {
 		// runtime power management off, so idle reads keep it open
 		set("control", "on\n");
 		BUSY.set(0);
-		for _ in 0..IDLE_READS * 2 {
+		for _ in 0..10 {
 			gpu.read();
 			vram.read();
 		}
@@ -833,6 +858,7 @@ mod tests {
 
 		BUSY.set(40);
 		REST_UNTIL.set(None);
+		IDLE_FOR_AT.set(None);
 		nvml::STAND_IN.set(None);
 		PCI_AT.set(None);
 		for (dev, _) in links {
