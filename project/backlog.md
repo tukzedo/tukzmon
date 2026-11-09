@@ -7141,7 +7141,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 4: With 2 windows on one file, or a hand edit, Apply drops or reverts theme edits
 	- ID: 2026110709074404
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7155,6 +7155,25 @@ Sorted per the notes in [Template](#template).
 	- Possible cause: Apply copies each store on its own, so the theme pick and the changes made on a theme can come from different windows. A changed theme is written whole.
 	- Note: This is the third fault in how Apply merges with a changed file, in 2 rounds. A table in design.md of what Apply does for each kind of change made elsewhere would stop each case being answered on its own.
 	- Estimated effort: Avg
+	- Reproduced: 2026-11-09, round-1109, by df320 and df321 with the fix taken out. The first read "Mine" after Apply, and the second lost the other window's color.
+	- Actual cause: as above. The pick and the changes on it were carried one store at a time, so the changes kept the window's Default while the pick stayed the file's. And a theme changed here, even only renamed, was written whole over the file's copy.
+	- Actual effort: Avg
+	- Progress log:
+		- When the file picks another theme than the window and the window changed its pick or the "*" colors on it, the window's pick and its "*" colors go together. A Custom color edited while on Custom counts too.
+		- A saved theme both knew gets only the name and colors changed here, each one on its own.
+		- A theme deleted elsewhere, but picked and changed on here, comes back.
+		- `design.md` Settings window has a table of what Apply does for each kind of change made elsewhere, and Theme says how a changed theme is merged.
+		- Verified: df320 and df321 fail with the fix taken out and pass with it, and the quick gate passed, sanitizers included.
+	- Decisions:
+		- The pick and its "*" colors are one setting at Apply, and the last save wins, as for any other. Moving the window's "*" colors onto the other window's pick was the other way, but they were made against another theme's colors.
+		- The two windows' picks can't both stay, so the other window's pick goes in the first case. Its saved theme stays.
+		- Last save wins per name and per color in a saved theme now, not per theme. That narrows 2026103115231908's "a theme both windows changed is still the last save's".
+		- A theme deleted elsewhere comes back when the window has it picked and changed on, so what the window showed is what it saved. A theme deleted elsewhere and only changed here already came back.
+	- Actual fix: `carry_theme` and `theme_touched` in `settings/src/dialog.rs`, called by `Dialog::apply` after the store carries, and `merge_themes` now carries a known theme's name and colors.
+	- Branch: round-1109
+	- Test case: `dialog::tests::a_color_set_here_stays_when_another_window_picked_another_theme` (df320), with a window that changed nothing on the theme, Custom, and a deleted theme, and `a_rename_here_keeps_the_colors_another_window_saved_into_the_theme` (df321).
+		- Swept: every `merge_themes`, `carry` and `themes_text` use, and `Dialog::apply` as the one place a file is merged. deqqp, der2h, dezea and the rest of `dialog::tests` still pass.
+	- Closed: 20261109-120236
 
 - Code review 20261107 item 5: Cancel, Esc or the close button leaves a false error in the panel's tip and the journal
 	- ID: 2026110709074405

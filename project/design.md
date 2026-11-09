@@ -154,6 +154,20 @@ The code is a Rust core, with C only where a panel's API needs it. That was sett
 	- A line it can't read, or a setting it doesn't know, such as one an older build wrote, is dropped at the next save rather than refused, since most users never edit the file by hand.
 	- Every file is read by shcl 3 rules, with or without a Format line. tukzmon doesn't read or convert a file written for shcl 2, since there aren't any in use. Every save writes the Format line under the header, so a later format change can tell the version.
 	- Comments a hand edit put in the file stay, as long as the line or section they're on does. A changed value keeps its line's comment. `keep_notes` in `settings/src/dialog.rs` sets the new values on the file as shcl loaded it. If that wouldn't read back as the values meant, the file is written plain, without the comments.
+	- What Apply does with a change made elsewhere, in another window or by hand, while the window was open. The theme pick and the colors changed on top of it, the "*" ones, go together, since a "*" color means nothing on another theme. `carry`, `carry_theme` and `merge_themes` in `settings/src/dialog.rs` do it.
+
+	| Made elsewhere                        | Changed here                                       | At Apply
+	| :---                                  | :---                                               | :---
+	| Anything                              | Something else, outside the theme                  | The file's stays, and this window's goes on top.
+	| A setting                             | The same setting                                   | This window's.
+	| The theme pick, or a "*" color        | Nothing on the theme                               | The file's pick and its "*" colors stay.
+	| A "*" color on the theme picked here  | Another "*" color, on the same theme               | Both.
+	| The theme pick                        | The pick, a "*" color, or a Custom color on Custom | This window's pick, with its own "*" colors. The other's "*" colors go, as a pick drops them.
+	| A Custom color                        | Another Custom color                               | Both, whichever theme is picked.
+	| A saved theme's name or a color in it | Another of its name and colors                     | Both. Each name and color is the last save's.
+	| A new saved theme                     | A new one with the same name or key                | Both. This window's moves to "Name 2".
+	| A saved theme deleted                 | Changed, or picked here and changed on             | It comes back as this window has it.
+	| A saved theme deleted                 | Nothing on it                                      | It stays deleted.
 
 - Reset history is on the left of the bottom strip, under the pages, and starts every graph over at once, in the window and in every panel item. When any panel item keeps history, it asks first, since that deletes the saved history too. For the window's own item that's Keep across restarts as the window shows it or as last applied, and for another item as its own settings file has it. It's an action rather than a setting, so it doesn't wait for Apply, and Cancel doesn't take it back.
 	- It writes `reset` in the history folder. First it deletes the `plugin-<id>.hist` of each item that keeps history, so an item that isn't running doesn't bring old history back. An item with Keep across restarts off keeps its file, as Off always does.
@@ -245,7 +259,7 @@ The code is a Rust core, with C only where a panel's API needs it. That was sett
 	- They join the `theme` group as presets on a copy of the spec, through knobs' `Spec::finish`. The plugin reads them the same way, so knobs is unchanged.
 	- The key comes from the name when the theme is made, and stays through a rename. A key that is a built-in's is left out, and a color line that can't be read is dropped at the next save, like any other. A missing color is Default's.
 	- Save puts the "*" changes into the saved theme in force. Save as makes a new theme from the colors showing and picks it. Delete picks Default. Built-in themes can't be saved over, renamed or deleted, and no two themes share a name.
-	- A save writes every saved theme. A theme this window didn't touch is written as the file has it, so a theme added by hand meanwhile isn't lost.
+	- A save writes every saved theme. A theme this window didn't touch is written as the file has it, so a theme added by hand meanwhile isn't lost. One it changed gets only the name and colors changed here, so another window's edits to it stay.
 	- A theme made in this window whose key or name another window saved meanwhile moves to a free one at save, such as "Mine 2" at `mine_2`, and stays picked. So both are kept.
 
 - The margins, on the Outline sub-tab at `graph.margins.top_bottom` and `.left_right`, are in the `theme` group, so a theme sets them, and a saved one keeps them. Every built-in has 2 and 2. Randomize leaves them as they are, since a roll is colors. A saved theme writes them as numbers, the override boxes as `true` or `false`, and the rest as text.
