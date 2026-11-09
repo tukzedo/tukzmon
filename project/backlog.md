@@ -7459,7 +7459,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 8: A setting changed and changed back keeps Apply on, and Apply writes the default into the file
 	- ID: 2026110709074408
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7467,8 +7467,27 @@ Sorted per the notes in [Template](#template).
 	- Steps to reproduce: Change Max age from 28 to 29, then back to 28.
 	- Incorrect behavior: The revert arrow goes off, but Apply stays on. Apply writes `max_days: 28`, against the file's own header that lists only values changed from their defaults, and the setting stops following a later change to its default. A slider does the same at many of its positions.
 	- Expected behavior: A value back at its default counts as no change.
+	- Reproduced: 2026-11-09, round-1109 at 101791a, by df34m and df34k.
 	- Possible cause: knobs' `Model::set` always stores a value of its own, and `Dialog::dirty` compares the stores.
+	- Actual cause: as above. knobs' `has_own` already took a value equal to its default as none, so the revert arrow went off, but the store still held it.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A value set back to its default now stores nothing, so Apply goes off and the file gets no line for it.
+		- Loading a file drops a line that only names a default, so the next save leaves out the ones older builds wrote.
+		- `design.md` Settings window says so.
+		- Verified: df34k and df34m fail at 101791a and pass now. The quick gate's format, build, lint and tests passed. Sanitizers are left to the gate step.
+	- Decisions:
+		- The fix is in knobs, where the value is stored, not in `Dialog::dirty`. A looser dirty check would still let Apply write the default.
+		- Theme members and the theme pick still store a default. Members are Custom's set, and the file's colors are read by its pick (`config::unthemed`). A setting whose default is a rule's answer keeps its value too, the same as `has_own` judges it.
+		- Dropping default lines at load cleans files this bug wrote, such as the user's own. Those settings follow a later change to the default again.
+	- Actual fix: `Spec::stores_nothing` and `Model::put_own` in `knobs/src/lib.rs`, used by `write`, the switch-off keep path, `pin_chooser`'s switch, and `load_docs`.
+	- Branch: round-1109
+	- Test case: `tests::a_value_put_back_to_its_default_stores_nothing` (df34k) in knobs, and `dialog::tests::a_setting_changed_and_changed_back_is_no_change` (df34m), with Max age and the Sample ms slider.
+		- 2026-11-09: ddqsd (`lines_put_set_aside_values_and_changes_under_kept`) checked that `font.use_system_family: true`, its default, was written. It now checks there is no such line.
+		- Swept: every `own.insert` in knobs, core, settings and xfce. `fill_custom` fills theme members only. `config::name_the_theme` writes the pick on purpose. Every `own.contains_key` and `own.get` reader, which read only the theme pick and members, or ask `has_own`. The State store is left as it is, since it holds the program's own values.
+	- Acceptance signoff: Self-closed 20261109: df34k and df34m fail before the fix and pass after.
+	- Closed: 20261109-131312
 
 - Code review 20261107 item 9: Randomize gives 2 graphs leads that don't read apart in about 1 roll in 7,500
 	- ID: 2026110709074409

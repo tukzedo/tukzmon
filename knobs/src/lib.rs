@@ -315,6 +315,17 @@ impl Spec {
 			.map(|s| s.id.as_str())
 			.collect()
 	}
+	// A value that is its setting's default stores nothing, so the setting
+	// follows a later change to the default, and the file lists only what was
+	// changed. A group's members keep theirs, since they are Custom's set, and
+	// so does its chooser, since the file's colors are read by it. So does one
+	// whose default is a rule's answer, which can change under it.
+	fn stores_nothing(&self, s: &Setting, v: &Value) -> bool {
+		*v == s.default
+			&& s.group.is_none()
+			&& self.chooser_of(&s.id).is_none()
+			&& (s.auto.is_some() || s.rule.is_none())
+	}
 	/// Whether a checkbox makes any setting automatic.
 	pub fn is_switch(&self, id: &str) -> bool {
 		self.settings.iter().any(|s| s.auto.as_deref() == Some(id))
@@ -1425,7 +1436,7 @@ impl Model {
 				.collect();
 			self.write(id, v, env);
 			for (m, shown) in keep {
-				self.values.own.insert(m.to_string(), shown);
+				self.put_own(spec.at(m), shown);
 			}
 			return;
 		}
@@ -1458,7 +1469,15 @@ impl Model {
 				return;
 			}
 		}
-		self.values.own.insert(s.id.clone(), v);
+		self.put_own(s, v);
+	}
+
+	fn put_own(&mut self, s: &Setting, v: Value) {
+		if self.spec.stores_nothing(s, &v) {
+			self.values.own.remove(&s.id);
+		} else {
+			self.values.own.insert(s.id.clone(), v);
+		}
 	}
 
 	// A change to a preset's row stops the machine choosing, and keeps the
@@ -1474,7 +1493,7 @@ impl Model {
 		if self.value(sw, env).as_bool() {
 			let shown = self.value(c, env);
 			self.values.own.insert(c.to_string(), shown);
-			self.values.own.insert(sw.to_string(), Value::Bool(false));
+			self.put_own(spec.at(sw), Value::Bool(false));
 		}
 	}
 
@@ -1573,7 +1592,8 @@ impl Model {
 	}
 
 	/// Read the files back. A value that fails its setting's checks is dropped,
-	/// as is a change made on a preset that is no longer the one picked.
+	/// as is a change made on a preset that is no longer the one picked, and a
+	/// value that is only its default, so the next save leaves it out.
 	pub fn load(spec: impl Into<Arc<Spec>>, config: &str, state: &str) -> Model {
 		Model::load_docs(
 			spec,
@@ -1613,7 +1633,7 @@ impl Model {
 			if let Some(v) = found {
 				if s.store == Store::State {
 					m.values.state.insert(s.id.clone(), v);
-				} else if !temporary(&v) {
+				} else if !temporary(&v) && !spec.stores_nothing(s, &v) {
 					m.values.own.insert(s.id.clone(), v);
 				}
 			}

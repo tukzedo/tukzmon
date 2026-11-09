@@ -130,6 +130,7 @@ The code is a Rust core, with C only where a panel's API needs it. That was sett
 	- Every row has a revert arrow, which is live when the value isn't its default.
 	- The buttons are Cancel, Apply, and OK, with Cancel set a little apart. Enter is OK and Esc is Cancel, even from inside a field. Enter on a focused button presses that button.
 		- Apply turns on as soon as a box is typed in, before it's left. Apply and OK take what's typed, Alt+A included, which leaves the focus where it was.
+		- A value put back to its default is no change, so Apply goes off again, and the file gets no line for it. A line that only names a default, as builds before 2026-11-09 wrote one, is left out at the next save, so the setting follows a later change to the default. Theme colors and the theme pick are the exception, since Custom's colors are a set and the file is read by its pick.
 	- A question that can't be undone, such as Delete theme or Reset history, starts on No, so Enter on it doesn't change anything.
 	- An empty checkbox or radio button gets an edge in the text color, a little faded, over what the style draws. Some dark themes draw that edge close to the window color, so it almost vanished. `BoxStyle` in `qt.cpp` does it.
 	- Every button with text has at least 12 px across and 8 px over and under, from its text to the inside of its frame, in the window and in its message boxes. The style may give more. So every button is one height, the bottom ones included. `BoxStyle` does it too.

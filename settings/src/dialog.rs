@@ -1425,6 +1425,31 @@ mod tests {
 		);
 	}
 
+	// Test ID: df34m
+	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
+	fn a_setting_changed_and_changed_back_is_no_change() {
+		let d = scratch("back");
+		let path = d.0.join("t.shcl");
+		let mut dlg = Dialog::open(path.clone()).unwrap();
+		assert!(dlg.set_text("max_days", "29"));
+		assert!(dlg.dirty());
+		assert!(dlg.set_text("max_days", "28"));
+		assert!(!dlg.dirty(), "back at the default");
+		let t = dlg.slider("sample_ms").map(|s| s.to_t(1000.0)).unwrap();
+		dlg.set_slider("sample_ms", 0.9);
+		assert!(dlg.dirty());
+		dlg.set_slider("sample_ms", t + 0.001);
+		assert!(!dlg.dirty(), "a slider back on its default");
+		assert!(dlg.set_text("user", "123abc"));
+		dlg.apply().unwrap();
+		let text = std::fs::read_to_string(&path).unwrap();
+		assert!(
+			!text.contains("max_days") && !text.contains("sample_ms"),
+			"{text}"
+		);
+	}
+
 	// Test ID: debjd
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]

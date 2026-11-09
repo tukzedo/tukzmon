@@ -648,11 +648,12 @@ fn lines_put_set_aside_values_and_changes_under_kept() {
 			"kept.changes.perf.values.text.scrim.strength"
 		]
 	);
+	// the switch is back at its default, so it has no line
 	assert!(
-		lines
+		!lines
 			.config
 			.iter()
-			.any(|(p, v)| p == "font.use_system_family" && *v == Value::Bool(true))
+			.any(|(p, _)| p == "font.use_system_family")
 	);
 	assert!(!lines.config.iter().any(|(p, _)| p == "font.family"));
 }
@@ -762,4 +763,24 @@ fn has_changes_and_each_rows_star_agree_with_the_list() {
 		m.has_changes("perf", &DESK),
 		"another group's pick leaves them"
 	);
+}
+
+// Test ID: df34k
+#[test]
+fn a_value_put_back_to_its_default_stores_nothing() {
+	let mut m = demo();
+	let fresh = m.values.clone();
+	m.set("idle_min", &int(6), &DESK);
+	assert_ne!(m.values, fresh);
+	m.set("idle_min", &int(5), &DESK);
+	assert_eq!(m.values, fresh, "back at the default is no change");
+	let (config, _) = m.save(&DESK);
+	assert!(!config.contains("idle_min"), "{config}");
+	// a file that names a default, as an older build wrote one, holds nothing
+	let back = Model::load(m.spec.clone(), "window:\n\tidle_min: 5\n", "");
+	assert_eq!(back.values, fresh);
+	// a group member at its default on Custom is still part of Custom's set
+	m.set("profile", &text(CUSTOM), &DESK);
+	m.set("strength", &int(50), &DESK);
+	assert_eq!(m.values.own.get("strength"), Some(&int(50)));
 }
