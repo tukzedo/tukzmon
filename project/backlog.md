@@ -7643,7 +7643,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 15: With no display, tukzmon-settings aborts with a core dump instead of exiting 1
 	- ID: 2026110709074415
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7652,7 +7652,22 @@ Sorted per the notes in [Template](#template).
 	- Steps to reproduce: `env -u DISPLAY -u WAYLAND_DISPLAY tukzmon-settings --config <a file that can't be read>`
 	- Incorrect behavior: It prints its line, then Qt aborts trying to open the message box.
 	- Expected behavior: The line, then exit 1.
+	- Reproduced: 2026-11-09, by the new test with the fix taken out: SIGABRT after "could not connect to display".
+	- Actual cause: A Qt platform that can't start, such as xcb with no display, is a `qFatal` in the `QApplication` constructor, and `qFatal` aborts.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- While an `App` is being built, a message handler passes Qt's lines on and quits with 1 on a fatal one. It's put back once the app is up, so a later `qFatal` still aborts.
+		- `design.md` Settings window has it.
+		- Verified: the worker quick gate (format, build, lint, test) and the Sanitizers step passed. With no display, an unreadable file and a missing one each printed Qt's lines and quit with 1.
+	- Decisions:
+		- Caught at Qt's fatal message rather than by guessing from `DISPLAY` and `WAYLAND_DISPLAY`, since a display that's set but can't be reached, or a missing platform plugin, fails the same way.
+		- The window quits with 1 too, as the box does, since both are a window that couldn't open.
+	- Actual fix: `quitOnFatal`, `AppArgs` and `App` in `settings/src/qt.cpp`.
+	- Branch: round-1109
+	- Test case: `bridge::tests::with_no_display_the_unreadable_box_quits_with_1_not_a_core_dump` (df35x). It runs itself again with xcb and no display, and wants exit 1 and no signal. It got SIGABRT with the handler left out.
+		- Swept: every place a `QApplication` is made, which is only `App` (the box, the window and every test hook).
+	- Closed: 20261109-135912
 
 - Code review 20261107 item 16: An item the panel drops without Remove keeps its files, and a later item on that id takes them over
 	- ID: 2026110709074416

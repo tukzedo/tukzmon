@@ -66,6 +66,7 @@
 #include <climits>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <functional>
 #include <initializer_list>
@@ -2239,22 +2240,46 @@ void comeForward(QWidget &w) {
 	askActive(top ? *top : w);
 }
 
+// the handler that was in place before App, for while it starts
+QtMessageHandler &qtSaidBefore() {
+	static QtMessageHandler was = nullptr;
+	return was;
+}
+
+// A platform that can't start, such as xcb with no display, is a qFatal,
+// which aborts with a core dump. Qt's own lines say why, so pass them on and
+// quit with 1, as for any other failure.
+void quitOnFatal(QtMsgType type, const QMessageLogContext &where, const QString &text) {
+	if (qtSaidBefore())
+		qtSaidBefore()(type, where, text);
+	else
+		std::fputs(qPrintable(qFormatLogMessage(type, where, text) + '\n'), stderr);
+	if (type == QtFatalMsg) {
+		std::fflush(stderr);
+		std::_Exit(1);
+	}
+}
+
 // Qt reads argc and argv for as long as the app lives, and the platform
 // before the app is made, so both come from a base built first.
 struct AppArgs {
 	explicit AppArgs(const QByteArray &platform) {
 		if (!platform.isEmpty())
 			qputenv("QT_QPA_PLATFORM", platform);
+		qtSaidBefore() = qInstallMessageHandler(quitOnFatal);
 	}
 	int argc = 1;
 	std::array<char, sizeof("tukzmon-settings")> name{"tukzmon-settings"};
 	std::array<char *, 2> argv{name.data(), nullptr};
 };
 
-// One per call. The test hooks pass an offscreen platform.
+// One per call. The test hooks pass an offscreen platform. Only a platform
+// that fails to start quits on its fatal message. A later one still aborts.
 class App final : AppArgs, public QApplication {
 public:
-	explicit App(const QByteArray &platform = {}) : AppArgs(platform), QApplication(argc, argv.data()) {}
+	explicit App(const QByteArray &platform = {}) : AppArgs(platform), QApplication(argc, argv.data()) {
+		qInstallMessageHandler(qtSaidBefore());
+	}
 };
 
 void openSized(Window &w) {

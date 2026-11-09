@@ -1485,6 +1485,39 @@ mod tests {
 		});
 	}
 
+	// Test ID: df35x
+	#[test]
+	#[cfg_attr(miri, ignore = "it starts Qt in a process of its own")]
+	fn with_no_display_the_unreadable_box_quits_with_1_not_a_core_dump() {
+		use std::os::unix::process::ExitStatusExt;
+		const CHILD: &str = "TUKZMON_TEST_NO_DISPLAY";
+		if std::env::var_os(CHILD).is_some() {
+			say_unreadable("test_tukzmon-settings.shcl: Permission denied");
+			return;
+		}
+		// Qt's failed platform start ends the whole process, so it runs this
+		// same test again in one of its own
+		let ran = std::process::Command::new(std::env::current_exe().unwrap())
+			.args([
+				"--exact",
+				"bridge::tests::with_no_display_the_unreadable_box_quits_with_1_not_a_core_dump",
+				"--test-threads=1",
+				"--nocapture",
+			])
+			.env(CHILD, "1")
+			.env("QT_QPA_PLATFORM", "xcb")
+			.env_remove("DISPLAY")
+			.env_remove("WAYLAND_DISPLAY")
+			.output()
+			.unwrap();
+		assert_eq!(
+			(ran.status.code(), ran.status.signal()),
+			(Some(1), None),
+			"{}",
+			String::from_utf8_lossy(&ran.stderr)
+		);
+	}
+
 	// Test ID: df349
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
