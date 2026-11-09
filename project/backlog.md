@@ -7672,8 +7672,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 16: An item the panel drops without Remove keeps its files, and a later item on that id takes them over
 	- ID: 2026110709074416
 	- Type: Bug
-	- Status: Waiting on automated testing
-	- Needs external testing: in the private panel rig, kill an item's wrapper twice and pick Remove, then add a tukzmon item. It starts from the shared file with no history, and an item kept across a panel restart keeps its files.
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7692,14 +7691,18 @@ Sorted per the notes in [Template](#template).
 		- Remove deletes the mark too.
 		- `design.md` Settings window has it.
 		- Verified: the quick gate passed.
+		- Verified on xfce4-panel 4.20.7 with 2 items, at `3f04603`: item 1's wrapper killed twice, then Remove on the restart dialog, left `plugin-1.shcl` and `.hist`. A new item took id 1, started from the shared `tukzmon.shcl` with no history, and wrote a new mark and rc. Item 2, and both items across 2 panel restarts, kept their settings and history. Passed twice.
+		- The dialog's Remove deletes the panel's `tukzmon-<id>.rc` too, but not our mark, so the new item still finds old files.
 	- Decisions:
 		- A mark of our own as well as the panel's rc, since an item from an older build has no rc either. With neither, the files stay, so the first start after an update keeps every item's look and history. Files a dropped item left before this build stay too.
 		- The rc is written before the mark, and the mark only once the rc is there, so a failed write can't make the next start take a live item's files for old ones.
 		- Deleting the panel's rc by hand makes the item start fresh at the next start, as a new item would.
 	- Actual fix: `config::claim` and `config::mark_of` in `core/src/config.rs`, called from `Plugin::new`, and `Plugin::forget` in `xfce/src/lib.rs`.
 	- Branch: round-1109
+	- Commit: `3f04603`
 	- Test case: `config::tests::a_new_item_on_a_dropped_items_id_starts_fresh` (df36b), `a_running_item_and_one_from_before_the_marks_keep_their_files` (df36c), and `tests::a_removed_item_takes_its_mark_too` (df36d) in the plugin crate. df36b fails with the deletes taken out, and df36d with the mark left out of `forget`.
 		- Swept: every place an item's files are made or deleted (`Plugin::new`, `start_from`, `forget`, `Graphs::save` through `keep::write`), and every `instance_file` and `xfce_panel_plugin_get_unique_id` caller. The settings window's `keeps_history` still reads an old `plugin-<id>.shcl` until a new item takes the id, as before.
+	- Closed: 20261109-142358
 
 - Code review 20261107 item 17: A save through a linked item settings file shows in the panel only at the next read
 	- ID: 2026110709074417
