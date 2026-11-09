@@ -7524,7 +7524,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 11: With the LAN split on, a socket that stops counting as away adds its whole life as LAN in one sample
 	- ID: 2026110709074411
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7535,6 +7535,20 @@ Sorted per the notes in [Template](#template).
 	- Expected behavior: Only bytes moved since the last read count.
 	- Possible cause: Only LAN sockets are kept between reads, so one that's new to the LAN rates from 0.
 	- Estimated effort: Low
+	- Actual cause: Only LAN sockets were kept between reads, so one that stopped being away had nothing to rate from.
+	- Actual effort: Low
+	- Progress log:
+		- Every socket with a private far end is kept between reads, flagged by whether it's away, and only the LAN's are summed. One that stops being away counts from what it had at the last read.
+		- `design.md` Data sources on Linux says so.
+		- Verified: `cargo test -p tukzmon-core lan::`, the quick gate's format, build, lint and tests, the Sanitizers step, and Miri over `lan::` passed.
+	- Decisions:
+		- Kept by the far end being private, not every TCP socket, since only the away lists can change whether a socket is the LAN's. Its addresses never change.
+	- Actual fix: `lan::Sock` keeps a socket's bytes with its LAN flag, and `rise` sums the LAN's against any earlier read.
+	- Branch: round-1109
+	- Test case: `lan::tests::a_socket_that_stops_being_away_counts_from_its_last_read` (df35c). It fails with away sockets left out of the last read.
+		- 20261109: deqt2, deqt4, deqt6 and dekq7 now build or read `Sock` values, and deqt4 and deqt6 count only sockets flagged LAN. Their values are the same.
+		- Swept: `rise` is the only per-socket rate. `LanReader` is read only through `net::Traffic`.
+	- Closed: 20261109-134022
 
 - Code review 20261107 item 12: Work that starts during the GPU's idle rest reads as 0% until the rest ends
 	- ID: 2026110709074412
@@ -7554,7 +7568,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 13: An IPv4 client on a dual-stack socket is counted with IPv6 header bytes
 	- ID: 2026110709074413
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7564,11 +7578,22 @@ Sorted per the notes in [Template](#template).
 	- Expected behavior: The header size follows the address the far end uses.
 	- Possible cause: The overhead is picked by the socket's family, not by its addresses.
 	- Estimated effort: Low
+	- Actual cause: The header size went by the socket's family, so an IPv4-mapped far end on an IPv6 socket got 86 bytes a segment.
+	- Actual effort: Low
+	- Progress log:
+		- The header size goes by the far end's address after unmapping, so a dual-stack socket's IPv4 client gets 66 bytes a segment.
+		- `design.md` Data sources on Linux says so.
+		- Verified: `cargo test -p tukzmon-core lan::`, the quick gate's format, build, lint and tests, the Sanitizers step, and Miri over `lan::` passed.
+	- Actual fix: `lan_socket` picks `overhead` by `mapped(far)`.
+	- Branch: round-1109
+	- Test case: `lan::tests::a_dual_stack_socket_to_an_ipv4_client_counts_ipv4_headers` (df35d). It fails with the overhead picked by the family.
+		- Swept: `overhead` has no other caller.
+	- Closed: 20261109-134022
 
 - Code review 20261107 item 14: A LAN dump left partway makes a gap at each read until the old dump runs out
 	- ID: 2026110709074414
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7579,6 +7604,19 @@ Sorted per the notes in [Template](#template).
 	- Expected behavior: One gap, then reads as before.
 	- Possible cause: The socket is kept after a failed dump. deqt2 builds a reply stream the kernel doesn't send while a dump runs.
 	- Estimated effort: Low
+	- Actual cause: The netlink socket was kept after a failed dump, and the kernel refuses a new dump on it with EBUSY until the old one runs out.
+	- Actual effort: Low
+	- Progress log:
+		- A failed dump closes the socket, which ends it, and the next read opens a new one. A failed open is a gap, and the next read tries again.
+		- `design.md` Data sources on Linux says so.
+		- Verified: `cargo test -p tukzmon-core lan::`, the quick gate's format, build, lint and tests, the Sanitizers step, and Miri over `lan::` passed.
+	- Decisions:
+		- A new socket rather than reading the old dump to its end, since that takes as many reads as the dump has left, and a read error may not end.
+	- Actual fix: `LanReader::sock` is dropped on a failed dump and opened again at the next poll.
+	- Branch: round-1109
+	- Test case: `lan::tests::a_dump_left_partway_is_one_gap` (df35e), with 400 sockets of its own and a read cut short. It fails with the socket kept, on the read after the gap.
+		- Swept: `neighbors` opens its own socket for each dump, so it has no dump to leave partway for the next one.
+	- Closed: 20261109-134022
 
 - Code review 20261107 item 15: With no display, tukzmon-settings aborts with a core dump instead of exiting 1
 	- ID: 2026110709074415

@@ -117,8 +117,14 @@ fn request(family: u8, seq: u32) -> [u8; HEADER + 56] {
 	r
 }
 
-/// One LAN socket: its cookie, and bytes sent and received on the wire.
-type Moved = (u64, [u64; 2]);
+/// A TCP socket with a private far end: bytes sent and received on the
+/// wire, and whether it's the LAN's. One that's away is kept too, so when it
+/// stops being away only what it moves from then on counts.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Sock {
+	moved: [u64; 2],
+	lan: bool,
+}
 
 /// Sockets with a private far end that still aren't the LAN's, since they
 /// never cross an interface the network reader counts.
@@ -132,9 +138,9 @@ pub(crate) struct Away {
 	pub(crate) guests: Vec<IpAddr>,
 }
 
-/// One `inet_diag_msg` and its attributes. None when it isn't a LAN socket
-/// with a `tcp_info` new enough to count bytes, or it's `away`.
-fn lan_socket(msg: &[u8], away: &Away) -> Option<Moved> {
+/// One `inet_diag_msg` and its attributes, with its cookie. None when the
+/// far end isn't private, or it has no `tcp_info` new enough to count bytes.
+fn lan_socket(msg: &[u8], away: &Away) -> Option<(u64, Sock)> {
 	let v6 = match i32::from(*msg.first()?) {
 		libc::AF_INET => false,
 		libc::AF_INET6 => true,
@@ -149,12 +155,12 @@ fn lan_socket(msg: &[u8], away: &Away) -> Option<Moved> {
 		})
 	};
 	let (near, far) = (addr(8)?, addr(24)?);
-	if !on_lan(near, far)?
-		|| away.mine.contains(&mapped(near))
-		|| away.guests.contains(&mapped(far))
-	{
+	if !on_lan(near, far)? {
 		return None;
 	}
+	let lan = !away.mine.contains(&mapped(near)) && !away.guests.contains(&mapped(far));
+	// a dual-stack socket's IPv4 client sends IPv4 headers
+	let wire_v6 = mapped(far).is_ipv6();
 	let cookie = u64::from(u32_at(msg, 44)?) | u64::from(u32_at(msg, 48)?) << 32;
 	let mut at = DIAG_MSG;
 	while at + 4 <= msg.len() {
@@ -164,10 +170,16 @@ fn lan_socket(msg: &[u8], away: &Away) -> Option<Moved> {
 		}
 		if u16_at(msg, at + 2)? == INET_DIAG_INFO {
 			let info = msg.get(at + 4..at + len)?;
-			let segs = |at: usize| u64::from(u32_at(info, at).unwrap_or(0)) * overhead(v6);
+			let segs = |at: usize| u64::from(u32_at(info, at).unwrap_or(0)) * overhead(wire_v6);
 			let sent = u64_at(info, ACKED)? + segs(SEGS_OUT);
 			let received = u64_at(info, RECEIVED)? + segs(SEGS_IN);
-			return Some((cookie, [sent, received]));
+			return Some((
+				cookie,
+				Sock {
+					moved: [sent, received],
+					lan,
+				},
+			));
 		}
 		at += align(len);
 	}
@@ -182,14 +194,15 @@ enum Dump {
 	Bad,
 }
 
-/// Every message of dump `seq` in one read, LAN sockets into `out`.
-fn parse(buf: &[u8], seq: u32, away: &Away, out: &mut HashMap<u64, [u64; 2]>) -> Dump {
+/// Every message of dump `seq` in one read, sockets with a private far end
+/// into `out`.
+fn parse(buf: &[u8], seq: u32, away: &Away, out: &mut HashMap<u64, Sock>) -> Dump {
 	walk(buf, seq, |kind, body| {
 		if kind != SOCK_DIAG_BY_FAMILY {
 			return;
 		}
-		if let Some((cookie, moved)) = lan_socket(body, away) {
-			out.insert(cookie, moved);
+		if let Some((cookie, sock)) = lan_socket(body, away) {
+			out.insert(cookie, sock);
 		}
 	})
 }
@@ -303,14 +316,17 @@ pub(crate) fn neighbors(mut each: impl FnMut(IpAddr, [u8; 6])) -> bool {
 	})
 }
 
-/// Bytes moved since `was`, sent and received. A socket that's new since
-/// then moved all it has. One that closed since then is gone, with what it
-/// moved after `was`.
-fn rise(was: &HashMap<u64, [u64; 2]>, now: &HashMap<u64, [u64; 2]>) -> [u64; 2] {
-	now.iter().fold([0; 2], |sum, (cookie, now)| {
-		let then = was.get(cookie).copied().unwrap_or_default();
-		[0, 1].map(|i| sum[i] + now[i].saturating_sub(then[i]))
-	})
+/// Bytes the LAN's sockets moved since `was`, sent and received. A socket
+/// that's new since then moved all it has. One that closed since then is
+/// gone, with what it moved after `was`. One that was away then counts from
+/// what it had then.
+fn rise(was: &HashMap<u64, Sock>, now: &HashMap<u64, Sock>) -> [u64; 2] {
+	now.iter()
+		.filter(|(_, s)| s.lan)
+		.fold([0; 2], |sum, (cookie, now)| {
+			let then = was.get(cookie).map_or([0; 2], |s| s.moved);
+			[0, 1].map(|i| sum[i] + now.moved[i].saturating_sub(then[i]))
+		})
 }
 
 /// The 5 series of the split network graph, from the 3 of
@@ -337,11 +353,13 @@ pub fn split([local, sent, received]: [f32; 3], [lan_sent, lan_received]: [f32; 
 pub struct LanReader {
 	/// What isn't the LAN's, though its far end is private.
 	pub(crate) away: Away,
-	sock: File,
+	/// None after a failed dump, since the kernel refuses a new dump on a
+	/// socket while an old one is still going.
+	sock: Option<File>,
 	buf: Vec<u8>,
 	seq: u32,
-	was: HashMap<u64, [u64; 2]>,
-	now: HashMap<u64, [u64; 2]>,
+	was: HashMap<u64, Sock>,
+	now: HashMap<u64, Sock>,
 	at: Option<Instant>,
 }
 
@@ -349,7 +367,7 @@ impl LanReader {
 	fn open() -> Option<LanReader> {
 		Some(LanReader {
 			away: Away::default(),
-			sock: netlink(libc::NETLINK_SOCK_DIAG)?,
+			sock: Some(netlink(libc::NETLINK_SOCK_DIAG)?),
 			// the kernel caps one read of a dump at 32 KiB
 			buf: vec![0; 32 * 1024],
 			seq: 0,
@@ -359,20 +377,27 @@ impl LanReader {
 		})
 	}
 
-	/// Every LAN socket of both families into `now`. False when a dump
-	/// failed, since a socket it missed would count all it has next time.
+	/// Every socket with a private far end, of both families, into `now`.
+	/// False when a dump failed, since a socket it missed would count all it
+	/// has next time. The socket goes with it, which ends what's left of the
+	/// dump, so the next poll can start its own.
 	fn poll(&mut self) -> bool {
 		self.now.clear();
+		let sock = match &mut self.sock {
+			Some(sock) => sock,
+			None => match netlink(libc::NETLINK_SOCK_DIAG) {
+				Some(sock) => self.sock.insert(sock),
+				None => return false,
+			},
+		};
 		for family in [libc::AF_INET, libc::AF_INET6] {
 			self.seq = self.seq.wrapping_add(1);
 			let seq = self.seq;
 			let (away, now) = (&self.away, &mut self.now);
-			if !dump(
-				&mut self.sock,
-				&mut self.buf,
-				&request(family as u8, seq),
-				|b| parse(b, seq, away, now),
-			) {
+			if !dump(sock, &mut self.buf, &request(family as u8, seq), |b| {
+				parse(b, seq, away, now)
+			}) {
+				self.sock = None;
 				return false;
 			}
 		}
@@ -502,8 +527,8 @@ mod tests {
 		let mut out = HashMap::new();
 		assert_eq!(parse(&buf, 0, &Away::default(), &mut out), Dump::More);
 		assert_eq!(out.len(), 2);
-		assert_eq!(out[&(1 << 40 | 7)], [1000 + 10 * 66, 5000 + 20 * 66]);
-		assert_eq!(out[&9], [100 + 86, 0]);
+		assert_eq!(out[&(1 << 40 | 7)].moved, [1000 + 10 * 66, 5000 + 20 * 66]);
+		assert_eq!(out[&9].moved, [100 + 86, 0]);
 		assert_eq!(
 			parse(&wrap(NLMSG_DONE, &[0; 4]), 0, &Away::default(), &mut out),
 			Dump::Done
@@ -541,7 +566,16 @@ mod tests {
 		buf.extend(seq(message("10.0.0.1", "10.0.0.3", 2, [7, 7], [0, 0]), 7));
 		let mut out = HashMap::new();
 		assert_eq!(parse(&buf, 7, &Away::default(), &mut out), Dump::More);
-		assert_eq!(out, HashMap::from([(2, [7, 7])]));
+		assert_eq!(
+			out,
+			HashMap::from([(
+				2,
+				Sock {
+					moved: [7, 7],
+					lan: true
+				}
+			)])
+		);
 		buf.extend(seq(wrap(NLMSG_DONE, &[0; 4]), 7));
 		assert_eq!(parse(&buf, 7, &Away::default(), &mut out), Dump::Done);
 	}
@@ -583,7 +617,11 @@ mod tests {
 		};
 		let mut out = HashMap::new();
 		assert_eq!(parse(&buf, 0, &away, &mut out), Dump::More);
-		let mut kept: Vec<u64> = out.into_keys().collect();
+		let mut kept: Vec<u64> = out
+			.into_iter()
+			.filter(|(_, s)| s.lan)
+			.map(|(c, _)| c)
+			.collect();
 		kept.sort_unstable();
 		assert_eq!(kept, [5, 6]);
 	}
@@ -607,7 +645,69 @@ mod tests {
 		};
 		let mut out = HashMap::new();
 		assert_eq!(parse(&buf, 0, &away, &mut out), Dump::More);
-		assert_eq!(out.into_keys().collect::<Vec<_>>(), [4]);
+		let kept: Vec<u64> = out
+			.into_iter()
+			.filter(|(_, s)| s.lan)
+			.map(|(c, _)| c)
+			.collect();
+		assert_eq!(kept, [4]);
+	}
+
+	// Test ID: df35c
+	#[test]
+	fn a_socket_that_stops_being_away_counts_from_its_last_read() {
+		let vm = |moved: [u64; 2]| message("192.168.1.123", "192.168.1.118", 1, moved, [0, 0]);
+		let mut away = Away {
+			mine: Vec::new(),
+			guests: vec![ip("192.168.1.118")],
+		};
+		let (mut was, mut now) = (HashMap::new(), HashMap::new());
+		parse(&vm([4_000_000, 9_000_000]), 0, &away, &mut was);
+		assert_eq!(rise(&HashMap::new(), &was), [0, 0], "away moves nothing");
+		// the VM went idle and aged out of the bridge's table
+		away.guests.clear();
+		parse(&vm([4_000_500, 9_000_200]), 0, &away, &mut now);
+		assert_eq!(rise(&was, &now), [500, 200]);
+	}
+
+	// Test ID: df35d
+	#[test]
+	fn a_dual_stack_socket_to_an_ipv4_client_counts_ipv4_headers() {
+		let mut buf = message(
+			"::ffff:192.168.1.123",
+			"::ffff:192.168.1.9",
+			1,
+			[1000, 2000],
+			[10, 20],
+		);
+		buf.extend(message("fd00::5", "fd00::9", 2, [1000, 2000], [10, 20]));
+		let mut out = HashMap::new();
+		parse(&buf, 0, &Away::default(), &mut out);
+		assert_eq!(out[&1].moved, [1000 + 10 * 66, 2000 + 20 * 66]);
+		assert_eq!(out[&2].moved, [1000 + 10 * 86, 2000 + 20 * 86]);
+	}
+
+	// Test ID: df35e
+	#[test]
+	#[cfg_attr(miri, ignore = "Miri has no sockets")]
+	fn a_dump_left_partway_is_one_gap() {
+		// enough sockets that a dump takes more than one read
+		let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+		let to = listener.local_addr().unwrap();
+		let pairs: Vec<_> = (0..200)
+			.map(|_| {
+				let c = std::net::TcpStream::connect(to).unwrap();
+				(c, listener.accept().unwrap().0)
+			})
+			.collect();
+		let mut r = LanReader::probe().expect("sock_diag needs no root");
+		// a read too short for one message cuts it, and the dump fails there
+		r.buf.truncate(64);
+		assert_eq!(r.read(), None);
+		r.buf.resize(32 * 1024, 0);
+		assert!(r.read().is_some(), "only the failed read is a gap");
+		assert!(r.read().is_some());
+		drop(pairs);
 	}
 
 	// Test ID: deqt7
@@ -655,8 +755,13 @@ mod tests {
 	// Test ID: dekq7
 	#[test]
 	fn a_new_socket_moved_all_it_has_and_a_closed_one_nothing() {
-		let was = HashMap::from([(1, [100, 1000]), (2, [50, 50])]);
-		let now = HashMap::from([(1, [150, 1600]), (3, [10, 20])]);
+		let lan = |m: [(u64, [u64; 2]); 2]| {
+			m.into_iter()
+				.map(|(c, moved)| (c, Sock { moved, lan: true }))
+				.collect::<HashMap<_, _>>()
+		};
+		let was = lan([(1, [100, 1000]), (2, [50, 50])]);
+		let now = lan([(1, [150, 1600]), (3, [10, 20])]);
 		assert_eq!(rise(&was, &now), [60, 620]);
 		assert_eq!(rise(&now, &now), [0, 0]);
 		assert_eq!(rise(&now, &HashMap::new()), [0, 0]);
