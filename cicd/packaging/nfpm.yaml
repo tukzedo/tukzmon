@@ -62,10 +62,21 @@ contents:
   - src: xfce/tukzmon.desktop
     dst: /usr/share/xfce4/panel/plugins/tukzmon.desktop
     file_info: { mode: 0644, mtime: "${TUKZMON_MTIME}" }
-  # The plugin looks beside its library first, then on PATH.
   - src: ${TUKZMON_RELEASE_DIR}/tukzmon-settings
     dst: /usr/bin/tukzmon-settings
     file_info: { mode: 0755, mtime: "${TUKZMON_MTIME}" }
+  # The plugin looks beside its library first, then on PATH, so the link
+  # keeps an older tukzmon-settings earlier on PATH from opening instead.
+  - src: ../../../../../bin/tukzmon-settings
+    dst: /usr/lib/x86_64-linux-gnu/xfce4/panel/plugins/tukzmon-settings
+    type: symlink
+    packager: deb
+    file_info: { mtime: "${TUKZMON_MTIME}" }
+  - src: ../../../../bin/tukzmon-settings
+    dst: /usr/lib64/xfce4/panel/plugins/tukzmon-settings
+    type: symlink
+    packager: rpm
+    file_info: { mtime: "${TUKZMON_MTIME}" }
   - src: license.txt
     dst: /usr/share/doc/tukzmon/copyright
     packager: deb

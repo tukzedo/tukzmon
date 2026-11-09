@@ -92,14 +92,24 @@ for fmt in deb rpm; do
 	"${nfpm}" package -f "${yaml}" -p "${fmt}" -t "${workDir}/${base}.${fmt}" > /dev/null || fDie "nfpm failed on ${base}.${fmt}"
 done
 
-## What went in, by path, against what nfpm.yaml asks for.
+## What went in, by path, against what nfpm.yaml asks for. Links show as
+## "path -> where it resolves to".
+fResolved() { # "path target" lines, or bare paths
+	local p='' t=''
+	while read -r p t; do
+		t="${t#-> }"
+		if [[ -n "${t}" ]]; then echo "${p} -> $(realpath -m -- "$(dirname -- "${p}")/${t}")"; else echo "${p}"; fi
+	done
+}
 want="$(printf '%s\n' /usr/bin/tukzmon-settings /usr/share/xfce4/panel/plugins/tukzmon.desktop)"
-got="$(dpkg-deb -c "${workDir}/${base}.deb" 2> /dev/null | awk '$1 !~ /^d/ { sub(/^\./, "", $6); print $6 }' | LC_ALL=C sort)"
-[[ "${got}" == "$(printf '%s\n' "${want}" /usr/lib/x86_64-linux-gnu/xfce4/panel/plugins/libtukzmon.so /usr/share/doc/tukzmon/copyright | LC_ALL=C sort)" ]] \
+debLib=/usr/lib/x86_64-linux-gnu/xfce4/panel/plugins
+got="$(dpkg-deb -c "${workDir}/${base}.deb" 2> /dev/null | awk '$1 !~ /^d/ { sub(/^\./, "", $6); print $6, $7, $8 }' | fResolved | LC_ALL=C sort)"
+[[ "${got}" == "$(printf '%s\n' "${want}" "${debLib}/libtukzmon.so" "${debLib}/tukzmon-settings -> /usr/bin/tukzmon-settings" /usr/share/doc/tukzmon/copyright | LC_ALL=C sort)" ]] \
 	|| fDie "the .deb has something else:"$'\n'"${got}"
 if command -v rpm > /dev/null 2>&1; then
-	got="$(rpm -qlp "${workDir}/${base}.rpm" 2> /dev/null | LC_ALL=C sort)"
-	[[ "${got}" == "$(printf '%s\n' "${want}" /usr/lib64/xfce4/panel/plugins/libtukzmon.so /usr/share/licenses/tukzmon/license.txt | LC_ALL=C sort)" ]] \
+	rpmLib=/usr/lib64/xfce4/panel/plugins
+	got="$(rpm -qp --qf '[%{FILENAMES} -> %{FILELINKTOS}\n]' "${workDir}/${base}.rpm" 2> /dev/null | sed 's/ -> $//' | fResolved | LC_ALL=C sort)"
+	[[ "${got}" == "$(printf '%s\n' "${want}" "${rpmLib}/libtukzmon.so" "${rpmLib}/tukzmon-settings -> /usr/bin/tukzmon-settings" /usr/share/licenses/tukzmon/license.txt | LC_ALL=C sort)" ]] \
 		|| fDie "the .rpm has something else:"$'\n'"${got}"
 else
 	echo "WARNING: no rpm here, so the .rpm's contents went unchecked"
@@ -118,3 +128,5 @@ echo "depends: glibc ${glibc}, ${#sonames[@]} linked libraries"
 ##		- 2026-10-25: Created from tukfs-hash's package.bash: the plugin, its
 ##		  .desktop file and tukzmon-settings, with the depends checked.
 ##		- 2026-10-30: One dpkg-query for every linked library.
+##		- 2026-11-09: A link to tukzmon-settings beside the library, checked by
+##		  where it resolves.

@@ -234,7 +234,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 18: With the .deb or .rpm, Properties runs whichever tukzmon-settings comes first on PATH
 	- ID: 2026110709074418
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -243,7 +243,24 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: The older window opens on the item's file.
 	- Expected behavior: The package's own window, which is why design.md gives the Nix package its link.
 	- Possible cause: The plugin looks beside its library, then on PATH, and the packages put the program only in `/usr/bin`.
+	- Reproduced: No. The packages' contents showed it: neither had anything beside the library.
+	- Actual cause: As above. `nfpm.yaml` put `tukzmon-settings` only in `/usr/bin`.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Both packages have a relative link to `/usr/bin/tukzmon-settings` beside the library, as the Nix package does.
+		- The Packages step now checks each package's link, and where it resolves.
+		- design.md XFCE plugin has it.
+		- Verified: the quick gate and Sanitizers passed, and so did `--backlog-run-quick release package`. The .deb built twice gave the same bytes. lintian had nothing on the link.
+		- Verified: df38w failed on the old `nfpm.yaml`, and on a link one folder short, and passed on the fix.
+	- Decisions:
+		- A relative link, per Debian policy for links within `/usr`, and as the Nix package's is.
+		- A link, not a second copy, so there's one program and `/usr/bin` still has it for running by hand.
+		- Swept: `nix/package.nix` has its link already. `utility/dev-install.bash` copies the program beside the library. The plugin's lookup (`settings_program`) is unchanged, and `windows_on` matches argv[0] by its ending, which the link's path keeps.
+	- Actual fix: two `type: symlink` entries in `cicd/packaging/nfpm.yaml`, and the content check in `cicd/utility/package.bash`.
+	- Branch: round-1109b
+	- Test case: `each_package_links_tukzmon_settings_beside_the_library` (df38w), and the Packages step's content check.
+	- Closed: 20261109-153252
 
 - Code review 20261107 item 19: knobs' spec checks let a relation loop, case-only twins, a NaN range end, and a text chooser through
 	- ID: 2026110709074419

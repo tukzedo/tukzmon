@@ -183,6 +183,32 @@ fTest_no_file_a_package_holds_counts_as_docs_for_the_hook() {
 	((ok))
 }
 
+## Test ID: df38w
+fTest_each_package_links_tukzmon_settings_beside_the_library() {
+	local entries='' pkgr='' lib='' bin='' link='' src=''
+	## One "dst|src|type|packager" line per contents entry.
+	entries="$(awk '
+		function flush() { if (dst != "") print dst "|" src "|" type "|" pk; dst = src = type = pk = "" }
+		/^contents:/ { on = 1; next }
+		on && /^[^ #]/ { flush(); on = 0 }
+		!on { next }
+		/^  - src:/ { flush(); src = $3 }
+		/^    dst:/ { dst = $2 }
+		/^    type:/ { type = $2 }
+		/^    packager:/ { pk = $2 }
+		END { flush() }' "${cicd}/packaging/nfpm.yaml")"
+	bin="$(awk -F'|' '$1 ~ /\/tukzmon-settings$/ && $3 == "" && $4 == "" { print $1 }' <<< "${entries}")"
+	[[ "${bin}" == /usr/bin/tukzmon-settings ]] || { fWhy "tukzmon-settings goes to '${bin}'"; return 1; }
+	for pkgr in deb rpm; do
+		lib="$(awk -F'|' -v p="${pkgr}" '$1 ~ /\/libtukzmon\.so$/ && $4 == p { print $1 }' <<< "${entries}")"
+		[[ -n "${lib}" ]] || { fWhy "no libtukzmon.so for the ${pkgr}"; return 1; }
+		link="$(dirname -- "${lib}")/tukzmon-settings"
+		src="$(awk -F'|' -v d="${link}" -v p="${pkgr}" '$1 == d && $3 == "symlink" && ($4 == p || $4 == "") { print $2 }' <<< "${entries}")"
+		[[ -n "${src}" ]] || { fWhy "the ${pkgr} has no link at ${link}"; return 1; }
+		[[ "$(realpath -m -- "$(dirname -- "${link}")/${src}")" == "${bin}" ]] || { fWhy "the ${pkgr}'s ${link} -> ${src} isn't ${bin}"; return 1; }
+	done
+}
+
 ## Test ID: deqvm
 fTest_a_gate_the_hook_started_doesnt_count_the_hook_as_another_run() {
 	local t="${work}/other-run" live='' out='' ok=0
@@ -907,3 +933,4 @@ exit "${failed}"
 ##		- 2026-11-09: The pre-push hook gates the commit, not the checkout.
 ##		- 2026-11-09: A demo stopped by TERM cleans up, and one killed leaves a
 ##		  folder the stale sweep takes.
+##		- 2026-11-09: Each package links tukzmon-settings beside the library.
