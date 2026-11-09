@@ -760,6 +760,36 @@ fTest_a_bad_memory_cap_starts_nothing_and_a_good_one_reruns_the_run_in_a_capped_
 	done
 }
 
+## Test ID: df31j
+fTest_the_demos_wm_panel_and_settings_window_get_nothing_of_the_live_session() {
+	local out=''
+	## numpy and python-xlib are stubbed, since the image has neither and only
+	## the env is checked.
+	if ! out="$(SESSION_MANAGER='local/x:@/tmp/.ICE-unix/1' DBUS_SESSION_BUS_ADDRESS='unix:path=/run/x' SSH_AUTH_SOCK=/run/x/ssh \
+		XDG_SESSION_ID=2 XAUTHORITY=/run/x/xa WAYLAND_DISPLAY=wayland-0 GTK_MODULES=atk-bridge TUKZMON_STRAY=1 LANG=C.UTF-8 LC_TIME=C.UTF-8 \
+		python3 -I -B - "${cicd}/utility/demo/demo-video.py" 2>&1 <<- 'EOF'
+			import importlib.util, sys, types
+			from pathlib import Path
+			stub = types.ModuleType("stub")
+			stub.__getattr__ = lambda name: object
+			sys.modules.update({"numpy": stub, "Xlib": stub, "Xlib.X": stub, "Xlib.display": stub})
+			spec = importlib.util.spec_from_file_location("demo", sys.argv[1])
+			demo = importlib.util.module_from_spec(spec)
+			spec.loader.exec_module(demo)
+			profile = types.SimpleNamespace(scale=1, size=(960, 540), band=0)
+			screen = demo.Screen(":89", profile, types.SimpleNamespace(path=Path("/nowhere")))
+			panel = demo.Panel(screen, Path("/nowhere"), Path("/nowhere"))
+			for name, env in (("Screen.env", screen.env()), ("Panel.desk_env", panel.desk_env())):
+			    live = sorted(k for k in env if k in ("SESSION_MANAGER", "DBUS_SESSION_BUS_ADDRESS", "SSH_AUTH_SOCK", "XDG_SESSION_ID", "XAUTHORITY", "WAYLAND_DISPLAY", "GTK_MODULES", "TUKZMON_STRAY"))
+			    if live or env.get("DISPLAY") != ":89" or "PATH" not in env or env.get("LC_TIME") != "C.UTF-8":
+			        sys.exit(f"{name}: live {live}, DISPLAY {env.get('DISPLAY')}, PATH {'PATH' in env}, LC_TIME {env.get('LC_TIME')}")
+		EOF
+	)"; then
+		fWhy "${out}"
+		return 1
+	fi
+}
+
 failed=0
 while read -r id fn; do
 	if "${fn}"; then echo "PASS ${id} ${fn#fTest_}"; else echo "FAIL ${id} ${fn#fTest_}"; failed=1; fi
@@ -789,3 +819,5 @@ exit "${failed}"
 ##		  per set of skipped rules.
 ##		- 2026-11-09: The memory cap: its default and values, on every
 ##		  container, and the run's rerun in a capped scope.
+##		- 2026-11-09: The demo's WM, panel and settings window get nothing of
+##		  the live session's env.

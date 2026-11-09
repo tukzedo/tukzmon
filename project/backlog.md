@@ -7111,7 +7111,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 3: The demo's window manager, panel and settings window join the live desktop session
 	- ID: 2026110709074403
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: High
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7123,6 +7123,20 @@ Sorted per the notes in [Template](#template).
 	- Possible cause: `Screen.env` copies the whole environment and drops only 4 names from it.
 	- Sweep: `Panel.desk_env`, `start_wm`, and the settings window the demo's plugin starts.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Actual cause: `Screen.env` passed on everything but 4 names, so `SESSION_MANAGER`, the ssh agent, `GTK_MODULES` and the session's XDG names all reached the WM, the panel and what they start.
+	- Actual fix: `Screen.env` keeps only `KEPT_ENV` (path, home, user, shell, locale, time zone and temp names) plus `LC_*`. `start_wm` and `Panel.desk_env` build on it, and the settings window inherits the panel's.
+	- Decisions:
+		- 2026-11-09: a short list of names to keep, rather than a longer list to drop, so a session name nobody thought of can't get through either.
+		- 2026-11-09: the desktop's own GTK and XDG settings no longer reach the recording, so it looks the same whoever records it. The settings scene's shots looked as before.
+	- Progress log:
+		- Verified: df31j failed on the old script, with `SESSION_MANAGER`, `SSH_AUTH_SOCK`, `GTK_MODULES` and `XDG_SESSION_ID` getting through, and passes now.
+		- Verified: the settings scene ran with a stand-in `SESSION_MANAGER` and ssh agent, and none of the demo's processes had either. The only bus address they held was the one `dbus-run-session` gave them.
+		- Verified: the quick gate's format, lint and test areas passed.
+		- Swept: `Screen.env`, `start_wm`, `Panel.desk_env`, the tray, the settings window, and each subprocess call with no `env=`. Xvfb, ffmpeg's audio step, ffprobe and gifsicle still take the whole environment, but none of them is a session client.
+	- Branch: round-1109
+	- Test case: df31j
+	- Closed: 20261109-113915
 
 - Code review 20261107 item 4: With 2 windows on one file, or a hand edit, Apply drops or reverts theme edits
 	- ID: 2026110709074404

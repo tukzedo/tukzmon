@@ -153,6 +153,13 @@ DEMO_PREFIX = "/opt/tukzmon"
 MARK = "TUKZMON_DEMO_RUN"
 DESK_MARK = "TUKZMON_DEMO_DESK"
 
+# The clients on the private display get only these, plus LC_*. Anything else
+# from the desktop it's started in, such as SESSION_MANAGER, the session bus or
+# the ssh agent, would let the WM, panel or settings window reach the live session.
+KEPT_ENV = frozenset(
+    ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LANGUAGE", "TZ", "TMPDIR", "TMP", "TEMP", "HOST_TEMP")
+)
+
 
 class Take(enum.Enum):
     VIDEO = "video"
@@ -395,12 +402,9 @@ class Screen:
         self.x: xdisplay.Display | None = None
 
     def env(self) -> dict[str, str]:
-        e = dict(os.environ)
+        e = {k: v for k, v in os.environ.items() if k in KEPT_ENV or k.startswith("LC_")}
         e.update(DISPLAY=self.display)
         e[MARK] = str(self.work.path)
-        # with these set a GTK or Qt app would open on the real desktop
-        for k in ("WAYLAND_DISPLAY", "XDG_SESSION_TYPE", "DBUS_SESSION_BUS_ADDRESS", "XAUTHORITY"):
-            e.pop(k, None)
         return e
 
     def px(self, lx: float, ly: float) -> tuple[int, int]:
@@ -1538,3 +1542,5 @@ if __name__ == "__main__":
 ##		  rotation stops the run. The pointer moves through XTEST, the caption
 ##		  band's strut is on the same connection, and the panel stop waits on
 ##		  pidfds after one scan.
+##		- 2026-11-09: Its processes get only a short list of env names, so the
+##		  WM, panel and settings window never reach the live session.
