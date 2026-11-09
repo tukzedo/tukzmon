@@ -7248,7 +7248,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 7: A demo stopped by TERM leaves its X session running, a FUSE mount, and a folder no sweep removes
 	- ID: 2026110709074407
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7260,6 +7260,22 @@ Sorted per the notes in [Template](#template).
 	- Possible cause: Python's default TERM skips the `finally` blocks, and the demo makes its folder without the pipeline's run marker.
 	- Sweep: the demo's `safe_rmtree`, which crosses mount points where the pipeline's removal stays on one file system.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Actual cause: as above. Also, `shutil.rmtree` walked into a live mount inside the folder and deleted what it showed.
+	- Actual fix: `exit_on_term` turns TERM and HUP into an exit that runs every `finally`. The folder the demo makes gets a `run.pid` in `fPidStamp`'s form. `safe_rmtree` unmounts a FUSE mount inside the folder, and leaves the folder with a warning if any mount is still there.
+	- Progress log:
+		- Verified: df336 fails on the old script and passes now.
+		- Verified: TERM to a settings scene run gave exit 143, and the 22 processes and the mount it had were gone, with its folder.
+		- Verified: `safe_rmtree` took a folder with a live FUSE mount and one with a dead one, and kept what the mount showed. The old one deleted those files through the live mount.
+		- Verified: the quick gate's format, lint and test areas passed.
+	- Decisions:
+		- HUP goes the same way as TERM, since a closed terminal leaves the same mess. A second signal during cleanup is ignored, so the cleanup isn't cut short. Ctrl+C was already an exception.
+		- A mount that isn't FUSE isn't ours to unmount, so the folder is left for a person rather than walked into.
+	- Branch: round-1109
+	- Commit: ac434da
+	- Test case: df336
+		- Swept: every removal in the script (`Rec.cleanup` and `main`, both through `safe_rmtree`), and every place it makes a folder. Under cicd the demo works in the run's own folder, which has its `run.pid`.
+	- Closed: 20261109-123206
 
 - Demo GIF: Status tray and notification icons too close together
 	- ID: 2026110911114063
