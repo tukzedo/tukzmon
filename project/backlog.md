@@ -611,7 +611,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 2: Reset history in a window whose item keeps no history asks nothing, then deletes the saved history of items that keep it
 	- ID: 2026110709074402
 	- Type: Bug
-	- Status: Done
+	- Status: Queued
 	- Priority|Severity: High
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -633,6 +633,7 @@ Sorted per the notes in [Template](#template).
 		- The question now says Keep across restarts is on for this or another panel item.
 		- `design.md` Settings window has it.
 		- Verified: the quick gate passed, with the Sanitizers step run on its own.
+		- 2026-11-09: Answer on the Check: when the button is pressed, all monitors should be cleared whether active or not. So Reset history clears every item's history, Keep across restarts on or off, and every running item resets. Reopened for that.
 	- Decisions:
 		- It asks when any item keeps history, which goes past 2026102814061807's wording, as the Against row says. Its reason holds per item, since each running item that keeps history deletes its own file whichever window pressed Reset.
 		- The plugin is unchanged. It deletes its own file by its own Keep, which is what the window now goes by too.
@@ -642,7 +643,6 @@ Sorted per the notes in [Template](#template).
 	- Test case: `dialog::tests::reset_history_asks_and_deletes_by_each_items_own_keep` (df315). It fails with the fix taken out, at the question in the window of the item that keeps no history, and passes after.
 		- 2026-11-09: dejaf opens `plugin-3.shcl` rather than `t.shcl`, so its window is the item its history file belongs to. Its asserts are unchanged.
 		- Swept: every `Dialog::reset_deletes_saved` caller (the button in `qt.cpp`, through the bridge), every `keep::reset` caller (the window, defxq, deqs9 and dejae), and the plugin's `reset_if_asked`, which deletes only its own file by its own Keep.
-	- Closed: 20261109-112716
 
 - Code review 20261107 item 3: The demo's window manager, panel and settings window join the live desktop session
 	- ID: 2026110709074403
