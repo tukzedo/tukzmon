@@ -242,6 +242,41 @@ impl Split {
 	}
 }
 
+/// Whether graphs slide between samples. `animate` in settings.shcl, and
+/// design.md Drawing.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Motion {
+	/// On with 8 or more CPUs, since it draws about 30 times a second.
+	#[default]
+	Auto,
+	/// Always slides.
+	On,
+	/// A whole step at each sample.
+	Off,
+}
+
+impl Motion {
+	/// From the settings file's value, in any case.
+	pub fn parse(s: &str) -> Option<Motion> {
+		[
+			("auto", Motion::Auto),
+			("on", Motion::On),
+			("off", Motion::Off),
+		]
+		.into_iter()
+		.find_map(|(key, v)| s.eq_ignore_ascii_case(key).then_some(v))
+	}
+
+	/// True when graphs slide on a box with `cpus` CPUs.
+	pub fn slides(self, cpus: f32) -> bool {
+		match self {
+			Motion::Auto => cpus >= 8.0,
+			Motion::On => true,
+			Motion::Off => false,
+		}
+	}
+}
+
 /// The group every color is in, and the id of the dropdown that picks one.
 pub const THEME: &str = "theme";
 
@@ -858,6 +893,8 @@ pub struct Look {
 	pub sample_ms: u32,
 	/// What the hover tip says about the time under the pointer.
 	pub said: Said,
+	/// Whether graphs slide between samples.
+	pub motion: Motion,
 	/// 0 to 1.
 	pub spikes: f32,
 	/// The frame's width in logical pixels.
@@ -968,6 +1005,7 @@ impl Look {
 				.unwrap_or_default(),
 			sample_ms: num("sample_ms") as u32,
 			said: Said::parse(m.value("hover_time", &NoEnv).as_text()).unwrap_or_default(),
+			motion: Motion::parse(m.value("animate", &NoEnv).as_text()).unwrap_or_default(),
 			spikes: (num("spikes") / 100.0) as f32,
 			border: num("border") as u32,
 			margin_tb: num("margin_tb") as u32,
@@ -1257,6 +1295,18 @@ mod tests {
 		assert_eq!(l.spikes, 0.75);
 		assert_eq!(l.hover, Rgb(0, 0, 0));
 		assert_eq!(l.said, Said::Ago);
+	}
+
+	// Test ID: df3e3
+	#[test]
+	fn smooth_scrolling_reads_and_auto_goes_by_the_cpus() {
+		let read = |text: &str| Look::from_model(&Model::load(spec(), text, "")).motion;
+		assert_eq!(Look::default().motion, Motion::Auto);
+		assert_eq!(read("graph:\n\tanimate: off\n"), Motion::Off);
+		assert_eq!(read("graph:\n\tanimate: On\n"), Motion::On);
+		assert_eq!(read("graph:\n\tanimate: sideways\n"), Motion::Auto);
+		assert!(Motion::Auto.slides(8.0) && !Motion::Auto.slides(7.0));
+		assert!(Motion::On.slides(1.0) && !Motion::Off.slides(64.0));
 	}
 
 	// Test ID: dencn

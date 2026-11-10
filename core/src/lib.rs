@@ -428,6 +428,8 @@ pub struct Graph<S: Source<N> = CpuReader, const N: usize = 4> {
 	/// The beat of the last read from [`Graph::tick`], and its time on
 	/// [`clock_ms`].
 	beat: Option<(f64, f64)>,
+	/// Where the right edge was drawn when the newest sample came, and when.
+	slide: Option<(f64, f64)>,
 }
 
 // By hand, to leave out the pixel buffer and the samples.
@@ -559,6 +561,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 			peak: Peak::default(),
 			hover: None,
 			beat: None,
+			slide: None,
 		}
 	}
 
@@ -591,6 +594,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 	pub fn pause(&mut self) {
 		self.read_at = None;
 		self.latest = None;
+		self.slide = None;
 	}
 
 	/// Drops history older than the max age.
@@ -604,6 +608,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		self.hist = History::default();
 		self.latest = None;
 		self.peak = Peak::default();
+		self.slide = None;
 	}
 
 	/// Swaps in the saved history, if there is one that reads. The time since
@@ -647,6 +652,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		}
 		self.hist = saved;
 		self.read_at = None;
+		self.slide = None;
 		self.trim();
 		true
 	}
@@ -679,10 +685,54 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		let now = self.epoch + steady;
 		let shares = self.src.read();
 		if let (Some(v), Some(was)) = (shares, self.read_at) {
+			let shown = self.edge();
 			self.hist.add(was, now, &v);
 			self.latest = Some(v);
+			// a gap or a jump is the axis ease's, not a slide
+			self.slide = shown
+				.filter(|&from| self.slides() && now - from <= self.slack())
+				.map(|from| (from, self.now()));
 		}
 		self.read_at = Some(now);
+	}
+
+	fn slides(&self) -> bool {
+		self.look.motion.slides(cpus())
+	}
+
+	// a sample may come late by most of a tick, and a tick may be missed
+	fn slack(&self) -> f64 {
+		2.0 * self.period() + 0.25
+	}
+
+	fn period(&self) -> f64 {
+		f64::from(self.sample_ms()) / 1000.0
+	}
+
+	/// The time at the right edge as drawn: the newest sample's end, or on
+	/// the way there while it slides in. None with no history yet.
+	fn edge(&self) -> Option<f64> {
+		let last = self.hist.last()?;
+		let Some((from, at)) = self.slide.filter(|_| self.slides()) else {
+			return Some(last);
+		};
+		// a steady speed, so the next slide starts as this one ends
+		let k = ((self.now() - at) / self.period()).clamp(0.0, 1.0);
+		Some(from + (last - from) * k)
+	}
+
+	/// True while the newest sample is still sliding in.
+	pub fn sliding(&self) -> bool {
+		self.slides()
+			&& self
+				.slide
+				.is_some_and(|(_, at)| self.now() - at < self.period())
+	}
+
+	/// True while the graph moves between samples, as it slides or its axis
+	/// eases, so the panel should draw again soon.
+	pub fn moving(&self) -> bool {
+		self.sliding() || self.easing()
 	}
 
 	/// How often this graph is read, in ms.
@@ -723,7 +773,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		match S::timing(&self.look) {
 			Timing::Log(curve) => Basis::Log {
 				curve,
-				span: self.hist.first().zip(self.hist.last()),
+				span: self.hist.first().zip(self.edge()),
 			},
 			Timing::Linear => Basis::Linear(columns as f64 * f64::from(self.sample_ms()) / 1000.0),
 		}
@@ -747,7 +797,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 	/// The time under the hover line at device column `x`, oldest end first, as
 	/// `render` at that size draws it. None with no history yet.
 	pub fn span_at(&self, x: usize, w: usize, h: usize, scale: usize) -> Option<(f64, f64)> {
-		let now = self.hist.last()?;
+		let now = self.edge()?;
 		let border = self.border_px(w, h, scale);
 		if w <= 2 * border || h <= 2 * border {
 			return None;
@@ -797,9 +847,8 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		let basis = self.basis(self.columns(w, scale));
 		let axis = Axis::of(&basis);
 		let t = self.now();
-		// a sample may come late by most of a tick, and a tick may be missed
-		let slack = 2.0 * f64::from(self.sample_ms()) / 1000.0 + 0.25;
-		self.ease.update(&axis, basis, t, slack);
+		let edge = self.edge().unwrap_or(0.0);
+		self.ease.update(&axis, basis, t, self.slack());
 		let peak = self.src.peak_floor().map(|floor| Scale {
 			peak: &mut self.peak,
 			floor,
@@ -807,7 +856,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		Frame {
 			hist: &self.hist,
 			axis: &self.ease.view(&axis, t),
-			now: self.hist.last().unwrap_or(0.0),
+			now: edge,
 			look: &self.look,
 			paint: S::paint(&self.look),
 			outline: S::outline(&self.look),
@@ -832,6 +881,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use config::Motion;
 
 	// Test ID: debj4
 	#[test]
@@ -1275,6 +1325,99 @@ mod tests {
 
 	fn near_secs(a: f64, b: f64) -> bool {
 		(a - b).abs() < 1e-6
+	}
+
+	// Test ID: df3e1
+	#[test]
+	#[cfg_attr(miri, ignore = "Miri runs too slow for the real clock's margins")]
+	fn a_new_sample_slides_in_at_a_steady_speed_but_a_gap_does_not() {
+		let look = |motion| {
+			Look {
+				motion,
+				sample_ms: 1000,
+				..Look::default()
+			}
+			.with(Which::Mem, |e| e.sample = 100)
+		};
+		let near = |a: f64, b: f64| (a - b).abs() < 0.02;
+		// memory, since CPU reads nothing when no real time went by
+		let mut g = Graph::with(look(Motion::On), MemoryReader::default());
+		g.sample();
+		g.skip(1.0);
+		g.sample();
+		g.skip(1.0);
+		g.sample();
+		let (from, _) = g.slide.unwrap();
+		let last = g.hist.last().unwrap();
+		assert!(near(last - from, 1.0));
+		assert!(
+			near(g.edge().unwrap(), from),
+			"it starts where it was drawn"
+		);
+		assert!(g.sliding() && g.moving());
+		g.skip(0.5);
+		assert!(
+			near(g.edge().unwrap(), from + 0.5),
+			"half way at half the time"
+		);
+		g.skip(0.5);
+		assert_eq!(g.edge(), Some(last));
+		assert!(!g.sliding());
+		g.skip(10.0);
+		g.sample();
+		assert_eq!(g.edge(), g.hist.last(), "a gap is the ease's");
+		assert!(!g.sliding());
+
+		let mut off = Graph::with(look(Motion::Off), MemoryReader::default());
+		for _ in 0..2 {
+			off.sample();
+			off.skip(1.0);
+		}
+		off.sample();
+		assert_eq!(off.edge(), off.hist.last());
+		assert!(!off.sliding());
+	}
+
+	// Test ID: df3e2
+	#[test]
+	#[cfg_attr(miri, ignore = "Miri runs too slow for the real clock's margins")]
+	fn the_right_column_fills_as_the_sample_slides_in_and_the_tip_follows() {
+		let mut g = Graph::new(
+			Look {
+				motion: Motion::On,
+				time: Timing::Linear,
+				sample_ms: 1000,
+				spikes: 0.0,
+				..Look::default()
+			}
+			.with(Which::Cpu, |e| e.sample = 100),
+		);
+		let now = g.now();
+		g.hist.add(now - 10.0, now - 1.0, &[0.0; 4]);
+		g.hist.add(now - 1.0, now, &[1.0, 0.0, 0.0, 0.0]);
+		g.slide = Some((now - 1.0, g.now()));
+		// 10 columns of 1 s inside a 1 px border
+		let (w, h) = (12, 20);
+		let right = w - 2;
+		let column = |g: &mut Graph| {
+			let px = g.render(w, h, 1);
+			(1..h - 1).map(|y| px[y * w + right]).collect::<Vec<_>>()
+		};
+		let start = column(&mut g);
+		g.skip(0.5);
+		let half = column(&mut g);
+		let (a, b) = g.span_at(right, w, h, 1).unwrap();
+		assert!(
+			(b - (now - 0.5)).abs() < 0.02 && (b - a - 1.0).abs() < 1e-6,
+			"{a} {b}"
+		);
+		g.skip(0.6);
+		let end = column(&mut g);
+		let user = end[end.len() - 1];
+		let filled = |c: &[u32]| c.iter().filter(|&&p| p == user).count();
+		assert_eq!(filled(&start), 0, "{start:x?}");
+		assert!((7..=11).contains(&filled(&half)), "{half:x?}");
+		assert!(filled(&end) >= 17, "{end:x?}");
 	}
 
 	// Test ID: decc7

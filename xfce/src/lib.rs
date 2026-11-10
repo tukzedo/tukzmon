@@ -559,7 +559,7 @@ fn draw_graphs(p: &mut Plugin, widget: *mut c_void, cr: *mut c_void) -> Gboolean
 		cairo_set_source_surface(cr, surf, 0.0, 0.0);
 		cairo_paint(cr);
 		cairo_surface_destroy(surf);
-		if p.frame == 0 && p.graphs.easing() {
+		if p.frame == 0 && p.graphs.moving() {
 			// SAFETY: as start_timer, and free-data stops this one too.
 			p.frame = g_timeout_add(FRAME_MS, frame, std::ptr::from_mut(p).cast());
 		}

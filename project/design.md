@@ -435,6 +435,12 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - A column with data for less than half its time is drawn as a gap.
 
+- With Smooth scrolling on, a graph slides to its newest sample rather than stepping to it. The right edge runs one sample behind. It moves from where it was drawn to the newest sample's end at a steady speed, over the time until the next sample, so one slide ends as the next one starts. A column at the edge covers part of 2 samples, weighted like any other, and that's what draws it part way.
+	- A step longer than a late or missed tick allows, as after a gap, isn't slid. The time axis eases it in instead.
+	- Auto, the default, turns it on with 8 or more CPUs, as `available_parallelism` counts them, since it costs a frame about every 33 ms rather than one a sample.
+	- The panel and the settings window's graph list draw about 30 times a second while a graph slides, as they do while an axis eases.
+	- The hover tip and a log axis's span go by the edge as drawn, not the newest sample.
+
 - With the pointer over the graph, a line one pixel wide is drawn under it, black unless set otherwise, over the plot rather than the border. The tip gives the time under the line, either as "7 hrs ago" or as the local time, with the date for anything before today. The time and date follow the locale's short formats, so 12 or 24 hour is its call too. Under that are that graph's shares across the line's column, each name and value on a line of its own, or "No data" for a gap.
 
 - A still pointer's tip keeps its age and moves its clock time. The right edge is always now and the graph scrolls left under the pointer, so each column is a fixed age, while the time in that column advances a sample each tick. Both describe the column under the line. The line and tip follow the column rather than the moment that was first pointed at.

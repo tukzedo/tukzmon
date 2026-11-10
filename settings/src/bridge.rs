@@ -226,7 +226,7 @@ pub mod ffi {
 		/// A tip broken into lines of at most `TIP_CHARS` characters.
 		fn wrap_tip(text: &str) -> String;
 		/// True while the graph's time axis eases in, so it wants drawing again soon.
-		fn live_easing(l: &Live, name: &str) -> bool;
+		fn live_moving(l: &Live, name: &str) -> bool;
 	}
 
 	unsafe extern "C++" {
@@ -668,8 +668,8 @@ pub fn wrapped(text: &str, width: usize) -> String {
 	out
 }
 
-fn live_easing(l: &Live, name: &str) -> bool {
-	l.easing(name)
+fn live_moving(l: &Live, name: &str) -> bool {
+	l.moving(name)
 }
 
 /// Shows the window until it closes, or saves pictures of it to `snapshot`

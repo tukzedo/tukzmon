@@ -74,6 +74,8 @@ The first release is 1.0.0-beta.1. Although beta, it's very solid. Packages for 
 
 - Hover over a graph to see its values at that point, and how long ago that was.
 
+- Graphs slide along smoothly between samples, rather than jumping a step at a time. It's on by default wiht 8 or more CPUs.
+
 - There are 9 built-in color themes, plus any you save yourself. Randomize rolls a new set of colors that stay easy to tell apart.
 
 - The settings window draws live graphs, and they follow your changes before you apply them.

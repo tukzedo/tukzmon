@@ -137,6 +137,55 @@ Sorted per the notes in [Template](#template).
 		- Maybe animate over 1/2 of each graph's update ms? Smooth animation at high fps.
 		- If this makes sense: An even division of the screen refresh rate, minimum 30, max 60. With smooth antialiasing.
 		- It should look absolutely incredibly buttery smooth.
+	- Progress log:
+		- Split in 2: the setting and the slide in 2026110918080223, and frames at the screen's rate with the CPU cost in 2026110918081021.
+
+- Smooth scrolling: the setting, and each graph sliding between samples
+	- ID: 2026110918080223
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- Watch a panel with Smooth scrolling on, and say whether the slide looks smooth enough at about 30 frames a second, before 2026110918081021 paces it to the screen.
+	- Needs hand testing: A panel on b23 with this build, Smooth scrolling on and off.
+	- Priority|Severity: Avg
+	- Opened: 20261109-180802
+	- Opened by: t00mietum
+	- Parent ID: 2026110911114024
+	- Requirements:
+		- A Smooth scrolling setting, on by default with 8 or more CPUs.
+		- Each graph slides to its newest sample over the time to the next one, rather than jumping a step.
+		- The hover tip matches what's drawn.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- General, under Time axis, has Smooth scrolling: Auto, On or Off, at `graph.animate`. Auto is the default, and is on with 8 or more CPUs.
+		- The right edge runs one sample behind and slides to the newest sample at a steady speed over one sample period. The edge column is drawn part way, weighted like any other.
+		- The panel and the settings window's graph rows redraw every 33 ms while a graph slides, through the frame timers the axis ease already had.
+		- `design.md` Drawing and README Features have it.
+		- Verified: the quick gate and Sanitizers passed. The new tests failed with the edge left at the newest sample, and df3e2 also with the tip going by the newest sample. The General tab still fits with no scroll bar.
+		- A panel tick costs about 620 us of CPU, 274 of it user, on the profiler's 7 graphs. So 30 frames a second likely costs around ten times an idle panel. The panel's own number is on 2026110918081021.
+	- Decisions:
+		- A dropdown with Auto, not a checkbox, so the default follows the box a settings file is used on, and isn't saved as one box's answer.
+		- CPUs as `available_parallelism` counts them, threads included, the same count the load graph uses.
+		- The slide takes the whole sample period at a steady speed, not half of it. Half with easing stops the graph once a sample, which reads as a pulse. A steady one never stops.
+		- A step longer than the ease's slack, as after a gap, isn't slid, so the axis ease stays the one that handles jumps.
+		- `Drawn::moving` is new, and the 2 frame timers use it. `easing` keeps its meaning, so its tests stand.
+	- Branch: round-1109b
+	- Test case: `tests::a_new_sample_slides_in_at_a_steady_speed_but_a_gap_does_not` (df3e1), `tests::the_right_column_fills_as_the_sample_slides_in_and_the_tip_follows` (df3e2), and `config::tests::smooth_scrolling_reads_and_auto_goes_by_the_cpus` (df3e3).
+		- Swept: every `hist.last()` in `Graph` that places the right edge (`basis`, `span_at`, `render_in`), both frame timers (the plugin's draw, qt.cpp's `LiveGraph`), and every `Drawn` impl.
+
+- Smooth scrolling: frames at the screen's rate, and the CPU cost
+	- ID: 2026110918081021
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261109-180810
+	- Opened by: t00mietum
+	- Parent ID: 2026110911114024
+	- Prereq IDs: 2026110918080223
+	- Requirements:
+		- While a graph slides, draw at an even division of the screen's refresh rate, from 30 to 60 a second, in the panel and in the settings window's graph rows, in place of the fixed 33 ms timer.
+		- Measure the panel's CPU with Smooth scrolling on and off. If on costs too much for a panel that runs all day, revisit what Auto turns on.
+	- Estimated effort: Avg
 
 - Reduce motion if a remote desktop session is detected
 	- ID: 2026110911114037

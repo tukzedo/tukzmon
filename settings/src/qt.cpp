@@ -606,7 +606,7 @@ protected:
 			QImage::Format_ARGB32_Premultiplied);
 		QPainter p(this);
 		p.drawImage(rect(), img);
-		if (!framePending && live_easing(live, name)) {
+		if (!framePending && live_moving(live, name)) {
 			framePending = true;
 			QTimer::singleShot(33, this, [this] {
 				framePending = false;
