@@ -687,6 +687,34 @@ fStepSanitizers() {
 	fEcho_Clean "sanitizers: nothing reported, and ${pics} snapshot(s) drawn"
 }
 
+## The tests of each of MIRI_TARGETS, one line a module, "NUM PKG KIND NAME...",
+## into DIR/list, the biggest first, so the longest Miris start first, and the
+## count of tests into DIR/count. A target that won't build or list fails it,
+## with its errors, after every target has had its try, rather than losing its
+## tests. Called by fStepMiri, whose miriEnv it reads.
+fMiriList() {   ## fMiriList DIR
+	local dir="$1" sel pkg kind i=0 code bad=0
+	: > "${dir}/modules" || return 1
+	for sel in "${MIRI_TARGETS[@]}"; do
+		read -r pkg kind <<< "${sel}"
+		i=$((i + 1)); code=0
+		env -u DISPLAY -u WAYLAND_DISPLAY "${miriEnv[@]}" cargo "+${RUST_NIGHTLY}" miri test -q "${locked[@]}" -p "${pkg}" "${kind}" -- --list --format terse \
+			> "${dir}/target-${i}.out" 2> "${dir}/target-${i}.err" || code=$?
+		if ((code != 0)); then
+			cat -- "${dir}/target-${i}.err"
+			fEcho_Clean "couldn't list the tests of ${sel} under Miri, exit ${code}"; bad=1; continue
+		fi
+		awk -v sel="${sel}" -v want="${TUKZMON_MIRI_FILTER:-}" '
+			!/: test$/ { next }
+			{ t = $0; sub(/: test$/, "", t) }
+			want != "" && !index(t, want) { next }
+			{ m = t; sub(/::[^:]+$/, "", m); if (m == t) m = ""; if (!(m in names)) order[++k] = m; names[m] = names[m] " " t; count[m]++ }
+			END { for (i = 1; i <= k; i++) print count[order[i]], sel names[order[i]] }' "${dir}/target-${i}.out" >> "${dir}/modules" || return 1
+	done
+	((! bad)) || return 1
+	sort -s -k1,1nr -- "${dir}/modules" | awk '{ n += $1; $1 = sprintf("%04d", NR); print } END { print n + 0 > "/dev/stderr" }' > "${dir}/list" 2> "${dir}/count"
+}
+
 ## The tests under Miri, on the same nightly, with the host's files and clock
 ## in reach, since the collectors and the history file are what's tested.
 ## Miri runs a whole test binary on one core, so each module's tests get a
@@ -698,7 +726,7 @@ fStepSanitizers() {
 ## MIRI_MINUTES fails, naming the test it was on, rather than running for days.
 ## timeout signals the whole process group, so the miri under cargo goes too.
 fStepMiri() {
-	local dir="${CARGO_TARGET_DIR:-${root}/target}" logs="${TMPDIR}/miri" sel pkg kind n=0 rc=0
+	local dir="${CARGO_TARGET_DIR:-${root}/target}" logs="${TMPDIR}/miri" n=0 rc=0
 	local -a miriEnv=()
 	if [[ "$(rustup toolchain list 2> /dev/null || true)" != *"${RUST_NIGHTLY}-"* ]] \
 		|| [[ "$(rustup component list --installed --toolchain "${RUST_NIGHTLY}" 2> /dev/null || true)" != *miri* ]]; then
@@ -715,15 +743,7 @@ fStepMiri() {
 	env "${miriEnv[@]}" cargo "+${RUST_NIGHTLY}" miri setup > "${logs}/setup.log" 2>&1 || { cat -- "${logs}/setup.log"; return 1; }
 	fEcho_Clean "cargo +${RUST_NIGHTLY} miri test --no-run -j ${jobs}"
 	env -u DISPLAY -u WAYLAND_DISPLAY "${miriEnv[@]}" cargo "+${RUST_NIGHTLY}" miri test --workspace "${locked[@]}" --no-run -j "${jobs}" || return 1
-	## One line a module, "NUM PKG KIND NAME...", the biggest first, so the
-	## longest Miris start first.
-	for sel in "${MIRI_TARGETS[@]}"; do
-		read -r pkg kind <<< "${sel}"
-		env -u DISPLAY -u WAYLAND_DISPLAY "${miriEnv[@]}" cargo "+${RUST_NIGHTLY}" miri test -q "${locked[@]}" -p "${pkg}" "${kind}" -- --list --format terse 2> /dev/null \
-			| sed -n 's/: test$//p' | grep -F -- "${TUKZMON_MIRI_FILTER:-}" \
-			| awk -v sel="${sel}" '{ m = $0; sub(/::[^:]+$/, "", m); if (m == $0) m = ""; if (!(m in names)) order[++k] = m; names[m] = names[m] " " $0; count[m]++ }
-				END { for (i = 1; i <= k; i++) print count[order[i]], sel names[order[i]] }' || true
-	done | sort -s -k1,1nr | awk '{ n += $1; $1 = sprintf("%04d", NR); print } END { print n > "/dev/stderr" }' > "${logs}/list" 2> "${logs}/count"
+	fMiriList "${logs}" || return 1
 	read -r n < "${logs}/count" || n=0
 	[[ -z "${TUKZMON_MIRI_FILTER:-}" ]] || fEcho_Clean "only the tests with '${TUKZMON_MIRI_FILTER}' in their name"
 	((n > 0)) || { fEcho_Clean "Miri found no tests"; return 1; }
@@ -1320,3 +1340,5 @@ exit 0
 ##		  process scan per stale sweep.
 ##		- 2026-11-09: A memory cap with no swap, CICD_MEM_CAP, on every
 ##		  container and on the run in a user scope.
+##		- 2026-11-09: A Miri target that cannot build or list its tests fails
+##		  the step, with its errors, rather than losing its tests.

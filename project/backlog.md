@@ -307,7 +307,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 20: The Miri step drops a target whose test list fails and still passes
 	- ID: 2026110709074420
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -315,7 +315,19 @@ Sorted per the notes in [Template](#template).
 	- Origin: `4a7f217` (2026-10-25), kept by `34329c6` (2026-11-05). Not seen before. Confirmed, by a stand-in cargo whose knobs list fails, which gave "3 test(s) in 2 module(s)" and a pass.
 	- Incorrect behavior: Each target's list hides its errors and its exit status, and only a total of 0 tests fails the step. A target that won't build or list loses its tests with no word.
 	- Expected behavior: A target that can't list its tests fails the step.
+	- Actual cause: The list ran in a pipe with its stderr thrown away and its exit status taken by `|| true`, so a failed target gave an empty list.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `fMiriList` lists each target to a file of its own and checks its exit. A target that fails has its errors shown and is named with its exit, and the step fails before any Miri runs. The filter is in the same awk, so 2 fewer processes a target.
+		- Verified: df39n passes, and failed with the exit check taken out, with the failure not counted, and with the errors not shown. dexn3 and the quick gate passed, and Sanitizers. A real Miri run of one test by `TUKZMON_MIRI_FILTER` listed it as 1 test in 1 module and passed.
+	- Decisions:
+		- Every target is listed before the step fails, so one run shows all that are broken. No Miri runs then, since the step takes hours and would fail anyway.
+	- Actual fix: `fMiriList` in `cicd/cicd.bash`.
+	- Branch: round-1109b
+	- Test case: df39n, in `cicd/tests/guards.bash`.
+		- Swept: every other list or count in `fStepMiri`, and `miri-group.bash`, which already keeps cargo's exit. No other step pipes a cargo list.
+	- Closed: 20261109-155850
 
 - Code review 20261107 item 21: The demo's video encodes use every core
 	- ID: 2026110709074421

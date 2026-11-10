@@ -417,6 +417,40 @@ fTest_a_miri_module_names_the_test_that_stopped_it() {
 	(($(wc -l < "${log}") == 5)) || { fWhy "a failed test got more lines: $(cat -- "${log}")"; return 1; }
 }
 
+## Test ID: df39n
+fTest_a_miri_target_that_cant_list_its_tests_fails_the_step() {
+	local t="${work}/miri-list" ok=0
+	mkdir -p -- "${t}/bin"
+	## cargo lists 3 tests in 2 modules of the package it's given, with a
+	## warning on stderr, or fails on the one STUB_FAIL names.
+	printf '#!/usr/bin/env bash\nwhile [[ "$1" != -p ]]; do shift; done\nif [[ "$2" == "${STUB_FAIL:-}" ]]; then echo "error: could not compile $2" >&2; exit 101; fi\necho "warning: files in /proc" >&2\nprintf "%%s::a::x: test\\n%%s::b::y: test\\n%%s::b::z: test\\n" "$2" "$2" "$2"\n' > "${t}/bin/cargo"
+	chmod +x -- "${t}/bin/cargo"
+	(
+		eval "$(awk '/^fMiriList\(\)/, /^}/' "${cicd}/cicd.bash")"
+		fEcho_Clean() { printf '%s\n' "$*"; }
+		# shellcheck disable=2034  ## Read by fMiriList, from cicd.bash.
+		{ MIRI_TARGETS=("p1 --lib" "p2 --lib" "p3 --bins"); miriEnv=(X=1); locked=(); RUST_NIGHTLY=x; }
+		local d='' out='' n=''
+		d="${t}/all"; mkdir -- "${d}"
+		out="$(PATH="${t}/bin:${PATH}" fMiriList "${d}" 2>&1)" || { fWhy "failed with every target listed: ${out}"; exit 1; }
+		read -r n < "${d}/count"
+		[[ "${n}" == 9 && "$(wc -l < "${d}/list")" == 6 ]] || { fWhy "every target listed gave ${n} test(s) in: $(cat -- "${d}/list")"; exit 1; }
+		[[ "$(head -n 1 -- "${d}/list")" == "0001 p1 --lib p1::b::y p1::b::z" ]] || { fWhy "the biggest module isn't first: $(cat -- "${d}/list")"; exit 1; }
+		[[ -z "${out}" ]] || { fWhy "a clean list printed: ${out}"; exit 1; }
+		d="${t}/filter"; mkdir -- "${d}"
+		PATH="${t}/bin:${PATH}" TUKZMON_MIRI_FILTER=z fMiriList "${d}" > /dev/null 2>&1 || { fWhy "failed with a filter"; exit 1; }
+		read -r n < "${d}/count"
+		[[ "${n}" == 3 ]] || { fWhy "a filter gave ${n} test(s) in: $(cat -- "${d}/list")"; exit 1; }
+		## p2 won't build, and p3 still gets its try.
+		d="${t}/bad"; mkdir -- "${d}"
+		if out="$(PATH="${t}/bin:${PATH}" STUB_FAIL=p2 fMiriList "${d}" 2>&1)"; then fWhy "passed with p2's list failing: ${out}"; exit 1; fi
+		[[ "${out}" == *"error: could not compile p2"* ]] || { fWhy "p2's error isn't shown: ${out}"; exit 1; }
+		[[ "${out}" == *"couldn't list the tests of p2 --lib under Miri, exit 101"* ]] || { fWhy "p2 isn't named: ${out}"; exit 1; }
+		[[ -s "${d}/target-3.out" ]] || { fWhy "p3 wasn't tried after p2 failed"; exit 1; }
+	) && ok=1
+	((ok))
+}
+
 ## A tree of one crate in a repo of its own, for test-ids.bash check.
 fIdsTree() {   ## fIdsTree DIR LIB_RS
 	mkdir -p -- "$1/cicd/utility" "$1/a/src" "$1/project"
@@ -934,3 +968,4 @@ exit "${failed}"
 ##		- 2026-11-09: A demo stopped by TERM cleans up, and one killed leaves a
 ##		  folder the stale sweep takes.
 ##		- 2026-11-09: Each package links tukzmon-settings beside the library.
+##		- 2026-11-09: A Miri target that can't list its tests fails the step.
