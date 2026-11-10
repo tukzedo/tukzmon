@@ -102,13 +102,27 @@ Sorted per the notes in [Template](#template).
 - Video & GIF: Bigger font for the fake text
 	- ID: 2026110708212499
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261107-082124
 	- Opened by: t00mietum
 	- Related IDs: 2026110618335731, 2026110310450002
 	- Requirements:
 		- Bigger and non-narrow font for the fake text elements.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The demo panel's clock shows the time in Lato Semibold 12 and the date in Lato 10, where both were the clock's default "Sans Regular 8", which came out small and narrow. The window buttons and the logout menu's "sam" are Lato 11, up from the desktop's Lato 10.
+		- The right-click menu keeps the desktop's Lato 10, so its click points don't move.
+		- `script.txt` says so. The gif and the video are recorded again from fresh release builds, and `assets/demo.gif` is updated.
+		- Verified: frames of the new gif show every scene whole, with the hover tip, the settings window, the theme list and Neon at the end. The quick gate's format, build, lint and test areas passed, and so did Sanitizers.
+	- Decisions:
+		- 2026-11-09: "fake text elements" read as the panel's own items beside tukzmon: the clock, the window buttons and the logout menu. The captions were already Lato Semibold.
+		- 2026-11-09: the panel's labels get their size from a `gtk.css` in the demo's home, scoped to the panel, rather than the desktop font, which would also grow the settings window and move its click points.
+	- Branch: round-1109b
+	- Test case: None, since it's a recording. Frames of the gif and the video were checked.
+	- Acceptance signoff: Self-closed 20261109: the panel's text is Lato and bigger in the new gif's frames, as asked.
+	- Closed: 20261109-180442
 
 - Smoothly animate each graph on each tick
 	- ID: 2026110911114024

@@ -115,6 +115,8 @@ PANEL_PLUGINS = """\
       <property name="digital-layout" type="uint" value="1"/>
       <property name="digital-time-format" type="string" value="%R"/>
       <property name="digital-date-format" type="string" value="%a %b %-d"/>
+      <property name="digital-time-font" type="string" value="Lato Semibold 12"/>
+      <property name="digital-date-font" type="string" value="Lato 10"/>
     </property>
     <property name="plugin-10" type="string" value="actions">
       <property name="appearance" type="uint" value="1"/>
@@ -124,6 +126,16 @@ PANEL_PLUGINS = """\
     <property name="plugin-11" type="string" value="separator">
       <property name="style" type="uint" value="0"/>
     </property>"""
+
+# Text on the panel's own items, such as the window buttons and the logout
+# menu, a size up from the desktop's font so it reads in the gif. The clock
+# has fonts of its own above, since its default is a small "Sans" that comes
+# out narrow. Menus count as the panel's too, so they get the desktop's font
+# back, and the right-click menu keeps its click points.
+PANEL_CSS = """\
+.xfce4-panel.background label { font: 11pt Lato; }
+.xfce4-panel.background menu label { font: 10pt Lato; }
+"""
 
 # the status tray's icons, as an app would put them there
 TRAY_ICONS = ("audio-volume-high-symbolic", "network-wireless-signal-excellent-symbolic")
@@ -711,6 +723,7 @@ class Panel:
             "gtk-font-name=Lato 10\ngtk-enable-animations=0\n",
             encoding="utf-8",
         )
+        (h / ".config/gtk-3.0/gtk.css").write_text(PANEL_CSS, encoding="utf-8")
         ids = "\n".join(f'        <value type="int" value="{n}"/>' for n in PANEL_ORDER)
         panel = f"""<?xml version="1.0" encoding="UTF-8"?>
 <channel name="xfce4-panel" version="1.0">
