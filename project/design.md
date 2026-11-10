@@ -23,6 +23,7 @@ This is a draft. The XFCE plugin and its settings window are built, but the othe
 - [History](#history)
 - [Time axis](#time-axis)
 - [Drawing](#drawing)
+- [Fuzzing](#fuzzing)
 
 <!-- /TOC -->
 
@@ -484,3 +485,17 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 	- On log10, a column's height is `ln(1 + v/u) / ln(1 + top/u)`, with `u` a thousandth of the floor, or of the top for a graph with a fixed one, such as CPU. So the disk graph's `u` is 100 B/s, and 1 kB/s under a 4 MB/s top is about a fifth of the height, where a straight scale gives it 1/4000. On the CPU graph 1% is a third of the height.
 	- On squared, a column's height is `(v / top)^2`. It's the opposite of log10, since it makes big values stand out and pushes small ones down. So half the top is drawn a quarter of the way up.
 	- A graph without a fixed top fits its peak first, then applies the scale under that peak.
+
+## Fuzzing
+
+- What reads input tukzmon doesn't control is fuzzed by plain tests, on stable, in the same `cargo test` as the rest. The history file and each graph's history in it are covered so far. The netlink dumps, the bridge table, the `/proc` and `/sys` readers and the settings file are to come.
+
+- Each case is a pure function of one seed, through `core/src/fuzz.rs`. A failure names its seed, and `TUKZMON_FUZZ_SEED` set to it replays that case first.
+
+- A test runs 128 fixed seeds, or 4 under Miri. With `TUKZMON_FUZZ_SECONDS` set, it goes on past them for that long. The cicd runs set it, per `cicd/cicd.bash --help`.
+
+- A case builds its input the way the program would write it, then hurts it: bit flips, bytes set, a count or length field made to lie, a cut, or a run copied or dropped. Some cases leave it whole.
+
+- Some cases flip bits in a real file, `core/tests/data/plugin-5-tiers.hist`.
+
+- The asserts are properties, not outputs. Nothing panics, which in safe Rust also covers a read past the end. A whole input reads back as written. What the reader took, it takes again the same. Each test also checks that some of its inputs were taken and some refused, so a generator that stopped generating fails.

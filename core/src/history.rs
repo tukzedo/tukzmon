@@ -1278,4 +1278,57 @@ mod tests {
 			}
 		}
 	}
+
+	// where each count, time and length field of an encoded history sits,
+	// and its width
+	fn fields_of(bytes: &[u8], series: usize) -> Vec<(usize, usize)> {
+		let mut fields = vec![(0, 4), (4, 8), (12, 8), (20, 4)];
+		let mut at = 24;
+		while at + 20 <= bytes.len() {
+			fields.extend([(at, 8), (at + 8, 8), (at + 16, 4)]);
+			let count = u32::from_le_bytes(bytes[at + 16..at + 20].try_into().unwrap());
+			at += 20 + count as usize * (series * 12 + 20);
+		}
+		fields
+	}
+
+	// Test ID: df4f1
+	#[test]
+	fn fuzz_decode_takes_any_bytes_and_keeps_what_it_took() {
+		let encoded = |h: &History<2>| {
+			let mut out = Vec::new();
+			h.encode(&mut out);
+			out
+		};
+		let tally = crate::fuzz::run("history decode", |dice| {
+			let mut bytes = encoded(&crate::fuzz::history::<2>(dice));
+			if dice.one_in(4) {
+				let back = History::<2>::decode(&bytes).expect("a whole history decodes");
+				assert_eq!(encoded(&back), bytes, "and encodes back the same");
+			} else if dice.one_in(2) {
+				let fields = fields_of(&bytes, 2);
+				let &(at, width) = dice.pick(&fields);
+				crate::fuzz::lie(dice, &mut bytes, at, width);
+			} else {
+				crate::fuzz::mangle(dice, &mut bytes);
+			}
+			assert!(History::<3>::decode(&bytes).is_none_or(|_| bytes[..4] == [0; 4]));
+			let Some(got) = History::<2>::decode(&bytes) else {
+				return false;
+			};
+			let once = encoded(&got);
+			let again = History::<2>::decode(&once).expect("what decode took, it takes again");
+			assert_eq!(encoded(&again), once);
+			if let (Some(a), Some(b)) = (got.first(), got.last()) {
+				let w = (b - a) / 8.0;
+				for k in -1..9 {
+					let x = a + w * f64::from(k);
+					let _ = got.span(x, x + w);
+					let _ = got.span_for(x, x + w, w / 3.0);
+				}
+			}
+			true
+		});
+		tally.assert_mixed();
+	}
 }

@@ -12,6 +12,8 @@ pub mod color;
 pub mod config;
 pub mod cpu;
 pub mod disk;
+#[cfg(test)]
+mod fuzz;
 pub mod gpu;
 pub mod graphs;
 pub mod history;

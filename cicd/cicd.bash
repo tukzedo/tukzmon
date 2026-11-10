@@ -24,7 +24,12 @@
 ##	                      against RustSec's database, per deny.toml
 ##	   7. Tests           cargo test, with TMPDIR in the run's temp folder, and
 ##	                      the pipeline's own tests in cicd/tests/. One line per
-##	                      test: PASS, FAIL or SKIP, its ID, its name
+##	                      test: PASS, FAIL or SKIP, its ID, its name. Each
+##	                      fuzz test runs its fixed seeds, then on for
+##	                      TUKZMON_FUZZ_SECONDS: 10 in the default run, the
+##	                      merge gate and --backlog-run-full, 300 in --long.
+##	                      The default and long runs start at a new
+##	                      TUKZMON_FUZZ_SEED, and a failure names its seed
 ##	   8. Release build   the plugin and tukzmon-settings
 ##	   9. Packages        a .deb and an .rpm of the release build through nfpm,
 ##	                      with a sha256 sums file, in cicd/artifacts/packages/
@@ -248,6 +253,13 @@ fi
 ((quiet)) && export CARGO_TERM_QUIET=true
 ## The hands-off runs may not rewrite Cargo.lock.
 locked=(); ((handsOff)) && locked=(--locked)
+## Set by hand, either one wins.
+case "${mode}" in
+	default) : "${TUKZMON_FUZZ_SECONDS:=10}" "${TUKZMON_FUZZ_SEED:=${EPOCHSECONDS}}" ;;
+	long)    : "${TUKZMON_FUZZ_SECONDS:=300}" "${TUKZMON_FUZZ_SEED:=${EPOCHSECONDS}}" ;;
+	backlog-run-full|merge-gate) : "${TUKZMON_FUZZ_SECONDS:=10}" ;;
+esac
+export TUKZMON_FUZZ_SECONDS TUKZMON_FUZZ_SEED
 
 ## What turns each step on, and why one is off. Read by fPlan.
 fAreaOn() { [[ "${mode}" != backlog-run-quick || " ${areas[*]} " == *" $1 "* ]]; }
@@ -569,6 +581,7 @@ fStepLint() {
 fStepTests() {
 	local t=''
 	fEcho_Clean "cargo test --workspace -j ${jobs} -- --test-threads ${jobs}  (TMPDIR=${TMPDIR})"
+	fEcho_Clean "fuzz: ${TUKZMON_FUZZ_SECONDS:-0} s past the fixed seeds, from seed ${TUKZMON_FUZZ_SEED:-0}"
 	## No test may reach the screen in use. A quiet cargo would quiet libtest
 	## too, and its per-test lines are what get the IDs.
 	env -u DISPLAY -u WAYLAND_DISPLAY -u CARGO_TERM_QUIET cargo test --workspace "${locked[@]}" -j "${jobs}" -- --test-threads "${jobs}" 2>&1 \
@@ -1192,7 +1205,8 @@ fCtrStep() {   ## fCtrStep FUNCTION
 	env=(-e "TUKZMON_IN_IMAGE=${fn}" -e "TUKZMON_JOBS=${jobs}" -e "HOME=${runTmp}/home"
 		-e "TMPDIR=${runTmp}" -e "TEMP=${runTmp}" -e "TMP=${runTmp}"
 		-e "CARGO_HOME=${ctrBase}/cargo-home" -e "CARGO_TARGET_DIR=${ctrBase}/target" -e CARGO_NET_OFFLINE=true
-		-e CARGO_TERM_QUIET -e SOURCE_DATE_EPOCH -e TUKZMON_RELEASE -e TUKZMON_MIRI_FILTER -e TUKZMON_MIRI_MINUTES)
+		-e CARGO_TERM_QUIET -e SOURCE_DATE_EPOCH -e TUKZMON_RELEASE -e TUKZMON_MIRI_FILTER -e TUKZMON_MIRI_MINUTES
+		-e TUKZMON_FUZZ_SECONDS -e TUKZMON_FUZZ_SEED)
 	[[ ! -t 1 ]] || env+=(-e CARGO_TERM_COLOR=always)
 	## A run that dogfoods built the release here, so the packages come from
 	## that one.

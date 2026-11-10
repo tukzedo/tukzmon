@@ -353,6 +353,107 @@ Sorted per the notes in [Template](#template).
 		- Cover what reads input the program doesn't control: the history file decode, the netlink socket and neighbor dumps, the bridge forwarding table, the `/proc` and `/sys` readers, and a settings file that loads through shcl.
 		- Plain tests on stable, each case a pure function of one seed, a time budget from an env var, and asserts on properties such as no panic and no read past the end. Keep some bit flips over real files, such as `core/tests/data/plugin-5-tiers.hist`.
 		- Each one gets a test ID, and is watched to fail on a planted bug before it's trusted.
+	- Progress log:
+		- 2026-11-10: split by input kind into children 2026111011435200 (the harness), 2026111011435314, 2026111011435428, 2026111011435542, 2026111011435657 and 2026111011435771. The harness and the history file are Done, and the other 4 are Queued.
+
+- Fuzz: the seed and budget harness, and its cicd hookup
+	- ID: 2026111011435200
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261110-114352
+	- Opened by: t00mietum
+	- Parent ID: 2026110310450001
+	- Requirements: One shared way to run a fuzz case from a seed, with a time budget from an env var, a seed to replay, and the cicd run lengths setting the budget.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Each case is a pure function of its seed. A test runs 128 fixed seeds, 4 under Miri, then on for `TUKZMON_FUZZ_SECONDS`. A failure names its seed, and `TUKZMON_FUZZ_SEED` replays it.
+		- The hurts are bit flips, bytes set, count and length fields made to lie, cuts, and runs copied or dropped.
+		- Each test checks some inputs were taken and some refused, so a generator that stops generating fails.
+		- The cicd budget is 10 s a test in the default run, the merge gate and the full backlog run, and 300 s in `--long`. The default and long runs start from a new seed each time. The quick runs take only the fixed seeds.
+		- `design.md` Fuzzing has the details.
+		- Verified: the quick gate and Sanitizers passed, and the fuzz tests passed under Miri. A run with a 3 s budget and a set seed got both into the Tests step's container.
+	- Decisions:
+		- The harness is test-only code in the core crate, since every parser so far is in core and most are private. The settings child can copy it, or it can move to a crate of its own then.
+		- The fuzz tests run in the Tests step with everything else, rather than a step of their own, so `--list` and the per-test lines cover them with no new plumbing.
+		- The merge gate and the full backlog run start from seed 0, so a failure there repeats. The default and long runs start from the run's time, so each one tries seeds the last didn't.
+	- Branch: round-1110b
+	- Test case: `fuzz::tests::a_failing_seed_is_named_and_the_rest_are_pure` (df4f0). It checks a seed draws the same every time, a panic in a case fails the run naming its seed, and a run that refuses nothing fails the mix check.
+	- Closed: 20261110-120400
+
+- Fuzz: the history file decode
+	- ID: 2026111011435314
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261110-114353
+	- Opened by: t00mietum
+	- Parent ID: 2026110310450001
+	- Requirements: Fuzz the history file's sections and each graph's decode, with bit flips over core/tests/data/plugin-5-tiers.hist.
+	- Prereq IDs: 2026111011435200
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A case builds a history the way the graphs keep one, with runs of samples at a few rates, gaps and trims, then encodes it and hurts it. Half the hurts lie in a known count, time or length field.
+		- The file test does the same with whole files of such sections, version 1 and 2, and random bodies.
+		- A third test flips bits in `core/tests/data/plugin-5-tiers.hist`.
+		- Properties: nothing panics, a whole input reads back as written, and what decode or the file read takes it takes again the same. Each decoded history is read across its span, as drawing would.
+		- No faults found.
+		- Verified: decode with the tier count check taken out failed df4f1 at seed 22, and the file read with its section size check taken out failed df4f2 at seed 3 and df4f3 at seed 0. All pass with the checks back.
+	- Decisions:
+		- The file read and write were split into a part that works on bytes and the file part, so the fuzz needs no files and runs under Miri.
+	- Branch: round-1110b
+	- Test case: `history::tests::fuzz_decode_takes_any_bytes_and_keeps_what_it_took` (df4f1), `keep::tests::fuzz_any_file_reads_whole_or_not_at_all` (df4f2) and `keep::tests::fuzz_bit_flips_in_a_real_file` (df4f3).
+	- Closed: 20261110-120400
+
+- Fuzz: the netlink socket and neighbor dumps
+	- ID: 2026111011435428
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261110-114354
+	- Opened by: t00mietum
+	- Parent ID: 2026110310450001
+	- Requirements: Fuzz the walk over a netlink dump, the socket messages and the neighbor messages.
+	- Prereq IDs: 2026111011435200
+	- Estimated effort: Low
+
+- Fuzz: the bridge forwarding table
+	- ID: 2026111011435542
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261110-114355
+	- Opened by: t00mietum
+	- Parent ID: 2026110310450001
+	- Requirements: Fuzz the read of a bridge's brforward entries.
+	- Prereq IDs: 2026111011435200
+	- Estimated effort: Low
+
+- Fuzz: the /proc and /sys readers
+	- ID: 2026111011435657
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261110-114356
+	- Opened by: t00mietum
+	- Parent ID: 2026110310450001
+	- Requirements: Fuzz each parser of a /proc or /sys file, such as stat, meminfo, net/dev, snmp, diskstats, zswap and the battery and temperature files.
+	- Prereq IDs: 2026111011435200
+	- Estimated effort: Avg
+
+- Fuzz: a settings file loaded through shcl
+	- ID: 2026111011435771
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261110-114357
+	- Opened by: t00mietum
+	- Parent ID: 2026110310450001
+	- Requirements: Fuzz a settings file as it loads through shcl into the model, with bit flips over a real one. A fault inside shcl gets an upstream draft.
+	- Prereq IDs: 2026111011435200
+	- Estimated effort: Low
 
 - CICD gap: Slow leak checks still missing
 	- ID: 2026110310450003

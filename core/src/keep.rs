@@ -33,22 +33,7 @@ fn bad(what: &str) -> io::Error {
 ///
 /// Whatever creating the folder, writing, or renaming hit.
 pub fn write(path: &Path, sections: &[(&str, &[u8])]) -> io::Result<()> {
-	let mut out = Vec::with_capacity(
-		16 + sections
-			.iter()
-			.map(|(n, b)| 9 + n.len() + b.len())
-			.sum::<usize>(),
-	);
-	out.extend_from_slice(MAGIC);
-	out.extend_from_slice(&VERSION.to_le_bytes());
-	out.extend_from_slice(&(sections.len() as u32).to_le_bytes());
-	for (name, body) in sections {
-		let len = u8::try_from(name.len()).map_err(|_| bad("section name"))?;
-		out.push(len);
-		out.extend_from_slice(name.as_bytes());
-		out.extend_from_slice(&(body.len() as u64).to_le_bytes());
-		out.extend_from_slice(body);
-	}
+	let out = pack(sections)?;
 	if let Some(dir) = path.parent() {
 		std::fs::create_dir_all(dir)?;
 	}
@@ -66,6 +51,26 @@ pub fn write(path: &Path, sections: &[(&str, &[u8])]) -> io::Result<()> {
 	})
 }
 
+fn pack(sections: &[(&str, &[u8])]) -> io::Result<Vec<u8>> {
+	let mut out = Vec::with_capacity(
+		16 + sections
+			.iter()
+			.map(|(n, b)| 9 + n.len() + b.len())
+			.sum::<usize>(),
+	);
+	out.extend_from_slice(MAGIC);
+	out.extend_from_slice(&VERSION.to_le_bytes());
+	out.extend_from_slice(&(sections.len() as u32).to_le_bytes());
+	for (name, body) in sections {
+		let len = u8::try_from(name.len()).map_err(|_| bad("section name"))?;
+		out.push(len);
+		out.extend_from_slice(name.as_bytes());
+		out.extend_from_slice(&(body.len() as u64).to_le_bytes());
+		out.extend_from_slice(body);
+	}
+	Ok(out)
+}
+
 // by pid, since 2 sessions can each run an item with one id
 fn temp_of(path: &Path, pid: u32) -> PathBuf {
 	let mut tmp = path.as_os_str().to_owned();
@@ -80,7 +85,10 @@ fn temp_of(path: &Path, pid: u32) -> PathBuf {
 ///
 /// A missing file is `NotFound`, and one that isn't whole is `InvalidData`.
 pub fn read(path: &Path) -> io::Result<Vec<(String, Vec<u8>)>> {
-	let bytes = std::fs::read(path)?;
+	sections(&std::fs::read(path)?)
+}
+
+fn sections(bytes: &[u8]) -> io::Result<Vec<(String, Vec<u8>)>> {
 	let rest = bytes
 		.strip_prefix(MAGIC)
 		.ok_or_else(|| bad("not a history file"))?;
@@ -374,5 +382,79 @@ mod tests {
 			std::fs::remove_file(p).unwrap();
 		}
 		std::fs::remove_dir(&dir).unwrap();
+	}
+
+	fn decodes_somehow(body: &[u8]) -> bool {
+		use crate::history::History;
+		let mut any = false;
+		any |= History::<1>::decode(body).is_some();
+		any |= History::<2>::decode(body).is_some();
+		any |= History::<3>::decode(body).is_some();
+		any |= History::<4>::decode(body).is_some();
+		any
+	}
+
+	// Test ID: df4f2
+	#[test]
+	fn fuzz_any_file_reads_whole_or_not_at_all() {
+		use crate::fuzz::{Dice, history, mangle, run};
+		let body = |dice: &mut Dice| {
+			let mut out = Vec::new();
+			match dice.below(3) {
+				0 => history::<2>(dice).encode(&mut out),
+				1 => history::<3>(dice).encode(&mut out),
+				_ => out.extend((0..dice.below(100)).map(|_| dice.below(256) as u8)),
+			}
+			out
+		};
+		let tally = run("history file", |dice| {
+			let names = ["cpu", "mem", "net", "swap", "", "\u{e9}t\u{e9}"];
+			let parts: Vec<(&str, Vec<u8>)> = (0..dice.below(5))
+				.map(|_| (*dice.pick(&names), body(dice)))
+				.collect();
+			let refs: Vec<(&str, &[u8])> = parts.iter().map(|(n, b)| (*n, &b[..])).collect();
+			let mut bytes = pack(&refs).expect("short names pack");
+			let whole = dice.one_in(4);
+			if whole {
+				let got = sections(&bytes).expect("a whole file reads");
+				assert!(
+					got.iter()
+						.map(|(n, b)| (n.as_str(), &b[..]))
+						.eq(refs.iter().copied())
+				);
+			} else {
+				mangle(dice, &mut bytes);
+			}
+			let Ok(got) = sections(&bytes) else {
+				return false;
+			};
+			let refs: Vec<(&str, &[u8])> = got.iter().map(|(n, b)| (n.as_str(), &b[..])).collect();
+			let again = sections(&pack(&refs).expect("read names pack")).expect("and read again");
+			assert_eq!(again, got);
+			for (_, b) in &got {
+				decodes_somehow(b);
+			}
+			true
+		});
+		tally.assert_mixed();
+	}
+
+	// Test ID: df4f3
+	#[test]
+	fn fuzz_bit_flips_in_a_real_file() {
+		let real = include_bytes!("../tests/data/plugin-5-tiers.hist");
+		let tally = crate::fuzz::run("plugin-5-tiers.hist", |dice| {
+			let mut bytes = real.to_vec();
+			crate::fuzz::mangle(dice, &mut bytes);
+			let Ok(got) = sections(&bytes) else {
+				return false;
+			};
+			let mut any = false;
+			for (_, b) in &got {
+				any |= decodes_somehow(b);
+			}
+			any
+		});
+		tally.assert_mixed();
 	}
 }
