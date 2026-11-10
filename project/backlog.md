@@ -22,6 +22,17 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- CICD gap: df3qt never runs in the pipeline, since the image has no dbus-daemon
+	- ID: 2026110923411799
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261109-234117
+	- Opened by:
+	- Requirements: Run df3qt in the gate, either with dbus-daemon in the build image or as a host step, so it isn't a SKIP every run.
+	- Progress log:
+		- Filed from 2026110911114050. It passes on b23's host with --include-ignored.
+
 - A greyed slider still draws its groove in the accent color
 	- ID: 2026110923034356
 	- Type: Bug
