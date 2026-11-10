@@ -22,125 +22,6 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- df336 fails on GitHub's runner: a demo stopped by TERM leaves run.pid and .demo-run
-	- ID: 2026110919021646
-	- Type: Bug
-	- Status: Queued
-	- Priority|Severity: Medium
-	- Opened: 20261109-190216
-	- Opened by:
-	- Related IDs: 2026110709074407
-	- Steps to reproduce: Run the merge-gate workflow on GitHub's runner.
-	- Incorrect behavior: The Tests step fails on df336 with "TERM gave exit 143, folder run.pid .demo-run". The exit is right, but the run folder is left.
-	- Expected behavior: The demo's cleanup removes its run folder after TERM, as on b23.
-	- Reproduced: Yes, in 4 of 4 hosted runs on 2026-11-10: 3 on round-1109b at c66f3d9 (42745146916, 42745155762, 42745165237) and 1 on dev at 6022038 (42746194920).
-	- Estimated effort: Low
-	- Progress log:
-		- Filed from the round-1109b test batch. The round didn't change the demo's main or its cleanup.
-	- Origin: round-1109, with df336. It passes on b23, in the container too.
-
-- Code review 20261106 item 5: The processes graph takes about 4 ms a read
-	- ID: 2026110618502905
-	- Type: Enhancement
-	- Status: Done
-		- It departs from the wording in one way. A read is still one `stat` a process, so the system calls a process are the same, and the kernel's part of the read, nearly all of it, is the same.
-	- Priority|Severity: Avg
-	- Opened: 20261106-185029
-	- Opened by: t00mietum
-	- Origin: `c3c52ee` (2026-10-31), newer. Idea. Confirmed, measured on b23 with about 1450 processes: 3.4 to 4.9 ms a read, about 10 times the whole tick of the 6 default graphs. It's off by default, so neither the profiler nor the soak test runs it.
-	- Requirements:
-		- Read `/proc` with fewer allocations and system calls a process.
-		- The profiler times a run with the processes graph on.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- The `/proc` folder is kept open and listed again from the start each read, and each process is a `fstatat` by name off it. A read allocates nothing, against 2 an entry before, and the open and close each read are gone.
-		- On b23 with about 1,380 processes a read went from 1.44 to 1.54 ms of CPU to 1.28 to 1.35 ms, and its user time from about 160 us to 55. About 1.25 ms is the kernel's, which no change here can avoid: about 0.5 ms to list the folder and 0.65 us a stat.
-		- The profiler runs with processes on: 7 graphs, 747 us a tick against 272 with the 6 default ones. fstatat and getdents are its top 2, at 30% and 26% of self time. Its week of history now reads `/proc` 30,240 times first, so the step takes about 45 s longer.
-		- Under Miri there's no processes graph, as on a box it can't read, since Miri has no `rewinddir`.
-		- `design.md` Data sources on Linux has it.
-		- Verified: the quick gate passed, and the profile area. dezd3 failed on the old read, at 102 allocations for 50 folders, and dezd2 failed with the rewind taken out. Under Miri the procs tests passed, with the 3 that list a folder ignored.
-		- 2026-11-09: Answer on the profiler question: That sounds pretty expensive. Can the process graph be done cheaper, or should the default update frequency be raised? Reopened for that.
-		- 2026-11-09: No cheaper read was found. On b23 with about 1,380 processes, listing `/proc` alone is 0.5 to 0.7 ms, and a `statx` asking only for the owner costs the same as `fstatat`, 1.5 to 1.7 ms a read in all. No other source gives each process's owner without root.
-		- 2026-11-09: The processes graph's default sample is 500%, up from 200%, so it reads every 5 s rather than every 2 s.
-		- 2026-11-09: The profiler went from 911 to 969 us a tick to 631 to 633, at a load of 4 to 5 on 32 cores. Its system time went from about 12.8 s to 7.2 s.
-		- `design.md` XFCE plugin and Data sources on Linux have it.
-		- Verified: the quick gate and Sanitizers passed, and the profile area before and after. deja1 failed with the spec's default put back to 200, and passes at 500.
-	- Decisions:
-		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-		- libc's `opendir`, `rewinddir`, `readdir` and `fstatat` rather than raw `getdents64` with a bigger buffer, which timed the same and is Linux only.
-		- No cache of owners by pid. A process that runs `sudo` or drops root keeps its pid, so a cache would count it wrong until it's checked again, and a check is the same `stat`.
-		- The week of history in the profiler keeps processes on too, so its draw sees a full graph like the others. Turning it on after the week would save the 45 s.
-		- `ProcsReader` keeps a `DIR` pointer now, so it isn't `Send`. Nothing needs it to be.
-		- 2026-11-09: 500%, so 5 s, rather than the 1000% the field allows. A process count moves slowly, and 5 s is how often the kernel's own load average moves. At 1000% a new process would take up to 10 s to show.
-	- Branch: round-1107, round-1109b
-	- Test case: `procs::tests::each_read_lists_the_folder_again` (dezd2), `a_procs_read_allocates_nothing` in `core/tests/allocs.rs` (dezd3), and dep4j, dep4k, dep48 and dep49 as before.
-		- 2026-11-06: dep4j and dep4k are ignored under Miri now, since Miri has no `rewinddir`.
-		- 2026-11-09: new value only. deja1 checks `procs_sample` defaults to 500, not 200.
-		- Swept: every `ProcsReader` and `Which::Procs` use. dencp, dend1 and den86 turn every graph on, and under Miri now get no processes graph, as on a box without `/proc`. The other `/proc` readers already keep their files open through `Kept`.
-	- Acceptance signoff: Self-closed, 2026-11-09: deja1 passed in the quick gate at the new default, and the profile area ran with processes on, before and after.
-	- Closed: 20261109-172100
-
-- Code review 20261107 item 25: With the LAN split on, each network read spends about 20 ms in the kernel on the panel's thread
-	- ID: 2026110709074425
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026102914561218
-	- Origin: `8bbd96a` (2026-10-29). It was never timed. Confirmed, by a release probe on b23: 18 to 22 ms a read with 55 sockets, about 70 times a tick of the 6 default graphs. `ss -tn` takes the same.
-	- Requirements:
-		- Make a LAN read cheap enough for the panel's thread, or move it off that thread. Time it before and after.
-	- Note: Each dump walks the kernel's whole table of open TCP connections, which is sized by RAM, so few sockets cost about the same as many. An open settings window runs a second reader.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- A read dumps only when the TCP opens in `/proc/net/snmp` moved since the last dump, and then for both families in one request. Otherwise it looks up the sockets it has, one hash lookup each.
-		- Timed on b23, release build, 7 sockets kept, load about 3:
-
-			| Read                        | Before   | After
-			| :---                        | :---     | :---
-			| No TCP socket opened since  | 17.9 ms  | 0.069 ms
-			| A TCP socket opened since   | 17.9 ms  | 9.1 ms
-		- The opens moved on 3 of 89 one-second ticks on b23, so about 0.4 ms a tick on average. Reading them costs 0.012 ms.
-		- `design.md` Data sources on Linux says so.
-		- Verified: the quick gate's format, build, lint and tests, the Sanitizers step, and Miri over `lan::` passed.
-	- Decisions:
-		- A cheaper read rather than a worker thread, which would keep about 2% of a core at the default 1 s sample, and 36% at 50 ms.
-		- The old `TCPDIAG_GETSOCK` request for the dump, since it walks the table once for both families. The kernel still keeps it for old tools.
-		- A browser that opens connections every tick brings back a 9 ms read on those ticks, still half of before.
-	- Branch: round-1109b
-	- Test case: `lan::tests` df3cx, df3cy, df3cz, df3d0 and df3d1. df3d0 and df3d1 fail with every read dumping.
-		- 20261109: deqt2 and dekq7 build or read `Sock` values, which now carry the socket's family and id. deqt2 compares only the bytes and the LAN flag, with the same values. df35e opens its sockets after the first read, so its cut read is a dump.
-		- Swept: `LanReader::poll` is the only sock_diag reader. `neighbors` dumps the neighbor table, not the TCP one, every 10 s.
-	- Closed: 20261109-174917
-
-- Video & GIF: Bigger font for the fake text
-	- ID: 2026110708212499
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261107-082124
-	- Opened by: t00mietum
-	- Related IDs: 2026110618335731, 2026110310450002
-	- Requirements:
-		- Bigger and non-narrow font for the fake text elements.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- The demo panel's clock shows the time in Lato Semibold 12 and the date in Lato 10, where both were the clock's default "Sans Regular 8", which came out small and narrow. The window buttons and the logout menu's "sam" are Lato 11, up from the desktop's Lato 10.
-		- The right-click menu keeps the desktop's Lato 10, so its click points don't move.
-		- `script.txt` says so. The gif and the video are recorded again from fresh release builds, and `assets/demo.gif` is updated.
-		- Verified: frames of the new gif show every scene whole, with the hover tip, the settings window, the theme list and Neon at the end. The quick gate's format, build, lint and test areas passed, and so did Sanitizers.
-	- Decisions:
-		- 2026-11-09: "fake text elements" read as the panel's own items beside tukzmon: the clock, the window buttons and the logout menu. The captions were already Lato Semibold.
-		- 2026-11-09: the panel's labels get their size from a `gtk.css` in the demo's home, scoped to the panel, rather than the desktop font, which would also grow the settings window and move its click points.
-	- Branch: round-1109b
-	- Test case: None, since it's a recording. Frames of the gif and the video were checked.
-	- Acceptance signoff: Self-closed 20261109: the panel's text is Lato and bigger in the new gif's frames, as asked.
-	- Closed: 20261109-180442
-
 - Smoothly animate each graph on each tick
 	- ID: 2026110911114024
 	- Type: Enhancement
@@ -221,6 +102,23 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1109b
 	- Test case: `tests::frames_are_an_even_split_of_the_screen_rate_from_30_to_60` (df3e4). The frame clock's own pacing needs a real screen, so it has no test. dekpt now calls the tick callback.
 		- Swept: both frame timers (the plugin's draw and `quiet`, qt.cpp's `LiveGraph`), and every `frame` caller, the panic test included.
+
+- df336 fails on GitHub's runner: a demo stopped by TERM leaves run.pid and .demo-run
+	- ID: 2026110919021646
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Medium
+	- Opened: 20261109-190216
+	- Opened by:
+	- Related IDs: 2026110709074407
+	- Steps to reproduce: Run the merge-gate workflow on GitHub's runner.
+	- Incorrect behavior: The Tests step fails on df336 with "TERM gave exit 143, folder run.pid .demo-run". The exit is right, but the run folder is left.
+	- Expected behavior: The demo's cleanup removes its run folder after TERM, as on b23.
+	- Reproduced: Yes, in 4 of 4 hosted runs on 2026-11-10: 3 on round-1109b at c66f3d9 (42745146916, 42745155762, 42745165237) and 1 on dev at 6022038 (42746194920).
+	- Estimated effort: Low
+	- Progress log:
+		- Filed from the round-1109b test batch. The round didn't change the demo's main or its cleanup.
+	- Origin: round-1109, with df336. It passes on b23, in the container too.
 
 - Reduce motion if a remote desktop session is detected
 	- ID: 2026110911114037
@@ -327,262 +225,6 @@ Sorted per the notes in [Template](#template).
 		- The bash tests in `cicd/tests/` too, since their names print on each PASS and FAIL line.
 		- knobs' tests too. SilkTerm's copy gets an item of its own there.
 		- The `live_` names can stay, since they mark the tests that read this computer.
-
-- Code review 20261107 item 17: A save through a linked item settings file shows in the panel only at the next read
-	- ID: 2026110709074417
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026103115231938
-	- Origin: `a9ca08f` (2026-10-29), with `4c8a1e0` (2026-11-01), which made saves keep the link. Not seen before. Confirmed, by a probe that got no watch event for a save to the link's target.
-	- Steps to reproduce: Make `plugin-N.shcl` a link into another folder, as stow or home-manager do, then Apply in Properties.
-	- Incorrect behavior: The change waits for the next graph read, 1 s by default and longer with slow graphs.
-	- Expected behavior: It shows at once, as design.md's XFCE plugin section says.
-	- Reproduced: 2026-11-09, by the new test with the fix taken out. A save to the file at the end of the link gave no call in 5 s.
-	- Possible cause: The file monitor watches the link, and the save writes the file it points to.
-	- Actual cause: As the possible cause. A GIO watch on a path sees changes to that name in its folder, so a write in the link's target folder never reaches it.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- Each panel item now watches its settings file and, when that's a link, the file at the end of the link too. A save there shows at once.
-		- `design.md` XFCE plugin has it.
-		- Verified: the quick gate passed, with the Sanitizers step run on its own, and df38m with it.
-	- Decisions:
-		- The end of the link is found once, when the item starts. A link pointed somewhere else later still shows at once, through the link's own watch, but a save to its new file waits for the next read until the item starts again. Moving the watch at each change costs more code for a case stow and home-manager rarely make, and the read at each tick still catches it.
-		- The link itself stays watched, so a link replaced or pointed elsewhere shows at once.
-	- Actual fix: `watch_settings` in `xfce/src/lib.rs`, which `Plugin::start` calls, watches `config::through_links` of the settings file as well as the file.
-	- Branch: round-1109b
-	- Test case: `tests::a_save_through_a_linked_settings_file_calls_back_at_once` (df38m). It fails with the end's watch taken out, and passes after.
-		- Swept: every `watch` call (the settings file and the reset mark in `Plugin::start`, and dejae). The reset mark is the window's own file in the data folder, not a link a user makes. Every config write goes through `through_links` already (`Dialog::apply`, `config::start_from`).
-	- Closed: 20261109-152251
-
-- Code review 20261107 item 18: With the .deb or .rpm, Properties runs whichever tukzmon-settings comes first on PATH
-	- ID: 2026110709074418
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Origin: `59037f4` (2026-10-25). The Nix package got a link beside the library later, in `a4087bd`, and the .deb and .rpm never did. Not seen before. Plausible, from reading.
-	- Steps to reproduce: Install the .deb on a box with an older `tukzmon-settings` in `~/.local/bin`, ahead of `/usr/bin` on the panel's PATH, then open Properties.
-	- Incorrect behavior: The older window opens on the item's file.
-	- Expected behavior: The package's own window, which is why design.md gives the Nix package its link.
-	- Possible cause: The plugin looks beside its library, then on PATH, and the packages put the program only in `/usr/bin`.
-	- Reproduced: No. The packages' contents showed it: neither had anything beside the library.
-	- Actual cause: As above. `nfpm.yaml` put `tukzmon-settings` only in `/usr/bin`.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- Both packages have a relative link to `/usr/bin/tukzmon-settings` beside the library, as the Nix package does.
-		- The Packages step now checks each package's link, and where it resolves.
-		- design.md XFCE plugin has it.
-		- Verified: the quick gate and Sanitizers passed, and so did `--backlog-run-quick release package`. The .deb built twice gave the same bytes. lintian had nothing on the link.
-		- Verified: df38w failed on the old `nfpm.yaml`, and on a link one folder short, and passed on the fix.
-	- Decisions:
-		- A relative link, per Debian policy for links within `/usr`, and as the Nix package's is.
-		- A link, not a second copy, so there's one program and `/usr/bin` still has it for running by hand.
-		- Swept: `nix/package.nix` has its link already. `utility/dev-install.bash` copies the program beside the library. The plugin's lookup (`settings_program`) is unchanged, and `windows_on` matches argv[0] by its ending, which the link's path keeps.
-	- Actual fix: two `type: symlink` entries in `cicd/packaging/nfpm.yaml`, and the content check in `cicd/utility/package.bash`.
-	- Branch: round-1109b
-	- Test case: `each_package_links_tukzmon_settings_beside_the_library` (df38w), and the Packages step's content check.
-	- Closed: 20261109-153252
-
-- Code review 20261107 item 19: knobs' spec checks let a relation loop, case-only twins, a NaN range end, and a text chooser through
-	- ID: 2026110709074419
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026103115232265, 2026103115231954
-	- Origin: `f89e55e` (2026-10-23), from silkterm, whose copy has the same code. Not seen before. Confirmed, by probes against knobs. tukzmon's own spec has none of the 4 today.
-	- Incorrect behavior:
-		- A loop through group members and automatic choosers parses clean, then the first read overflows the stack. On Wayland that takes the panel down too.
-		- Paths that differ only in case pass, and shcl folds them onto one key, so a round trip loses one value.
-		- `range: [nan, 10]` passes, and then every number is in range.
-		- A chooser with `type: text` passes and takes any text as a pick.
-	- Expected behavior: Each is refused when the spec loads.
-	- Reproduced: 2026-11-09, with the 4 new tests, each of which parsed clean on the old checks.
-	- Actual cause:
-		- `Model::value` reads a setting's auto switch, its rule's state value and its group's chooser, and nothing checked that those can't lead back to it.
-		- Paths were compared as written, and shcl folds key case.
-		- `x < min || x > max` is false for a NaN end, and `numbers` reads `nan` from text.
-		- A chooser was checked for its control only, not its type.
-	- Note: silkterm's backlog needs the same fix.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- `Spec::finish` refuses a loop through what a value reads, naming each setting on it.
-		- Paths, and the `kept` check, compare without case.
-		- A range end or detent that isn't a number is refused.
-		- A group's chooser must be of type choice.
-		- `demo/demo.shcl`'s format notes say the same.
-		- Verified: the quick gate and Sanitizers passed.
-	- Decisions:
-		- Also refused: a dropdown's options that differ only in case, since a choice is matched without case and the second could never be picked. Same shape as the path twins.
-		- The loop check is a walk over the reads with an index, once per spec, rather than a chain walk per setting, since a setting reads up to 3 others.
-		- A range with its ends swapped was already refused through its default, so it gets no check of its own.
-		- A patch for silkterm's copy is drafted in the upstream folder, `2026110709074419/`.
-	- Branch: round-1109b
-	- Test case: `tests::a_chooser_switched_by_its_own_member_is_a_loop` (df399), `paths_and_options_that_differ_only_in_case_are_twins` (df39a), `a_range_end_or_detent_that_isnt_a_number_is_refused` (df39b) and `a_chooser_holds_a_choice` (df39c), in knobs. Each failed before the fix and passes after.
-		- Swept: every check in `check_links` that compares paths, ranges or detents, the gate loop check, and `set_indents`, which caps its walk at 8. A loop through 2 groups is caught too, checked with a probe.
-	- Acceptance signoff: Self-closed 20261109: df399, df39a, df39b and df39c.
-	- Closed: 20261109-154520
-
-- Code review 20261107 item 20: The Miri step drops a target whose test list fails and still passes
-	- ID: 2026110709074420
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026110514461968
-	- Origin: `4a7f217` (2026-10-25), kept by `34329c6` (2026-11-05). Not seen before. Confirmed, by a stand-in cargo whose knobs list fails, which gave "3 test(s) in 2 module(s)" and a pass.
-	- Incorrect behavior: Each target's list hides its errors and its exit status, and only a total of 0 tests fails the step. A target that won't build or list loses its tests with no word.
-	- Expected behavior: A target that can't list its tests fails the step.
-	- Actual cause: The list ran in a pipe with its stderr thrown away and its exit status taken by `|| true`, so a failed target gave an empty list.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- `fMiriList` lists each target to a file of its own and checks its exit. A target that fails has its errors shown and is named with its exit, and the step fails before any Miri runs. The filter is in the same awk, so 2 fewer processes a target.
-		- Verified: df39n passes, and failed with the exit check taken out, with the failure not counted, and with the errors not shown. dexn3 and the quick gate passed, and Sanitizers. A real Miri run of one test by `TUKZMON_MIRI_FILTER` listed it as 1 test in 1 module and passed.
-	- Decisions:
-		- Every target is listed before the step fails, so one run shows all that are broken. No Miri runs then, since the step takes hours and would fail anyway.
-	- Actual fix: `fMiriList` in `cicd/cicd.bash`.
-	- Branch: round-1109b
-	- Test case: df39n, in `cicd/tests/guards.bash`.
-		- Swept: every other list or count in `fStepMiri`, and `miri-group.bash`, which already keeps cargo's exit. No other step pipes a cargo list.
-	- Closed: 20261109-155850
-
-- Code review 20261107 item 21: The demo's video encodes use every core
-	- ID: 2026110709074421
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026110310450002
-	- Origin: `15993d9` (2026-11-06). Not seen before. Plausible, from reading.
-	- Incorrect behavior: No ffmpeg call sets a thread count, the Demo step passes the demo no job count, and the step isn't in `HEAVY_STEPS`. x265 at its slow preset takes every core.
-	- Expected behavior: The demo gets the run's job count, at a quarter of the CPUs like the other heavy steps.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Actual cause: No ffmpeg call set a thread count, and x265 keeps its own thread pool, which `-threads` doesn't reach. The Demo step wasn't in `HEAVY_STEPS` and passed no job count.
-	- Actual fix: `demo-video.py --jobs N`, a quarter of the CPUs by default, gives every ffmpeg `-threads N`, the filters `-filter_threads` or `-filter_complex_threads`, and x265 `pools=N`. `fStepDemo` is in `HEAVY_STEPS` and passes `--jobs`.
-	- Decisions:
-		- 2026-11-10: the capture's x264 gets the same cap. The video take at 8 jobs kept every frame, 2328 at 60 fps for 38.8 s, with the capture at 1.0001 of wall time.
-		- 2026-11-10: the step's 2 release builds run at the heavy count too. They're usually already built by then.
-	- Progress log:
-		- Verified: on a 3 s 1080p clip, the video encode went from 9.0 cores to 2.3 at `--jobs 2`, and 7.7 at 8. The flash search went from 6.0 to 2.3, and the gif from 3.4 to 2.2.
-		- Verified: the video take ran whole at `--jobs 8`.
-		- Verified: df3a6 failed on the old script and cicd files, and passes now. The quick gate's format, build, lint and test areas passed, and so did Sanitizers.
-		- Swept: every ffmpeg command in `demo-video.py`, the audio one included, which df3a6 walks. ffprobe and gifsicle run on one thread.
-	- Branch: round-1109b
-	- Test case: df3a6
-	- Closed: 20261109-161744
-
-- Code review 20261107 item 22: The demo judges a display free by its lock file alone
-	- ID: 2026110709074422
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026110310450002
-	- Origin: `15993d9` (2026-11-06). Not seen before. Confirmed, by a probe with an X server whose lock file the demo can't see.
-	- Incorrect behavior: The demo takes a display number that already answers, waits 10 s, and fails with "never came up as ours" rather than trying the next number. It fails safe.
-	- Expected behavior: A number that answers a connection counts as taken, so the demo moves on to the next one.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Actual cause: `display_taken` read only `/tmp/.X<n>-lock`. A server in another mount namespace, or with its lock file elsewhere, still holds the display's socket.
-	- Actual fix: A display is taken when its lock names a live process, or when `/tmp/.X11-unix/X<n>` or the abstract socket of the same name takes a connection. `pick_display` steps past it, and a pinned one fails at once.
-	- Progress log:
-		- Verified: with an Xvfb on :79 whose lock file sat in a private `/tmp`, the old script picked :79 and the new one :78.
-		- Verified: df3a7 failed on the old script and passes now, over a socket file, an abstract socket, a stale socket file, and a live and a dead lock.
-		- Swept: `pick_display` and `Screen.start` both go through `display_taken`, and `Screen.start` reads the lock through the same `x_lock`.
-	- Branch: round-1109b
-	- Test case: df3a7
-	- Closed: 20261109-161744
-
-- Code review 20261107 item 23: The color picker has no tips, and 2 message boxes break the UX guide
-	- ID: 2026110709074423
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Origin: `801ac42` (2026-10-24) for the picker, `f89e55e` and `6a78316` for the boxes. Not seen before. Confirmed, by reading and by a probe with a folder that can't be written.
-	- Incorrect behavior:
-		- None of the picker's controls has a tip: the square, the hue strip, the 5 percent boxes, the hex box, Cancel and OK.
-		- "Settings weren't saved" gives shcl's own error text, and no "Nothing was changed." line.
-		- A theme name that won't do shows a warning titled with the action, "Save theme as", rather than what didn't happen.
-	- Expected behavior: Every control has a tip, and a failure box's title says what didn't happen, per `project/style-guide_ux.md`.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- Every control in the picker has a tip now. The value boxes take theirs from `Field::tip` in `pick.rs`.
-		- A failed save shows the window's own reason, such as "there's no permission to write there", and ends with "Nothing was changed."
-		- A theme name that won't do shows "Theme wasn't saved" or "Theme wasn't renamed", with "Nothing was changed." last.
-		- Verified: the quick gate and Sanitizers passed.
-	- Decisions:
-		- "History wasn't reset" gets no "Nothing was changed." line, since the graphs are already cleared by then, and some saved history may be gone.
-		- A write error shcl gives no status for keeps its own text after the file's name. Plain words for the read errors and the rest are item 2026110710005015's.
-	- Actual fix: `Window::failed` in `qt.cpp` shows every failure box, and `write_failed` in `dialog.rs` words a failed write.
-	- Branch: round-1109b
-	- Test case: `bridge::tests::every_control_in_the_color_picker_has_a_tip` (df3ar), `a_failure_box_says_what_didnt_happen_and_that_nothing_changed` (df3as) and `dialog::tests::a_failed_write_says_why_in_plain_words` (df3aq). df3ar and df3as fail with the tips and the new titles taken out, and pass with them.
-		- Swept: every `QMessageBox` and `QPushButton` in `qt.cpp`. The rest are questions, or have tips.
-	- Closed: 20261109-163151
-
-- Code review 20261107 item 24: design.md gives a stale count of the plugin's library calls
-	- ID: 2026110709074424
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026103115232125
-	- Origin: `f89e55e` (2026-10-23). Not seen before. Confirmed, by counting the declarations in `xfce/src/sys.rs`: 36 GLib, GTK, cairo and panel calls, plus 3 from libc, where design.md says "20 or so".
-	- Expected behavior: The XFCE plugin section gives a count that stays right, or none.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Actual cause: design.md said "20 or so" when the first edit was made, and later "the few dozen". `xfce/src/sys.rs` now declares 41 calls, 3 of them libc's, so any number goes stale when a call is added.
-	- Decisions:
-		- Gave no count. The sentence reads the same without one, and nothing has to be kept in step with `sys.rs`.
-	- Actual fix: design.md XFCE plugin says "The GLib, GTK, cairo, and panel calls it makes", with no count.
-	- Branch: round-1109b
-	- Test case: None, since only text changed.
-	- Closed: 20261109-163531
-
-- A settings window refresh test fails now and then on GitHub's runner
-	- ID: 2026110810505772
-	- Type: Bug
-	- Status: Done
-		- The cause isn't proven, so it stays open until the hosted runs show the test holds.
-	- Needs external testing: No
-	- Priority|Severity: Low
-	- Opened: 20261108-105057
-	- Opened by: t00mietum
-	- Related IDs: 2026102513560001
-	- Test environment: GitHub's `ubuntu-24.04` runner, in the pipeline's image.
-	- Steps to reproduce: Run the `merge-gate` workflow.
-	- Incorrect behavior: `bridge::tests::a_refresh_sets_only_the_tips_and_gaps_that_changed` (dezcc) saw 1 layout request with nothing changed (`[0, 1]` against `[0, 0]`), on the first run on `main`.
-	- Expected behavior: No layout request from a refresh with nothing changed.
-	- Reproduced: No. It passed on the 2 Dependabot runs and the run by hand on `runner-tests` that day, and never failed on b23, pinned to one CPU or with the sensors, battery and zswap hidden.
-		- 2026-11-09: Still no, on b23: 187 runs on 4 loaded CPUs, 11 runs of all the bridge tests together on 4 loaded CPUs, 32 runs at about 13 times slower, and 0 to 1200 ms held before each refresh so sample ticks fell inside the counted window.
-	- Possible cause: Something the live graphs do between the settle loop and the refresh, such as a sample tick, on a slow 4-CPU runner.
-		- 2026-11-09: Ruled out on b23: a sample tick inside the counted window asks for no layout, and the slowest page settles in 4 of the 5 passes. Left: the old count also took in whatever a timer or the screen posted during its last `processEvents`, or a settle that needed more than 5 passes on the runner.
-	- Progress log:
-		- The test now settles each page until a pass asks for no layout and none is waiting, up to 50 passes, and counts only the layout requests the refresh itself posts, with no timer or screen event run in between.
-		- With nothing changed, a failure names the page and the first 10 widgets that got a tip or a layout request, so a hosted failure shows where it came from.
-		- Verified: the test still catches what it was made for: 120 layouts with the height check taken out, and 2585 tips with the tip check taken out, the same as before.
-		- Verified: 2026-11-10, dezcc passed in 3 merge-gate runs on GitHub's runner at c66f3d9 (42745146916, 42745155762, 42745165237). Those runs failed later on df336, filed apart.
-	- Decisions:
-		- Counting only what the refresh posts matches what the test is for. A layout request the refresh itself makes is still counted, on the runner too, so a real one isn't hidden.
-	- Branch: round-1109b
-	- Test case: dezcc (`bridge::tests::a_refresh_sets_only_the_tips_and_gaps_that_changed`). No fail-before run, since it never failed off the hosted runner.
-	- Closed: 20261109-185727
 
 - Code review 20261107 item 26: The amdgpu reads have none of the NVIDIA path's runtime power checks
 	- ID: 2026110709074426
@@ -3596,6 +3238,108 @@ Sorted per the notes in [Template](#template).
 	- Acceptance signoff: Self-closed 20261109: in the new gif the network, volume and bell icons are evenly spaced.
 	- Closed: 20261109-124233
 
+- Code review 20261106 item 5: The processes graph takes about 4 ms a read
+	- ID: 2026110618502905
+	- Type: Enhancement
+	- Status: Done
+		- It departs from the wording in one way. A read is still one `stat` a process, so the system calls a process are the same, and the kernel's part of the read, nearly all of it, is the same.
+	- Priority|Severity: Avg
+	- Opened: 20261106-185029
+	- Opened by: t00mietum
+	- Origin: `c3c52ee` (2026-10-31), newer. Idea. Confirmed, measured on b23 with about 1450 processes: 3.4 to 4.9 ms a read, about 10 times the whole tick of the 6 default graphs. It's off by default, so neither the profiler nor the soak test runs it.
+	- Requirements:
+		- Read `/proc` with fewer allocations and system calls a process.
+		- The profiler times a run with the processes graph on.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The `/proc` folder is kept open and listed again from the start each read, and each process is a `fstatat` by name off it. A read allocates nothing, against 2 an entry before, and the open and close each read are gone.
+		- On b23 with about 1,380 processes a read went from 1.44 to 1.54 ms of CPU to 1.28 to 1.35 ms, and its user time from about 160 us to 55. About 1.25 ms is the kernel's, which no change here can avoid: about 0.5 ms to list the folder and 0.65 us a stat.
+		- The profiler runs with processes on: 7 graphs, 747 us a tick against 272 with the 6 default ones. fstatat and getdents are its top 2, at 30% and 26% of self time. Its week of history now reads `/proc` 30,240 times first, so the step takes about 45 s longer.
+		- Under Miri there's no processes graph, as on a box it can't read, since Miri has no `rewinddir`.
+		- `design.md` Data sources on Linux has it.
+		- Verified: the quick gate passed, and the profile area. dezd3 failed on the old read, at 102 allocations for 50 folders, and dezd2 failed with the rewind taken out. Under Miri the procs tests passed, with the 3 that list a folder ignored.
+		- 2026-11-09: Answer on the profiler question: That sounds pretty expensive. Can the process graph be done cheaper, or should the default update frequency be raised? Reopened for that.
+		- 2026-11-09: No cheaper read was found. On b23 with about 1,380 processes, listing `/proc` alone is 0.5 to 0.7 ms, and a `statx` asking only for the owner costs the same as `fstatat`, 1.5 to 1.7 ms a read in all. No other source gives each process's owner without root.
+		- 2026-11-09: The processes graph's default sample is 500%, up from 200%, so it reads every 5 s rather than every 2 s.
+		- 2026-11-09: The profiler went from 911 to 969 us a tick to 631 to 633, at a load of 4 to 5 on 32 cores. Its system time went from about 12.8 s to 7.2 s.
+		- `design.md` XFCE plugin and Data sources on Linux have it.
+		- Verified: the quick gate and Sanitizers passed, and the profile area before and after. deja1 failed with the spec's default put back to 200, and passes at 500.
+	- Decisions:
+		- 2026-11-06: above the stop line, so it goes in the next release. (me)
+		- libc's `opendir`, `rewinddir`, `readdir` and `fstatat` rather than raw `getdents64` with a bigger buffer, which timed the same and is Linux only.
+		- No cache of owners by pid. A process that runs `sudo` or drops root keeps its pid, so a cache would count it wrong until it's checked again, and a check is the same `stat`.
+		- The week of history in the profiler keeps processes on too, so its draw sees a full graph like the others. Turning it on after the week would save the 45 s.
+		- `ProcsReader` keeps a `DIR` pointer now, so it isn't `Send`. Nothing needs it to be.
+		- 2026-11-09: 500%, so 5 s, rather than the 1000% the field allows. A process count moves slowly, and 5 s is how often the kernel's own load average moves. At 1000% a new process would take up to 10 s to show.
+	- Branch: round-1107, round-1109b
+	- Test case: `procs::tests::each_read_lists_the_folder_again` (dezd2), `a_procs_read_allocates_nothing` in `core/tests/allocs.rs` (dezd3), and dep4j, dep4k, dep48 and dep49 as before.
+		- 2026-11-06: dep4j and dep4k are ignored under Miri now, since Miri has no `rewinddir`.
+		- 2026-11-09: new value only. deja1 checks `procs_sample` defaults to 500, not 200.
+		- Swept: every `ProcsReader` and `Which::Procs` use. dencp, dend1 and den86 turn every graph on, and under Miri now get no processes graph, as on a box without `/proc`. The other `/proc` readers already keep their files open through `Kept`.
+	- Acceptance signoff: Self-closed, 2026-11-09: deja1 passed in the quick gate at the new default, and the profile area ran with processes on, before and after.
+	- Closed: 20261109-172100
+
+- Code review 20261107 item 25: With the LAN split on, each network read spends about 20 ms in the kernel on the panel's thread
+	- ID: 2026110709074425
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026102914561218
+	- Origin: `8bbd96a` (2026-10-29). It was never timed. Confirmed, by a release probe on b23: 18 to 22 ms a read with 55 sockets, about 70 times a tick of the 6 default graphs. `ss -tn` takes the same.
+	- Requirements:
+		- Make a LAN read cheap enough for the panel's thread, or move it off that thread. Time it before and after.
+	- Note: Each dump walks the kernel's whole table of open TCP connections, which is sized by RAM, so few sockets cost about the same as many. An open settings window runs a second reader.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A read dumps only when the TCP opens in `/proc/net/snmp` moved since the last dump, and then for both families in one request. Otherwise it looks up the sockets it has, one hash lookup each.
+		- Timed on b23, release build, 7 sockets kept, load about 3:
+
+			| Read                        | Before   | After
+			| :---                        | :---     | :---
+			| No TCP socket opened since  | 17.9 ms  | 0.069 ms
+			| A TCP socket opened since   | 17.9 ms  | 9.1 ms
+		- The opens moved on 3 of 89 one-second ticks on b23, so about 0.4 ms a tick on average. Reading them costs 0.012 ms.
+		- `design.md` Data sources on Linux says so.
+		- Verified: the quick gate's format, build, lint and tests, the Sanitizers step, and Miri over `lan::` passed.
+	- Decisions:
+		- A cheaper read rather than a worker thread, which would keep about 2% of a core at the default 1 s sample, and 36% at 50 ms.
+		- The old `TCPDIAG_GETSOCK` request for the dump, since it walks the table once for both families. The kernel still keeps it for old tools.
+		- A browser that opens connections every tick brings back a 9 ms read on those ticks, still half of before.
+	- Branch: round-1109b
+	- Test case: `lan::tests` df3cx, df3cy, df3cz, df3d0 and df3d1. df3d0 and df3d1 fail with every read dumping.
+		- 20261109: deqt2 and dekq7 build or read `Sock` values, which now carry the socket's family and id. deqt2 compares only the bytes and the LAN flag, with the same values. df35e opens its sockets after the first read, so its cut read is a dump.
+		- Swept: `LanReader::poll` is the only sock_diag reader. `neighbors` dumps the neighbor table, not the TCP one, every 10 s.
+	- Closed: 20261109-174917
+
+- Video & GIF: Bigger font for the fake text
+	- ID: 2026110708212499
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261107-082124
+	- Opened by: t00mietum
+	- Related IDs: 2026110618335731, 2026110310450002
+	- Requirements:
+		- Bigger and non-narrow font for the fake text elements.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The demo panel's clock shows the time in Lato Semibold 12 and the date in Lato 10, where both were the clock's default "Sans Regular 8", which came out small and narrow. The window buttons and the logout menu's "sam" are Lato 11, up from the desktop's Lato 10.
+		- The right-click menu keeps the desktop's Lato 10, so its click points don't move.
+		- `script.txt` says so. The gif and the video are recorded again from fresh release builds, and `assets/demo.gif` is updated.
+		- Verified: frames of the new gif show every scene whole, with the hover tip, the settings window, the theme list and Neon at the end. The quick gate's format, build, lint and test areas passed, and so did Sanitizers.
+	- Decisions:
+		- 2026-11-09: "fake text elements" read as the panel's own items beside tukzmon: the clock, the window buttons and the logout menu. The captions were already Lato Semibold.
+		- 2026-11-09: the panel's labels get their size from a `gtk.css` in the demo's home, scoped to the panel, rather than the desktop font, which would also grow the settings window and move its click points.
+	- Branch: round-1109b
+	- Test case: None, since it's a recording. Frames of the gif and the video were checked.
+	- Acceptance signoff: Self-closed 20261109: the panel's text is Lato and bigger in the new gif's frames, as asked.
+	- Closed: 20261109-180442
+
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
@@ -5762,6 +5506,262 @@ Sorted per the notes in [Template](#template).
 	- Branch: demo
 	- Test case: None, since it's a recording. The gif and the video were checked frame by frame.
 	- Closed: 20261106-182817
+
+- Code review 20261107 item 17: A save through a linked item settings file shows in the panel only at the next read
+	- ID: 2026110709074417
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115231938
+	- Origin: `a9ca08f` (2026-10-29), with `4c8a1e0` (2026-11-01), which made saves keep the link. Not seen before. Confirmed, by a probe that got no watch event for a save to the link's target.
+	- Steps to reproduce: Make `plugin-N.shcl` a link into another folder, as stow or home-manager do, then Apply in Properties.
+	- Incorrect behavior: The change waits for the next graph read, 1 s by default and longer with slow graphs.
+	- Expected behavior: It shows at once, as design.md's XFCE plugin section says.
+	- Reproduced: 2026-11-09, by the new test with the fix taken out. A save to the file at the end of the link gave no call in 5 s.
+	- Possible cause: The file monitor watches the link, and the save writes the file it points to.
+	- Actual cause: As the possible cause. A GIO watch on a path sees changes to that name in its folder, so a write in the link's target folder never reaches it.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Each panel item now watches its settings file and, when that's a link, the file at the end of the link too. A save there shows at once.
+		- `design.md` XFCE plugin has it.
+		- Verified: the quick gate passed, with the Sanitizers step run on its own, and df38m with it.
+	- Decisions:
+		- The end of the link is found once, when the item starts. A link pointed somewhere else later still shows at once, through the link's own watch, but a save to its new file waits for the next read until the item starts again. Moving the watch at each change costs more code for a case stow and home-manager rarely make, and the read at each tick still catches it.
+		- The link itself stays watched, so a link replaced or pointed elsewhere shows at once.
+	- Actual fix: `watch_settings` in `xfce/src/lib.rs`, which `Plugin::start` calls, watches `config::through_links` of the settings file as well as the file.
+	- Branch: round-1109b
+	- Test case: `tests::a_save_through_a_linked_settings_file_calls_back_at_once` (df38m). It fails with the end's watch taken out, and passes after.
+		- Swept: every `watch` call (the settings file and the reset mark in `Plugin::start`, and dejae). The reset mark is the window's own file in the data folder, not a link a user makes. Every config write goes through `through_links` already (`Dialog::apply`, `config::start_from`).
+	- Closed: 20261109-152251
+
+- Code review 20261107 item 18: With the .deb or .rpm, Properties runs whichever tukzmon-settings comes first on PATH
+	- ID: 2026110709074418
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Origin: `59037f4` (2026-10-25). The Nix package got a link beside the library later, in `a4087bd`, and the .deb and .rpm never did. Not seen before. Plausible, from reading.
+	- Steps to reproduce: Install the .deb on a box with an older `tukzmon-settings` in `~/.local/bin`, ahead of `/usr/bin` on the panel's PATH, then open Properties.
+	- Incorrect behavior: The older window opens on the item's file.
+	- Expected behavior: The package's own window, which is why design.md gives the Nix package its link.
+	- Possible cause: The plugin looks beside its library, then on PATH, and the packages put the program only in `/usr/bin`.
+	- Reproduced: No. The packages' contents showed it: neither had anything beside the library.
+	- Actual cause: As above. `nfpm.yaml` put `tukzmon-settings` only in `/usr/bin`.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Both packages have a relative link to `/usr/bin/tukzmon-settings` beside the library, as the Nix package does.
+		- The Packages step now checks each package's link, and where it resolves.
+		- design.md XFCE plugin has it.
+		- Verified: the quick gate and Sanitizers passed, and so did `--backlog-run-quick release package`. The .deb built twice gave the same bytes. lintian had nothing on the link.
+		- Verified: df38w failed on the old `nfpm.yaml`, and on a link one folder short, and passed on the fix.
+	- Decisions:
+		- A relative link, per Debian policy for links within `/usr`, and as the Nix package's is.
+		- A link, not a second copy, so there's one program and `/usr/bin` still has it for running by hand.
+		- Swept: `nix/package.nix` has its link already. `utility/dev-install.bash` copies the program beside the library. The plugin's lookup (`settings_program`) is unchanged, and `windows_on` matches argv[0] by its ending, which the link's path keeps.
+	- Actual fix: two `type: symlink` entries in `cicd/packaging/nfpm.yaml`, and the content check in `cicd/utility/package.bash`.
+	- Branch: round-1109b
+	- Test case: `each_package_links_tukzmon_settings_beside_the_library` (df38w), and the Packages step's content check.
+	- Closed: 20261109-153252
+
+- Code review 20261107 item 19: knobs' spec checks let a relation loop, case-only twins, a NaN range end, and a text chooser through
+	- ID: 2026110709074419
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232265, 2026103115231954
+	- Origin: `f89e55e` (2026-10-23), from silkterm, whose copy has the same code. Not seen before. Confirmed, by probes against knobs. tukzmon's own spec has none of the 4 today.
+	- Incorrect behavior:
+		- A loop through group members and automatic choosers parses clean, then the first read overflows the stack. On Wayland that takes the panel down too.
+		- Paths that differ only in case pass, and shcl folds them onto one key, so a round trip loses one value.
+		- `range: [nan, 10]` passes, and then every number is in range.
+		- A chooser with `type: text` passes and takes any text as a pick.
+	- Expected behavior: Each is refused when the spec loads.
+	- Reproduced: 2026-11-09, with the 4 new tests, each of which parsed clean on the old checks.
+	- Actual cause:
+		- `Model::value` reads a setting's auto switch, its rule's state value and its group's chooser, and nothing checked that those can't lead back to it.
+		- Paths were compared as written, and shcl folds key case.
+		- `x < min || x > max` is false for a NaN end, and `numbers` reads `nan` from text.
+		- A chooser was checked for its control only, not its type.
+	- Note: silkterm's backlog needs the same fix.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- `Spec::finish` refuses a loop through what a value reads, naming each setting on it.
+		- Paths, and the `kept` check, compare without case.
+		- A range end or detent that isn't a number is refused.
+		- A group's chooser must be of type choice.
+		- `demo/demo.shcl`'s format notes say the same.
+		- Verified: the quick gate and Sanitizers passed.
+	- Decisions:
+		- Also refused: a dropdown's options that differ only in case, since a choice is matched without case and the second could never be picked. Same shape as the path twins.
+		- The loop check is a walk over the reads with an index, once per spec, rather than a chain walk per setting, since a setting reads up to 3 others.
+		- A range with its ends swapped was already refused through its default, so it gets no check of its own.
+		- A patch for silkterm's copy is drafted in the upstream folder, `2026110709074419/`.
+	- Branch: round-1109b
+	- Test case: `tests::a_chooser_switched_by_its_own_member_is_a_loop` (df399), `paths_and_options_that_differ_only_in_case_are_twins` (df39a), `a_range_end_or_detent_that_isnt_a_number_is_refused` (df39b) and `a_chooser_holds_a_choice` (df39c), in knobs. Each failed before the fix and passes after.
+		- Swept: every check in `check_links` that compares paths, ranges or detents, the gate loop check, and `set_indents`, which caps its walk at 8. A loop through 2 groups is caught too, checked with a probe.
+	- Acceptance signoff: Self-closed 20261109: df399, df39a, df39b and df39c.
+	- Closed: 20261109-154520
+
+- Code review 20261107 item 20: The Miri step drops a target whose test list fails and still passes
+	- ID: 2026110709074420
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110514461968
+	- Origin: `4a7f217` (2026-10-25), kept by `34329c6` (2026-11-05). Not seen before. Confirmed, by a stand-in cargo whose knobs list fails, which gave "3 test(s) in 2 module(s)" and a pass.
+	- Incorrect behavior: Each target's list hides its errors and its exit status, and only a total of 0 tests fails the step. A target that won't build or list loses its tests with no word.
+	- Expected behavior: A target that can't list its tests fails the step.
+	- Actual cause: The list ran in a pipe with its stderr thrown away and its exit status taken by `|| true`, so a failed target gave an empty list.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `fMiriList` lists each target to a file of its own and checks its exit. A target that fails has its errors shown and is named with its exit, and the step fails before any Miri runs. The filter is in the same awk, so 2 fewer processes a target.
+		- Verified: df39n passes, and failed with the exit check taken out, with the failure not counted, and with the errors not shown. dexn3 and the quick gate passed, and Sanitizers. A real Miri run of one test by `TUKZMON_MIRI_FILTER` listed it as 1 test in 1 module and passed.
+	- Decisions:
+		- Every target is listed before the step fails, so one run shows all that are broken. No Miri runs then, since the step takes hours and would fail anyway.
+	- Actual fix: `fMiriList` in `cicd/cicd.bash`.
+	- Branch: round-1109b
+	- Test case: df39n, in `cicd/tests/guards.bash`.
+		- Swept: every other list or count in `fStepMiri`, and `miri-group.bash`, which already keeps cargo's exit. No other step pipes a cargo list.
+	- Closed: 20261109-155850
+
+- Code review 20261107 item 21: The demo's video encodes use every core
+	- ID: 2026110709074421
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110310450002
+	- Origin: `15993d9` (2026-11-06). Not seen before. Plausible, from reading.
+	- Incorrect behavior: No ffmpeg call sets a thread count, the Demo step passes the demo no job count, and the step isn't in `HEAVY_STEPS`. x265 at its slow preset takes every core.
+	- Expected behavior: The demo gets the run's job count, at a quarter of the CPUs like the other heavy steps.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Actual cause: No ffmpeg call set a thread count, and x265 keeps its own thread pool, which `-threads` doesn't reach. The Demo step wasn't in `HEAVY_STEPS` and passed no job count.
+	- Actual fix: `demo-video.py --jobs N`, a quarter of the CPUs by default, gives every ffmpeg `-threads N`, the filters `-filter_threads` or `-filter_complex_threads`, and x265 `pools=N`. `fStepDemo` is in `HEAVY_STEPS` and passes `--jobs`.
+	- Decisions:
+		- 2026-11-10: the capture's x264 gets the same cap. The video take at 8 jobs kept every frame, 2328 at 60 fps for 38.8 s, with the capture at 1.0001 of wall time.
+		- 2026-11-10: the step's 2 release builds run at the heavy count too. They're usually already built by then.
+	- Progress log:
+		- Verified: on a 3 s 1080p clip, the video encode went from 9.0 cores to 2.3 at `--jobs 2`, and 7.7 at 8. The flash search went from 6.0 to 2.3, and the gif from 3.4 to 2.2.
+		- Verified: the video take ran whole at `--jobs 8`.
+		- Verified: df3a6 failed on the old script and cicd files, and passes now. The quick gate's format, build, lint and test areas passed, and so did Sanitizers.
+		- Swept: every ffmpeg command in `demo-video.py`, the audio one included, which df3a6 walks. ffprobe and gifsicle run on one thread.
+	- Branch: round-1109b
+	- Test case: df3a6
+	- Closed: 20261109-161744
+
+- Code review 20261107 item 22: The demo judges a display free by its lock file alone
+	- ID: 2026110709074422
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110310450002
+	- Origin: `15993d9` (2026-11-06). Not seen before. Confirmed, by a probe with an X server whose lock file the demo can't see.
+	- Incorrect behavior: The demo takes a display number that already answers, waits 10 s, and fails with "never came up as ours" rather than trying the next number. It fails safe.
+	- Expected behavior: A number that answers a connection counts as taken, so the demo moves on to the next one.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Actual cause: `display_taken` read only `/tmp/.X<n>-lock`. A server in another mount namespace, or with its lock file elsewhere, still holds the display's socket.
+	- Actual fix: A display is taken when its lock names a live process, or when `/tmp/.X11-unix/X<n>` or the abstract socket of the same name takes a connection. `pick_display` steps past it, and a pinned one fails at once.
+	- Progress log:
+		- Verified: with an Xvfb on :79 whose lock file sat in a private `/tmp`, the old script picked :79 and the new one :78.
+		- Verified: df3a7 failed on the old script and passes now, over a socket file, an abstract socket, a stale socket file, and a live and a dead lock.
+		- Swept: `pick_display` and `Screen.start` both go through `display_taken`, and `Screen.start` reads the lock through the same `x_lock`.
+	- Branch: round-1109b
+	- Test case: df3a7
+	- Closed: 20261109-161744
+
+- Code review 20261107 item 23: The color picker has no tips, and 2 message boxes break the UX guide
+	- ID: 2026110709074423
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Origin: `801ac42` (2026-10-24) for the picker, `f89e55e` and `6a78316` for the boxes. Not seen before. Confirmed, by reading and by a probe with a folder that can't be written.
+	- Incorrect behavior:
+		- None of the picker's controls has a tip: the square, the hue strip, the 5 percent boxes, the hex box, Cancel and OK.
+		- "Settings weren't saved" gives shcl's own error text, and no "Nothing was changed." line.
+		- A theme name that won't do shows a warning titled with the action, "Save theme as", rather than what didn't happen.
+	- Expected behavior: Every control has a tip, and a failure box's title says what didn't happen, per `project/style-guide_ux.md`.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Every control in the picker has a tip now. The value boxes take theirs from `Field::tip` in `pick.rs`.
+		- A failed save shows the window's own reason, such as "there's no permission to write there", and ends with "Nothing was changed."
+		- A theme name that won't do shows "Theme wasn't saved" or "Theme wasn't renamed", with "Nothing was changed." last.
+		- Verified: the quick gate and Sanitizers passed.
+	- Decisions:
+		- "History wasn't reset" gets no "Nothing was changed." line, since the graphs are already cleared by then, and some saved history may be gone.
+		- A write error shcl gives no status for keeps its own text after the file's name. Plain words for the read errors and the rest are item 2026110710005015's.
+	- Actual fix: `Window::failed` in `qt.cpp` shows every failure box, and `write_failed` in `dialog.rs` words a failed write.
+	- Branch: round-1109b
+	- Test case: `bridge::tests::every_control_in_the_color_picker_has_a_tip` (df3ar), `a_failure_box_says_what_didnt_happen_and_that_nothing_changed` (df3as) and `dialog::tests::a_failed_write_says_why_in_plain_words` (df3aq). df3ar and df3as fail with the tips and the new titles taken out, and pass with them.
+		- Swept: every `QMessageBox` and `QPushButton` in `qt.cpp`. The rest are questions, or have tips.
+	- Closed: 20261109-163151
+
+- Code review 20261107 item 24: design.md gives a stale count of the plugin's library calls
+	- ID: 2026110709074424
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232125
+	- Origin: `f89e55e` (2026-10-23). Not seen before. Confirmed, by counting the declarations in `xfce/src/sys.rs`: 36 GLib, GTK, cairo and panel calls, plus 3 from libc, where design.md says "20 or so".
+	- Expected behavior: The XFCE plugin section gives a count that stays right, or none.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Actual cause: design.md said "20 or so" when the first edit was made, and later "the few dozen". `xfce/src/sys.rs` now declares 41 calls, 3 of them libc's, so any number goes stale when a call is added.
+	- Decisions:
+		- Gave no count. The sentence reads the same without one, and nothing has to be kept in step with `sys.rs`.
+	- Actual fix: design.md XFCE plugin says "The GLib, GTK, cairo, and panel calls it makes", with no count.
+	- Branch: round-1109b
+	- Test case: None, since only text changed.
+	- Closed: 20261109-163531
+
+- A settings window refresh test fails now and then on GitHub's runner
+	- ID: 2026110810505772
+	- Type: Bug
+	- Status: Done
+		- The cause isn't proven, so it stays open until the hosted runs show the test holds.
+	- Needs external testing: No
+	- Priority|Severity: Low
+	- Opened: 20261108-105057
+	- Opened by: t00mietum
+	- Related IDs: 2026102513560001
+	- Test environment: GitHub's `ubuntu-24.04` runner, in the pipeline's image.
+	- Steps to reproduce: Run the `merge-gate` workflow.
+	- Incorrect behavior: `bridge::tests::a_refresh_sets_only_the_tips_and_gaps_that_changed` (dezcc) saw 1 layout request with nothing changed (`[0, 1]` against `[0, 0]`), on the first run on `main`.
+	- Expected behavior: No layout request from a refresh with nothing changed.
+	- Reproduced: No. It passed on the 2 Dependabot runs and the run by hand on `runner-tests` that day, and never failed on b23, pinned to one CPU or with the sensors, battery and zswap hidden.
+		- 2026-11-09: Still no, on b23: 187 runs on 4 loaded CPUs, 11 runs of all the bridge tests together on 4 loaded CPUs, 32 runs at about 13 times slower, and 0 to 1200 ms held before each refresh so sample ticks fell inside the counted window.
+	- Possible cause: Something the live graphs do between the settle loop and the refresh, such as a sample tick, on a slow 4-CPU runner.
+		- 2026-11-09: Ruled out on b23: a sample tick inside the counted window asks for no layout, and the slowest page settles in 4 of the 5 passes. Left: the old count also took in whatever a timer or the screen posted during its last `processEvents`, or a settle that needed more than 5 passes on the runner.
+	- Progress log:
+		- The test now settles each page until a pass asks for no layout and none is waiting, up to 50 passes, and counts only the layout requests the refresh itself posts, with no timer or screen event run in between.
+		- With nothing changed, a failure names the page and the first 10 widgets that got a tip or a layout request, so a hosted failure shows where it came from.
+		- Verified: the test still catches what it was made for: 120 layouts with the height check taken out, and 2585 tips with the tip check taken out, the same as before.
+		- Verified: 2026-11-10, dezcc passed in 3 merge-gate runs on GitHub's runner at c66f3d9 (42745146916, 42745155762, 42745165237). Those runs failed later on df336, filed apart.
+	- Decisions:
+		- Counting only what the refresh posts matches what the test is for. A layout request the refresh itself makes is still counted, on the runner too, so a real one isn't hidden.
+	- Branch: round-1109b
+	- Test case: dezcc (`bridge::tests::a_refresh_sets_only_the_tips_and_gaps_that_changed`). No fail-before run, since it never failed off the hosted runner.
+	- Closed: 20261109-185727
 
 - The settings tests print about 95,000 QObject::moveToThread warnings
 	- ID: 2026110912124929
