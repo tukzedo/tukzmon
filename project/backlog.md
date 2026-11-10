@@ -22,52 +22,18 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- Cut the cost of the spike windows in each draw
-	- ID: 2026111000270812
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261110-002708
-	- Opened by: t00mietum
-	- Related IDs: 2026110920595602
-	- Requirements: Bring the profiled tick back near its 241 us of user time, from the 480 us that 2026110920595602's windows took it to, with the same pixels.
-	- Estimated effort: Avg
-
-- CICD gap: df3qt never runs in the pipeline, since the image has no dbus-daemon
-	- ID: 2026110923411799
-	- Type: Task
-	- Status: Queued
-	- Priority|Severity: Low
-	- Opened: 20261109-234117
-	- Opened by:
-	- Requirements: Run df3qt in the gate, either with dbus-daemon in the build image or as a host step, so it isn't a SKIP every run.
-	- Progress log:
-		- Filed from 2026110911114050. It passes on b23's host with --include-ignored.
-
-- A greyed slider still draws its groove in the accent color
-	- ID: 2026110923034356
+- GPU memory graph on integrated Intel graphics
+	- ID: 2026110921252043
 	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261109-230343
-	- Opened by:
-	- Incorrect behavior: When a row is greyed, as Sample ms default in a remote session, its label and number box go grey but the slider's groove stays blue.
-	- Expected behavior: The slider greys with the rest of its row.
-	- Reproduced: 2026-11-09, with `XRDP_SESSION=1` on a test X display, where Qt takes the GTK theme's palette. Under the offscreen platform, with Qt's own palette, the groove was already grey.
-	- Actual cause: Fusion fills a slider's groove in the palette's Highlight, and the GTK theme's disabled Highlight is the same accent as its active one. The slider was disabled with its row. It predates the remote-session greying, but no slider in the spec has a gate, so that greying was the first to show it.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- Seen in tukzmon-settings shots from 2026110922214810. Not yet checked whether it predates the remote-session greying.
-		- A disabled slider draws its groove in the disabled text color, whatever the theme's disabled Highlight is.
-		- Verified: on a test X display with the GTK theme, Sample ms default's groove went from blue to grey in a remote session, and Spike emphasis stayed blue. The quick gate and Sanitizers passed.
-	- Decisions:
-		- In `BoxStyle`, not a palette change, so a theme change at run time can't bring it back, and selections elsewhere keep the theme's colors.
-	- Actual fix: `BoxStyle::drawComplexControl` swaps Highlight for the disabled text color on a disabled slider.
-	- Branch: round-1110
-	- Test case: `bridge::tests::a_greyed_slider_draws_none_of_the_accent` (df3qa). Under a palette whose disabled accent equals its active one, it fails without the fix, with 463 accent pixels on the greyed slider, and passes with it.
-		- Swept: `TrackSlider` is the window's only slider. The other Highlight draws in `qt.cpp`, the color picker's edge and the gripper's dots, use it only with focus, which a disabled widget can't hold. Greyed dropdowns and number boxes were already grey.
-	- Closed: 20261109-231624
+	- Status: Waiting for answers
+		- Waits on the question in questions.md on what the graph counts on an integrated card.
+	- Priority|Severity: Avg
+	- Opened: 20261109-212520
+	- Opened by: t00mietum
+	- Parent ID: 2026110920595600
+	- Incorrect behavior: An Intel card gets the GPU graph, but no GPU memory graph.
+	- Expected behavior: The GPU memory graph works on integrated Intel graphics.
+	- Possible cause: An integrated card's memory is the system's. Without root, the only count of what the GPU holds is each process's DRM fdinfo, and only for the user's own processes.
 
 - Smoothly animate each graph on each tick
 	- ID: 2026110911114024
@@ -196,6 +162,77 @@ Sorted per the notes in [Template](#template).
 	- Test case: `tests::a_quarter_pace_splits_the_screen_rate_evenly_from_24_to_50` (df3me).
 		- Swept: every `frames_apart` caller: the plugin's tick callback and timer, and qt.cpp's `LiveGraph` through `bridge::frames_apart`.
 
+- Reduce motion: a remote viewer on the local desktop, as RustDesk, x11vnc or NoMachine on the physical display
+	- ID: 2026110922214810
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- Connect NoMachine from another box to b23's physical display, and say whether the panel calms while connected and lets go after.
+	- Needs hand testing: NoMachine from another box to b23's physical display, with the panel calming while connected and letting go after. x11vnc and RustDesk on a box that has them, since neither is on b23 and installing them is a sudo step.
+	- Stand-in: none (20261110). A NoMachine one needs a connection to b23's live NoMachine server, which would calm the live panel too.
+	- Priority|Severity: Avg
+	- Opened: 20261109-222148
+	- Opened by:
+	- Parent ID: 2026110911114037
+	- Prereq IDs: 2026110922214697
+	- Requirements:
+		- Treat the local desktop as remote while a remote viewer is connected to it, and go back to the person's settings once it leaves.
+		- Check again every few seconds, in the panel and in the settings window, rather than once at start.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Possible signs: RustDesk's `--cm` window, which runs only while a peer is connected; an established socket on a VNC or RDP port; NoMachine's per-session node, told apart from the one for a virtual desktop on another display. Each needs a check with the real tool on b23.
+		- The panel item and the settings window look for a remote viewer on their own display about every 5 s, and go back to the person's settings once it leaves (`remote::Watch`). No root.
+		- A look reads the TCP counters, and the TCP tables only when those moved. It reads this user's processes only while a connection is up on a VNC, RDP, NoMachine or RustDesk port.
+		- Signs: x11vnc, x0vncserver, krfb or freerdp-shadow-cli holding that connection. RustDesk's `--cm`. NoMachine's `nxrunner.bin --monitor` on this display, while NoMachine has a connection.
+		- On b23, :1001 is NoMachine's node for the physical display. Its `nxrunner.bin --monitor` watches :0 and runs with no client connected.
+		- `design.md` Drawing and README Features have it.
+		- Verified: the quick gate and Sanitizers passed. With a stand-in x11vnc on a private Xvfb, the settings window greyed Sample ms default and Smooth scrolling, and went back 6 s after it quit. Before the early-timer fix below, it was still grey then. df3p7 failed with the socket read taken out, and df3p6 without the slack.
+		- On b23, a read of the TCP tables takes about 6 ms, the counters 18 us, and the process walk about 5 ms.
+		- Verified 2026-11-10: on a private panel with Smooth scrolling on, a stand-in x11vnc on its display took the item from 33 X writes a second to 1 within 3 s of joining, and back to 33 within 2 s of quitting.
+	- Decisions:
+		- Ports and process names, since none of these servers says which display it serves in a way that can be read without root.
+		- NoMachine counts by its monitor and any connection on port 4000, since its node for the physical display runs between connections. A connection to a NoMachine virtual desktop on the same box would calm the physical display too.
+		- A server on a port of its own isn't seen.
+		- A look up to a tenth early still counts, since Qt's coarse timer can wake early, and skipping it doubled the wait.
+		- The tables are kept until the TCP counters move, since each read walks the kernel's whole table.
+		- `Dialog::set_session` gave way to `watch_session`, and tests pass `Watch::fixed`.
+	- Branch: round-1110
+	- Test case: `remote::tests::the_tcp_table_gives_established_connections_on_remote_desktop_ports` (df3p4), `remote::tests::a_viewer_counts_only_when_its_server_has_a_peer_on_this_display` (df3p5), `remote::tests::the_watch_looks_again_only_every_few_seconds` (df3p6) and `remote::tests::a_stand_in_viewer_on_a_vnc_port_is_seen_on_its_display_only` (df3p7).
+		- Swept: both callers of `remote::session` (the plugin's start and the settings window's), both `set_session` callers, and every `Look` maker that takes the session.
+
+- Better antialiasing, so sharp spikes don't pulse in width
+	- ID: 2026110920595602
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- Watch a panel with Smooth scrolling on and a spiky graph, such as CPU, and say whether spikes still pulse in width, and whether the slower draw is worth it.
+	- Priority|Severity: Avg
+	- Opened: 20261109-205956
+	- Opened by: t00mietum
+	- Related IDs: 2026110911114024
+	- Requirements:
+		- Need better antialiasing, so that sharp spikes don't "pulse" in width as the pulse grows and shrinks by whole pixel widths at a time.
+		- E.g., spitballing here: for a pixel line that is in between 0% and 100%, render it at half visual brightness between the two.
+		- May not need temporal-aware antialiasing. Just better value-based antialiasing might be enough.
+	- Needs hand testing: A panel on b23 with this build and Smooth scrolling on, watching spikes slide on the CPU graph.
+	- Stand-in: none (20261110). df3s6 covers the width, and what's left turns on how it looks and whether the slower draw is worth it.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Cause: a column reached toward the max of every bucket it touched, however little of the bucket was in it. So a spike filled the next column as soon as it touched it, and jumped a pixel wider and back as it slid.
+		- `History::span_for` gives each column a `spike` that counts a sample cut by the column's edge by the part that's in, and the drawing reaches toward that instead of `max`. A column no wider than a sample is drawn at its mean. `design.md` Drawing has it.
+		- df3s6 slides a 1 s spike across columns of 1 s and of 10 s. Before, the red drawn over all columns jumped from 5.80 to 6.40 plot heights on the first, and from 2.12 to 2.72 on the second. Now each stays within 0.05.
+		- Profiler, load 2 to 4 on 32 cores: 241.1 us user a tick before, 480.3 after. History lookups went from 21% of self time to 41%. 2026111000270812 is for bringing it back down.
+		- Verified: df3s6 failed before the change and passed after, and the quick gate and Sanitizers passed.
+	- Decisions:
+		- Value-based, as the issue allowed: a cut sample lifts the column by its part, rather than the spike drawn full height at part brightness. That keeps the spike emphasis's look, a column drawn from its mean up toward its peak, and every other draw test's pixels.
+		- The window is one sample long and reads bucket maxes, not means, so near the edges it agrees with the buckets' max read in the middle. A sample off the bucket edges smears by up to a bucket, 50 ms in the newest 13 s and 250 ms up to 8.5 minutes back.
+		- Windows only within 1.5 samples of either edge, and the blocks' max between, so a wide column doesn't read every bucket.
+		- `Span::max` keeps its meaning, so its tests and its readers stand. `spike` and `Frame::sample` are new.
+		- No before and after pictures from preview.rs. df3s6's numbers stand in for them, and the look is left to the hand test.
+	- Branch: round-1110
+	- Test case: `render::tests::a_spike_slides_across_columns_without_jumping_in_width` (df3s6).
+		- Swept: every reader of `Span::max` (only `Frame::draw_in` reaches toward it), every `Frame` literal (lib.rs, preview.rs, the render tests), and the partial-bucket math in `History::span`, which the windows copy.
+
 - df336 fails on GitHub's runner: a demo stopped by TERM leaves run.pid and .demo-run
 	- ID: 2026110919021646
 	- Type: Bug
@@ -257,18 +294,16 @@ Sorted per the notes in [Template](#template).
 	- Test case: `gpu::tests::intel_reads_busy_as_the_time_out_of_rc6` (df3kw) and `an_intel_card_gives_a_gpu_graph_and_no_memory_graph` (df3kx). df3kx fails on the old `Card::find`.
 		- Swept: every `Card` match, both readers' probes, `amd_in`, which now shares `cards_in`, the settings window's GPU rows (dekmd), the README's graph list, and `design.md` for "Intel".
 
-- GPU memory graph on integrated Intel graphics
-	- ID: 2026110921252043
-	- Type: Bug
-	- Status: Waiting for answers
-		- Waits on the question in questions.md on what the graph counts on an integrated card.
+- Cut the cost of the spike windows in each draw
+	- ID: 2026111000270812
+	- Type: Enhancement
+	- Status: Queued
 	- Priority|Severity: Avg
-	- Opened: 20261109-212520
+	- Opened: 20261110-002708
 	- Opened by: t00mietum
-	- Parent ID: 2026110920595600
-	- Incorrect behavior: An Intel card gets the GPU graph, but no GPU memory graph.
-	- Expected behavior: The GPU memory graph works on integrated Intel graphics.
-	- Possible cause: An integrated card's memory is the system's. Without root, the only count of what the GPU holds is each process's DRM fdinfo, and only for the user's own processes.
+	- Related IDs: 2026110920595602
+	- Requirements: Bring the profiled tick back near its 241 us of user time, from the 480 us that 2026110920595602's windows took it to, with the same pixels.
+	- Estimated effort: Avg
 
 - Reduce motion if a remote desktop session is detected
 	- ID: 2026110911114037
@@ -288,110 +323,6 @@ Sorted per the notes in [Template](#template).
 		- Resume the previous animation settings when the desktop is connected normally.
 	- Progress log:
 		- Split in 2: the setting, with sessions a remote desktop server starts, in 2026110922214697, which is done, and a viewer that joins the local desktop in 2026110922214810, which is queued.
-
-- Reduce motion: the setting, and sessions a remote desktop server starts
-	- ID: 2026110922214697
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261109-222146
-	- Opened by:
-	- Parent ID: 2026110911114037
-	- Requirements:
-		- The setting, with the parent's overrides, controls greyed with a tip, and nothing saved for them.
-		- Detect a session that a remote desktop server started, such as an RDP or NoMachine virtual desktop.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- General, under Time axis, has Reduce motion if remote desktop session detected, at `graph.calm_remote`, on by default.
-		- In a remote session with it on, every graph reads at twice its rate in ms, never under 1000, and none slides. The settings window greys Sample ms default, Smooth scrolling and each graph's sample %, and their tips say why. Its graph previews follow the session too.
-		- A session counts as remote by `XRDP_SESSION`, `X2GO_SESSION`, `CHROME_REMOTE_DESKTOP_SESSION` or `VNCDESKTOP`, or by its logind record: `REMOTE=1`, or the PAM service `nx` or `xrdp-sesman`. b23's NX session on :1001 has `SERVICE=nx` and `REMOTE=0`.
-		- `design.md` Drawing and README Features have it.
-		- Verified: the quick gate and Sanitizers passed. df3ng, df3nh and df3nj failed with the doubled rate and the greying taken out. The settings window's snapshot greys the 2 General rows and every graph's sample % with `XRDP_SESSION=1`, and the same with `XDG_SESSION_ID` pointed at b23's NX session record, and not without either.
-	- Decisions:
-		- Read once, when the panel item or the settings window starts, since what a session starts with doesn't change.
-		- Run-time state goes in `Look::session`, not in the model, so it's never saved, and a settings file read in a local session draws as set.
-		- Each graph's sample % is greyed too, since every graph's rate is set aside. The axis ease after a gap still runs, since it's rare and short.
-		- On by default, since a remote session is where every frame costs.
-		- logind's session file is read directly, as `sd_session_is_remote` does, so no libsystemd link.
-	- Branch: round-1110
-	- Test case: `remote::tests::a_remote_session_is_told_by_its_variables_or_by_logind` (df3nf), `config::tests::a_remote_session_reads_half_as_often_from_a_second_and_never_slides` (df3ng), `dialog::tests::a_remote_session_greys_what_it_sets_aside_and_saves_none_of_it` (df3nh) and `bridge::tests::a_remote_session_greys_the_rates_and_smooth_scrolling` (df3nj).
-		- Swept: every `Look` maker that reads a file (the plugin's `read_look`, its fallback default, the settings window's `look`), every `rate` and `slides` caller through `Look`, and the graph list's sample cells.
-	- Closed: 20261109-222152
-
-- Reduce motion: a remote viewer on the local desktop, as RustDesk, x11vnc or NoMachine on the physical display
-	- ID: 2026110922214810
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- Connect NoMachine from another box to b23's physical display, and say whether the panel calms while connected and lets go after.
-	- Needs hand testing: NoMachine from another box to b23's physical display, with the panel calming while connected and letting go after. x11vnc and RustDesk on a box that has them, since neither is on b23 and installing them is a sudo step.
-	- Stand-in: none (20261110). A NoMachine one needs a connection to b23's live NoMachine server, which would calm the live panel too.
-	- Priority|Severity: Avg
-	- Opened: 20261109-222148
-	- Opened by:
-	- Parent ID: 2026110911114037
-	- Prereq IDs: 2026110922214697
-	- Requirements:
-		- Treat the local desktop as remote while a remote viewer is connected to it, and go back to the person's settings once it leaves.
-		- Check again every few seconds, in the panel and in the settings window, rather than once at start.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- Possible signs: RustDesk's `--cm` window, which runs only while a peer is connected; an established socket on a VNC or RDP port; NoMachine's per-session node, told apart from the one for a virtual desktop on another display. Each needs a check with the real tool on b23.
-		- The panel item and the settings window look for a remote viewer on their own display about every 5 s, and go back to the person's settings once it leaves (`remote::Watch`). No root.
-		- A look reads the TCP counters, and the TCP tables only when those moved. It reads this user's processes only while a connection is up on a VNC, RDP, NoMachine or RustDesk port.
-		- Signs: x11vnc, x0vncserver, krfb or freerdp-shadow-cli holding that connection. RustDesk's `--cm`. NoMachine's `nxrunner.bin --monitor` on this display, while NoMachine has a connection.
-		- On b23, :1001 is NoMachine's node for the physical display. Its `nxrunner.bin --monitor` watches :0 and runs with no client connected.
-		- `design.md` Drawing and README Features have it.
-		- Verified: the quick gate and Sanitizers passed. With a stand-in x11vnc on a private Xvfb, the settings window greyed Sample ms default and Smooth scrolling, and went back 6 s after it quit. Before the early-timer fix below, it was still grey then. df3p7 failed with the socket read taken out, and df3p6 without the slack.
-		- On b23, a read of the TCP tables takes about 6 ms, the counters 18 us, and the process walk about 5 ms.
-		- Verified 2026-11-10: on a private panel with Smooth scrolling on, a stand-in x11vnc on its display took the item from 33 X writes a second to 1 within 3 s of joining, and back to 33 within 2 s of quitting.
-	- Decisions:
-		- Ports and process names, since none of these servers says which display it serves in a way that can be read without root.
-		- NoMachine counts by its monitor and any connection on port 4000, since its node for the physical display runs between connections. A connection to a NoMachine virtual desktop on the same box would calm the physical display too.
-		- A server on a port of its own isn't seen.
-		- A look up to a tenth early still counts, since Qt's coarse timer can wake early, and skipping it doubled the wait.
-		- The tables are kept until the TCP counters move, since each read walks the kernel's whole table.
-		- `Dialog::set_session` gave way to `watch_session`, and tests pass `Watch::fixed`.
-	- Branch: round-1110
-	- Test case: `remote::tests::the_tcp_table_gives_established_connections_on_remote_desktop_ports` (df3p4), `remote::tests::a_viewer_counts_only_when_its_server_has_a_peer_on_this_display` (df3p5), `remote::tests::the_watch_looks_again_only_every_few_seconds` (df3p6) and `remote::tests::a_stand_in_viewer_on_a_vnc_port_is_seen_on_its_display_only` (df3p7).
-		- Swept: both callers of `remote::session` (the plugin's start and the settings window's), both `set_session` callers, and every `Look` maker that takes the session.
-
-- Keep logging but don't display updates while the desktop is locked
-	- ID: 2026110911114050
-	- Type: Enhancement
-	- Status: Done
-		- Lock b23's screen for a minute with the panel up, and say whether the graphs show the minute right after unlocking.
-	- Needs hand testing: No
-	- Stand-in: the real xfce4-screensaver blanking a private panel, with its lock off (20261110). Left for a person: the lock and its unlock dialog on b23's own screen.
-	- Priority|Severity: Avg
-	- Opened: 20261109-111140
-	- Opened by: t00mietum
-	- Requirements:
-		- When the desktop is locked, keep logging values but don't display updates.
-		- Then catch up once unlocked.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- While the screen is locked or blanked, the panel item goes on reading and keeping history, but doesn't draw, and nothing slides. On unlock it draws once, which shows all that was read meanwhile.
-		- It follows xfce4-screensaver's `ActiveChanged` on the session bus, and logind's `LockedHint` for its session on the system bus, and asks both once at start.
-		- `design.md` Drawing and README Features have it.
-		- Verified: the quick gate and Sanitizers passed. df3qr and df3qt failed with the draw on unlock taken out, and with a screensaver that quits not counted as gone. df3qs failed with a leading digit left as it is.
-		- Verified: on a private panel with Smooth scrolling on, a fake xfce4-screensaver on its bus took the item from 265 X writes in 8 s to none, and from 8 CPU ticks to 2, and back to 268 once it said unlocked.
-		- Verified 2026-11-10: on a private panel with Smooth scrolling on, the real xfce4-screensaver on its bus, with its lock off, took the item from about 33 X writes a second to none while active, and back to 33 once deactivated. A CPU load run while it was active showed on the CPU graph right after.
-	- Decisions:
-		- D-Bus, not logind's session file, since the file has no lock state.
-		- Both sources, since xfce4-screensaver 4.20 never sets `LockedHint`, and light-locker sets only that.
-		- Blanked counts as locked, since nobody sees the panel either way.
-		- The settings window's graph list still draws, since it's open only for a while.
-		- No logind watch where `XDG_SESSION_ID` is unset, since the signal needs the session's own object.
-		- The buses are opened at start without waiting on a callback. The session bus is already open in the panel, for xfconf.
-	- Branch: round-1110
-	- Test case: `lock::tests::the_screensaver_or_a_lock_hides_the_graphs_and_unlocking_draws_once` (df3qr), `lock::tests::a_session_s_logind_object_escapes_a_leading_digit` (df3qs), and `lock::tests::a_screensaver_or_logind_on_a_private_bus_hides_the_graphs_until_unlocked` (df3qt), which is ignored in a run since the image has no dbus-daemon, and passes with `--ignored` on b23.
-		- dekpx now reads `lock.rs` too.
-		- Swept: every draw the plugin asks for (the tick, the frame clock's tick callback, the pacer, and the frame start in the draw), and the tip's requery. Left as they were: the pointer's own draws, which need the pointer on the panel, and the one draw that shows an item a bug stopped.
-	- Acceptance signoff: Self-closed 20261110: the real xfce4-screensaver on a private panel stopped the item's draws while active and brought them back after, and df3qr, df3qs and df3qt cover both D-Bus sources. Only the lock dialog itself went unseen.
-	- Closed: 20261110-005036
 
 - CICD gap: Fuzz the parsers of files and kernel messages
 	- ID: 2026110310450001
@@ -471,71 +402,16 @@ Sorted per the notes in [Template](#template).
 		- knobs' tests too. SilkTerm's copy gets an item of its own there.
 		- The `live_` names can stay, since they mark the tests that read this computer.
 
-- New default settings for Graphs and Themes
-	- ID: 2026110920595601
-	- Type: Enhancement
-	- Status: Done
-		- It goes a little past the wording in one way. Each graph's own border in Default moved to `#595959` with the shared one, so a graph keeps it with One border for every graph off.
-	- Priority|Severity: Avg
-	- Opened: 20261109-205956
-	- Opened by: t00mietum
-	- Requirements:
-		- Use the order, color theme, width, and sample settings from my local config.
-			- But don't change what's enabled by default.
-		- Default process count graph vertical scale X^2.
-			- But leave tukzmon as linear, not my config's logarithmic.
-	- Estimated effort: Low
-	- Actual effort: Low
+- CICD gap: df3qt never runs in the pipeline, since the image has no dbus-daemon
+	- ID: 2026110923411799
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261109-234117
+	- Opened by:
+	- Requirements: Run df3qt in the gate, either with dbus-daemon in the build image or as a host step, so it isn't a SKIP every run.
 	- Progress log:
-		- Read from b23's `plugin-16.shcl`. The order was already b23's.
-		- Processes defaults to 50% wide, a 400% sample and a `squared` vertical scale. tukzmon's own graph defaults to a 100% sample, and stays on Global default, so linear. The other widths and samples were already b23's.
-		- Default's colors take b23's changes on it that were still left: system `#693d91`, LAN sent `#ff6bf1`, LAN received `#84ff7b`, the border `#595959` and the hover line `#000fff`.
-		- `design.md` XFCE plugin, Theme and Data sources on Linux have it.
-		- Verified: the quick gate and Sanitizers passed, with the new test.
-	- Decisions:
-		- Only order, colors, widths, samples and processes' vertical scale. b23's network split, and its other graphs' vertical scales, which are all Global default, weren't asked for.
-		- Processes' 400% replaces the 500% picked on 2026-11-09 for its cost, since the item asks for b23's samples. It's off by default.
-		- Each graph's own border follows the shared one, as dejkg has it in every theme. With Default's overrides on, the panel draws the same either way.
-		- The new LAN colors are 25 or more from the network's others as CIEDE2000, and system is 10 or more from every lead (dejbr).
-	- Branch: round-1110
-	- Test case: `config::tests::the_graph_list_defaults_are_b23s_but_whats_shown` (df3rj) checks every graph's width, sample and vertical scale. It fails on the old defaults, as do dejbq, deja1 and der3p.
-		- 2026-11-09: new values only. debhj reads system `#693d91`, the border `#595959` and the hover line `#000fff`, not `#fa72f0`, `#8b8b8b` and `#000000`. dejbq reads the same, and LAN sent and received too. dejkg's Default outlines are `#595959`. deja1 reads tukzmon at 100 and processes at 400, not 400 and 500. der3p has processes at `squared`, not Global default.
-		- Swept: every test and doc naming Default's system, border, hover or LAN colors, each graph's border row default, and the default widths, samples and vertical scales. dice's Randomize keeps its black hover line.
-	- Acceptance signoff: Self-closed 20261109: df3rj and the changed tests passed in the quick gate.
-	- Closed: 20261109-235525
-
-- Better antialiasing, so sharp spikes don't pulse in width
-	- ID: 2026110920595602
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- Watch a panel with Smooth scrolling on and a spiky graph, such as CPU, and say whether spikes still pulse in width, and whether the slower draw is worth it.
-	- Priority|Severity: Avg
-	- Opened: 20261109-205956
-	- Opened by: t00mietum
-	- Related IDs: 2026110911114024
-	- Requirements:
-		- Need better antialiasing, so that sharp spikes don't "pulse" in width as the pulse grows and shrinks by whole pixel widths at a time.
-		- E.g., spitballing here: for a pixel line that is in between 0% and 100%, render it at half visual brightness between the two.
-		- May not need temporal-aware antialiasing. Just better value-based antialiasing might be enough.
-	- Needs hand testing: A panel on b23 with this build and Smooth scrolling on, watching spikes slide on the CPU graph.
-	- Stand-in: none (20261110). df3s6 covers the width, and what's left turns on how it looks and whether the slower draw is worth it.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- Cause: a column reached toward the max of every bucket it touched, however little of the bucket was in it. So a spike filled the next column as soon as it touched it, and jumped a pixel wider and back as it slid.
-		- `History::span_for` gives each column a `spike` that counts a sample cut by the column's edge by the part that's in, and the drawing reaches toward that instead of `max`. A column no wider than a sample is drawn at its mean. `design.md` Drawing has it.
-		- df3s6 slides a 1 s spike across columns of 1 s and of 10 s. Before, the red drawn over all columns jumped from 5.80 to 6.40 plot heights on the first, and from 2.12 to 2.72 on the second. Now each stays within 0.05.
-		- Profiler, load 2 to 4 on 32 cores: 241.1 us user a tick before, 480.3 after. History lookups went from 21% of self time to 41%. 2026111000270812 is for bringing it back down.
-		- Verified: df3s6 failed before the change and passed after, and the quick gate and Sanitizers passed.
-	- Decisions:
-		- Value-based, as the issue allowed: a cut sample lifts the column by its part, rather than the spike drawn full height at part brightness. That keeps the spike emphasis's look, a column drawn from its mean up toward its peak, and every other draw test's pixels.
-		- The window is one sample long and reads bucket maxes, not means, so near the edges it agrees with the buckets' max read in the middle. A sample off the bucket edges smears by up to a bucket, 50 ms in the newest 13 s and 250 ms up to 8.5 minutes back.
-		- Windows only within 1.5 samples of either edge, and the blocks' max between, so a wide column doesn't read every bucket.
-		- `Span::max` keeps its meaning, so its tests and its readers stand. `spike` and `Frame::sample` are new.
-		- No before and after pictures from preview.rs. df3s6's numbers stand in for them, and the look is left to the hand test.
-	- Branch: round-1110
-	- Test case: `render::tests::a_spike_slides_across_columns_without_jumping_in_width` (df3s6).
-		- Swept: every reader of `Span::max` (only `Frame::draw_in` reaches toward it), every `Frame` literal (lib.rs, preview.rs, the render tests), and the partial-bucket math in `History::span`, which the windows copy.
+		- Filed from 2026110911114050. It passes on b23's host with --include-ignored.
 
 - Code review 20261107 item 26: The amdgpu reads have none of the NVIDIA path's runtime power checks
 	- ID: 2026110709074426
@@ -3549,6 +3425,105 @@ Sorted per the notes in [Template](#template).
 	- Acceptance signoff: Self-closed 20261109: in the new gif the network, volume and bell icons are evenly spaced.
 	- Closed: 20261109-124233
 
+- Reduce motion: the setting, and sessions a remote desktop server starts
+	- ID: 2026110922214697
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261109-222146
+	- Opened by:
+	- Parent ID: 2026110911114037
+	- Requirements:
+		- The setting, with the parent's overrides, controls greyed with a tip, and nothing saved for them.
+		- Detect a session that a remote desktop server started, such as an RDP or NoMachine virtual desktop.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- General, under Time axis, has Reduce motion if remote desktop session detected, at `graph.calm_remote`, on by default.
+		- In a remote session with it on, every graph reads at twice its rate in ms, never under 1000, and none slides. The settings window greys Sample ms default, Smooth scrolling and each graph's sample %, and their tips say why. Its graph previews follow the session too.
+		- A session counts as remote by `XRDP_SESSION`, `X2GO_SESSION`, `CHROME_REMOTE_DESKTOP_SESSION` or `VNCDESKTOP`, or by its logind record: `REMOTE=1`, or the PAM service `nx` or `xrdp-sesman`. b23's NX session on :1001 has `SERVICE=nx` and `REMOTE=0`.
+		- `design.md` Drawing and README Features have it.
+		- Verified: the quick gate and Sanitizers passed. df3ng, df3nh and df3nj failed with the doubled rate and the greying taken out. The settings window's snapshot greys the 2 General rows and every graph's sample % with `XRDP_SESSION=1`, and the same with `XDG_SESSION_ID` pointed at b23's NX session record, and not without either.
+	- Decisions:
+		- Read once, when the panel item or the settings window starts, since what a session starts with doesn't change.
+		- Run-time state goes in `Look::session`, not in the model, so it's never saved, and a settings file read in a local session draws as set.
+		- Each graph's sample % is greyed too, since every graph's rate is set aside. The axis ease after a gap still runs, since it's rare and short.
+		- On by default, since a remote session is where every frame costs.
+		- logind's session file is read directly, as `sd_session_is_remote` does, so no libsystemd link.
+	- Branch: round-1110
+	- Test case: `remote::tests::a_remote_session_is_told_by_its_variables_or_by_logind` (df3nf), `config::tests::a_remote_session_reads_half_as_often_from_a_second_and_never_slides` (df3ng), `dialog::tests::a_remote_session_greys_what_it_sets_aside_and_saves_none_of_it` (df3nh) and `bridge::tests::a_remote_session_greys_the_rates_and_smooth_scrolling` (df3nj).
+		- Swept: every `Look` maker that reads a file (the plugin's `read_look`, its fallback default, the settings window's `look`), every `rate` and `slides` caller through `Look`, and the graph list's sample cells.
+	- Closed: 20261109-222152
+
+- Keep logging but don't display updates while the desktop is locked
+	- ID: 2026110911114050
+	- Type: Enhancement
+	- Status: Done
+		- Lock b23's screen for a minute with the panel up, and say whether the graphs show the minute right after unlocking.
+	- Needs hand testing: No
+	- Stand-in: the real xfce4-screensaver blanking a private panel, with its lock off (20261110). Left for a person: the lock and its unlock dialog on b23's own screen.
+	- Priority|Severity: Avg
+	- Opened: 20261109-111140
+	- Opened by: t00mietum
+	- Requirements:
+		- When the desktop is locked, keep logging values but don't display updates.
+		- Then catch up once unlocked.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- While the screen is locked or blanked, the panel item goes on reading and keeping history, but doesn't draw, and nothing slides. On unlock it draws once, which shows all that was read meanwhile.
+		- It follows xfce4-screensaver's `ActiveChanged` on the session bus, and logind's `LockedHint` for its session on the system bus, and asks both once at start.
+		- `design.md` Drawing and README Features have it.
+		- Verified: the quick gate and Sanitizers passed. df3qr and df3qt failed with the draw on unlock taken out, and with a screensaver that quits not counted as gone. df3qs failed with a leading digit left as it is.
+		- Verified: on a private panel with Smooth scrolling on, a fake xfce4-screensaver on its bus took the item from 265 X writes in 8 s to none, and from 8 CPU ticks to 2, and back to 268 once it said unlocked.
+		- Verified 2026-11-10: on a private panel with Smooth scrolling on, the real xfce4-screensaver on its bus, with its lock off, took the item from about 33 X writes a second to none while active, and back to 33 once deactivated. A CPU load run while it was active showed on the CPU graph right after.
+	- Decisions:
+		- D-Bus, not logind's session file, since the file has no lock state.
+		- Both sources, since xfce4-screensaver 4.20 never sets `LockedHint`, and light-locker sets only that.
+		- Blanked counts as locked, since nobody sees the panel either way.
+		- The settings window's graph list still draws, since it's open only for a while.
+		- No logind watch where `XDG_SESSION_ID` is unset, since the signal needs the session's own object.
+		- The buses are opened at start without waiting on a callback. The session bus is already open in the panel, for xfconf.
+	- Branch: round-1110
+	- Test case: `lock::tests::the_screensaver_or_a_lock_hides_the_graphs_and_unlocking_draws_once` (df3qr), `lock::tests::a_session_s_logind_object_escapes_a_leading_digit` (df3qs), and `lock::tests::a_screensaver_or_logind_on_a_private_bus_hides_the_graphs_until_unlocked` (df3qt), which is ignored in a run since the image has no dbus-daemon, and passes with `--ignored` on b23.
+		- dekpx now reads `lock.rs` too.
+		- Swept: every draw the plugin asks for (the tick, the frame clock's tick callback, the pacer, and the frame start in the draw), and the tip's requery. Left as they were: the pointer's own draws, which need the pointer on the panel, and the one draw that shows an item a bug stopped.
+	- Acceptance signoff: Self-closed 20261110: the real xfce4-screensaver on a private panel stopped the item's draws while active and brought them back after, and df3qr, df3qs and df3qt cover both D-Bus sources. Only the lock dialog itself went unseen.
+	- Closed: 20261110-005036
+
+- New default settings for Graphs and Themes
+	- ID: 2026110920595601
+	- Type: Enhancement
+	- Status: Done
+		- It goes a little past the wording in one way. Each graph's own border in Default moved to `#595959` with the shared one, so a graph keeps it with One border for every graph off.
+	- Priority|Severity: Avg
+	- Opened: 20261109-205956
+	- Opened by: t00mietum
+	- Requirements:
+		- Use the order, color theme, width, and sample settings from my local config.
+			- But don't change what's enabled by default.
+		- Default process count graph vertical scale X^2.
+			- But leave tukzmon as linear, not my config's logarithmic.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Read from b23's `plugin-16.shcl`. The order was already b23's.
+		- Processes defaults to 50% wide, a 400% sample and a `squared` vertical scale. tukzmon's own graph defaults to a 100% sample, and stays on Global default, so linear. The other widths and samples were already b23's.
+		- Default's colors take b23's changes on it that were still left: system `#693d91`, LAN sent `#ff6bf1`, LAN received `#84ff7b`, the border `#595959` and the hover line `#000fff`.
+		- `design.md` XFCE plugin, Theme and Data sources on Linux have it.
+		- Verified: the quick gate and Sanitizers passed, with the new test.
+	- Decisions:
+		- Only order, colors, widths, samples and processes' vertical scale. b23's network split, and its other graphs' vertical scales, which are all Global default, weren't asked for.
+		- Processes' 400% replaces the 500% picked on 2026-11-09 for its cost, since the item asks for b23's samples. It's off by default.
+		- Each graph's own border follows the shared one, as dejkg has it in every theme. With Default's overrides on, the panel draws the same either way.
+		- The new LAN colors are 25 or more from the network's others as CIEDE2000, and system is 10 or more from every lead (dejbr).
+	- Branch: round-1110
+	- Test case: `config::tests::the_graph_list_defaults_are_b23s_but_whats_shown` (df3rj) checks every graph's width, sample and vertical scale. It fails on the old defaults, as do dejbq, deja1 and der3p.
+		- 2026-11-09: new values only. debhj reads system `#693d91`, the border `#595959` and the hover line `#000fff`, not `#fa72f0`, `#8b8b8b` and `#000000`. dejbq reads the same, and LAN sent and received too. dejkg's Default outlines are `#595959`. deja1 reads tukzmon at 100 and processes at 400, not 400 and 500. der3p has processes at `squared`, not Global default.
+		- Swept: every test and doc naming Default's system, border, hover or LAN colors, each graph's border row default, and the default widths, samples and vertical scales. dice's Randomize keeps its black hover line.
+	- Acceptance signoff: Self-closed 20261109: df3rj and the changed tests passed in the quick gate.
+	- Closed: 20261109-235525
+
 - Code review 20261106 item 5: The processes graph takes about 4 ms a read
 	- ID: 2026110618502905
 	- Type: Enhancement
@@ -5817,6 +5792,31 @@ Sorted per the notes in [Template](#template).
 	- Branch: demo
 	- Test case: None, since it's a recording. The gif and the video were checked frame by frame.
 	- Closed: 20261106-182817
+
+- A greyed slider still draws its groove in the accent color
+	- ID: 2026110923034356
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261109-230343
+	- Opened by:
+	- Incorrect behavior: When a row is greyed, as Sample ms default in a remote session, its label and number box go grey but the slider's groove stays blue.
+	- Expected behavior: The slider greys with the rest of its row.
+	- Reproduced: 2026-11-09, with `XRDP_SESSION=1` on a test X display, where Qt takes the GTK theme's palette. Under the offscreen platform, with Qt's own palette, the groove was already grey.
+	- Actual cause: Fusion fills a slider's groove in the palette's Highlight, and the GTK theme's disabled Highlight is the same accent as its active one. The slider was disabled with its row. It predates the remote-session greying, but no slider in the spec has a gate, so that greying was the first to show it.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Seen in tukzmon-settings shots from 2026110922214810. Not yet checked whether it predates the remote-session greying.
+		- A disabled slider draws its groove in the disabled text color, whatever the theme's disabled Highlight is.
+		- Verified: on a test X display with the GTK theme, Sample ms default's groove went from blue to grey in a remote session, and Spike emphasis stayed blue. The quick gate and Sanitizers passed.
+	- Decisions:
+		- In `BoxStyle`, not a palette change, so a theme change at run time can't bring it back, and selections elsewhere keep the theme's colors.
+	- Actual fix: `BoxStyle::drawComplexControl` swaps Highlight for the disabled text color on a disabled slider.
+	- Branch: round-1110
+	- Test case: `bridge::tests::a_greyed_slider_draws_none_of_the_accent` (df3qa). Under a palette whose disabled accent equals its active one, it fails without the fix, with 463 accent pixels on the greyed slider, and passes with it.
+		- Swept: `TrackSlider` is the window's only slider. The other Highlight draws in `qt.cpp`, the color picker's edge and the gripper's dots, use it only with focus, which a disabled widget can't hold. Greyed dropdowns and number boxes were already grey.
+	- Closed: 20261109-231624
 
 - Code review 20261107 item 17: A save through a linked item settings file shows in the panel only at the next read
 	- ID: 2026110709074417
