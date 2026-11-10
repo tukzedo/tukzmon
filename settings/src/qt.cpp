@@ -608,7 +608,9 @@ protected:
 		p.drawImage(rect(), img);
 		if (!framePending && live_moving(live, name)) {
 			framePending = true;
-			QTimer::singleShot(33, this, [this] {
+			const double hz = screen() != nullptr && screen()->refreshRate() > 0 ? screen()->refreshRate() : 60.0;
+			const auto ms = std::max(1L, std::lround(1000.0 * double(frames_apart(hz)) / hz));
+			QTimer::singleShot(int(ms), Qt::PreciseTimer, this, [this] {
 				framePending = false;
 				update();
 			});

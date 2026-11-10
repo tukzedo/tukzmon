@@ -246,7 +246,7 @@ impl Split {
 /// design.md Drawing.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Motion {
-	/// On with 8 or more CPUs, since it draws about 30 times a second.
+	/// On with 8 or more CPUs, since it draws up to 60 times a second.
 	#[default]
 	Auto,
 	/// Always slides.

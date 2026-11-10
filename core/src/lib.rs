@@ -71,6 +71,18 @@ pub(crate) fn cpus() -> f32 {
 	*CPUS.get_or_init(|| std::thread::available_parallelism().map_or(1.0, |n| n.get() as f32))
 }
 
+/// Screen frames from one draw to the next while a graph moves, on a screen
+/// of `hz`: the fewest that keep it at 60 a second or under, so every frame
+/// at 60 Hz, every other at 120 and every third at 144. Below 60 Hz it's
+/// every frame, since none come faster. See design.md Drawing.
+pub fn frames_apart(hz: f64) -> u32 {
+	if !hz.is_finite() || hz <= 0.0 {
+		return 1;
+	}
+	// 61, so a 60.002 Hz screen still gets every frame
+	(hz / 61.0).ceil().clamp(1.0, 1000.0) as u32
+}
+
 /// Milliseconds on one clock that every graph's beats go by. See
 /// [`Graph::tick`].
 pub fn clock_ms() -> f64 {
@@ -1325,6 +1337,31 @@ mod tests {
 
 	fn near_secs(a: f64, b: f64) -> bool {
 		(a - b).abs() < 1e-6
+	}
+
+	// Test ID: df3e4
+	#[test]
+	fn frames_are_an_even_split_of_the_screen_rate_from_30_to_60() {
+		for (hz, apart) in [
+			(60.0, 1),
+			(59.94, 1),
+			(60.0024, 1),
+			(75.0, 2),
+			(120.0, 2),
+			(144.0, 3),
+			(165.0, 3),
+			(240.0, 4),
+			(360.0, 6),
+			(30.0, 1),
+			(0.0, 1),
+			(f64::NAN, 1),
+		] {
+			assert_eq!(frames_apart(hz), apart, "{hz} Hz");
+		}
+		for hz in 60..=500 {
+			let fps = f64::from(hz) / f64::from(frames_apart(f64::from(hz)));
+			assert!((30.0..=61.0).contains(&fps), "{hz} Hz draws {fps} a second");
+		}
 	}
 
 	// Test ID: df3e1

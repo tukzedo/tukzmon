@@ -138,7 +138,7 @@ Sorted per the notes in [Template](#template).
 		- If this makes sense: An even division of the screen refresh rate, minimum 30, max 60. With smooth antialiasing.
 		- It should look absolutely incredibly buttery smooth.
 	- Progress log:
-		- Split in 2: the setting and the slide in 2026110918080223, and frames at the screen's rate with the CPU cost in 2026110918081021.
+		- Split in 2: the setting and the slide in 2026110918080223, and frames at the screen's rate with the CPU cost in 2026110918081021. Both are in, waiting on UAT.
 
 - Smooth scrolling: the setting, and each graph sliding between samples
 	- ID: 2026110918080223
@@ -176,7 +176,9 @@ Sorted per the notes in [Template](#template).
 - Smooth scrolling: frames at the screen's rate, and the CPU cost
 	- ID: 2026110918081021
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- Watch the panel on b23's own screen with Smooth scrolling on, and say whether the slide runs without a stutter.
+	- Needs hand testing: The panel on b23's screen, under its compositor, with this build.
 	- Priority|Severity: Avg
 	- Opened: 20261109-180810
 	- Opened by: t00mietum
@@ -186,6 +188,20 @@ Sorted per the notes in [Template](#template).
 		- While a graph slides, draw at an even division of the screen's refresh rate, from 30 to 60 a second, in the panel and in the settings window's graph rows, in place of the fixed 33 ms timer.
 		- Measure the panel's CPU with Smooth scrolling on and off. If on costs too much for a panel that runs all day, revisit what Auto turns on.
 	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- While a graph slides or an axis eases, the panel draws from its frame clock: every frame up to 60 Hz, every other at 120, every third at 144. The settings window's graph rows use the same rule on a timer, from the screen's refresh rate.
+		- With Smooth scrolling on, a panel item with the default graphs took 31 CPU ticks in 20 s, about 1.6% of a core, and its X server 9. Off, they took 2 and 1. That's at 60 frames a second, the most it draws.
+		- `design.md` Drawing and Time axis have it.
+		- Verified: the quick gate and Sanitizers passed, and a panel item kept drawing while it slid, by the CPU numbers above.
+	- Decisions:
+		- The panel uses GTK's frame clock, not a timer, so a draw lands on a screen frame rather than beating against them.
+		- One rule, `frames_apart` in core, serves both the panel and the settings window. It splits by 61, not 60, so a 60.002 Hz screen still gets every frame.
+		- Below 60 Hz it draws every frame, since none come faster.
+		- Auto stays on at 8 CPUs. 1.6% of one core is 0.2% of an 8 CPU box.
+	- Branch: round-1109b
+	- Test case: `tests::frames_are_an_even_split_of_the_screen_rate_from_30_to_60` (df3e4). The frame clock's own pacing needs a real screen, so it has no test. dekpt now calls the tick callback.
+		- Swept: both frame timers (the plugin's draw and `quiet`, qt.cpp's `LiveGraph`), and every `frame` caller, the panic test included.
 
 - Reduce motion if a remote desktop session is detected
 	- ID: 2026110911114037

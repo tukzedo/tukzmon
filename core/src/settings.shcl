@@ -111,7 +111,7 @@ settings:
 		option_labels: ["Auto", "On", "Off"]
 		path: graph.animate
 		default: auto
-		tip: "Slide each graph along to its newest sample over the time until the next one, rather than moving it a whole step at each sample. The right edge runs one sample behind to do it. It draws about 30 times a second rather than once a sample, so it costs more CPU. Auto turns it on with 8 or more CPUs."
+		tip: "Slide each graph along to its newest sample over the time until the next one, rather than moving it a whole step at each sample. The right edge runs one sample behind to do it. It draws up to 60 times a second, in step with the screen, rather than once a sample, so it costs more CPU. Auto turns it on with 8 or more CPUs."
 
 	VerticalHead:
 		label: Vertical axis

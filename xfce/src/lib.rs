@@ -46,7 +46,7 @@ struct Plugin {
 	graphs: Graphs,
 	/// The one-shot timer to the next graph's read.
 	timer: c_uint,
-	/// A one-shot redraw while an axis eases in, or 0.
+	/// The area's tick callback while a graph slides or eases, or 0.
 	frame: c_uint,
 	config: PathBuf,
 	config_time: Option<(SystemTime, u64)>,
@@ -71,9 +71,6 @@ struct Plugin {
 	/// Why a panic stopped this item. It draws nothing and does nothing after.
 	stopped: Option<String>,
 }
-
-/// How often to draw while an axis eases in.
-const FRAME_MS: c_uint = 33;
 
 /// A crash loses at most this much history.
 const SAVE_EVERY: Duration = Duration::from_secs(15 * 60);
@@ -249,13 +246,16 @@ impl Plugin {
 
 	/// Ends the timers and file watches, which keep a pointer to this.
 	fn quiet(&mut self) {
-		for id in [&mut self.timer, &mut self.frame] {
-			if *id != 0 {
-				// SAFETY: the id is ours and still running, since each
-				// callback zeroes or replaces it.
-				unsafe { g_source_remove(*id) };
-				*id = 0;
-			}
+		if self.timer != 0 {
+			// SAFETY: the id is ours and still running, since its callback
+			// zeroes or replaces it.
+			unsafe { g_source_remove(self.timer) };
+			self.timer = 0;
+		}
+		if self.frame != 0 {
+			// SAFETY: as the timer, and the area outlives this.
+			unsafe { gtk_widget_remove_tick_callback(self.area, self.frame) };
+			self.frame = 0;
 		}
 		for w in self.watches.drain(..) {
 			// SAFETY: each is from watch, and isn't used again.
@@ -560,24 +560,47 @@ fn draw_graphs(p: &mut Plugin, widget: *mut c_void, cr: *mut c_void) -> Gboolean
 		cairo_paint(cr);
 		cairo_surface_destroy(surf);
 		if p.frame == 0 && p.graphs.moving() {
-			// SAFETY: as start_timer, and free-data stops this one too.
-			p.frame = g_timeout_add(FRAME_MS, frame, std::ptr::from_mut(p).cast());
+			// SAFETY: as start_timer, and quiet stops this one too.
+			p.frame = gtk_widget_add_tick_callback(
+				p.area,
+				frame,
+				std::ptr::from_mut(p).cast(),
+				std::ptr::null(),
+			);
 		}
 	}
 	1
 }
 
-extern "C" fn frame(data: *mut c_void) -> Gboolean {
+// On the screen's own frames, so a slide doesn't beat against them.
+extern "C" fn frame(_widget: *mut c_void, clock: *mut c_void, data: *mut c_void) -> Gboolean {
 	guarded(
 		data,
-		|_| (),
+		|_| 0,
 		|p| {
-			p.frame = 0;
-			// SAFETY: area is a child of the live plugin.
-			unsafe { gtk_widget_queue_draw(p.area) };
+			if !p.graphs.moving() {
+				p.frame = 0;
+				return 0;
+			}
+			let (mut interval, mut presented) = (0_i64, 0_i64);
+			// SAFETY: GTK hands a tick callback its widget's live frame clock.
+			let count = unsafe {
+				let at = gdk_frame_clock_get_frame_time(clock);
+				gdk_frame_clock_get_refresh_info(clock, at, &raw mut interval, &raw mut presented);
+				gdk_frame_clock_get_frame_counter(clock)
+			};
+			let hz = if interval > 0 {
+				1e6 / interval as f64
+			} else {
+				60.0
+			};
+			if count % i64::from(tukzmon_core::frames_apart(hz)) == 0 {
+				// SAFETY: area is a child of the live plugin.
+				unsafe { gtk_widget_queue_draw(p.area) };
+			}
+			1
 		},
-	);
-	0
+	)
 }
 
 extern "C" fn motion(widget: *mut c_void, event: *mut c_void, data: *mut c_void) -> Gboolean {
@@ -1110,7 +1133,10 @@ mod tests {
 		// a handler that ran would reach GTK with a null area
 		let ran = super::guarded(data, |_| false, |_| true);
 		assert_eq!(super::tick(data), 0);
-		super::frame(data);
+		assert_eq!(
+			super::frame(std::ptr::null_mut(), std::ptr::null_mut(), data),
+			0
+		);
 		// a stopped item's history isn't saved
 		super::free_data(std::ptr::null_mut(), data);
 		let saved = hist.exists();

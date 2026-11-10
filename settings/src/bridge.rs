@@ -225,8 +225,11 @@ pub mod ffi {
 		fn live_leave(l: &mut Live) -> bool;
 		/// A tip broken into lines of at most `TIP_CHARS` characters.
 		fn wrap_tip(text: &str) -> String;
-		/// True while the graph's time axis eases in, so it wants drawing again soon.
+		/// True while the graph slides or its time axis eases in, so it wants
+		/// drawing again soon.
 		fn live_moving(l: &Live, name: &str) -> bool;
+		/// Screen frames between draws while a graph moves, on a screen of `hz`.
+		fn frames_apart(hz: f64) -> u32;
 	}
 
 	unsafe extern "C++" {
@@ -670,6 +673,10 @@ pub fn wrapped(text: &str, width: usize) -> String {
 
 fn live_moving(l: &Live, name: &str) -> bool {
 	l.moving(name)
+}
+
+fn frames_apart(hz: f64) -> u32 {
+	tukzmon_core::frames_apart(hz)
 }
 
 /// Shows the window until it closes, or saves pictures of it to `snapshot`
