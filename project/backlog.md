@@ -200,39 +200,6 @@ Sorted per the notes in [Template](#template).
 	- Test case: `remote::tests::the_tcp_table_gives_established_connections_on_remote_desktop_ports` (df3p4), `remote::tests::a_viewer_counts_only_when_its_server_has_a_peer_on_this_display` (df3p5), `remote::tests::the_watch_looks_again_only_every_few_seconds` (df3p6) and `remote::tests::a_stand_in_viewer_on_a_vnc_port_is_seen_on_its_display_only` (df3p7).
 		- Swept: both callers of `remote::session` (the plugin's start and the settings window's), both `set_session` callers, and every `Look` maker that takes the session.
 
-- Better antialiasing, so sharp spikes don't pulse in width
-	- ID: 2026110920595602
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- Watch a panel with Smooth scrolling on and a spiky graph, such as CPU, and say whether spikes still pulse in width, and whether the slower draw is worth it.
-	- Priority|Severity: Avg
-	- Opened: 20261109-205956
-	- Opened by: t00mietum
-	- Related IDs: 2026110911114024
-	- Requirements:
-		- Need better antialiasing, so that sharp spikes don't "pulse" in width as the pulse grows and shrinks by whole pixel widths at a time.
-		- E.g., spitballing here: for a pixel line that is in between 0% and 100%, render it at half visual brightness between the two.
-		- May not need temporal-aware antialiasing. Just better value-based antialiasing might be enough.
-	- Needs hand testing: A panel on b23 with this build and Smooth scrolling on, watching spikes slide on the CPU graph.
-	- Stand-in: none (20261110). df3s6 covers the width, and what's left turns on how it looks and whether the slower draw is worth it.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- Cause: a column reached toward the max of every bucket it touched, however little of the bucket was in it. So a spike filled the next column as soon as it touched it, and jumped a pixel wider and back as it slid.
-		- `History::span_for` gives each column a `spike` that counts a sample cut by the column's edge by the part that's in, and the drawing reaches toward that instead of `max`. A column no wider than a sample is drawn at its mean. `design.md` Drawing has it.
-		- df3s6 slides a 1 s spike across columns of 1 s and of 10 s. Before, the red drawn over all columns jumped from 5.80 to 6.40 plot heights on the first, and from 2.12 to 2.72 on the second. Now each stays within 0.05.
-		- Profiler, load 2 to 4 on 32 cores: 241.1 us user a tick before, 480.3 after. History lookups went from 21% of self time to 41%. 2026111000270812 is for bringing it back down.
-		- Verified: df3s6 failed before the change and passed after, and the quick gate and Sanitizers passed.
-	- Decisions:
-		- Value-based, as the issue allowed: a cut sample lifts the column by its part, rather than the spike drawn full height at part brightness. That keeps the spike emphasis's look, a column drawn from its mean up toward its peak, and every other draw test's pixels.
-		- The window is one sample long and reads bucket maxes, not means, so near the edges it agrees with the buckets' max read in the middle. A sample off the bucket edges smears by up to a bucket, 50 ms in the newest 13 s and 250 ms up to 8.5 minutes back.
-		- Windows only within 1.5 samples of either edge, and the blocks' max between, so a wide column doesn't read every bucket.
-		- `Span::max` keeps its meaning, so its tests and its readers stand. `spike` and `Frame::sample` are new.
-		- No before and after pictures from preview.rs. df3s6's numbers stand in for them, and the look is left to the hand test.
-	- Branch: round-1110
-	- Test case: `render::tests::a_spike_slides_across_columns_without_jumping_in_width` (df3s6).
-		- Swept: every reader of `Span::max` (only `Frame::draw_in` reaches toward it), every `Frame` literal (lib.rs, preview.rs, the render tests), and the partial-bucket math in `History::span`, which the windows copy.
-
 - The 2 GPU graphs aren't available with integrated Intel graphics
 	- ID: 2026110920595600
 	- Type: Bug
@@ -264,6 +231,20 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1110
 	- Test case: `gpu::tests::intel_reads_busy_as_the_time_out_of_rc6` (df3kw) and `an_intel_card_gives_a_gpu_graph_and_no_memory_graph` (df3kx). df3kx fails on the old `Card::find`.
 		- Swept: every `Card` match, both readers' probes, `amd_in`, which now shares `cards_in`, the settings window's GPU rows (dekmd), the README's graph list, and `design.md` for "Intel".
+
+- Antialiasing still needs to be better, so sharp spikes don't pulse or shimmer
+	- ID: 2026111010281710
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261110-102817
+	- Opened by: t00mietum
+	- Related IDs: 2026110920595602, 2026111000270812
+	- Requirements:
+		- Antialiasing still needs to be better. Sharp spikes shouldn't "pulse" in width, and shouldn't "shimmer".
+		- Do your own research for this.
+		- Spitballing: for a pixel line that is in between 0% and 100%, render it at an in-between color of foreground and background (or adjacent color), using the correct blending gamma.
+		- May not need temporal-aware antialiasing, but might.
 
 - Cut the cost of the spike windows in each draw
 	- ID: 2026111000270812
@@ -3427,6 +3408,41 @@ Sorted per the notes in [Template](#template).
 		- Swept: the video take uses the same panel config, and no other script in the repo or the private tools sets up a tray.
 	- Acceptance signoff: Self-closed 20261109: in the new gif the network, volume and bell icons are evenly spaced.
 	- Closed: 20261109-124233
+
+- Better antialiasing, so sharp spikes don't pulse in width
+	- ID: 2026110920595602
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261109-205956
+	- Opened by: t00mietum
+	- Related IDs: 2026110911114024
+	- Requirements:
+		- Need better antialiasing, so that sharp spikes don't "pulse" in width as the pulse grows and shrinks by whole pixel widths at a time.
+		- E.g., spitballing here: for a pixel line that is in between 0% and 100%, render it at half visual brightness between the two.
+		- May not need temporal-aware antialiasing. Just better value-based antialiasing might be enough.
+	- Needs hand testing: A panel on b23 with this build and Smooth scrolling on, watching spikes slide on the CPU graph.
+	- Stand-in: none (20261110). df3s6 covers the width, and what's left turns on how it looks and whether the slower draw is worth it.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Cause: a column reached toward the max of every bucket it touched, however little of the bucket was in it. So a spike filled the next column as soon as it touched it, and jumped a pixel wider and back as it slid.
+		- `History::span_for` gives each column a `spike` that counts a sample cut by the column's edge by the part that's in, and the drawing reaches toward that instead of `max`. A column no wider than a sample is drawn at its mean. `design.md` Drawing has it.
+		- df3s6 slides a 1 s spike across columns of 1 s and of 10 s. Before, the red drawn over all columns jumped from 5.80 to 6.40 plot heights on the first, and from 2.12 to 2.72 on the second. Now each stays within 0.05.
+		- Profiler, load 2 to 4 on 32 cores: 241.1 us user a tick before, 480.3 after. History lookups went from 21% of self time to 41%. 2026111000270812 is for bringing it back down.
+		- Verified: df3s6 failed before the change and passed after, and the quick gate and Sanitizers passed.
+		- 2026-11-10: UAT: spikes still pulse and shimmer. The rest goes on in 2026111010281710.
+	- Decisions:
+		- Value-based, as the issue allowed: a cut sample lifts the column by its part, rather than the spike drawn full height at part brightness. That keeps the spike emphasis's look, a column drawn from its mean up toward its peak, and every other draw test's pixels.
+		- The window is one sample long and reads bucket maxes, not means, so near the edges it agrees with the buckets' max read in the middle. A sample off the bucket edges smears by up to a bucket, 50 ms in the newest 13 s and 250 ms up to 8.5 minutes back.
+		- Windows only within 1.5 samples of either edge, and the blocks' max between, so a wide column doesn't read every bucket.
+		- `Span::max` keeps its meaning, so its tests and its readers stand. `spike` and `Frame::sample` are new.
+		- No before and after pictures from preview.rs. df3s6's numbers stand in for them, and the look is left to the hand test.
+	- Superseded by ID: 2026111010281710
+	- Branch: round-1110
+	- Test case: `render::tests::a_spike_slides_across_columns_without_jumping_in_width` (df3s6).
+		- Swept: every reader of `Span::max` (only `Frame::draw_in` reaches toward it), every `Frame` literal (lib.rs, preview.rs, the render tests), and the partial-bucket math in `History::span`, which the windows copy.
+	- Closed: 20261110-102817
 
 - Reduce motion: the setting, and sessions a remote desktop server starts
 	- ID: 2026110922214697
