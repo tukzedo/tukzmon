@@ -102,6 +102,7 @@ struct Total<const N: usize> {
 	weight: f64,
 	sums: [f64; N],
 	max: [f32; N],
+	min: [f32; N],
 }
 
 impl<const N: usize> Total<N> {
@@ -110,6 +111,7 @@ impl<const N: usize> Total<N> {
 			weight: 0.0,
 			sums: [0.0; N],
 			max: [f32::NEG_INFINITY; N],
+			min: [f32::INFINITY; N],
 		}
 	}
 
@@ -118,6 +120,7 @@ impl<const N: usize> Total<N> {
 		for s in 0..N {
 			self.sums[s] += other.sums[s];
 			self.max[s] = self.max[s].max(other.max[s]);
+			self.min[s] = self.min[s].min(other.min[s]);
 		}
 	}
 }
@@ -176,6 +179,7 @@ impl<const N: usize> Tier<N> {
 			for s in 0..N {
 				out.sums[s] += k * f64::from(bucket.sum[s]);
 				out.max[s] = out.max[s].max(bucket.max[s]);
+				out.min[s] = out.min[s].min(bucket.min[s]);
 			}
 		}
 	}
@@ -371,15 +375,48 @@ impl<const N: usize> Tier<N> {
 		best
 	}
 
+	// bucket `i`'s older and newer sample, and how much of its data is the
+	// older one, for a bucket no longer than half a sample, which holds at
+	// most 2. Its min and max are the 2, and the bucket beside it says which
+	// side each is on. None when it holds one value, or nothing's beside it.
+	fn samples_in(&self, i: usize) -> Option<([f32; N], [f32; N], f64)> {
+		let bucket = self.buckets.get(i)?;
+		let spread = |s: usize| bucket.max[s] - bucket.min[s];
+		let widest = (0..N).max_by(|&x, &y| spread(x).total_cmp(&spread(y)))?;
+		if spread(widest) <= 0.0 {
+			return None;
+		}
+		let beside = |j: Option<usize>| {
+			j.and_then(|j| self.buckets.get(j))
+				.filter(|bk| bk.secs > 0.0)
+				.map(|bk| std::array::from_fn::<f32, N, _>(|s| bk.mean(s)))
+		};
+		let nearer_min =
+			|to: [f32; N], s: usize| (bucket.min[s] - to[s]).abs() <= (bucket.max[s] - to[s]).abs();
+		let older_is_min: [bool; N] = match (beside(i.checked_sub(1)), beside(Some(i + 1))) {
+			(Some(older), _) => std::array::from_fn(|s| nearer_min(older, s)),
+			(None, Some(newer)) => std::array::from_fn(|s| !nearer_min(newer, s)),
+			(None, None) => return None,
+		};
+		let pick = |min: bool, s: usize| if min { bucket.min[s] } else { bucket.max[s] };
+		let older: [f32; N] = std::array::from_fn(|s| pick(older_is_min[s], s));
+		let newer: [f32; N] = std::array::from_fn(|s| pick(!older_is_min[s], s));
+		let s = widest;
+		let share =
+			(f64::from(newer[s] - bucket.mean(s)) / f64::from(newer[s] - older[s])).clamp(0.0, 1.0);
+		Some((older, newer, share))
+	}
+
 	// the most of any `run` secs from `a` to `b`, from windows near the ends,
-	// where a sample can be cut, and the buckets' max between. A bucket
-	// wholly past `clear` from either end holds no sample cut by it, even one
-	// a late tick made longer.
-	fn spike_over(&self, a: f64, b: f64, run: f64) -> Option<[f32; N]> {
+	// where a sample can be cut, and the buckets' max between, which is also
+	// given alone. A bucket wholly past `clear` from either end holds no
+	// sample cut by it, even one a late tick made longer.
+	fn spike_over(&self, a: f64, b: f64, run: f64) -> (Option<[f32; N]>, Option<[f32; N]>) {
 		let clear = 1.5 * run;
 		let anchored = [self.tops_over(a, a + run), self.tops_over(b - run, b)];
 		if b - a <= 2.0 * clear + run {
-			return most(anchored.into_iter().chain([self.densest(a, b - run, run)]));
+			let spike = most(anchored.into_iter().chain([self.densest(a, b - run, run)]));
+			return (spike, None);
 		}
 		// far enough in that a sample starting later has a bucket past `clear`
 		let near = clear - run + self.len;
@@ -390,11 +427,12 @@ impl<const N: usize> Tier<N> {
 			.then(|| self.total_over(j0 as usize, j1 as usize))
 			.filter(|t| t.weight > 0.0)
 			.map(|t| t.max);
-		most(anchored.into_iter().chain([
+		let spike = most(anchored.into_iter().chain([
 			self.densest(a, a + near, run),
 			self.densest(b - run - near, b - run, run),
 			inner,
-		]))
+		]));
+		(spike, inner)
 	}
 }
 
@@ -415,6 +453,14 @@ pub struct Span<const N: usize> {
 	/// by that part, so a spike grows into a column as it slides in rather
 	/// than filling it at once. See design.md Drawing.
 	pub spike: [f32; N],
+	/// The least of each value.
+	pub min: [f32; N],
+	/// The means of the oldest and newest buckets in the span, so a span no
+	/// longer than a sample has the 2 samples it can hold.
+	pub ends: [[f32; N]; 2],
+	/// As `max`, from only the buckets far enough in from both ends that no
+	/// sample cut by an end reaches them, or None where there are none.
+	pub uncut: Option<[f32; N]>,
 	/// Share of the span that had data, 0 to 1.
 	pub covered: f32,
 }
@@ -488,6 +534,9 @@ impl<const N: usize> History<N> {
 			mean: [0.0; N],
 			max: [0.0; N],
 			spike: [0.0; N],
+			min: [0.0; N],
+			ends: [[0.0; N]; 2],
+			uncut: None,
 			covered: 0.0,
 		};
 		if b <= a {
@@ -502,14 +551,21 @@ impl<const N: usize> History<N> {
 		let mut weight = 0.0f64;
 		let mut sums = [0.0f64; N];
 		let mut max = [f32::NEG_INFINITY; N];
+		let mut min = [f32::INFINITY; N];
 		// only the end buckets can be cut by the span
 		if i1 - i0 > 2 {
 			let whole = tier.total_over(i0 as usize + 1, i1 as usize - 1);
-			(weight, sums, max) = (whole.weight, whole.sums, whole.max);
+			(weight, sums, max, min) = (whole.weight, whole.sums, whole.max, whole.min);
+			if whole.weight > 0.0 {
+				out.uncut = Some(whole.max);
+			}
 		}
 		let mut spike = max;
 		// each end's max, and how much of it is in, until the mean is known
 		let mut cut = [(0.0f32, [0.0f32; N]); 2];
+		// each end bucket's values where the span starts and ends in it
+		let mut end_values: [Option<[[f32; N]; 2]>; 2] = [None; 2];
+		let splits = sample >= 2.0 * tier.len;
 		let ends = if i1 - i0 > 1 { [i0, i1 - 1] } else { [i0, i1] };
 		for (end, i) in ends.into_iter().enumerate().filter(|&(_, i)| i < i1) {
 			let bucket = &tier.buckets[i as usize];
@@ -523,15 +579,35 @@ impl<const N: usize> History<N> {
 				continue;
 			}
 			// a bucket with a hole in it is taken as evenly thin
-			let w = overlap * (bucket.secs as f64 / (hi - lo)).min(1.0);
+			let thin = (bucket.secs as f64 / (hi - lo)).min(1.0);
+			let w = overlap * thin;
 			weight += w;
+			// a sample's edge in the bucket leaves only the part that's in,
+			// rather than its mean, which mixes in the sample outside
+			let (from, to) = (a.max(lo), b.min(hi));
+			// one value is all older
+			let means = std::array::from_fn(|s| bucket.mean(s));
+			let (older, newer, share) = splits
+				.then(|| tier.samples_in(i as usize))
+				.flatten()
+				.unwrap_or((means, means, 1.0));
+			let edge = lo + share * (hi - lo);
+			let older_w = (to.min(edge) - from).max(0.0) * thin;
 			for s in 0..N {
-				sums[s] += w * bucket.mean(s) as f64;
+				sums[s] += older_w * f64::from(older[s]) + (w - older_w) * f64::from(newer[s]);
+			}
+			let values = [
+				if from < edge { older } else { newer },
+				if to > edge { newer } else { older },
+			];
+			for s in 0..N {
 				max[s] = max[s].max(bucket.max[s]);
+				min[s] = min[s].min(bucket.min[s]);
 			}
 			// a span inside one bucket has all of it that it can
 			let part = (overlap / (hi - lo).min(b - a)).min(1.0) as f32;
 			cut[end] = (part, bucket.max);
+			end_values[end] = Some(values);
 		}
 		if weight > 0.0 {
 			for s in 0..N {
@@ -542,13 +618,22 @@ impl<const N: usize> History<N> {
 				out.mean[s] = mean;
 				out.max[s] = max[s];
 				out.spike[s] = spike[s];
+				out.min[s] = min[s];
 			}
 			out.covered = (weight / (b - a)).min(1.0) as f32;
+			let [older, newer] = end_values;
+			out.ends = [
+				older.or(newer).map_or(out.mean, |v| v[0]),
+				newer.or(older).map_or(out.mean, |v| v[1]),
+			];
 			// a sample at least a column wide needs no lift to show
 			if b - a <= sample {
 				out.spike = out.mean;
+				out.uncut = None;
 			} else if sample >= 2.0 * tier.len {
-				out.spike = tier.spike_over(a, b, sample).unwrap_or(out.mean);
+				let (spike, inner) = tier.spike_over(a, b, sample);
+				out.spike = spike.unwrap_or(out.mean);
+				out.uncut = inner;
 			}
 		}
 		out
@@ -1192,5 +1277,58 @@ mod tests {
 				blocks_match_buckets(&h, &mut rand);
 			}
 		}
+	}
+
+	// where each count, time and length field of an encoded history sits,
+	// and its width
+	fn fields_of(bytes: &[u8], series: usize) -> Vec<(usize, usize)> {
+		let mut fields = vec![(0, 4), (4, 8), (12, 8), (20, 4)];
+		let mut at = 24;
+		while at + 20 <= bytes.len() {
+			fields.extend([(at, 8), (at + 8, 8), (at + 16, 4)]);
+			let count = u32::from_le_bytes(bytes[at + 16..at + 20].try_into().unwrap());
+			at += 20 + count as usize * (series * 12 + 20);
+		}
+		fields
+	}
+
+	// Test ID: df4f1
+	#[test]
+	fn fuzz_decode_takes_any_bytes_and_keeps_what_it_took() {
+		let encoded = |h: &History<2>| {
+			let mut out = Vec::new();
+			h.encode(&mut out);
+			out
+		};
+		let tally = crate::fuzz::run("history decode", |dice| {
+			let mut bytes = encoded(&crate::fuzz::history::<2>(dice));
+			if dice.one_in(4) {
+				let back = History::<2>::decode(&bytes).expect("a whole history decodes");
+				assert_eq!(encoded(&back), bytes, "and encodes back the same");
+			} else if dice.one_in(2) {
+				let fields = fields_of(&bytes, 2);
+				let &(at, width) = dice.pick(&fields);
+				crate::fuzz::lie(dice, &mut bytes, at, width);
+			} else {
+				crate::fuzz::mangle(dice, &mut bytes);
+			}
+			assert!(History::<3>::decode(&bytes).is_none_or(|_| bytes[..4] == [0; 4]));
+			let Some(got) = History::<2>::decode(&bytes) else {
+				return false;
+			};
+			let once = encoded(&got);
+			let again = History::<2>::decode(&once).expect("what decode took, it takes again");
+			assert_eq!(encoded(&again), once);
+			if let (Some(a), Some(b)) = (got.first(), got.last()) {
+				let w = (b - a) / 8.0;
+				for k in -1..9 {
+					let x = a + w * f64::from(k);
+					let _ = got.span(x, x + w);
+					let _ = got.span_for(x, x + w, w / 3.0);
+				}
+			}
+			true
+		});
+		tally.assert_mixed();
 	}
 }

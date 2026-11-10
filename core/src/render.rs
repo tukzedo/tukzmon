@@ -27,6 +27,47 @@ fn pack_alpha(c: [f32; 3], alpha: f32) -> u32 {
 	q(alpha * 255.0) << 24 | q(c[0]) << 16 | q(c[1]) << 8 | q(c[2])
 }
 
+// an sRGB channel, 0 to 255, in linear light, 0 to 1
+fn to_linear(v: f32) -> f32 {
+	let c = (v / 255.0).clamp(0.0, 1.0);
+	if c <= 0.04045 {
+		c / 12.92
+	} else {
+		((c + 0.055) / 1.055).powf(2.4)
+	}
+}
+
+fn linear_of(c: [f32; 3]) -> [f32; 3] {
+	c.map(to_linear)
+}
+
+// linear light back to sRGB, looked up, since a blended pixel can't wait on 3 powf
+const SRGB_STEPS: usize = 4096;
+static SRGB: std::sync::OnceLock<Vec<u8>> = std::sync::OnceLock::new();
+
+/// Opaque, from linear light.
+fn pack_linear(c: [f32; 3]) -> u32 {
+	let table = SRGB.get_or_init(|| {
+		(0..SRGB_STEPS)
+			.map(|i| {
+				let l = i as f32 / (SRGB_STEPS - 1) as f32;
+				let v = if l <= 0.003_130_8 {
+					l * 12.92
+				} else {
+					1.055 * l.powf(1.0 / 2.4) - 0.055
+				};
+				(v * 255.0).round().clamp(0.0, 255.0) as u8
+			})
+			.collect()
+	});
+	let q =
+		|l: f32| u32::from(table[(l.clamp(0.0, 1.0) * (SRGB_STEPS - 1) as f32).round() as usize]);
+	0xff00_0000 | q(c[0]) << 16 | q(c[1]) << 8 | q(c[2])
+}
+
+// coverage this close to whole or none is drawn as that
+const SNAP: f32 = 0.002;
+
 /// Seconds for a falling peak to come most of the way down to what's in view.
 const PEAK_FALL: f64 = 2.0;
 
@@ -252,6 +293,42 @@ pub fn blend(stops: [Rgb; 3], t: f32) -> [f32; 3] {
 	}
 }
 
+/// What a column draws: `lo` solid, with `hi` over it at `share` of full
+/// strength. A sample cut by the column's edge is drawn full height, as
+/// faint as how little of it is in. See design.md Drawing.
+#[derive(Clone, Copy, Debug)]
+struct Column<const N: usize> {
+	lo: [f32; N],
+	hi: [f32; N],
+	share: f32,
+}
+
+impl<const N: usize> Column<N> {
+	// `ink` is what the column should come to, between `lo` and `hi`
+	fn new(lo: [f32; N], hi: [f32; N], ink: [f32; N]) -> Self {
+		let (lo_sum, hi_sum, ink_sum): (f32, f32, f32) =
+			(lo.iter().sum(), hi.iter().sum(), ink.iter().sum());
+		let share = if hi_sum - lo_sum > 1e-6 * hi_sum.abs().max(1e-6) {
+			((ink_sum - lo_sum) / (hi_sum - lo_sum)).clamp(0.0, 1.0)
+		} else {
+			1.0
+		};
+		let share = if share >= 1.0 - SNAP || share.is_nan() {
+			1.0
+		} else if share <= SNAP {
+			0.0
+		} else {
+			share
+		};
+		Column { lo, hi, share }
+	}
+
+	// the stack that shows at the top
+	fn tallest(&self) -> [f32; N] {
+		if self.share > 0.0 { self.hi } else { self.lo }
+	}
+}
+
 /// Buffers a draw keeps for the next one, so drawing at the same size
 /// allocates nothing.
 #[derive(Debug, Default)]
@@ -260,11 +337,14 @@ pub struct Scratch<const N: usize> {
 	back: Vec<[f32; 3]>,
 	/// The same, packed.
 	back_px: Vec<u32>,
+	/// The same, in linear light.
+	back_lin: Vec<[f32; 3]>,
 	/// The gradient's color per plot row, when that's the paint.
 	grad: Vec<[f32; 3]>,
 	grad_px: Vec<u32>,
-	/// Each column's reach, or None for a gap.
-	reached: Vec<Option<[f32; N]>>,
+	grad_lin: Vec<[f32; 3]>,
+	/// Each column, or None for a gap.
+	reached: Vec<Option<Column<N>>>,
 }
 
 /// What one draw of a graph reads.
@@ -358,8 +438,10 @@ impl<const N: usize> Frame<'_, N> {
 		let Scratch {
 			back,
 			back_px,
+			back_lin,
 			grad,
 			grad_px,
+			grad_lin,
 			reached,
 		} = scratch;
 		// premultiplied, so a transparent one is all zeros
@@ -375,6 +457,8 @@ impl<const N: usize> Frame<'_, N> {
 		}));
 		back_px.clear();
 		back_px.extend(back.iter().map(|&c| pack_alpha(c, back_alpha)));
+		back_lin.clear();
+		back_lin.extend(back.iter().map(|&c| linear_of(c)));
 		let (cols, solid) = match self.paint {
 			Paint::Stack(colors) => {
 				let cols = colors.map(|c| [c.0 as f32, c.1 as f32, c.2 as f32]);
@@ -382,15 +466,21 @@ impl<const N: usize> Frame<'_, N> {
 			}
 			Paint::Gradient(_) => ([[0.0; 3]; N], [0; N]),
 		};
+		let cols_lin = cols.map(linear_of);
 		// row by row, top first, at each row's middle
 		grad.clear();
 		grad_px.clear();
+		grad_lin.clear();
 		if let Paint::Gradient(stops) = self.paint {
 			grad.extend(
 				(0..plot_h).map(|r| blend(stops, ((plot_h - r) as f32 - 0.5) / plot_h as f32)),
 			);
 			grad_px.extend(grad.iter().map(|&g| pack_alpha(g, 1.0)));
+			grad_lin.extend(grad.iter().map(|&g| linear_of(g)));
 		}
+		// a part-covered pixel mixes in linear light, except over a
+		// transparent background, which the panel blends as it is
+		let opaque = !self.look.transparent;
 		reached.clear();
 		let emphasis = Reach::new(self.look.spikes);
 		// each column's old edge is the new edge of the one left of it
@@ -400,10 +490,28 @@ impl<const N: usize> Frame<'_, N> {
 			let b = self.now - self.axis.age(u_new);
 			let a = std::mem::replace(&mut a, b);
 			let span = self.hist.span_for(a, b, self.sample);
+			let secs = b - a;
 			(span.covered >= MIN_COVER)
-				.then(|| emphasis.of(&span.mean, &span.spike, b - a))
+				.then(|| {
+					if secs <= self.sample {
+						// at most 2 samples, each drawn as much as it's in
+						let [x, y] = span.ends;
+						let (lo, hi) = if x.iter().sum::<f32>() <= y.iter().sum() {
+							(x, y)
+						} else {
+							(y, x)
+						};
+						Column::new(lo, hi, span.mean)
+					} else {
+						let lo = span
+							.uncut
+							.map_or(span.min, |u| emphasis.of(&span.mean, &u, secs));
+						let hi = emphasis.of(&span.mean, &span.max, secs);
+						Column::new(lo, hi, emphasis.of(&span.mean, &span.spike, secs))
+					}
+				})
 				// else NaN fills the column, and inf flattens every other one
-				.filter(|v| v.iter().all(|x| x.is_finite()))
+				.filter(|c| c.lo.iter().chain(&c.hi).all(|x| x.is_finite()))
 		}));
 		// a fixed top is its own floor, for a log scale
 		let (top, floor) = match scaled {
@@ -411,80 +519,110 @@ impl<const N: usize> Frame<'_, N> {
 				let highest = reached
 					.iter()
 					.flatten()
-					.map(|v| v.iter().map(|x| x.max(0.0)).sum::<f32>())
+					.map(|c| c.tallest().iter().map(|x| x.max(0.0)).sum::<f32>())
 					.fold(0.0, f32::max);
 				(peak.fit(highest, floor, self.now), floor)
 			}
 			None => (1.0, 1.0),
 		};
 		let gradient = matches!(self.paint, Paint::Gradient(_));
-		for (cx, v) in reached.iter().enumerate() {
+		let ph = plot_h as f32;
+		for (cx, column) in reached.iter().enumerate() {
 			let at = |r: usize| (r + border) * stride + cx + border;
-			let Some(hs) = v.map(|v| self.vertical.fit(v, top, floor)) else {
+			let Some(column) = column else {
 				for (r, &b) in back_px.iter().enumerate() {
 					px[at(r)] = b;
 				}
 				continue;
 			};
-			if gradient {
-				let top = hs.iter().sum::<f32>() * plot_h as f32;
-				for r in 0..plot_h {
-					let (p0, p1) = ((plot_h - r - 1) as f32, (plot_h - r) as f32);
-					let cover = (top.min(p1) - p0).clamp(0.0, 1.0);
-					px[at(r)] = if cover >= 1.0 {
+			// each series' top, in pixels up from the bottom, per stack
+			let tops = |v: [f32; N]| {
+				let mut y = 0.0f32;
+				self.vertical.fit(v, top, floor).map(|hgt| {
+					y += hgt * ph;
+					y
+				})
+			};
+			let stacks = [
+				(tops(column.lo), 1.0 - column.share),
+				(tops(column.hi), column.share),
+			];
+			let height = stacks
+				.iter()
+				.filter(|(_, weight)| *weight > 0.0)
+				.filter_map(|(t, _)| t.last().copied())
+				.fold(0.0f32, f32::max);
+			for i in 0..plot_h {
+				let r = plot_h - 1 - i;
+				let (p0, p1) = (i as f32, (i + 1) as f32);
+				if p0 >= height {
+					for r in 0..=r {
+						px[at(r)] = back_px[r];
+					}
+					break;
+				}
+				if gradient {
+					let cover: f32 = stacks
+						.iter()
+						.map(|(t, weight)| {
+							weight * (t.last().copied().unwrap_or(0.0).min(p1) - p0).clamp(0.0, 1.0)
+						})
+						.sum();
+					px[at(r)] = if cover >= 1.0 - SNAP {
 						grad_px[r]
-					} else if cover <= 0.0 {
+					} else if cover <= SNAP {
 						back_px[r]
+					} else if opaque {
+						pack_linear(std::array::from_fn(|k| {
+							back_lin[r][k] * (1.0 - cover) + grad_lin[r][k] * cover
+						}))
 					} else {
 						let c = std::array::from_fn(|k| {
 							back[r][k] * (1.0 - cover) + grad[r][k] * cover
 						});
 						pack_alpha(c, back_alpha * (1.0 - cover) + cover)
 					};
+					continue;
 				}
-				continue;
-			}
-			// each series' top, in pixels up from the bottom
-			let mut tops = [0.0f32; N];
-			let mut y = 0.0f32;
-			for (t, hgt) in tops.iter_mut().zip(hs) {
-				y += hgt * plot_h as f32;
-				*t = y;
-			}
-			// up from the bottom row, with s the lowest series not yet below it
-			let mut s = 0;
-			for i in 0..plot_h {
-				let r = plot_h - 1 - i;
-				let (p0, p1) = (i as f32, (i + 1) as f32);
-				while s < N && tops[s] <= p0 {
-					s += 1;
-				}
-				if s == N {
-					for r in 0..=r {
-						px[at(r)] = back_px[r];
+				// this pixel's slice of each series, both stacks weighed in
+				let mut cover = [0.0f32; N];
+				for (t, weight) in &stacks {
+					if *weight <= 0.0 {
+						continue;
 					}
-					break;
+					let mut y = 0.0f32;
+					for (c, &tk) in cover.iter_mut().zip(t) {
+						*c += weight * (tk.min(p1) - y.max(p0)).max(0.0);
+						y = tk;
+					}
 				}
-				let bottom = if s == 0 { 0.0 } else { tops[s - 1] };
-				px[at(r)] = if bottom <= p0 && tops[s] >= p1 {
-					solid[s]
+				if let Some(k) = cover.iter().position(|&c| c >= 1.0 - SNAP) {
+					px[at(r)] = solid[k];
+					continue;
+				}
+				let left = (1.0 - cover.iter().sum::<f32>()).max(0.0);
+				if left >= 1.0 - SNAP {
+					px[at(r)] = back_px[r];
+					continue;
+				}
+				px[at(r)] = if opaque {
+					pack_linear(std::array::from_fn(|ch| {
+						back_lin[r][ch] * left
+							+ cover
+								.iter()
+								.zip(&cols_lin)
+								.map(|(c, col)| c * col[ch])
+								.sum::<f32>()
+					}))
 				} else {
-					// this pixel's slice of the stack
-					let mut y = bottom;
-					let mut left = 1.0f32;
-					let mut acc = [0.0f32; 3];
-					for k in s..N {
-						let cover = (tops[k].min(p1) - y.max(p0)).max(0.0);
-						if cover > 0.0 {
-							for (a, c) in acc.iter_mut().zip(cols[k]) {
-								*a += c * cover;
-							}
-							left -= cover;
-						}
-						y = tops[k];
-					}
-					let left = left.max(0.0);
-					let c = std::array::from_fn(|k| back[r][k] * left + acc[k]);
+					let c = std::array::from_fn(|ch| {
+						back[r][ch] * left
+							+ cover
+								.iter()
+								.zip(&cols)
+								.map(|(c, col)| c * col[ch])
+								.sum::<f32>()
+					});
 					pack_alpha(c, back_alpha * left + (1.0 - left))
 				};
 			}
@@ -572,9 +710,10 @@ mod tests {
 		// rows counted from the bottom of the plot: 0..2.5 red, 2.5..7.5 green
 		assert_eq!(at(9), 0xffff_0000);
 		assert_eq!(at(8), 0xffff_0000);
+		// half and half, mixed in linear light
 		let shared = at(7);
-		assert_eq!(shared & 0x00ff_0000, 0x0080_0000);
-		assert_eq!(shared & 0x0000_ff00, 0x0000_8000);
+		assert_eq!(shared & 0x00ff_0000, 0x00bc_0000);
+		assert_eq!(shared & 0x0000_ff00, 0x0000_bc00);
 		assert_eq!(at(5), 0xff00_ff00);
 		assert_ne!(at(1) & 0xff, 0);
 	}
@@ -1090,7 +1229,7 @@ mod tests {
 					(1..w - 1)
 						.map(|x| {
 							(1..ht - 1)
-								.map(|r| ((px[r * w + x] >> 16) & 0xff) as f32 / 255.0)
+								.map(|r| to_linear(((px[r * w + x] >> 16) & 0xff) as f32))
 								.sum::<f32>() / 100.0
 						})
 						.collect()
@@ -1108,6 +1247,122 @@ mod tests {
 			} else {
 				assert!((tallest - 0.9).abs() < 0.02, "{tallest}");
 			}
+		}
+	}
+
+	// Test ID: df4d7
+	#[test]
+	fn a_spike_keeps_its_height_as_it_slides_across_columns() {
+		// as df3s6, but the top of what's drawn, which halved where the
+		// spike was split between 2 columns
+		let mut h = History::<2>::default();
+		for t in 0..300 {
+			let v = if t == 150 { 0.9 } else { 0.1 };
+			h.add(f64::from(t) + 0.1, f64::from(t) + 1.1, &[v, 0.0]);
+		}
+		let l = look();
+		for (secs, plot_w) in [(50.0, 50), (150.0, 15)] {
+			let axis = Axis::linear(secs);
+			let (w, ht) = (plot_w + 2, 102);
+			let column = secs / plot_w as f64;
+			let tops: Vec<usize> = (0..=20)
+				.map(|step| {
+					let f = Frame {
+						hist: &h,
+						axis: &axis,
+						now: 180.0 + f64::from(step) * column / 20.0,
+						sample: 1.0,
+						look: &l,
+						paint: Paint::Stack(&COLORS),
+						outline: OUTLINE,
+						vertical: Vertical::Linear,
+					};
+					let mut px = Vec::new();
+					f.draw(&mut px, w, ht, 1);
+					// rows with any red, counted from the bottom
+					(1..ht - 1)
+						.find(|&r| (1..w - 1).any(|x| px[r * w + x] & 0x00ff_0000 != 0))
+						.map_or(0, |r| ht - 1 - r)
+				})
+				.collect();
+			let (lo, hi) = (tops.iter().min(), tops.iter().max());
+			assert!(
+				hi.zip(lo).is_some_and(|(hi, lo)| hi - lo <= 2),
+				"{secs}: {tops:?}"
+			);
+		}
+	}
+
+	// Test ID: df4dt
+	#[test]
+	fn a_stack_that_trades_shares_draws_nothing_over_its_total() {
+		// red and green swap each sample, always 0.6 in all, drawn half a
+		// sample off the columns
+		let mut h = History::<2>::default();
+		for t in 0..100 {
+			let v = if t % 2 == 0 { [0.5, 0.1] } else { [0.1, 0.5] };
+			h.add(f64::from(t) + 0.1, f64::from(t) + 1.1, &v);
+		}
+		let l = look();
+		let axis = Axis::linear(50.0);
+		let (w, ht) = (52, 102);
+		let f = Frame {
+			hist: &h,
+			axis: &axis,
+			now: 90.6,
+			sample: 1.0,
+			look: &l,
+			paint: Paint::Stack(&COLORS),
+			outline: OUTLINE,
+			vertical: Vertical::Linear,
+		};
+		let mut px = Vec::new();
+		f.draw(&mut px, w, ht, 1);
+		// plot rows 1 to 100, so 0.6 of it is the bottom 60
+		let over = (1..ht - 1 - 61)
+			.flat_map(|r| (1..w - 1).map(move |x| (r, x)))
+			.filter(|&(r, x)| px[r * w + x] & 0x00ff_ff00 != 0)
+			.count();
+		assert_eq!(over, 0);
+	}
+
+	// Test ID: df4e9
+	#[test]
+	fn a_column_that_is_one_sample_is_drawn_solid() {
+		// samples off the buckets' edges, so each column's end buckets hold
+		// a bit of the sample beside it, with columns lined up on the samples
+		let mut h = History::<2>::default();
+		for t in 0..100 {
+			let v = if t % 2 == 0 { 0.8 } else { 0.2 };
+			h.add(f64::from(t) + 0.03, f64::from(t) + 1.03, &[v, 0.0]);
+		}
+		let l = look();
+		let axis = Axis::linear(50.0);
+		let (w, ht) = (52, 102);
+		let f = Frame {
+			hist: &h,
+			axis: &axis,
+			now: 90.03,
+			sample: 1.0,
+			look: &l,
+			paint: Paint::Stack(&COLORS),
+			outline: OUTLINE,
+			vertical: Vertical::Linear,
+		};
+		let mut px = Vec::new();
+		f.draw(&mut px, w, ht, 1);
+		let red = pack_alpha([255.0, 0.0, 0.0], 1.0);
+		for x in 1..w - 1 {
+			let column: Vec<u32> = (1..ht - 1).map(|r| px[r * w + x]).collect();
+			let filled = column.iter().filter(|&&p| p == red).count();
+			let tinted = column
+				.iter()
+				.filter(|&&p| p != red && p & 0x00ff_0000 != 0)
+				.count();
+			assert!(
+				[20, 80].contains(&filled) && tinted == 0,
+				"{x}: {column:x?}"
+			);
 		}
 	}
 }

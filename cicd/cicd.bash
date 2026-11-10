@@ -24,7 +24,12 @@
 ##	                      against RustSec's database, per deny.toml
 ##	   7. Tests           cargo test, with TMPDIR in the run's temp folder, and
 ##	                      the pipeline's own tests in cicd/tests/. One line per
-##	                      test: PASS, FAIL or SKIP, its ID, its name
+##	                      test: PASS, FAIL or SKIP, its ID, its name. Each
+##	                      fuzz test runs its fixed seeds, then on for
+##	                      TUKZMON_FUZZ_SECONDS: 10 in the default run, the
+##	                      merge gate and --backlog-run-full, 300 in --long.
+##	                      The default and long runs start at a new
+##	                      TUKZMON_FUZZ_SEED, and a failure names its seed
 ##	   8. Release build   the plugin and tukzmon-settings
 ##	   9. Packages        a .deb and an .rpm of the release build through nfpm,
 ##	                      with a sha256 sums file, in cicd/artifacts/packages/
@@ -39,20 +44,30 @@
 ##	  12. Soak            a slow leak check: core/tests/soak.rs, the panel's
 ##	                      work over days of skipped clock, with the heap read at
 ##	                      round N and 2N. Its report goes to cicd/artifacts/soak/
-##	  13. Nix package     the flake's package, with the workspace tests, in a
+##	  13. Window soak     a long leak check: tukzmon-settings' window off
+##	                      screen, its live graphs over days of skipped clock,
+##	                      with the heap read at round N and 2N, under
+##	                      heaptrack. Its report goes to cicd/artifacts/soak/
+##	  14. CodeQL          a long leak check: CodeQL's security and quality
+##	                      queries over the Rust and the C++, from a copy of
+##	                      the tree with its crates vendored, and a build of
+##	                      its own for the C++. A finding fails it unless
+##	                      cicd/codeql.supp lets it by. The SARIF and a report
+##	                      go to cicd/artifacts/codeql/
+##	  15. Nix package     the flake's package, with the workspace tests, in a
 ##	                      nixos/nix container, then nixpkgs' xfce4-panel loads
 ##	                      it from a NixOS system with the module, on Xvfb. Its
 ##	                      store is a docker volume kept between runs
-##	  14. Profiler        the panel's tick, core/examples/profile.rs, under
+##	  16. Profiler        the panel's tick, core/examples/profile.rs, under
 ##	                      pprof's sampler, on this box. The flamegraph goes to
 ##	                      cicd/artifacts/profiling/, with a report on its hot
 ##	                      spots from utility/flame-report.py
-##	  15. Demo            the README gif and a video, from
+##	  17. Demo            the README gif and a video, from
 ##	                      utility/demo/script.txt, on a private Xvfb. They go
 ##	                      to private/demo/ beside the repo, and the gif to
 ##	                      assets/demo.gif when it changed. A heavy step, at a
 ##	                      quarter of the CPUs
-##	  16. Dogfood         utility/dev-install.bash, which installs the build
+##	  18. Dogfood         utility/dev-install.bash, which installs the build
 ##	                      under ~/.local and restarts the panel
 ##	  A step that's off isn't counted, and the first section says why it's off.
 ##	  A run whose options leave no check on fails, with exit 2.
@@ -64,8 +79,9 @@
 ##	   --quick             the fast steps: the default run without the packages,
 ##	                       the profiler, the demo and the slow leak checks,
 ##	                       so no Soak
-##	   --long              everything, Miri and the Nix package included, which
-##	                       only it runs. Also --slow
+##	   --long              everything, Miri, the window soak, CodeQL and the
+##	                       Nix package included, which only it runs. Also
+##	                       --slow
 ##	   --leakcheck         add every leak check to any run
 ##	   --no-leakcheck      take every leak check out. The advisory scan and
 ##	                       clippy's leak lints aren't leak check steps, and stay
@@ -86,6 +102,9 @@
 ##	                         sanitizers  the Sanitizers leak check
 ##	                         miri    the Miri leak check, only when named
 ##	                         soak    the Soak leak check, only when named
+##	                         window-soak  the Window soak leak check, only
+##	                                 when named
+##	                         codeql  the CodeQL leak check, only when named
 ##	                         profile the profiler, only when named
 ##	                         nix     the Nix package, only when named. The
 ##	                                 first one fetches about 5 GB
@@ -248,6 +267,13 @@ fi
 ((quiet)) && export CARGO_TERM_QUIET=true
 ## The hands-off runs may not rewrite Cargo.lock.
 locked=(); ((handsOff)) && locked=(--locked)
+## Set by hand, either one wins.
+case "${mode}" in
+	default) : "${TUKZMON_FUZZ_SECONDS:=10}" "${TUKZMON_FUZZ_SEED:=${EPOCHSECONDS}}" ;;
+	long)    : "${TUKZMON_FUZZ_SECONDS:=300}" "${TUKZMON_FUZZ_SEED:=${EPOCHSECONDS}}" ;;
+	backlog-run-full|merge-gate) : "${TUKZMON_FUZZ_SECONDS:=10}" ;;
+esac
+export TUKZMON_FUZZ_SECONDS TUKZMON_FUZZ_SEED
 
 ## What turns each step on, and why one is off. Read by fPlan.
 fAreaOn() { [[ "${mode}" != backlog-run-quick || " ${areas[*]} " == *" $1 "* ]]; }
@@ -290,12 +316,13 @@ fLeakWhyOff() {   ## fLeakWhyOff NAME LENGTH
 	case "${2}" in
 		fast) ;;
 		slow) [[ "${mode}" != quick ]] || echo "a slow leak check, so not in --quick without --leakcheck" ;;
+		long) [[ "${mode}" == long ]] || echo "a long leak check, so only in --long or with --leakcheck" ;;
 		hours) [[ "${mode}" == long ]] || echo "takes hours, so only in --long or with --leakcheck" ;;
 	esac
 }
 for entry in "${LEAK_CHECKS[@]}"; do
 	IFS='|' read -r leakName leakFn leakLength <<< "${entry}"
-	[[ " fast slow hours " == *" ${leakLength} "* ]] || fDie "LEAK_CHECKS: ${leakName} has no length fast, slow or hours"
+	[[ " fast slow long hours " == *" ${leakLength} "* ]] || fDie "LEAK_CHECKS: ${leakName} has no length fast, slow, long or hours"
 	leakWhy="$(fLeakWhyOff "${leakName}" "${leakLength}")"
 	if [[ -n "${leakWhy}" ]]; then offLines+=("${leakName}: ${leakWhy}"); else fPlan "${leakName}" "${leakFn}" ""; fi
 done
@@ -569,6 +596,7 @@ fStepLint() {
 fStepTests() {
 	local t=''
 	fEcho_Clean "cargo test --workspace -j ${jobs} -- --test-threads ${jobs}  (TMPDIR=${TMPDIR})"
+	fEcho_Clean "fuzz: ${TUKZMON_FUZZ_SECONDS:-0} s past the fixed seeds, from seed ${TUKZMON_FUZZ_SEED:-0}"
 	## No test may reach the screen in use. A quiet cargo would quiet libtest
 	## too, and its per-test lines are what get the IDs.
 	env -u DISPLAY -u WAYLAND_DISPLAY -u CARGO_TERM_QUIET cargo test --workspace "${locked[@]}" -j "${jobs}" -- --test-threads "${jobs}" 2>&1 \
@@ -783,6 +811,115 @@ fStepSoak() {
 	fi
 	gfs_rotate "${art}" soak log > /dev/null 2>&1 || true
 	gfs_rotate "${art}" soak json > /dev/null 2>&1 || true
+	return "${rc}"
+}
+
+## The window soak: tukzmon-settings' window off screen, with its live graphs
+## read over days of skipped clock, tabs, a slider, a color, Randomize, the
+## color picker and saves, failing when the heap at round 2N is past round
+## N's by more than its margin. Under heaptrack, so a failure shows where the
+## heap went. Its report and heaptrack's summary are kept in SOAK_DIR, with
+## heaptrack's recording when it fails.
+fStepWindowSoak() {
+	local out="${TMPDIR}/window-soak" art="${root}/${SOAK_DIR}" stamp='' bin='' rec='' ext='' rc=0
+	local test="bridge::tests::the_windows_heap_stops_growing_once_its_graphs_are_full"
+	local -a wrap=()
+	mkdir -p -- "${out}" || return 1
+	fEcho_Clean "cargo test -p tukzmon-settings --bins --no-run -j ${jobs}"
+	bin="$(cargo test -p tukzmon-settings --bins "${locked[@]}" -j "${jobs}" --no-run --message-format=json 2> "${out}/build.log" \
+		| sed -n '/"kind":\["bin"\]/{/"test":true/s/.*"executable":"\([^"]*\)".*/\1/p}' | tail -n 1)" || true
+	[[ -n "${bin}" && -x "${bin}" ]] || { cat -- "${out}/build.log"; fEcho_Clean "cargo gave no test binary for tukzmon-settings"; return 1; }
+	if command -v heaptrack > /dev/null 2>&1; then wrap=(heaptrack -o "${out}/heaptrack")
+	else fEcho_Clean "WARNING: no heaptrack here, so the heap is read with no record of where it went"; fi
+	fEcho_Clean "${wrap[0]:+heaptrack }${bin##*/} --ignored --exact ${test##*::}"
+	## cargo's Running line, so the test's ID is found by its crate. Qt's
+	## warnings land between libtest's "test X ... " and its result, so
+	## stderr is kept apart, and shown only on a failure.
+	{ printf '     Running unittests src/main.rs (%s)\n' "${bin}"
+		env -u DISPLAY -u WAYLAND_DISPLAY QT_QPA_PLATFORM=offscreen TUKZMON_SOAK_DIR="${out}" XDG_CONFIG_HOME="${out}/config" XDG_DATA_HOME="${out}/data" \
+			"${wrap[@]}" "${bin}" --ignored --exact "${test}" --test-threads 1 2> "${out}/stderr.log"
+	} | "${here}/utility/test-ids.bash" annotate || rc=1
+	((! rc)) || tail -n 200 -- "${out}/stderr.log"
+	[[ -f "${out}/window-soak-heap.txt" ]] || { fEcho_Clean "the window soak wrote no report"; return 1; }
+	tail -n 1 -- "${out}/window-soak-heap.txt"
+	stamp="$(printf '%(%Y%m%d-%H%M%S)T' -1)"
+	mkdir -p -- "${art}" || return 1
+	cp -- "${out}/window-soak-heap.txt" "${art}/window-soak_${stamp}.log" || return 1
+	## heaptrack.gz or heaptrack.zst, as heaptrack was built
+	rec="$(compgen -G "${out}/heaptrack.*" | head -n 1 || true)"; ext="${rec##*.}"
+	if [[ -n "${rec}" ]]; then
+		{ printf '\nheaptrack_print, the 10 biggest peaks:\n'; heaptrack_print -f "${rec}" -p -a 0 -T 0 -n 10 -s 2 2>&1 || true; } >> "${art}/window-soak_${stamp}.log"
+		grep -E '^(peak heap memory consumption|total memory leaked)' -- "${art}/window-soak_${stamp}.log" || true
+		if ((rc)); then
+			cp -- "${rec}" "${art}/window-soak_${stamp}.${ext}" || return 1
+			fEcho_Clean "heaptrack's recording: ${SOAK_DIR}/window-soak_${stamp}*.${ext}, for heaptrack_gui"
+		fi
+	elif ((${#wrap[@]})); then fEcho_Clean "heaptrack wrote no recording"; rc=1; fi
+	## The rotation may add a tag to the name, such as _first.
+	fEcho_Clean "report: ${SOAK_DIR}/window-soak_${stamp}*.log"
+	gfs_rotate "${art}" window-soak log > /dev/null 2>&1 || true
+	gfs_rotate "${art}" window-soak gz > /dev/null 2>&1 || true
+	gfs_rotate "${art}" window-soak zst > /dev/null 2>&1 || true
+	return "${rc}"
+}
+
+## CodeQL over the Rust and the C++, per CODEQL_SUITES. The tree is copied to
+## a clean folder with its crates vendored beside it, outside the source root,
+## so they're read as libraries and not scanned. The C++ database comes from a
+## build into an empty target dir, since a build with nothing to compile gives
+## CodeQL no C++. codeql-report.py fails a finding CODEQL_SUPP doesn't list, a
+## line there that matches nothing, and a database with none of our code.
+fStepCodeql() {
+	local work="${TMPDIR}/codeql" art="${root}/${CODEQL_DIR}" src='' stamp='' entry='' lang='' suite='' rc=0 t0=0
+	local -a files=() sarifs=() cqArgs=()
+	if ! command -v codeql > /dev/null 2>&1; then
+		fEcho_Clean "no codeql here. The image has it, at the version config.bash pins"
+		((! handsOff)) || return 1
+		fEcho_Clean "WARNING: so nothing was scanned"; return 0
+	fi
+	src="${work}/src"
+	mkdir -p -- "${src}/.cargo" || return 1
+	fTreeFiles files ':(exclude)assets/*' || return 1
+	cp --parents -t "${src}" -- "${files[@]}" || return 1
+	fEcho_Clean "cargo vendor, beside a copy of the tree in ${work#"${TMPDIR}/"}/"
+	cargo vendor --quiet --locked --manifest-path "${src}/Cargo.toml" "${work}/vendor" > /dev/null || return 1
+	printf '[source.crates-io]\nreplace-with = "vendored-sources"\n\n[source.vendored-sources]\ndirectory = "%s"\n' "${work}/vendor" > "${src}/.cargo/config.toml" || return 1
+	cqArgs=(--threads "${jobs}" --ram "${CODEQL_RAM_MB}")
+	for entry in "${CODEQL_SUITES[@]}"; do
+		lang="${entry%%|*}"; suite="${entry#*|}"; t0="${SECONDS}"
+		case "${lang}" in
+			rust) fEcho_Clean "codeql database create, rust, build mode none"
+				(cd "${src}" && CARGO_TARGET_DIR="${work}/target-rust" codeql database create "${work}/db-rust" --language=rust --build-mode=none --source-root=. "${cqArgs[@]}") \
+					> "${work}/db-rust.log" 2>&1 || rc=1 ;;
+			cpp) fEcho_Clean "codeql database create, cpp, from cargo build -p tukzmon-settings into an empty target dir"
+				(cd "${src}" && CARGO_TARGET_DIR="${work}/target-cpp" codeql database create "${work}/db-cpp" --language=cpp --source-root=. "${cqArgs[@]}" \
+					--command="cargo build -p tukzmon-settings ${locked[*]} -j ${jobs}") > "${work}/db-cpp.log" 2>&1 || rc=1 ;;
+			*) fEcho_Clean "CODEQL_SUITES: no database for ${lang}"; return 1 ;;
+		esac
+		((! rc)) || { tail -n 40 -- "${work}/db-${lang}.log"; fEcho_Clean "the ${lang} database failed"; return 1; }
+		## A workspace that won't load still makes a database, of files read
+		## with no names resolved, so its findings are noise.
+		if [[ "${lang}" == rust ]] && grep -q ' ERROR ' "${work}/db-rust.log"; then
+			grep ' ERROR ' "${work}/db-rust.log" | head -n 20
+			fEcho_Clean "the rust extractor had errors, in ${work#"${TMPDIR}/"}/db-rust.log"; return 1
+		fi
+		fEcho_Clean "codeql database analyze, ${suite##*/}"
+		codeql database analyze "${work}/db-${lang}" "${suite}" --format=sarif-latest --output="${work}/${lang}.sarif" "${cqArgs[@]}" \
+			> "${work}/analyze-${lang}.log" 2>&1 || { tail -n 40 -- "${work}/analyze-${lang}.log"; fEcho_Clean "the ${lang} analysis failed"; return 1; }
+		fEcho_Clean "${lang}: $(fMinSec $((SECONDS - t0)))"
+		sarifs+=("${work}/${lang}.sarif")
+	done
+	stamp="$(printf '%(%Y%m%d-%H%M%S)T' -1)"
+	mkdir -p -- "${art}" || return 1
+	python3 -I "${here}/utility/codeql-report.py" --root "${src}" --supp "${root}/${CODEQL_SUPP}" "${sarifs[@]}" | tee "${art}/codeql_${stamp}.log" || rc=1
+	for entry in "${sarifs[@]}"; do
+		lang="${entry##*/}"; lang="${lang%.sarif}"
+		cp -- "${entry}" "${art}/codeql-${lang}_${stamp}.sarif" || return 1
+		gfs_rotate "${art}" "codeql-${lang}" sarif > /dev/null 2>&1 || true
+	done
+	## The rotation may add a tag to the name, such as _first.
+	fEcho_Clean "report: ${CODEQL_DIR}/codeql_${stamp}*.log, with the SARIF beside it"
+	gfs_rotate "${art}" codeql log > /dev/null 2>&1 || true
 	return "${rc}"
 }
 
@@ -1192,7 +1329,8 @@ fCtrStep() {   ## fCtrStep FUNCTION
 	env=(-e "TUKZMON_IN_IMAGE=${fn}" -e "TUKZMON_JOBS=${jobs}" -e "HOME=${runTmp}/home"
 		-e "TMPDIR=${runTmp}" -e "TEMP=${runTmp}" -e "TMP=${runTmp}"
 		-e "CARGO_HOME=${ctrBase}/cargo-home" -e "CARGO_TARGET_DIR=${ctrBase}/target" -e CARGO_NET_OFFLINE=true
-		-e CARGO_TERM_QUIET -e SOURCE_DATE_EPOCH -e TUKZMON_RELEASE -e TUKZMON_MIRI_FILTER -e TUKZMON_MIRI_MINUTES)
+		-e CARGO_TERM_QUIET -e SOURCE_DATE_EPOCH -e TUKZMON_RELEASE -e TUKZMON_MIRI_FILTER -e TUKZMON_MIRI_MINUTES
+		-e TUKZMON_FUZZ_SECONDS -e TUKZMON_FUZZ_SEED)
 	[[ ! -t 1 ]] || env+=(-e CARGO_TERM_COLOR=always)
 	## A run that dogfoods built the release here, so the packages come from
 	## that one.
@@ -1344,3 +1482,7 @@ exit 0
 ##		- 2026-11-09: A Miri target that cannot build or list its tests fails
 ##		  the step, with its errors, rather than losing its tests.
 ##		- 2026-11-10: The demo is a heavy step, and gets its job count.
+##		- 2026-11-10: The Window soak leak check, under heaptrack, in --long,
+##		  --leakcheck and the window-soak area.
+##		- 2026-11-10: The CodeQL leak check, over the Rust and the C++, in
+##		  --long, --leakcheck and the codeql area.

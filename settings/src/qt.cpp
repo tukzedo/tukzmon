@@ -35,6 +35,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPixmap>
+#include <QPixmapCache>
 #include <QProxyStyle>
 #include <QPushButton>
 #include <QRadioButton>
@@ -58,6 +59,7 @@
 
 #include <dlfcn.h>
 #include <fcntl.h>
+#include <malloc.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -1164,6 +1166,39 @@ public:
 			out.push_back(double(t.nsecsElapsed()) / 1000);
 		}
 		return out;
+	}
+
+	// One round of the window soak: the live graphs read and drawn, the
+	// next tab, the first slider stepped, the first color set, and now and
+	// then a Randomize, the color picker and a save.
+	void soakRound(std::size_t round, double step) {
+		live_skip(*live, step);
+		live_sample(*live);
+		for (auto &l : listRows) {
+			l.space->tick(live_read(*live, l.name));
+			l.space->grab();
+		}
+		select(int(round % std::size_t(tabCount())));
+		const auto slider = std::ranges::find_if(rows, [](auto &row) { return row->slider != nullptr; });
+		if (slider != rows.end())
+			(*slider)->slider->setValue(((*slider)->slider->value() + (SLIDER_STEPS / 7)) % SLIDER_STEPS);
+		const auto chip = std::ranges::find_if(rows, [](auto &row) { return row->chip != nullptr; });
+		if (chip != rows.end())
+			set_text(d, (*chip)->id(), round % 2 == 0 ? "#3060c0" : "#c06030");
+		refresh();
+		if (round % 10 == 0) {
+			randomize_theme(d);
+			refresh();
+			if (auto pick = firstPicker()) {
+				pick->show();
+				QApplication::processEvents();
+				pick->reject();
+			}
+		}
+		if (round % 50 == 0)
+			saveNow();
+		QApplication::processEvents();
+		QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
 	}
 
 	std::vector<std::string> greyed() const {
@@ -3133,6 +3168,29 @@ rust::Vec<rust::String> squeezed(Dialog &d, rust::Str screens) {
 				out.push_back(rust::String(QString::fromStdString(w.tabText(i)).trimmed().toStdString() + ": " +
 					c->accessibleName().toStdString() + " " + std::to_string(c->width()) + " of " +
 					std::to_string(c->sizeHint().width())));
+	}
+	return out;
+}
+
+rust::Vec<std::uint64_t> soak_heap(Dialog &d, std::size_t rounds, std::size_t every, double step) {
+	const App app("offscreen");
+	tukzmon::App::setStyle(new BoxStyle);
+	Window w(d);
+	openSized(w);
+	w.show();
+	QApplication::processEvents();
+	rust::Vec<std::uint64_t> out;
+	out.reserve((rounds / std::max<std::size_t>(every, 1)) + 1);
+	for (std::size_t round = 1; round <= rounds; round++) {
+		w.soakRound(round, step);
+		if (every > 0 && round % every == 0) {
+			// the style's pixmaps fill a cache Qt bounds, and each Randomize
+			// adds new ones, which would hide a leak's growth
+			QPixmapCache::clear();
+			// in use, from the arenas and from mmap, as heaptrack counts it
+			const struct mallinfo2 m = mallinfo2();
+			out.push_back(std::uint64_t(m.uordblks) + std::uint64_t(m.hblkhd));
+		}
 	}
 	return out;
 }

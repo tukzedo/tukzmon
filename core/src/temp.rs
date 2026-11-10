@@ -300,4 +300,67 @@ mod tests {
 		);
 		assert!(r.crit().is_none_or(|c| c > 0.0));
 	}
+
+	// Test ID: df4gw
+	#[test]
+	fn fuzz_hwmon_files_read_as_the_hottest_package_split_at_its_limit() {
+		let tally = crate::fuzz::run("hwmon", |dice| {
+			let mut f = crate::fuzz::Files::new(dice);
+			let mut inputs = Vec::new();
+			for n in 0..=dice.below(3) {
+				let driver = *dice.pick(&["coretemp", "k10temp", "cpu_thermal", "nvme", "acpitz"]);
+				f.put(dice, format!("hw/hwmon{n}/name"), format!("{driver}\n"));
+				for s in 1..=1 + dice.below(4) {
+					let label =
+						*dice.pick(&["Package id 0", "Core 0", "Tctl", "Tdie", "Composite"]);
+					let milli = match dice.below(5) {
+						0 => crate::fuzz::count(dice) as i64,
+						_ => dice.below(120_000) as i64 - 20_000,
+					};
+					f.put(
+						dice,
+						format!("hw/hwmon{n}/temp{s}_input"),
+						format!("{milli}\n"),
+					);
+					if !dice.one_in(4) {
+						f.put(
+							dice,
+							format!("hw/hwmon{n}/temp{s}_label"),
+							format!("{label}\n"),
+						);
+					}
+					if dice.one_in(2) {
+						let crit = *dice.pick(&[0, 95_000, 105_000, -1, i64::MAX]);
+						f.put(
+							dice,
+							format!("hw/hwmon{n}/temp{s}_crit"),
+							format!("{crit}\n"),
+						);
+					}
+					inputs.push(milli);
+				}
+			}
+			let t = f.tree("temp_fuzz");
+			let Some(mut r) = TempReader::probe_at(&t.at("hw")) else {
+				return false;
+			};
+			let limit = r.limit();
+			assert!(limit.is_finite() && limit > 0.0, "{limit}");
+			let got = r.read();
+			if let Some([normal, over]) = got {
+				assert!(normal.is_finite() && normal <= limit, "{normal} {limit}");
+				assert!(over.is_finite() && over >= 0.0, "{over}");
+				if f.whole {
+					let hottest = (normal + over) * 1000.0;
+					assert!(
+						inputs
+							.iter()
+							.any(|m| (*m as f32 - hottest).abs() <= hottest.abs() * 1e-5 + 1.0)
+					);
+				}
+			}
+			got.is_some()
+		});
+		tally.assert_mixed();
+	}
 }

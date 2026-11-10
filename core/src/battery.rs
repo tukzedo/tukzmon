@@ -112,10 +112,14 @@ fn fill(bat: &mut Battery, buf: &mut String) -> Option<Fill> {
 /// The batteries as one, in [`BatteryReader::SERIES`] order.
 fn combine(fills: &[Fill]) -> Option<[f32; 3]> {
 	let first = fills.first()?;
+	let mean = || fills.iter().map(|f| f.now / f.full).sum::<f64>() / fills.len() as f64;
 	let level = if fills.iter().all(|f| f.unit == first.unit) {
-		fills.iter().map(|f| f.now).sum::<f64>() / fills.iter().map(|f| f.full).sum::<f64>()
+		let pooled =
+			fills.iter().map(|f| f.now).sum::<f64>() / fills.iter().map(|f| f.full).sum::<f64>();
+		// sums past f64 are inf over inf
+		if pooled.is_nan() { mean() } else { pooled }
 	} else {
-		fills.iter().map(|f| f.now / f.full).sum::<f64>() / fills.len() as f64
+		mean()
 	};
 	let level = level.clamp(0.0, 1.0);
 	let discharging = fills.iter().any(|f| f.discharging);
@@ -322,5 +326,62 @@ mod tests {
 		let v = r.read().unwrap();
 		assert!(v.iter().all(|x| (0.0..=1.0).contains(x)));
 		assert!(v.iter().filter(|x| **x > 0.0).count() <= 1);
+	}
+
+	// Test ID: df4gv
+	#[test]
+	fn fuzz_power_supply_files_read_as_one_share_in_range() {
+		// seed 372 found it, past the fixed seeds
+		let huge = Fill {
+			unit: Unit::Energy,
+			now: 1e308,
+			full: 1e308,
+			discharging: false,
+			critical: None,
+		};
+		assert_eq!(combine(&[huge, huge]), Some([1.0, 0.0, 0.0]));
+		let tally = crate::fuzz::run("battery", |dice| {
+			let mut f = crate::fuzz::Files::new(dice);
+			let mut any = false;
+			for n in 0..=dice.below(3) {
+				let at = |name: &str| format!("ps/BAT{n}/{name}");
+				let number = |dice: &mut crate::fuzz::Dice| match dice.below(5) {
+					// 2 of them add up past f64
+					0 | 1 => "1e308".to_owned(),
+					2 => crate::fuzz::count(dice).to_string(),
+					_ => (1 + dice.below(80_000_000)).to_string(),
+				};
+				f.put(dice, at("type"), "Battery\n");
+				let present = !dice.one_in(6);
+				f.put(dice, at("present"), if present { "1\n" } else { "0\n" });
+				let status =
+					*dice.pick(&["Charging", "Discharging", "Full", "Not charging", "Unknown"]);
+				f.put(dice, at("status"), format!("{status}\n"));
+				let level = *dice.pick(&["Normal", "Low", "Critical", "Full", "Unknown"]);
+				f.put(dice, at("capacity_level"), format!("{level}\n"));
+				let full = number(dice);
+				any |= present && full != "0";
+				let now = number(dice);
+				let unit = *dice.pick(&["energy", "charge", "capacity"]);
+				if unit == "capacity" {
+					let percent = dice.below(101);
+					f.put(dice, at(unit), format!("{percent}\n"));
+				} else {
+					f.put(dice, at(&format!("{unit}_now")), now + "\n");
+					f.put(dice, at(&format!("{unit}_full")), full + "\n");
+				}
+			}
+			let t = f.tree("bat_fuzz");
+			let got = BatteryReader::probe_at(&t.at("ps")).and_then(|mut r| r.read());
+			if f.whole && any {
+				assert!(got.is_some());
+			}
+			if let Some(v) = got {
+				assert!(v.iter().all(|x| (0.0..=1.0).contains(x)), "{v:?}");
+				assert!(v.iter().filter(|x| **x > 0.0).count() <= 1, "{v:?}");
+			}
+			got.is_some()
+		});
+		tally.assert_mixed();
 	}
 }

@@ -1015,6 +1015,39 @@ fTest_the_demo_takes_a_display_that_answers_as_taken_with_no_lock_file() {
 	fi
 }
 
+## Test ID: df4ks
+fTest_codeql_report_fails_what_isnt_suppressed_a_stale_suppression_and_an_empty_database() {
+	local t="${work}/codeql-report" out='' rc=0
+	mkdir -p -- "${t}/src/a"
+	printf 'fn main() {\n    let p = &*q;\n    let x = 1;\n}\n' > "${t}/src/a/m.rs"
+	## SARIF as codeql writes it, cut down to what the report reads.
+	fSarif() {   ## fSarif FILE LINES_OF_OURS [LINE...]
+		local f="$1" loc="$2" results='' n=''
+		shift 2
+		for n in "$@"; do
+			results+="${results:+,}{\"ruleId\":\"rust/x\",\"message\":{\"text\":\"bad\"},\"locations\":[{\"physicalLocation\":{\"artifactLocation\":{\"uri\":\"a/m.rs\"},\"region\":{\"startLine\":${n}}}}]}"
+		done
+		printf '{"runs":[{"tool":{"driver":{"rules":[{"id":"rust/x"}]}},"properties":{"metricResults":[{"ruleId":"rust/summary/lines-of-user-code","value":%s}]},"results":[%s]}]}\n' "${loc}" "${results}" > "${f}"
+	}
+	fReport() { rc=0; out="$(python3 -I "${cicd}/utility/codeql-report.py" --root "${t}/src" --supp "${t}/supp" "$@" 2>&1)" || rc=$?; }
+	printf '# why\nrust/x a/m.rs let p = &*q;\ncpp/y b.cpp delete p;\n' > "${t}/supp"
+	fSarif "${t}/one.sarif" 4 2
+	fReport "${t}/one.sarif"
+	((rc == 0)) || { fWhy "a suppressed finding, and one of another language, failed (${rc}): ${out}"; return 1; }
+	fSarif "${t}/two.sarif" 4 2 3
+	fReport "${t}/two.sarif"
+	((rc == 1)) && [[ "${out}" == *"a/m.rs:3: rust/x: bad"* && "${out}" != *"a/m.rs:2:"* ]] || { fWhy "an unsuppressed finding (${rc}): ${out}"; return 1; }
+	fSarif "${t}/none.sarif" 4
+	fReport "${t}/none.sarif"
+	((rc == 1)) && [[ "${out}" == *"matches nothing, so it can go: rust/x a/m.rs"* && "${out}" != *"cpp/y"* ]] || { fWhy "a stale suppression (${rc}): ${out}"; return 1; }
+	fSarif "${t}/empty.sarif" 0 2
+	fReport "${t}/empty.sarif"
+	((rc == 1)) && [[ "${out}" == *"no lines of our code"* ]] || { fWhy "an empty database (${rc}): ${out}"; return 1; }
+	printf 'rust/x a/m.rs\n' > "${t}/supp"
+	fReport "${t}/one.sarif"
+	((rc == 2)) || { fWhy "a suppression with no line text (${rc}): ${out}"; return 1; }
+}
+
 failed=0
 while read -r id fn; do
 	if "${fn}"; then echo "PASS ${id} ${fn#fTest_}"; else echo "FAIL ${id} ${fn#fTest_}"; failed=1; fi
@@ -1053,3 +1086,5 @@ exit "${failed}"
 ##		- 2026-11-09: A Miri target that can't list its tests fails the step.
 ##		- 2026-11-10: The demo's encodes get the run's job count, and a display
 ##		  that answers counts as taken without a lock file.
+##		- 2026-11-10: codeql-report.py fails what isn't suppressed, a stale
+##		  suppression and an empty database.

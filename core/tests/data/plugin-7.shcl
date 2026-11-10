@@ -1,0 +1,321 @@
+## tukzmon settings. Only values changed from their defaults are listed.
+##    Format   3
+temp:
+	time: smooth
+
+swap:
+	show: false
+
+graph:
+	order: [cpu, mem, net, disk, temp]
+
+disk:
+	drives: sda  # the nvme is too busy to read
+
+# Kept by the program, so values can come back later.
+kept:
+	changes:
+		theme:
+			preset: default
+			values:
+				cpu:
+					colors:
+						medium: "#8ac751"
+						high: "#5fbf37"
+				mem:
+					colors:
+						cache: "#199d07"
+				gpu:
+					colors:
+						busy: "#35a9fa"
+				vram:
+					colors:
+						bottom: "#c89acd"
+				net:
+					colors:
+						low: "#c3bbda"
+				swap:
+					mode: detailed
+					colors:
+						used: "#4ddae9"
+						low: "#90c539"
+						medium: "#0cada2"
+						top: "#247806"
+				zswap:
+					mode: detailed
+					colors:
+						used: "#a15699"
+				load:
+					colors:
+						border: "#03f124"
+				disk:
+					colors:
+						border: "#0dfd9e"
+				procs:
+					colors:
+						border: "#7f8e51"
+				graph:
+					margins:
+						top_bottom: 22
+					overrides:
+						colors:
+							border: "#dc8e73"
+themes:
+	mine:
+		name: Mine
+		back_all: true
+		back_bottom: "#000000"
+		back_top: "#313131"
+		battery_back_bottom: "#000000"
+		battery_back_top: "#313131"
+		battery_border_color: "#595959"
+		battery_charging: "#aacc0b"
+		battery_critical: "#ff0000"
+		battery_discharging: "#c46e43"
+		battery_high: "#ece0ff"
+		battery_low: "#483468"
+		battery_medium: "#b080ff"
+		battery_mode: detailed
+		border_all: true
+		border_color: "#595959"
+		cpu_back_bottom: "#000000"
+		cpu_back_top: "#313131"
+		cpu_border_color: "#01a969"
+		cpu_high: "#c0ffe0"
+		cpu_low: "#205f40"
+		cpu_medium: "#c7495c"
+		cpu_mode: detailed
+		disk_back_bottom: "#000000"
+		disk_back_top: "#313131"
+		disk_border_color: "#d3b9a3"
+		disk_high: "#028b13"
+		disk_low: "#2b4866"
+		disk_medium: "#6bb3ff"
+		disk_mode: detailed
+		disk_read: "#6bb3ff"
+		disk_write: "#c60000"
+		gpu_back_bottom: "#000000"
+		gpu_back_top: "#313131"
+		gpu_border_color: "#595959"
+		gpu_busy: "#3b6fd9"
+		gpu_high: "#f984b3"
+		gpu_low: "#32456d"
+		gpu_medium: "#3b6fd9"
+		gpu_mode: gradient
+		hover_color: "#000fff"
+		iowait: "#ff0000"
+		load_back_bottom: "#000000"
+		load_back_top: "#313131"
+		load_border_color: "#595959"
+		load_high: "#eb4a4a"
+		load_low: "#553030"
+		load_medium: "#924444"
+		load_mode: gradient
+		load_used: "#c8f573"
+		margin_lr: 2
+		margin_tb: 2
+		mem_back_bottom: "#682bd5"
+		mem_back_top: "#9c6282"
+		mem_border_color: "#d242af"
+		mem_buffers: "#804080"
+		mem_cache: "#8bc9cf"
+		mem_high: "#7ce8bd"
+		mem_low: "#408060"
+		mem_medium: "#ffffb8"
+		mem_mode: detailed
+		mem_user: "#ffffb8"
+		net_back_bottom: "#000000"
+		net_back_top: "#313131"
+		net_border_color: "#595959"
+		net_high: "#cff1ff"
+		net_lan_received: "#84ff7b"
+		net_lan_sent: "#ff6bf1"
+		net_local: "#ffed00"
+		net_low: "#a351e1"
+		net_medium: "#4d4c41"
+		net_mode: detailed
+		net_received: "#6ad4ff"
+		net_sent: "#ff7777"
+		nice: "#205f40"
+		procs_back_bottom: "#000000"
+		procs_back_top: "#313131"
+		procs_border_color: "#30dd0b"
+		procs_high: "#fff2cf"
+		procs_low: "#95142e"
+		procs_me: "#fff02a"
+		procs_medium: "#fff02a"
+		procs_mode: detailed
+		procs_system: "#ad4908"
+		procs_users: "#7400a1"
+		self_back_bottom: "#0e7dfe"
+		self_back_top: "#313131"
+		self_border_color: "#34d940"
+		self_high: "#445a1e"
+		self_low: "#422016"
+		self_medium: "#00ccb8"
+		self_mode: detailed
+		self_used: "#0be530"
+		swap_back_bottom: "#000000"
+		swap_back_top: "#313131"
+		swap_border_color: "#07648c"
+		swap_high: "#ffebcf"
+		swap_low: "#66461a"
+		swap_medium: "#ee11c2"
+		swap_mode: gradient
+		swap_used: "#a45f00"
+		system: "#71e8ea"
+		temp_back_bottom: "#000000"
+		temp_back_top: "#313131"
+		temp_border_color: "#eb898c"
+		temp_critical: "#ff0000"
+		temp_high: "#ff0000"
+		temp_low: "#60dae2"
+		temp_medium: "#d9da62"
+		temp_mode: gradient
+		temp_normal: "#d9da62"
+		user: "#00ff80"
+		vram_back_bottom: "#000000"
+		vram_back_top: "#313131"
+		vram_border_color: "#595959"
+		vram_high: "#ecdcff"
+		vram_low: "#4d326d"
+		vram_medium: "#843bd9"
+		vram_mode: gradient
+		vram_used: "#843bd9"
+		zswap_back_bottom: "#000000"
+		zswap_back_top: "#313131"
+		zswap_border_color: "#595959"
+		zswap_high: "#cfffd6"
+		zswap_low: "#35663c"
+		zswap_medium: "#4a8e54"
+		zswap_mode: gradient
+		zswap_used: "#4a8e54"
+	say_hi:
+		name: 'Say "hi"'
+		back_all: true
+		back_bottom: "#000000"
+		back_top: "#5fbf59"
+		battery_back_bottom: "#000000"
+		battery_back_top: "#313131"
+		battery_border_color: "#595959"
+		battery_charging: "#b080ff"
+		battery_critical: "#ff0000"
+		battery_discharging: "#c46e43"
+		battery_high: "#e0a1bc"
+		battery_low: "#483468"
+		battery_medium: "#b140ed"
+		battery_mode: detailed
+		border_all: true
+		border_color: "#c110d1"
+		cpu_back_bottom: "#000000"
+		cpu_back_top: "#313131"
+		cpu_border_color: "#595959"
+		cpu_high: "#c0ffe0"
+		cpu_low: "#205f40"
+		cpu_medium: "#00ff80"
+		cpu_mode: detailed
+		disk_back_bottom: "#000000"
+		disk_back_top: "#313131"
+		disk_border_color: "#595959"
+		disk_high: "#cfe6ff"
+		disk_low: "#ab2341"
+		disk_medium: "#271de4"
+		disk_mode: detailed
+		disk_read: "#6bb3ff"
+		disk_write: "#c60000"
+		gpu_back_bottom: "#000000"
+		gpu_back_top: "#84a6d4"
+		gpu_border_color: "#595959"
+		gpu_busy: "#3b6fd9"
+		gpu_high: "#c679cc"
+		gpu_low: "#840933"
+		gpu_medium: "#3b6fd9"
+		gpu_mode: gradient
+		hover_color: "#000fff"
+		iowait: "#ff0000"
+		load_back_bottom: "#000000"
+		load_back_top: "#313131"
+		load_border_color: "#595959"
+		load_high: "#eb4a4a"
+		load_low: "#553030"
+		load_medium: "#2ab395"
+		load_mode: gradient
+		load_used: "#924444"
+		margin_lr: 2
+		margin_tb: 2
+		mem_back_bottom: "#000000"
+		mem_back_top: "#313131"
+		mem_border_color: "#595959"
+		mem_buffers: "#804080"
+		mem_cache: "#408060"
+		mem_high: "#d14916"
+		mem_low: "#408060"
+		mem_medium: "#1773b5"
+		mem_mode: detailed
+		mem_user: "#ffffb8"
+		net_back_bottom: "#000000"
+		net_back_top: "#3b1a26"
+		net_border_color: "#a8f48c"
+		net_high: "#7f221b"
+		net_lan_received: "#84ff7b"
+		net_lan_sent: "#ff6bf1"
+		net_local: "#ffed00"
+		net_low: "#2a5566"
+		net_medium: "#6ad4ff"
+		net_mode: detailed
+		net_received: "#6ad4ff"
+		net_sent: "#ff7777"
+		nice: "#205f40"
+		procs_back_bottom: "#000000"
+		procs_back_top: "#313131"
+		procs_border_color: "#595959"
+		procs_high: "#a6b6e1"
+		procs_low: "#707070"
+		procs_me: "#ca214d"
+		procs_medium: "#49855d"
+		procs_mode: detailed
+		procs_system: "#707070"
+		procs_users: "#6bc9ff"
+		self_back_bottom: "#000000"
+		self_back_top: "#313131"
+		self_border_color: "#595959"
+		self_high: "#cffffa"
+		self_low: "#1a665e"
+		self_medium: "#00ccb8"
+		self_mode: detailed
+		self_used: "#f16bd9"
+		swap_back_bottom: "#000000"
+		swap_back_top: "#313131"
+		swap_border_color: "#15b7a1"
+		swap_high: "#ffebcf"
+		swap_low: "#5aa82c"
+		swap_medium: "#a45f00"
+		swap_mode: gradient
+		swap_used: "#5e2a82"
+		system: "#78ed30"
+		temp_back_bottom: "#000000"
+		temp_back_top: "#313131"
+		temp_border_color: "#595959"
+		temp_critical: "#ff0000"
+		temp_high: "#ff0000"
+		temp_low: "#60dae2"
+		temp_medium: "#d9da62"
+		temp_mode: gradient
+		temp_normal: "#b4b2e5"
+		user: "#00ff80"
+		vram_back_bottom: "#000000"
+		vram_back_top: "#313131"
+		vram_border_color: "#595959"
+		vram_high: "#ecdcff"
+		vram_low: "#142ddd"
+		vram_medium: "#6fe8d1"
+		vram_mode: gradient
+		vram_used: "#843bd9"
+		zswap_back_bottom: "#000000"
+		zswap_back_top: "#313131"
+		zswap_border_color: "#252d40"
+		zswap_high: "#cfffd6"
+		zswap_low: "#35663c"
+		zswap_medium: "#ea5562"
+		zswap_mode: gradient
+		zswap_used: "#4a8e54"

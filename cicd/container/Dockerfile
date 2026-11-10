@@ -104,7 +104,7 @@ RUN apt-get update \
 
 # The C++ and Python format and lint tools. clang-format and clang-tidy at
 # the clang the sanitizers use, and black from the snapshot. ruff isn't in
-# Debian, so it's the release binary. Its own layer, last but the env.
+# Debian, so it's the release binary. Its own layer.
 ARG RUFF_VER=0.15.22
 ARG RUFF_SHA256=853462df618fb9f156a9f04d9d899d9e5a9e1a43fbffaec72df4bb159348e71b
 RUN apt-get update \
@@ -116,6 +116,36 @@ RUN apt-get update \
 	&& echo "${RUFF_SHA256}  /tmp/ruff.tgz" | sha256sum -c - \
 	&& tar -C /usr/local/bin --strip-components=1 -xzf /tmp/ruff.tgz ruff-x86_64-unknown-linux-musl/ruff \
 	&& rm -f /tmp/ruff.tgz
+
+# heaptrack for the window soak, from the snapshot like the rest. Its own
+# layer, so it rebuilds nothing above.
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends heaptrack \
+	&& rm -rf /var/lib/apt/lists/*
+
+# CodeQL for its step: the Rust and the C++ bundles, each the CLI plus one
+# language's extractor and queries, unpacked over each other. Their shared
+# files are the same, and the 2 come to half the all-language bundle. The
+# version is pinned in cicd/config.bash too. Its Rust extractor runs on a
+# toolchain of its own, with rust-src, which it would otherwise try to install
+# at run time, with no network and a rustup it can't write. Last but the env.
+ARG CODEQL_VER=2.27.4
+ARG CODEQL_RUST_TOOLCHAIN=1.99.0
+ARG CODEQL_RUST_SHA256=1c2f867094b80e43c9a0e511090e57e0ea3bf107600b4b3763c52b9020b4ec4b
+ARG CODEQL_CPP_SHA256=eea5a76ed6778892278a387c4362fef8d03e5a9c3795f5d5022d496fccfd5388
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends zstd \
+	&& rm -rf /var/lib/apt/lists/* \
+	&& cd /tmp \
+	&& curl -fsSLo cq-rust.tzst "https://github.com/github/codeql-action/releases/download/codeql-bundle-v${CODEQL_VER}/codeql-bundle-rust-linux64.tar.zst" \
+	&& curl -fsSLo cq-cpp.tzst "https://github.com/github/codeql-action/releases/download/codeql-bundle-v${CODEQL_VER}/codeql-bundle-cpp-linux64.tar.zst" \
+	&& printf '%s  cq-rust.tzst\n%s  cq-cpp.tzst\n' "${CODEQL_RUST_SHA256}" "${CODEQL_CPP_SHA256}" | sha256sum -c - \
+	&& tar -C /opt --zstd -xf cq-rust.tzst \
+	&& tar -C /opt --zstd -xf cq-cpp.tzst \
+	&& ln -s /opt/codeql/codeql /usr/local/bin/codeql \
+	&& rm -f cq-rust.tzst cq-cpp.tzst \
+	&& CARGO_HOME=/opt/cargo /opt/cargo/bin/rustup toolchain install "${CODEQL_RUST_TOOLCHAIN}" --profile minimal --component rust-src \
+	&& rm -rf /opt/cargo/registry
 
 # Runs as the caller's uid, which has no passwd entry here. CARGO_HOME, HOME
 # and TMPDIR are set per run to dirs mounted from the host.

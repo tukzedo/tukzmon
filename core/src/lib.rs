@@ -12,6 +12,8 @@ pub mod color;
 pub mod config;
 pub mod cpu;
 pub mod disk;
+#[cfg(test)]
+mod fuzz;
 pub mod gpu;
 pub mod graphs;
 pub mod history;
@@ -1522,7 +1524,13 @@ mod tests {
 		let user = end[end.len() - 1];
 		let filled = |c: &[u32]| c.iter().filter(|&&p| p == user).count();
 		assert_eq!(filled(&start), 0, "{start:x?}");
-		assert!((7..=11).contains(&filled(&half)), "{half:x?}");
+		// half in, it's drawn full height at about half strength
+		let red = |p: u32| (p >> 16) & 0xff;
+		assert!(
+			half.iter()
+				.all(|&p| p != user && (0xa0..0xd8).contains(&red(p))),
+			"{half:x?}"
+		);
 		assert!(filled(&end) >= 17, "{end:x?}");
 	}
 

@@ -1,0 +1,9 @@
+# CodeQL findings cicd.bash's CodeQL step lets by, one per line, as
+# RULE PATH LINE, where LINE is the flagged line's text, trimmed. Only a
+# finding read and judged wrong goes here, with why above it. A line that
+# matches nothing fails the step, so a fixed site can't leave one behind.
+
+# getifaddrs fills the list in, and the loop only reads a node it checked
+# isn't null. CodeQL doesn't know getifaddrs writes it, so it still sees the
+# null the list started as.
+rust/access-invalid-pointer core/src/net.rs let ifa = &*at;

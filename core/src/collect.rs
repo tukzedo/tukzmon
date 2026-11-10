@@ -97,6 +97,15 @@ impl<const K: usize> Counts<K> {
 		self.values.len()
 	}
 
+	#[cfg(test)]
+	pub(crate) fn rows(&self) -> Vec<(&str, [u64; K])> {
+		self.names()
+			.iter()
+			.map(String::as_str)
+			.zip(self.values.iter().copied())
+			.collect()
+	}
+
 	pub(crate) fn is_empty(&self) -> bool {
 		self.values.is_empty()
 	}
@@ -141,6 +150,12 @@ impl<const K: usize> Climb<K> {
 	pub(crate) fn next(&mut self) -> &mut Counts<K> {
 		self.now.values.clear();
 		&mut self.now
+	}
+
+	/// The rows filled since [`Self::next`].
+	#[cfg(test)]
+	pub(crate) fn next_rows(&self) -> Vec<(&str, [u64; K])> {
+		self.now.rows()
 	}
 
 	/// Whether a read has gone through, so the next step can give rates.

@@ -53,6 +53,14 @@ impl Live {
 		}
 	}
 
+	/// Moves every graph's clock on, so the window soak runs days in
+	/// seconds, as the panel's soak does.
+	pub fn skip(&mut self, secs: f64) {
+		for (_, g) in self.all_mut() {
+			g.skip(secs);
+		}
+	}
+
 	/// Every graph read now, for tests that can't wait for a beat. The first
 	/// call only primes them.
 	#[cfg(test)]
@@ -73,6 +81,11 @@ impl Live {
 		let last = |slots: &Slots| Which::ALL.map(|w| slots.get(w).and_then(Drawn::last_read_ms));
 		let was = last(&self.slots);
 		let wait = graphs::tick(self.all_mut().map(|(_, g)| g), at);
+		// past the max age, as the panel drops it, or a window left open
+		// keeps every hour it saw
+		for (_, g) in self.all_mut() {
+			g.trim();
+		}
 		let now = last(&self.slots);
 		self.read = std::array::from_fn(|i| now[i] != was[i]);
 		wait
