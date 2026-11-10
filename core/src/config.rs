@@ -1322,16 +1322,16 @@ mod tests {
 	fn defaults_are_the_multiload_colors() {
 		let l = Look::default();
 		assert_eq!(l[Which::Cpu].colors[0], Rgb(0xff, 0, 0));
-		assert_eq!(l[Which::Cpu].colors[1], Rgb(0xfa, 0x72, 0xf0));
+		assert_eq!(l[Which::Cpu].colors[1], Rgb(0x69, 0x3d, 0x91));
 		assert_eq!(l[Which::Cpu].colors[2], Rgb(0, 0xff, 0x80));
 		assert_eq!(l[Which::Cpu].colors[3], Rgb(0x20, 0x5f, 0x40));
-		assert_eq!(l.border_color, Rgb(0x8b, 0x8b, 0x8b));
+		assert_eq!(l.border_color, Rgb(0x59, 0x59, 0x59));
 		assert_eq!(l.top, Rgb(0x31, 0x31, 0x31));
 		assert_eq!(l.bottom, Rgb(0, 0, 0));
 		assert_eq!((l.width, l.sample_ms, l.border), (100, 1000, 1));
 		assert_eq!(l.time, Timing::Log(Curve::Smooth));
 		assert_eq!(l.spikes, 0.75);
-		assert_eq!(l.hover, Rgb(0, 0, 0));
+		assert_eq!(l.hover, Rgb(0, 0x0f, 0xff));
 		assert_eq!(l.said, Said::Ago);
 	}
 
@@ -1453,13 +1453,16 @@ mod tests {
 	// Test ID: dejbq
 	#[test]
 	fn the_default_theme_keeps_the_colors_picked_on_it() {
-		// b23's changes on Default as of 2026-10-28, and 2026-10-31 for
-		// temperature and processes, kept as they were
+		// b23's changes on Default as of 2026-10-28, 2026-10-31 for
+		// temperature and processes, and 2026-11-09 for the rest, kept as
+		// they were
 		let picked = [
-			("system", "#fa72f0"),
+			("system", "#693d91"),
 			("net_local", "#ffed00"),
 			("net_sent", "#ff7777"),
 			("net_received", "#6ad4ff"),
+			("net_lan_sent", "#ff6bf1"),
+			("net_lan_received", "#84ff7b"),
 			("swap_mode", "gradient"),
 			("swap_used", "#a45f00"),
 			("zswap_mode", "gradient"),
@@ -1479,8 +1482,9 @@ mod tests {
 			("procs_users", "#6bc9ff"),
 			("procs_me", "#fff02a"),
 			("battery_discharging", "#c46e43"),
-			("border_color", "#8b8b8b"),
+			("border_color", "#595959"),
 			("back_top", "#313131"),
+			("hover_color", "#000fff"),
 		];
 		let spec = spec();
 		let default = spec.group(THEME).unwrap().preset("default").unwrap();
@@ -1681,7 +1685,7 @@ mod tests {
 		};
 		let d = Look::default();
 		let grey = Outline {
-			border: Rgb(0x8b, 0x8b, 0x8b),
+			border: Rgb(0x59, 0x59, 0x59),
 			top: Rgb(0x31, 0x31, 0x31),
 			bottom: Rgb(0, 0, 0),
 		};
@@ -2145,8 +2149,7 @@ mod tests {
 			let want = match g {
 				"cpu" | "mem" => 50.0,
 				"swap" | "zswap" | "load" => 200.0,
-				"self" => 400.0,
-				"procs" => 500.0,
+				"procs" => 400.0,
 				_ => 100.0,
 			};
 			assert_eq!(s.default.as_f64(), want, "{id}");
@@ -2231,12 +2234,51 @@ mod tests {
 		assert_eq!(l[Which::Net].vertical, None);
 	}
 
+	// Test ID: df3rj
+	#[test]
+	fn the_graph_list_defaults_are_b23s_but_whats_shown() {
+		// b23's widths, sample rates and vertical scales as of 2026-11-09,
+		// but with tukzmon's own graph linear rather than log10
+		let l = Look::default();
+		let want = [
+			(Which::Cpu, 100, 50, None),
+			(Which::Mem, 100, 50, None),
+			(Which::Procs, 50, 400, Some(Vertical::Squared)),
+			(Which::Gpu, 50, 100, None),
+			(Which::Vram, 50, 100, None),
+			(Which::Net, 50, 100, None),
+			(Which::Disk, 50, 100, None),
+			(Which::Temp, 50, 100, None),
+			(Which::Swap, 25, 200, None),
+			(Which::Zswap, 25, 200, None),
+			(Which::Load, 25, 200, None),
+			(Which::Own, 12, 100, None),
+			(Which::Battery, 100, 100, None),
+		];
+		for (w, width, sample, vertical) in want {
+			let g = &l[w];
+			assert_eq!(
+				(g.width, g.sample, g.vertical),
+				(width, sample, vertical),
+				"{w:?}"
+			);
+		}
+		assert_eq!(l.scaling(l[Which::Own].vertical), Vertical::Linear);
+	}
+
 	// Test ID: der3p
 	#[test]
 	fn a_graph_follows_the_vertical_default_unless_it_picks_its_own() {
 		let l = Look::default();
 		assert_eq!(l.vertical, Vertical::Linear);
-		assert!(Which::ALL.into_iter().all(|w| l[w].vertical.is_none()));
+		// the process count sits near its top, where squared spreads it out
+		assert_eq!(l[Which::Procs].vertical, Some(Vertical::Squared));
+		assert!(
+			Which::ALL
+				.into_iter()
+				.filter(|&w| w != Which::Procs)
+				.all(|w| l[w].vertical.is_none())
+		);
 		let l = Look::from_model(&model(
 			"graph:\n\tvertical: squared\ncpu:\n\tvertical: log10\nmem:\n\tvertical: linear\n",
 		));
