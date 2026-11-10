@@ -24,6 +24,7 @@ pub mod net;
 pub mod own;
 #[cfg(unix)]
 pub mod procs;
+pub mod remote;
 pub mod render;
 pub mod temp;
 pub mod when;
@@ -736,7 +737,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 	}
 
 	fn slides(&self) -> bool {
-		self.look.motion.slides(cpus())
+		self.look.slides(cpus())
 	}
 
 	// a sample may come late by most of a tick, and a tick may be missed

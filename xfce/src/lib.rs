@@ -17,6 +17,7 @@ use std::time::{Duration, Instant, SystemTime};
 use tukzmon_core::config::{self, Look};
 use tukzmon_core::graphs::Graphs;
 use tukzmon_core::keep;
+use tukzmon_core::remote::Session;
 
 mod sys;
 #[allow(clippy::wildcard_imports, reason = "sys is only the C declarations")]
@@ -75,6 +76,8 @@ struct Plugin {
 	trouble: Option<String>,
 	/// Why the settings file can't be read, shown in the tip until it can.
 	unreadable: Option<String>,
+	/// For [`Look::session`].
+	session: Session,
 	/// Why a panic stopped this item. It draws nothing and does nothing after.
 	stopped: Option<String>,
 }
@@ -163,11 +166,11 @@ fn guarded<R>(
 
 /// The look in the settings file, or None while it can't be read, which
 /// is logged once per error and kept in `unreadable` for the tip.
-fn read_look(path: &Path, unreadable: &mut Option<String>) -> Option<Look> {
+fn read_look(path: &Path, unreadable: &mut Option<String>, session: Session) -> Option<Look> {
 	match Look::load(path) {
 		Ok(look) => {
 			*unreadable = None;
-			Some(look)
+			Some(Look { session, ..look })
 		}
 		Err(e) => {
 			let what = format!("can't read {}: {e}", path.display());
@@ -448,7 +451,7 @@ impl Plugin {
 			return;
 		}
 		// the time stays old until it reads, since a chmod back doesn't move it
-		let Some(look) = read_look(&self.config, &mut self.unreadable) else {
+		let Some(look) = read_look(&self.config, &mut self.unreadable, self.session) else {
 			return;
 		};
 		self.config_time = t;
@@ -973,7 +976,9 @@ impl Plugin {
 			complain(format_args!("can't make {}: {e}", data.display()));
 		}
 		let mut unreadable = None;
-		let look = read_look(&config, &mut unreadable);
+		// what the session was started with, so once is enough
+		let session = tukzmon_core::remote::session();
+		let look = read_look(&config, &mut unreadable, session);
 		// a time no file has, so each tick tries again, even once it's gone
 		let config_time = match look {
 			Some(_) => modified(&config),
@@ -982,7 +987,10 @@ impl Plugin {
 		let mut p = Plugin {
 			xpp: plugin,
 			area: std::ptr::null_mut(),
-			graphs: Graphs::new(look.unwrap_or_default()),
+			graphs: Graphs::new(look.unwrap_or_else(|| Look {
+				session,
+				..Look::default()
+			})),
 			timer: 0,
 			frame: 0,
 			pacer: 0,
@@ -1000,6 +1008,7 @@ impl Plugin {
 			removed: false,
 			trouble: None,
 			unreadable,
+			session,
 			stopped: None,
 		};
 		if p.graphs.look().keep {
@@ -1186,6 +1195,7 @@ mod tests {
 			removed: false,
 			trouble: None,
 			unreadable: None,
+			session: tukzmon_core::remote::Session::Local,
 			stopped: None,
 		});
 		Box::into_raw(p).cast()

@@ -12,6 +12,7 @@ use std::sync::Arc;
 use knobs::{Control, Kind, Model, NoEnv, Setting, Spec, Value};
 use tukzmon_core::config::{self, Rgb, SavedTheme, THEME};
 use tukzmon_core::keep;
+use tukzmon_core::remote::Session;
 
 use crate::pick::{self, Field, Hsv};
 
@@ -96,6 +97,8 @@ pub struct Dialog {
 	picker: Option<Picker>,
 	/// Where the panel keeps history, for Reset history.
 	history_dir: PathBuf,
+	/// For [`config::Look::session`].
+	session: Session,
 }
 
 /// An open color picker. Its row follows every change, and Cancel puts back
@@ -266,7 +269,14 @@ impl Dialog {
 			themes,
 			picker: None,
 			history_dir: keep::data_dir(),
+			session: Session::Local,
 		})
+	}
+
+	/// Where this runs, as [`tukzmon_core::remote::session`] tells. Never
+	/// saved.
+	pub fn set_session(&mut self, session: Session) {
+		self.session = session;
 	}
 
 	/// The setting as its slider sees it.
@@ -289,7 +299,10 @@ impl Dialog {
 
 	/// The graphs' look as the window has it now, applied or not.
 	pub fn look(&self) -> config::Look {
-		config::Look::from_model(&self.model)
+		config::Look {
+			session: self.session,
+			..config::Look::from_model(&self.model)
+		}
 	}
 
 	/// True when a setting or a saved theme differs from the file.
@@ -572,6 +585,24 @@ impl Dialog {
 				short.min, short.max, s.min, s.max
 			);
 		}
+		// greyed, but the value stays the person's own and is saved as it is
+		let remote = self.session == Session::Remote;
+		let calmed = remote
+			&& config::calmed_id(id)
+			&& self.model.value(config::CALM_REMOTE, &NoEnv).as_bool();
+		if id == config::CALM_REMOTE {
+			tip.push_str(if remote {
+				"\n\nThis is a remote desktop session."
+			} else {
+				"\n\nThis isn't a remote desktop session."
+			});
+		}
+		if calmed {
+			tip.insert_str(
+				0,
+				"Set aside while this is a remote desktop session, by Reduce motion if remote desktop session detected, on the General tab. It comes back in a local session.\n\n",
+			);
+		}
 		let on = v.as_bool();
 		RowState {
 			text: match v {
@@ -582,7 +613,7 @@ impl Dialog {
 			number,
 			slider: short.or(setting).map_or(0.0, |s| s.to_t(number)),
 			can_reset: self.model.can_reset(id, &NoEnv),
-			counts: self.model.counts(id, &NoEnv),
+			counts: !calmed && self.model.counts(id, &NoEnv),
 			tip,
 			choice: match setting {
 				Some(s) if s.control == Control::Dropdown => self.model.shown_choice(id, &NoEnv),
@@ -1682,6 +1713,49 @@ mod tests {
 		assert!(!dlg.set_text("user", "#12"));
 		assert!(!dlg.set_text("nope", "1"));
 		assert!(!dlg.dirty());
+	}
+
+	// Test ID: df3nh
+	#[test]
+	fn a_remote_session_greys_what_it_sets_aside_and_saves_none_of_it() {
+		let d = scratch("remote");
+		let path = d.0.join("t.shcl");
+		let mut dlg = Dialog::open(path.clone()).unwrap();
+		assert!(dlg.set_text("sample_ms", "400"));
+		let set_aside = ["sample_ms", "animate", "cpu_sample", "net_sample"];
+		for id in set_aside {
+			assert!(dlg.state(id).counts, "{id}");
+		}
+		assert!(
+			dlg.state(config::CALM_REMOTE)
+				.tip
+				.ends_with("isn't a remote desktop session.")
+		);
+		dlg.set_session(Session::Remote);
+		assert!(
+			dlg.state(config::CALM_REMOTE)
+				.tip
+				.ends_with("This is a remote desktop session.")
+		);
+		for id in set_aside {
+			let s = dlg.state(id);
+			assert!(!s.counts, "{id}");
+			assert!(s.tip.starts_with("Set aside while"), "{id}: {}", s.tip);
+		}
+		assert!(dlg.state(config::CALM_REMOTE).counts && dlg.state("cpu_width").counts);
+		// the previews follow the session, but the file keeps the person's own
+		assert!(dlg.look().calmed());
+		assert_eq!((dlg.look().rate(100), dlg.look().rate(300)), (1000, 2400));
+		dlg.apply().unwrap();
+		let text = std::fs::read_to_string(&path).unwrap();
+		assert!(text.contains("sample_ms: 400"), "{text}");
+		assert!(
+			!text.contains("animate") && !text.contains("calm_remote"),
+			"{text}"
+		);
+		assert!(!config::Look::load(&path).unwrap().calmed());
+		assert!(dlg.set(config::CALM_REMOTE, &Value::Bool(false)));
+		assert!(dlg.state("sample_ms").counts && !dlg.look().calmed());
 	}
 
 	// Test ID: decb5

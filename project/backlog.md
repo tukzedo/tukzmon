@@ -234,6 +234,54 @@ Sorted per the notes in [Template](#template).
 			- Disable the controls for the overridden settings, with flyover text explaining why.
 			- Don't store the temporarily overridden values.
 		- Resume the previous animation settings when the desktop is connected normally.
+	- Progress log:
+		- Split in 2: the setting, with sessions a remote desktop server starts, in 2026110922214697, which is done, and a viewer that joins the local desktop in 2026110922214810, which is queued.
+
+- Reduce motion: the setting, and sessions a remote desktop server starts
+	- ID: 2026110922214697
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261109-222146
+	- Opened by:
+	- Parent ID: 2026110911114037
+	- Requirements:
+		- The setting, with the parent's overrides, controls greyed with a tip, and nothing saved for them.
+		- Detect a session that a remote desktop server started, such as an RDP or NoMachine virtual desktop.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- General, under Time axis, has Reduce motion if remote desktop session detected, at `graph.calm_remote`, on by default.
+		- In a remote session with it on, every graph reads at twice its rate in ms, never under 1000, and none slides. The settings window greys Sample ms default, Smooth scrolling and each graph's sample %, and their tips say why. Its graph previews follow the session too.
+		- A session counts as remote by `XRDP_SESSION`, `X2GO_SESSION`, `CHROME_REMOTE_DESKTOP_SESSION` or `VNCDESKTOP`, or by its logind record: `REMOTE=1`, or the PAM service `nx` or `xrdp-sesman`. b23's NX session on :1001 has `SERVICE=nx` and `REMOTE=0`.
+		- `design.md` Drawing and README Features have it.
+		- Verified: the quick gate and Sanitizers passed. df3ng, df3nh and df3nj failed with the doubled rate and the greying taken out. The settings window's snapshot greys the 2 General rows and every graph's sample % with `XRDP_SESSION=1`, and the same with `XDG_SESSION_ID` pointed at b23's NX session record, and not without either.
+	- Decisions:
+		- Read once, when the panel item or the settings window starts, since what a session starts with doesn't change.
+		- Run-time state goes in `Look::session`, not in the model, so it's never saved, and a settings file read in a local session draws as set.
+		- Each graph's sample % is greyed too, since every graph's rate is set aside. The axis ease after a gap still runs, since it's rare and short.
+		- On by default, since a remote session is where every frame costs.
+		- logind's session file is read directly, as `sd_session_is_remote` does, so no libsystemd link.
+	- Branch: round-1110
+	- Test case: `remote::tests::a_remote_session_is_told_by_its_variables_or_by_logind` (df3nf), `config::tests::a_remote_session_reads_half_as_often_from_a_second_and_never_slides` (df3ng), `dialog::tests::a_remote_session_greys_what_it_sets_aside_and_saves_none_of_it` (df3nh) and `bridge::tests::a_remote_session_greys_the_rates_and_smooth_scrolling` (df3nj).
+		- Swept: every `Look` maker that reads a file (the plugin's `read_look`, its fallback default, the settings window's `look`), every `rate` and `slides` caller through `Look`, and the graph list's sample cells.
+	- Closed: 20261109-222152
+
+- Reduce motion: a remote viewer on the local desktop, as RustDesk, x11vnc or NoMachine on the physical display
+	- ID: 2026110922214810
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261109-222148
+	- Opened by:
+	- Parent ID: 2026110911114037
+	- Prereq IDs: 2026110922214697
+	- Requirements:
+		- Treat the local desktop as remote while a remote viewer is connected to it, and go back to the person's settings once it leaves.
+		- Check again every few seconds, in the panel and in the settings window, rather than once at start.
+	- Estimated effort: Avg
+	- Progress log:
+		- Possible signs: RustDesk's `--cm` window, which runs only while a peer is connected; an established socket on a VNC or RDP port; NoMachine's per-session node, told apart from the one for a virtual desktop on another display. Each needs a check with the real tool on b23.
 
 - Keep logging but don't display updates while the desktop is locked
 	- ID: 2026110911114050

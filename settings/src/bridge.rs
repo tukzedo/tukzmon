@@ -946,6 +946,32 @@ mod tests {
 		});
 	}
 
+	// Test ID: df3nj
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn a_remote_session_greys_the_rates_and_smooth_scrolling() {
+		on_qt(|| {
+			let path = std::env::temp_dir().join(format!(
+				"test_tukzmon-settings_{}_remote_never_written.shcl",
+				std::process::id()
+			));
+			let mut d = Dialog::open(path).unwrap();
+			d.set_session(tukzmon_core::remote::Session::Remote);
+			let mut want: Vec<String> = dialog_rows(&d)
+				.into_iter()
+				.filter(|r| r.control != ffi::ControlKind::Heading)
+				.map(|r| r.id)
+				.filter(|id| tukzmon_core::config::calmed_id(id) || id == "net_split")
+				.collect();
+			let mut greyed = ffi::greyed_rows(&mut d);
+			want.sort();
+			greyed.sort();
+			// every graph's sample cell in the graph list, and both General rows
+			assert!(want.len() > 10, "{want:?}");
+			assert_eq!(greyed, want);
+		});
+	}
+
 	// Test ID: dee9q
 	#[test]
 	fn one_theme_on_top_recolors_every_sub_tab() {

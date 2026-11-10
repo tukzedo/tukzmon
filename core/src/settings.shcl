@@ -113,6 +113,14 @@ settings:
 		default: auto
 		tip: "Slide each graph along to its newest sample over the time until the next one, rather than moving it a whole step at each sample. The right edge runs one sample behind to do it. It draws up to 60 times a second, in step with the screen, rather than once a sample, so it costs more CPU. Auto turns it on with 8 or more CPUs."
 
+	calm_remote:
+		label: Reduce motion if remote desktop session detected
+		tab: General
+		control: checkbox
+		path: graph.calm_remote
+		default: true
+		tip: "In a remote desktop session, such as an RDP, X2Go or NoMachine virtual desktop, every graph reads half as often, and never more than once a second, and none slides. Every frame drawn is sent over the network. Your own settings come back in a local session, and none are changed."
+
 	VerticalHead:
 		label: Vertical axis
 		tab: General
