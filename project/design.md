@@ -450,6 +450,11 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 		- x11vnc, x0vncserver, krfb and freerdp-shadow-cli count when they hold that connection, so a VM console's viewer on 5900 doesn't count. RustDesk counts by its `--cm` window, which runs only while a peer is connected. NoMachine counts by its `nxrunner.bin --monitor` on this display while it has a connection, since its node for the physical display runs between connections too.
 		- A server on a port of its own isn't seen.
 
+- While the screen is locked or blanked, every graph goes on reading and keeps its history, but the panel doesn't draw, and nothing slides. On unlock it draws once, and that shows everything read while it was locked.
+	- The panel item follows xfce4-screensaver's `ActiveChanged` signal on the session bus, and logind's `LockedHint` for its own session on the system bus, which light-locker and others set (`xfce/src/lock.rs`). It asks each once when it starts, so an item started while locked knows. A screensaver that quits counts as gone.
+	- xfce4-screensaver 4.20 doesn't set `LockedHint`, so under it only the signal tells. Blanked with no lock counts too, since nobody sees the panel then either.
+	- The settings window's graph list still draws, since it's open only for a while.
+
 - With the pointer over the graph, a line one pixel wide is drawn under it, black unless set otherwise, over the plot rather than the border. The tip gives the time under the line, either as "7 hrs ago" or as the local time, with the date for anything before today. The time and date follow the locale's short formats, so 12 or 24 hour is its call too. Under that are that graph's shares across the line's column, each name and value on a line of its own, or "No data" for a gap.
 
 - A still pointer's tip keeps its age and moves its clock time. The right edge is always now and the graph scrolls left under the pointer, so each column is a fixed age, while the time in that column advances a sample each tick. Both describe the column under the line. The line and tip follow the column rather than the moment that was first pointed at.

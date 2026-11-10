@@ -19,6 +19,7 @@ use tukzmon_core::graphs::Graphs;
 use tukzmon_core::keep;
 use tukzmon_core::remote::{Session, Watch};
 
+mod lock;
 mod sys;
 #[allow(clippy::wildcard_imports, reason = "sys is only the C declarations")]
 use sys::*;
@@ -80,6 +81,8 @@ struct Plugin {
 	session: Session,
 	/// Where [`Self::session`] comes from, looked at again each tick.
 	watch: Watch,
+	/// While the screen is locked or blanked, the graphs read but don't draw.
+	locks: lock::Locks,
 	/// Why a panic stopped this item. It draws nothing and does nothing after.
 	stopped: Option<String>,
 }
@@ -356,6 +359,7 @@ impl Plugin {
 			// SAFETY: each is from watch, and isn't used again.
 			unsafe { unwatch(w) };
 		}
+		self.locks.stop();
 	}
 
 	/// After a panic, since what it was changing may be half done. The
@@ -382,11 +386,11 @@ impl Plugin {
 		if self.graphs.look().keep && self.saved_at.elapsed() >= SAVE_EVERY {
 			self.save_history();
 		}
-		// SAFETY: area is a child of the live plugin.
-		unsafe { gtk_widget_queue_draw(self.area) };
+		self.locks.draw();
 		self.start_timer(next);
 		// a still pointer's time moves on too
-		(self.graphs.hovered() && self.moved_at.elapsed() >= TIP_SHOWN).then_some(self.area)
+		(!self.locks.hidden() && self.graphs.hovered() && self.moved_at.elapsed() >= TIP_SHOWN)
+			.then_some(self.area)
 	}
 
 	/// Forgets a settings window that closed, and says so in the tip when it
@@ -672,7 +676,7 @@ fn draw_graphs(p: &mut Plugin, widget: *mut c_void, cr: *mut c_void) -> Gboolean
 		cairo_set_source_surface(cr, surf, 0.0, 0.0);
 		cairo_paint(cr);
 		cairo_surface_destroy(surf);
-		if p.frame == 0 && p.pacer == 0 && p.graphs.moving() {
+		if p.frame == 0 && p.pacer == 0 && p.graphs.moving() && !p.locks.hidden() {
 			p.start_frames();
 		}
 	}
@@ -711,7 +715,7 @@ extern "C" fn frame(_widget: *mut c_void, clock: *mut c_void, data: *mut c_void)
 		data,
 		|_| 0,
 		|p| {
-			if !p.graphs.moving() {
+			if !p.graphs.moving() || p.locks.hidden() {
 				p.frame = 0;
 				return 0;
 			}
@@ -746,7 +750,7 @@ extern "C" fn paced(data: *mut c_void) -> Gboolean {
 		|_| 0,
 		|p| {
 			p.pacer = 0;
-			if !p.graphs.moving() {
+			if !p.graphs.moving() || p.locks.hidden() {
 				return 0;
 			}
 			// SAFETY: area is a child of the live plugin.
@@ -1030,6 +1034,7 @@ impl Plugin {
 			unreadable,
 			session,
 			watch,
+			locks: lock::Locks::none(),
 			stopped: None,
 		};
 		if p.graphs.look().keep {
@@ -1092,6 +1097,7 @@ impl Plugin {
 			let mut watches = watch_settings(&self.config, changed, data);
 			watches.push(watch(&mark, changed, data));
 			self.watches = watches;
+			self.locks = lock::Locks::start(self.area);
 		}
 		let first = self.graphs.tick();
 		self.fit();
@@ -1218,6 +1224,7 @@ mod tests {
 			unreadable: None,
 			session: tukzmon_core::remote::Session::Local,
 			watch: tukzmon_core::remote::Watch::fixed(tukzmon_core::remote::Session::Local),
+			locks: super::lock::Locks::none(),
 			stopped: None,
 		});
 		Box::into_raw(p).cast()
@@ -1338,10 +1345,11 @@ mod tests {
 	// Test ID: dekpx
 	#[test]
 	fn every_handler_the_panel_calls_catches_a_panic() {
-		let text = include_str!("lib.rs");
-		let code = text.split("#[cfg(test)]\nmod tests").next().unwrap();
 		let mut seen = Vec::new();
 		let mut bare = Vec::new();
+		let code = [include_str!("lib.rs"), include_str!("lock.rs")]
+			.map(|text| text.split("#[cfg(test)]\nmod tests").next().unwrap())
+			.concat();
 		for part in code.split("extern \"C\" fn ").skip(1) {
 			let name = part.split('(').next().unwrap();
 			// only C calls, before anything of ours runs

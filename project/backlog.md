@@ -331,13 +331,34 @@ Sorted per the notes in [Template](#template).
 - Keep logging but don't display updates while the desktop is locked
 	- ID: 2026110911114050
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- Lock b23's screen for a minute with the panel up, and say whether the graphs show the minute right after unlocking.
+	- Needs hand testing: A real lock and unlock on b23 under xfce4-screensaver, with this build.
 	- Priority|Severity: Avg
 	- Opened: 20261109-111140
 	- Opened by: t00mietum
 	- Requirements:
 		- When the desktop is locked, keep logging values but don't display updates.
 		- Then catch up once unlocked.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- While the screen is locked or blanked, the panel item goes on reading and keeping history, but doesn't draw, and nothing slides. On unlock it draws once, which shows all that was read meanwhile.
+		- It follows xfce4-screensaver's `ActiveChanged` on the session bus, and logind's `LockedHint` for its session on the system bus, and asks both once at start.
+		- `design.md` Drawing and README Features have it.
+		- Verified: the quick gate and Sanitizers passed. df3qr and df3qt failed with the draw on unlock taken out, and with a screensaver that quits not counted as gone. df3qs failed with a leading digit left as it is.
+		- Verified: on a private panel with Smooth scrolling on, a fake xfce4-screensaver on its bus took the item from 265 X writes in 8 s to none, and from 8 CPU ticks to 2, and back to 268 once it said unlocked.
+	- Decisions:
+		- D-Bus, not logind's session file, since the file has no lock state.
+		- Both sources, since xfce4-screensaver 4.20 never sets `LockedHint`, and light-locker sets only that.
+		- Blanked counts as locked, since nobody sees the panel either way.
+		- The settings window's graph list still draws, since it's open only for a while.
+		- No logind watch where `XDG_SESSION_ID` is unset, since the signal needs the session's own object.
+		- The buses are opened at start without waiting on a callback. The session bus is already open in the panel, for xfconf.
+	- Branch: round-1110
+	- Test case: `lock::tests::the_screensaver_or_a_lock_hides_the_graphs_and_unlocking_draws_once` (df3qr), `lock::tests::a_session_s_logind_object_escapes_a_leading_digit` (df3qs), and `lock::tests::a_screensaver_or_logind_on_a_private_bus_hides_the_graphs_until_unlocked` (df3qt), which is ignored in a run since the image has no dbus-daemon, and passes with `--ignored` on b23.
+		- dekpx now reads `lock.rs` too.
+		- Swept: every draw the plugin asks for (the tick, the frame clock's tick callback, the pacer, and the frame start in the draw), and the tip's requery. Left as they were: the pointer's own draws, which need the pointer on the panel, and the one draw that shows an item a bug stopped.
 
 - CICD gap: Fuzz the parsers of files and kernel messages
 	- ID: 2026110310450001

@@ -78,6 +78,8 @@ The first release is 1.0.0-beta.1. Although beta, it's very solid. Packages for 
 
 - In a remote desktop session, such as RDP or a NoMachine virtual desktop, graphs read less often and don't slide, so less goes over the network. The same goes while a viewer such as x11vnc, RustDesk or NoMachine is connected to your own desktop. Your own settings are kept for a local session, and come back once the viewer leaves.
 
+- While the screen is locked, graphs keep reading but don't draw. They catch up as soon as you unlock.
+
 - There are 9 built-in color themes, plus any you save yourself. Randomize rolls a new set of colors that stay easy to tell apart.
 
 - The settings window draws live graphs, and they follow your changes before you apply them.
