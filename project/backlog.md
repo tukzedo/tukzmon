@@ -411,7 +411,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 24: design.md gives a stale count of the plugin's library calls
 	- ID: 2026110709074424
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -419,6 +419,14 @@ Sorted per the notes in [Template](#template).
 	- Origin: `f89e55e` (2026-10-23). Not seen before. Confirmed, by counting the declarations in `xfce/src/sys.rs`: 36 GLib, GTK, cairo and panel calls, plus 3 from libc, where design.md says "20 or so".
 	- Expected behavior: The XFCE plugin section gives a count that stays right, or none.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Actual cause: design.md said "20 or so" when the first edit was made, and later "the few dozen". `xfce/src/sys.rs` now declares 41 calls, 3 of them libc's, so any number goes stale when a call is added.
+	- Decisions:
+		- Gave no count. The sentence reads the same without one, and nothing has to be kept in step with `sys.rs`.
+	- Actual fix: design.md XFCE plugin says "The GLib, GTK, cairo, and panel calls it makes", with no count.
+	- Branch: round-1109b
+	- Test case: None, since only text changed.
+	- Closed: 20261109-163531
 
 - A settings window refresh test fails now and then on GitHub's runner
 	- ID: 2026110810505772

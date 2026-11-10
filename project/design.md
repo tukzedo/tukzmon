@@ -53,7 +53,7 @@ The code is a Rust core, with C only where a panel's API needs it. That was sett
 
 - XFCE 4.20 is still GTK3, and its plugin API is C macros around `libxfce4panel-2.0`.
 
-- The plugin is a Rust `cdylib`. The few dozen GLib, GTK, cairo, and panel calls it makes are declared by hand in `xfce/src/sys.rs`, and it links the runtime libraries by soname. So one `cargo build` gives the `.so`, without any `-dev` packages.
+- The plugin is a Rust `cdylib`. The GLib, GTK, cairo, and panel calls it makes are declared by hand in `xfce/src/sys.rs`, and it links the runtime libraries by soname. So one `cargo build` gives the `.so`, without any `-dev` packages.
 	- The gtk3-rs bindings were archived in 2024.
 	- Every widget is an opaque pointer, so no C struct layouts are copied, and a header change can't break it quietly.
 	- The other way, a short C file built against the headers, needs `libxfce4panel-2.0-dev`. On a box whose panel is newer than the distro's, that package would pull the panel library back to the distro's version.
