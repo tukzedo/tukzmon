@@ -105,6 +105,19 @@ Sorted per the notes in [Template](#template).
 	- Test case: `tests::frames_are_an_even_split_of_the_screen_rate_from_30_to_60` (df3e4). The frame clock's own pacing needs a real screen, so it has no test. dekpt now calls the tick callback.
 		- Swept: both frame timers (the plugin's draw and `quiet`, qt.cpp's `LiveGraph`), and every `frame` caller, the panic test included.
 
+- Smooth scrolling: try a quarter of the screen's frame rate
+	- ID: 2026110920595603
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261109-205956
+	- Opened by: t00mietum
+	- Parent ID: 2026110911114024
+	- Related IDs: 2026110918081021
+	- Requirements:
+		- 60 Hz looks good.
+		- Now let's try 1/4 framerate, evenly divisible by framerate, but not less than 24 and not more than 50 Hz.
+
 - df336 fails on GitHub's runner: a demo stopped by TERM leaves run.pid and .demo-run
 	- ID: 2026110919021646
 	- Type: Bug
@@ -121,6 +134,17 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Filed from the round-1109b test batch. The round didn't change the demo's main or its cleanup.
 	- Origin: round-1109, with df336. It passes on b23, in the container too.
+
+- The 2 GPU graphs aren't available with integrated Intel graphics
+	- ID: 2026110920595600
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261109-205956
+	- Opened by: t00mietum
+	- Related IDs: 2026103010322277
+	- Incorrect behavior: The GPU and GPU memory graphs aren't available with integrated Intel graphics.
+	- Expected behavior: Both GPU graphs work on integrated Intel graphics.
 
 - Reduce motion if a remote desktop session is detected
 	- ID: 2026110911114037
@@ -227,6 +251,32 @@ Sorted per the notes in [Template](#template).
 		- The bash tests in `cicd/tests/` too, since their names print on each PASS and FAIL line.
 		- knobs' tests too. SilkTerm's copy gets an item of its own there.
 		- The `live_` names can stay, since they mark the tests that read this computer.
+
+- New default settings for Graphs and Themes
+	- ID: 2026110920595601
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261109-205956
+	- Opened by: t00mietum
+	- Requirements:
+		- Use the order, color theme, width, and sample settings from my local config.
+			- But don't change what's enabled by default.
+		- Default process count graph vertical scale X^2.
+			- But leave tukzmon as linear, not my config's logarithmic.
+
+- Better antialiasing, so sharp spikes don't pulse in width
+	- ID: 2026110920595602
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261109-205956
+	- Opened by: t00mietum
+	- Related IDs: 2026110911114024
+	- Requirements:
+		- Need better antialiasing, so that sharp spikes don't "pulse" in width as the pulse grows and shrinks by whole pixel widths at a time.
+		- E.g., spitballing here: for a pixel line that is in between 0% and 100%, render it at half visual brightness between the two.
+		- May not need temporal-aware antialiasing. Just better value-based antialiasing might be enough.
 
 - Code review 20261107 item 26: The amdgpu reads have none of the NVIDIA path's runtime power checks
 	- ID: 2026110709074426
