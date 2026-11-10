@@ -5652,6 +5652,7 @@ Sorted per the notes in [Template](#template).
 		- A group's chooser must be of type choice.
 		- `demo/demo.shcl`'s format notes say the same.
 		- Verified: the quick gate and Sanitizers passed.
+		- 2026-11-10: Filed in silkterm as 2026110919171131, commit 4d55236 on its dev.
 	- Decisions:
 		- Also refused: a dropdown's options that differ only in case, since a choice is matched without case and the second could never be picked. Same shape as the path twins.
 		- The loop check is a walk over the reads with an index, once per spec, rather than a chain walk per setting, since a setting reads up to 3 others.
