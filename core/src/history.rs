@@ -294,6 +294,114 @@ impl<const N: usize> Tier<N> {
 	fn start(&self) -> f64 {
 		self.first as f64 * self.len
 	}
+
+	// each bucket's max, weighted by how much of it is from `a` to `b`, so it
+	// agrees with the max of the buckets wholly in, or None for no data
+	fn tops_over(&self, a: f64, b: f64) -> Option<[f32; N]> {
+		let i0 = ((a / self.len).floor() as i64 - self.first).max(0);
+		let i1 = ((b / self.len).ceil() as i64 - self.first).min(self.buckets.len() as i64);
+		let mut sums = [0.0f64; N];
+		let mut weight = 0.0f64;
+		for i in i0..i1 {
+			let bucket = &self.buckets[i as usize];
+			if bucket.secs <= 0.0 {
+				continue;
+			}
+			let start = (self.first + i) as f64 * self.len;
+			let (lo, hi) = (start + bucket.lo, start + bucket.hi);
+			let overlap = b.min(hi) - a.max(lo);
+			if overlap <= 0.0 {
+				continue;
+			}
+			let w = overlap * (f64::from(bucket.secs) / (hi - lo)).min(1.0);
+			weight += w;
+			for (sum, top) in sums.iter_mut().zip(bucket.max) {
+				*sum += w * f64::from(top);
+			}
+		}
+		(weight > 0.0).then(|| sums.map(|x| (x / weight) as f32))
+	}
+
+	// the most `tops_over` gives for `run` secs starting at each bucket edge
+	// from `x0` to `x1`
+	fn densest(&self, x0: f64, x1: f64, run: f64) -> Option<[f32; N]> {
+		let mut best: Option<[f32; N]> = None;
+		let count = self.buckets.len() as i64;
+		let bucket = |j: i64| (0..count).contains(&j).then(|| &self.buckets[j as usize]);
+		let whole = (run / self.len).floor() as i64;
+		let frac = run - whole as f64 * self.len;
+		let k0 = ((x0 / self.len).ceil() as i64 - self.first).max(0);
+		let k1 = ((x1 / self.len).floor() as i64 - self.first).min(count);
+		// a window's whole buckets, kept as it slides a bucket at a time
+		let mut win = (0.0f64, [0.0f64; N]);
+		let take = |win: &mut (f64, [f64; N]), j: i64, sign: f64| {
+			if let Some(bk) = bucket(j) {
+				let secs = f64::from(bk.secs);
+				win.0 += sign * secs;
+				for (sum, top) in win.1.iter_mut().zip(bk.max) {
+					*sum += sign * secs * f64::from(top);
+				}
+			}
+		};
+		for j in k0..k0 + whole {
+			take(&mut win, j, 1.0);
+		}
+		for k in k0..=k1 {
+			if k > k0 {
+				take(&mut win, k - 1, -1.0);
+				take(&mut win, k - 1 + whole, 1.0);
+			}
+			let (mut weight, mut total) = win;
+			if let Some(bk) = bucket(k + whole).filter(|bk| frac > 0.0 && bk.secs > 0.0) {
+				let start = (self.first + k + whole) as f64 * self.len;
+				let (lo, hi) = (start + bk.lo, start + bk.hi);
+				let overlap = (start + frac).min(hi) - lo;
+				if overlap > 0.0 {
+					let w = overlap * (f64::from(bk.secs) / (hi - lo)).min(1.0);
+					weight += w;
+					for (sum, top) in total.iter_mut().zip(bk.max) {
+						*sum += w * f64::from(top);
+					}
+				}
+			}
+			if weight > 0.0 {
+				best = most([best, Some(total.map(|x| (x / weight) as f32))].into_iter());
+			}
+		}
+		best
+	}
+
+	// the most of any `run` secs from `a` to `b`, from windows near the ends,
+	// where a sample can be cut, and the buckets' max between. A bucket
+	// wholly past `clear` from either end holds no sample cut by it, even one
+	// a late tick made longer.
+	fn spike_over(&self, a: f64, b: f64, run: f64) -> Option<[f32; N]> {
+		let clear = 1.5 * run;
+		let anchored = [self.tops_over(a, a + run), self.tops_over(b - run, b)];
+		if b - a <= 2.0 * clear + run {
+			return most(anchored.into_iter().chain([self.densest(a, b - run, run)]));
+		}
+		// far enough in that a sample starting later has a bucket past `clear`
+		let near = clear - run + self.len;
+		let j0 = (((a + clear) / self.len).ceil() as i64 - self.first).max(0);
+		let j1 =
+			(((b - clear) / self.len).floor() as i64 - self.first).min(self.buckets.len() as i64);
+		let inner = (j1 > j0)
+			.then(|| self.total_over(j0 as usize, j1 as usize))
+			.filter(|t| t.weight > 0.0)
+			.map(|t| t.max);
+		most(anchored.into_iter().chain([
+			self.densest(a, a + near, run),
+			self.densest(b - run - near, b - run, run),
+			inner,
+		]))
+	}
+}
+
+// each value's most over every one given, or None for none
+fn most<const N: usize>(all: impl Iterator<Item = Option<[f32; N]>>) -> Option<[f32; N]> {
+	all.flatten()
+		.reduce(|x, y| std::array::from_fn(|s| x[s].max(y[s])))
 }
 
 /// What a span of time averaged out to.
@@ -303,6 +411,10 @@ pub struct Span<const N: usize> {
 	pub mean: [f32; N],
 	/// The most of each value.
 	pub max: [f32; N],
+	/// As `max`, but a bucket only partly in the span reaches above the mean
+	/// by that part, so a spike grows into a column as it slides in rather
+	/// than filling it at once. See design.md Drawing.
+	pub spike: [f32; N],
 	/// Share of the span that had data, 0 to 1.
 	pub covered: f32,
 }
@@ -364,9 +476,18 @@ impl<const N: usize> History<N> {
 	/// The time from `a` to `b`, each bucket weighted by how much of its data
 	/// falls in the span. Gaps count for nothing.
 	pub fn span(&self, a: f64, b: f64) -> Span<N> {
+		self.span_for(a, b, 0.0)
+	}
+
+	/// As [`Self::span`], for drawing a column, with samples `sample` seconds
+	/// apart. Where buckets are shorter than that, `spike` is the most any
+	/// stretch of a sample's length in the span averages, so a sample cut by
+	/// the span's ends counts by how much of it is in.
+	pub fn span_for(&self, a: f64, b: f64, sample: f64) -> Span<N> {
 		let mut out = Span {
 			mean: [0.0; N],
 			max: [0.0; N],
+			spike: [0.0; N],
 			covered: 0.0,
 		};
 		if b <= a {
@@ -386,8 +507,11 @@ impl<const N: usize> History<N> {
 			let whole = tier.total_over(i0 as usize + 1, i1 as usize - 1);
 			(weight, sums, max) = (whole.weight, whole.sums, whole.max);
 		}
+		let mut spike = max;
+		// each end's max, and how much of it is in, until the mean is known
+		let mut cut = [(0.0f32, [0.0f32; N]); 2];
 		let ends = if i1 - i0 > 1 { [i0, i1 - 1] } else { [i0, i1] };
-		for i in ends.into_iter().filter(|&i| i < i1) {
+		for (end, i) in ends.into_iter().enumerate().filter(|&(_, i)| i < i1) {
 			let bucket = &tier.buckets[i as usize];
 			if bucket.secs <= 0.0 {
 				continue;
@@ -405,13 +529,27 @@ impl<const N: usize> History<N> {
 				sums[s] += w * bucket.mean(s) as f64;
 				max[s] = max[s].max(bucket.max[s]);
 			}
+			// a span inside one bucket has all of it that it can
+			let part = (overlap / (hi - lo).min(b - a)).min(1.0) as f32;
+			cut[end] = (part, bucket.max);
 		}
 		if weight > 0.0 {
 			for s in 0..N {
-				out.mean[s] = (sums[s] / weight) as f32;
+				let mean = (sums[s] / weight) as f32;
+				for (part, end_max) in cut {
+					spike[s] = spike[s].max(mean + (end_max[s] - mean) * part);
+				}
+				out.mean[s] = mean;
 				out.max[s] = max[s];
+				out.spike[s] = spike[s];
 			}
 			out.covered = (weight / (b - a)).min(1.0) as f32;
+			// a sample at least a column wide needs no lift to show
+			if b - a <= sample {
+				out.spike = out.mean;
+			} else if sample >= 2.0 * tier.len {
+				out.spike = tier.spike_over(a, b, sample).unwrap_or(out.mean);
+			}
 		}
 		out
 	}

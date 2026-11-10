@@ -22,6 +22,17 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- Cut the cost of the spike windows in each draw
+	- ID: 2026111000270812
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261110-002708
+	- Opened by: t00mietum
+	- Related IDs: 2026110920595602
+	- Requirements: Bring the profiled tick back near its 241 us of user time, from the 480 us that 2026110920595602's windows took it to, with the same pixels.
+	- Estimated effort: Avg
+
 - CICD gap: df3qt never runs in the pipeline, since the image has no dbus-daemon
 	- ID: 2026110923411799
 	- Type: Task
@@ -485,7 +496,8 @@ Sorted per the notes in [Template](#template).
 - Better antialiasing, so sharp spikes don't pulse in width
 	- ID: 2026110920595602
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- Watch a panel with Smooth scrolling on and a spiky graph, such as CPU, and say whether spikes still pulse in width, and whether the slower draw is worth it.
 	- Priority|Severity: Avg
 	- Opened: 20261109-205956
 	- Opened by: t00mietum
@@ -494,6 +506,24 @@ Sorted per the notes in [Template](#template).
 		- Need better antialiasing, so that sharp spikes don't "pulse" in width as the pulse grows and shrinks by whole pixel widths at a time.
 		- E.g., spitballing here: for a pixel line that is in between 0% and 100%, render it at half visual brightness between the two.
 		- May not need temporal-aware antialiasing. Just better value-based antialiasing might be enough.
+	- Needs hand testing: A panel on b23 with this build and Smooth scrolling on, watching spikes slide on the CPU graph.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Cause: a column reached toward the max of every bucket it touched, however little of the bucket was in it. So a spike filled the next column as soon as it touched it, and jumped a pixel wider and back as it slid.
+		- `History::span_for` gives each column a `spike` that counts a sample cut by the column's edge by the part that's in, and the drawing reaches toward that instead of `max`. A column no wider than a sample is drawn at its mean. `design.md` Drawing has it.
+		- df3s6 slides a 1 s spike across columns of 1 s and of 10 s. Before, the red drawn over all columns jumped from 5.80 to 6.40 plot heights on the first, and from 2.12 to 2.72 on the second. Now each stays within 0.05.
+		- Profiler, load 2 to 4 on 32 cores: 241.1 us user a tick before, 480.3 after. History lookups went from 21% of self time to 41%. 2026111000270812 is for bringing it back down.
+		- Verified: df3s6 failed before the change and passed after, and the quick gate and Sanitizers passed.
+	- Decisions:
+		- Value-based, as the issue allowed: a cut sample lifts the column by its part, rather than the spike drawn full height at part brightness. That keeps the spike emphasis's look, a column drawn from its mean up toward its peak, and every other draw test's pixels.
+		- The window is one sample long and reads bucket maxes, not means, so near the edges it agrees with the buckets' max read in the middle. A sample off the bucket edges smears by up to a bucket, 50 ms in the newest 13 s and 250 ms up to 8.5 minutes back.
+		- Windows only within 1.5 samples of either edge, and the blocks' max between, so a wide column doesn't read every bucket.
+		- `Span::max` keeps its meaning, so its tests and its readers stand. `spike` and `Frame::sample` are new.
+		- No before and after pictures from preview.rs. df3s6's numbers stand in for them, and the look is left to the hand test.
+	- Branch: round-1110
+	- Test case: `render::tests::a_spike_slides_across_columns_without_jumping_in_width` (df3s6).
+		- Swept: every reader of `Span::max` (only `Frame::draw_in` reaches toward it), every `Frame` literal (lib.rs, preview.rs, the render tests), and the partial-bucket math in `History::span`, which the windows copy.
 
 - Code review 20261107 item 26: The amdgpu reads have none of the NVIDIA path's runtime power checks
 	- ID: 2026110709074426

@@ -54,6 +54,7 @@ fn main() {
 		hist: &hist,
 		axis: &axis,
 		now: end,
+		sample: 1.0,
 		look: &look,
 		paint: look.paint(Which::Cpu),
 		outline: look[Which::Cpu].outline,

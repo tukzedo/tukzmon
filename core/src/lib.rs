@@ -888,6 +888,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		let axis = Axis::of(&basis);
 		let t = self.now();
 		let edge = self.edge().unwrap_or(0.0);
+		let sample = self.period();
 		self.ease.update(&axis, basis, t, self.slack());
 		let peak = self.src.peak_floor().map(|floor| Scale {
 			peak: &mut self.peak,
@@ -897,6 +898,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 			hist: &self.hist,
 			axis: &self.ease.view(&axis, t),
 			now: edge,
+			sample,
 			look: &self.look,
 			paint: S::paint(&self.look),
 			outline: S::outline(&self.look),
