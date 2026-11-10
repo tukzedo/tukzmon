@@ -22,52 +22,6 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- A bucket cut by a sample's edge tints a narrow column
-	- ID: 2026111011172485
-	- Type: Bug
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261110-111724
-	- Opened by:
-	- Related IDs: 2026111010281710
-	- Incorrect behavior: A column no wider than a sample, with a sample's edge inside one of its end buckets, is drawn up to a twentieth short of full strength, as a faint tint, though all of it is one sample.
-	- Possible cause: The end bucket's mean mixes the 2 samples, and the column takes it as one of them. Reading which side of the bucket each sample is on, from the buckets beside it, would leave only the part that's in.
-	- Reproduced: Yes, by df4e9 and df3e2 with the fix taken out.
-	- Actual cause: As the possible cause. The end bucket's mean also went into the column's mean.
-	- Estimated effort: Avg
-	- Actual effort: Low
-	- Progress log:
-		- `History::span_for` splits an end bucket that holds 2 samples at the edge between them, where buckets are no longer than half a sample. Its min and max are the 2 samples, the bucket beside it says which is older, and its sum says where the edge is. Only the part inside the span goes into the mean, and `Span::ends` takes the values at the span's own ends. `design.md` Drawing has it.
-		- Profiler, load 12 to 20 on 32 cores, 2 runs each: 661 and 863 us user a tick before, 822 and 717 after, so no change past the noise. History lookups were 35% and 37% of the tick before, 35% and 33% after.
-		- Verified: df4e9 and df3e2's exact check failed before the change and pass after. df4d7, df4dt, df3s6, the quick gate and Sanitizers passed.
-	- Decisions:
-		- The split reads the bucket's own min and max, and a neighbor only for which side each is on, so a neighbor that's a gap or missing on one side still works from the other. With none, the mean stands as before.
-		- It applies to every column's end buckets, wider ones too, so a column's mean is the same however it's read. `History::span`, with no sample, is unchanged, so the hover tip reads as before.
-		- A bucket from history sampled faster than the graph is now, which can hold more than 2 samples, is split as if it held its min and max. Only its part of one column can be off, as before.
-	- Actual fix: `Tier::samples_in` and the end bucket loop in `History::span_for`, in `core/src/history.rs`.
-	- Branch: round-1110b
-	- Test case: `render::tests::a_column_that_is_one_sample_is_drawn_solid` (df4e9).
-		- 2026-11-10: df3e2 `the_right_column_fills_as_the_sample_slides_in_and_the_tip_follows` checks a filled row is exactly the full color again, not within 8 steps of it.
-		- Swept: every reader of `Span::ends` (only `Frame::draw_in`), every `span_for` caller (`Frame::draw_in`, and `span` with sample 0), and the other end bucket readers, `tops_over` and `densest`, which read maxes for the spike, not means.
-	- Closed: 20261110-114108
-
-- GPU memory graph on integrated Intel graphics
-	- ID: 2026110921252043
-	- Type: Bug
-	- Status: Done
-		- Waits on the question in questions.md on what the graph counts on an integrated card.
-	- Priority|Severity: Avg
-	- Opened: 20261109-212520
-	- Opened by: t00mietum
-	- Parent ID: 2026110920595600
-	- Incorrect behavior: An Intel card gets the GPU graph, but no GPU memory graph.
-	- Expected behavior: The GPU memory graph works on integrated Intel graphics.
-	- Possible cause: An integrated card's memory is the system's. Without root, the only count of what the GPU holds is each process's DRM fdinfo, and only for the user's own processes.
-	- Acceptance signoff: Closed 20261110 on the answer, as B.
-	- Closed: 20261110-184000
-	- Test case: none, closed on the answer with no code change.
-	- 2026-11-10: Answer: B, unless other tools have an acceptable way. nvtop, the main one that reads Intel, gives per-process memory from fdinfo and needs CAP_PERFMON or root for a total. So B: no GPU memory graph on Intel, as README already says.
-
 - Smoothly animate each graph on each tick
 	- ID: 2026110911114024
 	- Type: Enhancement
@@ -234,38 +188,6 @@ Sorted per the notes in [Template](#template).
 	- Test case: `remote::tests::the_tcp_table_gives_established_connections_on_remote_desktop_ports` (df3p4), `remote::tests::a_viewer_counts_only_when_its_server_has_a_peer_on_this_display` (df3p5), `remote::tests::the_watch_looks_again_only_every_few_seconds` (df3p6) and `remote::tests::a_stand_in_viewer_on_a_vnc_port_is_seen_on_its_display_only` (df3p7).
 		- Swept: both callers of `remote::session` (the plugin's start and the settings window's), both `set_session` callers, and every `Look` maker that takes the session.
 
-- The 2 GPU graphs aren't available with integrated Intel graphics
-	- ID: 2026110920595600
-	- Type: Bug
-	- Status: Stalled
-		- Held for a Linux box with Intel graphics, i915 or xe, and no other card. None of the test boxes has one, and the hosted runner has no GPU (20261110).
-		- The GPU graph is in. The GPU memory graph is child 2026110921252043, which waits on a question.
-	- Needs external testing: on a box with Intel graphics, i915 or xe, and no NVIDIA or AMD card, check that one of the 3 files in df3kx is there and readable as the user, and run `cargo test -p tukzmon-core gpu::` and `cargo test -p tukzmon-settings the_gpu_rows` (dekmd), which reads the live card twice.
-	- Needs hand testing: on that box, with the GPU graph on and the GPU busy, as from `glxgears`, its tip should read near 100% less the RC6 share `sudo intel_gpu_top` gives.
-	- Priority|Severity: Avg
-	- Opened: 20261109-205956
-	- Opened by: t00mietum
-	- Related IDs: 2026103010322277
-	- Incorrect behavior: The GPU and GPU memory graphs aren't available with integrated Intel graphics.
-	- Expected behavior: Both GPU graphs work on integrated Intel graphics.
-	- Reproduced: by reading `core/src/gpu.rs`. `Card::find` knew only NVML and amdgpu, so an Intel-only box found no card, and both graphs stayed hidden.
-	- Actual cause: Intel's engine busy time is only in its perf counters, which need root or a lowered `perf_event_paranoid`, so Intel was left out on purpose (2026102819145597).
-	- Actual effort: Avg
-	- Progress log:
-		- The GPU graph reads an Intel card's time out of RC6, the sleep its graphics core drops into when it has nothing to run, against the time between reads. i915's `gt/gt0/rc6_residency_ms`, then its older `power/rc6_residency_ms`, then xe's `gtidle/idle_residency_ms`. None needs root.
-		- An Intel card has no GPU memory graph yet. `design.md` Data sources on Linux and the README say so.
-		- Verified: df3kw and df3kx passed, and df3kx failed with the Intel card taken out of `Card::find`, and again with the GPU probe not taking a first read that only primes. The quick gate and Sanitizers passed, and Miri passed df3kw and dekm9. dekma, dekmd, dektd and der6k passed on b23's host with the RTX 3060 Ti, so NVIDIA still comes first.
-		- Unverified on real Intel hardware: no box here has one. The paths are from the i915 and xe drivers' sysfs.
-	- Decisions:
-		- Awake time, not engine busy time, since it's the one share the kernel gives without root. It reads a little over what the engines ran, since the core stays up a moment after its work. Moving to perf counters stays deferred, as 2026103010322277.
-		- NVIDIA first, then amdgpu, then Intel, so a laptop with an Intel GPU and another one still graphs the other, as before.
-		- A card with `power/rc6_enable` at 0 is passed over, since it never sleeps and would read always busy.
-		- The GPU memory part is split off, since what it would count on an integrated card is a call for a person.
-	- Actual fix: `core/src/gpu.rs` gains a `Card::Intel` source, found by `intel_in` after amdgpu.
-	- Branch: round-1110
-	- Test case: `gpu::tests::intel_reads_busy_as_the_time_out_of_rc6` (df3kw) and `an_intel_card_gives_a_gpu_graph_and_no_memory_graph` (df3kx). df3kx fails on the old `Card::find`.
-		- Swept: every `Card` match, both readers' probes, `amd_in`, which now shares `cards_in`, the settings window's GPU rows (dekmd), the README's graph list, and `design.md` for "Intel".
-
 - Antialiasing still needs to be better, so sharp spikes don't pulse or shimmer
 	- ID: 2026111010281710
 	- Type: Enhancement
@@ -306,20 +228,6 @@ Sorted per the notes in [Template](#template).
 		- 2026-11-10: df3e2 `the_right_column_fills_as_the_sample_slides_in_and_the_tip_follows`: half slid in, 7 to 11 of 18 rows were filled, now every row is at part strength. A filled row is now within 8 steps of the full color, not exactly it.
 		- Swept: every reader of `Span` (only `Frame::draw_in` reads `spike`, `min`, `ends` and `uncut`), both paints, the opaque and transparent paths, `Peak`'s highest, which now takes the taller stack, and every `Span` literal (only `span_for`).
 
-- Cut the cost of the spike windows in each draw
-	- ID: 2026111000270812
-	- Type: Enhancement
-	- Status: Stalled
-	- Priority|Severity: Avg
-	- Opened: 20261110-002708
-	- Opened by: t00mietum
-	- Related IDs: 2026110920595602
-	- Requirements: Bring the profiled tick back near its 241 us of user time, from the 480 us that 2026110920595602's windows took it to, with the same pixels.
-	- Estimated effort: Avg
-	- Prereq IDs: 2026111010281710
-	- 2026-11-10: Answer on 2026110920595602's Check: get it looking right first, then the cost. Waits on 2026111010281710, since both change the spike windows.
-	- Held for UAT signoff of 2026111010281710's new look, per the answer on 2026110920595602: look first, then cost. Set back to Queued once it's signed off.
-
 - Reduce motion if a remote desktop session is detected
 	- ID: 2026110911114037
 	- Type: Enhancement
@@ -341,260 +249,51 @@ Sorted per the notes in [Template](#template).
 		- 20261110: children 2026110922214810 wait on UAT, and the rest are closed
 	- Test case: its children's: 2026110922214810: `remote::tests::the_tcp_table_gives_established_connections_on_remote_desktop_ports` (df3p4), `remote::tests::a_viewer_counts_only_when_its_server_has_a_peer_on_this_display` (df3p5), `remote::tests::the_watch_looks_again_only_every_few_seconds` (df3p6) and `remote::tests::a_stand_in_viewer_on_a_vnc_port_is_seen_on_its_display_only` (df3p7).; 2026110922214697: `remote::tests::a_remote_session_is_told_by_its_variables_or_by_logind` (df3nf), `config::tests::a_remote_session_reads_half_as_often_from_a_second_and_never_slides` (df3ng), `dialog::tests::a_remote_session_greys_what_it_sets_aside_and_saves_none_of_it` (df3nh) and `bridge::tests::a_remote_session_greys_the_rates_and_smooth_scrolling` (df3nj).
 
-- CICD gap: Fuzz the parsers of files and kernel messages
-	- ID: 2026110310450001
-	- Type: Task
-	- Status: Done
+- The 2 GPU graphs aren't available with integrated Intel graphics
+	- ID: 2026110920595600
+	- Type: Bug
+	- Status: Stalled
+		- Held for a Linux box with Intel graphics, i915 or xe, and no other card. None of the test boxes has one, and the hosted runner has no GPU (20261110).
+		- The GPU graph is in. The GPU memory graph is child 2026110921252043, which waits on a question.
+	- Needs external testing: on a box with Intel graphics, i915 or xe, and no NVIDIA or AMD card, check that one of the 3 files in df3kx is there and readable as the user, and run `cargo test -p tukzmon-core gpu::` and `cargo test -p tukzmon-settings the_gpu_rows` (dekmd), which reads the live card twice.
+	- Needs hand testing: on that box, with the GPU graph on and the GPU busy, as from `glxgears`, its tip should read near 100% less the RC6 share `sudo intel_gpu_top` gives.
 	- Priority|Severity: Avg
-	- Opened: 20261103-104500
+	- Opened: 20261109-205956
 	- Opened by: t00mietum
-	- Parent ID: 2026102416252898
-	- Requirements:
-		- There's no fuzz testing yet. It should be adversarial, and cover our code and the libraries it leans on.
-		- Cover what reads input the program doesn't control: the history file decode, the netlink socket and neighbor dumps, the bridge forwarding table, the `/proc` and `/sys` readers, and a settings file that loads through shcl.
-		- Plain tests on stable, each case a pure function of one seed, a time budget from an env var, and asserts on properties such as no panic and no read past the end. Keep some bit flips over real files, such as `core/tests/data/plugin-5-tiers.hist`.
-		- Each one gets a test ID, and is watched to fail on a planted bug before it's trusted.
-	- Progress log:
-		- 2026-11-10: split by input kind into children 2026111011435200 (the harness), 2026111011435314, 2026111011435428, 2026111011435542, 2026111011435657 and 2026111011435771. Every child is Done.
-	- Test case: its children's: 2026111011435200: `fuzz::tests::a_failing_seed_is_named_and_the_rest_are_pure` (df4f0). It checks a seed draws the same every time, a panic in a case fails the run naming its seed, and a run that refuses nothing fails the mix check.; 2026111011435314: `history::tests::fuzz_decode_takes_any_bytes_and_keeps_what_it_took` (df4f1), `keep::tests::fuzz_any_file_reads_whole_or_not_at_all` (df4f2) and `keep::tests::fuzz_bit_flips_in_a_real_file` (df4f3).; 2026111011435428: `lan::tests::fuzz_dumps_give_their_messages_and_no_more` (df4fm), `lan::tests::fuzz_lookup_answers_take_any_read` (df4fn) and `lan::tests::lying_counts_and_errors_neither_panic_nor_wrap` (df4fp).; 2026111011435542: `net::tests::fuzz_brforward_gives_only_whole_entries_on_its_ports` (df4g4).; 2026111011435657: `cpu::tests::fuzz_stat_reads_the_all_cpu_line_and_shares_stay_in_range` (df4gj), `load::tests::fuzz_loadavg_gives_a_load_or_none` (df4gk), `mem::tests::fuzz_meminfo_and_arcstats_read_back_and_shares_stay_in_range` (df4gm), `disk::tests::fuzz_stat_reads_sectors_and_rates_stay_finite` (df4gn), `zswap::tests::fuzz_zswap_and_zram_files_read_in_range` (df4gp), `net::tests::fuzz_net_dev_reads_back_and_rates_stay_finite` (df4gq), `net::tests::fuzz_port_no_reads_the_hex_sysfs_writes` (df4gr), `remote::tests::fuzz_snmp_gives_the_tcp_opens_and_connections` (df4gs), `remote::tests::fuzz_tcp_table_gives_only_established_links_on_server_ports` (df4gt), `battery::tests::fuzz_power_supply_files_read_as_one_share_in_range` (df4gv), `temp::tests::fuzz_hwmon_files_read_as_the_hottest_package_split_at_its_limit` (df4gw), `gpu::tests::fuzz_gpu_sysfs_files_read_as_shares_in_range` (df4gx) and `remote::tests::fuzz_a_sharers_proc_files_give_its_display` (df4gy).; 2026111011435771: `config::tests::fuzz_settings_files_read_whole_or_drop_lines` (df4g5) and `config::tests::fuzz_bit_flips_in_a_real_settings_file` (df4g6).
-	- Closed: 20261110-125354
+	- Related IDs: 2026103010322277
+	- Incorrect behavior: The GPU and GPU memory graphs aren't available with integrated Intel graphics.
+	- Expected behavior: Both GPU graphs work on integrated Intel graphics.
+	- Reproduced: by reading `core/src/gpu.rs`. `Card::find` knew only NVML and amdgpu, so an Intel-only box found no card, and both graphs stayed hidden.
+	- Actual cause: Intel's engine busy time is only in its perf counters, which need root or a lowered `perf_event_paranoid`, so Intel was left out on purpose (2026102819145597).
 	- Actual effort: Avg
-
-- Fuzz: the seed and budget harness, and its cicd hookup
-	- ID: 2026111011435200
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261110-114352
-	- Opened by: t00mietum
-	- Parent ID: 2026110310450001
-	- Requirements: One shared way to run a fuzz case from a seed, with a time budget from an env var, a seed to replay, and the cicd run lengths setting the budget.
-	- Estimated effort: Low
-	- Actual effort: Low
 	- Progress log:
-		- Each case is a pure function of its seed. A test runs 128 fixed seeds, 4 under Miri, then on for `TUKZMON_FUZZ_SECONDS`. A failure names its seed, and `TUKZMON_FUZZ_SEED` replays it.
-		- The hurts are bit flips, bytes set, count and length fields made to lie, cuts, and runs copied or dropped.
-		- Each test checks some inputs were taken and some refused, so a generator that stops generating fails.
-		- The cicd budget is 10 s a test in the default run, the merge gate and the full backlog run, and 300 s in `--long`. The default and long runs start from a new seed each time. The quick runs take only the fixed seeds.
-		- `design.md` Fuzzing has the details.
-		- Verified: the quick gate and Sanitizers passed, and the fuzz tests passed under Miri. A run with a 3 s budget and a set seed got both into the Tests step's container.
+		- The GPU graph reads an Intel card's time out of RC6, the sleep its graphics core drops into when it has nothing to run, against the time between reads. i915's `gt/gt0/rc6_residency_ms`, then its older `power/rc6_residency_ms`, then xe's `gtidle/idle_residency_ms`. None needs root.
+		- An Intel card has no GPU memory graph yet. `design.md` Data sources on Linux and the README say so.
+		- Verified: df3kw and df3kx passed, and df3kx failed with the Intel card taken out of `Card::find`, and again with the GPU probe not taking a first read that only primes. The quick gate and Sanitizers passed, and Miri passed df3kw and dekm9. dekma, dekmd, dektd and der6k passed on b23's host with the RTX 3060 Ti, so NVIDIA still comes first.
+		- Unverified on real Intel hardware: no box here has one. The paths are from the i915 and xe drivers' sysfs.
 	- Decisions:
-		- The harness is test-only code in the core crate, since every parser so far is in core and most are private. The settings child can copy it, or it can move to a crate of its own then.
-		- The fuzz tests run in the Tests step with everything else, rather than a step of their own, so `--list` and the per-test lines cover them with no new plumbing.
-		- The merge gate and the full backlog run start from seed 0, so a failure there repeats. The default and long runs start from the run's time, so each one tries seeds the last didn't.
-	- Branch: round-1110b
-	- Test case: `fuzz::tests::a_failing_seed_is_named_and_the_rest_are_pure` (df4f0). It checks a seed draws the same every time, a panic in a case fails the run naming its seed, and a run that refuses nothing fails the mix check.
-	- Closed: 20261110-120400
+		- Awake time, not engine busy time, since it's the one share the kernel gives without root. It reads a little over what the engines ran, since the core stays up a moment after its work. Moving to perf counters stays deferred, as 2026103010322277.
+		- NVIDIA first, then amdgpu, then Intel, so a laptop with an Intel GPU and another one still graphs the other, as before.
+		- A card with `power/rc6_enable` at 0 is passed over, since it never sleeps and would read always busy.
+		- The GPU memory part is split off, since what it would count on an integrated card is a call for a person.
+	- Actual fix: `core/src/gpu.rs` gains a `Card::Intel` source, found by `intel_in` after amdgpu.
+	- Branch: round-1110
+	- Test case: `gpu::tests::intel_reads_busy_as_the_time_out_of_rc6` (df3kw) and `an_intel_card_gives_a_gpu_graph_and_no_memory_graph` (df3kx). df3kx fails on the old `Card::find`.
+		- Swept: every `Card` match, both readers' probes, `amd_in`, which now shares `cards_in`, the settings window's GPU rows (dekmd), the README's graph list, and `design.md` for "Intel".
 
-- Fuzz: the history file decode
-	- ID: 2026111011435314
-	- Type: Task
-	- Status: Done
+- Cut the cost of the spike windows in each draw
+	- ID: 2026111000270812
+	- Type: Enhancement
+	- Status: Stalled
 	- Priority|Severity: Avg
-	- Opened: 20261110-114353
+	- Opened: 20261110-002708
 	- Opened by: t00mietum
-	- Parent ID: 2026110310450001
-	- Requirements: Fuzz the history file's sections and each graph's decode, with bit flips over core/tests/data/plugin-5-tiers.hist.
-	- Prereq IDs: 2026111011435200
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- A case builds a history the way the graphs keep one, with runs of samples at a few rates, gaps and trims, then encodes it and hurts it. Half the hurts lie in a known count, time or length field.
-		- The file test does the same with whole files of such sections, version 1 and 2, and random bodies.
-		- A third test flips bits in `core/tests/data/plugin-5-tiers.hist`.
-		- Properties: nothing panics, a whole input reads back as written, and what decode or the file read takes it takes again the same. Each decoded history is read across its span, as drawing would.
-		- No faults found.
-		- Verified: decode with the tier count check taken out failed df4f1 at seed 22, and the file read with its section size check taken out failed df4f2 at seed 3 and df4f3 at seed 0. All pass with the checks back.
-	- Decisions:
-		- The file read and write were split into a part that works on bytes and the file part, so the fuzz needs no files and runs under Miri.
-	- Branch: round-1110b
-	- Test case: `history::tests::fuzz_decode_takes_any_bytes_and_keeps_what_it_took` (df4f1), `keep::tests::fuzz_any_file_reads_whole_or_not_at_all` (df4f2) and `keep::tests::fuzz_bit_flips_in_a_real_file` (df4f3).
-	- Closed: 20261110-120400
-
-- Fuzz: the netlink socket and neighbor dumps
-	- ID: 2026111011435428
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261110-114354
-	- Opened by: t00mietum
-	- Parent ID: 2026110310450001
-	- Requirements: Fuzz the walk over a netlink dump, the socket messages and the neighbor messages.
-	- Prereq IDs: 2026111011435200
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- A case builds a read the way the kernel sends one: socket, neighbor, error and other messages, some of another dump, maybe ended. Half the hurts lie in a length, type, sequence or error field.
-		- A whole read gives every message of its dump, in order, up to its end, and each neighbor's link address. Hurt ones don't panic.
-		- A second test does the same for the answers to socket lookups.
-		- The fuzz found 3 faults, each a panic in a debug build and a wrong number in a release one. An error code of `i32::MIN` in a lookup's answer overflowed as it was negated. A socket whose byte count was near the top of a u64 overflowed when its headers were added, and so did the sum over sockets.
-		- Fixed: the error is negated with wrapping, and the byte counts saturate.
-		- Verified: df4fp failed on the unfixed code, at each of the 3 sites with only its own fix taken out, and passes now. The fuzz found the error code at seed 1230 and the byte count at seed 170668, with a 10 s budget, and both seeds pass now.
-		- Verified: df4fm failed with the message length check taken out of the walk, and with its check of the dump's sequence number taken out.
-		- No other fault in a 20 s run of every fuzz test.
-	- Decisions:
-		- A byte count saturates rather than being refused, since one socket's lie then can't wrap the total, and the rise is still worked out the same way.
-	- Branch: round-1110b
-	- Test case: `lan::tests::fuzz_dumps_give_their_messages_and_no_more` (df4fm), `lan::tests::fuzz_lookup_answers_take_any_read` (df4fn) and `lan::tests::lying_counts_and_errors_neither_panic_nor_wrap` (df4fp).
-		- Swept: every sum and negation of a kernel-sent number in `lan.rs`: `lan_socket`, `rise` and `answers`. No other module reads netlink.
-	- Closed: 20261110-121800
-
-- Fuzz: the bridge forwarding table
-	- ID: 2026111011435542
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261110-114355
-	- Opened by: t00mietum
-	- Parent ID: 2026110310450001
-	- Requirements: Fuzz the read of a bridge's brforward entries.
-	- Prereq IDs: 2026111011435200
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- A case builds a table the way the kernel writes one: entries on the bridge's virtual ports and on others, some the box's own. Half the hurts lie in a port byte or the is_local byte.
-		- A whole table gives exactly the far ends on those ports, in order. A hurt one gives only addresses from whole entries on those ports that aren't the box's own, and no more than it has entries.
-		- The fuzz found no fault, in a 30 s run as well.
-		- Verified: df4g4 failed with the port's high byte read from the wrong offset, and with the is_local check taken out, and passes now.
-	- Decisions:
-		- Only the parse of the table is fuzzed. The port numbers come from `/sys` text, which goes with the `/proc` and `/sys` readers in 2026111011435657.
-	- Branch: round-1110b
-	- Test case: `net::tests::fuzz_brforward_gives_only_whole_entries_on_its_ports` (df4g4).
-		- Swept: `on_ports` is the only reader of `brforward`.
-	- Closed: 20261110-123109
-
-- Fuzz: the /proc and /sys readers
-	- ID: 2026111011435657
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261110-114356
-	- Opened by: t00mietum
-	- Parent ID: 2026110310450001
-	- Requirements: Fuzz each parser of a /proc or /sys file, such as stat, meminfo, net/dev, snmp, diskstats, zswap and the battery and temperature files.
-	- Prereq IDs: 2026111011435200
+	- Related IDs: 2026110920595602
+	- Requirements: Bring the profiled tick back near its 241 us of user time, from the 480 us that 2026110920595602's windows took it to, with the same pixels.
 	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- A case writes each file the way the kernel does, with counters now and then at a limit a sum trips on. Half the cases hurt it: a word swapped for a lying number or junk, or its bytes hurt. A reader of a path gets a made-up tree with some of its files hurt.
-		- Covered: `/proc/stat`, `meminfo`, ZFS's `arcstats`, `loadavg`, a drive's `stat`, zswap and zram, `net/dev`, a bridge port's `port_no`, `net/snmp`, `net/tcp`, a screen sharer's `comm`, `cmdline` and `environ`, the battery and `hwmon` files, and the AMD and Intel GPU files.
-		- The fuzz found 7 faults, all fixed. Sums overflowed in the CPU total, the memory graph's cache, zswap's cap, the zram sums and the TCP opens. A CPU idle or steal counter that went down wasn't a gap. 2 batteries with sums past f64 read as NaN, and so did an AMD busy file holding `NaN`.
-		- Verified: each test failed on a planted bug or on the fault it found, and passes now. The quick gate and Sanitizers passed, and all 13 passed with an 8 s budget.
-	- Decisions:
-		- A CPU counter that goes down makes a gap for all of them, not only the 4 drawn, as `cpu::shares` says it does. Idle or steal going down gave shares that added past 1.
-		- Sums of file values saturate, except the TCP opens, which wrap, since they're only compared for a change.
-		- When 2 batteries' pooled sums pass f64, the level is the mean of each one's share.
-		- The battery and AMD faults turned up past the 128 fixed seeds, at 372 and 665, so each test also checks its case by hand, and the quick runs keep it.
-		- `procs` reads only folder owners and `own` only matches a process name, so neither has a fuzz test.
-	- Branch: round-1110b
-	- Test case: `cpu::tests::fuzz_stat_reads_the_all_cpu_line_and_shares_stay_in_range` (df4gj), `load::tests::fuzz_loadavg_gives_a_load_or_none` (df4gk), `mem::tests::fuzz_meminfo_and_arcstats_read_back_and_shares_stay_in_range` (df4gm), `disk::tests::fuzz_stat_reads_sectors_and_rates_stay_finite` (df4gn), `zswap::tests::fuzz_zswap_and_zram_files_read_in_range` (df4gp), `net::tests::fuzz_net_dev_reads_back_and_rates_stay_finite` (df4gq), `net::tests::fuzz_port_no_reads_the_hex_sysfs_writes` (df4gr), `remote::tests::fuzz_snmp_gives_the_tcp_opens_and_connections` (df4gs), `remote::tests::fuzz_tcp_table_gives_only_established_links_on_server_ports` (df4gt), `battery::tests::fuzz_power_supply_files_read_as_one_share_in_range` (df4gv), `temp::tests::fuzz_hwmon_files_read_as_the_hottest_package_split_at_its_limit` (df4gw), `gpu::tests::fuzz_gpu_sysfs_files_read_as_shares_in_range` (df4gx) and `remote::tests::fuzz_a_sharers_proc_files_give_its_display` (df4gy).
-		- Swept: every float parse of `/proc` or `/sys` text in core (load and battery already refused NaN), and every integer sum or product of file values in the readers.
-		- 2026-11-10: `cpu::tests::reads_the_all_cpu_line` (debhp) now checks `total()` is `Some(1000)`, not `1000`, since it returns None past `u64::MAX`.
-	- Closed: 20261110-125328
-
-- Fuzz: a settings file loaded through shcl
-	- ID: 2026111011435771
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261110-114357
-	- Opened by: t00mietum
-	- Parent ID: 2026110310450001
-	- Requirements: Fuzz a settings file as it loads through shcl into the model, with bit flips over a real one. A fault inside shcl gets an upstream draft.
-	- Prereq IDs: 2026111011435200
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- A case builds a file the way the window saves one: up to 3 saved themes, a theme pick, changes kept on a theme, and some rows off their defaults, with odd text in the text rows. It goes through shcl, the saved themes, the model and the Look, as the plugin and the window read it.
-		- A whole file reads back as written. A hurt one doesn't panic, the model holds no value its row would refuse, and what was read writes back the same a second time.
-		- A second test flips bits in a saved file, `core/tests/data/plugin-7.shcl`.
-		- The fuzz found no fault in shcl or here, in a 30 s run as well, so there's no upstream draft.
-		- Verified: df4g5 failed with knobs taking a value without checking it, and df4g6 with a cut inside a character in the graph order's read. Both pass now.
-	- Decisions:
-		- `plugin-7.shcl` is a file as the window saves it, with a hand comment and a list added, rather than one off a live panel, since those sit outside the repo. Any saved file can take its place.
-		- Both tests skip Miri, since the spec takes about an hour to parse there.
-	- Branch: round-1110b
-	- Test case: `config::tests::fuzz_settings_files_read_whole_or_drop_lines` (df4g5) and `config::tests::fuzz_bit_flips_in_a_real_settings_file` (df4g6).
-		- Swept: every reader a settings file reaches in core: `config::model_on`, `saved_themes`, `theme_problems`, `spec_with`, `Look::from_model` and `graph_order`.
-	- Closed: 20261110-123109
-
-- CICD gap: Slow leak checks still missing
-	- ID: 2026110310450003
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261103-104500
-	- Opened by: t00mietum
-	- Parent ID: 2026102416252898
-	- Requirements:
-		- CodeQL from a pinned CLI, run locally, over the Rust and the C++, as a slow leak check. The repo is public on GitHub under the LGPL, so its license allows it. Vendor the crates first, and build from a clean folder so the C++ database isn't empty.
-		- A soak of the settings window, with the heap read at round N and 2N, under heaptrack. The panel item's soak covers only the Rust side.
-	- Decisions:
-		- No `_GLIBCXX_DEBUG` build. Every linked C++ library has to be built with it, and Qt comes prebuilt.
-		- No cross-file analyzer run, since the C++ is one file.
-	- Progress log:
-		- Split into children: the settings window soak 2026111013025758 (Done), and CodeQL 2026111013025770 (Waiting on automated testing).
-	- Test case: its children's: 2026111013025758: `bridge::tests::the_windows_heap_stops_growing_once_its_graphs_are_full` (df4ja), run by the Window-soak step. It fails without the trim in `Live::tick_at`.; 2026111013025770: `codeql_report_fails_what_isnt_suppressed_a_stale_suppression_and_an_empty_database` (df4ks), in `cicd/tests/guards.bash`. It failed with each of its 3 checks taken out. The CodeQL step itself is the rest.
-	- Closed: 20261110-144111
-
-- Slow leak checks: settings window soak
-	- ID: 2026111013025758
-	- Type: Task
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261110-130257
-	- Opened by: t00mietum
-	- Parent ID: 2026110310450003
-	- Requirements: A soak of the settings window, with the heap read at round N and 2N, under heaptrack. A leak check run only with --long, --leakcheck or its own area.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- A Window-soak leak check runs tukzmon-settings' window off screen under heaptrack for 1500 rounds: the live graphs read and drawn with the clock 10 minutes on each round, the next tab, a slider step, a color set, and now and then Randomize, the color picker and a save. It reads the heap at round 750 and 1500, and fails past 64 KiB of growth.
-		- It runs only with --long, --leakcheck or the window-soak area, on a quarter of the CPUs, in about 2 minutes. Its report and heaptrack's top peaks go to cicd/artifacts/soak/, rotated, with heaptrack's recording when it fails.
-		- heaptrack is in the image, from the pinned Debian snapshot.
-		- It found the window's live graphs never dropped history past the max age, as the panel does, so a window left open kept every hour it saw. They're trimmed at each tick now.
-		- Verified: the soak passed at 17 KB of growth from round 750 to 1500. Before the trim, and before the pixmap cache was emptied, it failed at 646 KB from round 500 to 1000. With 512 bytes a round kept on purpose it failed, at about 300 KB. The quick gate and Sanitizers passed.
-	- Decisions:
-		- The heap is read in the process with glibc's mallinfo2, so the readings include heaptrack's own tables. heaptrack has no way to mark a round. A run without heaptrack grew the same way, so its tables weren't the growth.
-		- Qt's pixmap cache is emptied before each read. Each Randomize adds pixmaps for new colors, and the cache's own bound made steps that hid a leak's growth.
-		- A length of its own, long, for a leak check outside the default run that doesn't take hours.
-	- Branch: round-1110b
-	- Test case: `bridge::tests::the_windows_heap_stops_growing_once_its_graphs_are_full` (df4ja), run by the Window-soak step. It fails without the trim in `Live::tick_at`.
-		- Swept: every `Live` tick (the window's timer only), and the panel's trim in `save_history`. `graphs::Graphs` trims through the panel, and the profiler and core soak trim or skip as before.
-	- Closed: 20261110-134636
-
-- Slow leak checks: CodeQL
-	- ID: 2026111013025770
-	- Type: Task
-	- Status: Done
-		- Each language's half passed alone. A run of both together is left.
-	- Needs local test suite run?: No
-	- Priority|Severity: Avg
-	- Opened: 20261110-130257
-	- Opened by: t00mietum
-	- Parent ID: 2026110310450003
-	- Requirements: CodeQL from a pinned CLI in the image, run locally over the Rust and the C++, as a leak check run only with --long, --leakcheck or its own area. Vendor the crates first, and build from a clean folder so the C++ database isn't empty.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- A CodeQL leak check runs the security and quality queries over the Rust and the C++. It runs only with --long, --leakcheck or the codeql area, on a quarter of the CPUs.
-		- It copies the tree to a clean folder and vendors the crates beside it, outside the source root, so they're read as libraries and not scanned. The C++ database comes from a build of tukzmon-settings into an empty target dir.
-		- CodeQL 2.27.4 is in the image, its Rust and C++ bundles pinned by version and checksum, with the Rust toolchain its extractor runs on.
-		- A finding fails the step unless `cicd/codeql.supp` lets it by, by rule, file and the line's text. So does a suppression that matches nothing, a database with none of our code, and a Rust workspace that won't load.
-		- The SARIF and a report go to cicd/artifacts/codeql/, rotated.
-		- It found one thing, a pointer read in `net.rs` that CodeQL can't tell getifaddrs filled in. It's suppressed, with why.
-		- Verified: in the image, the C++ half passed in 1m 31s with no findings, and the Rust half in 3m 38s at load 25, with the one finding suppressed. The quick gate and Sanitizers passed.
-		- Before the image had the toolchain its Rust extractor runs on, that half loaded no workspace and still made a database, with findings that were noise. The step fails on the extractor's errors now.
-		- Verified: 2026-11-10, the gate step's `--backlog-run-quick codeql` passed in 4m 32s: rust.sarif 26158 lines of ours, 1 finding, 1 suppressed; cpp.sarif 2924 lines, 0 findings (codeql_20261110-224047).
-	- Decisions:
-		- The Rust and C++ bundles, unpacked over each other, rather than the all-language bundle. They're 263 MB to fetch against 559, and their shared files are the same.
-		- Every finding fails, notes included, as clippy's warnings do. There's only the one, so a looser line wasn't needed.
-		- A suppression matches the line's text rather than its number, so it lasts through edits above it.
-		- The image grows from 3.9 GB to 5.65 GB.
-	- Branch: round-1110b
-	- Test case: `codeql_report_fails_what_isnt_suppressed_a_stale_suppression_and_an_empty_database` (df4ks), in `cicd/tests/guards.bash`. It failed with each of its 3 checks taken out. The CodeQL step itself is the rest.
-	- Acceptance signoff: Self-closed 20261110: the CodeQL step passed with both languages.
-	- Closed: 20261110-224100
+	- Prereq IDs: 2026111010281710
+	- 2026-11-10: Answer on 2026110920595602's Check: get it looking right first, then the cost. Waits on 2026111010281710, since both change the spike windows.
+	- Held for UAT signoff of 2026111010281710's new look, per the answer on 2026110920595602: look first, then cost. Set back to Queued once it's signed off.
 
 - Installer script for a direct install
 	- ID: 2026110310450005
@@ -2959,6 +2658,23 @@ Sorted per the notes in [Template](#template).
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019-162817
 
+- GPU memory graph on integrated Intel graphics
+	- ID: 2026110921252043
+	- Type: Bug
+	- Status: Done
+		- Waits on the question in questions.md on what the graph counts on an integrated card.
+	- Priority|Severity: Avg
+	- Opened: 20261109-212520
+	- Opened by: t00mietum
+	- Parent ID: 2026110920595600
+	- Incorrect behavior: An Intel card gets the GPU graph, but no GPU memory graph.
+	- Expected behavior: The GPU memory graph works on integrated Intel graphics.
+	- Possible cause: An integrated card's memory is the system's. Without root, the only count of what the GPU holds is each process's DRM fdinfo, and only for the user's own processes.
+	- Acceptance signoff: Closed 20261110 on the answer, as B.
+	- Closed: 20261110-184000
+	- Test case: none, closed on the answer with no code change.
+	- 2026-11-10: Answer: B, unless other tools have an acceptable way. nvtop, the main one that reads Intel, gives per-process memory from fdinfo and needs CAP_PERFMON or root for a total. So B: no GPU memory graph on Intel, as README already says.
+
 - df336 fails on GitHub's runner: a demo stopped by TERM leaves run.pid and .demo-run
 	- ID: 2026110919021646
 	- Type: Bug
@@ -3699,6 +3415,261 @@ Sorted per the notes in [Template](#template).
 		- Swept: the video take uses the same panel config, and no other script in the repo or the private tools sets up a tray.
 	- Acceptance signoff: Self-closed 20261109: in the new gif the network, volume and bell icons are evenly spaced.
 	- Closed: 20261109-124233
+
+- CICD gap: Fuzz the parsers of files and kernel messages
+	- ID: 2026110310450001
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261103-104500
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- There's no fuzz testing yet. It should be adversarial, and cover our code and the libraries it leans on.
+		- Cover what reads input the program doesn't control: the history file decode, the netlink socket and neighbor dumps, the bridge forwarding table, the `/proc` and `/sys` readers, and a settings file that loads through shcl.
+		- Plain tests on stable, each case a pure function of one seed, a time budget from an env var, and asserts on properties such as no panic and no read past the end. Keep some bit flips over real files, such as `core/tests/data/plugin-5-tiers.hist`.
+		- Each one gets a test ID, and is watched to fail on a planted bug before it's trusted.
+	- Progress log:
+		- 2026-11-10: split by input kind into children 2026111011435200 (the harness), 2026111011435314, 2026111011435428, 2026111011435542, 2026111011435657 and 2026111011435771. Every child is Done.
+	- Test case: its children's: 2026111011435200: `fuzz::tests::a_failing_seed_is_named_and_the_rest_are_pure` (df4f0). It checks a seed draws the same every time, a panic in a case fails the run naming its seed, and a run that refuses nothing fails the mix check.; 2026111011435314: `history::tests::fuzz_decode_takes_any_bytes_and_keeps_what_it_took` (df4f1), `keep::tests::fuzz_any_file_reads_whole_or_not_at_all` (df4f2) and `keep::tests::fuzz_bit_flips_in_a_real_file` (df4f3).; 2026111011435428: `lan::tests::fuzz_dumps_give_their_messages_and_no_more` (df4fm), `lan::tests::fuzz_lookup_answers_take_any_read` (df4fn) and `lan::tests::lying_counts_and_errors_neither_panic_nor_wrap` (df4fp).; 2026111011435542: `net::tests::fuzz_brforward_gives_only_whole_entries_on_its_ports` (df4g4).; 2026111011435657: `cpu::tests::fuzz_stat_reads_the_all_cpu_line_and_shares_stay_in_range` (df4gj), `load::tests::fuzz_loadavg_gives_a_load_or_none` (df4gk), `mem::tests::fuzz_meminfo_and_arcstats_read_back_and_shares_stay_in_range` (df4gm), `disk::tests::fuzz_stat_reads_sectors_and_rates_stay_finite` (df4gn), `zswap::tests::fuzz_zswap_and_zram_files_read_in_range` (df4gp), `net::tests::fuzz_net_dev_reads_back_and_rates_stay_finite` (df4gq), `net::tests::fuzz_port_no_reads_the_hex_sysfs_writes` (df4gr), `remote::tests::fuzz_snmp_gives_the_tcp_opens_and_connections` (df4gs), `remote::tests::fuzz_tcp_table_gives_only_established_links_on_server_ports` (df4gt), `battery::tests::fuzz_power_supply_files_read_as_one_share_in_range` (df4gv), `temp::tests::fuzz_hwmon_files_read_as_the_hottest_package_split_at_its_limit` (df4gw), `gpu::tests::fuzz_gpu_sysfs_files_read_as_shares_in_range` (df4gx) and `remote::tests::fuzz_a_sharers_proc_files_give_its_display` (df4gy).; 2026111011435771: `config::tests::fuzz_settings_files_read_whole_or_drop_lines` (df4g5) and `config::tests::fuzz_bit_flips_in_a_real_settings_file` (df4g6).
+	- Closed: 20261110-125354
+	- Actual effort: Avg
+
+- Fuzz: the seed and budget harness, and its cicd hookup
+	- ID: 2026111011435200
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261110-114352
+	- Opened by: t00mietum
+	- Parent ID: 2026110310450001
+	- Requirements: One shared way to run a fuzz case from a seed, with a time budget from an env var, a seed to replay, and the cicd run lengths setting the budget.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Each case is a pure function of its seed. A test runs 128 fixed seeds, 4 under Miri, then on for `TUKZMON_FUZZ_SECONDS`. A failure names its seed, and `TUKZMON_FUZZ_SEED` replays it.
+		- The hurts are bit flips, bytes set, count and length fields made to lie, cuts, and runs copied or dropped.
+		- Each test checks some inputs were taken and some refused, so a generator that stops generating fails.
+		- The cicd budget is 10 s a test in the default run, the merge gate and the full backlog run, and 300 s in `--long`. The default and long runs start from a new seed each time. The quick runs take only the fixed seeds.
+		- `design.md` Fuzzing has the details.
+		- Verified: the quick gate and Sanitizers passed, and the fuzz tests passed under Miri. A run with a 3 s budget and a set seed got both into the Tests step's container.
+	- Decisions:
+		- The harness is test-only code in the core crate, since every parser so far is in core and most are private. The settings child can copy it, or it can move to a crate of its own then.
+		- The fuzz tests run in the Tests step with everything else, rather than a step of their own, so `--list` and the per-test lines cover them with no new plumbing.
+		- The merge gate and the full backlog run start from seed 0, so a failure there repeats. The default and long runs start from the run's time, so each one tries seeds the last didn't.
+	- Branch: round-1110b
+	- Test case: `fuzz::tests::a_failing_seed_is_named_and_the_rest_are_pure` (df4f0). It checks a seed draws the same every time, a panic in a case fails the run naming its seed, and a run that refuses nothing fails the mix check.
+	- Closed: 20261110-120400
+
+- Fuzz: the history file decode
+	- ID: 2026111011435314
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261110-114353
+	- Opened by: t00mietum
+	- Parent ID: 2026110310450001
+	- Requirements: Fuzz the history file's sections and each graph's decode, with bit flips over core/tests/data/plugin-5-tiers.hist.
+	- Prereq IDs: 2026111011435200
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A case builds a history the way the graphs keep one, with runs of samples at a few rates, gaps and trims, then encodes it and hurts it. Half the hurts lie in a known count, time or length field.
+		- The file test does the same with whole files of such sections, version 1 and 2, and random bodies.
+		- A third test flips bits in `core/tests/data/plugin-5-tiers.hist`.
+		- Properties: nothing panics, a whole input reads back as written, and what decode or the file read takes it takes again the same. Each decoded history is read across its span, as drawing would.
+		- No faults found.
+		- Verified: decode with the tier count check taken out failed df4f1 at seed 22, and the file read with its section size check taken out failed df4f2 at seed 3 and df4f3 at seed 0. All pass with the checks back.
+	- Decisions:
+		- The file read and write were split into a part that works on bytes and the file part, so the fuzz needs no files and runs under Miri.
+	- Branch: round-1110b
+	- Test case: `history::tests::fuzz_decode_takes_any_bytes_and_keeps_what_it_took` (df4f1), `keep::tests::fuzz_any_file_reads_whole_or_not_at_all` (df4f2) and `keep::tests::fuzz_bit_flips_in_a_real_file` (df4f3).
+	- Closed: 20261110-120400
+
+- Fuzz: the netlink socket and neighbor dumps
+	- ID: 2026111011435428
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261110-114354
+	- Opened by: t00mietum
+	- Parent ID: 2026110310450001
+	- Requirements: Fuzz the walk over a netlink dump, the socket messages and the neighbor messages.
+	- Prereq IDs: 2026111011435200
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A case builds a read the way the kernel sends one: socket, neighbor, error and other messages, some of another dump, maybe ended. Half the hurts lie in a length, type, sequence or error field.
+		- A whole read gives every message of its dump, in order, up to its end, and each neighbor's link address. Hurt ones don't panic.
+		- A second test does the same for the answers to socket lookups.
+		- The fuzz found 3 faults, each a panic in a debug build and a wrong number in a release one. An error code of `i32::MIN` in a lookup's answer overflowed as it was negated. A socket whose byte count was near the top of a u64 overflowed when its headers were added, and so did the sum over sockets.
+		- Fixed: the error is negated with wrapping, and the byte counts saturate.
+		- Verified: df4fp failed on the unfixed code, at each of the 3 sites with only its own fix taken out, and passes now. The fuzz found the error code at seed 1230 and the byte count at seed 170668, with a 10 s budget, and both seeds pass now.
+		- Verified: df4fm failed with the message length check taken out of the walk, and with its check of the dump's sequence number taken out.
+		- No other fault in a 20 s run of every fuzz test.
+	- Decisions:
+		- A byte count saturates rather than being refused, since one socket's lie then can't wrap the total, and the rise is still worked out the same way.
+	- Branch: round-1110b
+	- Test case: `lan::tests::fuzz_dumps_give_their_messages_and_no_more` (df4fm), `lan::tests::fuzz_lookup_answers_take_any_read` (df4fn) and `lan::tests::lying_counts_and_errors_neither_panic_nor_wrap` (df4fp).
+		- Swept: every sum and negation of a kernel-sent number in `lan.rs`: `lan_socket`, `rise` and `answers`. No other module reads netlink.
+	- Closed: 20261110-121800
+
+- Fuzz: the bridge forwarding table
+	- ID: 2026111011435542
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261110-114355
+	- Opened by: t00mietum
+	- Parent ID: 2026110310450001
+	- Requirements: Fuzz the read of a bridge's brforward entries.
+	- Prereq IDs: 2026111011435200
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A case builds a table the way the kernel writes one: entries on the bridge's virtual ports and on others, some the box's own. Half the hurts lie in a port byte or the is_local byte.
+		- A whole table gives exactly the far ends on those ports, in order. A hurt one gives only addresses from whole entries on those ports that aren't the box's own, and no more than it has entries.
+		- The fuzz found no fault, in a 30 s run as well.
+		- Verified: df4g4 failed with the port's high byte read from the wrong offset, and with the is_local check taken out, and passes now.
+	- Decisions:
+		- Only the parse of the table is fuzzed. The port numbers come from `/sys` text, which goes with the `/proc` and `/sys` readers in 2026111011435657.
+	- Branch: round-1110b
+	- Test case: `net::tests::fuzz_brforward_gives_only_whole_entries_on_its_ports` (df4g4).
+		- Swept: `on_ports` is the only reader of `brforward`.
+	- Closed: 20261110-123109
+
+- Fuzz: the /proc and /sys readers
+	- ID: 2026111011435657
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261110-114356
+	- Opened by: t00mietum
+	- Parent ID: 2026110310450001
+	- Requirements: Fuzz each parser of a /proc or /sys file, such as stat, meminfo, net/dev, snmp, diskstats, zswap and the battery and temperature files.
+	- Prereq IDs: 2026111011435200
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A case writes each file the way the kernel does, with counters now and then at a limit a sum trips on. Half the cases hurt it: a word swapped for a lying number or junk, or its bytes hurt. A reader of a path gets a made-up tree with some of its files hurt.
+		- Covered: `/proc/stat`, `meminfo`, ZFS's `arcstats`, `loadavg`, a drive's `stat`, zswap and zram, `net/dev`, a bridge port's `port_no`, `net/snmp`, `net/tcp`, a screen sharer's `comm`, `cmdline` and `environ`, the battery and `hwmon` files, and the AMD and Intel GPU files.
+		- The fuzz found 7 faults, all fixed. Sums overflowed in the CPU total, the memory graph's cache, zswap's cap, the zram sums and the TCP opens. A CPU idle or steal counter that went down wasn't a gap. 2 batteries with sums past f64 read as NaN, and so did an AMD busy file holding `NaN`.
+		- Verified: each test failed on a planted bug or on the fault it found, and passes now. The quick gate and Sanitizers passed, and all 13 passed with an 8 s budget.
+	- Decisions:
+		- A CPU counter that goes down makes a gap for all of them, not only the 4 drawn, as `cpu::shares` says it does. Idle or steal going down gave shares that added past 1.
+		- Sums of file values saturate, except the TCP opens, which wrap, since they're only compared for a change.
+		- When 2 batteries' pooled sums pass f64, the level is the mean of each one's share.
+		- The battery and AMD faults turned up past the 128 fixed seeds, at 372 and 665, so each test also checks its case by hand, and the quick runs keep it.
+		- `procs` reads only folder owners and `own` only matches a process name, so neither has a fuzz test.
+	- Branch: round-1110b
+	- Test case: `cpu::tests::fuzz_stat_reads_the_all_cpu_line_and_shares_stay_in_range` (df4gj), `load::tests::fuzz_loadavg_gives_a_load_or_none` (df4gk), `mem::tests::fuzz_meminfo_and_arcstats_read_back_and_shares_stay_in_range` (df4gm), `disk::tests::fuzz_stat_reads_sectors_and_rates_stay_finite` (df4gn), `zswap::tests::fuzz_zswap_and_zram_files_read_in_range` (df4gp), `net::tests::fuzz_net_dev_reads_back_and_rates_stay_finite` (df4gq), `net::tests::fuzz_port_no_reads_the_hex_sysfs_writes` (df4gr), `remote::tests::fuzz_snmp_gives_the_tcp_opens_and_connections` (df4gs), `remote::tests::fuzz_tcp_table_gives_only_established_links_on_server_ports` (df4gt), `battery::tests::fuzz_power_supply_files_read_as_one_share_in_range` (df4gv), `temp::tests::fuzz_hwmon_files_read_as_the_hottest_package_split_at_its_limit` (df4gw), `gpu::tests::fuzz_gpu_sysfs_files_read_as_shares_in_range` (df4gx) and `remote::tests::fuzz_a_sharers_proc_files_give_its_display` (df4gy).
+		- Swept: every float parse of `/proc` or `/sys` text in core (load and battery already refused NaN), and every integer sum or product of file values in the readers.
+		- 2026-11-10: `cpu::tests::reads_the_all_cpu_line` (debhp) now checks `total()` is `Some(1000)`, not `1000`, since it returns None past `u64::MAX`.
+	- Closed: 20261110-125328
+
+- Fuzz: a settings file loaded through shcl
+	- ID: 2026111011435771
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261110-114357
+	- Opened by: t00mietum
+	- Parent ID: 2026110310450001
+	- Requirements: Fuzz a settings file as it loads through shcl into the model, with bit flips over a real one. A fault inside shcl gets an upstream draft.
+	- Prereq IDs: 2026111011435200
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A case builds a file the way the window saves one: up to 3 saved themes, a theme pick, changes kept on a theme, and some rows off their defaults, with odd text in the text rows. It goes through shcl, the saved themes, the model and the Look, as the plugin and the window read it.
+		- A whole file reads back as written. A hurt one doesn't panic, the model holds no value its row would refuse, and what was read writes back the same a second time.
+		- A second test flips bits in a saved file, `core/tests/data/plugin-7.shcl`.
+		- The fuzz found no fault in shcl or here, in a 30 s run as well, so there's no upstream draft.
+		- Verified: df4g5 failed with knobs taking a value without checking it, and df4g6 with a cut inside a character in the graph order's read. Both pass now.
+	- Decisions:
+		- `plugin-7.shcl` is a file as the window saves it, with a hand comment and a list added, rather than one off a live panel, since those sit outside the repo. Any saved file can take its place.
+		- Both tests skip Miri, since the spec takes about an hour to parse there.
+	- Branch: round-1110b
+	- Test case: `config::tests::fuzz_settings_files_read_whole_or_drop_lines` (df4g5) and `config::tests::fuzz_bit_flips_in_a_real_settings_file` (df4g6).
+		- Swept: every reader a settings file reaches in core: `config::model_on`, `saved_themes`, `theme_problems`, `spec_with`, `Look::from_model` and `graph_order`.
+	- Closed: 20261110-123109
+
+- CICD gap: Slow leak checks still missing
+	- ID: 2026110310450003
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261103-104500
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- CodeQL from a pinned CLI, run locally, over the Rust and the C++, as a slow leak check. The repo is public on GitHub under the LGPL, so its license allows it. Vendor the crates first, and build from a clean folder so the C++ database isn't empty.
+		- A soak of the settings window, with the heap read at round N and 2N, under heaptrack. The panel item's soak covers only the Rust side.
+	- Decisions:
+		- No `_GLIBCXX_DEBUG` build. Every linked C++ library has to be built with it, and Qt comes prebuilt.
+		- No cross-file analyzer run, since the C++ is one file.
+	- Progress log:
+		- Split into children: the settings window soak 2026111013025758 (Done), and CodeQL 2026111013025770 (Waiting on automated testing).
+	- Test case: its children's: 2026111013025758: `bridge::tests::the_windows_heap_stops_growing_once_its_graphs_are_full` (df4ja), run by the Window-soak step. It fails without the trim in `Live::tick_at`.; 2026111013025770: `codeql_report_fails_what_isnt_suppressed_a_stale_suppression_and_an_empty_database` (df4ks), in `cicd/tests/guards.bash`. It failed with each of its 3 checks taken out. The CodeQL step itself is the rest.
+	- Closed: 20261110-144111
+
+- Slow leak checks: settings window soak
+	- ID: 2026111013025758
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261110-130257
+	- Opened by: t00mietum
+	- Parent ID: 2026110310450003
+	- Requirements: A soak of the settings window, with the heap read at round N and 2N, under heaptrack. A leak check run only with --long, --leakcheck or its own area.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A Window-soak leak check runs tukzmon-settings' window off screen under heaptrack for 1500 rounds: the live graphs read and drawn with the clock 10 minutes on each round, the next tab, a slider step, a color set, and now and then Randomize, the color picker and a save. It reads the heap at round 750 and 1500, and fails past 64 KiB of growth.
+		- It runs only with --long, --leakcheck or the window-soak area, on a quarter of the CPUs, in about 2 minutes. Its report and heaptrack's top peaks go to cicd/artifacts/soak/, rotated, with heaptrack's recording when it fails.
+		- heaptrack is in the image, from the pinned Debian snapshot.
+		- It found the window's live graphs never dropped history past the max age, as the panel does, so a window left open kept every hour it saw. They're trimmed at each tick now.
+		- Verified: the soak passed at 17 KB of growth from round 750 to 1500. Before the trim, and before the pixmap cache was emptied, it failed at 646 KB from round 500 to 1000. With 512 bytes a round kept on purpose it failed, at about 300 KB. The quick gate and Sanitizers passed.
+	- Decisions:
+		- The heap is read in the process with glibc's mallinfo2, so the readings include heaptrack's own tables. heaptrack has no way to mark a round. A run without heaptrack grew the same way, so its tables weren't the growth.
+		- Qt's pixmap cache is emptied before each read. Each Randomize adds pixmaps for new colors, and the cache's own bound made steps that hid a leak's growth.
+		- A length of its own, long, for a leak check outside the default run that doesn't take hours.
+	- Branch: round-1110b
+	- Test case: `bridge::tests::the_windows_heap_stops_growing_once_its_graphs_are_full` (df4ja), run by the Window-soak step. It fails without the trim in `Live::tick_at`.
+		- Swept: every `Live` tick (the window's timer only), and the panel's trim in `save_history`. `graphs::Graphs` trims through the panel, and the profiler and core soak trim or skip as before.
+	- Closed: 20261110-134636
+
+- Slow leak checks: CodeQL
+	- ID: 2026111013025770
+	- Type: Task
+	- Status: Done
+		- Each language's half passed alone. A run of both together is left.
+	- Needs local test suite run?: No
+	- Priority|Severity: Avg
+	- Opened: 20261110-130257
+	- Opened by: t00mietum
+	- Parent ID: 2026110310450003
+	- Requirements: CodeQL from a pinned CLI in the image, run locally over the Rust and the C++, as a leak check run only with --long, --leakcheck or its own area. Vendor the crates first, and build from a clean folder so the C++ database isn't empty.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A CodeQL leak check runs the security and quality queries over the Rust and the C++. It runs only with --long, --leakcheck or the codeql area, on a quarter of the CPUs.
+		- It copies the tree to a clean folder and vendors the crates beside it, outside the source root, so they're read as libraries and not scanned. The C++ database comes from a build of tukzmon-settings into an empty target dir.
+		- CodeQL 2.27.4 is in the image, its Rust and C++ bundles pinned by version and checksum, with the Rust toolchain its extractor runs on.
+		- A finding fails the step unless `cicd/codeql.supp` lets it by, by rule, file and the line's text. So does a suppression that matches nothing, a database with none of our code, and a Rust workspace that won't load.
+		- The SARIF and a report go to cicd/artifacts/codeql/, rotated.
+		- It found one thing, a pointer read in `net.rs` that CodeQL can't tell getifaddrs filled in. It's suppressed, with why.
+		- Verified: in the image, the C++ half passed in 1m 31s with no findings, and the Rust half in 3m 38s at load 25, with the one finding suppressed. The quick gate and Sanitizers passed.
+		- Before the image had the toolchain its Rust extractor runs on, that half loaded no workspace and still made a database, with findings that were noise. The step fails on the extractor's errors now.
+		- Verified: 2026-11-10, the gate step's `--backlog-run-quick codeql` passed in 4m 32s: rust.sarif 26158 lines of ours, 1 finding, 1 suppressed; cpp.sarif 2924 lines, 0 findings (codeql_20261110-224047).
+	- Decisions:
+		- The Rust and C++ bundles, unpacked over each other, rather than the all-language bundle. They're 263 MB to fetch against 559, and their shared files are the same.
+		- Every finding fails, notes included, as clippy's warnings do. There's only the one, so a looser line wasn't needed.
+		- A suppression matches the line's text rather than its number, so it lasts through edits above it.
+		- The image grows from 3.9 GB to 5.65 GB.
+	- Branch: round-1110b
+	- Test case: `codeql_report_fails_what_isnt_suppressed_a_stale_suppression_and_an_empty_database` (df4ks), in `cicd/tests/guards.bash`. It failed with each of its 3 checks taken out. The CodeQL step itself is the rest.
+	- Acceptance signoff: Self-closed 20261110: the CodeQL step passed with both languages.
+	- Closed: 20261110-224100
 
 - Better antialiasing, so sharp spikes don't pulse in width
 	- ID: 2026110920595602
@@ -6105,6 +6076,35 @@ Sorted per the notes in [Template](#template).
 	- Branch: demo
 	- Test case: None, since it's a recording. The gif and the video were checked frame by frame.
 	- Closed: 20261106-182817
+
+- A bucket cut by a sample's edge tints a narrow column
+	- ID: 2026111011172485
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261110-111724
+	- Opened by:
+	- Related IDs: 2026111010281710
+	- Incorrect behavior: A column no wider than a sample, with a sample's edge inside one of its end buckets, is drawn up to a twentieth short of full strength, as a faint tint, though all of it is one sample.
+	- Possible cause: The end bucket's mean mixes the 2 samples, and the column takes it as one of them. Reading which side of the bucket each sample is on, from the buckets beside it, would leave only the part that's in.
+	- Reproduced: Yes, by df4e9 and df3e2 with the fix taken out.
+	- Actual cause: As the possible cause. The end bucket's mean also went into the column's mean.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- `History::span_for` splits an end bucket that holds 2 samples at the edge between them, where buckets are no longer than half a sample. Its min and max are the 2 samples, the bucket beside it says which is older, and its sum says where the edge is. Only the part inside the span goes into the mean, and `Span::ends` takes the values at the span's own ends. `design.md` Drawing has it.
+		- Profiler, load 12 to 20 on 32 cores, 2 runs each: 661 and 863 us user a tick before, 822 and 717 after, so no change past the noise. History lookups were 35% and 37% of the tick before, 35% and 33% after.
+		- Verified: df4e9 and df3e2's exact check failed before the change and pass after. df4d7, df4dt, df3s6, the quick gate and Sanitizers passed.
+	- Decisions:
+		- The split reads the bucket's own min and max, and a neighbor only for which side each is on, so a neighbor that's a gap or missing on one side still works from the other. With none, the mean stands as before.
+		- It applies to every column's end buckets, wider ones too, so a column's mean is the same however it's read. `History::span`, with no sample, is unchanged, so the hover tip reads as before.
+		- A bucket from history sampled faster than the graph is now, which can hold more than 2 samples, is split as if it held its min and max. Only its part of one column can be off, as before.
+	- Actual fix: `Tier::samples_in` and the end bucket loop in `History::span_for`, in `core/src/history.rs`.
+	- Branch: round-1110b
+	- Test case: `render::tests::a_column_that_is_one_sample_is_drawn_solid` (df4e9).
+		- 2026-11-10: df3e2 `the_right_column_fills_as_the_sample_slides_in_and_the_tip_follows` checks a filled row is exactly the full color again, not within 8 steps of it.
+		- Swept: every reader of `Span::ends` (only `Frame::draw_in`), every `span_for` caller (`Frame::draw_in`, and `span` with sample 0), and the other end bucket readers, `tops_over` and `densest`, which read maxes for the spike, not means.
+	- Closed: 20261110-114108
 
 - A greyed slider still draws its groove in the accent color
 	- ID: 2026110923034356
