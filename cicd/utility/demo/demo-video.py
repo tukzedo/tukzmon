@@ -330,13 +330,14 @@ def mounts_under(path: Path) -> list[tuple[Path, str]]:
 
 def safe_rmtree(path: Path) -> None:
     # Only a folder this run made: real, under <temp>/tukzmon/, below the
-    # project folder itself, and holding the run's marker file.
+    # project folder itself, and holding the run's marker file. The temp
+    # root's name needn't be tmp, as with fSafeRm, since GitHub's is _temp.
     proj = project_temp()
     if path.is_symlink() or not path.is_dir():
         log(f"WARNING: not removing {path}: not a plain folder")
         return
     real = path.resolve()
-    if not real.is_relative_to(proj) or real == proj or "tmp" not in real.parts:
+    if not real.is_relative_to(proj) or real == proj:
         log(f"WARNING: not removing {path}: outside {proj}")
         return
     if not (real / ".demo-run").is_file():
@@ -1696,3 +1697,5 @@ if __name__ == "__main__":
 ##		- 2026-11-10: Each ffmpeg gets --jobs threads, a quarter of the CPUs by
 ##		  default, and a display whose socket answers counts as taken, lock
 ##		  file or not.
+##		- 2026-11-10: It removes its own run folder under a temp root not named
+##		  tmp too, such as GitHub's _temp.

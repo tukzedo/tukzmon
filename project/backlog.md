@@ -122,7 +122,8 @@ Sorted per the notes in [Template](#template).
 - df336 fails on GitHub's runner: a demo stopped by TERM leaves run.pid and .demo-run
 	- ID: 2026110919021646
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting on automated testing
+	- Needs external testing: one merge-gate workflow run on GitHub's runner, for df336.
 	- Priority|Severity: Medium
 	- Opened: 20261109-190216
 	- Opened by:
@@ -131,10 +132,20 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: The Tests step fails on df336 with "TERM gave exit 143, folder run.pid .demo-run". The exit is right, but the run folder is left.
 	- Expected behavior: The demo's cleanup removes its run folder after TERM, as on b23.
 	- Reproduced: Yes, in 4 of 4 hosted runs on 2026-11-10: 3 on round-1109b at c66f3d9 (42745146916, 42745155762, 42745165237) and 1 on dev at 6022038 (42746194920).
+	- Actual cause: The demo's `safe_rmtree` wanted a folder named tmp in the path, and the workflow's `HOST_TEMP` is `runner.temp`, which is `.../_temp`. The folder was left with a warning the test doesn't show. b23's temp root is under a `tmp` folder, so it never came up there.
 	- Estimated effort: Low
+	- Actual effort: Low
 	- Progress log:
 		- Filed from the round-1109b test batch. The round didn't change the demo's main or its cleanup.
+		- Verified: df336 with its temp root bound at `/srv`, so no part of the path is named tmp, failed on the old script with the hosted run's message, and passes now.
+		- Verified: the quick gate's format, build, lint and test areas passed, then Sanitizers.
+	- Decisions:
+		- `safe_rmtree` takes a folder under our own temp root whatever that root is named, as the pipeline's `fSafeRm` does. It still needs the run's marker, a real path below the project folder, and no mount left inside.
+	- Actual fix: dropped the tmp name check from `safe_rmtree`.
 	- Origin: round-1109, with df336. It passes on b23, in the container too.
+	- Branch: round-1110
+	- Test case: df336
+		- Swept: every removal in the repo's scripts. `fSafeRm` already takes a path under its own temp root, and `Rec.cleanup` and `main` both go through `safe_rmtree`.
 
 - The 2 GPU graphs aren't available with integrated Intel graphics
 	- ID: 2026110920595600
