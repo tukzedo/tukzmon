@@ -74,7 +74,7 @@ The first release is 1.0.0-beta.1. Although beta, it's very solid. Packages for 
 
 - Hover over a graph to see its values at that point, and how long ago that was.
 
-- Graphs slide along smoothly between samples, rather than jumping a step at a time. It's on by default wiht 8 or more CPUs.
+- Graphs slide along smoothly between samples, rather than jumping a step at a time. It's on by default with 8 or more CPUs.
 
 - In a remote desktop session, such as RDP or a NoMachine virtual desktop, graphs read less often and don't slide, so less goes over the network. Your own settings are kept for a local session.
 
