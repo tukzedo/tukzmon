@@ -17,7 +17,9 @@ use std::time::{Duration, Instant, SystemTime};
 use tukzmon_core::config::{self, Look};
 use tukzmon_core::graphs::Graphs;
 use tukzmon_core::keep;
+use tukzmon_core::remote::{Session, Watch};
 
+mod lock;
 mod sys;
 #[allow(clippy::wildcard_imports, reason = "sys is only the C declarations")]
 use sys::*;
@@ -48,6 +50,13 @@ struct Plugin {
 	timer: c_uint,
 	/// The area's tick callback while a graph slides or eases, or 0.
 	frame: c_uint,
+	/// The timer that stands in for the tick callback where the frame clock
+	/// has no screen timing, or 0.
+	pacer: c_uint,
+	/// When the pacer's next draw is due.
+	paced_due: Instant,
+	/// The area's monitor's rate in mHz, and when it was read.
+	monitor: Option<(c_int, Instant)>,
 	config: PathBuf,
 	config_time: Option<(SystemTime, u64)>,
 	settings: Option<SettingsWindow>,
@@ -68,6 +77,12 @@ struct Plugin {
 	trouble: Option<String>,
 	/// Why the settings file can't be read, shown in the tip until it can.
 	unreadable: Option<String>,
+	/// For [`Look::session`].
+	session: Session,
+	/// Where [`Self::session`] comes from, looked at again each tick.
+	watch: Watch,
+	/// While the screen is locked or blanked, the graphs read but don't draw.
+	locks: lock::Locks,
 	/// Why a panic stopped this item. It draws nothing and does nothing after.
 	stopped: Option<String>,
 }
@@ -156,11 +171,11 @@ fn guarded<R>(
 
 /// The look in the settings file, or None while it can't be read, which
 /// is logged once per error and kept in `unreadable` for the tip.
-fn read_look(path: &Path, unreadable: &mut Option<String>) -> Option<Look> {
+fn read_look(path: &Path, unreadable: &mut Option<String>, session: Session) -> Option<Look> {
 	match Look::load(path) {
 		Ok(look) => {
 			*unreadable = None;
-			Some(look)
+			Some(Look { session, ..look })
 		}
 		Err(e) => {
 			let what = format!("can't read {}: {e}", path.display());
@@ -198,6 +213,84 @@ impl Plugin {
 	fn start_timer(&mut self, ms: u32) {
 		// SAFETY: self lives in a Box until free-data, which stops this timer.
 		self.timer = unsafe { g_timeout_add(ms, tick, std::ptr::from_mut(self).cast()) };
+	}
+
+	fn start_frames(&mut self) {
+		// SAFETY: as start_timer, and quiet stops this one too.
+		self.frame = unsafe {
+			gtk_widget_add_tick_callback(
+				self.area,
+				frame,
+				std::ptr::from_mut(self).cast(),
+				std::ptr::null(),
+			)
+		};
+	}
+
+	/// The next draw a period after `from`, or after now where that's past,
+	/// so the draws keep the screen's rate rather than drift by the delay of
+	/// each.
+	fn start_pacer(&mut self, hz: f64, from: Instant) {
+		let period = Duration::from_secs_f64(f64::from(tukzmon_core::frames_apart(hz)) / hz);
+		let now = Instant::now();
+		self.paced_due = from + period;
+		if self.paced_due <= now {
+			self.paced_due = now + period;
+		}
+		let ms = (self.paced_due.saturating_duration_since(now).as_secs_f64() * 1000.0).round();
+		// SAFETY: as start_timer, and quiet stops this one too.
+		self.pacer = unsafe { g_timeout_add(ms as c_uint, paced, std::ptr::from_mut(self).cast()) };
+	}
+
+	/// [`pacing`] for the area's screen.
+	///
+	/// # Safety
+	///
+	/// The area is live, and clock is its frame clock, or null.
+	unsafe fn screen_pacing(&mut self, clock: *mut c_void) -> Pacing {
+		let (mut interval, mut presented) = (0_i64, 0_i64);
+		if !clock.is_null() {
+			// SAFETY: per the caller.
+			unsafe {
+				let at = gdk_frame_clock_get_frame_time(clock);
+				gdk_frame_clock_get_refresh_info(clock, at, &raw mut interval, &raw mut presented);
+			}
+		}
+		pacing(interval, presented, || {
+			// SAFETY: per the caller.
+			unsafe { self.monitor_mhz() }
+		})
+	}
+
+	/// Read again at most once a second, since finding the monitor asks the
+	/// X server where the window is and waits for the answer.
+	///
+	/// # Safety
+	///
+	/// The area is live. Unrealized, it has no window, and the rate is 0.
+	unsafe fn monitor_mhz(&mut self) -> c_int {
+		if let Some((mhz, at)) = self.monitor
+			&& at.elapsed() < Duration::from_secs(1)
+		{
+			return mhz;
+		}
+		// SAFETY: per the caller. A window has a monitor, unless it's off
+		// every screen.
+		let mhz = unsafe {
+			let window = gtk_widget_get_window(self.area);
+			let monitor = if window.is_null() {
+				std::ptr::null_mut()
+			} else {
+				gdk_display_get_monitor_at_window(gtk_widget_get_display(self.area), window)
+			};
+			if monitor.is_null() {
+				0
+			} else {
+				gdk_monitor_get_refresh_rate(monitor)
+			}
+		};
+		self.monitor = Some((mhz, Instant::now()));
+		mhz
 	}
 
 	/// Logged, and kept for the tip, since a restarted panel's stderr is
@@ -257,10 +350,16 @@ impl Plugin {
 			unsafe { gtk_widget_remove_tick_callback(self.area, self.frame) };
 			self.frame = 0;
 		}
+		if self.pacer != 0 {
+			// SAFETY: as the timer.
+			unsafe { g_source_remove(self.pacer) };
+			self.pacer = 0;
+		}
 		for w in self.watches.drain(..) {
 			// SAFETY: each is from watch, and isn't used again.
 			unsafe { unwatch(w) };
 		}
+		self.locks.stop();
 	}
 
 	/// After a panic, since what it was changing may be half done. The
@@ -280,17 +379,18 @@ impl Plugin {
 	#[must_use]
 	fn tick(&mut self) -> Option<*mut c_void> {
 		self.reap_settings();
+		self.follow_session();
 		self.reload_if_changed();
 		self.reset_if_asked();
 		let next = self.graphs.tick();
 		if self.graphs.look().keep && self.saved_at.elapsed() >= SAVE_EVERY {
 			self.save_history();
 		}
-		// SAFETY: area is a child of the live plugin.
-		unsafe { gtk_widget_queue_draw(self.area) };
+		self.locks.draw();
 		self.start_timer(next);
 		// a still pointer's time moves on too
-		(self.graphs.hovered() && self.moved_at.elapsed() >= TIP_SHOWN).then_some(self.area)
+		(!self.locks.hidden() && self.graphs.hovered() && self.moved_at.elapsed() >= TIP_SHOWN)
+			.then_some(self.area)
 	}
 
 	/// Forgets a settings window that closed, and says so in the tip when it
@@ -358,10 +458,27 @@ impl Plugin {
 			return;
 		}
 		// the time stays old until it reads, since a chmod back doesn't move it
-		let Some(look) = read_look(&self.config, &mut self.unreadable) else {
+		let Some(look) = read_look(&self.config, &mut self.unreadable, self.session) else {
 			return;
 		};
 		self.config_time = t;
+		self.show(look);
+	}
+
+	/// A remote viewer that joins or leaves calms the graphs or lets them go.
+	fn follow_session(&mut self) {
+		let session = self.watch.session(Instant::now());
+		if session == self.session {
+			return;
+		}
+		self.session = session;
+		self.show(Look {
+			session,
+			..self.graphs.look().clone()
+		});
+	}
+
+	fn show(&mut self, look: Look) {
 		if look != *self.graphs.look() {
 			let widths: Vec<u32> = self.graphs.widths().collect();
 			// the margins change the size too
@@ -559,17 +676,37 @@ fn draw_graphs(p: &mut Plugin, widget: *mut c_void, cr: *mut c_void) -> Gboolean
 		cairo_set_source_surface(cr, surf, 0.0, 0.0);
 		cairo_paint(cr);
 		cairo_surface_destroy(surf);
-		if p.frame == 0 && p.graphs.moving() {
-			// SAFETY: as start_timer, and quiet stops this one too.
-			p.frame = gtk_widget_add_tick_callback(
-				p.area,
-				frame,
-				std::ptr::from_mut(p).cast(),
-				std::ptr::null(),
-			);
+		if p.frame == 0 && p.pacer == 0 && p.graphs.moving() && !p.locks.hidden() {
+			p.start_frames();
 		}
 	}
 	1
+}
+
+/// How a moving graph's draws keep time with the screen.
+#[derive(Debug, PartialEq)]
+enum Pacing {
+	/// On the frame clock's ticks, from a screen of this many Hz.
+	Frames(f64),
+	/// On a timer, for a screen of this many Hz.
+	Timer(f64),
+}
+
+/// GTK's frame clock knows the screen's frames only from the window
+/// manager's frame timings, the time a frame was `presented` among them.
+/// Without them, as under xfwm4, it says 60 Hz and ticks at that on its own,
+/// so the draws go by a timer at the monitor's rate, in mHz, or 60 Hz where
+/// that's unknown too. See design.md Drawing.
+fn pacing(interval_us: i64, presented_us: i64, monitor_mhz: impl FnOnce() -> c_int) -> Pacing {
+	if presented_us != 0 && interval_us > 0 {
+		return Pacing::Frames(1e6 / interval_us as f64);
+	}
+	let mhz = monitor_mhz();
+	Pacing::Timer(if mhz > 0 {
+		f64::from(mhz) / 1000.0
+	} else {
+		60.0
+	})
 }
 
 // On the screen's own frames, so a slide doesn't beat against them.
@@ -578,27 +715,54 @@ extern "C" fn frame(_widget: *mut c_void, clock: *mut c_void, data: *mut c_void)
 		data,
 		|_| 0,
 		|p| {
-			if !p.graphs.moving() {
+			if !p.graphs.moving() || p.locks.hidden() {
 				p.frame = 0;
 				return 0;
 			}
-			let (mut interval, mut presented) = (0_i64, 0_i64);
-			// SAFETY: GTK hands a tick callback its widget's live frame clock.
-			let count = unsafe {
-				let at = gdk_frame_clock_get_frame_time(clock);
-				gdk_frame_clock_get_refresh_info(clock, at, &raw mut interval, &raw mut presented);
-				gdk_frame_clock_get_frame_counter(clock)
-			};
-			let hz = if interval > 0 {
-				1e6 / interval as f64
-			} else {
-				60.0
-			};
-			if count % i64::from(tukzmon_core::frames_apart(hz)) == 0 {
-				// SAFETY: area is a child of the live plugin.
-				unsafe { gtk_widget_queue_draw(p.area) };
+			// SAFETY: GTK hands a tick callback its widget's live frame
+			// clock, and the area is realized, since it drew.
+			match unsafe { p.screen_pacing(clock) } {
+				Pacing::Frames(hz) => {
+					// SAFETY: as above, and area is a child of the live plugin.
+					unsafe {
+						let count = gdk_frame_clock_get_frame_counter(clock);
+						if count % i64::from(tukzmon_core::frames_apart(hz)) == 0 {
+							gtk_widget_queue_draw(p.area);
+						}
+					}
+					1
+				}
+				Pacing::Timer(hz) => {
+					p.frame = 0;
+					p.start_pacer(hz, Instant::now());
+					0
+				}
 			}
-			1
+		},
+	)
+}
+
+// Stands in for the frame clock's ticks where it has no screen timing, and
+// hands back to them once it has.
+extern "C" fn paced(data: *mut c_void) -> Gboolean {
+	guarded(
+		data,
+		|_| 0,
+		|p| {
+			p.pacer = 0;
+			if !p.graphs.moving() || p.locks.hidden() {
+				return 0;
+			}
+			// SAFETY: area is a child of the live plugin.
+			let pace = unsafe {
+				gtk_widget_queue_draw(p.area);
+				p.screen_pacing(gtk_widget_get_frame_clock(p.area))
+			};
+			match pace {
+				Pacing::Frames(_) => p.start_frames(),
+				Pacing::Timer(hz) => p.start_pacer(hz, p.paced_due),
+			}
+			0
 		},
 	)
 }
@@ -836,7 +1000,9 @@ impl Plugin {
 			complain(format_args!("can't make {}: {e}", data.display()));
 		}
 		let mut unreadable = None;
-		let look = read_look(&config, &mut unreadable);
+		let mut watch = Watch::start();
+		let session = watch.session(Instant::now());
+		let look = read_look(&config, &mut unreadable, session);
 		// a time no file has, so each tick tries again, even once it's gone
 		let config_time = match look {
 			Some(_) => modified(&config),
@@ -845,9 +1011,15 @@ impl Plugin {
 		let mut p = Plugin {
 			xpp: plugin,
 			area: std::ptr::null_mut(),
-			graphs: Graphs::new(look.unwrap_or_default()),
+			graphs: Graphs::new(look.unwrap_or_else(|| Look {
+				session,
+				..Look::default()
+			})),
 			timer: 0,
 			frame: 0,
+			pacer: 0,
+			paced_due: Instant::now(),
+			monitor: None,
 			config_time,
 			config,
 			settings: None,
@@ -860,6 +1032,9 @@ impl Plugin {
 			removed: false,
 			trouble: None,
 			unreadable,
+			session,
+			watch,
+			locks: lock::Locks::none(),
 			stopped: None,
 		};
 		if p.graphs.look().keep {
@@ -922,6 +1097,7 @@ impl Plugin {
 			let mut watches = watch_settings(&self.config, changed, data);
 			watches.push(watch(&mark, changed, data));
 			self.watches = watches;
+			self.locks = lock::Locks::start(self.area);
 		}
 		let first = self.graphs.tick();
 		self.fit();
@@ -1031,6 +1207,9 @@ mod tests {
 			graphs: tukzmon_core::graphs::Graphs::new(look),
 			timer: 0,
 			frame: 0,
+			pacer: 0,
+			paced_due: Instant::now(),
+			monitor: None,
 			config: config.to_path_buf(),
 			config_time: None,
 			settings: None,
@@ -1043,6 +1222,9 @@ mod tests {
 			removed: false,
 			trouble: None,
 			unreadable: None,
+			session: tukzmon_core::remote::Session::Local,
+			watch: tukzmon_core::remote::Watch::fixed(tukzmon_core::remote::Session::Local),
+			locks: super::lock::Locks::none(),
 			stopped: None,
 		});
 		Box::into_raw(p).cast()
@@ -1137,6 +1319,7 @@ mod tests {
 			super::frame(std::ptr::null_mut(), std::ptr::null_mut(), data),
 			0
 		);
+		assert_eq!(super::paced(data), 0);
 		// a stopped item's history isn't saved
 		super::free_data(std::ptr::null_mut(), data);
 		let saved = hist.exists();
@@ -1147,13 +1330,26 @@ mod tests {
 		assert!(!saved);
 	}
 
+	// Test ID: df3mf
+	#[test]
+	fn without_frame_timings_the_draws_go_by_the_monitors_rate() {
+		use super::{Pacing, pacing};
+		let unasked = || -> c_int { panic!("the clock had the rate") };
+		assert_eq!(pacing(10_000, 123, unasked), Pacing::Frames(100.0));
+		// GTK's own 60 Hz, with nothing presented
+		assert_eq!(pacing(16_667, 0, || 99_990), Pacing::Timer(99.99));
+		assert_eq!(pacing(16_667, 0, || 0), Pacing::Timer(60.0));
+		assert_eq!(pacing(0, 0, || 144_000), Pacing::Timer(144.0));
+	}
+
 	// Test ID: dekpx
 	#[test]
 	fn every_handler_the_panel_calls_catches_a_panic() {
-		let text = include_str!("lib.rs");
-		let code = text.split("#[cfg(test)]\nmod tests").next().unwrap();
 		let mut seen = Vec::new();
 		let mut bare = Vec::new();
+		let code = [include_str!("lib.rs"), include_str!("lock.rs")]
+			.map(|text| text.split("#[cfg(test)]\nmod tests").next().unwrap())
+			.concat();
 		for part in code.split("extern \"C\" fn ").skip(1) {
 			let name = part.split('(').next().unwrap();
 			// only C calls, before anything of ours runs

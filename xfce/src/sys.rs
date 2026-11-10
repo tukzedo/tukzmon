@@ -21,6 +21,23 @@ pub const LOG_WARNING: c_int = 4;
 pub const LOG_USER: c_int = 1 << 3;
 pub const SIGUSR1: c_int = 10;
 pub const SIGTERM: c_int = 15;
+pub const G_BUS_TYPE_SYSTEM: c_int = 1;
+pub const G_BUS_TYPE_SESSION: c_int = 2;
+pub const G_DBUS_CALL_FLAGS_NO_AUTO_START: c_uint = 1;
+
+/// `GDBusSignalCallback`: connection, sender, path, interface, signal,
+/// parameters, data.
+pub type SignalFn = extern "C" fn(
+	*mut c_void,
+	*const c_char,
+	*const c_char,
+	*const c_char,
+	*const c_char,
+	*mut c_void,
+	*mut c_void,
+);
+/// `GAsyncReadyCallback`: source, result, data.
+pub type ReadyFn = extern "C" fn(*mut c_void, *mut c_void, *mut c_void);
 
 #[repr(C)]
 #[allow(clippy::struct_field_names, reason = "glibc's Dl_info, as named there")]
@@ -85,6 +102,109 @@ unsafe extern "C" {
 	pub fn g_file_monitor_cancel(monitor: *mut c_void) -> Gboolean;
 	#[cfg(test)]
 	pub fn g_main_context_iteration(context: *mut c_void, may_block: Gboolean) -> Gboolean;
+	#[cfg(test)]
+	pub fn g_main_context_new() -> *mut c_void;
+	#[cfg(test)]
+	pub fn g_main_context_push_thread_default(context: *mut c_void);
+	#[cfg(test)]
+	pub fn g_main_context_pop_thread_default(context: *mut c_void);
+	#[cfg(test)]
+	pub fn g_main_context_unref(context: *mut c_void);
+
+	pub fn g_error_free(error: *mut c_void);
+	pub fn g_bus_get_sync(
+		bus_type: c_int,
+		cancellable: *mut c_void,
+		error: *mut *mut c_void,
+	) -> *mut c_void;
+	pub fn g_dbus_connection_signal_subscribe(
+		connection: *mut c_void,
+		sender: *const c_char,
+		interface_name: *const c_char,
+		member: *const c_char,
+		object_path: *const c_char,
+		arg0: *const c_char,
+		flags: c_uint,
+		callback: SignalFn,
+		data: *mut c_void,
+		data_free: extern "C" fn(*mut c_void),
+	) -> c_uint;
+	pub fn g_dbus_connection_signal_unsubscribe(connection: *mut c_void, id: c_uint);
+	pub fn g_dbus_connection_call(
+		connection: *mut c_void,
+		bus_name: *const c_char,
+		object_path: *const c_char,
+		interface_name: *const c_char,
+		method_name: *const c_char,
+		parameters: *mut c_void,
+		reply_type: *const c_void,
+		flags: c_uint,
+		timeout_ms: c_int,
+		cancellable: *mut c_void,
+		callback: ReadyFn,
+		data: *mut c_void,
+	);
+	pub fn g_dbus_connection_call_finish(
+		connection: *mut c_void,
+		res: *mut c_void,
+		error: *mut *mut c_void,
+	) -> *mut c_void;
+	#[cfg(test)]
+	pub fn g_dbus_connection_new_for_address_sync(
+		address: *const c_char,
+		flags: c_uint,
+		observer: *mut c_void,
+		cancellable: *mut c_void,
+		error: *mut *mut c_void,
+	) -> *mut c_void;
+	#[cfg(test)]
+	pub fn g_dbus_connection_call_sync(
+		connection: *mut c_void,
+		bus_name: *const c_char,
+		object_path: *const c_char,
+		interface_name: *const c_char,
+		method_name: *const c_char,
+		parameters: *mut c_void,
+		reply_type: *const c_void,
+		flags: c_uint,
+		timeout_ms: c_int,
+		cancellable: *mut c_void,
+		error: *mut *mut c_void,
+	) -> *mut c_void;
+	#[cfg(test)]
+	pub fn g_dbus_connection_emit_signal(
+		connection: *mut c_void,
+		destination: *const c_char,
+		object_path: *const c_char,
+		interface_name: *const c_char,
+		signal_name: *const c_char,
+		parameters: *mut c_void,
+		error: *mut *mut c_void,
+	) -> Gboolean;
+	#[cfg(test)]
+	pub fn g_dbus_connection_close_sync(
+		connection: *mut c_void,
+		cancellable: *mut c_void,
+		error: *mut *mut c_void,
+	) -> Gboolean;
+
+	pub fn g_variant_new_string(s: *const c_char) -> *mut c_void;
+	pub fn g_variant_new_tuple(children: *const *mut c_void, n: usize) -> *mut c_void;
+	pub fn g_variant_get_type_string(v: *mut c_void) -> *const c_char;
+	pub fn g_variant_get_boolean(v: *mut c_void) -> Gboolean;
+	pub fn g_variant_get_string(v: *mut c_void, length: *mut usize) -> *const c_char;
+	pub fn g_variant_get_variant(v: *mut c_void) -> *mut c_void;
+	pub fn g_variant_get_child_value(v: *mut c_void, index: usize) -> *mut c_void;
+	pub fn g_variant_lookup_value(
+		dict: *mut c_void,
+		key: *const c_char,
+		expected_type: *const c_char,
+	) -> *mut c_void;
+	pub fn g_variant_unref(v: *mut c_void);
+	#[cfg(test)]
+	pub fn g_variant_new_parsed(format: *const c_char, ...) -> *mut c_void;
+	#[cfg(test)]
+	pub fn g_variant_ref_sink(v: *mut c_void) -> *mut c_void;
 
 	pub fn gtk_drawing_area_new() -> *mut c_void;
 	pub fn gtk_container_add(container: *mut c_void, widget: *mut c_void);
@@ -106,6 +226,14 @@ unsafe extern "C" {
 		refresh_interval: *mut i64,
 		presentation_time: *mut i64,
 	);
+	pub fn gtk_widget_get_frame_clock(widget: *mut c_void) -> *mut c_void;
+	pub fn gtk_widget_get_display(widget: *mut c_void) -> *mut c_void;
+	pub fn gtk_widget_get_window(widget: *mut c_void) -> *mut c_void;
+	pub fn gdk_display_get_monitor_at_window(
+		display: *mut c_void,
+		window: *mut c_void,
+	) -> *mut c_void;
+	pub fn gdk_monitor_get_refresh_rate(monitor: *mut c_void) -> c_int;
 	pub fn gtk_widget_get_allocated_width(widget: *mut c_void) -> c_int;
 	pub fn gtk_widget_get_allocated_height(widget: *mut c_void) -> c_int;
 	pub fn gtk_widget_get_scale_factor(widget: *mut c_void) -> c_int;

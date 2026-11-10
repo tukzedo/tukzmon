@@ -275,6 +275,8 @@ pub struct Frame<'a, const N: usize> {
 	pub axis: &'a dyn Ages,
 	/// Time at the right edge.
 	pub now: f64,
+	/// Seconds between samples.
+	pub sample: f64,
 	/// The settings it draws with.
 	pub look: &'a Look,
 	/// Its colors.
@@ -291,6 +293,7 @@ impl<const N: usize> std::fmt::Debug for Frame<'_, N> {
 		f.debug_struct("Frame")
 			.field("hist", &self.hist)
 			.field("now", &self.now)
+			.field("sample", &self.sample)
 			.field("look", &self.look)
 			.field("paint", &self.paint)
 			.field("outline", &self.outline)
@@ -396,9 +399,9 @@ impl<const N: usize> Frame<'_, N> {
 			let u_new = (plot_w - cx - 1) as f64 / plot_w as f64;
 			let b = self.now - self.axis.age(u_new);
 			let a = std::mem::replace(&mut a, b);
-			let span = self.hist.span(a, b);
+			let span = self.hist.span_for(a, b, self.sample);
 			(span.covered >= MIN_COVER)
-				.then(|| emphasis.of(&span.mean, &span.max, b - a))
+				.then(|| emphasis.of(&span.mean, &span.spike, b - a))
 				// else NaN fills the column, and inf flattens every other one
 				.filter(|v| v.iter().all(|x| x.is_finite()))
 		}));
@@ -534,6 +537,7 @@ mod tests {
 			hist: h,
 			axis,
 			now: h.last().unwrap_or(0.0),
+			sample: 1.0,
 			look: &l,
 			paint: Paint::Stack(&COLORS),
 			outline: OUTLINE,
@@ -671,6 +675,7 @@ mod tests {
 				hist: &h,
 				axis: &axis,
 				now: 120.0,
+				sample: 1.0,
 				look: &l,
 				paint: p,
 				outline: OUTLINE,
@@ -702,6 +707,7 @@ mod tests {
 			hist: &full,
 			axis: &axis,
 			now: 120.0,
+			sample: 1.0,
 			look: &l,
 			paint: Paint::Gradient([LO, MID, HI]),
 			outline: OUTLINE,
@@ -742,6 +748,7 @@ mod tests {
 				hist,
 				axis: &axis,
 				now: 120.0,
+				sample: 1.0,
 				look: &l,
 				paint,
 				outline: OUTLINE,
@@ -786,6 +793,7 @@ mod tests {
 			hist: &gap,
 			axis: &Axis::linear(120.0),
 			now: 120.0,
+			sample: 1.0,
 			look: &l,
 			paint: Paint::Stack(&COLORS),
 			outline: OUTLINE,
@@ -814,6 +822,7 @@ mod tests {
 			hist: &h,
 			axis: &Axis::log(Curve::FixedA, 10.0),
 			now: 10.0,
+			sample: 1.0,
 			look: &l,
 			paint: Paint::Stack(&COLORS),
 			outline: OUTLINE,
@@ -864,6 +873,7 @@ mod tests {
 				hist: &h,
 				axis: &axis,
 				now: h.last().unwrap_or(0.0),
+				sample: 1.0,
 				look: &l,
 				paint: Paint::Stack(&COLORS),
 				outline: OUTLINE,
@@ -906,6 +916,7 @@ mod tests {
 				hist: &h,
 				axis: &axis,
 				now: h.last().unwrap_or(0.0),
+				sample: 1.0,
 				look: &l,
 				paint: Paint::Stack(&COLORS),
 				outline: OUTLINE,
@@ -932,6 +943,7 @@ mod tests {
 				hist: h,
 				axis: &axis,
 				now: h.last().unwrap_or(0.0),
+				sample: 1.0,
 				look: &l,
 				paint: Paint::Stack(&COLORS),
 				outline: OUTLINE,
@@ -977,6 +989,7 @@ mod tests {
 			hist: &h,
 			axis: &axis,
 			now: h.last().unwrap_or(0.0),
+			sample: 1.0,
 			look: &l,
 			paint: Paint::Stack(&COLORS),
 			outline: OUTLINE,
@@ -1008,6 +1021,7 @@ mod tests {
 			hist: &h,
 			axis: &axis,
 			now: 120.0,
+			sample: 1.0,
 			look: &l,
 			paint,
 			outline: OUTLINE,
@@ -1041,5 +1055,59 @@ mod tests {
 		frame(gradient).draw_to(&mut px, 40, 20, 1, None, &mut scratch);
 		frame(Paint::Stack(&COLORS)).draw_to(&mut px, 30, 15, 1, None, &mut scratch);
 		assert_eq!(at(&scratch), was);
+	}
+
+	// Test ID: df3s6
+	#[test]
+	fn a_spike_slides_across_columns_without_jumping_in_width() {
+		// one sample of 0.9 over 0.1, off the buckets' edges, on columns of
+		// 1 s and of 10 s
+		let mut h = History::<2>::default();
+		for t in 0..300 {
+			let v = if t == 150 { 0.9 } else { 0.1 };
+			h.add(f64::from(t) + 0.1, f64::from(t) + 1.1, &[v, 0.0]);
+		}
+		let l = look();
+		for (secs, plot_w) in [(50.0, 50), (150.0, 15)] {
+			let axis = Axis::linear(secs);
+			let (w, ht) = (plot_w + 2, 102);
+			let column = secs / plot_w as f64;
+			// red per column, in plot heights, as the graph slides a column
+			let inks: Vec<Vec<f32>> = (0..=20)
+				.map(|step| {
+					let f = Frame {
+						hist: &h,
+						axis: &axis,
+						now: 180.0 + f64::from(step) * column / 20.0,
+						sample: 1.0,
+						look: &l,
+						paint: Paint::Stack(&COLORS),
+						outline: OUTLINE,
+						vertical: Vertical::Linear,
+					};
+					let mut px = Vec::new();
+					f.draw(&mut px, w, ht, 1);
+					(1..w - 1)
+						.map(|x| {
+							(1..ht - 1)
+								.map(|r| ((px[r * w + x] >> 16) & 0xff) as f32 / 255.0)
+								.sum::<f32>() / 100.0
+						})
+						.collect()
+				})
+				.collect();
+			let totals: Vec<f32> = inks.iter().map(|cols| cols.iter().sum()).collect();
+			let (lo, hi) = totals
+				.iter()
+				.fold((f32::MAX, f32::MIN), |(lo, hi), &x| (lo.min(x), hi.max(x)));
+			assert!(hi - lo < 0.05, "{secs}: {totals:?}");
+			let tallest = inks.iter().flatten().fold(0.0f32, |a, &b| a.max(b));
+			if column > 1.0 {
+				// still lifted toward its peak where it's thinner than a column
+				assert!(tallest > 0.6, "{tallest}");
+			} else {
+				assert!((tallest - 0.9).abs() < 0.02, "{tallest}");
+			}
+		}
 	}
 }

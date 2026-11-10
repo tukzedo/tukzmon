@@ -166,6 +166,20 @@ constexpr int BUTTON_PAD_DOWN = 8;
 // slider.
 class BoxStyle final : public QProxyStyle {
 public:
+	// Fusion fills a slider's groove in the palette's Highlight, and the GTK
+	// theme's disabled Highlight is the same accent, so a greyed slider stayed
+	// blue beside its greyed label.
+	void drawComplexControl(ComplexControl cc, const QStyleOptionComplex *opt, QPainter *p,
+		const QWidget *w) const override {
+		const auto *s = qstyleoption_cast<const QStyleOptionSlider *>(opt);
+		if (cc != CC_Slider || !s || (s->state & State_Enabled)) {
+			QProxyStyle::drawComplexControl(cc, opt, p, w);
+			return;
+		}
+		QStyleOptionSlider grey(*s);
+		grey.palette.setColor(QPalette::Highlight, grey.palette.color(QPalette::Disabled, QPalette::WindowText));
+		QProxyStyle::drawComplexControl(cc, &grey, p, w);
+	}
 	QRect subControlRect(ComplexControl cc, const QStyleOptionComplex *opt, SubControl sc,
 		const QWidget *w) const override {
 		QRect r = QProxyStyle::subControlRect(cc, opt, sc, w);
@@ -883,6 +897,13 @@ public:
 			// the first read only primes, and a second one ms later is noise
 			tick->start(int(live_sample(*live)));
 		}
+		// a remote viewer can join or leave while the window is open
+		auto *session = new QTimer(this);
+		connect(session, &QTimer::timeout, this, [this] {
+			if (follow_session(this->d))
+				refresh();
+		});
+		session->start(int(session_check_ms()));
 	}
 
 	Window(const Window &) = delete;
@@ -2803,6 +2824,36 @@ double empty_box_contrast(bool dark) {
 			best = std::max(best, (std::max(l, back) + 0.05) / (std::min(l, back) + 0.05));
 		}
 	return best;
+}
+
+rust::Vec<std::int32_t> slider_accent_pixels() {
+	const App app("offscreen");
+	tukzmon::App::setStyle(new BoxStyle);
+	// as the GTK theme gives it, with the same accent when disabled
+	QPalette pal = QApplication::palette();
+	const QColor accent("#3584e4");
+	for (auto group : {QPalette::Active, QPalette::Inactive, QPalette::Disabled})
+		pal.setColor(group, QPalette::Highlight, accent);
+	tukzmon::App::setPalette(pal);
+	rust::Vec<std::int32_t> out;
+	for (const bool on : {true, false}) {
+		TrackSlider s;
+		s.setRange(0, SLIDER_STEPS);
+		s.setValue(SLIDER_STEPS / 2);
+		s.resize(200, 24);
+		s.setEnabled(on);
+		const QImage img = s.grab().toImage();
+		std::int32_t n = 0;
+		for (int y = 0; y < img.height(); y++)
+			for (int x = 0; x < img.width(); x++) {
+				const QColor c = img.pixelColor(x, y);
+				// blue well over red and green, as only the accent is here
+				if (c.blue() - std::max(c.red(), c.green()) > 60)
+					n++;
+			}
+		out.push_back(n);
+	}
+	return out;
 }
 
 rust::Vec<rust::String> button_gaps(Dialog &d) {

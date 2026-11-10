@@ -12,6 +12,7 @@ use knobs::{Model, NoEnv, Spec};
 
 use crate::axis::{Curve, Timing};
 use crate::disk::Drives;
+use crate::remote::Session;
 use crate::render::{Paint, Vertical};
 use crate::when::Said;
 
@@ -276,6 +277,19 @@ impl Motion {
 		}
 	}
 }
+
+/// No graph is read more often than this while [`Look::calmed`].
+pub const CALM_MS: u32 = 1000;
+
+/// True for a setting [`Look::calmed`] stands in for: Sample ms default,
+/// each graph's sample %, and Smooth scrolling. The settings window greys
+/// them and says why.
+pub fn calmed_id(id: &str) -> bool {
+	id == "sample_ms" || id == "animate" || Which::ALL.iter().any(|w| w.ids().sample == id)
+}
+
+/// The setting that turns on [`Look::calmed`].
+pub const CALM_REMOTE: &str = "calm_remote";
 
 /// The group every color is in, and the id of the dropdown that picks one.
 pub const THEME: &str = "theme";
@@ -895,6 +909,11 @@ pub struct Look {
 	pub said: Said,
 	/// Whether graphs slide between samples.
 	pub motion: Motion,
+	/// Draw less often in a remote desktop session. See [`Look::calmed`].
+	pub calm_remote: bool,
+	/// Where this runs. Not in the file, since it's found at run time, by
+	/// [`crate::remote::session`].
+	pub session: Session,
 	/// 0 to 1.
 	pub spikes: f32,
 	/// The frame's width in logical pixels.
@@ -1006,6 +1025,8 @@ impl Look {
 			sample_ms: num("sample_ms") as u32,
 			said: Said::parse(m.value("hover_time", &NoEnv).as_text()).unwrap_or_default(),
 			motion: Motion::parse(m.value("animate", &NoEnv).as_text()).unwrap_or_default(),
+			calm_remote: on("calm_remote"),
+			session: Session::Local,
 			spikes: (num("spikes") / 100.0) as f32,
 			border: num("border") as u32,
 			margin_tb: num("margin_tb") as u32,
@@ -1063,10 +1084,27 @@ impl Look {
 	}
 
 	/// A graph's sample rate in ms from its percentage of Sample ms default,
-	/// rounded, and never under [`crate::FASTEST_MS`].
+	/// rounded, and never under [`crate::FASTEST_MS`]. While [`Look::calmed`],
+	/// twice that, and never under [`CALM_MS`].
 	pub fn rate(&self, percent: u32) -> u32 {
 		let ms = (u64::from(self.sample_ms) * u64::from(percent) + 50) / 100;
-		u32::try_from(ms).unwrap_or(u32::MAX).max(crate::FASTEST_MS)
+		let ms = u32::try_from(ms).unwrap_or(u32::MAX).max(crate::FASTEST_MS);
+		if self.calmed() {
+			ms.saturating_mul(2).max(CALM_MS)
+		} else {
+			ms
+		}
+	}
+
+	/// True in a remote desktop session with Reduce motion on, so every graph
+	/// reads half as often and none slides.
+	pub fn calmed(&self) -> bool {
+		self.calm_remote && self.session == Session::Remote
+	}
+
+	/// True when graphs slide on a box with `cpus` CPUs.
+	pub fn slides(&self, cpus: f32) -> bool {
+		!self.calmed() && self.motion.slides(cpus)
 	}
 
 	/// A graph's width from its percentage of Width px default, rounded, and never 0.
@@ -1284,16 +1322,16 @@ mod tests {
 	fn defaults_are_the_multiload_colors() {
 		let l = Look::default();
 		assert_eq!(l[Which::Cpu].colors[0], Rgb(0xff, 0, 0));
-		assert_eq!(l[Which::Cpu].colors[1], Rgb(0xfa, 0x72, 0xf0));
+		assert_eq!(l[Which::Cpu].colors[1], Rgb(0x69, 0x3d, 0x91));
 		assert_eq!(l[Which::Cpu].colors[2], Rgb(0, 0xff, 0x80));
 		assert_eq!(l[Which::Cpu].colors[3], Rgb(0x20, 0x5f, 0x40));
-		assert_eq!(l.border_color, Rgb(0x8b, 0x8b, 0x8b));
+		assert_eq!(l.border_color, Rgb(0x59, 0x59, 0x59));
 		assert_eq!(l.top, Rgb(0x31, 0x31, 0x31));
 		assert_eq!(l.bottom, Rgb(0, 0, 0));
 		assert_eq!((l.width, l.sample_ms, l.border), (100, 1000, 1));
 		assert_eq!(l.time, Timing::Log(Curve::Smooth));
 		assert_eq!(l.spikes, 0.75);
-		assert_eq!(l.hover, Rgb(0, 0, 0));
+		assert_eq!(l.hover, Rgb(0, 0x0f, 0xff));
 		assert_eq!(l.said, Said::Ago);
 	}
 
@@ -1307,6 +1345,36 @@ mod tests {
 		assert_eq!(read("graph:\n\tanimate: sideways\n"), Motion::Auto);
 		assert!(Motion::Auto.slides(8.0) && !Motion::Auto.slides(7.0));
 		assert!(Motion::On.slides(1.0) && !Motion::Off.slides(64.0));
+	}
+
+	// Test ID: df3ng
+	#[test]
+	fn a_remote_session_reads_half_as_often_from_a_second_and_never_slides() {
+		let read = |text: &str, remote: bool| Look {
+			session: if remote {
+				Session::Remote
+			} else {
+				Session::Local
+			},
+			..Look::from_model(&Model::load(spec(), text, ""))
+		};
+		let local = read("graph:\n\tanimate: on\n", false);
+		assert!(local.calm_remote && !local.calmed() && local.slides(1.0));
+		assert_eq!((local.rate(50), local.rate(300)), (500, 3000));
+		let remote = read("graph:\n\tanimate: on\n", true);
+		assert!(remote.calmed() && !remote.slides(64.0));
+		assert_eq!(
+			(remote.rate(50), remote.rate(100), remote.rate(300)),
+			(1000, 2000, 6000)
+		);
+		assert_eq!(remote.rate(1), CALM_MS);
+		let off = read("graph:\n\tanimate: on\n\tcalm_remote: false\n", true);
+		assert!(!off.calmed() && off.slides(1.0));
+		assert_eq!(off.rate(50), 500);
+		for id in ["sample_ms", "animate", "cpu_sample", "net_sample"] {
+			assert!(calmed_id(id), "{id}");
+		}
+		assert!(!calmed_id(CALM_REMOTE) && !calmed_id("cpu_width"));
 	}
 
 	// Test ID: dencn
@@ -1385,13 +1453,16 @@ mod tests {
 	// Test ID: dejbq
 	#[test]
 	fn the_default_theme_keeps_the_colors_picked_on_it() {
-		// b23's changes on Default as of 2026-10-28, and 2026-10-31 for
-		// temperature and processes, kept as they were
+		// b23's changes on Default as of 2026-10-28, 2026-10-31 for
+		// temperature and processes, and 2026-11-09 for the rest, kept as
+		// they were
 		let picked = [
-			("system", "#fa72f0"),
+			("system", "#693d91"),
 			("net_local", "#ffed00"),
 			("net_sent", "#ff7777"),
 			("net_received", "#6ad4ff"),
+			("net_lan_sent", "#ff6bf1"),
+			("net_lan_received", "#84ff7b"),
 			("swap_mode", "gradient"),
 			("swap_used", "#a45f00"),
 			("zswap_mode", "gradient"),
@@ -1411,8 +1482,9 @@ mod tests {
 			("procs_users", "#6bc9ff"),
 			("procs_me", "#fff02a"),
 			("battery_discharging", "#c46e43"),
-			("border_color", "#8b8b8b"),
+			("border_color", "#595959"),
 			("back_top", "#313131"),
+			("hover_color", "#000fff"),
 		];
 		let spec = spec();
 		let default = spec.group(THEME).unwrap().preset("default").unwrap();
@@ -1613,7 +1685,7 @@ mod tests {
 		};
 		let d = Look::default();
 		let grey = Outline {
-			border: Rgb(0x8b, 0x8b, 0x8b),
+			border: Rgb(0x59, 0x59, 0x59),
 			top: Rgb(0x31, 0x31, 0x31),
 			bottom: Rgb(0, 0, 0),
 		};
@@ -2077,8 +2149,7 @@ mod tests {
 			let want = match g {
 				"cpu" | "mem" => 50.0,
 				"swap" | "zswap" | "load" => 200.0,
-				"self" => 400.0,
-				"procs" => 500.0,
+				"procs" => 400.0,
 				_ => 100.0,
 			};
 			assert_eq!(s.default.as_f64(), want, "{id}");
@@ -2163,12 +2234,51 @@ mod tests {
 		assert_eq!(l[Which::Net].vertical, None);
 	}
 
+	// Test ID: df3rj
+	#[test]
+	fn the_graph_list_defaults_are_b23s_but_whats_shown() {
+		// b23's widths, sample rates and vertical scales as of 2026-11-09,
+		// but with tukzmon's own graph linear rather than log10
+		let l = Look::default();
+		let want = [
+			(Which::Cpu, 100, 50, None),
+			(Which::Mem, 100, 50, None),
+			(Which::Procs, 50, 400, Some(Vertical::Squared)),
+			(Which::Gpu, 50, 100, None),
+			(Which::Vram, 50, 100, None),
+			(Which::Net, 50, 100, None),
+			(Which::Disk, 50, 100, None),
+			(Which::Temp, 50, 100, None),
+			(Which::Swap, 25, 200, None),
+			(Which::Zswap, 25, 200, None),
+			(Which::Load, 25, 200, None),
+			(Which::Own, 12, 100, None),
+			(Which::Battery, 100, 100, None),
+		];
+		for (w, width, sample, vertical) in want {
+			let g = &l[w];
+			assert_eq!(
+				(g.width, g.sample, g.vertical),
+				(width, sample, vertical),
+				"{w:?}"
+			);
+		}
+		assert_eq!(l.scaling(l[Which::Own].vertical), Vertical::Linear);
+	}
+
 	// Test ID: der3p
 	#[test]
 	fn a_graph_follows_the_vertical_default_unless_it_picks_its_own() {
 		let l = Look::default();
 		assert_eq!(l.vertical, Vertical::Linear);
-		assert!(Which::ALL.into_iter().all(|w| l[w].vertical.is_none()));
+		// the process count sits near its top, where squared spreads it out
+		assert_eq!(l[Which::Procs].vertical, Some(Vertical::Squared));
+		assert!(
+			Which::ALL
+				.into_iter()
+				.filter(|&w| w != Which::Procs)
+				.all(|w| l[w].vertical.is_none())
+		);
 		let l = Look::from_model(&model(
 			"graph:\n\tvertical: squared\ncpu:\n\tvertical: log10\nmem:\n\tvertical: linear\n",
 		));

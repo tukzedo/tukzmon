@@ -113,6 +113,14 @@ settings:
 		default: auto
 		tip: "Slide each graph along to its newest sample over the time until the next one, rather than moving it a whole step at each sample. The right edge runs one sample behind to do it. It draws up to 60 times a second, in step with the screen, rather than once a sample, so it costs more CPU. Auto turns it on with 8 or more CPUs."
 
+	calm_remote:
+		label: Reduce motion if remote desktop session detected
+		tab: General
+		control: checkbox
+		path: graph.calm_remote
+		default: true
+		tip: "In a remote desktop session, such as an RDP, X2Go or NoMachine virtual desktop, every graph reads half as often, and never more than once a second, and none slides. Every frame drawn is sent over the network. Your own settings come back in a local session, and none are changed."
+
 	VerticalHead:
 		label: Vertical axis
 		tab: General
@@ -244,7 +252,7 @@ settings:
 		whole: true
 		range: [1, 1000]
 		path: procs.width
-		default: 25
+		default: 50
 		tip: "How wide the processes graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
 
 	procs_sample:
@@ -254,7 +262,7 @@ settings:
 		whole: true
 		range: [1, 1000]
 		path: procs.sample
-		default: 500
+		default: 400
 		tip: "How often the processes graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	procs_time:
@@ -274,7 +282,7 @@ settings:
 		options: [same, linear, log10, squared]
 		option_labels: ["Global default", "Linear", "log₁₀", "χ²"]
 		path: procs.vertical
-		default: same
+		default: squared
 		tip: "How height goes up the processes graph. Global default follows Scale default under Vertical axis, on the General tab, where the tip tells the scales apart."
 
 	show_gpu:
@@ -686,7 +694,7 @@ settings:
 		whole: true
 		range: [1, 1000]
 		path: self.sample
-		default: 400
+		default: 100
 		tip: "How often the tukzmon graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	self_time:
@@ -863,7 +871,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: cpu.colors.system
-		default: "#fa72f0"
+		default: "#693d91"
 		group: theme
 		shown_when: "cpu_mode = detailed"
 		tip: "Kernel time, including interrupts."
@@ -935,7 +943,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: cpu.colors.border
-		default: "#8b8b8b"
+		default: "#595959"
 		group: theme
 		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
@@ -1058,7 +1066,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: mem.colors.border
-		default: "#8b8b8b"
+		default: "#595959"
 		group: theme
 		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
@@ -1155,7 +1163,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: gpu.colors.border
-		default: "#8b8b8b"
+		default: "#595959"
 		group: theme
 		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
@@ -1252,7 +1260,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: vram.colors.border
-		default: "#8b8b8b"
+		default: "#595959"
 		group: theme
 		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
@@ -1313,7 +1321,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: net.colors.lan_sent
-		default: "#c0effc"
+		default: "#ff6bf1"
 		group: theme
 		shown_when: "net_mode = detailed"
 		tip: "Sent to the LAN. It's drawn only while LAN and internet is on, under Misc on the General tab."
@@ -1323,7 +1331,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: net.colors.lan_received
-		default: "#4e93af"
+		default: "#84ff7b"
 		group: theme
 		shown_when: "net_mode = detailed"
 		tip: "Received from the LAN. It's drawn only while LAN and internet is on, under Misc on the General tab."
@@ -1395,7 +1403,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: net.colors.border
-		default: "#8b8b8b"
+		default: "#595959"
 		group: theme
 		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
@@ -1492,7 +1500,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: swap.colors.border
-		default: "#8b8b8b"
+		default: "#595959"
 		group: theme
 		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
@@ -1589,7 +1597,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: zswap.colors.border
-		default: "#8b8b8b"
+		default: "#595959"
 		group: theme
 		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
@@ -1686,7 +1694,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: load.colors.border
-		default: "#8b8b8b"
+		default: "#595959"
 		group: theme
 		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
@@ -1799,7 +1807,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: disk.colors.border
-		default: "#8b8b8b"
+		default: "#595959"
 		group: theme
 		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
@@ -1912,7 +1920,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: temp.colors.border
-		default: "#8b8b8b"
+		default: "#595959"
 		group: theme
 		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
@@ -2035,7 +2043,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: battery.colors.border
-		default: "#8b8b8b"
+		default: "#595959"
 		group: theme
 		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
@@ -2132,7 +2140,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: self.colors.border
-		default: "#8b8b8b"
+		default: "#595959"
 		group: theme
 		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
@@ -2255,7 +2263,7 @@ settings:
 		tab: Themes/Colors
 		control: color
 		path: procs.colors.border
-		default: "#8b8b8b"
+		default: "#595959"
 		group: theme
 		tip: "The line around the graph. Border px on the General tab sets how thick it is."
 
@@ -2333,7 +2341,7 @@ settings:
 		tab: Themes/Outline
 		control: color
 		path: graph.overrides.colors.border
-		default: "#8b8b8b"
+		default: "#595959"
 		group: theme
 		gate: border_all
 		tip: "The border color every graph uses when One border for every graph is on. Border px on the General tab sets how thick it is."
@@ -2372,7 +2380,7 @@ settings:
 		tab: Themes/Outline
 		control: color
 		path: graph.colors.hover
-		default: "#000000"
+		default: "#000fff"
 		group: theme
 		tip: "The line under the pointer."
 
@@ -2398,7 +2406,7 @@ groups:
 				cpu_medium: "#00ff80"
 				cpu_high: "#c0ffe0"
 				iowait: "#ff0000"
-				system: "#fa72f0"
+				system: "#693d91"
 				user: "#00ff80"
 				nice: "#205f40"
 				mem_mode: detailed
@@ -2423,8 +2431,8 @@ groups:
 				net_medium: "#6ad4ff"
 				net_high: "#cff1ff"
 				net_local: "#ffed00"
-				net_lan_sent: "#c0effc"
-				net_lan_received: "#4e93af"
+				net_lan_sent: "#ff6bf1"
+				net_lan_received: "#84ff7b"
 				net_sent: "#ff7777"
 				net_received: "#6ad4ff"
 				swap_mode: gradient
@@ -2473,49 +2481,49 @@ groups:
 				procs_system: "#707070"
 				procs_users: "#6bc9ff"
 				procs_me: "#fff02a"
-				cpu_border_color: "#8b8b8b"
+				cpu_border_color: "#595959"
 				cpu_back_top: "#313131"
 				cpu_back_bottom: "#000000"
-				mem_border_color: "#8b8b8b"
+				mem_border_color: "#595959"
 				mem_back_top: "#313131"
 				mem_back_bottom: "#000000"
-				gpu_border_color: "#8b8b8b"
+				gpu_border_color: "#595959"
 				gpu_back_top: "#313131"
 				gpu_back_bottom: "#000000"
-				vram_border_color: "#8b8b8b"
+				vram_border_color: "#595959"
 				vram_back_top: "#313131"
 				vram_back_bottom: "#000000"
-				net_border_color: "#8b8b8b"
+				net_border_color: "#595959"
 				net_back_top: "#313131"
 				net_back_bottom: "#000000"
-				disk_border_color: "#8b8b8b"
+				disk_border_color: "#595959"
 				disk_back_top: "#313131"
 				disk_back_bottom: "#000000"
-				temp_border_color: "#8b8b8b"
+				temp_border_color: "#595959"
 				temp_back_top: "#313131"
 				temp_back_bottom: "#000000"
-				swap_border_color: "#8b8b8b"
+				swap_border_color: "#595959"
 				swap_back_top: "#313131"
 				swap_back_bottom: "#000000"
-				zswap_border_color: "#8b8b8b"
+				zswap_border_color: "#595959"
 				zswap_back_top: "#313131"
 				zswap_back_bottom: "#000000"
-				load_border_color: "#8b8b8b"
+				load_border_color: "#595959"
 				load_back_top: "#313131"
 				load_back_bottom: "#000000"
-				battery_border_color: "#8b8b8b"
+				battery_border_color: "#595959"
 				battery_back_top: "#313131"
 				battery_back_bottom: "#000000"
-				self_border_color: "#8b8b8b"
+				self_border_color: "#595959"
 				self_back_top: "#313131"
 				self_back_bottom: "#000000"
-				procs_border_color: "#8b8b8b"
+				procs_border_color: "#595959"
 				procs_back_top: "#313131"
 				procs_back_bottom: "#000000"
-				border_color: "#8b8b8b"
+				border_color: "#595959"
 				back_top: "#313131"
 				back_bottom: "#000000"
-				hover_color: "#000000"
+				hover_color: "#000fff"
 				margin_tb: 2
 				margin_lr: 2
 				border_all: true

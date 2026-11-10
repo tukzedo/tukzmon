@@ -52,7 +52,7 @@ The first release is 1.0.0-beta.1. Although beta, it's very solid. Packages for 
 
 - Memory is split the same way into programs, buffers, and cache.
 
-- GPU use and GPU memory each have a graph, for an NVIDIA or AMD card.
+- GPU use and GPU memory each have a graph, for an NVIDIA or AMD card. Intel graphics get the GPU use graph only.
 
 - The network graph shows local, sent, and received traffic.
 
@@ -74,7 +74,11 @@ The first release is 1.0.0-beta.1. Although beta, it's very solid. Packages for 
 
 - Hover over a graph to see its values at that point, and how long ago that was.
 
-- Graphs slide along smoothly between samples, rather than jumping a step at a time. It's on by default wiht 8 or more CPUs.
+- Graphs slide along smoothly between samples, rather than jumping a step at a time. It's on by default with 8 or more CPUs.
+
+- In a remote desktop session, such as RDP or a NoMachine virtual desktop, graphs read less often and don't slide, so less goes over the network. The same goes while a viewer such as x11vnc, RustDesk or NoMachine is connected to your own desktop. Your own settings are kept for a local session, and come back once the viewer leaves.
+
+- While the screen is locked, graphs keep reading but don't draw. They catch up as soon as you unlock.
 
 - There are 9 built-in color themes, plus any you save yourself. Randomize rolls a new set of colors that stay easy to tell apart.
 

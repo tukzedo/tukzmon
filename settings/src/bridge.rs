@@ -196,6 +196,10 @@ pub mod ffi {
 		fn section_order(d: &Dialog) -> Vec<String>;
 		fn reset_history(d: &Dialog) -> String;
 		fn reset_deletes_saved(d: &Dialog) -> bool;
+		/// Looks again for a remote viewer. True when the session changed.
+		fn follow_session(d: &mut Dialog) -> bool;
+		/// How often to ask follow_session, in ms.
+		fn session_check_ms() -> u32;
 
 		type Live;
 		fn live_new(d: &Dialog) -> Box<Live>;
@@ -365,6 +369,11 @@ pub mod ffi {
 		/// measures it.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn empty_box_contrast(dark: bool) -> f64;
+		/// Pixels drawn in the accent on a slider set to half, enabled and
+		/// then greyed, under a palette whose disabled accent is the same as
+		/// its active one.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn slider_accent_pixels() -> Vec<i32>;
 		/// The color chips restyled by a refresh with nothing changed, then by
 		/// one after the first color row is set to `color`.
 		#[allow(dead_code, reason = "only the tests ask")]
@@ -583,6 +592,14 @@ fn move_graph(d: &mut Dialog, from: usize, to: usize) -> bool {
 
 fn section_order(d: &Dialog) -> Vec<String> {
 	d.section_order()
+}
+
+fn follow_session(d: &mut Dialog) -> bool {
+	d.follow_session()
+}
+
+fn session_check_ms() -> u32 {
+	u32::try_from(tukzmon_core::remote::CHECK_EVERY.as_millis()).unwrap_or(u32::MAX)
 }
 
 fn reset_history(d: &Dialog) -> String {
@@ -943,6 +960,34 @@ mod tests {
 				assert!(!off.iter().any(|o| o == id), "{id}");
 			}
 			assert_eq!(ffi::greyed_rows(&mut d), off);
+		});
+	}
+
+	// Test ID: df3nj
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn a_remote_session_greys_the_rates_and_smooth_scrolling() {
+		on_qt(|| {
+			let path = std::env::temp_dir().join(format!(
+				"test_tukzmon-settings_{}_remote_never_written.shcl",
+				std::process::id()
+			));
+			let mut d = Dialog::open(path).unwrap();
+			d.watch_session(tukzmon_core::remote::Watch::fixed(
+				tukzmon_core::remote::Session::Remote,
+			));
+			let mut want: Vec<String> = dialog_rows(&d)
+				.into_iter()
+				.filter(|r| r.control != ffi::ControlKind::Heading)
+				.map(|r| r.id)
+				.filter(|id| tukzmon_core::config::calmed_id(id) || id == "net_split")
+				.collect();
+			let mut greyed = ffi::greyed_rows(&mut d);
+			want.sort();
+			greyed.sort();
+			// every graph's sample cell in the graph list, and both General rows
+			assert!(want.len() > 10, "{want:?}");
+			assert_eq!(greyed, want);
 		});
 	}
 
@@ -1813,6 +1858,20 @@ mod tests {
 				let c = ffi::empty_box_contrast(dark);
 				assert!(c >= 3.0, "dark: {dark}, contrast {c:.2}");
 			}
+		});
+	}
+
+	// Test ID: df3qa
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn a_greyed_slider_draws_none_of_the_accent() {
+		on_qt(|| {
+			let got = ffi::slider_accent_pixels();
+			assert!(got[0] > 50, "the enabled slider shows no accent: {got:?}");
+			assert_eq!(
+				got[1], 0,
+				"the greyed slider still shows the accent: {got:?}"
+			);
 		});
 	}
 

@@ -105,7 +105,10 @@ fn main() -> ExitCode {
 	};
 	let path = config.unwrap_or_else(tukzmon_core::config::config_file);
 	match dialog::Dialog::open(path) {
-		Ok(mut d) => run(&mut d, &snapshot),
+		Ok(mut d) => {
+			d.watch_session(tukzmon_core::remote::Watch::start());
+			run(&mut d, &snapshot)
+		}
 		Err(e) => {
 			complain(&format!("tukzmon-settings: {e}"));
 			// A panel starts the window with stderr out of sight.
