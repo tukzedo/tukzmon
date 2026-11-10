@@ -25,7 +25,7 @@ Sorted per the notes in [Template](#template).
 - GPU memory graph on integrated Intel graphics
 	- ID: 2026110921252043
 	- Type: Bug
-	- Status: Waiting for answers
+	- Status: Done
 		- Waits on the question in questions.md on what the graph counts on an integrated card.
 	- Priority|Severity: Avg
 	- Opened: 20261109-212520
@@ -34,6 +34,9 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: An Intel card gets the GPU graph, but no GPU memory graph.
 	- Expected behavior: The GPU memory graph works on integrated Intel graphics.
 	- Possible cause: An integrated card's memory is the system's. Without root, the only count of what the GPU holds is each process's DRM fdinfo, and only for the user's own processes.
+	- Acceptance signoff: Closed 20261110 on the answer, as B.
+	- Closed: 20261110-184000
+	- 2026-11-10: Answer: B, unless other tools have an acceptable way. nvtop, the main one that reads Intel, gives per-process memory from fdinfo and needs CAP_PERFMON or root for a total. So B: no GPU memory graph on Intel, as README already says.
 
 - Smoothly animate each graph on each tick
 	- ID: 2026110911114024
@@ -258,11 +261,13 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026110920595602
 	- Requirements: Bring the profiled tick back near its 241 us of user time, from the 480 us that 2026110920595602's windows took it to, with the same pixels.
 	- Estimated effort: Avg
+	- Prereq IDs: 2026111010281710
+	- 2026-11-10: Answer on 2026110920595602's Check: get it looking right first, then the cost. Waits on 2026111010281710, since both change the spike windows.
 
 - Reduce motion if a remote desktop session is detected
 	- ID: 2026110911114037
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
 	- Priority|Severity: Avg
 	- Opened: 20261109-111140
 	- Opened by: t00mietum
@@ -277,6 +282,8 @@ Sorted per the notes in [Template](#template).
 		- Resume the previous animation settings when the desktop is connected normally.
 	- Progress log:
 		- Split in 2: the setting, with sessions a remote desktop server starts, in 2026110922214697, which is done, and a viewer that joins the local desktop in 2026110922214810, which is queued.
+		- 20261110: children 2026110922214810 wait on UAT, and the rest are closed
+	- Test case: its children's: 2026110922214810: `remote::tests::the_tcp_table_gives_established_connections_on_remote_desktop_ports` (df3p4), `remote::tests::a_viewer_counts_only_when_its_server_has_a_peer_on_this_display` (df3p5), `remote::tests::the_watch_looks_again_only_every_few_seconds` (df3p6) and `remote::tests::a_stand_in_viewer_on_a_vnc_port_is_seen_on_its_display_only` (df3p7).; 2026110922214697: `remote::tests::a_remote_session_is_told_by_its_variables_or_by_logind` (df3nf), `config::tests::a_remote_session_reads_half_as_often_from_a_second_and_never_slides` (df3ng), `dialog::tests::a_remote_session_greys_what_it_sets_aside_and_saves_none_of_it` (df3nh) and `bridge::tests::a_remote_session_greys_the_rates_and_smooth_scrolling` (df3nj).
 
 - CICD gap: Fuzz the parsers of files and kernel messages
 	- ID: 2026110310450001
@@ -3515,7 +3522,7 @@ Sorted per the notes in [Template](#template).
 - New default settings for Graphs and Themes
 	- ID: 2026110920595601
 	- Type: Enhancement
-	- Status: Done
+	- Status: Queued
 		- It goes a little past the wording in one way. Each graph's own border in Default moved to `#595959` with the shared one, so a graph keeps it with One border for every graph off.
 	- Priority|Severity: Avg
 	- Opened: 20261109-205956
@@ -3533,6 +3540,7 @@ Sorted per the notes in [Template](#template).
 		- Default's colors take b23's changes on it that were still left: system `#693d91`, LAN sent `#ff6bf1`, LAN received `#84ff7b`, the border `#595959` and the hover line `#000fff`.
 		- `design.md` XFCE plugin, Theme and Data sources on Linux have it.
 		- Verified: the quick gate and Sanitizers passed, with the new test.
+		- 2026-11-10: Answer on the Check: 500% for processes, 400% for tukzmon. Reopened for that.
 	- Decisions:
 		- Only order, colors, widths, samples and processes' vertical scale. b23's network split, and its other graphs' vertical scales, which are all Global default, weren't asked for.
 		- Processes' 400% replaces the 500% picked on 2026-11-09 for its cost, since the item asks for b23's samples. It's off by default.
@@ -3543,7 +3551,6 @@ Sorted per the notes in [Template](#template).
 		- 2026-11-09: new values only. debhj reads system `#693d91`, the border `#595959` and the hover line `#000fff`, not `#fa72f0`, `#8b8b8b` and `#000000`. dejbq reads the same, and LAN sent and received too. dejkg's Default outlines are `#595959`. deja1 reads tukzmon at 100 and processes at 400, not 400 and 500. der3p has processes at `squared`, not Global default.
 		- Swept: every test and doc naming Default's system, border, hover or LAN colors, each graph's border row default, and the default widths, samples and vertical scales. dice's Randomize keeps its black hover line.
 	- Acceptance signoff: Self-closed 20261109: df3rj and the changed tests passed in the quick gate.
-	- Closed: 20261109-235525
 
 - Code review 20261106 item 5: The processes graph takes about 4 ms a read
 	- ID: 2026110618502905
