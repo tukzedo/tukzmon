@@ -46,7 +46,7 @@ struct Plugin {
 	graphs: Graphs,
 	/// The one-shot timer to the next graph's read.
 	timer: c_uint,
-	/// A one-shot redraw while an axis eases in, or 0.
+	/// The area's tick callback while a graph slides or eases, or 0.
 	frame: c_uint,
 	config: PathBuf,
 	config_time: Option<(SystemTime, u64)>,
@@ -56,7 +56,8 @@ struct Plugin {
 	properties: Option<String>,
 	history: PathBuf,
 	reset: keep::ResetWatch,
-	/// File monitors on the settings file and the reset mark.
+	/// File monitors on the settings file, the file its links end at, and the
+	/// reset mark.
 	watches: Vec<*mut c_void>,
 	saved_at: Instant,
 	moved_at: Instant,
@@ -70,9 +71,6 @@ struct Plugin {
 	/// Why a panic stopped this item. It draws nothing and does nothing after.
 	stopped: Option<String>,
 }
-
-/// How often to draw while an axis eases in.
-const FRAME_MS: c_uint = 33;
 
 /// A crash loses at most this much history.
 const SAVE_EVERY: Duration = Duration::from_secs(15 * 60);
@@ -248,13 +246,16 @@ impl Plugin {
 
 	/// Ends the timers and file watches, which keep a pointer to this.
 	fn quiet(&mut self) {
-		for id in [&mut self.timer, &mut self.frame] {
-			if *id != 0 {
-				// SAFETY: the id is ours and still running, since each
-				// callback zeroes or replaces it.
-				unsafe { g_source_remove(*id) };
-				*id = 0;
-			}
+		if self.timer != 0 {
+			// SAFETY: the id is ours and still running, since its callback
+			// zeroes or replaces it.
+			unsafe { g_source_remove(self.timer) };
+			self.timer = 0;
+		}
+		if self.frame != 0 {
+			// SAFETY: as the timer, and the area outlives this.
+			unsafe { gtk_widget_remove_tick_callback(self.area, self.frame) };
+			self.frame = 0;
 		}
 		for w in self.watches.drain(..) {
 			// SAFETY: each is from watch, and isn't used again.
@@ -455,6 +456,28 @@ unsafe fn watch(
 	}
 }
 
+/// [`watch`] on the settings file, and on the file its links end at when it's
+/// a link. A save writes the file at the end, and a watch on the link sees
+/// only the link.
+///
+/// # Safety
+///
+/// As for [`watch`].
+unsafe fn watch_settings(
+	path: &Path,
+	changed: unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, c_int, *mut c_void),
+	data: *mut c_void,
+) -> Vec<*mut c_void> {
+	let end = config::through_links(path);
+	// SAFETY: as said above.
+	let mut watches = vec![unsafe { watch(path, changed, data) }];
+	if end != path {
+		// SAFETY: as said above.
+		watches.push(unsafe { watch(&end, changed, data) });
+	}
+	watches
+}
+
 /// # Safety
 ///
 /// `monitor` is from [`watch`], or null, and isn't used again.
@@ -536,25 +559,48 @@ fn draw_graphs(p: &mut Plugin, widget: *mut c_void, cr: *mut c_void) -> Gboolean
 		cairo_set_source_surface(cr, surf, 0.0, 0.0);
 		cairo_paint(cr);
 		cairo_surface_destroy(surf);
-		if p.frame == 0 && p.graphs.easing() {
-			// SAFETY: as start_timer, and free-data stops this one too.
-			p.frame = g_timeout_add(FRAME_MS, frame, std::ptr::from_mut(p).cast());
+		if p.frame == 0 && p.graphs.moving() {
+			// SAFETY: as start_timer, and quiet stops this one too.
+			p.frame = gtk_widget_add_tick_callback(
+				p.area,
+				frame,
+				std::ptr::from_mut(p).cast(),
+				std::ptr::null(),
+			);
 		}
 	}
 	1
 }
 
-extern "C" fn frame(data: *mut c_void) -> Gboolean {
+// On the screen's own frames, so a slide doesn't beat against them.
+extern "C" fn frame(_widget: *mut c_void, clock: *mut c_void, data: *mut c_void) -> Gboolean {
 	guarded(
 		data,
-		|_| (),
+		|_| 0,
 		|p| {
-			p.frame = 0;
-			// SAFETY: area is a child of the live plugin.
-			unsafe { gtk_widget_queue_draw(p.area) };
+			if !p.graphs.moving() {
+				p.frame = 0;
+				return 0;
+			}
+			let (mut interval, mut presented) = (0_i64, 0_i64);
+			// SAFETY: GTK hands a tick callback its widget's live frame clock.
+			let count = unsafe {
+				let at = gdk_frame_clock_get_frame_time(clock);
+				gdk_frame_clock_get_refresh_info(clock, at, &raw mut interval, &raw mut presented);
+				gdk_frame_clock_get_frame_counter(clock)
+			};
+			let hz = if interval > 0 {
+				1e6 / interval as f64
+			} else {
+				60.0
+			};
+			if count % i64::from(tukzmon_core::frames_apart(hz)) == 0 {
+				// SAFETY: area is a child of the live plugin.
+				unsafe { gtk_widget_queue_draw(p.area) };
+			}
+			1
 		},
-	);
-	0
+	)
 }
 
 extern "C" fn motion(widget: *mut c_void, event: *mut c_void, data: *mut c_void) -> Gboolean {
@@ -873,10 +919,9 @@ impl Plugin {
 			xfce_panel_plugin_menu_show_configure(plugin);
 			// before anything below can panic, so a stopped item's tip shows
 			gtk_widget_show_all(plugin);
-			self.watches = vec![
-				watch(&self.config, changed, data),
-				watch(&mark, changed, data),
-			];
+			let mut watches = watch_settings(&self.config, changed, data);
+			watches.push(watch(&mark, changed, data));
+			self.watches = watches;
 		}
 		let first = self.graphs.tick();
 		self.fit();
@@ -1088,7 +1133,10 @@ mod tests {
 		// a handler that ran would reach GTK with a null area
 		let ran = super::guarded(data, |_| false, |_| true);
 		assert_eq!(super::tick(data), 0);
-		super::frame(data);
+		assert_eq!(
+			super::frame(std::ptr::null_mut(), std::ptr::null_mut(), data),
+			0
+		);
 		// a stopped item's history isn't saved
 		super::free_data(std::ptr::null_mut(), data);
 		let saved = hist.exists();
@@ -1199,6 +1247,56 @@ mod tests {
 		// SAFETY: from watch, and not used again.
 		unsafe { super::unwatch(w) };
 		std::fs::remove_file(keep::reset_mark(&dir)).unwrap();
+		std::fs::remove_dir(&dir).unwrap();
+		assert!(HITS.load(Ordering::SeqCst) > 0, "no call in {took:?}");
+		assert!(took < Duration::from_millis(500), "{took:?}");
+	}
+
+	// Test ID: df38m
+	#[test]
+	#[cfg_attr(miri, ignore = "GIO is C")]
+	fn a_save_through_a_linked_settings_file_calls_back_at_once() {
+		static HITS: AtomicUsize = AtomicUsize::new(0);
+		unsafe extern "C" fn hit(
+			_: *mut c_void,
+			_: *mut c_void,
+			_: *mut c_void,
+			_: c_int,
+			_: *mut c_void,
+		) {
+			HITS.fetch_add(1, Ordering::SeqCst);
+		}
+		let dir =
+			std::env::temp_dir().join(format!("test_tukzmon_xfce_{}_link", std::process::id()));
+		let (item, real) = (dir.join("item"), dir.join("real"));
+		std::fs::create_dir_all(&item).unwrap();
+		std::fs::create_dir_all(&real).unwrap();
+		let (own, end) = (item.join("plugin-1.shcl"), real.join("plugin-1.shcl"));
+		std::fs::write(&end, "graphs = cpu\n").unwrap();
+		// relative, as stow makes them
+		std::os::unix::fs::symlink("../real/plugin-1.shcl", &own).unwrap();
+		// SAFETY: hit takes no data.
+		let ws = unsafe { super::watch_settings(&own, hit, std::ptr::null_mut()) };
+		assert!(ws.iter().all(|w| !w.is_null()));
+		// as Apply saves: a new file renamed over the one the link ends at
+		let tmp = real.join("plugin-1.shcl.tmp");
+		std::fs::write(&tmp, "graphs = mem\n").unwrap();
+		std::fs::rename(&tmp, &end).unwrap();
+		let t0 = Instant::now();
+		while HITS.load(Ordering::SeqCst) == 0 && t0.elapsed() < Duration::from_secs(5) {
+			// SAFETY: the default context, which only these tests run.
+			unsafe { super::sys::g_main_context_iteration(std::ptr::null_mut(), 0) };
+			std::thread::sleep(Duration::from_millis(2));
+		}
+		let took = t0.elapsed();
+		for w in ws {
+			// SAFETY: from watch_settings, and not used again.
+			unsafe { super::unwatch(w) };
+		}
+		std::fs::remove_file(&own).unwrap();
+		std::fs::remove_file(&end).unwrap();
+		std::fs::remove_dir(&item).unwrap();
+		std::fs::remove_dir(&real).unwrap();
 		std::fs::remove_dir(&dir).unwrap();
 		assert!(HITS.load(Ordering::SeqCst) > 0, "no call in {took:?}");
 		assert!(took < Duration::from_millis(500), "{took:?}");

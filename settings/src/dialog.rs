@@ -115,6 +115,27 @@ fn read(path: &Path) -> Result<String, String> {
 	}
 }
 
+// In the window's words rather than shcl's, which are for a log.
+fn write_failed(file: &str, e: &shcl::WriteError) -> String {
+	use shcl::WriteStatus as S;
+	let why = match e.status {
+		S::NotFound => "its folder isn't there",
+		S::PermissionDenied => "there's no permission to write there",
+		S::DiskFull => "the disk is full",
+		S::ReadOnly => "the disk is read-only",
+		S::IsDirectory => "it's a folder",
+		S::NotRegular => "it isn't a regular file",
+		S::Ok | S::Unreadable | S::Other => {
+			let raw = e
+				.message
+				.strip_prefix(&format!("{file}: "))
+				.unwrap_or(&e.message);
+			return format!("{file} can't be written: {raw}");
+		}
+	};
+	format!("{file} can't be written, since {why}.")
+}
+
 // Saved themes as the file has them, with what this window changed since
 // `was` laid over them. A theme the file still has gets only the name and
 // colors changed here, so another window's edits to it stay (2026110709074404).
@@ -277,43 +298,20 @@ impl Dialog {
 	}
 
 	/// Whether Reset history deletes any saved history: some panel item, this
-	/// one or another, keeps history. See [`Self::keeps_history`].
+	/// one or another, has a history file, whether it keeps history now or not.
 	pub fn reset_deletes_saved(&self) -> bool {
-		let dir = self.path.parent().unwrap_or(Path::new(""));
-		config::instance_ids(dir)
-			.into_iter()
-			.chain(keep::history_ids(&self.history_dir))
-			.chain(config::instance_id(&self.path))
-			.any(|id| self.keeps_history(id))
+		!keep::history_ids(&self.history_dir).is_empty()
 	}
 
-	/// Whether the panel item `id` has Keep across restarts on. For this
-	/// window's item that's as shown or as applied, since its running item
-	/// deletes its own file either way. Another item's is in its file, or in
-	/// the shared one it would start from. One that can't be read counts as
-	/// on, since that's the default.
-	fn keeps_history(&self, id: i32) -> bool {
-		if config::instance_id(&self.path) == Some(id) {
-			return self.look().keep || config::Look::from_model(&self.saved).keep;
-		}
-		let dir = self.path.parent().unwrap_or(Path::new(""));
-		let own = config::instance_file(dir, id);
-		let file = if own.exists() {
-			own
-		} else {
-			config::shared_file(dir)
-		};
-		config::Look::load(&file).map_or(true, |l| l.keep)
-	}
-
-	/// Starts every graph in every panel item over now. The saved history of
-	/// each item that keeps it goes too, per backlog 2026110709074402.
+	/// Starts every graph in every panel item over now. Every item's saved
+	/// history goes too, Keep across restarts on or off, per backlog
+	/// 2026110709074402.
 	///
 	/// # Errors
 	///
 	/// Why the panel wasn't told.
 	pub fn reset_history(&self) -> Result<(), String> {
-		keep::reset(&self.history_dir, |id| self.keeps_history(id)).map_err(|e| {
+		keep::reset(&self.history_dir, |_| true).map_err(|e| {
 			format!(
 				"History in {} wasn't reset: {e}",
 				self.history_dir.display()
@@ -849,7 +847,7 @@ impl Dialog {
 		}
 		let themes_text = config::themes_text(&themes);
 		let text = stamped(keep_notes(doc, &format!("{body}{themes_text}")));
-		shcl::write_file_atomic(file, &text).map_err(|e| e.message)?;
+		shcl::write_file_atomic(file, &text).map_err(|e| write_failed(file, &e))?;
 		// as in open, kept apart to tell what changes next
 		self.saved = fresh.clone();
 		self.model = fresh;
@@ -942,6 +940,35 @@ mod tests {
 		}
 	}
 
+	// Test ID: df3aq
+	#[test]
+	fn a_failed_write_says_why_in_plain_words() {
+		let e = |status, message: &str| shcl::WriteError {
+			status,
+			message: message.to_string(),
+		};
+		assert_eq!(
+			write_failed(
+				"/x/s.shcl",
+				&e(
+					shcl::WriteStatus::PermissionDenied,
+					"/x/s.shcl: cannot create temporary file: Permission denied (os error 13)"
+				)
+			),
+			"/x/s.shcl can't be written, since there's no permission to write there."
+		);
+		assert_eq!(
+			write_failed(
+				"/x/s.shcl",
+				&e(
+					shcl::WriteStatus::Other,
+					"/x/s.shcl: Input/output error (os error 5)"
+				)
+			),
+			"/x/s.shcl can't be written: Input/output error (os error 5)"
+		);
+	}
+
 	fn scratch(name: &str) -> Dir {
 		let base = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_{name}",
@@ -986,7 +1013,7 @@ mod tests {
 
 	// Test ID: dejaf
 	#[test]
-	fn reset_history_goes_at_once_and_deletes_saved_history_only_when_kept() {
+	fn reset_history_goes_at_once_and_deletes_saved_history_kept_or_not() {
 		let d = scratch("reset_now");
 		let data = d.0.join("data");
 		let hist = keep::history_file(&data, 3);
@@ -1007,22 +1034,70 @@ mod tests {
 		std::thread::sleep(std::time::Duration::from_millis(50));
 		dlg.reset_history().unwrap();
 		assert!(watch.asked() && !hist.exists());
-		// off and applied: only what's on screen goes
+		// off and applied: the saved file still goes, per backlog 2026110709074402
 		dlg.saved = dlg.model.clone();
-		assert!(!dlg.reset_deletes_saved());
 		keep::write(&hist, &[("cpu", b"x")]).unwrap();
+		assert!(dlg.reset_deletes_saved());
 		std::thread::sleep(std::time::Duration::from_millis(50));
 		dlg.reset_history().unwrap();
-		assert!(watch.asked() && hist.exists());
-		std::fs::remove_file(&hist).unwrap();
+		assert!(watch.asked() && !hist.exists());
 		std::fs::remove_file(keep::reset_mark(&data)).unwrap();
 		std::fs::remove_dir(&data).unwrap();
 	}
 
-	// Test ID: df315
+	// Out since 2026-11-09: Reset history deletes every item's saved history,
+	// Keep across restarts on or off, per backlog 2026110709074402. df38a checks it now.
+	// // Test ID: df315
+	// #[test]
+	// fn reset_history_asks_and_deletes_by_each_items_own_keep() {
+	// 	let d = scratch("reset_two");
+	// 	let data = d.0.join("data");
+	// 	let hist = [keep::history_file(&data, 1), keep::history_file(&data, 2)];
+	// 	let off = "history:\n\tkeep: false\n";
+	// 	std::fs::write(config::instance_file(&d.0, 1), "").unwrap();
+	// 	std::fs::write(config::instance_file(&d.0, 2), off).unwrap();
+	// 	let at = |id| {
+	// 		let mut dlg = Dialog::open(config::instance_file(&d.0, id)).unwrap();
+	// 		dlg.history_dir.clone_from(&data);
+	// 		dlg
+	// 	};
+	// 	let write_both = || {
+	// 		for p in &hist {
+	// 			keep::write(p, &[("cpu", b"x")]).unwrap();
+	// 		}
+	// 	};
+	// 	// pressed in the window of the item that doesn't keep it
+	// 	write_both();
+	// 	let dlg = at(2);
+	// 	assert!(dlg.reset_deletes_saved());
+	// 	dlg.reset_history().unwrap();
+	// 	assert!(!hist[0].exists() && hist[1].exists());
+	// 	// and in the one that does
+	// 	write_both();
+	// 	at(1).reset_history().unwrap();
+	// 	assert!(!hist[0].exists() && hist[1].exists());
+	// 	// neither keeps it: no question, and both files stay
+	// 	write_both();
+	// 	std::fs::write(config::instance_file(&d.0, 1), off).unwrap();
+	// 	let dlg = at(2);
+	// 	assert!(!dlg.reset_deletes_saved());
+	// 	dlg.reset_history().unwrap();
+	// 	assert!(hist.iter().all(|p| p.exists()));
+	// 	// an item with no file of its own goes by the shared one
+	// 	std::fs::remove_file(config::instance_file(&d.0, 1)).unwrap();
+	// 	assert!(at(2).reset_deletes_saved());
+	// 	std::fs::write(config::shared_file(&d.0), off).unwrap();
+	// 	assert!(!at(2).reset_deletes_saved());
+	// 	for p in hist.iter().chain([&keep::reset_mark(&data)]) {
+	// 		std::fs::remove_file(p).unwrap();
+	// 	}
+	// 	std::fs::remove_dir(&data).unwrap();
+	// }
+
+	// Test ID: df38a
 	#[test]
-	fn reset_history_asks_and_deletes_by_each_items_own_keep() {
-		let d = scratch("reset_two");
+	fn reset_history_asks_when_any_saved_history_exists_and_deletes_all_of_it() {
+		let d = scratch("reset_all");
 		let data = d.0.join("data");
 		let hist = [keep::history_file(&data, 1), keep::history_file(&data, 2)];
 		let off = "history:\n\tkeep: false\n";
@@ -1033,36 +1108,26 @@ mod tests {
 			dlg.history_dir.clone_from(&data);
 			dlg
 		};
-		let write_both = || {
+		// nothing saved yet: no question
+		assert!(!at(1).reset_deletes_saved());
+		// pressed in either item's window, kept or not, both files go
+		for id in [1, 2] {
 			for p in &hist {
 				keep::write(p, &[("cpu", b"x")]).unwrap();
 			}
-		};
-		// pressed in the window of the item that doesn't keep it
-		write_both();
-		let dlg = at(2);
+			let dlg = at(id);
+			assert!(dlg.reset_deletes_saved());
+			dlg.reset_history().unwrap();
+			assert!(hist.iter().all(|p| !p.exists()));
+		}
+		// only the file of an item that keeps none: still asks, and it goes
+		std::fs::write(config::instance_file(&d.0, 1), off).unwrap();
+		keep::write(&hist[1], &[("cpu", b"x")]).unwrap();
+		let dlg = at(1);
 		assert!(dlg.reset_deletes_saved());
 		dlg.reset_history().unwrap();
-		assert!(!hist[0].exists() && hist[1].exists());
-		// and in the one that does
-		write_both();
-		at(1).reset_history().unwrap();
-		assert!(!hist[0].exists() && hist[1].exists());
-		// neither keeps it: no question, and both files stay
-		write_both();
-		std::fs::write(config::instance_file(&d.0, 1), off).unwrap();
-		let dlg = at(2);
-		assert!(!dlg.reset_deletes_saved());
-		dlg.reset_history().unwrap();
-		assert!(hist.iter().all(|p| p.exists()));
-		// an item with no file of its own goes by the shared one
-		std::fs::remove_file(config::instance_file(&d.0, 1)).unwrap();
-		assert!(at(2).reset_deletes_saved());
-		std::fs::write(config::shared_file(&d.0), off).unwrap();
-		assert!(!at(2).reset_deletes_saved());
-		for p in hist.iter().chain([&keep::reset_mark(&data)]) {
-			std::fs::remove_file(p).unwrap();
-		}
+		assert!(!hist[1].exists() && !dlg.reset_deletes_saved());
+		std::fs::remove_file(keep::reset_mark(&data)).unwrap();
 		std::fs::remove_dir(&data).unwrap();
 	}
 

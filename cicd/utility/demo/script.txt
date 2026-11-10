@@ -2,7 +2,7 @@
 @ Gif: 960x540, 50 fps, scale 1. Ends on the last frame held 2 s, then 3 s of black. No fades.
 @ Video: 1920x1080, 60 fps, scale 2, so the same layout doubled. Fades in over 0.5 s, out to black over 2 s. Click sounds.
 @ Everything anonymous: a throwaway home seen as /home/sam, no real names or paths.
-@ A dark XFCE panel across the top, set up like a real one: the applications menu and window buttons on the left, then on the right tukzmon at the default graphs, the status tray with a network and a volume icon, notifications, the clock, and the logout and shutdown menu. Captions in a band at the bottom.
+@ A dark XFCE panel across the top, set up like a real one: the applications menu and window buttons on the left, then on the right tukzmon at the default graphs, the status tray with a network and a volume icon, notifications, the clock, and the logout and shutdown menu. Its text is Lato, a size up from the desktop's, and the clock's time bigger still. Captions in a band at the bottom.
 @ Keep it near 30 seconds. The README shows the gif.
 
 tukzmon: system graphs for the XFCE panel

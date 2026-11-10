@@ -103,6 +103,16 @@ settings:
 		default: ago
 		tip: "What the tip says about the time under the pointer. How long ago reads like 7 hrs ago. Date and time gives only the time for today, and the date too for anything older, in your locale's short format."
 
+	animate:
+		label: Smooth scrolling
+		tab: General
+		control: dropdown
+		options: [auto, on, off]
+		option_labels: ["Auto", "On", "Off"]
+		path: graph.animate
+		default: auto
+		tip: "Slide each graph along to its newest sample over the time until the next one, rather than moving it a whole step at each sample. The right edge runs one sample behind to do it. It draws up to 60 times a second, in step with the screen, rather than once a sample, so it costs more CPU. Auto turns it on with 8 or more CPUs."
+
 	VerticalHead:
 		label: Vertical axis
 		tab: General
@@ -244,7 +254,7 @@ settings:
 		whole: true
 		range: [1, 1000]
 		path: procs.sample
-		default: 200
+		default: 500
 		tip: "How often the processes graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	procs_time:

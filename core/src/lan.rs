@@ -11,12 +11,14 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::mem::offset_of;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use std::os::fd::{FromRawFd, OwnedFd};
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::time::Instant;
 
-use crate::collect::Collector;
+use crate::collect::{Collector, Kept};
 
 const SOCK_DIAG_BY_FAMILY: u16 = 20;
+/// The old `inet_diag_req` dump, which asks for both families at once.
+const TCPDIAG_GETSOCK: u16 = 18;
 const NLMSG_ERROR: u16 = 2;
 const NLMSG_DONE: u16 = 3;
 const NLM_F_REQUEST: u16 = 1;
@@ -38,6 +40,13 @@ const SYN_RECV: u32 = 3;
 const TIME_WAIT: u32 = 6;
 const LISTEN: u32 = 10;
 const STATES: u32 = 0xfff & !(1 << SYN_RECV | 1 << TIME_WAIT | 1 << LISTEN);
+
+/// Where the TCP opens since boot are counted, which says when a socket the
+/// last census can't have seen may be there.
+const SNMP: &str = "/proc/net/snmp";
+/// Lookups sent in one write. Their answers are all queued before it
+/// returns, so this keeps them well inside the socket's receive buffer.
+const ASKS: usize = 32;
 
 const ACKED: usize = offset_of!(libc::tcp_info, tcpi_bytes_acked);
 const RECEIVED: usize = offset_of!(libc::tcp_info, tcpi_bytes_received);
@@ -117,6 +126,39 @@ fn request(family: u8, seq: u32) -> [u8; HEADER + 56] {
 	r
 }
 
+/// The dump of every TCP socket of both families in one walk of the
+/// kernel's table, which `request` takes one walk a family for.
+fn census(seq: u32) -> [u8; HEADER + 60] {
+	let mut r = [0; HEADER + 60];
+	header(&mut r, TCPDIAG_GETSOCK, seq);
+	// struct inet_diag_req: family, src_len, dst_len, the extensions
+	// wanted, the 48-byte id, then the states
+	r[HEADER + 3] = 1 << (INET_DIAG_INFO - 1);
+	r[HEADER + 52..HEADER + 56].copy_from_slice(&STATES.to_ne_bytes());
+	r
+}
+
+/// A lookup of one socket by its addresses, ports, interface and cookie,
+/// which costs the kernel a hash lookup rather than a walk.
+fn ask(sock: &Sock, seq: u32) -> [u8; HEADER + 56] {
+	let mut r = request(sock.family, seq);
+	r[6..8].copy_from_slice(&NLM_F_REQUEST.to_ne_bytes());
+	r[HEADER + 8..].copy_from_slice(&sock.id);
+	r
+}
+
+/// `ActiveOpens` plus `PassiveOpens` from `/proc/net/snmp`. Every TCP socket of
+/// both families with a far end got there by one or the other.
+fn opens(snmp: &str) -> Option<u64> {
+	let mut rows = snmp.lines().filter_map(|l| l.strip_prefix("Tcp:"));
+	let (names, values) = (rows.next()?, rows.next()?);
+	names
+		.split_whitespace()
+		.zip(values.split_whitespace())
+		.filter(|(name, _)| matches!(*name, "ActiveOpens" | "PassiveOpens"))
+		.try_fold(0, |sum, (_, v)| Some(sum + v.parse::<u64>().ok()?))
+}
+
 /// A TCP socket with a private far end: bytes sent and received on the
 /// wire, and whether it's the LAN's. One that's away is kept too, so when it
 /// stops being away only what it moves from then on counts.
@@ -124,6 +166,9 @@ fn request(family: u8, seq: u32) -> [u8; HEADER + 56] {
 struct Sock {
 	moved: [u64; 2],
 	lan: bool,
+	family: u8,
+	/// Its `inet_diag_sockid`, to look it up by.
+	id: [u8; 48],
 }
 
 /// Sockets with a private far end that still aren't the LAN's, since they
@@ -162,6 +207,7 @@ fn lan_socket(msg: &[u8], away: &Away) -> Option<(u64, Sock)> {
 	// a dual-stack socket's IPv4 client sends IPv4 headers
 	let wire_v6 = mapped(far).is_ipv6();
 	let cookie = u64::from(u32_at(msg, 44)?) | u64::from(u32_at(msg, 48)?) << 32;
+	let id = msg.get(4..52)?.try_into().ok()?;
 	let mut at = DIAG_MSG;
 	while at + 4 <= msg.len() {
 		let len = usize::from(u16_at(msg, at)?);
@@ -178,6 +224,8 @@ fn lan_socket(msg: &[u8], away: &Away) -> Option<(u64, Sock)> {
 				Sock {
 					moved: [sent, received],
 					lan,
+					family: msg[0],
+					id,
 				},
 			));
 		}
@@ -198,7 +246,7 @@ enum Dump {
 /// into `out`.
 fn parse(buf: &[u8], seq: u32, away: &Away, out: &mut HashMap<u64, Sock>) -> Dump {
 	walk(buf, seq, |kind, body| {
-		if kind != SOCK_DIAG_BY_FAMILY {
+		if kind != SOCK_DIAG_BY_FAMILY && kind != TCPDIAG_GETSOCK {
 			return;
 		}
 		if let Some((cookie, sock)) = lan_socket(body, away) {
@@ -269,6 +317,95 @@ fn dump(sock: &mut File, buf: &mut [u8], req: &[u8], mut parse: impl FnMut(&[u8]
 			Dump::More | Dump::Bad => return false,
 		}
 	}
+}
+
+/// Answers to asks `first` to `first + n - 1` in one read, the sockets found
+/// into `now`, and how many it had. One that closed answers ENOENT, and
+/// is left out. None for anything else.
+fn answers(
+	buf: &[u8],
+	first: u32,
+	n: u32,
+	away: &Away,
+	now: &mut HashMap<u64, Sock>,
+) -> Option<u32> {
+	let mut had = 0;
+	let mut at = 0;
+	while at + HEADER <= buf.len() {
+		let len = u32_at(buf, at)? as usize;
+		let (kind, seq) = (u16_at(buf, at + 4)?, u32_at(buf, at + 8)?);
+		let body = buf.get(at + HEADER..at + len).filter(|_| len >= HEADER)?;
+		at += align(len);
+		if seq.wrapping_sub(first) >= n {
+			continue;
+		}
+		match kind {
+			SOCK_DIAG_BY_FAMILY => {
+				if let Some((cookie, sock)) = lan_socket(body, away) {
+					now.insert(cookie, sock);
+				}
+			}
+			NLMSG_ERROR => {
+				// ESTALE is its address and port taken by a new socket
+				let err = -i32::from_ne_bytes(body.get(..4)?.try_into().ok()?);
+				if err != libc::ENOENT && err != libc::ESTALE {
+					return None;
+				}
+			}
+			_ => return None,
+		}
+		had += 1;
+	}
+	Some(had)
+}
+
+/// Looks up every socket of `was` again, into `now`, `ASKS` to a write.
+/// False when an answer is bad or missing, as when the receive buffer
+/// overflowed.
+fn follow(
+	sock: &mut File,
+	buf: &mut [u8],
+	asks: &mut Vec<u8>,
+	seq: &mut u32,
+	was: &HashMap<u64, Sock>,
+	away: &Away,
+	now: &mut HashMap<u64, Sock>,
+) -> bool {
+	let mut left = was.values().peekable();
+	while left.peek().is_some() {
+		asks.clear();
+		let first = seq.wrapping_add(1);
+		let mut n = 0;
+		for s in left.by_ref().take(ASKS) {
+			*seq = seq.wrapping_add(1);
+			asks.extend_from_slice(&ask(s, *seq));
+			n += 1;
+		}
+		if sock.write_all(asks).is_err() {
+			return false;
+		}
+		let mut had = 0;
+		while had < n {
+			// SAFETY: recv writes at most buf.len() bytes into buf.
+			let got = unsafe {
+				libc::recv(
+					sock.as_raw_fd(),
+					buf.as_mut_ptr().cast(),
+					buf.len(),
+					libc::MSG_DONTWAIT,
+				)
+			};
+			// nothing queued is an answer lost
+			let Some(got) = usize::try_from(got).ok().filter(|g| *g > 0) else {
+				return false;
+			};
+			let Some(more) = answers(&buf[..got], first, n, away, now) else {
+				return false;
+			};
+			had += more;
+		}
+	}
+	true
 }
 
 /// One `RTM_NEWNEIGH` message's address and link address, when it has both.
@@ -349,6 +486,11 @@ pub fn split([local, sent, received]: [f32; 3], [lan_sent, lan_received]: [f32; 
 /// Bytes per second over TCP to and from the LAN, sent and received. UDP,
 /// QUIC among it, isn't counted, and a socket that closes between reads
 /// loses what it moved since the last one.
+///
+/// A dump walks the kernel's whole table of TCP connections, which is sized
+/// by RAM, about 9 ms on b23 however few sockets there are. So a read only
+/// dumps when a TCP socket opened since the last dump, and otherwise looks
+/// up the ones it has.
 #[derive(Debug)]
 pub struct LanReader {
 	/// What isn't the LAN's, though its far end is private.
@@ -357,7 +499,12 @@ pub struct LanReader {
 	/// socket while an old one is still going.
 	sock: Option<File>,
 	buf: Vec<u8>,
+	asks: Vec<u8>,
 	seq: u32,
+	snmp: Kept,
+	text: String,
+	/// TCP opens at the last dump. None when the next read must dump.
+	opens: Option<u64>,
 	was: HashMap<u64, Sock>,
 	now: HashMap<u64, Sock>,
 	at: Option<Instant>,
@@ -370,7 +517,11 @@ impl LanReader {
 			sock: Some(netlink(libc::NETLINK_SOCK_DIAG)?),
 			// the kernel caps one read of a dump at 32 KiB
 			buf: vec![0; 32 * 1024],
+			asks: Vec::with_capacity(ASKS * (HEADER + 56)),
 			seq: 0,
+			snmp: Kept::new(SNMP),
+			text: String::new(),
+			opens: None,
 			was: HashMap::new(),
 			now: HashMap::new(),
 			at: None,
@@ -378,11 +529,16 @@ impl LanReader {
 	}
 
 	/// Every socket with a private far end, of both families, into `now`.
-	/// False when a dump failed, since a socket it missed would count all it
-	/// has next time. The socket goes with it, which ends what's left of the
-	/// dump, so the next poll can start its own.
+	/// A dump when the TCP opens moved since the last one, or can't be
+	/// read, and the sockets of `was` looked up again when they didn't.
+	/// False when that failed, since a socket it missed would count all it
+	/// has next time. The netlink socket goes with it, which ends what's
+	/// left of a dump, so the next poll can start its own, and that one
+	/// dumps.
 	fn poll(&mut self) -> bool {
 		self.now.clear();
+		// read before the dump, so a socket opened during it moves them
+		let opens = self.snmp.read(&mut self.text).and_then(opens);
 		let sock = match &mut self.sock {
 			Some(sock) => sock,
 			None => match netlink(libc::NETLINK_SOCK_DIAG) {
@@ -390,18 +546,29 @@ impl LanReader {
 				None => return false,
 			},
 		};
-		for family in [libc::AF_INET, libc::AF_INET6] {
+		let (away, now) = (&self.away, &mut self.now);
+		let ok = if opens.is_some() && opens == self.opens {
+			follow(
+				sock,
+				&mut self.buf,
+				&mut self.asks,
+				&mut self.seq,
+				&self.was,
+				away,
+				now,
+			)
+		} else {
 			self.seq = self.seq.wrapping_add(1);
 			let seq = self.seq;
-			let (away, now) = (&self.away, &mut self.now);
-			if !dump(sock, &mut self.buf, &request(family as u8, seq), |b| {
+			dump(sock, &mut self.buf, &census(seq), |b| {
 				parse(b, seq, away, now)
-			}) {
-				self.sock = None;
-				return false;
-			}
+			})
+		};
+		self.opens = opens.filter(|_| ok);
+		if !ok {
+			self.sock = None;
 		}
-		true
+		ok
 	}
 }
 
@@ -566,16 +733,8 @@ mod tests {
 		buf.extend(seq(message("10.0.0.1", "10.0.0.3", 2, [7, 7], [0, 0]), 7));
 		let mut out = HashMap::new();
 		assert_eq!(parse(&buf, 7, &Away::default(), &mut out), Dump::More);
-		assert_eq!(
-			out,
-			HashMap::from([(
-				2,
-				Sock {
-					moved: [7, 7],
-					lan: true
-				}
-			)])
-		);
+		let got: Vec<_> = out.iter().map(|(c, s)| (*c, s.moved, s.lan)).collect();
+		assert_eq!(got, [(2, [7, 7], true)]);
 		buf.extend(seq(wrap(NLMSG_DONE, &[0; 4]), 7));
 		assert_eq!(parse(&buf, 7, &Away::default(), &mut out), Dump::Done);
 	}
@@ -691,7 +850,9 @@ mod tests {
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri has no sockets")]
 	fn a_dump_left_partway_is_one_gap() {
-		// enough sockets that a dump takes more than one read
+		let mut r = LanReader::probe().expect("sock_diag needs no root");
+		// enough sockets that a dump takes more than one read, and opened
+		// since the last one, so the next read dumps
 		let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
 		let to = listener.local_addr().unwrap();
 		let pairs: Vec<_> = (0..200)
@@ -700,7 +861,6 @@ mod tests {
 				(c, listener.accept().unwrap().0)
 			})
 			.collect();
-		let mut r = LanReader::probe().expect("sock_diag needs no root");
 		// a read too short for one message cuts it, and the dump fails there
 		r.buf.truncate(64);
 		assert_eq!(r.read(), None);
@@ -708,6 +868,220 @@ mod tests {
 		assert!(r.read().is_some(), "only the failed read is a gap");
 		assert!(r.read().is_some());
 		drop(pairs);
+	}
+
+	// Test ID: df3cx
+	#[test]
+	fn the_tcp_opens_are_active_plus_passive() {
+		let snmp = "Ip: Forwarding DefaultTTL\nIp: 1 64\n\
+			Tcp: RtoAlgorithm RtoMin RtoMax MaxConn ActiveOpens PassiveOpens AttemptFails\n\
+			Tcp: 1 200 120000 -1 1234 56 7\n\
+			Udp: InDatagrams\nUdp: 9\n";
+		assert_eq!(opens(snmp), Some(1290));
+		assert_eq!(opens("Tcp: ActiveOpens PassiveOpens\nTcp: 5 x\n"), None);
+		assert_eq!(opens("Tcp: ActiveOpens PassiveOpens\n"), None);
+		assert_eq!(opens(""), None);
+	}
+
+	// Test ID: df3cy
+	#[test]
+	fn answers_hold_the_sockets_found_and_count_the_gone() {
+		let seq = |mut m: Vec<u8>, seq: u32| {
+			m[8..12].copy_from_slice(&seq.to_ne_bytes());
+			m
+		};
+		let error = |err: i32, n: u32| {
+			let mut body = vec![0u8; 20];
+			body[..4].copy_from_slice(&(-err).to_ne_bytes());
+			seq(wrap(NLMSG_ERROR, &body), n)
+		};
+		let mut buf = seq(message("10.0.0.1", "10.0.0.2", 1, [5, 5], [0, 0]), 41);
+		buf.extend(error(libc::ENOENT, 42));
+		buf.extend(error(libc::ESTALE, 43));
+		// an earlier ask's, and one from past this batch
+		buf.extend(seq(message("10.0.0.1", "10.0.0.3", 2, [7, 7], [0, 0]), 40));
+		buf.extend(error(libc::EINVAL, 44));
+		let mut now = HashMap::new();
+		assert_eq!(answers(&buf, 41, 3, &Away::default(), &mut now), Some(3));
+		assert_eq!(now.keys().copied().collect::<Vec<_>>(), [1]);
+		assert_eq!(answers(&buf, 41, 4, &Away::default(), &mut now), None);
+		let mut cut = message("10.0.0.1", "10.0.0.2", 1, [5, 5], [0, 0]);
+		cut.truncate(100);
+		assert_eq!(answers(&cut, 0, 1, &Away::default(), &mut now), None);
+		// a lookup is the dump request for its family, asked of one socket
+		let sock = now[&1];
+		let a = ask(&sock, 9);
+		assert_eq!(u16_at(&a, 6), Some(NLM_F_REQUEST));
+		assert_eq!(a[HEADER], libc::AF_INET as u8);
+		assert_eq!(a[HEADER + 8..], sock.id);
+		assert_eq!(u32_at(&sock.id, 40), Some(1), "the cookie");
+	}
+
+	// Test ID: df3cz
+	#[test]
+	#[cfg_attr(miri, ignore = "Miri has no netlink sockets")]
+	fn one_census_has_both_families_and_a_lookup_finds_one_socket() {
+		let pair = |at: &str| {
+			let listener = std::net::TcpListener::bind(at).unwrap();
+			let c = std::net::TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+			(c, listener.accept().unwrap().0)
+		};
+		let v4 = pair("127.0.0.1:0");
+		let v6 = std::net::TcpListener::bind("[::1]:0")
+			.is_ok()
+			.then(|| pair("[::1]:0"));
+		let mut sock = netlink(libc::NETLINK_SOCK_DIAG).unwrap();
+		let mut buf = vec![0; 32 * 1024];
+		let mut found = Vec::new();
+		assert!(dump(&mut sock, &mut buf, &census(8), |b| walk(
+			b,
+			8,
+			|kind, body| {
+				if kind == TCPDIAG_GETSOCK {
+					let port = u16::from_be_bytes([body[4], body[5]]);
+					found.push((
+						i32::from(body[0]),
+						port,
+						<[u8; 48]>::try_from(&body[4..52]).unwrap(),
+					));
+				}
+			}
+		)));
+		let port = |s: &std::net::TcpStream| s.local_addr().unwrap().port();
+		let Some(&(_, _, id)) = found
+			.iter()
+			.find(|(family, p, _)| *family == libc::AF_INET && *p == port(&v4.0))
+		else {
+			panic!("the IPv4 pair isn't in the census");
+		};
+		if let Some((c, _)) = &v6 {
+			assert!(
+				found
+					.iter()
+					.any(|(family, p, _)| *family == libc::AF_INET6 && *p == port(c)),
+				"the IPv6 pair isn't in the census"
+			);
+		}
+		let target = Sock {
+			moved: [0; 2],
+			lan: true,
+			family: libc::AF_INET as u8,
+			id,
+		};
+		let mut lookup = |seq: u32| {
+			sock.write_all(&ask(&target, seq)).unwrap();
+			let n = sock.read(&mut buf).unwrap();
+			(
+				u16_at(&buf[..n], 4),
+				buf.get(HEADER + 4..HEADER + 52).map(<[u8]>::to_vec),
+			)
+		};
+		assert_eq!(lookup(9), (Some(SOCK_DIAG_BY_FAMILY), Some(id.to_vec())));
+		// a reset leaves no TIME_WAIT behind to be found
+		let linger = libc::linger {
+			l_onoff: 1,
+			l_linger: 0,
+		};
+		// SAFETY: setsockopt reads size_of::<linger>() bytes of linger.
+		let set = unsafe {
+			libc::setsockopt(
+				v4.0.as_raw_fd(),
+				libc::SOL_SOCKET,
+				libc::SO_LINGER,
+				(&raw const linger).cast(),
+				size_of::<libc::linger>() as u32,
+			)
+		};
+		assert_eq!(set, 0);
+		drop(v4);
+		assert_eq!(lookup(10).0, Some(NLMSG_ERROR));
+	}
+
+	// Test ID: df3d0
+	#[test]
+	#[cfg_attr(miri, ignore = "Miri has no netlink sockets")]
+	fn a_read_dumps_only_when_a_tcp_socket_opened() {
+		use crate::collect::Tree;
+		let snmp = |n: u32| format!("Tcp: ActiveOpens PassiveOpens\nTcp: {n} 0\n");
+		let tree = Tree::new("lan_opens", &[("snmp", &snmp(10))]);
+		let mut r = LanReader::probe().expect("sock_diag needs no root");
+		r.snmp = Kept::new(tree.at("snmp"));
+		// with nothing to look up, a read that doesn't dump asks nothing
+		let dumps = |r: &mut LanReader| {
+			r.was.clear();
+			let seq = r.seq;
+			assert!(r.read().is_some());
+			r.seq.wrapping_sub(seq)
+		};
+		assert_eq!(dumps(&mut r), 1, "the opens weren't read before");
+		assert_eq!(dumps(&mut r), 0);
+		assert_eq!(dumps(&mut r), 0);
+		std::fs::write(tree.at("snmp"), snmp(11)).unwrap();
+		assert_eq!(dumps(&mut r), 1);
+		assert_eq!(dumps(&mut r), 0);
+		r.snmp = Kept::new(tree.at("gone"));
+		assert_eq!(dumps(&mut r), 1, "no opens, so every read dumps");
+		assert_eq!(dumps(&mut r), 1);
+	}
+
+	// Test ID: df3d1
+	#[test]
+	#[cfg_attr(miri, ignore = "Miri has no netlink sockets")]
+	fn a_read_with_no_new_socket_looks_up_the_ones_it_has() {
+		use crate::collect::Tree;
+		let tree = Tree::new("lan_follow", &[("snmp", "Tcp: ActiveOpens\nTcp: 3\n")]);
+		let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+		let c = std::net::TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+		let s = listener.accept().unwrap().0;
+		let mut r = LanReader::probe().expect("sock_diag needs no root");
+		r.snmp = Kept::new(tree.at("snmp"));
+		assert!(r.read().is_some());
+		// loopback is never kept, so put both ends in as if they were the LAN's
+		let mut sock = netlink(libc::NETLINK_SOCK_DIAG).unwrap();
+		let ports = [
+			c.local_addr().unwrap().port(),
+			s.local_addr().unwrap().port(),
+		];
+		let mut ends = HashMap::new();
+		assert!(dump(&mut sock, &mut r.buf, &census(1), |b| walk(
+			b,
+			1,
+			|kind, body| {
+				let port = u16::from_be_bytes([body[4], body[5]]);
+				if kind == TCPDIAG_GETSOCK
+					&& body[0] == libc::AF_INET as u8
+					&& ports.contains(&port)
+				{
+					let id: [u8; 48] = body[4..52].try_into().unwrap();
+					let sock = Sock {
+						moved: [0; 2],
+						lan: true,
+						family: body[0],
+						id,
+					};
+					ends.insert(u64::from(port), sock);
+				}
+			}
+		)));
+		assert_eq!(ends.len(), 2);
+		let asked = |r: &mut LanReader, ends: &HashMap<u64, Sock>| {
+			r.was.clone_from(ends);
+			let seq = r.seq;
+			let ok = r.poll();
+			(ok, r.seq.wrapping_sub(seq))
+		};
+		assert_eq!(asked(&mut r, &ends), (true, 2), "a lookup each, no dump");
+		drop(c);
+		assert_eq!(
+			asked(&mut r, &ends),
+			(true, 2),
+			"one that's closing isn't a gap"
+		);
+		r.buf.truncate(64);
+		assert!(!asked(&mut r, &ends).0, "an answer cut short is a gap");
+		r.buf.resize(32 * 1024, 0);
+		assert_eq!(asked(&mut r, &ends), (true, 1), "and the next read dumps");
+		drop(s);
 	}
 
 	// Test ID: deqt7
@@ -757,7 +1131,17 @@ mod tests {
 	fn a_new_socket_moved_all_it_has_and_a_closed_one_nothing() {
 		let lan = |m: [(u64, [u64; 2]); 2]| {
 			m.into_iter()
-				.map(|(c, moved)| (c, Sock { moved, lan: true }))
+				.map(|(c, moved)| {
+					(
+						c,
+						Sock {
+							moved,
+							lan: true,
+							family: 0,
+							id: [0; 48],
+						},
+					)
+				})
 				.collect::<HashMap<_, _>>()
 		};
 		let was = lan([(1, [100, 1000]), (2, [50, 50])]);

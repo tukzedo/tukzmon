@@ -104,6 +104,18 @@ impl Field {
 		}
 	}
 
+	/// Its box's tip.
+	pub fn tip(self) -> &'static str {
+		match self {
+			Field::Red => "How much red is in the color, from 0 to 100.",
+			Field::Green => "How much green is in the color, from 0 to 100.",
+			Field::Blue => "How much blue is in the color, from 0 to 100.",
+			Field::Brightness => "How bright the color is, from 0, which is black, to 100.",
+			Field::Saturation => "How strong the color is, from 0, which is a gray, to 100.",
+			Field::Hex => "The color as #rrggbb, with 2 hex digits each for red, green, and blue.",
+		}
+	}
+
 	fn channel(self, c: &mut Rgb) -> Option<&mut u8> {
 		match self {
 			Field::Red => Some(&mut c.0),

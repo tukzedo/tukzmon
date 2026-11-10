@@ -183,6 +183,32 @@ fTest_no_file_a_package_holds_counts_as_docs_for_the_hook() {
 	((ok))
 }
 
+## Test ID: df38w
+fTest_each_package_links_tukzmon_settings_beside_the_library() {
+	local entries='' pkgr='' lib='' bin='' link='' src=''
+	## One "dst|src|type|packager" line per contents entry.
+	entries="$(awk '
+		function flush() { if (dst != "") print dst "|" src "|" type "|" pk; dst = src = type = pk = "" }
+		/^contents:/ { on = 1; next }
+		on && /^[^ #]/ { flush(); on = 0 }
+		!on { next }
+		/^  - src:/ { flush(); src = $3 }
+		/^    dst:/ { dst = $2 }
+		/^    type:/ { type = $2 }
+		/^    packager:/ { pk = $2 }
+		END { flush() }' "${cicd}/packaging/nfpm.yaml")"
+	bin="$(awk -F'|' '$1 ~ /\/tukzmon-settings$/ && $3 == "" && $4 == "" { print $1 }' <<< "${entries}")"
+	[[ "${bin}" == /usr/bin/tukzmon-settings ]] || { fWhy "tukzmon-settings goes to '${bin}'"; return 1; }
+	for pkgr in deb rpm; do
+		lib="$(awk -F'|' -v p="${pkgr}" '$1 ~ /\/libtukzmon\.so$/ && $4 == p { print $1 }' <<< "${entries}")"
+		[[ -n "${lib}" ]] || { fWhy "no libtukzmon.so for the ${pkgr}"; return 1; }
+		link="$(dirname -- "${lib}")/tukzmon-settings"
+		src="$(awk -F'|' -v d="${link}" -v p="${pkgr}" '$1 == d && $3 == "symlink" && ($4 == p || $4 == "") { print $2 }' <<< "${entries}")"
+		[[ -n "${src}" ]] || { fWhy "the ${pkgr} has no link at ${link}"; return 1; }
+		[[ "$(realpath -m -- "$(dirname -- "${link}")/${src}")" == "${bin}" ]] || { fWhy "the ${pkgr}'s ${link} -> ${src} isn't ${bin}"; return 1; }
+	done
+}
+
 ## Test ID: deqvm
 fTest_a_gate_the_hook_started_doesnt_count_the_hook_as_another_run() {
 	local t="${work}/other-run" live='' out='' ok=0
@@ -389,6 +415,40 @@ fTest_a_miri_module_names_the_test_that_stopped_it() {
 	((rc == 1)) || { fWhy "a failed test gave ${rc}"; return 1; }
 	## the Running line, 3 results and the stand-in's error line
 	(($(wc -l < "${log}") == 5)) || { fWhy "a failed test got more lines: $(cat -- "${log}")"; return 1; }
+}
+
+## Test ID: df39n
+fTest_a_miri_target_that_cant_list_its_tests_fails_the_step() {
+	local t="${work}/miri-list" ok=0
+	mkdir -p -- "${t}/bin"
+	## cargo lists 3 tests in 2 modules of the package it's given, with a
+	## warning on stderr, or fails on the one STUB_FAIL names.
+	printf '#!/usr/bin/env bash\nwhile [[ "$1" != -p ]]; do shift; done\nif [[ "$2" == "${STUB_FAIL:-}" ]]; then echo "error: could not compile $2" >&2; exit 101; fi\necho "warning: files in /proc" >&2\nprintf "%%s::a::x: test\\n%%s::b::y: test\\n%%s::b::z: test\\n" "$2" "$2" "$2"\n' > "${t}/bin/cargo"
+	chmod +x -- "${t}/bin/cargo"
+	(
+		eval "$(awk '/^fMiriList\(\)/, /^}/' "${cicd}/cicd.bash")"
+		fEcho_Clean() { printf '%s\n' "$*"; }
+		# shellcheck disable=2034  ## Read by fMiriList, from cicd.bash.
+		{ MIRI_TARGETS=("p1 --lib" "p2 --lib" "p3 --bins"); miriEnv=(X=1); locked=(); RUST_NIGHTLY=x; }
+		local d='' out='' n=''
+		d="${t}/all"; mkdir -- "${d}"
+		out="$(PATH="${t}/bin:${PATH}" fMiriList "${d}" 2>&1)" || { fWhy "failed with every target listed: ${out}"; exit 1; }
+		read -r n < "${d}/count"
+		[[ "${n}" == 9 && "$(wc -l < "${d}/list")" == 6 ]] || { fWhy "every target listed gave ${n} test(s) in: $(cat -- "${d}/list")"; exit 1; }
+		[[ "$(head -n 1 -- "${d}/list")" == "0001 p1 --lib p1::b::y p1::b::z" ]] || { fWhy "the biggest module isn't first: $(cat -- "${d}/list")"; exit 1; }
+		[[ -z "${out}" ]] || { fWhy "a clean list printed: ${out}"; exit 1; }
+		d="${t}/filter"; mkdir -- "${d}"
+		PATH="${t}/bin:${PATH}" TUKZMON_MIRI_FILTER=z fMiriList "${d}" > /dev/null 2>&1 || { fWhy "failed with a filter"; exit 1; }
+		read -r n < "${d}/count"
+		[[ "${n}" == 3 ]] || { fWhy "a filter gave ${n} test(s) in: $(cat -- "${d}/list")"; exit 1; }
+		## p2 won't build, and p3 still gets its try.
+		d="${t}/bad"; mkdir -- "${d}"
+		if out="$(PATH="${t}/bin:${PATH}" STUB_FAIL=p2 fMiriList "${d}" 2>&1)"; then fWhy "passed with p2's list failing: ${out}"; exit 1; fi
+		[[ "${out}" == *"error: could not compile p2"* ]] || { fWhy "p2's error isn't shown: ${out}"; exit 1; }
+		[[ "${out}" == *"couldn't list the tests of p2 --lib under Miri, exit 101"* ]] || { fWhy "p2 isn't named: ${out}"; exit 1; }
+		[[ -s "${d}/target-3.out" ]] || { fWhy "p3 wasn't tried after p2 failed"; exit 1; }
+	) && ok=1
+	((ok))
 }
 
 ## A tree of one crate in a repo of its own, for test-ids.bash check.
@@ -873,6 +933,88 @@ fTest_a_demo_stopped_by_term_cleans_up_and_one_killed_leaves_a_folder_the_sweep_
 	((ok))
 }
 
+## Test ID: df3a6
+fTest_the_demos_encodes_get_the_runs_job_count() {
+	local out=''
+	[[ " $(source "${cicd}/config.bash" && echo "${HEAVY_STEPS[*]}") " == *" fStepDemo "* ]] || { fWhy "fStepDemo isn't in HEAVY_STEPS"; return 1; }
+	grep -Fq 'demo-video.py" --lib-dir "${rel}" --history-bin "${rel}/examples/demo-history" --jobs "${jobs}"' -- "${cicd}/cicd.bash" \
+		|| { fWhy "fStepDemo doesn't pass --jobs"; return 1; }
+	## Every ffmpeg command in the file, so a new one can't miss it.
+	if ! out="$(python3 -I -B - "${cicd}/utility/demo/demo-video.py" 2>&1 <<- 'EOF'
+			import argparse, ast, importlib.util, sys, types
+			src = open(sys.argv[1], encoding="utf-8").read()
+			calls = [n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.List) and n.elts
+			         and isinstance(n.elts[0], ast.Constant) and n.elts[0].value == "ffmpeg"]
+			if len(calls) < 6:
+			    sys.exit(f"found only {len(calls)} ffmpeg commands")
+			for n in calls:
+			    text = ast.get_source_segment(src, n)
+			    if '"-threads"' not in text:
+			        sys.exit(f"line {n.lineno}: an ffmpeg with no -threads")
+			    if '"libx265"' in text and "pools={jobs}" not in text:
+			        sys.exit(f"line {n.lineno}: x265 with no pools")
+			stub = types.ModuleType("stub")
+			stub.__getattr__ = lambda name: object
+			sys.modules.update({"numpy": stub, "Xlib": stub, "Xlib.X": stub, "Xlib.display": stub})
+			spec = importlib.util.spec_from_file_location("demo", sys.argv[1])
+			demo = importlib.util.module_from_spec(spec)
+			spec.loader.exec_module(demo)
+			if demo.job_count("3") != 3 or demo.quarter_of_cpus() < 1:
+			    sys.exit("job_count or quarter_of_cpus")
+			for bad in ("0", "x[$(true)]", "8 9", "-1"):
+			    try:
+			        demo.job_count(bad)
+			    except argparse.ArgumentTypeError:
+			        continue
+			    sys.exit(f"took jobs '{bad}'")
+		EOF
+	)"; then
+		fWhy "${out}"
+		return 1
+	fi
+}
+
+## Test ID: df3a7
+fTest_the_demo_takes_a_display_that_answers_as_taken_with_no_lock_file() {
+	local out='' root="${work}/demo-x"
+	mkdir -p -- "${root}/.X11-unix"
+	if ! out="$(python3 -I -B - "${cicd}/utility/demo/demo-video.py" "${root}" 2>&1 <<- 'EOF'
+			import importlib.util, os, socket, sys, types
+			from pathlib import Path
+			stub = types.ModuleType("stub")
+			stub.__getattr__ = lambda name: object
+			sys.modules.update({"numpy": stub, "Xlib": stub, "Xlib.X": stub, "Xlib.display": stub})
+			spec = importlib.util.spec_from_file_location("demo", sys.argv[1])
+			demo = importlib.util.module_from_spec(spec)
+			spec.loader.exec_module(demo)
+			demo.X_TMP = root = Path(sys.argv[2])
+			def listen(addr):
+			    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+			    s.bind(addr)
+			    s.listen(1)
+			    return s
+			def want(num, taken, why):
+			    if demo.display_taken(num) != taken:
+			        sys.exit(f":{num} {why}: taken is {not taken}")
+			want(89, False, "with nothing")
+			with listen(str(root / ".X11-unix/X89")):
+			    want(89, True, "with a socket")
+			    if demo.pick_display(":89", False) != ":88":
+			        sys.exit("pick_display didn't step past an answering :89")
+			want(89, False, "with a stale socket file")
+			with listen("\0" + str(root / ".X11-unix/X88")):
+			    want(88, True, "with an abstract socket")
+			(root / ".X87-lock").write_text(f"{os.getpid()}\n")
+			want(87, True, "with a live lock")
+			(root / ".X86-lock").write_text("999999999\n")
+			want(86, False, "with a dead lock")
+		EOF
+	)"; then
+		fWhy "${out}"
+		return 1
+	fi
+}
+
 failed=0
 while read -r id fn; do
 	if "${fn}"; then echo "PASS ${id} ${fn#fTest_}"; else echo "FAIL ${id} ${fn#fTest_}"; failed=1; fi
@@ -907,3 +1049,7 @@ exit "${failed}"
 ##		- 2026-11-09: The pre-push hook gates the commit, not the checkout.
 ##		- 2026-11-09: A demo stopped by TERM cleans up, and one killed leaves a
 ##		  folder the stale sweep takes.
+##		- 2026-11-09: Each package links tukzmon-settings beside the library.
+##		- 2026-11-09: A Miri target that can't list its tests fails the step.
+##		- 2026-11-10: The demo's encodes get the run's job count, and a display
+##		  that answers counts as taken without a lock file.

@@ -92,7 +92,7 @@ LEAK_CHECKS=(
 	"Soak|fStepSoak|slow"
 )
 ## Steps that get a quarter of the CPUs, busy or not.
-HEAVY_STEPS=(fStepSanitizers fStepMiri fStepSoak)
+HEAVY_STEPS=(fStepSanitizers fStepMiri fStepSoak fStepDemo)
 ## The test targets Miri runs, as "package target-option". The soak test is
 ## left out, since it's already ignored and its allocator is dhat's.
 MIRI_TARGETS=(
@@ -149,3 +149,4 @@ CTR_NET_STEPS=(fStepAdvisories)
 ##		- 2026-11-05: A time limit per Miri test, which TUKZMON_MIRI_MINUTES
 ##		  changes, then per module, at 480 minutes.
 ##		- 2026-11-06: assets/ is a docs path.
+##		- 2026-11-10: The demo is a heavy step.

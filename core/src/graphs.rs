@@ -90,6 +90,8 @@ pub trait Drawn: Any {
 	fn set_hover(&mut self, x: Option<usize>);
 	/// True while the axis is still easing in after a jump.
 	fn easing(&self) -> bool;
+	/// True while it slides or its axis eases, so it should draw again soon.
+	fn moving(&self) -> bool;
 	/// The tip for the pointer at device column `x`.
 	fn hover_tip(&self, x: usize, w: usize, h: usize, scale: usize) -> String;
 	/// The latest read, as the panel's tooltip.
@@ -152,6 +154,9 @@ impl<S: Source<N> + 'static, const N: usize> Drawn for Graph<S, N> {
 	}
 	fn easing(&self) -> bool {
 		Graph::easing(self)
+	}
+	fn moving(&self) -> bool {
+		Graph::moving(self)
 	}
 	fn hover_tip(&self, x: usize, w: usize, h: usize, scale: usize) -> String {
 		Graph::hover_tip(self, x, w, h, scale)
@@ -720,6 +725,13 @@ impl Graphs {
 	pub fn easing(&self) -> bool {
 		self.shown()
 			.any(|w| self.slot(w).is_some_and(Drawn::easing))
+	}
+
+	/// True while a shown graph slides or eases, so the item should draw
+	/// again soon.
+	pub fn moving(&self) -> bool {
+		self.shown()
+			.any(|w| self.slot(w).is_some_and(Drawn::moving))
 	}
 
 	/// True while the pointer is over any graph.

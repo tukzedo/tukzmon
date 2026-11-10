@@ -102,8 +102,15 @@ impl Live {
 	}
 
 	/// True while the named graph's axis is easing in.
+	#[cfg(test)]
 	pub fn easing(&self, name: &str) -> bool {
 		self.get(name).is_some_and(Drawn::easing)
+	}
+
+	/// True while the named graph slides or eases, so its row should draw
+	/// again soon.
+	pub fn moving(&self, name: &str) -> bool {
+		self.get(name).is_some_and(Drawn::moving)
 	}
 
 	/// The named graph's latest read, as its tooltip, or empty.

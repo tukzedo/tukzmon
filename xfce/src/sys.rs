@@ -91,6 +91,21 @@ unsafe extern "C" {
 	pub fn gtk_widget_show_all(widget: *mut c_void);
 	pub fn gtk_widget_set_size_request(widget: *mut c_void, w: c_int, h: c_int);
 	pub fn gtk_widget_queue_draw(widget: *mut c_void);
+	pub fn gtk_widget_add_tick_callback(
+		widget: *mut c_void,
+		f: extern "C" fn(*mut c_void, *mut c_void, *mut c_void) -> Gboolean,
+		data: *mut c_void,
+		notify: *const c_void,
+	) -> c_uint;
+	pub fn gtk_widget_remove_tick_callback(widget: *mut c_void, id: c_uint);
+	pub fn gdk_frame_clock_get_frame_counter(clock: *mut c_void) -> i64;
+	pub fn gdk_frame_clock_get_frame_time(clock: *mut c_void) -> i64;
+	pub fn gdk_frame_clock_get_refresh_info(
+		clock: *mut c_void,
+		base_time: i64,
+		refresh_interval: *mut i64,
+		presentation_time: *mut i64,
+	);
 	pub fn gtk_widget_get_allocated_width(widget: *mut c_void) -> c_int;
 	pub fn gtk_widget_get_allocated_height(widget: *mut c_void) -> c_int;
 	pub fn gtk_widget_get_scale_factor(widget: *mut c_void) -> c_int;
