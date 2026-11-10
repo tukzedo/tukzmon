@@ -90,9 +90,12 @@ LEAK_CHECKS=(
 	"Miri|fStepMiri|hours"
 	## The soak test, core/tests/soak.rs. About 1 minute in a debug build.
 	"Soak|fStepSoak|slow"
+	## The settings window's soak, under heaptrack. Long, so only in --long,
+	## --leakcheck or its area.
+	"Window-soak|fStepWindowSoak|long"
 )
 ## Steps that get a quarter of the CPUs, busy or not.
-HEAVY_STEPS=(fStepSanitizers fStepMiri fStepSoak fStepDemo)
+HEAVY_STEPS=(fStepSanitizers fStepMiri fStepSoak fStepWindowSoak fStepDemo)
 ## The test targets Miri runs, as "package target-option". The soak test is
 ## left out, since it's already ignored and its allocator is dhat's.
 MIRI_TARGETS=(
@@ -128,7 +131,7 @@ CTR_DIR="cicd/container"
 CTR_CONTEXT_EXTRA=(rust-toolchain.toml)
 ## NAME=value, passed to docker build and part of the tag's hash.
 CTR_BUILD_ARGS=("RUST_NIGHTLY=${RUST_NIGHTLY}")
-CTR_STEPS=(fStepFormat fStepBuild fStepLint fStepAdvisories fStepTests fStepRelease fStepPackage fStepSanitizers fStepMiri fStepSoak)
+CTR_STEPS=(fStepFormat fStepBuild fStepLint fStepAdvisories fStepTests fStepRelease fStepPackage fStepSanitizers fStepMiri fStepSoak fStepWindowSoak)
 ## The image steps that get the network. The rest run with none.
 CTR_NET_STEPS=(fStepAdvisories)
 

@@ -44,20 +44,24 @@
 ##	  12. Soak            a slow leak check: core/tests/soak.rs, the panel's
 ##	                      work over days of skipped clock, with the heap read at
 ##	                      round N and 2N. Its report goes to cicd/artifacts/soak/
-##	  13. Nix package     the flake's package, with the workspace tests, in a
+##	  13. Window soak     a long leak check: tukzmon-settings' window off
+##	                      screen, its live graphs over days of skipped clock,
+##	                      with the heap read at round N and 2N, under
+##	                      heaptrack. Its report goes to cicd/artifacts/soak/
+##	  14. Nix package     the flake's package, with the workspace tests, in a
 ##	                      nixos/nix container, then nixpkgs' xfce4-panel loads
 ##	                      it from a NixOS system with the module, on Xvfb. Its
 ##	                      store is a docker volume kept between runs
-##	  14. Profiler        the panel's tick, core/examples/profile.rs, under
+##	  15. Profiler        the panel's tick, core/examples/profile.rs, under
 ##	                      pprof's sampler, on this box. The flamegraph goes to
 ##	                      cicd/artifacts/profiling/, with a report on its hot
 ##	                      spots from utility/flame-report.py
-##	  15. Demo            the README gif and a video, from
+##	  16. Demo            the README gif and a video, from
 ##	                      utility/demo/script.txt, on a private Xvfb. They go
 ##	                      to private/demo/ beside the repo, and the gif to
 ##	                      assets/demo.gif when it changed. A heavy step, at a
 ##	                      quarter of the CPUs
-##	  16. Dogfood         utility/dev-install.bash, which installs the build
+##	  17. Dogfood         utility/dev-install.bash, which installs the build
 ##	                      under ~/.local and restarts the panel
 ##	  A step that's off isn't counted, and the first section says why it's off.
 ##	  A run whose options leave no check on fails, with exit 2.
@@ -69,8 +73,8 @@
 ##	   --quick             the fast steps: the default run without the packages,
 ##	                       the profiler, the demo and the slow leak checks,
 ##	                       so no Soak
-##	   --long              everything, Miri and the Nix package included, which
-##	                       only it runs. Also --slow
+##	   --long              everything, Miri, the window soak and the Nix
+##	                       package included, which only it runs. Also --slow
 ##	   --leakcheck         add every leak check to any run
 ##	   --no-leakcheck      take every leak check out. The advisory scan and
 ##	                       clippy's leak lints aren't leak check steps, and stay
@@ -91,6 +95,8 @@
 ##	                         sanitizers  the Sanitizers leak check
 ##	                         miri    the Miri leak check, only when named
 ##	                         soak    the Soak leak check, only when named
+##	                         window-soak  the Window soak leak check, only
+##	                                 when named
 ##	                         profile the profiler, only when named
 ##	                         nix     the Nix package, only when named. The
 ##	                                 first one fetches about 5 GB
@@ -302,12 +308,13 @@ fLeakWhyOff() {   ## fLeakWhyOff NAME LENGTH
 	case "${2}" in
 		fast) ;;
 		slow) [[ "${mode}" != quick ]] || echo "a slow leak check, so not in --quick without --leakcheck" ;;
+		long) [[ "${mode}" == long ]] || echo "a long leak check, so only in --long or with --leakcheck" ;;
 		hours) [[ "${mode}" == long ]] || echo "takes hours, so only in --long or with --leakcheck" ;;
 	esac
 }
 for entry in "${LEAK_CHECKS[@]}"; do
 	IFS='|' read -r leakName leakFn leakLength <<< "${entry}"
-	[[ " fast slow hours " == *" ${leakLength} "* ]] || fDie "LEAK_CHECKS: ${leakName} has no length fast, slow or hours"
+	[[ " fast slow long hours " == *" ${leakLength} "* ]] || fDie "LEAK_CHECKS: ${leakName} has no length fast, slow, long or hours"
 	leakWhy="$(fLeakWhyOff "${leakName}" "${leakLength}")"
 	if [[ -n "${leakWhy}" ]]; then offLines+=("${leakName}: ${leakWhy}"); else fPlan "${leakName}" "${leakFn}" ""; fi
 done
@@ -796,6 +803,55 @@ fStepSoak() {
 	fi
 	gfs_rotate "${art}" soak log > /dev/null 2>&1 || true
 	gfs_rotate "${art}" soak json > /dev/null 2>&1 || true
+	return "${rc}"
+}
+
+## The window soak: tukzmon-settings' window off screen, with its live graphs
+## read over days of skipped clock, tabs, a slider, a color, Randomize, the
+## color picker and saves, failing when the heap at round 2N is past round
+## N's by more than its margin. Under heaptrack, so a failure shows where the
+## heap went. Its report and heaptrack's summary are kept in SOAK_DIR, with
+## heaptrack's recording when it fails.
+fStepWindowSoak() {
+	local out="${TMPDIR}/window-soak" art="${root}/${SOAK_DIR}" stamp='' bin='' rec='' ext='' rc=0
+	local test="bridge::tests::the_windows_heap_stops_growing_once_its_graphs_are_full"
+	local -a wrap=()
+	mkdir -p -- "${out}" || return 1
+	fEcho_Clean "cargo test -p tukzmon-settings --bins --no-run -j ${jobs}"
+	bin="$(cargo test -p tukzmon-settings --bins "${locked[@]}" -j "${jobs}" --no-run --message-format=json 2> "${out}/build.log" \
+		| sed -n '/"kind":\["bin"\]/{/"test":true/s/.*"executable":"\([^"]*\)".*/\1/p}' | tail -n 1)" || true
+	[[ -n "${bin}" && -x "${bin}" ]] || { cat -- "${out}/build.log"; fEcho_Clean "cargo gave no test binary for tukzmon-settings"; return 1; }
+	if command -v heaptrack > /dev/null 2>&1; then wrap=(heaptrack -o "${out}/heaptrack")
+	else fEcho_Clean "WARNING: no heaptrack here, so the heap is read with no record of where it went"; fi
+	fEcho_Clean "${wrap[0]:+heaptrack }${bin##*/} --ignored --exact ${test##*::}"
+	## cargo's Running line, so the test's ID is found by its crate. Qt's
+	## warnings land between libtest's "test X ... " and its result, so
+	## stderr is kept apart, and shown only on a failure.
+	{ printf '     Running unittests src/main.rs (%s)\n' "${bin}"
+		env -u DISPLAY -u WAYLAND_DISPLAY QT_QPA_PLATFORM=offscreen TUKZMON_SOAK_DIR="${out}" XDG_CONFIG_HOME="${out}/config" XDG_DATA_HOME="${out}/data" \
+			"${wrap[@]}" "${bin}" --ignored --exact "${test}" --test-threads 1 2> "${out}/stderr.log"
+	} | "${here}/utility/test-ids.bash" annotate || rc=1
+	((! rc)) || tail -n 200 -- "${out}/stderr.log"
+	[[ -f "${out}/window-soak-heap.txt" ]] || { fEcho_Clean "the window soak wrote no report"; return 1; }
+	tail -n 1 -- "${out}/window-soak-heap.txt"
+	stamp="$(printf '%(%Y%m%d-%H%M%S)T' -1)"
+	mkdir -p -- "${art}" || return 1
+	cp -- "${out}/window-soak-heap.txt" "${art}/window-soak_${stamp}.log" || return 1
+	## heaptrack.gz or heaptrack.zst, as heaptrack was built
+	rec="$(compgen -G "${out}/heaptrack.*" | head -n 1 || true)"; ext="${rec##*.}"
+	if [[ -n "${rec}" ]]; then
+		{ printf '\nheaptrack_print, the 10 biggest peaks:\n'; heaptrack_print -f "${rec}" -p -a 0 -T 0 -n 10 -s 2 2>&1 || true; } >> "${art}/window-soak_${stamp}.log"
+		grep -E '^(peak heap memory consumption|total memory leaked)' -- "${art}/window-soak_${stamp}.log" || true
+		if ((rc)); then
+			cp -- "${rec}" "${art}/window-soak_${stamp}.${ext}" || return 1
+			fEcho_Clean "heaptrack's recording: ${SOAK_DIR}/window-soak_${stamp}*.${ext}, for heaptrack_gui"
+		fi
+	elif ((${#wrap[@]})); then fEcho_Clean "heaptrack wrote no recording"; rc=1; fi
+	## The rotation may add a tag to the name, such as _first.
+	fEcho_Clean "report: ${SOAK_DIR}/window-soak_${stamp}*.log"
+	gfs_rotate "${art}" window-soak log > /dev/null 2>&1 || true
+	gfs_rotate "${art}" window-soak gz > /dev/null 2>&1 || true
+	gfs_rotate "${art}" window-soak zst > /dev/null 2>&1 || true
 	return "${rc}"
 }
 
@@ -1358,3 +1414,5 @@ exit 0
 ##		- 2026-11-09: A Miri target that cannot build or list its tests fails
 ##		  the step, with its errors, rather than losing its tests.
 ##		- 2026-11-10: The demo is a heavy step, and gets its job count.
+##		- 2026-11-10: The Window soak leak check, under heaptrack, in --long,
+##		  --leakcheck and the window-soak area.

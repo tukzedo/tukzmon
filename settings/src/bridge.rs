@@ -205,6 +205,8 @@ pub mod ffi {
 		fn live_new(d: &Dialog) -> Box<Live>;
 		fn live_look(l: &mut Live, d: &Dialog);
 		fn live_clear(l: &mut Live);
+		/// Moves every graph's clock on `secs`, for the window soak.
+		fn live_skip(l: &mut Live, secs: f64);
 		/// Reads each graph whose beat has come, and gives the ms to the next
 		/// one's.
 		fn live_sample(l: &mut Live) -> u32;
@@ -386,6 +388,11 @@ pub mod ffi {
 		/// of the first slider, each with the events it posts.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn refresh_micros(d: &mut Dialog, times: usize) -> Vec<f64>;
+		/// The window's work for `rounds` rounds, with the live graphs'
+		/// clock `step` seconds on each round, and the bytes in use on the
+		/// heap after every `every` rounds.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn soak_heap(d: &mut Dialog, rounds: usize, every: usize, step: f64) -> Vec<u64>;
 		/// Minimizes the window, sends this thread SIGUSR1 with the window's
 		/// handler set, and gives the handler's state while it's set, how
 		/// many times it woke, whether the window is shown again, and the
@@ -614,6 +621,10 @@ fn live_clear(l: &mut Live) {
 	l.clear();
 }
 
+fn live_skip(l: &mut Live, secs: f64) {
+	l.skip(secs);
+}
+
 fn live_new(d: &Dialog) -> Box<Live> {
 	Box::new(Live::new(d.look()))
 }
@@ -710,6 +721,7 @@ pub fn say_unreadable(text: &str) {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use std::fmt::Write as _;
 	use tukzmon_core::config::THEME;
 
 	type QtJob = Box<dyn FnOnce() + Send>;
@@ -2131,6 +2143,53 @@ mod tests {
 			// the tallest of them has no room to spare
 			let slack = others.iter().map(|t| t.1 - t.2).min().unwrap();
 			assert!(slack <= 4, "{tabs:?}");
+		});
+	}
+
+	// Test ID: df4ja
+	#[test]
+	#[ignore = "the window soak leak check, cicd.bash runs it"]
+	fn the_windows_heap_stops_growing_once_its_graphs_are_full() {
+		// Simulated seconds a round, rounds to the first read, and rounds
+		// between reads. With the 1 day max age set below, the live graphs
+		// are full at round 144. The rest settles by about round 400, with a
+		// step of a MB or so somewhere before it, so N is well past that.
+		const STEP: f64 = 600.0;
+		const N: usize = 750;
+		const EVERY: usize = 50;
+		// N to 2N grew under 20 KB clean, and about 300 KB with 512 bytes a
+		// round kept on purpose (2026-11-10).
+		const MARGIN_BYTES: u64 = 64 * 1024;
+		on_qt(|| {
+			let dir = std::env::var_os("TUKZMON_SOAK_DIR")
+				.map_or_else(std::env::temp_dir, std::path::PathBuf::from);
+			std::fs::create_dir_all(&dir).unwrap();
+			let path = dir.join(format!("window-soak_{}.shcl", std::process::id()));
+			std::fs::write(&path, "history:\n\tkeep: false\n\tmax_days: 1\n").unwrap();
+			let mut d = Dialog::open(path.clone()).unwrap();
+			let heap = ffi::soak_heap(&mut d, 2 * N, EVERY, STEP);
+			let _ = std::fs::remove_file(&path);
+			assert_eq!(heap.len(), 2 * N / EVERY);
+			let mut report = String::from("round  sim_hours  heap_bytes\n");
+			for (i, bytes) in heap.iter().enumerate() {
+				let round = (i + 1) * EVERY;
+				let _ = writeln!(
+					report,
+					"{round:>5}  {:>9.1}  {bytes:>10}",
+					round as f64 * STEP / 3600.0
+				);
+			}
+			let (n, end) = (heap[N / EVERY - 1], heap[heap.len() - 1]);
+			let _ = writeln!(
+				report,
+				"round {N}: {n} bytes; round {}: {end} bytes; margin {MARGIN_BYTES} bytes",
+				2 * N
+			);
+			std::fs::write(dir.join("window-soak-heap.txt"), &report).unwrap();
+			assert!(
+				end <= n + MARGIN_BYTES,
+				"the heap grew from {n} to {end} bytes"
+			);
 		});
 	}
 }

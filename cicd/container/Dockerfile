@@ -104,7 +104,7 @@ RUN apt-get update \
 
 # The C++ and Python format and lint tools. clang-format and clang-tidy at
 # the clang the sanitizers use, and black from the snapshot. ruff isn't in
-# Debian, so it's the release binary. Its own layer, last but the env.
+# Debian, so it's the release binary. Its own layer.
 ARG RUFF_VER=0.15.22
 ARG RUFF_SHA256=853462df618fb9f156a9f04d9d899d9e5a9e1a43fbffaec72df4bb159348e71b
 RUN apt-get update \
@@ -116,6 +116,12 @@ RUN apt-get update \
 	&& echo "${RUFF_SHA256}  /tmp/ruff.tgz" | sha256sum -c - \
 	&& tar -C /usr/local/bin --strip-components=1 -xzf /tmp/ruff.tgz ruff-x86_64-unknown-linux-musl/ruff \
 	&& rm -f /tmp/ruff.tgz
+
+# heaptrack for the window soak, from the snapshot like the rest. Its own
+# layer, last but the env, so it rebuilds nothing above.
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends heaptrack \
+	&& rm -rf /var/lib/apt/lists/*
 
 # Runs as the caller's uid, which has no passwd entry here. CARGO_HOME, HOME
 # and TMPDIR are set per run to dirs mounted from the host.

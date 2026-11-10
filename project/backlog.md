@@ -531,6 +531,45 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- No `_GLIBCXX_DEBUG` build. Every linked C++ library has to be built with it, and Qt comes prebuilt.
 		- No cross-file analyzer run, since the C++ is one file.
+	- Progress log:
+		- Split into children: the settings window soak 2026111013025758 (Done), and CodeQL 2026111013025770 (Queued).
+
+- Slow leak checks: settings window soak
+	- ID: 2026111013025758
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261110-130257
+	- Opened by: t00mietum
+	- Parent ID: 2026110310450003
+	- Requirements: A soak of the settings window, with the heap read at round N and 2N, under heaptrack. A leak check run only with --long, --leakcheck or its own area.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A Window-soak leak check runs tukzmon-settings' window off screen under heaptrack for 1500 rounds: the live graphs read and drawn with the clock 10 minutes on each round, the next tab, a slider step, a color set, and now and then Randomize, the color picker and a save. It reads the heap at round 750 and 1500, and fails past 64 KiB of growth.
+		- It runs only with --long, --leakcheck or the window-soak area, on a quarter of the CPUs, in about 2 minutes. Its report and heaptrack's top peaks go to cicd/artifacts/soak/, rotated, with heaptrack's recording when it fails.
+		- heaptrack is in the image, from the pinned Debian snapshot.
+		- It found the window's live graphs never dropped history past the max age, as the panel does, so a window left open kept every hour it saw. They're trimmed at each tick now.
+		- Verified: the soak passed at 17 KB of growth from round 750 to 1500. Before the trim, and before the pixmap cache was emptied, it failed at 646 KB from round 500 to 1000. With 512 bytes a round kept on purpose it failed, at about 300 KB. The quick gate and Sanitizers passed.
+	- Decisions:
+		- The heap is read in the process with glibc's mallinfo2, so the readings include heaptrack's own tables. heaptrack has no way to mark a round. A run without heaptrack grew the same way, so its tables weren't the growth.
+		- Qt's pixmap cache is emptied before each read. Each Randomize adds pixmaps for new colors, and the cache's own bound made steps that hid a leak's growth.
+		- A length of its own, long, for a leak check outside the default run that doesn't take hours.
+	- Branch: round-1110b
+	- Test case: `bridge::tests::the_windows_heap_stops_growing_once_its_graphs_are_full` (df4ja), run by the Window-soak step. It fails without the trim in `Live::tick_at`.
+		- Swept: every `Live` tick (the window's timer only), and the panel's trim in `save_history`. `graphs::Graphs` trims through the panel, and the profiler and core soak trim or skip as before.
+	- Closed: 20261110-134636
+
+- Slow leak checks: CodeQL
+	- ID: 2026111013025770
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261110-130257
+	- Opened by: t00mietum
+	- Parent ID: 2026110310450003
+	- Requirements: CodeQL from a pinned CLI in the image, run locally over the Rust and the C++, as a leak check run only with --long, --leakcheck or its own area. Vendor the crates first, and build from a clean folder so the C++ database isn't empty.
+	- Estimated effort: Avg
 
 - Installer script for a direct install
 	- ID: 2026110310450005

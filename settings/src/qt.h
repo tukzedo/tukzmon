@@ -43,6 +43,7 @@ rust::Vec<std::int32_t> slider_accent_pixels();
 rust::Vec<std::int32_t> chip_restyles(Dialog &d, rust::Str color);
 rust::Vec<std::int32_t> refresh_churn(Dialog &d, rust::Str id, double number);
 rust::Vec<double> refresh_micros(Dialog &d, std::size_t times);
+rust::Vec<std::uint64_t> soak_heap(Dialog &d, std::size_t rounds, std::size_t every, double step);
 rust::Vec<rust::String> woken_by_signal(Dialog &d);
 rust::Vec<rust::String> exit_on_close(Dialog &d);
 rust::Vec<rust::String> qt_warnings();
