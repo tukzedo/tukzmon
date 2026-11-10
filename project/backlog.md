@@ -464,6 +464,19 @@ Sorted per the notes in [Template](#template).
 		- The Margins tip says plainly that 2 graphs side by side get both margins between them.
 		- History and settings errors in the tip and in message boxes use plain words, not the file reader's own, such as "short" or "trailing bytes", or the name of the file format.
 
+- Drop the dangling link workaround left over from shcl 2
+	- ID: 2026111014581529
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261110-145815
+	- Opened by: t00mietum
+	- Related IDs: 2026103115231938
+	- Requirements:
+		- Apply saves through `write_file_atomic` alone, with no `config::through_links` first, and the comment saying shcl breaks the link goes.
+		- deqw1 and deqw2 still pass.
+	- Note: shcl 3.0.0-beta1 writes through a link to a missing file and keeps the link. Checked 2026-11-10.
+
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
 	- Type: Bug
