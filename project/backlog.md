@@ -520,7 +520,7 @@ Sorted per the notes in [Template](#template).
 - CICD gap: Slow leak checks still missing
 	- ID: 2026110310450003
 	- Type: Task
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261103-104500
 	- Opened by: t00mietum
@@ -533,6 +533,8 @@ Sorted per the notes in [Template](#template).
 		- No cross-file analyzer run, since the C++ is one file.
 	- Progress log:
 		- Split into children: the settings window soak 2026111013025758 (Done), and CodeQL 2026111013025770 (Waiting on automated testing).
+	- Test case: its children's: 2026111013025758: `bridge::tests::the_windows_heap_stops_growing_once_its_graphs_are_full` (df4ja), run by the Window-soak step. It fails without the trim in `Live::tick_at`.; 2026111013025770: `codeql_report_fails_what_isnt_suppressed_a_stale_suppression_and_an_empty_database` (df4ks), in `cicd/tests/guards.bash`. It failed with each of its 3 checks taken out. The CodeQL step itself is the rest.
+	- Closed: 20261110-144111
 
 - Slow leak checks: settings window soak
 	- ID: 2026111013025758
@@ -563,9 +565,9 @@ Sorted per the notes in [Template](#template).
 - Slow leak checks: CodeQL
 	- ID: 2026111013025770
 	- Type: Task
-	- Status: Waiting on automated testing
+	- Status: Done
 		- Each language's half passed alone. A run of both together is left.
-	- Needs local test suite run?: `CICD_MAX_JOBS=8 cicd/cicd.bash --backlog-run-quick codeql`, about 6 minutes. It passes when the report shows both SARIF files with lines of ours and nothing unsuppressed.
+	- Needs local test suite run?: No
 	- Priority|Severity: Avg
 	- Opened: 20261110-130257
 	- Opened by: t00mietum
@@ -582,6 +584,7 @@ Sorted per the notes in [Template](#template).
 		- It found one thing, a pointer read in `net.rs` that CodeQL can't tell getifaddrs filled in. It's suppressed, with why.
 		- Verified: in the image, the C++ half passed in 1m 31s with no findings, and the Rust half in 3m 38s at load 25, with the one finding suppressed. The quick gate and Sanitizers passed.
 		- Before the image had the toolchain its Rust extractor runs on, that half loaded no workspace and still made a database, with findings that were noise. The step fails on the extractor's errors now.
+		- Verified: 2026-11-10, the gate step's `--backlog-run-quick codeql` passed in 4m 32s: rust.sarif 26158 lines of ours, 1 finding, 1 suppressed; cpp.sarif 2924 lines, 0 findings (codeql_20261110-224047).
 	- Decisions:
 		- The Rust and C++ bundles, unpacked over each other, rather than the all-language bundle. They're 263 MB to fetch against 559, and their shared files are the same.
 		- Every finding fails, notes included, as clippy's warnings do. There's only the one, so a looser line wasn't needed.
@@ -589,6 +592,8 @@ Sorted per the notes in [Template](#template).
 		- The image grows from 3.9 GB to 5.65 GB.
 	- Branch: round-1110b
 	- Test case: `codeql_report_fails_what_isnt_suppressed_a_stale_suppression_and_an_empty_database` (df4ks), in `cicd/tests/guards.bash`. It failed with each of its 3 checks taken out. The CodeQL step itself is the rest.
+	- Acceptance signoff: Self-closed 20261110: the CodeQL step passed with both languages.
+	- Closed: 20261110-224100
 
 - Installer script for a direct install
 	- ID: 2026110310450005
