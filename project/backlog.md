@@ -25,7 +25,7 @@ Sorted per the notes in [Template](#template).
 - Smoothly animate each graph on each tick
 	- ID: 2026110911114024
 	- Type: Enhancement
-	- Status: Waiting on UAT
+	- Status: Queued
 	- Priority|Severity: Avg
 	- Opened: 20261109-111140
 	- Opened by: t00mietum
@@ -38,6 +38,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Split in 2: the setting and the slide in 2026110918080223, and frames at the screen's rate with the CPU cost in 2026110918081021. Both are in, waiting on UAT.
 		- 20261109: children 2026110918080223 2026110918081021 wait on UAT, and the rest are closed
+		- 2026-11-10: Back to Queued with its child 2026110918081021, which needs the panel's frame rate fixed on a screen whose WM gives GTK no frame timings.
 	- Test case: its children's: 2026110918080223: `tests::a_new_sample_slides_in_at_a_steady_speed_but_a_gap_does_not` (df3e1), `tests::the_right_column_fills_as_the_sample_slides_in_and_the_tip_follows` (df3e2), and `config::tests::smooth_scrolling_reads_and_auto_goes_by_the_cpus` (df3e3).; 2026110918081021: `tests::frames_are_an_even_split_of_the_screen_rate_from_30_to_60` (df3e4). The frame clock's own pacing needs a real screen, so it has no test. dekpt now calls the tick callback.
 
 - Smooth scrolling: the setting, and each graph sliding between samples
@@ -76,7 +77,7 @@ Sorted per the notes in [Template](#template).
 - Smooth scrolling: frames at the screen's rate, and the CPU cost
 	- ID: 2026110918081021
 	- Type: Enhancement
-	- Status: Waiting on UAT
+	- Status: Queued
 		- Watch the panel on b23's own screen with Smooth scrolling on, and say whether the slide runs without a stutter.
 	- Needs hand testing: The panel on b23's screen, under its compositor, with this build.
 	- Priority|Severity: Avg
@@ -94,6 +95,7 @@ Sorted per the notes in [Template](#template).
 		- With Smooth scrolling on, a panel item with the default graphs took 31 CPU ticks in 20 s, about 1.6% of a core, and its X server 9. Off, they took 2 and 1. That's at 60 frames a second, the most it draws.
 		- `design.md` Drawing and Time axis have it.
 		- Verified: the quick gate and Sanitizers passed, and a panel item kept drawing while it slid, by the CPU numbers above.
+		- 2026-11-10: Answer on the Check: let's try 60 fps. But on a 100 Hz screen it should be a clean factor, like 50, auto-detected. frames_apart already gives 50 at 99.99 Hz, and the settings window gets 99.99 from Qt. The panel doesn't: xfwm4 on b23 has no _NET_WM_FRAME_DRAWN or _NET_WM_FRAME_TIMINGS, so GTK's frame clock reports its 60 Hz default and paces itself to it. When it has no real timing, take the rate from the panel's monitor (gdk_monitor_get_refresh_rate) and pace the draws to that.
 	- Decisions:
 		- The panel uses GTK's frame clock, not a timer, so a draw lands on a screen frame rather than beating against them.
 		- One rule, `frames_apart` in core, serves both the panel and the settings window. It splits by 61, not 60, so a 60.002 Hz screen still gets every frame.
