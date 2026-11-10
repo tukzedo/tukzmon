@@ -290,6 +290,7 @@ Sorted per the notes in [Template](#template).
 		- df4d7: the spike's top now stays at 90 rows on 1 s columns and 72 on 10 s ones, at every step. df3s6's ink, read in linear light, stays within 0.01 and 0.04.
 		- Profiler, load 6 to 8 on 32 cores: 480 and 514 us user a tick before, 634 after. 2026111000270812 is for the cost.
 		- Verified: df4d7 failed before the change and passed after. df4dt failed with each series' own min and max as the 2 stacks, and passed with the end buckets'. The quick gate and Sanitizers passed.
+		- 2026-11-10: The cut-bucket tint in the Decisions is fixed by 2026111011172485 (660a3de).
 	- Decisions:
 		- A column's ink stays what the drawing gave before, so the area under a spike holds. Only its shape changes: full height at part strength, rather than part height.
 		- A column no wider than a sample takes its oldest and newest buckets as its 2 samples. Each series' own min and max can come from different samples, and stack over either one's total.
