@@ -3740,7 +3740,7 @@ Sorted per the notes in [Template](#template).
 - New default settings for Graphs and Themes
 	- ID: 2026110920595601
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 		- It goes a little past the wording in one way. Each graph's own border in Default moved to `#595959` with the shared one, so a graph keeps it with One border for every graph off.
 	- Priority|Severity: Avg
 	- Opened: 20261109-205956
@@ -3758,17 +3758,20 @@ Sorted per the notes in [Template](#template).
 		- Default's colors take b23's changes on it that were still left: system `#693d91`, LAN sent `#ff6bf1`, LAN received `#84ff7b`, the border `#595959` and the hover line `#000fff`.
 		- `design.md` XFCE plugin, Theme and Data sources on Linux have it.
 		- Verified: the quick gate and Sanitizers passed, with the new test.
-		- 2026-11-10: Answer on the Check: 500% for processes, 400% for tukzmon. Reopened for that.
+		- 2026-11-10: Answer on the Check: 500% for processes, 400% for tukzmon. Reopened for that. Processes' sample default is 500%, so every 5 s, and tukzmon's is 400%. Nothing else changed.
+		- Verified 2026-11-10: the quick gate and Sanitizers passed.
 	- Decisions:
 		- Only order, colors, widths, samples and processes' vertical scale. b23's network split, and its other graphs' vertical scales, which are all Global default, weren't asked for.
-		- Processes' 400% replaces the 500% picked on 2026-11-09 for its cost, since the item asks for b23's samples. It's off by default.
+		- 2026-11-10: 500% for processes and 400% for tukzmon, as answered, rather than b23's 400% and 100%.
 		- Each graph's own border follows the shared one, as dejkg has it in every theme. With Default's overrides on, the panel draws the same either way.
 		- The new LAN colors are 25 or more from the network's others as CIEDE2000, and system is 10 or more from every lead (dejbr).
 	- Branch: round-1110
 	- Test case: `config::tests::the_graph_list_defaults_are_b23s_but_whats_shown` (df3rj) checks every graph's width, sample and vertical scale. It fails on the old defaults, as do dejbq, deja1 and der3p.
 		- 2026-11-09: new values only. debhj reads system `#693d91`, the border `#595959` and the hover line `#000fff`, not `#fa72f0`, `#8b8b8b` and `#000000`. dejbq reads the same, and LAN sent and received too. dejkg's Default outlines are `#595959`. deja1 reads tukzmon at 100 and processes at 400, not 400 and 500. der3p has processes at `squared`, not Global default.
 		- Swept: every test and doc naming Default's system, border, hover or LAN colors, each graph's border row default, and the default widths, samples and vertical scales. dice's Randomize keeps its black hover line.
-	- Acceptance signoff: Self-closed 20261109: df3rj and the changed tests passed in the quick gate.
+		- 2026-11-10: new values only. deja1 and df3rj read processes at 500 and tukzmon at 400, not 400 and 100.
+	- Acceptance signoff: Self-closed 20261110: df3rj and deja1 passed in the quick gate at the new defaults.
+	- Closed: 20261110-125900
 
 - Code review 20261106 item 5: The processes graph takes about 4 ms a read
 	- ID: 2026110618502905

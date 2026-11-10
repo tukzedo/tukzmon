@@ -2149,7 +2149,8 @@ mod tests {
 			let want = match g {
 				"cpu" | "mem" => 50.0,
 				"swap" | "zswap" | "load" => 200.0,
-				"procs" => 400.0,
+				"self" => 400.0,
+				"procs" => 500.0,
 				_ => 100.0,
 			};
 			assert_eq!(s.default.as_f64(), want, "{id}");
@@ -2237,13 +2238,13 @@ mod tests {
 	// Test ID: df3rj
 	#[test]
 	fn the_graph_list_defaults_are_b23s_but_whats_shown() {
-		// b23's widths, sample rates and vertical scales as of 2026-11-09,
-		// but with tukzmon's own graph linear rather than log10
+		// b23's widths and vertical scales as of 2026-11-09, but with tukzmon's own graph
+		// linear rather than log10, and the user's picks of 500% and 400% for processes and tukzmon
 		let l = Look::default();
 		let want = [
 			(Which::Cpu, 100, 50, None),
 			(Which::Mem, 100, 50, None),
-			(Which::Procs, 50, 400, Some(Vertical::Squared)),
+			(Which::Procs, 50, 500, Some(Vertical::Squared)),
 			(Which::Gpu, 50, 100, None),
 			(Which::Vram, 50, 100, None),
 			(Which::Net, 50, 100, None),
@@ -2252,7 +2253,7 @@ mod tests {
 			(Which::Swap, 25, 200, None),
 			(Which::Zswap, 25, 200, None),
 			(Which::Load, 25, 200, None),
-			(Which::Own, 12, 100, None),
+			(Which::Own, 12, 400, None),
 			(Which::Battery, 100, 100, None),
 		];
 		for (w, width, sample, vertical) in want {
