@@ -150,13 +150,46 @@ Sorted per the notes in [Template](#template).
 - The 2 GPU graphs aren't available with integrated Intel graphics
 	- ID: 2026110920595600
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting on automated testing
+		- The GPU graph is in. The GPU memory graph is child 2026110921252043, which waits on a question.
+	- Needs external testing: on a box with Intel graphics, i915 or xe, and no NVIDIA or AMD card, check that one of the 3 files in df3kx is there and readable as the user, and run `cargo test -p tukzmon-core gpu::` and `cargo test -p tukzmon-settings the_gpu_rows` (dekmd), which reads the live card twice.
+	- Needs hand testing: on that box, with the GPU graph on and the GPU busy, as from `glxgears`, its tip should read near 100% less the RC6 share `sudo intel_gpu_top` gives.
 	- Priority|Severity: Avg
 	- Opened: 20261109-205956
 	- Opened by: t00mietum
 	- Related IDs: 2026103010322277
 	- Incorrect behavior: The GPU and GPU memory graphs aren't available with integrated Intel graphics.
 	- Expected behavior: Both GPU graphs work on integrated Intel graphics.
+	- Reproduced: by reading `core/src/gpu.rs`. `Card::find` knew only NVML and amdgpu, so an Intel-only box found no card, and both graphs stayed hidden.
+	- Actual cause: Intel's engine busy time is only in its perf counters, which need root or a lowered `perf_event_paranoid`, so Intel was left out on purpose (2026102819145597).
+	- Actual effort: Avg
+	- Progress log:
+		- The GPU graph reads an Intel card's time out of RC6, the sleep its graphics core drops into when it has nothing to run, against the time between reads. i915's `gt/gt0/rc6_residency_ms`, then its older `power/rc6_residency_ms`, then xe's `gtidle/idle_residency_ms`. None needs root.
+		- An Intel card has no GPU memory graph yet. `design.md` Data sources on Linux and the README say so.
+		- Verified: df3kw and df3kx passed, and df3kx failed with the Intel card taken out of `Card::find`, and again with the GPU probe not taking a first read that only primes. The quick gate and Sanitizers passed, and Miri passed df3kw and dekm9. dekma, dekmd, dektd and der6k passed on b23's host with the RTX 3060 Ti, so NVIDIA still comes first.
+		- Unverified on real Intel hardware: no box here has one. The paths are from the i915 and xe drivers' sysfs.
+	- Decisions:
+		- Awake time, not engine busy time, since it's the one share the kernel gives without root. It reads a little over what the engines ran, since the core stays up a moment after its work. Moving to perf counters stays deferred, as 2026103010322277.
+		- NVIDIA first, then amdgpu, then Intel, so a laptop with an Intel GPU and another one still graphs the other, as before.
+		- A card with `power/rc6_enable` at 0 is passed over, since it never sleeps and would read always busy.
+		- The GPU memory part is split off, since what it would count on an integrated card is a call for a person.
+	- Actual fix: `core/src/gpu.rs` gains a `Card::Intel` source, found by `intel_in` after amdgpu.
+	- Branch: round-1110
+	- Test case: `gpu::tests::intel_reads_busy_as_the_time_out_of_rc6` (df3kw) and `an_intel_card_gives_a_gpu_graph_and_no_memory_graph` (df3kx). df3kx fails on the old `Card::find`.
+		- Swept: every `Card` match, both readers' probes, `amd_in`, which now shares `cards_in`, the settings window's GPU rows (dekmd), the README's graph list, and `design.md` for "Intel".
+
+- GPU memory graph on integrated Intel graphics
+	- ID: 2026110921252043
+	- Type: Bug
+	- Status: Waiting for answers
+		- Waits on the question in questions.md on what the graph counts on an integrated card.
+	- Priority|Severity: Avg
+	- Opened: 20261109-212520
+	- Opened by: t00mietum
+	- Parent ID: 2026110920595600
+	- Incorrect behavior: An Intel card gets the GPU graph, but no GPU memory graph.
+	- Expected behavior: The GPU memory graph works on integrated Intel graphics.
+	- Possible cause: An integrated card's memory is the system's. Without root, the only count of what the GPU holds is each process's DRM fdinfo, and only for the user's own processes.
 
 - Reduce motion if a remote desktop session is detected
 	- ID: 2026110911114037

@@ -52,7 +52,7 @@ The first release is 1.0.0-beta.1. Although beta, it's very solid. Packages for 
 
 - Memory is split the same way into programs, buffers, and cache.
 
-- GPU use and GPU memory each have a graph, for an NVIDIA or AMD card.
+- GPU use and GPU memory each have a graph, for an NVIDIA or AMD card. Intel graphics get the GPU use graph only.
 
 - The network graph shows local, sent, and received traffic.
 

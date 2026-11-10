@@ -3,8 +3,9 @@
 
 //! The first GPU's busy time and memory, for the GPU and GPU memory graphs.
 //! NVIDIA's through NVML, loaded at run time so a box without the driver
-//! still starts, and AMD's from amdgpu's files in sysfs. Neither needs root.
-//! See design.md, Data sources on Linux.
+//! still starts, AMD's from amdgpu's files in sysfs, and Intel's busy time
+//! from its sleep counter in sysfs. None of them needs root. See design.md,
+//! Data sources on Linux.
 
 use crate::collect::{Collector, Kept};
 
@@ -248,6 +249,7 @@ thread_local! {
 #[cfg(test)]
 thread_local! {
 	static PCI_AT: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+	static DRM_AT: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
 	static IDLE_FOR_AT: Cell<Option<Duration>> = const { Cell::new(None) };
 }
 
@@ -267,6 +269,14 @@ fn pci() -> String {
 	PCI.to_owned()
 }
 
+fn drm() -> String {
+	#[cfg(test)]
+	if let Some(at) = DRM_AT.with_borrow(Clone::clone) {
+		return at;
+	}
+	DRM.to_owned()
+}
+
 /// Whether the first NVIDIA card is asleep, where the kernel may put it to
 /// sleep. The GPU graphs then read 0 without asking NVML.
 pub fn nvidia_asleep() -> bool {
@@ -279,6 +289,7 @@ pub fn nvidia_asleep() -> bool {
 enum Card {
 	Nvidia(Nvidia),
 	Amd(Amd),
+	Intel(Intel),
 }
 
 /// The NVIDIA card's runtime power files. Reading them doesn't wake the
@@ -468,11 +479,56 @@ impl Amd {
 	}
 }
 
+// Where an Intel card's time asleep is, in ms, the first one there. i915
+// has the second wherever it has RC6, and puts each GT's own at the first
+// since 5.18. xe has the third.
+const INTEL_ASLEEP: [&str; 3] = [
+	"gt/gt0/rc6_residency_ms",
+	"power/rc6_residency_ms",
+	"device/tile0/gt0/gtidle/idle_residency_ms",
+];
+
+/// An Intel card's time in RC6, the sleep its graphics core drops into as
+/// soon as it has nothing to run. Its busy share needs perf counters, which
+/// need root, so busy is the share of the time it was awake. That reads a
+/// little over the engines' own busy time (2026110920595600).
+#[derive(Debug)]
+struct Intel {
+	asleep_ms: Kept,
+	was: Option<(u64, Instant)>,
+}
+
+impl Intel {
+	fn new(file: String) -> Self {
+		Intel {
+			asleep_ms: Kept::new(file),
+			was: None,
+		}
+	}
+
+	/// The first call only primes it.
+	fn busy_at(&mut self, buf: &mut String, now: Instant) -> Option<f32> {
+		let asleep: u64 = self.asleep_ms.read(buf)?.trim().parse().ok()?;
+		let (was_asleep, then) = self.was.replace((asleep, now))?;
+		// gone down, as after the driver is loaded again, so this read primes
+		let slept = asleep.checked_sub(was_asleep)?;
+		let awake_for = now.duration_since(then).as_secs_f64() * 1000.0;
+		(awake_for > 0.0).then(|| (1.0 - slept as f64 / awake_for).clamp(0.0, 1.0) as f32)
+	}
+}
+
 impl Card {
 	fn find() -> Option<Card> {
+		let drm = drm();
 		Nvidia::find(&pci())
 			.map(Card::Nvidia)
-			.or_else(|| amd_in(DRM).map(|dir| Card::Amd(Amd::new(&dir))))
+			.or_else(|| amd_in(&drm).map(|dir| Card::Amd(Amd::new(&dir))))
+			.or_else(|| intel_in(&drm).map(|file| Card::Intel(Intel::new(file))))
+	}
+
+	/// Whether a source that only primes on its first read has done so.
+	fn primed(&self) -> bool {
+		matches!(self, Card::Intel(Intel { was: Some(_), .. }))
 	}
 
 	fn busy(&mut self, buf: &mut String) -> Option<f32> {
@@ -482,6 +538,7 @@ impl Card {
 				let percent: f32 = amd.busy.read(buf)?.trim().parse().ok()?;
 				Some((percent / 100.0).clamp(0.0, 1.0))
 			}
+			Card::Intel(intel) => intel.busy_at(buf, Instant::now()),
 		}
 	}
 
@@ -495,6 +552,9 @@ impl Card {
 				let total = num(&mut amd.vram_total)?;
 				(total > 0).then_some((used, total))
 			}
+			// an integrated card's memory is the system's, and nothing short
+			// of root says how much of it the GPU holds
+			Card::Intel(_) => None,
 		}
 	}
 }
@@ -502,8 +562,35 @@ impl Card {
 /// The first amdgpu card under `drm`, by its `device` folder. Connectors
 /// such as `card0-DP-1` aren't cards.
 fn amd_in(drm: &str) -> Option<String> {
-	let mut cards: Vec<String> = std::fs::read_dir(drm)
-		.ok()?
+	cards_in(drm)
+		.into_iter()
+		.map(|card| format!("{card}/device"))
+		.find(|dir| std::path::Path::new(&format!("{dir}/gpu_busy_percent")).exists())
+}
+
+/// The first Intel card under `drm` with RC6 on, by the file that counts
+/// its time asleep. With RC6 off that count stays put, and the card would
+/// read as always busy.
+fn intel_in(drm: &str) -> Option<String> {
+	cards_in(drm).into_iter().find_map(|card| {
+		let rc6 = std::fs::read_to_string(format!("{card}/power/rc6_enable"));
+		if rc6.is_ok_and(|s| s.trim() == "0") {
+			return None;
+		}
+		INTEL_ASLEEP
+			.iter()
+			.map(|file| format!("{card}/{file}"))
+			.find(|file| std::path::Path::new(file).exists())
+	})
+}
+
+/// The `card*` folders under `drm`, in number order. Connectors such as
+/// `card0-DP-1` aren't cards.
+fn cards_in(drm: &str) -> Vec<String> {
+	let Ok(dir) = std::fs::read_dir(drm) else {
+		return Vec::new();
+	};
+	let mut cards: Vec<String> = dir
 		.filter_map(|e| e.ok()?.file_name().into_string().ok())
 		.filter(|n| {
 			n.strip_prefix("card")
@@ -511,10 +598,7 @@ fn amd_in(drm: &str) -> Option<String> {
 		})
 		.collect();
 	cards.sort_by_key(|n| n[4..].parse::<u32>().unwrap_or(u32::MAX));
-	cards
-		.into_iter()
-		.map(|n| format!("{drm}/{n}/device"))
-		.find(|dir| std::path::Path::new(&format!("{dir}/gpu_busy_percent")).exists())
+	cards.into_iter().map(|n| format!("{drm}/{n}")).collect()
 }
 
 /// How busy the GPU is, 0 to 1.
@@ -532,7 +616,8 @@ impl Collector<1> for GpuReader {
 			card: Card::find()?,
 			buf: String::new(),
 		};
-		r.read().map(|_| r)
+		let busy = r.read();
+		(busy.is_some() || r.card.primed()).then_some(r)
 	}
 
 	fn read(&mut self) -> Option<[f32; 1]> {
@@ -627,6 +712,96 @@ mod tests {
 			&[("card0-DP-1/device/gpu_busy_percent", "1\n")],
 		);
 		assert_eq!(amd_in(&only.at("")), None);
+	}
+
+	// Test ID: df3kw
+	#[test]
+	fn intel_reads_busy_as_the_time_out_of_rc6() {
+		let t = Tree::new("gpu_intel_rc6", &[("rc6_residency_ms", "1000\n")]);
+		let set = |ms: &str| std::fs::write(t.at("rc6_residency_ms"), ms).unwrap();
+		let mut intel = Intel::new(t.at("rc6_residency_ms"));
+		let mut buf = String::new();
+		let t0 = Instant::now();
+		let at = |ms: u64| t0 + Duration::from_millis(ms);
+		assert_eq!(
+			intel.busy_at(&mut buf, at(0)),
+			None,
+			"the first read primes"
+		);
+		set("1750\n");
+		assert_eq!(intel.busy_at(&mut buf, at(1000)), Some(0.25));
+		set("1750\n");
+		assert_eq!(intel.busy_at(&mut buf, at(1500)), Some(1.0));
+		// asleep a little longer than the clock says, from when each was read
+		set("2260\n");
+		assert_eq!(intel.busy_at(&mut buf, at(2000)), Some(0.0));
+		// the driver loaded again, so it primes again
+		set("10\n");
+		assert_eq!(intel.busy_at(&mut buf, at(3000)), None);
+		set("510\n");
+		assert_eq!(intel.busy_at(&mut buf, at(4000)), Some(0.5));
+		assert_eq!(intel.busy_at(&mut buf, at(4000)), None, "no time between");
+		set("junk\n");
+		assert_eq!(intel.busy_at(&mut buf, at(5000)), None);
+	}
+
+	// Test ID: df3kx
+	#[test]
+	#[cfg(not(miri))]
+	fn an_intel_card_gives_a_gpu_graph_and_no_memory_graph() {
+		let t = Tree::new(
+			"gpu_intel",
+			&[
+				("card0-eDP-1/power/rc6_residency_ms", "5\n"),
+				("card0/power/rc6_enable", "0\n"),
+				("card0/power/rc6_residency_ms", "0\n"),
+				("card1/device/", ""),
+				("card2/power/rc6_enable", "1\n"),
+				("card2/power/rc6_residency_ms", "100\n"),
+				("card2/gt/gt0/rc6_residency_ms", "200\n"),
+				("card3/device/tile0/gt0/gtidle/idle_residency_ms", "300\n"),
+				("renderD128/", ""),
+			],
+		);
+		let found = intel_in(&t.at("")).unwrap();
+		assert!(found.ends_with("/card2/gt/gt0/rc6_residency_ms"), "{found}");
+		let legacy = Tree::new(
+			"gpu_intel_legacy",
+			&[("card0/power/rc6_residency_ms", "1\n")],
+		);
+		let found = intel_in(&legacy.at("")).unwrap();
+		assert!(found.ends_with("/card0/power/rc6_residency_ms"), "{found}");
+		let xe = Tree::new(
+			"gpu_intel_xe",
+			&[("card0/device/tile0/gt0/gtidle/idle_residency_ms", "3\n")],
+		);
+		let found = intel_in(&xe.at("")).unwrap();
+		assert!(found.ends_with("/gtidle/idle_residency_ms"), "{found}");
+		let off = Tree::new(
+			"gpu_intel_off",
+			&[
+				("card0/power/rc6_enable", "0\n"),
+				("card0/power/rc6_residency_ms", "0\n"),
+			],
+		);
+		assert_eq!(intel_in(&off.at("")), None);
+
+		// no NVIDIA card and no amdgpu one, as on a box with only Intel's
+		nvml::STAND_IN.set(Some(&stand_in::LIB));
+		stand_in::NO_DEVICE.set(true);
+		PCI_AT.set(Some("/nonexistent".into()));
+		DRM_AT.set(Some(t.at("")));
+		let gpu = GpuReader::probe();
+		let vram = VramReader::probe();
+		stand_in::NO_DEVICE.set(false);
+		nvml::STAND_IN.set(None);
+		PCI_AT.set(None);
+		DRM_AT.set(None);
+		let mut gpu = gpu.expect("the GPU graph, from the first read priming it");
+		assert!(vram.is_none(), "no GPU memory graph");
+		std::fs::write(t.at("card2/gt/gt0/rc6_residency_ms"), "200\n").unwrap();
+		std::thread::sleep(Duration::from_millis(20));
+		assert_eq!(gpu.read(), Some([1.0]), "awake the whole time");
 	}
 
 	// Test ID: dekma
