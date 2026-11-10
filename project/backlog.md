@@ -22,6 +22,23 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- df336 fails on GitHub's runner: a demo stopped by TERM leaves run.pid and .demo-run
+	- ID: 2026110919021646
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Medium
+	- Opened: 20261109-190216
+	- Opened by:
+	- Related IDs: 2026110709074407
+	- Steps to reproduce: Run the merge-gate workflow on GitHub's runner.
+	- Incorrect behavior: The Tests step fails on df336 with "TERM gave exit 143, folder run.pid .demo-run". The exit is right, but the run folder is left.
+	- Expected behavior: The demo's cleanup removes its run folder after TERM, as on b23.
+	- Reproduced: Yes, in 4 of 4 hosted runs on 2026-11-10: 3 on round-1109b at c66f3d9 (42745146916, 42745155762, 42745165237) and 1 on dev at 6022038 (42746194920).
+	- Estimated effort: Low
+	- Progress log:
+		- Filed from the round-1109b test batch. The round didn't change the demo's main or its cleanup.
+	- Origin: round-1109, with df336. It passes on b23, in the container too.
+
 - Code review 20261106 item 5: The processes graph takes about 4 ms a read
 	- ID: 2026110618502905
 	- Type: Enhancement
@@ -541,9 +558,9 @@ Sorted per the notes in [Template](#template).
 - A settings window refresh test fails now and then on GitHub's runner
 	- ID: 2026110810505772
 	- Type: Bug
-	- Status: Waiting on automated testing
+	- Status: Done
 		- The cause isn't proven, so it stays open until the hosted runs show the test holds.
-	- Needs external testing: 3 or more runs of the `merge-gate` workflow on GitHub's runner, with dezcc passing in each. A failure now prints the page and the widgets that got the layout request.
+	- Needs external testing: No
 	- Priority|Severity: Low
 	- Opened: 20261108-105057
 	- Opened by: t00mietum
@@ -560,10 +577,12 @@ Sorted per the notes in [Template](#template).
 		- The test now settles each page until a pass asks for no layout and none is waiting, up to 50 passes, and counts only the layout requests the refresh itself posts, with no timer or screen event run in between.
 		- With nothing changed, a failure names the page and the first 10 widgets that got a tip or a layout request, so a hosted failure shows where it came from.
 		- Verified: the test still catches what it was made for: 120 layouts with the height check taken out, and 2585 tips with the tip check taken out, the same as before.
+		- Verified: 2026-11-10, dezcc passed in 3 merge-gate runs on GitHub's runner at c66f3d9 (42745146916, 42745155762, 42745165237). Those runs failed later on df336, filed apart.
 	- Decisions:
 		- Counting only what the refresh posts matches what the test is for. A layout request the refresh itself makes is still counted, on the runner too, so a real one isn't hidden.
 	- Branch: round-1109b
 	- Test case: dezcc (`bridge::tests::a_refresh_sets_only_the_tips_and_gaps_that_changed`). No fail-before run, since it never failed off the hosted runner.
+	- Closed: 20261109-185727
 
 - Code review 20261107 item 26: The amdgpu reads have none of the NVIDIA path's runtime power checks
 	- ID: 2026110709074426
