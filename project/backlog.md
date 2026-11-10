@@ -290,7 +290,7 @@ Sorted per the notes in [Template](#template).
 - Cut the cost of the spike windows in each draw
 	- ID: 2026111000270812
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Stalled
 	- Priority|Severity: Avg
 	- Opened: 20261110-002708
 	- Opened by: t00mietum
@@ -299,6 +299,7 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Avg
 	- Prereq IDs: 2026111010281710
 	- 2026-11-10: Answer on 2026110920595602's Check: get it looking right first, then the cost. Waits on 2026111010281710, since both change the spike windows.
+	- Held for UAT signoff of 2026111010281710's new look, per the answer on 2026110920595602: look first, then cost. Set back to Queued once it's signed off.
 
 - Reduce motion if a remote desktop session is detected
 	- ID: 2026110911114037
