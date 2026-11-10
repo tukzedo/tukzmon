@@ -332,7 +332,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 21: The demo's video encodes use every core
 	- ID: 2026110709074421
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -341,11 +341,25 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: No ffmpeg call sets a thread count, the Demo step passes the demo no job count, and the step isn't in `HEAVY_STEPS`. x265 at its slow preset takes every core.
 	- Expected behavior: The demo gets the run's job count, at a quarter of the CPUs like the other heavy steps.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Actual cause: No ffmpeg call set a thread count, and x265 keeps its own thread pool, which `-threads` doesn't reach. The Demo step wasn't in `HEAVY_STEPS` and passed no job count.
+	- Actual fix: `demo-video.py --jobs N`, a quarter of the CPUs by default, gives every ffmpeg `-threads N`, the filters `-filter_threads` or `-filter_complex_threads`, and x265 `pools=N`. `fStepDemo` is in `HEAVY_STEPS` and passes `--jobs`.
+	- Decisions:
+		- 2026-11-10: the capture's x264 gets the same cap. The video take at 8 jobs kept every frame, 2328 at 60 fps for 38.8 s, with the capture at 1.0001 of wall time.
+		- 2026-11-10: the step's 2 release builds run at the heavy count too. They're usually already built by then.
+	- Progress log:
+		- Verified: on a 3 s 1080p clip, the video encode went from 9.0 cores to 2.3 at `--jobs 2`, and 7.7 at 8. The flash search went from 6.0 to 2.3, and the gif from 3.4 to 2.2.
+		- Verified: the video take ran whole at `--jobs 8`.
+		- Verified: df3a6 failed on the old script and cicd files, and passes now. The quick gate's format, build, lint and test areas passed, and so did Sanitizers.
+		- Swept: every ffmpeg command in `demo-video.py`, the audio one included, which df3a6 walks. ffprobe and gifsicle run on one thread.
+	- Branch: round-1109b
+	- Test case: df3a6
+	- Closed: 20261109-161744
 
 - Code review 20261107 item 22: The demo judges a display free by its lock file alone
 	- ID: 2026110709074422
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -354,6 +368,16 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: The demo takes a display number that already answers, waits 10 s, and fails with "never came up as ours" rather than trying the next number. It fails safe.
 	- Expected behavior: A number that answers a connection counts as taken, so the demo moves on to the next one.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Actual cause: `display_taken` read only `/tmp/.X<n>-lock`. A server in another mount namespace, or with its lock file elsewhere, still holds the display's socket.
+	- Actual fix: A display is taken when its lock names a live process, or when `/tmp/.X11-unix/X<n>` or the abstract socket of the same name takes a connection. `pick_display` steps past it, and a pinned one fails at once.
+	- Progress log:
+		- Verified: with an Xvfb on :79 whose lock file sat in a private `/tmp`, the old script picked :79 and the new one :78.
+		- Verified: df3a7 failed on the old script and passes now, over a socket file, an abstract socket, a stale socket file, and a live and a dead lock.
+		- Swept: `pick_display` and `Screen.start` both go through `display_taken`, and `Screen.start` reads the lock through the same `x_lock`.
+	- Branch: round-1109b
+	- Test case: df3a7
+	- Closed: 20261109-161744
 
 - Code review 20261107 item 23: The color picker has no tips, and 2 message boxes break the UX guide
 	- ID: 2026110709074423

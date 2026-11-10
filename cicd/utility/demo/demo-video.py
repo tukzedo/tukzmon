@@ -15,6 +15,7 @@
 ##		demo-video.py [--profile video,gif] [--scenes a,b,...] [--display :89]
 ##		              [--lib-dir DIR] [--history-bin FILE] [--keep-work]
 ##		              [--no-rotate] [--no-asset] [--out-dir DIR] [--shot FILE]
+##		              [--jobs N]
 ##		--lib-dir has libtukzmon.so and tukzmon-settings, target/release by
 ##		default. --shot runs the scenes named with no capture, then writes one
 ##		screenshot, which is how the coordinates below were measured.
@@ -42,6 +43,7 @@ import re
 import select
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -145,6 +147,8 @@ DECO_TEXT = "#e9eefa"
 # past a taken one.
 DEFAULT_DISPLAY = ":89"
 DISPLAY_TRIES = 6
+# where X servers keep their lock files and sockets
+X_TMP = Path("/tmp")
 
 # where the panel sees the throwaway home and the plugin, through bwrap
 DEMO_HOME = "/home/sam"
@@ -205,6 +209,7 @@ class Options:
     no_asset: bool
     out_dir: Path
     shot: Path | None
+    jobs: int
 
 
 def log(msg: str) -> None:
@@ -220,18 +225,40 @@ def out_of(cmd: list[str], **kw: object) -> str:
     return str(done.stdout)
 
 
-def display_taken(num: int | str) -> bool:
-    lock = Path(f"/tmp/.X{num}-lock")
-    if not lock.exists():
-        return False
+def x_lock(num: int | str) -> Path:
+    return X_TMP / f".X{num}-lock"
+
+
+def lock_live(num: int | str) -> bool:
     try:
-        pid = int(lock.read_text(encoding="utf-8").strip())
+        pid = int(x_lock(num).read_text(encoding="utf-8").strip())
         os.kill(pid, 0)
-    except ProcessLookupError:
+    except (FileNotFoundError, ProcessLookupError):
         return False
     except (ValueError, OSError):
         return True
     return True
+
+
+def x_answers(num: int | str) -> bool:
+    # A server in another mount namespace, or one started with its lock file
+    # elsewhere, still holds the socket, or the abstract one beside it.
+    path = str(X_TMP / ".X11-unix" / f"X{num}")
+    for addr in (path, "\0" + path):
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+            s.settimeout(1.0)
+            try:
+                s.connect(addr)
+            except TimeoutError:
+                return True
+            except OSError:
+                continue
+            return True
+    return False
+
+
+def display_taken(num: int | str) -> bool:
+    return lock_live(num) or x_answers(num)
 
 
 def pick_display(wanted: str, explicit: bool) -> str:
@@ -477,7 +504,7 @@ class Screen:
             stderr=self.work.log_to("xvfb.log"),
             start_new_session=True,
         )
-        lock = Path(f"/tmp/.X{self.num}-lock")
+        lock = x_lock(self.num)
         deadline = time.time() + 10
         while time.time() < deadline:
             if lock.exists() and lock.read_text(encoding="utf-8").strip() == str(self.xvfb.pid):
@@ -890,10 +917,11 @@ class Timeline:
 
 
 class Capture:
-    def __init__(self, screen: Screen, timeline: Timeline, fps: int) -> None:
+    def __init__(self, screen: Screen, timeline: Timeline, fps: int, jobs: int) -> None:
         self.screen = screen
         self.timeline = timeline
         self.fps = fps
+        self.jobs = jobs
         self.raw = screen.work.path / "raw.mkv"
         self.ff: subprocess.Popen[bytes] | None = None
 
@@ -918,6 +946,8 @@ class Capture:
                 f"{screen.size[0]}x{screen.size[1]}",
                 "-i",
                 screen.display,
+                "-threads",
+                str(self.jobs),
                 "-c:v",
                 "libx264",
                 "-preset",
@@ -973,7 +1003,8 @@ class Rec:
         self.screen = Screen(opts.display, profile, self.work)
         self.panel = Panel(self.screen, opts.lib_dir.resolve(), opts.history_bin.resolve())
         self.timeline = Timeline()
-        self.capture = Capture(self.screen, self.timeline, profile.cap_fps)
+        self.jobs = opts.jobs
+        self.capture = Capture(self.screen, self.timeline, profile.cap_fps, opts.jobs)
         self.settings: SettingsWin | None = None
         self.keep = opts.keep_work
         # --shot also saves a picture at each peek, beside the shot
@@ -1146,11 +1177,29 @@ SOUND_FILES = {
 GAIN = {Sound.CLICK: 0.55, Sound.CLICK_QUIET: 0.38}
 
 
-def load_samples(work: Path) -> dict[Sound, np.ndarray]:
+def load_samples(work: Path, jobs: int) -> dict[Sound, np.ndarray]:
     cache = {}
     for sound, path in SOUND_FILES.items():
         wav = work / f"{sound.value}.wav"
-        run(["ffmpeg", "-v", "error", "-y", "-i", str(path), "-ar", str(SR), "-ac", "2", "-f", "wav", str(wav)])
+        run(
+            [
+                "ffmpeg",
+                "-v",
+                "error",
+                "-y",
+                "-threads",
+                str(jobs),
+                "-i",
+                str(path),
+                "-ar",
+                str(SR),
+                "-ac",
+                "2",
+                "-f",
+                "wav",
+                str(wav),
+            ]
+        )
         with wave.open(str(wav), "rb") as w:
             data = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
         pcm = data.astype(np.float32).reshape(-1, 2) / 32768.0
@@ -1163,7 +1212,7 @@ def load_samples(work: Path) -> dict[Sound, np.ndarray]:
 
 def build_audio(rec: Rec, trim: float, duration: float, rng: random.Random) -> Path:
     work = rec.work.path
-    cache = load_samples(work)
+    cache = load_samples(work, rec.jobs)
     mix = np.zeros((int(duration * SR) + SR, 2), dtype=np.float32)
     for event in rec.timeline.events:
         t_rel = rec.timeline.to_vt(event.at) - trim + FOLEY_LAG
@@ -1190,7 +1239,7 @@ def build_audio(rec: Rec, trim: float, duration: float, rng: random.Random) -> P
 ##	Post: find the flash, captions, encode
 
 
-def find_flash(raw: Path, work: Path, start: float = 0.0) -> float:
+def find_flash(raw: Path, work: Path, jobs: int, start: float = 0.0) -> float:
     """When the white flash starts, in the 8 s from start."""
     stats = work / "stats.txt"
     run(
@@ -1198,6 +1247,10 @@ def find_flash(raw: Path, work: Path, start: float = 0.0) -> float:
             "ffmpeg",
             "-v",
             "error",
+            "-filter_threads",
+            str(jobs),
+            "-threads",
+            str(jobs),
             "-ss",
             f"{start:.3f}",
             "-t",
@@ -1268,8 +1321,8 @@ def vf_chain(rec: Rec, trim: float, dur: float) -> str:
 def cut_times(rec: Rec, video_end_e: float) -> tuple[float, float]:
     raw, work, tl = rec.capture.raw, rec.work.path, rec.timeline
     raw_s = media_seconds(raw)
-    tl.flash_vt = find_flash(raw, work)
-    tl.flash2_vt = find_flash(raw, work, max(0.0, raw_s - 8.0))
+    tl.flash_vt = find_flash(raw, work, rec.jobs)
+    tl.flash2_vt = find_flash(raw, work, rec.jobs, max(0.0, raw_s - 8.0))
     rate = (tl.flash2_vt - tl.flash_vt) / (tl.flash2_e - tl.flash_e)
     log(f"sync flashes at {tl.flash_vt:.3f}s and {tl.flash2_vt:.3f}s, the capture at {rate:.4f} of wall time")
     if abs(rate - 1.0) > 0.05:
@@ -1282,12 +1335,17 @@ def encode_video(rec: Rec, out_mp4: Path, video_end_e: float) -> Path:
     trim, dur = cut_times(rec, video_end_e)
     vf = vf_chain(rec, trim, dur)
     audio = build_audio(rec, trim, dur, random.Random(1))
+    jobs = str(rec.jobs)
     run(
         [
             "ffmpeg",
             "-v",
             "error",
             "-y",
+            "-filter_threads",
+            jobs,
+            "-threads",
+            jobs,
             "-ss",
             f"{trim:.3f}",
             "-i",
@@ -1298,6 +1356,8 @@ def encode_video(rec: Rec, out_mp4: Path, video_end_e: float) -> Path:
             f"{dur + rec.profile.tail_s:.3f}",
             "-vf",
             vf,
+            "-threads",
+            jobs,
             "-c:v",
             "libx265",
             "-preset",
@@ -1309,7 +1369,8 @@ def encode_video(rec: Rec, out_mp4: Path, video_end_e: float) -> Path:
             "-tag:v",
             "hvc1",
             "-x265-params",
-            "log-level=error",
+            # its own pool, which -threads alone leaves at every core
+            f"log-level=error:pools={jobs}",
             "-r",
             str(rec.profile.out_fps),
             "-c:a",
@@ -1333,6 +1394,7 @@ def encode_gif(rec: Rec, out_gif: Path, video_end_e: float) -> Path:
     raw = str(rec.capture.raw)
     pal = rec.work.path / "pal.png"
     cut = ["-ss", f"{trim:.3f}", "-t", f"{dur + rec.profile.tail_s:.3f}"]
+    jobs = str(rec.jobs)
     # one palette for the whole gif, with ordered dither, which stays still
     # from frame to frame where error diffusion shimmers
     run(
@@ -1341,6 +1403,10 @@ def encode_gif(rec: Rec, out_gif: Path, video_end_e: float) -> Path:
             "-v",
             "error",
             "-y",
+            "-filter_threads",
+            jobs,
+            "-threads",
+            jobs,
             *cut,
             "-i",
             raw,
@@ -1355,6 +1421,10 @@ def encode_gif(rec: Rec, out_gif: Path, video_end_e: float) -> Path:
             "-v",
             "error",
             "-y",
+            "-filter_complex_threads",
+            jobs,
+            "-threads",
+            jobs,
             *cut,
             "-i",
             raw,
@@ -1494,6 +1564,17 @@ def record(opts: Options, take: Take, base: Path) -> None:
         rec.cleanup()
 
 
+def quarter_of_cpus() -> int:
+    # the encodes pin every core they get, so a heavy step's share, as cicd gives
+    return max(1, len(os.sched_getaffinity(0)) // 4)
+
+
+def job_count(text: str) -> int:
+    if not re.fullmatch(r"[1-9]\d{0,3}", text):
+        raise argparse.ArgumentTypeError(f"'{text}' isn't a job count")
+    return int(text)
+
+
 def comma_list(text: str) -> list[str]:
     return [s.strip() for s in text.split(",") if s.strip()]
 
@@ -1510,6 +1591,12 @@ def parse_args() -> Options:
     ap.add_argument("--no-asset", action="store_true", help="leave assets/demo.gif alone")
     ap.add_argument("--out-dir", default=str(OUT_DIR))
     ap.add_argument("--shot", default="", help="run the scenes with no capture, write one screenshot, and stop")
+    ap.add_argument(
+        "--jobs",
+        type=job_count,
+        default=quarter_of_cpus(),
+        help="threads for each ffmpeg; a quarter of the CPUs by default",
+    )
     args = ap.parse_args()
 
     lib_dir, history_bin = Path(args.lib_dir), Path(args.history_bin)
@@ -1539,6 +1626,7 @@ def parse_args() -> Options:
         no_asset=args.no_asset,
         out_dir=Path(args.out_dir),
         shot=Path(args.shot) if args.shot else None,
+        jobs=args.jobs,
     )
 
 
@@ -1592,3 +1680,6 @@ if __name__ == "__main__":
 ##		- 2026-11-09: TERM and HUP clean up as an error does. Its own run folder
 ##		  gets a run.pid for cicd's stale sweep, and the removal unmounts a
 ##		  FUSE mount inside it and won't walk into any other.
+##		- 2026-11-10: Each ffmpeg gets --jobs threads, a quarter of the CPUs by
+##		  default, and a display whose socket answers counts as taken, lock
+##		  file or not.

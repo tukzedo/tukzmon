@@ -50,7 +50,8 @@
 ##	  15. Demo            the README gif and a video, from
 ##	                      utility/demo/script.txt, on a private Xvfb. They go
 ##	                      to private/demo/ beside the repo, and the gif to
-##	                      assets/demo.gif when it changed
+##	                      assets/demo.gif when it changed. A heavy step, at a
+##	                      quarter of the CPUs
 ##	  16. Dogfood         utility/dev-install.bash, which installs the build
 ##	                      under ~/.local and restarts the panel
 ##	  A step that's off isn't counted, and the first section says why it's off.
@@ -879,8 +880,8 @@ fStepDemo() {
 	fEcho_Clean "cargo build --release ${RELEASE_PACKAGES[*]} -p tukzmon-core --example demo-history -j ${jobs}"
 	cargo build --release "${locked[@]}" "${RELEASE_PACKAGES[@]}" -j "${jobs}" || return 1
 	cargo build --release "${locked[@]}" -p tukzmon-core --example demo-history -j "${jobs}" || return 1
-	fEcho_Clean "cicd/utility/demo/demo-video.py"
-	python3 -I "${here}/utility/demo/demo-video.py" --lib-dir "${rel}" --history-bin "${rel}/examples/demo-history" || return 1
+	fEcho_Clean "cicd/utility/demo/demo-video.py --jobs ${jobs}"
+	python3 -I "${here}/utility/demo/demo-video.py" --lib-dir "${rel}" --history-bin "${rel}/examples/demo-history" --jobs "${jobs}" || return 1
 }
 
 fStepDogfood() {
@@ -1342,3 +1343,4 @@ exit 0
 ##		  container and on the run in a user scope.
 ##		- 2026-11-09: A Miri target that cannot build or list its tests fails
 ##		  the step, with its errors, rather than losing its tests.
+##		- 2026-11-10: The demo is a heavy step, and gets its job count.
