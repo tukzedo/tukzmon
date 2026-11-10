@@ -36,6 +36,7 @@ Sorted per the notes in [Template](#template).
 	- Possible cause: An integrated card's memory is the system's. Without root, the only count of what the GPU holds is each process's DRM fdinfo, and only for the user's own processes.
 	- Acceptance signoff: Closed 20261110 on the answer, as B.
 	- Closed: 20261110-184000
+	- Test case: none, closed on the answer with no code change.
 	- 2026-11-10: Answer: B, unless other tools have an acceptable way. nvtop, the main one that reads Intel, gives per-process memory from fdinfo and needs CAP_PERFMON or root for a total. So B: no GPU memory graph on Intel, as README already says.
 
 - Smoothly animate each graph on each tick
