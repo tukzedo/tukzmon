@@ -883,6 +883,13 @@ public:
 			// the first read only primes, and a second one ms later is noise
 			tick->start(int(live_sample(*live)));
 		}
+		// a remote viewer can join or leave while the window is open
+		auto *session = new QTimer(this);
+		connect(session, &QTimer::timeout, this, [this] {
+			if (follow_session(this->d))
+				refresh();
+		});
+		session->start(int(session_check_ms()));
 	}
 
 	Window(const Window &) = delete;

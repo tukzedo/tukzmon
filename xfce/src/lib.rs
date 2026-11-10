@@ -17,7 +17,7 @@ use std::time::{Duration, Instant, SystemTime};
 use tukzmon_core::config::{self, Look};
 use tukzmon_core::graphs::Graphs;
 use tukzmon_core::keep;
-use tukzmon_core::remote::Session;
+use tukzmon_core::remote::{Session, Watch};
 
 mod sys;
 #[allow(clippy::wildcard_imports, reason = "sys is only the C declarations")]
@@ -78,6 +78,8 @@ struct Plugin {
 	unreadable: Option<String>,
 	/// For [`Look::session`].
 	session: Session,
+	/// Where [`Self::session`] comes from, looked at again each tick.
+	watch: Watch,
 	/// Why a panic stopped this item. It draws nothing and does nothing after.
 	stopped: Option<String>,
 }
@@ -373,6 +375,7 @@ impl Plugin {
 	#[must_use]
 	fn tick(&mut self) -> Option<*mut c_void> {
 		self.reap_settings();
+		self.follow_session();
 		self.reload_if_changed();
 		self.reset_if_asked();
 		let next = self.graphs.tick();
@@ -455,6 +458,23 @@ impl Plugin {
 			return;
 		};
 		self.config_time = t;
+		self.show(look);
+	}
+
+	/// A remote viewer that joins or leaves calms the graphs or lets them go.
+	fn follow_session(&mut self) {
+		let session = self.watch.session(Instant::now());
+		if session == self.session {
+			return;
+		}
+		self.session = session;
+		self.show(Look {
+			session,
+			..self.graphs.look().clone()
+		});
+	}
+
+	fn show(&mut self, look: Look) {
 		if look != *self.graphs.look() {
 			let widths: Vec<u32> = self.graphs.widths().collect();
 			// the margins change the size too
@@ -976,8 +996,8 @@ impl Plugin {
 			complain(format_args!("can't make {}: {e}", data.display()));
 		}
 		let mut unreadable = None;
-		// what the session was started with, so once is enough
-		let session = tukzmon_core::remote::session();
+		let mut watch = Watch::start();
+		let session = watch.session(Instant::now());
 		let look = read_look(&config, &mut unreadable, session);
 		// a time no file has, so each tick tries again, even once it's gone
 		let config_time = match look {
@@ -1009,6 +1029,7 @@ impl Plugin {
 			trouble: None,
 			unreadable,
 			session,
+			watch,
 			stopped: None,
 		};
 		if p.graphs.look().keep {
@@ -1196,6 +1217,7 @@ mod tests {
 			trouble: None,
 			unreadable: None,
 			session: tukzmon_core::remote::Session::Local,
+			watch: tukzmon_core::remote::Watch::fixed(tukzmon_core::remote::Session::Local),
 			stopped: None,
 		});
 		Box::into_raw(p).cast()

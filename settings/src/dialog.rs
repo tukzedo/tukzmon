@@ -8,11 +8,12 @@ use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Instant;
 
 use knobs::{Control, Kind, Model, NoEnv, Setting, Spec, Value};
 use tukzmon_core::config::{self, Rgb, SavedTheme, THEME};
 use tukzmon_core::keep;
-use tukzmon_core::remote::Session;
+use tukzmon_core::remote::{Session, Watch};
 
 use crate::pick::{self, Field, Hsv};
 
@@ -99,6 +100,8 @@ pub struct Dialog {
 	history_dir: PathBuf,
 	/// For [`config::Look::session`].
 	session: Session,
+	/// Where [`Self::session`] comes from, if it's followed.
+	watch: Option<Watch>,
 }
 
 /// An open color picker. Its row follows every change, and Cancel puts back
@@ -270,13 +273,27 @@ impl Dialog {
 			picker: None,
 			history_dir: keep::data_dir(),
 			session: Session::Local,
+			watch: None,
 		})
 	}
 
-	/// Where this runs, as [`tukzmon_core::remote::session`] tells. Never
-	/// saved.
-	pub fn set_session(&mut self, session: Session) {
+	/// Takes where this runs from `watch`, now and at each
+	/// [`Self::follow_session`]. Never saved.
+	pub fn watch_session(&mut self, mut watch: Watch) {
+		self.session = watch.session(Instant::now());
+		self.watch = Some(watch);
+	}
+
+	/// Looks at the session again. True when it changed, so the rows it
+	/// greys and the graph previews need a refresh.
+	pub fn follow_session(&mut self) -> bool {
+		let Some(watch) = &mut self.watch else {
+			return false;
+		};
+		let session = watch.session(Instant::now());
+		let changed = session != self.session;
 		self.session = session;
+		changed
 	}
 
 	/// The setting as its slider sees it.
@@ -1731,7 +1748,8 @@ mod tests {
 				.tip
 				.ends_with("isn't a remote desktop session.")
 		);
-		dlg.set_session(Session::Remote);
+		dlg.watch_session(Watch::fixed(Session::Remote));
+		assert!(!dlg.follow_session());
 		assert!(
 			dlg.state(config::CALM_REMOTE)
 				.tip

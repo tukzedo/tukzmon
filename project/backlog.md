@@ -270,7 +270,9 @@ Sorted per the notes in [Template](#template).
 - Reduce motion: a remote viewer on the local desktop, as RustDesk, x11vnc or NoMachine on the physical display
 	- ID: 2026110922214810
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on automated testing
+	- Needs external testing: The panel item on the private panel rig, with a stand-in x11vnc on the rig's display as `viewer-standin.bash` in the private tools makes one. It should calm within about 5 s and let go once the stand-in quits.
+	- Needs hand testing: NoMachine from another box to b23's physical display, with the panel calming while connected and letting go after. x11vnc and RustDesk on a box that has them, since neither is on b23 and installing them is a sudo step.
 	- Priority|Severity: Avg
 	- Opened: 20261109-222148
 	- Opened by:
@@ -280,8 +282,26 @@ Sorted per the notes in [Template](#template).
 		- Treat the local desktop as remote while a remote viewer is connected to it, and go back to the person's settings once it leaves.
 		- Check again every few seconds, in the panel and in the settings window, rather than once at start.
 	- Estimated effort: Avg
+	- Actual effort: Avg
 	- Progress log:
 		- Possible signs: RustDesk's `--cm` window, which runs only while a peer is connected; an established socket on a VNC or RDP port; NoMachine's per-session node, told apart from the one for a virtual desktop on another display. Each needs a check with the real tool on b23.
+		- The panel item and the settings window look for a remote viewer on their own display about every 5 s, and go back to the person's settings once it leaves (`remote::Watch`). No root.
+		- A look reads the TCP counters, and the TCP tables only when those moved. It reads this user's processes only while a connection is up on a VNC, RDP, NoMachine or RustDesk port.
+		- Signs: x11vnc, x0vncserver, krfb or freerdp-shadow-cli holding that connection. RustDesk's `--cm`. NoMachine's `nxrunner.bin --monitor` on this display, while NoMachine has a connection.
+		- On b23, :1001 is NoMachine's node for the physical display. Its `nxrunner.bin --monitor` watches :0 and runs with no client connected.
+		- `design.md` Drawing and README Features have it.
+		- Verified: the quick gate and Sanitizers passed. With a stand-in x11vnc on a private Xvfb, the settings window greyed Sample ms default and Smooth scrolling, and went back 6 s after it quit. Before the early-timer fix below, it was still grey then. df3p7 failed with the socket read taken out, and df3p6 without the slack.
+		- On b23, a read of the TCP tables takes about 6 ms, the counters 18 us, and the process walk about 5 ms.
+	- Decisions:
+		- Ports and process names, since none of these servers says which display it serves in a way that can be read without root.
+		- NoMachine counts by its monitor and any connection on port 4000, since its node for the physical display runs between connections. A connection to a NoMachine virtual desktop on the same box would calm the physical display too.
+		- A server on a port of its own isn't seen.
+		- A look up to a tenth early still counts, since Qt's coarse timer can wake early, and skipping it doubled the wait.
+		- The tables are kept until the TCP counters move, since each read walks the kernel's whole table.
+		- `Dialog::set_session` gave way to `watch_session`, and tests pass `Watch::fixed`.
+	- Branch: round-1110
+	- Test case: `remote::tests::the_tcp_table_gives_established_connections_on_remote_desktop_ports` (df3p4), `remote::tests::a_viewer_counts_only_when_its_server_has_a_peer_on_this_display` (df3p5), `remote::tests::the_watch_looks_again_only_every_few_seconds` (df3p6) and `remote::tests::a_stand_in_viewer_on_a_vnc_port_is_seen_on_its_display_only` (df3p7).
+		- Swept: both callers of `remote::session` (the plugin's start and the settings window's), both `set_session` callers, and every `Look` maker that takes the session.
 
 - Keep logging but don't display updates while the desktop is locked
 	- ID: 2026110911114050

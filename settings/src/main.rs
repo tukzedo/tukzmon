@@ -106,7 +106,7 @@ fn main() -> ExitCode {
 	let path = config.unwrap_or_else(tukzmon_core::config::config_file);
 	match dialog::Dialog::open(path) {
 		Ok(mut d) => {
-			d.set_session(tukzmon_core::remote::session());
+			d.watch_session(tukzmon_core::remote::Watch::start());
 			run(&mut d, &snapshot)
 		}
 		Err(e) => {

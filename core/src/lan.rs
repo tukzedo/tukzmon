@@ -149,7 +149,7 @@ fn ask(sock: &Sock, seq: u32) -> [u8; HEADER + 56] {
 
 /// `ActiveOpens` plus `PassiveOpens` from `/proc/net/snmp`. Every TCP socket of
 /// both families with a far end got there by one or the other.
-fn opens(snmp: &str) -> Option<u64> {
+pub(crate) fn opens(snmp: &str) -> Option<u64> {
 	let mut rows = snmp.lines().filter_map(|l| l.strip_prefix("Tcp:"));
 	let (names, values) = (rows.next()?, rows.next()?);
 	names

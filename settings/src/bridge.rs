@@ -196,6 +196,10 @@ pub mod ffi {
 		fn section_order(d: &Dialog) -> Vec<String>;
 		fn reset_history(d: &Dialog) -> String;
 		fn reset_deletes_saved(d: &Dialog) -> bool;
+		/// Looks again for a remote viewer. True when the session changed.
+		fn follow_session(d: &mut Dialog) -> bool;
+		/// How often to ask follow_session, in ms.
+		fn session_check_ms() -> u32;
 
 		type Live;
 		fn live_new(d: &Dialog) -> Box<Live>;
@@ -585,6 +589,14 @@ fn section_order(d: &Dialog) -> Vec<String> {
 	d.section_order()
 }
 
+fn follow_session(d: &mut Dialog) -> bool {
+	d.follow_session()
+}
+
+fn session_check_ms() -> u32 {
+	u32::try_from(tukzmon_core::remote::CHECK_EVERY.as_millis()).unwrap_or(u32::MAX)
+}
+
 fn reset_history(d: &Dialog) -> String {
 	d.reset_history().err().unwrap_or_default()
 }
@@ -956,7 +968,9 @@ mod tests {
 				std::process::id()
 			));
 			let mut d = Dialog::open(path).unwrap();
-			d.set_session(tukzmon_core::remote::Session::Remote);
+			d.watch_session(tukzmon_core::remote::Watch::fixed(
+				tukzmon_core::remote::Session::Remote,
+			));
 			let mut want: Vec<String> = dialog_rows(&d)
 				.into_iter()
 				.filter(|r| r.control != ffi::ControlKind::Heading)
