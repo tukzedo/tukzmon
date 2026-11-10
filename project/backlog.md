@@ -117,6 +117,7 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- 60 Hz looks good.
 		- Now let's try 1/4 framerate, evenly divisible by framerate, but not less than 24 and not more than 50 Hz.
+		- Don't delete the 60 Hz code, just use a code constant to isolate it.
 
 - df336 fails on GitHub's runner: a demo stopped by TERM leaves run.pid and .demo-run
 	- ID: 2026110919021646
