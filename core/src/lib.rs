@@ -71,16 +71,43 @@ pub(crate) fn cpus() -> f32 {
 	*CPUS.get_or_init(|| std::thread::available_parallelism().map_or(1.0, |n| n.get() as f32))
 }
 
-/// Screen frames from one draw to the next while a graph moves, on a screen
-/// of `hz`: the fewest that keep it at 60 a second or under, so every frame
-/// at 60 Hz, every other at 120 and every third at 144. Below 60 Hz it's
-/// every frame, since none come faster. See design.md Drawing.
-pub fn frames_apart(hz: f64) -> u32 {
-	if !hz.is_finite() || hz <= 0.0 {
-		return 1;
+/// How often a moving graph draws, against the screen's rate. See design.md
+/// Drawing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Pace {
+	/// As often as the screen allows, up to 60 a second: every frame at
+	/// 60 Hz, every other at 120 and every third at 144.
+	UpTo60,
+	/// Every fourth frame, kept to 24 to 50 a second: every other frame at
+	/// 60 Hz, every third at 75, every fourth from 96 to 200 Hz, and every
+	/// fifth at 240.
+	Quarter,
+}
+
+/// The pace the panel and the settings window draw a moving graph at.
+/// [`Pace::UpTo60`] looked fine at 60 Hz, and Quarter costs less.
+pub const PACE: Pace = Pace::Quarter;
+
+impl Pace {
+	/// Screen frames from one draw to the next on a screen of `hz`. Below
+	/// the pace's slowest rate it's every frame, since none come faster.
+	pub fn frames_apart(self, hz: f64) -> u32 {
+		if !hz.is_finite() || hz <= 0.0 {
+			return 1;
+		}
+		let apart = match self {
+			// 61, so a 60.002 Hz screen still gets every frame
+			Self::UpTo60 => (hz / 61.0).ceil(),
+			// 1% slack each way, so 95.9 and 200.01 Hz still split by 4
+			Self::Quarter => 4.0_f64.max((hz / 50.5).ceil()).min((hz / 23.75).floor()),
+		};
+		apart.clamp(1.0, 1000.0) as u32
 	}
-	// 61, so a 60.002 Hz screen still gets every frame
-	(hz / 61.0).ceil().clamp(1.0, 1000.0) as u32
+}
+
+/// [`Pace::frames_apart`] at [`PACE`].
+pub fn frames_apart(hz: f64) -> u32 {
+	PACE.frames_apart(hz)
 }
 
 /// Milliseconds on one clock that every graph's beats go by. See
@@ -1356,11 +1383,50 @@ mod tests {
 			(0.0, 1),
 			(f64::NAN, 1),
 		] {
-			assert_eq!(frames_apart(hz), apart, "{hz} Hz");
+			assert_eq!(Pace::UpTo60.frames_apart(hz), apart, "{hz} Hz");
 		}
 		for hz in 60..=500 {
-			let fps = f64::from(hz) / f64::from(frames_apart(f64::from(hz)));
+			let fps = f64::from(hz) / f64::from(Pace::UpTo60.frames_apart(f64::from(hz)));
 			assert!((30.0..=61.0).contains(&fps), "{hz} Hz draws {fps} a second");
+		}
+	}
+
+	// Test ID: df3me
+	#[test]
+	fn a_quarter_pace_splits_the_screen_rate_evenly_from_24_to_50() {
+		for (hz, apart) in [
+			(60.0, 2),
+			(59.94, 2),
+			(75.0, 3),
+			(90.0, 3),
+			(95.9, 4),
+			(99.99, 4),
+			(100.0, 4),
+			(120.0, 4),
+			(144.0, 4),
+			(165.0, 4),
+			(200.01, 4),
+			(240.0, 5),
+			(360.0, 8),
+			(48.0, 2),
+			(30.0, 1),
+			(24.0, 1),
+			(20.0, 1),
+			(0.0, 1),
+			(f64::NAN, 1),
+		] {
+			assert_eq!(Pace::Quarter.frames_apart(hz), apart, "{hz} Hz");
+		}
+		for hz in 48..=1000 {
+			let apart = Pace::Quarter.frames_apart(f64::from(hz));
+			let fps = f64::from(hz) / f64::from(apart);
+			assert!(
+				(23.75..=50.5).contains(&fps),
+				"{hz} Hz draws {fps} a second"
+			);
+			if (96..=200).contains(&hz) {
+				assert_eq!(apart, 4, "{hz} Hz");
+			}
 		}
 	}
 

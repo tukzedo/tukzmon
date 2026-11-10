@@ -48,6 +48,13 @@ struct Plugin {
 	timer: c_uint,
 	/// The area's tick callback while a graph slides or eases, or 0.
 	frame: c_uint,
+	/// The timer that stands in for the tick callback where the frame clock
+	/// has no screen timing, or 0.
+	pacer: c_uint,
+	/// When the pacer's next draw is due.
+	paced_due: Instant,
+	/// The area's monitor's rate in mHz, and when it was read.
+	monitor: Option<(c_int, Instant)>,
 	config: PathBuf,
 	config_time: Option<(SystemTime, u64)>,
 	settings: Option<SettingsWindow>,
@@ -200,6 +207,84 @@ impl Plugin {
 		self.timer = unsafe { g_timeout_add(ms, tick, std::ptr::from_mut(self).cast()) };
 	}
 
+	fn start_frames(&mut self) {
+		// SAFETY: as start_timer, and quiet stops this one too.
+		self.frame = unsafe {
+			gtk_widget_add_tick_callback(
+				self.area,
+				frame,
+				std::ptr::from_mut(self).cast(),
+				std::ptr::null(),
+			)
+		};
+	}
+
+	/// The next draw a period after `from`, or after now where that's past,
+	/// so the draws keep the screen's rate rather than drift by the delay of
+	/// each.
+	fn start_pacer(&mut self, hz: f64, from: Instant) {
+		let period = Duration::from_secs_f64(f64::from(tukzmon_core::frames_apart(hz)) / hz);
+		let now = Instant::now();
+		self.paced_due = from + period;
+		if self.paced_due <= now {
+			self.paced_due = now + period;
+		}
+		let ms = (self.paced_due.saturating_duration_since(now).as_secs_f64() * 1000.0).round();
+		// SAFETY: as start_timer, and quiet stops this one too.
+		self.pacer = unsafe { g_timeout_add(ms as c_uint, paced, std::ptr::from_mut(self).cast()) };
+	}
+
+	/// [`pacing`] for the area's screen.
+	///
+	/// # Safety
+	///
+	/// The area is live, and clock is its frame clock, or null.
+	unsafe fn screen_pacing(&mut self, clock: *mut c_void) -> Pacing {
+		let (mut interval, mut presented) = (0_i64, 0_i64);
+		if !clock.is_null() {
+			// SAFETY: per the caller.
+			unsafe {
+				let at = gdk_frame_clock_get_frame_time(clock);
+				gdk_frame_clock_get_refresh_info(clock, at, &raw mut interval, &raw mut presented);
+			}
+		}
+		pacing(interval, presented, || {
+			// SAFETY: per the caller.
+			unsafe { self.monitor_mhz() }
+		})
+	}
+
+	/// Read again at most once a second, since finding the monitor asks the
+	/// X server where the window is and waits for the answer.
+	///
+	/// # Safety
+	///
+	/// The area is live. Unrealized, it has no window, and the rate is 0.
+	unsafe fn monitor_mhz(&mut self) -> c_int {
+		if let Some((mhz, at)) = self.monitor
+			&& at.elapsed() < Duration::from_secs(1)
+		{
+			return mhz;
+		}
+		// SAFETY: per the caller. A window has a monitor, unless it's off
+		// every screen.
+		let mhz = unsafe {
+			let window = gtk_widget_get_window(self.area);
+			let monitor = if window.is_null() {
+				std::ptr::null_mut()
+			} else {
+				gdk_display_get_monitor_at_window(gtk_widget_get_display(self.area), window)
+			};
+			if monitor.is_null() {
+				0
+			} else {
+				gdk_monitor_get_refresh_rate(monitor)
+			}
+		};
+		self.monitor = Some((mhz, Instant::now()));
+		mhz
+	}
+
 	/// Logged, and kept for the tip, since a restarted panel's stderr is
 	/// /dev/null.
 	fn history_trouble(&mut self, doing: &str, e: &std::io::Error) {
@@ -256,6 +341,11 @@ impl Plugin {
 			// SAFETY: as the timer, and the area outlives this.
 			unsafe { gtk_widget_remove_tick_callback(self.area, self.frame) };
 			self.frame = 0;
+		}
+		if self.pacer != 0 {
+			// SAFETY: as the timer.
+			unsafe { g_source_remove(self.pacer) };
+			self.pacer = 0;
 		}
 		for w in self.watches.drain(..) {
 			// SAFETY: each is from watch, and isn't used again.
@@ -559,17 +649,37 @@ fn draw_graphs(p: &mut Plugin, widget: *mut c_void, cr: *mut c_void) -> Gboolean
 		cairo_set_source_surface(cr, surf, 0.0, 0.0);
 		cairo_paint(cr);
 		cairo_surface_destroy(surf);
-		if p.frame == 0 && p.graphs.moving() {
-			// SAFETY: as start_timer, and quiet stops this one too.
-			p.frame = gtk_widget_add_tick_callback(
-				p.area,
-				frame,
-				std::ptr::from_mut(p).cast(),
-				std::ptr::null(),
-			);
+		if p.frame == 0 && p.pacer == 0 && p.graphs.moving() {
+			p.start_frames();
 		}
 	}
 	1
+}
+
+/// How a moving graph's draws keep time with the screen.
+#[derive(Debug, PartialEq)]
+enum Pacing {
+	/// On the frame clock's ticks, from a screen of this many Hz.
+	Frames(f64),
+	/// On a timer, for a screen of this many Hz.
+	Timer(f64),
+}
+
+/// GTK's frame clock knows the screen's frames only from the window
+/// manager's frame timings, the time a frame was `presented` among them.
+/// Without them, as under xfwm4, it says 60 Hz and ticks at that on its own,
+/// so the draws go by a timer at the monitor's rate, in mHz, or 60 Hz where
+/// that's unknown too. See design.md Drawing.
+fn pacing(interval_us: i64, presented_us: i64, monitor_mhz: impl FnOnce() -> c_int) -> Pacing {
+	if presented_us != 0 && interval_us > 0 {
+		return Pacing::Frames(1e6 / interval_us as f64);
+	}
+	let mhz = monitor_mhz();
+	Pacing::Timer(if mhz > 0 {
+		f64::from(mhz) / 1000.0
+	} else {
+		60.0
+	})
 }
 
 // On the screen's own frames, so a slide doesn't beat against them.
@@ -582,23 +692,50 @@ extern "C" fn frame(_widget: *mut c_void, clock: *mut c_void, data: *mut c_void)
 				p.frame = 0;
 				return 0;
 			}
-			let (mut interval, mut presented) = (0_i64, 0_i64);
-			// SAFETY: GTK hands a tick callback its widget's live frame clock.
-			let count = unsafe {
-				let at = gdk_frame_clock_get_frame_time(clock);
-				gdk_frame_clock_get_refresh_info(clock, at, &raw mut interval, &raw mut presented);
-				gdk_frame_clock_get_frame_counter(clock)
-			};
-			let hz = if interval > 0 {
-				1e6 / interval as f64
-			} else {
-				60.0
-			};
-			if count % i64::from(tukzmon_core::frames_apart(hz)) == 0 {
-				// SAFETY: area is a child of the live plugin.
-				unsafe { gtk_widget_queue_draw(p.area) };
+			// SAFETY: GTK hands a tick callback its widget's live frame
+			// clock, and the area is realized, since it drew.
+			match unsafe { p.screen_pacing(clock) } {
+				Pacing::Frames(hz) => {
+					// SAFETY: as above, and area is a child of the live plugin.
+					unsafe {
+						let count = gdk_frame_clock_get_frame_counter(clock);
+						if count % i64::from(tukzmon_core::frames_apart(hz)) == 0 {
+							gtk_widget_queue_draw(p.area);
+						}
+					}
+					1
+				}
+				Pacing::Timer(hz) => {
+					p.frame = 0;
+					p.start_pacer(hz, Instant::now());
+					0
+				}
 			}
-			1
+		},
+	)
+}
+
+// Stands in for the frame clock's ticks where it has no screen timing, and
+// hands back to them once it has.
+extern "C" fn paced(data: *mut c_void) -> Gboolean {
+	guarded(
+		data,
+		|_| 0,
+		|p| {
+			p.pacer = 0;
+			if !p.graphs.moving() {
+				return 0;
+			}
+			// SAFETY: area is a child of the live plugin.
+			let pace = unsafe {
+				gtk_widget_queue_draw(p.area);
+				p.screen_pacing(gtk_widget_get_frame_clock(p.area))
+			};
+			match pace {
+				Pacing::Frames(_) => p.start_frames(),
+				Pacing::Timer(hz) => p.start_pacer(hz, p.paced_due),
+			}
+			0
 		},
 	)
 }
@@ -848,6 +985,9 @@ impl Plugin {
 			graphs: Graphs::new(look.unwrap_or_default()),
 			timer: 0,
 			frame: 0,
+			pacer: 0,
+			paced_due: Instant::now(),
+			monitor: None,
 			config_time,
 			config,
 			settings: None,
@@ -1031,6 +1171,9 @@ mod tests {
 			graphs: tukzmon_core::graphs::Graphs::new(look),
 			timer: 0,
 			frame: 0,
+			pacer: 0,
+			paced_due: Instant::now(),
+			monitor: None,
 			config: config.to_path_buf(),
 			config_time: None,
 			settings: None,
@@ -1137,6 +1280,7 @@ mod tests {
 			super::frame(std::ptr::null_mut(), std::ptr::null_mut(), data),
 			0
 		);
+		assert_eq!(super::paced(data), 0);
 		// a stopped item's history isn't saved
 		super::free_data(std::ptr::null_mut(), data);
 		let saved = hist.exists();
@@ -1145,6 +1289,18 @@ mod tests {
 		assert_eq!(first, "boom at two");
 		assert!(!ran);
 		assert!(!saved);
+	}
+
+	// Test ID: df3mf
+	#[test]
+	fn without_frame_timings_the_draws_go_by_the_monitors_rate() {
+		use super::{Pacing, pacing};
+		let unasked = || -> c_int { panic!("the clock had the rate") };
+		assert_eq!(pacing(10_000, 123, unasked), Pacing::Frames(100.0));
+		// GTK's own 60 Hz, with nothing presented
+		assert_eq!(pacing(16_667, 0, || 99_990), Pacing::Timer(99.99));
+		assert_eq!(pacing(16_667, 0, || 0), Pacing::Timer(60.0));
+		assert_eq!(pacing(0, 0, || 144_000), Pacing::Timer(144.0));
 	}
 
 	// Test ID: dekpx

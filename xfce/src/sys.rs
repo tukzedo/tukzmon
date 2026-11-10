@@ -106,6 +106,14 @@ unsafe extern "C" {
 		refresh_interval: *mut i64,
 		presentation_time: *mut i64,
 	);
+	pub fn gtk_widget_get_frame_clock(widget: *mut c_void) -> *mut c_void;
+	pub fn gtk_widget_get_display(widget: *mut c_void) -> *mut c_void;
+	pub fn gtk_widget_get_window(widget: *mut c_void) -> *mut c_void;
+	pub fn gdk_display_get_monitor_at_window(
+		display: *mut c_void,
+		window: *mut c_void,
+	) -> *mut c_void;
+	pub fn gdk_monitor_get_refresh_rate(monitor: *mut c_void) -> c_int;
 	pub fn gtk_widget_get_allocated_width(widget: *mut c_void) -> c_int;
 	pub fn gtk_widget_get_allocated_height(widget: *mut c_void) -> c_int;
 	pub fn gtk_widget_get_scale_factor(widget: *mut c_void) -> c_int;

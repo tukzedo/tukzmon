@@ -414,7 +414,7 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 	- A jump is anything other than time going on, such as history loaded from disk, the first sample after a gap, a new curve or time axis, or a linear graph's span changing with its width or sample rate. A log axis is in fractions of the width, so a width change only stretches it.
 	- Dropping history past the max age is time going on, unless it takes more than 1% off the oldest end in `ln(1 + age / 5 s)`, as a lower max age does. A 15 minute trim of a day takes 0.2%.
 	- The two are mixed in `ln(1 + age / 5 s)`, so time still only runs older to the left. A jump part way through an ease starts from what's on screen.
-	- While an axis eases, the panel and the settings window's graph list draw 30 to 60 times a second, in step with the screen as in Drawing, then go back to once a sample.
+	- While an axis eases, the panel and the settings window's graph list draw 24 to 50 times a second, on an even split of the screen's rate as in Drawing, then go back to once a sample.
 
 - There's no visible seam where one quarter meets the next. The curve between boundaries is a monotone cubic through them, in `ln(1 + age / 5 s)`, so a pixel covers the same time on both sides of a boundary. The move from 1 minute to 1 hour to 1 day to everything older looks like one smooth curve. Tests check both that and that time only ever runs older to the left.
 
@@ -437,8 +437,10 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - With Smooth scrolling on, a graph slides to its newest sample rather than stepping to it. The right edge runs one sample behind. It moves from where it was drawn to the newest sample's end at a steady speed, over the time until the next sample, so one slide ends as the next one starts. A column at the edge covers part of 2 samples, weighted like any other, and that's what draws it part way.
 	- A step longer than a late or missed tick allows, as after a gap, isn't slid. The time axis eases it in instead.
-	- Auto, the default, turns it on with 8 or more CPUs, as `available_parallelism` counts them. On, a panel item with the default graphs took about 1.6% of a core at 60 frames a second, against 0.1% off.
-	- While a graph slides or an axis eases, the panel draws on the screen's own frames, from its frame clock. It draws every frame up to 60 Hz, every other at 120 and every third at 144, so 30 to 60 a second (`frames_apart`). The settings window's graph list draws at the same rate on a timer.
+	- Auto, the default, turns it on with 8 or more CPUs, as `available_parallelism` counts them. On, a panel item with the default graphs took about 0.9% of a core at 25 frames a second on a 100 Hz screen, and 1.3 to 1.6% at 60, against 0.1% off.
+	- While a graph slides or an axis eases, the panel draws every fourth screen frame, kept to 24 to 50 a second. That's every other frame at 60 Hz, every third at 75, every fourth from 96 to 200 Hz, and every fifth at 240 (`frames_apart`). The settings window's graph list draws at the same rate on a timer, from the screen's rate as Qt reads it.
+		- The rule before it, every frame up to 60 a second, is still there as `Pace::UpTo60`, and `PACE` in core picks one.
+		- The panel draws on its frame clock's ticks when the window manager gives GTK frame timings. Without them, as under xfwm4, GTK's clock says 60 Hz whatever the screen runs at, and ticks at that on its own. Then the panel draws on a timer at its monitor's refresh rate, read again once a second. A draw that runs late doesn't make the ones after it late too.
 	- The hover tip and a log axis's span go by the edge as drawn, not the newest sample.
 
 - With the pointer over the graph, a line one pixel wide is drawn under it, black unless set otherwise, over the plot rather than the border. The tip gives the time under the line, either as "7 hrs ago" or as the local time, with the date for anything before today. The time and date follow the locale's short formats, so 12 or 24 hour is its call too. Under that are that graph's shares across the line's column, each name and value on a line of its own, or "No data" for a gap.

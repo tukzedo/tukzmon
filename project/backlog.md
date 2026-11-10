@@ -38,7 +38,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Split in 2: the setting and the slide in 2026110918080223, and frames at the screen's rate with the CPU cost in 2026110918081021. Both are in, waiting on UAT.
 		- 20261109: children 2026110918080223 2026110918081021 wait on UAT, and the rest are closed
-		- 2026-11-10: Back to Queued with its child 2026110918081021, which needs the panel's frame rate fixed on a screen whose WM gives GTK no frame timings.
+		- 2026-11-10: Back to Queued with its child 2026110918081021, which needs the panel's frame rate fixed on a screen whose WM gives GTK no frame timings. That and the quarter rate in 2026110920595603 are in, waiting on UAT.
 	- Test case: its children's: 2026110918080223: `tests::a_new_sample_slides_in_at_a_steady_speed_but_a_gap_does_not` (df3e1), `tests::the_right_column_fills_as_the_sample_slides_in_and_the_tip_follows` (df3e2), and `config::tests::smooth_scrolling_reads_and_auto_goes_by_the_cpus` (df3e3).; 2026110918081021: `tests::frames_are_an_even_split_of_the_screen_rate_from_30_to_60` (df3e4). The frame clock's own pacing needs a real screen, so it has no test. dekpt now calls the tick callback.
 
 - Smooth scrolling: the setting, and each graph sliding between samples
@@ -77,8 +77,8 @@ Sorted per the notes in [Template](#template).
 - Smooth scrolling: frames at the screen's rate, and the CPU cost
 	- ID: 2026110918081021
 	- Type: Enhancement
-	- Status: Queued
-		- Watch the panel on b23's own screen with Smooth scrolling on, and say whether the slide runs without a stutter.
+	- Status: Waiting on UAT
+		- Watch the panel on b23's own 100 Hz screen with Smooth scrolling on, and say whether the slide runs without a stutter. It should draw 25 times a second, by 2026110920595603.
 	- Needs hand testing: The panel on b23's screen, under its compositor, with this build.
 	- Priority|Severity: Avg
 	- Opened: 20261109-180810
@@ -96,19 +96,31 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Drawing and Time axis have it.
 		- Verified: the quick gate and Sanitizers passed, and a panel item kept drawing while it slid, by the CPU numbers above.
 		- 2026-11-10: Answer on the Check: let's try 60 fps. But on a 100 Hz screen it should be a clean factor, like 50, auto-detected. frames_apart already gives 50 at 99.99 Hz, and the settings window gets 99.99 from Qt. The panel doesn't: xfwm4 on b23 has no `_NET_WM_FRAME_DRAWN` or `_NET_WM_FRAME_TIMINGS`, so GTK's frame clock reports its 60 Hz default and paces itself to it. When it has no real timing, take the rate from the panel's monitor (gdk_monitor_get_refresh_rate) and pace the draws to that.
+		- 2026-11-10: With no frame timings, GTK's frame clock gives its 60 Hz guess, not 0, so the old fallback never ran. The panel now looks for a presented frame. Without one, it draws on a timer at its monitor's refresh rate, read again once a second, and goes back to the frame clock once timings show up.
+		- 2026-11-10: On a 100 Hz screen with no frame timings, the old build drew 60 times a second, and this one every 40 ms, at the quarter rate of 2026110920595603. A panel item took 18 CPU ticks in 20 s, against 26 before, and its X server 5, against 9, at a load of 9 to 11 on 32 cores.
+		- `design.md` Drawing has the timer.
+		- Verified: the quick gate, Sanitizers and the release build passed, and the panel drew every 40 ms on a 100 Hz screen, by its X requests.
 	- Decisions:
 		- The panel uses GTK's frame clock, not a timer, so a draw lands on a screen frame rather than beating against them.
+			- 2026-11-10: Only where the window manager gives GTK frame timings. Without them the clock's own ticks are 60 a second whatever the screen runs at, and 60 doesn't split into 25, so a timer at the monitor's rate stands in.
+		- The timer goes by when the last draw was due, not when it ran, so it holds the screen's rate rather than drifting by each wakeup's delay.
+		- The monitor's rate is read at most once a second, since each read waits on the X server for the window's place. A panel moved to another monitor takes up its rate within a second.
+		- An unknown monitor rate counts as 60 Hz.
 		- One rule, `frames_apart` in core, serves both the panel and the settings window. It splits by 61, not 60, so a 60.002 Hz screen still gets every frame.
 		- Below 60 Hz it draws every frame, since none come faster.
 		- Auto stays on at 8 CPUs. 1.6% of one core is 0.2% of an 8 CPU box.
-	- Branch: round-1109b
-	- Test case: `tests::frames_are_an_even_split_of_the_screen_rate_from_30_to_60` (df3e4). The frame clock's own pacing needs a real screen, so it has no test. dekpt now calls the tick callback.
-		- Swept: both frame timers (the plugin's draw and `quiet`, qt.cpp's `LiveGraph`), and every `frame` caller, the panic test included.
+	- Branch: round-1109b, round-1110
+	- Test case: `tests::frames_are_an_even_split_of_the_screen_rate_from_30_to_60` (df3e4) and `tests::without_frame_timings_the_draws_go_by_the_monitors_rate` (df3mf). The frame clock's and the timer's own pacing need a real screen, so they have no test. dekpt now calls the tick callback and the timer.
+		- 2026-11-10: df3e4 calls `Pace::UpTo60.frames_apart` rather than `frames_apart`, which now goes by `PACE`. Its values are as they were.
+		- df3mf is new with the function it tests, so it has no run on the old code. The old code's 60 a second on a 100 Hz screen is in the Progress log.
+		- Swept: both frame timers (the plugin's draw and `quiet`, qt.cpp's `LiveGraph`), and every `frame` caller, the panic test included. 2026-11-10: also the new timer, `paced`, in the draw, `quiet` and dekpt.
 
 - Smooth scrolling: try a quarter of the screen's frame rate
 	- ID: 2026110920595603
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- Watch the panel on b23's screen with Smooth scrolling on, and say whether 25 frames a second looks as good as 60 did. `PACE` in `core/src/lib.rs` set to `Pace::UpTo60` builds the 60 one again.
+	- Needs hand testing: The panel on b23's 100 Hz screen, under its compositor, with this build.
 	- Priority|Severity: Avg
 	- Opened: 20261109-205956
 	- Opened by: t00mietum
@@ -118,6 +130,20 @@ Sorted per the notes in [Template](#template).
 		- 60 Hz looks good.
 		- Now let's try 1/4 framerate, evenly divisible by framerate, but not less than 24 and not more than 50 Hz.
 		- Don't delete the 60 Hz code, just use a code constant to isolate it.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- While a graph slides or an axis eases, it draws every fourth screen frame, kept to 24 to 50 a second: every other frame at 60 Hz, every third at 75, every fourth from 96 to 200 Hz, and every fifth at 240. On b23's 99.99 Hz screen that's 25 a second, in the panel and in the settings window's graph rows.
+		- The up-to-60 rule is `Pace::UpTo60`, and the `PACE` constant in core picks one.
+		- `design.md` Drawing and Time axis have it.
+		- Verified: the quick gate, Sanitizers and the release build passed, and the panel drew every 40 ms on a 100 Hz screen, by its X requests. The settings window's rows weren't watched.
+	- Decisions:
+		- An enum and a constant, not a setting, as asked.
+		- Where a quarter falls outside 24 to 50, it takes the split nearest 4 that's inside, so 60 Hz draws 30 a second and 240 Hz draws 48.
+		- 1% slack each way, so a screen a hair off its rate, as 95.9 or 200.01 Hz, still splits by 4.
+	- Branch: round-1110
+	- Test case: `tests::a_quarter_pace_splits_the_screen_rate_evenly_from_24_to_50` (df3me).
+		- Swept: every `frames_apart` caller: the plugin's tick callback and timer, and qt.cpp's `LiveGraph` through `bridge::frames_apart`.
 
 - df336 fails on GitHub's runner: a demo stopped by TERM leaves run.pid and .demo-run
 	- ID: 2026110919021646
