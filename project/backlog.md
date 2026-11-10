@@ -354,7 +354,7 @@ Sorted per the notes in [Template](#template).
 		- Plain tests on stable, each case a pure function of one seed, a time budget from an env var, and asserts on properties such as no panic and no read past the end. Keep some bit flips over real files, such as `core/tests/data/plugin-5-tiers.hist`.
 		- Each one gets a test ID, and is watched to fail on a planted bug before it's trusted.
 	- Progress log:
-		- 2026-11-10: split by input kind into children 2026111011435200 (the harness), 2026111011435314, 2026111011435428, 2026111011435542, 2026111011435657 and 2026111011435771. The harness, the history file and the netlink dumps are Done, and the other 3 are Queued.
+		- 2026-11-10: split by input kind into children 2026111011435200 (the harness), 2026111011435314, 2026111011435428, 2026111011435542, 2026111011435657 and 2026111011435771. The harness, the history file, the netlink dumps, the bridge table and the settings file are Done, and the `/proc` and `/sys` readers are Queued.
 
 - Fuzz: the seed and budget harness, and its cicd hookup
 	- ID: 2026111011435200
@@ -438,7 +438,7 @@ Sorted per the notes in [Template](#template).
 - Fuzz: the bridge forwarding table
 	- ID: 2026111011435542
 	- Type: Task
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261110-114355
 	- Opened by: t00mietum
@@ -446,6 +446,18 @@ Sorted per the notes in [Template](#template).
 	- Requirements: Fuzz the read of a bridge's brforward entries.
 	- Prereq IDs: 2026111011435200
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A case builds a table the way the kernel writes one: entries on the bridge's virtual ports and on others, some the box's own. Half the hurts lie in a port byte or the is_local byte.
+		- A whole table gives exactly the far ends on those ports, in order. A hurt one gives only addresses from whole entries on those ports that aren't the box's own, and no more than it has entries.
+		- The fuzz found no fault, in a 30 s run as well.
+		- Verified: df4g4 failed with the port's high byte read from the wrong offset, and with the is_local check taken out, and passes now.
+	- Decisions:
+		- Only the parse of the table is fuzzed. The port numbers come from `/sys` text, which goes with the `/proc` and `/sys` readers in 2026111011435657.
+	- Branch: round-1110b
+	- Test case: `net::tests::fuzz_brforward_gives_only_whole_entries_on_its_ports` (df4g4).
+		- Swept: `on_ports` is the only reader of `brforward`.
+	- Closed: 20261110-123109
 
 - Fuzz: the /proc and /sys readers
 	- ID: 2026111011435657
@@ -462,7 +474,7 @@ Sorted per the notes in [Template](#template).
 - Fuzz: a settings file loaded through shcl
 	- ID: 2026111011435771
 	- Type: Task
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261110-114357
 	- Opened by: t00mietum
@@ -470,6 +482,20 @@ Sorted per the notes in [Template](#template).
 	- Requirements: Fuzz a settings file as it loads through shcl into the model, with bit flips over a real one. A fault inside shcl gets an upstream draft.
 	- Prereq IDs: 2026111011435200
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A case builds a file the way the window saves one: up to 3 saved themes, a theme pick, changes kept on a theme, and some rows off their defaults, with odd text in the text rows. It goes through shcl, the saved themes, the model and the Look, as the plugin and the window read it.
+		- A whole file reads back as written. A hurt one doesn't panic, the model holds no value its row would refuse, and what was read writes back the same a second time.
+		- A second test flips bits in a saved file, `core/tests/data/plugin-7.shcl`.
+		- The fuzz found no fault in shcl or here, in a 30 s run as well, so there's no upstream draft.
+		- Verified: df4g5 failed with knobs taking a value without checking it, and df4g6 with a cut inside a character in the graph order's read. Both pass now.
+	- Decisions:
+		- `plugin-7.shcl` is a file as the window saves it, with a hand comment and a list added, rather than one off a live panel, since those sit outside the repo. Any saved file can take its place.
+		- Both tests skip Miri, since the spec takes about an hour to parse there.
+	- Branch: round-1110b
+	- Test case: `config::tests::fuzz_settings_files_read_whole_or_drop_lines` (df4g5) and `config::tests::fuzz_bit_flips_in_a_real_settings_file` (df4g6).
+		- Swept: every reader a settings file reaches in core: `config::model_on`, `saved_themes`, `theme_problems`, `spec_with`, `Look::from_model` and `graph_order`.
+	- Closed: 20261110-123109
 
 - CICD gap: Slow leak checks still missing
 	- ID: 2026110310450003

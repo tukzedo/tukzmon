@@ -695,4 +695,55 @@ mod tests {
 		let v = t.read().expect("the LAN reader came primed");
 		assert!(v.iter().all(|x| x.is_finite() && *x >= 0.0), "{v:?}");
 	}
+
+	// Test ID: df4g4
+	#[test]
+	fn fuzz_brforward_gives_only_whole_entries_on_its_ports() {
+		let tally = crate::fuzz::run("brforward", |dice| {
+			let ports: Vec<u16> = (0..dice.below(4))
+				.map(|_| *dice.pick(&[1, 2, 0xff, 0x100, 0x104, u16::MAX]))
+				.collect();
+			let (mut fdb, mut want, mut fields) = (Vec::new(), Vec::new(), Vec::new());
+			for _ in 0..dice.below(12) {
+				let at = fdb.len();
+				let mut e = dice.next().to_le_bytes().repeat(2);
+				let port = if dice.one_in(2) && !ports.is_empty() {
+					*dice.pick(&ports)
+				} else {
+					dice.next() as u16
+				};
+				e[6] = port as u8;
+				e[7] = u8::from(dice.one_in(3));
+				e[12] = (port >> 8) as u8;
+				if e[7] == 0 && ports.contains(&port) {
+					want.push(<[u8; 6]>::try_from(&e[..6]).unwrap());
+				}
+				fields.extend([at + 6, at + 7, at + 12]);
+				fdb.extend(e);
+			}
+			if dice.one_in(4) {
+				assert_eq!(on_ports(&fdb, &ports), want);
+			} else if dice.one_in(2) && !fields.is_empty() {
+				let at = *dice.pick(&fields);
+				crate::fuzz::lie(dice, &mut fdb, at, 1);
+			} else {
+				crate::fuzz::mangle(dice, &mut fdb);
+			}
+			let got = on_ports(&fdb, &ports);
+			let entries: Vec<&[u8]> = fdb.chunks_exact(16).collect();
+			assert!(got.len() <= entries.len());
+			let mut left = entries.iter();
+			for mac in &got {
+				// each from a whole entry of its own, in order, on one of the
+				// ports and not one of the box's own
+				let found = left.find(|e| {
+					e[..6] == mac[..]
+						&& e[7] == 0 && ports.contains(&u16::from_le_bytes([e[6], e[12]]))
+				});
+				assert!(found.is_some(), "{mac:?} isn't from an entry on {ports:?}");
+			}
+			!got.is_empty()
+		});
+		tally.assert_mixed();
+	}
 }

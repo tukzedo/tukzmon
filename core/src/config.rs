@@ -2748,4 +2748,150 @@ mod tests {
 			}
 		}
 	}
+
+	/// A settings file as the window would save it: some saved themes, a
+	/// pick, and a few rows set off their defaults. Without its header.
+	fn rolled_settings(dice: &mut crate::fuzz::Dice) -> String {
+		use knobs::{Control, Value};
+		let plain = saved_themes(&shcl::Document::parse("themes:\n\tx:\n\t\tname: X\n"));
+		let mut themes: Vec<SavedTheme> = Vec::new();
+		for _ in 0..dice.below(3) {
+			let name = *dice.pick(&[
+				"Mine",
+				"Default",
+				"night owl",
+				"2nd",
+				"Say \"hi\"",
+				"\u{e9}t\u{e9}",
+			]);
+			let mut colors = plain[0].colors.clone();
+			for v in colors.values_mut().filter(|v| v.starts_with('#')) {
+				if dice.one_in(4) {
+					*v = format!("#{:06x}", dice.next() & 0xff_ffff);
+				}
+			}
+			let key = theme_key(name, themes.iter().map(|t| t.key.as_str()));
+			themes.push(SavedTheme {
+				key,
+				name: name.into(),
+				colors,
+			});
+		}
+		let spec = spec_with(&themes);
+		let mut m = Model::new(Arc::clone(&spec));
+		for s in spec
+			.settings
+			.iter()
+			.filter(|s| s.control != Control::Heading)
+		{
+			if !dice.one_in(8) {
+				continue;
+			}
+			let span = |d: &mut crate::fuzz::Dice| {
+				let (lo, hi) = (s.min.max(-1e6), s.max.min(1e6));
+				lo + d.unit() * (hi - lo).max(0.0)
+			};
+			let v = match &s.default {
+				Value::Bool(b) => Value::Bool(!b),
+				Value::Int(_) => Value::Int(span(dice).round() as i64),
+				Value::Float(_) => Value::Float(span(dice)),
+				Value::Text(_) if !s.options.is_empty() => {
+					Value::Text(dice.pick(&s.options).0.clone())
+				}
+				Value::Text(_) if s.control == Control::Color => {
+					Value::Text(format!("#{:06x}", dice.next() & 0xff_ffff))
+				}
+				Value::Text(_) => {
+					let words = [
+						"",
+						"sda",
+						"mem,cpu",
+						"[cpu, mem]",
+						"a b",
+						"x: y",
+						"'q'",
+						"# not",
+					];
+					Value::Text((*dice.pick(&words)).to_string())
+				}
+			};
+			m.set(&s.id, &v, &NoEnv);
+		}
+		name_the_theme(&mut m);
+		let (body, _) = m.save(&NoEnv);
+		format!("{body}{}", themes_text(&themes))
+	}
+
+	/// What the window writes back for a file it read, apart from its
+	/// comments and header.
+	fn written(text: &str) -> String {
+		let doc = shcl::Document::parse(text);
+		let themes = saved_themes(&doc);
+		let spec = spec_with(&themes);
+		let mut m = model_on(Arc::clone(&spec), &doc);
+		for s in spec
+			.settings
+			.iter()
+			.filter(|s| s.control != knobs::Control::Heading)
+		{
+			let v = m.value(&s.id, &NoEnv);
+			assert_eq!(
+				spec.valid(s, &v),
+				Ok(v.clone()),
+				"{} took a value it refuses",
+				s.id
+			);
+		}
+		let _ = Look::from_model(&m);
+		let _ = theme_problems(&doc);
+		name_the_theme(&mut m);
+		let (body, _) = m.save(&NoEnv);
+		format!("{body}{}", themes_text(&themes))
+	}
+
+	/// Whether the reader took it all: whole UTF-8 with no line shcl
+	/// dropped. Either way what it did take writes back the same twice.
+	fn reads_settings(bytes: &[u8]) -> bool {
+		let text = String::from_utf8_lossy(bytes);
+		let once = written(&text);
+		assert_eq!(written(&once), once, "what was read writes back the same");
+		matches!(text, std::borrow::Cow::Borrowed(_))
+			&& shcl::Document::parse(&text).error_count() == 0
+	}
+
+	// Test ID: df4g5
+	#[test]
+	#[cfg_attr(miri, ignore = "a spec parse takes about an hour under Miri")]
+	fn fuzz_settings_files_read_whole_or_drop_lines() {
+		let header = "## tukzmon settings\n";
+		let tally = crate::fuzz::run("settings file", |dice| {
+			let body = rolled_settings(dice);
+			let mut bytes = format!("{header}{}\n{body}", shcl::FORMAT_LINE).into_bytes();
+			if dice.one_in(4) {
+				assert_eq!(
+					written(&String::from_utf8_lossy(&bytes)),
+					body,
+					"a whole file reads as written"
+				);
+			} else {
+				crate::fuzz::mangle(dice, &mut bytes);
+			}
+			reads_settings(&bytes)
+		});
+		tally.assert_mixed();
+	}
+
+	// Test ID: df4g6
+	#[test]
+	#[cfg_attr(miri, ignore = "a spec parse takes about an hour under Miri")]
+	fn fuzz_bit_flips_in_a_real_settings_file() {
+		let real = include_bytes!("../tests/data/plugin-7.shcl");
+		assert!(reads_settings(real), "the file itself reads whole");
+		let tally = crate::fuzz::run("plugin-7.shcl", |dice| {
+			let mut bytes = real.to_vec();
+			crate::fuzz::mangle(dice, &mut bytes);
+			reads_settings(&bytes)
+		});
+		tally.assert_mixed();
+	}
 }
