@@ -67,7 +67,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 25: With the LAN split on, each network read spends about 20 ms in the kernel on the panel's thread
 	- ID: 2026110709074425
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -77,6 +77,27 @@ Sorted per the notes in [Template](#template).
 		- Make a LAN read cheap enough for the panel's thread, or move it off that thread. Time it before and after.
 	- Note: Each dump walks the kernel's whole table of open TCP connections, which is sized by RAM, so few sockets cost about the same as many. An open settings window runs a second reader.
 	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A read dumps only when the TCP opens in `/proc/net/snmp` moved since the last dump, and then for both families in one request. Otherwise it looks up the sockets it has, one hash lookup each.
+		- Timed on b23, release build, 7 sockets kept, load about 3:
+
+			| Read                        | Before   | After
+			| :---                        | :---     | :---
+			| No TCP socket opened since  | 17.9 ms  | 0.069 ms
+			| A TCP socket opened since   | 17.9 ms  | 9.1 ms
+		- The opens moved on 3 of 89 one-second ticks on b23, so about 0.4 ms a tick on average. Reading them costs 0.012 ms.
+		- `design.md` Data sources on Linux says so.
+		- Verified: the quick gate's format, build, lint and tests, the Sanitizers step, and Miri over `lan::` passed.
+	- Decisions:
+		- A cheaper read rather than a worker thread, which would keep about 2% of a core at the default 1 s sample, and 36% at 50 ms.
+		- The old `TCPDIAG_GETSOCK` request for the dump, since it walks the table once for both families. The kernel still keeps it for old tools.
+		- A browser that opens connections every tick brings back a 9 ms read on those ticks, still half of before.
+	- Branch: round-1109b
+	- Test case: `lan::tests` df3cx, df3cy, df3cz, df3d0 and df3d1. df3d0 and df3d1 fail with every read dumping.
+		- 20261109: deqt2 and dekq7 build or read `Sock` values, which now carry the socket's family and id. deqt2 compares only the bytes and the LAN flag, with the same values. df35e opens its sockets after the first read, so its cut read is a dump.
+		- Swept: `LanReader::poll` is the only sock_diag reader. `neighbors` dumps the neighbor table, not the TCP one, every 10 s.
+	- Closed: 20261109-174917
 
 - Video & GIF: Bigger font for the fake text
 	- ID: 2026110708212499
