@@ -87,6 +87,7 @@ Sorted per the notes in [Template](#template).
 		- 2026-11-10: Back to Queued with its child 2026110918081021, which needs the panel's frame rate fixed on a screen whose WM gives GTK no frame timings. That and the quarter rate in 2026110920595603 are in, waiting on UAT.
 		- 20261109: children 2026110918080223 2026110918081021 2026110920595603 wait on UAT, and the rest are closed
 	- Test case: its children's: 2026110918080223: `tests::a_new_sample_slides_in_at_a_steady_speed_but_a_gap_does_not` (df3e1), `tests::the_right_column_fills_as_the_sample_slides_in_and_the_tip_follows` (df3e2), and `config::tests::smooth_scrolling_reads_and_auto_goes_by_the_cpus` (df3e3).; 2026110918081021: `tests::frames_are_an_even_split_of_the_screen_rate_from_30_to_60` (df3e4) and `tests::without_frame_timings_the_draws_go_by_the_monitors_rate` (df3mf). The frame clock's and the timer's own pacing need a real screen, so they have no test. dekpt now calls the tick callback and the timer.; 2026110920595603: `tests::a_quarter_pace_splits_the_screen_rate_evenly_from_24_to_50` (df3me).
+	- Stand-in: none (20261110). It closes with its children 2026110918080223, 2026110918081021 and 2026110920595603, each waiting on a look at b23's own screen.
 
 - Smooth scrolling: the setting, and each graph sliding between samples
 	- ID: 2026110918080223
