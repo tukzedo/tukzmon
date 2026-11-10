@@ -249,7 +249,7 @@ The code is a Rust core, with C only where a panel's API needs it. That was sett
 - The processes graph's colors are in the Processes section: System, Other users, and Yours, at `procs.colors.system`, `.users`, and `.me`, stacked in that order from the bottom, plus its own Low, Medium, and High. Yours is the lead, and System is its Low, as memory's cache is. Default's are gray `#707070`, blue `#6bc9ff`, and yellow `#fff02a`, and its Low and Medium are System's and Yours.
 	- The tip gives the total, then each owner's count, such as "Processes 612", "Yours 112", "Other users 20", and "System 480", one to a line.
 
-- The GPU graph's colors are in the GPU section: Busy, at `gpu.colors.busy`, plus its own Low, Medium, and High. GPU memory's are in the GPU memory section: In use, at `vram.colors.used`, plus the same 3. Default's are blue `#3b6fd9` and violet `#843bd9`, and also the one-color themes give both tukzmon's color.
+- The GPU graph's colors are in the GPU section: Busy, at `gpu.colors.busy`, plus its own Low, Medium, and High. GPU memory's are in the GPU memory section: In use, at `vram.colors.used`, plus the same 3. Default's are blue `#3b6fd9` and violet `#843bd9`, and the one-color themes give both tukzmon's color.
 
 - Each graph's section has its Background on the right, with Border, Top, and Bottom, at `cpu.colors.border`, `.top`, and `.bottom` for the CPU graph, and the same under each graph's own section. They're in the `theme` group, so each theme gives every graph its own. The plot blends from Top down to Bottom, inside the border.
 	- In every built-in, each graph has the colors the theme had for all of them, so a built-in looks as it did.
