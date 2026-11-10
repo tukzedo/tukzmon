@@ -1325,4 +1325,44 @@ mod tests {
 			.count();
 		assert_eq!(over, 0);
 	}
+
+	// Test ID: df4e9
+	#[test]
+	fn a_column_that_is_one_sample_is_drawn_solid() {
+		// samples off the buckets' edges, so each column's end buckets hold
+		// a bit of the sample beside it, with columns lined up on the samples
+		let mut h = History::<2>::default();
+		for t in 0..100 {
+			let v = if t % 2 == 0 { 0.8 } else { 0.2 };
+			h.add(f64::from(t) + 0.03, f64::from(t) + 1.03, &[v, 0.0]);
+		}
+		let l = look();
+		let axis = Axis::linear(50.0);
+		let (w, ht) = (52, 102);
+		let f = Frame {
+			hist: &h,
+			axis: &axis,
+			now: 90.03,
+			sample: 1.0,
+			look: &l,
+			paint: Paint::Stack(&COLORS),
+			outline: OUTLINE,
+			vertical: Vertical::Linear,
+		};
+		let mut px = Vec::new();
+		f.draw(&mut px, w, ht, 1);
+		let red = pack_alpha([255.0, 0.0, 0.0], 1.0);
+		for x in 1..w - 1 {
+			let column: Vec<u32> = (1..ht - 1).map(|r| px[r * w + x]).collect();
+			let filled = column.iter().filter(|&&p| p == red).count();
+			let tinted = column
+				.iter()
+				.filter(|&&p| p != red && p & 0x00ff_0000 != 0)
+				.count();
+			assert!(
+				[20, 80].contains(&filled) && tinted == 0,
+				"{x}: {column:x?}"
+			);
+		}
+	}
 }

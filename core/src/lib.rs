@@ -1520,17 +1520,13 @@ mod tests {
 		g.skip(0.6);
 		let end = column(&mut g);
 		let user = end[end.len() - 1];
-		// a bucket cut by the sample's edge leaves up to a twentieth unfilled
-		let near = |p: u32| {
-			(0..4).all(|k| ((p >> (8 * k)) & 0xff).abs_diff((user >> (8 * k)) & 0xff) <= 8)
-		};
-		let filled = |c: &[u32]| c.iter().filter(|&&p| near(p)).count();
+		let filled = |c: &[u32]| c.iter().filter(|&&p| p == user).count();
 		assert_eq!(filled(&start), 0, "{start:x?}");
 		// half in, it's drawn full height at about half strength
 		let red = |p: u32| (p >> 16) & 0xff;
 		assert!(
 			half.iter()
-				.all(|&p| !near(p) && (0xa0..0xd8).contains(&red(p))),
+				.all(|&p| p != user && (0xa0..0xd8).contains(&red(p))),
 			"{half:x?}"
 		);
 		assert!(filled(&end) >= 17, "{end:x?}");

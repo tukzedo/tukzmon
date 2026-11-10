@@ -375,6 +375,38 @@ impl<const N: usize> Tier<N> {
 		best
 	}
 
+	// bucket `i`'s older and newer sample, and how much of its data is the
+	// older one, for a bucket no longer than half a sample, which holds at
+	// most 2. Its min and max are the 2, and the bucket beside it says which
+	// side each is on. None when it holds one value, or nothing's beside it.
+	fn samples_in(&self, i: usize) -> Option<([f32; N], [f32; N], f64)> {
+		let bucket = self.buckets.get(i)?;
+		let spread = |s: usize| bucket.max[s] - bucket.min[s];
+		let widest = (0..N).max_by(|&x, &y| spread(x).total_cmp(&spread(y)))?;
+		if spread(widest) <= 0.0 {
+			return None;
+		}
+		let beside = |j: Option<usize>| {
+			j.and_then(|j| self.buckets.get(j))
+				.filter(|bk| bk.secs > 0.0)
+				.map(|bk| std::array::from_fn::<f32, N, _>(|s| bk.mean(s)))
+		};
+		let nearer_min =
+			|to: [f32; N], s: usize| (bucket.min[s] - to[s]).abs() <= (bucket.max[s] - to[s]).abs();
+		let older_is_min: [bool; N] = match (beside(i.checked_sub(1)), beside(Some(i + 1))) {
+			(Some(older), _) => std::array::from_fn(|s| nearer_min(older, s)),
+			(None, Some(newer)) => std::array::from_fn(|s| !nearer_min(newer, s)),
+			(None, None) => return None,
+		};
+		let pick = |min: bool, s: usize| if min { bucket.min[s] } else { bucket.max[s] };
+		let older: [f32; N] = std::array::from_fn(|s| pick(older_is_min[s], s));
+		let newer: [f32; N] = std::array::from_fn(|s| pick(!older_is_min[s], s));
+		let s = widest;
+		let share =
+			(f64::from(newer[s] - bucket.mean(s)) / f64::from(newer[s] - older[s])).clamp(0.0, 1.0);
+		Some((older, newer, share))
+	}
+
 	// the most of any `run` secs from `a` to `b`, from windows near the ends,
 	// where a sample can be cut, and the buckets' max between, which is also
 	// given alone. A bucket wholly past `clear` from either end holds no
@@ -531,7 +563,9 @@ impl<const N: usize> History<N> {
 		let mut spike = max;
 		// each end's max, and how much of it is in, until the mean is known
 		let mut cut = [(0.0f32, [0.0f32; N]); 2];
-		let mut end_means: [Option<[f32; N]>; 2] = [None; 2];
+		// each end bucket's values where the span starts and ends in it
+		let mut end_values: [Option<[[f32; N]; 2]>; 2] = [None; 2];
+		let splits = sample >= 2.0 * tier.len;
 		let ends = if i1 - i0 > 1 { [i0, i1 - 1] } else { [i0, i1] };
 		for (end, i) in ends.into_iter().enumerate().filter(|&(_, i)| i < i1) {
 			let bucket = &tier.buckets[i as usize];
@@ -545,17 +579,35 @@ impl<const N: usize> History<N> {
 				continue;
 			}
 			// a bucket with a hole in it is taken as evenly thin
-			let w = overlap * (bucket.secs as f64 / (hi - lo)).min(1.0);
+			let thin = (bucket.secs as f64 / (hi - lo)).min(1.0);
+			let w = overlap * thin;
 			weight += w;
+			// a sample's edge in the bucket leaves only the part that's in,
+			// rather than its mean, which mixes in the sample outside
+			let (from, to) = (a.max(lo), b.min(hi));
+			// one value is all older
+			let means = std::array::from_fn(|s| bucket.mean(s));
+			let (older, newer, share) = splits
+				.then(|| tier.samples_in(i as usize))
+				.flatten()
+				.unwrap_or((means, means, 1.0));
+			let edge = lo + share * (hi - lo);
+			let older_w = (to.min(edge) - from).max(0.0) * thin;
 			for s in 0..N {
-				sums[s] += w * bucket.mean(s) as f64;
+				sums[s] += older_w * f64::from(older[s]) + (w - older_w) * f64::from(newer[s]);
+			}
+			let values = [
+				if from < edge { older } else { newer },
+				if to > edge { newer } else { older },
+			];
+			for s in 0..N {
 				max[s] = max[s].max(bucket.max[s]);
 				min[s] = min[s].min(bucket.min[s]);
 			}
 			// a span inside one bucket has all of it that it can
 			let part = (overlap / (hi - lo).min(b - a)).min(1.0) as f32;
 			cut[end] = (part, bucket.max);
-			end_means[end] = Some(std::array::from_fn(|s| bucket.mean(s)));
+			end_values[end] = Some(values);
 		}
 		if weight > 0.0 {
 			for s in 0..N {
@@ -569,10 +621,10 @@ impl<const N: usize> History<N> {
 				out.min[s] = min[s];
 			}
 			out.covered = (weight / (b - a)).min(1.0) as f32;
-			let [older, newer] = end_means;
+			let [older, newer] = end_values;
 			out.ends = [
-				older.or(newer).unwrap_or(out.mean),
-				newer.or(older).unwrap_or(out.mean),
+				older.or(newer).map_or(out.mean, |v| v[0]),
+				newer.or(older).map_or(out.mean, |v| v[1]),
 			];
 			// a sample at least a column wide needs no lift to show
 			if b - a <= sample {

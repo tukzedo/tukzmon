@@ -25,14 +25,31 @@ Sorted per the notes in [Template](#template).
 - A bucket cut by a sample's edge tints a narrow column
 	- ID: 2026111011172485
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261110-111724
 	- Opened by:
 	- Related IDs: 2026111010281710
 	- Incorrect behavior: A column no wider than a sample, with a sample's edge inside one of its end buckets, is drawn up to a twentieth short of full strength, as a faint tint, though all of it is one sample.
 	- Possible cause: The end bucket's mean mixes the 2 samples, and the column takes it as one of them. Reading which side of the bucket each sample is on, from the buckets beside it, would leave only the part that's in.
+	- Reproduced: Yes, by df4e9 and df3e2 with the fix taken out.
+	- Actual cause: As the possible cause. The end bucket's mean also went into the column's mean.
 	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- `History::span_for` splits an end bucket that holds 2 samples at the edge between them, where buckets are no longer than half a sample. Its min and max are the 2 samples, the bucket beside it says which is older, and its sum says where the edge is. Only the part inside the span goes into the mean, and `Span::ends` takes the values at the span's own ends. `design.md` Drawing has it.
+		- Profiler, load 12 to 20 on 32 cores, 2 runs each: 661 and 863 us user a tick before, 822 and 717 after, so no change past the noise. History lookups were 35% and 37% of the tick before, 35% and 33% after.
+		- Verified: df4e9 and df3e2's exact check failed before the change and pass after. df4d7, df4dt, df3s6, the quick gate and Sanitizers passed.
+	- Decisions:
+		- The split reads the bucket's own min and max, and a neighbor only for which side each is on, so a neighbor that's a gap or missing on one side still works from the other. With none, the mean stands as before.
+		- It applies to every column's end buckets, wider ones too, so a column's mean is the same however it's read. `History::span`, with no sample, is unchanged, so the hover tip reads as before.
+		- A bucket from history sampled faster than the graph is now, which can hold more than 2 samples, is split as if it held its min and max. Only its part of one column can be off, as before.
+	- Actual fix: `Tier::samples_in` and the end bucket loop in `History::span_for`, in `core/src/history.rs`.
+	- Branch: round-1110b
+	- Test case: `render::tests::a_column_that_is_one_sample_is_drawn_solid` (df4e9).
+		- 2026-11-10: df3e2 `the_right_column_fills_as_the_sample_slides_in_and_the_tip_follows` checks a filled row is exactly the full color again, not within 8 steps of it.
+		- Swept: every reader of `Span::ends` (only `Frame::draw_in`), every `span_for` caller (`Frame::draw_in`, and `span` with sample 0), and the other end bucket readers, `tops_over` and `densest`, which read maxes for the spike, not means.
+	- Closed: 20261110-114108
 
 - GPU memory graph on integrated Intel graphics
 	- ID: 2026110921252043
