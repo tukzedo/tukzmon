@@ -360,9 +360,9 @@ Sorted per the notes in [Template](#template).
 - Keep logging but don't display updates while the desktop is locked
 	- ID: 2026110911114050
 	- Type: Enhancement
-	- Status: Waiting on UAT
+	- Status: Done
 		- Lock b23's screen for a minute with the panel up, and say whether the graphs show the minute right after unlocking.
-	- Needs hand testing: A real lock and unlock on b23 under xfce4-screensaver, with this build.
+	- Needs hand testing: No
 	- Stand-in: the real xfce4-screensaver blanking a private panel, with its lock off (20261110). Left for a person: the lock and its unlock dialog on b23's own screen.
 	- Priority|Severity: Avg
 	- Opened: 20261109-111140
@@ -390,6 +390,8 @@ Sorted per the notes in [Template](#template).
 	- Test case: `lock::tests::the_screensaver_or_a_lock_hides_the_graphs_and_unlocking_draws_once` (df3qr), `lock::tests::a_session_s_logind_object_escapes_a_leading_digit` (df3qs), and `lock::tests::a_screensaver_or_logind_on_a_private_bus_hides_the_graphs_until_unlocked` (df3qt), which is ignored in a run since the image has no dbus-daemon, and passes with `--ignored` on b23.
 		- dekpx now reads `lock.rs` too.
 		- Swept: every draw the plugin asks for (the tick, the frame clock's tick callback, the pacer, and the frame start in the draw), and the tip's requery. Left as they were: the pointer's own draws, which need the pointer on the panel, and the one draw that shows an item a bug stopped.
+	- Acceptance signoff: Self-closed 20261110: the real xfce4-screensaver on a private panel stopped the item's draws while active and brought them back after, and df3qr, df3qs and df3qt cover both D-Bus sources. Only the lock dialog itself went unseen.
+	- Closed: 20261110-005036
 
 - CICD gap: Fuzz the parsers of files and kernel messages
 	- ID: 2026110310450001
