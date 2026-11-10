@@ -245,6 +245,8 @@ Sorted per the notes in [Template](#template).
 		- Do your own research for this.
 		- Spitballing: for a pixel line that is in between 0% and 100%, render it at an in-between color of foreground and background (or adjacent color), using the correct blending gamma.
 		- May not need temporal-aware antialiasing, but might.
+	- Progress log:
+		- 2026-11-10: After 2026110920595602, spikes mostly shimmer now, less so the pulsing.
 
 - Cut the cost of the spike windows in each draw
 	- ID: 2026111000270812
@@ -3431,7 +3433,7 @@ Sorted per the notes in [Template](#template).
 		- df3s6 slides a 1 s spike across columns of 1 s and of 10 s. Before, the red drawn over all columns jumped from 5.80 to 6.40 plot heights on the first, and from 2.12 to 2.72 on the second. Now each stays within 0.05.
 		- Profiler, load 2 to 4 on 32 cores: 241.1 us user a tick before, 480.3 after. History lookups went from 21% of self time to 41%. 2026111000270812 is for bringing it back down.
 		- Verified: df3s6 failed before the change and passed after, and the quick gate and Sanitizers passed.
-		- 2026-11-10: UAT: spikes still pulse and shimmer. The rest goes on in 2026111010281710.
+		- 2026-11-10: UAT: spikes mostly shimmer now, and pulse less. The rest goes on in 2026111010281710.
 	- Decisions:
 		- Value-based, as the issue allowed: a cut sample lifts the column by its part, rather than the spike drawn full height at part brightness. That keeps the spike emphasis's look, a column drawn from its mean up toward its peak, and every other draw test's pixels.
 		- The window is one sample long and reads bucket maxes, not means, so near the edges it agrees with the buckets' max read in the middle. A sample off the bucket edges smears by up to a bucket, 50 ms in the newest 13 s and 250 ms up to 8.5 minutes back.
