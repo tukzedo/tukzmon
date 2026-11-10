@@ -95,7 +95,7 @@ Sorted per the notes in [Template](#template).
 		- With Smooth scrolling on, a panel item with the default graphs took 31 CPU ticks in 20 s, about 1.6% of a core, and its X server 9. Off, they took 2 and 1. That's at 60 frames a second, the most it draws.
 		- `design.md` Drawing and Time axis have it.
 		- Verified: the quick gate and Sanitizers passed, and a panel item kept drawing while it slid, by the CPU numbers above.
-		- 2026-11-10: Answer on the Check: let's try 60 fps. But on a 100 Hz screen it should be a clean factor, like 50, auto-detected. frames_apart already gives 50 at 99.99 Hz, and the settings window gets 99.99 from Qt. The panel doesn't: xfwm4 on b23 has no _NET_WM_FRAME_DRAWN or _NET_WM_FRAME_TIMINGS, so GTK's frame clock reports its 60 Hz default and paces itself to it. When it has no real timing, take the rate from the panel's monitor (gdk_monitor_get_refresh_rate) and pace the draws to that.
+		- 2026-11-10: Answer on the Check: let's try 60 fps. But on a 100 Hz screen it should be a clean factor, like 50, auto-detected. frames_apart already gives 50 at 99.99 Hz, and the settings window gets 99.99 from Qt. The panel doesn't: xfwm4 on b23 has no `_NET_WM_FRAME_DRAWN` or `_NET_WM_FRAME_TIMINGS`, so GTK's frame clock reports its 60 Hz default and paces itself to it. When it has no real timing, take the rate from the panel's monitor (gdk_monitor_get_refresh_rate) and pace the draws to that.
 	- Decisions:
 		- The panel uses GTK's frame clock, not a timer, so a draw lands on a screen frame rather than beating against them.
 		- One rule, `frames_apart` in core, serves both the panel and the settings window. It splits by 61, not 60, so a 60.002 Hz screen still gets every frame.
