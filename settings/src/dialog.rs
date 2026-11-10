@@ -115,6 +115,27 @@ fn read(path: &Path) -> Result<String, String> {
 	}
 }
 
+// In the window's words rather than shcl's, which are for a log.
+fn write_failed(file: &str, e: &shcl::WriteError) -> String {
+	use shcl::WriteStatus as S;
+	let why = match e.status {
+		S::NotFound => "its folder isn't there",
+		S::PermissionDenied => "there's no permission to write there",
+		S::DiskFull => "the disk is full",
+		S::ReadOnly => "the disk is read-only",
+		S::IsDirectory => "it's a folder",
+		S::NotRegular => "it isn't a regular file",
+		S::Ok | S::Unreadable | S::Other => {
+			let raw = e
+				.message
+				.strip_prefix(&format!("{file}: "))
+				.unwrap_or(&e.message);
+			return format!("{file} can't be written: {raw}");
+		}
+	};
+	format!("{file} can't be written, since {why}.")
+}
+
 // Saved themes as the file has them, with what this window changed since
 // `was` laid over them. A theme the file still has gets only the name and
 // colors changed here, so another window's edits to it stay (2026110709074404).
@@ -826,7 +847,7 @@ impl Dialog {
 		}
 		let themes_text = config::themes_text(&themes);
 		let text = stamped(keep_notes(doc, &format!("{body}{themes_text}")));
-		shcl::write_file_atomic(file, &text).map_err(|e| e.message)?;
+		shcl::write_file_atomic(file, &text).map_err(|e| write_failed(file, &e))?;
 		// as in open, kept apart to tell what changes next
 		self.saved = fresh.clone();
 		self.model = fresh;
@@ -917,6 +938,35 @@ mod tests {
 			// The folder is this test's own, named by pid and test, so a test may write any name in it.
 			let _ = std::fs::remove_dir_all(&self.0);
 		}
+	}
+
+	// Test ID: df3aq
+	#[test]
+	fn a_failed_write_says_why_in_plain_words() {
+		let e = |status, message: &str| shcl::WriteError {
+			status,
+			message: message.to_string(),
+		};
+		assert_eq!(
+			write_failed(
+				"/x/s.shcl",
+				&e(
+					shcl::WriteStatus::PermissionDenied,
+					"/x/s.shcl: cannot create temporary file: Permission denied (os error 13)"
+				)
+			),
+			"/x/s.shcl can't be written, since there's no permission to write there."
+		);
+		assert_eq!(
+			write_failed(
+				"/x/s.shcl",
+				&e(
+					shcl::WriteStatus::Other,
+					"/x/s.shcl: Input/output error (os error 5)"
+				)
+			),
+			"/x/s.shcl can't be written: Input/output error (os error 5)"
+		);
 	}
 
 	fn scratch(name: &str) -> Dir {

@@ -403,6 +403,10 @@ public:
 		strip = new HueStrip(line * 3 / 2, line * 12);
 		square->moved = [this](double s, double v) { set(state.h, s, v); };
 		strip->moved = [this](double h, double) { set(h, state.s, state.v); };
+		square->setToolTip("Pick how strong the color is, left to right, and how bright, bottom to top. The "
+						   "arrow keys move it, and Shift with them moves it further.");
+		strip->setToolTip("Pick the color's hue, top to bottom. Up and Down move it, and Shift with them "
+						  "moves it further.");
 
 		state = pick_state(d);
 		auto *form = new QFormLayout;
@@ -431,6 +435,7 @@ public:
 				spins.push_back(spin);
 				box = spin;
 			}
+			box->setToolTip(qs(state.tips[i]));
 			form->addRow(qs(state.labels[i]), box);
 		}
 
@@ -438,6 +443,8 @@ public:
 		auto *ok = new QPushButton("OK");
 		// Cancel stays auto default, so Enter on it cancels
 		ok->setDefault(true);
+		cancel->setToolTip("Put the color back as it was, and close.");
+		ok->setToolTip("Keep this color, and close.");
 		connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
 		connect(ok, &QPushButton::clicked, this, &QDialog::accept);
 		auto *buttons = new QHBoxLayout;
@@ -1010,6 +1017,8 @@ public:
 	}
 	bool applyOn() const { return applyButton->isEnabled(); }
 	void commitTyped() { takeTyped(); }
+	bool saveNow() { return save(); }
+	void askThemeName(bool rename) { nameTheme(rename ? "Rename theme" : "Save theme as", QString(), rename); }
 	bool isLeaf(int i) const { return leaf[size_t(lineTab[size_t(i)])]; }
 	void select(int i) { tabList->setCurrentRow(i); }
 
@@ -1944,7 +1953,7 @@ private:
 			auto err = rename ? rename_theme(d, typed) : save_theme_as(d, typed);
 			if (err.empty())
 				break;
-			QMessageBox::warning(this, title, qs(err));
+			failed(rename ? "Theme wasn't renamed" : "Theme wasn't saved", qs(err), true);
 		}
 		refresh();
 	}
@@ -1967,7 +1976,7 @@ private:
 		live_clear(*live);
 		refresh();
 		if (auto err = reset_history(d); !err.empty())
-			QMessageBox::warning(this, "History wasn't reset", qs(err));
+			failed("History wasn't reset", qs(err), false);
 	}
 
 	// a box still being typed in, which counts as a change before it's left
@@ -2013,8 +2022,14 @@ private:
 		refresh();
 		if (err.empty())
 			return true;
-		QMessageBox::warning(this, "Settings weren't saved", qs(err));
+		failed("Settings weren't saved", qs(err), true);
 		return false;
+	}
+
+	// The title says what didn't happen, and `unchanged` adds the line that
+	// says nothing did (style guide, Message boxes).
+	void failed(const QString &title, const QString &why, bool unchanged) {
+		QMessageBox::warning(this, title, unchanged ? why + "\n\nNothing was changed." : why);
 	}
 
 	void refresh() {
@@ -2860,6 +2875,59 @@ rust::Vec<rust::String> question_defaults(Dialog &d) {
 	const bool deleted = w.askDelete("Mine");
 	const bool reset = w.askReset();
 	out.push_back(rust::String(std::string("yes ") + (deleted ? "1" : "0") + (reset ? "1" : "0")));
+	return out;
+}
+
+rust::Vec<rust::String> picker_tips(Dialog &d) {
+	const App app("offscreen");
+	Window w(d);
+	rust::Vec<rust::String> out;
+	auto pick = w.firstPicker();
+	if (!pick)
+		return out;
+	for (QWidget *c : pick->findChildren<QWidget *>()) {
+		if (!(c->focusPolicy() & Qt::TabFocus))
+			continue;
+		bool inner = false;
+		for (QWidget *up = c->parentWidget(); up && up != pick.get(); up = up->parentWidget())
+			inner |= qobject_cast<QAbstractSpinBox *>(up) != nullptr;
+		if (!inner)
+			out.push_back(
+				rust::String(QString(c->metaObject()->className()).toStdString() + "|" + c->toolTip().toStdString()));
+	}
+	pick->reject();
+	return out;
+}
+
+rust::Vec<rust::String> failure_boxes(Dialog &d) {
+	const App app("offscreen");
+	Window w(d);
+	rust::Vec<rust::String> out;
+	int asked = 0;
+	QTimer answer;
+	QObject::connect(&answer, &QTimer::timeout, [&out, &asked] {
+		QWidget *top = QApplication::activeModalWidget();
+		if (!top || !top->isVisible())
+			return;
+		if (auto *box = qobject_cast<QMessageBox *>(top)) {
+			out.push_back(rust::String((box->windowTitle() + "|" + box->text()).toStdString()));
+			box->button(QMessageBox::Ok)->click();
+		} else if (auto *ask = qobject_cast<QInputDialog *>(top)) {
+			// a blank name, then Cancel on the ask that comes back after it
+			if (asked++ % 2 == 0) {
+				ask->setTextValue("");
+				ask->accept();
+			} else {
+				ask->reject();
+			}
+		}
+	});
+	answer.start(10);
+	w.askThemeName(false);
+	save_theme_as(d, "Mine");
+	w.askThemeName(true);
+	randomize_theme(d);
+	out.push_back(rust::String(std::string("saved ") + (w.saveNow() ? "1" : "0")));
 	return out;
 }
 

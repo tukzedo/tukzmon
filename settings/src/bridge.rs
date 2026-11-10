@@ -160,6 +160,8 @@ pub mod ffi {
 		hex: String,
 		/// Each value box's label, top to bottom.
 		labels: Vec<String>,
+		/// Each value box's tip, top to bottom.
+		tips: Vec<String>,
 		/// Each percent box's value, top to bottom.
 		percents: Vec<i32>,
 	}
@@ -326,6 +328,14 @@ pub mod ffi {
 		/// after it was answered No.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn question_defaults(d: &mut Dialog) -> Vec<String>;
+		/// "title|text" for each failure box: Save as and then Rename given
+		/// a blank name, then a save of a change, which ends "saved 0" when
+		/// it failed.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn failure_boxes(d: &mut Dialog) -> Vec<String>;
+		/// Per control that takes Tab in the first color picker, "class|tip".
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn picker_tips(d: &mut Dialog) -> Vec<String>;
 		/// Moves graph list row `from` to `to`, then gives the graph of each
 		/// graph list row, or each Themes/Colors section with `colors`, that
 		/// Tab steps through from the top.
@@ -533,6 +543,7 @@ fn pick_state(d: &Dialog) -> ffi::PickState {
 		v: hsv.v,
 		hex: crate::pick::hex(crate::pick::to_rgb(hsv)),
 		labels: Field::ALL.iter().map(|f| f.label().to_string()).collect(),
+		tips: Field::ALL.iter().map(|f| f.tip().to_string()).collect(),
 		percents: Field::ALL.iter().filter_map(|f| f.percent(hsv)).collect(),
 	}
 }
@@ -1451,6 +1462,60 @@ mod tests {
 				ffi::question_defaults(&mut d),
 				["Delete theme No", "Reset history No", "yes 00"]
 			);
+		});
+	}
+
+	// Test ID: df3ar
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn every_control_in_the_color_picker_has_a_tip() {
+		on_qt(|| {
+			let path = std::env::temp_dir().join(format!(
+				"test_tukzmon-settings_{}_picker_tips_never_written.shcl",
+				std::process::id()
+			));
+			let mut d = Dialog::open(path).unwrap();
+			let tips = ffi::picker_tips(&mut d);
+			// the square, the strip, the 5 percent boxes, hex, Cancel and OK
+			assert_eq!(tips.len(), 10, "{tips:?}");
+			for t in &tips {
+				let (_, tip) = t.split_once('|').unwrap();
+				assert!(tip.ends_with('.'), "{t}");
+			}
+		});
+	}
+
+	// Test ID: df3as
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn a_failure_box_says_what_didnt_happen_and_that_nothing_changed() {
+		on_qt(|| {
+			let dir = std::env::temp_dir().join(format!(
+				"test_tukzmon-settings_{}_failure_boxes",
+				std::process::id()
+			));
+			let path = dir.join("plugin-1.shcl");
+			let _ = std::fs::remove_dir_all(&dir);
+			let mut d = Dialog::open(path.clone()).unwrap();
+			// a folder where the file goes, so the save can't read it
+			std::fs::create_dir_all(&path).unwrap();
+			let boxes = ffi::failure_boxes(&mut d);
+			let _ = std::fs::remove_dir_all(&dir);
+			let unchanged = "A theme needs a name.\n\nNothing was changed.";
+			assert_eq!(boxes.len(), 4, "{boxes:?}");
+			assert_eq!(boxes[0], format!("Theme wasn't saved|{unchanged}"));
+			assert_eq!(boxes[1], format!("Theme wasn't renamed|{unchanged}"));
+			assert!(
+				boxes[2].starts_with("Settings weren't saved|"),
+				"{}",
+				boxes[2]
+			);
+			assert!(
+				boxes[2].ends_with("\n\nNothing was changed."),
+				"{}",
+				boxes[2]
+			);
+			assert_eq!(boxes[3], "saved 0");
 		});
 	}
 

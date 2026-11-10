@@ -382,7 +382,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 23: The color picker has no tips, and 2 message boxes break the UX guide
 	- ID: 2026110709074423
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -393,6 +393,20 @@ Sorted per the notes in [Template](#template).
 		- A theme name that won't do shows a warning titled with the action, "Save theme as", rather than what didn't happen.
 	- Expected behavior: Every control has a tip, and a failure box's title says what didn't happen, per `project/style-guide_ux.md`.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Every control in the picker has a tip now. The value boxes take theirs from `Field::tip` in `pick.rs`.
+		- A failed save shows the window's own reason, such as "there's no permission to write there", and ends with "Nothing was changed."
+		- A theme name that won't do shows "Theme wasn't saved" or "Theme wasn't renamed", with "Nothing was changed." last.
+		- Verified: the quick gate and Sanitizers passed.
+	- Decisions:
+		- "History wasn't reset" gets no "Nothing was changed." line, since the graphs are already cleared by then, and some saved history may be gone.
+		- A write error shcl gives no status for keeps its own text after the file's name. Plain words for the read errors and the rest are item 2026110710005015's.
+	- Actual fix: `Window::failed` in `qt.cpp` shows every failure box, and `write_failed` in `dialog.rs` words a failed write.
+	- Branch: round-1109b
+	- Test case: `bridge::tests::every_control_in_the_color_picker_has_a_tip` (df3ar), `a_failure_box_says_what_didnt_happen_and_that_nothing_changed` (df3as) and `dialog::tests::a_failed_write_says_why_in_plain_words` (df3aq). df3ar and df3as fail with the tips and the new titles taken out, and pass with them.
+		- Swept: every `QMessageBox` and `QPushButton` in `qt.cpp`. The rest are questions, or have tips.
+	- Closed: 20261109-163151
 
 - Code review 20261107 item 24: design.md gives a stale count of the plugin's library calls
 	- ID: 2026110709074424
