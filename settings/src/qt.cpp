@@ -17,6 +17,7 @@
 #include <QComboBox>
 #include <QCursor>
 #include <QDialog>
+#include <QDebug>
 #include <QDoubleSpinBox>
 #include <QElapsedTimer>
 #include <QFormLayout>
@@ -682,16 +683,27 @@ void setMinHeight(QGridLayout *grid, int row, int height) {
 		grid->setRowMinimumHeight(row, height);
 }
 
-// counts the events of one type that reach what it watches
+// counts the events of one type that reach what it watches, and names what
+// got them
 class EventCount final : public QObject {
 public:
 	explicit EventCount(QEvent::Type type) : type(type) {}
 	QEvent::Type type;
 	int n = 0;
+	QStringList got;
+
+	void reset() {
+		n = 0;
+		got.clear();
+	}
 
 protected:
 	bool eventFilter(QObject *o, QEvent *e) override {
-		n += int(e->type() == type);
+		if (e->type() == type) {
+			n++;
+			const QString name = o->metaObject()->className();
+			got.push_back(o->objectName().isEmpty() ? name : name + " " + o->objectName());
+		}
 		return QObject::eventFilter(o, e);
 	}
 };
@@ -1076,14 +1088,32 @@ public:
 		int stillLayouts = 0;
 		for (int i = 0; i < tabCount(); i++) {
 			select(i);
-			// a layout can ask for another as it settles
-			for (int k = 0; k < 5; k++)
+			// A layout can ask for another as it settles, and a timer or the
+			// screen can post one any time, so it settles until a pass asks for
+			// none and none is left waiting.
+			for (int k = 0; k < 50; k++) {
+				layouts.reset();
 				QApplication::processEvents();
-			tips.n = layouts.n = 0;
+				QCoreApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
+				if (layouts.n == 0)
+					break;
+			}
+			tips.reset();
+			layouts.reset();
 			refresh();
-			QApplication::processEvents();
+			// only what the refresh asked for, with no timer or screen event
+			// run in between
+			QCoreApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
 			stillTips += tips.n;
 			stillLayouts += layouts.n;
+			if (tips.n + layouts.n == 0)
+				continue;
+			const QString what = QString("%1 tips, on %2, and %3 layouts, on %4")
+									 .arg(tips.n)
+									 .arg(tips.got.mid(0, 10).join(", "))
+									 .arg(layouts.n)
+									 .arg(layouts.got.mid(0, 10).join(", "));
+			qWarning().noquote() << "refresh with nothing changed, page" << i << what;
 		}
 		tips.n = 0;
 		set_number(d, id, number);

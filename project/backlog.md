@@ -431,7 +431,9 @@ Sorted per the notes in [Template](#template).
 - A settings window refresh test fails now and then on GitHub's runner
 	- ID: 2026110810505772
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting on automated testing
+		- The cause isn't proven, so it stays open until the hosted runs show the test holds.
+	- Needs external testing: 3 or more runs of the `merge-gate` workflow on GitHub's runner, with dezcc passing in each. A failure now prints the page and the widgets that got the layout request.
 	- Priority|Severity: Low
 	- Opened: 20261108-105057
 	- Opened by: t00mietum
@@ -441,7 +443,17 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: `bridge::tests::a_refresh_sets_only_the_tips_and_gaps_that_changed` (dezcc) saw 1 layout request with nothing changed (`[0, 1]` against `[0, 0]`), on the first run on `main`.
 	- Expected behavior: No layout request from a refresh with nothing changed.
 	- Reproduced: No. It passed on the 2 Dependabot runs and the run by hand on `runner-tests` that day, and never failed on b23, pinned to one CPU or with the sensors, battery and zswap hidden.
+		- 2026-11-09: Still no, on b23: 187 runs on 4 loaded CPUs, 11 runs of all the bridge tests together on 4 loaded CPUs, 32 runs at about 13 times slower, and 0 to 1200 ms held before each refresh so sample ticks fell inside the counted window.
 	- Possible cause: Something the live graphs do between the settle loop and the refresh, such as a sample tick, on a slow 4-CPU runner.
+		- 2026-11-09: Ruled out on b23: a sample tick inside the counted window asks for no layout, and the slowest page settles in 4 of the 5 passes. Left: the old count also took in whatever a timer or the screen posted during its last `processEvents`, or a settle that needed more than 5 passes on the runner.
+	- Progress log:
+		- The test now settles each page until a pass asks for no layout and none is waiting, up to 50 passes, and counts only the layout requests the refresh itself posts, with no timer or screen event run in between.
+		- With nothing changed, a failure names the page and the first 10 widgets that got a tip or a layout request, so a hosted failure shows where it came from.
+		- Verified: the test still catches what it was made for: 120 layouts with the height check taken out, and 2585 tips with the tip check taken out, the same as before.
+	- Decisions:
+		- Counting only what the refresh posts matches what the test is for. A layout request the refresh itself makes is still counted, on the runner too, so a real one isn't hidden.
+	- Branch: round-1109b
+	- Test case: dezcc (`bridge::tests::a_refresh_sets_only_the_tips_and_gaps_that_changed`). No fail-before run, since it never failed off the hosted runner.
 
 - Code review 20261107 item 26: The amdgpu reads have none of the NVIDIA path's runtime power checks
 	- ID: 2026110709074426
