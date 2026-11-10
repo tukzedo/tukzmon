@@ -233,38 +233,6 @@ Sorted per the notes in [Template](#template).
 	- Test case: `render::tests::a_spike_slides_across_columns_without_jumping_in_width` (df3s6).
 		- Swept: every reader of `Span::max` (only `Frame::draw_in` reaches toward it), every `Frame` literal (lib.rs, preview.rs, the render tests), and the partial-bucket math in `History::span`, which the windows copy.
 
-- df336 fails on GitHub's runner: a demo stopped by TERM leaves run.pid and .demo-run
-	- ID: 2026110919021646
-	- Type: Bug
-	- Status: Done
-	- Needs external testing: No
-	- Priority|Severity: Medium
-	- Opened: 20261109-190216
-	- Opened by:
-	- Related IDs: 2026110709074407
-	- Steps to reproduce: Run the merge-gate workflow on GitHub's runner.
-	- Incorrect behavior: The Tests step fails on df336 with "TERM gave exit 143, folder run.pid .demo-run". The exit is right, but the run folder is left.
-	- Expected behavior: The demo's cleanup removes its run folder after TERM, as on b23.
-	- Reproduced: Yes, in 4 of 4 hosted runs on 2026-11-10: 3 on round-1109b at c66f3d9 (42745146916, 42745155762, 42745165237) and 1 on dev at 6022038 (42746194920).
-	- Actual cause: The demo's `safe_rmtree` wanted a folder named tmp in the path, and the workflow's `HOST_TEMP` is `runner.temp`, which is `.../_temp`. The folder was left with a warning the test doesn't show. b23's temp root is under a `tmp` folder, so it never came up there.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- Filed from the round-1109b test batch. The round didn't change the demo's main or its cleanup.
-		- Verified: df336 with its temp root bound at `/srv`, so no part of the path is named tmp, failed on the old script with the hosted run's message, and passes now.
-		- Verified: the quick gate's format, build, lint and test areas passed, then Sanitizers.
-		- 2026-11-10: a hosted merge-gate run on round-1110 is under way for this.
-		- Verified: 20261110, PASS df336 in the merge-gate workflow on GitHub's runner, run 42784165519 on round-1110, which passed whole.
-	- Decisions:
-		- `safe_rmtree` takes a folder under our own temp root whatever that root is named, as the pipeline's `fSafeRm` does. It still needs the run's marker, a real path below the project folder, and no mount left inside.
-	- Actual fix: dropped the tmp name check from `safe_rmtree`.
-	- Origin: round-1109, with df336. It passes on b23, in the container too.
-	- Branch: round-1110
-	- Test case: df336
-		- Swept: every removal in the repo's scripts. `fSafeRm` already takes a path under its own temp root, and `Rec.cleanup` and `main` both go through `safe_rmtree`.
-	- Acceptance signoff: Self-closed 20261110: df336 passed on GitHub's runner.
-	- Closed: 20261110-005526
-
 - The 2 GPU graphs aren't available with integrated Intel graphics
 	- ID: 2026110920595600
 	- Type: Bug
@@ -2718,6 +2686,38 @@ Sorted per the notes in [Template](#template).
 		- OK'd as proposed. `design.md` now lists it as settled.
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019-162817
+
+- df336 fails on GitHub's runner: a demo stopped by TERM leaves run.pid and .demo-run
+	- ID: 2026110919021646
+	- Type: Bug
+	- Status: Done
+	- Needs external testing: No
+	- Priority|Severity: Medium
+	- Opened: 20261109-190216
+	- Opened by:
+	- Related IDs: 2026110709074407
+	- Steps to reproduce: Run the merge-gate workflow on GitHub's runner.
+	- Incorrect behavior: The Tests step fails on df336 with "TERM gave exit 143, folder run.pid .demo-run". The exit is right, but the run folder is left.
+	- Expected behavior: The demo's cleanup removes its run folder after TERM, as on b23.
+	- Reproduced: Yes, in 4 of 4 hosted runs on 2026-11-10: 3 on round-1109b at c66f3d9 (42745146916, 42745155762, 42745165237) and 1 on dev at 6022038 (42746194920).
+	- Actual cause: The demo's `safe_rmtree` wanted a folder named tmp in the path, and the workflow's `HOST_TEMP` is `runner.temp`, which is `.../_temp`. The folder was left with a warning the test doesn't show. b23's temp root is under a `tmp` folder, so it never came up there.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Filed from the round-1109b test batch. The round didn't change the demo's main or its cleanup.
+		- Verified: df336 with its temp root bound at `/srv`, so no part of the path is named tmp, failed on the old script with the hosted run's message, and passes now.
+		- Verified: the quick gate's format, build, lint and test areas passed, then Sanitizers.
+		- 2026-11-10: a hosted merge-gate run on round-1110 is under way for this.
+		- Verified: 20261110, PASS df336 in the merge-gate workflow on GitHub's runner, run 42784165519 on round-1110, which passed whole.
+	- Decisions:
+		- `safe_rmtree` takes a folder under our own temp root whatever that root is named, as the pipeline's `fSafeRm` does. It still needs the run's marker, a real path below the project folder, and no mount left inside.
+	- Actual fix: dropped the tmp name check from `safe_rmtree`.
+	- Origin: round-1109, with df336. It passes on b23, in the container too.
+	- Branch: round-1110
+	- Test case: df336
+		- Swept: every removal in the repo's scripts. `fSafeRm` already takes a path under its own temp root, and `Rec.cleanup` and `main` both go through `safe_rmtree`.
+	- Acceptance signoff: Self-closed 20261110: df336 passed on GitHub's runner.
+	- Closed: 20261110-005526
 
 - The Miri step ran over 31 hours and never finished
 	- ID: 2026110514461968
