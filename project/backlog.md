@@ -25,14 +25,27 @@ Sorted per the notes in [Template](#template).
 - A greyed slider still draws its groove in the accent color
 	- ID: 2026110923034356
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261109-230343
 	- Opened by:
 	- Incorrect behavior: When a row is greyed, as Sample ms default in a remote session, its label and number box go grey but the slider's groove stays blue.
 	- Expected behavior: The slider greys with the rest of its row.
+	- Reproduced: 2026-11-09, with `XRDP_SESSION=1` on a test X display, where Qt takes the GTK theme's palette. Under the offscreen platform, with Qt's own palette, the groove was already grey.
+	- Actual cause: Fusion fills a slider's groove in the palette's Highlight, and the GTK theme's disabled Highlight is the same accent as its active one. The slider was disabled with its row. It predates the remote-session greying, but no slider in the spec has a gate, so that greying was the first to show it.
+	- Estimated effort: Low
+	- Actual effort: Low
 	- Progress log:
 		- Seen in tukzmon-settings shots from 2026110922214810. Not yet checked whether it predates the remote-session greying.
+		- A disabled slider draws its groove in the disabled text color, whatever the theme's disabled Highlight is.
+		- Verified: on a test X display with the GTK theme, Sample ms default's groove went from blue to grey in a remote session, and Spike emphasis stayed blue. The quick gate and Sanitizers passed.
+	- Decisions:
+		- In `BoxStyle`, not a palette change, so a theme change at run time can't bring it back, and selections elsewhere keep the theme's colors.
+	- Actual fix: `BoxStyle::drawComplexControl` swaps Highlight for the disabled text color on a disabled slider.
+	- Branch: round-1110
+	- Test case: `bridge::tests::a_greyed_slider_draws_none_of_the_accent` (df3qa). Under a palette whose disabled accent equals its active one, it fails without the fix, with 463 accent pixels on the greyed slider, and passes with it.
+		- Swept: `TrackSlider` is the window's only slider. The other Highlight draws in `qt.cpp`, the color picker's edge and the gripper's dots, use it only with focus, which a disabled widget can't hold. Greyed dropdowns and number boxes were already grey.
+	- Closed: 20261109-231624
 
 - Smoothly animate each graph on each tick
 	- ID: 2026110911114024

@@ -369,6 +369,11 @@ pub mod ffi {
 		/// measures it.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn empty_box_contrast(dark: bool) -> f64;
+		/// Pixels drawn in the accent on a slider set to half, enabled and
+		/// then greyed, under a palette whose disabled accent is the same as
+		/// its active one.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn slider_accent_pixels() -> Vec<i32>;
 		/// The color chips restyled by a refresh with nothing changed, then by
 		/// one after the first color row is set to `color`.
 		#[allow(dead_code, reason = "only the tests ask")]
@@ -1853,6 +1858,20 @@ mod tests {
 				let c = ffi::empty_box_contrast(dark);
 				assert!(c >= 3.0, "dark: {dark}, contrast {c:.2}");
 			}
+		});
+	}
+
+	// Test ID: df3qa
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn a_greyed_slider_draws_none_of_the_accent() {
+		on_qt(|| {
+			let got = ffi::slider_accent_pixels();
+			assert!(got[0] > 50, "the enabled slider shows no accent: {got:?}");
+			assert_eq!(
+				got[1], 0,
+				"the greyed slider still shows the accent: {got:?}"
+			);
 		});
 	}
 

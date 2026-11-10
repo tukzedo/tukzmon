@@ -39,6 +39,7 @@ rust::Vec<rust::String> slider_clicks(Dialog &d);
 rust::Vec<rust::String> window_fit(Dialog &d, rust::Str screens);
 rust::Vec<rust::String> squeezed(Dialog &d, rust::Str screens);
 double empty_box_contrast(bool dark);
+rust::Vec<std::int32_t> slider_accent_pixels();
 rust::Vec<std::int32_t> chip_restyles(Dialog &d, rust::Str color);
 rust::Vec<std::int32_t> refresh_churn(Dialog &d, rust::Str id, double number);
 rust::Vec<double> refresh_micros(Dialog &d, std::size_t times);
