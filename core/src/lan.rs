@@ -217,8 +217,8 @@ fn lan_socket(msg: &[u8], away: &Away) -> Option<(u64, Sock)> {
 		if u16_at(msg, at + 2)? == INET_DIAG_INFO {
 			let info = msg.get(at + 4..at + len)?;
 			let segs = |at: usize| u64::from(u32_at(info, at).unwrap_or(0)) * overhead(wire_v6);
-			let sent = u64_at(info, ACKED)? + segs(SEGS_OUT);
-			let received = u64_at(info, RECEIVED)? + segs(SEGS_IN);
+			let sent = u64_at(info, ACKED)?.saturating_add(segs(SEGS_OUT));
+			let received = u64_at(info, RECEIVED)?.saturating_add(segs(SEGS_IN));
 			return Some((
 				cookie,
 				Sock {
@@ -347,7 +347,7 @@ fn answers(
 			}
 			NLMSG_ERROR => {
 				// ESTALE is its address and port taken by a new socket
-				let err = -i32::from_ne_bytes(body.get(..4)?.try_into().ok()?);
+				let err = i32::from_ne_bytes(body.get(..4)?.try_into().ok()?).wrapping_neg();
 				if err != libc::ENOENT && err != libc::ESTALE {
 					return None;
 				}
@@ -462,7 +462,7 @@ fn rise(was: &HashMap<u64, Sock>, now: &HashMap<u64, Sock>) -> [u64; 2] {
 		.filter(|(_, s)| s.lan)
 		.fold([0; 2], |sum, (cookie, now)| {
 			let then = was.get(cookie).map_or([0; 2], |s| s.moved);
-			[0, 1].map(|i| sum[i] + now.moved[i].saturating_sub(then[i]))
+			[0, 1].map(|i| sum[i].saturating_add(now.moved[i].saturating_sub(then[i])))
 		})
 }
 
@@ -1177,5 +1177,201 @@ mod tests {
 		std::thread::sleep(std::time::Duration::from_millis(20));
 		let v = r.read().expect("a poll after the first gives rates");
 		assert!(v.iter().all(|x| x.is_finite() && *x >= 0.0), "{v:?}");
+	}
+
+	/// A message's type, sequence number and body.
+	type Sent = (u16, u32, Vec<u8>);
+
+	/// A read of dump `seq` as the kernel would send it: sockets, neighbors,
+	/// errors and the odd other message, some of them another dump's, maybe
+	/// ended. With each message as `walk` should give it, and where each
+	/// length, type, sequence and error field sits.
+	fn rolled_dump(
+		dice: &mut crate::fuzz::Dice,
+		seq: u32,
+	) -> (Vec<u8>, Vec<Sent>, Vec<(usize, usize)>) {
+		let addrs = [
+			"192.168.1.5",
+			"10.0.0.9",
+			"8.8.8.8",
+			"fe80::1",
+			"2001:db8::5",
+			"fd12::7",
+			"::ffff:192.168.1.9",
+		];
+		let (mut buf, mut sent, mut fields) = (Vec::new(), Vec::new(), Vec::new());
+		for _ in 0..dice.below(12) {
+			let at = buf.len();
+			let mut attrs = Vec::new();
+			let mut m = match dice.below(6) {
+				0 | 1 => {
+					let bytes = [dice.next() >> dice.below(64), dice.next() >> dice.below(64)];
+					let segs = [dice.next() as u32, dice.next() as u32];
+					let m = message(
+						dice.pick(&addrs),
+						dice.pick(&addrs),
+						dice.next(),
+						bytes,
+						segs,
+					);
+					attrs.extend([HEADER + DIAG_MSG, HEADER + DIAG_MSG + 12]);
+					m
+				}
+				2 | 3 => {
+					let dst = ip(dice.pick(&addrs));
+					let mut body = vec![0u8; ND_MSG];
+					body[0] = (if dst.is_ipv6() {
+						libc::AF_INET6
+					} else {
+						libc::AF_INET
+					}) as u8;
+					let octets = match dst {
+						IpAddr::V4(v4) => v4.octets().to_vec(),
+						IpAddr::V6(v6) => v6.octets().to_vec(),
+					};
+					for (kind, data) in [
+						(NDA_DST, octets),
+						(NDA_LLADDR, dice.next().to_ne_bytes()[..6].to_vec()),
+					] {
+						attrs.push(HEADER + body.len());
+						body.extend_from_slice(&((data.len() + 4) as u16).to_ne_bytes());
+						body.extend_from_slice(&kind.to_ne_bytes());
+						body.extend(data);
+						body.resize(align(body.len()), 0);
+					}
+					wrap(RTM_NEWNEIGH, &body)
+				}
+				4 => {
+					let err = *dice.pick(&[0, libc::ENOENT, libc::ESTALE, libc::EINVAL]);
+					let mut body = vec![0u8; 20];
+					body[..4].copy_from_slice(&(-err).to_ne_bytes());
+					attrs.push(HEADER);
+					wrap(NLMSG_ERROR, &body)
+				}
+				_ => wrap(*dice.pick(&[NLMSG_DONE, 0, 99]), &[0; 4]),
+			};
+			let its_seq = if dice.one_in(5) {
+				seq.wrapping_add(1)
+			} else {
+				seq
+			};
+			m[8..12].copy_from_slice(&its_seq.to_ne_bytes());
+			let kind = u16::from_ne_bytes([m[4], m[5]]);
+			let len = u32::from_ne_bytes(m[..4].try_into().unwrap()) as usize;
+			sent.push((kind, its_seq, m[HEADER..len].to_vec()));
+			fields.extend([(at, 4), (at + 4, 2), (at + 8, 4)]);
+			fields.extend(attrs.into_iter().map(|a| (at + a, 4)));
+			buf.extend(m);
+		}
+		(buf, sent, fields)
+	}
+
+	fn hurt(dice: &mut crate::fuzz::Dice, buf: &mut Vec<u8>, fields: &[(usize, usize)]) {
+		if dice.one_in(2) && !fields.is_empty() {
+			let &(at, width) = dice.pick(fields);
+			crate::fuzz::lie(dice, buf, at, width);
+		} else {
+			crate::fuzz::mangle(dice, buf);
+		}
+	}
+
+	// Test ID: df4fp
+	#[test]
+	fn lying_counts_and_errors_neither_panic_nor_wrap() {
+		let mut body = vec![0u8; 20];
+		body[..4].copy_from_slice(&i32::MIN.to_ne_bytes());
+		let mut now = HashMap::new();
+		assert_eq!(
+			answers(&wrap(NLMSG_ERROR, &body), 0, 1, &Away::default(), &mut now),
+			None
+		);
+		let huge = message("10.0.0.1", "10.0.0.2", 1, [u64::MAX; 2], [9, 9]);
+		let (_, sock) = lan_socket(&huge[HEADER..], &Away::default()).unwrap();
+		assert_eq!(sock.moved, [u64::MAX; 2]);
+		let both = HashMap::from([(1, sock), (2, sock)]);
+		assert_eq!(rise(&HashMap::new(), &both), [u64::MAX; 2]);
+	}
+
+	// Test ID: df4fm
+	#[test]
+	fn fuzz_dumps_give_their_messages_and_no_more() {
+		let away = Away {
+			mine: vec![ip("10.0.0.9")],
+			guests: vec![],
+		};
+		let tally = crate::fuzz::run("netlink dump", |dice| {
+			let seq = dice.next() as u32;
+			let (mut buf, sent, fields) = rolled_dump(dice, seq);
+			let whole = dice.one_in(4);
+			if !whole {
+				hurt(dice, &mut buf, &fields);
+			}
+			let mut got = Vec::new();
+			let end = walk(&buf, seq, |kind, body| got.push((kind, body.to_vec())));
+			let mut socks = HashMap::new();
+			assert_eq!(parse(&buf, seq, &away, &mut socks), end);
+			for (_, body) in &got {
+				let _ = neighbor(body);
+				let _ = lan_socket(body, &away);
+			}
+			if whole {
+				let ours = sent.iter().filter(|(_, s, _)| *s == seq);
+				let to_end = ours.take_while(|(k, _, _)| *k != NLMSG_DONE && *k != NLMSG_ERROR);
+				let want: Vec<_> = to_end.map(|(k, _, b)| (*k, b.clone())).collect();
+				assert_eq!(got, want);
+				let ended = sent
+					.iter()
+					.find(|(k, s, _)| *s == seq && (*k == NLMSG_DONE || *k == NLMSG_ERROR));
+				let want_end = match ended.map(|(k, _, _)| *k) {
+					Some(NLMSG_DONE) => Dump::Done,
+					Some(_) => Dump::Bad,
+					None => Dump::More,
+				};
+				assert_eq!(end, want_end);
+				for (kind, body) in &got {
+					if *kind == RTM_NEWNEIGH {
+						let (dst, mac) = neighbor(body).expect("a whole neighbor reads");
+						let at = if dst.is_ipv6() { 20 } else { 8 };
+						assert_eq!(mac[..], body[ND_MSG + at + 4..ND_MSG + at + 10]);
+					}
+				}
+			}
+			end != Dump::Bad && !got.is_empty()
+		});
+		tally.assert_mixed();
+	}
+
+	// Test ID: df4fn
+	#[test]
+	fn fuzz_lookup_answers_take_any_read() {
+		let tally = crate::fuzz::run("netlink answers", |dice| {
+			let first = dice.next() as u32;
+			let n = dice.below(5) as u32;
+			let (mut buf, mut fields) = (Vec::new(), Vec::new());
+			for i in 0..n + u32::from(dice.one_in(4)) {
+				let at = buf.len();
+				let mut m = if dice.one_in(2) {
+					fields.push((at + HEADER + DIAG_MSG + 12, 4));
+					message("10.0.0.1", "10.0.0.2", dice.next(), [1, 2], [3, 4])
+				} else {
+					let err = *dice.pick(&[libc::ENOENT, libc::ESTALE, libc::EINVAL]);
+					let mut body = vec![0u8; 20];
+					body[..4].copy_from_slice(&(-err).to_ne_bytes());
+					fields.push((at + HEADER, 4));
+					wrap(NLMSG_ERROR, &body)
+				};
+				m[8..12].copy_from_slice(&first.wrapping_add(i).to_ne_bytes());
+				fields.extend([(at, 4), (at + 4, 2), (at + 8, 4)]);
+				buf.extend(m);
+			}
+			if !dice.one_in(4) {
+				hurt(dice, &mut buf, &fields);
+			}
+			let mut now = HashMap::new();
+			let had = answers(&buf, first, n, &Away::default(), &mut now);
+			assert!(now.len() <= buf.len() / (HEADER + DIAG_MSG));
+			had.is_some_and(|h| h > 0)
+		});
+		tally.assert_mixed();
 	}
 }

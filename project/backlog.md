@@ -354,7 +354,7 @@ Sorted per the notes in [Template](#template).
 		- Plain tests on stable, each case a pure function of one seed, a time budget from an env var, and asserts on properties such as no panic and no read past the end. Keep some bit flips over real files, such as `core/tests/data/plugin-5-tiers.hist`.
 		- Each one gets a test ID, and is watched to fail on a planted bug before it's trusted.
 	- Progress log:
-		- 2026-11-10: split by input kind into children 2026111011435200 (the harness), 2026111011435314, 2026111011435428, 2026111011435542, 2026111011435657 and 2026111011435771. The harness and the history file are Done, and the other 4 are Queued.
+		- 2026-11-10: split by input kind into children 2026111011435200 (the harness), 2026111011435314, 2026111011435428, 2026111011435542, 2026111011435657 and 2026111011435771. The harness, the history file and the netlink dumps are Done, and the other 3 are Queued.
 
 - Fuzz: the seed and budget harness, and its cicd hookup
 	- ID: 2026111011435200
@@ -410,7 +410,7 @@ Sorted per the notes in [Template](#template).
 - Fuzz: the netlink socket and neighbor dumps
 	- ID: 2026111011435428
 	- Type: Task
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261110-114354
 	- Opened by: t00mietum
@@ -418,6 +418,22 @@ Sorted per the notes in [Template](#template).
 	- Requirements: Fuzz the walk over a netlink dump, the socket messages and the neighbor messages.
 	- Prereq IDs: 2026111011435200
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A case builds a read the way the kernel sends one: socket, neighbor, error and other messages, some of another dump, maybe ended. Half the hurts lie in a length, type, sequence or error field.
+		- A whole read gives every message of its dump, in order, up to its end, and each neighbor's link address. Hurt ones don't panic.
+		- A second test does the same for the answers to socket lookups.
+		- The fuzz found 3 faults, each a panic in a debug build and a wrong number in a release one. An error code of `i32::MIN` in a lookup's answer overflowed as it was negated. A socket whose byte count was near the top of a u64 overflowed when its headers were added, and so did the sum over sockets.
+		- Fixed: the error is negated with wrapping, and the byte counts saturate.
+		- Verified: df4fp failed on the unfixed code, at each of the 3 sites with only its own fix taken out, and passes now. The fuzz found the error code at seed 1230 and the byte count at seed 170668, with a 10 s budget, and both seeds pass now.
+		- Verified: df4fm failed with the message length check taken out of the walk, and with its check of the dump's sequence number taken out.
+		- No other fault in a 20 s run of every fuzz test.
+	- Decisions:
+		- A byte count saturates rather than being refused, since one socket's lie then can't wrap the total, and the rise is still worked out the same way.
+	- Branch: round-1110b
+	- Test case: `lan::tests::fuzz_dumps_give_their_messages_and_no_more` (df4fm), `lan::tests::fuzz_lookup_answers_take_any_read` (df4fn) and `lan::tests::lying_counts_and_errors_neither_panic_nor_wrap` (df4fp).
+		- Swept: every sum and negation of a kernel-sent number in `lan.rs`: `lan_socket`, `rise` and `answers`. No other module reads netlink.
+	- Closed: 20261110-121800
 
 - Fuzz: the bridge forwarding table
 	- ID: 2026111011435542

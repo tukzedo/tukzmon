@@ -488,7 +488,7 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 ## Fuzzing
 
-- What reads input tukzmon doesn't control is fuzzed by plain tests, on stable, in the same `cargo test` as the rest. The history file and each graph's history in it are covered so far. The netlink dumps, the bridge table, the `/proc` and `/sys` readers and the settings file are to come.
+- What reads input tukzmon doesn't control is fuzzed by plain tests, on stable, in the same `cargo test` as the rest. The history file, each graph's history in it, and the netlink socket and neighbor dumps are covered so far. The bridge table, the `/proc` and `/sys` readers and the settings file are to come.
 
 - Each case is a pure function of one seed, through `core/src/fuzz.rs`. A failure names its seed, and `TUKZMON_FUZZ_SEED` set to it replays that case first.
 
