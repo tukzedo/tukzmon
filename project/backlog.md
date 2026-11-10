@@ -22,6 +22,18 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- A bucket cut by a sample's edge tints a narrow column
+	- ID: 2026111011172485
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261110-111724
+	- Opened by:
+	- Related IDs: 2026111010281710
+	- Incorrect behavior: A column no wider than a sample, with a sample's edge inside one of its end buckets, is drawn up to a twentieth short of full strength, as a faint tint, though all of it is one sample.
+	- Possible cause: The end bucket's mean mixes the 2 samples, and the column takes it as one of them. Reading which side of the bucket each sample is on, from the buckets beside it, would leave only the part that's in.
+	- Estimated effort: Avg
+
 - GPU memory graph on integrated Intel graphics
 	- ID: 2026110921252043
 	- Type: Bug
@@ -239,7 +251,10 @@ Sorted per the notes in [Template](#template).
 - Antialiasing still needs to be better, so sharp spikes don't pulse or shimmer
 	- ID: 2026111010281710
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- Watch sharp spikes slide with Smooth scrolling on, on a linear and a log graph, and say whether they still shimmer or pulse. Builds from df4e4 (commit 22b85fa) on have it.
+	- Needs hand testing: A panel on b23 with build df4e4 or later and Smooth scrolling on, watching spikes slide on the CPU graph.
+	- Stand-in: none (20261110). df4d7 and df3s6 cover the height and the width, and what's left turns on how it looks.
 	- Priority|Severity: Avg
 	- Opened: 20261110-102817
 	- Opened by: t00mietum
@@ -249,8 +264,28 @@ Sorted per the notes in [Template](#template).
 		- Do your own research for this.
 		- Spitballing: for a pixel line that is in between 0% and 100%, render it at an in-between color of foreground and background (or adjacent color), using the correct blending gamma.
 		- May not need temporal-aware antialiasing, but might.
+	- Estimated effort: Avg
+	- Actual effort: Avg
 	- Progress log:
 		- 2026-11-10: After 2026110920595602, spikes mostly shimmer now, less so the pulsing.
+		- Cause: a sample split between 2 columns lifted each one only by its part, so a spike half way across was drawn about half as tall in both. Its top went from 90 rows of 100 down to 50 and back each time it crossed a column.
+		- Each column now draws a solid stack and a taller one over it at part strength. A cut sample is drawn at its full height, as faint as how little of it is in. A part-covered pixel mixes in linear light, except over a transparent background. `design.md` Drawing has it.
+		- df4d7: the spike's top now stays at 90 rows on 1 s columns and 72 on 10 s ones, at every step. df3s6's ink, read in linear light, stays within 0.01 and 0.04.
+		- Profiler, load 6 to 8 on 32 cores: 480 and 514 us user a tick before, 634 after. 2026111000270812 is for the cost.
+		- Verified: df4d7 failed before the change and passed after. df4dt failed with each series' own min and max as the 2 stacks, and passed with the end buckets'. The quick gate and Sanitizers passed.
+	- Decisions:
+		- A column's ink stays what the drawing gave before, so the area under a spike holds. Only its shape changes: full height at part strength, rather than part height.
+		- A column no wider than a sample takes its oldest and newest buckets as its 2 samples. Each series' own min and max can come from different samples, and stack over either one's total.
+		- Wider, the solid stack reaches toward the max of the buckets clear of both edges, and the tall one toward the column's max, as before 2026110920595602.
+		- Linear light only over an opaque background, since the panel blends a transparent one as sRGB numbers.
+		- A bucket cut by a sample's edge can leave a narrow column up to a twentieth short of full, as a faint tint, where before it showed as a part-filled top pixel. That's 2026111011172485.
+		- No before and after pictures. df4d7's numbers stand in, and the look is left to the hand test.
+	- Branch: round-1110b
+	- Test case: `render::tests::a_spike_keeps_its_height_as_it_slides_across_columns` (df4d7) and `render::tests::a_stack_that_trades_shares_draws_nothing_over_its_total` (df4dt), with df3s6.
+		- 2026-11-10: debj7 `stack_heights_are_exact`: the pixel shared half and half by red and green was 0x80 in each, now 0xbc, mixed in linear light.
+		- 2026-11-10: df3s6 reads red in linear light, not as sRGB numbers.
+		- 2026-11-10: df3e2 `the_right_column_fills_as_the_sample_slides_in_and_the_tip_follows`: half slid in, 7 to 11 of 18 rows were filled, now every row is at part strength. A filled row is now within 8 steps of the full color, not exactly it.
+		- Swept: every reader of `Span` (only `Frame::draw_in` reads `spike`, `min`, `ends` and `uncut`), both paints, the opaque and transparent paths, `Peak`'s highest, which now takes the taller stack, and every `Span` literal (only `span_for`).
 
 - Cut the cost of the spike windows in each draw
 	- ID: 2026111000270812
