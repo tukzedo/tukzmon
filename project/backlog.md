@@ -22,6 +22,18 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- A greyed slider still draws its groove in the accent color
+	- ID: 2026110923034356
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Low
+	- Opened: 20261109-230343
+	- Opened by:
+	- Incorrect behavior: When a row is greyed, as Sample ms default in a remote session, its label and number box go grey but the slider's groove stays blue.
+	- Expected behavior: The slider greys with the rest of its row.
+	- Progress log:
+		- Seen in tukzmon-settings shots from 2026110922214810. Not yet checked whether it predates the remote-session greying.
+
 - Smoothly animate each graph on each tick
 	- ID: 2026110911114024
 	- Type: Enhancement
