@@ -95,6 +95,7 @@ Sorted per the notes in [Template](#template).
 	- Status: Waiting on UAT
 		- Watch a panel with Smooth scrolling on, and say whether the slide looks smooth enough at about 30 frames a second, before 2026110918081021 paces it to the screen.
 	- Needs hand testing: A panel on b23 with this build, Smooth scrolling on and off.
+	- Stand-in: none (20261110). Turns on how smooth the slide looks.
 	- Priority|Severity: Avg
 	- Opened: 20261109-180802
 	- Opened by: t00mietum
@@ -128,6 +129,7 @@ Sorted per the notes in [Template](#template).
 	- Status: Waiting on UAT
 		- Watch the panel on b23's own 100 Hz screen with Smooth scrolling on, and say whether the slide runs without a stutter. It should draw 25 times a second, by 2026110920595603.
 	- Needs hand testing: The panel on b23's screen, under its compositor, with this build.
+	- Stand-in: none (20261110). The draw rate is measured, and what's left turns on whether the slide stutters to the eye on b23's own screen.
 	- Priority|Severity: Avg
 	- Opened: 20261109-180810
 	- Opened by: t00mietum
@@ -169,6 +171,7 @@ Sorted per the notes in [Template](#template).
 	- Status: Waiting on UAT
 		- Watch the panel on b23's screen with Smooth scrolling on, and say whether 25 frames a second looks as good as 60 did. `PACE` in `core/src/lib.rs` set to `Pace::UpTo60` builds the 60 one again.
 	- Needs hand testing: The panel on b23's 100 Hz screen, under its compositor, with this build.
+	- Stand-in: none (20261110). Turns on whether 25 a second looks as good as 60.
 	- Priority|Severity: Avg
 	- Opened: 20261109-205956
 	- Opened by: t00mietum
@@ -213,6 +216,7 @@ Sorted per the notes in [Template](#template).
 		- Filed from the round-1109b test batch. The round didn't change the demo's main or its cleanup.
 		- Verified: df336 with its temp root bound at `/srv`, so no part of the path is named tmp, failed on the old script with the hosted run's message, and passes now.
 		- Verified: the quick gate's format, build, lint and test areas passed, then Sanitizers.
+		- 2026-11-10: a hosted merge-gate run on round-1110 is under way for this.
 	- Decisions:
 		- `safe_rmtree` takes a folder under our own temp root whatever that root is named, as the pipeline's `fSafeRm` does. It still needs the run's marker, a real path below the project folder, and no mount left inside.
 	- Actual fix: dropped the tmp name check from `safe_rmtree`.
@@ -224,7 +228,8 @@ Sorted per the notes in [Template](#template).
 - The 2 GPU graphs aren't available with integrated Intel graphics
 	- ID: 2026110920595600
 	- Type: Bug
-	- Status: Waiting on automated testing
+	- Status: Stalled
+		- Held for a Linux box with Intel graphics, i915 or xe, and no other card. None of the test boxes has one, and the hosted runner has no GPU (20261110).
 		- The GPU graph is in. The GPU memory graph is child 2026110921252043, which waits on a question.
 	- Needs external testing: on a box with Intel graphics, i915 or xe, and no NVIDIA or AMD card, check that one of the 3 files in df3kx is there and readable as the user, and run `cargo test -p tukzmon-core gpu::` and `cargo test -p tukzmon-settings the_gpu_rows` (dekmd), which reads the live card twice.
 	- Needs hand testing: on that box, with the GPU graph on and the GPU busy, as from `glxgears`, its tip should read near 100% less the RC6 share `sudo intel_gpu_top` gives.
@@ -317,9 +322,10 @@ Sorted per the notes in [Template](#template).
 - Reduce motion: a remote viewer on the local desktop, as RustDesk, x11vnc or NoMachine on the physical display
 	- ID: 2026110922214810
 	- Type: Enhancement
-	- Status: Waiting on automated testing
-	- Needs external testing: The panel item on the private panel rig, with a stand-in x11vnc on the rig's display as `viewer-standin.bash` in the private tools makes one. It should calm within about 5 s and let go once the stand-in quits.
+	- Status: Waiting on UAT
+		- Connect NoMachine from another box to b23's physical display, and say whether the panel calms while connected and lets go after.
 	- Needs hand testing: NoMachine from another box to b23's physical display, with the panel calming while connected and letting go after. x11vnc and RustDesk on a box that has them, since neither is on b23 and installing them is a sudo step.
+	- Stand-in: none (20261110). A NoMachine one needs a connection to b23's live NoMachine server, which would calm the live panel too.
 	- Priority|Severity: Avg
 	- Opened: 20261109-222148
 	- Opened by:
@@ -339,6 +345,7 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Drawing and README Features have it.
 		- Verified: the quick gate and Sanitizers passed. With a stand-in x11vnc on a private Xvfb, the settings window greyed Sample ms default and Smooth scrolling, and went back 6 s after it quit. Before the early-timer fix below, it was still grey then. df3p7 failed with the socket read taken out, and df3p6 without the slack.
 		- On b23, a read of the TCP tables takes about 6 ms, the counters 18 us, and the process walk about 5 ms.
+		- Verified 2026-11-10: on a private panel with Smooth scrolling on, a stand-in x11vnc on its display took the item from 33 X writes a second to 1 within 3 s of joining, and back to 33 within 2 s of quitting.
 	- Decisions:
 		- Ports and process names, since none of these servers says which display it serves in a way that can be read without root.
 		- NoMachine counts by its monitor and any connection on port 4000, since its node for the physical display runs between connections. A connection to a NoMachine virtual desktop on the same box would calm the physical display too.
@@ -356,6 +363,7 @@ Sorted per the notes in [Template](#template).
 	- Status: Waiting on UAT
 		- Lock b23's screen for a minute with the panel up, and say whether the graphs show the minute right after unlocking.
 	- Needs hand testing: A real lock and unlock on b23 under xfce4-screensaver, with this build.
+	- Stand-in: the real xfce4-screensaver blanking a private panel, with its lock off (20261110). Left for a person: the lock and its unlock dialog on b23's own screen.
 	- Priority|Severity: Avg
 	- Opened: 20261109-111140
 	- Opened by: t00mietum
@@ -370,6 +378,7 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Drawing and README Features have it.
 		- Verified: the quick gate and Sanitizers passed. df3qr and df3qt failed with the draw on unlock taken out, and with a screensaver that quits not counted as gone. df3qs failed with a leading digit left as it is.
 		- Verified: on a private panel with Smooth scrolling on, a fake xfce4-screensaver on its bus took the item from 265 X writes in 8 s to none, and from 8 CPU ticks to 2, and back to 268 once it said unlocked.
+		- Verified 2026-11-10: on a private panel with Smooth scrolling on, the real xfce4-screensaver on its bus, with its lock off, took the item from about 33 X writes a second to none while active, and back to 33 once deactivated. A CPU load run while it was active showed on the CPU graph right after.
 	- Decisions:
 		- D-Bus, not logind's session file, since the file has no lock state.
 		- Both sources, since xfce4-screensaver 4.20 never sets `LockedHint`, and light-locker sets only that.
@@ -507,6 +516,7 @@ Sorted per the notes in [Template](#template).
 		- E.g., spitballing here: for a pixel line that is in between 0% and 100%, render it at half visual brightness between the two.
 		- May not need temporal-aware antialiasing. Just better value-based antialiasing might be enough.
 	- Needs hand testing: A panel on b23 with this build and Smooth scrolling on, watching spikes slide on the CPU graph.
+	- Stand-in: none (20261110). df3s6 covers the width, and what's left turns on how it looks and whether the slower draw is worth it.
 	- Estimated effort: Avg
 	- Actual effort: Avg
 	- Progress log:
