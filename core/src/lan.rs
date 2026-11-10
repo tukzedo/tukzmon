@@ -156,7 +156,10 @@ pub(crate) fn opens(snmp: &str) -> Option<u64> {
 		.split_whitespace()
 		.zip(values.split_whitespace())
 		.filter(|(name, _)| matches!(*name, "ActiveOpens" | "PassiveOpens"))
-		.try_fold(0, |sum, (_, v)| Some(sum + v.parse::<u64>().ok()?))
+		// only compared for a change, so a wrap does no harm
+		.try_fold(0, |sum: u64, (_, v)| {
+			Some(sum.wrapping_add(v.parse().ok()?))
+		})
 }
 
 /// A TCP socket with a private far end: bytes sent and received on the

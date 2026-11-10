@@ -488,7 +488,7 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 ## Fuzzing
 
-- What reads input tukzmon doesn't control is fuzzed by plain tests, on stable, in the same `cargo test` as the rest. The history file, each graph's history in it, the netlink socket and neighbor dumps, the bridge forwarding table, and a settings file as it loads through shcl into the model are covered so far. The `/proc` and `/sys` readers are to come.
+- What reads input tukzmon doesn't control is fuzzed by plain tests, on stable, in the same `cargo test` as the rest. The history file, each graph's history in it, the netlink socket and neighbor dumps, the bridge forwarding table, a settings file as it loads through shcl into the model, and the `/proc` and `/sys` readers are covered.
 
 - Each case is a pure function of one seed, through `core/src/fuzz.rs`. A failure names its seed, and `TUKZMON_FUZZ_SEED` set to it replays that case first.
 
@@ -496,6 +496,8 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - A case builds its input the way the program would write it, then hurts it: bit flips, bytes set, a count or length field made to lie, a cut, or a run copied or dropped. Some cases leave it whole.
 
+- A `/proc` or `/sys` reader gets text the way the kernel writes it, with counters now and then at a limit a sum trips on. The hurts swap a word for a lying number such as `18446744073709551616`, `-1`, `1e308` or `NaN`, or hurt the bytes. A reader that reads a path gets a made-up tree (`collect::Tree`) with some of its files hurt.
+
 - Some cases flip bits in a real file, `core/tests/data/plugin-5-tiers.hist`, or a saved settings file, `core/tests/data/plugin-7.shcl`, with saved themes, changes kept on a theme and a hand comment.
 
-- The asserts are properties, not outputs. Nothing panics, which in safe Rust also covers a read past the end. A whole input reads back as written. What the reader took, it takes again the same. A settings file never leaves the model with a value its row would refuse. Each test also checks that some of its inputs were taken and some refused, so a generator that stopped generating fails.
+- The asserts are properties, not outputs. Nothing panics, which in safe Rust also covers a read past the end. A whole input reads back as written. What the reader took, it takes again the same. A settings file never leaves the model with a value its row would refuse. A share stays in 0 to 1 and a rate is finite and not below 0, however the file lies. Each test also checks that some of its inputs were taken and some refused, so a generator that stopped generating fails.

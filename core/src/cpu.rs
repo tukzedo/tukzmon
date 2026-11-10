@@ -30,15 +30,19 @@ pub struct Ticks {
 }
 
 impl Ticks {
-	fn total(&self) -> u64 {
-		self.user
-			+ self.nice
-			+ self.system
-			+ self.idle
-			+ self.iowait
-			+ self.irq
-			+ self.softirq
-			+ self.steal
+	/// None past `u64::MAX`, which only a lying file reaches.
+	fn total(&self) -> Option<u64> {
+		[
+			self.nice,
+			self.system,
+			self.idle,
+			self.iowait,
+			self.irq,
+			self.softirq,
+			self.steal,
+		]
+		.into_iter()
+		.try_fold(self.user, u64::checked_add)
 	}
 }
 
@@ -64,19 +68,25 @@ pub fn parse_stat(text: &str) -> Option<Ticks> {
 /// passed or a counter went backwards, as after a CPU goes offline.
 pub fn shares(was: &Ticks, now: &Ticks) -> Option<[f32; 4]> {
 	let d = |a: u64, b: u64| b.checked_sub(a);
-	let total = d(was.total(), now.total())?;
+	let rise = Ticks {
+		user: d(was.user, now.user)?,
+		nice: d(was.nice, now.nice)?,
+		system: d(was.system, now.system)?,
+		idle: d(was.idle, now.idle)?,
+		iowait: d(was.iowait, now.iowait)?,
+		irq: d(was.irq, now.irq)?,
+		softirq: d(was.softirq, now.softirq)?,
+		steal: d(was.steal, now.steal)?,
+	};
+	let total = rise.total()?;
 	if total == 0 {
 		return None;
 	}
-	let system = d(was.system, now.system)? + d(was.irq, now.irq)? + d(was.softirq, now.softirq)?;
+	// each part is within total
+	let system = rise.system + rise.irq + rise.softirq;
 	let t = total as f64;
 	let f = |x: u64| (x as f64 / t).clamp(0.0, 1.0) as f32;
-	Some([
-		f(d(was.iowait, now.iowait)?),
-		f(system),
-		f(d(was.user, now.user)?),
-		f(d(was.nice, now.nice)?),
-	])
+	Some([f(rise.iowait), f(system), f(rise.user), f(rise.nice)])
 }
 
 /// Reads `/proc/stat` for the CPU graph.
@@ -129,7 +139,7 @@ mod tests {
 		assert_eq!(t.user, 100);
 		assert_eq!(t.iowait, 40);
 		assert_eq!(t.softirq, 5);
-		assert_eq!(t.total(), 1000);
+		assert_eq!(t.total(), Some(1000));
 	}
 
 	// Test ID: debhq
@@ -188,5 +198,64 @@ mod tests {
 		if let Some(s) = r.read() {
 			assert!(s.iter().sum::<f32>() <= 1.0001);
 		}
+	}
+
+	fn stat_text(v: &[u64]) -> String {
+		let cols = |v: &[u64]| v.iter().map(u64::to_string).collect::<Vec<_>>().join(" ");
+		format!(
+			"cpu  {}\ncpu0 {}\nintr 9 0 3\nctxt 5\nbtime 1700000000\nprocesses 7\nprocs_running 1\n",
+			cols(v),
+			cols(&v[..v.len() / 2])
+		)
+	}
+
+	// Test ID: df4gj
+	#[test]
+	fn fuzz_stat_reads_the_all_cpu_line_and_shares_stay_in_range() {
+		let tally = crate::fuzz::run("cpu stat", |dice| {
+			// 4 columns before 2.6.11, 10 now
+			let cols = 4 + dice.below(7);
+			let was: Vec<u64> = (0..cols).map(|_| crate::fuzz::count(dice)).collect();
+			let now: Vec<u64> = was
+				.iter()
+				.map(|v| v.wrapping_add(dice.below(1000) as u64))
+				.collect();
+			let mut ticks = [None, None];
+			let mut good = true;
+			for (slot, v) in ticks.iter_mut().zip([&was, &now]) {
+				let (text, whole) = crate::fuzz::maybe_hurt(dice, stat_text(v));
+				*slot = parse_stat(&text);
+				if whole {
+					let at = |i: usize| v.get(i).copied().unwrap_or(0);
+					let want = Ticks {
+						user: at(0),
+						nice: at(1),
+						system: at(2),
+						idle: at(3),
+						iowait: at(4),
+						irq: at(5),
+						softirq: at(6),
+						steal: at(7),
+					};
+					assert_eq!(*slot, Some(want), "{text:?}");
+				}
+				good &= slot.is_some();
+			}
+			if let [Some(a), Some(b)] = ticks
+				&& let Some(s) = shares(&a, &b)
+			{
+				assert!(s.iter().all(|x| (0.0..=1.0).contains(x)), "{s:?}");
+				assert!(s.iter().sum::<f32>() <= 1.0001, "{s:?}");
+				let fields = |t: &Ticks| {
+					[
+						t.user, t.nice, t.system, t.idle, t.iowait, t.irq, t.softirq, t.steal,
+					]
+				};
+				let rose = fields(&a).iter().zip(fields(&b)).all(|(x, y)| *x <= y);
+				assert!(rose, "a counter went down: {a:?} {b:?}");
+			}
+			good
+		});
+		tally.assert_mixed();
 	}
 }

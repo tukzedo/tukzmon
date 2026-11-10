@@ -343,7 +343,7 @@ Sorted per the notes in [Template](#template).
 - CICD gap: Fuzz the parsers of files and kernel messages
 	- ID: 2026110310450001
 	- Type: Task
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261103-104500
 	- Opened by: t00mietum
@@ -354,7 +354,10 @@ Sorted per the notes in [Template](#template).
 		- Plain tests on stable, each case a pure function of one seed, a time budget from an env var, and asserts on properties such as no panic and no read past the end. Keep some bit flips over real files, such as `core/tests/data/plugin-5-tiers.hist`.
 		- Each one gets a test ID, and is watched to fail on a planted bug before it's trusted.
 	- Progress log:
-		- 2026-11-10: split by input kind into children 2026111011435200 (the harness), 2026111011435314, 2026111011435428, 2026111011435542, 2026111011435657 and 2026111011435771. The harness, the history file, the netlink dumps, the bridge table and the settings file are Done, and the `/proc` and `/sys` readers are Queued.
+		- 2026-11-10: split by input kind into children 2026111011435200 (the harness), 2026111011435314, 2026111011435428, 2026111011435542, 2026111011435657 and 2026111011435771. Every child is Done.
+	- Test case: its children's: 2026111011435200: `fuzz::tests::a_failing_seed_is_named_and_the_rest_are_pure` (df4f0). It checks a seed draws the same every time, a panic in a case fails the run naming its seed, and a run that refuses nothing fails the mix check.; 2026111011435314: `history::tests::fuzz_decode_takes_any_bytes_and_keeps_what_it_took` (df4f1), `keep::tests::fuzz_any_file_reads_whole_or_not_at_all` (df4f2) and `keep::tests::fuzz_bit_flips_in_a_real_file` (df4f3).; 2026111011435428: `lan::tests::fuzz_dumps_give_their_messages_and_no_more` (df4fm), `lan::tests::fuzz_lookup_answers_take_any_read` (df4fn) and `lan::tests::lying_counts_and_errors_neither_panic_nor_wrap` (df4fp).; 2026111011435542: `net::tests::fuzz_brforward_gives_only_whole_entries_on_its_ports` (df4g4).; 2026111011435657: `cpu::tests::fuzz_stat_reads_the_all_cpu_line_and_shares_stay_in_range` (df4gj), `load::tests::fuzz_loadavg_gives_a_load_or_none` (df4gk), `mem::tests::fuzz_meminfo_and_arcstats_read_back_and_shares_stay_in_range` (df4gm), `disk::tests::fuzz_stat_reads_sectors_and_rates_stay_finite` (df4gn), `zswap::tests::fuzz_zswap_and_zram_files_read_in_range` (df4gp), `net::tests::fuzz_net_dev_reads_back_and_rates_stay_finite` (df4gq), `net::tests::fuzz_port_no_reads_the_hex_sysfs_writes` (df4gr), `remote::tests::fuzz_snmp_gives_the_tcp_opens_and_connections` (df4gs), `remote::tests::fuzz_tcp_table_gives_only_established_links_on_server_ports` (df4gt), `battery::tests::fuzz_power_supply_files_read_as_one_share_in_range` (df4gv), `temp::tests::fuzz_hwmon_files_read_as_the_hottest_package_split_at_its_limit` (df4gw), `gpu::tests::fuzz_gpu_sysfs_files_read_as_shares_in_range` (df4gx) and `remote::tests::fuzz_a_sharers_proc_files_give_its_display` (df4gy).; 2026111011435771: `config::tests::fuzz_settings_files_read_whole_or_drop_lines` (df4g5) and `config::tests::fuzz_bit_flips_in_a_real_settings_file` (df4g6).
+	- Closed: 20261110-125354
+	- Actual effort: Avg
 
 - Fuzz: the seed and budget harness, and its cicd hookup
 	- ID: 2026111011435200
@@ -462,7 +465,7 @@ Sorted per the notes in [Template](#template).
 - Fuzz: the /proc and /sys readers
 	- ID: 2026111011435657
 	- Type: Task
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261110-114356
 	- Opened by: t00mietum
@@ -470,6 +473,23 @@ Sorted per the notes in [Template](#template).
 	- Requirements: Fuzz each parser of a /proc or /sys file, such as stat, meminfo, net/dev, snmp, diskstats, zswap and the battery and temperature files.
 	- Prereq IDs: 2026111011435200
 	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A case writes each file the way the kernel does, with counters now and then at a limit a sum trips on. Half the cases hurt it: a word swapped for a lying number or junk, or its bytes hurt. A reader of a path gets a made-up tree with some of its files hurt.
+		- Covered: `/proc/stat`, `meminfo`, ZFS's `arcstats`, `loadavg`, a drive's `stat`, zswap and zram, `net/dev`, a bridge port's `port_no`, `net/snmp`, `net/tcp`, a screen sharer's `comm`, `cmdline` and `environ`, the battery and `hwmon` files, and the AMD and Intel GPU files.
+		- The fuzz found 7 faults, all fixed. Sums overflowed in the CPU total, the memory graph's cache, zswap's cap, the zram sums and the TCP opens. A CPU idle or steal counter that went down wasn't a gap. 2 batteries with sums past f64 read as NaN, and so did an AMD busy file holding `NaN`.
+		- Verified: each test failed on a planted bug or on the fault it found, and passes now. The quick gate and Sanitizers passed, and all 13 passed with an 8 s budget.
+	- Decisions:
+		- A CPU counter that goes down makes a gap for all of them, not only the 4 drawn, as `cpu::shares` says it does. Idle or steal going down gave shares that added past 1.
+		- Sums of file values saturate, except the TCP opens, which wrap, since they're only compared for a change.
+		- When 2 batteries' pooled sums pass f64, the level is the mean of each one's share.
+		- The battery and AMD faults turned up past the 128 fixed seeds, at 372 and 665, so each test also checks its case by hand, and the quick runs keep it.
+		- `procs` reads only folder owners and `own` only matches a process name, so neither has a fuzz test.
+	- Branch: round-1110b
+	- Test case: `cpu::tests::fuzz_stat_reads_the_all_cpu_line_and_shares_stay_in_range` (df4gj), `load::tests::fuzz_loadavg_gives_a_load_or_none` (df4gk), `mem::tests::fuzz_meminfo_and_arcstats_read_back_and_shares_stay_in_range` (df4gm), `disk::tests::fuzz_stat_reads_sectors_and_rates_stay_finite` (df4gn), `zswap::tests::fuzz_zswap_and_zram_files_read_in_range` (df4gp), `net::tests::fuzz_net_dev_reads_back_and_rates_stay_finite` (df4gq), `net::tests::fuzz_port_no_reads_the_hex_sysfs_writes` (df4gr), `remote::tests::fuzz_snmp_gives_the_tcp_opens_and_connections` (df4gs), `remote::tests::fuzz_tcp_table_gives_only_established_links_on_server_ports` (df4gt), `battery::tests::fuzz_power_supply_files_read_as_one_share_in_range` (df4gv), `temp::tests::fuzz_hwmon_files_read_as_the_hottest_package_split_at_its_limit` (df4gw), `gpu::tests::fuzz_gpu_sysfs_files_read_as_shares_in_range` (df4gx) and `remote::tests::fuzz_a_sharers_proc_files_give_its_display` (df4gy).
+		- Swept: every float parse of `/proc` or `/sys` text in core (load and battery already refused NaN), and every integer sum or product of file values in the readers.
+		- 2026-11-10: `cpu::tests::reads_the_all_cpu_line` (debhp) now checks `total()` is `Some(1000)`, not `1000`, since it returns None past `u64::MAX`.
+	- Closed: 20261110-125328
 
 - Fuzz: a settings file loaded through shcl
 	- ID: 2026111011435771

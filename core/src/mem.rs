@@ -162,10 +162,13 @@ pub fn memory_shares(m: &Meminfo, arc: u64) -> Option<[f32; 3]> {
 	let used = m
 		.total
 		.saturating_sub(m.free)
-		.saturating_sub(m.buffers + m.cached + m.sreclaimable);
+		.saturating_sub(m.buffers)
+		.saturating_sub(m.cached)
+		.saturating_sub(m.sreclaimable);
 	// the two files aren't read at the same instant
 	let arc = arc.min(used);
-	let (user, cache) = (used - arc, m.cached + m.sreclaimable + arc);
+	let cache = m.cached.saturating_add(m.sreclaimable).saturating_add(arc);
+	let user = used - arc;
 	let t = m.total as f64;
 	let f = |x: u64| (x as f64 / t).clamp(0.0, 1.0) as f32;
 	Some([f(user), f(m.buffers), f(cache)])
@@ -259,6 +262,7 @@ impl Collector<1> for SwapReader {
 mod tests {
 	use super::*;
 	use crate::collect::Tree;
+	use std::fmt::Write;
 
 	// trimmed from a 6.12 kernel, with the column spacing it uses
 	const MEMINFO_TEXT: &str = "\
@@ -415,5 +419,95 @@ size                            4    8053063680
 			Some(mut sw) => assert!(sw.read().is_some_and(|[x]| (0.0..=1.0).contains(&x))),
 			None => assert_eq!(swap_total, 0),
 		}
+	}
+
+	fn rolled_meminfo(dice: &mut crate::fuzz::Dice) -> (String, Meminfo) {
+		let mut v = || crate::fuzz::count(dice);
+		let m = Meminfo {
+			total: v(),
+			free: v(),
+			buffers: v(),
+			cached: v(),
+			sreclaimable: v(),
+			swap_total: v(),
+			swap_free: v(),
+			zswap: None,
+			zswapped: None,
+		};
+		let has_zswap = dice.one_in(2);
+		let m = Meminfo {
+			zswap: has_zswap.then(|| crate::fuzz::count(dice)),
+			zswapped: has_zswap.then(|| crate::fuzz::count(dice)),
+			..m
+		};
+		let mut rows = vec![
+			("MemTotal", Some(m.total)),
+			("MemFree", Some(m.free)),
+			("MemAvailable", Some(dice.next() % 99_999)),
+			("Buffers", Some(m.buffers)),
+			("Cached", Some(m.cached)),
+			("SwapCached", Some(7)),
+			("SReclaimable", Some(m.sreclaimable)),
+			("SwapTotal", Some(m.swap_total)),
+			("SwapFree", Some(m.swap_free)),
+			("HugePages_Total", None),
+		];
+		if let (Some(z), Some(zd)) = (m.zswap, m.zswapped) {
+			rows.extend([("Zswap", Some(z)), ("Zswapped", Some(zd))]);
+		}
+		// the kernel keeps an order, but nothing here leans on it
+		for i in (1..rows.len()).rev() {
+			rows.swap(i, dice.below(i + 1));
+		}
+		let text = rows
+			.iter()
+			.map(|(k, v)| match v {
+				Some(v) => format!("{k}:{v:>16} kB\n"),
+				None => format!("{k}:{:>8}\n", 0),
+			})
+			.collect();
+		(text, m)
+	}
+
+	// Test ID: df4gm
+	#[test]
+	fn fuzz_meminfo_and_arcstats_read_back_and_shares_stay_in_range() {
+		let tally = crate::fuzz::run("meminfo", |dice| {
+			let (text, want) = rolled_meminfo(dice);
+			let (text, whole) = crate::fuzz::maybe_hurt(dice, text);
+			let got = parse_meminfo(&text);
+			if whole {
+				assert_eq!(got, Some(want), "{text:?}");
+			}
+			let (size, min) = (crate::fuzz::count(dice), crate::fuzz::count(dice));
+			let mut arc = String::from("13 1 0x01 147 39984 4823848133 87309\nname type data\n");
+			let _ = writeln!(arc, "hits 4 {}", dice.next());
+			let (has_size, has_min) = (!dice.one_in(8), !dice.one_in(8));
+			if has_size {
+				let _ = writeln!(arc, "size 4 {size}");
+			}
+			let _ = writeln!(arc, "c 4 {}", dice.next() % 99);
+			if has_min {
+				let _ = writeln!(arc, "c_min 4 {min}");
+			}
+			let (arc, arc_whole) = crate::fuzz::maybe_hurt(dice, arc);
+			let arc_kb = parse_arcstats(&arc);
+			if arc_whole {
+				let want = (has_size && has_min).then(|| size.saturating_sub(min) / 1024);
+				assert_eq!(arc_kb, want, "{arc:?}");
+			}
+			let Some(m) = got else {
+				return false;
+			};
+			let in_range = |v: &[f32]| v.iter().all(|x| (0.0..=1.0).contains(x));
+			if let Some(s) = memory_shares(&m, arc_kb.unwrap_or(0)) {
+				assert!(in_range(&s), "{s:?} from {m:?}");
+			}
+			if let Some(s) = swap_share(&m) {
+				assert!(in_range(&s), "{s:?} from {m:?}");
+			}
+			true
+		});
+		tally.assert_mixed();
 	}
 }

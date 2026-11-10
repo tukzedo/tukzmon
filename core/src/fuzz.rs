@@ -105,6 +105,129 @@ pub(crate) fn mangle(dice: &mut Dice, bytes: &mut Vec<u8>) {
 	}
 }
 
+// what a text field is most likely to trip a parser with
+const WORDS: [&str; 16] = [
+	"",
+	"-1",
+	"-0",
+	"+5",
+	"3.5",
+	"0x10",
+	"1e308",
+	"NaN",
+	"inf",
+	"4294967296",
+	"9223372036854775807",
+	"18446744073709551615",
+	"18446744073709551616",
+	"-9223372036854775809",
+	":",
+	"\n",
+];
+
+/// A counter as the kernel writes it: mostly in reach, now and then at a
+/// limit a sum can trip on.
+pub(crate) fn count(dice: &mut Dice) -> u64 {
+	match dice.below(5) {
+		0 => *dice.pick(&LIARS),
+		1 => dice.next(),
+		_ => dice.next() % 1_000_000_000,
+	}
+}
+
+/// Swaps one word of `text` for a number a parser is likely to trip on,
+/// or for junk.
+pub(crate) fn lie_text(dice: &mut Dice, text: &mut String) {
+	let mut words = Vec::new();
+	let mut start = None;
+	for (i, c) in text.char_indices().chain([(text.len(), ' ')]) {
+		match (c.is_ascii_whitespace(), start) {
+			(true, Some(at)) => {
+				words.push((at, i));
+				start = None;
+			}
+			(false, None) => start = Some(i),
+			_ => {}
+		}
+	}
+	let word = *dice.pick(&WORDS);
+	if words.is_empty() {
+		text.push_str(word);
+		return;
+	}
+	let (at, end) = *dice.pick(&words);
+	text.replace_range(at..end, word);
+}
+
+/// A hurt copy of a `/proc` or `/sys` file: lying words, hurt bytes, or
+/// both. A file that isn't UTF-8 fails its read, so bad bytes come out
+/// replaced, as what's left of them would reach a parser.
+pub(crate) fn hurt_text(dice: &mut Dice, text: &str) -> String {
+	let mut out = text.to_owned();
+	if dice.one_in(2) {
+		for _ in 0..=dice.below(3) {
+			lie_text(dice, &mut out);
+		}
+	}
+	if out == text || dice.one_in(3) {
+		let mut bytes = out.into_bytes();
+		mangle(dice, &mut bytes);
+		out = String::from_utf8_lossy(&bytes).into_owned();
+	}
+	out
+}
+
+/// The text whole, or [`hurt_text`] half the time, and whether it's whole.
+pub(crate) fn maybe_hurt(dice: &mut Dice, text: String) -> (String, bool) {
+	if dice.one_in(2) {
+		(text, true)
+	} else {
+		(hurt_text(dice, &text), false)
+	}
+}
+
+/// The files of a made-up `/proc` or `/sys`. In half the cases some of
+/// them are hurt by [`hurt_text`].
+pub(crate) struct Files {
+	list: Vec<(String, String)>,
+	hurt: bool,
+	/// Whether every file went in as written.
+	pub(crate) whole: bool,
+}
+
+impl Files {
+	pub(crate) fn new(dice: &mut Dice) -> Self {
+		Files {
+			list: Vec::new(),
+			hurt: dice.one_in(2),
+			whole: true,
+		}
+	}
+
+	pub(crate) fn put(
+		&mut self,
+		dice: &mut Dice,
+		path: impl Into<String>,
+		text: impl Into<String>,
+	) {
+		let mut text = text.into();
+		if self.hurt && dice.one_in(3) {
+			text = hurt_text(dice, &text);
+			self.whole = false;
+		}
+		self.list.push((path.into(), text));
+	}
+
+	pub(crate) fn tree(&self, name: &str) -> crate::collect::Tree {
+		let files: Vec<(&str, &str)> = self
+			.list
+			.iter()
+			.map(|(p, t)| (p.as_str(), t.as_str()))
+			.collect();
+		crate::collect::Tree::new(name, &files)
+	}
+}
+
 /// How many cases ran, and how many of those `case` called accepted.
 #[derive(Debug)]
 pub(crate) struct Tally {

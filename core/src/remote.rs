@@ -378,6 +378,7 @@ fn sockets_of(dir: &Path) -> Vec<u64> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use std::fmt::Write;
 
 	// Test ID: df3nf
 	#[test]
@@ -579,5 +580,115 @@ mod tests {
 		assert!(seen);
 		assert!(!elsewhere);
 		assert!(!Probe::default().viewed(77, &[("no-such-sharer", Sign::Holds)]));
+	}
+
+	// Test ID: df4gs
+	#[test]
+	fn fuzz_snmp_gives_the_tcp_opens_and_connections() {
+		use crate::fuzz::count;
+		let tally = crate::fuzz::run("snmp", |dice| {
+			let (active, passive, estab) = (count(dice), count(dice), count(dice) % 100_000);
+			let text = format!(
+				"Ip: Forwarding DefaultTTL InReceives InHdrErrors\nIp: 1 64 {} 0\n\
+				Icmp: InMsgs InErrors\nIcmp: {} 0\n\
+				Tcp: RtoAlgorithm RtoMin RtoMax MaxConn ActiveOpens PassiveOpens AttemptFails EstabResets CurrEstab InSegs\n\
+				Tcp: 1 200 120000 -1 {active} {passive} {} 9 {estab} {}\n\
+				Udp: InDatagrams NoPorts\nUdp: {} 0\n",
+				count(dice),
+				count(dice),
+				count(dice),
+				count(dice),
+				count(dice)
+			);
+			let (text, whole) = crate::fuzz::maybe_hurt(dice, text);
+			let opens = crate::lan::opens(&text);
+			let counts = tcp_counts(&text);
+			if whole {
+				let sum = active.wrapping_add(passive);
+				assert_eq!(opens, Some(sum), "{text:?}");
+				assert_eq!(counts, Some([sum, estab]), "{text:?}");
+			}
+			assert!(
+				counts.is_none_or(|[o, _]| Some(o) == opens),
+				"{counts:?} {opens:?}"
+			);
+			counts.is_some()
+		});
+		tally.assert_mixed();
+	}
+
+	// Test ID: df4gt
+	#[test]
+	fn fuzz_tcp_table_gives_only_established_links_on_server_ports() {
+		let tally = crate::fuzz::run("tcp table", |dice| {
+			let mut text = String::from(
+				"  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n",
+			);
+			let mut want = Vec::new();
+			for sl in 0..dice.below(10) {
+				let local = *dice.pick(&[5900, 5901, 3389, 4000, 21118, 22, 443, u16::MAX]);
+				let remote = *dice.pick(&[21117, 40000, 80, 0]);
+				let st = *dice.pick(&["01", "01", "0A", "06"]);
+				let inode = crate::fuzz::count(dice);
+				let wide = dice.one_in(2);
+				let ip = if wide {
+					"00000000000000000000000001000000"
+				} else {
+					"0100007F"
+				};
+				let _ = writeln!(
+					text,
+					"{sl:>4}: {ip}:{local:04X} {ip}:{remote:04X} {st} 00000000:00000000 00:00000000 00000000  1000        0 {inode} 1 0000000000000000 20 4 0 10 -1"
+				);
+				if let (Some(server), "01") = (server_of(local, remote), st) {
+					want.push(Link { server, inode });
+				}
+			}
+			let (text, whole) = crate::fuzz::maybe_hurt(dice, text);
+			let got: Vec<Link> = links_in(&text).collect();
+			if whole {
+				assert_eq!(got, want, "{text:?}");
+			}
+			// no more links than rows
+			let lines = text.lines().count();
+			assert!(got.len() <= lines.saturating_sub(1), "{got:?}");
+			!got.is_empty()
+		});
+		tally.assert_mixed();
+	}
+
+	// Test ID: df4gy
+	#[test]
+	fn fuzz_a_sharers_proc_files_give_its_display() {
+		let tally = crate::fuzz::run("sharer", |dice| {
+			let mut f = crate::fuzz::Files::new(dice);
+			let comm = *dice.pick(&["x11vnc", "krfb", "freerdp-shadow-", "rustdesk", "bash"]);
+			f.put(dice, "p/comm", format!("{comm}\n"));
+			let (arg, env) = (dice.below(12), dice.below(12));
+			let mut args = vec!["x11vnc", "-forever"];
+			let shown = format!(":{arg}");
+			if dice.one_in(2) {
+				args.extend(["-display", &shown]);
+			}
+			args.push(if dice.one_in(2) { "--cm" } else { "-shared" });
+			f.put(dice, "p/cmdline", args.join("\0") + "\0");
+			f.put(
+				dice,
+				"p/environ",
+				format!("HOME=/home/sam\0DISPLAY=:{env}.0\0LANG=C\0"),
+			);
+			let t = f.tree("sharer_fuzz");
+			let got = sharer(Path::new(&t.at("p")), &SHARERS);
+			if f.whole {
+				let want = if args.contains(&"-display") { arg } else { env };
+				assert_eq!(
+					got.as_ref().map(|s| s.display),
+					(comm != "bash").then_some(Some(want as u32)),
+					"{args:?}"
+				);
+			}
+			got.is_some_and(|s| s.display.is_some())
+		});
+		tally.assert_mixed();
 	}
 }

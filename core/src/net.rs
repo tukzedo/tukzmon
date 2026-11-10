@@ -133,11 +133,13 @@ fn virtual_ports(wired: &Wired, bridge: &str) -> Vec<u16> {
 		.flatten()
 		.flatten()
 		.filter(|port| port.file_name().to_str().and_then(|n| wired.link(n)) == Some(Link::Virtual))
-		.filter_map(|port| {
-			let text = std::fs::read_to_string(port.path().join("port_no")).ok()?;
-			u16::from_str_radix(text.trim().trim_start_matches("0x"), 16).ok()
-		})
+		.filter_map(|port| port_number(&std::fs::read_to_string(port.path().join("port_no")).ok()?))
 		.collect()
+}
+
+/// A bridge port's `port_no`, which sysfs writes in hex, as `0x1`.
+fn port_number(text: &str) -> Option<u16> {
+	u16::from_str_radix(text.trim().trim_start_matches("0x"), 16).ok()
 }
 
 /// The link addresses a bridge's `brforward` has on one of `ports`.
@@ -743,6 +745,68 @@ mod tests {
 				assert!(found.is_some(), "{mac:?} isn't from an entry on {ports:?}");
 			}
 			!got.is_empty()
+		});
+		tally.assert_mixed();
+	}
+
+	// Test ID: df4gq
+	#[test]
+	fn fuzz_net_dev_reads_back_and_rates_stay_finite() {
+		const HEAD: &str = "Inter-|   Receive                                                |  Transmit\n \
+			face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed\n";
+		let tally = crate::fuzz::run("net dev", |dice| {
+			let mut names = vec!["lo", "enp8s0", "wlan0", "br0", "veth1a2b", "wg0", "eth0.5"];
+			names.truncate(1 + dice.below(names.len()));
+			let mut rows: Vec<[u64; 16]> = names
+				.iter()
+				.map(|_| std::array::from_fn(|_| crate::fuzz::count(dice)))
+				.collect();
+			let mut climb = Climb::<2>::default();
+			let t0 = Instant::now();
+			let mut good = true;
+			for step in 0..3u32 {
+				let mut text = String::from(HEAD);
+				for (name, row) in names.iter().zip(&mut rows) {
+					for x in row.iter_mut() {
+						*x = x.wrapping_add(dice.below(100_000) as u64);
+					}
+					let cols: Vec<String> = row.iter().map(u64::to_string).collect();
+					let _ = writeln!(text, "{name:>6}: {}", cols.join("    "));
+				}
+				let (text, whole) = crate::fuzz::maybe_hurt(dice, text);
+				let got = parse_net_dev(&text, climb.next(), |n| n != "wg0");
+				if whole {
+					let want: Vec<(&str, [u64; 2])> = names
+						.iter()
+						.zip(&rows)
+						.filter(|(n, _)| **n != "wg0")
+						.map(|(n, r)| (*n, [r[0], r[8]]))
+						.collect();
+					assert!(got.is_some(), "{text:?}");
+					assert_eq!(climb.next_rows(), want, "{text:?}");
+				}
+				good &= got.is_some();
+				let at = t0 + Duration::from_millis(u64::from(step) * 1000);
+				if let Some(r) = climb.step(at, bin) {
+					assert!(r.iter().all(|x| x.is_finite() && *x >= 0.0), "{r:?}");
+				}
+			}
+			good
+		});
+		tally.assert_mixed();
+	}
+
+	// Test ID: df4gr
+	#[test]
+	fn fuzz_port_no_reads_the_hex_sysfs_writes() {
+		let tally = crate::fuzz::run("port_no", |dice| {
+			let port = *dice.pick(&[1, 2, 0xff, 0x100, 0x3ff, u16::MAX]);
+			let (text, whole) = crate::fuzz::maybe_hurt(dice, format!("{port:#x}\n"));
+			let got = port_number(&text);
+			if whole {
+				assert_eq!(got, Some(port), "{text:?}");
+			}
+			got.is_some()
 		});
 		tally.assert_mixed();
 	}

@@ -73,4 +73,27 @@ mod tests {
 		let mut r = LoadReader::probe().unwrap();
 		assert!(r.read().is_some_and(|[x]| x >= 0.0));
 	}
+
+	// Test ID: df4gk
+	#[test]
+	fn fuzz_loadavg_gives_a_load_or_none() {
+		let tally = crate::fuzz::run("loadavg", |dice| {
+			let load = dice.below(100_000) as f32 / 100.0;
+			let text = format!(
+				"{load:.2} {:.2} 0.59 {}/{} {}\n",
+				dice.unit() * 9.0,
+				dice.below(9),
+				dice.below(9999),
+				dice.below(4_000_000)
+			);
+			let (text, whole) = crate::fuzz::maybe_hurt(dice, text);
+			let got = parse_loadavg(&text);
+			if whole {
+				assert!(got.is_some_and(|x| (x - load).abs() < 0.01), "{text:?}");
+			}
+			assert!(got.is_none_or(|x| x.is_finite() && x >= 0.0), "{got:?}");
+			got.is_some()
+		});
+		tally.assert_mixed();
+	}
 }

@@ -535,7 +535,14 @@ impl Card {
 		match self {
 			Card::Nvidia(n) => n.busy(buf),
 			Card::Amd(amd) => {
-				let percent: f32 = amd.busy.read(buf)?.trim().parse().ok()?;
+				// f32 takes "NaN", which clamp passes through
+				let percent: f32 = amd
+					.busy
+					.read(buf)?
+					.trim()
+					.parse()
+					.ok()
+					.filter(|p: &f32| !p.is_nan())?;
 				Some((percent / 100.0).clamp(0.0, 1.0))
 			}
 			Card::Intel(intel) => intel.busy_at(buf, Instant::now()),
@@ -1052,5 +1059,49 @@ mod tests {
 			n.has_v2(),
 			"a driver from 510 on has nvmlDeviceGetMemoryInfo_v2"
 		);
+	}
+
+	// Test ID: df4gx
+	#[test]
+	fn fuzz_gpu_sysfs_files_read_as_shares_in_range() {
+		use crate::fuzz::count;
+		// seed 665 found it, past the fixed seeds
+		let nan = Tree::new("gpu_nan", &[("card/gpu_busy_percent", "NaN\n")]);
+		assert_eq!(amd_readers(&nan.at("card")).0.read(), None);
+		drop(nan);
+		let tally = crate::fuzz::run("gpu sysfs", |dice| {
+			let mut f = crate::fuzz::Files::new(dice);
+			let busy = dice.below(101);
+			f.put(dice, "card/gpu_busy_percent", format!("{busy}\n"));
+			let (used, total) = (count(dice), count(dice));
+			f.put(dice, "card/mem_info_vram_used", format!("{used}\n"));
+			f.put(dice, "card/mem_info_vram_total", format!("{total}\n"));
+			let asleep = count(dice);
+			f.put(dice, "rc6", format!("{asleep}\n"));
+			let delay = count(dice);
+			f.put(dice, "dev/power/autosuspend_delay_ms", format!("{delay}\n"));
+			let t = f.tree("gpu_fuzz");
+			let in_range = |v: Option<[f32; 1]>| v.is_none_or(|[x]| (0.0..=1.0).contains(&x));
+			let (mut gpu, mut vram) = amd_readers(&t.at("card"));
+			let got = gpu.read();
+			if f.whole {
+				assert_eq!(got, Some([busy as f32 / 100.0]));
+			}
+			assert!(in_range(got), "{got:?}");
+			let got_vram = vram.read();
+			assert!(in_range(got_vram), "{got_vram:?}");
+			let mut intel = Intel::new(t.at("rc6"));
+			let mut buf = String::new();
+			let t0 = Instant::now();
+			intel.busy_at(&mut buf, t0);
+			let later = asleep.wrapping_add(dice.below(2000) as u64).to_string();
+			std::fs::write(t.at("rc6"), crate::fuzz::maybe_hurt(dice, later).0).unwrap();
+			let since = Duration::from_millis(dice.below(3000) as u64);
+			let rc6 = intel.busy_at(&mut buf, t0 + since).map(|x| [x]);
+			assert!(in_range(rc6), "{rc6:?}");
+			let _ = Power::new(&t.at("dev"));
+			got.is_some()
+		});
+		tally.assert_mixed();
 	}
 }

@@ -299,4 +299,41 @@ mod tests {
 		}
 		assert!(DiskReader::new(Drives::Only(vec!["no-such-drive".into()])).is_some());
 	}
+
+	// Test ID: df4gn
+	#[test]
+	fn fuzz_stat_reads_sectors_and_rates_stay_finite() {
+		let tally = crate::fuzz::run("disk stat", |dice| {
+			let mut climb = Climb::<2>::default();
+			let t0 = Instant::now();
+			let mut good = true;
+			let mut v: Vec<u64> = Vec::new();
+			for step in 0..3u32 {
+				// 11 columns before 4.18, then 15, then 17
+				let cols = *dice.pick(&[11, 15, 17]);
+				v.resize_with(cols, || crate::fuzz::count(dice));
+				for x in &mut v {
+					*x = x.wrapping_add(dice.below(5000) as u64);
+				}
+				let cols: Vec<String> = v.iter().map(|x| format!("{x:>8}")).collect();
+				let text = cols.join(" ") + "\n";
+				let (text, whole) = crate::fuzz::maybe_hurt(dice, text);
+				let got = parse_stat(&text);
+				if whole {
+					assert_eq!(got, Some([v[2], v[6]]), "{text:?}");
+				}
+				good &= got.is_some();
+				let rows = climb.next();
+				if let Some(sectors) = got {
+					rows.push("sda", sectors);
+				}
+				let at = t0 + Duration::from_millis(u64::from(step) * 1000 + dice.below(3) as u64);
+				if let Some(r) = climb.step(at, bin) {
+					assert!(r.iter().all(|x| x.is_finite() && *x >= 0.0), "{r:?}");
+				}
+			}
+			good
+		});
+		tally.assert_mixed();
+	}
 }

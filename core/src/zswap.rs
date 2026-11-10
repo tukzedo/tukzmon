@@ -28,7 +28,8 @@ fn ratio(stored: u64, packed: u64) -> Option<f32> {
 /// `max_pool_percent` of all memory. None on a kernel without the rows.
 pub fn zswap_squeeze(m: &Meminfo, max_pool_percent: u64) -> Option<Squeeze> {
 	let (pool, stored) = (m.zswap?, m.zswapped?);
-	let cap = m.total * max_pool_percent / 100;
+	let cap =
+		u64::try_from(u128::from(m.total) * u128::from(max_pool_percent) / 100).unwrap_or(u64::MAX);
 	(cap > 0).then(|| Squeeze {
 		used: share(pool, cap),
 		ratio: ratio(stored, pool),
@@ -177,9 +178,9 @@ impl ZswapReader {
 					else {
 						continue;
 					};
-					stored += s;
-					packed += p;
-					size += d;
+					stored = s.saturating_add(stored);
+					packed = p.saturating_add(packed);
+					size = d.saturating_add(size);
 				}
 				zram_squeeze(stored, packed, size)
 			}
@@ -485,5 +486,59 @@ mod tests {
 		let empty = crate::Graph::with(look, ZswapReader::default());
 		assert_eq!(empty.tooltip(), "Zswap");
 		assert_eq!(empty.src.text(&[0.5]), "Zram 50% used");
+	}
+
+	// Test ID: df4gp
+	#[test]
+	fn fuzz_zswap_and_zram_files_read_in_range() {
+		use crate::fuzz::count;
+		let tally = crate::fuzz::run("zswap", |dice| {
+			let mut f = crate::fuzz::Files::new(dice);
+			let zswap = dice.one_in(2);
+			let mut expect_some = false;
+			if zswap {
+				let (total, odd) = (count(dice), count(dice));
+				let pct = *dice.pick(&[0, 20, 50, 100, odd]);
+				f.put(dice, "zswap/enabled", "Y\n");
+				f.put(dice, "zswap/max_pool_percent", format!("{pct}\n"));
+				let (pool, stored) = (count(dice), count(dice));
+				f.put(
+					dice,
+					"meminfo",
+					format!(
+						"MemTotal: {total} kB\nMemFree: 1 kB\nZswap: {pool} kB\nZswapped: {stored} kB\n"
+					),
+				);
+				expect_some = u128::from(total) * u128::from(pct) / 100 > 0;
+			} else {
+				f.put(dice, "zswap/enabled", "N\n");
+				f.put(dice, "meminfo", MEMINFO_OLD);
+				for n in 0..=dice.below(3) {
+					let cols: Vec<String> = (0..8).map(|_| count(dice).to_string()).collect();
+					f.put(
+						dice,
+						format!("block/zram{n}/mm_stat"),
+						cols.join(" ") + "\n",
+					);
+					let size = count(dice);
+					f.put(dice, format!("block/zram{n}/disksize"), format!("{size}\n"));
+					expect_some |= size > 0;
+				}
+			}
+			let t = f.tree("zswap_fuzz");
+			let got = ZswapReader::probe_at(&roots(&t)).and_then(|mut r| {
+				let used = r.read()?;
+				Some((used, r.ratio()))
+			});
+			if f.whole && expect_some {
+				assert!(got.is_some(), "zswap {zswap}");
+			}
+			if let Some(([used], ratio)) = got {
+				assert!((0.0..=1.0).contains(&used), "{used}");
+				assert!(ratio.is_none_or(|x| x.is_finite() && x >= 0.0), "{ratio:?}");
+			}
+			got.is_some()
+		});
+		tally.assert_mixed();
 	}
 }
