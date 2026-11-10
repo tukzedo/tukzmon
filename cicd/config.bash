@@ -37,6 +37,8 @@ TOOL_PINS=(
 	"clang-tidy|19.1.7|clang-tidy --version"
 	"black|25.1.0|black --version"
 	"ruff|0.15.22|ruff --version"
+	## The CodeQL step's CLI, from the image's Dockerfile.
+	"codeql|2.27.4|codeql version --format=terse"
 )
 ## The sanitizers and Miri need nightly, so they run on this dated one, beside
 ## the stable toolchain rust-toolchain.toml pins. The image gets it as a build
@@ -93,9 +95,12 @@ LEAK_CHECKS=(
 	## The settings window's soak, under heaptrack. Long, so only in --long,
 	## --leakcheck or its area.
 	"Window-soak|fStepWindowSoak|long"
+	## CodeQL over the Rust and the C++. About 5 minutes at 8 jobs, with its
+	## own build of tukzmon-settings (2026-11-10).
+	"CodeQL|fStepCodeql|long"
 )
 ## Steps that get a quarter of the CPUs, busy or not.
-HEAVY_STEPS=(fStepSanitizers fStepMiri fStepSoak fStepWindowSoak fStepDemo)
+HEAVY_STEPS=(fStepSanitizers fStepMiri fStepSoak fStepWindowSoak fStepCodeql fStepDemo)
 ## The test targets Miri runs, as "package target-option". The soak test is
 ## left out, since it's already ignored and its allocator is dhat's.
 MIRI_TARGETS=(
@@ -112,6 +117,15 @@ MIRI_MINUTES=480
 SOAK_DIR="cicd/artifacts/soak"
 ## LeakSanitizer's suppressions. Prebuilt libraries only, by name.
 LSAN_SUPP="cicd/lsan.supp"
+## The CodeQL step: the query suites, the findings it lets by, and where the
+## SARIF and its report go, rotated. CodeQL takes about 6 GB at this --ram.
+CODEQL_SUITES=(
+	"rust|codeql/rust-queries:codeql-suites/rust-security-and-quality.qls"
+	"cpp|codeql/cpp-queries:codeql-suites/cpp-security-and-quality.qls"
+)
+CODEQL_SUPP="cicd/codeql.supp"
+CODEQL_DIR="cicd/artifacts/codeql"
+CODEQL_RAM_MB=8000
 
 ## The Nix step: cicd/nix/check.bash in this image, as its root. The store is
 ## a docker volume named for the image, kept between runs, since the first
@@ -131,7 +145,7 @@ CTR_DIR="cicd/container"
 CTR_CONTEXT_EXTRA=(rust-toolchain.toml)
 ## NAME=value, passed to docker build and part of the tag's hash.
 CTR_BUILD_ARGS=("RUST_NIGHTLY=${RUST_NIGHTLY}")
-CTR_STEPS=(fStepFormat fStepBuild fStepLint fStepAdvisories fStepTests fStepRelease fStepPackage fStepSanitizers fStepMiri fStepSoak fStepWindowSoak)
+CTR_STEPS=(fStepFormat fStepBuild fStepLint fStepAdvisories fStepTests fStepRelease fStepPackage fStepSanitizers fStepMiri fStepSoak fStepWindowSoak fStepCodeql)
 ## The image steps that get the network. The rest run with none.
 CTR_NET_STEPS=(fStepAdvisories)
 
@@ -153,3 +167,4 @@ CTR_NET_STEPS=(fStepAdvisories)
 ##		  changes, then per module, at 480 minutes.
 ##		- 2026-11-06: assets/ is a docs path.
 ##		- 2026-11-10: The demo is a heavy step.
+##		- 2026-11-10: CodeQL, a long leak check, with its suites and suppressions.

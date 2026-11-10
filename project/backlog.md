@@ -532,7 +532,7 @@ Sorted per the notes in [Template](#template).
 		- No `_GLIBCXX_DEBUG` build. Every linked C++ library has to be built with it, and Qt comes prebuilt.
 		- No cross-file analyzer run, since the C++ is one file.
 	- Progress log:
-		- Split into children: the settings window soak 2026111013025758 (Done), and CodeQL 2026111013025770 (Queued).
+		- Split into children: the settings window soak 2026111013025758 (Done), and CodeQL 2026111013025770 (Waiting on automated testing).
 
 - Slow leak checks: settings window soak
 	- ID: 2026111013025758
@@ -563,13 +563,32 @@ Sorted per the notes in [Template](#template).
 - Slow leak checks: CodeQL
 	- ID: 2026111013025770
 	- Type: Task
-	- Status: Queued
+	- Status: Waiting on automated testing
+		- Each language's half passed alone. A run of both together is left.
+	- Needs local test suite run?: `CICD_MAX_JOBS=8 cicd/cicd.bash --backlog-run-quick codeql`, about 6 minutes. It passes when the report shows both SARIF files with lines of ours and nothing unsuppressed.
 	- Priority|Severity: Avg
 	- Opened: 20261110-130257
 	- Opened by: t00mietum
 	- Parent ID: 2026110310450003
 	- Requirements: CodeQL from a pinned CLI in the image, run locally over the Rust and the C++, as a leak check run only with --long, --leakcheck or its own area. Vendor the crates first, and build from a clean folder so the C++ database isn't empty.
 	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A CodeQL leak check runs the security and quality queries over the Rust and the C++. It runs only with --long, --leakcheck or the codeql area, on a quarter of the CPUs.
+		- It copies the tree to a clean folder and vendors the crates beside it, outside the source root, so they're read as libraries and not scanned. The C++ database comes from a build of tukzmon-settings into an empty target dir.
+		- CodeQL 2.27.4 is in the image, its Rust and C++ bundles pinned by version and checksum, with the Rust toolchain its extractor runs on.
+		- A finding fails the step unless `cicd/codeql.supp` lets it by, by rule, file and the line's text. So does a suppression that matches nothing, a database with none of our code, and a Rust workspace that won't load.
+		- The SARIF and a report go to cicd/artifacts/codeql/, rotated.
+		- It found one thing, a pointer read in `net.rs` that CodeQL can't tell getifaddrs filled in. It's suppressed, with why.
+		- Verified: in the image, the C++ half passed in 1m 31s with no findings, and the Rust half in 3m 38s at load 25, with the one finding suppressed. The quick gate and Sanitizers passed.
+		- Before the image had the toolchain its Rust extractor runs on, that half loaded no workspace and still made a database, with findings that were noise. The step fails on the extractor's errors now.
+	- Decisions:
+		- The Rust and C++ bundles, unpacked over each other, rather than the all-language bundle. They're 263 MB to fetch against 559, and their shared files are the same.
+		- Every finding fails, notes included, as clippy's warnings do. There's only the one, so a looser line wasn't needed.
+		- A suppression matches the line's text rather than its number, so it lasts through edits above it.
+		- The image grows from 3.9 GB to 5.65 GB.
+	- Branch: round-1110b
+	- Test case: `codeql_report_fails_what_isnt_suppressed_a_stale_suppression_and_an_empty_database` (df4ks), in `cicd/tests/guards.bash`. It failed with each of its 3 checks taken out. The CodeQL step itself is the rest.
 
 - Installer script for a direct install
 	- ID: 2026110310450005

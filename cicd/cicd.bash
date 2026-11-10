@@ -48,20 +48,26 @@
 ##	                      screen, its live graphs over days of skipped clock,
 ##	                      with the heap read at round N and 2N, under
 ##	                      heaptrack. Its report goes to cicd/artifacts/soak/
-##	  14. Nix package     the flake's package, with the workspace tests, in a
+##	  14. CodeQL          a long leak check: CodeQL's security and quality
+##	                      queries over the Rust and the C++, from a copy of
+##	                      the tree with its crates vendored, and a build of
+##	                      its own for the C++. A finding fails it unless
+##	                      cicd/codeql.supp lets it by. The SARIF and a report
+##	                      go to cicd/artifacts/codeql/
+##	  15. Nix package     the flake's package, with the workspace tests, in a
 ##	                      nixos/nix container, then nixpkgs' xfce4-panel loads
 ##	                      it from a NixOS system with the module, on Xvfb. Its
 ##	                      store is a docker volume kept between runs
-##	  15. Profiler        the panel's tick, core/examples/profile.rs, under
+##	  16. Profiler        the panel's tick, core/examples/profile.rs, under
 ##	                      pprof's sampler, on this box. The flamegraph goes to
 ##	                      cicd/artifacts/profiling/, with a report on its hot
 ##	                      spots from utility/flame-report.py
-##	  16. Demo            the README gif and a video, from
+##	  17. Demo            the README gif and a video, from
 ##	                      utility/demo/script.txt, on a private Xvfb. They go
 ##	                      to private/demo/ beside the repo, and the gif to
 ##	                      assets/demo.gif when it changed. A heavy step, at a
 ##	                      quarter of the CPUs
-##	  17. Dogfood         utility/dev-install.bash, which installs the build
+##	  18. Dogfood         utility/dev-install.bash, which installs the build
 ##	                      under ~/.local and restarts the panel
 ##	  A step that's off isn't counted, and the first section says why it's off.
 ##	  A run whose options leave no check on fails, with exit 2.
@@ -73,8 +79,9 @@
 ##	   --quick             the fast steps: the default run without the packages,
 ##	                       the profiler, the demo and the slow leak checks,
 ##	                       so no Soak
-##	   --long              everything, Miri, the window soak and the Nix
-##	                       package included, which only it runs. Also --slow
+##	   --long              everything, Miri, the window soak, CodeQL and the
+##	                       Nix package included, which only it runs. Also
+##	                       --slow
 ##	   --leakcheck         add every leak check to any run
 ##	   --no-leakcheck      take every leak check out. The advisory scan and
 ##	                       clippy's leak lints aren't leak check steps, and stay
@@ -97,6 +104,7 @@
 ##	                         soak    the Soak leak check, only when named
 ##	                         window-soak  the Window soak leak check, only
 ##	                                 when named
+##	                         codeql  the CodeQL leak check, only when named
 ##	                         profile the profiler, only when named
 ##	                         nix     the Nix package, only when named. The
 ##	                                 first one fetches about 5 GB
@@ -855,6 +863,66 @@ fStepWindowSoak() {
 	return "${rc}"
 }
 
+## CodeQL over the Rust and the C++, per CODEQL_SUITES. The tree is copied to
+## a clean folder with its crates vendored beside it, outside the source root,
+## so they're read as libraries and not scanned. The C++ database comes from a
+## build into an empty target dir, since a build with nothing to compile gives
+## CodeQL no C++. codeql-report.py fails a finding CODEQL_SUPP doesn't list, a
+## line there that matches nothing, and a database with none of our code.
+fStepCodeql() {
+	local work="${TMPDIR}/codeql" art="${root}/${CODEQL_DIR}" src='' stamp='' entry='' lang='' suite='' rc=0 t0=0
+	local -a files=() sarifs=() cqArgs=()
+	if ! command -v codeql > /dev/null 2>&1; then
+		fEcho_Clean "no codeql here. The image has it, at the version config.bash pins"
+		((! handsOff)) || return 1
+		fEcho_Clean "WARNING: so nothing was scanned"; return 0
+	fi
+	src="${work}/src"
+	mkdir -p -- "${src}/.cargo" || return 1
+	fTreeFiles files ':(exclude)assets/*' || return 1
+	cp --parents -t "${src}" -- "${files[@]}" || return 1
+	fEcho_Clean "cargo vendor, beside a copy of the tree in ${work#"${TMPDIR}/"}/"
+	cargo vendor --quiet --locked --manifest-path "${src}/Cargo.toml" "${work}/vendor" > /dev/null || return 1
+	printf '[source.crates-io]\nreplace-with = "vendored-sources"\n\n[source.vendored-sources]\ndirectory = "%s"\n' "${work}/vendor" > "${src}/.cargo/config.toml" || return 1
+	cqArgs=(--threads "${jobs}" --ram "${CODEQL_RAM_MB}")
+	for entry in "${CODEQL_SUITES[@]}"; do
+		lang="${entry%%|*}"; suite="${entry#*|}"; t0="${SECONDS}"
+		case "${lang}" in
+			rust) fEcho_Clean "codeql database create, rust, build mode none"
+				(cd "${src}" && CARGO_TARGET_DIR="${work}/target-rust" codeql database create "${work}/db-rust" --language=rust --build-mode=none --source-root=. "${cqArgs[@]}") \
+					> "${work}/db-rust.log" 2>&1 || rc=1 ;;
+			cpp) fEcho_Clean "codeql database create, cpp, from cargo build -p tukzmon-settings into an empty target dir"
+				(cd "${src}" && CARGO_TARGET_DIR="${work}/target-cpp" codeql database create "${work}/db-cpp" --language=cpp --source-root=. "${cqArgs[@]}" \
+					--command="cargo build -p tukzmon-settings ${locked[*]} -j ${jobs}") > "${work}/db-cpp.log" 2>&1 || rc=1 ;;
+			*) fEcho_Clean "CODEQL_SUITES: no database for ${lang}"; return 1 ;;
+		esac
+		((! rc)) || { tail -n 40 -- "${work}/db-${lang}.log"; fEcho_Clean "the ${lang} database failed"; return 1; }
+		## A workspace that won't load still makes a database, of files read
+		## with no names resolved, so its findings are noise.
+		if [[ "${lang}" == rust ]] && grep -q ' ERROR ' "${work}/db-rust.log"; then
+			grep ' ERROR ' "${work}/db-rust.log" | head -n 20
+			fEcho_Clean "the rust extractor had errors, in ${work#"${TMPDIR}/"}/db-rust.log"; return 1
+		fi
+		fEcho_Clean "codeql database analyze, ${suite##*/}"
+		codeql database analyze "${work}/db-${lang}" "${suite}" --format=sarif-latest --output="${work}/${lang}.sarif" "${cqArgs[@]}" \
+			> "${work}/analyze-${lang}.log" 2>&1 || { tail -n 40 -- "${work}/analyze-${lang}.log"; fEcho_Clean "the ${lang} analysis failed"; return 1; }
+		fEcho_Clean "${lang}: $(fMinSec $((SECONDS - t0)))"
+		sarifs+=("${work}/${lang}.sarif")
+	done
+	stamp="$(printf '%(%Y%m%d-%H%M%S)T' -1)"
+	mkdir -p -- "${art}" || return 1
+	python3 -I "${here}/utility/codeql-report.py" --root "${src}" --supp "${root}/${CODEQL_SUPP}" "${sarifs[@]}" | tee "${art}/codeql_${stamp}.log" || rc=1
+	for entry in "${sarifs[@]}"; do
+		lang="${entry##*/}"; lang="${lang%.sarif}"
+		cp -- "${entry}" "${art}/codeql-${lang}_${stamp}.sarif" || return 1
+		gfs_rotate "${art}" "codeql-${lang}" sarif > /dev/null 2>&1 || true
+	done
+	## The rotation may add a tag to the name, such as _first.
+	fEcho_Clean "report: ${CODEQL_DIR}/codeql_${stamp}*.log, with the SARIF beside it"
+	gfs_rotate "${art}" codeql log > /dev/null 2>&1 || true
+	return "${rc}"
+}
+
 ## The Nix store volume for an image pin.
 fNixStore() { printf '%s-nix-%s\n' "${projectName}" "$(printf '%s' "${1:?}" | git hash-object --stdin | cut -c1-12)"; }
 
@@ -1416,3 +1484,5 @@ exit 0
 ##		- 2026-11-10: The demo is a heavy step, and gets its job count.
 ##		- 2026-11-10: The Window soak leak check, under heaptrack, in --long,
 ##		  --leakcheck and the window-soak area.
+##		- 2026-11-10: The CodeQL leak check, over the Rust and the C++, in
+##		  --long, --leakcheck and the codeql area.
