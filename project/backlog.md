@@ -25,7 +25,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 5: The processes graph takes about 4 ms a read
 	- ID: 2026110618502905
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 		- It departs from the wording in one way. A read is still one `stat` a process, so the system calls a process are the same, and the kernel's part of the read, nearly all of it, is the same.
 	- Priority|Severity: Avg
 	- Opened: 20261106-185029
@@ -44,17 +44,25 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Data sources on Linux has it.
 		- Verified: the quick gate passed, and the profile area. dezd3 failed on the old read, at 102 allocations for 50 folders, and dezd2 failed with the rewind taken out. Under Miri the procs tests passed, with the 3 that list a folder ignored.
 		- 2026-11-09: Answer on the profiler question: That sounds pretty expensive. Can the process graph be done cheaper, or should the default update frequency be raised? Reopened for that.
+		- 2026-11-09: No cheaper read was found. On b23 with about 1,380 processes, listing `/proc` alone is 0.5 to 0.7 ms, and a `statx` asking only for the owner costs the same as `fstatat`, 1.5 to 1.7 ms a read in all. No other source gives each process's owner without root.
+		- 2026-11-09: The processes graph's default sample is 500%, up from 200%, so it reads every 5 s rather than every 2 s.
+		- 2026-11-09: The profiler went from 911 to 969 us a tick to 631 to 633, at a load of 4 to 5 on 32 cores. Its system time went from about 12.8 s to 7.2 s.
+		- `design.md` XFCE plugin and Data sources on Linux have it.
+		- Verified: the quick gate and Sanitizers passed, and the profile area before and after. deja1 failed with the spec's default put back to 200, and passes at 500.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
 		- libc's `opendir`, `rewinddir`, `readdir` and `fstatat` rather than raw `getdents64` with a bigger buffer, which timed the same and is Linux only.
 		- No cache of owners by pid. A process that runs `sudo` or drops root keeps its pid, so a cache would count it wrong until it's checked again, and a check is the same `stat`.
 		- The week of history in the profiler keeps processes on too, so its draw sees a full graph like the others. Turning it on after the week would save the 45 s.
 		- `ProcsReader` keeps a `DIR` pointer now, so it isn't `Send`. Nothing needs it to be.
-	- Branch: round-1107
+		- 2026-11-09: 500%, so 5 s, rather than the 1000% the field allows. A process count moves slowly, and 5 s is how often the kernel's own load average moves. At 1000% a new process would take up to 10 s to show.
+	- Branch: round-1107, round-1109b
 	- Test case: `procs::tests::each_read_lists_the_folder_again` (dezd2), `a_procs_read_allocates_nothing` in `core/tests/allocs.rs` (dezd3), and dep4j, dep4k, dep48 and dep49 as before.
 		- 2026-11-06: dep4j and dep4k are ignored under Miri now, since Miri has no `rewinddir`.
+		- 2026-11-09: new value only. deja1 checks `procs_sample` defaults to 500, not 200.
 		- Swept: every `ProcsReader` and `Which::Procs` use. dencp, dend1 and den86 turn every graph on, and under Miri now get no processes graph, as on a box without `/proc`. The other `/proc` readers already keep their files open through `Kept`.
-	- Acceptance signoff: Self-closed, 2026-11-06: dezd2 and dezd3 passed in the quick gate, and the profile area ran with processes on.
+	- Acceptance signoff: Self-closed, 2026-11-09: deja1 passed in the quick gate at the new default, and the profile area ran with processes on, before and after.
+	- Closed: 20261109-172100
 
 - Code review 20261107 item 25: With the LAN split on, each network read spends about 20 ms in the kernel on the panel's thread
 	- ID: 2026110709074425

@@ -244,7 +244,7 @@ settings:
 		whole: true
 		range: [1, 1000]
 		path: procs.sample
-		default: 200
+		default: 500
 		tip: "How often the processes graph is read and redrawn, as a percentage of Sample ms default, on the General tab. At 200% it's read half as often, and at 50% twice as often. Under 50 ms counts as 50 ms."
 
 	procs_time:

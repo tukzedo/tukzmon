@@ -2026,8 +2026,9 @@ mod tests {
 			assert_eq!(s.gate, None);
 			let want = match g {
 				"cpu" | "mem" => 50.0,
-				"swap" | "zswap" | "load" | "procs" => 200.0,
+				"swap" | "zswap" | "load" => 200.0,
 				"self" => 400.0,
+				"procs" => 500.0,
 				_ => 100.0,
 			};
 			assert_eq!(s.default.as_f64(), want, "{id}");
