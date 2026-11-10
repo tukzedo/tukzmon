@@ -102,6 +102,7 @@ struct Total<const N: usize> {
 	weight: f64,
 	sums: [f64; N],
 	max: [f32; N],
+	min: [f32; N],
 }
 
 impl<const N: usize> Total<N> {
@@ -110,6 +111,7 @@ impl<const N: usize> Total<N> {
 			weight: 0.0,
 			sums: [0.0; N],
 			max: [f32::NEG_INFINITY; N],
+			min: [f32::INFINITY; N],
 		}
 	}
 
@@ -118,6 +120,7 @@ impl<const N: usize> Total<N> {
 		for s in 0..N {
 			self.sums[s] += other.sums[s];
 			self.max[s] = self.max[s].max(other.max[s]);
+			self.min[s] = self.min[s].min(other.min[s]);
 		}
 	}
 }
@@ -176,6 +179,7 @@ impl<const N: usize> Tier<N> {
 			for s in 0..N {
 				out.sums[s] += k * f64::from(bucket.sum[s]);
 				out.max[s] = out.max[s].max(bucket.max[s]);
+				out.min[s] = out.min[s].min(bucket.min[s]);
 			}
 		}
 	}
@@ -372,14 +376,15 @@ impl<const N: usize> Tier<N> {
 	}
 
 	// the most of any `run` secs from `a` to `b`, from windows near the ends,
-	// where a sample can be cut, and the buckets' max between. A bucket
-	// wholly past `clear` from either end holds no sample cut by it, even one
-	// a late tick made longer.
-	fn spike_over(&self, a: f64, b: f64, run: f64) -> Option<[f32; N]> {
+	// where a sample can be cut, and the buckets' max between, which is also
+	// given alone. A bucket wholly past `clear` from either end holds no
+	// sample cut by it, even one a late tick made longer.
+	fn spike_over(&self, a: f64, b: f64, run: f64) -> (Option<[f32; N]>, Option<[f32; N]>) {
 		let clear = 1.5 * run;
 		let anchored = [self.tops_over(a, a + run), self.tops_over(b - run, b)];
 		if b - a <= 2.0 * clear + run {
-			return most(anchored.into_iter().chain([self.densest(a, b - run, run)]));
+			let spike = most(anchored.into_iter().chain([self.densest(a, b - run, run)]));
+			return (spike, None);
 		}
 		// far enough in that a sample starting later has a bucket past `clear`
 		let near = clear - run + self.len;
@@ -390,11 +395,12 @@ impl<const N: usize> Tier<N> {
 			.then(|| self.total_over(j0 as usize, j1 as usize))
 			.filter(|t| t.weight > 0.0)
 			.map(|t| t.max);
-		most(anchored.into_iter().chain([
+		let spike = most(anchored.into_iter().chain([
 			self.densest(a, a + near, run),
 			self.densest(b - run - near, b - run, run),
 			inner,
-		]))
+		]));
+		(spike, inner)
 	}
 }
 
@@ -415,6 +421,14 @@ pub struct Span<const N: usize> {
 	/// by that part, so a spike grows into a column as it slides in rather
 	/// than filling it at once. See design.md Drawing.
 	pub spike: [f32; N],
+	/// The least of each value.
+	pub min: [f32; N],
+	/// The means of the oldest and newest buckets in the span, so a span no
+	/// longer than a sample has the 2 samples it can hold.
+	pub ends: [[f32; N]; 2],
+	/// As `max`, from only the buckets far enough in from both ends that no
+	/// sample cut by an end reaches them, or None where there are none.
+	pub uncut: Option<[f32; N]>,
 	/// Share of the span that had data, 0 to 1.
 	pub covered: f32,
 }
@@ -488,6 +502,9 @@ impl<const N: usize> History<N> {
 			mean: [0.0; N],
 			max: [0.0; N],
 			spike: [0.0; N],
+			min: [0.0; N],
+			ends: [[0.0; N]; 2],
+			uncut: None,
 			covered: 0.0,
 		};
 		if b <= a {
@@ -502,14 +519,19 @@ impl<const N: usize> History<N> {
 		let mut weight = 0.0f64;
 		let mut sums = [0.0f64; N];
 		let mut max = [f32::NEG_INFINITY; N];
+		let mut min = [f32::INFINITY; N];
 		// only the end buckets can be cut by the span
 		if i1 - i0 > 2 {
 			let whole = tier.total_over(i0 as usize + 1, i1 as usize - 1);
-			(weight, sums, max) = (whole.weight, whole.sums, whole.max);
+			(weight, sums, max, min) = (whole.weight, whole.sums, whole.max, whole.min);
+			if whole.weight > 0.0 {
+				out.uncut = Some(whole.max);
+			}
 		}
 		let mut spike = max;
 		// each end's max, and how much of it is in, until the mean is known
 		let mut cut = [(0.0f32, [0.0f32; N]); 2];
+		let mut end_means: [Option<[f32; N]>; 2] = [None; 2];
 		let ends = if i1 - i0 > 1 { [i0, i1 - 1] } else { [i0, i1] };
 		for (end, i) in ends.into_iter().enumerate().filter(|&(_, i)| i < i1) {
 			let bucket = &tier.buckets[i as usize];
@@ -528,10 +550,12 @@ impl<const N: usize> History<N> {
 			for s in 0..N {
 				sums[s] += w * bucket.mean(s) as f64;
 				max[s] = max[s].max(bucket.max[s]);
+				min[s] = min[s].min(bucket.min[s]);
 			}
 			// a span inside one bucket has all of it that it can
 			let part = (overlap / (hi - lo).min(b - a)).min(1.0) as f32;
 			cut[end] = (part, bucket.max);
+			end_means[end] = Some(std::array::from_fn(|s| bucket.mean(s)));
 		}
 		if weight > 0.0 {
 			for s in 0..N {
@@ -542,13 +566,22 @@ impl<const N: usize> History<N> {
 				out.mean[s] = mean;
 				out.max[s] = max[s];
 				out.spike[s] = spike[s];
+				out.min[s] = min[s];
 			}
 			out.covered = (weight / (b - a)).min(1.0) as f32;
+			let [older, newer] = end_means;
+			out.ends = [
+				older.or(newer).unwrap_or(out.mean),
+				newer.or(older).unwrap_or(out.mean),
+			];
 			// a sample at least a column wide needs no lift to show
 			if b - a <= sample {
 				out.spike = out.mean;
+				out.uncut = None;
 			} else if sample >= 2.0 * tier.len {
-				out.spike = tier.spike_over(a, b, sample).unwrap_or(out.mean);
+				let (spike, inner) = tier.spike_over(a, b, sample);
+				out.spike = spike.unwrap_or(out.mean);
+				out.uncut = inner;
 			}
 		}
 		out

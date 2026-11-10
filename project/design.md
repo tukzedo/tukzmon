@@ -433,9 +433,13 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 - To keep a single-pixel spike visible, a column is drawn from its mean, plus part of the way toward its max. The part gets smaller as the column covers more time. A spike that lasted a long time stays visible far to the left, and a short one fades into the background level once its column covers enough time.
 	- The part is the Spike emphasis setting times `1 / (1 + seconds / T)`. T is 20 seconds times 1000 to the power of the setting, from 0 to 1. That halves the part at about 10 minutes at 50%, an hour at 75%, and 5.5 hours at 100%. A stack that comes out over 100% is scaled down to fit.
 		- T used to be a fixed 20 seconds. Even at 100% that lost nearly every spike past the first minute of a log graph.
-	- The max a column reaches toward counts a sample cut by the column's edge only by the part of it that's in. So a spike sliding into the next column grows there as it shrinks in the one it leaves. Before, it filled both columns at once, and it pulsed a pixel wider and back as it went (`History::span_for`).
-		- Where buckets are shorter than half a sample, the max is the most that any sample's length of buckets averages, each bucket at its own max. More than 1.5 samples in from both edges no sample can be cut, so there the buckets' max stands, read from their blocks.
-		- A column no wider than a sample is drawn at its mean, with no reach.
+	- A sample cut by a column's edge is drawn at its full height, as faint as how little of it is in. So a spike sliding into the next column fades in there as it fades out of the one it leaves, and keeps its height and width the whole way (`render::Column`).
+		- Before, a cut sample lifted the column only by the part of it that was in. That kept the width, but a spike split between 2 columns came out about half as tall in both, so it shimmered as it slid. Before that, it filled both columns at once and pulsed a pixel wider and back.
+		- Each column draws a stack solid, and a taller one over it at part strength. The part is set so the column's ink is what one stack would give: its mean plus the reach toward the most that any sample's length in it averages, with a sample cut by an edge counted by the part that's in (`History::span_for`).
+		- A column no wider than a sample holds at most 2 samples. The lower one is drawn solid and the higher one at the share of the column it covers, so the ink is the column's mean.
+		- Wider, the solid stack reaches toward the most of the buckets over 1.5 samples in from both edges, which no cut sample reaches, or is the column's least where there are none. The tall one reaches toward the column's max.
+		- Where buckets are shorter than half a sample, that most is the most any sample's length of buckets averages, each bucket at its own max. More than 1.5 samples in from both edges no sample can be cut, so there the buckets' max stands, read from their blocks.
+	- A part-covered pixel mixes its colors in linear light, not as sRGB numbers, so a spike split between 2 columns gives off as much light as one in a single column. Over a transparent background the panel does the mixing, so there it stays sRGB.
 
 - A column with data for less than half its time is drawn as a gap.
 
