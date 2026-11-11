@@ -716,7 +716,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 28: A docs-only push to main skips the 2 checks that read docs
 	- ID: 2026110709074428
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -725,6 +725,19 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- On a docs-only push, still run markdownlint on the changed files and the backlog's test ID check, which take seconds. Today a backlog-only push can put a Lint failure on `main` that the next code push then trips over.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A docs-only push to `main` still skips the merge gate, but the pre-push hook now runs markdownlint on the `.md` files it changes and `test-ids.bash check`, in a worktree of the pushed commit. Either failing refuses the push. About half a second.
+		- `fLintMarkdown` moved from `cicd.bash` to `cicd/utility/include/lint-markdown.bash`, so the Lint step and the hook lint the same way, with the same skipped rules per file.
+		- New test df543 pushes 4 docs-only commits: a good doc, a bad doc, a backlog with an unknown ID, and an asset only. dezf5 sources the new file, and df32x's rig copies it.
+		- Verified: df543 failed on the old hook, which ran neither check, and passed after. A docs-only push of a clone with the real markdownlint passed a clean README and refused one with lint errors. The quick gate's format, build, lint and test areas passed.
+	- Decisions:
+		- Both checks run on the pushed commit's tree, not the checkout, as the gate does since df32x.
+		- A host with no markdownlint gets one line and the push goes on, since a docs push shouldn't need the pipeline's tools. The test ID check still runs. A commit with no `test-ids.bash` skips that check.
+		- Swept: the hosted `merge-gate.yml` has no docs skip, so it runs both on every push. `cicd/hooks` holds only pre-push.
+	- Branch: round-1111
+	- Test case: `hook_checks_docs` (df543), in `cicd/tests/guards.bash`.
+	- Closed: 20261110-230516
 
 - Code review 20261030 item 3, part 2: Look up a setting by an index in knobs
 	- ID: 2026103018353670

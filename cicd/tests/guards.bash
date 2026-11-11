@@ -261,7 +261,7 @@ fTest_hook_gates_the_commit() {
 	mkdir -p -- "${r}/cicd/hooks" "${r}/cicd/utility/include" "${t}/tmp"
 	cp -- "${cicd}/hooks/pre-push" "${r}/cicd/hooks/"
 	cp -- "${cicd}/config.bash" "${r}/cicd/"
-	cp -- "${cicd}/utility/include/run-tmp.bash" "${r}/cicd/utility/include/"
+	cp -- "${cicd}/utility/include/run-tmp.bash" "${cicd}/utility/include/lint-markdown.bash" "${r}/cicd/utility/include/"
 	## The stand-in gate passes on its tree's verdict, after another session
 	## writes the opposite one into the checkout.
 	printf '%s\n' '#!/usr/bin/env bash' 'echo "${GATE_EDIT}" > "${GATE_CHECKOUT}/verdict"' \
@@ -284,6 +284,42 @@ fTest_hook_gates_the_commit() {
 			((rc == 0)) || { fWhy "a commit that passes the gate was refused, on the checkout's edit: ${out}"; return 1; }
 		fi
 	done
+}
+
+## Test ID: df543
+fTest_hook_checks_docs() {
+	local t="${work}/docs" r="${work}/docs/repo" base='' sha='' f='' out='' c='' what='' want='' wantRc=0 gotRc=0
+	local -a g=(git -C "${r}" -c user.name=t -c user.email=t@t.invalid -c commit.gpgsign=false)
+	mkdir -p -- "${r}/cicd/hooks" "${r}/cicd/utility/include" "${r}/project" "${r}/assets" "${t}/tmp" "${t}/bin"
+	cp -- "${cicd}/hooks/pre-push" "${r}/cicd/hooks/"
+	cp -- "${cicd}/config.bash" "${r}/cicd/"
+	cp -- "${cicd}/utility/include/run-tmp.bash" "${cicd}/utility/include/lint-markdown.bash" "${r}/cicd/utility/include/"
+	## Stand-ins: the gate leaves a mark, markdownlint fails a doc that says
+	## bad, and the ID check fails a backlog that names an unknown ID.
+	printf '%s\n' '#!/usr/bin/env bash' 'echo gate >> "${DOCS_MARKS}"' > "${r}/cicd/cicd.bash"
+	printf '%s\n' '#!/usr/bin/env bash' 'cd "$(dirname "$0")/../.."' 'echo ids >> "${DOCS_MARKS}"' '! grep -q unknown-id project/backlog.md' > "${r}/cicd/utility/test-ids.bash"
+	printf '%s\n' '#!/usr/bin/env bash' 'echo "lint $*" >> "${DOCS_MARKS}"' 'while [[ "$1" != -- ]]; do shift; done; shift' '! grep -q bad -- "$@"' > "${t}/bin/markdownlint"
+	chmod +x "${r}/cicd/cicd.bash" "${r}/cicd/utility/test-ids.bash" "${t}/bin/markdownlint"
+	echo fine > "${r}/project/backlog.md"; echo fine > "${r}/README.md"
+	"${g[@]}" init -q || { fWhy "git init failed"; return 1; }
+	{ "${g[@]}" add -- cicd project README.md && "${g[@]}" commit -qm base; } || { fWhy "commit failed"; return 1; }
+	base="$("${g[@]}" rev-parse HEAD)"
+	## "what|file|text|exit|marks", each a docs-only commit on base.
+	for c in 'good doc|README.md|better|0|lint --disable MD013 -- README.md,ids' \
+		'bad doc|README.md|bad|1|lint --disable MD013 -- README.md,ids' \
+		'bad ID|project/backlog.md|unknown-id|1|lint --disable MD013 MD036 -- project/backlog.md,ids' \
+		'no doc|assets/x.png|png|0|ids'; do
+		IFS='|' read -r what f want wantRc out <<< "${c}"
+		"${g[@]}" checkout -q --detach "${base}" || return 1
+		echo "${want}" > "${r}/${f}"
+		{ "${g[@]}" add -- "${f}" && "${g[@]}" commit -qm "${what}"; } || { fWhy "commit failed"; return 1; }
+		sha="$("${g[@]}" rev-parse HEAD)"; want="${out//,/$'\n'}"; : > "${t}/marks"
+		out="$(printf 'refs/heads/main %s refs/heads/main %s\n' "${sha}" "${base}" \
+			| HOST_TEMP="${t}/tmp" DOCS_MARKS="${t}/marks" PATH="${t}/bin:${PATH}" bash "${r}/cicd/hooks/pre-push" 2>&1)" && gotRc=0 || gotRc=$?
+		[[ "$(< "${t}/marks")" == "${want}" ]] || { fWhy "${what}: ran '$(< "${t}/marks")', not '${want}': ${out}"; return 1; }
+		{ ((wantRc)) && ((gotRc)); } || { ((! wantRc)) && ((! gotRc)); } || { fWhy "${what}: exit ${gotRc}, not ${wantRc}: ${out}"; return 1; }
+	done
+	[[ "$("${g[@]}" worktree list --porcelain | grep -c '^worktree ')" == 1 ]] || { fWhy "left a worktree"; return 1; }
 }
 
 ## Test ID: deqvr
@@ -754,10 +790,10 @@ fTest_markdownlint_per_rule_set() {
 	local t="${work}/mdlint" ok=0
 	mkdir -p -- "${t}"
 	(
-		eval "$(awk '/^fLintMarkdown\(\)/, /^}/' "${cicd}/cicd.bash")"
+		source "${cicd}/utility/include/lint-markdown.bash"
 		fLintRun() { "$@"; }
 		markdownlint() { printf '%s\n' "$*" >> "${t}/calls"; [[ " $* " != *" ${bad:-} "* ]]; }
-		# shellcheck disable=2034  ## Read by fLintMarkdown, from cicd.bash.
+		# shellcheck disable=2034  ## Read by fLintMarkdown.
 		{ MARKDOWNLINT_DISABLE=(MD013); MARKDOWNLINT_DISABLE_FOR=("b.md|MD036" "c.md|MD001 MD002" "c.md|MD003"); }
 		local want='' bad=''
 		want="$(printf '%s\n' '--disable MD013 -- a.md d.md' '--disable MD013 MD036 -- b.md' '--disable MD013 MD001 MD002 MD003 -- c.md')"
@@ -1262,3 +1298,4 @@ exit "${failed}"
 ##		- 2026-11-11: A test name in a Test case row isn't read for IDs.
 ##		- 2026-11-11: The release build's path maps.
 ##		- 2026-11-11: Shorter test names. Each keeps its ID.
+##		- 2026-11-11: A docs-only push still gets its docs checks.

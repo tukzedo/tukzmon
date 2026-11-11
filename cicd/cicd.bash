@@ -199,6 +199,7 @@ export TUKZMON_WERROR=1
 
 source "${here}/config.bash"
 source "${here}/utility/include/gfs-rotate.bash"
+source "${here}/utility/include/lint-markdown.bash"
 source "${root}/utility/path-maps.bash"
 cd "${root}"
 started="${SECONDS}"
@@ -495,27 +496,6 @@ fStepBuild() {
 ## One lint tool, its output into the lint log too.
 lintLog="/dev/null"
 fLintRun() { local rc=0; "$@" 2>&1 | tee -a "${lintLog}" || rc=$?; return "${rc}"; }
-
-## One markdownlint per set of rules it skips, MARKDOWNLINT_DISABLE plus a
-## file's own in MARKDOWNLINT_DISABLE_FOR, since it starts slow.
-fLintMarkdown() {   ## fLintMarkdown FILE...
-	local f entry off i rc=0
-	local -a files=("$@") offOf=() sets=() group=() rules=()
-	local -A known=()
-	for f in "${files[@]}"; do
-		off="${MARKDOWNLINT_DISABLE[*]}"
-		for entry in "${MARKDOWNLINT_DISABLE_FOR[@]}"; do [[ "${entry%%|*}" != "${f}" ]] || off+=" ${entry#*|}"; done
-		offOf+=("${off}")
-		[[ -n "${known[=${off}]:-}" ]] || { known["=${off}"]=1; sets+=("${off}"); }
-	done
-	for off in "${sets[@]}"; do
-		group=()
-		for i in "${!files[@]}"; do [[ "${offOf[i]}" != "${off}" ]] || group+=("${files[i]}"); done
-		read -r -a rules <<< "${off}"
-		fLintRun markdownlint --disable "${rules[@]}" -- "${group[@]}" || rc=1
-	done
-	return "${rc}"
-}
 
 ## clang-tidy over the C++, per .clang-tidy. It reads the cxx bridge's headers
 ## from the clippy build just before it, and qt.cpp's own include of
@@ -1549,3 +1529,4 @@ exit 0
 ##		  --long, --leakcheck and the codeql area.
 ##		- 2026-11-10: The release build's path maps, and the Reproducible
 ##		  step, with the repro area.
+##		- 2026-11-11: fLintMarkdown is in utility/include, for the pre-push hook.
