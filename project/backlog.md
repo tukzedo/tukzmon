@@ -191,7 +191,7 @@ Sorted per the notes in [Template](#template).
 - Antialiasing still needs to be better, so sharp spikes don't pulse or shimmer
 	- ID: 2026111010281710
 	- Type: Enhancement
-	- Status: Waiting on UAT
+	- Status: Queued
 		- Watch sharp spikes slide with Smooth scrolling on, on a linear and a log graph, and say whether they still shimmer or pulse. Builds from df4e4 (commit 22b85fa) on have it.
 	- Needs hand testing: A panel on b23 with build df4e4 or later and Smooth scrolling on, watching spikes slide on the CPU graph.
 	- Stand-in: none (20261110). df4d7 and df3s6 cover the height and the width, and what's left turns on how it looks.
@@ -214,6 +214,7 @@ Sorted per the notes in [Template](#template).
 		- Profiler, load 6 to 8 on 32 cores: 480 and 514 us user a tick before, 634 after. 2026111000270812 is for the cost.
 		- Verified: df4d7 failed before the change and passed after. df4dt failed with each series' own min and max as the 2 stacks, and passed with the end buckets'. The quick gate and Sanitizers passed.
 		- 2026-11-10: The cut-bucket tint in the Decisions is fixed by 2026111011172485 (660a3de).
+		- UAT 20261111: not yet. Very narrow gaps tend to appear, fill in, and reappear as the graph marches left. Needs even better antialiasing.
 	- Decisions:
 		- A column's ink stays what the drawing gave before, so the area under a spike holds. Only its shape changes: full height at part strength, rather than part height.
 		- A column no wider than a sample takes its oldest and newest buckets as its 2 samples. Each series' own min and max can come from different samples, and stack over either one's total.
