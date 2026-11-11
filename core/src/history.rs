@@ -434,6 +434,106 @@ impl<const N: usize> Tier<N> {
 		]));
 		(spike, inner)
 	}
+
+	// up to 4 samples wide: the most any `run` secs within half a column of
+	// each point averages, averaged over the column, so a narrow gap keeps
+	// its ink as it slides (design.md Drawing). Also its most. None for no
+	// data, or too many buckets.
+	fn spread_over(&self, a: f64, b: f64, run: f64) -> Option<([f32; N], [f32; N])> {
+		const CAP: usize = 128;
+		let len = self.len;
+		// window starts in reach of a point, in buckets from its first one
+		let reach = (b - a - run) / len + 1.0;
+		if !(1.0..=(CAP - 2) as f64).contains(&reach) {
+			return None;
+		}
+		let x0 = (a - f64::midpoint(b - a, len)) / len - self.first as f64;
+		let x_end = x0 + (b - a) / len;
+		let mut ring = [[(0u32, 0.0f32); CAP]; N];
+		let (mut head, mut size) = ([0usize; N], [0usize; N]);
+		let mut next = x0.ceil() as i64;
+		let base = next;
+		// as `densest` slides its window, the whole buckets of the one
+		// starting at bucket `next`
+		let count = self.buckets.len() as i64;
+		let bucket = |j: i64| (0..count).contains(&j).then(|| &self.buckets[j as usize]);
+		let whole = (run / len).floor() as i64;
+		let frac = run - whole as f64 * len;
+		let take = |win: &mut (f64, [f64; N]), j: i64, sign: f64| {
+			if let Some(bk) = bucket(j) {
+				let secs = f64::from(bk.secs);
+				win.0 += sign * secs;
+				for (sum, top) in win.1.iter_mut().zip(bk.max) {
+					*sum += sign * secs * f64::from(top);
+				}
+			}
+		};
+		let window = |win: &(f64, [f64; N]), k: i64| {
+			let (mut weight, mut total) = *win;
+			if let Some(bk) = bucket(k + whole).filter(|bk| frac > 0.0 && bk.secs > 0.0) {
+				let start = (self.first + k + whole) as f64 * len;
+				let (lo, hi) = (start + bk.lo, start + bk.hi);
+				let overlap = (start + frac).min(hi) - lo;
+				if overlap > 0.0 {
+					let w = overlap * (f64::from(bk.secs) / (hi - lo)).min(1.0);
+					weight += w;
+					for (sum, top) in total.iter_mut().zip(bk.max) {
+						*sum += w * f64::from(top);
+					}
+				}
+			}
+			(weight > 0.0).then(|| total.map(|x| (x / weight) as f32))
+		};
+		let mut win = (0.0f64, [0.0f64; N]);
+		for j in next..next + whole {
+			take(&mut win, j, 1.0);
+		}
+		let (mut sums, mut weight) = ([0.0f64; N], 0.0f64);
+		let mut peak = [f32::NEG_INFINITY; N];
+		let to_whole = |v: f64| v.floor() + 1.0 - v;
+		let mut x = x0;
+		while x < x_end {
+			let x_next = (x + to_whole(x).min(to_whole(x + reach))).min(x_end);
+			if x_next <= x {
+				break;
+			}
+			let mid = f64::midpoint(x, x_next);
+			let (lo, hi) = (mid.ceil() as i64, (mid + reach).floor() as i64);
+			for s in 0..N {
+				while size[s] > 0 && i64::from(ring[s][head[s]].0) + base < lo {
+					head[s] = (head[s] + 1) % CAP;
+					size[s] -= 1;
+				}
+			}
+			while next <= hi {
+				let v = window(&win, next);
+				take(&mut win, next, -1.0);
+				take(&mut win, next + whole, 1.0);
+				if let Some(v) = v {
+					for s in 0..N {
+						while size[s] > 0 && ring[s][(head[s] + size[s] - 1) % CAP].1 <= v[s] {
+							size[s] -= 1;
+						}
+						ring[s][(head[s] + size[s]) % CAP] = ((next - base) as u32, v[s]);
+						size[s] += 1;
+					}
+				}
+				next += 1;
+			}
+			// every series has data in the same windows
+			if size.iter().any(|&n| n > 0) {
+				let w = x_next - x;
+				weight += w;
+				for s in 0..N {
+					let top = ring[s][head[s]].1;
+					sums[s] += w * f64::from(top);
+					peak[s] = peak[s].max(top);
+				}
+			}
+			x = x_next;
+		}
+		(weight > 0.0).then(|| (sums.map(|v| (v / weight) as f32), peak))
+	}
 }
 
 // each value's most over every one given, or None for none
@@ -453,6 +553,9 @@ pub struct Span<const N: usize> {
 	/// by that part, so a spike grows into a column as it slides in rather
 	/// than filling it at once. See design.md Drawing.
 	pub spike: [f32; N],
+	/// The most `spike` reaches toward, so at least `max`. A column up to 4
+	/// samples wide also reaches into a spike half a column past either end.
+	pub peak: [f32; N],
 	/// The least of each value.
 	pub min: [f32; N],
 	/// The means of the oldest and newest buckets in the span, so a span no
@@ -534,6 +637,7 @@ impl<const N: usize> History<N> {
 			mean: [0.0; N],
 			max: [0.0; N],
 			spike: [0.0; N],
+			peak: [0.0; N],
 			min: [0.0; N],
 			ends: [[0.0; N]; 2],
 			uncut: None,
@@ -618,6 +722,7 @@ impl<const N: usize> History<N> {
 				out.mean[s] = mean;
 				out.max[s] = max[s];
 				out.spike[s] = spike[s];
+				out.peak[s] = max[s];
 				out.min[s] = min[s];
 			}
 			out.covered = (weight / (b - a)).min(1.0) as f32;
@@ -629,6 +734,13 @@ impl<const N: usize> History<N> {
 			// a sample at least a column wide needs no lift to show
 			if b - a <= sample {
 				out.spike = out.mean;
+				out.uncut = None;
+			} else if let Some((spike, peak)) = (sample >= 2.0 * tier.len && b - a <= 4.0 * sample)
+				.then(|| tier.spread_over(a, b, sample))
+				.flatten()
+			{
+				out.spike = spike;
+				out.peak = std::array::from_fn(|s| out.max[s].max(peak[s]));
 				out.uncut = None;
 			} else if sample >= 2.0 * tier.len {
 				let (spike, inner) = tier.spike_over(a, b, sample);

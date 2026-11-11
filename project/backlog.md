@@ -192,7 +192,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026111010281710
 	- Type: Enhancement
 	- Status: Waiting on UAT
-		- Watch narrow dips between bars, and spikes, slide with Smooth scrolling on near the right end of the CPU graph, and say whether a dip still fills in and comes back, and whether a spike looks weaker split between 2 columns than whole in one. Builds with test df4y1 have it. Further left, on columns over a sample wide, a dip still comes and goes until 2026111020033357.
+		- Watch narrow dips between bars, and spikes, slide with Smooth scrolling on near the right end of the CPU graph, and say whether a dip still fills in and comes back, and whether a spike looks weaker split between 2 columns than whole in one. Builds with test df4y1 have it. Further left, on columns over a sample wide, 2026111020033357 holds a dip too, with a hand test of its own.
 	- Needs hand testing: A panel on b23 with a build that has df4y1 and Smooth scrolling on, watching dips and spikes slide on the CPU graph.
 	- Stand-in: none (20261110). df4y1, df4d7 and df3s6 cover the depth, the height and the width, and what's left turns on how it looks.
 	- Priority|Severity: Avg
@@ -243,8 +243,10 @@ Sorted per the notes in [Template](#template).
 - Narrow gaps on columns 1 to 3 samples wide come and go as they slide
 	- ID: 2026111020033357
 	- Type: Enhancement
-	- Status: Queued
-		- Waits on the 2026111020033357 question in questions.md, on whether a spike thinner than a column may slide across 2 columns.
+	- Status: Waiting on UAT
+		- Watch dips between bars, and spikes, slide with Smooth scrolling on, a few columns in from the right end of the CPU graph. Say whether a dip holds its depth there, and whether a spike split between 2 columns looks weaker than whole in one.
+	- Needs hand testing: A panel on b23 with a build that has this change and Smooth scrolling on, watching dips and spikes slide a few columns in from the right end of the CPU graph.
+	- Stand-in: none (20261111). df4y1 and df3s6 cover the depth and the ink, and what's left turns on how it looks.
 	- Priority|Severity: Avg
 	- Opened: 20261110-200333
 	- Opened by:
@@ -259,7 +261,22 @@ Sorted per the notes in [Template](#template).
 		- One low sample between high ones, at 21 steps across a column: the gap's depth goes from 0.17 to 0.67 of a column on 1.5 s columns, and 0.13 to 0.46 on 2 s ones. From 3 s it holds, at 0.08 and 0.06. A spike stays within 5% on each. A gap of 2 samples should do the same on columns up to about 4 samples wide.
 		- These are the columns just left of a log graph's right end: 11 to 21 of 98 on Smooth log, with an hour to a day of history.
 		- The options are in questions.md.
-	- Decisions: Picked A, the worker's call, since it holds for every width of gap and is easy to undo. The emphasis comes from the history widened by a column less a sample, then averaged over the column, and df3s6's 10 s check becomes a check on the 2 columns' total (20261111).
+		- 2026-11-11: Up to 4 samples wide, each point in a column takes the most that a sample's length within half a column of it averages, and the column reaches toward that, averaged over the column. The tall stack reaches toward its most. `design.md` Drawing has it.
+		- The gap's depth at 21 steps: 0.42 to 0.43 of a column at 1.5 s, 0.21 at 2 s, 0.08 at 3 s. A spike's ink holds within 0.01 plot heights. Its tallest column at 1.5 s went from 0.83 to 0.74 of the plot, since it's split between 2 now.
+		- Profiler, user time a tick: 1066.1 us with the first cut, at load 5 to 22 on 32 cores, then 889.2 at 14 to 40. With the new part off it was 657.7 at 19 to 23. So it costs about a quarter more. 2026111000270812 is for the cost.
+		- A spike's top on 1.5 s columns still moves between 77 and 84 rows of 100 as it slides, the same with the change off.
+		- Verified: df4y1 failed with the change off, at 0.17 to 0.67 on 1.5 s columns, and passed with it on. The quick gate and Sanitizers passed.
+		- 2026-11-11: The test ID check read `depth` in df4y1's name in a Test case row as an ID. It now skips names in backticks. Test dezap failed before that and passes after.
+	- Decisions:
+		- Picked A, the worker's call, since it holds for every width of gap and is easy to undo. The emphasis comes from the history widened by a column less a sample, then averaged over the column, and df3s6's 10 s check becomes a check on the 2 columns' total (20261111).
+		- Only up to 4 samples wide, not every width. Past that a column already holds every gap up to 3 samples, and the slide costs about a bucket per point, which is too much on wide columns. So df3s6's 10 s check is unchanged. It now also slides the spike across 1.5 and 3 s columns.
+		- Each point looks half a column each way, so a point's value goes by its time alone. Then the ink across columns of one width stays the same as they slide.
+		- The window starts go by buckets, as `densest` has them, and the sliding most is kept per series. A column over 126 buckets long in the reach, as with samples over 1.5 s, keeps the old way.
+		- `Span::peak` is new, for the tall stack, since the most can come from a spike half a column past the column's edge. `Span::max` keeps its meaning.
+	- Actual effort: Avg
+	- Branch: round-1111
+	- Test case: `render::tests::a_narrow_gap_keeps_its_depth_as_it_slides_across_columns` (df4y1) and `render::tests::a_spike_slides_across_columns_without_jumping_in_width` (df3s6), both now on columns 1.5 to 3 samples wide too.
+		- Swept: every `span_for` caller (the draw, and the history fuzz test), every reader of `Span::max` and `spike`, and `spike_over`, which wider columns still use.
 
 - Reduce motion if a remote desktop session is detected
 	- ID: 2026110911114037

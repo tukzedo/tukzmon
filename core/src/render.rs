@@ -457,7 +457,7 @@ impl<const N: usize> Frame<'_, N> {
 						let lo = span
 							.uncut
 							.map_or(span.min, |u| emphasis.of(&span.mean, &u, secs));
-						let hi = emphasis.of(&span.mean, &span.max, secs);
+						let hi = emphasis.of(&span.mean, &span.peak, secs);
 						Column::new(lo, hi, emphasis.of(&span.mean, &span.spike, secs))
 					}
 				})
@@ -1136,14 +1136,14 @@ mod tests {
 	#[test]
 	fn a_spike_slides_across_columns_without_jumping_in_width() {
 		// one sample of 0.9 over 0.1, off the buckets' edges, on columns of
-		// 1 s and of 10 s
+		// 1 s to 10 s
 		let mut h = History::<2>::default();
 		for t in 0..300 {
 			let v = if t == 150 { 0.9 } else { 0.1 };
 			h.add(f64::from(t) + 0.1, f64::from(t) + 1.1, &[v, 0.0]);
 		}
 		let l = look();
-		for (secs, plot_w) in [(50.0, 50), (150.0, 15)] {
+		for (secs, plot_w) in [(50.0, 50), (75.0, 50), (150.0, 50), (150.0, 15)] {
 			let axis = Axis::linear(secs);
 			let (w, ht) = (plot_w + 2, 102);
 			let column = secs / plot_w as f64;
@@ -1306,8 +1306,10 @@ mod tests {
 	#[test]
 	fn a_narrow_gap_keeps_its_depth_as_it_slides_across_columns() {
 		// one sample of 0.1 between ones of 0.9, and the other way round, on
-		// columns of half a sample and of one. A split gap mixed in linear
-		// light showed about half as deep as a whole one.
+		// columns of half a sample to 3. A split gap mixed in linear light
+		// showed about half as deep as a whole one. Past a sample wide, the
+		// spike emphasis filled the gap only where a column held a whole
+		// sample of the bar beside it.
 		for (base, odd) in [(0.9, 0.1), (0.1, 0.9)] {
 			let mut h = History::<2>::default();
 			for t in 0..300 {
@@ -1316,7 +1318,7 @@ mod tests {
 			}
 			let l = look();
 			let filled = if base > odd { 255.0 } else { 0.0 };
-			for (secs, plot_w) in [(25.0, 50), (50.0, 50)] {
+			for (secs, plot_w) in [(25.0, 50), (50.0, 50), (75.0, 50), (100.0, 50), (150.0, 50)] {
 				let axis = Axis::linear(secs);
 				let (w, ht) = (plot_w + 2, 102);
 				let column = secs / plot_w as f64;
@@ -1341,7 +1343,13 @@ mod tests {
 							.sum::<f32>() / 80.0
 					})
 					.collect();
-				let want = (1.0 / column) as f32;
+				// wider, the emphasis fills part of it, but the same part at
+				// every step
+				let want = if column > 1.0 {
+					depths.iter().sum::<f32>() / depths.len() as f32
+				} else {
+					(1.0 / column) as f32
+				};
 				assert!(
 					depths.iter().all(|d| (d - want).abs() < 0.05),
 					"{base} on {column} s: {depths:?}"

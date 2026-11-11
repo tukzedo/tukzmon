@@ -492,7 +492,9 @@ fTest_test_ids_check_reads_the_backlogs_test_case_rows() {
 	fIdsTree "${t}" 'mod tests {\n\t// Test ID: dek00\n\t#[test]\n\tfn one() {}\n}\n'
 	fItem() { printf -- '- %s\n\t- ID: %s\n\t- Status: %s\n' "$1" "$2" "$3"; [[ -z "$4" ]] || printf '\t- Test case: %s\n' "$4"; }
 	## A queued item needs no row, and nothing under the template counts.
+	## A test name's words, such as "depth", aren't IDs.
 	{ fItem Named 1001 Done '`one` (dek00)'; fItem Asked 1002 Done 'none, since it was a question.'; fItem Later 1003 Queued ''
+		fItem Deep 1006 Done '`keeps_its_depth` (dek00)'
 		printf '\n## Template\n\n'; fItem Title 1004 Done ''; } > "${t}/project/backlog.md"
 	out="$(bash "${t}/cicd/utility/test-ids.bash" check 2>&1)" || { fWhy "a good backlog failed: ${out}"; return 1; }
 	for row in '' dek07; do
@@ -1200,3 +1202,4 @@ exit "${failed}"
 ##		  suppression and an empty database.
 ##		- 2026-11-10: install.bash's version order, and its sum check, user
 ##		  and system installs, and second runs.
+##		- 2026-11-11: A test name in a Test case row isn't read for IDs.
