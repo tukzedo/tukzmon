@@ -68,6 +68,7 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261109-180802
 	- Opened by: t00mietum
 	- Parent ID: 2026110911114024
+	- Version and build: b23 runs df4n2 (2026-11-10), from 770a184 on `dev`, which has this.
 	- Requirements:
 		- A Smooth scrolling setting, on by default with 8 or more CPUs.
 		- Each graph slides to its newest sample over the time to the next one, rather than jumping a step.
@@ -103,6 +104,7 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Parent ID: 2026110911114024
 	- Prereq IDs: 2026110918080223
+	- Version and build: b23 runs df4n2 (2026-11-10), from 770a184 on `dev`, which has this.
 	- Requirements:
 		- While a graph slides, draw at an even division of the screen's refresh rate, from 30 to 60 a second, in the panel and in the settings window's graph rows, in place of the fixed 33 ms timer.
 		- Measure the panel's CPU with Smooth scrolling on and off. If on costs too much for a panel that runs all day, revisit what Auto turns on.
@@ -145,6 +147,7 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Parent ID: 2026110911114024
 	- Related IDs: 2026110918081021
+	- Version and build: b23 runs df4n2 (2026-11-10), from 770a184 on `dev`, which has this.
 	- Requirements:
 		- 60 Hz looks good.
 		- Now let's try 1/4 framerate, evenly divisible by framerate, but not less than 24 and not more than 50 Hz.
@@ -176,6 +179,7 @@ Sorted per the notes in [Template](#template).
 	- Opened by:
 	- Parent ID: 2026110911114037
 	- Prereq IDs: 2026110922214697
+	- Version and build: b23 runs df4n2 (2026-11-10), from 770a184 on `dev`, which has this.
 	- Requirements:
 		- Treat the local desktop as remote while a remote viewer is connected to it, and go back to the person's settings once it leaves.
 		- Check again every few seconds, in the panel and in the settings window, rather than once at start.
@@ -213,6 +217,7 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261110-102817
 	- Opened by: t00mietum
 	- Related IDs: 2026110920595602, 2026111000270812
+	- Version and build: b23 runs df4n2 (2026-11-10), from 770a184 on `dev`, which doesn't have this round's change (799d92c).
 	- Requirements:
 		- Antialiasing still needs to be better. Sharp spikes shouldn't "pulse" in width, and shouldn't "shimmer".
 		- Do your own research for this.
@@ -266,6 +271,7 @@ Sorted per the notes in [Template](#template).
 	- Opened by:
 	- Parent ID: 2026111010281710
 	- Related IDs: 2026111000270812
+	- Version and build: b23 runs df4n2 (2026-11-10), from 770a184 on `dev`, which doesn't have this round's change (f18b3d7).
 	- Requirements:
 		- A narrow gap between 2 bars shows as deep at every scroll step on columns over a sample wide, as it does on narrower ones since 2026111010281710.
 		- Keep the spike emphasis's look where that allows.
@@ -362,8 +368,8 @@ Sorted per the notes in [Template](#template).
 - Installer script for a direct install
 	- ID: 2026110310450005
 	- Type: Feature
-	- Status: Waiting on UAT
-		- A person runs a system install with sudo on Debian and Fedora, and the one-liner from `main`.
+	- Status: Stalled
+		- Held for the README one-liner, which runs only once `install.bash` is on `main`.
 	- Priority|Severity: Avg
 	- Opened: 20261103-104500
 	- Opened by: t00mietum
@@ -377,7 +383,7 @@ Sorted per the notes in [Template](#template).
 		- README.md gets the one-liner and the install folders, and notes `--help`.
 	- Needs more detail:
 		- It needs a first release to download. Until then, test it against a stand-in release.
-	- Needs hand testing: `--target system` on Debian 13 and Fedora 42, which needs sudo, and the README one-liner once `install.bash` is on `main`.
+	- Needs hand testing: The README one-liner once `install.bash` is on `main`.
 	- Estimated effort: Avg
 	- Actual effort: Avg
 	- Progress log:
@@ -386,12 +392,14 @@ Sorted per the notes in [Template](#template).
 		- Verified: against the real v1.0.0-beta.1, it took the prerelease, installed the 3 files, and a second run said up to date and changed nothing. The installed `tukzmon-settings --version` gave v1.0.0-beta.1 build df1j9.
 		- Verified: under bash 3.2.57, the same, through the `ar` unpack. dpkg-deb, rpm2cpio, bsdtar and ar each unpacked the real packages to the same files.
 		- Verified: df4xa and df4xb pass, and each failed on a broken installer: a release not above its prerelease, fields compared as text, no sum check, a reinstall when current, and stable taking a prerelease. The quick gate and Sanitizers passed.
+		- Verified 20261111: `--target system --yes`, as a user with sudo on clean Debian 13 and Fedora 42, installed the real v1.0.0-beta.1 package and its dependencies through apt-get and dnf. A second run said up to date and changed nothing, and the installed `tukzmon-settings --version` gave v1.0.0-beta.1 build df1j9. A user install into an empty home with this round's `install.bash` did the same.
 	- Decisions:
 		- The package is downloaded and checked in a temp folder before the plan, so the plan lists only what would change. The release has no tarball, so a user install unpacks the package with whatever is there.
 		- A system install without `--yes` leaves the package manager's own prompt, for its dependency list. Both are in questions.md as a Check.
 		- Exit 2 on a bad option, as `dev-install.bash` does, where silkterm's gives 1.
 		- No signature check, since releases aren't signed.
 		- Swept: `dev-install.bash` keeps its own copy of the lib folder lookup, since it's a dev tool run from a checkout and the installer runs alone from a URL.
+		- Stalled, not Waiting on UAT, since the system install passed on both, and the one-liner from `main` is all that's left (20261111).
 	- Branch: round-1111
 	- Test case: `installer_version_order` (df4xa) and `installer_installs` (df4xb), in `cicd/tests/guards.bash`.
 
