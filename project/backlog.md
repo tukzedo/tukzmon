@@ -243,7 +243,7 @@ Sorted per the notes in [Template](#template).
 - Narrow gaps on columns 1 to 3 samples wide come and go as they slide
 	- ID: 2026111020033357
 	- Type: Enhancement
-	- Status: Waiting for answers
+	- Status: Queued
 		- Waits on the 2026111020033357 question in questions.md, on whether a spike thinner than a column may slide across 2 columns.
 	- Priority|Severity: Avg
 	- Opened: 20261110-200333
@@ -259,6 +259,7 @@ Sorted per the notes in [Template](#template).
 		- One low sample between high ones, at 21 steps across a column: the gap's depth goes from 0.17 to 0.67 of a column on 1.5 s columns, and 0.13 to 0.46 on 2 s ones. From 3 s it holds, at 0.08 and 0.06. A spike stays within 5% on each. A gap of 2 samples should do the same on columns up to about 4 samples wide.
 		- These are the columns just left of a log graph's right end: 11 to 21 of 98 on Smooth log, with an hour to a day of history.
 		- The options are in questions.md.
+	- Decisions: Picked A, the worker's call, since it holds for every width of gap and is easy to undo. The emphasis comes from the history widened by a column less a sample, then averaged over the column, and df3s6's 10 s check becomes a check on the 2 columns' total (20261111).
 
 - Reduce motion if a remote desktop session is detected
 	- ID: 2026110911114037
