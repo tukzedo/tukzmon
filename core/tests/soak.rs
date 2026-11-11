@@ -44,7 +44,7 @@ fn the_heap_stops_growing_once_the_history_is_full() {
 		.build();
 	let hist = dir.join(format!("soak_{}.hist", std::process::id()));
 	let look = Look {
-		max_days: 1,
+		max_age: 86400,
 		..Look::default()
 	};
 	let mut g = Graphs::new(look);

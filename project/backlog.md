@@ -545,7 +545,7 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Settings, General: "Reduce motion in remote session"
 	- ID: 2026111019111679
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261110-191116
 	- Opened by: t00mietum
@@ -553,11 +553,22 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- Settings, General:
 			- "Reduce motion if remote desktop session detected" -> "Reduce motion in remote session"
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The checkbox reads Reduce motion in remote session. The tip on the rows it greys, and `design.md` Drawing, use the new name.
+		- Verified: the quick gate and Sanitizers passed.
+	- Decisions:
+		- The setting's id and path, `graph.calm_remote`, are unchanged, so saved files read as before.
+	- Branch: round-1111
+	- Test case: none for a label alone. df3nh still checks the greying and its tip.
+		- Swept: every place the old label was quoted, in `settings.shcl`, `dialog.rs` and `design.md`. README never named it.
+	- Closed: 20261110-214413
 
 - Pre-next-cut: Settings, General: Max age below Keep across restarts, with hours and minutes
 	- ID: 2026111019111684
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261110-191116
 	- Opened by: t00mietum
@@ -566,6 +577,25 @@ Sorted per the notes in [Template](#template).
 		- Settings, General:
 			- Move "Max age in days" below "Keep across restarts". And on the same row, add:
 				- `hours [ 0  ]   minutes [ 0  ]`
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Max age in days is on its own line under Keep across restarts, indented and greyed with it, with hours and minutes to its right, each with its own revert.
+		- The max age is the 3 added up, at `history.max_hours` and `history.max_minutes` beside `history.max_days`. Days now go from 0, hours to 23 and minutes to 59. With all 3 at 0 a minute is kept.
+		- A row after a `same_line` row can be `same_line` too, and joins the same line.
+		- `design.md` Settings window and History, and `style-guide_ux.md` Groups and headings, are updated.
+		- Verified: the quick gate and Sanitizers passed. der33 and der54 fail on the old line code, and pass now.
+	- Decisions:
+		- Days from 0, so a max age under a day can be set, which is what hours and minutes are for. A file with `max_days: 0` used to read as 28 days, and now reads as a minute. Only a hand edit could write it.
+		- The 1 minute floor, since 0 would empty the graph as it draws.
+		- `Look` keeps one `max_age` in seconds, not the 3 parts.
+		- The joined boxes sit in a layout, not a widget, so each label stays beside its box, where a screen reader looks for it.
+		- der33 is renamed, since its old name said the opposite of the new layout. Its ID is unchanged.
+	- Branch: round-1111
+	- Test case: `config::tests::max_age_adds_hours_and_minutes_to_the_days` (df51d) and `bridge::tests::max_age_sits_under_keep_across_restarts_with_hours_and_minutes_beside` (der33), and der54 for the boxes' labels.
+		- 20261110: der33, renamed from `max_age_sits_right_of_keep_across_restarts`, now checks Max age under Keep across restarts and hours and minutes on its line, where it checked Max age on Keep's line. decbf's bad value is `max_days: 36501`, not 0, since 0 is valid now, and it reads `max_age` as 28 days in seconds.
+		- Swept: every `max_days` reader (`Graph::trim`, and the tests in lib, graphs and the soak test), every `same_line` row, and the docs naming Max age's place.
+	- Closed: 20261110-214413
 
 - CICD gap: df3qt never runs in the pipeline, since the image has no dbus-daemon
 	- ID: 2026110923411799

@@ -114,7 +114,7 @@ settings:
 		tip: "Slide each graph along to its newest sample over the time until the next one, rather than moving it a whole step at each sample. The right edge runs one sample behind to do it. It draws up to 60 times a second, in step with the screen, rather than once a sample, so it costs more CPU. Auto turns it on with 8 or more CPUs."
 
 	calm_remote:
-		label: Reduce motion if remote desktop session detected
+		label: Reduce motion in remote session
 		tab: General
 		control: checkbox
 		path: graph.calm_remote
@@ -792,12 +792,35 @@ settings:
 		tab: General
 		control: number
 		whole: true
-		range: [1, 36500]
+		range: [0, 36500]
 		path: history.max_days
-		same_line: true
 		default: 28
 		gate: keep_history
-		tip: "History older than this is dropped."
+		tip: "History older than this is dropped. The hours and minutes beside it add to the days. At 0 for all 3, a minute is kept."
+
+	max_hours:
+		label: hours
+		tab: General
+		control: number
+		whole: true
+		range: [0, 23]
+		path: history.max_hours
+		same_line: true
+		default: 0
+		gate: keep_history
+		tip: "Hours added to Max age in days."
+
+	max_minutes:
+		label: minutes
+		tab: General
+		control: number
+		whole: true
+		range: [0, 59]
+		path: history.max_minutes
+		same_line: true
+		default: 0
+		gate: keep_history
+		tip: "Minutes added to Max age in days and its hours."
 
 	MiscHead:
 		label: Misc

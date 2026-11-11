@@ -925,8 +925,9 @@ pub struct Look {
 	pub margin_lr: u32,
 	/// Save history and load it back on start.
 	pub keep: bool,
-	/// History older than this many days is dropped.
-	pub max_days: u32,
+	/// History older than this many seconds is dropped. Max age's days, hours
+	/// and minutes added up, and never under a minute.
+	pub max_age: u32,
 	/// Each graph's own, by [`Which`]: `look[Which::Mem].width`.
 	pub graphs: [Each; Which::ALL.len()],
 	/// How the network graph tells the LAN from the internet.
@@ -1032,7 +1033,11 @@ impl Look {
 			margin_tb: num("margin_tb") as u32,
 			margin_lr: num("margin_lr") as u32,
 			keep: m.value("keep_history", &NoEnv).as_bool(),
-			max_days: num("max_days") as u32,
+			// 36500 days and change is still well inside a u32 of seconds
+			max_age: (num("max_days") * 86400.0
+				+ num("max_hours") * 3600.0
+				+ num("max_minutes") * 60.0)
+				.max(60.0) as u32,
 			graphs: Which::ALL.map(each),
 			net_split: Split::parse(m.value("net_split", &NoEnv).as_text()).unwrap_or_default(),
 			disk_drives: graph_order(m.value("disk_drives", &NoEnv).as_text()),
@@ -2472,11 +2477,34 @@ mod tests {
 	fn history_is_kept_four_weeks_by_default() {
 		let l = Look::default();
 		assert!(l.keep);
-		assert_eq!(l.max_days, 28);
-		let text = "history:\n\tkeep: false\n\tmax_days: 0\n";
+		assert_eq!(l.max_age, 28 * 86400);
+		let text = "history:\n\tkeep: false\n\tmax_days: 36501\n";
 		let l = Look::from_model(&Model::load(spec(), text, ""));
 		assert!(!l.keep);
-		assert_eq!(l.max_days, 28);
+		assert_eq!(l.max_age, 28 * 86400);
+	}
+
+	// Test ID: df51d
+	#[test]
+	fn max_age_adds_hours_and_minutes_to_the_days() {
+		let age = |text: &str| Look::from_model(&Model::load(spec(), text, "")).max_age;
+		// a file from before hours and minutes reads as it did
+		assert_eq!(age("history:\n\tmax_days: 3\n"), 3 * 86400);
+		assert_eq!(
+			age("history:\n\tmax_days: 1\n\tmax_hours: 2\n\tmax_minutes: 30\n"),
+			86400 + 2 * 3600 + 30 * 60
+		);
+		assert_eq!(age("history:\n\tmax_days: 0\n\tmax_hours: 6\n"), 6 * 3600);
+		assert_eq!(age("history:\n\tmax_days: 0\n"), 60);
+		assert_eq!(
+			age("history:\n\tmax_days: 36500\n\tmax_hours: 23\n\tmax_minutes: 59\n"),
+			36500 * 86400 + 86340
+		);
+		// past a day's hours or an hour's minutes is a bad line
+		assert_eq!(
+			age("history:\n\tmax_hours: 24\n\tmax_minutes: 60\n"),
+			28 * 86400
+		);
 	}
 
 	// Test ID: debhk

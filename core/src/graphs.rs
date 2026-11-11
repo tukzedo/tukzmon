@@ -1357,7 +1357,7 @@ mod tests {
 		let (cpu, mem) = (ends("cpu"), ends("mem"));
 		// so it never ages out
 		let look = Look {
-			max_days: 36500,
+			max_age: 36500 * 86400,
 			..two()
 		};
 		let mut g = Graphs::new(look.clone());

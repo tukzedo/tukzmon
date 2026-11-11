@@ -617,7 +617,7 @@ impl Dialog {
 		if calmed {
 			tip.insert_str(
 				0,
-				"Set aside while this is a remote desktop session, by Reduce motion if remote desktop session detected, on the General tab. It comes back in a local session.\n\n",
+				"Set aside while this is a remote desktop session, by Reduce motion in remote session, on the General tab. It comes back in a local session.\n\n",
 			);
 		}
 		let on = v.as_bool();

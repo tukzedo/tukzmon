@@ -1423,7 +1423,7 @@ mod tests {
 	// Test ID: der33
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn max_age_sits_right_of_keep_across_restarts() {
+	fn max_age_sits_under_keep_across_restarts_with_hours_and_minutes_beside() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_same_line_never_written.shcl",
@@ -1442,8 +1442,19 @@ mod tests {
 					.collect()
 			};
 			let (keep, days) = (spot("keep_history"), spot("max_days"));
-			assert!((keep[1] - days[1]).abs() <= 2, "{keep:?} {days:?}");
-			assert!(days[0] > keep[2], "{keep:?} {days:?}");
+			let (hours, minutes) = (spot("max_hours"), spot("max_minutes"));
+			assert!(days[1] > keep[1] + 2, "{keep:?} {days:?}");
+			assert!(days[0] >= keep[0], "{keep:?} {days:?}");
+			// left to right on one line: days, hours, minutes, each box
+			// before its own revert
+			for (left, right) in [(&days, &hours), (&hours, &minutes)] {
+				assert!((left[1] - right[1]).abs() <= 2, "{spots:?}");
+				assert!(right[0] > left[3], "{spots:?}");
+			}
+			assert!(
+				minutes[0] > hours[4] && minutes[4] > minutes[3],
+				"{spots:?}"
+			);
 			// the rest of the page keeps its label column
 			assert_eq!(spot("width")[0], keep[0], "{spots:?}");
 		});

@@ -641,8 +641,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 
 	/// Drops history older than the max age.
 	pub fn trim(&mut self) {
-		let max_age = f64::from(self.look.max_days) * 86400.0;
-		self.hist.trim(self.now() - max_age);
+		self.hist.trim(self.now() - f64::from(self.look.max_age));
 	}
 
 	/// Drops every sample, so the graph starts over from the next read.
@@ -1698,7 +1697,7 @@ mod tests {
 		g.hist.add(now - 60.0, now - 59.0, &[0.2; 4]);
 		g.save(&path).unwrap();
 		let mut back = Graph::new(Look {
-			max_days: 1,
+			max_age: 86400,
 			..Look::default()
 		});
 		back.load(&path).unwrap();
