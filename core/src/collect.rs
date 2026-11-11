@@ -267,7 +267,7 @@ mod tests {
 
 	// Test ID: defnd
 	#[test]
-	fn climb_primes_then_gives_rates_and_gaps() {
+	fn climb_primes_then_rates() {
 		let t = Instant::now();
 		let s = Duration::from_secs;
 		let mut c = Climb::default();
@@ -288,7 +288,7 @@ mod tests {
 
 	// Test ID: decaw
 	#[test]
-	fn slurp_reuses_and_misses() {
+	fn slurp_reuse_and_miss() {
 		let mut buf = String::from("left over");
 		assert!(slurp("/proc/self/stat", &mut buf).is_some_and(|s| !s.contains("left over")));
 		assert!(slurp("/proc/no/such/file", &mut buf).is_none());
@@ -297,7 +297,7 @@ mod tests {
 	// Test ID: denba
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri can't seek on a folder")]
-	fn kept_reads_the_file_anew_and_opens_it_again_after_a_failed_read() {
+	fn kept_reopens_after_failure() {
 		let t = Tree::new("kept", &[("a", "one\n"), ("b/", "")]);
 		let mut f = Kept::new(t.at("a"));
 		let mut buf = String::from("left over");

@@ -656,7 +656,7 @@ mod tests {
 
 	// Test ID: dekq5
 	#[test]
-	fn the_lan_is_private_link_local_and_this_ends_own_prefix() {
+	fn lan_address_classes() {
 		let lan = |near: &str, far: &str| on_lan(ip(near), ip(far));
 		for far in ["10.1.2.3", "172.16.0.9", "192.168.1.182", "169.254.3.4"] {
 			assert_eq!(lan("192.168.1.123", far), Some(true), "{far}");
@@ -683,7 +683,7 @@ mod tests {
 
 	// Test ID: dekq6
 	#[test]
-	fn a_dump_gives_lan_sockets_with_their_wire_bytes() {
+	fn dump_gives_wire_bytes() {
 		let mut buf = message(
 			"192.168.1.123",
 			"192.168.1.182",
@@ -725,7 +725,7 @@ mod tests {
 
 	// Test ID: deqt2
 	#[test]
-	fn whats_left_of_an_earlier_dump_is_skipped() {
+	fn stale_dump_skipped() {
 		let seq = |mut m: Vec<u8>, seq: u32| {
 			m[8..12].copy_from_slice(&seq.to_ne_bytes());
 			m
@@ -744,7 +744,7 @@ mod tests {
 
 	// Test ID: deqt4
 	#[test]
-	fn a_socket_from_an_away_address_isnt_the_lans() {
+	fn away_socket_not_lan() {
 		let mut buf = message("10.5.0.2", "10.5.0.1", 1, [5, 5], [0, 0]);
 		buf.extend(message(
 			"192.168.122.1",
@@ -790,7 +790,7 @@ mod tests {
 
 	// Test ID: deqt6
 	#[test]
-	fn a_socket_to_a_vm_on_the_nics_bridge_isnt_the_lans() {
+	fn bridge_vm_socket_not_lan() {
 		let mut buf = message("192.168.1.123", "192.168.1.118", 1, [5, 5], [0, 0]);
 		buf.extend(message(
 			"::ffff:192.168.1.123",
@@ -817,7 +817,7 @@ mod tests {
 
 	// Test ID: df35c
 	#[test]
-	fn a_socket_that_stops_being_away_counts_from_its_last_read() {
+	fn stopped_away_counts_from_last() {
 		let vm = |moved: [u64; 2]| message("192.168.1.123", "192.168.1.118", 1, moved, [0, 0]);
 		let mut away = Away {
 			mine: Vec::new(),
@@ -834,7 +834,7 @@ mod tests {
 
 	// Test ID: df35d
 	#[test]
-	fn a_dual_stack_socket_to_an_ipv4_client_counts_ipv4_headers() {
+	fn dual_stack_ipv4_headers() {
 		let mut buf = message(
 			"::ffff:192.168.1.123",
 			"::ffff:192.168.1.9",
@@ -852,7 +852,7 @@ mod tests {
 	// Test ID: df35e
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri has no sockets")]
-	fn a_dump_left_partway_is_one_gap() {
+	fn partial_dump_one_gap() {
 		let mut r = LanReader::probe().expect("sock_diag needs no root");
 		// enough sockets that a dump takes more than one read, and opened
 		// since the last one, so the next read dumps
@@ -875,7 +875,7 @@ mod tests {
 
 	// Test ID: df3cx
 	#[test]
-	fn the_tcp_opens_are_active_plus_passive() {
+	fn tcp_opens_sum() {
 		let snmp = "Ip: Forwarding DefaultTTL\nIp: 1 64\n\
 			Tcp: RtoAlgorithm RtoMin RtoMax MaxConn ActiveOpens PassiveOpens AttemptFails\n\
 			Tcp: 1 200 120000 -1 1234 56 7\n\
@@ -888,7 +888,7 @@ mod tests {
 
 	// Test ID: df3cy
 	#[test]
-	fn answers_hold_the_sockets_found_and_count_the_gone() {
+	fn answers_count_gone_sockets() {
 		let seq = |mut m: Vec<u8>, seq: u32| {
 			m[8..12].copy_from_slice(&seq.to_ne_bytes());
 			m
@@ -923,7 +923,7 @@ mod tests {
 	// Test ID: df3cz
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri has no netlink sockets")]
-	fn one_census_has_both_families_and_a_lookup_finds_one_socket() {
+	fn census_both_families() {
 		let pair = |at: &str| {
 			let listener = std::net::TcpListener::bind(at).unwrap();
 			let c = std::net::TcpStream::connect(listener.local_addr().unwrap()).unwrap();
@@ -1003,7 +1003,7 @@ mod tests {
 	// Test ID: df3d0
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri has no netlink sockets")]
-	fn a_read_dumps_only_when_a_tcp_socket_opened() {
+	fn dump_only_on_tcp_open() {
 		use crate::collect::Tree;
 		let snmp = |n: u32| format!("Tcp: ActiveOpens PassiveOpens\nTcp: {n} 0\n");
 		let tree = Tree::new("lan_opens", &[("snmp", &snmp(10))]);
@@ -1030,7 +1030,7 @@ mod tests {
 	// Test ID: df3d1
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri has no netlink sockets")]
-	fn a_read_with_no_new_socket_looks_up_the_ones_it_has() {
+	fn lookup_known_sockets() {
 		use crate::collect::Tree;
 		let tree = Tree::new("lan_follow", &[("snmp", "Tcp: ActiveOpens\nTcp: 3\n")]);
 		let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -1090,7 +1090,7 @@ mod tests {
 	// Test ID: deqt7
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri has no netlink sockets")]
-	fn neighbors_read_with_their_link_addresses() {
+	fn neighbor_link_addresses() {
 		let attr = |kind: u16, data: &[u8]| {
 			let mut a = Vec::new();
 			a.extend_from_slice(&((4 + data.len()) as u16).to_ne_bytes());
@@ -1131,7 +1131,7 @@ mod tests {
 
 	// Test ID: dekq7
 	#[test]
-	fn a_new_socket_moved_all_it_has_and_a_closed_one_nothing() {
+	fn new_socket_counts_all() {
 		let lan = |m: [(u64, [u64; 2]); 2]| {
 			m.into_iter()
 				.map(|(c, moved)| {
@@ -1156,7 +1156,7 @@ mod tests {
 
 	// Test ID: dekq8
 	#[test]
-	fn the_lan_is_capped_by_the_interfaces_and_the_rest_is_internet() {
+	fn lan_capped_by_interfaces() {
 		assert_eq!(
 			split([5.0, 100.0, 300.0], [40.0, 200.0]),
 			[5.0, 40.0, 200.0, 60.0, 100.0]
@@ -1280,7 +1280,7 @@ mod tests {
 
 	// Test ID: df4fp
 	#[test]
-	fn lying_counts_and_errors_neither_panic_nor_wrap() {
+	fn lying_counts_no_panic() {
 		let mut body = vec![0u8; 20];
 		body[..4].copy_from_slice(&i32::MIN.to_ne_bytes());
 		let mut now = HashMap::new();
@@ -1297,7 +1297,7 @@ mod tests {
 
 	// Test ID: df4fm
 	#[test]
-	fn fuzz_dumps_give_their_messages_and_no_more() {
+	fn fuzz_dump_messages() {
 		let away = Away {
 			mine: vec![ip("10.0.0.9")],
 			guests: vec![],
@@ -1346,7 +1346,7 @@ mod tests {
 
 	// Test ID: df4fn
 	#[test]
-	fn fuzz_lookup_answers_take_any_read() {
+	fn fuzz_lookup_answers() {
 		let tally = crate::fuzz::run("netlink answers", |dice| {
 			let first = dice.next() as u32;
 			let n = dice.below(5) as u32;

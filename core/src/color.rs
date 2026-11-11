@@ -127,7 +127,7 @@ mod tests {
 
 	// Test ID: dejbs
 	#[test]
-	fn the_published_test_pairs_come_out_right() {
+	fn published_pairs_match() {
 		// Sharma, Wu and Dalal 2005, table 1: Lab 1, Lab 2, and the distance
 		// to 4 places
 		#[rustfmt::skip]
@@ -185,7 +185,7 @@ mod tests {
 
 	// Test ID: dejbt
 	#[test]
-	fn rgb_turns_into_lab_and_the_closest_pair_is_found() {
+	fn lab_conversion_closest_pair() {
 		let near = |c: Lab, l: f64, a: f64, b: f64| {
 			assert!(
 				(c.l - l).abs() < 0.05 && (c.a - a).abs() < 0.05 && (c.b - b).abs() < 0.05,

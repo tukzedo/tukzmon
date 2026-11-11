@@ -243,7 +243,7 @@ mod tests {
 
 	// Test ID: decbk
 	#[test]
-	fn sections_round_trip_and_no_tmp_is_left() {
+	fn sections_round_trip_no_tmp() {
 		let dir = scratch("trip");
 		let path = dir.join("sub/plugin-1.hist");
 		write(&path, &[("cpu", b"abc"), ("mem", b"")]).unwrap();
@@ -264,7 +264,7 @@ mod tests {
 
 	// Test ID: decbm
 	#[test]
-	fn every_cut_short_file_is_refused() {
+	fn truncated_files_refused() {
 		let dir = scratch("cut");
 		let path = dir.join("h");
 		write(&path, &[("cpu", b"abcdef")]).unwrap();
@@ -283,7 +283,7 @@ mod tests {
 
 	// Test ID: demwg
 	#[test]
-	fn a_version_1_files_sections_read_with_no_series_count() {
+	fn version_1_sections_no_count() {
 		let dir = scratch("v1");
 		let path = dir.join("h");
 		let mut v1 = MAGIC.to_vec();
@@ -309,14 +309,14 @@ mod tests {
 
 	// Test ID: decbn
 	#[test]
-	fn a_missing_file_is_not_found() {
+	fn missing_file_not_found() {
 		let e = read(Path::new("/nonexistent/tukzmon/plugin-1.hist")).unwrap_err();
 		assert_eq!(e.kind(), io::ErrorKind::NotFound);
 	}
 
 	// Test ID: defxq
 	#[test]
-	fn a_reset_is_seen_once_and_deletes_saved_history_only_when_asked() {
+	fn reset_seen_once() {
 		let dir = scratch("reset");
 		let hist = [history_file(&dir, 1), history_file(&dir, 22)];
 		let other = [dir.join("plugin-x.hist"), dir.join("notes")];
@@ -346,7 +346,7 @@ mod tests {
 
 	// Test ID: deqs8
 	#[test]
-	fn a_failed_write_leaves_no_temp_file_and_temp_names_are_by_pid() {
+	fn failed_write_no_temp() {
 		let dir = scratch("fail");
 		// a folder in the way, so the rename fails after the temp is written
 		let path = dir.join("plugin-1.hist");
@@ -365,7 +365,7 @@ mod tests {
 
 	// Test ID: deqs9
 	#[test]
-	fn a_reset_deletes_leftover_temp_files_too() {
+	fn reset_clears_temp_files() {
 		let dir = scratch("tmps");
 		let gone = [
 			temp_of(&history_file(&dir, 3), 4242),
@@ -396,7 +396,7 @@ mod tests {
 
 	// Test ID: df4f2
 	#[test]
-	fn fuzz_any_file_reads_whole_or_not_at_all() {
+	fn fuzz_whole_or_nothing() {
 		use crate::fuzz::{Dice, history, mangle, run};
 		let body = |dice: &mut Dice| {
 			let mut out = Vec::new();
@@ -441,7 +441,7 @@ mod tests {
 
 	// Test ID: df4f3
 	#[test]
-	fn fuzz_bit_flips_in_a_real_file() {
+	fn fuzz_real_file_bit_flips() {
 		let real = include_bytes!("../tests/data/plugin-5-tiers.hist");
 		let tally = crate::fuzz::run("plugin-5-tiers.hist", |dice| {
 			let mut bytes = real.to_vec();

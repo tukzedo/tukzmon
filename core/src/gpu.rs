@@ -692,7 +692,7 @@ mod tests {
 
 	// Test ID: dekm9
 	#[test]
-	fn amdgpu_reads_from_the_first_card_and_skips_connectors() {
+	fn amdgpu_first_card() {
 		let t = Tree::new(
 			"gpu_amd",
 			&[
@@ -723,7 +723,7 @@ mod tests {
 
 	// Test ID: df3kw
 	#[test]
-	fn intel_reads_busy_as_the_time_out_of_rc6() {
+	fn intel_busy_from_rc6() {
 		let t = Tree::new("gpu_intel_rc6", &[("rc6_residency_ms", "1000\n")]);
 		let set = |ms: &str| std::fs::write(t.at("rc6_residency_ms"), ms).unwrap();
 		let mut intel = Intel::new(t.at("rc6_residency_ms"));
@@ -755,7 +755,7 @@ mod tests {
 	// Test ID: df3kx
 	#[test]
 	#[cfg(not(miri))]
-	fn an_intel_card_gives_a_gpu_graph_and_no_memory_graph() {
+	fn intel_gpu_graph_only() {
 		let t = Tree::new(
 			"gpu_intel",
 			&[
@@ -814,7 +814,7 @@ mod tests {
 	// Test ID: dekma
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri can't load a library")]
-	fn a_live_gpu_reads_as_a_share_where_there_is_one() {
+	fn live_gpu_share_where_present() {
 		let (Some(mut gpu), Some(mut vram)) = (GpuReader::probe(), VramReader::probe()) else {
 			return;
 		};
@@ -831,7 +831,7 @@ mod tests {
 	// Test ID: dektc
 	#[test]
 	#[cfg(not(miri))]
-	fn gpu_memory_leaves_out_what_the_driver_keeps_back() {
+	fn gpu_memory_excludes_reserved() {
 		const MIB: u64 = 1 << 20;
 		let m = nvml::MemoryV2 {
 			version: nvml::MEMORY_V2,
@@ -906,7 +906,7 @@ mod tests {
 	// Test ID: der6j
 	#[test]
 	#[cfg(not(miri))]
-	fn nvml_is_open_only_while_a_gpu_graph_is_shown() {
+	fn nvml_open_while_graph_shown() {
 		use crate::config::{Look, Which};
 		use crate::graphs::Graphs;
 		use stand_in::{INITS, NO_DEVICE, OPEN};
@@ -945,7 +945,7 @@ mod tests {
 	// Test ID: desfa
 	#[test]
 	#[cfg(not(miri))]
-	fn nvml_leaves_a_card_that_may_sleep_alone_while_it_sleeps() {
+	fn sleeping_card_left_alone() {
 		use stand_in::{BUSY, INITS, OPEN};
 		let t = Tree::new(
 			"gpu_power",
@@ -1051,7 +1051,7 @@ mod tests {
 	// Test ID: dektd
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri can't load a library")]
-	fn nvidia_memory_reads_through_v2_where_the_driver_has_it() {
+	fn nvidia_memory_via_v2() {
 		let Some(n) = Nvml::open() else {
 			return;
 		};
@@ -1063,7 +1063,7 @@ mod tests {
 
 	// Test ID: df4gx
 	#[test]
-	fn fuzz_gpu_sysfs_files_read_as_shares_in_range() {
+	fn fuzz_gpu_sysfs_shares() {
 		use crate::fuzz::count;
 		// seed 665 found it, past the fixed seeds
 		let nan = Tree::new("gpu_nan", &[("card/gpu_busy_percent", "NaN\n")]);

@@ -18,7 +18,7 @@ fn shown(on: bool) -> Look {
 // Test ID: der6k
 #[test]
 #[cfg_attr(miri, ignore = "Miri can't load a library")]
-fn hiding_both_gpu_graphs_lets_go_of_the_nvidia_device() {
+fn hidden_graphs_release_nvidia() {
 	if tukzmon_core::gpu::nvidia_asleep() {
 		// NVML isn't asked, so nothing would be open to count
 		return;

@@ -113,7 +113,7 @@ mod tests {
 
 	// Test ID: dejb3
 	#[test]
-	fn cpu_time_is_a_share_of_every_cpu() {
+	fn cpu_time_share() {
 		// 2 ms of CPU in half a second on 4 CPUs
 		assert_eq!(share(2_000_000, 0.5, 4.0), Some(0.001));
 		assert_eq!(share(0, 0.5, 4.0), Some(0.0));
@@ -124,7 +124,7 @@ mod tests {
 
 	// Test ID: dejb4
 	#[test]
-	fn the_host_is_named_from_the_process() {
+	fn host_from_process() {
 		assert_eq!(Host::of("wrapper-2.0\n"), Host::Own);
 		assert_eq!(Host::of("xfce4-panel\n"), Host::Panel);
 		// cut to 15 bytes by the kernel

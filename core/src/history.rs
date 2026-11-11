@@ -897,7 +897,7 @@ mod tests {
 
 	// Test ID: dejcp
 	#[test]
-	fn a_spike_reads_in_a_wide_span_only_while_its_bucket_is_kept() {
+	fn wide_span_spike_needs_bucket() {
 		let mut h = History::<1>::default();
 		let t0 = 1000.0;
 		let spike = t0 + 100.0;
@@ -948,7 +948,7 @@ mod tests {
 
 	// Test ID: debhw
 	#[test]
-	fn mean_and_max_of_a_span() {
+	fn span_mean_and_max() {
 		let mut h = History::<1>::default();
 		for (i, v) in [0.2f32, 0.4, 0.6, 0.8].iter().enumerate() {
 			let t = 100.0 + i as f64 * 0.25;
@@ -962,7 +962,7 @@ mod tests {
 
 	// Test ID: debhx
 	#[test]
-	fn a_long_sample_fills_every_bucket_it_covers() {
+	fn long_sample_fills_buckets() {
 		// half-second samples on quarter-second buckets leave no holes
 		let mut h = History::<1>::default();
 		h.add(10.0, 10.5, &[0.3]);
@@ -977,7 +977,7 @@ mod tests {
 
 	// Test ID: debhy
 	#[test]
-	fn part_buckets_count_in_part() {
+	fn part_buckets_part_count() {
 		let mut h = History::<1>::default();
 		h.add(10.0, 10.25, &[0.0]);
 		h.add(10.25, 10.5, &[1.0]);
@@ -988,7 +988,7 @@ mod tests {
 
 	// Test ID: debhz
 	#[test]
-	fn the_newest_part_bucket_is_full_where_it_has_data() {
+	fn newest_part_bucket_full() {
 		let mut h = History::<1>::default();
 		h.add(10.0, 10.1, &[0.4]);
 		let s = h.span(10.05, 10.1);
@@ -999,7 +999,7 @@ mod tests {
 
 	// Test ID: debj0
 	#[test]
-	fn gaps_are_left_out_not_zero() {
+	fn gaps_not_zero() {
 		let mut h = History::<1>::default();
 		h.add(0.0, 0.25, &[0.5]);
 		h.add(9.0, 9.25, &[0.5]);
@@ -1023,7 +1023,7 @@ mod tests {
 
 	// Test ID: debj1
 	#[test]
-	fn old_buckets_age_out_of_the_fine_tier() {
+	fn fine_tier_ages_out() {
 		let mut h = History::<1>::default();
 		for i in 0..10000 {
 			let t = i as f64 * 0.25;
@@ -1038,7 +1038,7 @@ mod tests {
 
 	// Test ID: debj2
 	#[test]
-	fn a_long_gap_resets_a_tier_instead_of_filling_it() {
+	fn long_gap_resets_tier() {
 		let mut h = History::<1>::default();
 		h.add(0.0, 0.5, &[0.1]);
 		let t = 86400.0 * 10.0;
@@ -1052,7 +1052,7 @@ mod tests {
 
 	// Test ID: debj3
 	#[test]
-	fn overlap_and_backwards_time_are_dropped() {
+	fn overlap_and_backwards_dropped() {
 		let mut h = History::<1>::default();
 		h.add(4.0, 5.0, &[0.1]);
 		h.add(3.0, 4.5, &[0.9]);
@@ -1064,7 +1064,7 @@ mod tests {
 
 	// Test ID: defp6
 	#[test]
-	fn a_linear_graph_as_wide_as_the_slider_goes_keeps_a_sample_a_column() {
+	fn widest_linear_sample_per_column() {
 		let (_, widest) = crate::config::slider_range("width").unwrap();
 		let columns = widest as usize;
 		// up to the rate where the 2 s tier would do anyway
@@ -1097,7 +1097,7 @@ mod tests {
 
 	// Test ID: decbg
 	#[test]
-	fn encode_and_decode_give_back_the_same_history() {
+	fn history_round_trip() {
 		let h = a_day_of_samples();
 		let mut bytes = Vec::new();
 		h.encode(&mut bytes);
@@ -1119,7 +1119,7 @@ mod tests {
 
 	// Test ID: decbh
 	#[test]
-	fn decode_refuses_what_encode_wouldnt_write() {
+	fn decode_refuses_unwritable() {
 		let h = a_day_of_samples();
 		let mut bytes = Vec::new();
 		h.encode(&mut bytes);
@@ -1174,7 +1174,7 @@ mod tests {
 
 	// Test ID: demwf
 	#[test]
-	fn another_series_count_is_refused_by_its_count() {
+	fn series_count_mismatch() {
 		// no buckets, so nothing but the count tells 3 series from 5
 		let mut bytes = Vec::new();
 		History::<3>::default().encode(&mut bytes);
@@ -1196,7 +1196,7 @@ mod tests {
 
 	// Test ID: defp7
 	#[test]
-	fn a_file_from_before_the_finest_tier_still_loads() {
+	fn pre_finest_tier_file_loads() {
 		let h = a_day_of_samples();
 		let mut bytes = Vec::new();
 		h.encode(&mut bytes);
@@ -1220,7 +1220,7 @@ mod tests {
 
 	// Test ID: decbj
 	#[test]
-	fn trim_drops_only_what_is_older() {
+	fn trim_drops_older_only() {
 		let mut h = a_day_of_samples();
 		let t0 = 1.76e9;
 		let before = h.span(t0 + 4600.0, t0 + 90002.0);
@@ -1240,7 +1240,7 @@ mod tests {
 
 	// Test ID: deqqq
 	#[test]
-	fn a_long_add_makes_no_more_buckets_than_a_tier_keeps() {
+	fn long_add_bucket_cap() {
 		let mut h = History::<4>::default();
 		let t1 = 1.76e9;
 		h.add(t1 - 3.0 * 86400.0, t1, &[0.5; 4]);
@@ -1259,7 +1259,7 @@ mod tests {
 
 	// Test ID: deqs5
 	#[test]
-	fn times_out_of_order_are_refused_and_a_bucket_that_isnt_finite_is_a_gap() {
+	fn out_of_order_and_nonfinite() {
 		let h = a_day_of_samples();
 		let mut bytes = Vec::new();
 		h.encode(&mut bytes);
@@ -1350,7 +1350,7 @@ mod tests {
 
 	// Test ID: der45
 	#[test]
-	fn block_totals_add_up_to_their_buckets_through_gaps_trims_and_reloads() {
+	fn block_totals_match_buckets() {
 		let mut seed = 0x9e37_79b9_7f4a_7c15_u64;
 		let mut rand = move || {
 			seed ^= seed << 13;
@@ -1406,7 +1406,7 @@ mod tests {
 
 	// Test ID: df4f1
 	#[test]
-	fn fuzz_decode_takes_any_bytes_and_keeps_what_it_took() {
+	fn fuzz_decode_any_bytes() {
 		let encoded = |h: &History<2>| {
 			let mut out = Vec::new();
 			h.encode(&mut out);

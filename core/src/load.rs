@@ -49,7 +49,7 @@ mod tests {
 
 	// Test ID: defnj
 	#[test]
-	fn the_first_column_is_the_load() {
+	fn first_column_load() {
 		assert_eq!(
 			parse_loadavg("15.59 15.59 17.06 20/5598 4128420\n"),
 			Some(15.59)
@@ -76,7 +76,7 @@ mod tests {
 
 	// Test ID: df4gk
 	#[test]
-	fn fuzz_loadavg_gives_a_load_or_none() {
+	fn fuzz_loadavg_or_none() {
 		let tally = crate::fuzz::run("loadavg", |dice| {
 			let load = dice.below(100_000) as f32 / 100.0;
 			let text = format!(

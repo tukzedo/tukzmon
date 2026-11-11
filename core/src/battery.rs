@@ -205,7 +205,7 @@ mod tests {
 
 	// Test ID: defnt
 	#[test]
-	fn the_charge_goes_in_its_states_series() {
+	fn charge_fills_state_series() {
 		let t = Tree::new(
 			"bat_state",
 			&[
@@ -236,7 +236,7 @@ mod tests {
 
 	// Test ID: defnv
 	#[test]
-	fn without_a_level_critical_is_4_percent() {
+	fn critical_defaults_to_4_percent() {
 		let t = Tree::new(
 			"bat_crit",
 			&[
@@ -260,7 +260,7 @@ mod tests {
 
 	// Test ID: defnw
 	#[test]
-	fn two_batteries_read_as_one() {
+	fn batteries_merge() {
 		let t = Tree::new(
 			"bat_two",
 			&[
@@ -292,7 +292,7 @@ mod tests {
 
 	// Test ID: defnx
 	#[test]
-	fn no_battery_gives_no_collector() {
+	fn battery_absent_no_collector() {
 		let none = Tree::new(
 			"bat_none",
 			&[
@@ -330,7 +330,7 @@ mod tests {
 
 	// Test ID: df4gv
 	#[test]
-	fn fuzz_power_supply_files_read_as_one_share_in_range() {
+	fn fuzz_power_supply_share() {
 		// seed 372 found it, past the fixed seeds
 		let huge = Fill {
 			unit: Unit::Energy,

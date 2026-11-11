@@ -134,7 +134,7 @@ mod tests {
 
 	// Test ID: debhp
 	#[test]
-	fn reads_the_all_cpu_line() {
+	fn all_cpu_line() {
 		let t = parse_stat(STAT).unwrap();
 		assert_eq!(t.user, 100);
 		assert_eq!(t.iowait, 40);
@@ -144,7 +144,7 @@ mod tests {
 
 	// Test ID: debhq
 	#[test]
-	fn short_old_kernel_line() {
+	fn old_kernel_short_line() {
 		let t = parse_stat("cpu  1 2 3 4\n").unwrap();
 		assert_eq!(t.idle, 4);
 		assert_eq!(t.steal, 0);
@@ -152,7 +152,7 @@ mod tests {
 
 	// Test ID: debhr
 	#[test]
-	fn junk_is_none() {
+	fn junk_gives_none() {
 		assert!(parse_stat("cpu  1 x 3 4\n").is_none());
 		assert!(parse_stat("intr 1\n").is_none());
 		assert!(parse_stat("").is_none());
@@ -160,7 +160,7 @@ mod tests {
 
 	// Test ID: debhs
 	#[test]
-	fn shares_add_up() {
+	fn cpu_shares_sum() {
 		let a = parse_stat(STAT).unwrap();
 		let b = Ticks {
 			user: a.user + 30,
@@ -178,7 +178,7 @@ mod tests {
 
 	// Test ID: debht
 	#[test]
-	fn no_time_or_backwards_is_none() {
+	fn backwards_time_gives_none() {
 		let a = parse_stat(STAT).unwrap();
 		assert!(shares(&a, &a).is_none());
 		let mut b = a;
@@ -211,7 +211,7 @@ mod tests {
 
 	// Test ID: df4gj
 	#[test]
-	fn fuzz_stat_reads_the_all_cpu_line_and_shares_stay_in_range() {
+	fn fuzz_cpu_stat_range() {
 		let tally = crate::fuzz::run("cpu stat", |dice| {
 			// 4 columns before 2.6.11, 10 now
 			let cols = 4 + dice.below(7);

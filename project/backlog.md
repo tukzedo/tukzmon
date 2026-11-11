@@ -199,7 +199,7 @@ Sorted per the notes in [Template](#template).
 		- The tables are kept until the TCP counters move, since each read walks the kernel's whole table.
 		- `Dialog::set_session` gave way to `watch_session`, and tests pass `Watch::fixed`.
 	- Branch: round-1110
-	- Test case: `remote::tests::the_tcp_table_gives_established_connections_on_remote_desktop_ports` (df3p4), `remote::tests::a_viewer_counts_only_when_its_server_has_a_peer_on_this_display` (df3p5), `remote::tests::the_watch_looks_again_only_every_few_seconds` (df3p6) and `remote::tests::a_stand_in_viewer_on_a_vnc_port_is_seen_on_its_display_only` (df3p7).
+	- Test case: `remote::tests::tcp_table_established_ports` (df3p4), `remote::tests::viewer_needs_peer_here` (df3p5), `remote::tests::watch_rechecks_every_few_seconds` (df3p6) and `remote::tests::stand_in_vnc_viewer_seen` (df3p7).
 		- Swept: both callers of `remote::session` (the plugin's start and the settings window's), both `set_session` callers, and every `Look` maker that takes the session.
 
 - Antialiasing still needs to be better, so sharp spikes don't pulse or shimmer
@@ -311,7 +311,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Split in 2: the setting, with sessions a remote desktop server starts, in 2026110922214697, which is done, and a viewer that joins the local desktop in 2026110922214810, which is queued.
 		- 20261110: children 2026110922214810 wait on UAT, and the rest are closed
-	- Test case: its children's: 2026110922214810: `remote::tests::the_tcp_table_gives_established_connections_on_remote_desktop_ports` (df3p4), `remote::tests::a_viewer_counts_only_when_its_server_has_a_peer_on_this_display` (df3p5), `remote::tests::the_watch_looks_again_only_every_few_seconds` (df3p6) and `remote::tests::a_stand_in_viewer_on_a_vnc_port_is_seen_on_its_display_only` (df3p7).; 2026110922214697: `remote::tests::a_remote_session_is_told_by_its_variables_or_by_logind` (df3nf), `config::tests::remote_halves_reads_no_slide` (df3ng), `dialog::tests::remote_session_greys_rows` (df3nh) and `bridge::tests::remote_greys_rates_and_scrolling` (df3nj).
+	- Test case: its children's: 2026110922214810: `remote::tests::tcp_table_established_ports` (df3p4), `remote::tests::viewer_needs_peer_here` (df3p5), `remote::tests::watch_rechecks_every_few_seconds` (df3p6) and `remote::tests::stand_in_vnc_viewer_seen` (df3p7).; 2026110922214697: `remote::tests::remote_session_signs` (df3nf), `config::tests::remote_halves_reads_no_slide` (df3ng), `dialog::tests::remote_session_greys_rows` (df3nh) and `bridge::tests::remote_greys_rates_and_scrolling` (df3nj).
 
 - The 2 GPU graphs aren't available with integrated Intel graphics
 	- ID: 2026110920595600
@@ -342,7 +342,7 @@ Sorted per the notes in [Template](#template).
 		- The GPU memory part is split off, since what it would count on an integrated card is a call for a person.
 	- Actual fix: `core/src/gpu.rs` gains a `Card::Intel` source, found by `intel_in` after amdgpu.
 	- Branch: round-1110
-	- Test case: `gpu::tests::intel_reads_busy_as_the_time_out_of_rc6` (df3kw) and `an_intel_card_gives_a_gpu_graph_and_no_memory_graph` (df3kx). df3kx fails on the old `Card::find`.
+	- Test case: `gpu::tests::intel_busy_from_rc6` (df3kw) and `intel_gpu_graph_only` (df3kx). df3kx fails on the old `Card::find`.
 		- Swept: every `Card` match, both readers' probes, `amd_in`, which now shares `cards_in`, the settings window's GPU rows (dekmd), the README's graph list, and `design.md` for "Intel".
 
 - Cut the cost of the spike windows in each draw
@@ -433,7 +433,7 @@ Sorted per the notes in [Template](#template).
 - Most test names are whole sentences, and over half start the same way
 	- ID: 2026110710005014
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261107-100050
 	- Opened by: t00mietum
@@ -445,9 +445,11 @@ Sorted per the notes in [Template](#template).
 		- The `live_` names can stay, since they mark the tests that read this computer.
 	- Estimated effort: High
 	- Progress log:
-		- Split by area into 5 children, 2026111021184916 to 2026111021184970. The cicd, knobs, xfce and settings, and core config, graphs, lib and render ones are done, and the other 1 is Queued.
+		- Split by area into 5 children, 2026111021184916 to 2026111021184970. The cicd, knobs, xfce and settings, and core config, graphs, lib and render ones are done, and so is the last, the rest of core.
 	- Decisions:
 		- Names say what is checked in 2 to 5 words, and the module path and ID carry the rest.
+	- Test case: its children's: 2026111021184916: The renamed tests themselves, run by the Tests step. No new test, since only names changed.; 2026111021184930: The renamed tests themselves. No new test, since only names changed.; 2026111021184944: The renamed tests themselves. No new test, since only names changed.; 2026111021184957: The renamed tests themselves. No new test, since only names changed.; 2026111021184970: The renamed tests themselves. No new test, since only names changed.
+	- Closed: 20261110-221303
 
 - Short test names: the pipeline's tests in cicd/tests
 	- ID: 2026111021184916
@@ -554,7 +556,7 @@ Sorted per the notes in [Template](#template).
 - Short test names: the rest of core
 	- ID: 2026111021184970
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261110-211849
 	- Opened by: t00mietum
@@ -564,6 +566,17 @@ Sorted per the notes in [Template](#template).
 		- Per the parent: a few words each, not all built the same way, no leading a, the, every or each. Each test keeps its ID. live_ names stay.
 		- Update every Test case row, round-notes.md and design.md line that names a renamed test.
 	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- 149 tests in the rest of core/src and core/tests are 2 to 5 words now, such as `axis_ends`, `lan_capped_by_interfaces` and `heap_stops_growing_when_full`. Each kept its ID line. The 11 `live_` ones kept their names. `shares` in mem.rs became `mem_shares` by hand, since the word is common in the docs.
+		- The backlog's Test case rows and details.md are renamed to match. design.md, memory.md and round-notes.md named none. The soak step runs `--test soak` and names no test.
+		- Verified: the quick gate (format, build, lint, test) and Sanitizers passed, with core's 296 tests.
+	- Decisions:
+		- Same as the siblings: the name says what is checked, and shapes vary. The fuzz tests keep a `fuzz_` word at the front.
+	- Branch: round-1111
+	- Test case: The renamed tests themselves. No new test, since only names changed.
+		- Swept: every old name in the sources, cicd, design.md, round-notes.md, details.md, memory.md and the backlog.
+	- Closed: 20261111-061800
 
 - Pre-next-cut: Settings, General: "Reduce motion in remote session"
 	- ID: 2026111019111679
@@ -860,7 +873,7 @@ Sorted per the notes in [Template](#template).
 		- A graph shown again drops its latest read too, so its tip has no value until its next read, as a newly shown graph's does.
 	- Actual fix: `Graph::pause`, called from `Graphs::set_look` for each graph not shown, and `Tier::add` in `core/src/history.rs`.
 	- Branch: round-1101
-	- Test case: `graphs::tests::cpu_reshown_has_gap` (deqqr) and `history::tests::a_long_add_makes_no_more_buckets_than_a_tier_keeps` (deqqq). deqqr fails without the pause, and deqqq without the `Tier::add` change.
+	- Test case: `graphs::tests::cpu_reshown_has_gap` (deqqr) and `history::tests::long_add_bucket_cap` (deqqq). deqqr fails without the pause, and deqqq without the `Tier::add` change.
 		- Swept: every `Tier::add` caller (`History::add` only), every `Graphs` path that reads or hides a graph (`sample`, `tick_at`, `trim`, `set_look`), and the settings window's `Live`, which reads every graph and hides none.
 	- Closed: 20261101-104137
 
@@ -1394,7 +1407,7 @@ Sorted per the notes in [Template](#template).
 		- Critical is each theme's I/O wait red, and Randomize gives it the Alarm role, so going over reads as an alarm, as the battery's critical does.
 		- Built-in temperature leads sit in each theme's widest gap, at least 25 degrees from the others, so defx7 keeps its 25. Randomize's least gap is 22 degrees, down from 25, which leaves 49 degrees of play for 9 leads.
 	- Branch: round-1028
-	- Test case: `temp::tests::over_the_crit_is_the_critical_part` (dej0s), `tests::temp_degrees_to_crit` (dej0t), `graphs::tests::temp_critical_on_top` (dej0v) and `live::tests::temp_row_width` (dej0w). dej0s fails with the reading unsplit, dej0t and dej0v with no peak floor.
+	- Test case: `temp::tests::over_crit_is_critical` (dej0s), `tests::temp_degrees_to_crit` (dej0t), `graphs::tests::temp_critical_on_top` (dej0v) and `live::tests::temp_row_width` (dej0w). dej0s fails with the reading unsplit, dej0t and dej0v with no peak floor.
 		- 2026-10-28: new values only. deccf and deccw count 61 theme members, not 55. deccy counts 52 saved colors, not 47. dedqq's default order, and defkz's and defm0's orders, have `temp` before `battery`, and defm0's past-the-end move is 9, not 8. defma's rows greyed at defaults add `temp_width` and `temp_time`. defx7 checks 9 lead colors, not 8. defxd's `PARTS` takes temperature too, and its least gap is 17 degrees, not 20, for the 22 degree roll. decdt also checks temperature's alarm is CPU's.
 		- 2026-10-28: the temperature collector's tests defnn, defnp and defnr read 2 series, with critical at 0, where they read one.
 		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 6 built-in themes, `dice::ROLES`, and every `TempReader` use. The profiler and soak test run with the defaults, so they don't draw temperature.
@@ -1552,7 +1565,7 @@ Sorted per the notes in [Template](#template).
 		- Text that doesn't fit the plot, as on a very short panel, is left out rather than cut.
 		- `Source::text` takes the reader, so the tip can say Zswap or Zram.
 	- Branch: round-1028
-	- Test case: `zswap::tests::the_graph_gives_the_ratio_to_write_over_the_pool` (dehy3), `graphs::tests::zswap_hidden_history` (dehy4), and `live::tests::zswap_row_needs_zswap` (dehy5). dehy3 and dehy4 fail with zswap's overlay taken out, and dehy4 with the overlay left at its graph's own place rather than its tile's.
+	- Test case: `zswap::tests::graph_ratio_write_over_pool` (dehy3), `graphs::tests::zswap_hidden_history` (dehy4), and `live::tests::zswap_row_needs_zswap` (dehy5). dehy3 and dehy4 fail with zswap's overlay taken out, and dehy4 with the overlay left at its graph's own place rather than its tile's.
 		- 2026-10-28: new values only. deccf and deccw count 37 theme members, not 31. deccy counts 32 saved colors, not 27. dedqq's default order, and defkz's and defm0's orders, have `zswap` after `swap`, and defm0's past-the-end move is 5, not 4. defma's rows greyed at defaults add `zswap_width` and `zswap_time`, since Zswap graph is off by default. defx7 checks 5 lead colors, not 4, and defxd's `PARTS` takes zswap too.
 		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 6 built-in themes, `dice::ROLES`, every `Source::text` caller, and both front ends' draw paths. The profiler and soak test run with the defaults, so they don't draw zswap.
 	- Acceptance signoff: Self-closed, 2026-10-28: a test panel drew the ratio in the panel's font. How the themes look together stays on 2026102620162201.
@@ -1711,7 +1724,7 @@ Sorted per the notes in [Template](#template).
 		- The ease runs on the graph's own clock, so the soak test's skipped days end one at once.
 		- The panel's extra frames come from a one-shot 33 ms timer, started in draw only while a graph eases, so an idle panel still draws once a sample.
 	- Branch: round-1026
-	- Test case: `axis::tests::a_jump_eases_in_from_what_was_drawn` (defpn), `time_going_on_is_no_jump_but_a_gap_or_new_axis_is` (defpp), `a_jump_while_easing_starts_from_what_is_on_screen` (defpq), `tests::axis_eases_then_stops` (defpr), and `live::tests::time_axis_eases_in` (defps). defpn to defpr fail with jumps not seen, and defpn and defpq with the ease starting from the new axis. The rest of the requirements: debh9, debha to debhe in `axis::tests`, and `render::tests::spike_reach_fades` (debj9).
+	- Test case: `axis::tests::jump_eases_from_drawn` (defpn), `time_passing_is_no_jump` (defpp), `jump_mid_ease_restarts` (defpq), `tests::axis_eases_then_stops` (defpr), and `live::tests::time_axis_eases_in` (defps). defpn to defpr fail with jumps not seen, and defpn and defpq with the ease starting from the new axis. The rest of the requirements: debh9, debha to debhe in `axis::tests`, and `render::tests::spike_reach_fades` (debj9).
 		- Swept: every `Frame` built (render tests, the preview example, `Graph::render`), every `age` caller (`Frame::draw`, `Graph::span_at`), both places a graph is drawn on screen (the plugin's draw, the settings window's `LiveGraph`), and every place a look or history is swapped in (`Graphs::set_look`, `Live::set_look`, `Graph::adopt`), which the jump check covers without a call of its own.
 	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: in a test window, picking Linear for memory eased its row in over about half a second, each frame closer to the end than the last, with no jump. A test panel came up drawing its saved history.
 	- Closed: 20261026-230215
@@ -1894,7 +1907,7 @@ Sorted per the notes in [Template](#template).
 		- With Keep across restarts off, only what's on screen goes, and the file is left as it is, the same as Off always does. So there's no question then, as the requirement says.
 		- Once pressed, the button is greyed until Apply.
 	- Branch: round-1027
-	- Test case: `keep::tests::a_reset_is_seen_once_and_deletes_saved_history_only_when_asked` (defxq), `graphs::tests::reset_drops_kept_file` (defxr), `dialog::tests::reset_history_waits_for_apply_and_deletes_saved_history_only_when_kept` (defxs), and defwy for the button. defxq fails with no file matched, defxr with the file left at a reset, and defxs with saved history deleted while it's off.
+	- Test case: `keep::tests::reset_seen_once` (defxq), `graphs::tests::reset_drops_kept_file` (defxr), `dialog::tests::reset_history_waits_for_apply_and_deletes_saved_history_only_when_kept` (defxs), and defwy for the button. defxq fails with no file matched, defxr with the file left at a reset, and defxs with saved history deleted while it's off.
 		- 2026-10-26: new value only. `bridge::tests::button_set` (defwy) now lists Reset history before Cancel, Apply and OK.
 		- Swept: every history file path (the plugin's, now through `keep::history_file`), every `Drawn` graph (`Graph`, through `Graphs` and `Live`), and every load and save of history in `xfce/src/lib.rs`.
 	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: in a test panel with history kept, Reset history asked first, with No as the default. Yes and then Apply wrote the reset, the running item deleted its saved history, and the history it saved at quit started at the reset. Nothing went before Apply. The button sits left under the pages, in line with Keep across restarts.
@@ -2044,8 +2057,8 @@ Sorted per the notes in [Template](#template).
 		- Decode takes today's tiers, or today's less the finest ones, not any mix, so a stale file still starts fresh.
 		- An older build refuses a file with the new tier and starts fresh. Only an upgrade keeps history.
 	- Branch: round-1026
-	- Test case: `history::tests::a_linear_graph_as_wide_as_the_slider_goes_keeps_a_sample_a_column` (defp6) and `a_file_from_before_the_finest_tier_still_loads` (defp7). Gaps: `gaps_are_left_out_not_zero` (debj0) and `a_long_gap_resets_a_tier_instead_of_filling_it` (debj2). Across restarts: 2026102408304572's tests, decbf to decbr. defp6 fails at 500 ms with the fine tier kept 5 minutes, and at 50 ms with 250 ms buckets. defp7 fails with decode taking only today's tier count.
-		- 2026-10-26: new values only. `old_buckets_age_out_of_the_fine_tier` (debj1) runs 10,000 samples, not 2,000, and bounds the 250 ms tier at 2048 s, not 300, so it still ages out. `decode_refuses_what_encode_wouldnt_write` (decbh) sets a bucket count of 9,000, not 5,000, to stay past the cap. debj0 and debj2 read tier indexes one higher, for the same tiers and values.
+	- Test case: `history::tests::widest_linear_sample_per_column` (defp6) and `pre_finest_tier_file_loads` (defp7). Gaps: `gaps_not_zero` (debj0) and `long_gap_resets_tier` (debj2). Across restarts: 2026102408304572's tests, decbf to decbr. defp6 fails at 500 ms with the fine tier kept 5 minutes, and at 50 ms with 250 ms buckets. defp7 fails with decode taking only today's tier count.
+		- 2026-10-26: new values only. `fine_tier_ages_out` (debj1) runs 10,000 samples, not 2,000, and bounds the 250 ms tier at 2048 s, not 300, so it still ages out. `decode_refuses_unwritable` (decbh) sets a bucket count of 9,000, not 5,000, to stay past the cap. debj0 and debj2 read tier indexes one higher, for the same tiers and values.
 		- Swept: every `TIERS` and `tiers[...]` use, all in `history.rs`, the one `History::decode` caller (`Graph::adopt`), and the soak test, which held flat at 4,899,278 bytes from round 9,000 to 18,000.
 	- Closed: 20261026-181900
 
@@ -2155,7 +2168,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- Load stays as the kernel's number, not a share of the CPU count. Scaling it is the graph's call.
 	- Branch: round-1026
-	- Test case: `load::tests::the_first_column_is_the_load` (defnj) and `live_proc_loadavg_reads` (defnk). defnj fails with the range check taken out.
+	- Test case: `load::tests::first_column_load` (defnj) and `live_proc_loadavg_reads` (defnk). defnj fails with the range check taken out.
 	- Closed: 20261026-175458
 
 - CPU temperature collector
@@ -2215,7 +2228,7 @@ Sorted per the notes in [Template](#template).
 		- Any interface coming or going makes a gap, not just one going away. Its bytes for that stretch aren't known either way.
 		- Every interface but `lo` adds to sent and received, bridges and container veths too, so traffic through a bridge counts on both sides. Leaving out the virtual ones is easy to add if it shows.
 	- Branch: round-1026
-	- Test case: `net::tests` (4: defn9, defna, defnb, defnc) and `collect::tests::climb_primes_then_gives_rates_and_gaps` (defnd). defnb and defnd fail with the row and counter checks taken out of `Counts::rise_since`.
+	- Test case: `net::tests` (4: defn9, defna, defnb, defnc) and `collect::tests::climb_primes_then_rates` (defnd). defnb and defnd fail with the row and counter checks taken out of `Counts::rise_since`.
 		- Swept: the other counter collector, CPU's `shares`, which already gaps on a counter going down.
 	- Closed: 20261026-174806
 
@@ -2278,7 +2291,7 @@ Sorted per the notes in [Template](#template).
 		- zram devices are summed, and one added after start is missed until the panel restarts.
 	- Branch: round-1026
 	- Test case: `zswap::tests` (5: defmz, defn0, defn1, defn2, defn3). defn1 fails with zswap taken whenever it's on, rows or not.
-		- 2026-10-26: `mem::tests::reads_the_rows` (decax) now checks the 3 new rows too, at `SReclaimable` 0, `Zswap` 0 and no `Zswapped`. `odd_counts_stay_in_range` (decb1) leaves them at their defaults. Nothing else in either changed.
+		- 2026-10-26: `mem::tests::meminfo_rows` (decax) now checks the 3 new rows too, at `SReclaimable` 0, `Zswap` 0 and no `Zswapped`. `odd_counts_in_range` (decb1) leaves them at their defaults. Nothing else in either changed.
 		- Swept: the only `/proc/meminfo` parser, `mem::parse_meminfo`, which both readers share.
 	- Closed: 20261026-173826
 
@@ -2370,7 +2383,7 @@ Sorted per the notes in [Template](#template).
 		- Max age is dropped at each save and load, and only while it's on.
 		- Times are Unix seconds now, not seconds since start, so runs line up.
 	- Branch: round-1024
-	- Test case: `history::tests::encode_and_decode_give_back_the_same_history` (decbg), `decode_refuses_what_encode_wouldnt_write` (decbh), `trim_drops_only_what_is_older` (decbj), the 3 `keep::tests` (decbk, decbm, decbn), `tests::history_restores_with_gap` (decbp), `clock_back_keeps_sampling` (decbq), `load_trims_refuses_junk` (decbr), and `config::tests::history_is_kept_a_year_by_default` (decbf).
+	- Test case: `history::tests::history_round_trip` (decbg), `decode_refuses_unwritable` (decbh), `trim_drops_older_only` (decbj), the 3 `keep::tests` (decbk, decbm, decbn), `tests::history_restores_with_gap` (decbp), `clock_back_keeps_sampling` (decbq), `load_trims_refuses_junk` (decbr), and `config::tests::history_is_kept_a_year_by_default` (decbf).
 	- Closed: 20261025-190500
 
 - A dropdown for time function
@@ -2405,7 +2418,7 @@ Sorted per the notes in [Template](#template).
 		- The dropdown sits under the Log time axis checkbox rather than replacing it, so settings files keep working and a linear graph stays one click away.
 		- Saved as `graph.log_curve`: `smooth`, `fixed_a` or `fixed_b`. A file without it gets Smooth log, so b23's graph changes from Log A to Smooth log at the next install.
 	- Branch: round-1024
-	- Test case: `axis::tests::smooth_is_one_log_curve_with_no_caps` (decbs), `fixed_b_is_smooth_until_a_cap` (decbt), `caps_pin_when_the_tip_says` (decbv) and `curves_parse_as_the_spec_spells_them` (decbw), with the other axis tests now run over all 3 curves. Also `config::tests::the_log_curve_comes_from_the_file` (decbx), `tests::log_axis_curve` (decby), and `dialog::tests::the_log_curve_sits_under_the_log_switch` (decbz). The window height has no test.
+	- Test case: `axis::tests::smooth_single_log_curve` (decbs), `fixed_b_until_cap` (decbt), `tip_pins_caps` (decbv) and `curve_spellings_parse` (decbw), with the other axis tests now run over all 3 curves. Also `config::tests::the_log_curve_comes_from_the_file` (decbx), `tests::log_axis_curve` (decby), and `dialog::tests::the_log_curve_sits_under_the_log_switch` (decbz). The window height has no test.
 		- Swept: every `Axis::log` and `Axis::knots` caller, in core, its tests, and the preview example. The plugin and settings build no axis of their own.
 	- Closed: 20261025-190500
 
@@ -2447,7 +2460,7 @@ Sorted per the notes in [Template](#template).
 		- Units round down, so 90 minutes is "1 hr ago". Under a minute is in seconds, and under a second is "just now".
 		- The tip is the graph's own now, so the old tip with only the latest read is gone. At the right edge it gives about the same numbers.
 	- Branch: round-1024
-	- Test case: `when::tests::ago_reads_like_the_backlog_says` (decca), `said_parses_as_the_spec_spells_it` (deccb) and `clock_gives_the_date_only_before_today` (deccc), `render::tests::hover_line_off_border` (decc9), `tests::hover_tip_when_what` (decc6), `hover_tip_gaps` (decc7) and `hover_line_at_pointer` (decc8), and `config::tests::hover_from_file` (decc5). The pointer events, and when GTK shows the tip, have no test.
+	- Test case: `when::tests::ago_wording` (decca), `said_parsing` (deccb) and `clock_date_before_today` (deccc), `render::tests::hover_line_off_border` (decc9), `tests::hover_tip_when_what` (decc6), `hover_tip_gaps` (decc7) and `hover_line_at_pointer` (decc8), and `config::tests::hover_from_file` (decc5). The pointer events, and when GTK shows the tip, have no test.
 		- Swept: every `Graph::tooltip` caller, every `Look` built in a test, and every `gtk_widget_set_tooltip_text` call, of which none is left.
 	- Closed: 20261025-190500
 
@@ -2767,7 +2780,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: the quick gate printed 141 lines with IDs. A failing test showed as `FAIL` and failed the step, and an ignored one as `SKIP` with its reason. A missing ID, a shared one, an upper-case one, and a test outside `src/` each failed the check.
 		- Verified, 2026-10-25: the full run on e131b57 printed a PASS or SKIP line with an ID for every test.
 	- Decisions:
-		- The name on each line is the test's path as cargo gives it, such as `when::tests::ago_reads_like_the_backlog_says`, so it can be found in the code.
+		- The name on each line is the test's path as cargo gives it, such as `when::tests::ago_wording`, so it can be found in the code.
 		- The tool is bash and awk, since the build image has no Python.
 	- Branch: round-1025
 	- Test case: `bad_test_ids` (dezan), `test_ids_per_file` (den97) and `test_ids_git_failure` (deqrd), in `cicd/tests/guards.bash`.
@@ -2914,7 +2927,7 @@ Sorted per the notes in [Template](#template).
 		- Nothing draws them yet. That's the memory graph item and The graphs.
 	- Decisions:
 		- Cache is the `Cached` row alone, the way multiload-ng counts it by its base formula. `free` adds `SReclaimable`. Noted in `design.md`.
-	- Test case: `mem::tests` (6: decax, decay, decaz, decb0, decb1, decb2) and `collect::tests::slurp_reuses_and_misses` (decaw).
+	- Test case: `mem::tests` (6: decax, decay, decaz, decb0, decb1, decb2) and `collect::tests::slurp_reuse_and_miss` (decaw).
 	- Closed: 20261024-085549
 
 - Finish the requirement for moving between time spans
@@ -3087,7 +3100,7 @@ Sorted per the notes in [Template](#template).
 		- Hardware is a `device` link in sysfs. Wi-Fi, USB and virtio NICs have one, so a VM guest still counts its own NIC.
 		- The LAN split still counts a TCP socket to a VM or over a VPN as LAN. That's 2026110110445455.
 	- Actual fix: `net::Wired` picks the interfaces that count.
-	- Test case: `net::tests::only_hardware_interfaces_count_unless_there_are_none` (deqr3). It fails with every interface counted.
+	- Test case: `net::tests::hardware_interfaces_only` (deqr3). It fails with every interface counted.
 		- Swept: the disk collector already picks real drives. `lan::split` clamps to these totals, which is the follow-up.
 	- Branch: round-1101
 	- Closed: 20261101-104842
@@ -3151,7 +3164,7 @@ Sorted per the notes in [Template](#template).
 		- The future check is in `adopt`, which knows the graph's clock, and `decode` stays a check of the file alone.
 	- Actual fix: `History::decode` and `Bucket::sane` in `core/src/history.rs`, `Graph::adopt` and `AHEAD_MAX` in `core/src/lib.rs`, and the column filter in `Frame::draw_to` in `core/src/render.rs`.
 	- Branch: round-1101
-	- Test case: `history::tests::times_out_of_order_are_refused_and_a_bucket_that_isnt_finite_is_a_gap` (deqs5), `tests::future_history_rules` (deqs6) and `render::tests::nonfinite_draws_gap` (deqs7). Each fails with its fix taken out.
+	- Test case: `history::tests::out_of_order_and_nonfinite` (deqs5), `tests::future_history_rules` (deqs6) and `render::tests::nonfinite_draws_gap` (deqs7). Each fails with its fix taken out.
 		- Swept: every `History::decode` and `Graph::adopt` caller (`Graph::load`, `Graphs::load`, `Graphs::set_look`, the soak test and the profiler, which load into the graph that saved), and every `span` reader that draws (`Frame::draw_to`). The hover tip still prints what a span gives, and with decode's check only a source can hand it NaN now.
 	- Closed: 20261101-112530
 
@@ -3297,7 +3310,7 @@ Sorted per the notes in [Template](#template).
 		- An older build refuses a version 2 file as a whole and starts fresh, as it already does for a file with a new tier. Only an upgrade keeps history.
 	- Actual fix: `History::encode` writes the count first, `History::decode` checks it, and `keep` writes version 2 and reads 1 or 2.
 	- Branch: round-1030
-	- Test case: `history::tests::another_series_count_is_refused_by_its_count` (demwf), `keep::tests::a_version_1_files_sections_read_with_no_series_count` (demwg) and `tests::v1_three_series_refused` (demwh). demwf fails with the count check taken out, and an empty 3-series section loads as 5 then. demw3 now refuses by the count.
+	- Test case: `history::tests::series_count_mismatch` (demwf), `keep::tests::version_1_sections_no_count` (demwg) and `tests::v1_three_series_refused` (demwh). demwf fails with the count check taken out, and an empty 3-series section loads as 5 then. demw3 now refuses by the count.
 		- 2026-10-30: new values only, since sections are 4 bytes longer at the head. decbh's tier offsets are 24 and 40, not 20 and 36. defp7's are 20, 40 and 44, not 16, 36 and 40. defv4 reads the fixture's ends at 4 and 12, and its tier count at 20, not 0, 8 and 16, and also checks the fixture reads with a 0 count and the next save with a real one.
 		- Swept: every `History::encode` and `decode` caller (`Graph::section`, `Graph::adopt`, `Graphs::save` carrying hidden sections, the tests), every `keep::read` and `keep::write` caller, and the settings tests that write a history file.
 	- Closed: 20261030-105637
@@ -3547,7 +3560,7 @@ Sorted per the notes in [Template](#template).
 		- The steps break design.md's "every graph shares one saturation and brightness" where they're needed. The roll still starts from one, so it reads as one set.
 		- defx7's hue angle check is replaced by the CIEDE2000 one, since Default's memory and temperature now share a hue on purpose and differ by lightness. defxd's 17 degree check on rolls stays, since rolled hues are still 22 apart.
 	- Branch: theme-colors
-	- Test case: `config::tests::lead_colors_distinct` (dejbr) and `dice::tests::roll_leads_read_apart` (dejbv), over 2000 seeds, and `color::tests::the_published_test_pairs_come_out_right` (dejbs) and `rgb_turns_into_lab_and_the_closest_pair_is_found` (dejbt). dejbr fails on the old built-ins, Primary first at 5.2. dejbv fails with steps turned off, and with paler left out. dejbs fails with the rotation term or the mean hue's wrap broken, and dejbt with Lab's white point off.
+	- Test case: `config::tests::lead_colors_distinct` (dejbr) and `dice::tests::roll_leads_read_apart` (dejbv), over 2000 seeds, and `color::tests::published_pairs_match` (dejbs) and `lab_conversion_closest_pair` (dejbt). dejbr fails on the old built-ins, Primary first at 5.2. dejbv fails with steps turned off, and with paler left out. dejbs fails with the rotation term or the mean hue's wrap broken, and dejbt with Lab's white point off.
 		- 2026-10-28: new values only. decdt checks a rolled lead's brightness at 0.6 or more, not 0.84, since a lead may step to 0.72 of the roll's.
 		- 2026-10-28: defx7 no longer checks hue angle between leads. dejbr checks how far apart they look.
 		- Swept: defx7 and defxd, the only checks on leads, every built-in in `settings.shcl`, and every role in `dice::ROLES` that follows its graph's lead.
@@ -3720,7 +3733,7 @@ Sorted per the notes in [Template](#template).
 		- Each one gets a test ID, and is watched to fail on a planted bug before it's trusted.
 	- Progress log:
 		- 2026-11-10: split by input kind into children 2026111011435200 (the harness), 2026111011435314, 2026111011435428, 2026111011435542, 2026111011435657 and 2026111011435771. Every child is Done.
-	- Test case: its children's: 2026111011435200: `fuzz::tests::a_failing_seed_is_named_and_the_rest_are_pure` (df4f0). It checks a seed draws the same every time, a panic in a case fails the run naming its seed, and a run that refuses nothing fails the mix check.; 2026111011435314: `history::tests::fuzz_decode_takes_any_bytes_and_keeps_what_it_took` (df4f1), `keep::tests::fuzz_any_file_reads_whole_or_not_at_all` (df4f2) and `keep::tests::fuzz_bit_flips_in_a_real_file` (df4f3).; 2026111011435428: `lan::tests::fuzz_dumps_give_their_messages_and_no_more` (df4fm), `lan::tests::fuzz_lookup_answers_take_any_read` (df4fn) and `lan::tests::lying_counts_and_errors_neither_panic_nor_wrap` (df4fp).; 2026111011435542: `net::tests::fuzz_brforward_gives_only_whole_entries_on_its_ports` (df4g4).; 2026111011435657: `cpu::tests::fuzz_stat_reads_the_all_cpu_line_and_shares_stay_in_range` (df4gj), `load::tests::fuzz_loadavg_gives_a_load_or_none` (df4gk), `mem::tests::fuzz_meminfo_and_arcstats_read_back_and_shares_stay_in_range` (df4gm), `disk::tests::fuzz_stat_reads_sectors_and_rates_stay_finite` (df4gn), `zswap::tests::fuzz_zswap_and_zram_files_read_in_range` (df4gp), `net::tests::fuzz_net_dev_reads_back_and_rates_stay_finite` (df4gq), `net::tests::fuzz_port_no_reads_the_hex_sysfs_writes` (df4gr), `remote::tests::fuzz_snmp_gives_the_tcp_opens_and_connections` (df4gs), `remote::tests::fuzz_tcp_table_gives_only_established_links_on_server_ports` (df4gt), `battery::tests::fuzz_power_supply_files_read_as_one_share_in_range` (df4gv), `temp::tests::fuzz_hwmon_files_read_as_the_hottest_package_split_at_its_limit` (df4gw), `gpu::tests::fuzz_gpu_sysfs_files_read_as_shares_in_range` (df4gx) and `remote::tests::fuzz_a_sharers_proc_files_give_its_display` (df4gy).; 2026111011435771: `config::tests::fuzz_settings_files` (df4g5) and `config::tests::fuzz_settings_bit_flips` (df4g6).
+	- Test case: its children's: 2026111011435200: `fuzz::tests::failing_seed_named` (df4f0). It checks a seed draws the same every time, a panic in a case fails the run naming its seed, and a run that refuses nothing fails the mix check.; 2026111011435314: `history::tests::fuzz_decode_any_bytes` (df4f1), `keep::tests::fuzz_whole_or_nothing` (df4f2) and `keep::tests::fuzz_real_file_bit_flips` (df4f3).; 2026111011435428: `lan::tests::fuzz_dump_messages` (df4fm), `lan::tests::fuzz_lookup_answers` (df4fn) and `lan::tests::lying_counts_no_panic` (df4fp).; 2026111011435542: `net::tests::fuzz_brforward_whole_entries` (df4g4).; 2026111011435657: `cpu::tests::fuzz_cpu_stat_range` (df4gj), `load::tests::fuzz_loadavg_or_none` (df4gk), `mem::tests::fuzz_meminfo_arcstats_range` (df4gm), `disk::tests::fuzz_stat_sectors_finite` (df4gn), `zswap::tests::fuzz_zswap_zram_range` (df4gp), `net::tests::fuzz_net_dev_finite` (df4gq), `net::tests::fuzz_port_no_hex` (df4gr), `remote::tests::fuzz_snmp_tcp_opens` (df4gs), `remote::tests::fuzz_tcp_table_established` (df4gt), `battery::tests::fuzz_power_supply_share` (df4gv), `temp::tests::fuzz_hwmon_hottest_split` (df4gw), `gpu::tests::fuzz_gpu_sysfs_shares` (df4gx) and `remote::tests::fuzz_sharer_display` (df4gy).; 2026111011435771: `config::tests::fuzz_settings_files` (df4g5) and `config::tests::fuzz_settings_bit_flips` (df4g6).
 	- Closed: 20261110-125354
 	- Actual effort: Avg
 
@@ -3747,7 +3760,7 @@ Sorted per the notes in [Template](#template).
 		- The fuzz tests run in the Tests step with everything else, rather than a step of their own, so `--list` and the per-test lines cover them with no new plumbing.
 		- The merge gate and the full backlog run start from seed 0, so a failure there repeats. The default and long runs start from the run's time, so each one tries seeds the last didn't.
 	- Branch: round-1110b
-	- Test case: `fuzz::tests::a_failing_seed_is_named_and_the_rest_are_pure` (df4f0). It checks a seed draws the same every time, a panic in a case fails the run naming its seed, and a run that refuses nothing fails the mix check.
+	- Test case: `fuzz::tests::failing_seed_named` (df4f0). It checks a seed draws the same every time, a panic in a case fails the run naming its seed, and a run that refuses nothing fails the mix check.
 	- Closed: 20261110-120400
 
 - Fuzz: the history file decode
@@ -3772,7 +3785,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- The file read and write were split into a part that works on bytes and the file part, so the fuzz needs no files and runs under Miri.
 	- Branch: round-1110b
-	- Test case: `history::tests::fuzz_decode_takes_any_bytes_and_keeps_what_it_took` (df4f1), `keep::tests::fuzz_any_file_reads_whole_or_not_at_all` (df4f2) and `keep::tests::fuzz_bit_flips_in_a_real_file` (df4f3).
+	- Test case: `history::tests::fuzz_decode_any_bytes` (df4f1), `keep::tests::fuzz_whole_or_nothing` (df4f2) and `keep::tests::fuzz_real_file_bit_flips` (df4f3).
 	- Closed: 20261110-120400
 
 - Fuzz: the netlink socket and neighbor dumps
@@ -3799,7 +3812,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- A byte count saturates rather than being refused, since one socket's lie then can't wrap the total, and the rise is still worked out the same way.
 	- Branch: round-1110b
-	- Test case: `lan::tests::fuzz_dumps_give_their_messages_and_no_more` (df4fm), `lan::tests::fuzz_lookup_answers_take_any_read` (df4fn) and `lan::tests::lying_counts_and_errors_neither_panic_nor_wrap` (df4fp).
+	- Test case: `lan::tests::fuzz_dump_messages` (df4fm), `lan::tests::fuzz_lookup_answers` (df4fn) and `lan::tests::lying_counts_no_panic` (df4fp).
 		- Swept: every sum and negation of a kernel-sent number in `lan.rs`: `lan_socket`, `rise` and `answers`. No other module reads netlink.
 	- Closed: 20261110-121800
 
@@ -3823,7 +3836,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- Only the parse of the table is fuzzed. The port numbers come from `/sys` text, which goes with the `/proc` and `/sys` readers in 2026111011435657.
 	- Branch: round-1110b
-	- Test case: `net::tests::fuzz_brforward_gives_only_whole_entries_on_its_ports` (df4g4).
+	- Test case: `net::tests::fuzz_brforward_whole_entries` (df4g4).
 		- Swept: `on_ports` is the only reader of `brforward`.
 	- Closed: 20261110-123109
 
@@ -3851,9 +3864,9 @@ Sorted per the notes in [Template](#template).
 		- The battery and AMD faults turned up past the 128 fixed seeds, at 372 and 665, so each test also checks its case by hand, and the quick runs keep it.
 		- `procs` reads only folder owners and `own` only matches a process name, so neither has a fuzz test.
 	- Branch: round-1110b
-	- Test case: `cpu::tests::fuzz_stat_reads_the_all_cpu_line_and_shares_stay_in_range` (df4gj), `load::tests::fuzz_loadavg_gives_a_load_or_none` (df4gk), `mem::tests::fuzz_meminfo_and_arcstats_read_back_and_shares_stay_in_range` (df4gm), `disk::tests::fuzz_stat_reads_sectors_and_rates_stay_finite` (df4gn), `zswap::tests::fuzz_zswap_and_zram_files_read_in_range` (df4gp), `net::tests::fuzz_net_dev_reads_back_and_rates_stay_finite` (df4gq), `net::tests::fuzz_port_no_reads_the_hex_sysfs_writes` (df4gr), `remote::tests::fuzz_snmp_gives_the_tcp_opens_and_connections` (df4gs), `remote::tests::fuzz_tcp_table_gives_only_established_links_on_server_ports` (df4gt), `battery::tests::fuzz_power_supply_files_read_as_one_share_in_range` (df4gv), `temp::tests::fuzz_hwmon_files_read_as_the_hottest_package_split_at_its_limit` (df4gw), `gpu::tests::fuzz_gpu_sysfs_files_read_as_shares_in_range` (df4gx) and `remote::tests::fuzz_a_sharers_proc_files_give_its_display` (df4gy).
+	- Test case: `cpu::tests::fuzz_cpu_stat_range` (df4gj), `load::tests::fuzz_loadavg_or_none` (df4gk), `mem::tests::fuzz_meminfo_arcstats_range` (df4gm), `disk::tests::fuzz_stat_sectors_finite` (df4gn), `zswap::tests::fuzz_zswap_zram_range` (df4gp), `net::tests::fuzz_net_dev_finite` (df4gq), `net::tests::fuzz_port_no_hex` (df4gr), `remote::tests::fuzz_snmp_tcp_opens` (df4gs), `remote::tests::fuzz_tcp_table_established` (df4gt), `battery::tests::fuzz_power_supply_share` (df4gv), `temp::tests::fuzz_hwmon_hottest_split` (df4gw), `gpu::tests::fuzz_gpu_sysfs_shares` (df4gx) and `remote::tests::fuzz_sharer_display` (df4gy).
 		- Swept: every float parse of `/proc` or `/sys` text in core (load and battery already refused NaN), and every integer sum or product of file values in the readers.
-		- 2026-11-10: `cpu::tests::reads_the_all_cpu_line` (debhp) now checks `total()` is `Some(1000)`, not `1000`, since it returns None past `u64::MAX`.
+		- 2026-11-10: `cpu::tests::all_cpu_line` (debhp) now checks `total()` is `Some(1000)`, not `1000`, since it returns None past `u64::MAX`.
 	- Closed: 20261110-125328
 
 - Fuzz: a settings file loaded through shcl
@@ -4021,7 +4034,7 @@ Sorted per the notes in [Template](#template).
 		- On by default, since a remote session is where every frame costs.
 		- logind's session file is read directly, as `sd_session_is_remote` does, so no libsystemd link.
 	- Branch: round-1110
-	- Test case: `remote::tests::a_remote_session_is_told_by_its_variables_or_by_logind` (df3nf), `config::tests::remote_halves_reads_no_slide` (df3ng), `dialog::tests::remote_session_greys_rows` (df3nh) and `bridge::tests::remote_greys_rates_and_scrolling` (df3nj).
+	- Test case: `remote::tests::remote_session_signs` (df3nf), `config::tests::remote_halves_reads_no_slide` (df3ng), `dialog::tests::remote_session_greys_rows` (df3nh) and `bridge::tests::remote_greys_rates_and_scrolling` (df3nj).
 		- Swept: every `Look` maker that reads a file (the plugin's `read_look`, its fallback default, the settings window's `look`), every `rate` and `slides` caller through `Look`, and the graph list's sample cells.
 	- Closed: 20261109-222152
 
@@ -4132,7 +4145,7 @@ Sorted per the notes in [Template](#template).
 		- `ProcsReader` keeps a `DIR` pointer now, so it isn't `Send`. Nothing needs it to be.
 		- 2026-11-09: 500%, so 5 s, rather than the 1000% the field allows. A process count moves slowly, and 5 s is how often the kernel's own load average moves. At 1000% a new process would take up to 10 s to show.
 	- Branch: round-1107, round-1109b
-	- Test case: `procs::tests::each_read_lists_the_folder_again` (dezd2), `a_procs_read_allocates_nothing` in `core/tests/allocs.rs` (dezd3), and dep4j, dep4k, dep48 and dep49 as before.
+	- Test case: `procs::tests::relists_each_read` (dezd2), `procs_read_no_allocs` in `core/tests/allocs.rs` (dezd3), and dep4j, dep4k, dep48 and dep49 as before.
 		- 2026-11-06: dep4j and dep4k are ignored under Miri now, since Miri has no `rewinddir`.
 		- 2026-11-09: new value only. deja1 checks `procs_sample` defaults to 500, not 200.
 		- Swept: every `ProcsReader` and `Which::Procs` use. dencp, dend1 and den86 turn every graph on, and under Miri now get no processes graph, as on a box without `/proc`. The other `/proc` readers already keep their files open through `Kept`.
@@ -4413,7 +4426,7 @@ Sorted per the notes in [Template](#template).
 		- The build's time didn't move, about 100 us either way on one loaded core. Nearly all of it is `Spec::at` scanning every setting for each id, which is 2026103018353670.
 		- The ids are in a `OnceLock` made from `Which::key`, rather than a table of literals, so a graph's names have one source.
 	- Branch: round-1107
-	- Test case: `the_mode_split_and_scale_parsers_dont_allocate` (dezbs), `a_look_makes_no_setting_names` (dezbt) and `a_saved_theme_loads_without_listing_every_outline_id` (dezbv), all in `core/tests/allocs.rs`, and `shared_of_outline_ids` (dezbw). dezbs, dezbt and dezbv fail before, with 8, 694 and 10812 allocations. dezbw checks `shared_of` against the full list, and fails with the `_` check dropped.
+	- Test case: `parsers_dont_allocate` (dezbs), `look_no_setting_names` (dezbt) and `saved_theme_loads_lean` (dezbv), all in `core/tests/allocs.rs`, and `shared_of_outline_ids` (dezbw). dezbs, dezbt and dezbv fail before, with 8, 694 and 10812 allocations. dezbw checks `shared_of` against the full list, and fails with the `_` check dropped.
 		- Swept: every `format!` of a per-graph id in core's non-test code, every `to_ascii_lowercase` in core, knobs, settings and xfce, and both `outline_pairs` callers. `leads` still makes its ids, but only tests call it. The lowercasing left builds names it keeps.
 	- Closed: 20261106-205212
 
@@ -4978,7 +4991,7 @@ Sorted per the notes in [Template](#template).
 		- "Yours" in place of "me", since the window speaks to the user.
 		- Randomize's least lead gap is 15 degrees, down from 18, with up to 256 hue draws, up from 128. At 17 and 16 degrees dejbv failed on a seed, and at 15 with 128 draws too. At 15 the worst of 2,000 seeds took 140 draws.
 	- Branch: round-1031
-	- Test case: `procs::tests::system_is_under_the_first_user_and_nobody` (dep4h), `only_numbered_entries_are_counted` (dep4j), `live_proc_counts_this_test_as_mine` (dep4k), `graphs::tests::procs_sits_after_load_and_stacks_by_owner` (dep48) and `live::tests::procs_row_counts_self` (dep49).
+	- Test case: `procs::tests::system_below_first_user` (dep4h), `numbered_entries_only` (dep4j), `live_proc_counts_this_test_as_mine` (dep4k), `graphs::tests::procs_sits_after_load_and_stacks_by_owner` (dep48) and `live::tests::procs_row_counts_self` (dep49).
 		- 2026-10-31: new values only. deccf and deccw count 127 theme members, not 117. deccy counts 110 saved colors, not 101. dedqq's default order, dejac's labels, and defkz's and defm0's orders have `procs`, and defm0's past-the-end move is 13, not 12. dejb7 reads `self battery` from index 11, not 10. dejkg has 13 outlines, not 12. defx7 checks 13 ramps, and deja1 13 sample rows. den86 turns processes on too. defxd's least gap is 10 degrees, not 13, for the 15 degree roll.
 		- Swept: every `Which` match, `config::LEADS`, `dice::ROLES` and `Part`, the 9 built-in themes, the Graphs rows in spec order, and den86, which turns every graph on. The profiler and soak test go through `Graphs::skip`, so they need nothing.
 	- Acceptance signoff: Self-closed, 2026-10-31: dep48 drew the 3 owners stacked, and dep49 drew the row from this box's `/proc`.
@@ -5251,7 +5264,7 @@ Sorted per the notes in [Template](#template).
 		- Each built-in gives GPU a lead of its own, 14 or more from every other lead as CIEDE2000. The one-color themes give it their one color.
 		- Randomize rolls 12 lead hues at least 18 degrees apart, down from 22, with the same 27 degrees of play. With 12 leads there often aren't any steps that keep every 2 of them 10 apart, so it draws up to 128 sets of hues, up from 16. At 16, 34 of 20,000 rolls had 2 leads under 10 apart, and at 128 none did.
 	- Branch: round-1029
-	- Test case: `gpu::tests::amdgpu_reads_from_the_first_card_and_skips_connectors` (dekm9), `a_live_gpu_reads_as_a_share_where_there_is_one` (dekma), `tests::gpu_tip_gib` (dekmb), `graphs::tests::gpu_pair_after_memory` (dekmc) and `live::tests::gpu_rows_need_gpu` (dekmd). dekm9 fails with connectors such as `card0-DP-1` read as cards.
+	- Test case: `gpu::tests::amdgpu_first_card` (dekm9), `live_gpu_share_where_present` (dekma), `tests::gpu_tip_gib` (dekmb), `graphs::tests::gpu_pair_after_memory` (dekmc) and `live::tests::gpu_rows_need_gpu` (dekmd). dekm9 fails with connectors such as `card0-DP-1` read as cards.
 		- 2026-10-29: new values only, for both graphs. deccf and deccw count 115 theme members, not 99. deccy counts 99 saved colors, not 85. dedqq's default order, and defkz's, defm0's and dejac's orders, have `gpu vram` after `mem`, and defm0's past-the-end move is 12, not 10. dejkg reads 12 outlines, not 10, with tukzmon's at 11. defx7 and deja1 take gpu and vram too. defxd's least gap is 13 degrees, not 17, for the 18 degree roll.
 		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 9 built-in themes, `dice::ROLES` and `PARTS`, `config::LEADS`, every graph list in config, dialog and bridge tests, and every graph list in `design.md`. The profiler and soak test run with the defaults, so they don't draw the GPU.
 	- Acceptance signoff: Self-closed 20261029: dekm9 to dekmd passed in the full run at 9b72012, and the stand-in above.
@@ -5722,7 +5735,7 @@ Sorted per the notes in [Template](#template).
 		- Block totals over running totals per bucket. Both measured the same, and running totals would take about 40 bytes more per bucket, about half again the history's memory.
 		- The results match the old bucket by bucket sum to float rounding, and a column's max is the same.
 	- Branch: less-cpu
-	- Test case: `history::tests::a_spike_reads_in_a_wide_span_only_while_its_bucket_is_kept` (dejcp). It checks a spike in a whole block and in the part blocks at either end, a block that's lost its spike to age, a reload, a reset after a gap, and that blocks go with their buckets. Each fails with its part of the upkeep taken out.
+	- Test case: `history::tests::wide_span_spike_needs_bucket` (dejcp). It checks a spike in a whole block and in the part blocks at either end, a block that's lost its spike to age, a reload, a reset after a gap, and that blocks go with their buckets. Each fails with its part of the upkeep taken out.
 		- A test that drove the old and new `span` over 12 seeded histories with gaps, resets and trims checked they matched, then went out with the old one.
 		- Swept: `History::span` is the only reader of the buckets for a column, and the hover tip, the settings window's live graphs and the plugin all go through it. Every place that adds, drops or loads buckets keeps the blocks: `Tier::add`, `History::trim` and `History::decode`.
 	- Closed: 20261028-162800
@@ -5757,7 +5770,7 @@ Sorted per the notes in [Template](#template).
 		- The colors are provisional, put in the widest gap between each theme's 9 leads. Default's is indigo, `#404bff`. Item 2026102810142725 reworks all the leads right after this.
 		- `dice::LEAD_GAP` stays 22 degrees. At that gap, 10 graphs leave 27 degrees of the range to roll in, so defxd needs no change.
 	- Branch: self-graph
-	- Test case: `own::tests::cpu_time_is_a_share_of_every_cpu` (dejb3), `the_host_is_named_from_the_process` (dejb4) and `live_cpu_time_reads_and_rises_with_work` (dejb5), `tests::own_use_reads_in_fine_percents_and_fills_at_a_hundredth_of_one_cpu` (dejb6), `graphs::tests::the_own_graph_sits_last_and_fills_at_a_hundredth_of_one_cpu` (dejb7) and `live::tests::own_row_width` (dejb8). Each fails with its part broken: the CPU count left out, the panel's name not known, a clock that doesn't move, the floor doubled, and the row's width left out.
+	- Test case: `own::tests::cpu_time_share` (dejb3), `host_from_process` (dejb4) and `live_cpu_time_reads_and_rises_with_work` (dejb5), `tests::own_use_reads_in_fine_percents_and_fills_at_a_hundredth_of_one_cpu` (dejb6), `graphs::tests::the_own_graph_sits_last_and_fills_at_a_hundredth_of_one_cpu` (dejb7) and `live::tests::own_row_width` (dejb8). Each fails with its part broken: the CPU count left out, the panel's name not known, a clock that doesn't move, the floor doubled, and the row's width left out.
 		- 2026-10-28: new values only, for 10 graphs. defx7's least hue gap between leads is 22 degrees, down from 25, and it lists `self_used` and `self`. deccf and deccw count 65 theme members, up from 60, and deccy 55 saved colors, up from 51. dedqq, defkz and defm0 have `self` last in their orders, and defm0 refuses a move to 10, not 9. deja1 lists `self`. dejac and dejad move tukzmon from last to first, where they moved Battery.
 		- Swept: every graph list in `Which`, `Graphs`, `Live`, `Look`, `settings.shcl`, `dice::ROLES` and its test parts, and the graph lists in `design.md` and the README. The plugin and qt.cpp go through `Graphs` and the spec, with no list of their own.
 	- Closed: 20261028-153600
@@ -5837,7 +5850,7 @@ Sorted per the notes in [Template](#template).
 		- The ratio isn't in the history, so the tip says "now", which keeps it true with the pointer on an older time.
 		- The overlay and the `zswap_ratio` color are removed rather than kept unused. `design.md` planned nothing else for them. No release or installed build had the color, so no saved file should have it.
 	- Branch: small-trio
-	- Test case: `zswap::tests::the_tip_gives_the_latest_ratio` (dejab). It fails with the ratio left out of the tip.
+	- Test case: `zswap::tests::tip_latest_ratio` (dejab). It fails with the ratio left out of the tip.
 		- 2026-10-28: dehy3 is commented out, since there's no overlay left to check. dejab keeps its other checks.
 		- 2026-10-28: new values only. dehy4 checks the ratio in the tip in place of the overlay. The theme member count in deccf and deccw is 60, and deccy's saved color count is 51.
 		- Swept: every caller of `Source::overlay`, `Graph::overlay`, `Graphs::overlays`, `Live::overlay` and `live_overlay`, both front ends' drawing, the link list in `xfce/build.rs` with `nix/package.nix` and `nfpm.yaml`, every preset in `settings.shcl`, `dice::ROLES`, and every doc that named the color.
@@ -5925,7 +5938,7 @@ Sorted per the notes in [Template](#template).
 			- Confirmed 2026-10-28.
 		- `Look` has one `time`, and `Look::timing` is a graph's own pick or else that.
 	- Branch: graph-tab
-	- Test case: `config::tests::axis_default_from_file` (decbx) and `dialog::tests::time_axis_default_dropdown` (decbz), renamed from the log curve ones, and `axis::tests::curves_parse_as_the_spec_spells_them` (decbw), which now wants Linear first.
+	- Test case: `config::tests::axis_default_from_file` (decbx) and `dialog::tests::time_axis_default_dropdown` (decbz), renamed from the log curve ones, and `axis::tests::curve_spellings_parse` (decbw), which now wants Linear first.
 		- 2026-10-28: debjh's switch is Keep across restarts over Max age, since Log time axis is gone. deea4's old-file part reads `graph.time`. defma no longer finds Log curve or Spike emphasis greyed.
 		- Swept: every `log_axis`, `log_curve` and `curve` reader, `core/examples/preview.rs` included, and the tips that named Log time axis or Log curve.
 	- Closed: 20261028-143000
@@ -6072,7 +6085,7 @@ Sorted per the notes in [Template](#template).
 		- This replaces the `Cached` alone decision on 2026102408512192.
 		- No setting for it, per the answer.
 	- Branch: round-1026
-	- Test case: `mem::tests::cache_takes_in_reclaimable_slab_and_user_keeps_the_rest` (defmy). It fails with cache as `Cached` alone, and passes with the fix.
+	- Test case: `mem::tests::cache_includes_slab` (defmy). It fails with cache as `Cached` alone, and passes with the fix.
 		- Swept: `memory_shares` is the one place cache is worked out. The other `mem::tests` pass unchanged, since their rows have no `SReclaimable`.
 	- Closed: 20261026-173826
 
@@ -6802,7 +6815,7 @@ Sorted per the notes in [Template](#template).
 		- A copy to a VM can count as LAN for up to 10 s at its start, till the next read. Reading every tick would cost 2 more reads a second, for a few seconds of a share the clamp already bounds.
 	- Actual fix: `net::guests` lists the far ends behind a bridge's virtual ports, and `lan::Away` keeps them with the away addresses.
 	- Branch: round-1101
-	- Test case: `lan::tests::a_socket_to_a_vm_on_the_nics_bridge_isnt_the_lans` (deqt6), `lan::tests::neighbors_read_with_their_link_addresses` (deqt7) and `net::tests::a_vm_behind_the_nics_bridge_is_found_by_its_port` (deqt8). deqt6 fails with the far end not checked, and deqt8 with the port's high byte dropped.
+	- Test case: `lan::tests::bridge_vm_socket_not_lan` (deqt6), `lan::tests::neighbor_link_addresses` (deqt7) and `net::tests::bridge_vm_by_port` (deqt8). deqt6 fails with the far end not checked, and deqt8 with the port's high byte dropped.
 		- Swept: the sock_diag dump and the neighbor dump share `lan::dump` and `lan::walk`, so both skip another request's messages.
 	- Acceptance signoff: Self-closed 20261101: deqt6 to deqt8 passed in the full run, and the copy to vmFreeBSD on b23.
 	- Closed: 20261101-130700
@@ -6933,7 +6946,7 @@ Sorted per the notes in [Template](#template).
 		- On a 100 px graph, 1% is about a pixel.
 	- Actual fix: `Basis::jumps_to` in `core/src/axis.rs`, with `TRIM_SHOWS`.
 	- Branch: round-1101
-	- Test case: `axis::tests::a_trim_to_the_max_age_is_no_jump_but_a_shorter_max_age_is` (deqvb), over all 3 curves. It fails with the old rule, and with the cut check taken out.
+	- Test case: `axis::tests::trim_vs_shorter_max_age` (deqvb), over all 3 curves. It fails with the old rule, and with the cut check taken out.
 		- Swept: `Basis::jumps_to` is the only jump check, and `History::trim` the only place the first time moves later. Linear axes don't use the first time.
 	- Closed: 20261101-123300
 
@@ -6957,7 +6970,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: `cargo test -p tukzmon-core lan::` and the quick gate passed.
 	- Actual fix: Skip messages by sequence number.
 	- Branch: round-1101
-	- Test case: `lan::tests::whats_left_of_an_earlier_dump_is_skipped` (deqt2). It fails with the check taken out, on the old dump's error.
+	- Test case: `lan::tests::stale_dump_skipped` (deqt2). It fails with the check taken out, on the old dump's error.
 		- Swept: `LanReader::poll` is the only netlink reader in the repo.
 	- Closed: 20261101-115021
 
@@ -6991,8 +7004,8 @@ Sorted per the notes in [Template](#template).
 		- The pid, not a random name, so a temp file says whose it is, and a reset still finds it by name.
 	- Actual fix: `Graphs::load` and `Graphs::save` in `core/src/graphs.rs`, and `write`, `temp_of` and `is_history_file` in `core/src/keep.rs`.
 	- Branch: round-1101
-	- Test case: `graphs::tests::bad_file_kept_till_reset` (deqsa), `keep::tests::a_failed_write_leaves_no_temp_file_and_temp_names_are_by_pid` (deqs8) and `keep::tests::a_reset_deletes_leftover_temp_files_too` (deqs9). Each fails with its fix taken out, and deqsa's second round fails with only the load fix out.
-		- 2026-11-01: decbk (`sections_round_trip_and_no_tmp_is_left`) now checks the folder has only the history file, not that `plugin-1.hist.tmp` is missing, since the temp file has a new name.
+	- Test case: `graphs::tests::bad_file_kept_till_reset` (deqsa), `keep::tests::failed_write_no_temp` (deqs8) and `keep::tests::reset_clears_temp_files` (deqs9). Each fails with its fix taken out, and deqsa's second round fails with only the load fix out.
+		- 2026-11-01: decbk (`sections_round_trip_no_tmp`) now checks the folder has only the history file, not that `plugin-1.hist.tmp` is missing, since the temp file has a new name.
 		- Swept: every `keep::write`, `keep::read` and `keep::reset` caller (`Graphs::save`, `load` and `set_look`, `Graph::save`, the plugin's save, load, reset and remove, and the settings window's Reset history), and every other temp file written then renamed (`config::start_from`, fixed the same way, untested since its rename can only fail where its file already exists, and the profiler's report, left as it is in the build's artifacts). `Plugin::forget` deletes `plugin-<id>.hist` only, so a temp a crash left at that moment stays until the next Reset history.
 	- Closed: 20261101-113100
 
@@ -7381,7 +7394,7 @@ Sorted per the notes in [Template](#template).
 		- The first call stays as a fallback, for drivers older than 510.
 	- Actual fix: `Nvml::memory` asks `nvmlDeviceGetMemoryInfo_v2` first, when the driver has it.
 	- Branch: gpu-mem
-	- Test case: `gpu::tests::gpu_memory_leaves_out_what_the_driver_keeps_back` (dektc) fails with reserved added back to used. `nvidia_memory_reads_through_v2_where_the_driver_has_it` (dektd) checks that b23's driver has the v2 call, and skips where there's no NVML.
+	- Test case: `gpu::tests::gpu_memory_excludes_reserved` (dektc) fails with reserved added back to used. `nvidia_memory_via_v2` (dektd) checks that b23's driver has the v2 call, and skips where there's no NVML.
 		- Swept: the only NVML memory call is in `Nvml::memory`. amdgpu's `mem_info_vram_used` has no reserved part to leave out.
 	- Acceptance signoff: Self-closed 20261029: matched `nvidia-smi` on b23, and dektc.
 	- Closed: 20261029-164500
@@ -7620,7 +7633,7 @@ Sorted per the notes in [Template](#template).
 		- Kept by the far end being private, not every TCP socket, since only the away lists can change whether a socket is the LAN's. Its addresses never change.
 	- Actual fix: `lan::Sock` keeps a socket's bytes with its LAN flag, and `rise` sums the LAN's against any earlier read.
 	- Branch: round-1109
-	- Test case: `lan::tests::a_socket_that_stops_being_away_counts_from_its_last_read` (df35c). It fails with away sockets left out of the last read.
+	- Test case: `lan::tests::stopped_away_counts_from_last` (df35c). It fails with away sockets left out of the last read.
 		- 20261109: deqt2, deqt4, deqt6 and dekq7 now build or read `Sock` values, and deqt4 and deqt6 count only sockets flagged LAN. Their values are the same.
 		- Swept: `rise` is the only per-socket rate. `LanReader` is read only through `net::Traffic`.
 	- Closed: 20261109-134022
@@ -7657,7 +7670,7 @@ Sorted per the notes in [Template](#template).
 		- The 15 to 20 ms NVML open at the end of a rest stays on the panel's thread. Rests now need 5 s idle, so it comes far less often at a fast sample.
 	- Actual fix: `Nvidia::rest_if_idle` rests after `IDLE_FOR` (5 s) idle, and `Nvidia::awake` ends the rest once the card is asleep.
 	- Branch: round-1109
-	- Test case: `gpu::tests::nvml_leaves_a_card_that_may_sleep_alone_while_it_sleeps` (desfa). It fails with the rest resting on the first idle read, and with the rest not ending when the card sleeps.
+	- Test case: `gpu::tests::sleeping_card_left_alone` (desfa). It fails with the rest resting on the first idle read, and with the rest not ending when the card sleeps.
 		- Swept: both readers go through `Nvidia::awake` and `rest_if_idle`. No other code used the idle count or `IDLE_READS`. `design.md` was the only doc that gave the 5 reads.
 	- Acceptance signoff: Self-closed, 2026-11-09: desfa passed and failed with either half taken out. The window left, a card kept awake by something else during a rest, is in design.md's GPU row. Asking NVML there would keep the card awake, which undoes the rest. Reopen if it shows on a real laptop.
 	- Closed: 20261109-134826
@@ -7683,7 +7696,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: `cargo test -p tukzmon-core lan::`, the quick gate's format, build, lint and tests, the Sanitizers step, and Miri over `lan::` passed.
 	- Actual fix: `lan_socket` picks `overhead` by `mapped(far)`.
 	- Branch: round-1109
-	- Test case: `lan::tests::a_dual_stack_socket_to_an_ipv4_client_counts_ipv4_headers` (df35d). It fails with the overhead picked by the family.
+	- Test case: `lan::tests::dual_stack_ipv4_headers` (df35d). It fails with the overhead picked by the family.
 		- Swept: `overhead` has no other caller.
 	- Closed: 20261109-134022
 
@@ -7711,7 +7724,7 @@ Sorted per the notes in [Template](#template).
 		- A new socket rather than reading the old dump to its end, since that takes as many reads as the dump has left, and a read error may not end.
 	- Actual fix: `LanReader::sock` is dropped on a failed dump and opened again at the next poll.
 	- Branch: round-1109
-	- Test case: `lan::tests::a_dump_left_partway_is_one_gap` (df35e), with 400 sockets of its own and a read cut short. It fails with the socket kept, on the read after the gap.
+	- Test case: `lan::tests::partial_dump_one_gap` (df35e), with 400 sockets of its own and a read cut short. It fails with the socket kept, on the read after the gap.
 		- Swept: `neighbors` opens its own socket for each dump, so it has no dump to leave partway for the next one.
 	- Closed: 20261109-134022
 
@@ -8160,7 +8173,7 @@ Sorted per the notes in [Template](#template).
 		- A busy read that fails counts as idle, so a card without a busy share can still rest.
 		- dekma returns early when the card is asleep since start, since NVML wasn't asked.
 	- Branch: round-1102b
-	- Test case: `gpu::tests::nvml_leaves_a_card_that_may_sleep_alone_while_it_sleeps` (desfa), with stand-in power files and NVML. It fails with the asleep check or the idle rest taken out.
+	- Test case: `gpu::tests::sleeping_card_left_alone` (desfa), with stand-in power files and NVML. It fails with the asleep check or the idle rest taken out.
 		- Swept: both readers through `Card::find`, the one NVML open, der6j (now pointed at no PCI folder), and dekma, dekmd and der6k, which read the real card. On a hybrid laptop with the card asleep, dekmd and der6k return early, since 2026110216211209.
 	- Acceptance signoff: Self-closed 20261102: desfa and the stand-in above stand in for the hybrid laptop.
 	- Closed: 20261102-163600
@@ -8189,7 +8202,7 @@ Sorted per the notes in [Template](#template).
 		- The blocks take about 8% of the history's memory, up from 2%. That's about 330 KB more for a 4-series graph with 90 days of history.
 		- A whole bucket adds its sum, scaled by its weight over its seconds, rather than its mean times its weight. The two match to float rounding.
 	- Branch: round-1102
-	- Test case: `history::tests::block_totals_add_up_to_their_buckets_through_gaps_trims_and_reloads` (der45). It checks every kept block at both sizes and random runs of buckets against a plain bucket sum, through gaps, long samples, trims and reloads. It fails with the gap rule taken out of `reindex`, with the coarse blocks never dropped, or with a block read that starts mid-block.
+	- Test case: `history::tests::block_totals_match_buckets` (der45). It checks every kept block at both sizes and random runs of buckets against a plain bucket sum, through gaps, long samples, trims and reloads. It fails with the gap rule taken out of `reindex`, with the coarse blocks never dropped, or with a block read that starts mid-block.
 		- 2026-11-01: dejcp and deqqq check the block counts and capacities at both sizes, where they checked blocks of 32. The rest of each test is unchanged.
 		- Swept: every reader and writer of the blocks (`Tier::add`, `History::trim`, `History::decode`, `History::span`) and every `axis.age` caller. The hover tip's `span_at` in `lib.rs` reads one column, so it takes 2 ages as before.
 	- Closed: 20261101-171956
@@ -8363,7 +8376,7 @@ Sorted per the notes in [Template](#template).
 		- The ARC part is capped at what user had, since the two files aren't read at the same instant.
 		- Read in the memory reader only, not the per-tick `/proc/meminfo` cache, since swap and zswap don't need it.
 	- Branch: round-1102
-	- Test case: `mem::tests::arc_over_its_floor_counts_as_cache_not_programs` (der6g) and `the_memory_reader_reads_the_arc_each_time_and_none_is_none` (der6h). Both fail with the ARC left out of `memory_shares`. der6h also parses the real arcstats where ZFS is loaded.
+	- Test case: `mem::tests::arc_above_floor_is_cache` (der6g) and `the_memory_reader_reads_the_arc_each_time_and_none_is_none` (der6h). Both fail with the ARC left out of `memory_shares`. der6h also parses the real arcstats where ZFS is loaded.
 		- Swept: `memory_shares` is the one place cache is worked out. Every `MemoryReader` built as a unit struct in tests now uses `default()`.
 	- Closed: 20261101-185055
 
@@ -8391,7 +8404,7 @@ Sorted per the notes in [Template](#template).
 		- The library isn't unloaded, since keeping its code mapped keeps no GPU awake.
 		- No hybrid laptop to try, so the wake-up itself is unverified. b28l has no Rust. The stand-in and b23's open files cover what the code does.
 	- Branch: round-1102
-	- Test case: `gpu::tests::nvml_is_open_only_while_a_gpu_graph_is_shown` (der6j), through `Graphs` with a stand-in NVML, and `core/tests/nvml.rs` `hiding_both_gpu_graphs_lets_go_of_the_nvidia_device` (der6k), with the real driver where there is one. Both fail with the shutdown taken out.
+	- Test case: `gpu::tests::nvml_open_while_graph_shown` (der6j), through `Graphs` with a stand-in NVML, and `core/tests/nvml.rs` `hidden_graphs_release_nvidia` (der6k), with the real driver where there is one. Both fail with the shutdown taken out.
 		- Swept: the one NVML open in `core/src/gpu.rs`, both readers through `Card::find`, the Miri stand-in, the settings window's `Live`, which makes every graph while it's open, and `design.md` for "NVML handle".
 	- Closed: 20261101-185055
 
@@ -8614,8 +8627,8 @@ Sorted per the notes in [Template](#template).
 		- A drive whose `stat` stops reading drops out, which makes one gap, rather than a gap each tick while it's gone.
 		- A `/` in a typed drive name is read as sysfs's `!`, as in `cciss!c0d0`.
 	- Branch: round-1030b
-	- Test case: `collect::tests::kept_reads_the_file_anew_and_opens_it_again_after_a_failed_read` (denba), `graphs::tests::one_meminfo_read_per_tick` (denbb), and `disk::tests::the_drives_picked_add_up_and_a_change_is_a_gap` (defng). denbb fails with each read on its own (3 reads, not 1), and defng with each listing opening its files anew.
-		- 2026-10-30: defne, defnf, defng and defnh read made-up `stat` files and `/sys/class/block`, where they read diskstats text. defne is now `reads_a_drives_stat`. Their checks are the same: old and new column counts and junk, partitions and stacked devices left out, rates that add up, and a gap when the drives change.
+	- Test case: `collect::tests::kept_reopens_after_failure` (denba), `graphs::tests::one_meminfo_read_per_tick` (denbb), and `disk::tests::picked_drives_sum_and_gap` (defng). denbb fails with each read on its own (3 reads, not 1), and defng with each listing opening its files anew.
+		- 2026-10-30: defne, defnf, defng and defnh read made-up `stat` files and `/sys/class/block`, where they read diskstats text. defne is now `drive_stat_read`. Their checks are the same: old and new column counts and junk, partitions and stacked devices left out, rates that add up, and a gap when the drives change.
 		- Swept: every `slurp` caller (the ones left read once at start), every `/proc/meminfo` reader, every `DiskReader` and `Drives` use (the plugin through `Graphs`, the settings window's `Live`, `Source::follow`), and the design and settings text that names diskstats.
 	- Closed: 20261030-190553
 
@@ -8860,7 +8873,7 @@ Sorted per the notes in [Template](#template).
 		- In Randomize, the LAN's 2 sit on the buffers' side of the lead and step till they're 11 or more from the other 3. A fixed rule left a third of 2,000 seeds with a pair under 10.
 	- Branch: round-1030
 	- Commit: 9be5b33
-	- Test case: `tests::split_tip_names_both` (demvz), `net::tests::with_the_split_off_sent_and_received_hold_it_all` (demw0), `config::tests::lan_split_off_by_default` (demw1), `dice::tests::lan_colors_distinct` (demw2) and `tests::pre_split_history_resets` (demw3). demw2 fails with LAN received as the buffers' color, as rolled before.
+	- Test case: `tests::split_tip_names_both` (demvz), `net::tests::split_off_holds_all` (demw0), `config::tests::lan_split_off_by_default` (demw1), `dice::tests::lan_colors_distinct` (demw2) and `tests::pre_split_history_resets` (demw3). demw2 fails with LAN received as the buffers' color, as rolled before.
 		- 2026-10-30: new values only. deccf and deccw count 117 theme members, not 115. deccy counts 101 saved colors, not 99. defma's rows greyed at defaults are `net_split`, not none. dehzp's received is `net[4]`, not `net[2]`, and its history has 5 series.
 		- Swept: every `NetReader` user (`Graphs`, `Live`, the tip test), every built-in theme, `dice::ROLES`, and the config theme-color tests. The profiler and soak test run with the defaults, so they don't draw network.
 	- Acceptance signoff: Self-closed, 2026-10-30: the settings window showed the new row. How the themes look together stays on 2026102620162201.

@@ -135,7 +135,7 @@ mod tests {
 
 	// Test ID: dep4h
 	#[test]
-	fn system_is_under_the_first_user_and_nobody() {
+	fn system_below_first_user() {
 		assert_eq!(owner(0, 1001), 0);
 		assert_eq!(owner(999, 1001), 0);
 		assert_eq!(owner(NOBODY, 1001), 0);
@@ -149,7 +149,7 @@ mod tests {
 	// Test ID: dep4j
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri has no rewinddir")]
-	fn only_numbered_entries_are_counted() {
+	fn numbered_entries_only() {
 		let dir = std::env::temp_dir().join(format!(
 			"test_tukzmon-core_{}_procs_numbered",
 			std::process::id()
@@ -171,7 +171,7 @@ mod tests {
 	// Test ID: dezd2
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri has no rewinddir")]
-	fn each_read_lists_the_folder_again() {
+	fn relists_each_read() {
 		let dir = std::env::temp_dir().join(format!(
 			"test_tukzmon-core_{}_procs_again",
 			std::process::id()

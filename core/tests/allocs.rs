@@ -46,7 +46,7 @@ fn allocs_in(f: impl FnOnce()) -> usize {
 
 // Test ID: dezbs
 #[test]
-fn the_mode_split_and_scale_parsers_dont_allocate() {
+fn parsers_dont_allocate() {
 	let n = allocs_in(|| {
 		assert_eq!(Mode::parse("Gradient"), Some(Mode::Gradient));
 		assert_eq!(Mode::parse("detailed"), Some(Mode::Detailed));
@@ -64,7 +64,7 @@ fn the_mode_split_and_scale_parsers_dont_allocate() {
 // Test ID: dezbt
 #[test]
 #[cfg_attr(miri, ignore = "a spec parse takes about an hour under Miri")]
-fn a_look_makes_no_setting_names() {
+fn look_no_setting_names() {
 	let mut m = Model::new(config::spec());
 	m.set("user", &Value::Text("#123456".into()), &NoEnv);
 	m.set("back_all", &Value::Bool(true), &NoEnv);
@@ -78,7 +78,7 @@ fn a_look_makes_no_setting_names() {
 // Test ID: dezbv
 #[test]
 #[cfg_attr(miri, ignore = "a spec parse takes about an hour under Miri")]
-fn a_saved_theme_loads_without_listing_every_outline_id() {
+fn saved_theme_loads_lean() {
 	let doc = shcl::Document::parse(
 		"themes:\n\tnight:\n\t\tname: Night\n\t\tuser: \"#102030\"\n\t\tborder_color: \"#405060\"\n",
 	);
@@ -94,7 +94,7 @@ fn a_saved_theme_loads_without_listing_every_outline_id() {
 #[cfg(unix)]
 #[test]
 #[cfg_attr(miri, ignore = "Miri has no rewinddir")]
-fn a_procs_read_allocates_nothing() {
+fn procs_read_no_allocs() {
 	use tukzmon_core::collect::Collector;
 	use tukzmon_core::procs::ProcsReader;
 	let dir = std::env::temp_dir().join(format!(

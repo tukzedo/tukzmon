@@ -282,7 +282,7 @@ Hugepagesize:       2048 kB
 
 	// Test ID: decax
 	#[test]
-	fn reads_the_rows() {
+	fn meminfo_rows() {
 		let m = parse_meminfo(MEMINFO_TEXT).unwrap();
 		assert_eq!(
 			m,
@@ -302,7 +302,7 @@ Hugepagesize:       2048 kB
 
 	// Test ID: decay
 	#[test]
-	fn shares() {
+	fn mem_shares() {
 		let m = parse_meminfo(MEMINFO_TEXT).unwrap();
 		assert_eq!(memory_shares(&m, 0), Some([0.5, 0.0625, 0.1875]));
 		assert_eq!(swap_share(&m), Some([0.25]));
@@ -310,7 +310,7 @@ Hugepagesize:       2048 kB
 
 	// Test ID: decaz
 	#[test]
-	fn missing_rows() {
+	fn missing_meminfo_rows() {
 		assert!(parse_meminfo("MemTotal: 100 kB\n").is_none());
 		assert!(parse_meminfo("").is_none());
 		let m = parse_meminfo("MemFree: 25 kB\nMemTotal: 100 kB\n").unwrap();
@@ -320,7 +320,7 @@ Hugepagesize:       2048 kB
 
 	// Test ID: decb0
 	#[test]
-	fn junk_in_a_used_row_is_none() {
+	fn junk_row_none() {
 		assert!(parse_meminfo("MemTotal: 100 kB\nMemFree: lots kB\n").is_none());
 		assert!(parse_meminfo("MemTotal: 100 kB\nMemFree:\n").is_none());
 		// rows not read here can hold anything
@@ -329,7 +329,7 @@ Hugepagesize:       2048 kB
 
 	// Test ID: decb1
 	#[test]
-	fn odd_counts_stay_in_range() {
+	fn odd_counts_in_range() {
 		let m = Meminfo {
 			total: 100,
 			free: 90,
@@ -346,7 +346,7 @@ Hugepagesize:       2048 kB
 
 	// Test ID: defmy
 	#[test]
-	fn cache_takes_in_reclaimable_slab_and_user_keeps_the_rest() {
+	fn cache_includes_slab() {
 		let text = "MemTotal: 1000 kB\nMemFree: 100 kB\nBuffers: 50 kB\nCached: 200 kB\n\
 			Slab: 300 kB\nSReclaimable: 250 kB\nSUnreclaim: 50 kB\n";
 		let m = parse_meminfo(text).unwrap();
@@ -367,7 +367,7 @@ size                            4    8053063680
 
 	// Test ID: der6g
 	#[test]
-	fn arc_over_its_floor_counts_as_cache_not_programs() {
+	fn arc_above_floor_is_cache() {
 		assert_eq!(parse_arcstats(ARCSTATS_TEXT), Some(3_670_016));
 		assert_eq!(parse_arcstats("size 4 100\n"), None);
 		assert_eq!(parse_arcstats("c_min 4 900\nsize 4 100\n"), Some(0));
@@ -381,7 +381,7 @@ size                            4    8053063680
 
 	// Test ID: der6h
 	#[test]
-	fn the_memory_reader_reads_the_arc_every_tenth_time_and_none_is_none() {
+	fn arc_read_every_tenth() {
 		let t = Tree::new("arcstats", &[("arcstats", ARCSTATS_TEXT)]);
 		let mut r = MemoryReader::with_arc(&t.at("arcstats"));
 		assert_eq!(r.arc_kb(), 3_670_016);
@@ -471,7 +471,7 @@ size                            4    8053063680
 
 	// Test ID: df4gm
 	#[test]
-	fn fuzz_meminfo_and_arcstats_read_back_and_shares_stay_in_range() {
+	fn fuzz_meminfo_arcstats_range() {
 		let tally = crate::fuzz::run("meminfo", |dice| {
 			let (text, want) = rolled_meminfo(dice);
 			let (text, whole) = crate::fuzz::maybe_hurt(dice, text);

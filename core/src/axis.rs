@@ -356,7 +356,7 @@ mod tests {
 
 	// Test ID: debh9
 	#[test]
-	fn ends_are_now_and_the_first_sample() {
+	fn axis_ends() {
 		for curve in CURVES {
 			for total in [0.0, 1.0, 30.0, 3600.0, 40.0 * DAY] {
 				let a = Axis::log(curve, total);
@@ -368,7 +368,7 @@ mod tests {
 
 	// Test ID: debha
 	#[test]
-	fn always_older_to_the_left() {
+	fn older_goes_left() {
 		for curve in CURVES {
 			for total in [0.5, 45.0, 600.0, 7200.0, 2.0 * DAY, 60.0 * DAY, 400.0 * DAY] {
 				let a = Axis::log(curve, total);
@@ -384,7 +384,7 @@ mod tests {
 
 	// Test ID: debhb
 	#[test]
-	fn no_caps_early_on() {
+	fn early_no_caps() {
 		// 10 minutes in, the right quarter is still under its minute
 		let b = Axis::knots(Curve::FixedA, 600.0);
 		assert!(b[1] < 60.0);
@@ -393,14 +393,14 @@ mod tests {
 
 	// Test ID: debhc
 	#[test]
-	fn caps_pin_in_turn() {
+	fn caps_pin_in_turn_order() {
 		let b = Axis::knots(Curve::FixedA, 2.0 * 3600.0);
 		assert_eq!(b[1], 60.0);
 		assert!(b[2] < 3600.0);
 		let b = Axis::knots(Curve::FixedA, DAY);
 		assert_eq!(b[1..3], [60.0, 3600.0]);
 		assert!(b[3] < DAY);
-		// Log B pins far later, see caps_pin_when_the_tip_says
+		// Log B pins far later, see tip_pins_caps
 		for (curve, total) in [(Curve::FixedA, 30.0 * DAY), (Curve::FixedB, 300.0 * DAY)] {
 			let b = Axis::knots(curve, total);
 			assert_eq!(b[1..4], [60.0, 3600.0, DAY], "{curve:?}");
@@ -414,7 +414,7 @@ mod tests {
 
 	// Test ID: decbs
 	#[test]
-	fn smooth_is_one_log_curve_with_no_caps() {
+	fn smooth_single_log_curve() {
 		for total in [10.0, 600.0, DAY, 365.0 * DAY] {
 			let a = Axis::log(Curve::Smooth, total);
 			for i in 0..=100 {
@@ -429,7 +429,7 @@ mod tests {
 
 	// Test ID: decbt
 	#[test]
-	fn fixed_b_is_smooth_until_a_cap() {
+	fn fixed_b_until_cap() {
 		for total in [10.0, 600.0, DAY] {
 			let b = Axis::knots(Curve::FixedB, total);
 			let s = Axis::knots(Curve::Smooth, total);
@@ -441,7 +441,7 @@ mod tests {
 
 	// Test ID: decbv
 	#[test]
-	fn caps_pin_when_the_tip_says() {
+	fn tip_pins_caps() {
 		// the log_curve tip in settings.shcl gives these
 		let a = pins_at(Curve::FixedA, 0).unwrap_or(f64::MAX);
 		assert!((25.0 * 60.0..35.0 * 60.0).contains(&a), "{a}");
@@ -459,7 +459,7 @@ mod tests {
 
 	// Test ID: debhd
 	#[test]
-	fn boundaries_never_jump_as_time_goes_on() {
+	fn boundaries_hold_over_time() {
 		for curve in CURVES {
 			let mut was = Axis::knots(curve, 0.0);
 			let mut t = 0.0;
@@ -483,7 +483,7 @@ mod tests {
 
 	// Test ID: debhe
 	#[test]
-	fn no_seam_at_quarter_boundaries() {
+	fn quarter_seams_absent() {
 		// a pixel covers the same time either side of each boundary
 		for curve in CURVES {
 			for total in [90.0, 4000.0, 2.0 * DAY, 60.0 * DAY, 300.0 * DAY] {
@@ -503,7 +503,7 @@ mod tests {
 
 	// Test ID: decbw
 	#[test]
-	fn curves_parse_as_the_spec_spells_them() {
+	fn curve_spellings_parse() {
 		let spec = crate::config::spec();
 		let Some(s) = spec.get("time_axis") else {
 			panic!("no time_axis in settings.shcl");
@@ -519,7 +519,7 @@ mod tests {
 
 	// Test ID: debhf
 	#[test]
-	fn linear_is_plain() {
+	fn plain_linear() {
 		let a = Axis::linear(64.0);
 		assert_eq!(a.age(0.5), 32.0);
 		assert_eq!(a.age(2.0), 64.0);
@@ -540,7 +540,7 @@ mod tests {
 
 	// Test ID: defpn
 	#[test]
-	fn a_jump_eases_in_from_what_was_drawn() {
+	fn jump_eases_from_drawn() {
 		for curve in CURVES {
 			let mut e = Ease::default();
 			let short = log(curve, 0.0, 10.0);
@@ -576,7 +576,7 @@ mod tests {
 
 	// Test ID: defpp
 	#[test]
-	fn time_going_on_is_no_jump_but_a_gap_or_new_axis_is() {
+	fn time_passing_is_no_jump() {
 		let mut e = Ease::default();
 		step(
 			&mut e,
@@ -617,7 +617,7 @@ mod tests {
 
 	// Test ID: deqvb
 	#[test]
-	fn a_trim_to_the_max_age_is_no_jump_but_a_shorter_max_age_is() {
+	fn trim_vs_shorter_max_age() {
 		for curve in [Curve::Smooth, Curve::FixedA, Curve::FixedB] {
 			let mut e = Ease::default();
 			let t = DAY + 900.0;
@@ -638,7 +638,7 @@ mod tests {
 
 	// Test ID: defpq
 	#[test]
-	fn a_jump_while_easing_starts_from_what_is_on_screen() {
+	fn jump_mid_ease_restarts() {
 		let mut e = Ease::default();
 		step(&mut e, log(Curve::Smooth, 0.0, 10.0), 10.0);
 		let b = log(Curve::FixedA, -DAY, 10.1);
