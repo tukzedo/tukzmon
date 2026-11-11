@@ -22,20 +22,6 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- Reproducible builds: map the Rust paths through cargo's trim-paths once it's stable
-	- ID: 2026111021133143
-	- Type: Task
-	- Status: Stalled
-		- Held for a pinned toolchain whose cargo has trim-paths on stable. It's unstable in 1.96.
-	- Priority|Severity: Low
-	- Opened: 20261110-211331
-	- Opened by: t00mietum
-	- Related IDs: 2026110710005013
-	- Requirements:
-		- A plain `cargo build --release` gives the same bytes from any checkout, target folder or home, with no path maps from outside.
-		- Then `utility/path-maps.bash` keeps only what trim-paths doesn't cover, such as cxx's own C++.
-	- Estimated effort: Low
-
 - Smoothly animate each graph on each tick
 	- ID: 2026110911114024
 	- Type: Enhancement
@@ -403,349 +389,19 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1111
 	- Test case: `installer_version_order` (df4xa) and `installer_installs` (df4xb), in `cicd/tests/guards.bash`.
 
-- CICD gap: tukzmon-settings built in another folder gives different bytes
-	- ID: 2026110710005013
+- Reproducible builds: map the Rust paths through cargo's trim-paths once it's stable
+	- ID: 2026111021133143
 	- Type: Task
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261107-100050
-	- Opened by: t00mietum
-	- Parent ID: 2026102416252898
-	- Requirements:
-		- Release builds of one commit give the same bytes, from any checkout folder, target folder, or home.
-		- The build maps its own paths out of the C++ and the Rust, such as through the compilers' path prefix options.
-		- The pipeline builds twice in 2 folders and compares the checksums. It's watched to fail first.
-		- README.md says builds are reproducible once that check passes.
-	- Reproduced: 20261107, 2 fresh release builds of one tree into 2 target folders. `libtukzmon.so` matched. `tukzmon-settings` didn't, since it keeps the full path of the cxx bridge's `cxx.h` from the build folder.
-	- Related IDs: 2026111021133143
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- README.md's line that every build of a commit gives the same bytes is out until this is done.
-		- The cause was wider than cxx.h. A build with another cargo home also kept that path, in the panic locations of shcl and cxx and in cxx's own C++, so `libtukzmon.so` differed too.
-		- `settings/build.rs` maps OUT_DIR and the crate out of its C++, so a plain build into another target folder now gives the same `tukzmon-settings`.
-		- `utility/path-maps.bash` gives the release build rustc's and gcc's path maps for the checkout, the target folder and the cargo home. cicd's release and demo builds and `utility/dev-install.bash` use it.
-		- The new Reproducible step builds the release again from a copy of the tree in another folder, into another target folder, with the cargo home through a link, and fails on any byte that differs, listing the paths only one build has. About 30 s at 8 jobs. It's in every run but `--backlog-run-quick`, where it's the `repro` area.
-		- README.md says release builds are reproducible again, and how a plain build gets there.
-		- Verified: the Reproducible step passed in the image and on the host. With the path maps taken out it failed on both files, with the cargo home's paths. 2 plain release builds into 2 target folders gave the same `tukzmon-settings`, where the 20261107 ones didn't. The quick gate and Sanitizers passed.
-	- Decisions:
-		- The Rust paths are mapped from outside the build, since cargo's trim-paths is unstable in 1.96 and a cargo config can't hold paths that change. This departs from "the build maps its own paths" for the Rust and for cxx's C++, so a plain `cargo build --release` in another home still differs. 2026111021133143 takes it up once trim-paths is stable.
-		- The second build takes the first one's build number from its build script's output, since the copy isn't a git checkout and a tree with changes takes the time of the build.
-		- It compares with the release step's own build, so what gets packaged is what was checked, and it runs where that build ran, on the host in a run that dogfoods.
-		- `settings/build.rs` now asks for cc's extra warnings itself, since cc drops them when CXXFLAGS is set.
-	- Branch: round-1111
-	- Test case: `release_path_maps` (df50f), in `cicd/tests/guards.bash`, and the Reproducible step itself.
-		- Swept: every release build in cicd (release, demo), `utility/dev-install.bash`, and the Nix package, which builds in its own fixed folder. The profiler and CodeQL builds aren't shipped.
-	- Closed: 20261110-211350
-
-- Most test names are whole sentences, and over half start the same way
-	- ID: 2026110710005014
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261107-100050
-	- Opened by: t00mietum
-	- Requirements:
-		- Short test names, a few words each, and not all built the same way. About 320 of 400 Rust tests and all 25 bash tests have 7 words or more, and over half start with a, the, every or each.
-		- Each test keeps its ID.
-		- The bash tests in `cicd/tests/` too, since their names print on each PASS and FAIL line.
-		- knobs' tests too. SilkTerm's copy gets an item of its own there.
-		- The `live_` names can stay, since they mark the tests that read this computer.
-	- Estimated effort: High
-	- Progress log:
-		- Split by area into 5 children, 2026111021184916 to 2026111021184970. The cicd, knobs, xfce and settings, and core config, graphs, lib and render ones are done, and so is the last, the rest of core.
-	- Decisions:
-		- Names say what is checked in 2 to 5 words, and the module path and ID carry the rest.
-	- Test case: its children's: 2026111021184916: The renamed tests themselves, run by the Tests step. No new test, since only names changed.; 2026111021184930: The renamed tests themselves. No new test, since only names changed.; 2026111021184944: The renamed tests themselves. No new test, since only names changed.; 2026111021184957: The renamed tests themselves. No new test, since only names changed.; 2026111021184970: The renamed tests themselves. No new test, since only names changed.
-	- Closed: 20261110-221303
-
-- Short test names: the pipeline's tests in cicd/tests
-	- ID: 2026111021184916
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261110-211849
-	- Opened by: t00mietum
-	- Parent ID: 2026110710005014
-	- Requirements:
-		- cicd/tests/guards.bash, 39 tests.
-		- Per the parent: a few words each, not all built the same way, no leading a, the, every or each. Each test keeps its ID. live_ names stay.
-		- Update every Test case row, round-notes.md and design.md line that names a renamed test.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- All 39 are 2 to 4 words now, such as `safe_rm_scope`, `hook_gates_the_commit` and `installer_version_order`. Each kept its ID line.
-		- The backlog's Test case rows that named them are renamed to match. design.md and round-notes.md named none.
-		- Verified: guards.bash gives 39 PASS lines with the new names, the test ID check finds 521 tests with unique IDs, and the quick gate and Sanitizers passed.
-	- Decisions:
-		- The name says what is checked, not the whole outcome, since the PASS line and the ID point to the body. Shapes vary: a noun phrase, a short claim, or a verb.
-	- Branch: round-1111
-	- Test case: The renamed tests themselves, run by the Tests step. No new test, since only names changed.
-		- Swept: every `fTest_` name in the backlog, design.md, round-notes.md, memory.md and the private tools.
-	- Closed: 20261110-212735
-
-- Short test names: knobs
-	- ID: 2026111021184930
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261110-211849
-	- Opened by: t00mietum
-	- Parent ID: 2026110710005014
-	- Requirements:
-		- knobs/src/tests.rs and knobs/tests, 36 tests.
-		- Per the parent: a few words each, not all built the same way, no leading a, the, every or each. Each test keeps its ID. live_ names stay.
-		- Update every Test case row, round-notes.md and design.md line that names a renamed test.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- All 36 are 2 to 5 words now, such as `chooser_self_loop`, `kept_lines` and `change_queries_flat_cost`. Each kept its ID line.
-		- The backlog's Test case rows that named them are renamed to match. design.md and round-notes.md named none.
-		- SilkTerm's knobs copy isn't changed here. It needs an item in its own backlog.
-		- Verified: knobs' 36 tests pass under the new names, the test ID check passed, and the quick gate and Sanitizers passed.
-	- Decisions:
-		- Same as the cicd child: the name says what is checked, and shapes vary.
-	- Branch: round-1111
-	- Test case: The renamed tests themselves. No new test, since only names changed.
-		- Swept: every knobs test name in the backlog, design.md, round-notes.md, memory.md and the private tools.
-	- Closed: 20261110-212735
-
-- Short test names: xfce and settings
-	- ID: 2026111021184944
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261110-211849
-	- Opened by: t00mietum
-	- Parent ID: 2026110710005014
-	- Requirements:
-		- xfce/src and settings/src, 149 tests.
-		- Per the parent: a few words each, not all built the same way, no leading a, the, every or each. Each test keeps its ID. live_ names stay.
-		- Update every Test case row, round-notes.md and design.md line that names a renamed test.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- 144 tests in xfce/src and settings/src are 2 to 5 words now, such as `hue_ramp_primaries`, `slider_detents_and_gates` and `heap_stops_growing`. Each kept its ID line. 5 more in the count are commented out and keep their names.
-		- The backlog's Test case rows, design.md, round-notes.md, details.md and the soak test's name in `cicd/cicd.bash` are renamed to match.
-		- Verified: the quick gate and Sanitizers passed, the test ID check passed, and the soak test still shows in its skip list under the new name.
-	- Decisions:
-		- Same as the siblings: the name says what is checked, and shapes vary. None was a `live_` name, so all were renamed, including those in live.rs.
-	- Branch: round-1111
-	- Test case: The renamed tests themselves. No new test, since only names changed.
-		- Swept: every old name in the repo, design.md, round-notes.md, details.md and memory.md. core/src/config.rs has a test with the same name as one here, and is left for its own child.
-	- Closed: 20261110-215700
-
-- Short test names: core config, graphs, lib and render
-	- ID: 2026111021184957
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261110-211849
-	- Opened by: t00mietum
-	- Parent ID: 2026110710005014
-	- Requirements:
-		- core/src/config.rs, graphs.rs, lib.rs and render.rs, 145 tests.
-		- Per the parent: a few words each, not all built the same way, no leading a, the, every or each. Each test keeps its ID. live_ names stay.
-		- Update every Test case row, round-notes.md and design.md line that names a renamed test.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- 144 tests in core/src/config.rs, graphs.rs, lib.rs and render.rs are 2 to 5 words now, such as `unreadable_file_errors`, `pointer_finds_graph` and `hover_line_at_pointer`. `parse_spec` and `rgb_parsing` were short already. Each kept its ID line. 2 commented-out ones were renamed too.
-		- The backlog's Test case rows, design.md, memory.md, round-notes.md and details.md are renamed to match. No cicd step names one of these.
-		- Verified: the quick gate and Sanitizers passed, core's 296 tests pass, and the test ID check passed with 522 tests.
-	- Decisions:
-		- Same as the siblings: the name says what is checked, and shapes vary. None was a `live_` name.
-		- The config.rs test that shared an old name with another is `unreadable_file_errors`.
-	- Branch: round-1111
-	- Test case: The renamed tests themselves. No new test, since only names changed.
-		- Swept: every old name in the repo, design.md, round-notes.md, details.md and memory.md.
-	- Closed: 20261111-060900
-
-- Short test names: the rest of core
-	- ID: 2026111021184970
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261110-211849
-	- Opened by: t00mietum
-	- Parent ID: 2026110710005014
-	- Requirements:
-		- core/src outside config, graphs, lib and render, and core/tests, 160 tests.
-		- Per the parent: a few words each, not all built the same way, no leading a, the, every or each. Each test keeps its ID. live_ names stay.
-		- Update every Test case row, round-notes.md and design.md line that names a renamed test.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- 149 tests in the rest of core/src and core/tests are 2 to 5 words now, such as `axis_ends`, `lan_capped_by_interfaces` and `heap_stops_growing_when_full`. Each kept its ID line. The 11 `live_` ones kept their names. `shares` in mem.rs became `mem_shares` by hand, since the word is common in the docs.
-		- The backlog's Test case rows and details.md are renamed to match. design.md, memory.md and round-notes.md named none. The soak step runs `--test soak` and names no test.
-		- Verified: the quick gate (format, build, lint, test) and Sanitizers passed, with core's 296 tests.
-	- Decisions:
-		- Same as the siblings: the name says what is checked, and shapes vary. The fuzz tests keep a `fuzz_` word at the front.
-	- Branch: round-1111
-	- Test case: The renamed tests themselves. No new test, since only names changed.
-		- Swept: every old name in the sources, cicd, design.md, round-notes.md, details.md, memory.md and the backlog.
-	- Closed: 20261111-061800
-
-- Pre-next-cut: Settings, General: "Reduce motion in remote session"
-	- ID: 2026111019111679
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261110-191116
-	- Opened by: t00mietum
-	- Related IDs: 2026110911114037, 2026110922214697
-	- Requirements:
-		- Settings, General:
-			- "Reduce motion if remote desktop session detected" -> "Reduce motion in remote session"
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- The checkbox reads Reduce motion in remote session. The tip on the rows it greys, and `design.md` Drawing, use the new name.
-		- Verified: the quick gate and Sanitizers passed.
-	- Decisions:
-		- The setting's id and path, `graph.calm_remote`, are unchanged, so saved files read as before.
-	- Branch: round-1111
-	- Test case: none for a label alone. df3nh still checks the greying and its tip.
-		- Swept: every place the old label was quoted, in `settings.shcl`, `dialog.rs` and `design.md`. README never named it.
-	- Closed: 20261110-214413
-
-- Pre-next-cut: Settings, General: Max age below Keep across restarts, with hours and minutes
-	- ID: 2026111019111684
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Avg
-	- Opened: 20261110-191116
-	- Opened by: t00mietum
-	- Related IDs: 2026110109585212, 2026102408304572
-	- Requirements:
-		- Settings, General:
-			- Move "Max age in days" below "Keep across restarts". And on the same row, add:
-				- `hours [ 0  ]   minutes [ 0  ]`
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- Max age in days is on its own line under Keep across restarts, indented and greyed with it, with hours and minutes to its right, each with its own revert.
-		- The max age is the 3 added up, at `history.max_hours` and `history.max_minutes` beside `history.max_days`. Days now go from 0, hours to 23 and minutes to 59. With all 3 at 0 a minute is kept.
-		- A row after a `same_line` row can be `same_line` too, and joins the same line.
-		- `design.md` Settings window and History, and `style-guide_ux.md` Groups and headings, are updated.
-		- Verified: the quick gate and Sanitizers passed. der33 and der54 fail on the old line code, and pass now.
-	- Decisions:
-		- Days from 0, so a max age under a day can be set, which is what hours and minutes are for. A file with `max_days: 0` used to read as 28 days, and now reads as a minute. Only a hand edit could write it.
-		- The 1 minute floor, since 0 would empty the graph as it draws.
-		- `Look` keeps one `max_age` in seconds, not the 3 parts.
-		- The joined boxes sit in a layout, not a widget, so each label stays beside its box, where a screen reader looks for it.
-		- der33 is renamed, since its old name said the opposite of the new layout. Its ID is unchanged.
-	- Branch: round-1111
-	- Test case: `config::tests::max_age_sums_parts` (df51d) and `bridge::tests::max_age_placement` (der33), and der54 for the boxes' labels.
-		- 20261110: der33, renamed from `max_age_sits_right_of_keep_across_restarts`, now checks Max age under Keep across restarts and hours and minutes on its line, where it checked Max age on Keep's line. decbf's bad value is `max_days: 36501`, not 0, since 0 is valid now, and it reads `max_age` as 28 days in seconds.
-		- Swept: every `max_days` reader (`Graph::trim`, and the tests in lib, graphs and the soak test), every `same_line` row, and the docs naming Max age's place.
-	- Closed: 20261110-214413
-
-- CICD gap: df3qt never runs in the pipeline, since the image has no dbus-daemon
-	- ID: 2026110923411799
-	- Type: Task
-	- Status: Done
+	- Status: Stalled
+		- Held for a pinned toolchain whose cargo has trim-paths on stable. It's unstable in 1.96.
 	- Priority|Severity: Low
-	- Opened: 20261109-234117
-	- Opened by:
-	- Requirements: Run df3qt in the gate, either with dbus-daemon in the build image or as a host step, so it isn't a SKIP every run.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- Filed from 2026110911114050. It passes on b23's host with --include-ignored.
-		- The build image has dbus-daemon now, in a layer of its own after the rest, and df3qt is no longer ignored, except under Miri.
-		- The test starts its bus from a config of its own, with anonymous auth. The stock session config and EXTERNAL auth both look the caller up in passwd, and the image runs as a uid it doesn't list, so the bus wouldn't start or take a client.
-		- It waits for the bus to print its address rather than a fixed 300 ms, and stops the bus and removes its config on a failed assert too.
-		- Verified: PASS df3qt in the quick gate's Tests step in the image, and in Sanitizers, and on the host. It failed in the image with the stock config, and with EXTERNAL auth. No bus was left running after a planted failure.
-	- Decisions:
-		- In the image, not a host step, so the hosted workflow runs it too.
-		- Anonymous auth, not a passwd entry mounted into every container, since only this test needs one and the test then runs the same on any box.
-	- Branch: round-1111
-	- Test case: `lock::tests::private_bus_lock_hides_graphs` (df3qt), now in every run's Tests and Sanitizers steps.
-		- Swept: the other ignored tests, which are timings and soak checks the pipeline runs on purpose, and the other tests that start a program, which use only `sh`.
-	- Closed: 20261110-223333
-
-- Code review 20261107 item 26: The amdgpu reads have none of the NVIDIA path's runtime power checks
-	- ID: 2026110709074426
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
+	- Opened: 20261110-211331
 	- Opened by: t00mietum
-	- Related IDs: 2026103115232174, 2026110118380381
-	- Origin: `a50f0c6` and `5b569ad` (2026-10-29). Plausible, from reading, since there's no AMD card here.
+	- Related IDs: 2026110710005013
 	- Requirements:
-		- Read an AMD card's runtime power state before its busy share, as the NVIDIA path does, and read 0 while it sleeps.
-		- Depending on the kernel, a busy read today either wakes a sleeping card or fails, which shows as a gap.
+		- A plain `cargo build --release` gives the same bytes from any checkout, target folder or home, with no path maps from outside.
+		- Then `utility/path-maps.bash` keeps only what trim-paths doesn't cover, such as cxx's own C++.
 	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- An amdgpu card's power files come from its `device` folder, the PCI device's own. Where `power/control` is `auto`, the GPU graph reads 0 without asking `gpu_busy_percent` while `power/runtime_status` is `suspended`.
-		- It also gets the NVIDIA path's idle rest: after 5 s idle, busy isn't read for the autosuspend delay plus 5 s, or until the card sleeps.
-		- GPU memory reads as before, since `mem_info_vram_*` are the driver's own counts and wake nothing.
-		- `design.md` Data sources on Linux, GPU, has it.
-		- Verified: df53k passed, and failed with the asleep check taken out, and again with the idle rest taken out. The gpu tests, the quick gate and Sanitizers passed, and Miri passed df53k and dekm9.
-		- Unverified on a real AMD card, since no box here has one.
-	- Decisions:
-		- The idle rest goes past the wording. Since about 6.17 each busy read puts off the card's next sleep, and older kernels did it by hand, so a read each second would keep it from ever sleeping.
-		- The rest is the one `REST_UNTIL` the NVIDIA readers share, through `rest_after_idle`, so both paths rest the same way. Only one card is read, so they never share it at once.
-		- Asleep ends any rest at once, so work that wakes the card reads on the next sample.
-	- Actual fix: `Amd::busy` checks `Power` before reading `gpu_busy_percent`, and rests after `IDLE_FOR` idle.
-	- Branch: round-1111
-	- Test case: `gpu::tests::sleeping_amd_card_left_alone` (df53k), with stand-in sysfs files. It fails with the asleep check or the idle rest taken out.
-		- Swept: every `Card::Amd` read, both readers' probes, `amd_readers`, the fuzz test df4gx, `Nvidia::rest_if_idle` and `awake`, which now go through the shared helpers, and `design.md` for "amdgpu".
-	- Acceptance signoff: Self-closed 20261110: df53k's stand-in files stand in for an AMD card, as the issue asked.
-	- Closed: 20261110-224557
-
-- Code review 20261107 item 27: A demo run of only some scenes writes over assets/demo.gif
-	- ID: 2026110709074427
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026110310450002
-	- Origin: `15993d9` (2026-11-06).
-	- Requirements:
-		- Update the README's gif only from a run of every scene, unless asked. Today only `--no-asset` keeps a `--scenes` run from replacing it.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- A gif take of only some scenes leaves `assets/demo.gif` alone and says why. `--asset` updates it anyway, and `--no-asset` still never does. The two can't be given together.
-		- Verified: df53t failed on the old script, which replaced the gif from a `days` take, and passes now. The quick gate's format, build, lint and test areas passed, and so did Sanitizers.
-	- Decisions:
-		- `--scenes` naming every scene counts as a run of every scene.
-		- "Unless asked" is a new `--asset` flag, rather than a prompt, since the demo also runs unattended in cicd.
-	- Branch: round-1111
-	- Test case: df53t
-		- Swept: the only other writer of `assets/demo.gif` is the cicd Demo step, which runs every scene. `--shot` never reaches the gif.
-	- Closed: 20261110-225645
-
-- Code review 20261107 item 28: A docs-only push to main skips the 2 checks that read docs
-	- ID: 2026110709074428
-	- Type: Enhancement
-	- Status: Done
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026103115232016
-	- Origin: `ff4610a` (2026-10-25).
-	- Requirements:
-		- On a docs-only push, still run markdownlint on the changed files and the backlog's test ID check, which take seconds. Today a backlog-only push can put a Lint failure on `main` that the next code push then trips over.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- A docs-only push to `main` still skips the merge gate, but the pre-push hook now runs markdownlint on the `.md` files it changes and `test-ids.bash check`, in a worktree of the pushed commit. Either failing refuses the push. About half a second.
-		- `fLintMarkdown` moved from `cicd.bash` to `cicd/utility/include/lint-markdown.bash`, so the Lint step and the hook lint the same way, with the same skipped rules per file.
-		- New test df543 pushes 4 docs-only commits: a good doc, a bad doc, a backlog with an unknown ID, and an asset only. dezf5 sources the new file, and df32x's rig copies it.
-		- Verified: df543 failed on the old hook, which ran neither check, and passed after. A docs-only push of a clone with the real markdownlint passed a clean README and refused one with lint errors. The quick gate's format, build, lint and test areas passed.
-	- Decisions:
-		- Both checks run on the pushed commit's tree, not the checkout, as the gate does since df32x.
-		- A host with no markdownlint gets one line and the push goes on, since a docs push shouldn't need the pipeline's tools. The test ID check still runs. A commit with no `test-ids.bash` skips that check.
-		- Swept: the hosted `merge-gate.yml` has no docs skip, so it runs both on every push. `cicd/hooks` holds only pre-push.
-	- Branch: round-1111
-	- Test case: `hook_checks_docs` (df543), in `cicd/tests/guards.bash`.
-	- Closed: 20261110-230516
 
 - Code review 20261030 item 3, part 2: Look up a setting by an index in knobs
 	- ID: 2026103018353670
@@ -3780,6 +3436,244 @@ Sorted per the notes in [Template](#template).
 		- Swept: the video take uses the same panel config, and no other script in the repo or the private tools sets up a tray.
 	- Acceptance signoff: Self-closed 20261109: in the new gif the network, volume and bell icons are evenly spaced.
 	- Closed: 20261109-124233
+
+- CICD gap: tukzmon-settings built in another folder gives different bytes
+	- ID: 2026110710005013
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261107-100050
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- Release builds of one commit give the same bytes, from any checkout folder, target folder, or home.
+		- The build maps its own paths out of the C++ and the Rust, such as through the compilers' path prefix options.
+		- The pipeline builds twice in 2 folders and compares the checksums. It's watched to fail first.
+		- README.md says builds are reproducible once that check passes.
+	- Reproduced: 20261107, 2 fresh release builds of one tree into 2 target folders. `libtukzmon.so` matched. `tukzmon-settings` didn't, since it keeps the full path of the cxx bridge's `cxx.h` from the build folder.
+	- Related IDs: 2026111021133143
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- README.md's line that every build of a commit gives the same bytes is out until this is done.
+		- The cause was wider than cxx.h. A build with another cargo home also kept that path, in the panic locations of shcl and cxx and in cxx's own C++, so `libtukzmon.so` differed too.
+		- `settings/build.rs` maps OUT_DIR and the crate out of its C++, so a plain build into another target folder now gives the same `tukzmon-settings`.
+		- `utility/path-maps.bash` gives the release build rustc's and gcc's path maps for the checkout, the target folder and the cargo home. cicd's release and demo builds and `utility/dev-install.bash` use it.
+		- The new Reproducible step builds the release again from a copy of the tree in another folder, into another target folder, with the cargo home through a link, and fails on any byte that differs, listing the paths only one build has. About 30 s at 8 jobs. It's in every run but `--backlog-run-quick`, where it's the `repro` area.
+		- README.md says release builds are reproducible again, and how a plain build gets there.
+		- Verified: the Reproducible step passed in the image and on the host. With the path maps taken out it failed on both files, with the cargo home's paths. 2 plain release builds into 2 target folders gave the same `tukzmon-settings`, where the 20261107 ones didn't. The quick gate and Sanitizers passed.
+	- Decisions:
+		- The Rust paths are mapped from outside the build, since cargo's trim-paths is unstable in 1.96 and a cargo config can't hold paths that change. This departs from "the build maps its own paths" for the Rust and for cxx's C++, so a plain `cargo build --release` in another home still differs. 2026111021133143 takes it up once trim-paths is stable.
+		- The second build takes the first one's build number from its build script's output, since the copy isn't a git checkout and a tree with changes takes the time of the build.
+		- It compares with the release step's own build, so what gets packaged is what was checked, and it runs where that build ran, on the host in a run that dogfoods.
+		- `settings/build.rs` now asks for cc's extra warnings itself, since cc drops them when CXXFLAGS is set.
+	- Branch: round-1111
+	- Test case: `release_path_maps` (df50f), in `cicd/tests/guards.bash`, and the Reproducible step itself.
+		- Swept: every release build in cicd (release, demo), `utility/dev-install.bash`, and the Nix package, which builds in its own fixed folder. The profiler and CodeQL builds aren't shipped.
+	- Closed: 20261110-211350
+
+- Most test names are whole sentences, and over half start the same way
+	- ID: 2026110710005014
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261107-100050
+	- Opened by: t00mietum
+	- Requirements:
+		- Short test names, a few words each, and not all built the same way. About 320 of 400 Rust tests and all 25 bash tests have 7 words or more, and over half start with a, the, every or each.
+		- Each test keeps its ID.
+		- The bash tests in `cicd/tests/` too, since their names print on each PASS and FAIL line.
+		- knobs' tests too. SilkTerm's copy gets an item of its own there.
+		- The `live_` names can stay, since they mark the tests that read this computer.
+	- Estimated effort: High
+	- Progress log:
+		- Split by area into 5 children, 2026111021184916 to 2026111021184970. The cicd, knobs, xfce and settings, and core config, graphs, lib and render ones are done, and so is the last, the rest of core.
+	- Decisions:
+		- Names say what is checked in 2 to 5 words, and the module path and ID carry the rest.
+	- Test case: its children's: 2026111021184916: The renamed tests themselves, run by the Tests step. No new test, since only names changed.; 2026111021184930: The renamed tests themselves. No new test, since only names changed.; 2026111021184944: The renamed tests themselves. No new test, since only names changed.; 2026111021184957: The renamed tests themselves. No new test, since only names changed.; 2026111021184970: The renamed tests themselves. No new test, since only names changed.
+	- Closed: 20261110-221303
+
+- Short test names: the pipeline's tests in cicd/tests
+	- ID: 2026111021184916
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261110-211849
+	- Opened by: t00mietum
+	- Parent ID: 2026110710005014
+	- Requirements:
+		- cicd/tests/guards.bash, 39 tests.
+		- Per the parent: a few words each, not all built the same way, no leading a, the, every or each. Each test keeps its ID. live_ names stay.
+		- Update every Test case row, round-notes.md and design.md line that names a renamed test.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- All 39 are 2 to 4 words now, such as `safe_rm_scope`, `hook_gates_the_commit` and `installer_version_order`. Each kept its ID line.
+		- The backlog's Test case rows that named them are renamed to match. design.md and round-notes.md named none.
+		- Verified: guards.bash gives 39 PASS lines with the new names, the test ID check finds 521 tests with unique IDs, and the quick gate and Sanitizers passed.
+	- Decisions:
+		- The name says what is checked, not the whole outcome, since the PASS line and the ID point to the body. Shapes vary: a noun phrase, a short claim, or a verb.
+	- Branch: round-1111
+	- Test case: The renamed tests themselves, run by the Tests step. No new test, since only names changed.
+		- Swept: every `fTest_` name in the backlog, design.md, round-notes.md, memory.md and the private tools.
+	- Closed: 20261110-212735
+
+- Short test names: knobs
+	- ID: 2026111021184930
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261110-211849
+	- Opened by: t00mietum
+	- Parent ID: 2026110710005014
+	- Requirements:
+		- knobs/src/tests.rs and knobs/tests, 36 tests.
+		- Per the parent: a few words each, not all built the same way, no leading a, the, every or each. Each test keeps its ID. live_ names stay.
+		- Update every Test case row, round-notes.md and design.md line that names a renamed test.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- All 36 are 2 to 5 words now, such as `chooser_self_loop`, `kept_lines` and `change_queries_flat_cost`. Each kept its ID line.
+		- The backlog's Test case rows that named them are renamed to match. design.md and round-notes.md named none.
+		- SilkTerm's knobs copy isn't changed here. It needs an item in its own backlog.
+		- Verified: knobs' 36 tests pass under the new names, the test ID check passed, and the quick gate and Sanitizers passed.
+	- Decisions:
+		- Same as the cicd child: the name says what is checked, and shapes vary.
+	- Branch: round-1111
+	- Test case: The renamed tests themselves. No new test, since only names changed.
+		- Swept: every knobs test name in the backlog, design.md, round-notes.md, memory.md and the private tools.
+	- Closed: 20261110-212735
+
+- Short test names: xfce and settings
+	- ID: 2026111021184944
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261110-211849
+	- Opened by: t00mietum
+	- Parent ID: 2026110710005014
+	- Requirements:
+		- xfce/src and settings/src, 149 tests.
+		- Per the parent: a few words each, not all built the same way, no leading a, the, every or each. Each test keeps its ID. live_ names stay.
+		- Update every Test case row, round-notes.md and design.md line that names a renamed test.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- 144 tests in xfce/src and settings/src are 2 to 5 words now, such as `hue_ramp_primaries`, `slider_detents_and_gates` and `heap_stops_growing`. Each kept its ID line. 5 more in the count are commented out and keep their names.
+		- The backlog's Test case rows, design.md, round-notes.md, details.md and the soak test's name in `cicd/cicd.bash` are renamed to match.
+		- Verified: the quick gate and Sanitizers passed, the test ID check passed, and the soak test still shows in its skip list under the new name.
+	- Decisions:
+		- Same as the siblings: the name says what is checked, and shapes vary. None was a `live_` name, so all were renamed, including those in live.rs.
+	- Branch: round-1111
+	- Test case: The renamed tests themselves. No new test, since only names changed.
+		- Swept: every old name in the repo, design.md, round-notes.md, details.md and memory.md. core/src/config.rs has a test with the same name as one here, and is left for its own child.
+	- Closed: 20261110-215700
+
+- Short test names: core config, graphs, lib and render
+	- ID: 2026111021184957
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261110-211849
+	- Opened by: t00mietum
+	- Parent ID: 2026110710005014
+	- Requirements:
+		- core/src/config.rs, graphs.rs, lib.rs and render.rs, 145 tests.
+		- Per the parent: a few words each, not all built the same way, no leading a, the, every or each. Each test keeps its ID. live_ names stay.
+		- Update every Test case row, round-notes.md and design.md line that names a renamed test.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- 144 tests in core/src/config.rs, graphs.rs, lib.rs and render.rs are 2 to 5 words now, such as `unreadable_file_errors`, `pointer_finds_graph` and `hover_line_at_pointer`. `parse_spec` and `rgb_parsing` were short already. Each kept its ID line. 2 commented-out ones were renamed too.
+		- The backlog's Test case rows, design.md, memory.md, round-notes.md and details.md are renamed to match. No cicd step names one of these.
+		- Verified: the quick gate and Sanitizers passed, core's 296 tests pass, and the test ID check passed with 522 tests.
+	- Decisions:
+		- Same as the siblings: the name says what is checked, and shapes vary. None was a `live_` name.
+		- The config.rs test that shared an old name with another is `unreadable_file_errors`.
+	- Branch: round-1111
+	- Test case: The renamed tests themselves. No new test, since only names changed.
+		- Swept: every old name in the repo, design.md, round-notes.md, details.md and memory.md.
+	- Closed: 20261111-060900
+
+- Short test names: the rest of core
+	- ID: 2026111021184970
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261110-211849
+	- Opened by: t00mietum
+	- Parent ID: 2026110710005014
+	- Requirements:
+		- core/src outside config, graphs, lib and render, and core/tests, 160 tests.
+		- Per the parent: a few words each, not all built the same way, no leading a, the, every or each. Each test keeps its ID. live_ names stay.
+		- Update every Test case row, round-notes.md and design.md line that names a renamed test.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- 149 tests in the rest of core/src and core/tests are 2 to 5 words now, such as `axis_ends`, `lan_capped_by_interfaces` and `heap_stops_growing_when_full`. Each kept its ID line. The 11 `live_` ones kept their names. `shares` in mem.rs became `mem_shares` by hand, since the word is common in the docs.
+		- The backlog's Test case rows and details.md are renamed to match. design.md, memory.md and round-notes.md named none. The soak step runs `--test soak` and names no test.
+		- Verified: the quick gate (format, build, lint, test) and Sanitizers passed, with core's 296 tests.
+	- Decisions:
+		- Same as the siblings: the name says what is checked, and shapes vary. The fuzz tests keep a `fuzz_` word at the front.
+	- Branch: round-1111
+	- Test case: The renamed tests themselves. No new test, since only names changed.
+		- Swept: every old name in the sources, cicd, design.md, round-notes.md, details.md, memory.md and the backlog.
+	- Closed: 20261111-061800
+
+- Pre-next-cut: Settings, General: "Reduce motion in remote session"
+	- ID: 2026111019111679
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261110-191116
+	- Opened by: t00mietum
+	- Related IDs: 2026110911114037, 2026110922214697
+	- Requirements:
+		- Settings, General:
+			- "Reduce motion if remote desktop session detected" -> "Reduce motion in remote session"
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- The checkbox reads Reduce motion in remote session. The tip on the rows it greys, and `design.md` Drawing, use the new name.
+		- Verified: the quick gate and Sanitizers passed.
+	- Decisions:
+		- The setting's id and path, `graph.calm_remote`, are unchanged, so saved files read as before.
+	- Branch: round-1111
+	- Test case: none for a label alone. df3nh still checks the greying and its tip.
+		- Swept: every place the old label was quoted, in `settings.shcl`, `dialog.rs` and `design.md`. README never named it.
+	- Closed: 20261110-214413
+
+- Pre-next-cut: Settings, General: Max age below Keep across restarts, with hours and minutes
+	- ID: 2026111019111684
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261110-191116
+	- Opened by: t00mietum
+	- Related IDs: 2026110109585212, 2026102408304572
+	- Requirements:
+		- Settings, General:
+			- Move "Max age in days" below "Keep across restarts". And on the same row, add:
+				- `hours [ 0  ]   minutes [ 0  ]`
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Max age in days is on its own line under Keep across restarts, indented and greyed with it, with hours and minutes to its right, each with its own revert.
+		- The max age is the 3 added up, at `history.max_hours` and `history.max_minutes` beside `history.max_days`. Days now go from 0, hours to 23 and minutes to 59. With all 3 at 0 a minute is kept.
+		- A row after a `same_line` row can be `same_line` too, and joins the same line.
+		- `design.md` Settings window and History, and `style-guide_ux.md` Groups and headings, are updated.
+		- Verified: the quick gate and Sanitizers passed. der33 and der54 fail on the old line code, and pass now.
+	- Decisions:
+		- Days from 0, so a max age under a day can be set, which is what hours and minutes are for. A file with `max_days: 0` used to read as 28 days, and now reads as a minute. Only a hand edit could write it.
+		- The 1 minute floor, since 0 would empty the graph as it draws.
+		- `Look` keeps one `max_age` in seconds, not the 3 parts.
+		- The joined boxes sit in a layout, not a widget, so each label stays beside its box, where a screen reader looks for it.
+		- der33 is renamed, since its old name said the opposite of the new layout. Its ID is unchanged.
+	- Branch: round-1111
+	- Test case: `config::tests::max_age_sums_parts` (df51d) and `bridge::tests::max_age_placement` (der33), and der54 for the boxes' labels.
+		- 20261110: der33, renamed from `max_age_sits_right_of_keep_across_restarts`, now checks Max age under Keep across restarts and hours and minutes on its line, where it checked Max age on Keep's line. decbf's bad value is `max_days: 36501`, not 0, since 0 is valid now, and it reads `max_age` as 28 days in seconds.
+		- Swept: every `max_days` reader (`Graph::trim`, and the tests in lib, graphs and the soak test), every `same_line` row, and the docs naming Max age's place.
+	- Closed: 20261110-214413
 
 - CICD gap: Fuzz the parsers of files and kernel messages
 	- ID: 2026110310450001
@@ -7854,6 +7748,112 @@ Sorted per the notes in [Template](#template).
 	- Test case: `config::tests::reused_id_starts_fresh` (df36b), `older_items_keep_files` (df36c), and `tests::remove_takes_mark` (df36d) in the plugin crate. df36b fails with the deletes taken out, and df36d with the mark left out of `forget`.
 		- Swept: every place an item's files are made or deleted (`Plugin::new`, `start_from`, `forget`, `Graphs::save` through `keep::write`), and every `instance_file` and `xfce_panel_plugin_get_unique_id` caller. The settings window's `keeps_history` still reads an old `plugin-<id>.shcl` until a new item takes the id, as before.
 	- Closed: 20261109-142358
+
+- CICD gap: df3qt never runs in the pipeline, since the image has no dbus-daemon
+	- ID: 2026110923411799
+	- Type: Task
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261109-234117
+	- Opened by:
+	- Requirements: Run df3qt in the gate, either with dbus-daemon in the build image or as a host step, so it isn't a SKIP every run.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Filed from 2026110911114050. It passes on b23's host with --include-ignored.
+		- The build image has dbus-daemon now, in a layer of its own after the rest, and df3qt is no longer ignored, except under Miri.
+		- The test starts its bus from a config of its own, with anonymous auth. The stock session config and EXTERNAL auth both look the caller up in passwd, and the image runs as a uid it doesn't list, so the bus wouldn't start or take a client.
+		- It waits for the bus to print its address rather than a fixed 300 ms, and stops the bus and removes its config on a failed assert too.
+		- Verified: PASS df3qt in the quick gate's Tests step in the image, and in Sanitizers, and on the host. It failed in the image with the stock config, and with EXTERNAL auth. No bus was left running after a planted failure.
+	- Decisions:
+		- In the image, not a host step, so the hosted workflow runs it too.
+		- Anonymous auth, not a passwd entry mounted into every container, since only this test needs one and the test then runs the same on any box.
+	- Branch: round-1111
+	- Test case: `lock::tests::private_bus_lock_hides_graphs` (df3qt), now in every run's Tests and Sanitizers steps.
+		- Swept: the other ignored tests, which are timings and soak checks the pipeline runs on purpose, and the other tests that start a program, which use only `sh`.
+	- Closed: 20261110-223333
+
+- Code review 20261107 item 26: The amdgpu reads have none of the NVIDIA path's runtime power checks
+	- ID: 2026110709074426
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232174, 2026110118380381
+	- Origin: `a50f0c6` and `5b569ad` (2026-10-29). Plausible, from reading, since there's no AMD card here.
+	- Requirements:
+		- Read an AMD card's runtime power state before its busy share, as the NVIDIA path does, and read 0 while it sleeps.
+		- Depending on the kernel, a busy read today either wakes a sleeping card or fails, which shows as a gap.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- An amdgpu card's power files come from its `device` folder, the PCI device's own. Where `power/control` is `auto`, the GPU graph reads 0 without asking `gpu_busy_percent` while `power/runtime_status` is `suspended`.
+		- It also gets the NVIDIA path's idle rest: after 5 s idle, busy isn't read for the autosuspend delay plus 5 s, or until the card sleeps.
+		- GPU memory reads as before, since `mem_info_vram_*` are the driver's own counts and wake nothing.
+		- `design.md` Data sources on Linux, GPU, has it.
+		- Verified: df53k passed, and failed with the asleep check taken out, and again with the idle rest taken out. The gpu tests, the quick gate and Sanitizers passed, and Miri passed df53k and dekm9.
+		- Unverified on a real AMD card, since no box here has one.
+	- Decisions:
+		- The idle rest goes past the wording. Since about 6.17 each busy read puts off the card's next sleep, and older kernels did it by hand, so a read each second would keep it from ever sleeping.
+		- The rest is the one `REST_UNTIL` the NVIDIA readers share, through `rest_after_idle`, so both paths rest the same way. Only one card is read, so they never share it at once.
+		- Asleep ends any rest at once, so work that wakes the card reads on the next sample.
+	- Actual fix: `Amd::busy` checks `Power` before reading `gpu_busy_percent`, and rests after `IDLE_FOR` idle.
+	- Branch: round-1111
+	- Test case: `gpu::tests::sleeping_amd_card_left_alone` (df53k), with stand-in sysfs files. It fails with the asleep check or the idle rest taken out.
+		- Swept: every `Card::Amd` read, both readers' probes, `amd_readers`, the fuzz test df4gx, `Nvidia::rest_if_idle` and `awake`, which now go through the shared helpers, and `design.md` for "amdgpu".
+	- Acceptance signoff: Self-closed 20261110: df53k's stand-in files stand in for an AMD card, as the issue asked.
+	- Closed: 20261110-224557
+
+- Code review 20261107 item 27: A demo run of only some scenes writes over assets/demo.gif
+	- ID: 2026110709074427
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110310450002
+	- Origin: `15993d9` (2026-11-06).
+	- Requirements:
+		- Update the README's gif only from a run of every scene, unless asked. Today only `--no-asset` keeps a `--scenes` run from replacing it.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A gif take of only some scenes leaves `assets/demo.gif` alone and says why. `--asset` updates it anyway, and `--no-asset` still never does. The two can't be given together.
+		- Verified: df53t failed on the old script, which replaced the gif from a `days` take, and passes now. The quick gate's format, build, lint and test areas passed, and so did Sanitizers.
+	- Decisions:
+		- `--scenes` naming every scene counts as a run of every scene.
+		- "Unless asked" is a new `--asset` flag, rather than a prompt, since the demo also runs unattended in cicd.
+	- Branch: round-1111
+	- Test case: df53t
+		- Swept: the only other writer of `assets/demo.gif` is the cicd Demo step, which runs every scene. `--shot` never reaches the gif.
+	- Closed: 20261110-225645
+
+- Code review 20261107 item 28: A docs-only push to main skips the 2 checks that read docs
+	- ID: 2026110709074428
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026103115232016
+	- Origin: `ff4610a` (2026-10-25).
+	- Requirements:
+		- On a docs-only push, still run markdownlint on the changed files and the backlog's test ID check, which take seconds. Today a backlog-only push can put a Lint failure on `main` that the next code push then trips over.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A docs-only push to `main` still skips the merge gate, but the pre-push hook now runs markdownlint on the `.md` files it changes and `test-ids.bash check`, in a worktree of the pushed commit. Either failing refuses the push. About half a second.
+		- `fLintMarkdown` moved from `cicd.bash` to `cicd/utility/include/lint-markdown.bash`, so the Lint step and the hook lint the same way, with the same skipped rules per file.
+		- New test df543 pushes 4 docs-only commits: a good doc, a bad doc, a backlog with an unknown ID, and an asset only. dezf5 sources the new file, and df32x's rig copies it.
+		- Verified: df543 failed on the old hook, which ran neither check, and passed after. A docs-only push of a clone with the real markdownlint passed a clean README and refused one with lint errors. The quick gate's format, build, lint and test areas passed.
+	- Decisions:
+		- Both checks run on the pushed commit's tree, not the checkout, as the gate does since df32x.
+		- A host with no markdownlint gets one line and the push goes on, since a docs push shouldn't need the pipeline's tools. The test ID check still runs. A commit with no `test-ids.bash` skips that check.
+		- Swept: the hosted `merge-gate.yml` has no docs skip, so it runs both on every push. `cicd/hooks` holds only pre-push.
+	- Branch: round-1111
+	- Test case: `hook_checks_docs` (df543), in `cicd/tests/guards.bash`.
+	- Closed: 20261110-230516
 
 - Code review 20261031 item 33: The workflow pins actions/checkout by tag and keeps the token in the checkout
 	- ID: 2026103115232296
