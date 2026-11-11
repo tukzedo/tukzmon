@@ -445,7 +445,7 @@ Sorted per the notes in [Template](#template).
 		- The `live_` names can stay, since they mark the tests that read this computer.
 	- Estimated effort: High
 	- Progress log:
-		- Split by area into 5 children, 2026111021184916 to 2026111021184970. The cicd, knobs, and xfce and settings ones are done, and the other 2 are Queued.
+		- Split by area into 5 children, 2026111021184916 to 2026111021184970. The cicd, knobs, xfce and settings, and core config, graphs, lib and render ones are done, and the other 1 is Queued.
 	- Decisions:
 		- Names say what is checked in 2 to 5 words, and the module path and ID carry the rest.
 
