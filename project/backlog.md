@@ -4081,7 +4081,7 @@ Sorted per the notes in [Template](#template).
 		- No logind watch where `XDG_SESSION_ID` is unset, since the signal needs the session's own object.
 		- The buses are opened at start without waiting on a callback. The session bus is already open in the panel, for xfconf.
 	- Branch: round-1110
-	- Test case: `lock::tests::lock_hides_graphs_until_unlock` (df3qr), `lock::tests::logind_path_escapes_digit` (df3qs), and `lock::tests::private_bus_lock_hides_graphs` (df3qt), which is ignored in a run since the image has no dbus-daemon, and passes with `--ignored` on b23.
+	- Test case: `lock::tests::lock_hides_graphs_until_unlock` (df3qr), `lock::tests::logind_path_escapes_digit` (df3qs), and `lock::tests::private_bus_lock_hides_graphs` (df3qt), which runs in the build image since 2026110923411799.
 		- dekpx now reads `lock.rs` too.
 		- Swept: every draw the plugin asks for (the tick, the frame clock's tick callback, the pacer, and the frame start in the draw), and the tip's requery. Left as they were: the pointer's own draws, which need the pointer on the panel, and the one draw that shows an item a bug stopped.
 	- Acceptance signoff: Self-closed 20261110: the real xfce4-screensaver on a private panel stopped the item's draws while active and brought them back after, and df3qr, df3qs and df3qt cover both D-Bus sources. Only the lock dialog itself went unseen.
