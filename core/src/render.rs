@@ -27,44 +27,6 @@ fn pack_alpha(c: [f32; 3], alpha: f32) -> u32 {
 	q(alpha * 255.0) << 24 | q(c[0]) << 16 | q(c[1]) << 8 | q(c[2])
 }
 
-// an sRGB channel, 0 to 255, in linear light, 0 to 1
-fn to_linear(v: f32) -> f32 {
-	let c = (v / 255.0).clamp(0.0, 1.0);
-	if c <= 0.04045 {
-		c / 12.92
-	} else {
-		((c + 0.055) / 1.055).powf(2.4)
-	}
-}
-
-fn linear_of(c: [f32; 3]) -> [f32; 3] {
-	c.map(to_linear)
-}
-
-// linear light back to sRGB, looked up, since a blended pixel can't wait on 3 powf
-const SRGB_STEPS: usize = 4096;
-static SRGB: std::sync::OnceLock<Vec<u8>> = std::sync::OnceLock::new();
-
-/// Opaque, from linear light.
-fn pack_linear(c: [f32; 3]) -> u32 {
-	let table = SRGB.get_or_init(|| {
-		(0..SRGB_STEPS)
-			.map(|i| {
-				let l = i as f32 / (SRGB_STEPS - 1) as f32;
-				let v = if l <= 0.003_130_8 {
-					l * 12.92
-				} else {
-					1.055 * l.powf(1.0 / 2.4) - 0.055
-				};
-				(v * 255.0).round().clamp(0.0, 255.0) as u8
-			})
-			.collect()
-	});
-	let q =
-		|l: f32| u32::from(table[(l.clamp(0.0, 1.0) * (SRGB_STEPS - 1) as f32).round() as usize]);
-	0xff00_0000 | q(c[0]) << 16 | q(c[1]) << 8 | q(c[2])
-}
-
 // coverage this close to whole or none is drawn as that
 const SNAP: f32 = 0.002;
 
@@ -337,12 +299,9 @@ pub struct Scratch<const N: usize> {
 	back: Vec<[f32; 3]>,
 	/// The same, packed.
 	back_px: Vec<u32>,
-	/// The same, in linear light.
-	back_lin: Vec<[f32; 3]>,
 	/// The gradient's color per plot row, when that's the paint.
 	grad: Vec<[f32; 3]>,
 	grad_px: Vec<u32>,
-	grad_lin: Vec<[f32; 3]>,
 	/// Each column, or None for a gap.
 	reached: Vec<Option<Column<N>>>,
 }
@@ -438,10 +397,8 @@ impl<const N: usize> Frame<'_, N> {
 		let Scratch {
 			back,
 			back_px,
-			back_lin,
 			grad,
 			grad_px,
-			grad_lin,
 			reached,
 		} = scratch;
 		// premultiplied, so a transparent one is all zeros
@@ -457,8 +414,6 @@ impl<const N: usize> Frame<'_, N> {
 		}));
 		back_px.clear();
 		back_px.extend(back.iter().map(|&c| pack_alpha(c, back_alpha)));
-		back_lin.clear();
-		back_lin.extend(back.iter().map(|&c| linear_of(c)));
 		let (cols, solid) = match self.paint {
 			Paint::Stack(colors) => {
 				let cols = colors.map(|c| [c.0 as f32, c.1 as f32, c.2 as f32]);
@@ -466,21 +421,17 @@ impl<const N: usize> Frame<'_, N> {
 			}
 			Paint::Gradient(_) => ([[0.0; 3]; N], [0; N]),
 		};
-		let cols_lin = cols.map(linear_of);
 		// row by row, top first, at each row's middle
 		grad.clear();
 		grad_px.clear();
-		grad_lin.clear();
 		if let Paint::Gradient(stops) = self.paint {
 			grad.extend(
 				(0..plot_h).map(|r| blend(stops, ((plot_h - r) as f32 - 0.5) / plot_h as f32)),
 			);
 			grad_px.extend(grad.iter().map(|&g| pack_alpha(g, 1.0)));
-			grad_lin.extend(grad.iter().map(|&g| linear_of(g)));
 		}
-		// a part-covered pixel mixes in linear light, except over a
-		// transparent background, which the panel blends as it is
-		let opaque = !self.look.transparent;
+		// a part-covered pixel mixes as sRGB numbers, not in linear light,
+		// which all but hides a split dark gap (design.md Drawing)
 		reached.clear();
 		let emphasis = Reach::new(self.look.spikes);
 		// each column's old edge is the new edge of the one left of it
@@ -572,10 +523,6 @@ impl<const N: usize> Frame<'_, N> {
 						grad_px[r]
 					} else if cover <= SNAP {
 						back_px[r]
-					} else if opaque {
-						pack_linear(std::array::from_fn(|k| {
-							back_lin[r][k] * (1.0 - cover) + grad_lin[r][k] * cover
-						}))
 					} else {
 						let c = std::array::from_fn(|k| {
 							back[r][k] * (1.0 - cover) + grad[r][k] * cover
@@ -605,26 +552,15 @@ impl<const N: usize> Frame<'_, N> {
 					px[at(r)] = back_px[r];
 					continue;
 				}
-				px[at(r)] = if opaque {
-					pack_linear(std::array::from_fn(|ch| {
-						back_lin[r][ch] * left
-							+ cover
-								.iter()
-								.zip(&cols_lin)
-								.map(|(c, col)| c * col[ch])
-								.sum::<f32>()
-					}))
-				} else {
-					let c = std::array::from_fn(|ch| {
-						back[r][ch] * left
-							+ cover
-								.iter()
-								.zip(&cols)
-								.map(|(c, col)| c * col[ch])
-								.sum::<f32>()
-					});
-					pack_alpha(c, back_alpha * left + (1.0 - left))
-				};
+				let c = std::array::from_fn(|ch| {
+					back[r][ch] * left
+						+ cover
+							.iter()
+							.zip(&cols)
+							.map(|(c, col)| c * col[ch])
+							.sum::<f32>()
+				});
+				px[at(r)] = pack_alpha(c, back_alpha * left + (1.0 - left));
 			}
 		}
 	}
@@ -710,10 +646,10 @@ mod tests {
 		// rows counted from the bottom of the plot: 0..2.5 red, 2.5..7.5 green
 		assert_eq!(at(9), 0xffff_0000);
 		assert_eq!(at(8), 0xffff_0000);
-		// half and half, mixed in linear light
+		// half and half
 		let shared = at(7);
-		assert_eq!(shared & 0x00ff_0000, 0x00bc_0000);
-		assert_eq!(shared & 0x0000_ff00, 0x0000_bc00);
+		assert_eq!(shared & 0x00ff_0000, 0x0080_0000);
+		assert_eq!(shared & 0x0000_ff00, 0x0000_8000);
 		assert_eq!(at(5), 0xff00_ff00);
 		assert_ne!(at(1) & 0xff, 0);
 	}
@@ -1229,7 +1165,7 @@ mod tests {
 					(1..w - 1)
 						.map(|x| {
 							(1..ht - 1)
-								.map(|r| to_linear(((px[r * w + x] >> 16) & 0xff) as f32))
+								.map(|r| ((px[r * w + x] >> 16) & 0xff) as f32 / 255.0)
 								.sum::<f32>() / 100.0
 						})
 						.collect()
@@ -1363,6 +1299,54 @@ mod tests {
 				[20, 80].contains(&filled) && tinted == 0,
 				"{x}: {column:x?}"
 			);
+		}
+	}
+
+	// Test ID: df4y1
+	#[test]
+	fn a_narrow_gap_keeps_its_depth_as_it_slides_across_columns() {
+		// one sample of 0.1 between ones of 0.9, and the other way round, on
+		// columns of half a sample and of one. A split gap mixed in linear
+		// light showed about half as deep as a whole one.
+		for (base, odd) in [(0.9, 0.1), (0.1, 0.9)] {
+			let mut h = History::<2>::default();
+			for t in 0..300 {
+				let v = if t == 150 { odd } else { base };
+				h.add(f64::from(t) + 0.1, f64::from(t) + 1.1, &[v, 0.0]);
+			}
+			let l = look();
+			let filled = if base > odd { 255.0 } else { 0.0 };
+			for (secs, plot_w) in [(25.0, 50), (50.0, 50)] {
+				let axis = Axis::linear(secs);
+				let (w, ht) = (plot_w + 2, 102);
+				let column = secs / plot_w as f64;
+				// how far the rows from 0.1 to 0.9 are off the base, in columns
+				let depths: Vec<f32> = (0..=20)
+					.map(|step| {
+						let f = Frame {
+							hist: &h,
+							axis: &axis,
+							now: 150.0 + secs / 2.0 + f64::from(step) * column / 20.0,
+							sample: 1.0,
+							look: &l,
+							paint: Paint::Stack(&COLORS),
+							outline: OUTLINE,
+							vertical: Vertical::Linear,
+						};
+						let mut px = Vec::new();
+						f.draw(&mut px, w, ht, 1);
+						(1..w - 1)
+							.flat_map(|x| (10..90).map(move |i| (ht - 2 - i) * w + x))
+							.map(|at| (filled - ((px[at] >> 16) & 0xff) as f32).abs() / 255.0)
+							.sum::<f32>() / 80.0
+					})
+					.collect();
+				let want = (1.0 / column) as f32;
+				assert!(
+					depths.iter().all(|d| (d - want).abs() < 0.05),
+					"{base} on {column} s: {depths:?}"
+				);
+			}
 		}
 	}
 }

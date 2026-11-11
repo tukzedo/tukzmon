@@ -441,7 +441,8 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 			- A bucket at the column's edge can hold the end of one sample and the start of the next. Where buckets are no longer than half a sample, it holds at most those 2, which are its min and max, and the bucket beside it says which side each is on. Its sum then gives where the edge between them is, so only the part inside the column counts, and a column that is all one sample is drawn solid (`Tier::samples_in`).
 		- Wider, the solid stack reaches toward the most of the buckets over 1.5 samples in from both edges, which no cut sample reaches, or is the column's least where there are none. The tall one reaches toward the column's max.
 		- Where buckets are shorter than half a sample, that most is the most any sample's length of buckets averages, each bucket at its own max. More than 1.5 samples in from both edges no sample can be cut, so there the buckets' max stands, read from their blocks.
-	- A part-covered pixel mixes its colors in linear light, not as sRGB numbers, so a spike split between 2 columns gives off as much light as one in a single column. Over a transparent background the panel does the mixing, so there it stays sRGB.
+	- A part-covered pixel mixes its colors as sRGB numbers, over any background, so half covered looks half way between the 2. A spike or a narrow gap split between 2 columns then looks as strong across them as it does whole in one (test df4y1).
+		- For a while it mixed in linear light, which gave a split spike as much light as a whole one. But it left a split dark gap between 2 bars only about a quarter as dark in each column, so the gap filled in and came back as it slid.
 
 - A column with data for less than half its time is drawn as a gap.
 

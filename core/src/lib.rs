@@ -1528,7 +1528,7 @@ mod tests {
 		let red = |p: u32| (p >> 16) & 0xff;
 		assert!(
 			half.iter()
-				.all(|&p| p != user && (0xa0..0xd8).contains(&red(p))),
+				.all(|&p| p != user && (0x70..0xb0).contains(&red(p))),
 			"{half:x?}"
 		);
 		assert!(filled(&end) >= 17, "{end:x?}");

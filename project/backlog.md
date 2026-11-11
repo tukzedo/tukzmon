@@ -191,10 +191,10 @@ Sorted per the notes in [Template](#template).
 - Antialiasing still needs to be better, so sharp spikes don't pulse or shimmer
 	- ID: 2026111010281710
 	- Type: Enhancement
-	- Status: Queued
-		- Watch sharp spikes slide with Smooth scrolling on, on a linear and a log graph, and say whether they still shimmer or pulse. Builds from df4e4 (commit 22b85fa) on have it.
-	- Needs hand testing: A panel on b23 with build df4e4 or later and Smooth scrolling on, watching spikes slide on the CPU graph.
-	- Stand-in: none (20261110). df4d7 and df3s6 cover the height and the width, and what's left turns on how it looks.
+	- Status: Waiting on UAT
+		- Watch narrow dips between bars, and spikes, slide with Smooth scrolling on near the right end of the CPU graph, and say whether a dip still fills in and comes back, and whether a spike looks weaker split between 2 columns than whole in one. Builds with test df4y1 have it. Further left, on columns over a sample wide, a dip still comes and goes until 2026111020033357.
+	- Needs hand testing: A panel on b23 with a build that has df4y1 and Smooth scrolling on, watching dips and spikes slide on the CPU graph.
+	- Stand-in: none (20261110). df4y1, df4d7 and df3s6 cover the depth, the height and the width, and what's left turns on how it looks.
 	- Priority|Severity: Avg
 	- Opened: 20261110-102817
 	- Opened by: t00mietum
@@ -215,19 +215,50 @@ Sorted per the notes in [Template](#template).
 		- Verified: df4d7 failed before the change and passed after. df4dt failed with each series' own min and max as the 2 stacks, and passed with the end buckets'. The quick gate and Sanitizers passed.
 		- 2026-11-10: The cut-bucket tint in the Decisions is fixed by 2026111011172485 (660a3de).
 		- UAT 20261111: not yet. Very narrow gaps tend to appear, fill in, and reappear as the graph marches left. Needs even better antialiasing.
+		- 2026-11-10: One low sample between high ones, drawn at 21 steps across a column, with the gap's depth read as the screen shows it. On columns a sample wide it went from 1.0 column whole to 0.53 split, and on half-sample columns from 2.0 to 1.53. Linear light left a split dark gap only about a quarter as dark in each column, and made a split spike about 1.5 times as bright.
+		- Part-covered pixels now mix as sRGB numbers over any background, as they did over a transparent one. A split gap or spike shows the same depth at every step. `design.md` Drawing has it.
+		- On columns 1 to 3 samples wide the gap still goes from 0.17 to 0.67 of a column at 1.5 s, and 0.13 to 0.46 at 2 s, since the spike emphasis fills it only where a whole sample of the bar is in the column. From 3 s it holds. That's 2026111020033357. Spikes there stay within 5%.
+		- Profiler: 673.8 us user a tick at load 8 to 15 on 32 cores, and 916.5 at 16 to 27. The old drawing took 729.1 at 16 to 24. Drawing is 17.6% and 18.5% of self time, against 19.9%. That's within the noise.
+		- Verified: df4y1 failed on the old drawing, at 1.53 to 2.0 on half-sample columns, and passed after. The quick gate and Sanitizers passed.
 	- Decisions:
 		- A column's ink stays what the drawing gave before, so the area under a spike holds. Only its shape changes: full height at part strength, rather than part height.
 		- A column no wider than a sample takes its oldest and newest buckets as its 2 samples. Each series' own min and max can come from different samples, and stack over either one's total.
 		- Wider, the solid stack reaches toward the max of the buckets clear of both edges, and the tall one toward the column's max, as before 2026110920595602.
 		- Linear light only over an opaque background, since the panel blends a transparent one as sRGB numbers.
+			- 2026-11-10: turned back, see below.
 		- A bucket cut by a sample's edge can leave a narrow column up to a twentieth short of full, as a faint tint, where before it showed as a part-filled top pixel. That's 2026111011172485.
 		- No before and after pictures. df4d7's numbers stand in, and the look is left to the hand test.
-	- Branch: round-1110b
-	- Test case: `render::tests::a_spike_keeps_its_height_as_it_slides_across_columns` (df4d7) and `render::tests::a_stack_that_trades_shares_draws_nothing_over_its_total` (df4dt), with df3s6.
+		- 2026-11-10: sRGB numbers for every part-covered pixel, not linear light. Half covered then looks half way, for a bright spike and a dark gap alike. Linear light keeps the light a split spike gives off, which holds only if the eye blurs the 2 columns together. The report of gaps filling in says it sees them one by one. The transparent path and the rest of the panel, drawn by cairo, mix as sRGB numbers too.
+		- That's a swing back: sRGB numbers before this item, linear light from df4e4, and sRGB numbers again. Linear light was picked for a bright spike over a dark background, and a dark gap between bars wasn't looked at then.
+		- The wider columns wait on a question, in 2026111020033357, since a fix that holds at every step splits a spike thinner than a column between 2 columns, which df3s6 checks against at 10 s.
+	- Branch: round-1110b, round-1111
+	- Test case: `render::tests::a_spike_keeps_its_height_as_it_slides_across_columns` (df4d7), `render::tests::a_stack_that_trades_shares_draws_nothing_over_its_total` (df4dt) and `render::tests::a_narrow_gap_keeps_its_depth_as_it_slides_across_columns` (df4y1), with df3s6.
 		- 2026-11-10: debj7 `stack_heights_are_exact`: the pixel shared half and half by red and green was 0x80 in each, now 0xbc, mixed in linear light.
 		- 2026-11-10: df3s6 reads red in linear light, not as sRGB numbers.
 		- 2026-11-10: df3e2 `the_right_column_fills_as_the_sample_slides_in_and_the_tip_follows`: half slid in, 7 to 11 of 18 rows were filled, now every row is at part strength. A filled row is now within 8 steps of the full color, not exactly it.
 		- Swept: every reader of `Span` (only `Frame::draw_in` reads `spike`, `min`, `ends` and `uncut`), both paints, the opaque and transparent paths, `Peak`'s highest, which now takes the taller stack, and every `Span` literal (only `span_for`).
+		- 2026-11-10: debj7: the half and half pixel is 0x80 in each again, from 0xbc. df3s6 reads red as sRGB numbers again. df3e2: half slid in, red was 0xa0 to 0xd8, and is now 0x70 to 0xb0.
+		- Swept: both paints, the opaque and transparent paths, which are now one, every user of the linear light helpers (only `render.rs`), and every test that read linear light or its values (debj7, df3s6, df3e2).
+
+- Narrow gaps on columns 1 to 3 samples wide come and go as they slide
+	- ID: 2026111020033357
+	- Type: Enhancement
+	- Status: Waiting for answers
+		- Waits on the 2026111020033357 question in questions.md, on whether a spike thinner than a column may slide across 2 columns.
+	- Priority|Severity: Avg
+	- Opened: 20261110-200333
+	- Opened by:
+	- Parent ID: 2026111010281710
+	- Related IDs: 2026111000270812
+	- Requirements:
+		- A narrow gap between 2 bars shows as deep at every scroll step on columns over a sample wide, as it does on narrower ones since 2026111010281710.
+		- Keep the spike emphasis's look where that allows.
+	- Estimated effort: Avg
+	- Progress log:
+		- Cause: past a sample wide, a column reaches toward the most that any sample's length in it averages. A column with a whole sample of the bar beside the gap reaches the bar and fills the gap, while one with the gap in its middle and the bar cut at both edges doesn't. So the gap shows or not by where the column edges fall.
+		- One low sample between high ones, at 21 steps across a column: the gap's depth goes from 0.17 to 0.67 of a column on 1.5 s columns, and 0.13 to 0.46 on 2 s ones. From 3 s it holds, at 0.08 and 0.06. A spike stays within 5% on each. A gap of 2 samples should do the same on columns up to about 4 samples wide.
+		- These are the columns just left of a log graph's right end: 11 to 21 of 98 on Smooth log, with an hour to a day of history.
+		- The options are in questions.md.
 
 - Reduce motion if a remote desktop session is detected
 	- ID: 2026110911114037
