@@ -660,7 +660,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 26: The amdgpu reads have none of the NVIDIA path's runtime power checks
 	- ID: 2026110709074426
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -670,6 +670,24 @@ Sorted per the notes in [Template](#template).
 		- Read an AMD card's runtime power state before its busy share, as the NVIDIA path does, and read 0 while it sleeps.
 		- Depending on the kernel, a busy read today either wakes a sleeping card or fails, which shows as a gap.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- An amdgpu card's power files come from its `device` folder, the PCI device's own. Where `power/control` is `auto`, the GPU graph reads 0 without asking `gpu_busy_percent` while `power/runtime_status` is `suspended`.
+		- It also gets the NVIDIA path's idle rest: after 5 s idle, busy isn't read for the autosuspend delay plus 5 s, or until the card sleeps.
+		- GPU memory reads as before, since `mem_info_vram_*` are the driver's own counts and wake nothing.
+		- `design.md` Data sources on Linux, GPU, has it.
+		- Verified: df53k passed, and failed with the asleep check taken out, and again with the idle rest taken out. The gpu tests, the quick gate and Sanitizers passed, and Miri passed df53k and dekm9.
+		- Unverified on a real AMD card, since no box here has one.
+	- Decisions:
+		- The idle rest goes past the wording. Since about 6.17 each busy read puts off the card's next sleep, and older kernels did it by hand, so a read each second would keep it from ever sleeping.
+		- The rest is the one `REST_UNTIL` the NVIDIA readers share, through `rest_after_idle`, so both paths rest the same way. Only one card is read, so they never share it at once.
+		- Asleep ends any rest at once, so work that wakes the card reads on the next sample.
+	- Actual fix: `Amd::busy` checks `Power` before reading `gpu_busy_percent`, and rests after `IDLE_FOR` idle.
+	- Branch: round-1111
+	- Test case: `gpu::tests::sleeping_amd_card_left_alone` (df53k), with stand-in sysfs files. It fails with the asleep check or the idle rest taken out.
+		- Swept: every `Card::Amd` read, both readers' probes, `amd_readers`, the fuzz test df4gx, `Nvidia::rest_if_idle` and `awake`, which now go through the shared helpers, and `design.md` for "amdgpu".
+	- Acceptance signoff: Self-closed 20261110: df53k's stand-in files stand in for an AMD card, as the issue asked.
+	- Closed: 20261110-224557
 
 - Code review 20261107 item 27: A demo run of only some scenes writes over assets/demo.gif
 	- ID: 2026110709074427
