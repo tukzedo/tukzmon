@@ -203,7 +203,7 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261110-102817
 	- Opened by: t00mietum
 	- Related IDs: 2026110920595602, 2026111000270812
-	- Version and build: b23 runs df4n2 (2026-11-10), from 770a184 on `dev`, which doesn't have this round's change (799d92c).
+	- Version and build: b23 has df54t installed (20261111), which has this round's change. The panel loads it on its next restart.
 	- Requirements:
 		- Antialiasing still needs to be better. Sharp spikes shouldn't "pulse" in width, and shouldn't "shimmer".
 		- Do your own research for this.
@@ -257,7 +257,7 @@ Sorted per the notes in [Template](#template).
 	- Opened by:
 	- Parent ID: 2026111010281710
 	- Related IDs: 2026111000270812
-	- Version and build: b23 runs df4n2 (2026-11-10), from 770a184 on `dev`, which doesn't have this round's change (f18b3d7).
+	- Version and build: b23 has df54t installed (20261111), which has this round's change. The panel loads it on its next restart.
 	- Requirements:
 		- A narrow gap between 2 bars shows as deep at every scroll step on columns over a sample wide, as it does on narrower ones since 2026111010281710.
 		- Keep the spike emphasis's look where that allows.
