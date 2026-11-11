@@ -344,6 +344,31 @@ Sorted per the notes in [Template](#template).
 		- knobs' tests too. SilkTerm's copy gets an item of its own there.
 		- The `live_` names can stay, since they mark the tests that read this computer.
 
+- Pre-next-cut: Settings, General: "Reduce motion in remote session"
+	- ID: 2026111019111679
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261110-191116
+	- Opened by: t00mietum
+	- Related IDs: 2026110911114037, 2026110922214697
+	- Requirements:
+		- Settings, General:
+			- "Reduce motion if remote desktop session detected" -> "Reduce motion in remote session"
+
+- Pre-next-cut: Settings, General: Max age below Keep across restarts, with hours and minutes
+	- ID: 2026111019111684
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261110-191116
+	- Opened by: t00mietum
+	- Related IDs: 2026110109585212, 2026102408304572
+	- Requirements:
+		- Settings, General:
+			- Move "Max age in days" below "Keep across restarts". And on the same row, add:
+				- `hours [ 0  ]   minutes [ 0  ]`
+
 - CICD gap: df3qt never runs in the pipeline, since the image has no dbus-daemon
 	- ID: 2026110923411799
 	- Type: Task
