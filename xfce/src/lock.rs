@@ -604,14 +604,54 @@ mod tests {
 
 	// Test ID: df3qt
 	#[test]
-	#[ignore = "needs dbus-daemon, which the build image doesn't have"]
+	#[cfg_attr(miri, ignore = "GLib is C")]
 	fn private_bus_lock_hides_graphs() {
+		// Killed on a failed assert too, so no bus outlives the test.
+		struct Daemon(std::process::Child, std::path::PathBuf);
+		impl Drop for Daemon {
+			fn drop(&mut self) {
+				let _ = self.0.kill();
+				let _ = self.0.wait();
+				let _ = std::fs::remove_file(&self.1);
+			}
+		}
+		// A config of its own, since the stock one, and EXTERNAL auth, look
+		// the caller up in passwd, and the build image runs as a uid it
+		// doesn't list. Its policy lets all through, as the stock one does.
 		let address = format!("unix:abstract=tukzmon-lock-test-{}", std::process::id());
-		let mut daemon = std::process::Command::new("dbus-daemon")
-			.args(["--session", "--nofork", &format!("--address={address}")])
-			.spawn()
-			.unwrap();
-		std::thread::sleep(Duration::from_millis(300));
+		let config =
+			std::env::temp_dir().join(format!("tukzmon-lock-test-{}.conf", std::process::id()));
+		std::fs::write(
+			&config,
+			format!(
+				"<busconfig><type>session</type><listen>{address}</listen><auth>ANONYMOUS</auth><allow_anonymous/>\
+				<policy context=\"default\"><allow send_destination=\"*\"/><allow receive_sender=\"*\"/>\
+				<allow own=\"*\"/></policy>\
+				</busconfig>"
+			),
+		)
+		.unwrap();
+		let mut daemon = Daemon(
+			std::process::Command::new("dbus-daemon")
+				.args(["--nofork", "--print-address"])
+				.arg(format!("--config-file={}", config.display()))
+				.stdout(std::process::Stdio::piped())
+				.spawn()
+				.expect("dbus-daemon, from the dbus-daemon package"),
+			config,
+		);
+		// It prints the address once it listens, which beats a fixed wait
+		// on a loaded box.
+		let mut listening = String::new();
+		std::io::BufRead::read_line(
+			&mut std::io::BufReader::new(daemon.0.stdout.take().unwrap()),
+			&mut listening,
+		)
+		.unwrap();
+		assert!(
+			listening.starts_with("unix:"),
+			"dbus-daemon said {listening:?}"
+		);
 		let address = std::ffi::CString::new(address).unwrap();
 		let session = std::ffi::CString::new(session_path("7")).unwrap();
 		let other = std::ffi::CString::new(session_path("8")).unwrap();
@@ -728,8 +768,7 @@ mod tests {
 			g_main_context_pop_thread_default(context);
 			g_main_context_unref(context);
 		}
-		let _ = daemon.kill();
-		let _ = daemon.wait();
+		drop(daemon);
 		assert_eq!(steps, [false, true, false, true, false, true, false, true]);
 	}
 }

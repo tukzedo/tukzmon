@@ -636,13 +636,26 @@ Sorted per the notes in [Template](#template).
 - CICD gap: df3qt never runs in the pipeline, since the image has no dbus-daemon
 	- ID: 2026110923411799
 	- Type: Task
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261109-234117
 	- Opened by:
 	- Requirements: Run df3qt in the gate, either with dbus-daemon in the build image or as a host step, so it isn't a SKIP every run.
+	- Estimated effort: Low
+	- Actual effort: Low
 	- Progress log:
 		- Filed from 2026110911114050. It passes on b23's host with --include-ignored.
+		- The build image has dbus-daemon now, in a layer of its own after the rest, and df3qt is no longer ignored, except under Miri.
+		- The test starts its bus from a config of its own, with anonymous auth. The stock session config and EXTERNAL auth both look the caller up in passwd, and the image runs as a uid it doesn't list, so the bus wouldn't start or take a client.
+		- It waits for the bus to print its address rather than a fixed 300 ms, and stops the bus and removes its config on a failed assert too.
+		- Verified: PASS df3qt in the quick gate's Tests step in the image, and in Sanitizers, and on the host. It failed in the image with the stock config, and with EXTERNAL auth. No bus was left running after a planted failure.
+	- Decisions:
+		- In the image, not a host step, so the hosted workflow runs it too.
+		- Anonymous auth, not a passwd entry mounted into every container, since only this test needs one and the test then runs the same on any box.
+	- Branch: round-1111
+	- Test case: `lock::tests::private_bus_lock_hides_graphs` (df3qt), now in every run's Tests and Sanitizers steps.
+		- Swept: the other ignored tests, which are timings and soak checks the pipeline runs on purpose, and the other tests that start a program, which use only `sh`.
+	- Closed: 20261110-223333
 
 - Code review 20261107 item 26: The amdgpu reads have none of the NVIDIA path's runtime power checks
 	- ID: 2026110709074426
