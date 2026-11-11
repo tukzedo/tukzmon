@@ -29,6 +29,7 @@ Height can go up on a straight, log, or squared scale, for every graph or one at
 - [Features](#features)
 - [Installation](#installation)
 	- [Debian, Ubuntu, Fedora](#debian-ubuntu-fedora)
+	- [Direct](#direct)
 	- [NixOS](#nixos)
 	- [DIY](#diy)
 - [Set up development environment](#set-up-development-environment)
@@ -109,6 +110,24 @@ xfce4-panel -r
 ~~~
 
 After the panel restarts, tukzmon is in its Add New Items list.
+
+### Direct
+
+This finds the newest release, checks its sha256, and installs it:
+
+~~~bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tukzedo/tukzmon/main/install.bash)
+~~~
+
+It uses sane defaults, and says what it's going to do and asks before it changes anything. Add `--help` for the options. Running it again on an install that's current changes nothing.
+
+| Install           | Library and `tukzmon-settings`                         | Panel entry
+| :---              | :---                                                   | :---
+| User (no sudo)    | `~/.local/<lib>/xfce4/panel/plugins/`                  | `~/.local/share/xfce4/panel/plugins/tukzmon.desktop`
+| System (.deb)     | `/usr/lib/x86_64-linux-gnu/xfce4/panel/plugins/`       | `/usr/share/xfce4/panel/plugins/tukzmon.desktop`
+| System (.rpm)     | `/usr/lib64/xfce4/panel/plugins/`                      | `/usr/share/xfce4/panel/plugins/tukzmon.desktop`
+
+`<lib>` follows the panel's own library folder, so it's `lib/x86_64-linux-gnu` on Debian and Ubuntu, and `lib64` on Fedora. A user install goes ahead of a system one for that user.
 
 ### NixOS
 

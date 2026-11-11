@@ -1048,6 +1048,116 @@ fTest_codeql_report_fails_what_isnt_suppressed_a_stale_suppression_and_an_empty_
 	((rc == 2)) || { fWhy "a suppression with no line text (${rc}): ${out}"; return 1; }
 }
 
+## Test ID: df4xa
+fTest_the_installer_picks_the_highest_version_with_a_prerelease_below_its_release() {
+	local picked='' ok=0
+	(
+		source "${cicd}/../install.bash"
+		fRows() { printf '%s\n' "$@"; }
+		picked="$(fRows 'v1.0.0-rc.1 - pre' 'v1.0.0 - full' 'v1.0.0-beta.2 - pre' 'v0.9.9 - full' 'v1.1.0 draft full' | fPickTag stable)"
+		[[ "${picked}" == v1.0.0 ]] || { fWhy "stable took '${picked}', not v1.0.0"; exit 1; }
+		picked="$(fRows 'v1.0.0-rc.1 - pre' 'v1.0.0 - full' 'v1.0.0-beta.2 - pre' 'v1.1.0 draft full' | fPickTag dev)"
+		[[ "${picked}" == v1.0.0 ]] || { fWhy "dev took '${picked}', not v1.0.0 over its prereleases"; exit 1; }
+		picked="$(fRows 'v1.0.0-alpha.2 - pre' 'v1.0.0-beta.10 - pre' 'v1.0.0-beta.9 - pre' 'v1.0.0-beta - pre' | fPickTag dev)"
+		[[ "${picked}" == v1.0.0-beta.10 ]] || { fWhy "dev took '${picked}', not v1.0.0-beta.10"; exit 1; }
+		picked="$(fRows 'v1.0.0-beta.1 - pre' | fPickTag stable)"
+		[[ -z "${picked}" ]] || { fWhy "stable took the prerelease '${picked}'"; exit 1; }
+		picked="$(fRows 'v1.10.0 - full' 'v1.9.0 - full' 'v1.2.0 - full' | fPickTag stable)"
+		[[ "${picked}" == v1.10.0 ]] || { fWhy "took '${picked}', not v1.10.0"; exit 1; }
+		picked="$(printf '[{"tag_name": "v2.0.0", "body": "a \\"tag_name\\": \\"v9\\"", "draft": true, "prerelease": false},\n {"tag_name":"v1.0.0-beta.1","draft":false,\n"prerelease":true}]' | fReleaseRows)"
+		[[ "${picked}" == $'v2.0.0 draft full\nv1.0.0-beta.1 - pre' ]] || { fWhy "release rows: ${picked}"; exit 1; }
+	) && ok=1
+	((ok))
+}
+
+## Test ID: df4xb
+fTest_the_installer_checks_the_sum_installs_once_and_hands_a_system_install_to_apt() {
+	local t="${work}/installer" out='' rc=0 f='' lib='' share='' pkgRoot='' sums=''
+	local tag=v1.0.0-beta.10 deb=tukzmon-1.0.0-beta.10-linux-x86_64.deb
+	mkdir -p -- "${t}/bin" "${t}/home" "${t}/tmp" "${t}/srv/${tag}"
+	## A release list with only a draft and prereleases, served by a curl
+	## that reads files.
+	printf '[{"tag_name":"v1.0.0","draft":true,"prerelease":false},{"tag_name":"v1.0.0-beta.2","draft":false,"prerelease":true},{"tag_name":"%s","draft":false,"prerelease":true}]\n' "${tag}" > "${t}/srv/releases.json"
+	cat > "${t}/bin/curl" << 'SHIM'
+#!/bin/sh
+out=''; w=''; url=''
+while [ $# -gt 0 ]; do case "$1" in
+	-o) out="$2"; shift 2 ;; -w) w="$2"; shift 2 ;;
+	--proto|--proto-redir|--config) shift 2 ;; -*) shift ;; *) url="$1"; shift ;;
+esac; done
+case "${url}" in
+	https://api.github.com/repos/tukzedo/tukzmon/releases?per_page=100) f="${FAKE_SRV}/releases.json" ;;
+	https://github.com/tukzedo/tukzmon/releases/download/*) f="${FAKE_SRV}/${url#https://github.com/tukzedo/tukzmon/releases/download/}" ;;
+	*) f='' ;;
+esac
+if [ -n "${f}" ] && [ -f "${f}" ]; then cp "${f}" "${out}"; [ -z "${w}" ] || printf 200; exit 0; fi
+[ -z "${w}" ] || { printf 404; exit 0; }
+exit 22
+SHIM
+	printf '#!/bin/sh\ncase "$1" in -s) echo Linux ;; *) echo x86_64 ;; esac\n' > "${t}/bin/uname"
+	printf '#!/bin/sh\nprintf "\\tlibxfce4panel-2.0.so.4 (libc6,x86-64) => /usr/lib64/libxfce4panel-2.0.so.4\\n"\n' > "${t}/bin/ldconfig"
+	printf '#!/bin/sh\nexit 0\n' > "${t}/bin/pgrep"
+	printf '#!/bin/sh\necho "$*" >> "%s/panel.log"\n' "${t}" > "${t}/bin/xfce4-panel"
+	printf '#!/bin/sh\n' > "${t}/bin/xfconf-query"
+	printf '#!/bin/sh\nexit 1\n' > "${t}/bin/rpm"
+	printf '#!/bin/sh\n[ -f "%s/dpkg-state" ] || exit 1\ncat "%s/dpkg-state"\n' "${t}" "${t}" > "${t}/bin/dpkg-query"
+	printf '#!/bin/sh\necho "$*" >> "%s/apt.log"\n' "${t}" > "${t}/bin/apt-get"
+	printf '#!/bin/sh\nexec "$@"\n' > "${t}/bin/sudo"
+	chmod +x "${t}/bin/"*
+	pkgRoot="${t}/pkg"
+	mkdir -p -- "${pkgRoot}/DEBIAN" "${pkgRoot}/usr/lib/x86_64-linux-gnu/xfce4/panel/plugins" "${pkgRoot}/usr/bin" "${pkgRoot}/usr/share/xfce4/panel/plugins"
+	printf 'Package: tukzmon\nVersion: 1.0.0~beta.10\nArchitecture: amd64\nMaintainer: x <x@example.com>\nDescription: x\n' > "${pkgRoot}/DEBIAN/control"
+	echo 'lib 10' > "${pkgRoot}/usr/lib/x86_64-linux-gnu/xfce4/panel/plugins/libtukzmon.so"
+	echo 'settings 10' > "${pkgRoot}/usr/bin/tukzmon-settings"
+	echo 'desktop 10' > "${pkgRoot}/usr/share/xfce4/panel/plugins/tukzmon.desktop"
+	dpkg-deb --root-owner-group -b "${pkgRoot}" "${t}/srv/${tag}/${deb}" > /dev/null || { fWhy "couldn't build the stand-in .deb"; return 1; }
+	sums="${t}/srv/${tag}/tukzmon-1.0.0-beta.10-sha256sums.txt"
+	(cd "${t}/srv/${tag}" && sha256sum -- "${deb}" > "${sums}")
+	## setsid, so a run by hand doesn't ask on its terminal.
+	fRun() { rc=0; out="$(cd / && env -u XDG_DATA_HOME FAKE_SRV="${t}/srv" HOME="${1}" TMPDIR="${t}/tmp" PATH="${t}/bin:${PATH}" setsid -w bash "${cicd}/../install.bash" "${@:2}" < "${feed}" 2>&1)" || rc=$?; }
+	local feed=/dev/null
+	fRun "${t}/home" --target=bogus
+	((rc == 2)) || { fWhy "a bad --target gave ${rc}: ${out}"; return 1; }
+	fRun "${t}/home"
+	((rc == 1)) && [[ "${out}" == *"no terminal to ask on"* && ! -e "${t}/home/.local" ]] || { fWhy "nobody to ask still installed (${rc}): ${out}"; return 1; }
+	feed="${t}/no"; echo n > "${feed}"
+	fRun "${t}/home"
+	((rc == 0)) && [[ "${out}" == *"Stopped. Nothing was touched."* && ! -e "${t}/home/.local" ]] || { fWhy "a no still installed (${rc}): ${out}"; return 1; }
+	feed=/dev/null
+	fRun "${t}/home" --yes
+	((rc == 0)) || { fWhy "the user install failed (${rc}): ${out}"; return 1; }
+	[[ "${out}" == *"${tag}, the newest prerelease, since there's no stable release yet"* ]] || { fWhy "didn't take the newest prerelease: ${out}"; return 1; }
+	## In the folders the panel pairs with its own lib folder, lib64 here.
+	lib="${t}/home/.local/lib64/xfce4/panel/plugins"; share="${t}/home/.local/share/xfce4/panel/plugins"
+	for f in "${pkgRoot}/usr/lib/x86_64-linux-gnu/xfce4/panel/plugins/libtukzmon.so" "${pkgRoot}/usr/bin/tukzmon-settings"; do
+		cmp -s -- "${lib}/${f##*/}" "${f}" || { fWhy "${lib}/${f##*/} isn't the package's: ${out}"; return 1; }
+	done
+	[[ -x "${lib}/tukzmon-settings" ]] || { fWhy "tukzmon-settings isn't executable"; return 1; }
+	cmp -s -- "${share}/tukzmon.desktop" "${pkgRoot}/usr/share/xfce4/panel/plugins/tukzmon.desktop" || { fWhy "no .desktop file in ${share}"; return 1; }
+	[[ "$(cat -- "${t}/panel.log")" == --restart ]] || { fWhy "the panel log: $(cat -- "${t}/panel.log")"; return 1; }
+	fRun "${t}/home" --yes
+	((rc == 0)) && [[ "${out}" == *"Already up to date"* ]] || { fWhy "a second run (${rc}): ${out}"; return 1; }
+	[[ "$(wc -l < "${t}/panel.log")" -eq 1 ]] || { fWhy "a second run restarted the panel"; return 1; }
+
+	## The system install goes through apt-get, once, and names the user copy
+	## that shadows it.
+	echo 'installed 1.0.0~beta.2' > "${t}/dpkg-state"
+	fRun "${t}/home" --target system --yes
+	((rc == 0)) && [[ "${out}" == *"over 1.0.0~beta.2"* && "${out}" == *"is a user install"* ]] || { fWhy "the system install (${rc}): ${out}"; return 1; }
+	[[ "$(cat -- "${t}/apt.log")" == "install -y "*"/${deb}" ]] || { fWhy "apt-get got: $(cat -- "${t}/apt.log")"; return 1; }
+	echo 'installed 1.0.0~beta.10' > "${t}/dpkg-state"
+	fRun "${t}/home" --target system --yes
+	((rc == 0)) && [[ "${out}" == *"Already up to date"* ]] || { fWhy "a second system run (${rc}): ${out}"; return 1; }
+	[[ "$(wc -l < "${t}/apt.log")" -eq 1 ]] || { fWhy "a second system run ran apt-get"; return 1; }
+
+	## A package that doesn't match its sum installs nothing.
+	echo 'tampered' >> "${t}/srv/${tag}/${deb}"
+	mkdir -- "${t}/home2"
+	fRun "${t}/home2" --yes
+	((rc == 1)) && [[ "${out}" == *"checksum doesn't match"* && ! -e "${t}/home2/.local" ]] || { fWhy "a bad sum (${rc}): ${out}"; return 1; }
+	[[ -z "$(ls -A -- "${t}/tmp")" ]] || { fWhy "left in its temp folder: $(ls -A -- "${t}/tmp")"; return 1; }
+}
+
 failed=0
 while read -r id fn; do
 	if "${fn}"; then echo "PASS ${id} ${fn#fTest_}"; else echo "FAIL ${id} ${fn#fTest_}"; failed=1; fi
@@ -1088,3 +1198,5 @@ exit "${failed}"
 ##		  that answers counts as taken without a lock file.
 ##		- 2026-11-10: codeql-report.py fails what isn't suppressed, a stale
 ##		  suppression and an empty database.
+##		- 2026-11-10: install.bash's version order, and its sum check, user
+##		  and system installs, and second runs.

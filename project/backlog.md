@@ -298,7 +298,8 @@ Sorted per the notes in [Template](#template).
 - Installer script for a direct install
 	- ID: 2026110310450005
 	- Type: Feature
-	- Status: Queued
+	- Status: Waiting on UAT
+		- A person runs a system install with sudo on Debian and Fedora, and the one-liner from `main`.
 	- Priority|Severity: Avg
 	- Opened: 20261103-104500
 	- Opened by: t00mietum
@@ -312,6 +313,23 @@ Sorted per the notes in [Template](#template).
 		- README.md gets the one-liner and the install folders, and notes `--help`.
 	- Needs more detail:
 		- It needs a first release to download. Until then, test it against a stand-in release.
+	- Needs hand testing: `--target system` on Debian 13 and Fedora 42, which needs sudo, and the README one-liner once `install.bash` is on `main`.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- `install.bash` at the repo root, from silkterm's. It picks the release from the API's list in semver order, and takes the newest prerelease while there's no stable one. A user install unpacks the `.deb` or `.rpm` into the folders `dev-install.bash` uses, and a system install hands the package to apt-get, dnf, zypper or yum through sudo. It restarts a running panel.
+		- README.md has a Direct section with the one-liner, `--help` and the install folders. design.md XFCE plugin names it.
+		- Verified: against the real v1.0.0-beta.1, it took the prerelease, installed the 3 files, and a second run said up to date and changed nothing. The installed `tukzmon-settings --version` gave v1.0.0-beta.1 build df1j9.
+		- Verified: under bash 3.2.57, the same, through the `ar` unpack. dpkg-deb, rpm2cpio, bsdtar and ar each unpacked the real packages to the same files.
+		- Verified: df4xa and df4xb pass, and each failed on a broken installer: a release not above its prerelease, fields compared as text, no sum check, a reinstall when current, and stable taking a prerelease. The quick gate and Sanitizers passed.
+	- Decisions:
+		- The package is downloaded and checked in a temp folder before the plan, so the plan lists only what would change. The release has no tarball, so a user install unpacks the package with whatever is there.
+		- A system install without `--yes` leaves the package manager's own prompt, for its dependency list. Both are in questions.md as a Check.
+		- Exit 2 on a bad option, as `dev-install.bash` does, where silkterm's gives 1.
+		- No signature check, since releases aren't signed.
+		- Swept: `dev-install.bash` keeps its own copy of the lib folder lookup, since it's a dev tool run from a checkout and the installer runs alone from a URL.
+	- Branch: round-1111
+	- Test case: `the_installer_picks_the_highest_version_with_a_prerelease_below_its_release` (df4xa) and `the_installer_checks_the_sum_installs_once_and_hands_a_system_install_to_apt` (df4xb), in `cicd/tests/guards.bash`.
 
 - CICD gap: tukzmon-settings built in another folder gives different bytes
 	- ID: 2026110710005013
