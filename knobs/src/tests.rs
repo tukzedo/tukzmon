@@ -42,7 +42,7 @@ fn text(t: &str) -> Value {
 
 // Test ID: ddqps
 #[test]
-fn the_demo_spec_parses_and_works_out_indents() {
+fn demo_spec_indents() {
 	let m = demo();
 	assert_eq!(
 		m.spec.at("strength").indent,
@@ -80,7 +80,7 @@ fn the_demo_spec_parses_and_works_out_indents() {
 
 // Test ID: ddqpt
 #[test]
-fn a_bad_spec_names_every_mistake() {
+fn bad_spec_lists_mistakes() {
 	let bad = "tabs: \"A\"\nsettings:\n\tx:\n\t\tlabel: X\n\t\ttab: A\n\t\tcontrol: slider\n\t\tpath: a.x\n\t\tgate: nothing\n\ty:\n\t\tlabel: Y\n\t\ttab: B\n\t\tcontrol: checkbox\n\t\tpath: a.x\n";
 	let errs = Spec::parse(bad).err().unwrap_or_default();
 	let all = errs.join("\n");
@@ -91,7 +91,7 @@ fn a_bad_spec_names_every_mistake() {
 
 // Test ID: dezfh
 #[test]
-fn a_group_has_the_specs_presets_or_the_programs_not_both() {
+fn presets_from_one_source() {
 	let m = demo();
 	assert!(matches!(
 		m.spec.group("theme").map(|g| &g.presets),
@@ -146,7 +146,7 @@ fn small_errs(from: &str, to: &str) -> String {
 
 // Test ID: df399
 #[test]
-fn a_chooser_switched_by_its_own_member_is_a_loop() {
+fn chooser_self_loop() {
 	assert_eq!(Spec::parse(SMALL).err(), None);
 	// reading pick reads sw, its switch, and sw reads pick, its group's chooser
 	let all = small_errs(
@@ -161,7 +161,7 @@ fn a_chooser_switched_by_its_own_member_is_a_loop() {
 
 // Test ID: df39a
 #[test]
-fn paths_and_options_that_differ_only_in_case_are_twins() {
+fn case_only_twins() {
 	let all = small_errs("path: a.sw", "path: A.Pick");
 	assert!(all.contains("sw: path A.Pick is pick's too"), "{all}");
 	let all = small_errs("path: a.sw", "path: Kept.sw");
@@ -178,7 +178,7 @@ fn paths_and_options_that_differ_only_in_case_are_twins() {
 
 // Test ID: df39b
 #[test]
-fn a_range_end_or_detent_that_isnt_a_number_is_refused() {
+fn non_numeric_range_refused() {
 	let all = small_errs("range: [0, 10]", "range: [nan, 10]");
 	assert!(all.contains("n: a range end is not a number"), "{all}");
 	let all = small_errs("range: [0, 10]", "range: [0, nan]");
@@ -189,7 +189,7 @@ fn a_range_end_or_detent_that_isnt_a_number_is_refused() {
 
 // Test ID: df39c
 #[test]
-fn a_chooser_holds_a_choice() {
+fn chooser_must_be_choice() {
 	let all = small_errs("\t\tdefault: one\n", "\t\tdefault: one\n\t\ttype: text\n");
 	assert!(
 		all.contains("group g: chooser pick is not a choice"),
@@ -199,7 +199,7 @@ fn a_chooser_holds_a_choice() {
 
 // Test ID: ddqpv
 #[test]
-fn a_switch_keeps_the_value_set_by_hand_for_the_round_trip() {
+fn switch_keeps_hand_value() {
 	let mut m = demo();
 	assert_eq!(
 		m.value("family", &DESK),
@@ -230,7 +230,7 @@ fn a_switch_keeps_the_value_set_by_hand_for_the_round_trip() {
 
 // Test ID: ddqpw
 #[test]
-fn switching_off_with_nothing_kept_keeps_what_shows() {
+fn switch_off_keeps_shown() {
 	let mut m = demo();
 	m.set("use_system_family", &Value::Bool(false), &DESK);
 	assert_eq!(
@@ -242,7 +242,7 @@ fn switching_off_with_nothing_kept_keeps_what_shows() {
 
 // Test ID: ddqpx
 #[test]
-fn with_nothing_to_follow_the_value_set_by_hand_is_used() {
+fn hand_value_when_nothing_to_follow() {
 	let mut m = demo();
 	m.set("family", &text("Fira Code"), &DESK);
 	m.set("use_system_family", &Value::Bool(true), &DESK);
@@ -255,7 +255,7 @@ fn with_nothing_to_follow_the_value_set_by_hand_is_used() {
 
 // Test ID: ddqpy
 #[test]
-fn editing_one_member_turns_its_switch_off_and_the_others_keep_what_they_show() {
+fn member_edit_turns_switch_off() {
 	let mut m = demo();
 	m.set("last_columns", &int(100), &DESK);
 	m.set("last_rows", &int(30), &DESK);
@@ -272,7 +272,7 @@ fn editing_one_member_turns_its_switch_off_and_the_others_keep_what_they_show() 
 
 // Test ID: ddqpz
 #[test]
-fn changing_a_row_under_a_switch_that_is_off_turns_it_on() {
+fn edit_under_off_switch() {
 	let mut m = demo();
 	m.set("idle_release", &Value::Bool(false), &DESK);
 	m.set("idle_min", &int(60), &DESK);
@@ -282,7 +282,7 @@ fn changing_a_row_under_a_switch_that_is_off_turns_it_on() {
 
 // Test ID: ddqq0
 #[test]
-fn a_row_changed_on_a_preset_stars_it_stops_the_machine_and_spares_custom() {
+fn preset_edit_stars_it() {
 	let mut m = demo();
 	m.set("tested_profile", &text("low"), &DESK);
 	m.fill_custom("perf", &DESK);
@@ -312,7 +312,7 @@ fn a_row_changed_on_a_preset_stars_it_stops_the_machine_and_spares_custom() {
 
 // Test ID: ddqq1
 #[test]
-fn resetting_every_changed_row_takes_the_star_away() {
+fn reset_all_clears_star() {
 	let mut m = demo();
 	m.set("strength", &int(80), &DESK);
 	assert_eq!(m.shown_choice("profile", &DESK), "High *");
@@ -324,7 +324,7 @@ fn resetting_every_changed_row_takes_the_star_away() {
 
 // Test ID: ddqq2
 #[test]
-fn picking_another_profile_drops_the_changes_and_custom_comes_back() {
+fn profile_switch_drops_changes() {
 	let mut m = demo();
 	m.fill_custom("perf", &DESK);
 	m.set("profile", &text(CUSTOM), &DESK);
@@ -354,7 +354,7 @@ fn picking_another_profile_drops_the_changes_and_custom_comes_back() {
 
 // Test ID: ddqq3
 #[test]
-fn choose_automatically_is_the_profile_s_own_switch() {
+fn choose_auto_switch() {
 	let mut m = demo();
 	m.set("tested_profile", &text("max_silk"), &DESK);
 	assert_eq!(m.chosen("perf", &DESK), "max_silk");
@@ -371,7 +371,7 @@ fn choose_automatically_is_the_profile_s_own_switch() {
 
 // Test ID: ddqq4
 #[test]
-fn a_temporary_preset_ignores_changes_stores_nothing_and_ends_on_an_edit() {
+fn temporary_preset_lifecycle() {
 	let mut m = demo();
 	m.set("profile", &text("low"), &DESK);
 	m.set("radius", &int(9), &DESK);
@@ -393,7 +393,7 @@ fn a_temporary_preset_ignores_changes_stores_nothing_and_ends_on_an_edit() {
 // spec writes it, so a save writes the usual word back.
 // Test ID: ddqvp
 #[test]
-fn a_choice_matches_without_case_and_keeps_the_spec_s_word() {
+fn choice_case_insensitive() {
 	let m = demo();
 	let s = m.spec.get("profile").unwrap();
 	assert_eq!(m.spec.valid(s, &text("HIGH")), Ok(text("high")));
@@ -405,7 +405,7 @@ fn a_choice_matches_without_case_and_keeps_the_spec_s_word() {
 // as if it named nothing.
 // Test ID: ddqvn
 #[test]
-fn a_file_naming_a_temporary_preset_loads_as_no_pick() {
+fn temporary_preset_in_file() {
 	let mut m = demo();
 	m.set("profile", &text("remote"), &DESK);
 	let (config, state) = m.save(&DESK);
@@ -418,7 +418,7 @@ fn a_file_naming_a_temporary_preset_loads_as_no_pick() {
 
 // Test ID: ddqq5
 #[test]
-fn wallpaper_colors_beat_the_theme_and_an_edit_turns_them_off() {
+fn wallpaper_colors_win() {
 	let mut m = demo();
 	assert_eq!(m.value("fg", &DESK), text("#eeeeee"));
 	let plain = Desk {
@@ -446,7 +446,7 @@ fn wallpaper_colors_beat_the_theme_and_an_edit_turns_them_off() {
 
 // Test ID: ddqq6
 #[test]
-fn the_files_round_trip_and_set_aside_values_go_in_kept() {
+fn file_round_trip() {
 	let mut m = demo();
 	m.set("family", &text("Fira Code"), &DESK);
 	m.set("use_system_family", &Value::Bool(true), &DESK);
@@ -462,7 +462,7 @@ fn the_files_round_trip_and_set_aside_values_go_in_kept() {
 
 // Test ID: ddqq7
 #[test]
-fn a_bad_value_in_the_file_is_dropped() {
+fn bad_file_value_dropped() {
 	let m = demo();
 	let config = "text:\n\tscrim:\n\t\tstrength: 400\nfont:\n\tfamily: \"Fira Code\"\ntheme:\n\tname: plaid\n";
 	let back = Model::load(m.spec.clone(), config, "");
@@ -473,7 +473,7 @@ fn a_bad_value_in_the_file_is_dropped() {
 
 // Test ID: ddqq8
 #[test]
-fn slider_scales_round_trip_and_snap_to_detents() {
+fn slider_scales_and_detents() {
 	let m = demo();
 	for id in ["ease_in", "ramp_down", "blur", "idle_min", "line_height"] {
 		let s = m.spec.at(id);
@@ -502,7 +502,7 @@ fn slider_scales_round_trip_and_snap_to_detents() {
 
 // Test ID: ddqq9
 #[test]
-fn custom_starts_as_the_preset_not_as_what_a_rule_shows_over_it() {
+fn custom_starts_from_preset() {
 	let mut m = demo();
 	m.fill_custom("theme", &DESK);
 	assert_eq!(
@@ -519,7 +519,7 @@ fn custom_starts_as_the_preset_not_as_what_a_rule_shows_over_it() {
 
 // Test ID: ddqqa
 #[test]
-fn the_kept_block_comes_last() {
+fn kept_block_last() {
 	let mut m = demo();
 	m.set("family", &text("Fira Code"), &DESK);
 	m.set("use_system_family", &Value::Bool(true), &DESK);
@@ -538,7 +538,7 @@ fn the_kept_block_comes_last() {
 
 // Test ID: ddqqb
 #[test]
-fn turning_choose_automatically_back_on_drops_the_changes() {
+fn choose_auto_on_drops_changes() {
 	let mut m = demo();
 	m.set("strength", &int(80), &DESK);
 	assert_eq!(m.shown_choice("profile", &DESK), "High *");
@@ -640,7 +640,7 @@ fn shop() -> Model {
 
 // Test ID: ddqs9
 #[test]
-fn a_spec_built_in_code_is_checked_like_a_parsed_one() {
+fn code_spec_checked() {
 	let m = shop();
 	assert_eq!(
 		m.spec.group("theme").map(|g| g.members.clone()),
@@ -656,7 +656,7 @@ fn a_spec_built_in_code_is_checked_like_a_parsed_one() {
 
 // Test ID: ddqsa
 #[test]
-fn a_rule_with_no_switch_is_the_default_and_the_arrow_puts_it_back() {
+fn switchless_rule_default() {
 	let mut m = shop();
 	let env = Shop { dark: true };
 	assert_eq!(m.value("opener", &env), text("xdg-open"));
@@ -677,7 +677,7 @@ fn a_rule_with_no_switch_is_the_default_and_the_arrow_puts_it_back() {
 
 // Test ID: ddqsb
 #[test]
-fn a_group_s_presets_can_come_from_the_program() {
+fn program_presets() {
 	let mut m = shop();
 	let dark = Shop { dark: true };
 	let light = Shop { dark: false };
@@ -709,7 +709,7 @@ fn a_group_s_presets_can_come_from_the_program() {
 
 // Test ID: ddqsc
 #[test]
-fn changes_under_a_temporary_preset_are_still_saved() {
+fn temporary_preset_saves_changes() {
 	let mut m = demo();
 	m.set("profile", &text("low"), &DESK);
 	m.set("radius", &int(9), &DESK);
@@ -723,7 +723,7 @@ fn changes_under_a_temporary_preset_are_still_saved() {
 
 // Test ID: ddqsd
 #[test]
-fn lines_put_set_aside_values_and_changes_under_kept() {
+fn kept_lines() {
 	let mut m = demo();
 	m.set("family", &text("Fira Code"), &DESK);
 	m.set("use_system_family", &Value::Bool(true), &DESK);
@@ -750,7 +750,7 @@ fn lines_put_set_aside_values_and_changes_under_kept() {
 
 // Test ID: ddqss
 #[test]
-fn a_held_value_wins_for_the_run_and_is_never_saved() {
+fn held_value_unsaved() {
 	let mut m = demo();
 	m.hold("family", &text("Iosevka"));
 	assert_eq!(
@@ -785,7 +785,7 @@ fn a_held_value_wins_for_the_run_and_is_never_saved() {
 
 // Test ID: ddqtt
 #[test]
-fn the_chooser_s_arrow_ends_a_temporary_preset_and_drops_the_changes() {
+fn chooser_arrow_ends_temporary() {
 	let mut m = demo();
 	m.set("profile", &text("low"), &DESK);
 	m.set("radius", &int(9), &DESK);
@@ -807,7 +807,7 @@ fn the_chooser_s_arrow_ends_a_temporary_preset_and_drops_the_changes() {
 
 // Test ID: dezbq
 #[test]
-fn has_changes_and_each_rows_star_agree_with_the_list() {
+fn stars_match_change_list() {
 	let mut m = demo();
 	let agree = |m: &Model| {
 		for g in ["perf", "theme"] {
@@ -857,7 +857,7 @@ fn has_changes_and_each_rows_star_agree_with_the_list() {
 
 // Test ID: df34k
 #[test]
-fn a_value_put_back_to_its_default_stores_nothing() {
+fn default_value_not_stored() {
 	let mut m = demo();
 	let fresh = m.values.clone();
 	m.set("idle_min", &int(6), &DESK);

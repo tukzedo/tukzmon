@@ -393,7 +393,7 @@ Sorted per the notes in [Template](#template).
 		- No signature check, since releases aren't signed.
 		- Swept: `dev-install.bash` keeps its own copy of the lib folder lookup, since it's a dev tool run from a checkout and the installer runs alone from a URL.
 	- Branch: round-1111
-	- Test case: `the_installer_picks_the_highest_version_with_a_prerelease_below_its_release` (df4xa) and `the_installer_checks_the_sum_installs_once_and_hands_a_system_install_to_apt` (df4xb), in `cicd/tests/guards.bash`.
+	- Test case: `installer_version_order` (df4xa) and `installer_installs` (df4xb), in `cicd/tests/guards.bash`.
 
 - CICD gap: tukzmon-settings built in another folder gives different bytes
 	- ID: 2026110710005013
@@ -426,7 +426,7 @@ Sorted per the notes in [Template](#template).
 		- It compares with the release step's own build, so what gets packaged is what was checked, and it runs where that build ran, on the host in a run that dogfoods.
 		- `settings/build.rs` now asks for cc's extra warnings itself, since cc drops them when CXXFLAGS is set.
 	- Branch: round-1111
-	- Test case: `release_path_maps_put_the_innermost_folder_last_and_refuse_a_relative_or_spaced_path` (df50f), in `cicd/tests/guards.bash`, and the Reproducible step itself.
+	- Test case: `release_path_maps` (df50f), in `cicd/tests/guards.bash`, and the Reproducible step itself.
 		- Swept: every release build in cicd (release, demo), `utility/dev-install.bash`, and the Nix package, which builds in its own fixed folder. The profiler and CodeQL builds aren't shipped.
 	- Closed: 20261110-211350
 
@@ -443,6 +443,104 @@ Sorted per the notes in [Template](#template).
 		- The bash tests in `cicd/tests/` too, since their names print on each PASS and FAIL line.
 		- knobs' tests too. SilkTerm's copy gets an item of its own there.
 		- The `live_` names can stay, since they mark the tests that read this computer.
+	- Estimated effort: High
+	- Progress log:
+		- Split by area into 5 children, 2026111021184916 to 2026111021184970. The cicd and knobs ones are done, and the other 3 are Queued.
+	- Decisions:
+		- Names say what is checked in 2 to 5 words, and the module path and ID carry the rest.
+
+- Short test names: the pipeline's tests in cicd/tests
+	- ID: 2026111021184916
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261110-211849
+	- Opened by: t00mietum
+	- Parent ID: 2026110710005014
+	- Requirements:
+		- cicd/tests/guards.bash, 39 tests.
+		- Per the parent: a few words each, not all built the same way, no leading a, the, every or each. Each test keeps its ID. live_ names stay.
+		- Update every Test case row, round-notes.md and design.md line that names a renamed test.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- All 39 are 2 to 4 words now, such as `safe_rm_scope`, `hook_gates_the_commit` and `installer_version_order`. Each kept its ID line.
+		- The backlog's Test case rows that named them are renamed to match. design.md and round-notes.md named none.
+		- Verified: guards.bash gives 39 PASS lines with the new names, the test ID check finds 521 tests with unique IDs, and the quick gate and Sanitizers passed.
+	- Decisions:
+		- The name says what is checked, not the whole outcome, since the PASS line and the ID point to the body. Shapes vary: a noun phrase, a short claim, or a verb.
+	- Branch: round-1111
+	- Test case: The renamed tests themselves, run by the Tests step. No new test, since only names changed.
+		- Swept: every `fTest_` name in the backlog, design.md, round-notes.md, memory.md and the private tools.
+	- Closed: 20261110-212735
+
+- Short test names: knobs
+	- ID: 2026111021184930
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261110-211849
+	- Opened by: t00mietum
+	- Parent ID: 2026110710005014
+	- Requirements:
+		- knobs/src/tests.rs and knobs/tests, 36 tests.
+		- Per the parent: a few words each, not all built the same way, no leading a, the, every or each. Each test keeps its ID. live_ names stay.
+		- Update every Test case row, round-notes.md and design.md line that names a renamed test.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- All 36 are 2 to 5 words now, such as `chooser_self_loop`, `kept_lines` and `change_queries_flat_cost`. Each kept its ID line.
+		- The backlog's Test case rows that named them are renamed to match. design.md and round-notes.md named none.
+		- SilkTerm's knobs copy isn't changed here. It needs an item in its own backlog.
+		- Verified: knobs' 36 tests pass under the new names, the test ID check passed, and the quick gate and Sanitizers passed.
+	- Decisions:
+		- Same as the cicd child: the name says what is checked, and shapes vary.
+	- Branch: round-1111
+	- Test case: The renamed tests themselves. No new test, since only names changed.
+		- Swept: every knobs test name in the backlog, design.md, round-notes.md, memory.md and the private tools.
+	- Closed: 20261110-212735
+
+- Short test names: xfce and settings
+	- ID: 2026111021184944
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261110-211849
+	- Opened by: t00mietum
+	- Parent ID: 2026110710005014
+	- Requirements:
+		- xfce/src and settings/src, 149 tests.
+		- Per the parent: a few words each, not all built the same way, no leading a, the, every or each. Each test keeps its ID. live_ names stay.
+		- Update every Test case row, round-notes.md and design.md line that names a renamed test.
+	- Estimated effort: Avg
+
+- Short test names: core config, graphs, lib and render
+	- ID: 2026111021184957
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261110-211849
+	- Opened by: t00mietum
+	- Parent ID: 2026110710005014
+	- Requirements:
+		- core/src/config.rs, graphs.rs, lib.rs and render.rs, 145 tests.
+		- Per the parent: a few words each, not all built the same way, no leading a, the, every or each. Each test keeps its ID. live_ names stay.
+		- Update every Test case row, round-notes.md and design.md line that names a renamed test.
+	- Estimated effort: Avg
+
+- Short test names: the rest of core
+	- ID: 2026111021184970
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261110-211849
+	- Opened by: t00mietum
+	- Parent ID: 2026110710005014
+	- Requirements:
+		- core/src outside config, graphs, lib and render, and core/tests, 160 tests.
+		- Per the parent: a few words each, not all built the same way, no leading a, the, every or each. Each test keeps its ID. live_ names stay.
+		- Update every Test case row, round-notes.md and design.md line that names a renamed test.
+	- Estimated effort: Avg
 
 - Pre-next-cut: Settings, General: "Reduce motion in remote session"
 	- ID: 2026111019111679
@@ -651,7 +749,7 @@ Sorted per the notes in [Template](#template).
 		- b23's `/etc/docker/daemon.json` has the `builder.gc` block. The prune is gone from `fCtrCleanup`, and the cleanup line names only the images it removed.
 		- Verified: the quick gate passed, and its cleanup ran with no prune.
 	- Branch: no-prune
-	- Test case: `the_pipeline_never_prunes_dockers_build_cache` (dezas), in `cicd/tests/guards.bash`.
+	- Test case: `no_build_cache_prune` (dezas), in `cicd/tests/guards.bash`.
 	- Closed: 20261103-171500
 
 - Code review 20261031 item 2: Apply resets Custom colors edited before another theme was picked
@@ -2560,7 +2658,7 @@ Sorted per the notes in [Template](#template).
 		- `--list` prints the steps and what's off. Test IDs come with 2026102416252895.
 		- The hook is turned on by a documented step, not by the pipeline, so nobody's pushes get gated without them knowing.
 	- Branch: round-1025
-	- Test case: `the_shared_flags_are_taken_and_a_wrong_mix_is_refused` (dezar), and the hook's deqvk, deqvm and deqvn, in `cicd/tests/guards.bash`. The gate was watched to fail on a planted format error and a planted lint error.
+	- Test case: `shared_flags` (dezar), and the hook's deqvk, deqvm and deqvn, in `cicd/tests/guards.bash`. The gate was watched to fail on a planted format error and a planted lint error.
 	- Closed: 20261025-190500
 
 - CICD reset: CPU and priority
@@ -2588,7 +2686,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: a container ran with 8 CPUs and a share of 256, with its cargo at nice 19.
 		- Verified, 2026-10-25: a merge gate on e131b57 used 8 of 32 CPUs with the cap set, at load 40, and said busy.
 	- Branch: round-1025
-	- Test case: `jobs_are_half_the_cpus_a_quarter_when_busy_and_never_none` (dezaq), in `cicd/tests/guards.bash`. The priority and the container caps have none, since they only pass settings on.
+	- Test case: `job_counts` (dezaq), in `cicd/tests/guards.bash`. The priority and the container caps have none, since they only pass settings on.
 	- Closed: 20261025-190500
 
 - CICD reset: test IDs
@@ -2619,7 +2717,7 @@ Sorted per the notes in [Template](#template).
 		- The name on each line is the test's path as cargo gives it, such as `when::tests::ago_reads_like_the_backlog_says`, so it can be found in the code.
 		- The tool is bash and awk, since the build image has no Python.
 	- Branch: round-1025
-	- Test case: `test_ids_check_fails_on_each_kind_of_bad_id` (dezan), `test_ids_reads_each_file_on_its_own` (den97) and `test_ids_check_fails_when_git_cant_list_the_rs_files` (deqrd), in `cicd/tests/guards.bash`.
+	- Test case: `bad_test_ids` (dezan), `test_ids_per_file` (den97) and `test_ids_git_failure` (deqrd), in `cicd/tests/guards.bash`.
 	- Closed: 20261025-190500
 
 - A theme per graph
@@ -2670,7 +2768,7 @@ Sorted per the notes in [Template](#template).
 		- The test ID check in lint now fails on a Done item with no `Test case` row, and on an ID a `Test case` row names that no test has.
 		- Verified: the check failed on a planted Done item with no row, and on a row naming an unknown ID.
 	- Branch: round-1025
-	- Test case: `test_ids_check_reads_the_backlogs_test_case_rows` (dezap), in `cicd/tests/guards.bash`.
+	- Test case: `backlog_test_case_rows` (dezap), in `cicd/tests/guards.bash`.
 	- Closed: 20261025-075906
 
 - CICD reset: container cleanup
@@ -2698,7 +2796,7 @@ Sorted per the notes in [Template](#template).
 		- No volumes. The image's cargo home and target dir are folders under `target/container`, so `cargo clean` takes them too.
 		- Tags are ordered by a `dev.built` label set at build time, since a build from cache gives every tag the same creation time.
 	- Branch: round-1025
-	- Test case: `the_cleanup_takes_only_the_projects_own_and_no_image_while_another_run_is_live` (dezav) and `containers_whose_run_is_gone_are_stopped_but_not_a_kept_or_live_ones` (dezaw), in `cicd/tests/guards.bash`. The labels on what a run makes have no test.
+	- Test case: `cleanup_takes_own_only` (dezav) and `orphan_containers_stopped` (dezaw), in `cicd/tests/guards.bash`. The labels on what a run makes have no test.
 	- Closed: 20261025-073422
 
 - CICD reset: step output
@@ -2719,7 +2817,7 @@ Sorted per the notes in [Template](#template).
 		- The first section lists the steps, then every step that's off, with the flag or the reason.
 		- Verified: in a quick run, a full run, and runs that failed at Format and at Lint.
 	- Branch: round-1025
-	- Test case: `a_step_prints_the_rule_its_start_and_its_pass_or_fail` (dezay), in `cicd/tests/guards.bash`. The list of steps that are off is checked by dezar and der4k.
+	- Test case: `step_output_lines` (dezay), in `cicd/tests/guards.bash`. The list of steps that are off is checked by dezar and der4k.
 	- Closed: 20261025-071028
 
 - Update default colors to my current selection
@@ -2967,7 +3065,7 @@ Sorted per the notes in [Template](#template).
 		- Swept: the Nix step's `git ls-files` pipe fails with pipefail already, and the sync step's untracked check reads a failed git as dirty, which is safe. No other script lists files through git.
 	- Actual fix: `fTreeFiles` and `fSomeOf` in `cicd/cicd.bash`, in place of `fFilesLike` and the Lint step's `mapfile`, and the git check in `fStrays` in `cicd/utility/test-ids.bash`.
 	- Branch: round-1101
-	- Test case: `lists_of_files_fail_when_git_does_or_a_kind_has_none` (deqrc) and `test_ids_check_fails_when_git_cant_list_the_rs_files` (deqrd), in `cicd/tests/guards.bash`.
+	- Test case: `file_lists_fail_with_git` (deqrc) and `test_ids_git_failure` (deqrd), in `cicd/tests/guards.bash`.
 	- Closed: 20261101-105821
 
 - Code review 20261031 item 5: History files aren't checked for times and values out of bounds
@@ -3116,7 +3214,7 @@ Sorted per the notes in [Template](#template).
 		- The test is a bash script in `cicd/tests/`, not a Rust test, since the Nix build's source has no `cicd/` folder. Each test has a `## Test ID:` line, as a Rust test has its `// Test ID:` line.
 		- Swept: `cicd.bash` and `hooks/pre-push` source this one copy. There is no other `rm -rf` outside the Dockerfile.
 	- Branch: round-1030b
-	- Test case: `fTest_safe_rm_takes_a_run_folder_but_not_the_temp_root_or_a_project_folder` (den8d)
+	- Test case: `fTest_safe_rm_scope` (den8d)
 	- Closed: 20261030-171604
 
 - History file sections don't record their series count
@@ -3496,7 +3594,7 @@ Sorted per the notes in [Template](#template).
 		- Swept: `cicd/hooks` holds only pre-push. The hosted `merge-gate.yml` checks out the commit it gates. Nothing else starts `--merge-gate`.
 	- Actual fix: the worktree branch in `cicd/hooks/pre-push` is the only path, and its header says so.
 	- Branch: round-1109
-	- Test case: `the_pre_push_hook_gates_the_commit_not_the_checkout` (df32x), in `cicd/tests/guards.bash`.
+	- Test case: `hook_gates_the_commit` (df32x), in `cicd/tests/guards.bash`.
 	- Closed: 20261109-121929
 
 - Code review 20261107 item 7: A demo stopped by TERM leaves its X session running, a FUSE mount, and a folder no sweep removes
@@ -3747,7 +3845,7 @@ Sorted per the notes in [Template](#template).
 		- No cross-file analyzer run, since the C++ is one file.
 	- Progress log:
 		- Split into children: the settings window soak 2026111013025758 (Done), and CodeQL 2026111013025770 (Waiting on automated testing).
-	- Test case: its children's: 2026111013025758: `bridge::tests::the_windows_heap_stops_growing_once_its_graphs_are_full` (df4ja), run by the Window-soak step. It fails without the trim in `Live::tick_at`.; 2026111013025770: `codeql_report_fails_what_isnt_suppressed_a_stale_suppression_and_an_empty_database` (df4ks), in `cicd/tests/guards.bash`. It failed with each of its 3 checks taken out. The CodeQL step itself is the rest.
+	- Test case: its children's: 2026111013025758: `bridge::tests::the_windows_heap_stops_growing_once_its_graphs_are_full` (df4ja), run by the Window-soak step. It fails without the trim in `Live::tick_at`.; 2026111013025770: `codeql_report_failures` (df4ks), in `cicd/tests/guards.bash`. It failed with each of its 3 checks taken out. The CodeQL step itself is the rest.
 	- Closed: 20261110-144111
 
 - Slow leak checks: settings window soak
@@ -3805,7 +3903,7 @@ Sorted per the notes in [Template](#template).
 		- A suppression matches the line's text rather than its number, so it lasts through edits above it.
 		- The image grows from 3.9 GB to 5.65 GB.
 	- Branch: round-1110b
-	- Test case: `codeql_report_fails_what_isnt_suppressed_a_stale_suppression_and_an_empty_database` (df4ks), in `cicd/tests/guards.bash`. It failed with each of its 3 checks taken out. The CodeQL step itself is the rest.
+	- Test case: `codeql_report_failures` (df4ks), in `cicd/tests/guards.bash`. It failed with each of its 3 checks taken out. The CodeQL step itself is the rest.
 	- Acceptance signoff: Self-closed 20261110: the CodeQL step passed with both languages.
 	- Closed: 20261110-224100
 
@@ -4203,7 +4301,7 @@ Sorted per the notes in [Template](#template).
 		- `changed` stays for the tip that names the changes and for the save, which need the list.
 		- The rest of a row's time is `Spec::at` scanning every setting, which is 2026103018353670.
 	- Branch: round-1107
-	- Test case: `has_changes_and_each_rows_star_agree_with_the_list` (dezbq) and `asking_about_changes_costs_the_same_however_many_there_are` (dezbr, `knobs/tests/allocs.rs`). dezbr fails before, with 2 allocations for a group with no changes and more for 5 changes than for 1. dezbq fails with `has_changes` ignoring a temporary preset.
+	- Test case: `stars_match_change_list` (dezbq) and `change_queries_flat_cost` (dezbr, `knobs/tests/allocs.rs`). dezbr fails before, with 2 allocations for a group with no changes and more for 5 changes than for 1. dezbq fails with `has_changes` ignoring a temporary preset.
 		- Swept: every `changed` and `changes_on` caller in knobs, core, settings and xfce. The tip's "Changed here" line and `Model::lines` still list them, since they need the names.
 	- Closed: 20261106-205212
 
@@ -4892,7 +4990,7 @@ Sorted per the notes in [Template](#template).
 		- `pointer-arithmetic-on-polymorphic-object` is off, since it crashes clang-tidy 19 on `qt.cpp`.
 		- Warnings fail only cicd builds, through `TUKZMON_WERROR=1`, so a newer compiler's new warning doesn't break someone's own build or a distro's.
 	- Branch: round-1030b
-	- Test case: None in the repo for the tools themselves, since the Format and Lint steps run them on every file, and the gate was watched to fail on each planted fault above. `lists_of_files_fail_when_git_does_or_a_kind_has_none` (deqrc) covers a kind with no files.
+	- Test case: None in the repo for the tools themselves, since the Format and Lint steps run them on every file, and the gate was watched to fail on each planted fault above. `file_lists_fail_with_git` (deqrc) covers a kind with no files.
 	- Closed: 20261030-173604
 
 - Pre-next-cut: "Sample ms" becomes "Sample %"
@@ -6153,7 +6251,7 @@ Sorted per the notes in [Template](#template).
 		- None of the tests starts a session bus now. A bus a test starts, and what the bus starts, inherit the run's `TMPDIR`, so the stop at the end takes them down without each test doing it.
 		- Only folders with a `run.pid` count as stale runs, so a temp folder made by hand is left alone.
 	- Branch: round-1025
-	- Test case: `a_run_folder_counts_up_and_the_sweep_takes_only_runs_that_are_gone` (dezat), `safe_rm_takes_a_run_folder_but_not_the_temp_root_or_a_project_folder` (den8d) and `run_pids_skips_a_process_gone_since_the_grep` (deqrb), in `cicd/tests/guards.bash`.
+	- Test case: `run_folders_and_sweep` (dezat), `safe_rm_scope` (den8d) and `run_pids_vanished_process` (deqrb), in `cicd/tests/guards.bash`.
 	- Closed: 20261025-071028
 
 - Build date after the version, for non-release builds
@@ -6327,7 +6425,7 @@ Sorted per the notes in [Template](#template).
 		- Swept: `nix/package.nix` has its link already. `utility/dev-install.bash` copies the program beside the library. The plugin's lookup (`settings_program`) is unchanged, and `windows_on` matches argv[0] by its ending, which the link's path keeps.
 	- Actual fix: two `type: symlink` entries in `cicd/packaging/nfpm.yaml`, and the content check in `cicd/utility/package.bash`.
 	- Branch: round-1109b
-	- Test case: `each_package_links_tukzmon_settings_beside_the_library` (df38w), and the Packages step's content check.
+	- Test case: `package_settings_link` (df38w), and the Packages step's content check.
 	- Closed: 20261109-153252
 
 - Code review 20261107 item 19: knobs' spec checks let a relation loop, case-only twins, a NaN range end, and a text chooser through
@@ -6368,7 +6466,7 @@ Sorted per the notes in [Template](#template).
 		- A range with its ends swapped was already refused through its default, so it gets no check of its own.
 		- A patch for silkterm's copy is drafted in the upstream folder, `2026110709074419/`.
 	- Branch: round-1109b
-	- Test case: `tests::a_chooser_switched_by_its_own_member_is_a_loop` (df399), `paths_and_options_that_differ_only_in_case_are_twins` (df39a), `a_range_end_or_detent_that_isnt_a_number_is_refused` (df39b) and `a_chooser_holds_a_choice` (df39c), in knobs. Each failed before the fix and passes after.
+	- Test case: `tests::chooser_self_loop` (df399), `case_only_twins` (df39a), `non_numeric_range_refused` (df39b) and `chooser_must_be_choice` (df39c), in knobs. Each failed before the fix and passes after.
 		- Swept: every check in `check_links` that compares paths, ranges or detents, the gate loop check, and `set_indents`, which caps its walk at 8. A loop through 2 groups is caught too, checked with a probe.
 	- Acceptance signoff: Self-closed 20261109: df399, df39a, df39b and df39c.
 	- Closed: 20261109-154520
@@ -6897,7 +6995,7 @@ Sorted per the notes in [Template](#template).
 		- Swept: no other step makes or removes a volume, and the run's cleanup removes only containers by `dev.run`.
 	- Actual fix: `fNixStore`, `fNixStoresPinned` and `fNixStoresUnused` in `cicd/cicd.bash`, called from `fStepNix`.
 	- Branch: round-1101
-	- Test case: `nix_step_removes_only_its_own_stores_that_no_checkout_pins` in `cicd/tests/guards.bash` (deqre). The step itself has no test ID, as for 2026102808222810.
+	- Test case: `nix_keeps_pinned_stores` in `cicd/tests/guards.bash` (deqre). The step itself has no test ID, as for 2026102808222810.
 	- Closed: 20261101-110658
 
 - Code review 20261031 item 15: license.txt counts as docs only for the pre-push hook
@@ -6924,7 +7022,7 @@ Sorted per the notes in [Template](#template).
 		- Swept: `nix/package.nix` builds only from the Cargo files and the 4 crate folders, none under `DOCS_PATHS`. No `.md` or `project/` file goes into a package.
 	- Actual fix: dropped `license.txt` from `DOCS_PATHS`.
 	- Branch: round-1101
-	- Test case: `no_file_a_package_holds_counts_as_docs_for_the_hook` in `cicd/tests/guards.bash` (deqvk).
+	- Test case: `packaged_files_arent_docs` in `cicd/tests/guards.bash` (deqvk).
 	- Closed: 20261101-123700
 
 - Code review 20261031 item 14: The pre-push hook keeps the gate from removing images, and any value skips it
@@ -6952,7 +7050,7 @@ Sorted per the notes in [Template](#template).
 		- Swept: `fSweepStale` leaves a live run's folder alone, and `fStopLeftovers` goes by `TMPDIR`, which the hook doesn't set, so neither touches the hook. No other place reads `TUKZMON_SKIP_HOOK`.
 	- Actual fix: `fRunAbove` in `cicd/utility/include/run-tmp.bash`, its use in `fOtherRun`, and a `case` on the skip value in `cicd/hooks/pre-push`.
 	- Branch: round-1101
-	- Test case: `a_gate_the_hook_started_doesnt_count_the_hook_as_another_run` (deqvm) and `only_1_skips_the_pre_push_hook` (deqvn), in `cicd/tests/guards.bash`.
+	- Test case: `hook_isnt_another_run` (deqvm) and `hook_skip_value` (deqvn), in `cicd/tests/guards.bash`.
 	- Closed: 20261101-123930
 
 - Code review 20261031 item 13: The leftover process scan stops at the first one that exits, and prints a false abort
@@ -6978,7 +7076,7 @@ Sorted per the notes in [Template](#template).
 		- Swept: the other `/proc` reads in `run-tmp.bash` and `cicd.bash` already catch a failed read. The `[[ ]] && alive=1` at the end of a loop in `fStopLeftovers` doesn't set off the trap.
 	- Actual fix: `|| true` on the read loop in `fRunPids`, in `cicd/utility/include/run-tmp.bash`.
 	- Branch: round-1101
-	- Test case: `run_pids_skips_a_process_gone_since_the_grep` in `cicd/tests/guards.bash` (deqrb).
+	- Test case: `run_pids_vanished_process` in `cicd/tests/guards.bash` (deqrb).
 	- Closed: 20261101-105407
 
 - Code review 20261031 item 12: dev-install.bash ignores the target dir and can't find ldconfig
@@ -7006,7 +7104,7 @@ Sorted per the notes in [Template](#template).
 		- Swept: `cicd.bash` dogfoods through this script, and `package.bash` already reads the target dir. No other script calls `ldconfig`.
 	- Actual fix: in `utility/dev-install.bash`.
 	- Branch: round-1101
-	- Test case: `dev_install_copies_what_cargo_built_and_finds_the_panel_library` in `cicd/tests/guards.bash` (deqvr).
+	- Test case: `dev_install_copies_build` in `cicd/tests/guards.bash` (deqvr).
 	- Closed: 20261101-124500
 	- Origin: `2a74ce3` and `69dae71`. First review. ldconfig confirmed with a Debian user PATH. The target dir is Plausible, by reading.
 
@@ -7204,7 +7302,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- An empty value still means the default, as before.
 	- Branch: round-1030b
-	- Test case: `fTest_nix_check_refuses_env_values_that_arent_numbers` (den8e), in `cicd/tests/guards.bash`. The Nix step itself wasn't run, since the check comes before any of it.
+	- Test case: `fTest_nix_env_numbers_only` (den8e), in `cicd/tests/guards.bash`. The Nix step itself wasn't run, since the check comes before any of it.
 	- Closed: 20261030-171604
 
 - GPU memory counts the driver's reserved memory as used
@@ -7333,7 +7431,7 @@ Sorted per the notes in [Template](#template).
 		- `--keep-temp` writes a `keep` file in the folder at the start, so a kept run that was killed keeps the 2-day wait.
 		- A container's run is its `dev.pid` label, so a run with another temp root isn't taken for gone. A container from before that label goes by its run folder.
 	- Branch: round-1025
-	- Test case: dezat, which sweeps a killed run's folder, and `containers_whose_run_is_gone_are_stopped_but_not_a_kept_or_live_ones` (dezaw), in `cicd/tests/guards.bash`. The kill itself was run both ways by hand.
+	- Test case: dezat, which sweeps a killed run's folder, and `orphan_containers_stopped` (dezaw), in `cicd/tests/guards.bash`. The kill itself was run both ways by hand.
 	- Closed: 20261025-190500
 
 - Dogfood install and cicd build with different Rust versions
@@ -7355,7 +7453,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: after the pipeline's host release build, dev-install.bash run from another folder finished in 0.05 s with nothing compiled. The old line rebuilt 3 crates with 1.95, and the pipeline then rebuilt the plugin.
 		- Note: `--backlog-run-full` builds in the image, into its own target folder, so it never shares `target/release`. Only the default run, which dogfoods, builds the release on the host.
 	- Branch: round-1025
-	- Test case: `dev_install_builds_with_rustups_cargo_from_the_repo_wherever_its_run` (dezax), in `cicd/tests/guards.bash`. Also run both ways by hand.
+	- Test case: `dev_install_cargo_choice` (dezax), in `cicd/tests/guards.bash`. Also run both ways by hand.
 	- Closed: 20261025-081952
 
 - Pipeline runs at the same time can remove each other's image
@@ -7377,7 +7475,7 @@ Sorted per the notes in [Template](#template).
 		- Took the second way, none while another run is live. An image from a killed run has no live owner either way, so it still goes at the next quiet run.
 		- A run that starts in the moment between the check and the removal isn't covered.
 	- Branch: round-1025
-	- Test case: `the_cleanup_takes_only_the_projects_own_and_no_image_while_another_run_is_live` (dezav), in `cicd/tests/guards.bash`. Also run both ways by hand.
+	- Test case: `cleanup_takes_own_only` (dezav), in `cicd/tests/guards.bash`. Also run both ways by hand.
 	- Closed: 20261025-081952
 
 - Code review 20261107 item 8: A setting changed and changed back keeps Apply on, and Apply writes the default into the file
@@ -7407,8 +7505,8 @@ Sorted per the notes in [Template](#template).
 		- Dropping default lines at load cleans files this bug wrote, such as the user's own. Those settings follow a later change to the default again.
 	- Actual fix: `Spec::stores_nothing` and `Model::put_own` in `knobs/src/lib.rs`, used by `write`, the switch-off keep path, `pin_chooser`'s switch, and `load_docs`.
 	- Branch: round-1109
-	- Test case: `tests::a_value_put_back_to_its_default_stores_nothing` (df34k) in knobs, and `dialog::tests::a_setting_changed_and_changed_back_is_no_change` (df34m), with Max age and the Sample ms slider.
-		- 2026-11-09: ddqsd (`lines_put_set_aside_values_and_changes_under_kept`) checked that `font.use_system_family: true`, its default, was written. It now checks there is no such line.
+	- Test case: `tests::default_value_not_stored` (df34k) in knobs, and `dialog::tests::a_setting_changed_and_changed_back_is_no_change` (df34m), with Max age and the Sample ms slider.
+		- 2026-11-09: ddqsd (`kept_lines`) checked that `font.use_system_family: true`, its default, was written. It now checks there is no such line.
 		- Swept: every `own.insert` in knobs, core, settings and xfce. `fill_custom` fills theme members only. `config::name_the_theme` writes the pick on purpose. Every `own.contains_key` and `own.get` reader, which read only the theme pick and members, or ask `has_own`. The State store is left as it is, since it holds the program's own values.
 	- Acceptance signoff: Self-closed 20261109: df34k and df34m fail before the fix and pass after.
 	- Closed: 20261109-131312
@@ -7922,7 +8020,7 @@ Sorted per the notes in [Template](#template).
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
 		- `Presets::listed()` gives the spec's presets, or none, so readers that only list them stay one line.
 	- Branch: round-1107
-	- Test case: `tests::a_group_has_the_specs_presets_or_the_programs_not_both` in knobs (dezfh), which fails without the new check. The rest is a type change, which the compiler checks, and der60, der61, des4c and ddqs9 cover the same paths.
+	- Test case: `tests::presets_from_one_source` in knobs (dezfh), which fails without the new check. The rest is a type change, which the compiler checks, and der60, der61, des4c and ddqs9 cover the same paths.
 		- Swept: every read of `stray`, `settings`, `indent`, `presets` and `from_program` in xfce, knobs, core and the settings crate, `qt.cpp`'s `info.indent` included.
 	- Closed: 20261106-230200
 
@@ -8601,7 +8699,7 @@ Sorted per the notes in [Template](#template).
 		- There are 308 tests, not about 1000.
 		- Module path, lines and the bash file's previous line are reset for each file, so the one awk reads each file as the per-file ones did.
 	- Branch: round-1030b
-	- Test case: `fTest_test_ids_reads_each_file_on_its_own` (den97), in `cicd/tests/guards.bash`. It passes on the old per-file scan too, and fails with a file's lines, or the line above a bash test, carried into the next file.
+	- Test case: `fTest_test_ids_per_file` (den97), in `cicd/tests/guards.bash`. It passes on the old per-file scan too, and fails with a file's lines, or the line above a bash test, carried into the next file.
 		- Swept: every `$(basename` and `$(dirname` in `cicd/` and `utility/`, which are all once at startup now, and every caller of `fDecode` and `fEncode`.
 	- Closed: 20261030-174900
 

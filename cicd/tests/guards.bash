@@ -32,7 +32,7 @@ trap 'fSafeRm "${work}" || true' EXIT
 fWhy() { printf '    %s\n' "$*"; }
 
 ## Test ID: den8d
-fTest_safe_rm_takes_a_run_folder_but_not_the_temp_root_or_a_project_folder() {
+fTest_safe_rm_scope() {
 	local root="${work}/host" run='' p='' ok=0
 	run="${root}/${projectName}/20261030-000000_001"
 	mkdir -p -- "${run}/sub"
@@ -52,7 +52,7 @@ fTest_safe_rm_takes_a_run_folder_but_not_the_temp_root_or_a_project_folder() {
 }
 
 ## Test ID: den8e
-fTest_nix_check_refuses_env_values_that_arent_numbers() {
+fTest_nix_env_numbers_only() {
 	local mark="${work}/ran" out='' bad=''
 	for bad in 'x[$(touch '"${mark}"')]' '8 9' '0'; do
 		## A refused value stops it before it makes a folder or calls nix.
@@ -65,7 +65,7 @@ fTest_nix_check_refuses_env_values_that_arent_numbers() {
 }
 
 ## Test ID: den97
-fTest_test_ids_reads_each_file_on_its_own() {
+fTest_test_ids_per_file() {
 	local t="${work}/ids" out='' want=''
 	mkdir -p -- "${t}/cicd/utility" "${t}/cicd/tests" "${t}/a/src" "${t}/a/tests"
 	cp -- "${cicd}/utility/test-ids.bash" "${t}/cicd/utility/"
@@ -85,7 +85,7 @@ fTest_test_ids_reads_each_file_on_its_own() {
 }
 
 ## Test ID: deqrb
-fTest_run_pids_skips_a_process_gone_since_the_grep() {
+fTest_run_pids_vanished_process() {
 	local dir="${work}/pids" live='' out='' ok=0
 	mkdir -p -- "${dir}"
 	TMPDIR="${dir}" sleep 30 &
@@ -106,7 +106,7 @@ fTest_run_pids_skips_a_process_gone_since_the_grep() {
 }
 
 ## Test ID: deqrc
-fTest_lists_of_files_fail_when_git_does_or_a_kind_has_none() {
+fTest_file_lists_fail_with_git() {
 	local t="${work}/tree" ok=0
 	mkdir -p -- "${t}/none" "${t}/repo"
 	(
@@ -127,7 +127,7 @@ fTest_lists_of_files_fail_when_git_does_or_a_kind_has_none() {
 }
 
 ## Test ID: deqrd
-fTest_test_ids_check_fails_when_git_cant_list_the_rs_files() {
+fTest_test_ids_git_failure() {
 	local t="${work}/ids-nogit" out=''
 	mkdir -p -- "${t}/cicd/utility" "${t}/a/src"
 	cp -- "${cicd}/utility/test-ids.bash" "${t}/cicd/utility/"
@@ -139,7 +139,7 @@ fTest_test_ids_check_fails_when_git_cant_list_the_rs_files() {
 }
 
 ## Test ID: deqre
-fTest_nix_step_removes_only_its_own_stores_that_no_checkout_pins() {
+fTest_nix_keeps_pinned_stores() {
 	local t="${work}/nix-stores" ok=0
 	mkdir -p -- "${t}/a/cicd" "${t}/b/cicd"
 	printf 'NIX_IMAGE="nixos/nix:1.0"\n' > "${t}/a/cicd/config.bash"
@@ -165,7 +165,7 @@ fTest_nix_step_removes_only_its_own_stores_that_no_checkout_pins() {
 }
 
 ## Test ID: deqvk
-fTest_no_file_a_package_holds_counts_as_docs_for_the_hook() {
+fTest_packaged_files_arent_docs() {
 	local f='' pat='' n=0 ok=0
 	(
 		source "${cicd}/config.bash"
@@ -184,7 +184,7 @@ fTest_no_file_a_package_holds_counts_as_docs_for_the_hook() {
 }
 
 ## Test ID: df38w
-fTest_each_package_links_tukzmon_settings_beside_the_library() {
+fTest_package_settings_link() {
 	local entries='' pkgr='' lib='' bin='' link='' src=''
 	## One "dst|src|type|packager" line per contents entry.
 	entries="$(awk '
@@ -210,7 +210,7 @@ fTest_each_package_links_tukzmon_settings_beside_the_library() {
 }
 
 ## Test ID: deqvm
-fTest_a_gate_the_hook_started_doesnt_count_the_hook_as_another_run() {
+fTest_hook_isnt_another_run() {
 	local t="${work}/other-run" live='' out='' ok=0
 	mkdir -p -- "${t}/tukzmon/20261101-000000_001" "${t}/tukzmon/20261101-000000_002" "${t}/tukzmon/20261101-000000_003"
 	## _001 is the test's own bash, which starts the scan as the hook starts
@@ -235,7 +235,7 @@ fTest_a_gate_the_hook_started_doesnt_count_the_hook_as_another_run() {
 }
 
 ## Test ID: deqvn
-fTest_only_1_skips_the_pre_push_hook() {
+fTest_hook_skip_value() {
 	local t="${work}/skip" v='' out=''
 	mkdir -p -- "${t}/bin"
 	## The hook's first git call comes right after the skip, so a git that
@@ -255,7 +255,7 @@ fTest_only_1_skips_the_pre_push_hook() {
 }
 
 ## Test ID: df32x
-fTest_the_pre_push_hook_gates_the_commit_not_the_checkout() {
+fTest_hook_gates_the_commit() {
 	local t="${work}/pushed" r="${work}/pushed/repo" sha='' out='' rc=0 v=''
 	local -a g=(git -C "${r}" -c user.name=t -c user.email=t@t.invalid -c commit.gpgsign=false)
 	mkdir -p -- "${r}/cicd/hooks" "${r}/cicd/utility/include" "${t}/tmp"
@@ -287,7 +287,7 @@ fTest_the_pre_push_hook_gates_the_commit_not_the_checkout() {
 }
 
 ## Test ID: deqvr
-fTest_dev_install_copies_what_cargo_built_and_finds_the_panel_library() {
+fTest_dev_install_copies_build() {
 	local t="${work}/dev-install" out='' f='' lib=''
 	mkdir -p -- "${t}/home" "${t}/bin" "${t}/target"
 	## A cargo whose target dir is elsewhere, and an ldconfig on an arm64 box.
@@ -317,7 +317,7 @@ fTest_dev_install_copies_what_cargo_built_and_finds_the_panel_library() {
 }
 
 ## Test ID: dezax
-fTest_dev_install_builds_with_rustups_cargo_from_the_repo_wherever_its_run() {
+fTest_dev_install_cargo_choice() {
 	local t="${work}/dev-install-pin" out='' pin='' repo=''
 	repo="$(cd "${cicd}/.." && pwd)"
 	pin="$(sed -n 's/^channel *= *"\(.*\)"/\1/p' "${repo}/rust-toolchain.toml")"
@@ -344,7 +344,7 @@ fTest_dev_install_builds_with_rustups_cargo_from_the_repo_wherever_its_run() {
 }
 
 ## Test ID: df50f
-fTest_release_path_maps_put_the_innermost_folder_last_and_refuse_a_relative_or_spaced_path() {
+fTest_release_path_maps() {
 	local ok=0
 	(
 		source "${cicd}/../utility/path-maps.bash"
@@ -363,7 +363,7 @@ fTest_release_path_maps_put_the_innermost_folder_last_and_refuse_a_relative_or_s
 }
 
 ## Test ID: dezay
-fTest_a_step_prints_the_rule_its_start_and_its_pass_or_fail() {
+fTest_step_output_lines() {
 	local t="${work}/step-lines" out='' rc=0 rule='' f='' result=''
 	mkdir -p -- "${t}/bin" "${t}/host"
 	## Format's tools stand in, exiting STUB_RC, in a temp root of the test's own.
@@ -384,7 +384,7 @@ fTest_a_step_prints_the_rule_its_start_and_its_pass_or_fail() {
 }
 
 ## Test ID: der4k
-fTest_a_run_with_every_check_off_fails() {
+fTest_all_checks_off_fails() {
 	local out='' rc=0
 	## It stops while planning, before it makes a run folder or calls docker.
 	out="$(env -u TUKZMON_IN_IMAGE bash "${cicd}/cicd.bash" --backlog-run-quick miri --no-leakcheck 2>&1)" || rc=$?
@@ -397,7 +397,7 @@ fTest_a_run_with_every_check_off_fails() {
 }
 
 ## Test ID: dexn3
-fTest_a_miri_module_names_the_test_that_stopped_it() {
+fTest_miri_names_stuck_test() {
 	local dir="${work}/miri-group" log='' rc=0 c=''
 	mkdir -p -- "${dir}/bin"
 	## cargo stands in for Miri: it prints STUB_OUT, with a warning on stderr
@@ -437,7 +437,7 @@ fTest_a_miri_module_names_the_test_that_stopped_it() {
 }
 
 ## Test ID: df39n
-fTest_a_miri_target_that_cant_list_its_tests_fails_the_step() {
+fTest_miri_list_failure() {
 	local t="${work}/miri-list" ok=0
 	mkdir -p -- "${t}/bin"
 	## cargo lists 3 tests in 2 modules of the package it's given, with a
@@ -481,7 +481,7 @@ fIdsTree() {   ## fIdsTree DIR LIB_RS
 }
 
 ## Test ID: dezan
-fTest_test_ids_check_fails_on_each_kind_of_bad_id() {
+fTest_bad_test_ids() {
 	local t="${work}/ids-bad" out='' lib='' want=''
 	local -a cases=(
 		'mod tests {\n\t#[test]\n\tfn one() {}\n}\n|has no Test ID line'
@@ -506,7 +506,7 @@ fTest_test_ids_check_fails_on_each_kind_of_bad_id() {
 }
 
 ## Test ID: dezap
-fTest_test_ids_check_reads_the_backlogs_test_case_rows() {
+fTest_backlog_test_case_rows() {
 	local t="${work}/ids-backlog" out='' row=''
 	fIdsTree "${t}" 'mod tests {\n\t// Test ID: dek00\n\t#[test]\n\tfn one() {}\n}\n'
 	fItem() { printf -- '- %s\n\t- ID: %s\n\t- Status: %s\n' "$1" "$2" "$3"; [[ -z "$4" ]] || printf '\t- Test case: %s\n' "$4"; }
@@ -529,7 +529,7 @@ fTest_test_ids_check_reads_the_backlogs_test_case_rows() {
 }
 
 ## Test ID: dezaq
-fTest_jobs_are_half_the_cpus_a_quarter_when_busy_and_never_none() {
+fTest_job_counts() {
 	local dir="${work}/jobs" ok=0
 	mkdir -p -- "${dir}"
 	(
@@ -553,7 +553,7 @@ fTest_jobs_are_half_the_cpus_a_quarter_when_busy_and_never_none() {
 }
 
 ## Test ID: dezar
-fTest_the_shared_flags_are_taken_and_a_wrong_mix_is_refused() {
+fTest_shared_flags() {
 	local out='' rc=0 flags='' mode='' want=''
 	fCicd() { rc=0; out="$(env -u TUKZMON_IN_IMAGE bash "${cicd}/cicd.bash" "$@" 2>&1)" || rc=$?; }
 	## Each with the run it names, and --list so nothing runs.
@@ -583,7 +583,7 @@ fTest_the_shared_flags_are_taken_and_a_wrong_mix_is_refused() {
 }
 
 ## Test ID: dezas
-fTest_the_pipeline_never_prunes_dockers_build_cache() {
+fTest_no_build_cache_prune() {
 	local hits=''
 	## That cache is every project's, and docker trims it itself.
 	hits="$(find "${cicd}" "${cicd}/../utility" -type f \( -name '*.bash' -o -path '*/hooks/*' \) \
@@ -592,7 +592,7 @@ fTest_the_pipeline_never_prunes_dockers_build_cache() {
 }
 
 ## Test ID: dezat
-fTest_a_run_folder_counts_up_and_the_sweep_takes_only_runs_that_are_gone() {
+fTest_run_folders_and_sweep() {
 	local root="${work}/sweep" live='' ok=0
 	mkdir -p -- "${root}/${projectName}"
 	(
@@ -664,7 +664,7 @@ fCtrRig() {   ## fCtrRig DIR
 }
 
 ## Test ID: dezav
-fTest_the_cleanup_takes_only_the_projects_own_and_no_image_while_another_run_is_live() {
+fTest_cleanup_takes_own_only() {
 	local t="${work}/ctr-cleanup" live='' ok=0
 	(
 		local dir='' calls='' other=''
@@ -705,7 +705,7 @@ fTest_the_cleanup_takes_only_the_projects_own_and_no_image_while_another_run_is_
 }
 
 ## Test ID: dezaw
-fTest_containers_whose_run_is_gone_are_stopped_but_not_a_kept_or_live_ones() {
+fTest_orphan_containers_stopped() {
 	local t="${work}/ctr-gone" live='' ok=0
 	(
 		local dir='' base=''
@@ -729,7 +729,7 @@ fTest_containers_whose_run_is_gone_are_stopped_but_not_a_kept_or_live_ones() {
 }
 
 ## Test ID: dezf4
-fTest_the_stale_sweep_scans_the_processes_once() {
+fTest_sweep_scans_once() {
 	local root="${work}/sweep-once" live='' ok=0
 	mkdir -p -- "${root}/${projectName}"
 	(
@@ -750,7 +750,7 @@ fTest_the_stale_sweep_scans_the_processes_once() {
 }
 
 ## Test ID: dezf5
-fTest_markdownlint_runs_once_per_set_of_rules() {
+fTest_markdownlint_per_rule_set() {
 	local t="${work}/mdlint" ok=0
 	mkdir -p -- "${t}"
 	(
@@ -771,7 +771,7 @@ fTest_markdownlint_runs_once_per_set_of_rules() {
 }
 
 ## Test ID: df2sr
-fTest_the_memory_cap_is_a_third_of_the_ram_or_a_size_or_none() {
+fTest_memory_cap_values() {
 	local dir="${work}/memcap" ok=0
 	mkdir -p -- "${dir}"
 	(
@@ -796,7 +796,7 @@ fTest_the_memory_cap_is_a_third_of_the_ram_or_a_size_or_none() {
 }
 
 ## Test ID: df2ss
-fTest_every_container_gets_the_memory_cap_with_no_swap() {
+fTest_containers_capped_no_swap() {
 	local dir="${work}/ctrmem" ok=0 hits=''
 	mkdir -p -- "${dir}"
 	printf 'MemTotal:       50331648 kB\n' > "${dir}/meminfo"
@@ -834,7 +834,7 @@ fTest_every_container_gets_the_memory_cap_with_no_swap() {
 }
 
 ## Test ID: df2st
-fTest_a_bad_memory_cap_starts_nothing_and_a_good_one_reruns_the_run_in_a_capped_scope() {
+fTest_capped_scope_rerun() {
 	local t="${work}/memscope" out='' rc=0 f='' want=''
 	mkdir -p -- "${t}/bin" "${t}/home" "${t}/host/${projectName}"
 	## Format's tools stand in, and systemd-run logs its arguments and exits
@@ -874,7 +874,7 @@ fTest_a_bad_memory_cap_starts_nothing_and_a_good_one_reruns_the_run_in_a_capped_
 }
 
 ## Test ID: df31j
-fTest_the_demos_wm_panel_and_settings_window_get_nothing_of_the_live_session() {
+fTest_demo_env_isolated() {
 	local out=''
 	## numpy and python-xlib are stubbed, since the image has neither and only
 	## the env is checked.
@@ -904,7 +904,7 @@ fTest_the_demos_wm_panel_and_settings_window_get_nothing_of_the_live_session() {
 }
 
 ## Test ID: df336
-fTest_a_demo_stopped_by_term_cleans_up_and_one_killed_leaves_a_folder_the_sweep_takes() {
+fTest_demo_cleanup_on_term() {
 	local root="${work}/demo-term" pid='' rc=0 base='' sig='' ok=0
 	mkdir -p -- "${root}"
 	## The take is a stand-in that waits, so only the run folder and the
@@ -955,7 +955,7 @@ fTest_a_demo_stopped_by_term_cleans_up_and_one_killed_leaves_a_folder_the_sweep_
 }
 
 ## Test ID: df3a6
-fTest_the_demos_encodes_get_the_runs_job_count() {
+fTest_demo_encode_jobs() {
 	local out=''
 	[[ " $(source "${cicd}/config.bash" && echo "${HEAVY_STEPS[*]}") " == *" fStepDemo "* ]] || { fWhy "fStepDemo isn't in HEAVY_STEPS"; return 1; }
 	grep -Fq 'demo-video.py" --lib-dir "${rel}" --history-bin "${rel}/examples/demo-history" --jobs "${jobs}"' -- "${cicd}/cicd.bash" \
@@ -996,7 +996,7 @@ fTest_the_demos_encodes_get_the_runs_job_count() {
 }
 
 ## Test ID: df3a7
-fTest_the_demo_takes_a_display_that_answers_as_taken_with_no_lock_file() {
+fTest_demo_display_taken() {
 	local out='' root="${work}/demo-x"
 	mkdir -p -- "${root}/.X11-unix"
 	if ! out="$(python3 -I -B - "${cicd}/utility/demo/demo-video.py" "${root}" 2>&1 <<- 'EOF'
@@ -1037,7 +1037,7 @@ fTest_the_demo_takes_a_display_that_answers_as_taken_with_no_lock_file() {
 }
 
 ## Test ID: df4ks
-fTest_codeql_report_fails_what_isnt_suppressed_a_stale_suppression_and_an_empty_database() {
+fTest_codeql_report_failures() {
 	local t="${work}/codeql-report" out='' rc=0
 	mkdir -p -- "${t}/src/a"
 	printf 'fn main() {\n    let p = &*q;\n    let x = 1;\n}\n' > "${t}/src/a/m.rs"
@@ -1070,7 +1070,7 @@ fTest_codeql_report_fails_what_isnt_suppressed_a_stale_suppression_and_an_empty_
 }
 
 ## Test ID: df4xa
-fTest_the_installer_picks_the_highest_version_with_a_prerelease_below_its_release() {
+fTest_installer_version_order() {
 	local picked='' ok=0
 	(
 		source "${cicd}/../install.bash"
@@ -1092,7 +1092,7 @@ fTest_the_installer_picks_the_highest_version_with_a_prerelease_below_its_releas
 }
 
 ## Test ID: df4xb
-fTest_the_installer_checks_the_sum_installs_once_and_hands_a_system_install_to_apt() {
+fTest_installer_installs() {
 	local t="${work}/installer" out='' rc=0 f='' lib='' share='' pkgRoot='' sums=''
 	local tag=v1.0.0-beta.10 deb=tukzmon-1.0.0-beta.10-linux-x86_64.deb
 	mkdir -p -- "${t}/bin" "${t}/home" "${t}/tmp" "${t}/srv/${tag}"
@@ -1223,3 +1223,4 @@ exit "${failed}"
 ##		  and system installs, and second runs.
 ##		- 2026-11-11: A test name in a Test case row isn't read for IDs.
 ##		- 2026-11-11: The release build's path maps.
+##		- 2026-11-11: Shorter test names. Each keeps its ID.

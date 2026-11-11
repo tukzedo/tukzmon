@@ -44,7 +44,7 @@ fn allocs_in(f: impl FnOnce()) -> usize {
 
 // Test ID: dezbr
 #[test]
-fn asking_about_changes_costs_the_same_however_many_there_are() {
+fn change_queries_flat_cost() {
 	let spec = Spec::parse(include_str!("../demo/demo.shcl")).unwrap();
 	let mut m = Model::new(spec);
 	m.set("profile", &Value::Text("low".into()), &NoEnv);
