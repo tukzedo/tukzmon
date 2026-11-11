@@ -624,7 +624,7 @@ mod tests {
 
 	// Test ID: debj6
 	#[test]
-	fn border_and_gradient_with_no_data() {
+	fn empty_border_gradient() {
 		let h = History::<2>::default();
 		let px = draw(&h, &Axis::log(Curve::FixedA, 0.0), 10, 12);
 		assert_eq!(px.len(), 120);
@@ -637,7 +637,7 @@ mod tests {
 
 	// Test ID: debj7
 	#[test]
-	fn stack_heights_are_exact() {
+	fn exact_stack_heights() {
 		// a quarter red, a half green, on a 10 px tall plot
 		let h = steady([0.25, 0.5], 120.0);
 		let px = draw(&h, &Axis::log(Curve::FixedA, 120.0), 22, 12);
@@ -656,7 +656,7 @@ mod tests {
 
 	// Test ID: debj8
 	#[test]
-	fn gaps_draw_as_background() {
+	fn gap_is_background() {
 		let mut h = History::<2>::default();
 		h.add(0.0, 30.0, &[1.0, 0.0]);
 		h.add(90.0, 120.0, &[1.0, 0.0]);
@@ -670,7 +670,7 @@ mod tests {
 
 	// Test ID: debj9
 	#[test]
-	fn spike_reach_fades_with_time() {
+	fn spike_reach_fades() {
 		let near = column(&[0.1], &[0.9], 0.5, 1.0)[0];
 		let far = column(&[0.1], &[0.9], 30.0 * 86400.0, 1.0)[0];
 		assert!(near > 0.8);
@@ -680,7 +680,7 @@ mod tests {
 
 	// Test ID: dese6
 	#[test]
-	fn more_emphasis_keeps_spikes_further_back() {
+	fn emphasis_extends_spikes() {
 		// how far up from the mean a column reaches, 0 to 1
 		let part = |secs: f64, spikes: f32| (column(&[0.1], &[0.9], secs, spikes)[0] - 0.1) / 0.8;
 		// a column on a 100 px log graph, in its second, third and last quarter
@@ -698,7 +698,7 @@ mod tests {
 
 	// Test ID: debja
 	#[test]
-	fn an_overfull_stack_is_scaled_to_fit() {
+	fn overfull_stack_scaled() {
 		let v = column(&[0.5, 0.4], &[1.0, 1.0], 0.0, 1.0);
 		assert!((v[0] + v[1] - 1.0).abs() < 1e-6);
 		assert!(v[0] == v[1]);
@@ -706,7 +706,7 @@ mod tests {
 
 	// Test ID: decc9
 	#[test]
-	fn the_hover_line_stays_off_the_border() {
+	fn hover_line_off_border() {
 		let back = 0xff11_1111;
 		let draw_at = |x: usize, thick: usize| {
 			let mut px = vec![back; 8 * 4];
@@ -737,11 +737,11 @@ mod tests {
 
 	// Test ID: decdk
 	#[test]
-	fn the_gradient_goes_by_height_not_by_series() {
+	fn gradient_by_height() {
 		const LO: Rgb = Rgb(200, 0, 0);
 		const MID: Rgb = Rgb(255, 255, 200);
 		const HI: Rgb = Rgb(100, 200, 255);
-		// a quarter and a half, as in stack_heights_are_exact, on a 10 px plot
+		// a quarter and a half, as in exact_stack_heights, on a 10 px plot
 		let h = steady([0.25, 0.5], 120.0);
 		let l = look();
 		let axis = Axis::log(Curve::FixedA, 120.0);
@@ -799,7 +799,7 @@ mod tests {
 
 	// Test ID: decdm
 	#[test]
-	fn the_blend_hits_its_stops() {
+	fn blend_hits_stops() {
 		let stops = [Rgb(10, 20, 30), Rgb(100, 110, 120), Rgb(200, 210, 220)];
 		assert_eq!(pack(blend(stops, 0.0)), 0xff0a_141e);
 		assert_eq!(pack(blend(stops, 0.5)), 0xff64_6e78);
@@ -811,7 +811,7 @@ mod tests {
 
 	// Test ID: decdz
 	#[test]
-	fn a_transparent_background_lets_the_panel_through() {
+	fn transparent_background() {
 		let h = steady([0.25, 0.5], 120.0);
 		let axis = Axis::log(Curve::FixedA, 120.0);
 		let l = Look {
@@ -882,7 +882,7 @@ mod tests {
 
 	// Test ID: debjb
 	#[test]
-	fn tiny_and_borderless() {
+	fn tiny_borderless() {
 		let h = steady([0.5, 0.0], 10.0);
 		assert!(
 			draw(&h, &Axis::log(Curve::FixedA, 10.0), 2, 2)
@@ -910,7 +910,7 @@ mod tests {
 
 	// Test ID: dehzk
 	#[test]
-	fn a_peak_jumps_up_and_eases_down_to_whats_in_view() {
+	fn peak_jumps_eases_down() {
 		let mut p = Peak::default();
 		assert_eq!(p.fit(0.0, 10.0, 0.0), 10.0);
 		assert_eq!(p.fit(500.0, 10.0, 1.0), 500.0);
@@ -930,7 +930,7 @@ mod tests {
 
 	// Test ID: dej06
 	#[test]
-	fn a_log_scale_lifts_a_trickle_and_keeps_the_shares() {
+	fn log_lifts_trickle() {
 		assert_eq!(fit_log([0.0, 0.0], 4e6, 1e5), [0.0, 0.0]);
 		let [a, b] = fit_log([1e6, 3e6], 4e6, 1e5);
 		assert!((a + b - 1.0).abs() < 1e-6 && (b - 3.0 * a).abs() < 1e-6);
@@ -973,7 +973,7 @@ mod tests {
 
 	// Test ID: der3m
 	#[test]
-	fn squared_sinks_small_values_and_every_scale_takes_a_fixed_top() {
+	fn squared_sinks_fixed_top() {
 		assert_eq!(fit_squared([0.0, 0.0], 1.0), [0.0, 0.0]);
 		assert_eq!(fit_squared([0.25, 0.25], 1.0), [0.125, 0.125]);
 		assert_eq!(fit_squared([300.0, 100.0], 800.0), [0.1875, 0.0625]);
@@ -1008,7 +1008,7 @@ mod tests {
 
 	// Test ID: dehzm
 	#[test]
-	fn a_graph_with_no_fixed_top_fills_to_its_peak_or_floor() {
+	fn open_top_peak_floor() {
 		let axis = Axis::log(Curve::FixedA, 120.0);
 		let l = look();
 		let drawn = |h: &History<2>, peak: Option<(&mut Peak, f32)>| {
@@ -1048,7 +1048,7 @@ mod tests {
 
 	// Test ID: deqs7
 	#[test]
-	fn a_value_that_isnt_finite_is_drawn_as_a_gap() {
+	fn nonfinite_draws_gap() {
 		let axis = Axis::log(Curve::FixedA, 120.0);
 		let mut nan = History::<2>::default();
 		nan.add(0.0, 120.0, &[f32::NAN, 0.5]);
@@ -1087,7 +1087,7 @@ mod tests {
 
 	// Test ID: denc4
 	#[test]
-	fn a_kept_scratch_draws_as_a_fresh_one_and_allocates_nothing_again() {
+	fn kept_scratch_no_alloc() {
 		let h = steady([0.25, 0.5], 120.0);
 		let axis = Axis::log(Curve::FixedA, 120.0);
 		let l = look();
@@ -1134,7 +1134,7 @@ mod tests {
 
 	// Test ID: df3s6
 	#[test]
-	fn a_spike_slides_across_columns_without_jumping_in_width() {
+	fn spike_slide_width_steady() {
 		// one sample of 0.9 over 0.1, off the buckets' edges, on columns of
 		// 1 s to 10 s
 		let mut h = History::<2>::default();
@@ -1188,7 +1188,7 @@ mod tests {
 
 	// Test ID: df4d7
 	#[test]
-	fn a_spike_keeps_its_height_as_it_slides_across_columns() {
+	fn spike_slide_height_steady() {
 		// as df3s6, but the top of what's drawn, which halved where the
 		// spike was split between 2 columns
 		let mut h = History::<2>::default();
@@ -1231,7 +1231,7 @@ mod tests {
 
 	// Test ID: df4dt
 	#[test]
-	fn a_stack_that_trades_shares_draws_nothing_over_its_total() {
+	fn share_trade_stays_in_total() {
 		// red and green swap each sample, always 0.6 in all, drawn half a
 		// sample off the columns
 		let mut h = History::<2>::default();
@@ -1264,7 +1264,7 @@ mod tests {
 
 	// Test ID: df4e9
 	#[test]
-	fn a_column_that_is_one_sample_is_drawn_solid() {
+	fn one_sample_column_solid() {
 		// samples off the buckets' edges, so each column's end buckets hold
 		// a bit of the sample beside it, with columns lined up on the samples
 		let mut h = History::<2>::default();
@@ -1304,7 +1304,7 @@ mod tests {
 
 	// Test ID: df4y1
 	#[test]
-	fn a_narrow_gap_keeps_its_depth_as_it_slides_across_columns() {
+	fn narrow_gap_slide_depth() {
 		// one sample of 0.1 between ones of 0.9, and the other way round, on
 		// columns of half a sample to 3. A split gap mixed in linear light
 		// showed about half as deep as a whole one. Past a sample wide, the

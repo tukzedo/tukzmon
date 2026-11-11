@@ -208,7 +208,7 @@ The code is a Rust core, with C only where a panel's API needs it. That was sett
 	- Terminal, Vintage, and Frost are one-color themes, like a green phosphor screen, an amber one, and pale ice. Every graph has the same colors in them, so graphs are told apart by place and by the gap between them, as on a one-color multiload-ng setup.
 		- There's no way to space 13 graphs 10 apart by lightness alone, so these themes are let off the check on leads. A theme whose graphs all lead with one color is one of them, and only that lets a theme off.
 		- I/O wait and system stay red and orange, 10 or more from the lead and from each other, so trouble still reads. Each graph's own colors are 10 or more apart, and from the top.
-	- Each color row's default is Default's color, so Custom starts from it. `config::tests::the_default_theme_is_the_row_defaults` ties the two together.
+	- Each color row's default is Default's color, so Custom starts from it. `config::tests::default_theme_is_row_defaults` ties the two together.
 	- A color changed on a theme is kept apart from it, and the dropdown says "Name *", the way SilkTerm's does. Picking another theme drops those changes.
 	- knobs reads a color line at its own path as the Custom set. A file with colors and no theme line reads as Custom, so a hand edit or an older file isn't hidden under Default. A save names the theme whenever Custom colors are stored, even Default, or the file would read back as Custom.
 
