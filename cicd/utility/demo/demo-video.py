@@ -14,11 +14,13 @@
 ##	Syntax:
 ##		demo-video.py [--profile video,gif] [--scenes a,b,...] [--display :89]
 ##		              [--lib-dir DIR] [--history-bin FILE] [--keep-work]
-##		              [--no-rotate] [--no-asset] [--out-dir DIR] [--shot FILE]
-##		              [--jobs N]
+##		              [--no-rotate] [--asset | --no-asset] [--out-dir DIR]
+##		              [--shot FILE] [--jobs N]
 ##		--lib-dir has libtukzmon.so and tukzmon-settings, target/release by
 ##		default. --shot runs the scenes named with no capture, then writes one
 ##		screenshot, which is how the coordinates below were measured.
+##		assets/demo.gif is updated only from a gif take of every scene. --asset
+##		updates it from some scenes too, and --no-asset never does.
 ##	Notes:
 ##		AV sync: the root is flashed white once frames flow and again at the end,
 ##		at wall-clock times that are kept. The 2 bright frames in the capture
@@ -218,6 +220,7 @@ class Options:
     history_bin: Path
     keep_work: bool
     no_rotate: bool
+    asset: bool
     no_asset: bool
     out_dir: Path
     shot: Path | None
@@ -1501,6 +1504,8 @@ def place_gif(gif: Path, opts: Options) -> None:
     asset = REPO / "assets" / "demo.gif"
     if opts.no_asset:
         log("assets/demo.gif: left alone (--no-asset)")
+    elif not every_scene(opts) and not opts.asset:
+        log("assets/demo.gif: left alone, since only some scenes ran (--asset updates it anyway)")
     elif mb > GIF_ASSET_MAX_MB:
         log(f"WARNING: the gif is {mb:.1f} MiB, over {GIF_ASSET_MAX_MB}, so assets/demo.gif is left alone")
     elif asset.exists() and asset.read_bytes() == gif.read_bytes():
@@ -1517,6 +1522,10 @@ def place_gif(gif: Path, opts: Options) -> None:
 
 def wanted(opts: Options) -> list[tuple[str, Scene]]:
     return [(name, fn) for name, fn in SCENES.items() if not opts.scenes or name in opts.scenes]
+
+
+def every_scene(opts: Options) -> bool:
+    return not opts.scenes or set(SCENES) <= set(opts.scenes)
 
 
 def take_shot(opts: Options, base: Path) -> None:
@@ -1602,7 +1611,9 @@ def parse_args() -> Options:
     ap.add_argument("--history-bin", default=str(REPO / "target/release/examples/demo-history"))
     ap.add_argument("--keep-work", action="store_true")
     ap.add_argument("--no-rotate", action="store_true")
-    ap.add_argument("--no-asset", action="store_true", help="leave assets/demo.gif alone")
+    asset = ap.add_mutually_exclusive_group()
+    asset.add_argument("--asset", action="store_true", help="update assets/demo.gif even when only some scenes run")
+    asset.add_argument("--no-asset", action="store_true", help="leave assets/demo.gif alone")
     ap.add_argument("--out-dir", default=str(OUT_DIR))
     ap.add_argument("--shot", default="", help="run the scenes with no capture, write one screenshot, and stop")
     ap.add_argument(
@@ -1637,6 +1648,7 @@ def parse_args() -> Options:
         history_bin=history_bin,
         keep_work=args.keep_work,
         no_rotate=args.no_rotate,
+        asset=args.asset,
         no_asset=args.no_asset,
         out_dir=Path(args.out_dir),
         shot=Path(args.shot) if args.shot else None,
@@ -1699,3 +1711,5 @@ if __name__ == "__main__":
 ##		  file or not.
 ##		- 2026-11-10: It removes its own run folder under a temp root not named
 ##		  tmp too, such as GitHub's _temp.
+##		- 2026-11-11: A take of only some scenes leaves assets/demo.gif alone,
+##		  unless --asset.

@@ -692,7 +692,7 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 27: A demo run of only some scenes writes over assets/demo.gif
 	- ID: 2026110709074427
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -701,6 +701,17 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- Update the README's gif only from a run of every scene, unless asked. Today only `--no-asset` keeps a `--scenes` run from replacing it.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A gif take of only some scenes leaves `assets/demo.gif` alone and says why. `--asset` updates it anyway, and `--no-asset` still never does. The two can't be given together.
+		- Verified: df53t failed on the old script, which replaced the gif from a `days` take, and passes now. The quick gate's format, build, lint and test areas passed, and so did Sanitizers.
+	- Decisions:
+		- `--scenes` naming every scene counts as a run of every scene.
+		- "Unless asked" is a new `--asset` flag, rather than a prompt, since the demo also runs unattended in cicd.
+	- Branch: round-1111
+	- Test case: df53t
+		- Swept: the only other writer of `assets/demo.gif` is the cicd Demo step, which runs every scene. `--shot` never reaches the gif.
+	- Closed: 20261110-225645
 
 - Code review 20261107 item 28: A docs-only push to main skips the 2 checks that read docs
 	- ID: 2026110709074428

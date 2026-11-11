@@ -1036,6 +1036,44 @@ fTest_demo_display_taken() {
 	fi
 }
 
+## Test ID: df53t
+fTest_demo_asset_every_scene() {
+	local out='' root="${work}/demo-asset"
+	mkdir -p -- "${root}/assets"
+	## The take is a stand-in gif, so only which runs replace the asset is checked.
+	if ! out="$(python3 -I -B - "${cicd}/utility/demo/demo-video.py" "${root}" 2>&1 <<- 'EOF'
+			import importlib.util, sys, types
+			from pathlib import Path
+			stub = types.ModuleType("stub")
+			stub.__getattr__ = lambda name: object
+			sys.modules.update({"numpy": stub, "Xlib": stub, "Xlib.X": stub, "Xlib.display": stub})
+			spec = importlib.util.spec_from_file_location("demo", sys.argv[1])
+			demo = importlib.util.module_from_spec(spec)
+			spec.loader.exec_module(demo)
+			demo.REPO = root = Path(sys.argv[2])
+			demo.place = lambda *_: (1.0, 10.0)
+			asset, gif = root / "assets/demo.gif", root / "take.gif"
+			gif.write_bytes(b"new")
+			some, every = ["days"], list(demo.SCENES)
+			for scenes, forced, never, replaced in (
+			    (some, False, False, False),
+			    (some, True, False, True),
+			    ([], False, False, True),
+			    (every, False, False, True),
+			    ([], False, True, False),
+			):
+			    asset.write_bytes(b"old")
+			    opts = types.SimpleNamespace(scenes=scenes, asset=forced, no_asset=never, out_dir=root, no_rotate=True)
+			    demo.place_gif(gif, opts)
+			    if (asset.read_bytes() == b"new") != replaced:
+			        sys.exit(f"scenes {scenes}, --asset {forced}, --no-asset {never}: replaced is {not replaced}")
+		EOF
+	)"; then
+		fWhy "${out}"
+		return 1
+	fi
+}
+
 ## Test ID: df4ks
 fTest_codeql_report_failures() {
 	local t="${work}/codeql-report" out='' rc=0
