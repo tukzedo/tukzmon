@@ -880,7 +880,7 @@ fStepSoak() {
 ## heaptrack's recording when it fails.
 fStepWindowSoak() {
 	local out="${TMPDIR}/window-soak" art="${root}/${SOAK_DIR}" stamp='' bin='' rec='' ext='' rc=0
-	local test="bridge::tests::the_windows_heap_stops_growing_once_its_graphs_are_full"
+	local test="bridge::tests::heap_stops_growing"
 	local -a wrap=()
 	mkdir -p -- "${out}" || return 1
 	fEcho_Clean "cargo test -p tukzmon-settings --bins --no-run -j ${jobs}"

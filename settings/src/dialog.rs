@@ -990,7 +990,7 @@ mod tests {
 
 	// Test ID: df3aq
 	#[test]
-	fn a_failed_write_says_why_in_plain_words() {
+	fn write_failure_message() {
 		let e = |status, message: &str| shcl::WriteError {
 			status,
 			message: message.to_string(),
@@ -1061,7 +1061,7 @@ mod tests {
 
 	// Test ID: dejaf
 	#[test]
-	fn reset_history_goes_at_once_and_deletes_saved_history_kept_or_not() {
+	fn reset_history_at_once() {
 		let d = scratch("reset_now");
 		let data = d.0.join("data");
 		let hist = keep::history_file(&data, 3);
@@ -1144,7 +1144,7 @@ mod tests {
 
 	// Test ID: df38a
 	#[test]
-	fn reset_history_asks_when_any_saved_history_exists_and_deletes_all_of_it() {
+	fn reset_history_asks_first() {
 		let d = scratch("reset_all");
 		let data = d.0.join("data");
 		let hist = [keep::history_file(&data, 1), keep::history_file(&data, 2)];
@@ -1215,7 +1215,7 @@ mod tests {
 	// Test ID: df03p
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn opening_writes_nothing_and_every_save_names_its_format() {
+	fn open_writes_nothing() {
 		let d = scratch("format");
 		let path = d.0.join("t.shcl");
 		let old = "graph:\n\torder: mem, cpu\n";
@@ -1242,7 +1242,7 @@ mod tests {
 
 	// Test ID: debjc
 	#[test]
-	fn opens_on_defaults_with_no_file() {
+	fn defaults_without_file() {
 		let d = scratch("defaults");
 		let dlg = Dialog::open(d.0.join("t.shcl")).unwrap();
 		assert!(!dlg.dirty());
@@ -1254,7 +1254,7 @@ mod tests {
 
 	// Test ID: den9y
 	#[test]
-	fn a_file_that_cant_be_read_is_an_error_not_the_defaults() {
+	fn unreadable_file_is_error() {
 		use std::os::unix::fs::PermissionsExt as _;
 		let d = scratch("unreadable");
 		let path = d.0.join("t.shcl");
@@ -1285,7 +1285,7 @@ mod tests {
 
 	// Test ID: dejac
 	#[test]
-	fn the_graph_sections_follow_the_graph_order_and_the_tabs_stay_put() {
+	fn sections_follow_graph_order() {
 		let d = scratch("tab_order");
 		let mut dlg = Dialog::open(d.0.join("t.shcl")).unwrap();
 		let tabs: Vec<String> = dlg.spec.tabs.iter().map(|t| t.label.clone()).collect();
@@ -1356,7 +1356,7 @@ mod tests {
 
 	// Test ID: dejma
 	#[test]
-	fn every_graphs_colors_are_its_own_section_with_the_background_beside() {
+	fn graph_color_sections() {
 		let d = scratch("sections");
 		let dlg = Dialog::open(d.0.join("t.shcl")).unwrap();
 		let sections = dlg.sections();
@@ -1429,7 +1429,7 @@ mod tests {
 	// Test ID: dedqr
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn the_graph_order_is_saved_as_typed_and_reads_back() {
+	fn graph_order_round_trip() {
 		let d = scratch("order");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone()).unwrap();
@@ -1451,7 +1451,7 @@ mod tests {
 
 	// Test ID: defkz
 	#[test]
-	fn the_graph_list_has_a_row_per_graph_in_the_saved_order() {
+	fn graph_list_rows_in_order() {
 		let d = scratch("list");
 		let mut dlg = Dialog::open(d.0.join("t.shcl")).unwrap();
 		let names = |dlg: &Dialog| -> Vec<String> {
@@ -1509,7 +1509,7 @@ mod tests {
 	// Test ID: defm0
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn dragging_a_graph_saves_the_order_and_keeps_names_it_doesnt_know() {
+	fn drag_saves_order_keeps_unknown() {
 		let d = scratch("drag");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone()).unwrap();
@@ -1541,7 +1541,7 @@ mod tests {
 	// Test ID: df34m
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn a_setting_changed_and_changed_back_is_no_change() {
+	fn change_and_revert_is_noop() {
 		let d = scratch("back");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone()).unwrap();
@@ -1566,7 +1566,7 @@ mod tests {
 	// Test ID: debjd
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn apply_writes_only_what_changed() {
+	fn apply_writes_changes_only() {
 		let d = scratch("apply");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone()).unwrap();
@@ -1588,7 +1588,7 @@ mod tests {
 	#[cfg(unix)]
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn apply_writes_through_a_link_to_a_file_not_there_yet() {
+	fn apply_through_dangling_link() {
 		use std::os::unix::fs::symlink;
 		let d = scratch("dangling");
 		std::fs::create_dir_all(d.0.join("real")).unwrap();
@@ -1622,7 +1622,7 @@ mod tests {
 	// Test ID: debje
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn a_hand_edit_made_while_open_survives() {
+	fn hand_edit_while_open_survives() {
 		let d = scratch("hand");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone()).unwrap();
@@ -1658,7 +1658,7 @@ mod tests {
 	// Test ID: dekm0
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn an_old_file_with_lines_it_cant_place_saves_without_them() {
+	fn unplaceable_lines_dropped_on_save() {
 		let d = scratch("old");
 		let path = d.0.join("t.shcl");
 		let old = "graph:\n\twidth: 300\n\twidht: 120\ncpu:\n\tsample_ms: 500\n\t: 7\n\
@@ -1690,7 +1690,7 @@ mod tests {
 	// Test ID: der5j
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn apply_keeps_the_comments_a_hand_edit_put_there() {
+	fn apply_keeps_hand_comments() {
 		let d = scratch("notes");
 		let path = d.0.join("t.shcl");
 		let mine =
@@ -1722,7 +1722,7 @@ mod tests {
 
 	// Test ID: debjg
 	#[test]
-	fn bad_input_changes_nothing() {
+	fn bad_input_is_ignored() {
 		let d = scratch("bad");
 		let mut dlg = Dialog::open(d.0.join("t.shcl")).unwrap();
 		assert!(!dlg.set_text("width", "huge"));
@@ -1734,7 +1734,7 @@ mod tests {
 
 	// Test ID: df3nh
 	#[test]
-	fn a_remote_session_greys_what_it_sets_aside_and_saves_none_of_it() {
+	fn remote_session_greys_rows() {
 		let d = scratch("remote");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone()).unwrap();
@@ -1778,7 +1778,7 @@ mod tests {
 
 	// Test ID: decb5
 	#[test]
-	fn the_box_takes_more_than_the_slider_reaches() {
+	fn box_exceeds_slider_range() {
 		let d = scratch("reach");
 		let mut dlg = Dialog::open(d.0.join("t.shcl")).unwrap();
 		assert!(dlg.set_text("width", "2000"));
@@ -1800,7 +1800,7 @@ mod tests {
 
 	// Test ID: debjh
 	#[test]
-	fn sliders_snap_to_detents_and_gates_turn_on() {
+	fn slider_detents_and_gates() {
 		let d = scratch("slider");
 		let mut dlg = Dialog::open(d.0.join("t.shcl")).unwrap();
 		let s = dlg.slider("width").unwrap().clone();
@@ -1816,7 +1816,7 @@ mod tests {
 	// Test ID: deccm
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn a_theme_and_the_changes_on_it_are_saved() {
+	fn theme_changes_saved() {
 		let d = scratch("theme");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone()).unwrap();
@@ -1836,7 +1836,7 @@ mod tests {
 	// Test ID: decdn
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn the_mode_swaps_the_rows_and_fire_is_a_gradient() {
+	fn mode_swaps_rows() {
 		let d = scratch("mode");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone()).unwrap();
@@ -1881,7 +1881,7 @@ mod tests {
 	// Test ID: dece0
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn transparent_stays_through_a_theme_pick_and_a_roll() {
+	fn transparent_survives_pick_and_roll() {
 		let d = scratch("clear");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone()).unwrap();
@@ -1907,7 +1907,7 @@ mod tests {
 	// Test ID: dejkz
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn a_shared_color_ticks_its_override_and_a_roll_leaves_both() {
+	fn shared_color_ticks_override() {
 		let d = scratch("overrides");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone()).unwrap();
@@ -1949,7 +1949,7 @@ mod tests {
 	// Test ID: dejng
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn unticked_overrides_give_every_graph_its_own_back_after_a_reload() {
+	fn unticked_overrides_reload() {
 		let d = scratch("untick");
 		let grey = config::Look::default()[Which::Mem].outline;
 		let mine = config::Rgb(0xaa, 0, 0);
@@ -2026,7 +2026,7 @@ mod tests {
 	// Test ID: der3r
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn the_old_disk_log_scale_saves_as_the_disk_graphs_own() {
+	fn old_disk_log_scale_migrates() {
 		let d = scratch("disk_log");
 		let path = d.0.join("old.shcl");
 		std::fs::write(&path, "disk:\n\tlog: true\n").unwrap();
@@ -2048,7 +2048,7 @@ mod tests {
 	// Test ID: dejjv
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn the_margins_go_with_the_theme_and_a_roll_leaves_them() {
+	fn margins_follow_theme() {
 		let d = scratch("margins");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone()).unwrap();
@@ -2074,7 +2074,7 @@ mod tests {
 	// Test ID: decdq
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn randomize_changes_every_color_on_the_theme_and_turns_off_the_gradient() {
+	fn randomize_recolors_theme() {
 		let d = scratch("dice");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone()).unwrap();
@@ -2108,7 +2108,7 @@ mod tests {
 	// Test ID: deccn
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn custom_then_the_revert_arrow_is_default_again() {
+	fn custom_revert_to_default() {
 		let d = scratch("custom");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone()).unwrap();
@@ -2130,7 +2130,7 @@ mod tests {
 	// Test ID: deqqp
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn custom_keeps_its_edit_when_another_theme_is_picked_before_apply() {
+	fn custom_keeps_edit_on_pick() {
 		let d = scratch("custom_left");
 		let path = d.0.join("t.shcl");
 		let file = "theme:\n\tname: custom\ncpu:\n\tcolors:\n\t\tuser: \"#112233\"\n\t\tnice: \"#445566\"\n";
@@ -2177,7 +2177,7 @@ mod tests {
 	// Test ID: deccy
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn save_as_keeps_the_colors_whole_and_picks_the_new_theme() {
+	fn save_as_new_theme() {
 		let d = scratch("save_as");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone()).unwrap();
@@ -2220,7 +2220,7 @@ mod tests {
 	// Test ID: deccz
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn save_puts_the_changes_into_the_theme() {
+	fn save_updates_theme() {
 		let d = scratch("save");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone()).unwrap();
@@ -2246,7 +2246,7 @@ mod tests {
 	// Test ID: decd0
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn rename_and_delete() {
+	fn theme_rename_delete() {
 		let d = scratch("rename");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone()).unwrap();
@@ -2276,7 +2276,7 @@ mod tests {
 	// Test ID: decd1
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn a_theme_saved_by_hand_meanwhile_survives() {
+	fn hand_saved_theme_survives() {
 		let d = scratch("merge");
 		let path = d.0.join("t.shcl");
 		std::fs::write(&path, "themes:\n\tgone:\n\t\tuser: \"#010101\"\n").unwrap();
@@ -2301,7 +2301,7 @@ mod tests {
 	// Test ID: der2h
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn two_windows_saving_one_new_name_keep_both() {
+	fn two_windows_one_new_name() {
 		let d = scratch("two_windows");
 		let path = d.0.join("t.shcl");
 		let mut first = Dialog::open(path.clone()).unwrap();
@@ -2327,7 +2327,7 @@ mod tests {
 	// Test ID: df320
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn a_color_set_here_stays_when_another_window_picked_another_theme() {
+	fn color_survives_other_window_pick() {
 		let d = scratch("picked_elsewhere");
 		let path = d.0.join("t.shcl");
 		let mut first = Dialog::open(path.clone()).unwrap();
@@ -2381,7 +2381,7 @@ mod tests {
 	// Test ID: df321
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn a_rename_here_keeps_the_colors_another_window_saved_into_the_theme() {
+	fn rename_keeps_other_windows_colors() {
 		let d = scratch("renamed_here");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone()).unwrap();
@@ -2416,7 +2416,7 @@ mod tests {
 	// Test ID: dezea
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn two_new_themes_each_move_past_the_other_windows_and_each_other() {
+	fn new_themes_dont_collide() {
 		let d = scratch("two_moved");
 		let path = d.0.join("t.shcl");
 		let mut first = Dialog::open(path.clone()).unwrap();
@@ -2466,7 +2466,7 @@ mod tests {
 	// Test ID: decbz
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn the_time_axis_default_is_a_dropdown_with_linear_first() {
+	fn time_axis_default_dropdown() {
 		let d = scratch("curve");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone()).unwrap();
@@ -2482,7 +2482,7 @@ mod tests {
 
 	// Test ID: decd3
 	#[test]
-	fn the_picker_moves_its_row_and_cancel_puts_it_all_back() {
+	fn picker_cancel_restores_row() {
 		let d = scratch("pick_cancel");
 		let mut dlg = Dialog::open(d.0.join("t.shcl")).unwrap();
 		let was = dlg.state("user").text;
@@ -2519,7 +2519,7 @@ mod tests {
 	// Test ID: decd4
 	#[test]
 	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
-	fn the_picker_keeps_what_ok_was_pressed_on() {
+	fn picker_ok_keeps_color() {
 		let d = scratch("pick_ok");
 		let path = d.0.join("t.shcl");
 		let mut dlg = Dialog::open(path.clone()).unwrap();

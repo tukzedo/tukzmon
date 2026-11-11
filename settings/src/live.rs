@@ -173,7 +173,7 @@ mod tests {
 
 	// Test ID: dend2
 	#[test]
-	fn every_row_shares_the_one_look() {
+	fn rows_share_look() {
 		fn looks(l: &Live) -> Vec<&Rc<Look>> {
 			Which::ALL
 				.into_iter()
@@ -200,7 +200,7 @@ mod tests {
 
 	// Test ID: dendg
 	#[test]
-	fn every_graph_the_panel_can_draw_has_a_row_by_its_name() {
+	fn rows_cover_drawable_graphs() {
 		use tukzmon_core::graphs::Graphs;
 		let mut every = Look::default();
 		for w in Which::ALL {
@@ -217,7 +217,7 @@ mod tests {
 
 	// Test ID: defmj
 	#[test]
-	fn each_graph_draws_at_its_width_with_the_windows_look() {
+	fn rows_draw_at_width() {
 		let path = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_live_never_written.shcl",
 			std::process::id()
@@ -260,7 +260,7 @@ mod tests {
 
 	// Test ID: defwm
 	#[test]
-	fn the_hover_line_follows_the_pointer_in_its_row_as_in_the_panel() {
+	fn hover_line_follows_pointer() {
 		let path = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_live_hover_never_written.shcl",
 			std::process::id()
@@ -317,7 +317,7 @@ mod tests {
 	// Test ID: defps
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri runs too slow for the real clock's margins")]
-	fn a_time_axis_picked_in_the_window_eases_into_its_row() {
+	fn time_axis_eases_in() {
 		let path = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_live_ease_never_written.shcl",
 			std::process::id()
@@ -338,7 +338,7 @@ mod tests {
 
 	// Test ID: dezcb
 	#[test]
-	fn a_tick_says_which_graphs_it_read() {
+	fn tick_reports_graphs_read() {
 		let path = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_live_read_never_written.shcl",
 			std::process::id()
@@ -366,7 +366,7 @@ mod tests {
 
 	// Test ID: deja2
 	#[test]
-	fn a_rows_sample_rate_picked_in_the_window_sets_when_it_reads() {
+	fn row_sample_rate_sets_reads() {
 		let path = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_live_rate_never_written.shcl",
 			std::process::id()
@@ -394,7 +394,7 @@ mod tests {
 
 	// Test ID: defq8
 	#[test]
-	fn the_swap_row_draws_at_its_own_width() {
+	fn swap_row_width() {
 		let path = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_live_swap_never_written.shcl",
 			std::process::id()
@@ -426,7 +426,7 @@ mod tests {
 
 	// Test ID: defqe
 	#[test]
-	fn the_battery_row_is_there_only_with_a_battery_in() {
+	fn battery_row_needs_battery() {
 		let path = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_live_battery_never_written.shcl",
 			std::process::id()
@@ -452,7 +452,7 @@ mod tests {
 
 	// Test ID: dehy5
 	#[test]
-	fn the_zswap_row_is_there_only_with_zswap_or_zram() {
+	fn zswap_row_needs_zswap() {
 		let path = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_live_zswap_never_written.shcl",
 			std::process::id()
@@ -477,7 +477,7 @@ mod tests {
 
 	// Test ID: dej08
 	#[test]
-	fn the_load_and_disk_rows_draw_at_their_own_width() {
+	fn load_disk_row_width() {
 		let path = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_live_load_never_written.shcl",
 			std::process::id()
@@ -508,7 +508,7 @@ mod tests {
 
 	// Test ID: dej0w
 	#[test]
-	fn the_temp_row_draws_at_its_own_width() {
+	fn temp_row_width() {
 		let path = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_live_temp_never_written.shcl",
 			std::process::id()
@@ -536,7 +536,7 @@ mod tests {
 	// Test ID: dekmd
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri can't load a library")]
-	fn the_gpu_rows_are_there_only_with_a_gpu_to_read() {
+	fn gpu_rows_need_gpu() {
 		if tukzmon_core::gpu::nvidia_asleep() {
 			// no total from a card asleep since start, so no GiB in its tip
 			return;
@@ -588,7 +588,7 @@ mod tests {
 	// Test ID: dejb8
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri has no CPU time clock")]
-	fn the_own_row_draws_the_settings_window_at_its_own_width() {
+	fn own_row_width() {
 		let path = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_live_self_never_written.shcl",
 			std::process::id()
@@ -616,7 +616,7 @@ mod tests {
 	// Test ID: dep49
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri can't list /proc")]
-	fn the_procs_row_counts_this_test_as_yours() {
+	fn procs_row_counts_self() {
 		let path = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_live_procs_never_written.shcl",
 			std::process::id()
@@ -641,7 +641,7 @@ mod tests {
 
 	// Test ID: dehzq
 	#[test]
-	fn the_net_row_draws_at_its_own_width() {
+	fn net_row_width() {
 		let path = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_live_net_never_written.shcl",
 			std::process::id()

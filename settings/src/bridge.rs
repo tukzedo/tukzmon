@@ -760,7 +760,7 @@ mod tests {
 
 	// Test ID: defw3
 	#[test]
-	fn every_tip_wraps_at_a_readable_width_and_keeps_its_words() {
+	fn tips_wrap_keep_words() {
 		let short = "User 30%  System 10%\nNice 0%";
 		assert_eq!(wrapped(short, 70), short);
 		assert_eq!(wrapped("aa bb cc", 5), "aa bb\ncc");
@@ -798,7 +798,7 @@ mod tests {
 
 	// Test ID: der3b
 	#[test]
-	fn every_control_and_color_row_has_a_tip_of_its_own() {
+	fn rows_have_own_tips() {
 		let path = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_every_row_tipped_never_written.shcl",
 			std::process::id()
@@ -824,7 +824,7 @@ mod tests {
 
 	// Test ID: dendh
 	#[test]
-	fn rows_send_their_control_as_a_kind_and_the_picker_its_percents() {
+	fn rows_send_kind_and_percents() {
 		let path = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_kinds_never_written.shcl",
 			std::process::id()
@@ -866,7 +866,7 @@ mod tests {
 
 	// Test ID: defm1
 	#[test]
-	fn the_graph_list_sits_under_graphs_and_takes_its_rows() {
+	fn graph_list_under_graphs() {
 		let path = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_list_never_written.shcl",
 			std::process::id()
@@ -897,7 +897,7 @@ mod tests {
 	// Test ID: defmk
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn the_longest_graph_sets_the_column_so_the_rest_line_up() {
+	fn longest_graph_sets_column() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_places_never_written.shcl",
@@ -934,7 +934,7 @@ mod tests {
 	// Test ID: defma
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn a_row_is_greyed_while_its_switch_is_off() {
+	fn row_greyed_when_switch_off() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_greyed_never_written.shcl",
@@ -978,7 +978,7 @@ mod tests {
 	// Test ID: df3nj
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn a_remote_session_greys_the_rates_and_smooth_scrolling() {
+	fn remote_greys_rates_and_scrolling() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_remote_never_written.shcl",
@@ -1005,7 +1005,7 @@ mod tests {
 
 	// Test ID: dee9q
 	#[test]
-	fn one_theme_on_top_recolors_every_sub_tab() {
+	fn theme_recolors_sub_tabs() {
 		let path = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_never_written.shcl",
 			std::process::id()
@@ -1069,7 +1069,7 @@ mod tests {
 	// Test ID: defwx
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn sub_tabs_sit_in_the_tab_list_under_their_parent() {
+	fn sub_tab_nesting() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_tabs_never_written.shcl",
@@ -1114,7 +1114,7 @@ mod tests {
 	// Test ID: dejmn
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn themes_and_the_sub_tab_it_shows_are_lit_together() {
+	fn theme_and_sub_tab_lit() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_tabs_lit_never_written.shcl",
@@ -1140,7 +1140,7 @@ mod tests {
 	// Test ID: dekn9
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn the_graph_list_is_a_tab_of_its_own() {
+	fn graph_list_own_tab() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_graphs_tab_never_written.shcl",
@@ -1185,7 +1185,7 @@ mod tests {
 	// Test ID: dekna
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn the_parts_set_in_are_a_shade_darker_than_the_rest() {
+	fn inset_parts_darker() {
 		on_qt(|| {
 			// WCAG's relative luminance, from "#rrggbb"
 			let lum = |hex: &str| {
@@ -1234,7 +1234,7 @@ mod tests {
 	// Test ID: dejad
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn a_moved_graph_moves_its_section_and_the_picked_tab_stays_picked() {
+	fn moved_graph_keeps_picked_tab() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_tab_move_never_written.shcl",
@@ -1258,7 +1258,7 @@ mod tests {
 	// Test ID: dejmb
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn the_sections_follow_a_move_with_the_background_on_the_right() {
+	fn sections_follow_move() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_sections_never_written.shcl",
@@ -1285,7 +1285,7 @@ mod tests {
 	// Test ID: defwy
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn the_buttons_are_cancel_apply_and_ok() {
+	fn button_set() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_buttons_never_written.shcl",
@@ -1302,7 +1302,7 @@ mod tests {
 	// Test ID: dep3y
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn every_button_keeps_room_around_its_text() {
+	fn button_text_padding() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_button_gaps_never_written.shcl",
@@ -1328,7 +1328,7 @@ mod tests {
 	// Test ID: dep6m
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn every_button_is_one_height() {
+	fn button_heights_equal() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_button_heights_never_written.shcl",
@@ -1351,7 +1351,7 @@ mod tests {
 	// Test ID: der2t
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn a_rule_is_drawn_only_under_a_heading_that_isnt_the_tabs_name() {
+	fn rule_under_other_headings() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_page_heads_never_written.shcl",
@@ -1380,7 +1380,7 @@ mod tests {
 	// Test ID: der32
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn general_is_size_then_time_axis_then_timespan_then_misc() {
+	fn general_tab_order() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_general_never_written.shcl",
@@ -1423,7 +1423,7 @@ mod tests {
 	// Test ID: der33
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn max_age_sits_under_keep_across_restarts_with_hours_and_minutes_beside() {
+	fn max_age_placement() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_same_line_never_written.shcl",
@@ -1463,7 +1463,7 @@ mod tests {
 	// Test ID: der3q
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn each_graphs_vertical_scale_sits_right_of_its_time_axis() {
+	fn vertical_scale_beside_time_axis() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_vertical_never_written.shcl",
@@ -1494,7 +1494,7 @@ mod tests {
 	// Test ID: desem
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn each_colors_revert_sits_by_its_box() {
+	fn revert_beside_box() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_colors_revert_never_written.shcl",
@@ -1526,7 +1526,7 @@ mod tests {
 	// Test ID: der2v
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn the_questions_that_cant_be_undone_start_on_no() {
+	fn irreversible_questions_default_no() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_questions_never_written.shcl",
@@ -1543,7 +1543,7 @@ mod tests {
 	// Test ID: df3ar
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn every_control_in_the_color_picker_has_a_tip() {
+	fn picker_controls_have_tips() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_picker_tips_never_written.shcl",
@@ -1563,7 +1563,7 @@ mod tests {
 	// Test ID: df3as
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn a_failure_box_says_what_didnt_happen_and_that_nothing_changed() {
+	fn failure_box_wording() {
 		on_qt(|| {
 			let dir = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_failure_boxes",
@@ -1597,7 +1597,7 @@ mod tests {
 	// Test ID: des4d
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn sigusr1_brings_the_window_forward() {
+	fn sigusr1_raises_window() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_wake_never_written.shcl",
@@ -1614,7 +1614,7 @@ mod tests {
 	// Test ID: df32n
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn cancel_esc_and_the_close_button_quit_0() {
+	fn cancel_paths_exit_zero() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_exit_never_written.shcl",
@@ -1628,7 +1628,7 @@ mod tests {
 	// Test ID: df35x
 	#[test]
 	#[cfg_attr(miri, ignore = "it starts Qt in a process of its own")]
-	fn with_no_display_the_unreadable_box_quits_with_1_not_a_core_dump() {
+	fn no_display_exits_one() {
 		use std::os::unix::process::ExitStatusExt;
 		const CHILD: &str = "TUKZMON_TEST_NO_DISPLAY";
 		if std::env::var_os(CHILD).is_some() {
@@ -1640,7 +1640,7 @@ mod tests {
 		let ran = std::process::Command::new(std::env::current_exe().unwrap())
 			.args([
 				"--exact",
-				"bridge::tests::with_no_display_the_unreadable_box_quits_with_1_not_a_core_dump",
+				"bridge::tests::no_display_exits_one",
 				"--test-threads=1",
 				"--nocapture",
 			])
@@ -1661,7 +1661,7 @@ mod tests {
 	// Test ID: df349
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn qt_stays_quiet_when_tests_on_3_threads_load_its_plugins() {
+	fn qt_quiet_on_threads() {
 		for _ in 0..3 {
 			let ran = std::thread::spawn(|| {
 				on_qt(|| assert_eq!(ffi::qt_warnings(), Vec::<String>::new()));
@@ -1674,7 +1674,7 @@ mod tests {
 	// Test ID: dep6n
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn tab_follows_a_moved_graph() {
+	fn tab_follows_moved_graph() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_tab_walk_never_written.shcl",
@@ -1703,7 +1703,7 @@ mod tests {
 	// Test ID: dep6b
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn a_click_on_a_sliders_track_moves_it_there_and_its_handle_is_tall() {
+	fn slider_track_click() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_slider_clicks_never_written.shcl",
@@ -1728,7 +1728,7 @@ mod tests {
 	// Test ID: dej8s
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn apply_turns_on_while_a_box_is_typed_in() {
+	fn apply_enables_while_typing() {
 		on_qt(|| {
 			for number in [false, true] {
 				let path = std::env::temp_dir().join(format!(
@@ -1748,7 +1748,7 @@ mod tests {
 	// Test ID: der53
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn a_shown_window_runs_none_of_its_handlers_as_it_is_destroyed() {
+	fn no_handlers_on_destroy() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_teardown_never_written.shcl",
@@ -1763,7 +1763,7 @@ mod tests {
 	// Test ID: der54
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn every_control_has_a_name_a_screen_reader_can_say() {
+	fn accessible_names() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_names_never_written.shcl",
@@ -1812,7 +1812,7 @@ mod tests {
 	// Test ID: deqsn
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn enter_presses_the_focused_button_and_is_ok_in_a_box() {
+	fn enter_activates_default() {
 		on_qt(|| {
 			// Randomize and Reset history aren't auto default, so the dialog
 			// would hand their Enter to OK
@@ -1844,7 +1844,7 @@ mod tests {
 	// Test ID: deqsp
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn the_graph_list_headers_tip_the_column_not_a_graph() {
+	fn list_headers_tip_column() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_head_tips_never_written.shcl",
@@ -1874,7 +1874,7 @@ mod tests {
 	// Test ID: dej8t
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn an_empty_checkbox_stands_out_in_a_light_or_dark_theme() {
+	fn empty_checkbox_contrast() {
 		on_qt(|| {
 			// WCAG's least contrast for the edge of a control
 			for dark in [false, true] {
@@ -1887,7 +1887,7 @@ mod tests {
 	// Test ID: df3qa
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn a_greyed_slider_draws_none_of_the_accent() {
+	fn greyed_slider_no_accent() {
 		on_qt(|| {
 			let got = ffi::slider_accent_pixels();
 			assert!(got[0] > 50, "the enabled slider shows no accent: {got:?}");
@@ -1901,7 +1901,7 @@ mod tests {
 	// Test ID: denaq
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn a_refresh_restyles_only_the_chips_whose_color_changed() {
+	fn refresh_restyles_changed_chips() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_chips_never_written.shcl",
@@ -1915,7 +1915,7 @@ mod tests {
 	// Test ID: dezcc
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn a_refresh_sets_only_the_tips_and_gaps_that_changed() {
+	fn refresh_sets_changed_tips() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_churn_never_written.shcl",
@@ -1937,7 +1937,7 @@ mod tests {
 	// Test ID: denam
 	#[test]
 	#[ignore = "a timing, run by hand with --ignored --nocapture"]
-	fn time_a_refresh_and_a_slider_step() {
+	fn time_refresh_and_slider() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_timing_never_written.shcl",
@@ -2016,7 +2016,7 @@ mod tests {
 	// Test ID: desen
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn no_dropdown_opens_squeezed_on_a_roomy_screen() {
+	fn dropdowns_not_squeezed() {
 		on_qt(|| {
 			let dir = std::env::temp_dir();
 			let screens = dir.join(format!(
@@ -2042,7 +2042,7 @@ mod tests {
 	// Test ID: deknz
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn the_window_and_its_frame_stay_on_a_short_screen() {
+	fn window_fits_short_screen() {
 		on_qt(|| {
 			for (w, h) in [(1280, 540), (1024, 500)] {
 				let (room, frame, _) = fit_on(w, h, true);
@@ -2062,7 +2062,7 @@ mod tests {
 	// Test ID: demvm
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn ctrl_tab_steps_through_every_page_colors_too() {
+	fn ctrl_tab_steps_pages() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_ctrl_tab_never_written.shcl",
@@ -2084,7 +2084,7 @@ mod tests {
 	// Test ID: den56
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn ctrl_page_down_and_up_step_like_ctrl_tab() {
+	fn ctrl_page_keys_step() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_ctrl_page_never_written.shcl",
@@ -2105,7 +2105,7 @@ mod tests {
 	// Test ID: demvn
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn the_colors_under_the_mode_start_level_with_background() {
+	fn colors_start_level_with_background() {
 		on_qt(|| {
 			let path = std::env::temp_dir().join(format!(
 				"test_tukzmon-settings_{}_section_tops_never_written.shcl",
@@ -2140,7 +2140,7 @@ mod tests {
 	// Test ID: dekp0
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
-	fn the_colors_tab_scrolls_in_the_height_the_other_tabs_set() {
+	fn colors_tab_scroll_height() {
 		on_qt(|| {
 			let (room, frame, tabs) = fit_on(1600, 2000, false);
 			assert!(frame[3] < room[3] / 2, "{frame:?} in {room:?}");
@@ -2160,7 +2160,7 @@ mod tests {
 	// Test ID: df4ja
 	#[test]
 	#[ignore = "the window soak leak check, cicd.bash runs it"]
-	fn the_windows_heap_stops_growing_once_its_graphs_are_full() {
+	fn heap_stops_growing() {
 		// Simulated seconds a round, rounds to the first read, and rounds
 		// between reads. With the 1 day max age set below, the live graphs
 		// are full at round 144. The rest settles by about round 400, with a

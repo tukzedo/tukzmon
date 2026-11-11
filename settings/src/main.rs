@@ -228,7 +228,7 @@ mod tests {
 
 	// Test ID: dednz
 	#[test]
-	fn the_version_line_has_the_build_and_a_dev_build_its_day() {
+	fn version_line_build_id() {
 		let v = env!("CARGO_PKG_VERSION");
 		// 2026-10-24 22:00 UTC, the 24th or 25th in every time zone.
 		let line = version_line(14_103_240, false);
@@ -248,7 +248,7 @@ mod tests {
 	// Test ID: deqw0
 	#[cfg(unix)]
 	#[test]
-	fn a_path_that_isnt_utf8_is_a_message_not_a_panic() {
+	fn non_utf8_path_message() {
 		use std::os::unix::ffi::OsStringExt as _;
 		let args = |a: &[&[u8]]| asked(a.iter().map(|b| OsString::from_vec(b.to_vec())));
 		let bad: &[u8] = b"/tmp/x\xff.shcl";
@@ -280,7 +280,7 @@ mod tests {
 
 	// Test ID: defks
 	#[test]
-	fn a_failed_write_of_the_output_is_no_panic() {
+	fn output_write_failure_no_panic() {
 		let ok = |c: ExitCode| format!("{c:?}") == format!("{:?}", ExitCode::SUCCESS);
 		let mut out = Vec::new();
 		assert!(ok(print_text(&mut out, "x")));

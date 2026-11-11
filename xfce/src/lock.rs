@@ -525,7 +525,7 @@ mod tests {
 	// Test ID: df3qr
 	#[test]
 	#[cfg_attr(miri, ignore = "GLib is C")]
-	fn the_screensaver_or_a_lock_hides_the_graphs_and_unlocking_draws_once() {
+	fn lock_hides_graphs_until_unlock() {
 		let seen = Rc::new(Seen::new(std::ptr::null_mut()));
 		let mut steps = Vec::new();
 		let mut note = |seen: &Seen| steps.push((seen.hidden(), seen.draws.get()));
@@ -594,7 +594,7 @@ mod tests {
 
 	// Test ID: df3qs
 	#[test]
-	fn a_session_s_logind_object_escapes_a_leading_digit() {
+	fn logind_path_escapes_digit() {
 		let path = |id| session_path(id).rsplit('/').next().unwrap().to_owned();
 		assert_eq!(path("15938"), "_315938");
 		assert_eq!(path("c12"), "c12");
@@ -605,7 +605,7 @@ mod tests {
 	// Test ID: df3qt
 	#[test]
 	#[ignore = "needs dbus-daemon, which the build image doesn't have"]
-	fn a_screensaver_or_logind_on_a_private_bus_hides_the_graphs_until_unlocked() {
+	fn private_bus_lock_hides_graphs() {
 		let address = format!("unix:abstract=tukzmon-lock-test-{}", std::process::id());
 		let mut daemon = std::process::Command::new("dbus-daemon")
 			.args(["--session", "--nofork", &format!("--address={address}")])

@@ -178,7 +178,7 @@ mod tests {
 	// would creep each time the picker opened.
 	// Test ID: decd5
 	#[test]
-	fn a_color_survives_the_trip_through_hsv() {
+	fn color_hsv_round_trip() {
 		let seed = hsv(0.25, 0.5, 0.5);
 		for r in (0..=255).step_by(5) {
 			for g in (0..=255).step_by(5) {
@@ -192,7 +192,7 @@ mod tests {
 
 	// Test ID: decd6
 	#[test]
-	fn a_gray_keeps_the_hue_and_saturation_it_had() {
+	fn gray_keeps_hue_and_saturation() {
 		let held = hsv(0.6, 0.8, 0.4);
 		let gray = from_rgb(Rgb(128, 128, 128), held);
 		assert_eq!(gray.h, held.h);
@@ -203,7 +203,7 @@ mod tests {
 
 	// Test ID: decd7
 	#[test]
-	fn the_hue_ramp_hits_the_primaries() {
+	fn hue_ramp_primaries() {
 		for (h, want) in [
 			(0.0, Rgb(255, 0, 0)),
 			(1.0 / 6.0, Rgb(255, 255, 0)),
@@ -222,7 +222,7 @@ mod tests {
 
 	// Test ID: decd8
 	#[test]
-	fn a_typed_value_reaches_what_it_names() {
+	fn typed_value_reaches_target() {
 		let start = from_rgb(Rgb(10, 20, 30), hsv(0.0, 0.0, 0.0));
 		let red = Field::Red.apply(start, "100").unwrap();
 		assert_eq!(to_rgb(red), Rgb(255, 20, 30));

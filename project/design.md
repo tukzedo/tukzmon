@@ -282,7 +282,7 @@ The code is a Rust core, with C only where a panel's API needs it. That was sett
 	- The network's LAN received is between its quiet color and its lead, and LAN sent between its lead and tint, both on the buffers' side of the lead. Each steps in hue, saturation, and brightness till it's 11 or more from the network's other colors. Without that, about a third of rolls had a pair under 10.
 	- A roll is always Detailed. Each graph's gradient runs from its quiet color through its lead to a pale tint, like the built-ins', so it's ready if Gradient is picked. The hover line stays black.
 	- Buffers has a role of its own. It's muted like cache, but on the other side of the lead hue and at least 30 degrees from cache, so that way the 2 are told apart.
-	- Every theme member needs a role in `dice::ROLES`. A new graph's members fail `dice::tests::every_theme_member_has_a_role` until they get one, such as buffers and cache as muted ones.
+	- Every theme member needs a role in `dice::ROLES`. A new graph's members fail `dice::tests::theme_members_have_roles` until they get one, such as buffers and cache as muted ones.
 
 ## Panels and trays
 
