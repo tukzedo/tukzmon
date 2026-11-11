@@ -149,6 +149,8 @@ To try it from a checkout you need Rust, XFCE 4.20, Qt 6, a C++ compiler, and pk
 
 - `cicd/cicd.bash --help` lists the steps and options. The packages step builds a `.deb` and an `.rpm`.
 
+- Release builds are reproducible. A release build of one commit gives the same bytes from any checkout folder, target folder, or home, and the pipeline checks it by building a second time from a copy of the tree in another folder. A plain `cargo build --release` needs the path maps from `utility/path-maps.bash` for that, which `utility/dev-install.bash` uses too.
+
 - `git config core.hooksPath cicd/hooks` turns on the pre-push hook, which runs the full merge gate before a push to `main`.
 
 Work is done on `dev`, and releases are merged into `main`.

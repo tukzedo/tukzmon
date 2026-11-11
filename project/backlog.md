@@ -22,6 +22,20 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- Reproducible builds: map the Rust paths through cargo's trim-paths once it's stable
+	- ID: 2026111021133143
+	- Type: Task
+	- Status: Stalled
+		- Held for a pinned toolchain whose cargo has trim-paths on stable. It's unstable in 1.96.
+	- Priority|Severity: Low
+	- Opened: 20261110-211331
+	- Opened by: t00mietum
+	- Related IDs: 2026110710005013
+	- Requirements:
+		- A plain `cargo build --release` gives the same bytes from any checkout, target folder or home, with no path maps from outside.
+		- Then `utility/path-maps.bash` keeps only what trim-paths doesn't cover, such as cxx's own C++.
+	- Estimated effort: Low
+
 - Smoothly animate each graph on each tick
 	- ID: 2026110911114024
 	- Type: Enhancement
@@ -384,7 +398,7 @@ Sorted per the notes in [Template](#template).
 - CICD gap: tukzmon-settings built in another folder gives different bytes
 	- ID: 2026110710005013
 	- Type: Task
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261107-100050
 	- Opened by: t00mietum
@@ -395,8 +409,26 @@ Sorted per the notes in [Template](#template).
 		- The pipeline builds twice in 2 folders and compares the checksums. It's watched to fail first.
 		- README.md says builds are reproducible once that check passes.
 	- Reproduced: 20261107, 2 fresh release builds of one tree into 2 target folders. `libtukzmon.so` matched. `tukzmon-settings` didn't, since it keeps the full path of the cxx bridge's `cxx.h` from the build folder.
+	- Related IDs: 2026111021133143
+	- Estimated effort: Avg
+	- Actual effort: Avg
 	- Progress log:
 		- README.md's line that every build of a commit gives the same bytes is out until this is done.
+		- The cause was wider than cxx.h. A build with another cargo home also kept that path, in the panic locations of shcl and cxx and in cxx's own C++, so `libtukzmon.so` differed too.
+		- `settings/build.rs` maps OUT_DIR and the crate out of its C++, so a plain build into another target folder now gives the same `tukzmon-settings`.
+		- `utility/path-maps.bash` gives the release build rustc's and gcc's path maps for the checkout, the target folder and the cargo home. cicd's release and demo builds and `utility/dev-install.bash` use it.
+		- The new Reproducible step builds the release again from a copy of the tree in another folder, into another target folder, with the cargo home through a link, and fails on any byte that differs, listing the paths only one build has. About 30 s at 8 jobs. It's in every run but `--backlog-run-quick`, where it's the `repro` area.
+		- README.md says release builds are reproducible again, and how a plain build gets there.
+		- Verified: the Reproducible step passed in the image and on the host. With the path maps taken out it failed on both files, with the cargo home's paths. 2 plain release builds into 2 target folders gave the same `tukzmon-settings`, where the 20261107 ones didn't. The quick gate and Sanitizers passed.
+	- Decisions:
+		- The Rust paths are mapped from outside the build, since cargo's trim-paths is unstable in 1.96 and a cargo config can't hold paths that change. This departs from "the build maps its own paths" for the Rust and for cxx's C++, so a plain `cargo build --release` in another home still differs. 2026111021133143 takes it up once trim-paths is stable.
+		- The second build takes the first one's build number from its build script's output, since the copy isn't a git checkout and a tree with changes takes the time of the build.
+		- It compares with the release step's own build, so what gets packaged is what was checked, and it runs where that build ran, on the host in a run that dogfoods.
+		- `settings/build.rs` now asks for cc's extra warnings itself, since cc drops them when CXXFLAGS is set.
+	- Branch: round-1111
+	- Test case: `release_path_maps_put_the_innermost_folder_last_and_refuse_a_relative_or_spaced_path` (df50f), in `cicd/tests/guards.bash`, and the Reproducible step itself.
+		- Swept: every release build in cicd (release, demo), `utility/dev-install.bash`, and the Nix package, which builds in its own fixed folder. The profiler and CodeQL builds aren't shipped.
+	- Closed: 20261110-211350
 
 - Most test names are whole sentences, and over half start the same way
 	- ID: 2026110710005014

@@ -343,6 +343,25 @@ fTest_dev_install_builds_with_rustups_cargo_from_the_repo_wherever_its_run() {
 	[[ "${out}" == *"building with 'rustc 1.95.0 (debian)', not the pinned ${pin}"* ]] || { fWhy "no warning off the pin: ${out}"; return 1; }
 }
 
+## Test ID: df50f
+fTest_release_path_maps_put_the_innermost_folder_last_and_refuse_a_relative_or_spaced_path() {
+	local ok=0
+	(
+		source "${cicd}/../utility/path-maps.bash"
+		local -a maps=()
+		local badPath=''
+		## The target dir and the cargo home inside the repo, as in the image.
+		CARGO_HOME=/r/t/ch RUSTFLAGS='-Cx=1' CFLAGS='' CXXFLAGS='-O1' fPathMaps maps /r /r/t || { fWhy "refused good paths"; exit 1; }
+		[[ "${maps[0]}" == 'RUSTFLAGS=-Cx=1 --remap-path-prefix=/r=/src --remap-path-prefix=/r/t=/target --remap-path-prefix=/r/t/ch=/cargo' ]] || { fWhy "${maps[0]}"; exit 1; }
+		[[ "${maps[1]}" == 'CFLAGS=-ffile-prefix-map=/r=/src -ffile-prefix-map=/r/t=/target -ffile-prefix-map=/r/t/ch=/cargo' ]] || { fWhy "${maps[1]}"; exit 1; }
+		[[ "${maps[2]}" == 'CXXFLAGS=-O1 -ffile-prefix-map=/r=/src -ffile-prefix-map=/r/t=/target -ffile-prefix-map=/r/t/ch=/cargo' ]] || { fWhy "${maps[2]}"; exit 1; }
+		for badPath in r '/r x'; do
+			if CARGO_HOME=/ch fPathMaps maps "${badPath}" /t 2> /dev/null; then fWhy "took '${badPath}'"; exit 1; fi
+		done
+	) && ok=1
+	((ok))
+}
+
 ## Test ID: dezay
 fTest_a_step_prints_the_rule_its_start_and_its_pass_or_fail() {
 	local t="${work}/step-lines" out='' rc=0 rule='' f='' result=''
@@ -1203,3 +1222,4 @@ exit "${failed}"
 ##		- 2026-11-10: install.bash's version order, and its sum check, user
 ##		  and system installs, and second runs.
 ##		- 2026-11-11: A test name in a Test case row isn't read for IDs.
+##		- 2026-11-11: The release build's path maps.

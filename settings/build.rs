@@ -95,9 +95,17 @@ fn qt() {
 		.std("c++20")
 		.flag_if_supported("-fPIC")
 		.warnings(true)
+		// cc drops these when CXXFLAGS is set, as utility/path-maps.bash does
+		.extra_warnings(true)
 		// cicd sets it, so a warning fails the gate but not someone's own build
 		// on a newer compiler
 		.warnings_into_errors(std::env::var("TUKZMON_WERROR").is_ok_and(|v| v == "1"));
+	// cxx.h's __FILE__ held the target dir, so a build elsewhere gave other bytes
+	for (var, to) in [("OUT_DIR", "/out"), ("CARGO_MANIFEST_DIR", "/src/settings")] {
+		if let Ok(dir) = std::env::var(var) {
+			b.flag(format!("-ffile-prefix-map={dir}={to}"));
+		}
+	}
 	for dir in &lib.include_paths {
 		b.include(dir);
 	}
