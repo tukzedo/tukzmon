@@ -183,7 +183,7 @@ mod tests {
 
 	// Test ID: defne
 	#[test]
-	fn reads_a_drives_stat() {
+	fn drive_stat_read() {
 		assert_eq!(parse_stat(&stat(8, 16)), Some([8, 16]));
 		// kernels before 4.18 have 11 columns
 		assert_eq!(
@@ -197,7 +197,7 @@ mod tests {
 
 	// Test ID: defnf
 	#[test]
-	fn all_leaves_out_partitions_and_stacked_devices() {
+	fn all_skips_partitions() {
 		let t = Tree::new(
 			"disk_all",
 			&[
@@ -225,7 +225,7 @@ mod tests {
 
 	// Test ID: defng
 	#[test]
-	fn the_drives_picked_add_up_and_a_change_is_a_gap() {
+	fn picked_drives_sum_and_gap() {
 		let t = Tree::new(
 			"disk_rates",
 			&[
@@ -302,7 +302,7 @@ mod tests {
 
 	// Test ID: df4gn
 	#[test]
-	fn fuzz_stat_reads_sectors_and_rates_stay_finite() {
+	fn fuzz_stat_sectors_finite() {
 		let tally = crate::fuzz::run("disk stat", |dice| {
 			let mut climb = Climb::<2>::default();
 			let t0 = Instant::now();

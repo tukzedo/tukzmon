@@ -27,44 +27,6 @@ fn pack_alpha(c: [f32; 3], alpha: f32) -> u32 {
 	q(alpha * 255.0) << 24 | q(c[0]) << 16 | q(c[1]) << 8 | q(c[2])
 }
 
-// an sRGB channel, 0 to 255, in linear light, 0 to 1
-fn to_linear(v: f32) -> f32 {
-	let c = (v / 255.0).clamp(0.0, 1.0);
-	if c <= 0.04045 {
-		c / 12.92
-	} else {
-		((c + 0.055) / 1.055).powf(2.4)
-	}
-}
-
-fn linear_of(c: [f32; 3]) -> [f32; 3] {
-	c.map(to_linear)
-}
-
-// linear light back to sRGB, looked up, since a blended pixel can't wait on 3 powf
-const SRGB_STEPS: usize = 4096;
-static SRGB: std::sync::OnceLock<Vec<u8>> = std::sync::OnceLock::new();
-
-/// Opaque, from linear light.
-fn pack_linear(c: [f32; 3]) -> u32 {
-	let table = SRGB.get_or_init(|| {
-		(0..SRGB_STEPS)
-			.map(|i| {
-				let l = i as f32 / (SRGB_STEPS - 1) as f32;
-				let v = if l <= 0.003_130_8 {
-					l * 12.92
-				} else {
-					1.055 * l.powf(1.0 / 2.4) - 0.055
-				};
-				(v * 255.0).round().clamp(0.0, 255.0) as u8
-			})
-			.collect()
-	});
-	let q =
-		|l: f32| u32::from(table[(l.clamp(0.0, 1.0) * (SRGB_STEPS - 1) as f32).round() as usize]);
-	0xff00_0000 | q(c[0]) << 16 | q(c[1]) << 8 | q(c[2])
-}
-
 // coverage this close to whole or none is drawn as that
 const SNAP: f32 = 0.002;
 
@@ -337,12 +299,9 @@ pub struct Scratch<const N: usize> {
 	back: Vec<[f32; 3]>,
 	/// The same, packed.
 	back_px: Vec<u32>,
-	/// The same, in linear light.
-	back_lin: Vec<[f32; 3]>,
 	/// The gradient's color per plot row, when that's the paint.
 	grad: Vec<[f32; 3]>,
 	grad_px: Vec<u32>,
-	grad_lin: Vec<[f32; 3]>,
 	/// Each column, or None for a gap.
 	reached: Vec<Option<Column<N>>>,
 }
@@ -438,10 +397,8 @@ impl<const N: usize> Frame<'_, N> {
 		let Scratch {
 			back,
 			back_px,
-			back_lin,
 			grad,
 			grad_px,
-			grad_lin,
 			reached,
 		} = scratch;
 		// premultiplied, so a transparent one is all zeros
@@ -457,8 +414,6 @@ impl<const N: usize> Frame<'_, N> {
 		}));
 		back_px.clear();
 		back_px.extend(back.iter().map(|&c| pack_alpha(c, back_alpha)));
-		back_lin.clear();
-		back_lin.extend(back.iter().map(|&c| linear_of(c)));
 		let (cols, solid) = match self.paint {
 			Paint::Stack(colors) => {
 				let cols = colors.map(|c| [c.0 as f32, c.1 as f32, c.2 as f32]);
@@ -466,21 +421,17 @@ impl<const N: usize> Frame<'_, N> {
 			}
 			Paint::Gradient(_) => ([[0.0; 3]; N], [0; N]),
 		};
-		let cols_lin = cols.map(linear_of);
 		// row by row, top first, at each row's middle
 		grad.clear();
 		grad_px.clear();
-		grad_lin.clear();
 		if let Paint::Gradient(stops) = self.paint {
 			grad.extend(
 				(0..plot_h).map(|r| blend(stops, ((plot_h - r) as f32 - 0.5) / plot_h as f32)),
 			);
 			grad_px.extend(grad.iter().map(|&g| pack_alpha(g, 1.0)));
-			grad_lin.extend(grad.iter().map(|&g| linear_of(g)));
 		}
-		// a part-covered pixel mixes in linear light, except over a
-		// transparent background, which the panel blends as it is
-		let opaque = !self.look.transparent;
+		// a part-covered pixel mixes as sRGB numbers, not in linear light,
+		// which all but hides a split dark gap (design.md Drawing)
 		reached.clear();
 		let emphasis = Reach::new(self.look.spikes);
 		// each column's old edge is the new edge of the one left of it
@@ -506,7 +457,7 @@ impl<const N: usize> Frame<'_, N> {
 						let lo = span
 							.uncut
 							.map_or(span.min, |u| emphasis.of(&span.mean, &u, secs));
-						let hi = emphasis.of(&span.mean, &span.max, secs);
+						let hi = emphasis.of(&span.mean, &span.peak, secs);
 						Column::new(lo, hi, emphasis.of(&span.mean, &span.spike, secs))
 					}
 				})
@@ -572,10 +523,6 @@ impl<const N: usize> Frame<'_, N> {
 						grad_px[r]
 					} else if cover <= SNAP {
 						back_px[r]
-					} else if opaque {
-						pack_linear(std::array::from_fn(|k| {
-							back_lin[r][k] * (1.0 - cover) + grad_lin[r][k] * cover
-						}))
 					} else {
 						let c = std::array::from_fn(|k| {
 							back[r][k] * (1.0 - cover) + grad[r][k] * cover
@@ -605,26 +552,15 @@ impl<const N: usize> Frame<'_, N> {
 					px[at(r)] = back_px[r];
 					continue;
 				}
-				px[at(r)] = if opaque {
-					pack_linear(std::array::from_fn(|ch| {
-						back_lin[r][ch] * left
-							+ cover
-								.iter()
-								.zip(&cols_lin)
-								.map(|(c, col)| c * col[ch])
-								.sum::<f32>()
-					}))
-				} else {
-					let c = std::array::from_fn(|ch| {
-						back[r][ch] * left
-							+ cover
-								.iter()
-								.zip(&cols)
-								.map(|(c, col)| c * col[ch])
-								.sum::<f32>()
-					});
-					pack_alpha(c, back_alpha * left + (1.0 - left))
-				};
+				let c = std::array::from_fn(|ch| {
+					back[r][ch] * left
+						+ cover
+							.iter()
+							.zip(&cols)
+							.map(|(c, col)| c * col[ch])
+							.sum::<f32>()
+				});
+				px[at(r)] = pack_alpha(c, back_alpha * left + (1.0 - left));
 			}
 		}
 	}
@@ -688,7 +624,7 @@ mod tests {
 
 	// Test ID: debj6
 	#[test]
-	fn border_and_gradient_with_no_data() {
+	fn empty_border_gradient() {
 		let h = History::<2>::default();
 		let px = draw(&h, &Axis::log(Curve::FixedA, 0.0), 10, 12);
 		assert_eq!(px.len(), 120);
@@ -701,7 +637,7 @@ mod tests {
 
 	// Test ID: debj7
 	#[test]
-	fn stack_heights_are_exact() {
+	fn exact_stack_heights() {
 		// a quarter red, a half green, on a 10 px tall plot
 		let h = steady([0.25, 0.5], 120.0);
 		let px = draw(&h, &Axis::log(Curve::FixedA, 120.0), 22, 12);
@@ -710,17 +646,17 @@ mod tests {
 		// rows counted from the bottom of the plot: 0..2.5 red, 2.5..7.5 green
 		assert_eq!(at(9), 0xffff_0000);
 		assert_eq!(at(8), 0xffff_0000);
-		// half and half, mixed in linear light
+		// half and half
 		let shared = at(7);
-		assert_eq!(shared & 0x00ff_0000, 0x00bc_0000);
-		assert_eq!(shared & 0x0000_ff00, 0x0000_bc00);
+		assert_eq!(shared & 0x00ff_0000, 0x0080_0000);
+		assert_eq!(shared & 0x0000_ff00, 0x0000_8000);
 		assert_eq!(at(5), 0xff00_ff00);
 		assert_ne!(at(1) & 0xff, 0);
 	}
 
 	// Test ID: debj8
 	#[test]
-	fn gaps_draw_as_background() {
+	fn gap_is_background() {
 		let mut h = History::<2>::default();
 		h.add(0.0, 30.0, &[1.0, 0.0]);
 		h.add(90.0, 120.0, &[1.0, 0.0]);
@@ -734,7 +670,7 @@ mod tests {
 
 	// Test ID: debj9
 	#[test]
-	fn spike_reach_fades_with_time() {
+	fn spike_reach_fades() {
 		let near = column(&[0.1], &[0.9], 0.5, 1.0)[0];
 		let far = column(&[0.1], &[0.9], 30.0 * 86400.0, 1.0)[0];
 		assert!(near > 0.8);
@@ -744,7 +680,7 @@ mod tests {
 
 	// Test ID: dese6
 	#[test]
-	fn more_emphasis_keeps_spikes_further_back() {
+	fn emphasis_extends_spikes() {
 		// how far up from the mean a column reaches, 0 to 1
 		let part = |secs: f64, spikes: f32| (column(&[0.1], &[0.9], secs, spikes)[0] - 0.1) / 0.8;
 		// a column on a 100 px log graph, in its second, third and last quarter
@@ -762,7 +698,7 @@ mod tests {
 
 	// Test ID: debja
 	#[test]
-	fn an_overfull_stack_is_scaled_to_fit() {
+	fn overfull_stack_scaled() {
 		let v = column(&[0.5, 0.4], &[1.0, 1.0], 0.0, 1.0);
 		assert!((v[0] + v[1] - 1.0).abs() < 1e-6);
 		assert!(v[0] == v[1]);
@@ -770,7 +706,7 @@ mod tests {
 
 	// Test ID: decc9
 	#[test]
-	fn the_hover_line_stays_off_the_border() {
+	fn hover_line_off_border() {
 		let back = 0xff11_1111;
 		let draw_at = |x: usize, thick: usize| {
 			let mut px = vec![back; 8 * 4];
@@ -801,11 +737,11 @@ mod tests {
 
 	// Test ID: decdk
 	#[test]
-	fn the_gradient_goes_by_height_not_by_series() {
+	fn gradient_by_height() {
 		const LO: Rgb = Rgb(200, 0, 0);
 		const MID: Rgb = Rgb(255, 255, 200);
 		const HI: Rgb = Rgb(100, 200, 255);
-		// a quarter and a half, as in stack_heights_are_exact, on a 10 px plot
+		// a quarter and a half, as in exact_stack_heights, on a 10 px plot
 		let h = steady([0.25, 0.5], 120.0);
 		let l = look();
 		let axis = Axis::log(Curve::FixedA, 120.0);
@@ -863,7 +799,7 @@ mod tests {
 
 	// Test ID: decdm
 	#[test]
-	fn the_blend_hits_its_stops() {
+	fn blend_hits_stops() {
 		let stops = [Rgb(10, 20, 30), Rgb(100, 110, 120), Rgb(200, 210, 220)];
 		assert_eq!(pack(blend(stops, 0.0)), 0xff0a_141e);
 		assert_eq!(pack(blend(stops, 0.5)), 0xff64_6e78);
@@ -875,7 +811,7 @@ mod tests {
 
 	// Test ID: decdz
 	#[test]
-	fn a_transparent_background_lets_the_panel_through() {
+	fn transparent_background() {
 		let h = steady([0.25, 0.5], 120.0);
 		let axis = Axis::log(Curve::FixedA, 120.0);
 		let l = Look {
@@ -946,7 +882,7 @@ mod tests {
 
 	// Test ID: debjb
 	#[test]
-	fn tiny_and_borderless() {
+	fn tiny_borderless() {
 		let h = steady([0.5, 0.0], 10.0);
 		assert!(
 			draw(&h, &Axis::log(Curve::FixedA, 10.0), 2, 2)
@@ -974,7 +910,7 @@ mod tests {
 
 	// Test ID: dehzk
 	#[test]
-	fn a_peak_jumps_up_and_eases_down_to_whats_in_view() {
+	fn peak_jumps_eases_down() {
 		let mut p = Peak::default();
 		assert_eq!(p.fit(0.0, 10.0, 0.0), 10.0);
 		assert_eq!(p.fit(500.0, 10.0, 1.0), 500.0);
@@ -994,7 +930,7 @@ mod tests {
 
 	// Test ID: dej06
 	#[test]
-	fn a_log_scale_lifts_a_trickle_and_keeps_the_shares() {
+	fn log_lifts_trickle() {
 		assert_eq!(fit_log([0.0, 0.0], 4e6, 1e5), [0.0, 0.0]);
 		let [a, b] = fit_log([1e6, 3e6], 4e6, 1e5);
 		assert!((a + b - 1.0).abs() < 1e-6 && (b - 3.0 * a).abs() < 1e-6);
@@ -1037,7 +973,7 @@ mod tests {
 
 	// Test ID: der3m
 	#[test]
-	fn squared_sinks_small_values_and_every_scale_takes_a_fixed_top() {
+	fn squared_sinks_fixed_top() {
 		assert_eq!(fit_squared([0.0, 0.0], 1.0), [0.0, 0.0]);
 		assert_eq!(fit_squared([0.25, 0.25], 1.0), [0.125, 0.125]);
 		assert_eq!(fit_squared([300.0, 100.0], 800.0), [0.1875, 0.0625]);
@@ -1072,7 +1008,7 @@ mod tests {
 
 	// Test ID: dehzm
 	#[test]
-	fn a_graph_with_no_fixed_top_fills_to_its_peak_or_floor() {
+	fn open_top_peak_floor() {
 		let axis = Axis::log(Curve::FixedA, 120.0);
 		let l = look();
 		let drawn = |h: &History<2>, peak: Option<(&mut Peak, f32)>| {
@@ -1112,7 +1048,7 @@ mod tests {
 
 	// Test ID: deqs7
 	#[test]
-	fn a_value_that_isnt_finite_is_drawn_as_a_gap() {
+	fn nonfinite_draws_gap() {
 		let axis = Axis::log(Curve::FixedA, 120.0);
 		let mut nan = History::<2>::default();
 		nan.add(0.0, 120.0, &[f32::NAN, 0.5]);
@@ -1151,7 +1087,7 @@ mod tests {
 
 	// Test ID: denc4
 	#[test]
-	fn a_kept_scratch_draws_as_a_fresh_one_and_allocates_nothing_again() {
+	fn kept_scratch_no_alloc() {
 		let h = steady([0.25, 0.5], 120.0);
 		let axis = Axis::log(Curve::FixedA, 120.0);
 		let l = look();
@@ -1198,16 +1134,16 @@ mod tests {
 
 	// Test ID: df3s6
 	#[test]
-	fn a_spike_slides_across_columns_without_jumping_in_width() {
+	fn spike_slide_width_steady() {
 		// one sample of 0.9 over 0.1, off the buckets' edges, on columns of
-		// 1 s and of 10 s
+		// 1 s to 10 s
 		let mut h = History::<2>::default();
 		for t in 0..300 {
 			let v = if t == 150 { 0.9 } else { 0.1 };
 			h.add(f64::from(t) + 0.1, f64::from(t) + 1.1, &[v, 0.0]);
 		}
 		let l = look();
-		for (secs, plot_w) in [(50.0, 50), (150.0, 15)] {
+		for (secs, plot_w) in [(50.0, 50), (75.0, 50), (150.0, 50), (150.0, 15)] {
 			let axis = Axis::linear(secs);
 			let (w, ht) = (plot_w + 2, 102);
 			let column = secs / plot_w as f64;
@@ -1229,7 +1165,7 @@ mod tests {
 					(1..w - 1)
 						.map(|x| {
 							(1..ht - 1)
-								.map(|r| to_linear(((px[r * w + x] >> 16) & 0xff) as f32))
+								.map(|r| ((px[r * w + x] >> 16) & 0xff) as f32 / 255.0)
 								.sum::<f32>() / 100.0
 						})
 						.collect()
@@ -1252,7 +1188,7 @@ mod tests {
 
 	// Test ID: df4d7
 	#[test]
-	fn a_spike_keeps_its_height_as_it_slides_across_columns() {
+	fn spike_slide_height_steady() {
 		// as df3s6, but the top of what's drawn, which halved where the
 		// spike was split between 2 columns
 		let mut h = History::<2>::default();
@@ -1295,7 +1231,7 @@ mod tests {
 
 	// Test ID: df4dt
 	#[test]
-	fn a_stack_that_trades_shares_draws_nothing_over_its_total() {
+	fn share_trade_stays_in_total() {
 		// red and green swap each sample, always 0.6 in all, drawn half a
 		// sample off the columns
 		let mut h = History::<2>::default();
@@ -1328,7 +1264,7 @@ mod tests {
 
 	// Test ID: df4e9
 	#[test]
-	fn a_column_that_is_one_sample_is_drawn_solid() {
+	fn one_sample_column_solid() {
 		// samples off the buckets' edges, so each column's end buckets hold
 		// a bit of the sample beside it, with columns lined up on the samples
 		let mut h = History::<2>::default();
@@ -1363,6 +1299,62 @@ mod tests {
 				[20, 80].contains(&filled) && tinted == 0,
 				"{x}: {column:x?}"
 			);
+		}
+	}
+
+	// Test ID: df4y1
+	#[test]
+	fn narrow_gap_slide_depth() {
+		// one sample of 0.1 between ones of 0.9, and the other way round, on
+		// columns of half a sample to 3. A split gap mixed in linear light
+		// showed about half as deep as a whole one. Past a sample wide, the
+		// spike emphasis filled the gap only where a column held a whole
+		// sample of the bar beside it.
+		for (base, odd) in [(0.9, 0.1), (0.1, 0.9)] {
+			let mut h = History::<2>::default();
+			for t in 0..300 {
+				let v = if t == 150 { odd } else { base };
+				h.add(f64::from(t) + 0.1, f64::from(t) + 1.1, &[v, 0.0]);
+			}
+			let l = look();
+			let filled = if base > odd { 255.0 } else { 0.0 };
+			for (secs, plot_w) in [(25.0, 50), (50.0, 50), (75.0, 50), (100.0, 50), (150.0, 50)] {
+				let axis = Axis::linear(secs);
+				let (w, ht) = (plot_w + 2, 102);
+				let column = secs / plot_w as f64;
+				// how far the rows from 0.1 to 0.9 are off the base, in columns
+				let depths: Vec<f32> = (0..=20)
+					.map(|step| {
+						let f = Frame {
+							hist: &h,
+							axis: &axis,
+							now: 150.0 + secs / 2.0 + f64::from(step) * column / 20.0,
+							sample: 1.0,
+							look: &l,
+							paint: Paint::Stack(&COLORS),
+							outline: OUTLINE,
+							vertical: Vertical::Linear,
+						};
+						let mut px = Vec::new();
+						f.draw(&mut px, w, ht, 1);
+						(1..w - 1)
+							.flat_map(|x| (10..90).map(move |i| (ht - 2 - i) * w + x))
+							.map(|at| (filled - ((px[at] >> 16) & 0xff) as f32).abs() / 255.0)
+							.sum::<f32>() / 80.0
+					})
+					.collect();
+				// wider, the emphasis fills part of it, but the same part at
+				// every step
+				let want = if column > 1.0 {
+					depths.iter().sum::<f32>() / depths.len() as f32
+				} else {
+					(1.0 / column) as f32
+				};
+				assert!(
+					depths.iter().all(|d| (d - want).abs() < 0.05),
+					"{base} on {column} s: {depths:?}"
+				);
+			}
 		}
 	}
 }

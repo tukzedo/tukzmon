@@ -292,8 +292,8 @@ enum Card {
 	Intel(Intel),
 }
 
-/// The NVIDIA card's runtime power files. Reading them doesn't wake the
-/// card, as an NVML call does (2026110118380381).
+/// A card's runtime power files. Reading them doesn't wake the card, as an
+/// NVML call or an amdgpu busy read does (2026110118380381).
 #[derive(Debug)]
 struct Power {
 	control: Kept,
@@ -386,7 +386,7 @@ impl Nvidia {
 
 	fn awake(&mut self, buf: &mut String) -> Awake<'_> {
 		self.sleepy = self.power.as_mut().is_some_and(|p| p.may_sleep(buf));
-		if self.sleepy && REST_UNTIL.get().is_some_and(|t| Instant::now() < t) {
+		if self.sleepy && resting() {
 			self.nvml = None;
 			// once it sleeps the rest has done its job, and whatever wakes it
 			// next is work to read, not something to wait out (2026110709074412)
@@ -440,19 +440,32 @@ impl Nvidia {
 		if !self.sleepy {
 			return;
 		}
-		// a card with no busy share to give counts as idle
-		if busy.is_some_and(|b| b > 0.0) {
-			self.idle_since = None;
-			return;
-		}
-		let now = Instant::now();
-		if now.duration_since(*self.idle_since.get_or_insert(now)) >= idle_for() {
+		let rest = self.power.as_ref().map_or(REST_PAST_DELAY, |p| p.rest);
+		if rest_after_idle(&mut self.idle_since, busy, rest) {
 			self.nvml = None;
-			self.idle_since = None;
-			let rest = self.power.as_ref().map_or(REST_PAST_DELAY, |p| p.rest);
-			REST_UNTIL.set(Some(now + rest));
 		}
 	}
+}
+
+/// Starts the shared rest once a card that may sleep has read idle for
+/// `idle_for()`, and says whether it did. A card with no busy share to give
+/// counts as idle.
+fn rest_after_idle(idle_since: &mut Option<Instant>, busy: Option<f32>, rest: Duration) -> bool {
+	if busy.is_some_and(|b| b > 0.0) {
+		*idle_since = None;
+		return false;
+	}
+	let now = Instant::now();
+	if now.duration_since(*idle_since.get_or_insert(now)) < idle_for() {
+		return false;
+	}
+	*idle_since = None;
+	REST_UNTIL.set(Some(now + rest));
+	true
+}
+
+fn resting() -> bool {
+	REST_UNTIL.get().is_some_and(|t| Instant::now() < t)
 }
 
 enum Awake<'a> {
@@ -461,12 +474,17 @@ enum Awake<'a> {
 	Failed,
 }
 
-/// An amdgpu card's files, in its `device` folder.
+/// An amdgpu card's files, in its `device` folder, which is its PCI
+/// device's. A busy read wakes a card asleep, or fails, by kernel, and each
+/// one puts off its next sleep, so where it may sleep that waits as NVML
+/// does. The memory files are the driver's own counts, and wake nothing.
 #[derive(Debug)]
 struct Amd {
 	busy: Kept,
 	vram_used: Kept,
 	vram_total: Kept,
+	power: Power,
+	idle_since: Option<Instant>,
 }
 
 impl Amd {
@@ -475,7 +493,36 @@ impl Amd {
 			busy: Kept::new(format!("{dir}/gpu_busy_percent")),
 			vram_used: Kept::new(format!("{dir}/mem_info_vram_used")),
 			vram_total: Kept::new(format!("{dir}/mem_info_vram_total")),
+			power: Power::new(dir),
+			idle_since: None,
 		}
+	}
+
+	fn busy(&mut self, buf: &mut String) -> Option<f32> {
+		let sleepy = self.power.may_sleep(buf);
+		if sleepy {
+			if self.power.asleep(buf) {
+				REST_UNTIL.set(None);
+				self.idle_since = None;
+				return Some(0.0);
+			}
+			if resting() {
+				return Some(0.0);
+			}
+		}
+		// f32 takes "NaN", which clamp passes through
+		let percent: f32 = self
+			.busy
+			.read(buf)?
+			.trim()
+			.parse()
+			.ok()
+			.filter(|p: &f32| !p.is_nan())?;
+		let busy = (percent / 100.0).clamp(0.0, 1.0);
+		if sleepy {
+			rest_after_idle(&mut self.idle_since, Some(busy), self.power.rest);
+		}
+		Some(busy)
 	}
 }
 
@@ -534,17 +581,7 @@ impl Card {
 	fn busy(&mut self, buf: &mut String) -> Option<f32> {
 		match self {
 			Card::Nvidia(n) => n.busy(buf),
-			Card::Amd(amd) => {
-				// f32 takes "NaN", which clamp passes through
-				let percent: f32 = amd
-					.busy
-					.read(buf)?
-					.trim()
-					.parse()
-					.ok()
-					.filter(|p: &f32| !p.is_nan())?;
-				Some((percent / 100.0).clamp(0.0, 1.0))
-			}
+			Card::Amd(amd) => amd.busy(buf),
 			Card::Intel(intel) => intel.busy_at(buf, Instant::now()),
 		}
 	}
@@ -690,9 +727,63 @@ mod tests {
 	use super::*;
 	use crate::collect::Tree;
 
+	// Test ID: df53k
+	#[test]
+	fn sleeping_amd_card_left_alone() {
+		let t = Tree::new(
+			"gpu_amd_power",
+			&[
+				("card0/device/gpu_busy_percent", "50\n"),
+				("card0/device/mem_info_vram_used", "2147483648\n"),
+				("card0/device/mem_info_vram_total", "8589934592\n"),
+				("card0/device/power/control", "auto\n"),
+				("card0/device/power/runtime_status", "suspended\n"),
+			],
+		);
+		let set = |file: &str, text: &str| {
+			std::fs::write(t.at(&format!("card0/device/{file}")), text).unwrap();
+		};
+		let (mut gpu, mut vram) = amd_readers(&t.at("card0/device"));
+		// the busy file would read 50, so it wasn't asked
+		assert_eq!((gpu.read(), vram.read()), (Some([0.0]), Some([0.25])));
+		// and isn't readable on a newer kernel while it sleeps
+		set("gpu_busy_percent", "junk\n");
+		assert_eq!(gpu.read(), Some([0.0]), "no gap while asleep");
+
+		set("power/runtime_status", "active\n");
+		set("gpu_busy_percent", "50\n");
+		assert_eq!(gpu.read(), Some([0.5]));
+
+		// idle long enough, so it rests and reads 0 while still up
+		IDLE_FOR_AT.set(Some(Duration::ZERO));
+		set("gpu_busy_percent", "0\n");
+		assert_eq!(gpu.read(), Some([0.0]));
+		assert!(REST_UNTIL.get().is_some());
+		set("gpu_busy_percent", "30\n");
+		assert_eq!(gpu.read(), Some([0.0]), "resting");
+
+		// asleep ends the rest, so work that wakes it reads at once
+		set("power/runtime_status", "suspended\n");
+		assert_eq!(gpu.read(), Some([0.0]));
+		assert_eq!(REST_UNTIL.get(), None);
+		set("power/runtime_status", "active\n");
+		assert_eq!(gpu.read(), Some([0.3]));
+
+		// runtime power management off, so it's read as before
+		set("power/control", "on\n");
+		set("power/runtime_status", "suspended\n");
+		assert_eq!(gpu.read(), Some([0.3]));
+		set("gpu_busy_percent", "0\n");
+		gpu.read();
+		assert_eq!(REST_UNTIL.get(), None);
+
+		REST_UNTIL.set(None);
+		IDLE_FOR_AT.set(None);
+	}
+
 	// Test ID: dekm9
 	#[test]
-	fn amdgpu_reads_from_the_first_card_and_skips_connectors() {
+	fn amdgpu_first_card() {
 		let t = Tree::new(
 			"gpu_amd",
 			&[
@@ -723,7 +814,7 @@ mod tests {
 
 	// Test ID: df3kw
 	#[test]
-	fn intel_reads_busy_as_the_time_out_of_rc6() {
+	fn intel_busy_from_rc6() {
 		let t = Tree::new("gpu_intel_rc6", &[("rc6_residency_ms", "1000\n")]);
 		let set = |ms: &str| std::fs::write(t.at("rc6_residency_ms"), ms).unwrap();
 		let mut intel = Intel::new(t.at("rc6_residency_ms"));
@@ -755,7 +846,7 @@ mod tests {
 	// Test ID: df3kx
 	#[test]
 	#[cfg(not(miri))]
-	fn an_intel_card_gives_a_gpu_graph_and_no_memory_graph() {
+	fn intel_gpu_graph_only() {
 		let t = Tree::new(
 			"gpu_intel",
 			&[
@@ -814,7 +905,7 @@ mod tests {
 	// Test ID: dekma
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri can't load a library")]
-	fn a_live_gpu_reads_as_a_share_where_there_is_one() {
+	fn live_gpu_share_where_present() {
 		let (Some(mut gpu), Some(mut vram)) = (GpuReader::probe(), VramReader::probe()) else {
 			return;
 		};
@@ -831,7 +922,7 @@ mod tests {
 	// Test ID: dektc
 	#[test]
 	#[cfg(not(miri))]
-	fn gpu_memory_leaves_out_what_the_driver_keeps_back() {
+	fn gpu_memory_excludes_reserved() {
 		const MIB: u64 = 1 << 20;
 		let m = nvml::MemoryV2 {
 			version: nvml::MEMORY_V2,
@@ -906,7 +997,7 @@ mod tests {
 	// Test ID: der6j
 	#[test]
 	#[cfg(not(miri))]
-	fn nvml_is_open_only_while_a_gpu_graph_is_shown() {
+	fn nvml_open_while_graph_shown() {
 		use crate::config::{Look, Which};
 		use crate::graphs::Graphs;
 		use stand_in::{INITS, NO_DEVICE, OPEN};
@@ -945,7 +1036,7 @@ mod tests {
 	// Test ID: desfa
 	#[test]
 	#[cfg(not(miri))]
-	fn nvml_leaves_a_card_that_may_sleep_alone_while_it_sleeps() {
+	fn sleeping_card_left_alone() {
 		use stand_in::{BUSY, INITS, OPEN};
 		let t = Tree::new(
 			"gpu_power",
@@ -1051,7 +1142,7 @@ mod tests {
 	// Test ID: dektd
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri can't load a library")]
-	fn nvidia_memory_reads_through_v2_where_the_driver_has_it() {
+	fn nvidia_memory_via_v2() {
 		let Some(n) = Nvml::open() else {
 			return;
 		};
@@ -1063,7 +1154,7 @@ mod tests {
 
 	// Test ID: df4gx
 	#[test]
-	fn fuzz_gpu_sysfs_files_read_as_shares_in_range() {
+	fn fuzz_gpu_sysfs_shares() {
 		use crate::fuzz::count;
 		// seed 665 found it, past the fixed seeds
 		let nan = Tree::new("gpu_nan", &[("card/gpu_busy_percent", "NaN\n")]);

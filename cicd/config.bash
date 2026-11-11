@@ -145,7 +145,7 @@ CTR_DIR="cicd/container"
 CTR_CONTEXT_EXTRA=(rust-toolchain.toml)
 ## NAME=value, passed to docker build and part of the tag's hash.
 CTR_BUILD_ARGS=("RUST_NIGHTLY=${RUST_NIGHTLY}")
-CTR_STEPS=(fStepFormat fStepBuild fStepLint fStepAdvisories fStepTests fStepRelease fStepPackage fStepSanitizers fStepMiri fStepSoak fStepWindowSoak fStepCodeql)
+CTR_STEPS=(fStepFormat fStepBuild fStepLint fStepAdvisories fStepTests fStepRelease fStepRepro fStepPackage fStepSanitizers fStepMiri fStepSoak fStepWindowSoak fStepCodeql)
 ## The image steps that get the network. The rest run with none.
 CTR_NET_STEPS=(fStepAdvisories)
 
@@ -168,3 +168,4 @@ CTR_NET_STEPS=(fStepAdvisories)
 ##		- 2026-11-06: assets/ is a docs path.
 ##		- 2026-11-10: The demo is a heavy step.
 ##		- 2026-11-10: CodeQL, a long leak check, with its suites and suppressions.
+##		- 2026-11-10: The Reproducible step runs in the image.

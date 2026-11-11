@@ -405,7 +405,7 @@ mod tests {
 
 	// Test ID: defn9
 	#[test]
-	fn reads_net_dev() {
+	fn net_dev_read() {
 		let mut c = Counts::default();
 		assert_eq!(
 			parse_net_dev(
@@ -462,7 +462,7 @@ mod tests {
 
 	// Test ID: defna
 	#[test]
-	fn loopback_is_local_and_the_rest_sent_and_received() {
+	fn loopback_is_local() {
 		let t = Instant::now();
 		let mut climb = Climb::default();
 		let mut w = all();
@@ -486,7 +486,7 @@ mod tests {
 
 	// Test ID: defnb
 	#[test]
-	fn a_reset_or_an_interface_coming_or_going_is_a_gap() {
+	fn net_reset_is_gap() {
 		let t = Instant::now();
 		let s = Duration::from_secs;
 		let mut climb = Climb::default();
@@ -533,7 +533,7 @@ mod tests {
 
 	// Test ID: deqr3
 	#[test]
-	fn only_hardware_interfaces_count_unless_there_are_none() {
+	fn hardware_interfaces_only() {
 		let t = Instant::now();
 		let s = Duration::from_secs;
 		let sys = Tree::new(
@@ -585,7 +585,7 @@ mod tests {
 
 	// Test ID: deqt3
 	#[test]
-	fn only_what_has_no_hardware_under_it_is_away() {
+	fn virtual_is_away() {
 		// br0 bridges the NIC and the VMs on vnet0, and br0.5 is a VLAN on
 		// it. virbr0 is a NAT bridge, and nordlynx a VPN.
 		let sys = Tree::new(
@@ -626,7 +626,7 @@ mod tests {
 
 	// Test ID: deqt8
 	#[test]
-	fn a_vm_behind_the_nics_bridge_is_found_by_its_port() {
+	fn bridge_vm_by_port() {
 		let sys = Tree::new(
 			"net_guests",
 			&[
@@ -674,7 +674,7 @@ mod tests {
 	// Test ID: deqt5
 	#[test]
 	#[cfg_attr(miri, ignore = "getifaddrs is C, which Miri can't call")]
-	fn this_boxs_addresses_include_loopback() {
+	fn own_addresses_with_loopback() {
 		let mut lo = Vec::new();
 		assert!(addresses(|name, ip| if name == "lo" {
 			lo.push(ip);
@@ -685,7 +685,7 @@ mod tests {
 	// Test ID: demw0
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri has no netlink sockets")]
-	fn with_the_split_off_sent_and_received_hold_it_all() {
+	fn split_off_holds_all() {
 		let mut t = Traffic::probe().expect("every Linux box has /proc/net/dev");
 		assert!(!t.split());
 		std::thread::sleep(Duration::from_millis(20));
@@ -700,7 +700,7 @@ mod tests {
 
 	// Test ID: df4g4
 	#[test]
-	fn fuzz_brforward_gives_only_whole_entries_on_its_ports() {
+	fn fuzz_brforward_whole_entries() {
 		let tally = crate::fuzz::run("brforward", |dice| {
 			let ports: Vec<u16> = (0..dice.below(4))
 				.map(|_| *dice.pick(&[1, 2, 0xff, 0x100, 0x104, u16::MAX]))
@@ -751,7 +751,7 @@ mod tests {
 
 	// Test ID: df4gq
 	#[test]
-	fn fuzz_net_dev_reads_back_and_rates_stay_finite() {
+	fn fuzz_net_dev_finite() {
 		const HEAD: &str = "Inter-|   Receive                                                |  Transmit\n \
 			face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed\n";
 		let tally = crate::fuzz::run("net dev", |dice| {
@@ -798,7 +798,7 @@ mod tests {
 
 	// Test ID: df4gr
 	#[test]
-	fn fuzz_port_no_reads_the_hex_sysfs_writes() {
+	fn fuzz_port_no_hex() {
 		let tally = crate::fuzz::run("port_no", |dice| {
 			let port = *dice.pick(&[1, 2, 0xff, 0x100, 0x3ff, u16::MAX]);
 			let (text, whole) = crate::fuzz::maybe_hurt(dice, format!("{port:#x}\n"));

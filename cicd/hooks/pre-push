@@ -9,7 +9,10 @@
 ##	- A push to main whose changes are all under DOCS_PATHS in
 ##	  cicd/config.bash skips the gate. That's judged against what the remote's
 ##	  main has, so a new or unknown remote commit runs the gate.
-##	- The gate runs on the commit being pushed, in a detached worktree in the
+##	- It still gets the 2 checks that read docs, which take seconds:
+##	  markdownlint on the .md files it changes, and test-ids.bash check,
+##	  which reads the backlog's Test case rows.
+##	- Both run on the commit being pushed, in a detached worktree in the
 ##	  run's temp folder, building into target/gate. Edits to the checkout,
 ##	  made before or during the run, don't reach it.
 ##	- A commit with no cicd/cicd.bash in it, from before the pipeline, isn't
@@ -41,14 +44,17 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "${here}/../.." && pwd)"
 source "${root}/cicd/config.bash"
 source "${root}/cicd/utility/include/run-tmp.bash"
+source "${root}/cicd/utility/include/lint-markdown.bash"
 
 fSay() { printf '\n[ pre-push: %s ]\n\n' "$*"; }
 
 ## True when every file that differs between the two commits is under
-## DOCS_PATHS. A missing commit, or none at all, reads as code, and so does a
-## failed diff.
-fDocsOnly() {   ## fDocsOnly OLD_SHA NEW_SHA
+## DOCS_PATHS, with the .md files among them in ARRAY. A missing commit, or
+## none at all, reads as code, and so does a failed diff.
+fDocsOnly() {   ## fDocsOnly OLD_SHA NEW_SHA [ARRAY]
+	local -n docsOnly_md="${3:-docsOnly_none}"
 	local f='' pat='' any=0 doc=0
+	docsOnly_md=()
 	[[ "$1" =~ ^0+$ ]] && return 1
 	git -C "${root}" cat-file -e "$1^{commit}" 2> /dev/null || return 1
 	while IFS= read -r -d '' f; do
@@ -58,20 +64,38 @@ fDocsOnly() {   ## fDocsOnly OLD_SHA NEW_SHA
 			if [[ "${f}" == ${pat} ]]; then doc=1; break; fi
 		done
 		((doc)) || return 1
+		[[ "${f}" != *.md ]] || docsOnly_md+=("${f}")
 	done < <(git -C "${root}" diff -z --no-renames --name-only "$1" "$2" || printf '\x01\0')
 	((any))
 }
 
+## The lint log's tee, which the hook has no log for.
+fLintRun() { "$@"; }
+
+## The docs checks, in the worktree of NEW_SHA.
+fDocsCheck() {   ## fDocsCheck OLD_SHA NEW_SHA
+	local f='' rc=0
+	local -a changed=() md=()
+	fDocsOnly "$1" "$2" changed || return 1
+	for f in "${changed[@]}"; do [[ ! -f "${worktree}/${f}" ]] || md+=("${f}"); done
+	if ((${#md[@]})); then
+		if ! command -v markdownlint > /dev/null 2>&1; then fSay "markdownlint isn't installed, so ${#md[@]} changed doc(s) aren't linted"
+		else (cd "${worktree}" && fLintMarkdown "${md[@]}") || rc=1; fi
+	fi
+	if [[ -x "${worktree}/cicd/utility/test-ids.bash" ]]; then "${worktree}/cicd/utility/test-ids.bash" check || rc=1; fi
+	return "${rc}"
+}
+
 ## stdin gives "<local ref> <local sha> <remote ref> <remote sha>" per ref. All
 ## zeros is a delete, with nothing to test.
-gated=()
+gated=(); docsPushed=()
 while read -r _localRef localSha remoteRef remoteSha; do
 	[[ "${remoteRef}" == refs/heads/main ]] || continue
 	[[ "${localSha}" =~ ^0+$ ]] && continue
-	if fDocsOnly "${remoteSha}" "${localSha}"; then fSay "${localSha:0:12} changes only docs, so the gate isn't run"; continue; fi
+	if fDocsOnly "${remoteSha}" "${localSha}"; then docsPushed+=("${remoteSha} ${localSha}"); continue; fi
 	gated+=("${localSha}")
 done
-((${#gated[@]})) || exit 0
+((${#gated[@]} + ${#docsPushed[@]})) || exit 0
 
 worktree=""
 fDone() {
@@ -80,22 +104,38 @@ fDone() {
 }
 trap fDone EXIT
 
+## Never in place. A clean checkout can still change while a check runs.
+fTreeOf() {   ## fTreeOf SHA
+	[[ -n "${runTmp}" ]] || fRunTmpMake || { fSay "could not make a temp folder, so the push is refused"; exit 1; }
+	worktree="${runTmp}/tree"
+	git -C "${root}" worktree add --detach --quiet "${worktree}" "$1" || { fSay "could not check ${1:0:12} out to check it"; exit 1; }
+}
+fTreeDone() { if [[ -n "${worktree}" ]]; then git -C "${root}" worktree remove --force "${worktree}" || true; worktree=""; fi; }
+
+for pair in "${docsPushed[@]}"; do
+	read -r oldSha sha <<< "${pair}"
+	fSay "${sha:0:12} changes only docs, so only the docs checks run on it"
+	fTreeOf "${sha}"
+	if ! fDocsCheck "${oldSha}" "${sha}"; then
+		fSay "the docs checks failed on ${sha:0:12}, so the push is refused" >&2
+		exit 1
+	fi
+	fTreeDone
+done
+
 for sha in "${gated[@]}"; do
 	if ! git -C "${root}" cat-file -e "${sha}:cicd/cicd.bash" 2> /dev/null; then
 		fSay "${sha:0:12} has no cicd/cicd.bash, so there's no gate to run on it"
 		continue
 	fi
-	## Never in place. A clean checkout can still change while the gate runs.
-	[[ -n "${runTmp}" ]] || fRunTmpMake || { fSay "could not make a temp folder, so the push is refused"; exit 1; }
-	worktree="${runTmp}/tree"
-	git -C "${root}" worktree add --detach --quiet "${worktree}" "${sha}" || { fSay "could not check ${sha:0:12} out to gate it"; exit 1; }
+	fTreeOf "${sha}"
 	export CARGO_TARGET_DIR="${root}/target/gate"
 	fSay "running the merge gate on ${sha:0:12} before it goes to main"
 	if ! "${worktree}/cicd/cicd.bash" --merge-gate; then
 		fSay "the merge gate failed on ${sha:0:12}, so the push is refused" >&2
 		exit 1
 	fi
-	if [[ -n "${worktree}" ]]; then git -C "${root}" worktree remove --force "${worktree}" || true; worktree=""; fi
+	fTreeDone
 done
 exit 0
 
@@ -105,3 +145,5 @@ exit 0
 ##		- 2026-11-01: Only TUKZMON_SKIP_HOOK=1 skips it.
 ##		- 2026-11-09: Always gates in a worktree, since a clean checkout can
 ##		  change while the gate runs.
+##		- 2026-11-11: A docs-only push still gets markdownlint on its changed
+##		  docs, and the test ID check.

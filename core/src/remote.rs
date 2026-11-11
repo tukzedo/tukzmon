@@ -382,7 +382,7 @@ mod tests {
 
 	// Test ID: df3nf
 	#[test]
-	fn a_remote_session_is_told_by_its_variables_or_by_logind() {
+	fn remote_session_signs() {
 		let none = |_: &str| false;
 		let local = "UID=1001\nREMOTE=0\nTYPE=x11\nDISPLAY=:0\nSERVICE=lightdm\n";
 		assert!(!detected_by(none, None));
@@ -409,7 +409,7 @@ mod tests {
 
 	// Test ID: df3p4
 	#[test]
-	fn the_tcp_table_gives_established_connections_on_remote_desktop_ports() {
+	fn tcp_table_established_ports() {
 		let links: Vec<Link> = links_in(TCP).collect();
 		assert_eq!(
 			links,
@@ -459,7 +459,7 @@ mod tests {
 
 	// Test ID: df3p5
 	#[test]
-	fn a_viewer_counts_only_when_its_server_has_a_peer_on_this_display() {
+	fn viewer_needs_peer_here() {
 		let links: Vec<Link> = links_in(TCP).collect();
 		let p = |sign, args: &[&str], display, sockets: &[u64]| Sharer {
 			sign,
@@ -500,7 +500,7 @@ mod tests {
 
 	// Test ID: df3p6
 	#[test]
-	fn the_watch_looks_again_only_every_few_seconds() {
+	fn watch_rechecks_every_few_seconds() {
 		let t0 = Instant::now();
 		let mut w = Watch::of(Session::Local, Some(0));
 		assert_eq!(w.session_by(t0, |_| true), Session::Remote);
@@ -524,7 +524,7 @@ mod tests {
 	// Test ID: df3p7
 	#[test]
 	#[cfg_attr(miri, ignore)]
-	fn a_stand_in_viewer_on_a_vnc_port_is_seen_on_its_display_only() {
+	fn stand_in_vnc_viewer_seen() {
 		use std::io::{BufRead, BufReader};
 		use std::net::{TcpListener, TcpStream};
 		use std::process::{Command, Stdio};
@@ -554,7 +554,7 @@ mod tests {
 		let mut child = Command::new(exe)
 			.args([
 				"--exact",
-				"remote::tests::a_stand_in_viewer_on_a_vnc_port_is_seen_on_its_display_only",
+				"remote::tests::stand_in_vnc_viewer_seen",
 				"--nocapture",
 				"--test-threads=1",
 			])
@@ -584,7 +584,7 @@ mod tests {
 
 	// Test ID: df4gs
 	#[test]
-	fn fuzz_snmp_gives_the_tcp_opens_and_connections() {
+	fn fuzz_snmp_tcp_opens() {
 		use crate::fuzz::count;
 		let tally = crate::fuzz::run("snmp", |dice| {
 			let (active, passive, estab) = (count(dice), count(dice), count(dice) % 100_000);
@@ -619,7 +619,7 @@ mod tests {
 
 	// Test ID: df4gt
 	#[test]
-	fn fuzz_tcp_table_gives_only_established_links_on_server_ports() {
+	fn fuzz_tcp_table_established() {
 		let tally = crate::fuzz::run("tcp table", |dice| {
 			let mut text = String::from(
 				"  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n",
@@ -659,7 +659,7 @@ mod tests {
 
 	// Test ID: df4gy
 	#[test]
-	fn fuzz_a_sharers_proc_files_give_its_display() {
+	fn fuzz_sharer_display() {
 		let tally = crate::fuzz::run("sharer", |dice| {
 			let mut f = crate::fuzz::Files::new(dice);
 			let comm = *dice.pick(&["x11vnc", "krfb", "freerdp-shadow-", "rustdesk", "bash"]);

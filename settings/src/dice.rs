@@ -69,7 +69,7 @@ pub enum Part {
 const GRAPHS: usize = 13;
 
 /// Every member of the theme group, by graph and role. A member missing here
-/// gets no random value, and `dice::tests::every_theme_member_has_a_role`
+/// gets no random value, and `dice::tests::theme_members_have_roles`
 /// fails.
 pub const ROLES: &[(&str, Part, Role)] = &[
 	("cpu_mode", Part::Cpu, Role::Mode),
@@ -680,7 +680,7 @@ mod tests {
 
 	// Test ID: decdr
 	#[test]
-	fn every_theme_member_has_a_role() {
+	fn theme_members_have_roles() {
 		let spec = config::spec();
 		let members = &spec.group(THEME).unwrap().members;
 		for id in members {
@@ -693,7 +693,7 @@ mod tests {
 
 	// Test ID: decds
 	#[test]
-	fn every_roll_is_a_value_its_setting_takes_and_never_a_gradient() {
+	fn rolls_are_valid_never_gradient() {
 		let spec = config::spec();
 		for seed in SEEDS {
 			for (id, v) in theme(seed) {
@@ -711,7 +711,7 @@ mod tests {
 
 	// Test ID: decdt
 	#[test]
-	fn the_lead_rules_and_the_alarms_stay_red_and_orange() {
+	fn lead_and_alarms_stay_warm() {
 		for seed in SEEDS {
 			let t = theme(seed);
 			let alarm = role_of(&t, Part::Cpu, Role::Alarm);
@@ -751,7 +751,7 @@ mod tests {
 
 	// Test ID: decdv
 	#[test]
-	fn the_quiet_ones_are_muted_and_near_the_lead() {
+	fn quiet_colors_stay_muted() {
 		for seed in SEEDS {
 			let t = theme(seed);
 			for part in PARTS {
@@ -777,7 +777,7 @@ mod tests {
 
 	// Test ID: dejkf
 	#[test]
-	fn each_graph_rolls_a_background_of_its_own_hue() {
+	fn backgrounds_roll_own_hue() {
 		let mut apart = 0;
 		for seed in SEEDS {
 			let t = theme(seed);
@@ -812,7 +812,7 @@ mod tests {
 
 	// Test ID: decdw
 	#[test]
-	fn the_gradient_runs_from_calm_through_the_lead() {
+	fn gradient_calm_to_lead() {
 		for seed in SEEDS {
 			let t = theme(seed);
 			let get = |id: &str| t.iter().find(|(i, _)| *i == id).unwrap().1.clone();
@@ -833,7 +833,7 @@ mod tests {
 
 	// Test ID: dedq0
 	#[test]
-	fn buffers_and_cache_are_muted_and_told_apart() {
+	fn buffers_cache_muted_distinct() {
 		for seed in SEEDS {
 			let t = theme(seed);
 			let get = |id: &str| t.iter().find(|(i, _)| *i == id).unwrap().1.clone();
@@ -858,7 +858,7 @@ mod tests {
 
 	// Test ID: demw2
 	#[test]
-	fn the_lan_rolls_colors_that_read_apart_from_the_rest() {
+	fn lan_colors_distinct() {
 		use tukzmon_core::color::apart;
 		let ids = [
 			"net_local",
@@ -882,7 +882,7 @@ mod tests {
 
 	// Test ID: defxd
 	#[test]
-	fn each_graph_leads_with_a_hue_of_its_own() {
+	fn graph_lead_hues_differ() {
 		let mut cpu = (1.0_f64, 0.0_f64);
 		for seed in SEEDS {
 			let t = theme(seed);
@@ -917,7 +917,7 @@ mod tests {
 
 	// Test ID: dejbv
 	#[test]
-	fn every_roll_leads_each_graph_with_a_color_that_reads_apart() {
+	fn roll_leads_read_apart() {
 		for seed in SEEDS {
 			leads_read_apart(seed);
 		}
@@ -925,7 +925,7 @@ mod tests {
 
 	// Test ID: df34y
 	#[test]
-	fn a_roll_whose_hue_draws_run_out_draws_again() {
+	fn roll_redraws_on_exhaustion() {
 		// each ran out of hue draws near the pastel end, and kept 2 leads
 		// about 3 apart
 		let ran_out = [
@@ -940,13 +940,13 @@ mod tests {
 
 	// Test ID: df34z
 	#[test]
-	fn seed_0_reads_apart_at_its_first_draw_for_the_last_resort() {
+	fn seed_zero_last_resort() {
 		assert!(base(&mut Roll(0)).is_some());
 	}
 
 	// Test ID: decdx
 	#[test]
-	fn a_seed_rolls_the_same_theme_and_seeds_differ() {
+	fn seed_is_repeatable() {
 		assert_eq!(theme(7), theme(7));
 		let leads: std::collections::BTreeSet<String> = SEEDS
 			.map(|s| theme(s).into_iter().find(|(i, _)| *i == "user").unwrap().1)

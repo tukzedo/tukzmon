@@ -203,7 +203,8 @@ fBacklog() {   ## fBacklog FIRST NOW KNOWN-IDS-FILE
 		/^\t- ID: / { id = $3 }
 		/^\t- Status: / { status = $0; sub(/^\t- Status: */, "", status) }
 		/^\t- Test case:/ {
-			tc = 1; n = split($0, w, /[^0-9a-z]+/)
+			## a test name in backticks can hold a word such as "depth"
+			tc = 1; row = $0; gsub(/`[^`]*`/, " ", row); n = split(row, w, /[^0-9a-z]+/)
 			for (i = 1; i <= n; i++) {
 				if (length(w[i]) != 5) continue
 				m = 0; ok = 1

@@ -917,7 +917,7 @@ mod tests {
 
 	// Test ID: deja0
 	#[test]
-	fn each_shown_graph_reads_at_its_own_rate_on_one_timer() {
+	fn shared_timer_own_rates() {
 		let mut g = Graphs::new(
 			Look {
 				sample_ms: 500,
@@ -981,7 +981,7 @@ mod tests {
 
 	// Test ID: dedq1
 	#[test]
-	fn the_memory_graph_samples_draws_and_tips() {
+	fn memory_samples_draws_tips() {
 		let mut m = Graph::memory(Look::default()).unwrap();
 		assert_eq!(m.tooltip(), "Memory");
 		m.sample();
@@ -1008,7 +1008,7 @@ mod tests {
 
 	// Test ID: dencp
 	#[test]
-	fn each_slot_is_its_own_graph_with_a_color_per_series() {
+	fn slot_per_graph_colors() {
 		let mut every = Look::default();
 		for w in Which::ALL {
 			every[w].show = true;
@@ -1031,7 +1031,7 @@ mod tests {
 
 	// Test ID: dend1
 	#[test]
-	fn every_graph_shares_the_one_look() {
+	fn graphs_share_look() {
 		fn looks(g: &Graphs) -> Vec<&Rc<Look>> {
 			Which::ALL
 				.into_iter()
@@ -1060,7 +1060,7 @@ mod tests {
 
 	// Test ID: dedq2
 	#[test]
-	fn graphs_sit_side_by_side_and_the_pointer_finds_its_own() {
+	fn pointer_finds_graph() {
 		let mut g = both();
 		assert_eq!(g.count(), 2);
 		let (w, h) = (40 + G, 10 + 2 * E);
@@ -1093,7 +1093,7 @@ mod tests {
 
 	// Test ID: dezfg
 	#[test]
-	fn graphs_draw_straight_into_the_image_and_only_the_gaps_are_cleared() {
+	fn draw_in_place_clear_gaps() {
 		let mut g = both();
 		for (stacked, w, h) in [(false, 40 + G, 10 + 2 * E), (true, 10 + 2 * E, 40 + G)] {
 			g.stacked = stacked;
@@ -1133,7 +1133,7 @@ mod tests {
 
 	// Test ID: dejkh
 	#[test]
-	fn each_graph_draws_its_own_border_and_background() {
+	fn border_and_background_each() {
 		use crate::config::{Outline, Rgb};
 		let cpu = Outline {
 			border: Rgb(200, 0, 0),
@@ -1166,7 +1166,7 @@ mod tests {
 
 	// Test ID: defw2
 	#[test]
-	fn the_edges_and_gaps_stay_clear_and_an_edge_still_finds_its_graph() {
+	fn clear_edges_still_hit() {
 		let mut g = both();
 		for (stacked, w, h) in [(false, 40 + G, 10 + 2 * E), (true, 10 + 2 * E, 40 + G)] {
 			g.stacked = stacked;
@@ -1213,7 +1213,7 @@ mod tests {
 
 	// Test ID: dejjs
 	#[test]
-	fn the_margins_set_the_edges_and_the_gaps() {
+	fn margins_set_edges_gaps() {
 		let mut g = both();
 		let wide = g.widths().sum::<u32>();
 		g.set_look(
@@ -1264,7 +1264,7 @@ mod tests {
 
 	// Test ID: dedq3
 	#[test]
-	fn a_save_keeps_every_graph_and_a_hidden_ones_history() {
+	fn save_keeps_hidden_history() {
 		let path = scratch("keep");
 		keep::write(&path, &[("net", b"later")]).unwrap();
 		let g = both();
@@ -1293,7 +1293,7 @@ mod tests {
 
 	// Test ID: defxr
 	#[test]
-	fn a_reset_starts_every_graph_over_and_drops_the_file_only_when_kept() {
+	fn reset_drops_kept_file() {
 		let path = scratch("reset");
 		keep::write(&path, &[("net", b"later")]).unwrap();
 		let mut g = both();
@@ -1316,7 +1316,7 @@ mod tests {
 
 	// Test ID: deqsa
 	#[test]
-	fn a_file_that_doesnt_read_isnt_saved_over_until_a_reset() {
+	fn bad_file_kept_till_reset() {
 		let path = scratch("newer");
 		// as a newer build would write it
 		let newer = [&b"tukzhist"[..], &3u32.to_le_bytes(), &0u32.to_le_bytes()].concat();
@@ -1339,7 +1339,7 @@ mod tests {
 
 	// Test ID: defv4
 	#[test]
-	fn a_file_the_5_tier_plugin_wrote_still_loads() {
+	fn five_tier_file_loads() {
 		// saved at a panel restart by the plugin built from 6753a2b's parent,
 		// before the 50 ms tier
 		let old = include_bytes!("../tests/data/plugin-5-tiers.hist");
@@ -1357,7 +1357,7 @@ mod tests {
 		let (cpu, mem) = (ends("cpu"), ends("mem"));
 		// so it never ages out
 		let look = Look {
-			max_days: 36500,
+			max_age: 36500 * 86400,
 			..two()
 		};
 		let mut g = Graphs::new(look.clone());
@@ -1389,7 +1389,7 @@ mod tests {
 
 	// Test ID: dedq4
 	#[test]
-	fn hiding_memory_drops_it_and_showing_brings_its_history_back() {
+	fn memory_hide_show_history() {
 		let path = scratch("show");
 		let mut g = both();
 		let had = g.the::<MemoryReader, 3>().hist.last();
@@ -1413,7 +1413,7 @@ mod tests {
 
 	// Test ID: denbb
 	#[test]
-	fn a_tick_reads_meminfo_once_for_memory_swap_and_zswap() {
+	fn one_meminfo_read_per_tick() {
 		use crate::collect::Collector;
 		use crate::mem::meminfo_reads;
 		let look = two();
@@ -1434,7 +1434,7 @@ mod tests {
 
 	// Test ID: denb8
 	#[test]
-	fn a_save_after_a_load_keeps_hidden_sections_without_reading_the_file() {
+	fn save_after_load_keeps_hidden() {
 		let path = scratch("kept");
 		let g = both();
 		g.save(&path).unwrap();
@@ -1473,7 +1473,7 @@ mod tests {
 	// Test ID: denb9
 	#[test]
 	#[ignore = "timing, by hand"]
-	fn time_a_save_beside_a_big_hidden_section() {
+	fn time_save_with_big_hidden() {
 		let path = scratch("time");
 		let g = both();
 		let hidden = vec![7u8; 11_500_000];
@@ -1503,7 +1503,7 @@ mod tests {
 
 	// Test ID: deea2
 	#[test]
-	fn each_graph_takes_its_own_time_axis_or_the_time_settings() {
+	fn axis_own_or_shared() {
 		use crate::axis::{Axis, Curve, Timing};
 		let mut g = both();
 		let total = 60.0;
@@ -1554,7 +1554,7 @@ mod tests {
 
 	// Test ID: dedqd
 	#[test]
-	fn each_graph_takes_its_own_width_and_0_is_width() {
+	fn width_own_or_zero() {
 		let mut g = both();
 		g.set_look(
 			Look {
@@ -1601,7 +1601,7 @@ mod tests {
 
 	// Test ID: defvs
 	#[test]
-	fn the_ask_follows_the_panels_size_and_orientation() {
+	fn ask_follows_panel() {
 		let mut g = both();
 		g.set_look(
 			Look {
@@ -1626,7 +1626,7 @@ mod tests {
 
 	// Test ID: dedqe
 	#[test]
-	fn cpu_can_be_hidden_but_not_with_nothing_else_shown() {
+	fn cpu_hidden_needs_another() {
 		let mut g = both();
 		assert!(g.hover(Some((5, 3)), 40, 10, 1));
 		let had = g.cpu().hist.last();
@@ -1661,7 +1661,7 @@ mod tests {
 
 	// Test ID: deqqr
 	#[test]
-	fn a_hidden_cpu_shown_again_has_a_gap_for_the_hidden_time() {
+	fn cpu_reshown_has_gap() {
 		let pause = || std::thread::sleep(std::time::Duration::from_millis(30));
 		let mut g = Graphs::new(two());
 		g.sample();
@@ -1689,7 +1689,7 @@ mod tests {
 
 	// Test ID: denc5
 	#[test]
-	fn a_new_set_lays_out_in_the_saved_order() {
+	fn new_set_saved_order() {
 		let g = Graphs::new(
 			Look {
 				width: 100,
@@ -1706,7 +1706,7 @@ mod tests {
 
 	// Test ID: dedqp
 	#[test]
-	fn the_saved_order_lays_them_out_and_one_it_leaves_out_goes_last() {
+	fn unlisted_graph_goes_last() {
 		let mut g = both();
 		let order = |names: &[&str]| names.iter().map(|n| (*n).to_string()).collect();
 		g.set_look(
@@ -1768,7 +1768,7 @@ mod tests {
 
 	// Test ID: dee9p
 	#[test]
-	fn every_graph_takes_its_colors_from_the_one_theme() {
+	fn colors_from_one_theme() {
 		let spec = crate::config::spec();
 		let theme = spec.group(crate::config::THEME).unwrap();
 		let top = spec.get(&theme.chooser).unwrap().tab;
@@ -1802,7 +1802,7 @@ mod tests {
 
 	// Test ID: defq5
 	#[test]
-	fn swap_is_on_by_default_and_draws_its_own_color() {
+	fn swap_default_on() {
 		assert!(Look::default()[Which::Swap].show);
 		assert!(!Graphs::new(two()).has(Which::Swap));
 		let mut g = three();
@@ -1831,7 +1831,7 @@ mod tests {
 
 	// Test ID: defq6
 	#[test]
-	fn three_sit_side_by_side_and_the_pointer_finds_swap() {
+	fn three_graphs_find_swap() {
 		let mut g = three();
 		let (w, h) = (60 + 2 * G, 10 + 2 * E);
 		let tiles: Vec<Vec<u32>> = vec![
@@ -1881,7 +1881,7 @@ mod tests {
 
 	// Test ID: defq7
 	#[test]
-	fn hiding_swap_keeps_its_history_for_when_its_back() {
+	fn swap_hide_keeps_history() {
 		let path = scratch("swap");
 		let mut g = three();
 		let had = g.the::<SwapReader, 1>().hist.last();
@@ -1912,7 +1912,7 @@ mod tests {
 
 	// Test ID: defqc
 	#[test]
-	fn the_battery_graph_colors_the_charge_by_state() {
+	fn battery_state_colors() {
 		assert!(!Look::default()[Which::Battery].show);
 		assert!(!Graphs::new(two()).has(Which::Battery));
 		let look = two().with(Which::Battery, |e| e.show = true);
@@ -1943,7 +1943,7 @@ mod tests {
 
 	// Test ID: dehzp
 	#[test]
-	fn net_sits_after_memory_and_fills_to_its_peak() {
+	fn net_after_memory_peak() {
 		let path = scratch("net");
 		let mut g = three();
 		let look = g.look().clone().with(Which::Net, |e| e.show = true);
@@ -1986,7 +1986,7 @@ mod tests {
 
 	// Test ID: dej05
 	#[test]
-	fn load_and_disk_sit_after_swap_and_fill_to_their_peak() {
+	fn load_disk_after_swap() {
 		use crate::disk::Drives;
 		let path = scratch("load-disk");
 		let mut g = three();
@@ -2056,7 +2056,7 @@ mod tests {
 
 	// Test ID: dej0v
 	#[test]
-	fn temp_sits_after_swap_and_goes_critical_on_top() {
+	fn temp_critical_on_top() {
 		let path = scratch("temp");
 		let mut g = three();
 		let look = g.look().clone().with(Which::Temp, |e| e.show = true);
@@ -2103,7 +2103,7 @@ mod tests {
 
 	// Test ID: dekmc
 	#[test]
-	fn gpu_and_its_memory_sit_after_memory_and_fill_at_all_of_it() {
+	fn gpu_pair_after_memory() {
 		use crate::collect::Collector;
 		let path = scratch("gpu");
 		let mut g = three();
@@ -2181,7 +2181,7 @@ mod tests {
 
 	// Test ID: dejb7
 	#[test]
-	fn the_own_graph_sits_before_battery_and_fills_at_every_cpu() {
+	fn own_use_before_battery() {
 		let path = scratch("own");
 		let mut g = three();
 		let look = g.look().clone().with(Which::Own, |e| {
@@ -2232,7 +2232,7 @@ mod tests {
 	// Test ID: dep48
 	#[test]
 	#[cfg(unix)]
-	fn procs_sits_after_memory_and_stacks_by_owner() {
+	fn procs_stack_by_owner() {
 		let path = scratch("procs");
 		let mut g = three();
 		let mut look = g.look().clone().with(Which::Procs, |e| {
@@ -2281,7 +2281,7 @@ mod tests {
 
 	// Test ID: dehy4
 	#[test]
-	fn zswap_sits_after_swap_and_keeps_its_history_hidden() {
+	fn zswap_hidden_history() {
 		let path = scratch("zswap");
 		let mut g = three();
 		let look = g.look().clone().with(Which::Zswap, |e| e.show = true);
@@ -2325,7 +2325,7 @@ mod tests {
 
 	// Test ID: defqd
 	#[test]
-	fn four_sit_side_by_side_and_battery_keeps_its_history_hidden() {
+	fn four_graphs_battery_hidden() {
 		let path = scratch("battery");
 		let mut g = three();
 		let look = g.look().clone().with(Which::Battery, |e| e.show = true);
@@ -2368,7 +2368,7 @@ mod tests {
 
 	// Test ID: den86
 	#[test]
-	fn skip_moves_the_clock_of_every_graph_shown() {
+	fn skip_moves_all_clocks() {
 		let all = two()
 			.with(Which::Mem, |e| e.show = true)
 			.with(Which::Gpu, |e| e.show = true)

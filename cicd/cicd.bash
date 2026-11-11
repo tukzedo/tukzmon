@@ -30,44 +30,49 @@
 ##	                      merge gate and --backlog-run-full, 300 in --long.
 ##	                      The default and long runs start at a new
 ##	                      TUKZMON_FUZZ_SEED, and a failure names its seed
-##	   8. Release build   the plugin and tukzmon-settings
-##	   9. Packages        a .deb and an .rpm of the release build through nfpm,
+##	   8. Release build   the plugin and tukzmon-settings, with the path maps
+##	                      in utility/path-maps.bash
+##	   9. Reproducible    the release build again, from a copy of the tree in
+##	                      another folder, into another target dir, and with
+##	                      another path to the cargo home. A byte that differs
+##	                      fails it, with the paths only one of them holds
+##	  10. Packages        a .deb and an .rpm of the release build through nfpm,
 ##	                      with a sha256 sums file, in cicd/artifacts/packages/
-##	  10. Sanitizers      a leak check: the tests under ASan and LSan on the
+##	  11. Sanitizers      a leak check: the tests under ASan and LSan on the
 ##	                      nightly config.bash pins, std included, then
 ##	                      tukzmon-settings --snapshot, with its C++ under
 ##	                      ASan, LSan and UBSan too
-##	  11. Miri            a leak check that takes hours: the tests under Miri on
+##	  12. Miri            a leak check that takes hours: the tests under Miri on
 ##	                      the same nightly, one Miri per module.
 ##	                      TUKZMON_MIRI_FILTER=<part of a name> runs only those.
 ##	                      A module past TUKZMON_MIRI_MINUTES fails
-##	  12. Soak            a slow leak check: core/tests/soak.rs, the panel's
+##	  13. Soak            a slow leak check: core/tests/soak.rs, the panel's
 ##	                      work over days of skipped clock, with the heap read at
 ##	                      round N and 2N. Its report goes to cicd/artifacts/soak/
-##	  13. Window soak     a long leak check: tukzmon-settings' window off
+##	  14. Window soak     a long leak check: tukzmon-settings' window off
 ##	                      screen, its live graphs over days of skipped clock,
 ##	                      with the heap read at round N and 2N, under
 ##	                      heaptrack. Its report goes to cicd/artifacts/soak/
-##	  14. CodeQL          a long leak check: CodeQL's security and quality
+##	  15. CodeQL          a long leak check: CodeQL's security and quality
 ##	                      queries over the Rust and the C++, from a copy of
 ##	                      the tree with its crates vendored, and a build of
 ##	                      its own for the C++. A finding fails it unless
 ##	                      cicd/codeql.supp lets it by. The SARIF and a report
 ##	                      go to cicd/artifacts/codeql/
-##	  15. Nix package     the flake's package, with the workspace tests, in a
+##	  16. Nix package     the flake's package, with the workspace tests, in a
 ##	                      nixos/nix container, then nixpkgs' xfce4-panel loads
 ##	                      it from a NixOS system with the module, on Xvfb. Its
 ##	                      store is a docker volume kept between runs
-##	  16. Profiler        the panel's tick, core/examples/profile.rs, under
+##	  17. Profiler        the panel's tick, core/examples/profile.rs, under
 ##	                      pprof's sampler, on this box. The flamegraph goes to
 ##	                      cicd/artifacts/profiling/, with a report on its hot
 ##	                      spots from utility/flame-report.py
-##	  17. Demo            the README gif and a video, from
+##	  18. Demo            the README gif and a video, from
 ##	                      utility/demo/script.txt, on a private Xvfb. They go
 ##	                      to private/demo/ beside the repo, and the gif to
 ##	                      assets/demo.gif when it changed. A heavy step, at a
 ##	                      quarter of the CPUs
-##	  18. Dogfood         utility/dev-install.bash, which installs the build
+##	  19. Dogfood         utility/dev-install.bash, which installs the build
 ##	                      under ~/.local and restarts the panel
 ##	  A step that's off isn't counted, and the first section says why it's off.
 ##	  A run whose options leave no check on fails, with exit 2.
@@ -97,6 +102,8 @@
 ##	                         test    cargo test
 ##	                         advisories  the advisory scan, only when named
 ##	                         release the release build, only when named
+##	                         repro   the release build twice, in 2 folders,
+##	                                 only when named
 ##	                         package the packages and the release build they
 ##	                                 come from, only when named
 ##	                         sanitizers  the Sanitizers leak check
@@ -192,6 +199,8 @@ export TUKZMON_WERROR=1
 
 source "${here}/config.bash"
 source "${here}/utility/include/gfs-rotate.bash"
+source "${here}/utility/include/lint-markdown.bash"
+source "${root}/utility/path-maps.bash"
 cd "${root}"
 started="${SECONDS}"
 
@@ -256,7 +265,7 @@ esac; done
 
 handsOff=0
 case "${mode}" in backlog-run-quick|backlog-run-full|merge-gate) handsOff=1 ;; esac
-allAreas=(format build lint test advisories release package profile nix)
+allAreas=(format build lint test advisories release repro package profile nix)
 for entry in "${LEAK_CHECKS[@]}"; do entry="${entry%%|*}"; allAreas+=("${entry,,}"); done
 namedAreas="${#areas[@]}"
 if [[ "${mode}" == backlog-run-quick ]]; then
@@ -297,8 +306,10 @@ if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" advisories "
 else fPlan "Advisories" fStepAdvisories ""; fi
 fPlan "Tests" fStepTests test
 ## The packages are of the release build, so naming package brings it too.
-if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" release "* && " ${areas[*]} " != *" package "* ]]; then offLines+=("Release build: --backlog-run-quick runs it only when the release or package area is named")
+if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" release "* && " ${areas[*]} " != *" package "* && " ${areas[*]} " != *" repro "* ]]; then offLines+=("Release build: --backlog-run-quick runs it only when the release, package or repro area is named")
 else fPlan "Release build" fStepRelease ""; fi
+if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" repro "* ]]; then offLines+=("Reproducible: --backlog-run-quick runs it only when the repro area is named")
+else fPlan "Reproducible" fStepRepro ""; fi
 if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" package "* ]]; then offLines+=("Packages: --backlog-run-quick runs it only when the package area is named")
 elif [[ "${mode}" == quick ]]; then offLines+=("Packages: --quick")
 else fPlan "Packages" fStepPackage ""; fi
@@ -347,11 +358,11 @@ else offLines+=("Other hosts: none, since tukzmon is Linux only for now"); fi
 offLines+=("Publish: not part of this pipeline${cliMessage:+, so --message goes unused}")
 
 ## Which steps go in the image. The release build is what dogfood installs on
-## this box, so a run that dogfoods builds it here.
+## this box, so a run that dogfoods builds it here, and its second build too.
 dogfoodOn=0; [[ " ${planFns[*]} " != *" fStepDogfood "* ]] || dogfoodOn=1
 fInImage() {
 	[[ " ${CTR_STEPS[*]} " == *" $1 "* ]] || return 1
-	[[ "$1" != fStepRelease ]] || ((! dogfoodOn))
+	[[ "$1" != fStepRelease && "$1" != fStepRepro ]] || ((! dogfoodOn))
 }
 ## Areas and options can turn every check off, such as the miri area with
 ## --no-leakcheck, which would leave a run that passes having checked nothing.
@@ -486,27 +497,6 @@ fStepBuild() {
 lintLog="/dev/null"
 fLintRun() { local rc=0; "$@" 2>&1 | tee -a "${lintLog}" || rc=$?; return "${rc}"; }
 
-## One markdownlint per set of rules it skips, MARKDOWNLINT_DISABLE plus a
-## file's own in MARKDOWNLINT_DISABLE_FOR, since it starts slow.
-fLintMarkdown() {   ## fLintMarkdown FILE...
-	local f entry off i rc=0
-	local -a files=("$@") offOf=() sets=() group=() rules=()
-	local -A known=()
-	for f in "${files[@]}"; do
-		off="${MARKDOWNLINT_DISABLE[*]}"
-		for entry in "${MARKDOWNLINT_DISABLE_FOR[@]}"; do [[ "${entry%%|*}" != "${f}" ]] || off+=" ${entry#*|}"; done
-		offOf+=("${off}")
-		[[ -n "${known[=${off}]:-}" ]] || { known["=${off}"]=1; sets+=("${off}"); }
-	done
-	for off in "${sets[@]}"; do
-		group=()
-		for i in "${!files[@]}"; do [[ "${offOf[i]}" != "${off}" ]] || group+=("${files[i]}"); done
-		read -r -a rules <<< "${off}"
-		fLintRun markdownlint --disable "${rules[@]}" -- "${group[@]}" || rc=1
-	done
-	return "${rc}"
-}
-
 ## clang-tidy over the C++, per .clang-tidy. It reads the cxx bridge's headers
 ## from the clippy build just before it, and qt.cpp's own include of
 ## tukzmon-settings/src/qt.h through a link to settings/ in the run's temp,
@@ -632,9 +622,57 @@ fStepAdvisories() {
 	cargo deny --locked check --disable-fetch advisories || return 1
 }
 
+## The path maps for a release build here, per utility/path-maps.bash.
+fReleaseMaps() {   ## fReleaseMaps ARRAY
+	local t="${CARGO_TARGET_DIR:-${root}/target}"
+	[[ "${t}" == /* ]] || t="${root}/${t}"
+	fPathMaps "$1" "${root}" "${t}"
+}
+
 fStepRelease() {
-	fEcho_Clean "cargo build --release ${RELEASE_PACKAGES[*]} -j ${jobs}"
-	cargo build --release "${locked[@]}" "${RELEASE_PACKAGES[@]}" -j "${jobs}" || return 1
+	local -a maps=()
+	fReleaseMaps maps || return 1
+	fEcho_Clean "cargo build --release ${RELEASE_PACKAGES[*]} -j ${jobs}, with the path maps"
+	env "${maps[@]}" cargo build --release "${locked[@]}" "${RELEASE_PACKAGES[@]}" -j "${jobs}" || return 1
+}
+
+## The release build again, from a copy of the tree in another folder, into
+## another target dir, with the cargo home through a link, and it has to give
+## the same bytes. The copy isn't a git checkout, so it gets the build number
+## the first build's build script gave.
+fStepRepro() {
+	local t="${CARGO_TARGET_DIR:-${root}/target}" again="${TMPDIR}/repro" f='' line='' outDir='' min='' a='' b='' rc=0
+	local -a maps=()
+	[[ "${t}" == /* ]] || t="${root}/${t}"
+	fReleaseMaps maps || return 1
+	## Built already, so this only says where the build script's output is.
+	while IFS= read -r line; do
+		[[ "${line}" == *'"reason":"build-script-executed"'* && "${line}" == *'#tukzmon-settings@'* ]] || continue
+		outDir="$(sed -n 's/.*"out_dir":"\([^"]*\)".*/\1/p' <<< "${line}")"
+	done < <(env "${maps[@]}" cargo build --release "${locked[@]}" "${RELEASE_PACKAGES[@]}" -j "${jobs}" --message-format=json 2> /dev/null || true)
+	min="$(sed -n 's/^cargo:rustc-env=TUKZMON_BUILT_MIN=//p' "${outDir%/out}/output" 2> /dev/null || true)"
+	[[ "${min}" =~ ^[0-9]+$ ]] || { fEcho_Clean "no build number from the release build in ${outDir:-${t}/release}"; return 1; }
+	mkdir -p -- "${again}/src" || return 1
+	ln -sfn -- "${CARGO_HOME:-${HOME}/.cargo}" "${again}/cargo-home" || return 1
+	## Untracked files too, as the first build had them.
+	git ls-files -z -co --exclude-standard | while IFS= read -r -d '' f; do [[ ! -e "${f}" ]] || printf '%s\0' "${f}"; done \
+		| tar --null -T - -cf - | tar -xpf - -C "${again}/src" || return 1
+	fEcho_Clean "the same again, from ${again}/src into ${again}/target, at the first one's build time"
+	(
+		cd "${again}/src" && CARGO_HOME="${again}/cargo-home" fPathMaps maps "${again}/src" "${again}/target" \
+			&& env "${maps[@]}" CARGO_HOME="${again}/cargo-home" CARGO_TARGET_DIR="${again}/target" SOURCE_DATE_EPOCH="$((946684800 + min * 60))" \
+				cargo build --release "${locked[@]}" --offline "${RELEASE_PACKAGES[@]}" -j "${jobs}"
+	) || return 1
+	for f in libtukzmon.so tukzmon-settings; do
+		a="$(sha256sum < "${t}/release/${f}")"; b="$(sha256sum < "${again}/target/release/${f}")"
+		fEcho_Clean "${a%% *}  ${f}"
+		[[ "${a}" != "${b}" ]] || continue
+		fEcho_Clean "${b%% *}  ${f} from the copy, so it isn't reproducible. Paths only one of them has:"
+		diff <(strings -n 8 "${t}/release/${f}" | grep -F / | LC_ALL=C sort -u) <(strings -n 8 "${again}/target/release/${f}" | grep -F / | LC_ALL=C sort -u) \
+			| grep '^[<>]' | head -n 10 || true
+		rc=1
+	done
+	return "${rc}"
 }
 
 ## A .deb and an .rpm of whichever release build the run made, which is the
@@ -822,7 +860,7 @@ fStepSoak() {
 ## heaptrack's recording when it fails.
 fStepWindowSoak() {
 	local out="${TMPDIR}/window-soak" art="${root}/${SOAK_DIR}" stamp='' bin='' rec='' ext='' rc=0
-	local test="bridge::tests::the_windows_heap_stops_growing_once_its_graphs_are_full"
+	local test="bridge::tests::heap_stops_growing"
 	local -a wrap=()
 	mkdir -p -- "${out}" || return 1
 	fEcho_Clean "cargo test -p tukzmon-settings --bins --no-run -j ${jobs}"
@@ -1014,9 +1052,12 @@ fStepProfile() {
 ## Takes about 3 minutes.
 fStepDemo() {
 	local rel="${hostTarget}/release"
+	local -a maps=()
+	## The release step's flags, so neither rebuilds the other's.
+	fReleaseMaps maps || return 1
 	fEcho_Clean "cargo build --release ${RELEASE_PACKAGES[*]} -p tukzmon-core --example demo-history -j ${jobs}"
-	cargo build --release "${locked[@]}" "${RELEASE_PACKAGES[@]}" -j "${jobs}" || return 1
-	cargo build --release "${locked[@]}" -p tukzmon-core --example demo-history -j "${jobs}" || return 1
+	env "${maps[@]}" cargo build --release "${locked[@]}" "${RELEASE_PACKAGES[@]}" -j "${jobs}" || return 1
+	env "${maps[@]}" cargo build --release "${locked[@]}" -p tukzmon-core --example demo-history -j "${jobs}" || return 1
 	fEcho_Clean "cicd/utility/demo/demo-video.py --jobs ${jobs}"
 	python3 -I "${here}/utility/demo/demo-video.py" --lib-dir "${rel}" --history-bin "${rel}/examples/demo-history" --jobs "${jobs}" || return 1
 }
@@ -1486,3 +1527,6 @@ exit 0
 ##		  --leakcheck and the window-soak area.
 ##		- 2026-11-10: The CodeQL leak check, over the Rust and the C++, in
 ##		  --long, --leakcheck and the codeql area.
+##		- 2026-11-10: The release build's path maps, and the Reproducible
+##		  step, with the repro area.
+##		- 2026-11-11: fLintMarkdown is in utility/include, for the pre-push hook.

@@ -35,7 +35,7 @@ fn out_dir() -> PathBuf {
 // Test ID: dee6p
 #[test]
 #[ignore = "the soak leak check, cicd.bash runs it"]
-fn the_heap_stops_growing_once_the_history_is_full() {
+fn heap_stops_growing_when_full() {
 	let dir = out_dir();
 	std::fs::create_dir_all(&dir).unwrap();
 	let _prof = dhat::Profiler::builder()
@@ -44,7 +44,7 @@ fn the_heap_stops_growing_once_the_history_is_full() {
 		.build();
 	let hist = dir.join(format!("soak_{}.hist", std::process::id()));
 	let look = Look {
-		max_days: 1,
+		max_age: 86400,
 		..Look::default()
 	};
 	let mut g = Graphs::new(look);

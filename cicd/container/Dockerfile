@@ -128,7 +128,7 @@ RUN apt-get update \
 # files are the same, and the 2 come to half the all-language bundle. The
 # version is pinned in cicd/config.bash too. Its Rust extractor runs on a
 # toolchain of its own, with rust-src, which it would otherwise try to install
-# at run time, with no network and a rustup it can't write. Last but the env.
+# at run time, with no network and a rustup it can't write.
 ARG CODEQL_VER=2.27.4
 ARG CODEQL_RUST_TOOLCHAIN=1.99.0
 ARG CODEQL_RUST_SHA256=1c2f867094b80e43c9a0e511090e57e0ea3bf107600b4b3763c52b9020b4ec4b
@@ -146,6 +146,12 @@ RUN apt-get update \
 	&& rm -f cq-rust.tzst cq-cpp.tzst \
 	&& CARGO_HOME=/opt/cargo /opt/cargo/bin/rustup toolchain install "${CODEQL_RUST_TOOLCHAIN}" --profile minimal --component rust-src \
 	&& rm -rf /opt/cargo/registry
+
+# dbus-daemon for the test that runs the lock watch on a private bus (df3qt).
+# Last but the env, so it rebuilds nothing above.
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends dbus-daemon \
+	&& rm -rf /var/lib/apt/lists/*
 
 # Runs as the caller's uid, which has no passwd entry here. CARGO_HOME, HOME
 # and TMPDIR are set per run to dirs mounted from the host.

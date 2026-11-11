@@ -305,7 +305,7 @@ mod tests {
 
 	// Test ID: df4f0
 	#[test]
-	fn a_failing_seed_is_named_and_the_rest_are_pure() {
+	fn failing_seed_named() {
 		let draw = |seed| {
 			let mut d = Dice(seed);
 			let mut v = (0..32).map(|_| d.below(256) as u8).collect::<Vec<_>>();

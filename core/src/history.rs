@@ -434,6 +434,106 @@ impl<const N: usize> Tier<N> {
 		]));
 		(spike, inner)
 	}
+
+	// up to 4 samples wide: the most any `run` secs within half a column of
+	// each point averages, averaged over the column, so a narrow gap keeps
+	// its ink as it slides (design.md Drawing). Also its most. None for no
+	// data, or too many buckets.
+	fn spread_over(&self, a: f64, b: f64, run: f64) -> Option<([f32; N], [f32; N])> {
+		const CAP: usize = 128;
+		let len = self.len;
+		// window starts in reach of a point, in buckets from its first one
+		let reach = (b - a - run) / len + 1.0;
+		if !(1.0..=(CAP - 2) as f64).contains(&reach) {
+			return None;
+		}
+		let x0 = (a - f64::midpoint(b - a, len)) / len - self.first as f64;
+		let x_end = x0 + (b - a) / len;
+		let mut ring = [[(0u32, 0.0f32); CAP]; N];
+		let (mut head, mut size) = ([0usize; N], [0usize; N]);
+		let mut next = x0.ceil() as i64;
+		let base = next;
+		// as `densest` slides its window, the whole buckets of the one
+		// starting at bucket `next`
+		let count = self.buckets.len() as i64;
+		let bucket = |j: i64| (0..count).contains(&j).then(|| &self.buckets[j as usize]);
+		let whole = (run / len).floor() as i64;
+		let frac = run - whole as f64 * len;
+		let take = |win: &mut (f64, [f64; N]), j: i64, sign: f64| {
+			if let Some(bk) = bucket(j) {
+				let secs = f64::from(bk.secs);
+				win.0 += sign * secs;
+				for (sum, top) in win.1.iter_mut().zip(bk.max) {
+					*sum += sign * secs * f64::from(top);
+				}
+			}
+		};
+		let window = |win: &(f64, [f64; N]), k: i64| {
+			let (mut weight, mut total) = *win;
+			if let Some(bk) = bucket(k + whole).filter(|bk| frac > 0.0 && bk.secs > 0.0) {
+				let start = (self.first + k + whole) as f64 * len;
+				let (lo, hi) = (start + bk.lo, start + bk.hi);
+				let overlap = (start + frac).min(hi) - lo;
+				if overlap > 0.0 {
+					let w = overlap * (f64::from(bk.secs) / (hi - lo)).min(1.0);
+					weight += w;
+					for (sum, top) in total.iter_mut().zip(bk.max) {
+						*sum += w * f64::from(top);
+					}
+				}
+			}
+			(weight > 0.0).then(|| total.map(|x| (x / weight) as f32))
+		};
+		let mut win = (0.0f64, [0.0f64; N]);
+		for j in next..next + whole {
+			take(&mut win, j, 1.0);
+		}
+		let (mut sums, mut weight) = ([0.0f64; N], 0.0f64);
+		let mut peak = [f32::NEG_INFINITY; N];
+		let to_whole = |v: f64| v.floor() + 1.0 - v;
+		let mut x = x0;
+		while x < x_end {
+			let x_next = (x + to_whole(x).min(to_whole(x + reach))).min(x_end);
+			if x_next <= x {
+				break;
+			}
+			let mid = f64::midpoint(x, x_next);
+			let (lo, hi) = (mid.ceil() as i64, (mid + reach).floor() as i64);
+			for s in 0..N {
+				while size[s] > 0 && i64::from(ring[s][head[s]].0) + base < lo {
+					head[s] = (head[s] + 1) % CAP;
+					size[s] -= 1;
+				}
+			}
+			while next <= hi {
+				let v = window(&win, next);
+				take(&mut win, next, -1.0);
+				take(&mut win, next + whole, 1.0);
+				if let Some(v) = v {
+					for s in 0..N {
+						while size[s] > 0 && ring[s][(head[s] + size[s] - 1) % CAP].1 <= v[s] {
+							size[s] -= 1;
+						}
+						ring[s][(head[s] + size[s]) % CAP] = ((next - base) as u32, v[s]);
+						size[s] += 1;
+					}
+				}
+				next += 1;
+			}
+			// every series has data in the same windows
+			if size.iter().any(|&n| n > 0) {
+				let w = x_next - x;
+				weight += w;
+				for s in 0..N {
+					let top = ring[s][head[s]].1;
+					sums[s] += w * f64::from(top);
+					peak[s] = peak[s].max(top);
+				}
+			}
+			x = x_next;
+		}
+		(weight > 0.0).then(|| (sums.map(|v| (v / weight) as f32), peak))
+	}
 }
 
 // each value's most over every one given, or None for none
@@ -453,6 +553,9 @@ pub struct Span<const N: usize> {
 	/// by that part, so a spike grows into a column as it slides in rather
 	/// than filling it at once. See design.md Drawing.
 	pub spike: [f32; N],
+	/// The most `spike` reaches toward, so at least `max`. A column up to 4
+	/// samples wide also reaches into a spike half a column past either end.
+	pub peak: [f32; N],
 	/// The least of each value.
 	pub min: [f32; N],
 	/// The means of the oldest and newest buckets in the span, so a span no
@@ -534,6 +637,7 @@ impl<const N: usize> History<N> {
 			mean: [0.0; N],
 			max: [0.0; N],
 			spike: [0.0; N],
+			peak: [0.0; N],
 			min: [0.0; N],
 			ends: [[0.0; N]; 2],
 			uncut: None,
@@ -618,6 +722,7 @@ impl<const N: usize> History<N> {
 				out.mean[s] = mean;
 				out.max[s] = max[s];
 				out.spike[s] = spike[s];
+				out.peak[s] = max[s];
 				out.min[s] = min[s];
 			}
 			out.covered = (weight / (b - a)).min(1.0) as f32;
@@ -629,6 +734,13 @@ impl<const N: usize> History<N> {
 			// a sample at least a column wide needs no lift to show
 			if b - a <= sample {
 				out.spike = out.mean;
+				out.uncut = None;
+			} else if let Some((spike, peak)) = (sample >= 2.0 * tier.len && b - a <= 4.0 * sample)
+				.then(|| tier.spread_over(a, b, sample))
+				.flatten()
+			{
+				out.spike = spike;
+				out.peak = std::array::from_fn(|s| out.max[s].max(peak[s]));
 				out.uncut = None;
 			} else if sample >= 2.0 * tier.len {
 				let (spike, inner) = tier.spike_over(a, b, sample);
@@ -785,7 +897,7 @@ mod tests {
 
 	// Test ID: dejcp
 	#[test]
-	fn a_spike_reads_in_a_wide_span_only_while_its_bucket_is_kept() {
+	fn wide_span_spike_needs_bucket() {
 		let mut h = History::<1>::default();
 		let t0 = 1000.0;
 		let spike = t0 + 100.0;
@@ -836,7 +948,7 @@ mod tests {
 
 	// Test ID: debhw
 	#[test]
-	fn mean_and_max_of_a_span() {
+	fn span_mean_and_max() {
 		let mut h = History::<1>::default();
 		for (i, v) in [0.2f32, 0.4, 0.6, 0.8].iter().enumerate() {
 			let t = 100.0 + i as f64 * 0.25;
@@ -850,7 +962,7 @@ mod tests {
 
 	// Test ID: debhx
 	#[test]
-	fn a_long_sample_fills_every_bucket_it_covers() {
+	fn long_sample_fills_buckets() {
 		// half-second samples on quarter-second buckets leave no holes
 		let mut h = History::<1>::default();
 		h.add(10.0, 10.5, &[0.3]);
@@ -865,7 +977,7 @@ mod tests {
 
 	// Test ID: debhy
 	#[test]
-	fn part_buckets_count_in_part() {
+	fn part_buckets_part_count() {
 		let mut h = History::<1>::default();
 		h.add(10.0, 10.25, &[0.0]);
 		h.add(10.25, 10.5, &[1.0]);
@@ -876,7 +988,7 @@ mod tests {
 
 	// Test ID: debhz
 	#[test]
-	fn the_newest_part_bucket_is_full_where_it_has_data() {
+	fn newest_part_bucket_full() {
 		let mut h = History::<1>::default();
 		h.add(10.0, 10.1, &[0.4]);
 		let s = h.span(10.05, 10.1);
@@ -887,7 +999,7 @@ mod tests {
 
 	// Test ID: debj0
 	#[test]
-	fn gaps_are_left_out_not_zero() {
+	fn gaps_not_zero() {
 		let mut h = History::<1>::default();
 		h.add(0.0, 0.25, &[0.5]);
 		h.add(9.0, 9.25, &[0.5]);
@@ -911,7 +1023,7 @@ mod tests {
 
 	// Test ID: debj1
 	#[test]
-	fn old_buckets_age_out_of_the_fine_tier() {
+	fn fine_tier_ages_out() {
 		let mut h = History::<1>::default();
 		for i in 0..10000 {
 			let t = i as f64 * 0.25;
@@ -926,7 +1038,7 @@ mod tests {
 
 	// Test ID: debj2
 	#[test]
-	fn a_long_gap_resets_a_tier_instead_of_filling_it() {
+	fn long_gap_resets_tier() {
 		let mut h = History::<1>::default();
 		h.add(0.0, 0.5, &[0.1]);
 		let t = 86400.0 * 10.0;
@@ -940,7 +1052,7 @@ mod tests {
 
 	// Test ID: debj3
 	#[test]
-	fn overlap_and_backwards_time_are_dropped() {
+	fn overlap_and_backwards_dropped() {
 		let mut h = History::<1>::default();
 		h.add(4.0, 5.0, &[0.1]);
 		h.add(3.0, 4.5, &[0.9]);
@@ -952,7 +1064,7 @@ mod tests {
 
 	// Test ID: defp6
 	#[test]
-	fn a_linear_graph_as_wide_as_the_slider_goes_keeps_a_sample_a_column() {
+	fn widest_linear_sample_per_column() {
 		let (_, widest) = crate::config::slider_range("width").unwrap();
 		let columns = widest as usize;
 		// up to the rate where the 2 s tier would do anyway
@@ -985,7 +1097,7 @@ mod tests {
 
 	// Test ID: decbg
 	#[test]
-	fn encode_and_decode_give_back_the_same_history() {
+	fn history_round_trip() {
 		let h = a_day_of_samples();
 		let mut bytes = Vec::new();
 		h.encode(&mut bytes);
@@ -1007,7 +1119,7 @@ mod tests {
 
 	// Test ID: decbh
 	#[test]
-	fn decode_refuses_what_encode_wouldnt_write() {
+	fn decode_refuses_unwritable() {
 		let h = a_day_of_samples();
 		let mut bytes = Vec::new();
 		h.encode(&mut bytes);
@@ -1062,7 +1174,7 @@ mod tests {
 
 	// Test ID: demwf
 	#[test]
-	fn another_series_count_is_refused_by_its_count() {
+	fn series_count_mismatch() {
 		// no buckets, so nothing but the count tells 3 series from 5
 		let mut bytes = Vec::new();
 		History::<3>::default().encode(&mut bytes);
@@ -1084,7 +1196,7 @@ mod tests {
 
 	// Test ID: defp7
 	#[test]
-	fn a_file_from_before_the_finest_tier_still_loads() {
+	fn pre_finest_tier_file_loads() {
 		let h = a_day_of_samples();
 		let mut bytes = Vec::new();
 		h.encode(&mut bytes);
@@ -1108,7 +1220,7 @@ mod tests {
 
 	// Test ID: decbj
 	#[test]
-	fn trim_drops_only_what_is_older() {
+	fn trim_drops_older_only() {
 		let mut h = a_day_of_samples();
 		let t0 = 1.76e9;
 		let before = h.span(t0 + 4600.0, t0 + 90002.0);
@@ -1128,7 +1240,7 @@ mod tests {
 
 	// Test ID: deqqq
 	#[test]
-	fn a_long_add_makes_no_more_buckets_than_a_tier_keeps() {
+	fn long_add_bucket_cap() {
 		let mut h = History::<4>::default();
 		let t1 = 1.76e9;
 		h.add(t1 - 3.0 * 86400.0, t1, &[0.5; 4]);
@@ -1147,7 +1259,7 @@ mod tests {
 
 	// Test ID: deqs5
 	#[test]
-	fn times_out_of_order_are_refused_and_a_bucket_that_isnt_finite_is_a_gap() {
+	fn out_of_order_and_nonfinite() {
 		let h = a_day_of_samples();
 		let mut bytes = Vec::new();
 		h.encode(&mut bytes);
@@ -1238,7 +1350,7 @@ mod tests {
 
 	// Test ID: der45
 	#[test]
-	fn block_totals_add_up_to_their_buckets_through_gaps_trims_and_reloads() {
+	fn block_totals_match_buckets() {
 		let mut seed = 0x9e37_79b9_7f4a_7c15_u64;
 		let mut rand = move || {
 			seed ^= seed << 13;
@@ -1294,7 +1406,7 @@ mod tests {
 
 	// Test ID: df4f1
 	#[test]
-	fn fuzz_decode_takes_any_bytes_and_keeps_what_it_took() {
+	fn fuzz_decode_any_bytes() {
 		let encoded = |h: &History<2>| {
 			let mut out = Vec::new();
 			h.encode(&mut out);

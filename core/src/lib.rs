@@ -641,8 +641,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 
 	/// Drops history older than the max age.
 	pub fn trim(&mut self) {
-		let max_age = f64::from(self.look.max_days) * 86400.0;
-		self.hist.trim(self.now() - max_age);
+		self.hist.trim(self.now() - f64::from(self.look.max_age));
 	}
 
 	/// Drops every sample, so the graph starts over from the next read.
@@ -929,7 +928,7 @@ mod tests {
 
 	// Test ID: debj4
 	#[test]
-	fn samples_and_draws() {
+	fn samples_then_draws() {
 		let mut g = Graph::new(Look::default());
 		assert_eq!(g.tooltip(), "CPU");
 		g.sample();
@@ -943,7 +942,7 @@ mod tests {
 
 	// Test ID: dehzn
 	#[test]
-	fn network_rates_read_in_decimal_units() {
+	fn network_decimal_units() {
 		for (bytes, want) in [
 			(0.0, "0 B/s"),
 			(-3.0, "0 B/s"),
@@ -965,7 +964,7 @@ mod tests {
 
 	// Test ID: demw3
 	#[test]
-	fn a_network_history_from_before_the_split_starts_over() {
+	fn pre_split_history_resets() {
 		let mut old = History::<3>::default();
 		let now = SystemTime::now()
 			.duration_since(SystemTime::UNIX_EPOCH)
@@ -988,7 +987,7 @@ mod tests {
 
 	// Test ID: demwh
 	#[test]
-	fn a_version_1_file_with_3_network_series_is_still_refused() {
+	fn v1_three_series_refused() {
 		let mut old = History::<3>::default();
 		let now = SystemTime::now()
 			.duration_since(SystemTime::UNIX_EPOCH)
@@ -1022,7 +1021,7 @@ mod tests {
 	// Test ID: demvz
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri has no netlink sockets")]
-	fn the_split_tip_names_the_lan_and_the_internet() {
+	fn split_tip_names_both() {
 		let mut t = Traffic::default();
 		t.set_split(config::Split::Sockets);
 		assert!(t.split(), "sock_diag needs no root");
@@ -1038,7 +1037,7 @@ mod tests {
 
 	// Test ID: dekmb
 	#[test]
-	fn gpu_tips_read_busy_and_memory_in_gib() {
+	fn gpu_tip_gib() {
 		let t = collect::Tree::new(
 			"gpu_tip",
 			&[
@@ -1058,7 +1057,7 @@ mod tests {
 
 	// Test ID: dej07
 	#[test]
-	fn load_reads_as_a_number_and_disk_in_rates() {
+	fn load_number_disk_rates() {
 		let load = LoadReader::default();
 		assert_eq!(load.text(&[1.254]), "Load 1.25");
 		assert_eq!(load.text(&[-1.0]), "Load 0.00");
@@ -1079,7 +1078,7 @@ mod tests {
 
 	// Test ID: dejb6
 	#[test]
-	fn own_use_reads_in_fine_percents_and_fills_at_every_cpu() {
+	fn own_use_fine_percents() {
 		for (p, want) in [
 			(0.0, "0.000%"),
 			(-1.0, "0.000%"),
@@ -1114,7 +1113,7 @@ mod tests {
 
 	// Test ID: dej0t
 	#[test]
-	fn temperature_reads_in_degrees_up_to_its_crit() {
+	fn temp_degrees_to_crit() {
 		let t = TempReader::default();
 		assert_eq!(
 			t.text(&[95.0, 3.4]),
@@ -1127,7 +1126,7 @@ mod tests {
 	// Test ID: dep7b
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri has no netlink sockets")]
-	fn every_tip_gives_one_pair_a_line() {
+	fn tip_line_per_pair() {
 		assert_eq!(
 			CpuReader::default().text(&[0.01, 0.02, 0.03, 0.04]),
 			"CPU 10%\nUser 3%\nSystem 2%\nNice 4%\nI/O wait 1%"
@@ -1183,7 +1182,7 @@ mod tests {
 	// Test ID: defpr
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri runs too slow for the real clock's margins")]
-	fn a_new_time_axis_eases_in_and_then_stops() {
+	fn axis_eases_then_stops() {
 		let mut g = Graph::new(Look::default());
 		g.sample();
 		std::thread::sleep(std::time::Duration::from_millis(40));
@@ -1202,7 +1201,7 @@ mod tests {
 
 	// Test ID: debj5
 	#[test]
-	fn linear_axis_follows_the_sample_rate() {
+	fn linear_axis_rate() {
 		let g = Graph::new(
 			Look {
 				time: Timing::Linear,
@@ -1226,7 +1225,7 @@ mod tests {
 
 	// Test ID: dej9z
 	#[test]
-	fn a_graph_reads_on_the_beats_of_its_own_rate() {
+	fn reads_on_own_beat() {
 		let mut g = Graph::new(
 			Look {
 				sample_ms: 500,
@@ -1271,7 +1270,7 @@ mod tests {
 
 	// Test ID: decby
 	#[test]
-	fn log_axis_takes_the_chosen_curve() {
+	fn log_axis_curve() {
 		let mut g = Graph::new(Look::default());
 		g.hist.add(0.0, 1.0, &[0.1; 4]);
 		g.hist.add(7200.0, 7201.0, &[0.1; 4]);
@@ -1297,7 +1296,7 @@ mod tests {
 	// Test ID: decc6
 	#[test]
 	#[cfg_attr(miri, ignore = "the clock tip calls nl_langinfo, which is C")]
-	fn the_hover_tip_says_when_and_what() {
+	fn hover_tip_when_what() {
 		let mut g = two_hours();
 		// 130 px wide, 1 px border: 128 columns, as render would draw them
 		let (w, h) = (130, 20);
@@ -1327,7 +1326,7 @@ mod tests {
 	// Test ID: defz1
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri runs too slow for the real clock's margins")]
-	fn a_still_pointer_keeps_its_age_while_its_clock_time_moves_on() {
+	fn still_pointer_keeps_age() {
 		let mut g = Graph::new(
 			Look {
 				time: Timing::Linear,
@@ -1373,7 +1372,7 @@ mod tests {
 
 	// Test ID: df3e4
 	#[test]
-	fn frames_are_an_even_split_of_the_screen_rate_from_30_to_60() {
+	fn frame_split_30_to_60() {
 		for (hz, apart) in [
 			(60.0, 1),
 			(59.94, 1),
@@ -1398,7 +1397,7 @@ mod tests {
 
 	// Test ID: df3me
 	#[test]
-	fn a_quarter_pace_splits_the_screen_rate_evenly_from_24_to_50() {
+	fn quarter_pace_24_to_50() {
 		for (hz, apart) in [
 			(60.0, 2),
 			(59.94, 2),
@@ -1438,7 +1437,7 @@ mod tests {
 	// Test ID: df3e1
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri runs too slow for the real clock's margins")]
-	fn a_new_sample_slides_in_at_a_steady_speed_but_a_gap_does_not() {
+	fn slide_steady_gap_jumps() {
 		let look = |motion| {
 			Look {
 				motion,
@@ -1489,7 +1488,7 @@ mod tests {
 	// Test ID: df3e2
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri runs too slow for the real clock's margins")]
-	fn the_right_column_fills_as_the_sample_slides_in_and_the_tip_follows() {
+	fn right_column_fills_tip() {
 		let mut g = Graph::new(
 			Look {
 				motion: Motion::On,
@@ -1528,7 +1527,7 @@ mod tests {
 		let red = |p: u32| (p >> 16) & 0xff;
 		assert!(
 			half.iter()
-				.all(|&p| p != user && (0xa0..0xd8).contains(&red(p))),
+				.all(|&p| p != user && (0x70..0xb0).contains(&red(p))),
 			"{half:x?}"
 		);
 		assert!(filled(&end) >= 17, "{end:x?}");
@@ -1536,7 +1535,7 @@ mod tests {
 
 	// Test ID: decc7
 	#[test]
-	fn the_hover_tip_shows_gaps_and_no_history() {
+	fn hover_tip_gaps() {
 		let g = Graph::new(Look::default());
 		assert_eq!(g.span_at(5, 130, 20, 1), None);
 		assert_eq!(g.hover_tip(5, 130, 20, 1), "CPU");
@@ -1553,7 +1552,7 @@ mod tests {
 
 	// Test ID: decc8
 	#[test]
-	fn the_hover_line_is_drawn_where_the_pointer_is() {
+	fn hover_line_at_pointer() {
 		let mut g = two_hours();
 		Rc::make_mut(&mut g.look).hover = config::Rgb(1, 2, 3);
 		let (w, h) = (40, 10);
@@ -1583,7 +1582,7 @@ mod tests {
 
 	// Test ID: decbp
 	#[test]
-	fn saved_history_comes_back_with_a_gap() {
+	fn history_restores_with_gap() {
 		let path = scratch("gap");
 		let mut g = Graph::new(Look::default());
 		g.sample();
@@ -1607,7 +1606,7 @@ mod tests {
 
 	// Test ID: decbq
 	#[test]
-	fn a_clock_set_back_still_takes_new_samples() {
+	fn clock_back_keeps_sampling() {
 		let path = scratch("back");
 		let mut g = Graph::new(Look::default());
 		g.hist.add(g.now() + 3600.0, g.now() + 3601.0, &[0.1; 4]);
@@ -1625,7 +1624,7 @@ mod tests {
 	// Test ID: deqqs
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri runs too slow for the real clock's margins")]
-	fn a_suspend_moves_the_clock_to_the_wall_and_is_a_gap() {
+	fn suspend_is_a_gap() {
 		let mut g = Graph::with(Look::default(), MemoryReader::default());
 		g.sample();
 		g.skip(1.0);
@@ -1653,7 +1652,7 @@ mod tests {
 	// Test ID: deqqt
 	#[test]
 	#[cfg_attr(miri, ignore = "Miri runs too slow for the real clock's margins")]
-	fn a_clock_set_back_while_running_never_runs_back() {
+	fn clock_never_runs_back() {
 		let mut g = Graph::with(Look::default(), MemoryReader::default());
 		g.sample();
 		g.skip(1.0);
@@ -1670,7 +1669,7 @@ mod tests {
 
 	// Test ID: deqs6
 	#[test]
-	fn history_saved_hours_ahead_moves_the_clock_but_a_day_ahead_starts_over() {
+	fn future_history_rules() {
 		let ahead = |secs: f64| {
 			let mut g = Graph::with(Look::default(), MemoryReader::default());
 			let end = g.now() + secs;
@@ -1689,7 +1688,7 @@ mod tests {
 
 	// Test ID: decbr
 	#[test]
-	fn load_trims_to_the_max_age_and_refuses_junk() {
+	fn load_trims_refuses_junk() {
 		let path = scratch("trim");
 		let mut g = Graph::new(Look::default());
 		let now = g.now();
@@ -1698,7 +1697,7 @@ mod tests {
 		g.hist.add(now - 60.0, now - 59.0, &[0.2; 4]);
 		g.save(&path).unwrap();
 		let mut back = Graph::new(Look {
-			max_days: 1,
+			max_age: 86400,
 			..Look::default()
 		});
 		back.load(&path).unwrap();

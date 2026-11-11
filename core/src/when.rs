@@ -116,7 +116,7 @@ mod tests {
 
 	// Test ID: decca
 	#[test]
-	fn ago_reads_like_the_backlog_says() {
+	fn ago_wording() {
 		for (secs, want) in [
 			(0.2, "just now"),
 			(-5.0, "just now"),
@@ -144,7 +144,7 @@ mod tests {
 
 	// Test ID: deccb
 	#[test]
-	fn said_parses_as_the_spec_spells_it() {
+	fn said_parsing() {
 		let spec = crate::config::spec();
 		let Some(s) = spec.get("hover_time") else {
 			panic!("no hover_time in settings.shcl");
@@ -163,7 +163,7 @@ mod tests {
 	#[cfg(unix)]
 	#[test]
 	#[cfg_attr(miri, ignore = "nl_langinfo and strftime are C, which Miri can't call")]
-	fn clock_gives_the_date_only_before_today() {
+	fn clock_date_before_today() {
 		let now = std::time::SystemTime::now()
 			.duration_since(std::time::UNIX_EPOCH)
 			.unwrap()

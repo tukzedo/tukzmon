@@ -29,6 +29,7 @@ Height can go up on a straight, log, or squared scale, for every graph or one at
 - [Features](#features)
 - [Installation](#installation)
 	- [Debian, Ubuntu, Fedora](#debian-ubuntu-fedora)
+	- [Direct](#direct)
 	- [NixOS](#nixos)
 	- [DIY](#diy)
 - [Set up development environment](#set-up-development-environment)
@@ -110,6 +111,24 @@ xfce4-panel -r
 
 After the panel restarts, tukzmon is in its Add New Items list.
 
+### Direct
+
+This finds the newest release, checks its sha256, and installs it:
+
+~~~bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tukzedo/tukzmon/main/install.bash)
+~~~
+
+It uses sane defaults, and says what it's going to do and asks before it changes anything. Add `--help` for the options. Running it again on an install that's current changes nothing.
+
+| Install           | Library and `tukzmon-settings`                         | Panel entry
+| :---              | :---                                                   | :---
+| User (no sudo)    | `~/.local/<lib>/xfce4/panel/plugins/`                  | `~/.local/share/xfce4/panel/plugins/tukzmon.desktop`
+| System (.deb)     | `/usr/lib/x86_64-linux-gnu/xfce4/panel/plugins/`       | `/usr/share/xfce4/panel/plugins/tukzmon.desktop`
+| System (.rpm)     | `/usr/lib64/xfce4/panel/plugins/`                      | `/usr/share/xfce4/panel/plugins/tukzmon.desktop`
+
+`<lib>` follows the panel's own library folder, so it's `lib/x86_64-linux-gnu` on Debian and Ubuntu, and `lib64` on Fedora. A user install goes ahead of a system one for that user.
+
 ### NixOS
 
 On NixOS, add `tukzmon.url = "github:tukzedo/tukzmon";` to your flake's inputs, put `tukzmon.nixosModules.default` in the system's modules, and set `programs.tukzmon.enable = true;`. After a rebuild, tukzmon is in the panel's Add New Items list. There's also `tukzmon.packages.x86_64-linux.default` and `tukzmon.overlays.default` if you'd rather add the package yourself, but then `environment.pathsToLink` needs `/share/xfce4` and `/lib/xfce4` unless the XFCE desktop is on.
@@ -129,6 +148,8 @@ To try it from a checkout you need Rust, XFCE 4.20, Qt 6, a C++ compiler, and pk
 - Docker, for the pipeline. `cicd/cicd.bash` builds its own image from `cicd/container/` and runs the format, build, lint, and test steps in it, with the other tools pinned there. Without docker it runs on the host, and then it needs those tools installed. `cicd/config.bash` lists them and their versions.
 
 - `cicd/cicd.bash --help` lists the steps and options. The packages step builds a `.deb` and an `.rpm`.
+
+- Release builds are reproducible. A release build of one commit gives the same bytes from any checkout folder, target folder, or home, and the pipeline checks it by building a second time from a copy of the tree in another folder. A plain `cargo build --release` needs the path maps from `utility/path-maps.bash` for that, which `utility/dev-install.bash` uses too.
 
 - `git config core.hooksPath cicd/hooks` turns on the pre-push hook, which runs the full merge gate before a push to `main`.
 

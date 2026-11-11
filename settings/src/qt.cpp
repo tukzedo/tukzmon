@@ -740,6 +740,8 @@ struct Row {
 	QLabel *head = nullptr;
 	QFrame *rule = nullptr;
 	QGridLayout *grid = nullptr;
+	// the line a same_line row sits in, for the next one to join too
+	QHBoxLayout *joined = nullptr;
 	int gap = -1;
 	// in a section's column, where lineUpSections sets the gap
 	bool sided = false;
@@ -1659,18 +1661,24 @@ private:
 		Row *prev = std::exchange(lastPlaced, &r);
 		if (r.info.same_line && prev && prev->grid == grid) {
 			// the row above keeps its label and revert, and shares its
-			// control's cell with this row's 3
-			auto *holder = new QWidget;
-			auto *h = new QHBoxLayout(holder);
-			h->setContentsMargins(0, 0, 0, 0);
-			grid->removeWidget(prev->control);
-			h->addWidget(prev->control);
+			// control's cell with this row's 3, and with the next same_line's.
+			// A layout, not a widget, so each label stays its box's sibling,
+			// where a screen reader looks for it.
+			QHBoxLayout *h = prev->joined;
+			if (!h) {
+				h = new QHBoxLayout;
+				h->setContentsMargins(0, 0, 0, 0);
+				grid->removeWidget(prev->control);
+				h->addWidget(prev->control);
+				h->addStretch(1);
+				grid->addLayout(h, line - 1, 1);
+			}
 			r.label->setContentsMargins(HEAD_GAP, 0, 6, 0);
-			h->addWidget(r.label);
-			h->addWidget(r.control);
-			h->addWidget(r.revert);
-			h->addStretch(1);
-			grid->addWidget(holder, line - 1, 1);
+			int at = h->count() - 1;
+			h->insertWidget(at++, r.label);
+			h->insertWidget(at++, r.control);
+			h->insertWidget(at, r.revert);
+			r.joined = h;
 			return;
 		}
 		r.label->setContentsMargins(16 * r.info.indent, 0, 12, 0);

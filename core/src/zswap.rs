@@ -243,7 +243,7 @@ mod tests {
 
 	// Test ID: defmz
 	#[test]
-	fn zswap_is_the_pool_against_its_cap() {
+	fn zswap_pool_vs_cap() {
 		let m = parse_meminfo(MEMINFO_ZSWAP).unwrap();
 		assert_eq!((m.zswap, m.zswapped), (Some(50_000), Some(210_000)));
 		assert_eq!(
@@ -272,7 +272,7 @@ mod tests {
 
 	// Test ID: defn0
 	#[test]
-	fn zram_reads_mm_stat() {
+	fn zram_mm_stat() {
 		// 6.12's columns, in bytes
 		let text =
 			"  4194304  1048576  1310720        0  1310720        0        0        0        0\n";
@@ -293,7 +293,7 @@ mod tests {
 
 	// Test ID: defn1
 	#[test]
-	fn zswap_wins_and_zram_sums_its_devices() {
+	fn zswap_wins_zram_sums() {
 		let on = Tree::new(
 			"zswap_on",
 			&[
@@ -339,7 +339,7 @@ mod tests {
 
 	// Test ID: defn2
 	#[test]
-	fn neither_gives_no_collector() {
+	fn neither_no_collector() {
 		let none = Tree::new(
 			"zswap_none",
 			&[
@@ -389,7 +389,7 @@ mod tests {
 	// has the rest.
 	// // Test ID: dehy3
 	// #[test]
-	// fn the_graph_gives_the_ratio_to_write_over_the_pool() {
+	// fn graph_ratio_write_over_pool() {
 	// 	use crate::Source;
 	// 	use crate::config::Look;
 	// 	use crate::render::Overlay;
@@ -444,7 +444,7 @@ mod tests {
 
 	// Test ID: dejab
 	#[test]
-	fn the_tip_gives_the_latest_ratio() {
+	fn tip_latest_ratio() {
 		use crate::Source;
 		use crate::config::Look;
 		let on = Tree::new(
@@ -490,7 +490,7 @@ mod tests {
 
 	// Test ID: df4gp
 	#[test]
-	fn fuzz_zswap_and_zram_files_read_in_range() {
+	fn fuzz_zswap_zram_range() {
 		use crate::fuzz::count;
 		let tally = crate::fuzz::run("zswap", |dice| {
 			let mut f = crate::fuzz::Files::new(dice);

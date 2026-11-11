@@ -162,7 +162,7 @@ mod tests {
 
 	// Test ID: defnm
 	#[test]
-	fn the_package_sensor_is_picked_per_driver() {
+	fn package_sensor_per_driver() {
 		let intel = [
 			(1, Some("Package id 0")),
 			(2, Some("Core 0")),
@@ -186,7 +186,7 @@ mod tests {
 
 	// Test ID: defnn
 	#[test]
-	fn reads_the_package_and_skips_the_rest() {
+	fn package_only() {
 		let t = Tree::new(
 			"temp_zen",
 			&[
@@ -211,7 +211,7 @@ mod tests {
 
 	// Test ID: defnp
 	#[test]
-	fn two_sockets_give_the_hottest_and_the_lowest_crit() {
+	fn two_sockets_hottest() {
 		let t = Tree::new(
 			"temp_intel",
 			&[
@@ -238,7 +238,7 @@ mod tests {
 
 	// Test ID: defnq
 	#[test]
-	fn no_cpu_sensor_gives_no_collector() {
+	fn no_sensor_no_collector() {
 		let none = Tree::new(
 			"temp_none",
 			&[
@@ -265,7 +265,7 @@ mod tests {
 
 	// Test ID: dej0s
 	#[test]
-	fn over_the_crit_is_the_critical_part() {
+	fn over_crit_is_critical() {
 		let t = Tree::new(
 			"temp_hot",
 			&[
@@ -303,7 +303,7 @@ mod tests {
 
 	// Test ID: df4gw
 	#[test]
-	fn fuzz_hwmon_files_read_as_the_hottest_package_split_at_its_limit() {
+	fn fuzz_hwmon_hottest_split() {
 		let tally = crate::fuzz::run("hwmon", |dice| {
 			let mut f = crate::fuzz::Files::new(dice);
 			let mut inputs = Vec::new();

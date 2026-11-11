@@ -70,7 +70,12 @@ libDir="${dataHome%/share}/${libTail}/xfce4/panel/plugins"
 ## Wherever CARGO_TARGET_DIR or a cargo config puts the build.
 target="$(cargo metadata --format-version 1 --no-deps --locked 2> /dev/null | sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p' || true)"
 [[ -n "${target}" ]] || fDie "cargo metadata didn't give the target dir"
-cargo build --release --locked -p tukzmon-xfce -p tukzmon-settings || fDie "the release build failed"
+## cicd's release build has the same path maps, so this one is the same bytes.
+# shellcheck source=utility/path-maps.bash
+source "${repo}/utility/path-maps.bash"
+declare -a maps=()
+fPathMaps maps "${repo}" "${target}" || fDie "no path maps for the release build"
+env "${maps[@]}" cargo build --release --locked -p tukzmon-xfce -p tukzmon-settings || fDie "the release build failed"
 
 mkdir -p "${shareDir}" "${libDir}"
 ## copy then rename, so a running panel keeps the old file it has open
@@ -113,3 +118,4 @@ fi
 ##		- 2026-11-01: Copies from the target dir cargo built into, finds
 ##		  ldconfig in /usr/sbin, and builds with --locked.
 ##		- 2026-11-07: ## comments, as in the other scripts.
+##		- 2026-11-10: The release build gets cicd's path maps.

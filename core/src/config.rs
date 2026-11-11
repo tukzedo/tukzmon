@@ -925,8 +925,9 @@ pub struct Look {
 	pub margin_lr: u32,
 	/// Save history and load it back on start.
 	pub keep: bool,
-	/// History older than this many days is dropped.
-	pub max_days: u32,
+	/// History older than this many seconds is dropped. Max age's days, hours
+	/// and minutes added up, and never under a minute.
+	pub max_age: u32,
 	/// Each graph's own, by [`Which`]: `look[Which::Mem].width`.
 	pub graphs: [Each; Which::ALL.len()],
 	/// How the network graph tells the LAN from the internet.
@@ -1032,7 +1033,11 @@ impl Look {
 			margin_tb: num("margin_tb") as u32,
 			margin_lr: num("margin_lr") as u32,
 			keep: m.value("keep_history", &NoEnv).as_bool(),
-			max_days: num("max_days") as u32,
+			// 36500 days and change is still well inside a u32 of seconds
+			max_age: (num("max_days") * 86400.0
+				+ num("max_hours") * 3600.0
+				+ num("max_minutes") * 60.0)
+				.max(60.0) as u32,
 			graphs: Which::ALL.map(each),
 			net_split: Split::parse(m.value("net_split", &NoEnv).as_text()).unwrap_or_default(),
 			disk_drives: graph_order(m.value("disk_drives", &NoEnv).as_text()),
@@ -1273,7 +1278,7 @@ mod tests {
 
 	// Test ID: der4w
 	#[test]
-	fn the_spec_has_no_key_that_nothing_reads() {
+	fn spec_keys_all_read() {
 		assert_eq!(unknown_spec_keys(SPEC_TEXT), Vec::<String>::new());
 		let typo = SPEC_TEXT.replacen("\t\tgate:", "\t\tgaet:", 1);
 		assert_ne!(typo, SPEC_TEXT);
@@ -1285,7 +1290,7 @@ mod tests {
 
 	// Test ID: decb4
 	#[test]
-	fn slider_ranges_sit_inside_their_range() {
+	fn slider_inside_range() {
 		let doc = shcl::Document::parse(SPEC_TEXT);
 		let named: Vec<String> = doc
 			.paths()
@@ -1306,7 +1311,7 @@ mod tests {
 
 	// Test ID: debhh
 	#[test]
-	fn no_text_was_split_on_a_comma() {
+	fn no_comma_splits() {
 		// a bare value with a comma in it reads as a list, which shows up quoted
 		for s in &spec().settings {
 			assert!(
@@ -1319,7 +1324,7 @@ mod tests {
 
 	// Test ID: debhj
 	#[test]
-	fn defaults_are_the_multiload_colors() {
+	fn multiload_default_colors() {
 		let l = Look::default();
 		assert_eq!(l[Which::Cpu].colors[0], Rgb(0xff, 0, 0));
 		assert_eq!(l[Which::Cpu].colors[1], Rgb(0x69, 0x3d, 0x91));
@@ -1337,7 +1342,7 @@ mod tests {
 
 	// Test ID: df3e3
 	#[test]
-	fn smooth_scrolling_reads_and_auto_goes_by_the_cpus() {
+	fn smooth_auto_by_cpus() {
 		let read = |text: &str| Look::from_model(&Model::load(spec(), text, "")).motion;
 		assert_eq!(Look::default().motion, Motion::Auto);
 		assert_eq!(read("graph:\n\tanimate: off\n"), Motion::Off);
@@ -1349,7 +1354,7 @@ mod tests {
 
 	// Test ID: df3ng
 	#[test]
-	fn a_remote_session_reads_half_as_often_from_a_second_and_never_slides() {
+	fn remote_halves_reads_no_slide() {
 		let read = |text: &str, remote: bool| Look {
 			session: if remote {
 				Session::Remote
@@ -1379,7 +1384,7 @@ mod tests {
 
 	// Test ID: dencn
 	#[test]
-	fn each_graph_reads_its_own_settings_into_its_own_record() {
+	fn graph_settings_own_record() {
 		let spec = spec();
 		let mut m = Model::new(spec.clone());
 		for (i, w) in Which::ALL.into_iter().enumerate() {
@@ -1421,7 +1426,7 @@ mod tests {
 
 	// Test ID: deccf
 	#[test]
-	fn the_default_theme_is_the_row_defaults() {
+	fn default_theme_is_row_defaults() {
 		let spec = spec();
 		let g = spec.group(THEME).unwrap();
 		assert_eq!(g.members.len(), 127);
@@ -1452,7 +1457,7 @@ mod tests {
 
 	// Test ID: dejbq
 	#[test]
-	fn the_default_theme_keeps_the_colors_picked_on_it() {
+	fn default_theme_keeps_picks() {
 		// b23's changes on Default as of 2026-10-28, 2026-10-31 for
 		// temperature and processes, and 2026-11-09 for the rest, kept as
 		// they were
@@ -1506,7 +1511,7 @@ mod tests {
 
 	// Test ID: deccg
 	#[test]
-	fn a_theme_sets_every_color() {
+	fn theme_covers_colors() {
 		let l = Look::from_model(&model("theme:\n\tname: pastel\n"));
 		assert_eq!(l[Which::Cpu].colors[2], Rgb(0xa1, 0xc8, 0xf0));
 		assert_eq!(l.bottom, Rgb(0x0f, 0x12, 0x14));
@@ -1519,7 +1524,7 @@ mod tests {
 
 	// Test ID: decdy
 	#[test]
-	fn transparent_is_off_and_outlives_any_theme() {
+	fn transparent_outlives_themes() {
 		assert!(!Look::default().transparent);
 		assert_eq!(
 			spec().get("transparent").and_then(|s| s.group.as_deref()),
@@ -1540,7 +1545,7 @@ mod tests {
 
 	// Test ID: dejjt
 	#[test]
-	fn margins_are_the_themes_and_reach_the_look() {
+	fn theme_margins_reach_look() {
 		let s = spec();
 		for id in ["margin_tb", "margin_lr"] {
 			assert_eq!(s.get(id).and_then(|r| r.group.as_deref()), Some("theme"));
@@ -1571,7 +1576,7 @@ mod tests {
 
 	// Test ID: dejky
 	#[test]
-	fn the_outline_tabs_colors_go_over_every_graph_when_ticked() {
+	fn outline_colors_override_all() {
 		let s = spec();
 		let g = s.group(THEME).unwrap();
 		for id in ["border_all", "back_all"] {
@@ -1651,7 +1656,7 @@ mod tests {
 
 	// Test ID: dejkg
 	#[test]
-	fn each_graph_has_its_own_outline_in_every_theme() {
+	fn outline_per_graph_per_theme() {
 		let s = spec();
 		let g = s.group(THEME).unwrap();
 		let graphs = LEADS.map(|(graph, _)| graph);
@@ -1734,7 +1739,7 @@ mod tests {
 
 	// Test ID: decch
 	#[test]
-	fn colors_with_no_theme_line_are_custom() {
+	fn unthemed_colors_are_custom() {
 		let text = "cpu:\n\tcolors:\n\t\tuser: \"#123456\"\n";
 		let m = model(text);
 		assert_eq!(m.chosen(THEME, &NoEnv), knobs::CUSTOM);
@@ -1755,7 +1760,7 @@ mod tests {
 
 	// Test ID: deccj
 	#[test]
-	fn a_change_on_a_theme_is_kept_with_it() {
+	fn theme_edit_sticks() {
 		let mut m = model("theme:\n\tname: primary\n");
 		m.set("user", &knobs::Value::Text("#abcdef".into()), &NoEnv);
 		assert_eq!(m.shown_choice(THEME, &NoEnv), "Primary *");
@@ -1769,7 +1774,7 @@ mod tests {
 
 	// Test ID: decck
 	#[test]
-	fn back_to_default_from_custom_stays_default() {
+	fn custom_to_default_sticks() {
 		let mut m = model("");
 		let text = |v: &str| knobs::Value::Text(v.into());
 		m.set(THEME, &text(knobs::CUSTOM), &NoEnv);
@@ -1795,7 +1800,7 @@ mod tests {
 
 	// Test ID: decct
 	#[test]
-	fn a_saved_theme_is_listed_after_the_built_ins_and_sets_the_look() {
+	fn saved_theme_listed_last() {
 		let text = "theme:\n\tname: mine\nthemes:\n\tmine:\n\t\tname: \"My green\"\n\t\tuser: \"#11AA22\"\n\t\tnice: nope\n";
 		let m = model(text);
 		let options = &m.spec.get(THEME).unwrap().options;
@@ -1838,7 +1843,7 @@ mod tests {
 
 	// Test ID: decdg
 	#[test]
-	fn fire_is_a_gradient_and_the_rest_are_detailed() {
+	fn fire_gradient_rest_detailed() {
 		let l = Look::from_model(&model("theme:\n\tname: fire\n"));
 		assert_eq!(l[Which::Cpu].mode, Mode::Gradient);
 		assert_eq!(
@@ -1881,7 +1886,7 @@ mod tests {
 
 	// Test ID: dedpz
 	#[test]
-	fn memory_colors_are_multiload_ngs_and_every_theme_has_them() {
+	fn memory_colors_in_themes() {
 		let d = Look::default();
 		assert_eq!(
 			d[Which::Mem].colors[..3],
@@ -1924,7 +1929,7 @@ mod tests {
 
 	// Test ID: defx7
 	#[test]
-	fn no_theme_is_named_for_a_color_and_each_graph_has_its_own() {
+	fn theme_names_not_colors() {
 		let colors = [
 			"red", "orange", "yellow", "green", "blue", "purple", "violet", "pink", "cyan",
 			"magenta", "teal", "brown", "gray", "grey",
@@ -1958,7 +1963,7 @@ mod tests {
 
 	// Test ID: dejbr
 	#[test]
-	fn every_graph_leads_with_a_color_that_reads_apart() {
+	fn lead_colors_distinct() {
 		use crate::color::{APART, apart};
 		let spec = spec();
 		for p in spec.group(THEME).unwrap().presets.listed() {
@@ -2011,7 +2016,7 @@ mod tests {
 
 	// Test ID: dejbw
 	#[test]
-	fn the_one_color_themes_lead_alike_and_keep_the_alarms() {
+	fn mono_themes_keep_alarms() {
 		use crate::color::{APART, apart, closest};
 		let spec = spec();
 		let g = spec.group(THEME).unwrap();
@@ -2068,7 +2073,7 @@ mod tests {
 
 	// Test ID: dedqf
 	#[test]
-	fn each_graph_has_a_switch_and_a_width() {
+	fn switch_and_width_rows() {
 		let d = Look::default();
 		assert!(d[Which::Cpu].show && d[Which::Mem].show && d[Which::Swap].show);
 		assert_eq!(
@@ -2118,7 +2123,7 @@ mod tests {
 
 	// Test ID: deja1
 	#[test]
-	fn each_graph_has_a_sample_rate_and_old_files_keep_the_default() {
+	fn sample_rate_old_files() {
 		let d = Look::default();
 		assert_eq!((d[Which::Cpu].sample, d[Which::Battery].sample), (50, 100));
 		assert_eq!(d.rate(d[Which::Cpu].sample), 500);
@@ -2161,7 +2166,7 @@ mod tests {
 
 	// Test ID: deea4
 	#[test]
-	fn each_graph_has_a_time_axis_and_old_files_keep_theirs() {
+	fn time_axis_old_files() {
 		let d = Look::default();
 		assert_eq!((d[Which::Cpu].time, d[Which::Mem].time), (None, None));
 		let l = Look::from_model(&model("cpu:\n\ttime: linear\nmem:\n\ttime: Fixed_B\n"));
@@ -2199,7 +2204,7 @@ mod tests {
 
 	// Test ID: dej09
 	#[test]
-	fn the_disk_graph_counts_every_disk_or_the_ones_named() {
+	fn disk_all_or_named() {
 		assert_eq!(Look::default().drives(), Drives::All);
 		assert_eq!(Look::default()[Which::Disk].vertical, None);
 		for text in ["disk:\n\tdrives: all\n", "disk:\n\tdrives: \"\"\n"] {
@@ -2217,7 +2222,7 @@ mod tests {
 
 	// Test ID: der3n
 	#[test]
-	fn the_old_disk_log_scale_is_the_disk_graphs_own_log10() {
+	fn old_disk_log_is_log10() {
 		let disk = |text: &str| Look::from_model(&model(text))[Which::Disk].vertical;
 		assert_eq!(disk("disk:\n\tlog: true\n"), Some(Vertical::Log10));
 		assert_eq!(disk("disk:\n\tlog: false\n"), None);
@@ -2237,7 +2242,7 @@ mod tests {
 
 	// Test ID: df3rj
 	#[test]
-	fn the_graph_list_defaults_are_b23s_but_whats_shown() {
+	fn graph_list_b23_defaults() {
 		// b23's widths and vertical scales as of 2026-11-09, but with tukzmon's own graph
 		// linear rather than log10, and the user's picks of 500% and 400% for processes and tukzmon
 		let l = Look::default();
@@ -2269,7 +2274,7 @@ mod tests {
 
 	// Test ID: der3p
 	#[test]
-	fn a_graph_follows_the_vertical_default_unless_it_picks_its_own() {
+	fn vertical_default_overridable() {
 		let l = Look::default();
 		assert_eq!(l.vertical, Vertical::Linear);
 		// the process count sits near its top, where squared spreads it out
@@ -2292,7 +2297,7 @@ mod tests {
 
 	// Test ID: demw1
 	#[test]
-	fn the_lan_split_is_off_unless_picked() {
+	fn lan_split_off_by_default() {
 		assert_eq!(Look::default().net_split, Split::Off);
 		let l = Look::from_model(&model("net:\n\tsplit: sockets\n"));
 		assert_eq!(l.net_split, Split::Sockets);
@@ -2302,7 +2307,7 @@ mod tests {
 
 	// Test ID: dedqq
 	#[test]
-	fn the_graph_order_reads_with_spaces_or_commas() {
+	fn order_spaces_or_commas() {
 		assert_eq!(
 			Look::default().order,
 			[
@@ -2329,7 +2334,7 @@ mod tests {
 
 	// Test ID: decdh
 	#[test]
-	fn the_mode_shows_only_its_own_rows() {
+	fn mode_rows_shown() {
 		assert!(shown_as_radio("cpu_mode"));
 		assert!(!shown_as_radio("theme"));
 		assert_eq!(shown_when("user"), Some(("cpu_mode", "detailed")));
@@ -2362,7 +2367,7 @@ mod tests {
 
 	// Test ID: decdj
 	#[test]
-	fn a_saved_theme_keeps_its_mode() {
+	fn theme_keeps_mode() {
 		let text = "theme:\n\tname: mine\nthemes:\n\tmine:\n\t\tname: Mine\n\t\tcpu_mode: GRADIENT\n\t\tcpu_low: \"#010203\"\n";
 		let doc = shcl::Document::parse(text);
 		let t = saved_themes(&doc);
@@ -2386,7 +2391,7 @@ mod tests {
 
 	// Test ID: deccv
 	#[test]
-	fn a_saved_theme_cant_take_a_built_in_key() {
+	fn theme_refuses_built_in_key() {
 		let text = "themes:\n\tdefault:\n\t\tuser: \"#123456\"\n\tCustom:\n\t\tuser: \"#123456\"\n";
 		let doc = shcl::Document::parse(text);
 		assert!(saved_themes(&doc).is_empty());
@@ -2396,7 +2401,7 @@ mod tests {
 
 	// Test ID: deqvz
 	#[test]
-	fn a_saved_theme_number_that_isnt_finite_is_junk() {
+	fn theme_nonfinite_number_junk() {
 		for raw in ["nan", "NaN", "-nan", "inf", "-infinity", "1e999", "junk"] {
 			let text =
 				format!("theme:\n\tname: x\nthemes:\n\tx:\n\t\tname: X\n\t\tmargin_tb: {raw}\n");
@@ -2409,7 +2414,7 @@ mod tests {
 
 	// Test ID: deccw
 	#[test]
-	fn saved_themes_write_whole_and_read_back() {
+	fn themes_round_trip() {
 		let mut t = saved_themes(&shcl::Document::parse(
 			"themes:\n\tx:\n\t\tname: 'Say \"hi\"'\n",
 		));
@@ -2428,7 +2433,7 @@ mod tests {
 
 	// Test ID: deccx
 	#[test]
-	fn theme_keys_are_plain_and_free() {
+	fn plain_free_theme_keys() {
 		assert_eq!(theme_key("My Green!", []), "my_green");
 		assert_eq!(theme_key("  -- ", []), "theme");
 		assert_eq!(theme_key("1984", []), "theme_1984");
@@ -2439,7 +2444,7 @@ mod tests {
 
 	// Test ID: decc5
 	#[test]
-	fn the_hover_settings_come_from_the_file() {
+	fn hover_from_file() {
 		let text = "graph:\n\thover_time: clock\n\tcolors:\n\t\thover: \"#ffffff\"\n";
 		let l = Look::from_model(&Model::load(spec(), text, ""));
 		assert_eq!(l.said, Said::Clock);
@@ -2450,7 +2455,7 @@ mod tests {
 
 	// Test ID: decbx
 	#[test]
-	fn the_time_axis_default_comes_from_the_file() {
+	fn axis_default_from_file() {
 		let pick = |v: &str| {
 			let text = format!("graph:\n\ttime: {v}\n");
 			Look::from_model(&Model::load(spec(), &text, "")).time
@@ -2469,19 +2474,42 @@ mod tests {
 
 	// Test ID: decbf
 	#[test]
-	fn history_is_kept_four_weeks_by_default() {
+	fn four_weeks_by_default() {
 		let l = Look::default();
 		assert!(l.keep);
-		assert_eq!(l.max_days, 28);
-		let text = "history:\n\tkeep: false\n\tmax_days: 0\n";
+		assert_eq!(l.max_age, 28 * 86400);
+		let text = "history:\n\tkeep: false\n\tmax_days: 36501\n";
 		let l = Look::from_model(&Model::load(spec(), text, ""));
 		assert!(!l.keep);
-		assert_eq!(l.max_days, 28);
+		assert_eq!(l.max_age, 28 * 86400);
+	}
+
+	// Test ID: df51d
+	#[test]
+	fn max_age_sums_parts() {
+		let age = |text: &str| Look::from_model(&Model::load(spec(), text, "")).max_age;
+		// a file from before hours and minutes reads as it did
+		assert_eq!(age("history:\n\tmax_days: 3\n"), 3 * 86400);
+		assert_eq!(
+			age("history:\n\tmax_days: 1\n\tmax_hours: 2\n\tmax_minutes: 30\n"),
+			86400 + 2 * 3600 + 30 * 60
+		);
+		assert_eq!(age("history:\n\tmax_days: 0\n\tmax_hours: 6\n"), 6 * 3600);
+		assert_eq!(age("history:\n\tmax_days: 0\n"), 60);
+		assert_eq!(
+			age("history:\n\tmax_days: 36500\n\tmax_hours: 23\n\tmax_minutes: 59\n"),
+			36500 * 86400 + 86340
+		);
+		// past a day's hours or an hour's minutes is a bad line
+		assert_eq!(
+			age("history:\n\tmax_hours: 24\n\tmax_minutes: 60\n"),
+			28 * 86400
+		);
 	}
 
 	// Test ID: debhk
 	#[test]
-	fn a_file_overrides_and_bad_lines_fall_back() {
+	fn overrides_and_bad_lines() {
 		let text = "graph:\n\twidth: 200\n\tsample_ms: 99999\ncpu:\n\tcolors:\n\t\tuser: \"#123456\"\n\t\tnice: red\n";
 		let l = Look::from_model(&Model::load(spec(), text, ""));
 		assert_eq!(l.width, 200);
@@ -2503,7 +2531,7 @@ mod tests {
 	// shcl 3 rules.
 	// // Test ID: deyr0
 	// #[test]
-	// fn a_file_for_shcl_2_reads_the_way_2_read_it() {
+	// fn shcl2_reads_as_before() {
 	// 	let old = "graph:\n\torder: mem, cpu\n\ndisk:\n\tdrives: sda, nvme0n1\n\n\
 	// 		themes:\n\tx:\n\t\tname: \"Say \\\"hi\\\"\"\n";
 	// 	let l = Look::from_model(&model(old));
@@ -2526,7 +2554,7 @@ mod tests {
 	// // Test ID: deyr1
 	// #[test]
 	// #[cfg_attr(miri, ignore = "the write fsyncs its folder, which Miri can't")]
-	// fn upgrade_file_rewrites_a_shcl_2_file_once_and_keeps_the_old_one() {
+	// fn shcl2_upgrade_once() {
 	// 	let dir = scratch("upgrade");
 	// 	let path = dir.join("plugin-3.shcl");
 	// 	assert_eq!(upgrade_file(&path), Ok(None));
@@ -2556,7 +2584,7 @@ mod tests {
 
 	// Test ID: df03n
 	#[test]
-	fn a_file_with_no_format_line_reads_by_shcl_3_rules() {
+	fn unstamped_file_shcl3() {
 		// a 2.x list is an error in 3, so its line goes
 		let l = Look::from_model(&model("graph:\n\torder: mem, cpu\n"));
 		assert_eq!(l.order, Look::default().order);
@@ -2566,7 +2594,7 @@ mod tests {
 
 	// Test ID: defy3
 	#[test]
-	fn an_item_with_no_file_starts_from_the_shared_one_and_leaves_it() {
+	fn new_item_copies_shared() {
 		let dir = scratch("start");
 		let shared = dir.join("tukzmon.shcl");
 		let text = "graph:\n\twidth: 77\n\ncpu:\n\tcolors:\n\t\tuser: \"#123456\"\n";
@@ -2597,7 +2625,7 @@ mod tests {
 	#[cfg(unix)]
 	#[test]
 	#[cfg_attr(miri, ignore = "makes symlinks")]
-	fn an_items_link_to_a_missing_file_is_kept_and_filled() {
+	fn dangling_link_filled() {
 		let dir = scratch("link");
 		let shared = dir.join("tukzmon.shcl");
 		std::fs::write(&shared, "graph:\n\twidth: 77\n").unwrap();
@@ -2613,7 +2641,7 @@ mod tests {
 
 	// Test ID: defy4
 	#[test]
-	fn a_save_for_one_item_leaves_the_other_alone() {
+	fn save_leaves_sibling() {
 		let dir = scratch("two");
 		let shared = dir.join("tukzmon.shcl");
 		std::fs::write(&shared, "graph:\n\twidth: 77\n").unwrap();
@@ -2631,7 +2659,7 @@ mod tests {
 
 	// Test ID: df36b
 	#[test]
-	fn a_new_item_on_a_dropped_items_id_starts_fresh() {
+	fn reused_id_starts_fresh() {
 		let dir = scratch("claim");
 		let shared = dir.join("tukzmon.shcl");
 		std::fs::write(&shared, "shared\n").unwrap();
@@ -2652,7 +2680,7 @@ mod tests {
 
 	// Test ID: df36c
 	#[test]
-	fn a_running_item_and_one_from_before_the_marks_keep_their_files() {
+	fn older_items_keep_files() {
 		let dir = scratch("keep");
 		let rc = dir.join("tukzmon-5.rc");
 		let own = instance_file(&dir, 5);
@@ -2677,7 +2705,7 @@ mod tests {
 
 	// Test ID: debhm
 	#[test]
-	fn missing_file_is_defaults() {
+	fn missing_file_defaults() {
 		assert_eq!(
 			Look::load(Path::new("/nonexistent/tukzmon.shcl")).unwrap(),
 			Look::default()
@@ -2686,7 +2714,7 @@ mod tests {
 
 	// Test ID: dena8
 	#[test]
-	fn a_file_that_cant_be_read_is_an_error_not_the_defaults() {
+	fn unreadable_file_errors() {
 		let dir = scratch("unreadable");
 		// a folder, so it can't be read as root either
 		let folder = dir.join("plugin-3.shcl");
@@ -2720,7 +2748,7 @@ mod tests {
 
 	// Test ID: dezbw
 	#[test]
-	fn shared_of_names_the_outline_id_each_graphs_own_stands_for() {
+	fn shared_of_outline_ids() {
 		let listed = |id: &str| {
 			outline_pairs()
 				.find(|(_, own)| own == id)
@@ -2863,7 +2891,7 @@ mod tests {
 	// Test ID: df4g5
 	#[test]
 	#[cfg_attr(miri, ignore = "a spec parse takes about an hour under Miri")]
-	fn fuzz_settings_files_read_whole_or_drop_lines() {
+	fn fuzz_settings_files() {
 		let header = "## tukzmon settings\n";
 		let tally = crate::fuzz::run("settings file", |dice| {
 			let body = rolled_settings(dice);
@@ -2885,7 +2913,7 @@ mod tests {
 	// Test ID: df4g6
 	#[test]
 	#[cfg_attr(miri, ignore = "a spec parse takes about an hour under Miri")]
-	fn fuzz_bit_flips_in_a_real_settings_file() {
+	fn fuzz_settings_bit_flips() {
 		let real = include_bytes!("../tests/data/plugin-7.shcl");
 		assert!(reads_settings(real), "the file itself reads whole");
 		let tally = crate::fuzz::run("plugin-7.shcl", |dice| {

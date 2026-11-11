@@ -1232,7 +1232,7 @@ mod tests {
 
 	// Test ID: dekps
 	#[test]
-	fn a_failed_history_save_shows_in_the_tip_until_one_works() {
+	fn history_save_failure_in_tip() {
 		let dir =
 			std::env::temp_dir().join(format!("test_tukzmon_xfce_{}_trouble", std::process::id()));
 		std::fs::create_dir_all(&dir).unwrap();
@@ -1262,7 +1262,7 @@ mod tests {
 
 	// Test ID: dena9
 	#[test]
-	fn an_unreadable_settings_file_keeps_the_look_and_says_why() {
+	fn unreadable_file_keeps_look() {
 		let dir = std::env::temp_dir().join(format!(
 			"test_tukzmon_xfce_{}_unreadable",
 			std::process::id()
@@ -1305,7 +1305,7 @@ mod tests {
 
 	// Test ID: dekpt
 	#[test]
-	fn a_panic_in_a_handler_stops_only_that_item() {
+	fn handler_panic_stops_one_item() {
 		let dir =
 			std::env::temp_dir().join(format!("test_tukzmon_xfce_{}_stopped", std::process::id()));
 		std::fs::create_dir_all(&dir).unwrap();
@@ -1332,7 +1332,7 @@ mod tests {
 
 	// Test ID: df3mf
 	#[test]
-	fn without_frame_timings_the_draws_go_by_the_monitors_rate() {
+	fn draw_rate_without_frame_timings() {
 		use super::{Pacing, pacing};
 		let unasked = || -> c_int { panic!("the clock had the rate") };
 		assert_eq!(pacing(10_000, 123, unasked), Pacing::Frames(100.0));
@@ -1344,7 +1344,7 @@ mod tests {
 
 	// Test ID: dekpx
 	#[test]
-	fn every_handler_the_panel_calls_catches_a_panic() {
+	fn handlers_catch_panics() {
 		let mut seen = Vec::new();
 		let mut bare = Vec::new();
 		let code = [include_str!("lib.rs"), include_str!("lock.rs")]
@@ -1371,7 +1371,7 @@ mod tests {
 
 	// Test ID: deqvc
 	#[test]
-	fn the_tip_is_asked_again_only_after_the_plugin_is_let_go() {
+	fn tip_requery_after_release() {
 		let text = include_str!("lib.rs");
 		let code = text.split("#[cfg(test)]\nmod tests").next().unwrap();
 		let fns: Vec<&str> = code
@@ -1397,7 +1397,7 @@ mod tests {
 
 	// Test ID: dekpv
 	#[test]
-	fn the_release_build_unwinds_so_a_panic_can_be_caught() {
+	fn release_build_unwinds() {
 		let toml =
 			std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../Cargo.toml"))
 				.unwrap();
@@ -1415,7 +1415,7 @@ mod tests {
 	// Test ID: dejae
 	#[test]
 	#[cfg_attr(miri, ignore = "GIO is C")]
-	fn a_reset_mark_written_calls_back_at_once() {
+	fn reset_mark_calls_back() {
 		static HITS: AtomicUsize = AtomicUsize::new(0);
 		unsafe extern "C" fn hit(
 			_: *mut c_void,
@@ -1451,7 +1451,7 @@ mod tests {
 	// Test ID: df38m
 	#[test]
 	#[cfg_attr(miri, ignore = "GIO is C")]
-	fn a_save_through_a_linked_settings_file_calls_back_at_once() {
+	fn linked_save_calls_back() {
 		static HITS: AtomicUsize = AtomicUsize::new(0);
 		unsafe extern "C" fn hit(
 			_: *mut c_void,
@@ -1500,7 +1500,7 @@ mod tests {
 
 	// Test ID: dekmw
 	#[test]
-	fn a_removed_item_takes_its_files_and_free_data_saves_nothing() {
+	fn remove_takes_files() {
 		use tukzmon_core::config;
 		let dir =
 			std::env::temp_dir().join(format!("test_tukzmon_xfce_{}_removed", std::process::id()));
@@ -1530,7 +1530,7 @@ mod tests {
 
 	// Test ID: df36d
 	#[test]
-	fn a_removed_item_takes_its_mark_too() {
+	fn remove_takes_mark() {
 		use tukzmon_core::config;
 		let dir =
 			std::env::temp_dir().join(format!("test_tukzmon_xfce_{}_mark", std::process::id()));
@@ -1564,7 +1564,7 @@ mod tests {
 
 	// Test ID: der60
 	#[test]
-	fn properties_that_cant_start_or_quits_says_so_in_the_tip() {
+	fn properties_failure_in_tip() {
 		let dir =
 			std::env::temp_dir().join(format!("test_tukzmon_xfce_{}_props", std::process::id()));
 		std::fs::create_dir_all(&dir).unwrap();
@@ -1596,7 +1596,7 @@ mod tests {
 
 	// Test ID: der61
 	#[test]
-	fn a_window_from_before_a_panel_restart_is_found_and_closed_at_remove() {
+	fn stale_window_closed_at_remove() {
 		use std::os::unix::process::CommandExt as _;
 		let dir =
 			std::env::temp_dir().join(format!("test_tukzmon_xfce_{}_stray", std::process::id()));
@@ -1643,7 +1643,7 @@ mod tests {
 
 	// Test ID: des4c
 	#[test]
-	fn properties_brings_an_open_window_forward_and_leaves_an_older_one() {
+	fn properties_raises_open_window() {
 		use std::os::unix::process::CommandExt as _;
 		let dir =
 			std::env::temp_dir().join(format!("test_tukzmon_xfce_{}_wake", std::process::id()));
@@ -1704,7 +1704,7 @@ mod tests {
 
 	// Test ID: defyn
 	#[test]
-	fn nothing_the_panel_loads_can_panic_on_a_failed_print() {
+	fn loads_survive_failed_print() {
 		let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
 		let macros = ["print", "println", "eprint", "eprintln", "dbg"].map(|m| format!("{m}!("));
 		let mut seen = 0;
