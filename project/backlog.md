@@ -216,6 +216,7 @@ Sorted per the notes in [Template](#template).
 		- 20261117: draw-bench's `kinds` mode times the history lookups by column, at sample 0.5 s on the smooth curve. On a fine tier, a column up to 4 samples wide takes 0.9 us, 14 a graph, and a wider one 0.41 us, 48 a graph. The other 61 take 0.15 us. Reading the blocks is about a third of it, mostly the end buckets read one by one.
 		- Ideas left: a block level of 2 or 4 buckets, prefix sums per fine tier for the windows, and a multiply by the bucket length's inverse. Each one changes the float math, so check the pixels with draw-bench's hashes.
 		- Drawing the pixels is about a quarter of a draw.
+	- Decisions: 20261117: a change to the float math may move a pixel by at most 1 in any channel against draw-bench's base build, and the existing drawing tests must pass unchanged. Anything bigger needs a look by eye, so the item goes to Waiting on UAT.
 
 - Pre-next-cut: Show the highest recorded values on the tip of monitors with no obvious absolute max
 	- ID: 2026111623513500
