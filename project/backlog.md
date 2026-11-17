@@ -403,6 +403,28 @@ Sorted per the notes in [Template](#template).
 		- Then `utility/path-maps.bash` keeps only what trim-paths doesn't cover, such as cxx's own C++.
 	- Estimated effort: Low
 
+- Pre-next-cut: Show the highest recorded values on the tip of monitors with no obvious absolute max
+	- ID: 2026111623513500
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261116-235135
+	- Opened by: t00mietum
+	- Requirements:
+		- On monitors with no obvious absolute max (e.g. 100%), show on the tooltip the highest values recorded so far for each metric.
+
+- Pre-next-cut: Lots of up and down activity in a monitor still shimmers, most in the first minute
+	- ID: 2026111623513501
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261116-235135
+	- Opened by: t00mietum
+	- Related IDs: 2026111010281710, 2026111020033357
+	- Requirements:
+		- Lots of up and down activity in a monitor still results in "shimmering", most noticeable in the first minute. Need to fix this.
+		- Would a 1px blur help? That might be very expensive at 30 hz. And might, well, also look blurry.
+
 - Code review 20261030 item 3, part 2: Look up a setting by an index in knobs
 	- ID: 2026103018353670
 	- Type: Enhancement
