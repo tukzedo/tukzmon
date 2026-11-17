@@ -23,7 +23,12 @@ fn mix(a: Rgb, b: Rgb, t: f32) -> [f32; 3] {
 
 /// Packs a pixel. `c` is already premultiplied by `alpha`, which is 0 to 1.
 fn pack_alpha(c: [f32; 3], alpha: f32) -> u32 {
-	let q = |v: f32| v.round().clamp(0.0, 255.0) as u32;
+	// as v.round().clamp(0.0, 255.0) as u32, without round's libm call
+	let q = |v: f32| {
+		let v = v.clamp(0.0, 255.0);
+		let t = v as u32;
+		t + u32::from(v - t as f32 >= 0.5)
+	};
 	q(alpha * 255.0) << 24 | q(c[0]) << 16 | q(c[1]) << 8 | q(c[2])
 }
 
@@ -621,6 +626,32 @@ mod tests {
 		let mut px = Vec::new();
 		f.draw(&mut px, w, ht, 1);
 		px
+	}
+
+	// Test ID: dfegv
+	#[test]
+	fn pack_rounds_as_round() {
+		let q = |v: f32| v.round().clamp(0.0, 255.0) as u32;
+		let step = if cfg!(miri) { 0.37 } else { 0.001 };
+		let mut v = -2.0f32;
+		let mut all = vec![
+			f32::NAN,
+			f32::INFINITY,
+			f32::NEG_INFINITY,
+			1e30,
+			-1e30,
+			254.5,
+			0.5,
+		];
+		all.extend([0.5f32, 1.5, 254.5].map(|x| f32::from_bits(x.to_bits() - 1)));
+		while v < 258.0 {
+			all.push(v);
+			v += step;
+		}
+		for v in all {
+			let want = q(1.0) << 24 | q(v) << 16 | q(v) << 8 | q(v);
+			assert_eq!(pack_alpha([v; 3], 1.0 / 255.0), want, "{v:e}");
+		}
 	}
 
 	// Test ID: debj6

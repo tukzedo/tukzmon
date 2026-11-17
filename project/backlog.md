@@ -167,6 +167,55 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- 20261110: the look comes first, then the cost. This waits on 2026111010281710, since both change the spike windows.
 		- 20261117: 2026111010281710's look is signed off, so this is Queued.
+		- 20261117: split. 2026111715360663 has the cuts that keep the same numbers, and 2026111715361287 has the rest.
+
+- Same-pixel cuts to the history lookups each draw makes
+	- ID: 2026111715360663
+	- Type: Enhancement
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261117-153606
+	- Opened by: t00mietum
+	- Parent ID: 2026111000270812
+	- Requirements: Cut what the history lookups cost a draw, with every pixel the same.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Each floor and ceil in the history lookups, and each round per pixel channel, was a libm call, since a baseline x86-64 build has no instruction for them. They now use integer casts that give the same numbers.
+		- `spike_over` read the middle buckets' sums only to take their max. `Tier::max_over` reads only the max.
+		- `spread_over` worked out the next whole number twice at each step. It now keeps them as it moves.
+		- `densest` kept its best window through an iterator per window. It now updates it in place.
+		- `private/claude_simple/tools/draw-bench.rs` draws a week of made-up history 24 ways and hashes the pixels. The hashes are the same before and after. A draw took 140.7 us of user time before and 111.0 after, in 3 runs each in turn at load 8.6 to 9.7 on 32 cores. The history lookups alone went from 53.5 to 41.5 us a draw.
+		- The profiler read 774.6 us user a tick before and 747.2 after at load 6 to 9, then 887.3 before and 690.8 after at load 9 to 14. Its noise is bigger than the cut.
+		- Tried and dropped: filling whole pixels without mixing, and skipping a division where it's x / x. Neither moved the bench.
+		- Verified: the draw-bench hashes match. dfegt and dfegv failed with the helpers broken, and der45 with the max left out of `max_over`. The quick gate and Sanitizers passed.
+	- Decisions:
+		- Only changes that give the same numbers went in, not just the same pixels, so the result doesn't rest on the bench's data. Changes that reorder float math are left to 2026111715361287.
+	- Test case: `history::tests::whole_numbers_as_libm` (dfegt), `render::tests::pack_rounds_as_round` (dfegv), and `history::tests::block_totals_match_buckets` (der45), which now checks `max_over` too. df3s6, df4d7 and df4y1 cover the window paths.
+		- Swept: every `floor()`, `ceil()` and `round()` outside tests in history.rs and render.rs, and every `gather` and `add_buckets` caller.
+	- Branch: nov17-2026111000270812
+	- Acceptance signoff: Self-closed 20261117: same numbers by construction, with the bench hashes and the tests above.
+	- Closed: 20261117-153629
+	- Commit: d7296e4
+
+- Cut the history lookups each draw makes down toward the tick's old cost
+	- ID: 2026111715361287
+	- Type: Enhancement
+	- Status: Queued
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261117-153612
+	- Opened by: t00mietum
+	- Parent ID: 2026111000270812
+	- Prereq IDs: 2026111715360663
+	- Requirements: Bring the profiled tick near 241 us of user time, with the same pixels, after 2026111715360663 took it from about 775 to 690 to 750 at load 6 to 13 on 32 cores.
+	- Estimated effort: Avg
+	- Progress log:
+		- 20261117: draw-bench's `kinds` mode times the history lookups by column, at sample 0.5 s on the smooth curve. On a fine tier, a column up to 4 samples wide takes 0.9 us, 14 a graph, and a wider one 0.41 us, 48 a graph. The other 61 take 0.15 us. Reading the blocks is about a third of it, mostly the end buckets read one by one.
+		- Ideas left: a block level of 2 or 4 buckets, prefix sums per fine tier for the windows, and a multiply by the bucket length's inverse. Each one changes the float math, so check the pixels with draw-bench's hashes.
+		- Drawing the pixels is about a quarter of a draw.
 
 - Pre-next-cut: Show the highest recorded values on the tip of monitors with no obvious absolute max
 	- ID: 2026111623513500

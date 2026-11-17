@@ -159,8 +159,9 @@ impl<const N: usize> Tier<N> {
 	}
 
 	/// Adds buckets `a0` to `a1` one by one, each over its whole data. Bucket
-	/// numbers are counted from time 0.
-	fn add_buckets(&self, a0: i64, a1: i64, out: &mut Total<N>) {
+	/// numbers are counted from time 0. Without `SUMS`, only the weight and
+	/// max are added.
+	fn add_buckets<const SUMS: bool>(&self, a0: i64, a1: i64, out: &mut Total<N>) {
 		let range = (a0 - self.first) as usize..(a1 - self.first) as usize;
 		for (a, bucket) in (a0..).zip(self.buckets.range(range)) {
 			if bucket.secs <= 0.0 {
@@ -174,8 +175,14 @@ impl<const N: usize> Tier<N> {
 			// the bucket's mean, weighted by its data, as a span weighs it
 			let secs = f64::from(bucket.secs);
 			let w = secs.min(hi - lo);
-			let k = w / secs;
 			out.weight += w;
+			if !SUMS {
+				for s in 0..N {
+					out.max[s] = out.max[s].max(bucket.max[s]);
+				}
+				continue;
+			}
+			let k = w / secs;
 			for s in 0..N {
 				out.sums[s] += k * f64::from(bucket.sum[s]);
 				out.max[s] = out.max[s].max(bucket.max[s]);
@@ -185,37 +192,58 @@ impl<const N: usize> Tier<N> {
 	}
 
 	/// Adds buckets `a0` to `a1`, reading whole blocks from the lowest
-	/// `levels` of [`Self::blocks`], biggest first.
-	fn gather(&self, levels: usize, a0: i64, a1: i64, out: &mut Total<N>) {
+	/// `levels` of [`Self::blocks`], biggest first. `SUMS` as in
+	/// [`Self::add_buckets`].
+	fn gather<const SUMS: bool>(&self, levels: usize, a0: i64, a1: i64, out: &mut Total<N>) {
 		let Some(level) = levels.checked_sub(1) else {
-			self.add_buckets(a0, a1, out);
+			self.add_buckets::<SUMS>(a0, a1, out);
 			return;
 		};
 		let (bits, blocks) = (BLOCK_BITS[level], &self.blocks[level]);
 		let size = 1 << bits;
 		let (b0, b1) = ((a0 + size - 1) >> bits, a1 >> bits);
 		if b1 <= b0 {
-			self.gather(level, a0, a1, out);
+			self.gather::<SUMS>(level, a0, a1, out);
 			return;
 		}
-		self.gather(level, a0, b0 * size, out);
+		self.gather::<SUMS>(level, a0, b0 * size, out);
 		let at = |b: i64| (b - blocks.first) as usize;
 		for t in blocks.totals.range(at(b0)..at(b1)) {
-			out.join(t);
+			if SUMS {
+				out.join(t);
+			} else {
+				out.weight += t.weight;
+				for s in 0..N {
+					out.max[s] = out.max[s].max(t.max[s]);
+				}
+			}
 		}
-		self.gather(level, b1 * size, a1, out);
+		self.gather::<SUMS>(level, b1 * size, a1, out);
 	}
 
 	/// The total of buckets `i0` to `i1`, as [`Self::add_buckets`] adds them.
 	fn total_over(&self, i0: usize, i1: usize) -> Total<N> {
 		let mut out = Total::zero();
-		self.gather(
+		self.gather::<true>(
 			BLOCKS.len(),
 			self.first + i0 as i64,
 			self.first + i1 as i64,
 			&mut out,
 		);
 		out
+	}
+
+	/// The max of buckets `i0` to `i1`, or None when none has data, as
+	/// [`Self::total_over`] gives it.
+	fn max_over(&self, i0: usize, i1: usize) -> Option<[f32; N]> {
+		let mut out = Total::zero();
+		self.gather::<false>(
+			BLOCKS.len(),
+			self.first + i0 as i64,
+			self.first + i1 as i64,
+			&mut out,
+		);
+		(out.weight > 0.0).then_some(out.max)
 	}
 
 	/// Rebuilds the blocks from the ones that contain bucket `from` onward.
@@ -242,7 +270,7 @@ impl<const N: usize> Tier<N> {
 				let mut t = Total::zero();
 				// from the level below, done first
 				let (a0, a1) = ((b * size).max(self.first), ((b + 1) * size).min(end));
-				self.gather(level, a0, a1, &mut t);
+				self.gather::<true>(level, a0, a1, &mut t);
 				self.blocks[level].totals.push_back(t);
 			}
 		}
@@ -261,15 +289,15 @@ impl<const N: usize> Tier<N> {
 
 	fn cap(&self) -> i64 {
 		if self.keep.is_finite() {
-			(self.keep / self.len).ceil() as i64 + 1
+			ceil_i(self.keep / self.len) + 1
 		} else {
 			i64::MAX
 		}
 	}
 
 	fn add(&mut self, t0: f64, t1: f64, v: &[f32; N]) {
-		let at0 = (t0 / self.len).floor() as i64;
-		let at1 = ((t1 / self.len).ceil() as i64 - 1).max(at0);
+		let at0 = floor_i(t0 / self.len);
+		let at1 = (ceil_i(t1 / self.len) - 1).max(at0);
 		let cap = self.cap();
 		// only the newest `cap` buckets stay, so don't make older ones
 		let keep_from = at1.saturating_sub(cap - 1);
@@ -302,8 +330,8 @@ impl<const N: usize> Tier<N> {
 	// each bucket's max, weighted by how much of it is from `a` to `b`, so it
 	// agrees with the max of the buckets wholly in, or None for no data
 	fn tops_over(&self, a: f64, b: f64) -> Option<[f32; N]> {
-		let i0 = ((a / self.len).floor() as i64 - self.first).max(0);
-		let i1 = ((b / self.len).ceil() as i64 - self.first).min(self.buckets.len() as i64);
+		let i0 = (floor_i(a / self.len) - self.first).max(0);
+		let i1 = (ceil_i(b / self.len) - self.first).min(self.buckets.len() as i64);
 		let mut sums = [0.0f64; N];
 		let mut weight = 0.0f64;
 		for i in i0..i1 {
@@ -332,10 +360,10 @@ impl<const N: usize> Tier<N> {
 		let mut best: Option<[f32; N]> = None;
 		let count = self.buckets.len() as i64;
 		let bucket = |j: i64| (0..count).contains(&j).then(|| &self.buckets[j as usize]);
-		let whole = (run / self.len).floor() as i64;
+		let whole = floor_i(run / self.len);
 		let frac = run - whole as f64 * self.len;
-		let k0 = ((x0 / self.len).ceil() as i64 - self.first).max(0);
-		let k1 = ((x1 / self.len).floor() as i64 - self.first).min(count);
+		let k0 = (ceil_i(x0 / self.len) - self.first).max(0);
+		let k1 = (floor_i(x1 / self.len) - self.first).min(count);
 		// a window's whole buckets, kept as it slides a bucket at a time
 		let mut win = (0.0f64, [0.0f64; N]);
 		let take = |win: &mut (f64, [f64; N]), j: i64, sign: f64| {
@@ -369,7 +397,16 @@ impl<const N: usize> Tier<N> {
 				}
 			}
 			if weight > 0.0 {
-				best = most([best, Some(total.map(|x| (x / weight) as f32))].into_iter());
+				let v = total.map(|x| (x / weight) as f32);
+				// as `most` takes them, without its iterator
+				match &mut best {
+					Some(b) => {
+						for (b, v) in b.iter_mut().zip(v) {
+							*b = b.max(v);
+						}
+					}
+					None => best = Some(v),
+				}
 			}
 		}
 		best
@@ -421,13 +458,11 @@ impl<const N: usize> Tier<N> {
 		}
 		// far enough in that a sample starting later has a bucket past `clear`
 		let near = clear - run + self.len;
-		let j0 = (((a + clear) / self.len).ceil() as i64 - self.first).max(0);
-		let j1 =
-			(((b - clear) / self.len).floor() as i64 - self.first).min(self.buckets.len() as i64);
+		let j0 = (ceil_i((a + clear) / self.len) - self.first).max(0);
+		let j1 = (floor_i((b - clear) / self.len) - self.first).min(self.buckets.len() as i64);
 		let inner = (j1 > j0)
-			.then(|| self.total_over(j0 as usize, j1 as usize))
-			.filter(|t| t.weight > 0.0)
-			.map(|t| t.max);
+			.then(|| self.max_over(j0 as usize, j1 as usize))
+			.flatten();
 		let spike = most(anchored.into_iter().chain([
 			self.densest(a, a + near, run),
 			self.densest(b - run - near, b - run, run),
@@ -452,13 +487,13 @@ impl<const N: usize> Tier<N> {
 		let x_end = x0 + (b - a) / len;
 		let mut ring = [[(0u32, 0.0f32); CAP]; N];
 		let (mut head, mut size) = ([0usize; N], [0usize; N]);
-		let mut next = x0.ceil() as i64;
+		let mut next = ceil_i(x0);
 		let base = next;
 		// as `densest` slides its window, the whole buckets of the one
 		// starting at bucket `next`
 		let count = self.buckets.len() as i64;
 		let bucket = |j: i64| (0..count).contains(&j).then(|| &self.buckets[j as usize]);
-		let whole = (run / len).floor() as i64;
+		let whole = floor_i(run / len);
 		let frac = run - whole as f64 * len;
 		let take = |win: &mut (f64, [f64; N]), j: i64, sign: f64| {
 			if let Some(bk) = bucket(j) {
@@ -491,15 +526,29 @@ impl<const N: usize> Tier<N> {
 		}
 		let (mut sums, mut weight) = ([0.0f64; N], 0.0f64);
 		let mut peak = [f32::NEG_INFINITY; N];
-		let to_whole = |v: f64| v.floor() + 1.0 - v;
+		// the next whole number past x, and past x + reach, kept as x moves
+		// up rather than worked out at each step
+		let past = |was: f64, v: f64| {
+			if was > v {
+				was
+			} else if was + 1.0 > v {
+				was + 1.0
+			} else {
+				floor_f(v) + 1.0
+			}
+		};
+		let (mut whole_x, mut whole_r) = (floor_f(x0) + 1.0, floor_f(x0 + reach) + 1.0);
 		let mut x = x0;
 		while x < x_end {
-			let x_next = (x + to_whole(x).min(to_whole(x + reach))).min(x_end);
+			let at_reach = x + reach;
+			whole_x = past(whole_x, x);
+			whole_r = past(whole_r, at_reach);
+			let x_next = (x + (whole_x - x).min(whole_r - at_reach)).min(x_end);
 			if x_next <= x {
 				break;
 			}
 			let mid = f64::midpoint(x, x_next);
-			let (lo, hi) = (mid.ceil() as i64, (mid + reach).floor() as i64);
+			let (lo, hi) = (ceil_i(mid), floor_i(mid + reach));
 			for s in 0..N {
 				while size[s] > 0 && i64::from(ring[s][head[s]].0) + base < lo {
 					head[s] = (head[s] + 1) % CAP;
@@ -534,6 +583,29 @@ impl<const N: usize> Tier<N> {
 			x = x_next;
 		}
 		(weight > 0.0).then(|| (sums.map(|v| (v / weight) as f32), peak))
+	}
+}
+
+// `v.floor() as i64`, and so on below, without the libm call that floor
+// and ceil are on a baseline x86-64 build, which has no instruction for them
+fn floor_i(v: f64) -> i64 {
+	let t = v as i64;
+	t.saturating_sub(i64::from(t as f64 > v))
+}
+
+fn ceil_i(v: f64) -> i64 {
+	let t = v as i64;
+	t.saturating_add(i64::from((t as f64) < v))
+}
+
+// any f64 this big is already whole
+const WHOLE_FROM: f64 = 4_503_599_627_370_496.0;
+
+fn floor_f(v: f64) -> f64 {
+	if v.abs() < WHOLE_FROM {
+		floor_i(v) as f64
+	} else {
+		v
 	}
 }
 
@@ -652,8 +724,8 @@ impl<const N: usize> History<N> {
 		if tier.buckets.is_empty() {
 			return out;
 		}
-		let i0 = ((a / tier.len).floor() as i64 - tier.first).max(0);
-		let i1 = ((b / tier.len).ceil() as i64 - tier.first).min(tier.buckets.len() as i64);
+		let i0 = (floor_i(a / tier.len) - tier.first).max(0);
+		let i1 = (ceil_i(b / tier.len) - tier.first).min(tier.buckets.len() as i64);
 		let mut weight = 0.0f64;
 		let mut sums = [0.0f64; N];
 		let mut max = [f32::NEG_INFINITY; N];
@@ -835,8 +907,8 @@ impl<const N: usize> History<N> {
 			// every bucket is between first and last, give or take one for rounding
 			if count > 0 {
 				let (f, l) = span?;
-				let from = (f / tier.len).floor() as i64 - 1;
-				let to = (l / tier.len).ceil() as i64 + 1;
+				let from = floor_i(f / tier.len) - 1;
+				let to = ceil_i(l / tier.len) + 1;
 				if tier.first < from || tier.first.checked_add(count)? > to {
 					return None;
 				}
@@ -1021,6 +1093,49 @@ mod tests {
 		let s = holed.span(0.0, 1.75);
 		assert!(close(s.mean[0], 0.5));
 		assert!(close(s.covered, 0.5 / 1.75), "{}", s.covered);
+	}
+
+	// Test ID: dfegt
+	#[test]
+	fn whole_numbers_as_libm() {
+		let mut seed = 0x2545_f491_4f6c_dd1d_u64;
+		let mut rand = move || {
+			seed ^= seed << 13;
+			seed ^= seed >> 7;
+			seed ^= seed << 17;
+			f64::from_bits(seed)
+		};
+		let edges = [
+			0.0,
+			-0.0,
+			0.5,
+			-0.5,
+			1.0,
+			-1.0,
+			2.5,
+			-2.5,
+			1.0 - f64::EPSILON,
+			-1.0 + f64::EPSILON,
+			WHOLE_FROM - 0.5,
+			-WHOLE_FROM + 0.5,
+			WHOLE_FROM,
+			WHOLE_FROM * 3.0,
+			9.3e18,
+			-9.3e18,
+			f64::MAX,
+			f64::MIN,
+			f64::INFINITY,
+			f64::NEG_INFINITY,
+			f64::NAN,
+		];
+		let n = if cfg!(miri) { 200 } else { 20_000 };
+		let sums = (0..n).map(|i| f64::from(i) * 0.05 - 300.0);
+		for v in edges.into_iter().chain(sums).chain((0..n).map(|_| rand())) {
+			assert_eq!(floor_i(v), v.floor() as i64, "{v:e}");
+			assert_eq!(ceil_i(v), v.ceil() as i64, "{v:e}");
+			let f = floor_f(v);
+			assert!(f == v.floor() || (f.is_nan() && v.is_nan()), "{v:e}");
+		}
 	}
 
 	// Test ID: debj1
@@ -1315,7 +1430,7 @@ mod tests {
 			let end = t.first + t.buckets.len() as i64;
 			let plain = |a0: i64, a1: i64| {
 				let mut out = Total::zero();
-				t.add_buckets(a0, a1, &mut out);
+				t.add_buckets::<true>(a0, a1, &mut out);
 				out
 			};
 			for (level, &size) in t.blocks.iter().zip(&BLOCKS) {
@@ -1343,6 +1458,12 @@ mod tests {
 				let want = plain(t.first + i0 as i64, t.first + i1 as i64);
 				assert!(
 					same_total(&t.total_over(i0, i1), &want),
+					"{} s tier, {i0} to {i1}",
+					t.len
+				);
+				assert_eq!(
+					t.max_over(i0, i1),
+					(want.weight > 0.0).then_some(want.max),
 					"{} s tier, {i0} to {i1}",
 					t.len
 				);
