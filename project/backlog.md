@@ -226,6 +226,7 @@ Sorted per the notes in [Template](#template).
 		- Profiler: 673.8 us user a tick at load 8 to 15 on 32 cores, and 916.5 at 16 to 27. The old drawing took 729.1 at 16 to 24. Drawing is 17.6% and 18.5% of self time, against 19.9%. That's within the noise.
 		- Verified: df4y1 failed on the old drawing, at 1.53 to 2.0 on half-sample columns, and passed after. The quick gate and Sanitizers passed.
 	- Decisions:
+		- Check answered 20261116: sRGB numbers for every part-covered pixel. The earlier linear light Check is superseded.
 		- A column's ink stays what the drawing gave before, so the area under a spike holds. Only its shape changes: full height at part strength, rather than part height.
 		- A column no wider than a sample takes its oldest and newest buckets as its 2 samples. Each series' own min and max can come from different samples, and stack over either one's total.
 		- Wider, the solid stack reaches toward the max of the buckets clear of both edges, and the tall one toward the column's max, as before 2026110920595602.
@@ -274,6 +275,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: df4y1 failed with the change off, at 0.17 to 0.67 on 1.5 s columns, and passed with it on. The quick gate and Sanitizers passed.
 		- 2026-11-11: The test ID check read `depth` in df4y1's name in a Test case row as an ID. It now skips names in backticks. Test dezap failed before that and passes after.
 	- Decisions:
+		- Check answered 20261116: keep it, and the cost stays with 2026111000270812.
 		- Picked A, the worker's call, since it holds for every width of gap and is easy to undo. The emphasis comes from the history widened by a column less a sample, then averaged over the column, and df3s6's 10 s check becomes a check on the 2 columns' total (20261111).
 		- Only up to 4 samples wide, not every width. Past that a column already holds every gap up to 3 samples, and the slide costs about a bucket per point, which is too much on wide columns. So df3s6's 10 s check is unchanged. It now also slides the spike across 1.5 and 3 s columns.
 		- Each point looks half a column each way, so a point's value goes by its time alone. Then the ink across columns of one width stays the same as they slide.
@@ -380,6 +382,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: df4xa and df4xb pass, and each failed on a broken installer: a release not above its prerelease, fields compared as text, no sum check, a reinstall when current, and stable taking a prerelease. The quick gate and Sanitizers passed.
 		- Verified 20261111: `--target system --yes`, as a user with sudo on clean Debian 13 and Fedora 42, installed the real v1.0.0-beta.1 package and its dependencies through apt-get and dnf. A second run said up to date and changed nothing, and the installed `tukzmon-settings --version` gave v1.0.0-beta.1 build df1j9. A user install into an empty home with this round's `install.bash` did the same.
 	- Decisions:
+		- Check answered 20261116: both as built, the download before the plan and the package manager's own prompt.
 		- The package is downloaded and checked in a temp folder before the plan, so the plan lists only what would change. The release has no tarball, so a user install unpacks the package with whatever is there.
 		- A system install without `--yes` leaves the package manager's own prompt, for its dependency list. Both are in questions.md as a Check.
 		- Exit 2 on a bad option, as `dev-install.bash` does, where silkterm's gives 1.
@@ -424,6 +427,8 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- Lots of up and down activity in a monitor still results in "shimmering", most noticeable in the first minute. Need to fix this.
 		- Would a 1px blur help? That might be very expensive at 30 hz. And might, well, also look blurry.
+	- Decisions:
+		- Answered 20261116: no blur as the first try. It softens every edge, steady ones too, which works against keeping spikes sharp, and it would only lower the shimmer. First find which pixels change from frame to frame in the first minute, and why. A blur stays a fallback if that finds nothing to fix.
 
 - Code review 20261030 item 3, part 2: Look up a setting by an index in knobs
 	- ID: 2026103018353670
@@ -3686,6 +3691,7 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Settings window and History, and `style-guide_ux.md` Groups and headings, are updated.
 		- Verified: the quick gate and Sanitizers passed. der33 and der54 fail on the old line code, and pass now.
 	- Decisions:
+		- Check answered 20261116: fine as built, days from 0 and the 1 minute floor stay.
 		- Days from 0, so a max age under a day can be set, which is what hours and minutes are for. A file with `max_days: 0` used to read as 28 days, and now reads as a minute. Only a hand edit could write it.
 		- The 1 minute floor, since 0 would empty the graph as it draws.
 		- `Look` keeps one `max_age` in seconds, not the 3 parts.
@@ -3943,6 +3949,7 @@ Sorted per the notes in [Template](#template).
 		- Before the image had the toolchain its Rust extractor runs on, that half loaded no workspace and still made a database, with findings that were noise. The step fails on the extractor's errors now.
 		- Verified: 2026-11-10, the gate step's `--backlog-run-quick codeql` passed in 4m 32s: rust.sarif 26158 lines of ours, 1 finding, 1 suppressed; cpp.sarif 2924 lines, 0 findings (codeql_20261110-224047).
 	- Decisions:
+		- Check answered 20261116: the 2 bundles in the one image stay.
 		- The Rust and C++ bundles, unpacked over each other, rather than the all-language bundle. They're 263 MB to fetch against 559, and their shared files are the same.
 		- Every finding fails, notes included, as clippy's warnings do. There's only the one, so a looser line wasn't needed.
 		- A suppression matches the line's text rather than its number, so it lasts through edits above it.
