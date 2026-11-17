@@ -22,180 +22,10 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- Smoothly animate each graph on each tick
-	- ID: 2026110911114024
-	- Type: Enhancement
-	- Status: Waiting on UAT
-	- Priority|Severity: Avg
-	- Opened: 20261109-111140
-	- Opened by: t00mietum
-	- Related IDs: 2026110911114037
-	- Requirements:
-		- Settings option, on by default if the CPU has 8 or more cores: Smoothly animate the graph on each tick, rather than wholesale replace previous contents.
-		- Maybe animate over 1/2 of each graph's update ms? Smooth animation at high fps.
-		- If this makes sense: An even division of the screen refresh rate, minimum 30, max 60. With smooth antialiasing.
-		- It should look absolutely incredibly buttery smooth.
-	- Progress log:
-		- Split in 2: the setting and the slide in 2026110918080223, and frames at the screen's rate with the CPU cost in 2026110918081021. Both are in, waiting on UAT.
-		- 20261109: children 2026110918080223 2026110918081021 wait on UAT, and the rest are closed
-		- 2026-11-10: Back to Queued with its child 2026110918081021, which needs the panel's frame rate fixed on a screen whose WM gives GTK no frame timings. That and the quarter rate in 2026110920595603 are in, waiting on UAT.
-		- 20261109: children 2026110918080223 2026110918081021 2026110920595603 wait on UAT, and the rest are closed
-	- Test case: its children's: 2026110918080223: `tests::slide_steady_gap_jumps` (df3e1), `tests::right_column_fills_tip` (df3e2), and `config::tests::smooth_auto_by_cpus` (df3e3).; 2026110918081021: `tests::frame_split_30_to_60` (df3e4) and `tests::draw_rate_without_frame_timings` (df3mf). The frame clock's and the timer's own pacing need a real screen, so they have no test. dekpt now calls the tick callback and the timer.; 2026110920595603: `tests::quarter_pace_24_to_50` (df3me).
-	- Stand-in: none (20261110). It closes with its children 2026110918080223, 2026110918081021 and 2026110920595603, each waiting on a look at b23's own screen.
-
-- Smooth scrolling: the setting, and each graph sliding between samples
-	- ID: 2026110918080223
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- Watch a panel with Smooth scrolling on, and say whether the slide looks smooth enough at about 30 frames a second, before 2026110918081021 paces it to the screen.
-	- Needs hand testing: A panel on b23 with this build, Smooth scrolling on and off.
-	- Stand-in: none (20261110). Turns on how smooth the slide looks.
-	- Priority|Severity: Avg
-	- Opened: 20261109-180802
-	- Opened by: t00mietum
-	- Parent ID: 2026110911114024
-	- Version and build: b23 runs df4n2 (2026-11-10), from 770a184 on `dev`, which has this.
-	- Requirements:
-		- A Smooth scrolling setting, on by default with 8 or more CPUs.
-		- Each graph slides to its newest sample over the time to the next one, rather than jumping a step.
-		- The hover tip matches what's drawn.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- General, under Time axis, has Smooth scrolling: Auto, On or Off, at `graph.animate`. Auto is the default, and is on with 8 or more CPUs.
-		- The right edge runs one sample behind and slides to the newest sample at a steady speed over one sample period. The edge column is drawn part way, weighted like any other.
-		- The panel and the settings window's graph rows redraw every 33 ms while a graph slides, through the frame timers the axis ease already had.
-		- `design.md` Drawing and README Features have it.
-		- Verified: the quick gate and Sanitizers passed. The new tests failed with the edge left at the newest sample, and df3e2 also with the tip going by the newest sample. The General tab still fits with no scroll bar.
-		- A panel tick costs about 620 us of CPU, 274 of it user, on the profiler's 7 graphs. So 30 frames a second likely costs around ten times an idle panel. The panel's own number is on 2026110918081021.
-	- Decisions:
-		- A dropdown with Auto, not a checkbox, so the default follows the box a settings file is used on, and isn't saved as one box's answer.
-		- CPUs as `available_parallelism` counts them, threads included, the same count the load graph uses.
-		- The slide takes the whole sample period at a steady speed, not half of it. Half with easing stops the graph once a sample, which reads as a pulse. A steady one never stops.
-		- A step longer than the ease's slack, as after a gap, isn't slid, so the axis ease stays the one that handles jumps.
-		- `Drawn::moving` is new, and the 2 frame timers use it. `easing` keeps its meaning, so its tests stand.
-	- Branch: round-1109b
-	- Test case: `tests::slide_steady_gap_jumps` (df3e1), `tests::right_column_fills_tip` (df3e2), and `config::tests::smooth_auto_by_cpus` (df3e3).
-		- Swept: every `hist.last()` in `Graph` that places the right edge (`basis`, `span_at`, `render_in`), both frame timers (the plugin's draw, qt.cpp's `LiveGraph`), and every `Drawn` impl.
-
-- Smooth scrolling: frames at the screen's rate, and the CPU cost
-	- ID: 2026110918081021
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- Watch the panel on b23's own 100 Hz screen with Smooth scrolling on, and say whether the slide runs without a stutter. It should draw 25 times a second, by 2026110920595603.
-	- Needs hand testing: The panel on b23's screen, under its compositor, with this build.
-	- Stand-in: none (20261110). The draw rate is measured, and what's left turns on whether the slide stutters to the eye on b23's own screen.
-	- Priority|Severity: Avg
-	- Opened: 20261109-180810
-	- Opened by: t00mietum
-	- Parent ID: 2026110911114024
-	- Prereq IDs: 2026110918080223
-	- Version and build: b23 runs df4n2 (2026-11-10), from 770a184 on `dev`, which has this.
-	- Requirements:
-		- While a graph slides, draw at an even division of the screen's refresh rate, from 30 to 60 a second, in the panel and in the settings window's graph rows, in place of the fixed 33 ms timer.
-		- Measure the panel's CPU with Smooth scrolling on and off. If on costs too much for a panel that runs all day, revisit what Auto turns on.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- While a graph slides or an axis eases, the panel draws from its frame clock: every frame up to 60 Hz, every other at 120, every third at 144. The settings window's graph rows use the same rule on a timer, from the screen's refresh rate.
-		- With Smooth scrolling on, a panel item with the default graphs took 31 CPU ticks in 20 s, about 1.6% of a core, and its X server 9. Off, they took 2 and 1. That's at 60 frames a second, the most it draws.
-		- `design.md` Drawing and Time axis have it.
-		- Verified: the quick gate and Sanitizers passed, and a panel item kept drawing while it slid, by the CPU numbers above.
-		- 2026-11-10: Answer on the Check: let's try 60 fps. But on a 100 Hz screen it should be a clean factor, like 50, auto-detected. frames_apart already gives 50 at 99.99 Hz, and the settings window gets 99.99 from Qt. The panel doesn't: xfwm4 on b23 has no `_NET_WM_FRAME_DRAWN` or `_NET_WM_FRAME_TIMINGS`, so GTK's frame clock reports its 60 Hz default and paces itself to it. When it has no real timing, take the rate from the panel's monitor (gdk_monitor_get_refresh_rate) and pace the draws to that.
-		- 2026-11-10: With no frame timings, GTK's frame clock gives its 60 Hz guess, not 0, so the old fallback never ran. The panel now looks for a presented frame. Without one, it draws on a timer at its monitor's refresh rate, read again once a second, and goes back to the frame clock once timings show up.
-		- 2026-11-10: On a 100 Hz screen with no frame timings, the old build drew 60 times a second, and this one every 40 ms, at the quarter rate of 2026110920595603. A panel item took 18 CPU ticks in 20 s, against 26 before, and its X server 5, against 9, at a load of 9 to 11 on 32 cores.
-		- `design.md` Drawing has the timer.
-		- Verified: the quick gate, Sanitizers and the release build passed, and the panel drew every 40 ms on a 100 Hz screen, by its X requests.
-	- Decisions:
-		- The panel uses GTK's frame clock, not a timer, so a draw lands on a screen frame rather than beating against them.
-			- 2026-11-10: Only where the window manager gives GTK frame timings. Without them the clock's own ticks are 60 a second whatever the screen runs at, and 60 doesn't split into 25, so a timer at the monitor's rate stands in.
-		- The timer goes by when the last draw was due, not when it ran, so it holds the screen's rate rather than drifting by each wakeup's delay.
-		- The monitor's rate is read at most once a second, since each read waits on the X server for the window's place. A panel moved to another monitor takes up its rate within a second.
-		- An unknown monitor rate counts as 60 Hz.
-		- One rule, `frames_apart` in core, serves both the panel and the settings window. It splits by 61, not 60, so a 60.002 Hz screen still gets every frame.
-		- Below 60 Hz it draws every frame, since none come faster.
-		- Auto stays on at 8 CPUs. 1.6% of one core is 0.2% of an 8 CPU box.
-	- Branch: round-1109b, round-1110
-	- Test case: `tests::frame_split_30_to_60` (df3e4) and `tests::draw_rate_without_frame_timings` (df3mf). The frame clock's and the timer's own pacing need a real screen, so they have no test. dekpt now calls the tick callback and the timer.
-		- 2026-11-10: df3e4 calls `Pace::UpTo60.frames_apart` rather than `frames_apart`, which now goes by `PACE`. Its values are as they were.
-		- df3mf is new with the function it tests, so it has no run on the old code. The old code's 60 a second on a 100 Hz screen is in the Progress log.
-		- Swept: both frame timers (the plugin's draw and `quiet`, qt.cpp's `LiveGraph`), and every `frame` caller, the panic test included. 2026-11-10: also the new timer, `paced`, in the draw, `quiet` and dekpt.
-
-- Smooth scrolling: try a quarter of the screen's frame rate
-	- ID: 2026110920595603
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- Watch the panel on b23's screen with Smooth scrolling on, and say whether 25 frames a second looks as good as 60 did. `PACE` in `core/src/lib.rs` set to `Pace::UpTo60` builds the 60 one again.
-	- Needs hand testing: The panel on b23's 100 Hz screen, under its compositor, with this build.
-	- Stand-in: none (20261110). Turns on whether 25 a second looks as good as 60.
-	- Priority|Severity: Avg
-	- Opened: 20261109-205956
-	- Opened by: t00mietum
-	- Parent ID: 2026110911114024
-	- Related IDs: 2026110918081021
-	- Version and build: b23 runs df4n2 (2026-11-10), from 770a184 on `dev`, which has this.
-	- Requirements:
-		- 60 Hz looks good.
-		- Now let's try 1/4 framerate, evenly divisible by framerate, but not less than 24 and not more than 50 Hz.
-		- Don't delete the 60 Hz code, just use a code constant to isolate it.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- While a graph slides or an axis eases, it draws every fourth screen frame, kept to 24 to 50 a second: every other frame at 60 Hz, every third at 75, every fourth from 96 to 200 Hz, and every fifth at 240. On b23's 99.99 Hz screen that's 25 a second, in the panel and in the settings window's graph rows.
-		- The up-to-60 rule is `Pace::UpTo60`, and the `PACE` constant in core picks one.
-		- `design.md` Drawing and Time axis have it.
-		- Verified: the quick gate, Sanitizers and the release build passed, and the panel drew every 40 ms on a 100 Hz screen, by its X requests. The settings window's rows weren't watched.
-	- Decisions:
-		- An enum and a constant, not a setting, as asked.
-		- Where a quarter falls outside 24 to 50, it takes the split nearest 4 that's inside, so 60 Hz draws 30 a second and 240 Hz draws 48.
-		- 1% slack each way, so a screen a hair off its rate, as 95.9 or 200.01 Hz, still splits by 4.
-	- Branch: round-1110
-	- Test case: `tests::quarter_pace_24_to_50` (df3me).
-		- Swept: every `frames_apart` caller: the plugin's tick callback and timer, and qt.cpp's `LiveGraph` through `bridge::frames_apart`.
-
-- Reduce motion: a remote viewer on the local desktop, as RustDesk, x11vnc or NoMachine on the physical display
-	- ID: 2026110922214810
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- Connect NoMachine from another box to b23's physical display, and say whether the panel calms while connected and lets go after.
-	- Needs hand testing: NoMachine from another box to b23's physical display, with the panel calming while connected and letting go after. x11vnc and RustDesk on a box that has them, since neither is on b23 and installing them is a sudo step.
-	- Stand-in: none (20261110). A NoMachine one needs a connection to b23's live NoMachine server, which would calm the live panel too.
-	- Priority|Severity: Avg
-	- Opened: 20261109-222148
-	- Opened by:
-	- Parent ID: 2026110911114037
-	- Prereq IDs: 2026110922214697
-	- Version and build: b23 runs df4n2 (2026-11-10), from 770a184 on `dev`, which has this.
-	- Requirements:
-		- Treat the local desktop as remote while a remote viewer is connected to it, and go back to the person's settings once it leaves.
-		- Check again every few seconds, in the panel and in the settings window, rather than once at start.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- Possible signs: RustDesk's `--cm` window, which runs only while a peer is connected; an established socket on a VNC or RDP port; NoMachine's per-session node, told apart from the one for a virtual desktop on another display. Each needs a check with the real tool on b23.
-		- The panel item and the settings window look for a remote viewer on their own display about every 5 s, and go back to the person's settings once it leaves (`remote::Watch`). No root.
-		- A look reads the TCP counters, and the TCP tables only when those moved. It reads this user's processes only while a connection is up on a VNC, RDP, NoMachine or RustDesk port.
-		- Signs: x11vnc, x0vncserver, krfb or freerdp-shadow-cli holding that connection. RustDesk's `--cm`. NoMachine's `nxrunner.bin --monitor` on this display, while NoMachine has a connection.
-		- On b23, :1001 is NoMachine's node for the physical display. Its `nxrunner.bin --monitor` watches :0 and runs with no client connected.
-		- `design.md` Drawing and README Features have it.
-		- Verified: the quick gate and Sanitizers passed. With a stand-in x11vnc on a private Xvfb, the settings window greyed Sample ms default and Smooth scrolling, and went back 6 s after it quit. Before the early-timer fix below, it was still grey then. df3p7 failed with the socket read taken out, and df3p6 without the slack.
-		- On b23, a read of the TCP tables takes about 6 ms, the counters 18 us, and the process walk about 5 ms.
-		- Verified 2026-11-10: on a private panel with Smooth scrolling on, a stand-in x11vnc on its display took the item from 33 X writes a second to 1 within 3 s of joining, and back to 33 within 2 s of quitting.
-	- Decisions:
-		- Ports and process names, since none of these servers says which display it serves in a way that can be read without root.
-		- NoMachine counts by its monitor and any connection on port 4000, since its node for the physical display runs between connections. A connection to a NoMachine virtual desktop on the same box would calm the physical display too.
-		- A server on a port of its own isn't seen.
-		- A look up to a tenth early still counts, since Qt's coarse timer can wake early, and skipping it doubled the wait.
-		- The tables are kept until the TCP counters move, since each read walks the kernel's whole table.
-		- `Dialog::set_session` gave way to `watch_session`, and tests pass `Watch::fixed`.
-	- Branch: round-1110
-	- Test case: `remote::tests::tcp_table_established_ports` (df3p4), `remote::tests::viewer_needs_peer_here` (df3p5), `remote::tests::watch_rechecks_every_few_seconds` (df3p6) and `remote::tests::stand_in_vnc_viewer_seen` (df3p7).
-		- Swept: both callers of `remote::session` (the plugin's start and the settings window's), both `set_session` callers, and every `Look` maker that takes the session.
-
 - Reduce motion if a remote desktop session is detected
 	- ID: 2026110911114037
 	- Type: Enhancement
-	- Status: Waiting on UAT
+	- Status: Waiting on automated testing
 	- Priority|Severity: Avg
 	- Opened: 20261109-111140
 	- Opened by: t00mietum
@@ -211,7 +41,25 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Split in 2: the setting, with sessions a remote desktop server starts, in 2026110922214697, which is done, and a viewer that joins the local desktop in 2026110922214810, which is queued.
 		- 20261110: children 2026110922214810 wait on UAT, and the rest are closed
-	- Test case: its children's: 2026110922214810: `remote::tests::tcp_table_established_ports` (df3p4), `remote::tests::viewer_needs_peer_here` (df3p5), `remote::tests::watch_rechecks_every_few_seconds` (df3p6) and `remote::tests::stand_in_vnc_viewer_seen` (df3p7).; 2026110922214697: `remote::tests::remote_session_signs` (df3nf), `config::tests::remote_halves_reads_no_slide` (df3ng), `dialog::tests::remote_session_greys_rows` (df3nh) and `bridge::tests::remote_greys_rates_and_scrolling` (df3nj).
+		- 20261117: 2026110922214810 is closed. Its RustDesk check is split off to 2026111709483900, which waits on a run with a real RustDesk peer.
+	- Test case: its children's: 2026111709483900: `remote::tests::viewer_needs_peer_here` (df3p5).; 2026110922214810: `remote::tests::tcp_table_established_ports` (df3p4), `remote::tests::viewer_needs_peer_here` (df3p5), `remote::tests::watch_rechecks_every_few_seconds` (df3p6) and `remote::tests::stand_in_vnc_viewer_seen` (df3p7).; 2026110922214697: `remote::tests::remote_session_signs` (df3nf), `config::tests::remote_halves_reads_no_slide` (df3ng), `dialog::tests::remote_session_greys_rows` (df3nh) and `bridge::tests::remote_greys_rates_and_scrolling` (df3nj).
+
+- Reduce motion: check the RustDesk signs with a real RustDesk peer
+	- ID: 2026111709483900
+	- Type: Task
+	- Status: Waiting on automated testing
+	- Needs external testing: the real RustDesk on a private display, with a peer connected directly on port 21118, then through a relay. The panel or `remote::Watch` should say Remote while the peer is on, and Local after.
+	- Priority|Severity: Low
+	- Opened: 20261117-094839
+	- Opened by:
+	- Parent ID: 2026110911114037
+	- Related IDs: 2026110922214810
+	- Requirements:
+		- A RustDesk peer on the local desktop calms the panel, and it lets go once the peer leaves, checked with the real RustDesk.
+	- Progress log:
+		- Split from 2026110922214810, whose NoMachine and x11vnc parts passed with the real servers. The signs are RustDesk's `--cm` process and a connection on 21118 or out to 21117.
+		- RustDesk isn't on b23. Its package can be unpacked with no root, as x11vnc's was.
+	- Test case: `remote::tests::viewer_needs_peer_here` (df3p5), with stand-in RustDesk processes.
 
 - The 2 GPU graphs aren't available with integrated Intel graphics
 	- ID: 2026110920595600
@@ -403,6 +251,185 @@ Sorted per the notes in [Template](#template).
 		- Apply saves through `write_file_atomic` alone, with no `config::through_links` first, and the comment saying shcl breaks the link goes.
 		- deqw1 and deqw2 still pass.
 	- Note: shcl 3.0.0-beta1 writes through a link to a missing file and keeps the link. Checked 2026-11-10.
+
+- Smoothly animate each graph on each tick
+	- ID: 2026110911114024
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261109-111140
+	- Opened by: t00mietum
+	- Related IDs: 2026110911114037
+	- Requirements:
+		- Settings option, on by default if the CPU has 8 or more cores: Smoothly animate the graph on each tick, rather than wholesale replace previous contents.
+		- Maybe animate over 1/2 of each graph's update ms? Smooth animation at high fps.
+		- If this makes sense: An even division of the screen refresh rate, minimum 30, max 60. With smooth antialiasing.
+		- It should look absolutely incredibly buttery smooth.
+	- Progress log:
+		- Split in 2: the setting and the slide in 2026110918080223, and frames at the screen's rate with the CPU cost in 2026110918081021. Both are in, waiting on UAT.
+		- 20261109: children 2026110918080223 2026110918081021 wait on UAT, and the rest are closed
+		- 2026-11-10: Back to Queued with its child 2026110918081021, which needs the panel's frame rate fixed on a screen whose WM gives GTK no frame timings. That and the quarter rate in 2026110920595603 are in, waiting on UAT.
+		- 20261109: children 2026110918080223 2026110918081021 2026110920595603 wait on UAT, and the rest are closed
+		- 20261117: all 3 children are closed.
+	- Test case: its children's: 2026110918080223: `tests::slide_steady_gap_jumps` (df3e1), `tests::right_column_fills_tip` (df3e2), and `config::tests::smooth_auto_by_cpus` (df3e3).; 2026110918081021: `tests::frame_split_30_to_60` (df3e4) and `tests::draw_rate_without_frame_timings` (df3mf). The frame clock's and the timer's own pacing need a real screen, so they have no test. dekpt now calls the tick callback and the timer.; 2026110920595603: `tests::quarter_pace_24_to_50` (df3me).
+	- Stand-in: none (20261110). It closes with its children 2026110918080223, 2026110918081021 and 2026110920595603, each waiting on a look at b23's own screen.
+	- Acceptance signoff: Self-closed 20261117: all 3 children are closed.
+	- Closed: 20261117-094915
+
+- Smooth scrolling: the setting, and each graph sliding between samples
+	- ID: 2026110918080223
+	- Type: Enhancement
+	- Status: Done
+	- Stand-in: none (20261110). Turns on how smooth the slide looks.
+	- Priority|Severity: Avg
+	- Opened: 20261109-180802
+	- Opened by: t00mietum
+	- Parent ID: 2026110911114024
+	- Version and build: b23's panel runs df54v since 2026-11-16, which has this.
+	- Requirements:
+		- A Smooth scrolling setting, on by default with 8 or more CPUs.
+		- Each graph slides to its newest sample over the time to the next one, rather than jumping a step.
+		- The hover tip matches what's drawn.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- General, under Time axis, has Smooth scrolling: Auto, On or Off, at `graph.animate`. Auto is the default, and is on with 8 or more CPUs.
+		- The right edge runs one sample behind and slides to the newest sample at a steady speed over one sample period. The edge column is drawn part way, weighted like any other.
+		- The panel and the settings window's graph rows redraw every 33 ms while a graph slides, through the frame timers the axis ease already had.
+		- `design.md` Drawing and README Features have it.
+		- Verified: the quick gate and Sanitizers passed. The new tests failed with the edge left at the newest sample, and df3e2 also with the tip going by the newest sample. The General tab still fits with no scroll bar.
+		- UAT 20261109: "60 Hz looks good", in 2026110920595603's requirements, was a look at this slide.
+		- A panel tick costs about 620 us of CPU, 274 of it user, on the profiler's 7 graphs. So 30 frames a second likely costs around ten times an idle panel. The panel's own number is on 2026110918081021.
+	- Decisions:
+		- A dropdown with Auto, not a checkbox, so the default follows the box a settings file is used on, and isn't saved as one box's answer.
+		- CPUs as `available_parallelism` counts them, threads included, the same count the load graph uses.
+		- The slide takes the whole sample period at a steady speed, not half of it. Half with easing stops the graph once a sample, which reads as a pulse. A steady one never stops.
+		- A step longer than the ease's slack, as after a gap, isn't slid, so the axis ease stays the one that handles jumps.
+		- `Drawn::moving` is new, and the 2 frame timers use it. `easing` keeps its meaning, so its tests stand.
+	- Branch: round-1109b
+	- Test case: `tests::slide_steady_gap_jumps` (df3e1), `tests::right_column_fills_tip` (df3e2), and `config::tests::smooth_auto_by_cpus` (df3e3).
+		- Swept: every `hist.last()` in `Graph` that places the right edge (`basis`, `span_at`, `render_in`), both frame timers (the plugin's draw, qt.cpp's `LiveGraph`), and every `Drawn` impl.
+	- Acceptance signoff: Self-closed 20261117: the slide was called good at 60 Hz, and b23's panel has drawn it since 2026-11-10. The 20261111 and 20261117 looks at the drawing found shimmer, not a slow or uneven slide.
+	- Closed: 20261117-094915
+
+- Smooth scrolling: frames at the screen's rate, and the CPU cost
+	- ID: 2026110918081021
+	- Type: Enhancement
+	- Status: Done
+	- Stand-in: none (20261110). The draw rate is measured, and what's left turns on whether the slide stutters to the eye on b23's own screen.
+	- Priority|Severity: Avg
+	- Opened: 20261109-180810
+	- Opened by: t00mietum
+	- Parent ID: 2026110911114024
+	- Prereq IDs: 2026110918080223
+	- Version and build: b23's panel runs df54v since 2026-11-16, which has this.
+	- Requirements:
+		- While a graph slides, draw at an even division of the screen's refresh rate, from 30 to 60 a second, in the panel and in the settings window's graph rows, in place of the fixed 33 ms timer.
+		- Measure the panel's CPU with Smooth scrolling on and off. If on costs too much for a panel that runs all day, revisit what Auto turns on.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- While a graph slides or an axis eases, the panel draws from its frame clock: every frame up to 60 Hz, every other at 120, every third at 144. The settings window's graph rows use the same rule on a timer, from the screen's refresh rate.
+		- With Smooth scrolling on, a panel item with the default graphs took 31 CPU ticks in 20 s, about 1.6% of a core, and its X server 9. Off, they took 2 and 1. That's at 60 frames a second, the most it draws.
+		- `design.md` Drawing and Time axis have it.
+		- Verified: the quick gate and Sanitizers passed, and a panel item kept drawing while it slid, by the CPU numbers above.
+		- 2026-11-10: Answer on the Check: let's try 60 fps. But on a 100 Hz screen it should be a clean factor, like 50, auto-detected. frames_apart already gives 50 at 99.99 Hz, and the settings window gets 99.99 from Qt. The panel doesn't: xfwm4 on b23 has no `_NET_WM_FRAME_DRAWN` or `_NET_WM_FRAME_TIMINGS`, so GTK's frame clock reports its 60 Hz default and paces itself to it. When it has no real timing, take the rate from the panel's monitor (gdk_monitor_get_refresh_rate) and pace the draws to that.
+		- 2026-11-10: With no frame timings, GTK's frame clock gives its 60 Hz guess, not 0, so the old fallback never ran. The panel now looks for a presented frame. Without one, it draws on a timer at its monitor's refresh rate, read again once a second, and goes back to the frame clock once timings show up.
+		- 2026-11-10: On a 100 Hz screen with no frame timings, the old build drew 60 times a second, and this one every 40 ms, at the quarter rate of 2026110920595603. A panel item took 18 CPU ticks in 20 s, against 26 before, and its X server 5, against 9, at a load of 9 to 11 on 32 cores.
+		- `design.md` Drawing has the timer.
+		- Verified: the quick gate, Sanitizers and the release build passed, and the panel drew every 40 ms on a 100 Hz screen, by its X requests.
+		- Verified 20261117: b23's panel, df54v with Smooth scrolling on by Auto, drew 289 times in 10 s by its writes. The gaps between draws had a median of 39.7 ms, and 95% of them were under 40.8 ms, with 1 at 51 ms, at load 5.5. The shorter gaps are the sample tick's writes between draws.
+	- Decisions:
+		- The panel uses GTK's frame clock, not a timer, so a draw lands on a screen frame rather than beating against them.
+			- 2026-11-10: Only where the window manager gives GTK frame timings. Without them the clock's own ticks are 60 a second whatever the screen runs at, and 60 doesn't split into 25, so a timer at the monitor's rate stands in.
+		- The timer goes by when the last draw was due, not when it ran, so it holds the screen's rate rather than drifting by each wakeup's delay.
+		- The monitor's rate is read at most once a second, since each read waits on the X server for the window's place. A panel moved to another monitor takes up its rate within a second.
+		- An unknown monitor rate counts as 60 Hz.
+		- One rule, `frames_apart` in core, serves both the panel and the settings window. It splits by 61, not 60, so a 60.002 Hz screen still gets every frame.
+		- Below 60 Hz it draws every frame, since none come faster.
+		- Auto stays on at 8 CPUs. 1.6% of one core is 0.2% of an 8 CPU box.
+	- Branch: round-1109b, round-1110
+	- Test case: `tests::frame_split_30_to_60` (df3e4) and `tests::draw_rate_without_frame_timings` (df3mf). The frame clock's and the timer's own pacing need a real screen, so they have no test. dekpt now calls the tick callback and the timer.
+		- 2026-11-10: df3e4 calls `Pace::UpTo60.frames_apart` rather than `frames_apart`, which now goes by `PACE`. Its values are as they were.
+		- df3mf is new with the function it tests, so it has no run on the old code. The old code's 60 a second on a 100 Hz screen is in the Progress log.
+		- Swept: both frame timers (the plugin's draw and `quiet`, qt.cpp's `LiveGraph`), and every `frame` caller, the panic test included. 2026-11-10: also the new timer, `paced`, in the draw, `quiet` and dekpt.
+	- Acceptance signoff: Self-closed 20261117: the draws hold 40 ms on b23's screen, and the 20261117 look at the slide found only shimmer, which 2026111623513501 has.
+	- Closed: 20261117-094915
+
+- Smooth scrolling: try a quarter of the screen's frame rate
+	- ID: 2026110920595603
+	- Type: Enhancement
+	- Status: Done
+	- Stand-in: none (20261110). Turns on whether 25 a second looks as good as 60.
+	- Priority|Severity: Avg
+	- Opened: 20261109-205956
+	- Opened by: t00mietum
+	- Parent ID: 2026110911114024
+	- Related IDs: 2026110918081021
+	- Version and build: b23's panel runs df54v since 2026-11-16, which has this.
+	- Requirements:
+		- 60 Hz looks good.
+		- Now let's try 1/4 framerate, evenly divisible by framerate, but not less than 24 and not more than 50 Hz.
+		- Don't delete the 60 Hz code, just use a code constant to isolate it.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- While a graph slides or an axis eases, it draws every fourth screen frame, kept to 24 to 50 a second: every other frame at 60 Hz, every third at 75, every fourth from 96 to 200 Hz, and every fifth at 240. On b23's 99.99 Hz screen that's 25 a second, in the panel and in the settings window's graph rows.
+		- The up-to-60 rule is `Pace::UpTo60`, and the `PACE` constant in core picks one.
+		- `design.md` Drawing and Time axis have it.
+		- Verified: the quick gate, Sanitizers and the release build passed, and the panel drew every 40 ms on a 100 Hz screen, by its X requests. The settings window's rows weren't watched.
+		- 20261117: b23's panel has drawn 25 a second since 2026-11-10. The 20261117 look at it signed off the drawing, and left the shimmer to 2026111623513501.
+	- Decisions:
+		- An enum and a constant, not a setting, as asked.
+		- Where a quarter falls outside 24 to 50, it takes the split nearest 4 that's inside, so 60 Hz draws 30 a second and 240 Hz draws 48.
+		- 1% slack each way, so a screen a hair off its rate, as 95.9 or 200.01 Hz, still splits by 4.
+	- Branch: round-1110
+	- Test case: `tests::quarter_pace_24_to_50` (df3me).
+		- Swept: every `frames_apart` caller: the plugin's tick callback and timer, and qt.cpp's `LiveGraph` through `bridge::frames_apart`.
+	- Acceptance signoff: Self-closed 20261117: the 20261117 UAT on 2026111010281710 was a look at the slide at 25 a second, and called it fine. `PACE` still builds the 60 one.
+	- Closed: 20261117-094915
+
+- Reduce motion: a remote viewer on the local desktop, as RustDesk, x11vnc or NoMachine on the physical display
+	- ID: 2026110922214810
+	- Type: Enhancement
+	- Status: Done
+	- Stand-in: a TCP connection to b23's NoMachine server on port 4000, for a client (20261117).
+	- Priority|Severity: Avg
+	- Opened: 20261109-222148
+	- Opened by:
+	- Parent ID: 2026110911114037
+	- Prereq IDs: 2026110922214697
+	- Version and build: b23's panel runs df54v since 2026-11-16, which has this.
+	- Requirements:
+		- Treat the local desktop as remote while a remote viewer is connected to it, and go back to the person's settings once it leaves.
+		- Check again every few seconds, in the panel and in the settings window, rather than once at start.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Possible signs: RustDesk's `--cm` window, which runs only while a peer is connected; an established socket on a VNC or RDP port; NoMachine's per-session node, told apart from the one for a virtual desktop on another display. Each needs a check with the real tool on b23.
+		- The panel item and the settings window look for a remote viewer on their own display about every 5 s, and go back to the person's settings once it leaves (`remote::Watch`). No root.
+		- A look reads the TCP counters, and the TCP tables only when those moved. It reads this user's processes only while a connection is up on a VNC, RDP, NoMachine or RustDesk port.
+		- Signs: x11vnc, x0vncserver, krfb or freerdp-shadow-cli holding that connection. RustDesk's `--cm`. NoMachine's `nxrunner.bin --monitor` on this display, while NoMachine has a connection.
+		- On b23, :1001 is NoMachine's node for the physical display. Its `nxrunner.bin --monitor` watches :0 and runs with no client connected.
+		- `design.md` Drawing and README Features have it.
+		- Verified: the quick gate and Sanitizers passed. With a stand-in x11vnc on a private Xvfb, the settings window greyed Sample ms default and Smooth scrolling, and went back 6 s after it quit. Before the early-timer fix below, it was still grey then. df3p7 failed with the socket read taken out, and df3p6 without the slack.
+		- On b23, a read of the TCP tables takes about 6 ms, the counters 18 us, and the process walk about 5 ms.
+		- Verified 2026-11-10: on a private panel with Smooth scrolling on, a stand-in x11vnc on its display took the item from 33 X writes a second to 1 within 3 s of joining, and back to 33 within 2 s of quitting.
+		- Verified 20261117: on b23's live panel, df54v, a connection held to the NoMachine server on port 4000 took the item from about 31 writes a second to 1 or 2 within 2 s, and back to 31 within 2 s of closing. NoMachine's own `nxrunner.bin --monitor` on :0 was the sign.
+		- Verified 20261117: the real x11vnc 0.9.17, unpacked from Debian's package with no root, on a private Xvfb. `remote::Watch`, read once a second, said Remote 4 s after a client joined and Local 4 s after it left.
+		- RustDesk isn't checked with the real tool. That's split off to 2026111709483900.
+	- Decisions:
+		- Ports and process names, since none of these servers says which display it serves in a way that can be read without root.
+		- NoMachine counts by its monitor and any connection on port 4000, since its node for the physical display runs between connections. A connection to a NoMachine virtual desktop on the same box would calm the physical display too.
+		- A server on a port of its own isn't seen.
+		- A look up to a tenth early still counts, since Qt's coarse timer can wake early, and skipping it doubled the wait.
+		- The tables are kept until the TCP counters move, since each read walks the kernel's whole table.
+		- `Dialog::set_session` gave way to `watch_session`, and tests pass `Watch::fixed`.
+	- Branch: round-1110
+	- Test case: `remote::tests::tcp_table_established_ports` (df3p4), `remote::tests::viewer_needs_peer_here` (df3p5), `remote::tests::watch_rechecks_every_few_seconds` (df3p6) and `remote::tests::stand_in_vnc_viewer_seen` (df3p7).
+		- Swept: both callers of `remote::session` (the plugin's start and the settings window's), both `set_session` callers, and every `Look` maker that takes the session.
+	- Acceptance signoff: Self-closed 20261117: NoMachine and x11vnc passed with the real servers, and RustDesk is split off to 2026111709483900.
+	- Closed: 20261117-094915
 
 - Antialiasing still needs to be better, so sharp spikes don't pulse or shimmer
 	- ID: 2026111010281710
