@@ -35,6 +35,7 @@ Height can go up on a straight, log, or squared scale, for every graph or one at
 - [Set up development environment](#set-up-development-environment)
 - [Related projects](#related-projects)
 - [Background](#background)
+- [Support](#support)
 - [Copyright and license](#copyright-and-license)
 
 <!-- /TOC -->
@@ -164,6 +165,10 @@ Work is done on `dev`, and releases are merged into `main`.
 ## Background
 
 Tukzmon was inspired by the "Non-linear time" scale option in XFCE's CPU Graph plugin, and by the now abandoned Multiload-ng project. Multiload-ng was a revival fork of the defunct Multiload, which reimplemented the monitors from the original GNOME desktop panel, also found in MATE.
+
+## Support
+
+If tukzmon is useful to you, you can support its development through [GitHub Sponsors](https://github.com/sponsors/t00mietum).
 
 ## Copyright and license
 
