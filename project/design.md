@@ -192,8 +192,6 @@ A Rust core was chosen over C or C++, with C only where a panel's API needed it.
 	- A running item watches that file, as it does the settings file, and checks its modified time at each sample too. It drops what it has in memory. When history is kept, the item deletes its own file again, since it may have saved in between.
 	- A running item with Keep across restarts off leaves its file alone, as Off always does, since it hasn't saved anything in between.
 
-- Still to come are a live preview in the panel before Apply, and the search box.
-
 ### Theme
 
 - Graph colors are meant to start from the panel theme, which is the GTK style context on XFCE and the Qt palette on LXQt. That's how the graphs pick up a tukzedo personality's theme. For now the defaults are a hand-picked set instead, which started as a customized multiload-ng setup.
