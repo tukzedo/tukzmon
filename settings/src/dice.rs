@@ -614,7 +614,7 @@ pub fn theme(seed: u64) -> Vec<(&'static str, String)> {
 				Role::Border => hex(k.back_of(part).border),
 				Role::Top => hex(k.back_of(part).top),
 				Role::Bottom => hex(k.back_of(part).bottom),
-				// black, as in every built-in
+				// black, like every built-in but Default
 				Role::Hover => "#000000".to_string(),
 			};
 			Some((id, v))
