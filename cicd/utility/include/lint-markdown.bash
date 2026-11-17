@@ -13,8 +13,9 @@
 ##	SPDX-License-Identifier: MIT
 
 
-## One markdownlint per set of rules it skips, MARKDOWNLINT_DISABLE plus a
-## file's own in MARKDOWNLINT_DISABLE_FOR, since it starts slow.
+## Runs one markdownlint per set of skipped rules, which is MARKDOWNLINT_DISABLE
+## plus a file's own entry in MARKDOWNLINT_DISABLE_FOR, since markdownlint is
+## slow to start.
 fLintMarkdown() {   ## fLintMarkdown FILE...
 	local f entry off i rc=0
 	local -a files=("$@") offOf=() sets=() group=() rules=()

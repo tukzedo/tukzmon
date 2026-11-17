@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
-//! TCP traffic to and from the LAN, from polling every TCP socket through
-//! `sock_diag`, with no root. The network graph's LAN and internet split
-//! takes the LAN from here and calls the rest of the interfaces' traffic
-//! internet. See design.md, Data sources on Linux.
+//! TCP traffic to and from the LAN, read from every TCP socket through
+//! `sock_diag` without root. The network graph's LAN and internet split
+//! takes the LAN part from here, and the rest of the interfaces' traffic
+//! counts as internet. See design.md, Data sources on Linux.
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -41,11 +41,11 @@ const TIME_WAIT: u32 = 6;
 const LISTEN: u32 = 10;
 const STATES: u32 = 0xfff & !(1 << SYN_RECV | 1 << TIME_WAIT | 1 << LISTEN);
 
-/// Where the TCP opens since boot are counted, which says when a socket the
-/// last census can't have seen may be there.
+/// Has the count of TCP opens since boot. When it changes, there may be a
+/// socket the last census couldn't have seen.
 const SNMP: &str = "/proc/net/snmp";
-/// Lookups sent in one write. Their answers are all queued before it
-/// returns, so this keeps them well inside the socket's receive buffer.
+/// Lookups sent in one write. All their replies are queued before the write
+/// returns, so this many fit well inside the socket's receive buffer.
 const ASKS: usize = 32;
 
 const ACKED: usize = offset_of!(libc::tcp_info, tcpi_bytes_acked);
@@ -53,9 +53,9 @@ const RECEIVED: usize = offset_of!(libc::tcp_info, tcpi_bytes_received);
 const SEGS_OUT: usize = offset_of!(libc::tcp_info, tcpi_segs_out);
 const SEGS_IN: usize = offset_of!(libc::tcp_info, tcpi_segs_in);
 
-/// What a full-size segment carries on the wire besides its payload:
-/// Ethernet 14, IP, and TCP 20 with the timestamp option's 12, so the LAN's
-/// part of an interface's count isn't short by a few percent.
+/// Header bytes a full-size segment adds on the wire. That's Ethernet 14,
+/// IP, and TCP 20 plus 12 for the timestamp option. Without them the LAN's
+/// part of an interface's count is short by a few percent.
 const fn overhead(v6: bool) -> u64 {
 	if v6 { 14 + 40 + 32 } else { 14 + 20 + 32 }
 }
@@ -104,7 +104,7 @@ const fn align(n: usize) -> usize {
 	(n + 3) & !3
 }
 
-/// A dump request's header, at the head of `r`.
+/// Writes a dump request's header at the start of `r`.
 fn header(r: &mut [u8], kind: u16, seq: u32) {
 	let len = r.len() as u32;
 	r[0..4].copy_from_slice(&len.to_ne_bytes());
@@ -126,8 +126,8 @@ fn request(family: u8, seq: u32) -> [u8; HEADER + 56] {
 	r
 }
 
-/// The dump of every TCP socket of both families in one walk of the
-/// kernel's table, which `request` takes one walk a family for.
+/// A dump of every TCP socket of both families in one walk of the kernel's
+/// table. `request` takes a walk for each family.
 fn census(seq: u32) -> [u8; HEADER + 60] {
 	let mut r = [0; HEADER + 60];
 	header(&mut r, TCPDIAG_GETSOCK, seq);
@@ -162,9 +162,9 @@ pub(crate) fn opens(snmp: &str) -> Option<u64> {
 		})
 }
 
-/// A TCP socket with a private far end: bytes sent and received on the
-/// wire, and whether it's the LAN's. One that's away is kept too, so when it
-/// stops being away only what it moves from then on counts.
+/// A TCP socket with a private far end, with its bytes sent and received on
+/// the wire and whether it's the LAN's. An away socket is kept too, so when
+/// it stops being away, only what it moves from then on counts.
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Sock {
 	moved: [u64; 2],
@@ -178,16 +178,17 @@ struct Sock {
 /// never cross an interface the network reader counts.
 #[derive(Debug, Default)]
 pub(crate) struct Away {
-	/// This box's addresses on a VM's NAT bridge, a container's link or a
+	/// This box's addresses on a VM's NAT bridge, a container's link, or a
 	/// VPN tunnel. A socket from one isn't the LAN's.
 	pub(crate) mine: Vec<IpAddr>,
 	/// Far ends behind a virtual port of a bridge that also has the NIC,
-	/// such as a VM on b23's br0.
+	/// such as a VM on br0.
 	pub(crate) guests: Vec<IpAddr>,
 }
 
-/// One `inet_diag_msg` and its attributes, with its cookie. None when the
-/// far end isn't private, or it has no `tcp_info` new enough to count bytes.
+/// Reads one `inet_diag_msg` and its attributes into a socket and its
+/// cookie. None when the far end isn't private, or the message has no
+/// `tcp_info` new enough to count bytes.
 fn lan_socket(msg: &[u8], away: &Away) -> Option<(u64, Sock)> {
 	let v6 = match i32::from(*msg.first()?) {
 		libc::AF_INET => false,
@@ -245,7 +246,7 @@ enum Dump {
 	Bad,
 }
 
-/// Every message of dump `seq` in one read, sockets with a private far end
+/// Puts the sockets with a private far end from one read of dump `seq`
 /// into `out`.
 fn parse(buf: &[u8], seq: u32, away: &Away, out: &mut HashMap<u64, Sock>) -> Dump {
 	walk(buf, seq, |kind, body| {
@@ -258,9 +259,9 @@ fn parse(buf: &[u8], seq: u32, away: &Away, out: &mut HashMap<u64, Sock>) -> Dum
 	})
 }
 
-/// Each message of dump `seq` in one read, by its type, to `each`. What's
-/// left of an earlier dump that failed partway is skipped, or its messages
-/// would count in this one.
+/// Passes each message of dump `seq` in one read, with its type, to `each`.
+/// Leftovers from an earlier dump that failed partway are skipped, or their
+/// messages would count in this one.
 fn walk(buf: &[u8], seq: u32, mut each: impl FnMut(u16, &[u8])) -> Dump {
 	let mut at = 0;
 	while at + HEADER <= buf.len() {
@@ -322,9 +323,10 @@ fn dump(sock: &mut File, buf: &mut [u8], req: &[u8], mut parse: impl FnMut(&[u8]
 	}
 }
 
-/// Answers to asks `first` to `first + n - 1` in one read, the sockets found
-/// into `now`, and how many it had. One that closed answers ENOENT, and
-/// is left out. None for anything else.
+/// Reads the replies to lookups `first` to `first + n - 1` in one read,
+/// puts the sockets found into `now`, and returns how many replies there
+/// were. A socket that closed gets ENOENT and is left out. None for any
+/// other error or message.
 fn answers(
 	buf: &[u8],
 	first: u32,
@@ -349,7 +351,7 @@ fn answers(
 				}
 			}
 			NLMSG_ERROR => {
-				// ESTALE is its address and port taken by a new socket
+				// ESTALE means a new socket took its address and port
 				let err = i32::from_ne_bytes(body.get(..4)?.try_into().ok()?).wrapping_neg();
 				if err != libc::ENOENT && err != libc::ESTALE {
 					return None;
@@ -363,7 +365,7 @@ fn answers(
 }
 
 /// Looks up every socket of `was` again, into `now`, `ASKS` to a write.
-/// False when an answer is bad or missing, as when the receive buffer
+/// False when a reply is bad or missing, as when the receive buffer
 /// overflowed.
 fn follow(
 	sock: &mut File,
@@ -398,7 +400,7 @@ fn follow(
 					libc::MSG_DONTWAIT,
 				)
 			};
-			// nothing queued is an answer lost
+			// nothing queued means a reply was lost
 			let Some(got) = usize::try_from(got).ok().filter(|g| *g > 0) else {
 				return false;
 			};
@@ -438,7 +440,7 @@ fn neighbor(msg: &[u8]) -> Option<(IpAddr, [u8; 6])> {
 }
 
 /// Every neighbor this box has a link address for, IPv4 and IPv6, as
-/// `ip neigh` lists them. False when they can't be had.
+/// `ip neigh` lists them. False when they can't be read.
 pub(crate) fn neighbors(mut each: impl FnMut(IpAddr, [u8; 6])) -> bool {
 	let Some(mut sock) = netlink(libc::NETLINK_ROUTE) else {
 		return false;
@@ -457,8 +459,8 @@ pub(crate) fn neighbors(mut each: impl FnMut(IpAddr, [u8; 6])) -> bool {
 }
 
 /// Bytes the LAN's sockets moved since `was`, sent and received. A socket
-/// that's new since then moved all it has. One that closed since then is
-/// gone, with what it moved after `was`. One that was away then counts from
+/// that's new since then counts in full. One that closed since then is
+/// lost, with what it moved after `was`. One that was away then counts from
 /// what it had then.
 fn rise(was: &HashMap<u64, Sock>, now: &HashMap<u64, Sock>) -> [u64; 2] {
 	now.iter()
@@ -471,9 +473,9 @@ fn rise(was: &HashMap<u64, Sock>, now: &HashMap<u64, Sock>) -> [u64; 2] {
 
 /// The 5 series of the split network graph, from the 3 of
 /// [`crate::net::NetReader`] and the 2 of [`LanReader`]: local, LAN sent,
-/// LAN received, internet sent and internet received. The LAN can't be more
-/// than the interfaces carried, and what isn't the LAN's, UDP and QUIC
-/// among it, is the internet's.
+/// LAN received, internet sent, and internet received. The LAN part is
+/// capped at what the interfaces counted. Everything else counts as
+/// internet, including UDP and QUIC.
 pub fn split([local, sent, received]: [f32; 3], [lan_sent, lan_received]: [f32; 2]) -> [f32; 5] {
 	let lan_sent = lan_sent.clamp(0.0, sent);
 	let lan_received = lan_received.clamp(0.0, received);
@@ -486,17 +488,17 @@ pub fn split([local, sent, received]: [f32; 3], [lan_sent, lan_received]: [f32; 
 	]
 }
 
-/// Bytes per second over TCP to and from the LAN, sent and received. UDP,
-/// QUIC among it, isn't counted, and a socket that closes between reads
-/// loses what it moved since the last one.
+/// Bytes per second over TCP to and from the LAN, sent and received. UDP
+/// and QUIC aren't counted. A socket that closes between reads loses what
+/// it moved since the last one.
 ///
-/// A dump walks the kernel's whole table of TCP connections, which is sized
-/// by RAM, about 9 ms on b23 however few sockets there are. So a read only
-/// dumps when a TCP socket opened since the last dump, and otherwise looks
-/// up the ones it has.
+/// A dump walks the kernel's whole TCP table, which is sized by RAM, so it
+/// takes about 9 ms however few sockets there are. A read only dumps when a
+/// TCP socket was opened since the last dump, and otherwise looks up the
+/// sockets it knows.
 #[derive(Debug)]
 pub struct LanReader {
-	/// What isn't the LAN's, though its far end is private.
+	/// Addresses whose sockets aren't the LAN's, even with a private far end.
 	pub(crate) away: Away,
 	/// None after a failed dump, since the kernel refuses a new dump on a
 	/// socket while an old one is still going.
@@ -531,16 +533,15 @@ impl LanReader {
 		})
 	}
 
-	/// Every socket with a private far end, of both families, into `now`.
-	/// A dump when the TCP opens moved since the last one, or can't be
-	/// read, and the sockets of `was` looked up again when they didn't.
-	/// False when that failed, since a socket it missed would count all it
-	/// has next time. The netlink socket goes with it, which ends what's
-	/// left of a dump, so the next poll can start its own, and that one
-	/// dumps.
+	/// Reads every socket with a private far end into `now`. It dumps when
+	/// the TCP open count changed since the last dump or can't be read, and
+	/// otherwise looks up the sockets of `was` again. False on a failure,
+	/// since a socket it missed would count all it has next time. A failure
+	/// also drops the netlink socket, which ends any dump still running, so
+	/// the next poll can start its own dump.
 	fn poll(&mut self) -> bool {
 		self.now.clear();
-		// read before the dump, so a socket opened during it moves them
+		// read before the dump, so a socket opened during it changes the count
 		let opens = self.snmp.read(&mut self.text).and_then(opens);
 		let sock = match &mut self.sock {
 			Some(sock) => sock,
@@ -584,8 +585,8 @@ impl Collector<2> for LanReader {
 		r.at.is_some().then_some(r)
 	}
 
-	/// Rates since the last call. The first call only primes it, and a
-	/// failed poll is a gap that keeps the last good one to rate from.
+	/// Rates since the last call. The first call only primes the reader. A
+	/// failed poll is a gap, and the next rate is from the last good poll.
 	fn read(&mut self) -> Option<[f32; 2]> {
 		if !self.poll() {
 			return None;
@@ -611,8 +612,8 @@ mod tests {
 		s.parse().unwrap()
 	}
 
-	/// One `SOCK_DIAG_BY_FAMILY` message, with a `tcp_info` holding the
-	/// bytes and segments given.
+	/// One `SOCK_DIAG_BY_FAMILY` message, with a `tcp_info` that has the
+	/// given bytes and segments.
 	fn message(near: &str, far: &str, cookie: u64, bytes: [u64; 2], segs: [u32; 2]) -> Vec<u8> {
 		let (near, far) = (ip(near), ip(far));
 		let mut body = vec![0u8; DIAG_MSG];
@@ -901,7 +902,7 @@ mod tests {
 		let mut buf = seq(message("10.0.0.1", "10.0.0.2", 1, [5, 5], [0, 0]), 41);
 		buf.extend(error(libc::ENOENT, 42));
 		buf.extend(error(libc::ESTALE, 43));
-		// an earlier ask's, and one from past this batch
+		// a reply to an earlier lookup, and one past this batch
 		buf.extend(seq(message("10.0.0.1", "10.0.0.3", 2, [7, 7], [0, 0]), 40));
 		buf.extend(error(libc::EINVAL, 44));
 		let mut now = HashMap::new();
@@ -1081,7 +1082,7 @@ mod tests {
 			"one that's closing isn't a gap"
 		);
 		r.buf.truncate(64);
-		assert!(!asked(&mut r, &ends).0, "an answer cut short is a gap");
+		assert!(!asked(&mut r, &ends).0, "a reply cut short is a gap");
 		r.buf.resize(32 * 1024, 0);
 		assert_eq!(asked(&mut r, &ends), (true, 1), "and the next read dumps");
 		drop(s);
@@ -1185,10 +1186,11 @@ mod tests {
 	/// A message's type, sequence number and body.
 	type Sent = (u16, u32, Vec<u8>);
 
-	/// A read of dump `seq` as the kernel would send it: sockets, neighbors,
-	/// errors and the odd other message, some of them another dump's, maybe
-	/// ended. With each message as `walk` should give it, and where each
-	/// length, type, sequence and error field sits.
+	/// A read of dump `seq` as the kernel would send it, with sockets,
+	/// neighbors, errors, and the odd other message. Some are another
+	/// dump's, and the dump may end. Also returns each message as `walk`
+	/// should give it, and where each length, type, sequence, and error
+	/// field is.
 	fn rolled_dump(
 		dice: &mut crate::fuzz::Dice,
 		seq: u32,

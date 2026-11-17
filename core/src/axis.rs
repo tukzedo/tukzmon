@@ -52,8 +52,8 @@ pub enum Timing {
 }
 
 impl Timing {
-	/// From a graph's own `<graph>_time` value. None, for `same` or
-	/// anything else, means the graph follows the Time settings.
+	/// From a graph's own `<graph>_time` value. `same` or anything else gives
+	/// None, so the graph follows the Time settings.
 	pub fn parse(key: &str) -> Option<Timing> {
 		match key {
 			"linear" => Some(Timing::Linear),
@@ -164,11 +164,12 @@ impl Axis {
 /// Seconds a jump in the axis takes to ease in.
 pub const EASE: f64 = 0.5;
 
-/// How finely the axis drawn when a jump came is kept, in steps of `u`.
+/// How many steps of `u` the on-screen axis is kept in when a jump comes.
 const STEPS: usize = 64;
 
-/// How much of the oldest end, in `ln(1 + age / A0)`, history dropped from
-/// it may take before that's a jump. A 15 minute trim of 1 day is 0.2%.
+/// How much may be trimmed off the oldest end of history, in
+/// `ln(1 + age / A0)`, before it counts as a jump. A 15 minute trim of 1 day
+/// is 0.2%.
 const TRIM_SHOWS: f64 = 0.01;
 
 /// Anything that says how old the data at `u` is: an axis, or one easing in.
@@ -183,7 +184,7 @@ impl Ages for Axis {
 	}
 }
 
-/// What an axis is built from. A change that isn't just time going on is a
+/// What an axis is built from. Any change other than time going on is a
 /// jump, such as history loaded, a gap ending, or a new curve or width.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Basis {
@@ -404,7 +405,7 @@ mod tests {
 		for (curve, total) in [(Curve::FixedA, 30.0 * DAY), (Curve::FixedB, 300.0 * DAY)] {
 			let b = Axis::knots(curve, total);
 			assert_eq!(b[1..4], [60.0, 3600.0, DAY], "{curve:?}");
-			// and the quarter boundaries really sit there
+			// and the quarter boundaries are there
 			let a = Axis::log(curve, total);
 			for (i, cap) in CAPS.iter().enumerate() {
 				assert!(near(a.age((i + 1) as f64 * 0.25), *cap, 1e-9));

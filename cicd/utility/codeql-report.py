@@ -7,9 +7,10 @@
 ##	Syntax: codeql-report.py --root SRC --supp FILE SARIF...
 ##	Suppressions: one per line, "RULE PATH LINE", where LINE is the flagged
 ##		line's text with its leading and trailing space dropped. Matching on
-##		the text rather than the line number lets it survive edits above it.
-##		A # starts a comment line. A suppression for a language no SARIF
-##		given is of, by its rule's prefix, isn't counted as stale.
+##		the text rather than the line number keeps it matching after edits
+##		above it. A # starts a comment line. A suppression whose rule prefix
+##		names a language that none of the SARIF files cover isn't counted as
+##		stale.
 ##	Exit: 0 = nothing found; 1 = a finding, a stale suppression, or no code;
 ##		2 = a file that won't read.
 ##	History: At bottom of script.

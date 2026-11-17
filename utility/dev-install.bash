@@ -38,9 +38,10 @@ esac; done
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-## rustup's cargo follows rust-toolchain.toml and Debian's /bin/cargo doesn't.
-## The same toolchain as cicd.bash means the same release build, not a rebuild.
-## rustup looks for that file from the working folder, not the manifest.
+## rustup's cargo follows rust-toolchain.toml, but Debian's /bin/cargo doesn't.
+## With the same toolchain as cicd.bash, cargo reuses its release build
+## rather than rebuilding. rustup looks for that file from the working folder
+## rather than the manifest's.
 export PATH="${HOME}/.cargo/bin:${PATH}"
 cd "${repo}"
 pin="$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)"
@@ -49,13 +50,13 @@ if [[ "${have}" != "rustc ${pin} "* ]]; then
 	fEcho "WARNING: building with '${have:-no rustc}', not the pinned ${pin}. Install rustup to get it."
 fi
 
-## The panel pairs its user data dir with a lib dir under the same prefix,
-## with its own lib dir's tail on it, such as lib/x86_64-linux-gnu on Debian.
+## The panel looks for user plugins in a lib dir under the data dir's prefix,
+## with the same tail as its own lib dir, such as lib/x86_64-linux-gnu on Debian.
 dataHome="${XDG_DATA_HOME:-${HOME}/.local/share}"
 if [[ "${dataHome}" != */share ]]; then
-	fDie "the panel reads no user plugins when XDG_DATA_HOME ('${dataHome}') doesn't end in /share."
+	fDie "XDG_DATA_HOME is '${dataHome}', and the panel doesn't read any user plugins unless it ends in /share."
 fi
-## ldconfig is in /usr/sbin, which a Debian user's PATH doesn't have.
+## ldconfig is in /usr/sbin, which isn't on a Debian user's PATH.
 panelLib="$(grep -m1 -F 'libxfce4panel-2.0.so.4 ' <<< "$(PATH="${PATH}:/usr/sbin:/sbin" ldconfig -p 2> /dev/null || true)" | sed 's/.*=> //' || true)"
 if [[ -n "${panelLib}" ]]; then
 	panelLibDir="${panelLib%/*}"
@@ -67,7 +68,7 @@ fi
 shareDir="${dataHome}/xfce4/panel/plugins"
 libDir="${dataHome%/share}/${libTail}/xfce4/panel/plugins"
 
-## Wherever CARGO_TARGET_DIR or a cargo config puts the build.
+## Finds wherever CARGO_TARGET_DIR or a cargo config puts the build.
 target="$(cargo metadata --format-version 1 --no-deps --locked 2> /dev/null | sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p' || true)"
 [[ -n "${target}" ]] || fDie "cargo metadata didn't give the target dir"
 ## cicd's release build has the same path maps, so this one is the same bytes.
@@ -103,7 +104,7 @@ if ((restart)) && pgrep -x -u "${UID}" xfce4-panel > /dev/null; then
 	xfce4-panel --restart
 fi
 if ! grep -q 'tukzmon$' <<< "$(xfconf-query -c xfce4-panel -lv 2> /dev/null || true)"; then
-	fEcho "Not in a panel yet. Add it with the panel's right-click menu, Panel, Add New Items, tukzmon."
+	fEcho "tukzmon isn't in a panel yet. Add it with the panel's right-click menu, Panel, Add New Items, tukzmon."
 fi
 
 

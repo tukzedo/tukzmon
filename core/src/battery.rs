@@ -26,7 +26,8 @@ struct Fill {
 	critical: Option<bool>,
 }
 
-/// One `BAT*` folder. The path is kept as a prefix that file names go on.
+/// One `BAT*` folder. The path is kept as a prefix, and `file` puts a name on
+/// the end.
 #[derive(Debug)]
 struct Battery {
 	path: String,
@@ -55,7 +56,7 @@ impl Battery {
 		let at = if let Some(at) = self.files.iter().position(|(n, _)| *n == name) {
 			at
 		} else {
-			// self.path is made over for the next name
+			// file() rewrites self.path for the next name
 			let path = self.file(name).to_owned();
 			self.files.push((name, Kept::new(path)));
 			self.files.len() - 1
@@ -79,7 +80,7 @@ fn pair(
 	Some((now, full))
 }
 
-/// None for an empty slot, or one with no charge that reads.
+/// None for an empty slot, or one whose charge can't be read.
 fn fill(bat: &mut Battery, buf: &mut String) -> Option<Fill> {
 	if bat.read("present", buf).is_some_and(|s| s.trim() != "1") {
 		return None;
@@ -182,7 +183,7 @@ impl Collector<3> for BatteryReader {
 		Self::probe_at(POWER_SUPPLY)
 	}
 
-	/// A battery taken out drops out. None when none is left.
+	/// A battery that's taken out is dropped. None when there's none left.
 	fn read(&mut self) -> Option<[f32; 3]> {
 		self.fills.clear();
 		for bat in &mut self.batteries {
@@ -279,7 +280,7 @@ mod tests {
 			],
 		);
 		let mut r = BatteryReader::probe_at(&t.at("ps")).unwrap();
-		// one critical and one not is not critical
+		// one critical and one not isn't critical
 		assert_eq!(r.read(), Some([0.0, 0.5, 0.0]));
 		// mixed units can't add up, so the mean of the shares
 		std::fs::write(t.at("ps/BAT1/energy_full"), "junk\n").unwrap();
@@ -331,7 +332,7 @@ mod tests {
 	// Test ID: df4gv
 	#[test]
 	fn fuzz_power_supply_share() {
-		// seed 372 found it, past the fixed seeds
+		// from seed 372, past the fixed seeds
 		let huge = Fill {
 			unit: Unit::Energy,
 			now: 1e308,

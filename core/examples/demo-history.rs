@@ -80,7 +80,7 @@ fn main() -> Result<(), String> {
 		.map_or(Ok(7), |s| s.parse())
 		.map_err(|e| format!("SEED: {e}"))?;
 	if !(0.1..=27.0).contains(&days) {
-		return Err("DAYS: 0.1 to 27".into());
+		return Err("DAYS must be 0.1 to 27".into());
 	}
 	let now = SystemTime::now()
 		.duration_since(UNIX_EPOCH)
@@ -91,7 +91,7 @@ fn main() -> Result<(), String> {
 	let clock = |t: f64| t - now + NOW_AT;
 	let off_from = now - NOW_AT - DAY - 0.8 * HOUR;
 	let off_to = off_from + 8.3 * HOUR;
-	// builds: an hour of near full CPU and lots of disk, a few a day
+	// builds of up to an hour, with near full CPU and lots of disk, a few a day
 	let mut dice = Dice(seed.wrapping_mul(0x9e37_79b9_7f4a_7c15) | 1);
 	let mut builds = Vec::new();
 	let mut t = start;

@@ -22,7 +22,7 @@ pub enum Host {
 }
 
 impl Host {
-	/// The kernel cuts a process name to 15 bytes.
+	/// From a process name, which the kernel cuts to 15 bytes.
 	pub fn of(comm: &str) -> Host {
 		match comm.trim_end() {
 			"xfce4-panel" => Host::Panel,
@@ -31,7 +31,7 @@ impl Host {
 		}
 	}
 
-	/// As the tip says it.
+	/// The name the tip shows.
 	pub fn name(self) -> &'static str {
 		match self {
 			Host::Own => "tukzmon",

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #  shellcheck enable=require-variable-braces  ## Every expansion braced: "${var}", not "$var".
 
-##	- Purpose: the Nix step's check, run by cicd.bash in a nixos/nix container
-##	  as its root, with the repo's tracked files at /src, read-only, and the
-##	  store in a docker volume kept between runs. It builds the flake's package,
-##	  which runs the workspace tests, checks every library the plugin links
-##	  resolves, runs tukzmon-settings --version, builds a NixOS system with the
-##	  module, then has nixpkgs' xfce4-panel load and embed the plugin from that
-##	  system's path, on Xvfb.
+##	- Purpose: the Nix step's check. cicd.bash runs it as root in a nixos/nix
+##	  container, with the repo's tracked files read-only at /src and the store
+##	  in a docker volume kept between runs. It builds the flake's package,
+##	  which runs the workspace tests, and checks that every library the plugin
+##	  links resolves. Then it runs tukzmon-settings --version, builds a NixOS
+##	  system with the module, and has nixpkgs' xfce4-panel load and embed the
+##	  plugin from that system's path, on Xvfb.
 ##	- Env: TUKZMON_JOBS, the build's cores. TUKZMON_NIX_CAP_MB, the store size
 ##	  past which a garbage collection runs at the end, keeping what this run
 ##	  built and what built it.
@@ -50,7 +50,7 @@ mkdir -p -- "${work}" "${roots}"
 fSay "nix build .#tukzmon, with the workspace tests"
 nix build -L --inputs-from "${src}" "path:${src}#tukzmon" -o "${roots}/tukzmon" > "${work}/build.log" 2>&1 \
 	|| { tail -n 40 -- "${work}/build.log"; fFail "the package didn't build"; }
-## A build from the store's cache runs no tests, so none is fine then.
+## A build from the store's cache doesn't run any tests, so 0 is fine then.
 n="$(grep -c -E '^tukzmon> test result: ok\.' "${work}/build.log" || true)"
 if grep -q -E '^tukzmon> ' "${work}/build.log"; then
 	((n > 0)) || fFail "the package built but ran no tests"
@@ -68,7 +68,7 @@ done
 ## would, so a library missing from the rpath shows as "not found".
 glibc="$(fPkg glibc)"
 deps="$("${glibc}/lib/ld-linux-x86-64.so.2" --list "${lib}")" || fFail "the loader couldn't read ${lib#"${pkg}/"}"
-if grep -q 'not found' <<< "${deps}"; then grep 'not found' <<< "${deps}"; fFail "the plugin links a library its rpath doesn't reach"; fi
+if grep -q 'not found' <<< "${deps}"; then grep 'not found' <<< "${deps}"; fFail "the plugin links a library that isn't on its rpath"; fi
 fSay "the plugin's $(grep -c '=> /nix/store/' <<< "${deps}") libraries all resolve"
 env -u DISPLAY "${pkg}/bin/tukzmon-settings" --version | head -n 1 || fFail "tukzmon-settings --version failed"
 

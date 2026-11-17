@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
-//! Randomize on the Themes tab. One scheme from one seed: a lead hue of its
-//! own for each graph, the quiet series that hue muted, and the ones to watch
-//! kept red and orange like every built-in. See design.md Theme.
+//! Randomize on the Themes tab. Each seed rolls one scheme. Every graph gets a
+//! lead hue of its own, its quiet series get that hue muted, and the ones to
+//! watch stay red and orange as in every built-in. See design.md Theme.
 
 use crate::pick::{self, Hsv};
 use tukzmon_core::color::{APART, Lab, ciede2000};
@@ -13,10 +13,10 @@ use tukzmon_core::color::{APART, Lab, ciede2000};
 pub enum Role {
 	/// The graph's lead color, such as the user share.
 	Lead,
-	/// Nice, cache: the lead hue, muted.
+	/// Nice and cache, in the lead hue muted.
 	Calm,
-	/// Buffers, which sit on cache: muted too, on the other side of the lead,
-	/// so the 2 are told apart.
+	/// Buffers, drawn on top of cache. Its hue is muted too, on the other side
+	/// of the lead, so the 2 can be told apart.
 	Hush,
 	/// I/O wait.
 	Alarm,
@@ -24,10 +24,11 @@ pub enum Role {
 	Warn,
 	/// The pale end of a gradient.
 	Tint,
-	/// LAN sent: Hush's hue, between the lead and Tint, and kept apart from
+	/// LAN sent, in Hush's hue between the lead and Tint, and kept apart from
 	/// the network's other colors.
 	Pale,
-	/// LAN received: Hush's hue, between Calm and the lead, kept apart too.
+	/// LAN received, in Hush's hue between Calm and the lead, and kept apart
+	/// too.
 	Deep,
 	/// A graph's border.
 	Border,
@@ -39,15 +40,16 @@ pub enum Role {
 	Hover,
 	/// A graph's mode, which Randomize always sets to Detailed.
 	Mode,
-	/// A margin. A roll is colors, so it leaves these as the theme has them.
+	/// A margin. A roll only changes colors, so margins stay as the theme has
+	/// them.
 	Margin,
 	/// A checkbox that puts the Outline sub-tab's colors over every graph's.
-	/// Left alone, like the margins.
+	/// A roll leaves it alone, like the margins.
 	Switch,
 }
 
 /// Which graph a member colors. Each graph gets its own lead hue, and its
-/// background goes with it. The Outline sub-tab's go with CPU's.
+/// background follows it. The Outline sub-tab's colors follow CPU's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Part {
 	Cpu = 0,
@@ -69,7 +71,7 @@ pub enum Part {
 const GRAPHS: usize = 13;
 
 /// Every member of the theme group, by graph and role. A member missing here
-/// gets no random value, and `dice::tests::theme_members_have_roles`
+/// doesn't get a random value, and `dice::tests::theme_members_have_roles`
 /// fails.
 pub const ROLES: &[(&str, Part, Role)] = &[
 	("cpu_mode", Part::Cpu, Role::Mode),
@@ -201,20 +203,20 @@ pub const ROLES: &[(&str, Part, Role)] = &[
 	("margin_lr", Part::Back, Role::Margin),
 ];
 
-// Lead hues stay out of the red and orange the alarms use, in turns.
+// Lead hues stay out of the alarms' red and orange. Hues are in turns.
 const LEAD_HUES: (f64, f64) = (75.0 / 360.0, 300.0 / 360.0);
 const ALARM_HUES: (f64, f64) = (-10.0 / 360.0, 2.0 / 360.0);
 const WARN_HUES: (f64, f64) = (18.0 / 360.0, 32.0 / 360.0);
-// The least gap between 2 graphs' lead hues. 13 of them at this gap leave
-// 45 degrees of the lead range to roll in. At 16 or more some seeds take
-// hundreds of draws to read apart, or never do.
+// The smallest gap between 2 graphs' lead hues. With 13 graphs at this gap,
+// 45 degrees of the lead range are left to roll in. At 16 degrees or more,
+// some seeds take hundreds of draws to read apart, or never do.
 const LEAD_GAP: f64 = 15.0 / 360.0;
-// Hue draws tried for leads that all read apart, before the roll's
-// saturation, brightness and alarms are drawn again. The worst of dejbv's
-// seeds takes 140. About 1 roll in 7,500 runs out, all near the pastel end.
+// How many hue draws to try for leads that all read apart, before the
+// saturation, brightness, and alarms are drawn again. The worst of dejbv's
+// seeds takes 140, and about 1 roll in 7,500 runs out, all near the pastel end.
 const TRIES: usize = 256;
-// Fresh draws of those, past which a roll starts over from seed 0, whose
-// first draw reads apart (df34z).
+// After this many fresh draws, a roll starts over from seed 0, whose first
+// draw reads apart (df34z).
 const REROLLS: usize = 64;
 
 // splitmix64, so a seed always rolls the same theme
@@ -246,9 +248,9 @@ fn lerp(a: f64, b: f64, t: f64) -> f64 {
 	a + (b - a) * t
 }
 
-// One lead hue per graph, at least LEAD_GAP apart, in a random order. Sorted
+// One lead hue per graph, at least LEAD_GAP apart, in random order. Sorted
 // draws over the room left after the gaps, with a gap added back after each,
-// spread every allowed set evenly.
+// give every allowed set the same odds.
 fn lead_hues(r: &mut Roll) -> [f64; GRAPHS] {
 	let room = (LEAD_HUES.1 - LEAD_HUES.0) - LEAD_GAP * (GRAPHS - 1) as f64;
 	let mut h = [0.0; GRAPHS];
@@ -266,8 +268,8 @@ fn lead_hues(r: &mut Roll) -> [f64; GRAPHS] {
 }
 
 // Where 2 leads would look alike, one of them steps darker or paler, tried
-// in this order. 13 hues share too little of the circle to read apart by hue
-// alone, most of all when pale.
+// in this order. The 13 hues share too little of the circle to read apart by
+// hue alone, most of all when pale.
 fn step(n: usize, s: f64, v: f64) -> (f64, f64) {
 	match n {
 		0 => (s, v),
@@ -300,7 +302,7 @@ fn place(
 }
 
 // Each graph's step, or None when no choice reads apart from the rest and
-// from the alarms. CPU's lead is the roll's own, and the rest fit round it.
+// from the alarms. CPU's lead is the roll's own, and the rest fit around it.
 fn steps(hues: &[f64; GRAPHS], s: f64, v: f64, alarms: &[Lab]) -> Option<[usize; GRAPHS]> {
 	let lab = |g: usize, n: usize| {
 		let (s, v) = step(n, s, v);
@@ -392,7 +394,7 @@ struct Back {
 }
 
 impl Back {
-	// a hue of the graph's, darker and grayer, with the border under a lead
+	// the graph's hue, darker and grayer, with the border kept below a lead
 	// that stepped darker
 	fn on(h: f64, s: f64, soft: f64, lead: Hsv) -> Back {
 		Back {
@@ -460,9 +462,9 @@ impl Scheme {
 	}
 }
 
-// `soft` runs from the standard themes at 0 to the pastel ones at 1, and the
-// numbers at each end are the built-ins'. Every graph leads at one saturation
-// and brightness, so they read as one set, unless it steps darker or paler to
+// `soft` goes from the standard themes at 0 to the pastel ones at 1, and the
+// built-ins set the numbers at each end. Every lead has one saturation and
+// brightness so they read as one set, unless a lead steps darker or paler to
 // read apart.
 fn scheme(seed: u64) -> Scheme {
 	let mut r = Roll(seed);
@@ -533,13 +535,13 @@ fn scheme(seed: u64) -> Scheme {
 			},
 		}
 	});
-	// the LAN's 2 sit among local, sent and received, so they move off
-	// those till they read apart
+	// the 2 LAN colors fall between local, sent, and received, so they move
+	// away from those until they read apart
 	let net = &mut graphs[Part::Net as usize];
 	net.deep = clear_of(net.deep, &[net.lead, net.calm, net.tint]);
 	net.pale = clear_of(net.pale, &[net.lead, net.calm, net.tint, net.deep]);
-	// a background takes its graph's lead hue or its calm one, and the
-	// Outline sub-tab's CPU's
+	// a background takes its graph's lead or calm hue, and the Outline
+	// sub-tab's takes CPU's
 	let mut back_on = |i: usize| {
 		let h = if r.unit() < 0.5 { hues[i] } else { calm_hs[i] };
 		Back::on(h, s, soft, graphs[i].lead)
@@ -555,8 +557,8 @@ fn scheme(seed: u64) -> Scheme {
 	}
 }
 
-/// The nearest color to `want` that reads apart from each of `others`, by
-/// hue, saturation and brightness steps. `want` when none does.
+/// The nearest color to `want` that reads apart from each of `others`, found
+/// by stepping hue, saturation, and brightness. It's `want` when none does.
 fn clear_of(want: Hsv, others: &[Hsv]) -> Hsv {
 	let lab = |c: Hsv| Lab::of(pick::to_rgb(c));
 	let others: Vec<Lab> = others.iter().map(|&c| lab(c)).collect();

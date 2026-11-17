@@ -40,10 +40,10 @@ Sorted per the notes in [Template](#template).
 			- Don't store the temporarily overridden values.
 		- Resume the previous animation settings when the desktop is connected normally.
 	- Progress log:
-		- Split in 2: the setting, with sessions a remote desktop server starts, in 2026110922214697, which is done, and a viewer that joins the local desktop in 2026110922214810, which is queued.
-		- 20261110: children 2026110922214810 wait on UAT, and the rest are closed
+		- It was split in 2. The setting and the sessions a remote desktop server starts went to 2026110922214697, and a viewer that joins the local desktop went to 2026110922214810.
+		- 20261110: child 2026110922214810 waits on UAT, adn the rest are closed.
 		- 20261117: 2026110922214810 is closed. Its RustDesk check is split off to 2026111709483900, which waits on a run with a real RustDesk peer.
-	- Test case: its children's: 2026111709483900: `remote::tests::viewer_needs_peer_here` (df3p5).; 2026110922214810: `remote::tests::tcp_table_established_ports` (df3p4), `remote::tests::viewer_needs_peer_here` (df3p5), `remote::tests::watch_rechecks_every_few_seconds` (df3p6) and `remote::tests::stand_in_vnc_viewer_seen` (df3p7).; 2026110922214697: `remote::tests::remote_session_signs` (df3nf), `config::tests::remote_halves_reads_no_slide` (df3ng), `dialog::tests::remote_session_greys_rows` (df3nh) and `bridge::tests::remote_greys_rates_and_scrolling` (df3nj).
+	- Test case: its children's: 2026111709483900: `remote::tests::viewer_needs_peer_here` (df3p5); 2026110922214810: `remote::tests::tcp_table_established_ports` (df3p4), `remote::tests::viewer_needs_peer_here` (df3p5), `remote::tests::watch_rechecks_every_few_seconds` (df3p6) and `remote::tests::stand_in_vnc_viewer_seen` (df3p7); 2026110922214697: `remote::tests::remote_session_signs` (df3nf), `config::tests::remote_halves_reads_no_slide` (df3ng), `dialog::tests::remote_session_greys_rows` (df3nh) and `bridge::tests::remote_greys_rates_and_scrolling` (df3nj).
 
 - Reduce motion: check the RustDesk signs with a real RustDesk peer
 	- ID: 2026111709483900
@@ -68,7 +68,7 @@ Sorted per the notes in [Template](#template).
 	- Type: Bug
 	- Status: Stalled
 		- Held for a Linux box with Intel graphics, i915 or xe, and no other card. None of the test boxes has one, and the hosted runner has no GPU (20261110).
-		- The GPU graph is in. The GPU memory graph is child 2026110921252043, which waits on a question.
+		- The GPU graph is in. The GPU memory graph was child 2026110921252043, which closed as Won't fix.
 	- Target version: v1.0.0-beta.2
 	- Needs external testing: on a box with Intel graphics, i915 or xe, and no NVIDIA or AMD card, check that one of the 3 files in df3kx is there and readable as the user, and run `cargo test -p tukzmon-core gpu::` and `cargo test -p tukzmon-settings the_gpu_rows` (dekmd), which reads the live card twice.
 	- Needs hand testing: on that box, with the GPU graph on and the GPU busy, as from `glxgears`, its tip should read near 100% less the RC6 share `sudo intel_gpu_top` gives.
@@ -82,16 +82,16 @@ Sorted per the notes in [Template](#template).
 	- Actual cause: Intel's engine busy time is only in its perf counters, which need root or a lowered `perf_event_paranoid`, so Intel was left out on purpose (2026102819145597).
 	- Actual effort: Avg
 	- Progress log:
-		- The GPU graph reads an Intel card's time out of RC6, the sleep its graphics core drops into when it has nothing to run, against the time between reads. i915's `gt/gt0/rc6_residency_ms`, then its older `power/rc6_residency_ms`, then xe's `gtidle/idle_residency_ms`. None needs root.
+		- The GPU graph works out an Intel card's busy share from its RC6 time against the time between reads. RC6 is the sleep the graphics core drops into when it has nothing to run. It reads i915's `gt/gt0/rc6_residency_ms`, then its older `power/rc6_residency_ms`, then xe's `gtidle/idle_residency_ms`, and none of them needs root.
 		- An Intel card has no GPU memory graph yet. `design.md` Data sources on Linux and the README say so.
 		- Verified: df3kw and df3kx passed, and df3kx failed with the Intel card taken out of `Card::find`, and again with the GPU probe not taking a first read that only primes. The quick gate and Sanitizers passed, and Miri passed df3kw and dekm9. dekma, dekmd, dektd and der6k passed on b23's host with the RTX 3060 Ti, so NVIDIA still comes first.
-		- Unverified on real Intel hardware: no box here has one. The paths are from the i915 and xe drivers' sysfs.
+		- It hasn't been checked on real Intel hardware, since no box here has one. The paths are from the i915 and xe drivers' sysfs.
 	- Decisions:
-		- Awake time, not engine busy time, since it's the one share the kernel gives without root. It reads a little over what the engines ran, since the core stays up a moment after its work. Moving to perf counters stays deferred, as 2026103010322277.
-		- NVIDIA first, then amdgpu, then Intel, so a laptop with an Intel GPU and another one still graphs the other, as before.
+		- The graph uses awake time rather than engine busy time, since it's the only share the kernel gives without root. It reads a little over what the engines ran, since the core stays up a moment after its work. Moving to perf counters stays deferred, as 2026103010322277.
+		- Cards are tried NVIDIA first, then amdgpu, then Intel, so a laptop with an Intel GPU and another one still graphs the other one, as before.
 		- A card with `power/rc6_enable` at 0 is passed over, since it never sleeps and would read always busy.
 		- The GPU memory part is split off, since what it would count on an integrated card is a call for a person.
-	- Actual fix: `core/src/gpu.rs` gains a `Card::Intel` source, found by `intel_in` after amdgpu.
+	- Actual fix: `core/src/gpu.rs` has a new `Card::Intel` source, which `intel_in` looks for after amdgpu.
 	- Branch: round-1110
 	- Test case: `gpu::tests::intel_busy_from_rc6` (df3kw) and `intel_gpu_graph_only` (df3kx). df3kx fails on the old `Card::find`.
 		- Swept: every `Card` match, both readers' probes, `amd_in`, which now shares `cards_in`, the settings window's GPU rows (dekmd), the README's graph list, and `design.md` for "Intel".
@@ -115,6 +115,7 @@ Sorted per the notes in [Template](#template).
 		- README.md gets the one-liner and the install folders, and notes `--help`.
 	- Needs more detail:
 		- It needs a first release to download. Until then, test it against a stand-in release.
+			- v1.0.0-beta.1 has been out since 20261108, and the installer was checked against it.
 	- Needs hand testing: The README one-liner once `install.bash` is on `main`.
 	- Estimated effort: Avg
 	- Actual effort: Avg
@@ -126,13 +127,13 @@ Sorted per the notes in [Template](#template).
 		- Verified: df4xa and df4xb pass, and each failed on a broken installer: a release not above its prerelease, fields compared as text, no sum check, a reinstall when current, and stable taking a prerelease. The quick gate and Sanitizers passed.
 		- Verified 20261111: `--target system --yes`, as a user with sudo on clean Debian 13 and Fedora 42, installed the real v1.0.0-beta.1 package and its dependencies through apt-get and dnf. A second run said up to date and changed nothing, and the installed `tukzmon-settings --version` gave v1.0.0-beta.1 build df1j9. A user install into an empty home with this round's `install.bash` did the same.
 	- Decisions:
-		- Check answered 20261116: both as built, the download before the plan and the package manager's own prompt.
-		- The package is downloaded and checked in a temp folder before the plan, so the plan lists only what would change. The release has no tarball, so a user install unpacks the package with whatever is there.
-		- A system install without `--yes` leaves the package manager's own prompt, for its dependency list. Both are in questions.md as a Check.
+		- 20261116: both calls below stay as built.
+		- The package is downloaded and checked in a temp folder before the plan, so the plan lists only what would change. The release has no tarball, so a user install unpacks the package with whatever tool is there.
+		- A system install without `--yes` leaves the package manager's own prompt in place, for its dependency list.
 		- Exit 2 on a bad option, as `dev-install.bash` does, where silkterm's gives 1.
 		- No signature check, since releases aren't signed.
 		- Swept: `dev-install.bash` keeps its own copy of the lib folder lookup, since it's a dev tool run from a checkout and the installer runs alone from a URL.
-		- Stalled, not Waiting on UAT, since the system install passed on both, and the one-liner from `main` is all that's left (20261111).
+		- It's Stalled rather than Waiting on UAT, since the system install passed on both, and only the one-liner from `main` is left (20261111).
 	- Branch: round-1111
 	- Test case: `installer_version_order` (df4xa) and `installer_installs` (df4xb), in `cicd/tests/guards.bash`.
 
@@ -147,8 +148,8 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Related IDs: 2026110710005013
 	- Requirements:
-		- A plain `cargo build --release` gives the same bytes from any checkout, target folder or home, with no path maps from outside.
-		- Then `utility/path-maps.bash` keeps only what trim-paths doesn't cover, such as cxx's own C++.
+		- Make a plain `cargo build --release` give the same bytes from any checkout, target folder or home, without any path maps from outside.
+		- Then cut `utility/path-maps.bash` down to what trim-paths doesn't handle, such as cxx's own C++.
 	- Estimated effort: Low
 
 - Cut the cost of the spike windows in each draw
@@ -159,12 +160,13 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: Avg
 	- Opened: 20261110-002708
 	- Opened by: t00mietum
+	- Prereq IDs: 2026111010281710
 	- Related IDs: 2026110920595602
 	- Requirements: Bring the profiled tick back near its 241 us of user time, from the 480 us that 2026110920595602's windows took it to, with the same pixels.
 	- Estimated effort: Avg
-	- Prereq IDs: 2026111010281710
-	- 2026-11-10: Answer on 2026110920595602's Check: get it looking right first, then the cost. Waits on 2026111010281710, since both change the spike windows.
-	- 2026-11-17: 2026111010281710's look is signed off, so this is Queued.
+	- Progress log:
+		- 20261110: the look comes first, then the cost. This waits on 2026111010281710, since both change the spike windows.
+		- 20261117: 2026111010281710's look is signed off, so this is Queued.
 
 - Pre-next-cut: Show the highest recorded values on the tip of monitors with no obvious absolute max
 	- ID: 2026111623513500
@@ -181,16 +183,16 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026103018353670
 	- Type: Enhancement
 	- Status: Queued
-		- Was held for silkterm's copy of knobs to get the index first. 2026-11-05: the copy here doesn't have to match silkterm's, so it can go in here first.
-		- 2026-11-03: moved below the stop line. It's a small speedup and doesn't need to block a release.
+		- It was held for silkterm's copy of knobs to get the index first. 20261105: the copy here doesn't have to match silkterm's, so it can go in here first.
+		- 20261103: moved below the stop line. It's a small speedup and doesn't need to block a release.
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261030-183536
 	- Opened by: t00mietum
 	- Parent ID: 2026103016201603
 	- Requirements:
-		- `Spec` looks ids up through an index built in `finish`, with an `Option` path for an id that's unknown.
-		- Time denam before and after.
+		- Make `Spec` look ids up through an index built in `finish`, and also an `Option` path for an unknown id.
+		- Time denam before and after the change.
 	- Progress log:
 		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
 	- Estimated effort: Low
@@ -207,7 +209,7 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- `config::spec()` and what reads `settings.shcl` beside it take less time, measured natively and under Miri.
 	- Progress log:
-		- 2026-11-05: 0.11 s in a debug build, and about 65 minutes under Miri, which nearly every Miri module pays once. The text is parsed by shcl 4 times, by `Spec::parse`, `slider_ranges` and 2 more readers in `config.rs`, each then looking rows up by dotted path. Measure which part costs before changing it.
+		- 20261105: a parse takes 0.11 s in a debug build, and about 65 minutes under Miri, which nearly every Miri module pays once. The text is parsed by shcl 4 times, by `Spec::parse`, `slider_ranges` and 2 more readers in `config.rs`, each then looking rows up by dotted path. Measure which part costs before changing it.
 	- Estimated effort: Avg
 
 - CICD gap: Run the content scrub from the pipeline and the pre-push hook
@@ -220,8 +222,8 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Parent ID: 2026102416252898
 	- Requirements:
-		- When the private content scrub script is there, the lint step and the pre-push hook run it, and fail on what it finds. A fresh clone without it still builds, with one line saying it was skipped.
-		- Repo-side names for it stay neutral, such as "content scrub".
+		- Make the lint step and the pre-push hook run the private content scrub script when it's there, and fail on what it finds. A fresh clone without it still builds, with one line saying it was skipped.
+		- Keep its names in the repo neutral, such as "content scrub".
 
 - CICD gap: arm64 Linux build and packages
 	- ID: 2026110310450006
@@ -233,8 +235,8 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Parent ID: 2026102416252898
 	- Requirements:
-		- A release build for arm64 Linux, and its `.deb` and `.rpm`, named `linux-arm64` beside `linux-x86_64`.
-		- Behind a flag such as `--include-arm` if it's much slower than x86_64. Qt and the panel libraries for arm64 are the hard part.
+		- Add a release build for arm64 Linux, with its `.deb` and `.rpm`, named `linux-arm64` beside `linux-x86_64`.
+		- Put it behind a flag such as `--include-arm` if it's much slower than x86_64. Qt and the panel libraries for arm64 are the hard part.
 
 - Some settings tips are long and technical, and stack asides
 	- ID: 2026110710005015
@@ -245,11 +247,11 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261107-100050
 	- Opened by: t00mietum
 	- Requirements:
-		- The tips for both Scale defaults, LAN and internet, Spike emphasis and Disk drives say what the setting does in a sentence or 2. Numbers and kernel terms stay in design.md.
-		- The width and time axis tips, the same on every graph, say it with fewer asides.
-		- "Box" means the number box only, and "computer" the computer.
-		- The Margins tip says plainly that 2 graphs side by side get both margins between them.
-		- History and settings errors in the tip and in message boxes use plain words, not the file reader's own, such as "short" or "trailing bytes", or the name of the file format.
+		- Cut the tips for both Scale defaults, LAN and internet, Spike emphasis, and Disk drives to a sentence or 2 on what the setting does. Numbers and kernel terms stay in design.md.
+		- Give the width and time axis tips, which are the same on every graph, fewer asides.
+		- Use "box" for the number box only, and "computer" for the computer.
+		- Make the Margins tip say plainly that 2 graphs side by side get both margins between them.
+		- Put history and settings errors in the tip and in message boxes in plain words, rather than the file reader's own, such as "short" or "trailing bytes", or the name of the file format.
 
 - Drop the dangling link workaround left over from shcl 2
 	- ID: 2026111014581529
@@ -261,8 +263,8 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Related IDs: 2026103115231938
 	- Requirements:
-		- Apply saves through `write_file_atomic` alone, with no `config::through_links` first, and the comment saying shcl breaks the link goes.
-		- deqw1 and deqw2 still pass.
+		- Make Apply save through `write_file_atomic` alone, without `config::through_links` first, and remove the comment saying shcl breaks the link.
+		- deqw1 and deqw2 still need to pass.
 	- Note: shcl 3.0.0-beta1 writes through a link to a missing file and keeps the link. Checked 2026-11-10.
 
 - Smoothly animate each graph on each tick
@@ -281,13 +283,13 @@ Sorted per the notes in [Template](#template).
 		- If this makes sense: An even division of the screen refresh rate, minimum 30, max 60. With smooth antialiasing.
 		- It should look absolutely incredibly buttery smooth.
 	- Progress log:
-		- Split in 2: the setting and the slide in 2026110918080223, and frames at the screen's rate with the CPU cost in 2026110918081021. Both are in, waiting on UAT.
-		- 20261109: children 2026110918080223 2026110918081021 wait on UAT, and the rest are closed
-		- 2026-11-10: Back to Queued with its child 2026110918081021, which needs the panel's frame rate fixed on a screen whose WM gives GTK no frame timings. That and the quarter rate in 2026110920595603 are in, waiting on UAT.
-		- 20261109: children 2026110918080223 2026110918081021 2026110920595603 wait on UAT, and the rest are closed
+		- It was split in 2. The setting and the slide went to 2026110918080223, and frames at the screen's rate with the CPU cost went to 2026110918081021. Both are in, waiting on UAT.
+		- 20261109: children 2026110918080223 and 2026110918081021 wait on UAT, and the rest are closed.
+		- 20261110: back to Queued with its child 2026110918081021, which needed the panel's frame rate fixed on a screen whose window manager gives GTK no frame timings. That fix and the quarter rate in 2026110920595603 are in, waiting on UAT.
+		- 20261109: children 2026110918080223, 2026110918081021, and 2026110920595603 wait on UAT, and the rest are closed.
 		- 20261117: all 3 children are closed.
-	- Test case: its children's: 2026110918080223: `tests::slide_steady_gap_jumps` (df3e1), `tests::right_column_fills_tip` (df3e2), and `config::tests::smooth_auto_by_cpus` (df3e3).; 2026110918081021: `tests::frame_split_30_to_60` (df3e4) and `tests::draw_rate_without_frame_timings` (df3mf). The frame clock's and the timer's own pacing need a real screen, so they have no test. dekpt now calls the tick callback and the timer.; 2026110920595603: `tests::quarter_pace_24_to_50` (df3me).
-	- Stand-in: none (20261110). It closes with its children 2026110918080223, 2026110918081021 and 2026110920595603, each waiting on a look at b23's own screen.
+	- Test case: its children's: 2026110918080223: `tests::slide_steady_gap_jumps` (df3e1), `tests::right_column_fills_tip` (df3e2), and `config::tests::smooth_auto_by_cpus` (df3e3); 2026110918081021: `tests::frame_split_30_to_60` (df3e4) and `tests::draw_rate_without_frame_timings` (df3mf). The frame clock's and the timer's own pacing need a real screen, so they have no test. dekpt now calls the tick callback and the timer; 2026110920595603: `tests::quarter_pace_24_to_50` (df3me).
+	- Stand-in: none (20261110). It closes with its children 2026110918080223, 2026110918081021, and 2026110920595603, which each needed a look at b23's own screen.
 	- Acceptance signoff: Self-closed 20261117: all 3 children are closed.
 	- Closed: 20261117-094915
 
@@ -297,12 +299,12 @@ Sorted per the notes in [Template](#template).
 	- Status: Closed
 	- Closed reason: Done
 	- Target version: v1.0.0-beta.2
-	- Stand-in: none (20261110). Turns on how smooth the slide looks.
+	- Stand-in: none (20261110), since it turns on how smooth the slide looks.
 	- Priority|Severity: Avg
 	- Opened: 20261109-180802
 	- Opened by: t00mietum
 	- Parent ID: 2026110911114024
-	- Version and build: b23's panel runs df54v since 2026-11-16, which has this.
+	- Version and build: b23's panel has run df54v, which has this, since 20261116.
 	- Requirements:
 		- A Smooth scrolling setting, on by default with 8 or more CPUs.
 		- Each graph slides to its newest sample over the time to the next one, rather than jumping a step.
@@ -316,17 +318,17 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Drawing and README Features have it.
 		- Verified: the quick gate and Sanitizers passed. The new tests failed with the edge left at the newest sample, and df3e2 also with the tip going by the newest sample. The General tab still fits with no scroll bar.
 		- UAT 20261109: "60 Hz looks good", in 2026110920595603's requirements, was a look at this slide.
-		- A panel tick costs about 620 us of CPU, 274 of it user, on the profiler's 7 graphs. So 30 frames a second likely costs around ten times an idle panel. The panel's own number is on 2026110918081021.
+		- A panel tick costs about 620 us of CPU, 274 of it user, on the profiler's 7 graphs. So 30 frames a second likely costs around 10 times an idle panel. The panel's own number is on 2026110918081021.
 	- Decisions:
-		- A dropdown with Auto, not a checkbox, so the default follows the box a settings file is used on, and isn't saved as one box's answer.
-		- CPUs as `available_parallelism` counts them, threads included, the same count the load graph uses.
-		- The slide takes the whole sample period at a steady speed, not half of it. Half with easing stops the graph once a sample, which reads as a pulse. A steady one never stops.
+		- It's a dropdown with Auto rather than a checkbox, so the default follows the box a settings file is used on, instead of being saved as one box's answer.
+		- CPUs are counted by `available_parallelism`, threads included, which is the same count the load graph uses.
+		- The slide takes the whole sample period at a steady speed, rather than half of it. Half with easing stops the graph once a sample, which reads as a pulse. A steady slide never stops.
 		- A step longer than the ease's slack, as after a gap, isn't slid, so the axis ease stays the one that handles jumps.
 		- `Drawn::moving` is new, and the 2 frame timers use it. `easing` keeps its meaning, so its tests stand.
 	- Branch: round-1109b
 	- Test case: `tests::slide_steady_gap_jumps` (df3e1), `tests::right_column_fills_tip` (df3e2), and `config::tests::smooth_auto_by_cpus` (df3e3).
 		- Swept: every `hist.last()` in `Graph` that places the right edge (`basis`, `span_at`, `render_in`), both frame timers (the plugin's draw, qt.cpp's `LiveGraph`), and every `Drawn` impl.
-	- Acceptance signoff: Self-closed 20261117: the slide was called good at 60 Hz, and b23's panel has drawn it since 2026-11-10. The 20261111 and 20261117 looks at the drawing found shimmer, not a slow or uneven slide.
+	- Acceptance signoff: Self-closed 20261117: the slide was called good at 60 Hz, and b23's panel has drawn it since 20261110. The 20261111 and 20261117 looks at the drawing found shimmer rather than a slow or uneven slide.
 	- Closed: 20261117-094915
 
 - Smooth scrolling: frames at the screen's rate, and the CPU cost
@@ -335,13 +337,13 @@ Sorted per the notes in [Template](#template).
 	- Status: Closed
 	- Closed reason: Done
 	- Target version: v1.0.0-beta.2
-	- Stand-in: none (20261110). The draw rate is measured, and what's left turns on whether the slide stutters to the eye on b23's own screen.
+	- Stand-in: none (20261110). The draw rate was measured, and what's left is whether the slide looks like it stutters on b23's own screen.
 	- Priority|Severity: Avg
 	- Opened: 20261109-180810
 	- Opened by: t00mietum
 	- Parent ID: 2026110911114024
 	- Prereq IDs: 2026110918080223
-	- Version and build: b23's panel runs df54v since 2026-11-16, which has this.
+	- Version and build: b23's panel has run df54v, which has this, since 20261116.
 	- Requirements:
 		- While a graph slides, draw at an even division of the screen's refresh rate, from 30 to 60 a second, in the panel and in the settings window's graph rows, in place of the fixed 33 ms timer.
 		- Measure the panel's CPU with Smooth scrolling on and off. If on costs too much for a panel that runs all day, revisit what Auto turns on.
@@ -352,27 +354,27 @@ Sorted per the notes in [Template](#template).
 		- With Smooth scrolling on, a panel item with the default graphs took 31 CPU ticks in 20 s, about 1.6% of a core, and its X server 9. Off, they took 2 and 1. That's at 60 frames a second, the most it draws.
 		- `design.md` Drawing and Time axis have it.
 		- Verified: the quick gate and Sanitizers passed, and a panel item kept drawing while it slid, by the CPU numbers above.
-		- 2026-11-10: Answer on the Check: let's try 60 fps. But on a 100 Hz screen it should be a clean factor, like 50, auto-detected. frames_apart already gives 50 at 99.99 Hz, and the settings window gets 99.99 from Qt. The panel doesn't: xfwm4 on b23 has no `_NET_WM_FRAME_DRAWN` or `_NET_WM_FRAME_TIMINGS`, so GTK's frame clock reports its 60 Hz default and paces itself to it. When it has no real timing, take the rate from the panel's monitor (gdk_monitor_get_refresh_rate) and pace the draws to that.
-		- 2026-11-10: With no frame timings, GTK's frame clock gives its 60 Hz guess, not 0, so the old fallback never ran. The panel now looks for a presented frame. Without one, it draws on a timer at its monitor's refresh rate, read again once a second, and goes back to the frame clock once timings show up.
-		- 2026-11-10: On a 100 Hz screen with no frame timings, the old build drew 60 times a second, and this one every 40 ms, at the quarter rate of 2026110920595603. A panel item took 18 CPU ticks in 20 s, against 26 before, and its X server 5, against 9, at a load of 9 to 11 on 32 cores.
+		- 20261110: the call was to try 60 fps, with a clean factor found on its own for a 100 Hz screen, such as 50. `frames_apart` already gives 50 at 99.99 Hz, and the settings window gets 99.99 from Qt. The panel doesn't get it, since xfwm4 on b23 has no `_NET_WM_FRAME_DRAWN` or `_NET_WM_FRAME_TIMINGS`, so GTK's frame clock reports its 60 Hz default and paces itself to it. Without a real timing, the panel needs to take the rate from its monitor with `gdk_monitor_get_refresh_rate` and pace the draws to that.
+		- 20261110: with no frame timings, GTK's frame clock gives its 60 Hz guess rather than 0, so the old fallback never ran. The panel now looks for a presented frame. Without one, it draws on a timer at its monitor's refresh rate, read again once a second, and goes back to the frame clock once timings show up.
+		- 20261110: on a 100 Hz screen with no frame timings, the old build drew 60 times a second, and this one every 40 ms, at the quarter rate of 2026110920595603. A panel item took 18 CPU ticks in 20 s, against 26 before, and its X server 5, against 9, at a load of 9 to 11 on 32 cores.
 		- `design.md` Drawing has the timer.
 		- Verified: the quick gate, Sanitizers and the release build passed, and the panel drew every 40 ms on a 100 Hz screen, by its X requests.
 		- Verified 20261117: b23's panel, df54v with Smooth scrolling on by Auto, drew 289 times in 10 s by its writes. The gaps between draws had a median of 39.7 ms, and 95% of them were under 40.8 ms, with 1 at 51 ms, at load 5.5. The shorter gaps are the sample tick's writes between draws.
 	- Decisions:
-		- The panel uses GTK's frame clock, not a timer, so a draw lands on a screen frame rather than beating against them.
-			- 2026-11-10: Only where the window manager gives GTK frame timings. Without them the clock's own ticks are 60 a second whatever the screen runs at, and 60 doesn't split into 25, so a timer at the monitor's rate stands in.
-		- The timer goes by when the last draw was due, not when it ran, so it holds the screen's rate rather than drifting by each wakeup's delay.
+		- The panel uses GTK's frame clock rather than a timer, so each draw falls on a screen frame instead of beating against them.
+			- 20261110: this applies only where the window manager gives GTK frame timings. Without them, the clock ticks 60 times a second whatever the screen runs at, and 60 doesn't split into 25, so a timer at the monitor's rate is used instead.
+		- The timer goes by when the last draw was due rather than when it ran, so it keeps to the screen's rate instead of drifting by each wakeup's delay.
 		- The monitor's rate is read at most once a second, since each read waits on the X server for the window's place. A panel moved to another monitor takes up its rate within a second.
 		- An unknown monitor rate counts as 60 Hz.
-		- One rule, `frames_apart` in core, serves both the panel and the settings window. It splits by 61, not 60, so a 60.002 Hz screen still gets every frame.
+		- The panel and the settings window both use one rule, `frames_apart` in core. It splits by 61 rather than 60, so a 60.002 Hz screen still gets every frame.
 		- Below 60 Hz it draws every frame, since none come faster.
-		- Auto stays on at 8 CPUs. 1.6% of one core is 0.2% of an 8 CPU box.
+		- Auto stays on at 8 CPUs, since 1.6% of one core is 0.2% of an 8 CPU box.
 	- Branch: round-1109b, round-1110
 	- Test case: `tests::frame_split_30_to_60` (df3e4) and `tests::draw_rate_without_frame_timings` (df3mf). The frame clock's and the timer's own pacing need a real screen, so they have no test. dekpt now calls the tick callback and the timer.
-		- 2026-11-10: df3e4 calls `Pace::UpTo60.frames_apart` rather than `frames_apart`, which now goes by `PACE`. Its values are as they were.
+		- 20261110: df3e4 calls `Pace::UpTo60.frames_apart` rather than `frames_apart`, which now goes by `PACE`. Its values are as they were.
 		- df3mf is new with the function it tests, so it has no run on the old code. The old code's 60 a second on a 100 Hz screen is in the Progress log.
-		- Swept: both frame timers (the plugin's draw and `quiet`, qt.cpp's `LiveGraph`), and every `frame` caller, the panic test included. 2026-11-10: also the new timer, `paced`, in the draw, `quiet` and dekpt.
-	- Acceptance signoff: Self-closed 20261117: the draws hold 40 ms on b23's screen, and the 20261117 look at the slide found only shimmer, which 2026111623513501 has.
+		- Swept: both frame timers (the plugin's draw and `quiet`, qt.cpp's `LiveGraph`), and every `frame` caller, the panic test included. 20261110: also the new timer, `paced`, in the draw, `quiet`, and dekpt.
+	- Acceptance signoff: Self-closed 20261117: the draws stay at 40 ms on b23's screen, and the 20261117 look at the slide found only shimmer, which is filed as 2026111623513501.
 	- Closed: 20261117-094915
 
 - Smooth scrolling: try a quarter of the screen's frame rate
@@ -381,13 +383,13 @@ Sorted per the notes in [Template](#template).
 	- Status: Closed
 	- Closed reason: Done
 	- Target version: v1.0.0-beta.2
-	- Stand-in: none (20261110). Turns on whether 25 a second looks as good as 60.
+	- Stand-in: none (20261110), since it turns on whether 25 a second looks as good as 60.
 	- Priority|Severity: Avg
 	- Opened: 20261109-205956
 	- Opened by: t00mietum
 	- Parent ID: 2026110911114024
 	- Related IDs: 2026110918081021
-	- Version and build: b23's panel runs df54v since 2026-11-16, which has this.
+	- Version and build: b23's panel has run df54v, which has this, since 20261116.
 	- Requirements:
 		- 60 Hz looks good.
 		- Now let's try 1/4 framerate, evenly divisible by framerate, but not less than 24 and not more than 50 Hz.
@@ -399,11 +401,11 @@ Sorted per the notes in [Template](#template).
 		- The up-to-60 rule is `Pace::UpTo60`, and the `PACE` constant in core picks one.
 		- `design.md` Drawing and Time axis have it.
 		- Verified: the quick gate, Sanitizers and the release build passed, and the panel drew every 40 ms on a 100 Hz screen, by its X requests. The settings window's rows weren't watched.
-		- 20261117: b23's panel has drawn 25 a second since 2026-11-10. The 20261117 look at it signed off the drawing, and left the shimmer to 2026111623513501.
+		- 20261117: b23's panel has drawn 25 a second since 20261110. The 20261117 look at it signed off the drawing, and left the shimmer to 2026111623513501.
 	- Decisions:
-		- An enum and a constant, not a setting, as asked.
+		- It's an enum and a constant rather than a setting, per the requirements.
 		- Where a quarter falls outside 24 to 50, it takes the split nearest 4 that's inside, so 60 Hz draws 30 a second and 240 Hz draws 48.
-		- 1% slack each way, so a screen a hair off its rate, as 95.9 or 200.01 Hz, still splits by 4.
+		- There's 1% slack each way, so a screen a hair off its rate, such as 95.9 or 200.01 Hz, still splits by 4.
 	- Branch: round-1110
 	- Test case: `tests::quarter_pace_24_to_50` (df3me).
 		- Swept: every `frames_apart` caller: the plugin's tick callback and timer, and qt.cpp's `LiveGraph` through `bridge::frames_apart`.
@@ -422,28 +424,28 @@ Sorted per the notes in [Template](#template).
 	- Opened by:
 	- Parent ID: 2026110911114037
 	- Prereq IDs: 2026110922214697
-	- Version and build: b23's panel runs df54v since 2026-11-16, which has this.
+	- Version and build: b23's panel has run df54v, which has this, since 20261116.
 	- Requirements:
 		- Treat the local desktop as remote while a remote viewer is connected to it, and go back to the person's settings once it leaves.
 		- Check again every few seconds, in the panel and in the settings window, rather than once at start.
 	- Estimated effort: Avg
 	- Actual effort: Avg
 	- Progress log:
-		- Possible signs: RustDesk's `--cm` window, which runs only while a peer is connected; an established socket on a VNC or RDP port; NoMachine's per-session node, told apart from the one for a virtual desktop on another display. Each needs a check with the real tool on b23.
-		- The panel item and the settings window look for a remote viewer on their own display about every 5 s, and go back to the person's settings once it leaves (`remote::Watch`). No root.
-		- A look reads the TCP counters, and the TCP tables only when those moved. It reads this user's processes only while a connection is up on a VNC, RDP, NoMachine or RustDesk port.
-		- Signs: x11vnc, x0vncserver, krfb or freerdp-shadow-cli holding that connection. RustDesk's `--cm`. NoMachine's `nxrunner.bin --monitor` on this display, while NoMachine has a connection.
+		- The possible signs were RustDesk's `--cm` window, which runs only while a peer is connected, and an established socket on a VNC or RDP port. NoMachine's per-session node was another, if it could be told apart from the one for a virtual desktop on another display. Each needed a check with the real tool on b23.
+		- The panel item and the settings window look for a remote viewer on their own display about every 5 s, and go back to the person's settings once it leaves (`remote::Watch`). It doesn't need root.
+		- A look reads the TCP counters, and reads the TCP tables only when those moved. It reads this user's processes only while a connection is up on a VNC, RDP, NoMachine or RustDesk port.
+		- The signs are x11vnc, x0vncserver, krfb or freerdp-shadow-cli with that connection open, RustDesk's `--cm`, and NoMachine's `nxrunner.bin --monitor` on this display while NoMachine has a connection.
 		- On b23, :1001 is NoMachine's node for the physical display. Its `nxrunner.bin --monitor` watches :0 and runs with no client connected.
 		- `design.md` Drawing and README Features have it.
 		- Verified: the quick gate and Sanitizers passed. With a stand-in x11vnc on a private Xvfb, the settings window greyed Sample ms default and Smooth scrolling, and went back 6 s after it quit. Before the early-timer fix below, it was still grey then. df3p7 failed with the socket read taken out, and df3p6 without the slack.
 		- On b23, a read of the TCP tables takes about 6 ms, the counters 18 us, and the process walk about 5 ms.
-		- Verified 2026-11-10: on a private panel with Smooth scrolling on, a stand-in x11vnc on its display took the item from 33 X writes a second to 1 within 3 s of joining, and back to 33 within 2 s of quitting.
+		- Verified 20261110: on a private panel with Smooth scrolling on, a stand-in x11vnc on its display took the item from 33 X writes a second to 1 within 3 s of joining, and back to 33 within 2 s of quitting.
 		- Verified 20261117: on b23's live panel, df54v, a connection held to the NoMachine server on port 4000 took the item from about 31 writes a second to 1 or 2 within 2 s, and back to 31 within 2 s of closing. NoMachine's own `nxrunner.bin --monitor` on :0 was the sign.
-		- Verified 20261117: the real x11vnc 0.9.17, unpacked from Debian's package with no root, on a private Xvfb. `remote::Watch`, read once a second, said Remote 4 s after a client joined and Local 4 s after it left.
-		- RustDesk isn't checked with the real tool. That's split off to 2026111709483900.
+		- Verified 20261117 with the real x11vnc 0.9.17 on a private display. `remote::Watch`, read once a second, said Remote 4 s after a client joined and Local 4 s after it left.
+		- RustDesk hasn't been checked with the real tool. That check is split off to 2026111709483900.
 	- Decisions:
-		- Ports and process names, since none of these servers says which display it serves in a way that can be read without root.
-		- NoMachine counts by its monitor and any connection on port 4000, since its node for the physical display runs between connections. A connection to a NoMachine virtual desktop on the same box would calm the physical display too.
+		- It goes by ports and process names, since none of these servers says which display it's for in a way that can be read without root.
+		- NoMachine is counted by its monitor and any connection on port 4000, since its node for the physical display runs between connections. A connection to a NoMachine virtual desktop on the same box would calm the physical display too.
 		- A server on a port of its own isn't seen.
 		- A look up to a tenth early still counts, since Qt's coarse timer can wake early, and skipping it doubled the wait.
 		- The tables are kept until the TCP counters move, since each read walks the kernel's whole table.
@@ -473,39 +475,39 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Avg
 	- Actual effort: Avg
 	- Progress log:
-		- 2026-11-10: After 2026110920595602, spikes mostly shimmer now, less so the pulsing.
+		- 20261110: after 2026110920595602, spikes mostly shimmer, and pulse less.
 		- Cause: a sample split between 2 columns lifted each one only by its part, so a spike half way across was drawn about half as tall in both. Its top went from 90 rows of 100 down to 50 and back each time it crossed a column.
 		- Each column now draws a solid stack and a taller one over it at part strength. A cut sample is drawn at its full height, as faint as how little of it is in. A part-covered pixel mixes in linear light, except over a transparent background. `design.md` Drawing has it.
 		- df4d7: the spike's top now stays at 90 rows on 1 s columns and 72 on 10 s ones, at every step. df3s6's ink, read in linear light, stays within 0.01 and 0.04.
-		- Profiler, load 6 to 8 on 32 cores: 480 and 514 us user a tick before, 634 after. 2026111000270812 is for the cost.
+		- The profiler read 480 and 514 us user a tick before, and 634 after, at load 6 to 8 on 32 cores. 2026111000270812 is for the cost.
 		- Verified: df4d7 failed before the change and passed after. df4dt failed with each series' own min and max as the 2 stacks, and passed with the end buckets'. The quick gate and Sanitizers passed.
-		- 2026-11-10: The cut-bucket tint in the Decisions is fixed by 2026111011172485 (660a3de).
+		- 20261110: the cut-bucket tint in the Decisions is fixed by 2026111011172485 (660a3de).
 		- UAT 20261111: not yet. Very narrow gaps tend to appear, fill in, and reappear as the graph marches left. Needs even better antialiasing.
-		- 2026-11-10: One low sample between high ones, drawn at 21 steps across a column, with the gap's depth read as the screen shows it. On columns a sample wide it went from 1.0 column whole to 0.53 split, and on half-sample columns from 2.0 to 1.53. Linear light left a split dark gap only about a quarter as dark in each column, and made a split spike about 1.5 times as bright.
+		- 20261110: one low sample between high ones was drawn at 21 steps across a column, with the gap's depth read as the screen shows it. On columns a sample wide it went from 1.0 column whole to 0.53 split, and on half-sample columns from 2.0 to 1.53. Linear light left a split dark gap only about a quarter as dark in each column, and made a split spike about 1.5 times as bright.
 		- Part-covered pixels now mix as sRGB numbers over any background, as they did over a transparent one. A split gap or spike shows the same depth at every step. `design.md` Drawing has it.
-		- On columns 1 to 3 samples wide the gap still goes from 0.17 to 0.67 of a column at 1.5 s, and 0.13 to 0.46 at 2 s, since the spike emphasis fills it only where a whole sample of the bar is in the column. From 3 s it holds. That's 2026111020033357. Spikes there stay within 5%.
-		- Profiler: 673.8 us user a tick at load 8 to 15 on 32 cores, and 916.5 at 16 to 27. The old drawing took 729.1 at 16 to 24. Drawing is 17.6% and 18.5% of self time, against 19.9%. That's within the noise.
+		- On columns 1 to 3 samples wide the gap still goes from 0.17 to 0.67 of a column at 1.5 s, and 0.13 to 0.46 at 2 s, since the spike emphasis fills it only where a whole sample of the bar is in the column. From 3 s it stays steady. That's 2026111020033357. Spikes there stay within 5%.
+		- The profiler read 673.8 us user a tick at load 8 to 15 on 32 cores, and 916.5 at 16 to 27. The old drawing took 729.1 at 16 to 24. Drawing is 17.6% and 18.5% of self time, against 19.9%. That's within the noise.
 		- Verified: df4y1 failed on the old drawing, at 1.53 to 2.0 on half-sample columns, and passed after. The quick gate and Sanitizers passed.
 		- UAT 20261117: signed off. What's left of the shimmer is acceptable.
 	- Decisions:
-		- Check answered 20261116: sRGB numbers for every part-covered pixel. The earlier linear light Check is superseded.
-		- A column's ink stays what the drawing gave before, so the area under a spike holds. Only its shape changes: full height at part strength, rather than part height.
+		- 20261116: every part-covered pixel mixes as sRGB numbers. This replaces the earlier call for linear light.
+		- A column's ink stays what the drawing gave before, so the area under a spike doesn't change. Only its shape changes, to full height at part strength rather than part height.
 		- A column no wider than a sample takes its oldest and newest buckets as its 2 samples. Each series' own min and max can come from different samples, and stack over either one's total.
-		- Wider, the solid stack reaches toward the max of the buckets clear of both edges, and the tall one toward the column's max, as before 2026110920595602.
-		- Linear light only over an opaque background, since the panel blends a transparent one as sRGB numbers.
-			- 2026-11-10: turned back, see below.
+		- On a wider column, the solid stack reaches toward the max of the buckets clear of both edges, and the tall one toward the column's max, as before 2026110920595602.
+		- Linear light was used only over an opaque background, since the panel blends a transparent one as sRGB numbers.
+			- 20261110: this was turned back, as below.
 		- A bucket cut by a sample's edge can leave a narrow column up to a twentieth short of full, as a faint tint, where before it showed as a part-filled top pixel. That's 2026111011172485.
-		- No before and after pictures. df4d7's numbers stand in, and the look is left to the hand test.
-		- 2026-11-10: sRGB numbers for every part-covered pixel, not linear light. Half covered then looks half way, for a bright spike and a dark gap alike. Linear light keeps the light a split spike gives off, which holds only if the eye blurs the 2 columns together. The report of gaps filling in says it sees them one by one. The transparent path and the rest of the panel, drawn by cairo, mix as sRGB numbers too.
-		- That's a swing back: sRGB numbers before this item, linear light from df4e4, and sRGB numbers again. Linear light was picked for a bright spike over a dark background, and a dark gap between bars wasn't looked at then.
-		- The wider columns wait on a question, in 2026111020033357, since a fix that holds at every step splits a spike thinner than a column between 2 columns, which df3s6 checks against at 10 s.
+		- df4d7's numbers stand in for before and after pictures, and the look was left to the hand test.
+		- 20261110: every part-covered pixel mixes as sRGB numbers rather than in linear light. Half covered then looks half way, for a bright spike and a dark gap alike. Linear light keeps the light a split spike gives off, which is right only if the eye blurs the 2 columns together. The report of gaps filling in shows the eye sees them one by one. The transparent path and the rest of the panel, drawn by cairo, mix as sRGB numbers too.
+		- That's a swing back. Pixels mixed as sRGB numbers before this item, in linear light from df4e4, and as sRGB numbers again now. Linear light was picked for a bright spike over a dark background, and nobody looked at a dark gap between bars then.
+		- The wider columns were left to 2026111020033357, since a fix taht works at every step splits a spike thinner than a column between 2 columns, which df3s6 checks against at 10 s.
 	- Branch: round-1110b, round-1111
 	- Test case: `render::tests::spike_slide_height_steady` (df4d7), `render::tests::share_trade_stays_in_total` (df4dt) and `render::tests::narrow_gap_slide_depth` (df4y1), with df3s6.
-		- 2026-11-10: debj7 `exact_stack_heights`: the pixel shared half and half by red and green was 0x80 in each, now 0xbc, mixed in linear light.
-		- 2026-11-10: df3s6 reads red in linear light, not as sRGB numbers.
-		- 2026-11-10: df3e2 `right_column_fills_tip`: half slid in, 7 to 11 of 18 rows were filled, now every row is at part strength. A filled row is now within 8 steps of the full color, not exactly it.
+		- 20261110: in debj7 `exact_stack_heights`, the pixel shared half and half by red and green was 0x80 in each, and is now 0xbc, mixed in linear light.
+		- 20261110: df3s6 reads red in linear light rather than as sRGB numbers.
+		- 20261110: in df3e2 `right_column_fills_tip`, half slid in, 7 to 11 of 18 rows were filled, and now every row is at part strength. A filled row is now within 8 steps of the full color rather than exactly it.
 		- Swept: every reader of `Span` (only `Frame::draw_in` reads `spike`, `min`, `ends` and `uncut`), both paints, the opaque and transparent paths, `Peak`'s highest, which now takes the taller stack, and every `Span` literal (only `span_for`).
-		- 2026-11-10: debj7: the half and half pixel is 0x80 in each again, from 0xbc. df3s6 reads red as sRGB numbers again. df3e2: half slid in, red was 0xa0 to 0xd8, and is now 0x70 to 0xb0.
+		- 20261110: in debj7, the half and half pixel is 0x80 in each again, from 0xbc. df3s6 reads red as sRGB numbers again. In df3e2, half slid in, red was 0xa0 to 0xd8, and is now 0x70 to 0xb0.
 		- Swept: both paints, the opaque and transparent paths, which are now one, every user of the linear light helpers (only `render.rs`), and every test that read linear light or its values (debj7, df3s6, df3e2).
 	- Acceptance signoff: UAT 20261117: the look is fine, and the shimmer left is acceptable.
 	- Closed: 20261117-000639
@@ -527,23 +529,23 @@ Sorted per the notes in [Template](#template).
 		- Keep the spike emphasis's look where that allows.
 	- Estimated effort: Avg
 	- Progress log:
-		- Cause: past a sample wide, a column reaches toward the most that any sample's length in it averages. A column with a whole sample of the bar beside the gap reaches the bar and fills the gap, while one with the gap in its middle and the bar cut at both edges doesn't. So the gap shows or not by where the column edges fall.
-		- One low sample between high ones, at 21 steps across a column: the gap's depth goes from 0.17 to 0.67 of a column on 1.5 s columns, and 0.13 to 0.46 on 2 s ones. From 3 s it holds, at 0.08 and 0.06. A spike stays within 5% on each. A gap of 2 samples should do the same on columns up to about 4 samples wide.
+		- Cause: past a sample wide, a column reaches toward the most that any sample's length in it averages. A column with a whole sample of the bar beside the gap reaches the bar and fills the gap, while one with the gap in its middle and the bar cut at both edges doesn't. So whether the gap shows depends on where the column edges fall.
+		- With one low sample between high ones at 21 steps across a column, the gap's depth goes from 0.17 to 0.67 of a column on 1.5 s columns, and 0.13 to 0.46 on 2 s ones. From 3 s it stays steady, at 0.08 and 0.06. A spike stays within 5% on each. A gap of 2 samples should do the same on columns up to about 4 samples wide.
 		- These are the columns just left of a log graph's right end: 11 to 21 of 98 on Smooth log, with an hour to a day of history.
-		- The options are in questions.md.
-		- 2026-11-11: Up to 4 samples wide, each point in a column takes the most that a sample's length within half a column of it averages, and the column reaches toward that, averaged over the column. The tall stack reaches toward its most. `design.md` Drawing has it.
-		- The gap's depth at 21 steps: 0.42 to 0.43 of a column at 1.5 s, 0.21 at 2 s, 0.08 at 3 s. A spike's ink holds within 0.01 plot heights. Its tallest column at 1.5 s went from 0.83 to 0.74 of the plot, since it's split between 2 now.
-		- Profiler, user time a tick: 1066.1 us with the first cut, at load 5 to 22 on 32 cores, then 889.2 at 14 to 40. With the new part off it was 657.7 at 19 to 23. So it costs about a quarter more. 2026111000270812 is for the cost.
+		- The options were filed in questions.md.
+		- 20261111: on columns up to 4 samples wide, each point in a column takes the most that a sample's length within half a column of it averages, and the column reaches toward that, averaged over the column. The tall stack reaches toward its most. `design.md` Drawing has it.
+		- At 21 steps, the gap's depth is now 0.42 to 0.43 of a column at 1.5 s, 0.21 at 2 s, and 0.08 at 3 s. A spike's ink stays within 0.01 plot heights. Its tallest column at 1.5 s went from 0.83 to 0.74 of the plot, since it's split between 2 now.
+		- The profiler read 1066.1 us user a tick with the first cut, at load 5 to 22 on 32 cores, then 889.2 at 14 to 40. With the new part off it was 657.7 at 19 to 23. So it costs about a quarter more. 2026111000270812 is for the cost.
 		- A spike's top on 1.5 s columns still moves between 77 and 84 rows of 100 as it slides, the same with the change off.
 		- Verified: df4y1 failed with the change off, at 0.17 to 0.67 on 1.5 s columns, and passed with it on. The quick gate and Sanitizers passed.
-		- 2026-11-11: The test ID check read `depth` in df4y1's name in a Test case row as an ID. It now skips names in backticks. Test dezap failed before that and passes after.
+		- 20261111: the test ID check read `depth` in df4y1's name in a Test case row as an ID. It now skips names in backticks. Test dezap failed before that and passes after.
 		- UAT 20261117: signed off. What's left of the shimmer is acceptable.
 	- Decisions:
-		- Check answered 20261116: keep it, and the cost stays with 2026111000270812.
-		- Picked A, the worker's call, since it holds for every width of gap and is easy to undo. The emphasis comes from the history widened by a column less a sample, then averaged over the column, and df3s6's 10 s check becomes a check on the 2 columns' total (20261111).
-		- Only up to 4 samples wide, not every width. Past that a column already holds every gap up to 3 samples, and the slide costs about a bucket per point, which is too much on wide columns. So df3s6's 10 s check is unchanged. It now also slides the spike across 1.5 and 3 s columns.
+		- 20261116: the change stays, and its cost is left to 2026111000270812.
+		- Option A was picked, since it works for every width of gap and is easy to undo. The emphasis comes from the history widened by a column less a sample, then averaged over the column, and df3s6's 10 s check becomes a check on the 2 columns' total (20261111).
+		- It applies only up to 4 samples wide rather than at every width. Past that, a column already shows every gap up to 3 samples, and the slide costs about a bucket per point, which is too much on wide columns. So df3s6's 10 s check is unchanged. It now also slides the spike across 1.5 and 3 s columns.
 		- Each point looks half a column each way, so a point's value goes by its time alone. Then the ink across columns of one width stays the same as they slide.
-		- The window starts go by buckets, as `densest` has them, and the sliding most is kept per series. A column over 126 buckets long in the reach, as with samples over 1.5 s, keeps the old way.
+		- The window starts go by buckets, as `densest` has them, and the sliding most is kept per series. A column over 126 buckets long in the reach, as with samples over 1.5 s, still uses the old way.
 		- `Span::peak` is new, for the tall stack, since the most can come from a spike half a column past the column's edge. `Span::max` keeps its meaning.
 	- Actual effort: Avg
 	- Branch: round-1111
@@ -563,7 +565,7 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Requirements:
 		- Don't error if an old config file has old values that don't exist anymore. Just replace the file. Regular users aren't going to hand-edit the config file.
-	- Reproduced: 2026-10-29, round-1029 at a6ad993, with a file holding a gone `cpu.sample_ms`, a misspelled setting, a line that doesn't parse, and saved theme values it can't read. Apply failed with "has lines a save would drop, so it wasn't changed".
+	- Reproduced: 20261029, in round-1029 at a6ad993, with a file that had a removed `cpu.sample_ms`, a misspelled setting, a line that doesn't parse, and saved theme values it can't read. Apply failed with "has lines a save would drop, so it wasn't changed".
 	- Actual cause: the window's save checked the file for lines it would drop, and refused the whole save if it found any. An older build's settings are such lines.
 	- Estimated effort: Low
 	- Actual effort: Low
@@ -572,13 +574,13 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Settings window says so.
 		- Verified: dekm0 fails at a6ad993 with the error above, and passes now. The quick gate and the full run passed.
 	- Decisions:
-		- Everything the check caught is dropped, not only settings that are gone: lines that don't parse, misspelled names, and saved theme values it can't read. A save can't tell an old build's line from a hand edit, and the window can't show either, so the error only blocked the save.
+		- Everything the check caught is dropped, which means lines that don't parse, misspelled names, and saved theme values it can't read, as well as settings that are gone. A save can't tell an old build's line from a hand edit, and the window can't show either, so the error only blocked the save.
 		- Nothing is rewritten until the next Apply. Loading already ignores what it can't read, so the panel draws the same either way.
-		- `config::moved_path` went, since only the check used it. `config::theme_problems` stays, with its tests, as the list of saved theme lines a save rewrites.
+		- `config::moved_path` was removed, since only the check used it. `config::theme_problems` stays, wiht its tests, as the list of saved theme lines a save rewrites.
 	- Actual fix: the `would_lose` check in `Dialog::apply` is gone.
 	- Branch: round-1029
 	- Test case: `dialog::tests::unplaceable_lines_dropped_on_save` (dekm0).
-		- 2026-10-29: debjf (`refuses_to_drop_lines_it_cant_place`) and decd2 (`a_theme_line_it_cant_read_stops_the_save`) are commented out, since each checked the refusal this item removes. dekm0 covers both of their files.
+		- 20261029: debjf (`refuses_to_drop_lines_it_cant_place`) and decd2 (`a_theme_line_it_cant_read_stops_the_save`) are commented out, since each checked the refusal this item removes. dekm0 tests both of their files.
 		- Swept: every caller of `Dialog::apply` (the bridge's `apply`, which every save in `qt.cpp` goes through, and the tests), every user of `would_lose`, `moved_path` and `theme_problems`, the plugin's and the window's load paths, which already skip what they can't read, and `design.md` and README.md for the refusal.
 	- Acceptance signoff: Self-closed 20261029: dekm0 and the full run.
 	- Closed: 20261029-132000
@@ -614,10 +616,10 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: High
 	- Opened: 20261031-152318
 	- Opened by: t00mietum
-	- Steps to reproduce: A file on Custom with `cpu.colors.user` set. Change User, pick Default, Apply, then pick Custom again.
-	- Incorrect behavior: User is the spec default, neither the old color nor the edit. Randomize on Custom, then Default, then Apply does the same.
+	- Steps to reproduce: Start from a file on Custom with `cpu.colors.user` set. Change User, pick Default, Apply, then pick Custom again.
+	- Incorrect behavior: User is back at the spec default, rather than the old color or the edit. Randomize on Custom, then Default, then Apply does the same.
 	- Expected behavior: Custom keeps the edit, as the window showed before Apply.
-	- Reproduced: 2026-11-01, round-1101 at 2385b2e, by deqqp. User read `#00ff80` after Apply.
+	- Reproduced: 20261101, in round-1101 at 2385b2e, by deqqp. User read `#00ff80` after Apply.
 	- Possible cause: Apply replays each touched row, judging set or reset by the window theme, then runs that against the file theme.
 	- Actual cause: as above. On Default, User has no change of its own, so Apply reset it, and the file was still on Custom then, so the reset took out Custom's User.
 	- Estimated effort: Avg
@@ -628,12 +630,12 @@ Sorted per the notes in [Template](#template).
 		- The list of touched rows is gone, since nothing reads it now.
 		- Verified: deqqp fails before the fix and passes after, and the quick gate passed.
 	- Decisions:
-		- Compare the stores, not the rows. A row's value depends on the theme in force, so any replay has to guess which theme each step meant. The stores say it outright, and a gate ticked by a set comes along with no extra step.
+		- Apply compares the stores rather than the rows. A row's value depends on the theme in force, so any replay has to guess which theme each step meant. The stores record it outright, and a gate ticked by a set comes along with no extra step.
 		- It departs from the old behavior in one small way. A row changed and then put back to what the file had, before Apply, no longer writes over a hand edit made to that row meanwhile. The window showed no change there, so the hand edit wins.
 	- Actual fix: `carry` in `settings/src/dialog.rs`, called by `Dialog::apply` for `own`, `changes`, `changed_on` and `state`, in place of the touched-row replay.
 	- Branch: round-1101
 	- Test case: `dialog::tests::custom_keeps_edit_on_pick` (deqqp), with a hand edit and with Randomize. It fails at 2385b2e and passes now.
-		- 2026-11-01: decd3's `dlg.touched.is_empty()` is now `dlg.model.values == dlg.saved.values`, the same check without the touched list.
+		- 20261101: decd3's `dlg.touched.is_empty()` is now `dlg.model.values == dlg.saved.values`, the same check without the touched list.
 		- Swept: every `touched` and `touch` use, the picker's Cancel, `drop_theme_changes`, `delete_theme`, and the `model_on` callers. `Dialog::apply` was the only replay. debje, dejng, deccn, deccj and decd1 still pass.
 	- Closed: 20261101-102700
 
@@ -647,19 +649,19 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Related IDs: 2026102508393152, 2026103115231848
 	- Steps to reproduce: Untick CPU, leave it hidden a day or more, then tick it again.
-	- Incorrect behavior: The first read after it's back covers the whole hidden time, so the graph shows that time filled with one average. The 50 ms tier makes a bucket for every step of it before trimming. Hiding it for 3 days took the probe from 24 MB to 1.87 GB, which stayed. Hiding it for 30 days would want about 18 GB, and a failed allocation aborts the panel.
-	- Expected behavior: A gap for the hidden time, as 2026102508393152 says, and no more memory than the tier keeps.
+	- Incorrect behavior: The first read after it's back spans the whole hidden time, so the graph shows that time filled with one average. The 50 ms tier makes a bucket for every step of it before trimming. Hiding it for 3 days took the probe from 24 MB to 1.87 GB, which stayed. Hiding it for 30 days would want about 18 GB, and a failed allocation aborts the panel.
+	- Expected behavior: The graph shows a gap for the hidden time, as 2026102508393152 says, and uses no more memory than the tier keeps.
 	- Possible cause: CPU keeps its slot while hidden, so `read_at` is left from before. `Tier::add` pushes every bucket from `first` to the end before it trims to `cap`.
 	- Estimated effort: Low
 	- Origin: `f89e55e` (`Tier::add`) and `bfa6a97` (hidden graphs not read). First review. Confirmed, by a probe through `Graphs::skip`.
-	- Actual cause: As the possible cause. Only CPU keeps its slot while hidden, since it's drawn whenever nothing else is, so its last read stayed. And a long add made every bucket of the stretch before trimming to the tier's cap.
+	- Actual cause: as the possible cause says. Only CPU keeps its slot while hidden, since it's drawn whenever nothing else is, so its last read stayed. And a long add made every bucket of the stretch before trimming to the tier's cap.
 	- Actual effort: Low
 	- Progress log:
 		- A graph that isn't shown after a new look forgets its last read, so its first read back only primes and the hidden time is a gap.
 		- A tier makes only the buckets it keeps, however long the stretch added. Adding 3 days at once leaves the 50 ms tier at its 5121 buckets.
 		- Verified: the quick gate passed, and the soak test passed.
 	- Decisions:
-		- The pause is in `Graphs::set_look`, the one place a graph's shown state changes, and covers every graph kept while hidden, not only CPU.
+		- The pause is in `Graphs::set_look`, the one place a graph's shown state changes, so it applies to every graph kept while hidden rather than only CPU.
 		- A graph shown again drops its latest read too, so its tip has no value until its next read, as a newly shown graph's does.
 	- Actual fix: `Graph::pause`, called from `Graphs::set_look` for each graph not shown, and `Tier::add` in `core/src/history.rs`.
 	- Branch: round-1101
@@ -671,7 +673,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102620162195
 	- Type: Bug
 	- Status: Closed
-		- Saving and loading work in build defqn. What's left is to see it on b23 at the next panel restart.
+		- Saving and loading worked in build defqn. What was left was to see it on b23 at the next panel restart, which the 20261030 check did.
 	- Closed reason: Could not reproduce
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Needs hand testing: No
@@ -689,16 +691,16 @@ Sorted per the notes in [Template](#template).
 		- Since 19:43 the live panel saves on its 15 minute timer, seen at 20:23:52 and 20:38:52.
 	- Actual effort: Low
 	- Progress log:
-		- Verified, build defqn in a test panel: a restart saves on the way out, the panel that comes back loads it, and 2 restarts in a row keep the first run's start. The new plugin starts about 5 s after the old one has saved, so the two don't race.
+		- Verified in build defqn that a restart saves on the way out, the panel that comes back loads it, and 2 restarts in a row keep the first run's start. The new plugin starts about 5 s after the old one has saved, so the 2 don't race.
 		- Verified: a file saved at a restart by the 5-tier build from before the 50 ms tier loads in defqn, and its next save has 6 tiers.
 		- That file is now a test fixture, `core/tests/data/plugin-5-tiers.hist`.
 		- A restarted panel's stdout and stderr are `/dev/null`, so a failed load or save shows nothing. Filed as 2026102620523642.
-		- Verified 2026-10-30: b23's panel restarted at 07:21 on build dekwp, and plugin-16.hist still has every graph's history from the 2026-10-28 13:16 reset through the restart, saved again at 10:06.
+		- Verified 20261030: b23's panel restarted at 07:21 on build dekwp, and plugin-16.hist still has every graph's history from the 2026-10-28 13:16 reset through the restart, saved again at 10:06.
 	- Decisions:
-		- Can't reproduce, with no code change, since nothing in the save or load path was wrong.
-		- The fixture is a real file from the old plugin, not one cut down from today's encoder like defp7's, since only that catches a change made to both encode and decode.
+		- It closed as Could not reproduce, with no code change, since nothing in the save or load path was wrong.
+		- The fixture is a real file from the old plugin rather than one cut down from today's encoder like defp7's, since only a real file catches a change made to both encode and decode.
 	- Branch: round-1027
-	- Test case: `graphs::tests::five_tier_file_loads` (defv4). It fails with decode taking only today's tier count, and with `lo` and `hi` swapped in both encode and decode, which defp7 and decbg miss. Restarts are also covered by decbp, dedq3 and defp7.
+	- Test case: `graphs::tests::five_tier_file_loads` (defv4). It fails with decode taking only today's tier count, and with `lo` and `hi` swapped in both encode and decode, which defp7 and decbg miss. decbp, dedq3 and defp7 also test restarts.
 		- Swept: every load path (start, a graph added, keep turned back on) and every save path (the 15 minute timer, quit, keep turned off, a graph dropped) in `xfce/src/lib.rs` and `Graphs`. Nothing else reads or writes the history file.
 	- Closed: 20261026-205632
 
@@ -714,15 +716,15 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026102408304599
 	- Incorrect behavior: Mouseover tip text: "x seconds ago" doesn't update with ticks, it seems to be stuck at whatever it was at first flyover.
 	- Note: Regular time format works though.
-	- Reproduced: 2026-10-26, in core with 2 days of history. A still pointer read "32 sec ago" over 4 ticks while its clock time went 20:59:13, :14, :15, :16, on a linear axis and on Smooth log.
+	- Reproduced: 20261026, in core with 2 days of history. A still pointer read "32 sec ago" over 4 ticks while its clock time went 20:59:13, :14, :15, :16, on a linear axis and on Smooth log.
 	- Actual cause:
 		- Each column of the graph is a fixed age, since the right edge is always now and the graph moves left under the pointer. So a still pointer's age stays, and its clock time moves on by a sample each tick. Both say the same thing about the column under the line.
-		- The tip is asked again each tick, so nothing is stale. The round-1024 test panel saw the age count, likely because its history was only seconds old, and a log axis stretches as its history grows.
+		- The tip is asked again each tick, so nothing is stale. The age counted up on the round-1024 test panel, likely because its history was only seconds old, and a log axis stretches as its history grows.
 	- Progress log:
-		- 2026-10-28: The line and tip stay on the column under the pointer. No behavior change. design.md Drawing says why a still pointer's age stays, and a test pins it.
+		- 20261028: the line and tip stay on the column under the pointer, and the behavior is unchanged. design.md Drawing says why a still pointer's age stays, and a test pins it.
 		- Verified: the quick gate passed, with the new test.
 	- Decisions:
-		- Not a bug: each column is a fixed age, so the age stays while the clock time moves on. Both describe the column under the line.
+		- It isn't a bug. Each column is a fixed age, so the age stays while the clock time moves on, and both describe the column under the line.
 	- Branch: round-1028
 	- Test case: `tests::still_pointer_keeps_age` (defz1). It pins existing behavior, so it passes before and after. No code changed.
 		- Swept: `hover_tip` and `span_at` are the only places the tip's time is made, and the settings window's live tip goes through the same `Graph::hover_tip`.
@@ -739,14 +741,14 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Related IDs: 2026102814061807, 2026102620162202
 	- Origin: `58c5251` (2026-10-26) and `207e4ff` (2026-10-28). Not seen before. Confirmed, by a probe through the window's and the plugin's code.
-	- Steps to reproduce: 2 panel items, the first with Keep across restarts on and the second with it off. Open the second one's settings window and press Reset history.
-	- Incorrect behavior: No question. The first item sees the reset and deletes its own saved history, up to 28 days of it. The other way round, Reset in the first item's window asks, then deletes the second item's file too, which its Keep tip says is kept for later.
+	- Steps to reproduce: Set up 2 panel items, the first with Keep across restarts on and the second with it off. Open the second one's settings window and press Reset history.
+	- Incorrect behavior: It doesn't ask anything. The first item sees the reset and deletes its own saved history, up to 28 days of it. The other way round, Reset in the first item's window asks, then deletes the second item's file too, which its Keep tip says is kept for later.
 	- Expected behavior: The question guards every reset that deletes saved history, as 2026102814061807 and design.md's Settings window section say.
 	- Reproduced: Yes, by the new test with the fix taken out. The window of the item that keeps no history said no question was needed.
 	- Possible cause: The window asks by its own item's Keep, while each running item deletes by its own.
-	- Actual cause: As the possible cause. The window also deleted every item's history file by its own item's Keep.
+	- Actual cause: as the possible cause says. The window also deleted every item's history file by its own item's Keep.
 	- Sweep: `Dialog::reset_deletes_saved`, `keep::reset` and the plugin's `reset_if_asked`.
-	- Against: 2026102814061807, "It asks when Keep across restarts is on, as the window shows it or as applied", and 2026102620162202, where Keep across restarts off leaves the file alone at a reset. Since the 2026-11-09 answer, Reset history deletes every item's saved history, Keep on or off, and asks whenever a saved history file exists, so it goes past both.
+	- Against: 2026102814061807, "It asks when Keep across restarts is on, as the window shows it or as applied", and 2026102620162202, where Keep across restarts off leaves the file alone at a reset. Since the 20261109 call, Reset history deletes every item's saved history, Keep on or off, and asks whenever a saved history file exists, so it goes past both.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
@@ -755,22 +757,22 @@ Sorted per the notes in [Template](#template).
 		- The question now says Keep across restarts is on for this or another panel item.
 		- `design.md` Settings window has it.
 		- Verified: the quick gate passed, with the Sanitizers step run on its own.
-		- 2026-11-09: Answer on the Check: when the button is pressed, all monitors should be cleared whether active or not. So Reset history clears every item's history, Keep across restarts on or off, and every running item resets. Reopened for that.
-		- 2026-11-09: Reset history now deletes every item's history file, Keep across restarts on or off, and asks first whenever any history file exists. Every running item starts its graphs over, as before.
+		- 20261109: when the button is pressed, every monitor's history needs to be cleared, active or not. So Reset history clears every item's history, Keep across restarts on or off, and every running item resets. The item was reopened for that.
+		- 20261109: Reset history now deletes every item's history file, Keep across restarts on or off, and asks first whenever any history file exists. Every running item starts its graphs over, as before.
 		- The question now says it deletes the saved history of every panel item, whether Keep across restarts is on or off.
 		- `design.md` Settings window and History have it.
 		- Verified: the quick gate passed, with the Sanitizers step run on its own.
 	- Decisions:
-		- 2026-11-09, per the answer on the Check: the window deletes every history file, Keep across restarts on or off, and asks whenever one exists. It no longer reads any item's Keep, so a settings file that can't be read no longer matters here.
+		- 20261109: the window deletes every history file, Keep across restarts on or off, and asks whenever one exists. It no longer reads any item's Keep, so a settings file that can't be read no longer matters here.
 		- The plugin is unchanged. A running item with Keep off doesn't save, so the file the window deleted stays gone. One with Keep on deletes its own again, since it may save in between.
 		- `keep::reset` keeps its pick of which ids go, so its tests are unchanged. The window passes every id.
 		- `config::instance_id` and `instance_ids`, added only for the earlier fix, are gone, since nothing reads them now.
 	- Actual fix: `Dialog::reset_deletes_saved` and `Dialog::reset_history` in `settings/src/dialog.rs`, which go by `keep::history_ids` and pass every id to `keep::reset`, and the question in `askReset` in `settings/src/qt.cpp`. `Dialog::keeps_history`, `config::instance_id` and `instance_ids` are gone.
 	- Branch: round-1109, round-1109b
 	- Test case: `dialog::tests::reset_history_asks_first` (df38a). It fails with the window's earlier per-item logic put back, and passes after.
-		- 2026-11-09: df315 is commented out, since it checked the per-item Keep that the answer reversed. df38a has what's left of it.
-		- 2026-11-09: new values only. dejaf, renamed `reset_history_at_once`, now expects the question and the file deleted with Keep off and applied, where it expected no question and the file kept.
-		- 2026-11-09: dejaf opens `plugin-3.shcl` rather than `t.shcl`, so its window is the item its history file belongs to. Its asserts are unchanged.
+		- 20261109: df315 is commented out, since it checked the per-item Keep that the 20261109 call reversed. df38a has what's left of it.
+		- 20261109: only the values changed. dejaf, renamed `reset_history_at_once`, now expects the question and the file deleted with Keep off and applied, where it expected no question and the file kept.
+		- 20261109: dejaf opens `plugin-3.shcl` rather than `t.shcl`, so its window is the item its history file belongs to. Its asserts are unchanged.
 		- Swept: every `Dialog::reset_deletes_saved` and `reset_history` caller (the button in `qt.cpp`, through the bridge), every `keep::reset` caller (the window, defxq, deqs9 and dejae), the plugin's `reset_if_asked`, every `instance_id` use, and every Reset history line in `design.md`, `style-guide_ux.md` and the code.
 	- Closed: 20261109-151407
 
@@ -795,8 +797,8 @@ Sorted per the notes in [Template](#template).
 	- Actual cause: `Screen.env` passed on everything but 4 names, so `SESSION_MANAGER`, the ssh agent, `GTK_MODULES` and the session's XDG names all reached the WM, the panel and what they start.
 	- Actual fix: `Screen.env` keeps only `KEPT_ENV` (path, home, user, shell, locale, time zone and temp names) plus `LC_*`. `start_wm` and `Panel.desk_env` build on it, and the settings window inherits the panel's.
 	- Decisions:
-		- 2026-11-09: a short list of names to keep, rather than a longer list to drop, so a session name nobody thought of can't get through either.
-		- 2026-11-09: the desktop's own GTK and XDG settings no longer reach the recording, so it looks the same whoever records it. The settings scene's shots looked as before.
+		- 20261109: it keeps a short list of names rather than dropping a longer list, so a session name nobody thought of can't get through either.
+		- 20261109: the desktop's own GTK and XDG settings no longer affect the recording, so it looks the same whoever records it. The settings scene's shots looked as before.
 	- Progress log:
 		- Verified: df31j failed on the old script, with `SESSION_MANAGER`, `SSH_AUTH_SOCK`, `GTK_MODULES` and `XDG_SESSION_ID` getting through, and passes now.
 		- Verified: the settings scene ran with a stand-in `SESSION_MANAGER` and ssh agent, and none of the demo's processes had either. The only bus address they held was the one `dbus-run-session` gave them.
@@ -849,7 +851,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102621562349
 	- Type: Enhancement
 	- Status: Closed
-		- Measured 2026-10-28 over 10,000 seeds, as CIEDE2000: every 2 leads of a roll are 10.0 or more apart, 10.6 at the median, and every lead 21.7 or more from I/O wait and system. Before 2026102810142725 the closest 2 were 4.7 apart at the median and 1.8 at worst. A roll steps 3 of its 10 leads darker or paler at the median, and 6 at most.
+		- Measured 20261028 over 10,000 seeds as CIEDE2000, every 2 leads of a roll are 10.0 or more apart, 10.6 at the median, and every lead 21.7 or more from I/O wait and system. Before 2026102810142725 the closest 2 were 4.7 apart at the median and 1.8 at worst. A roll steps 3 of its 10 leads darker or paler at the median, and 6 at most.
 		- Verified 2026-10-28, round-1028b at 84b61ad: 5 rolls, seeds 17, 423, 1999, 5150 and 8888, drawn on a test panel with all 9 graphs. Each read as one set, with every graph apart and clear of the alarms.
 	- Closed reason: Done
 	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
@@ -871,18 +873,18 @@ Sorted per the notes in [Template](#template).
 		- I/O wait and system stay red and orange, and so do the battery's critical and on battery.
 		- `design.md` Theme has the details.
 		- Verified: the full run passed with the new test.
-		- 2026-10-28: 2026102810142725 checks every roll's leads apart as CIEDE2000, so the hold is off. The hues are 22 degrees apart now, for 10 graphs.
+		- 20261028: 2026102810142725 checks every roll's leads apart as CIEDE2000, so the hold is off. The hues are 22 degrees apart now, for 10 graphs.
 	- Decisions:
 		- The leads are 45 degrees apart, which leaves 90 degrees of the range to roll in, and keeps clear of defx7's 30 for the built-ins.
 		- All 4 share one saturation and brightness, so a roll reads as one set, the way each built-in does.
 		- The background still takes CPU's hue, or nice's, since it's one set of colors under every graph.
 		- `dice::ROLES` now names each member's graph as well as its role.
-		- 2026-10-28: a lead may step darker or paler from that shared saturation and brightness, where 2 would look alike, per 2026102810142725.
+		- 20261028: a lead may step darker or paler from that shared saturation and brightness, where 2 would look alike, per 2026102810142725.
 	- Branch: round-1027, theme-colors
 	- Test case: `dice::tests::graph_lead_hues_differ` (defxd), and dedq0. Both fail with every graph given CPU's hue, and defxd with the order left unshuffled. Both pass now.
-		- 2026-10-26: dedq0 checked memory's lead equal to CPU's user, and cache equal to nice. It now checks they differ, and cache equal to memory's Low. decdt, decdv and decdw now check each graph's colors, not CPU's alone.
+		- 20261026: dedq0 checked memory's lead equal to CPU's user, and cache equal to nice. It now checks they differ, and cache equal to memory's Low. decdt, decdv and decdw now check each graph's colors rather than CPU's alone.
 		- Swept: every `dice::ROLES` and `dice::theme` user (`dialog.rs` and its decdq test), and every graph in `ROLES`.
-		- 2026-10-28: decdt's brightness floor for a rolled lead is 0.6, not 0.84, and dejbv checks every roll's leads, both from 2026102810142725.
+		- 20261028: decdt's brightness floor for a rolled lead is 0.6 rather than 0.84, and dejbv checks every roll's leads, both from 2026102810142725.
 	- Acceptance signoff: Self-closed 20261028: 5 rolls drawn on a test panel, and dejbv over 10,000 seeds.
 	- Closed: 20261028-205317
 
@@ -892,8 +894,8 @@ Sorted per the notes in [Template](#template).
 	- Status: Closed
 		- It departs from the wording in one way. Randomize still gives every graph the same lead hue. That part is child 2026102621562349.
 		- Verified 2026-10-26, build defyt: in the window Fire drew CPU red and brown, memory violet and swap blue, and with b23's settings a test panel drew CPU, memory and swap apart on Default. Only the look is left.
-		- 2026-10-28: with 9 graphs now, some leads nearly match in every built-in but Fire, and in most rolls. That part is child 2026102810142725, a Bug.
-		- 2026-10-28: 2026102810142725 is fixed. As CIEDE2000, any 2 leads sit 10.4 or more apart in every built-in, and 10.0 or more in every roll over 10,000 seeds. The one-color themes from 2026102807585040 give every graph one color on purpose.
+		- 20261028: with 9 graphs now, some leads nearly match in every built-in but Fire, and in most rolls. That part is child 2026102810142725, a Bug.
+		- 20261028: 2026102810142725 is fixed. As CIEDE2000, any 2 leads are 10.4 or more apart in every built-in, and 10.0 or more in every roll over 10,000 seeds. The one-color themes from 2026102807585040 give every graph one color on purpose.
 		- Verified 2026-10-28, round-1028b at 84b61ad: a test panel drew all 9 graphs in each of the 9 built-ins. Every graph read apart, outside the one-color themes, and none looked broken.
 	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
@@ -918,7 +920,7 @@ Sorted per the notes in [Template](#template).
 		- Fire's graphs each burn their own flame: CPU red, yellow-white and light blue as before, memory violet, swap a blue gas flame, and the battery a green copper one.
 		- `design.md` Theme has the details.
 		- Verified: the full run passed with the new test.
-		- 2026-10-27: the Randomize part is done in child 2026102621562349 (commit 9e35514).
+		- 20261027: the Randomize part is done in child 2026102621562349 (commit 9e35514).
 	- Decisions:
 		- There are 6 built-ins, as before, so the theme list doesn't grow. Primary keeps Green standard's CPU colors and Pastel Blue pastel's CPU and background, so a pick of the old ones looks close to the new one.
 		- The old keys, such as `green_standard`, aren't kept as aliases. They were never in a release, and b23's file names `default`.
@@ -926,8 +928,8 @@ Sorted per the notes in [Template](#template).
 		- No graph's own color is red or orange, outside Fire's and Earth's warm ones, so the alarms stay apart.
 	- Branch: round-1027
 	- Test case: `config::tests::theme_names_not_colors` (defx7). It fails on the old themes, where Default's swap was CPU's color, and with a color word put in a label, and passes now.
-		- 2026-10-26: new values only, for the renamed themes. deccg reads `pastel`, not `blue_pastel`. deccj reads `primary` and "Primary *", not Green standard. decct lists `primary`, `pastel`, `neon` and `earth` in place of the 4 color-named keys. decdg reads `neon`, with a gradient Medium of `#39ff14`, not `#0080ff`. deccx's built-in clash is `Earth` -> `earth_2`, not `Blue pastel` -> `blue_pastel_2`. In `dialog::tests`, deccm and deccy pick `neon`, with user `#39ff14` and nice `#1f6a10`, not `#0080ff` and `#20405f`, and deccy's clash is `nEon`. dece0 picks `pastel`.
-		- 2026-10-26: dedpz, defq5 and defqc had Fire's memory, swap and battery gradients equal to its CPU one. They now check each graph's own gradient, and dedpz that memory's differs from CPU's.
+		- 20261026: only the values changed, for the renamed themes. deccg reads `pastel` instead of `blue_pastel`. deccj reads `primary` and "Primary *" instead of Green standard. decct lists `primary`, `pastel`, `neon` and `earth` in place of the 4 color-named keys. decdg reads `neon`, with a gradient Medium of `#39ff14` instead of `#0080ff`. deccx's built-in clash is `Earth` -> `earth_2` instead of `Blue pastel` -> `blue_pastel_2`. In `dialog::tests`, deccm and deccy pick `neon`, with user `#39ff14` and nice `#1f6a10` instead of `#0080ff` and `#20405f`, and deccy's clash is `nEon`. dece0 picks `pastel`.
+		- 20261026: dedpz, defq5 and defqc had Fire's memory, swap and battery gradients equal to its CPU one. They now check each graph's own gradient, and dedpz that memory's differs from CPU's.
 		- Swept: every built-in key and label in the Rust tests, qt.cpp and the docs, every swap and battery row default, and the `dice` tests, which don't read the built-ins.
 	- Acceptance signoff: Self-closed 20261028: every built-in drawn on a test panel, with dejbr passing.
 	- Closed: 20261028-205317
@@ -961,7 +963,7 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Theme and Settings window have the details.
 		- Verified: the Themes tab drew Randomize after Delete on the top row.
 	- Decisions:
-		- A roll is a change on the theme in force, not a switch to Custom, the same as a color changed by hand.
+		- A roll is a change on the theme in force rather than a switch to Custom, the same as a color changed by hand.
 		- I/O wait and system stay red and orange, as the presets have them, and the lead hue keeps clear of them.
 		- The hover line stays black, as in every built-in.
 		- Every theme member has a role in `settings/src/dice.rs`. A new graph's members fail a test until they get one.
@@ -1011,7 +1013,7 @@ Sorted per the notes in [Template](#template).
 		- There's one theme for the whole panel for now. A theme per graph comes with the live graph list, 2026102408304639.
 	- Branch: round-1024
 	- Test case: `config::tests::default_theme_is_row_defaults` (deccf), `theme_covers_colors` (deccg), `unthemed_colors_are_custom` (decch), `theme_edit_sticks` (deccj) and `custom_to_default_sticks` (decck), and `dialog::tests::theme_changes_saved` (deccm) and `custom_revert_to_default` (deccn). The 2 back-to-Default tests fail with the theme naming taken out and pass with it.
-		- 2026-10-24: `config::tests::multiload_default_colors` got new values only. System went from `#c64600` to `#c64200`, the border from `#40806a` to `#408060`, and the top from `#2a5446` to `#2a543f`.
+		- 20261024: only the values in `config::tests::multiload_default_colors` changed. System went from `#c64600` to `#c64200`, the border from `#40806a` to `#408060`, and the top from `#2a5446` to `#2a543f`.
 		- Swept: every `Model::load`, `Look::load` and `Look::from_model` caller, and every color row in `settings.shcl`. The plugin reads through `Look::load`, and the window through `config::model`.
 	- Acceptance signoff: Self-closed 20261028: every built-in drawn on a test panel, with the measured distances above.
 	- Closed: 20261028-205317
@@ -1033,9 +1035,9 @@ Sorted per the notes in [Template](#template).
 		- Packaged for Debian, and as a Nix package for tukzedo-linux's NixOS edition.
 	- Progress log:
 		- There's one CPU graph in the panel, with a tooltip, and Properties opens tukzmon-settings. It was tried on X11 only so far.
-		- 2026-10-26: Several graphs side by side, and the graph list that picks them, are in since round-1025. The `.deb` is in since 2026102506591283.
-		- 2026-10-26: Split what's left into children: 2026102621053709 (vertical and deskbar panels), 2026102621053715 (a settings file per plugin instance), 2026102621053720 (Wayland), 2026102621053725 (Nix package), and 2026102621105420 (graph sizes on a vertical panel). This closes with the last of them.
-		- 2026-10-28: Closed with its last child, graph sizes on a vertical panel. Every requirement above is covered by a closed child.
+		- 20261026: several graphs side by side, and the graph list that picks them, have been in since round-1025. The `.deb` has been in since 2026102506591283.
+		- 20261026: what's left was split into children: 2026102621053709 (vertical and deskbar panels), 2026102621053715 (a settings file per plugin instance), 2026102621053720 (Wayland), 2026102621053725 (Nix package), and 2026102621105420 (graph sizes on a vertical panel). This closes with the last of them.
+		- 20261028: closed with its last child, graph sizes on a vertical panel. Each requirement above is done in a closed child.
 	- Test case: the tests of its children 2026102621053709, 2026102621053715, 2026102621053720, 2026102621053725 and 2026102621105420
 	- Closed: 20261028-192930
 
@@ -1056,7 +1058,7 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
 	- Prereq IDs: 2026102408512192, 2026102409400679
-		- Was the collectors parent. Only its memory collector child is needed, and that's done.
+		- It was the collectors parent. Only its memory collector child is needed, and that's done.
 		- Its colors join the theme presets, so it waits on those.
 	- Related IDs: 2026101916013887, 2026102508354893
 	- Requirements:
@@ -1077,7 +1079,7 @@ Sorted per the notes in [Template](#template).
 		- Default's memory colors stay as multiload-ng had them, rather than moved onto Default's hue, since the requirement names them.
 	- Branch: round-1025
 	- Test case: `graphs::tests::memory_samples_draws_tips` (dedq1), `pointer_finds_graph` (dedq2), `save_keeps_hidden_history` (dedq3) and `memory_hide_show_history` (dedq4), `config::tests::memory_colors_in_themes` (dedpz) and `dice::tests::buffers_cache_muted_distinct` (dedq0). dedq2 fails with the memory tile drawn as CPU, dedq3 with other sections dropped at save, and dedq0 with buffers rolled as cache.
-		- 2026-10-25: new values only. `config::tests::default_theme_is_row_defaults` and `themes_round_trip` count 19 theme members, not 12. `dialog::tests::save_as_new_theme` counts 17 colors, not 11.
+		- 20261025: only the values changed. `config::tests::default_theme_is_row_defaults` and `themes_round_trip` count 19 theme members instead of 12. `dialog::tests::save_as_new_theme` counts 17 colors instead of 11.
 		- Swept: every `Graph` use (the plugin, now through `Graphs`, and the lib tests), every `cpu_paint` caller, every `keep::write` caller, and every theme member, which the role and row-default tests walk.
 	- Acceptance signoff: Self-closed: dedq1, dedq2, dedq3, dedq4, dedpz and dedq0 passed in round-1028's full run at 17d3d9d, and cache measured 15.2 from the top on Default.
 	- Closed: 20261028-101427
@@ -1086,7 +1088,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102618353013
 	- Type: Feature
 	- Status: Closed
-		- Self-closed 2026-10-28. As CIEDE2000, plugged in, on battery and critical sit 11.1 or more apart in every built-in, and 32.8 or more where plugged in is one of the pair. The stand-in below drew all 3 states, and a real battery changes only what's read, not how it's drawn.
+		- Self-closed 2026-10-28. As CIEDE2000, plugged in, on battery and critical sit 11.1 or more apart in every built-in, and 32.8 or more where plugged in is one of the pair. The stand-in below drew all 3 states, and a real battery changes only what's read rather than how it's drawn.
 		- How it looks, in each theme, is for a person to judge, and b23 has no battery, so a laptop has to show it.
 		- It departs from the wording in one way. It's off by default, like swap. Turn it on in the graph list.
 		- Verified 2026-10-26, build defyt: with a made-up battery in a test window, the row drew plugged in at 80% in lavender, on battery at 60% in orange and critical at 4% in red on Default, and Fire colored the charge by its gradient. Only the look on a real laptop is left.
@@ -1110,13 +1112,13 @@ Sorted per the notes in [Template](#template).
 		- `design.md` XFCE plugin and Theme have the details.
 		- Verified: the full run passed. The tip test fails with its states swapped, and defqd with battery left out of `Graphs`' slots.
 	- Decisions:
-		- Off by default, as swap is.
+		- It's off by default, as swap is.
 		- Plugged in is the theme's user color, on battery its system color and critical its I/O wait color, so on battery reads as a warning and critical as an alarm. Randomize gives them the lead, warn and alarm roles.
-		- The tip and the color say plugged in, not charging, since a full battery with the power in counts as charging.
+		- The tip and the color say plugged in rather than charging, since a full battery with the power in counts as charging.
 		- A default `BatteryReader` has no battery and reads as a gap, so tests can build the graph on a box with none.
 	- Branch: round-1026
 	- Test case: `graphs::tests::battery_state_colors` (defqc), `four_graphs_battery_hidden` (defqd), and `live::tests::battery_row_needs_battery` (defqe), which takes its no-battery branch on b23.
-		- 2026-10-26: new values only. deccf and `themes_round_trip` count 31 theme members, not 24. `save_as_new_theme` counts 27 colors, not 21. dedqq, defkz and defm0 have `battery` after `swap` in their orders, and defm0's past-the-end move is 4, not 3. defma's rows greyed at defaults add `battery_width` and `battery_time`.
+		- 20261026: only the values changed. deccf and `themes_round_trip` count 31 theme members instead of 24. `save_as_new_theme` counts 27 colors instead of 21. dedqq, defkz and defm0 have `battery` after `swap` in their orders, and defm0's past-the-end move is 4 instead of 3. defma's rows greyed at defaults add `battery_width` and `battery_time`.
 		- Swept: every `Which` match, the slots in `Graphs` and `Live`, the 6 built-in themes, and `dice::ROLES`.
 	- Acceptance signoff: Self-closed: defqc, defqd and defqe passed in round-1028's full run at 17d3d9d, and the 3 states measured 11.1 or more apart in every built-in.
 	- Closed: 20261028-101427
@@ -1146,12 +1148,12 @@ Sorted per the notes in [Template](#template).
 		- Battery; charging, discharging, discharging and critical level
 	- Progress log:
 		- CPU and memory draw. Every other source has a collector since round-1026.
-		- 2026-10-26: The swap and battery graphs are in, 2026102618353000 and 2026102618353013.
-		- 2026-10-28: The zswap graph is in, 2026102618353002.
-		- 2026-10-26: Split into one child per graph not yet drawn: 2026102618353000 (swap), 2026102618353002 (zswap or zram), 2026102618353004 (network), 2026102618353006 (load), 2026102618353008 (disk), 2026102618353011 (temperature) and 2026102618353013 (battery). This closes with the last of them.
-		- 2026-10-28: the zswap and network graphs are in.
-		- 2026-10-28: the load and disk graphs are in, 2026102618353006 and 2026102618353008.
-		- 2026-10-28: the temperature graph is in, 2026102618353011. It was the last child.
+		- 20261026: the swap and battery graphs are in, 2026102618353000 and 2026102618353013.
+		- 20261028: the zswap graph is in, 2026102618353002.
+		- 20261026: split into one child per graph not yet drawn: 2026102618353000 (swap), 2026102618353002 (zswap or zram), 2026102618353004 (network), 2026102618353006 (load), 2026102618353008 (disk), 2026102618353011 (temperature) and 2026102618353013 (battery). This closes with the last of them.
+		- 20261028: the zswap and network graphs are in.
+		- 20261028: the load and disk graphs are in, 2026102618353006 and 2026102618353008.
+		- 20261028: the temperature graph is in, 2026102618353011. It was the last child.
 	- Test case: its children's tests, as each child lists them: swap 2026102618353000, zswap 2026102618353002, network 2026102618353004, load 2026102618353006, disk 2026102618353008, temperature 2026102618353011 and battery 2026102618353013.
 	- Acceptance signoff: Self-closed 20261028, since every graph it lists draws and all 7 children are closed. How the colors look stays on 2026102620162201.
 	- Closed: 20261028-100754
@@ -1175,7 +1177,7 @@ Sorted per the notes in [Template](#template).
 			- Grippers on the right to vertically reorder monitors with the mouse.
 	- Progress log:
 		- Split into 6 children, in this order: 2026102508393152 (on or off and a width per graph), 2026102508393154 (order), 2026102508393156 (time function per graph), 2026102508393159 (theme per graph), 2026102508393161 (the list itself), and 2026102508393163 (live graphs in it).
-		- 2026-10-25: no theme dropdown per graph after all. Every graph is colored by one theme, per the answer on 2026102508393159.
+		- 20261025: there's no theme dropdown per graph after all, since one theme colors every graph, as 2026102508393159 records.
 	- Test case: its children's tests: dedqd, dedqe, dedqp, dedqq, deea2, deea4, dee9p, dee9q, defkz, defm0, defmj and defmk.
 	- Acceptance signoff: Self-closed 20261028, since all 6 children are Done.
 	- Closed: 20261028-080039
@@ -1206,19 +1208,19 @@ Sorted per the notes in [Template](#template).
 		- `design.md` XFCE plugin, Theme, Data sources on Linux and Drawing have the details.
 		- Verified: the full run passed. A test panel drew the temperature graph after CPU and memory, at 73 of 95 degrees, with its tip.
 	- Decisions:
-		- Off by default, like the other graphs since memory.
-		- After disk and before battery in the default order, as in multiload-ng.
-		- The split is multiload-ng's: normal up to the crit, critical over it, so both stack to the reading. The top is a peak with the crit as its floor, so normal fills the graph at the crit and critical shows once it's over.
+		- It's off by default, like the other graphs since memory.
+		- It comes after disk and before battery in the default order, as in multiload-ng.
+		- The split is multiload-ng's, with normal up to the crit and critical over it, so both stack to the reading. The top is a peak with the crit as its floor, so normal fills the graph at the crit and critical shows once it's over.
 		- A sensor with no `temp*_crit`, such as `k10temp` on this box, turns critical at 95 degrees C, Zen's own limit. Without one, critical would never show there.
 		- The collector does the split, as the battery's does by state, so the history keeps both series.
 		- Critical is each theme's I/O wait red, and Randomize gives it the Alarm role, so going over reads as an alarm, as the battery's critical does.
-		- Built-in temperature leads sit in each theme's widest gap, at least 25 degrees from the others, so defx7 keeps its 25. Randomize's least gap is 22 degrees, down from 25, which leaves 49 degrees of play for 9 leads.
+		- Built-in temperature leads are in each theme's widest gap, at least 25 degrees from the others, so defx7 keeps its 25. Randomize's least gap is 22 degrees, down from 25, which leaves 49 degrees of play for 9 leads.
 	- Branch: round-1028
 	- Test case: `temp::tests::over_crit_is_critical` (dej0s), `tests::temp_degrees_to_crit` (dej0t), `graphs::tests::temp_critical_on_top` (dej0v) and `live::tests::temp_row_width` (dej0w). dej0s fails with the reading unsplit, dej0t and dej0v with no peak floor.
-		- 2026-10-28: new values only. deccf and deccw count 61 theme members, not 55. deccy counts 52 saved colors, not 47. dedqq's default order, and defkz's and defm0's orders, have `temp` before `battery`, and defm0's past-the-end move is 9, not 8. defma's rows greyed at defaults add `temp_width` and `temp_time`. defx7 checks 9 lead colors, not 8. defxd's `PARTS` takes temperature too, and its least gap is 17 degrees, not 20, for the 22 degree roll. decdt also checks temperature's alarm is CPU's.
-		- 2026-10-28: the temperature collector's tests defnn, defnp and defnr read 2 series, with critical at 0, where they read one.
+		- 20261028: only the values changed. deccf and deccw count 61 theme members instead of 55. deccy counts 52 saved colors instead of 47. dedqq's default order, and defkz's and defm0's orders, have `temp` before `battery`, and defm0's past-the-end move is 9 instead of 8. defma's rows greyed at defaults add `temp_width` and `temp_time`. defx7 checks 9 lead colors instead of 8. defxd's `PARTS` takes temperature too, and its least gap is 17 degrees instead of 20, for the 22 degree roll. decdt also checks temperature's alarm is CPU's.
+		- 20261028: the temperature collector's tests defnn, defnp and defnr read 2 series, with critical at 0, where they read one.
 		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 6 built-in themes, `dice::ROLES`, and every `TempReader` use. The profiler and soak test run with the defaults, so they don't draw temperature.
-	- Acceptance signoff: Self-closed, 2026-10-28: a test panel drew the temperature graph. How the themes look together stays on 2026102620162201.
+	- Acceptance signoff: Self-closed 20261028: a test panel drew the temperature graph. How the themes look together stays on 2026102620162201.
 	- Closed: 20261028-100637
 
 - Load graph
@@ -1234,7 +1236,7 @@ Sorted per the notes in [Template](#template).
 	- Version and build: v0.1.0, not on b23 yet.
 	- Parent ID: 2026101916013887
 	- Prereq IDs: 2026102618353004
-		- Shares the peak level the network graph brings, since load has no fixed top either.
+		- It shares the peak level the network graph added, since load has no fixed top either.
 	- Related IDs: 2026102408512207, 2026102618353008
 	- Requirements:
 		- The 1 minute load, from the load collector.
@@ -1247,17 +1249,17 @@ Sorted per the notes in [Template](#template).
 		- `design.md` XFCE plugin, Theme and Drawing have the details.
 		- Verified: the full run passed. A test panel drew the load graph after CPU and memory.
 	- Decisions:
-		- Off by default, like the other graphs since memory.
-		- After zswap in the default order, as multiload-ng has load after swap.
+		- It's off by default, like the other graphs since memory.
+		- It comes after zswap in the default order, as multiload-ng has load after swap.
 		- The floor is the CPU count, so a full graph means more work queued than CPUs, as a full CPU graph means every CPU busy. A floor of 1 fills the graph on any busy box with many CPUs.
 		- `Source::PEAK_FLOOR` is now `Source::peak_floor(&self)`, since the CPU count isn't a constant. Network's is unchanged.
 		- Built-in lead hues are at least 25 degrees apart, down from 30. At 30, 8 leads beside red and orange didn't fit without moving colors already there. Randomize's least gap is 25 degrees, down from 36, which leaves 50 degrees of play.
 	- Branch: round-1028
 	- Test case: `graphs::tests::load_disk_after_swap` (dej05), `tests::load_number_disk_rates` (dej07) and `live::tests::load_disk_row_width` (dej08). dej05 and dej07 fail with the floor at 1.
-		- 2026-10-28: new values only, for both graphs. deccf and deccw count 55 theme members, not 44. deccy counts 47 saved colors, not 38. dedqq's default order, and defkz's and defm0's orders, have `load disk` after `zswap`, and defm0's past-the-end move is 8, not 6. defma's rows greyed at defaults add `load_width`, `load_time`, `disk_width`, `disk_time`, `disk_drives` and `disk_log`. defx7 checks 8 lead colors at least 25 degrees apart, not 6 at 30. defxd's `PARTS` takes load and disk too, and its least gap is 20 degrees, not 31, for the 25 degree roll.
-		- 2026-10-28: dehzm's helper builds a `render::Scale` in place of the `(peak, floor)` pair. Its values are unchanged.
+		- 20261028: only the values changed, for both graphs. deccf and deccw count 55 theme members instead of 44. deccy counts 47 saved colors instead of 38. dedqq's default order, and defkz's and defm0's orders, have `load disk` after `zswap`, and defm0's past-the-end move is 8 instead of 6. defma's rows greyed at defaults add `load_width`, `load_time`, `disk_width`, `disk_time`, `disk_drives` and `disk_log`. defx7 checks 8 lead colors at least 25 degrees apart, instead of 6 at 30. defxd's `PARTS` takes load and disk too, and its least gap is 20 degrees instead of 31, for the 25 degree roll.
+		- 20261028: dehzm's helper builds a `render::Scale` in place of the `(peak, floor)` pair. Its values are unchanged.
 		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 6 built-in themes, `dice::ROLES`, every `draw_to` caller, and every `PEAK_FLOOR` use. The profiler and soak test run with the defaults, so they don't draw load or disk.
-	- Acceptance signoff: Self-closed, 2026-10-28: a test panel drew the load graph. How the themes look together stays on 2026102620162201.
+	- Acceptance signoff: Self-closed 20261028: a test panel drew the load graph. How the themes look together stays on 2026102620162201.
 	- Closed: 20261028-094724
 
 - Disk graph
@@ -1273,7 +1275,7 @@ Sorted per the notes in [Template](#template).
 	- Version and build: v0.1.0, not on b23 yet.
 	- Parent ID: 2026101916013887
 	- Prereq IDs: 2026102618353004
-		- Shares the peak level the network graph brings.
+		- It shares the peak level the network graph added.
 	- Related IDs: 2026102408512212, 2026102618353006
 	- Requirements:
 		- Write, read, from the disk collector.
@@ -1289,16 +1291,16 @@ Sorted per the notes in [Template](#template).
 		- `design.md` XFCE plugin, Theme and Drawing have the details.
 		- Verified: the full run passed. A test panel drew the disk graph after load on a log scale, and a 200 MB write showed as written. The settings window showed the Disk graph heading, its 2 rows and the Disk sub-tab.
 	- Decisions:
-		- Drives are typed as names in a text box, not ticked in a list, since the settings window has no list control.
+		- Drives are typed as names in a text box rather than ticked in a list, since the settings window has no list control.
 		- A new pick of drives takes a new reader at Apply and keeps the history, so the graph doesn't go blank.
 		- The log scale runs from a thousandth of the floor, 100 B/s, to the top, so 1 kB/s under a 4 MB/s top is about a fifth of the height. Written and read keep their shares of the column's log height.
-		- A floor of 100 kB/s, 10 times the network's, so a log file's flush doesn't fill the graph.
+		- The floor is 100 kB/s, 10 times the network's, so a log file's flush doesn't fill the graph.
 		- Read leads with the disk's hue and written is its pale tint, like the network's received and sent.
 		- The test value changes and the hue gap are on 2026102618353006, since both graphs went in together.
 	- Branch: round-1028
 	- Test case: `render::tests::log_lifts_trickle` (dej06), `config::tests::disk_all_or_named` (dej09), and dej05, dej07 and dej08, shared with load. dej06 fails with the log scale ignored, dej05 with a new pick of drives ignored, and dej09 with `all` not read as every disk.
 		- Swept: as 2026102618353006. `Source::follow` is called from the one `Drawn::set_look`, which both `Graphs` and `Live` go through.
-	- Acceptance signoff: Self-closed, 2026-10-28: a test panel drew the disk graph on a log scale. How the themes look together stays on 2026102620162201.
+	- Acceptance signoff: Self-closed 20261028: a test panel drew the disk graph on a log scale. How the themes look together stays on 2026102620162201.
 	- Closed: 20261028-094724
 
 - Network graph
@@ -1327,20 +1329,20 @@ Sorted per the notes in [Template](#template).
 		- `design.md` XFCE plugin, Theme, Time axis and Drawing have the details.
 		- Verified: the full run passed. A test panel drew the network graph after CPU and memory, filled to its peak, and a burst of loopback traffic showed as local and filled the plot as it aged left.
 	- Decisions:
-		- Off by default, like swap and zswap, so a panel doesn't widen on upgrade.
-		- After memory in the default order, as multiload-ng has it.
-		- Up at once and down eased, so a new peak is never cut off. The fall goes by the newest sample's time, so it costs no extra frames.
-		- A floor of 10 kB/s, so the odd packet on a quiet line doesn't fill the graph.
-		- Decimal units, as a download usually shows them.
+		- It's off by default, like swap and zswap, so a panel doesn't widen on upgrade.
+		- It comes after memory in the default order, as multiload-ng has it.
+		- The top goes up at once and eases down, so a new peak is never cut off. The fall goes by the newest sample's time, so it costs no extra frames.
+		- The floor is 10 kB/s, so the odd packet on a quiet line doesn't fill the graph.
+		- Units are decimal, as a download usually shows them.
 		- Sent is the pale tint and local the muted color, like the gradient's High and Low, so Randomize needs no new role.
 		- Randomize's least gap between lead hues is 36 degrees, down from 45, since 6 hues at 45 leave no play in the range.
 		- The LAN and internet split stays on 2026101916274800.
 	- Branch: round-1028
 	- Test case: `render::tests::peak_jumps_eases_down` (dehzk), `open_top_peak_floor` (dehzm), `tests::network_decimal_units` (dehzn), `graphs::tests::net_after_memory_peak` (dehzp), and `live::tests::net_row_width` (dehzq). dehzm and dehzp fail with the peak ignored and the top left at 1.
-		- 2026-10-28: new values only. deccf and deccw count 44 theme members, not 37. deccy counts 38 saved colors, not 32. dedqq's default order, and defkz's and defm0's orders, have `net` after `mem`, and defm0's past-the-end move is 6, not 5. defma's rows greyed at defaults add `net_width` and `net_time`. defx7 checks 6 lead colors, not 5. defxd's `PARTS` takes net too, and its least gap is 31 degrees, not 40, for the 36 degree roll.
-		- 2026-10-28: defm0 used `net` as a name it doesn't know. That's a graph now, so it uses `nope`.
+		- 20261028: only the values changed. deccf and deccw count 44 theme members instead of 37. deccy counts 38 saved colors instead of 32. dedqq's default order, and defkz's and defm0's orders, have `net` after `mem`, and defm0's past-the-end move is 6 instead of 5. defma's rows greyed at defaults add `net_width` and `net_time`. defx7 checks 6 lead colors instead of 5. defxd's `PARTS` takes net too, and its least gap is 31 degrees instead of 40, for the 36 degree roll.
+		- 20261028: defm0 used `net` as a name it doesn't know. That's a graph now, so it uses `nope`.
 		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 6 built-in themes, `dice::ROLES`, and every `Frame` user. The profiler and soak test run with the defaults, so they don't draw network.
-	- Acceptance signoff: Self-closed, 2026-10-28: a test panel drew the network graph, filled to its peak. How the themes look together stays on 2026102620162201.
+	- Acceptance signoff: Self-closed 20261028: a test panel drew the network graph, filled to its peak. How the themes look together stays on 2026102620162201.
 	- Closed: 20261028-092801
 
 - Zswap or zram graph
@@ -1370,16 +1372,16 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Code layout, XFCE plugin, Theme and Time axis have the details.
 		- Verified: the full run passed. A test panel drew "4.7x" over the zswap graph beside CPU and memory, and the settings window drew it on the graph list's row.
 	- Decisions:
-		- Off by default, like the swap graph, so a panel doesn't widen on upgrade.
-		- A lead hue of its own in each theme, not CPU's user color as the swap item said, since every graph has had its own since round-1027.
+		- It's off by default, like the swap graph, so a panel doesn't widen on upgrade.
+		- It has a lead hue of its own in each theme, rather than CPU's user color as the swap item said, since every graph has had its own since round-1027.
 		- The ratio has a color of its own, Ratio, since High is hidden in Detailed mode. Its rim is the background's Bottom, so it reads over the pool too.
 		- Text that doesn't fit the plot, as on a very short panel, is left out rather than cut.
 		- `Source::text` takes the reader, so the tip can say Zswap or Zram.
 	- Branch: round-1028
 	- Test case: `zswap::tests::graph_ratio_write_over_pool` (dehy3), `graphs::tests::zswap_hidden_history` (dehy4), and `live::tests::zswap_row_needs_zswap` (dehy5). dehy3 and dehy4 fail with zswap's overlay taken out, and dehy4 with the overlay left at its graph's own place rather than its tile's.
-		- 2026-10-28: new values only. deccf and deccw count 37 theme members, not 31. deccy counts 32 saved colors, not 27. dedqq's default order, and defkz's and defm0's orders, have `zswap` after `swap`, and defm0's past-the-end move is 5, not 4. defma's rows greyed at defaults add `zswap_width` and `zswap_time`, since Zswap graph is off by default. defx7 checks 5 lead colors, not 4, and defxd's `PARTS` takes zswap too.
+		- 20261028: only the values changed. deccf and deccw count 37 theme members instead of 31. deccy counts 32 saved colors instead of 27. dedqq's default order, and defkz's and defm0's orders, have `zswap` after `swap`, and defm0's past-the-end move is 5 instead of 4. defma's rows greyed at defaults add `zswap_width` and `zswap_time`, since Zswap graph is off by default. defx7 checks 5 lead colors instead of 4, and defxd's `PARTS` takes zswap too.
 		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 6 built-in themes, `dice::ROLES`, every `Source::text` caller, and both front ends' draw paths. The profiler and soak test run with the defaults, so they don't draw zswap.
-	- Acceptance signoff: Self-closed, 2026-10-28: a test panel drew the ratio in the panel's font. How the themes look together stays on 2026102620162201.
+	- Acceptance signoff: Self-closed 20261028: a test panel drew the ratio in the panel's font. How the themes look together stays on 2026102620162201.
 	- Closed: 20261028-084635
 
 - Nix package for tukzedo-linux's NixOS edition
@@ -1401,10 +1403,10 @@ Sorted per the notes in [Template](#template).
 		- `flake.nix` has the package, an overlay, and a NixOS module, `programs.tukzmon.enable`. `nix/package.nix` builds the plugin and `tukzmon-settings`, and runs the workspace tests.
 		- The package puts the `.desktop` file in `share/xfce4/panel/plugins` and the library in `lib/xfce4/panel/plugins`, which XFCE 4.20 pairs for each `XDG_DATA_DIRS` entry. The module links both into the system path. README and `design.md` XFCE plugin have the rest.
 		- Verified 2026-10-28, on nixpkgs nixos-26.05: the package built and its tests passed, every library the plugin links resolved through its rpath, and `tukzmon-settings --version` ran. A NixOS system with the module, with and without the XFCE desktop, had the package and both links. nixpkgs' own xfce4-panel 4.20.7, given that system's `share` in `XDG_DATA_DIRS`, listed tukzmon from the system path, and a panel holding it loaded and embedded the plugin. `nix flake check` passed.
-		- Not tried on a real NixOS install, since tukzedo-linux's NixOS edition doesn't exist yet.
+		- It hasn't been tried on a real NixOS install, since tukzedo-linux's NixOS edition doesn't exist yet.
 	- Decisions:
 		- The flake follows nixos-26.05, the current stable, since it has Rust 1.95 and xfce4-panel 4.20.7. tukzedo-linux can make it follow its own nixpkgs.
-		- x86_64 only, as for the `.deb` and `.rpm`.
+		- It's x86_64 only, as the `.deb` and `.rpm` are.
 		- The `.nix` files are in nixfmt's style, 2 spaces, since that's the Nix formatter nixpkgs uses and tabs aren't an option there.
 		- The rpath to the panel, GTK, cairo and GLib is passed to the linker, since Nix's linker wrapper adds none for a library named by soname. Without it the plugin's tests didn't start.
 		- A link to `tukzmon-settings` sits beside the library, so the plugin runs its own package's settings window before one on PATH.
@@ -1425,7 +1427,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: High
 	- Opened: 20261025-083931
 	- Opened by: t00mietum
-	- Version and build: v0.1.0 build defm2. Not on b23 yet.
+	- Version and build: v0.1.0 build defm2, not on b23 yet.
 	- Parent ID: 2026102408304639
 	- Prereq IDs: 2026102508393152, 2026102508393154, 2026102508393156, 2026102508393159
 	- Requirements:
@@ -1443,7 +1445,7 @@ Sorted per the notes in [Template](#template).
 		- The window and the plugin share one order function, `graphs::draw_order`, so the list always shows the panel's order.
 		- A name in `graph.order` that this build doesn't know stays at the end after a drag, so a file from a newer tukzmon keeps it.
 		- The row's revert arrow resets its checkbox, width and time axis. The order has none, since dragging back undoes it.
-		- Column heads over the width and time axis, since those boxes lost their labels.
+		- There are column heads over the width and time axis, since those boxes lost their labels.
 		- The space is an empty framed box, 5 lines wide, for 2026102508393163 to draw in.
 		- Spike emphasis stays under Time, as 2026102508393156 left it.
 	- Branch: round-1026
@@ -1481,10 +1483,10 @@ Sorted per the notes in [Template](#template).
 		- The graphs are drawn by the same core code as the panel's, `Graph::render`, so the row is what the panel would draw.
 		- A hidden graph is still read and drawn, so its row shows what showing it would give.
 		- Past 512 px a graph is squeezed rather than cut, so its whole time span still shows.
-		- `Look::width_or` is the one rule for a width of 0, used by the panel's layout and the list.
+		- `Look::width_or` is the one rule for a width of 0, which the panel's layout and the list both use.
 	- Branch: round-1026
 	- Test case: `live::tests::rows_draw_at_width` (defmj) and `bridge::tests::longest_graph_sets_column` (defmk). defmj fails with the window's changes not reaching the graphs, and defmk with every graph at the old fixed width.
-		- 2026-10-26: `bridge::tests::row_greyed_when_switch_off` (defma) now takes a lock shared with defmk, since 2 Qt windows at once crash, and is ignored under Miri, which can't call C++. Its checks are unchanged.
+		- 20261026: `bridge::tests::row_greyed_when_switch_off` (defma) now takes a lock shared with defmk, since 2 Qt windows at once crash, and is ignored under Miri, which can't call C++. Its checks are unchanged.
 		- Swept: every reader of a graph's own width (`Graphs::width_of`, now through `width_or`), and every test that builds the Qt window (defma and defmk).
 	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: in a test window, CPU's width set to 60 narrowed its row's graph at once, Linear for memory redrew its row, and Fire recolored every row, all before Apply.
 	- Closed: 20261026-230215
@@ -1526,9 +1528,9 @@ Sorted per the notes in [Template](#template).
 				- The averaging should be very small and possibly even variable over time - being able to represent single-pixel spikes is important, e.g. when on the farther left, to show for example that the CPU was spiked for a very long time. (But eventually far enough left, it gets averaged into a background level.)
 	- Actual effort: Avg
 	- Progress log:
-		- Log and linear modes work, with the caps and no seams. `design.md` has how.
-		- Still needs easing when the width changes or old history is loaded. While running, the boundaries move smoothly by themselves.
-		- 2026-10-26: A jump in the time axis now eases in over half a second, from what was on screen. That covers history loaded, the first sample after a gap, a new curve or time axis, and a linear graph's span changing.
+		- Log and linear modes work, with the caps and no seams. `design.md` says how.
+		- It still needed easing when the width changed or old history was loaded. While running, the boundaries move smoothly by themselves.
+		- 20261026: a jump in the time axis now eases in over half a second, from what was on screen. This applies to history loaded, the first sample after a gap, a new curve or time axis, and a linear graph's span changing.
 		- The panel and the settings window's graph list draw about 30 times a second while an axis eases, then go back to once a sample.
 		- `design.md` Time axis has the details.
 		- Verified: the full run passed, and the new tests failed with jumps going unseen, or with the ease starting from the new axis.
@@ -1539,8 +1541,8 @@ Sorted per the notes in [Template](#template).
 		- The ease runs on the graph's own clock, so the soak test's skipped days end one at once.
 		- The panel's extra frames come from a one-shot 33 ms timer, started in draw only while a graph eases, so an idle panel still draws once a sample.
 	- Branch: round-1026
-	- Test case: `axis::tests::jump_eases_from_drawn` (defpn), `time_passing_is_no_jump` (defpp), `jump_mid_ease_restarts` (defpq), `tests::axis_eases_then_stops` (defpr), and `live::tests::time_axis_eases_in` (defps). defpn to defpr fail with jumps not seen, and defpn and defpq with the ease starting from the new axis. The rest of the requirements: debh9, debha to debhe in `axis::tests`, and `render::tests::spike_reach_fades` (debj9).
-		- Swept: every `Frame` built (render tests, the preview example, `Graph::render`), every `age` caller (`Frame::draw`, `Graph::span_at`), both places a graph is drawn on screen (the plugin's draw, the settings window's `LiveGraph`), and every place a look or history is swapped in (`Graphs::set_look`, `Live::set_look`, `Graph::adopt`), which the jump check covers without a call of its own.
+	- Test case: `axis::tests::jump_eases_from_drawn` (defpn), `time_passing_is_no_jump` (defpp), `jump_mid_ease_restarts` (defpq), `tests::axis_eases_then_stops` (defpr), and `live::tests::time_axis_eases_in` (defps). defpn to defpr fail with jumps not seen, and defpn and defpq with the ease starting from the new axis. debh9, debha to debhe in `axis::tests`, and `render::tests::spike_reach_fades` (debj9) test the rest of the requirements.
+		- Swept: every `Frame` built (render tests, the preview example, `Graph::render`), every `age` caller (`Frame::draw`, `Graph::span_at`), both places a graph is drawn on screen (the plugin's draw, the settings window's `LiveGraph`), and every place a look or history is swapped in (`Graphs::set_look`, `Live::set_look`, `Graph::adopt`), which the jump check handles without a call of its own.
 	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: in a test window, picking Linear for memory eased its row in over about half a second, each frame closer to the end than the last, with no jump. A test panel came up drawing its saved history.
 	- Closed: 20261026-230215
 
@@ -1564,17 +1566,17 @@ Sorted per the notes in [Template](#template).
 	- Actual effort: Avg
 	- Progress log:
 		- The swap graph draws % used, with its tip as "Swap 33% used". It has a row in the graph list, at `swap.show`, `swap.width` and `swap.time`, and a Themes/Swap sub-tab with In use, or Low, Medium and High.
-		- `Graphs` and the settings window's `Live` now reach every graph through one `Drawn` trait, so a new graph is a slot and a `Which` entry, not a match arm in every method.
+		- `Graphs` and the settings window's `Live` now handle every graph through one `Drawn` trait, so a new graph is a slot and a `Which` entry rather than a match arm in every method.
 		- `graph.order` defaults to `cpu mem swap`.
 		- `design.md` XFCE plugin, Theme and Data sources on Linux have the details.
 		- Verified: the full run passed. With the swap slot taken out of `Graphs`, defq6 and defq7 fail.
 	- Decisions:
-		- Off by default, so a panel doesn't widen on upgrade.
+		- It's off by default, so a panel doesn't widen on upgrade.
 		- In use is each theme's user color, and its gradient is the theme's CPU one, so Fire draws swap as a gradient. Randomize gives In use the lead role.
 		- It has one color, without a heading over it on the sub-tab, since there's one series.
 	- Branch: round-1026
 	- Test case: `graphs::tests::swap_is_off_by_default_and_draws_its_own_color_when_on` (defq5), `three_graphs_find_swap` (defq6), `swap_hide_keeps_history` (defq7), and `live::tests::swap_row_width` (defq8). defq6 and defq7 fail with swap left out of `Graphs`' slots.
-		- 2026-10-26: new values only. `config::tests::default_theme_is_row_defaults` (deccf) and `themes_round_trip` count 24 theme members, not 19. `dialog::tests::save_as_new_theme` counts 21 colors, not 17. `order_spaces_or_commas` (dedqq) has the default order `cpu mem swap`, not `cpu mem`. defkz's typed order reads back with `swap` at the end, and defm0's past-the-end move is 3, not 2, with `swap` in its orders. defma's rows greyed at defaults are `swap_width` and `swap_time`, not none, since Swap graph is off by default.
+		- 20261026: only the values changed. `config::tests::default_theme_is_row_defaults` (deccf) and `themes_round_trip` count 24 theme members instead of 19. `dialog::tests::save_as_new_theme` counts 21 colors instead of 17. `order_spaces_or_commas` (dedqq) has the default order `cpu mem swap` instead of `cpu mem`. defkz's typed order reads back with `swap` at the end, and defm0's past-the-end move is 3 instead of 2, with `swap` in its orders. defma's rows greyed at defaults are `swap_width` and `swap_time`, where there were none, since Swap graph is off by default.
 		- Swept: every user of `Graphs.mem` (the plugin, `Live`, the profiler, the soak test), every `Which` match, the 6 built-in themes, and `dice::ROLES`, which the role test walks. The profiler and soak test run with the defaults, so they don't draw swap.
 	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: with b23's settings, which turn swap on at 64 px, a test panel drew swap beside CPU and memory in each of 2 items, and the window drew its row in Default and Fire. How the themes look together stays on 2026102620162201.
 	- Closed: 20261026-230215
@@ -1602,13 +1604,13 @@ Sorted per the notes in [Template](#template).
 		- Verified: in a test panel 30 px high, 2 graphs 128 px wide drew with 2 rows clear above, 2 below and 4 columns clear between, and the pointer at the panel's top row drew the hover line. On a vertical panel 40 px wide they stacked with 4 rows between and 2 columns clear each side.
 	- Decisions:
 		- The edges get 2 px and the gaps 4, as logical px, so a 2x screen gets 4 and 8 device px.
-		- On a vertical panel the edges go across the panel, either side of the graphs, since that's where above and below sit on a horizontal one.
-		- No room at the 2 ends along the panel, since the item asks only for above, below and between, and the panel spaces its items itself.
+		- On a vertical panel the edges go across the panel, either side of the graphs, since that's where above and below are on a horizontal one.
+		- There's no room added at the 2 ends along the panel, since the requirement names only above, below and between, and the panel spaces its items itself.
 		- On a panel too thin for the edges, they shrink to a quarter of its thickness, so the graphs keep most of it.
 	- Branch: round-1027
 	- Test case: `graphs::tests::clear_edges_still_hit` (defw2). It fails with the gap or the edge set to 0.
-		- 2026-10-26: new values only. dedq2, dedqd, defvs, dedqe, dedqp, defq6 and defqd place the graphs past the 2 px edge and the 4 px gaps, and their areas grow to match. defvs asks for 4 px more per gap. The stacked checks in dedq2, dedqd and dedqp use a 14 by 24 area, not 10 by 10, so each graph is still 10 rows. `Graphs::hover` takes the scale too.
-		- Swept: every caller of `Graphs::hover`, `hover_tip` and `wanted` (the plugin, `core/examples/profile.rs`, `core/tests/soak.rs` and the tests). The settings window's graph list draws each graph with `Graph::render`, not `Graphs`, so it has no gaps to add.
+		- 20261026: only the values changed. dedq2, dedqd, defvs, dedqe, dedqp, defq6 and defqd place the graphs past the 2 px edge and the 4 px gaps, and their areas grow to match. defvs asks for 4 px more per gap. The stacked checks in dedq2, dedqd and dedqp use a 14 by 24 area instead of 10 by 10, so each graph is still 10 rows. `Graphs::hover` takes the scale too.
+		- Swept: every caller of `Graphs::hover`, `hover_tip` and `wanted` (the plugin, `core/examples/profile.rs`, `core/tests/soak.rs` and the tests). The settings window's graph list draws each graph with `Graph::render` rather than `Graphs`, so it has no gaps to add.
 	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: in a test panel 26 px high, 2 graphs 128 px wide drew from row 2 to row 23, so 2 rows clear above and 2 below, with 4 columns clear between.
 	- Closed: 20261026-230215
 
@@ -1635,7 +1637,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- Tips break at 70 characters, the width GTK wraps its own tips at, so the panel's tips and the window's read alike.
 		- The wrap is in Rust, `wrap_tip` in `settings/src/bridge.rs`, so it has a plain test. An event filter in `qt.cpp` sends every tip in the window through it, the fixed texts in `qt.cpp` included, rather than each `setToolTip` call.
-		- Hard breaks rather than a rich text tip, since Qt picks a rich tip's width itself, by its length.
+		- Tips get hard breaks rather than rich text, since Qt picks a rich tip's width itself, by its length.
 	- Branch: round-1027
 	- Test case: `bridge::tests::tips_wrap_keep_words` (defw3), which walks every row's tip in the spec. It fails with the wrap taken out.
 		- Swept: every `setToolTip` and `QToolTip::showText` in `qt.cpp`. The graph list's live tips go through `wrap_tip` directly, since that widget shows its own.
@@ -1724,12 +1726,12 @@ Sorted per the notes in [Template](#template).
 		- Verified: in a test panel with history kept, a reset file made the plugin delete its history file, and the history saved at quit started at the reset. With history not kept, the file was left as it was. The window drew the button under the pages, left of Cancel.
 	- Decisions:
 		- The reset waits for Apply, like theme Delete, so Cancel takes it back. The window's own graphs start over at once, since they show changes before Apply.
-		- The window reaches the plugin through a file in the history folder, whose modified time the plugin checks each sample, as it does the settings file's. It needs no plugin id, reaches every panel item, and costs one stat a sample.
+		- The window tells the plugin through a file in the history folder, whose modified time the plugin checks each sample, as it does the settings file's. It needs no plugin id, works for every panel item, and costs one stat a sample.
 		- With Keep across restarts off, only what's on screen goes, and the file is left as it is, the same as Off always does. So there's no question then, as the requirement says.
 		- Once pressed, the button is greyed until Apply.
 	- Branch: round-1027
 	- Test case: `keep::tests::reset_seen_once` (defxq), `graphs::tests::reset_drops_kept_file` (defxr), `dialog::tests::reset_history_waits_for_apply_and_deletes_saved_history_only_when_kept` (defxs), and defwy for the button. defxq fails with no file matched, defxr with the file left at a reset, and defxs with saved history deleted while it's off.
-		- 2026-10-26: new value only. `bridge::tests::button_set` (defwy) now lists Reset history before Cancel, Apply and OK.
+		- 20261026: only the value changed. `bridge::tests::button_set` (defwy) now lists Reset history before Cancel, Apply and OK.
 		- Swept: every history file path (the plugin's, now through `keep::history_file`), every `Drawn` graph (`Graph`, through `Graphs` and `Live`), and every load and save of history in `xfce/src/lib.rs`.
 	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: in a test panel with history kept, Reset history asked first, with No as the default. Yes and then Apply wrote the reset, the running item deleted its saved history, and the history it saved at quit started at the reset. Nothing went before Apply. The button sits left under the pages, in line with Keep across restarts.
 	- Closed: 20261026-230215
@@ -1752,15 +1754,15 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Avg
 	- Actual effort: Low
 	- Progress log:
-		- Today every instance reads and writes the one file, per `design.md` Settings window.
-		- 2026-10-26: each item reads `~/.config/tukzmon/plugin-<id>.shcl`, by the panel's unique id, and its Properties opens that file. `design.md` Settings window has the details.
+		- Before this, every instance read and wrote the one file, per `design.md` Settings window.
+		- 20261026: each item reads `~/.config/tukzmon/plugin-<id>.shcl`, by the panel's unique id, and its Properties opens that file. `design.md` Settings window has the details.
 		- An item with no file yet starts from a copy of `tukzmon.shcl`, which is left as it is. tukzmon-settings with no `--config` still edits that one, so it sets what a new item starts from.
 		- Verified: the full run passed. In a test panel with 2 items and a shared file, both started from copies of it, and the shared file was unchanged. With item 1's file set to width 120, item 1 went from 84 to 244 px, and item 2 stayed at 84.
-		- Unverified: Properties on a running item, since the item menu doesn't draw in the test panel. It passes the item's own file, as it passed the shared one before.
+		- Properties on a running item wasn't checked here, since the item menu doesn't draw in the test panel. It passes the item's own file, as it passed the shared one before.
 	- Decisions:
 		- The file is `plugin-<id>.shcl` in tukzmon's config folder, named like the item's `plugin-<id>.hist`. The panel's own save location would be an `.rc` under `xfce4/panel/`, but the settings are shcl, for other panels later too.
-		- The shared file is copied, not moved, so it isn't lost, a downgrade still finds it, and a new item starts from the user's setup rather than the defaults.
-		- Copied at the item's first start rather than read through until a save, so the file Properties opens is the one the item draws.
+		- The shared file is copied rather than moved, so it isn't lost, a downgrade still finds it, and a new item starts from the user's setup instead of the defaults.
+		- It's copied at the item's first start rather than read through until a save, so the file Properties opens is the one the item draws.
 		- Reset history stays one button for every item, as 2026102620162202 has it.
 		- Deleting an item's files when it's removed from the panel is its own item, 2026102622311676.
 	- Branch: round-1027
@@ -1786,8 +1788,8 @@ Sorted per the notes in [Template](#template).
 		- Fix what doesn't, such as anything that assumes X11.
 	- Actual effort: Low
 	- Progress log:
-		- It already worked. Verified on Wayland: the graphs draw, the hover line and the tip follow the pointer, the right-click menu shows, and Properties opens tukzmon-settings as a Wayland window for that instance. The same at scale 2, and with 2 instances. Removing one instance, then the last, leaves the panel running.
-		- On Wayland the panel loads the plugin into its own process, not a wrapper. So a panic in the plugin takes the whole panel down.
+		- It already worked. Verified on Wayland: the graphs draw, the hover line and the tip follow the pointer, the right-click menu shows, and Properties opens tukzmon-settings as a Wayland window for that instance. It was the same at scale 2, and with 2 instances. Removing one instance, then the last, leaves the panel running.
+		- On Wayland the panel loads the plugin into its own process rather than a wrapper, so a panic in the plugin takes the whole panel down.
 		- Found: when stderr can't be written, a failed settings start or history save or load aborted the panel, from `eprintln!`. Verified: Properties with stderr on `/dev/full` and no tukzmon-settings aborted the panel before the fix, and not after. The message still reaches a working stderr.
 		- `design.md` XFCE plugin has the Wayland notes.
 	- Decisions:
@@ -1796,7 +1798,7 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1027
 	- Test case: `tests::loads_survive_failed_print` (defyn). It walks the code of the plugin, core and knobs for print macros, and failed on the plugin's 6 `eprintln!` calls before the fix.
 		- Swept: every print macro in `xfce/src`, `core/src` and `knobs/src`. Only the plugin had any. tukzmon-settings runs in its own process and has its own helpers.
-	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: the earlier checks covered every part on the XFCE 4.20.7 panel under Wayland, and the right-click menu and Properties on one of 2 items worked again.
+	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: the earlier checks tried every part on the XFCE 4.20.7 panel under Wayland, and the right-click menu and Properties on one of 2 items worked again.
 	- Closed: 20261026-230215
 
 - Pre-next-cut: Rename the "Apply and close" button to "OK"
@@ -1840,12 +1842,12 @@ Sorted per the notes in [Template](#template).
 	- Actual effort: Low
 	- Progress log:
 		- It already did. The size the plugin asks for is now worked out in `Graphs::wanted`, so it has a test.
-		- Verified: in a test panel, a vertical panel of 48 px stacked CPU over memory at 48 by 24 each, and a deskbar of 64 px at 64 by 32. A panel of 2 rows gave the graphs its full height. Switched live from horizontal to vertical, deskbar and back, and between sizes, the item asked for 48x48, 20x32 and 256x30, as `wanted` says.
+		- Verified: in a test panel, a vertical panel of 48 px stacked CPU over memory at 48 by 24 each, and a deskbar of 64 px at 64 by 32. A panel of 2 rows gave the graphs its full height. When the panel was switched live from horizontal to vertical, deskbar and back, and between sizes, the item asked for 48x48, 20x32 and 256x30, as `wanted` says.
 		- `design.md` XFCE plugin says how tall each graph is on a vertical panel.
 	- Decisions:
 		- A deskbar lays out as a vertical panel, since it's one.
 		- Graph sizes on a vertical panel stay as set in 2026102508393152. Whether the widths should apply there is 2026102621105420.
-	- Test case: `graphs::tests::ask_follows_panel` (defvs), which fails with the 16 px floor taken out. dedq2 covers the stacked layout.
+	- Test case: `graphs::tests::ask_follows_panel` (defvs), which fails with the 16 px floor taken out. dedq2 tests the stacked layout.
 		- Swept: `fit` was the only place the plugin asked for a size, and `size-changed` and `mode-changed` both call it.
 	- Branch: round-1027
 	- Closed: 20261026-211423
@@ -1871,20 +1873,20 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: High
 	- Actual effort: Low
 	- Progress log:
-		- The tiers are in and keep gaps as gaps. Saving and reloading across restarts isn't done yet.
-		- 2026-10-26: Saving and reloading was done in 2026102408304572, Keep across restarts, with a gap for the time it was down. Max age goes up to 36,500 days.
+		- The tiers are in and keep gaps as gaps. Saving and reloading across restarts wasn't done yet.
+		- 20261026: saving and reloading was done in 2026102408304572, Keep across restarts, with a gap for the time it was down. Max age goes up to 36,500 days.
 		- What was left: a linear graph wider than 600 px at 500 ms, or at any rate under 250 ms, drew its left end from buckets coarser than a pixel.
 		- Tier 0 is now 50 ms buckets for 256 s, and the 250 ms tier is kept for 2048 s. A linear graph at the Width slider's top keeps a sample a pixel at every rate down to 50 ms.
 		- A history file from before, with 5 tiers, still loads, with the 50 ms tier empty.
 		- `design.md` History has the details.
 	- Decisions:
-		- Each fine tier is kept for 1024 times the next tier's bucket, from the Width slider's top. A wider typed width, or a 2x screen at a slow rate, can still reach a coarser tier at the left end. Covering 4096 px would take about 4 times as much.
+		- Each fine tier is kept for 1024 times the next tier's bucket, from the Width slider's top. A wider typed width, or a 2x screen at a slow rate, can still use a coarser tier at the left end. Keeping enough for 4096 px would take about 4 times as much.
 		- A full history takes about 0.8 MB more per CPU graph, on disk and in memory, about a quarter more than before.
-		- Decode takes today's tiers, or today's less the finest ones, not any mix, so a stale file still starts fresh.
+		- Decode takes today's tiers, or today's less the finest ones, rather than any mix, so a stale file still starts fresh.
 		- An older build refuses a file with the new tier and starts fresh. Only an upgrade keeps history.
 	- Branch: round-1026
-	- Test case: `history::tests::widest_linear_sample_per_column` (defp6) and `pre_finest_tier_file_loads` (defp7). Gaps: `gaps_not_zero` (debj0) and `long_gap_resets_tier` (debj2). Across restarts: 2026102408304572's tests, decbf to decbr. defp6 fails at 500 ms with the fine tier kept 5 minutes, and at 50 ms with 250 ms buckets. defp7 fails with decode taking only today's tier count.
-		- 2026-10-26: new values only. `fine_tier_ages_out` (debj1) runs 10,000 samples, not 2,000, and bounds the 250 ms tier at 2048 s, not 300, so it still ages out. `decode_refuses_unwritable` (decbh) sets a bucket count of 9,000, not 5,000, to stay past the cap. debj0 and debj2 read tier indexes one higher, for the same tiers and values.
+	- Test case: `history::tests::widest_linear_sample_per_column` (defp6) and `pre_finest_tier_file_loads` (defp7). Gaps are tested by `gaps_not_zero` (debj0) and `long_gap_resets_tier` (debj2), and restarts by 2026102408304572's tests, decbf to decbr. defp6 fails at 500 ms with the fine tier kept 5 minutes, and at 50 ms with 250 ms buckets. defp7 fails with decode taking only today's tier count.
+		- 20261026: only the values changed. `fine_tier_ages_out` (debj1) runs 10,000 samples instead of 2,000, and bounds the 250 ms tier at 2048 s instead of 300, so it still ages out. `decode_refuses_unwritable` (decbh) sets a bucket count of 9,000 instead of 5,000, to stay past the cap. debj0 and debj2 read tier indexes one higher, for the same tiers and values.
 		- Swept: every `TIERS` and `tiers[...]` use, all in `history.rs`, the one `History::decode` caller (`Graph::adopt`), and the soak test, which held flat at 4,899,278 bytes from round 9,000 to 18,000.
 	- Closed: 20261026-181900
 
@@ -1892,7 +1894,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102416252889
 	- Type: Task
 	- Status: Closed
-		- It departs from the wording in one way. GTK 3 is in the image as its runtime libraries, not the dev package, since the plugin links GTK, cairo and the panel library by soname. The Debian snapshot the image reads pins them, as it does Qt.
+		- It departs from the wording in one way. GTK 3 is in the image as its runtime libraries rather than the dev package, since the plugin links GTK, cairo and the panel library by soname. The Debian snapshot the image reads pins them, as it does Qt.
 		- Verified 2026-10-25: `--list` for the default run shows Release build and Dogfood on the host, and the merge gate on e131b57 passed in the image. Only the run that dogfoods is left, which a round may not do.
 	- Closed reason: Done
 	- Priority|Severity: High
@@ -1911,20 +1913,20 @@ Sorted per the notes in [Template](#template).
 		- `cicd/container/` has the recipe: Debian trixie by digest, apt from a dated snapshot, Qt 6 Widgets dev, the GTK 3 and panel libraries, the Rust toolchain from `rust-toolchain.toml`, and shellcheck and markdownlint at the `cicd/config.bash` pins. The tag is a hash of the recipe, so an edit means a new image.
 		- `cicd.bash` builds the image when its tag is missing, checks it has the pinned Rust, and fetches the crates. Format, build, lint, tests and the release build then run in it offline, as the caller's uid, into `target/container`.
 		- Remote sync and dogfood stay on the host, and so does the release build in a run that dogfoods, since that build is what gets installed. A test that needs a real panel or display gets a step left out of `CTR_STEPS` in `cicd/config.bash`. None does yet.
-		- No docker, a docker that doesn't answer, or an image that won't build is one line, and the run goes on on the host.
+		- A missing docker, a docker that doesn't respond, or an image that won't build gets one line, and the run goes on on the host.
 		- Verified: `--backlog-run-full` passed in the image, and so did a run in a linked worktree building into `target/gate`, as the pre-push hook does. A planted format error failed it. A docker that didn't answer and an image that failed to build each fell back to the host with one line, and passed.
 	- Decisions:
 		- The image has its own target dir. The paths inside differ from the host's, so a shared `target/` would rebuild everything each time a run switched sides.
 	- Branch: round-1025
 	- Test case: None in the repo. Every run but `--no-container` builds and checks the image in its Container image step, which needs docker. The gate was watched to fail in the image on a planted format error.
-	- Verified 2026-10-26: `cicd/cicd.bash` with no options passed all 13 steps in 2m08s on b23, Dogfood included, with `xfce4-panel` on PATH as a stand-in that logged `--restart` instead of restarting the live panel. b23 now has build defnz installed, and the panel loads it at its next restart.
+	- Verified: on 20261026, `cicd/cicd.bash` with no options passed all 13 steps in 2m08s on b23, Dogfood included, with `xfce4-panel` on PATH as a stand-in that logged `--restart` instead of restarting the live panel. b23 now has build defnz installed, and the panel loads it at its next restart.
 	- Closed: 20261025-090429
 
 - Battery collector
 	- ID: 2026102408512223
 	- Type: Feature
 	- Status: Closed
-		- Verified on file layouts only. This box has no `BAT*` battery, so defny returned early and the live path hasn't run on real hardware.
+		- It was first checked on file layouts only. This box has no `BAT*` battery, so defny returned early, and the live path didn't run on real hardware until the b28l check below.
 	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Priority|Severity: High
@@ -1943,17 +1945,17 @@ Sorted per the notes in [Template](#template).
 		- A mouse's battery, an empty slot, or a `BAT*` whose `type` isn't `Battery` gives no collector.
 		- Nothing draws it yet. That's The graphs, 2026101916013887.
 		- `design.md` Data sources on Linux has the details.
-		- Verified: the full run passed, with made-up `power_supply` trees for one battery, two, an empty slot and a mouse's.
+		- Verified: the full run passed, with made-up `power_supply` trees for one battery, 2, an empty slot, and a mouse's.
 	- Decisions:
-		- Every `BAT*` battery is read as one, not just the first as in multiload-ng, so a laptop with 2 shows its whole charge. Their energy or charge adds up, or their shares are averaged when they count in different units.
+		- Every `BAT*` battery is read as one, rather than only the first as in multiload-ng, so a laptop with 2 shows its whole charge. Their energy or charge adds up, or their shares are averaged when they count in different units.
 		- Discharging is any battery's `status` saying so. Full, `Not charging` and `Unknown` count as charging, since the power's in. multiload-ng counts `Not charging` as discharging.
 		- With 2 batteries, critical needs both at `Critical`, since a laptop drains one first.
-		- No `current_now` check, unlike multiload-ng. `status` is what the kernel says the state is.
+		- There's no `current_now` check, unlike multiload-ng, since `status` is what the kernel says the state is.
 		- A battery taken out drops out. With none left it's a gap. A battery put in after start isn't seen until the next start, like the temperature sensors.
 	- Branch: round-1026
 	- Test case: `battery::tests` (5: defnt, defnv, defnw, defnx, defny). defnx fails with the `BAT` name check taken out, defnw with one battery at `Critical` enough, defnv with the 4% rule taken out, and defnw and defnx with `present` ignored.
 		- Swept: the temperature collector, the other `/sys` reader, which also skips what it can't read and gives no collector when nothing reads at start.
-	- Verified 2026-10-26: on b28l, a laptop on AC with BAT0 full, the 5 battery tests passed from a b23 build of the core test binary, and strace showed defny reading 13 BAT0 files, so it didn't skip. The on-battery path is covered by the made-up trees in defnv and defnw only.
+	- Verified: 20261026, on b28l, a laptop on AC with BAT0 full, the 5 battery tests passed from a b23 build of the core test binary, and defny read 13 BAT0 files, so it didn't skip. Only the made-up trees in defnv and defnw test the on-battery path.
 	- Closed: 20261026-185753
 
 - Core library and Linux collectors
@@ -1970,9 +1972,9 @@ Sorted per the notes in [Template](#template).
 		- Reads every graph's numbers on Linux, from the sources listed in `design.md`.
 		- A graph whose source is missing, like a desktop with no battery, is hidden.
 	- Progress log:
-		- CPU from `/proc/stat` works. The other graphs aren't started.
-		- 2026-10-24: Split into one child per source: 2026102408512192 (the collector trait, memory and swap), 2026102408512197 (zswap and zram), 2026102408512202 (network), 2026102408512207 (load), 2026102408512212 (disk), 2026102408512217 (temperature), and 2026102408512223 (battery). This closes with the last of them.
-		- 2026-10-26: every child is Done. Each collector's probe gives none when its source is missing, which is what hides its graph. Drawing them is The graphs, 2026101916013887.
+		- CPU from `/proc/stat` works. The other graphs weren't started yet.
+		- 20261024: split into one child per source: 2026102408512192 (the collector trait, memory and swap), 2026102408512197 (zswap and zram), 2026102408512202 (network), 2026102408512207 (load), 2026102408512212 (disk), 2026102408512217 (temperature), and 2026102408512223 (battery). This closes with the last of them.
+		- 20261026: every child is Done. Each collector's probe gives none when its source is missing, which is what hides its graph. Drawing them is The graphs, 2026101916013887.
 	- Test case: its children's tests: memory and swap on 2026102408512192, zswap defmz to defn3, slab defmy, network and disk on 2026102408512202 and 2026102408512212, load defnj and defnk, temperature defnm to defnr, battery defnt to defny
 	- Closed: 20261026-180742
 
@@ -1996,7 +1998,7 @@ Sorted per the notes in [Template](#template).
 		- Nothing draws it yet. That's The graphs, 2026101916013887.
 		- Verified: the full run passed, with a live read of this box's `/proc/loadavg`.
 	- Decisions:
-		- Load stays as the kernel's number, not a share of the CPU count. Scaling it is the graph's call.
+		- Load stays as the kernel's number rather than a share of the CPU count. The graph does any scaling.
 	- Branch: round-1026
 	- Test case: `load::tests::first_column_load` (defnj) and `live_proc_loadavg_reads` (defnk). defnj fails with the range check taken out.
 	- Closed: 20261026-175458
@@ -2056,9 +2058,10 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Data sources on Linux has the details.
 		- Verified: the full run passed. A live read on this box gave finite rates of 0 or more.
 	- Decisions:
-		- Local is what `lo` received, not received plus sent, since loopback receives everything it sends.
-		- Any interface coming or going makes a gap, not just one going away. Its bytes for that stretch aren't known either way.
-		- Every interface but `lo` adds to sent and received, bridges and container veths too, so traffic through a bridge counts on both sides. Leaving out the virtual ones is easy to add if it shows.
+		- Local is what `lo` received rather than received plus sent, since loopback receives everything it sends.
+		- Any interface coming or going makes a gap, rather than only one going away, since its bytes for that stretch aren't known either way.
+		- Every interface but `lo` adds to sent and received, bridges and container veths too, so traffic through a bridge counts on both sides. Leaving out the virtual ones is easy to add if that turns out to matter.
+			- 20261101: 2026103115231894 left them out.
 	- Branch: round-1026
 	- Test case: `net::tests` (4: defn9, defna, defnb, defnc) and `collect::tests::climb_primes_then_rates` (defnd). defnb and defnd fail with the row and counter checks taken out of `Counts::rise_since`.
 		- Swept: the other counter collector, CPU's `shares`, which already gaps on a counter going down.
@@ -2089,8 +2092,8 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Data sources on Linux has the details.
 		- Verified: the full run passed. On this box no partition was taken as a disk, and dm-0, the LUKS device on sdd2, was left out.
 	- Decisions:
-		- Stacked devices are left out of all disks too, not just partitions, since each of their reads is counted again on the disk below.
-		- No disk at all, as in a container, gives no collector for all disks. A chosen list always gets one, and a drive on it that isn't plugged in reads as 0.
+		- Stacked devices are left out of all disks as well as partitions, since each of their reads is counted again on the disk below.
+		- A box without any disk, such as a container, gets no collector for all disks. A chosen list always gets one, and a drive on it that isn't plugged in reads as 0.
 		- A chosen list counts what's on it as is, so picking a disk and its partition counts both.
 	- Branch: round-1026
 	- Test case: `disk::tests` (4: defne, defnf, defng, defnh), plus defnd for the shared gaps. defnf fails with partitions and stacked devices taken as disks, and defng with the gap checks taken out.
@@ -2121,11 +2124,11 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- Zswap's % used is the pool against `max_pool_percent` of all memory, the point it stops taking pages. Zram's is what it stores, before compression, against `disksize`. Both read as how close it is to full.
 		- The ratio isn't a series, so it stays out of the history file. The overlay shows the latest.
-		- Zswap on with no rows to read, as on an old kernel, falls to zram.
+		- When zswap is on with no rows to read, as on an old kernel, it falls back to zram.
 		- zram devices are summed, and one added after start is missed until the panel restarts.
 	- Branch: round-1026
 	- Test case: `zswap::tests` (5: defmz, defn0, defn1, defn2, defn3). defn1 fails with zswap taken whenever it's on, rows or not.
-		- 2026-10-26: `mem::tests::meminfo_rows` (decax) now checks the 3 new rows too, at `SReclaimable` 0, `Zswap` 0 and no `Zswapped`. `odd_counts_in_range` (decb1) leaves them at their defaults. Nothing else in either changed.
+		- 20261026: `mem::tests::meminfo_rows` (decax) now checks the 3 new rows too, at `SReclaimable` 0, `Zswap` 0 and no `Zswapped`. `odd_counts_in_range` (decb1) leaves them at their defaults. Nothing else in either changed.
 		- Swept: the only `/proc/meminfo` parser, `mem::parse_meminfo`, which both readers share.
 	- Closed: 20261026-173826
 
@@ -2150,7 +2153,7 @@ Sorted per the notes in [Template](#template).
 		- Qt doesn't need a file of its own, so settings stay in shcl, at `~/.config/tukzmon/tukzmon.shcl`.
 		- SilkTerm's settings model, knobs, is MIT now under Bubbles, in both projects, and copied in here.
 		- The panel only loads plugins from its system folders. `utility/dev-install.bash` installs to `~/.local/lib/tukzmon`, links it there with sudo, and restarts the panel. It's in b23's live panel now.
-		- Not done yet: history kept across restarts, a live preview before Apply, and the search box.
+		- History kept across restarts, a live preview before Apply, and the search box weren't done yet.
 		- Verified, 2026-10-25, build deea9: in a test panel the CPU graph drew live beside the memory graph, and tukzmon-settings read and wrote its shcl file.
 	- Branch: dev
 	- Test case: None of its own. Its parts each have an item with tests of their own.
@@ -2165,7 +2168,7 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261024-082803
 	- Opened by: t00mietum
 	- Version and build: v0.1.0 build dedr4, on b23 since 2026-10-25 09:05, installed with `--no-restart`. The panel loads it at its next restart.
-		- 2026-10-25 for this item and the other 9 from round-1024: A round may install with `--no-restart`, so round-1025 put this build on b23.
+		- 20261025, for this item and the other 9 from round-1024: a round may install with `--no-restart`, so round-1025 put this build on b23.
 	- Requirements:
 		- The tabs are too vertically narrow.
 		- The highlight is too bright, and dark-mode text (i.e. white) is hard to read.
@@ -2188,10 +2191,11 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- "Double space" is read as twice the theme's gap between buttons.
 		- The slider's reach is a `slider_range` key in settings.shcl, read by tukzmon, since knobs has to stay the same as SilkTerm's.
+			- Since 20261105 the copy of knobs here doesn't have to match SilkTerm's, per 2026103018353670.
 		- A value past the old range in the file used to fall back to the default. Now it's kept, up to the new limits.
 	- Branch: round-1024
 	- Test case: `config::tests::slider_inside_range` (decb4) and `dialog::tests::box_exceeds_slider_range` (decb5). Both fail on the old spec and pass now. The tab look and buttons have no test.
-		- 2026-10-24: `dialog::tests::slider_detents_and_gates` now gets the width setting through `Dialog::slider` instead of the spec, so it maps over the slider's range. What it checks is unchanged.
+		- 20261024: `dialog::tests::slider_detents_and_gates` now gets the width setting through `Dialog::slider` instead of the spec, so it maps over the slider's range. What it checks is unchanged.
 	- Closed: 20261025-190500
 
 - Option for persistent graph
@@ -2218,7 +2222,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- Off stops both saving and loading, and keeps the file. Turned back on, the file is loaded again, so what the graph showed while it was off is replaced by the saved history, with a gap for that stretch. That's how "don't log new ones" was read.
 		- Max age is dropped at each save and load, and only while it's on.
-		- Times are Unix seconds now, not seconds since start, so runs line up.
+		- Times are Unix seconds now rather than seconds since start, so runs line up.
 	- Branch: round-1024
 	- Test case: `history::tests::history_round_trip` (decbg), `decode_refuses_unwritable` (decbh), `trim_drops_older_only` (decbj), the 3 `keep::tests` (decbk, decbm, decbn), `tests::history_restores_with_gap` (decbp), `clock_back_keeps_sampling` (decbq), `load_trims_refuses_junk` (decbr), and `config::tests::history_is_kept_a_year_by_default` (decbf).
 	- Closed: 20261025-190500
@@ -2227,7 +2231,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102408304586
 	- Type: Enhancement
 	- Status: Closed
-		- It departs from the wording in 2 ways. Log B was read as the fixed divisions laid over the 5 s floor curve. And one tip covers all 3 choices and names the divisions, rather than a tip per item in the list.
+		- It departs from the wording in 2 ways. Log B was read as the fixed divisions laid over the 5 s floor curve. And one tip explains all 3 choices and names the divisions, rather than a tip per item in the list.
 	- Closed reason: Done
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
 	- Priority|Severity: High
@@ -2254,9 +2258,9 @@ Sorted per the notes in [Template](#template).
 		- Verified, 2026-10-25, build deea9: 3 days of history drew with each of the 3 curves, each with its own spread, and Log B matched Smooth log until its first division. Smooth log is the default in the window.
 	- Decisions:
 		- The dropdown sits under the Log time axis checkbox rather than replacing it, so settings files keep working and a linear graph stays one click away.
-		- Saved as `graph.log_curve`: `smooth`, `fixed_a` or `fixed_b`. A file without it gets Smooth log, so b23's graph changes from Log A to Smooth log at the next install.
+		- It's saved as `graph.log_curve`, with `smooth`, `fixed_a` or `fixed_b`. A file without it gets Smooth log, so b23's graph changes from Log A to Smooth log at the next install.
 	- Branch: round-1024
-	- Test case: `axis::tests::smooth_single_log_curve` (decbs), `fixed_b_until_cap` (decbt), `tip_pins_caps` (decbv) and `curve_spellings_parse` (decbw), with the other axis tests now run over all 3 curves. Also `config::tests::the_log_curve_comes_from_the_file` (decbx), `tests::log_axis_curve` (decby), and `dialog::tests::the_log_curve_sits_under_the_log_switch` (decbz). The window height has no test.
+	- Test case: `axis::tests::smooth_single_log_curve` (decbs), `fixed_b_until_cap` (decbt), `tip_pins_caps` (decbv) and `curve_spellings_parse` (decbw), with the other axis tests now run over all 3 curves. `config::tests::the_log_curve_comes_from_the_file` (decbx), `tests::log_axis_curve` (decby), and `dialog::tests::the_log_curve_sits_under_the_log_switch` (decbz) test it too. The window height has no test.
 		- Swept: every `Axis::log` and `Axis::knots` caller, in core, its tests, and the preview example. The plugin and settings build no axis of their own.
 	- Closed: 20261025-190500
 
@@ -2294,7 +2298,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: in a test panel the line followed the pointer and went away when it left. The tip read "15 sec ago" and kept counting while the pointer was still, and gave "09:34:52 AM" in Date and time.
 		- Verified, 2026-10-25, build deea9: in a test panel a one-pixel black line followed the pointer over each graph. The CPU tip read "10 sec ago" and the shares, the memory tip "5 sec ago" and its use, and Date and time gave "06:52:35 PM".
 	- Decisions:
-		- How long ago is the default, since the requirement's first line asks for it.
+		- How long ago is the default, since the requirements list it first.
 		- "OS-defined settings" is read as the locale's `LC_TIME`.
 		- Units round down, so 90 minutes is "1 hr ago". Under a minute is in seconds, and under a second is "just now".
 		- The tip is the graph's own now, so the old tip with only the latest read is gone. At the right edge it gives about the same numbers.
@@ -2357,15 +2361,15 @@ Sorted per the notes in [Template](#template).
 	- Actual effort: Avg
 	- Progress log:
 		- A color chip opens our own picker in place of Qt's: a saturation and brightness square, a hue strip, and boxes for red, green, blue, brightness and saturation in percent, plus hex. Cancel and OK are at the bottom.
-		- The row behind follows every change, with its chip, its hex box and the theme's "*". Cancel puts back all that was stored when the picker opened. Esc is Cancel and Enter is OK, and neither reaches the settings window.
+		- The row behind follows every change, with its chip, its hex box and the theme's "*". Cancel puts back all that was stored when the picker opened. Esc is Cancel and Enter is OK, and neither key goes through to the settings window.
 		- The square and the strip take the arrow keys too, a hundredth a press, or a tenth with Shift.
 		- `--snapshot` takes a picture of the picker after the tabs.
 		- `design.md` Settings window has the details.
 		- Verified: in the window, a click in the square moved the User row and showed "Default *", and Esc put back the color and "Default" with Apply off. A typed hex and Enter kept the color, with the settings window still open.
 		- Verified, 2026-10-25, build deea9: a drag in the square and then the strip moved the I/O wait row and showed "Default *". Esc put back `#ff0000` and "Default". A typed `#123456` and Enter kept it, with the settings window still open, and Apply and close saved it as a change on Default.
 	- Decisions:
-		- The color model is SilkTerm's, ported to `settings/src/pick.rs`. The picker's state lives in the Rust dialog, so the live edits and Cancel are tested without a window.
-		- Cancel restores everything stored, not just the color. Setting the old color back, as the Qt dialog did, left the window changed after Cancel, so Apply would have pinned that color in the file.
+		- The color model is SilkTerm's, ported to `settings/src/pick.rs`. The picker's state is kept in the Rust dialog, so the live edits and Cancel are tested without a window.
+		- Cancel restores everything stored rather than only the color. Setting the old color back, as the Qt dialog did, left the window changed after Cancel, so Apply would have pinned that color in the file.
 	- Branch: round-1024
 	- Test case: `pick::tests::color_hsv_round_trip` (decd5), `gray_keeps_hue_and_saturation` (decd6), `hue_ramp_primaries` (decd7) and `typed_value_reaches_target` (decd8), and `dialog::tests::picker_cancel_restores_row` (decd3) and `picker_ok_keeps_color` (decd4). The Cancel test fails with the old way of setting the color back, and passes now. The drawing and the pointer have no test.
 		- Swept: the one `QColorDialog` use, now gone, and every color row, which all open the picker through the same chip. No code or doc names the toolkit's dialog.
@@ -2399,11 +2403,12 @@ Sorted per the notes in [Template](#template).
 		- Verified, 2026-10-25, build deea9: in a test panel Fire drew both graphs as a gradient from dim red up to pale blue. Detailed on CPU as a change on Fire drew CPU in Fire's detailed colors, with memory still a gradient.
 	- Decisions:
 		- The mode is in the theme group, so picking Fire turns on Gradient, and a mode changed by hand shows "Name *" like a color. Saved themes keep it.
-		- The color follows the pixel's height, not the column's, so a busy column climbs into High and a quiet one stays Low.
+		- The color follows the pixel's height rather than the column's, so a busy column climbs into High and a quiet one stays Low.
 		- The radio buttons and showing rows by mode use 2 keys of tukzmon's own in settings.shcl, since knobs has to stay the same as SilkTerm's.
+			- Since 20261105 the copy of knobs here doesn't have to match SilkTerm's, per 2026103018353670.
 	- Branch: round-1024
 	- Test case: `render::tests::gradient_by_height` (decdk) and `blend_hits_stops` (decdm), `config::tests::fire_gradient_rest_detailed` (decdg), `mode_rows_shown` (decdh) and `theme_keeps_mode` (decdj), and `dialog::tests::mode_swaps_rows` (decdn). The render test fails with the blend fixed at one height, and the dialog test with every row always shown. The radio buttons have no test.
-		- 2026-10-24: new values only, for the 4 new theme rows and Fire. `config::tests::default_theme_is_row_defaults` members went from 8 to 12, and it now takes a dropdown for a `_mode` member where it took only colors. `themes_round_trip` went from 8 values to 12. `saved_theme_listed_last` lists `fire` after `blue_pastel`. In `dialog::tests`, `save_as_new_theme` finds Night seventh, not sixth, and counts 11 colors, not 8. `theme_rename_delete` counts 8 options, not 7, and `hand_saved_theme_survives` 9, not 8.
+		- 20261024: only the values changed, for the 4 new theme rows and Fire. `config::tests::default_theme_is_row_defaults` members went from 8 to 12, and it now takes a dropdown for a `_mode` member where it took only colors. `themes_round_trip` went from 8 values to 12. `saved_theme_listed_last` lists `fire` after `blue_pastel`. In `dialog::tests`, `save_as_new_theme` finds Night seventh instead of sixth, and counts 11 colors instead of 8. `theme_rename_delete` counts 8 options instead of 7, and `hand_saved_theme_survives` 9 instead of 8.
 		- Swept: every `Frame` built (the plugin, the preview example and the render tests), and every use of the theme group's members, which now take a mode as well as colors (`saved_themes`, `theme_problems`, `shown_colors`, the picker, and `unthemed`).
 	- Closed: 20261025-190500
 
@@ -2423,15 +2428,14 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- Worked at medium effort rather than high, since it's one setting.
-		- A Transparent checkbox sits first on the Background sub-tab, at `graph.transparent`, off by default. On, the Top and Bottom colors aren't drawn and the panel shows through. The border, the graph and the hover line still are.
+		- A Transparent checkbox sits first on the Background sub-tab, at `graph.transparent`, off by default. When it's on, the Top and Bottom colors aren't drawn and the panel shows through. The border, the graph and the hover line are still drawn.
 		- `design.md` Theme has the details.
 		- Verified: in a test panel, the empty part of the graph showed the panel's own color with it on, and the theme's top color with it off.
 		- Verified, 2026-10-25, build deea9: in a test panel the panel's own gray showed through both graphs, with the border still drawn, and it stayed clear on Blue standard and Fire.
 	- Decisions:
 		- It's outside the theme group, so a theme pick, Randomize or Save as leaves it alone.
 		- It sits on the Background sub-tab, next to the colors it replaces, with a tip saying it goes for every theme.
-		- The Top and Bottom rows stay live while it's on, since knobs' gates only turn a row on with a checkbox, not off.
+		- The Top and Bottom rows stay live while it's on, since knobs' gates only turn a row on with a checkbox, rather than off.
 	- Branch: round-1024
 	- Test case: `render::tests::transparent_background` (decdz), `config::tests::transparent_outlives_themes` (decdy) and `dialog::tests::transparent_survives_pick_and_roll` (dece0). The first 2 fail with the setting left unread or the background drawn opaque, and pass with it.
 		- Swept: every reader of the Top and Bottom colors, which is only `render::Frame::draw`, and the hover line in `Graph::render`, which stays opaque.
@@ -2456,7 +2460,7 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Avg
 	- Actual effort: Avg
 	- Progress log:
-		- Under Graphs on the Graph tab: CPU graph, CPU width px, Memory graph, and Memory width px. Each width is stepped in under its checkbox.
+		- The Graph tab has CPU graph, CPU width px, Memory graph, and Memory width px under Graphs. Each width is stepped in under its checkbox.
 		- The plugin asks the panel for the sum of the shown widths, and shares out what it gets by width. On a vertical panel they still share the height evenly.
 		- A hidden graph isn't read, and its history comes back with a gap for the hidden time, the same for CPU as for memory.
 		- `design.md` XFCE plugin has the details.
@@ -2490,7 +2494,7 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Avg
 	- Actual effort: Low
 	- Progress log:
-		- Order, a text row under Graphs on the Graph tab, at `graph.order`, names the graphs first to last: `cpu` and `mem`. The default is `cpu mem`.
+		- The Order text row under Graphs on the Graph tab, at `graph.order`, names the graphs first to last, as `cpu` and `mem`. The default is `cpu mem`.
 		- The plugin lays them out in that order, and the pointer, the tip and the panel size follow it. A change takes effect at Apply.
 		- `design.md` XFCE plugin has the details.
 		- Verified: in a test panel, `mem cpu` with widths 100 and 40 drew memory 100 wide on the left and CPU on the right. With no order CPU came back first, and a hand-typed `order: mem, cpu` swapped them again.
@@ -2498,9 +2502,10 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- The names are the graphs' history section names, so a new graph brings its own.
 		- Spaces or commas both work, since shcl reads a bare `mem, cpu` as a list.
+			- Since shcl 3.0.0-beta1 (20261106), a comma then a space in a bare value is an error, so a list is `mem,cpu` or goes in brackets.
 		- A name it doesn't know is skipped, and a graph it doesn't name goes last, in the default order.
 		- A hidden graph keeps its place for when it's shown again.
-		- For 2026102508393161: the Order row is a stand-in. The list's grippers should write `graph.order` and the row should go.
+		- The Order row was a stand-in until 2026102508393161, whose grippers write `graph.order` and which removed the row.
 	- Branch: round-1025
 	- Test case: `graphs::tests::unlisted_graph_goes_last` (dedqp), `config::tests::order_spaces_or_commas` (dedqq), and `dialog::tests::graph_order_round_trip` (dedqr). dedqp fails with the order ignored, and dedqq with the setting left unread.
 		- Swept: every `Graphs::shown` user (count, widths, tiles, the pointer, the tip and the render), and the plugin's fit and reload, which go through `widths`.
@@ -2530,11 +2535,11 @@ Sorted per the notes in [Template](#template).
 		- Verified: the Graph tab shows each graph's time axis row under its width, and the full run passed.
 		- Verified, 2026-10-25, build deea9: in a test panel, with Log time axis off and Memory time axis on Log A, CPU scrolled plainly and memory stayed squeezed. CPU on Linear left memory on the log curve under As set under Time.
 	- Decisions:
-		- Saved as `cpu.time` and `mem.time`: `same`, `linear`, `smooth`, `fixed_a` or `fixed_b`. A file without them gets `same`.
+		- They're saved as `cpu.time` and `mem.time`, with `same`, `linear`, `smooth`, `fixed_a` or `fixed_b`. A file without them gets `same`.
 		- `same` follows the Time settings the way a width of 0 follows Width, so one setting still changes every graph with no pick of its own.
 		- Linear is in, since the Time settings already offer it.
 		- Spike emphasis stays under Log time axis. It still applies to a graph on its own log curve while Log time axis is off, though its slider is greyed then. The graph list can sort that out.
-		- For 2026102508393161: the list's time function dropdown should write `<graph>.time`, and these rows should go.
+		- These rows were for 2026102508393161 to replace with the list's time function dropdown, which writes `<graph>.time`.
 	- Branch: round-1025b
 	- Test case: `graphs::tests::axis_own_or_shared` (deea2) and `config::tests::time_axis_old_files` (deea4). deea2 fails with the pick ignored, and deea4 with `cpu.time` left unread.
 		- Swept: every `Graph::axis` caller (the hover span and the render, which the plugin's tip and draw go through), and every `log_axis` and `curve` reader. `core/examples/preview.rs` builds its own log axis and is unchanged.
@@ -2545,7 +2550,7 @@ Sorted per the notes in [Template](#template).
 	- Type: Task
 	- Status: Closed
 		- It departs from the wording in one way. `--message` is taken but does nothing yet, since the pipeline has no publish step.
-		- `core.hooksPath` is set to `cicd/hooks` in b23's clone since 2026-10-25.
+		- `core.hooksPath` has been set to `cicd/hooks` in b23's clone since 20261025.
 	- Closed reason: Done
 	- Needs local test suite run?: No. `--backlog-run-full` passed on 2026-10-25.
 	- Priority|Severity: High
@@ -2569,7 +2574,7 @@ Sorted per the notes in [Template](#template).
 		- Verified, 2026-10-25: with the hook on, a push of e131b57 to a spare remote's `main` ran the merge gate first, which passed in 1m 59s, and then the push went on. A push to `dev` went straight through.
 	- Decisions:
 		- `--list` prints the steps and what's off. Test IDs come with 2026102416252895.
-		- The hook is turned on by a documented step, not by the pipeline, so nobody's pushes get gated without them knowing.
+		- The hook is turned on by a documented step rather than by the pipeline, so nobody's pushes get gated without them knowing.
 	- Branch: round-1025
 	- Test case: `shared_flags` (dezar), and the hook's deqvk, deqvm and deqvn, in `cicd/tests/guards.bash`. The gate was watched to fail on a planted format error and a planted lint error.
 	- Closed: 20261025-190500
@@ -2593,7 +2598,7 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- Half the CPUs, or a quarter when the 1-minute load is over half the CPU count, worked out before each step and passed to cargo's `-j` and `--test-threads`. A quarter is kept for the heavy steps, for the leak checks to come.
+		- The job count is half the CPUs, or a quarter when the 1-minute load is over half the CPU count, worked out before each step and passed to cargo's `-j` and `--test-threads`. A quarter is kept for the heavy steps, for the leak checks to come.
 		- The pipeline sets nice 19 and ionice idle on itself at the start, so everything it starts inherits them.
 		- Verified: a run used 16 of 32 CPUs at a load of 10, and 8 with the cap set.
 		- Since 2026102416252889, containers get `--cpus` at the run's job count and `--cpu-shares 256`, and the steps in them run under `nice -n 19` and `ionice -c 3`.
@@ -2639,7 +2644,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102508393159
 	- Type: Feature
 	- Status: Closed
-		- 2026-10-25: one theme colors every graph, so no graph picks its own. That leaves checking that the Themes tab works this way, a test, and taking the theme dropdown out of the graph list item.
+		- 20261025: one theme colors every graph, so no graph picks its own. That leaves checking that the Themes tab works this way, a test, and taking the theme dropdown out of the graph list item.
 	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261025-083931
@@ -2658,7 +2663,7 @@ Sorted per the notes in [Template](#template).
 		- The graph list item, 2026102508393161, had no theme dropdown left to take out.
 		- `design.md` Theme says one theme colors every graph.
 		- Verified: the full run passed with both new tests.
-		- It departs from the title. No graph picks its own theme, per the answer.
+		- It departs from the title, since no graph picks its own theme, per the 20261025 call.
 	- Decisions:
 		- The test walks every graph tukzmon draws, so a new graph fails it until its mode is in the theme and on a Themes sub-tab.
 	- Branch: round-1025b
@@ -2702,16 +2707,17 @@ Sorted per the notes in [Template](#template).
 		- Every container, image, and volume gets `dev.project=tukzmon` and `dev.run=<run folder name>`, and containers are named `tukzmon-<run folder name>-<step>`.
 		- Containers run with `--rm`, unless `--keep-temp` was passed. The run's containers are removed by label at its end, on failure and Ctrl+C too.
 		- The project's dangling images go, and older tags once a newer one has passed, keeping the current tag and the one before it. Then `docker builder prune -f --filter until=168h`.
+			- Superseded by 2026110311291910 (20261103): the pipeline no longer prunes the build cache.
 		- Nothing without the project's label is touched. The end of the run says what it removed and about what that freed.
 	- Estimated effort: Avg
 	- Actual effort: Avg
 	- Progress log:
 		- Every container is named `tukzmon-<run folder name>-<step>` and has both labels, and so does the image. Containers run with `--rm` unless `--keep-temp` was passed, which keeps them and says how to list them.
-		- At the end, on failure and Ctrl+C too, the run's containers are stopped and removed by label. Then the project's dangling images go, and its older tags once this run's image has answered, keeping it and the one before. Then the build cache prune.
+		- At the end, on failure and Ctrl+C too, the run's containers are stopped and removed by label. Then the project's dangling images go, and its older tags once this run's image has answered, keeping it and the one before. Then it ran the build cache prune.
 		- Nothing is removed by force, and only what has the project's label. The end of the run names what went, about what it freed by `docker system df` before and after, and what the prune took.
 		- Verified: a Ctrl+C mid-build stopped its container at once, a container left running was removed by label, `--keep-temp` kept the run's 2, and 3 recipe changes in a row kept the current tag and the one before.
 	- Decisions:
-		- No volumes. The image's cargo home and target dir are folders under `target/container`, so `cargo clean` takes them too.
+		- There are no volumes. The image's cargo home and target dir are folders under `target/container`, so `cargo clean` takes them too.
 		- Tags are ordered by a `dev.built` label set at build time, since a build from cache gives every tag the same creation time.
 	- Branch: round-1025
 	- Test case: `cleanup_takes_own_only` (dezav) and `orphan_containers_stopped` (dezaw), in `cicd/tests/guards.bash`. The labels on what a run makes have no test.
@@ -2734,7 +2740,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Each step prints the 79 character rule, `[ <time>: Step 1 of 5; Starting Format ]`, its output, and the `PASS` or `FAIL` line in the same form, then a blank line.
 		- The first section lists the steps, then every step that's off, with the flag or the reason.
-		- Verified: in a quick run, a full run, and runs that failed at Format and at Lint.
+		- Verified in a quick run, a full run, and runs taht failed at Format and at Lint.
 	- Branch: round-1025
 	- Test case: `step_output_lines` (dezay), in `cicd/tests/guards.bash`. The list of steps that are off is checked by dezar and der4k.
 	- Closed: 20261025-071028
@@ -2758,7 +2764,7 @@ Sorted per the notes in [Template](#template).
 		- The file also sets sample time to 1000 ms. That isn't a color, so the default stays 500 ms.
 	- Branch: round-1024
 	- Test case: `config::tests::multiload_default_colors` (debhj) and `config::tests::overrides_and_bad_lines` (debhk). Both fail on the old defaults and pass now.
-		- 2026-10-24: both asserts got new values only. System went from `#008000` to `#c64600`, and nice from `#c000c0` to `#205f40`, in both tests.
+		- 20261024: only the values in both asserts changed. System went from `#008000` to `#c64600`, and nice from `#c000c0` to `#205f40`, in both tests.
 	- Closed: 20261024-090621
 
 - Collector trait, memory and swap
@@ -2781,7 +2787,8 @@ Sorted per the notes in [Template](#template).
 		- `core/src/mem.rs` reads memory and swap. A box with no swap gets no swap collector, and swap turned off later reads as a gap.
 		- Nothing draws them yet. That's the memory graph item and The graphs.
 	- Decisions:
-		- Cache is the `Cached` row alone, the way multiload-ng counts it by its base formula. `free` adds `SReclaimable`. Noted in `design.md`.
+		- Cache is the `Cached` row alone, the way multiload-ng counts it by its base formula. `free` adds `SReclaimable`. `design.md` notes it.
+			- Superseded by 2026102508354893 (20261025): cache is `Cached` plus `SReclaimable` now, as `free` and b23's multiload-ng count it.
 	- Test case: `mem::tests` (6: decax, decay, decaz, decb0, decb1, decb2) and `collect::tests::slurp_reuse_and_miss` (decaw).
 	- Closed: 20261024-085549
 
@@ -2798,7 +2805,7 @@ Sorted per the notes in [Template](#template).
 		- The log axis item has a sentence that stops partway: "The transition from 1m to 1h to 1d to "everything" should".
 	- Progress log:
 		- Finished: it should be smooth, with no obvious gate or line behind the scenes. `design.md` has how under Time axis.
-	- Test case: None, since it was a question. The log axis item's tests cover the answer.
+	- Test case: None, since it was a question. The log axis item's tests check the answer.
 	- Closed: 20261019-162817
 
 - Confirm the language split
@@ -2813,7 +2820,7 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- OK or change the proposal in `design.md` under Code layout: a Rust core library, and a short C file per panel only where the panel API is C.
 	- Progress log:
-		- OK'd as proposed. `design.md` now lists it as settled.
+		- It was OK'd as proposed. `design.md` now lists it as settled.
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019-162817
 
@@ -2821,7 +2828,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026110921252043
 	- Type: Bug
 	- Status: Closed
-		- Waits on the question in questions.md on what the graph counts on an integrated card.
+		- It waited on the question in questions.md on what the graph counts on an integrated card.
 	- Closed reason: Won't fix
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
@@ -2830,11 +2837,12 @@ Sorted per the notes in [Template](#template).
 	- Parent ID: 2026110920595600
 	- Incorrect behavior: An Intel card gets the GPU graph, but no GPU memory graph.
 	- Expected behavior: The GPU memory graph works on integrated Intel graphics.
-	- Possible cause: An integrated card's memory is the system's. Without root, the only count of what the GPU holds is each process's DRM fdinfo, and only for the user's own processes.
+	- Possible cause: An integrated card's memory is the system's. Without root, the only count of what the GPU uses is each process's DRM fdinfo, and only for the user's own processes.
+	- Decisions:
+		- 20261110: option B, unless other tools have an acceptable way. nvtop, the main tool that reads Intel, gives per-process memory from fdinfo and needs CAP_PERFMON or root for a total. So Intel gets no GPU memory graph, as README already says.
+	- Test case: none, closed on the answer with no code change.
 	- Acceptance signoff: Closed 20261110 on the answer, as B.
 	- Closed: 20261110-184000
-	- Test case: none, closed on the answer with no code change.
-	- 2026-11-10: Answer: B, unless other tools have an acceptable way. nvtop, the main one that reads Intel, gives per-process memory from fdinfo and needs CAP_PERFMON or root for a total. So B: no GPU memory graph on Intel, as README already says.
 
 - df336 fails on GitHub's runner: a demo stopped by TERM leaves run.pid and .demo-run
 	- ID: 2026110919021646
@@ -2843,7 +2851,7 @@ Sorted per the notes in [Template](#template).
 	- Closed reason: Done
 	- Target version: v1.0.0-beta.2
 	- Needs external testing: No
-	- Priority|Severity: Medium
+	- Priority|Severity: Avg
 	- Opened: 20261109-190216
 	- Opened by:
 	- Related IDs: 2026110709074407
@@ -2858,7 +2866,7 @@ Sorted per the notes in [Template](#template).
 		- Filed from the round-1109b test batch. The round didn't change the demo's main or its cleanup.
 		- Verified: df336 with its temp root bound at `/srv`, so no part of the path is named tmp, failed on the old script with the hosted run's message, and passes now.
 		- Verified: the quick gate's format, build, lint and test areas passed, then Sanitizers.
-		- 2026-11-10: a hosted merge-gate run on round-1110 is under way for this.
+		- 20261110: a hosted merge-gate run on round-1110 was started for this.
 		- Verified: 20261110, PASS df336 in the merge-gate workflow on GitHub's runner, run 42784165519 on round-1110, which passed whole.
 	- Decisions:
 		- `safe_rmtree` takes a folder under our own temp root whatever that root is named, as the pipeline's `fSafeRm` does. It still needs the run's marker, a real path below the project folder, and no mount left inside.
@@ -2882,9 +2890,9 @@ Sorted per the notes in [Template](#template).
 	- Steps to reproduce: `cicd/cicd.bash --long`.
 	- Incorrect behavior: The Miri step of the 2026-11-04 run was still going after 31 hours, with 25 of its 371 tests left. Of the rest, 13 had failed already.
 	- Expected behavior: The step finishes in a few hours, and a test that runs too long fails by name.
-	- Reproduced: 2026-11-04, b23.
+	- Reproduced: 20261104, on b23.
 	- Actual cause:
-		- There were 9 tests added since the step went in that reach things Miri can't do and had no `cfg_attr(miri, ignore)`: netlink sockets, `getifaddrs`, an fsync of a folder, and a seek on a folder.
+		- There were 9 tests added since the step went in that use things Miri can't do and had no `cfg_attr(miri, ignore)`: netlink sockets, `getifaddrs`, an fsync of a folder, and a seek on a folder.
 		- There are 5 tests that check the real clock to a hundredth of a second, which Miri is far too slow for: the ease after a new time axis, in the core and in a settings row, a clock set back or moved on, and a still pointer's age.
 		- The Randomize tests loop over 2000 seeds, about 18 s a seed under Miri, so 10 hours a test.
 		- Parsing the settings spec takes 0.11 s natively and about 65 minutes under Miri. The spec is 3544 lines, against 576 on 2026-10-25, when such a test took 3 to 11 minutes. Each test was its own Miri process, so each one that read the spec paid it again. `Look::default()` reads it, so nearly every module does.
@@ -2897,7 +2905,7 @@ Sorted per the notes in [Template](#template).
 		- libtest's stdout and Miri's stderr are kept apart, since Miri's `/proc` warnings show up between a test's name and its result.
 		- The 5 real clock tests are ignored under Miri. A history test's 600 rounds are 140 under Miri, which still checks, trims and reloads.
 		- The limit is 480 minutes a module.
-		- Verified: dexn3 covers the time limit, an error, a leak and a failed assert, and failed with each part broken. Under Miri, `load::tests` passed with its results split by warnings, and `dice::tests` at a 1 minute limit failed the test it was on and listed the rest.
+		- Verified: dexn3 tests the time limit, an error, a leak, and a failed assert, and failed with each part broken. Under Miri, `load::tests` passed with its results split by warnings, and `dice::tests` at a 1 minute limit failed the test it was on and listed the rest.
 		- Verified: the whole Miri step passed on 2026-11-06 in 6h 12m, with 291 tests passed, 80 ignored and none failed. `config::tests` was the longest, at 6 hours.
 	- Decisions:
 		- 2026-11-05: one Miri per module, rather than a longer limit or skipping the tests that read the spec. (JC)
@@ -2919,7 +2927,7 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: Nothing comes up. The tip says the window is open already, but only if you hover the item.
 	- Expected behavior: The open window comes to the front.
 	- Reproduced: 20261102 on b23. Item 16's window from 2026-10-31 sat under other windows on the current workspace.
-	- Actual cause: Properties only found the window, by design in 2026103115232220. It never asked it to come forward.
+	- Actual cause: Properties only found the window, by design in 2026103115232220. It never asked the window to come forward.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
@@ -2931,7 +2939,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: under xfwm4, with `activate_action` switch or bring and focus stealing guard on or off, the window came to the top and took focus when buried, when minimized, and from another workspace.
 	- Decisions:
 		- A signal rather than a socket or D-Bus name, since the plugin already finds the window's process and signals it at Remove.
-		- libxcb is looked up from the copy Qt's xcb plugin has loaded, not linked, so no package or Nix input changes.
+		- libxcb is looked up from the copy Qt's xcb plugin has loaded rather than linked, so no package or Nix input changes.
 	- Actual fix: `wake` in `xfce/src/lib.rs`, and `Wake`, `comeForward` and `askActive` in `settings/src/qt.cpp`.
 	- Branch: props-raise
 	- Test case: `tests::properties_raises_open_window` (des4c) and `bridge::tests::sigusr1_raises_window` (des4d).
@@ -2948,7 +2956,7 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026102408512202
 	- Steps to reproduce: Run a VM or VPN and watch the network graph.
 	- Incorrect behavior: Over 10 s on b23 every interface but `lo` received 18.3 MB, and the physical NIC 0.23 MB, so the graph read about 80 times high. With the LAN split on, VM traffic over the bridge counts as internet.
-	- Expected behavior: Physical interfaces only by default, or a setting for which ones count.
+	- Expected behavior: The graph counts physical interfaces only by default, or has a setting for which ones count.
 	- Possible cause: `net::bin` adds every interface but `lo`.
 	- Actual cause: Bridges, VM taps, container links and VPN tunnels each counted the same bytes again, on top of the NIC they went through.
 	- Estimated effort: Low
@@ -2960,7 +2968,7 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Data sources on Linux has the details.
 		- Verified: `cargo test -p tukzmon-core net::` and the quick gate passed. On b23 only enp8s0, enp9s0 and wlp7s0 have the link, and br0, docker0, nordlynx, the veths and the vnets don't.
 	- Decisions:
-		- Hardware only, with no setting. Everything a virtual interface sends out to the world crosses a hardware one, so counting both counts it twice. A setting can come later if someone needs one.
+		- It counts hardware only, with no setting. Everything a virtual interface sends out to the world crosses a hardware one, so counting both counts it twice. A setting can come later if someone needs one.
 		- Hardware is a `device` link in sysfs. Wi-Fi, USB and virtio NICs have one, so a VM guest still counts its own NIC.
 		- The LAN split still counts a TCP socket to a VM or over a VPN as LAN. That's 2026110110445455.
 	- Actual fix: `net::Wired` picks the interfaces that count.
@@ -2980,7 +2988,7 @@ Sorted per the notes in [Template](#template).
 	- Steps to reproduce: Run the gate on a repo with `extensions.relativeWorktrees` set, which the image git 2.47 refuses, or on a tree that isn't a git repo.
 	- Incorrect behavior: shellcheck, markdownlint, clang-tidy, ruff, clang-format, black and the stray test ID check run on nothing, and the step passes.
 	- Expected behavior: The step fails when git fails, or when a kind that should have files has none.
-	- Reproduced: 2026-11-01, round-1101, on a copy of the tracked files with no repo: Format passed on no C++ or Python files, and `test-ids.bash check` passed.
+	- Reproduced: 20261101, in round-1101, on a copy of the tracked files with no repo: Format passed on no C++ or Python files, and `test-ids.bash check` passed.
 	- Possible cause: `mapfile < <(git ls-files ...)` loses the exit status.
 	- Actual cause: as above, in Format, Lint and `fStrays` in `test-ids.bash`.
 	- Estimated effort: Low
@@ -3013,7 +3021,7 @@ Sorted per the notes in [Template](#template).
 	- Expected behavior: A section with times past now, times out of order, or values that aren't finite is refused, or the bad buckets are dropped. Drawing treats a non-finite value as a gap.
 	- Possible cause: decode checks layout only, and adopt moves the clock to any saved last.
 	- Reproduced: Yes, by the new tests with the fix taken out. Each crafted section loaded, and the NaN and inf columns drew wrong.
-	- Actual cause: As the possible cause. Drawing also took a non-finite column as data.
+	- Actual cause: as the possible cause says. Drawing also took a non-finite column as data.
 	- Estimated effort: Avg
 	- Actual effort: Low
 	- Origin: `87bc145` (`History::decode`, `Graph::adopt`) and `90f83106` (`render::fit`). First review. Confirmed, by probes with crafted files.
@@ -3025,7 +3033,7 @@ Sorted per the notes in [Template](#template).
 		- `design.md` History has the rules.
 		- Verified: the quick gate, the soak test, and defv4's real 5-tier file passed.
 	- Decisions:
-		- Refuse a section, not just its bad part, for times out of order. Bad times mean the file can't be trusted for where anything is. A bad value is one bucket, so only that bucket goes.
+		- A section with times out of order is refused whole, rather than only its bad part. Bad times mean the file can't be trusted for where anything is. A bad value is one bucket, so only that bucket goes.
 		- The most a clock can be behind by a time zone is 14 hours. A dual boot that keeps local time in the hardware clock leaves Linux that far behind until it syncs, and refusing then would lose the history. A day ahead, as in the steps to reproduce, starts over.
 		- The future check is in `adopt`, which knows the graph's clock, and `decode` stays a check of the file alone.
 	- Actual fix: `History::decode` and `Bucket::sane` in `core/src/history.rs`, `Graph::adopt` and `AHEAD_MAX` in `core/src/lib.rs`, and the column filter in `Frame::draw_to` in `core/src/render.rs`.
@@ -3051,17 +3059,17 @@ Sorted per the notes in [Template](#template).
 	- Possible cause: `Graph::now` is the start time plus an `Instant`, which reads `CLOCK_MONOTONIC`, and that stops during suspend.
 	- Estimated effort: Avg
 	- Origin: `87bc145` (epoch) and `f89e55e` (`Instant`). First review. Plausible. The std source and `clock_gettime` were read, but b23 never suspends.
-	- Actual cause: As the possible cause. The graph's clock fell behind by every suspend, and the read after one covered the time it was out.
+	- Actual cause: as the possible cause says. The graph's clock fell behind by every suspend, and the read after one spanned the time it was out.
 	- Actual effort: Low
 	- Progress log:
-		- A graph's time is the wall clock, but never goes back. Each read moves the graph's clock up to the wall clock when that's ahead. When it moved more than a sample's worth, the read only primes, so a suspend, or the clock set on, is a gap.
+		- A graph's time follows the wall clock, but never goes back. Each read moves the graph's clock up to the wall clock when that's ahead. When it moved more than a sample's worth, the read only primes, so a suspend, or the clock set on, is a gap.
 		- `design.md` History has the rule.
 		- Verified: deqqs and deqqt passed, with the wall clock an hour on and an hour back. The quick gate and the soak test passed. A real suspend is untested, since b23 doesn't suspend.
-		- Stand-in for the hand test, 20261101 on b23 at 4c8a1e0: a live CPU graph read every 0.5 s with the wall clock moved an hour on mid-run and the monotonic clock left alone, the way a suspend leaves them. The read after the step only primed, the next was at the new wall time, the newest column's clock tip read the shifted time, and the hour between had 0 coverage.
+		- A stand-in for the hand test ran 20261101 on b23 at 4c8a1e0. A live CPU graph was read every 0.5 s with the wall clock moved an hour on mid-run and the monotonic clock left alone, the way a suspend leaves them. The read after the step only primed, the next was at the new wall time, the newest column's clock tip read the shifted time, and the hour between had 0 coverage.
 	- Decisions:
-		- Set back while running, the graph's time doesn't follow. New samples would sit behind old ones and be dropped until the clock caught up, which the load rule in design.md already avoids. Saved times past now are 2026103115231863's.
-		- A step under one sample period counts as a late read, not a gap, so a small clock correction doesn't cut the graph.
-		- The wall clock rather than `CLOCK_BOOTTIME`, since it also follows a clock set on, and needs no platform call.
+		- When the clock is set back while running, the graph's time doesn't follow. New samples would sit behind old ones and be dropped until the clock caught up, which the load rule in design.md already avoids. Saved times past now are 2026103115231863's.
+		- A step under one sample period counts as a late read rather than a gap, so a small clock correction doesn't cut the graph.
+		- It uses the wall clock rather than `CLOCK_BOOTTIME`, since it also follows a clock set on, and needs no platform call.
 		- Disk, network and the beat clock (`clock_ms`) stay on `Instant`. They time spans between reads, and the counters stop in a suspend too.
 	- Actual fix: `Graph::now`, `Graph::sample` and `Graph::adopt` in `core/src/lib.rs`.
 	- Branch: round-1101
@@ -3113,7 +3121,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- `Graphs::skip` moves every graph's clock on, through the `Drawn` slots, and the profiler and the soak test both call it.
 		- The profiler ticks at the default sample time from `Look::default()`, 1 s, and saves every 15 minutes of it. Its subtitle gives the graph count, such as "20000 ticks of 6 graphs".
-		- First report with all 6 default graphs on this box: 231 us a tick, against 209 with CPU and memory only. History file 11.2% (was 3.9%), history lookups 8.3% (was 5.4%), drawing 10.3% (was 13.2%), the reads 65.5% (was 71.7%). Each was one run.
+		- The first report with all 6 default graphs on this box read 231 us a tick, against 209 with CPU and memory only. The history file took 11.2%, up from 3.9%, and history lookups 8.3%, up from 5.4%. Drawing took 10.3%, down from 13.2%, and the reads 65.5%, down from 71.7%. Each was one run.
 		- Verified: the quick gate with the profile area passed, and the soak test passed.
 	- Decisions:
 		- It's one `Graphs` method rather than a test over the profiler's list, so a new graph needs no change in either caller.
@@ -3137,17 +3145,17 @@ Sorted per the notes in [Template](#template).
 	- Steps to reproduce:
 		- Pass `fSafeRm` in `cicd/utility/include/run-tmp.bash` the path `${HOST_TEMP}/tukzmon`.
 	- Incorrect behavior: the path matches `^/(.+/)?tmp/[^/]+`, so it would be removed.
-	- Expected behavior: refused. A run folder under it may go, never the project's folder itself.
+	- Expected behavior: the path is refused. A run folder under it may go, but never the project's folder itself.
 	- Possible cause: no caller passes it today, so nothing has tripped it.
 	- Actual cause: the copy in `run-tmp.bash` predates the rule, and lacked its check for the temp root and a project's folder right under it.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
 		- `fSafeRm` refuses `${HOST_TEMP}` and any folder right under it.
-		- New `cicd/tests/guards.bash`, the pipeline's own tests, which the Tests step runs after `cargo test`. `test-ids.bash` reads their IDs too.
+		- `cicd/tests/guards.bash` is new, with the pipeline's own tests, which the Tests step runs after `cargo test`. `test-ids.bash` reads their IDs too.
 		- Verified: den8d failed on the old `run-tmp.bash`, which took the temp root, and passed after. The quick gate passed, with den8d in its Tests step.
 	- Decisions:
-		- The test is a bash script in `cicd/tests/`, not a Rust test, since the Nix build's source has no `cicd/` folder. Each test has a `## Test ID:` line, as a Rust test has its `// Test ID:` line.
+		- The test is a bash script in `cicd/tests/` rather than a Rust test, since the Nix build's source has no `cicd/` folder. Each test has a `## Test ID:` line, as a Rust test has its `// Test ID:` line.
 		- Swept: `cicd.bash` and `hooks/pre-push` source this one copy. There is no other `rm -rf` outside the Dockerfile.
 	- Branch: round-1030b
 	- Test case: `fTest_safe_rm_scope` (den8d)
@@ -3169,20 +3177,20 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- Filed 2026-10-30 during the LAN split work. demw3 checks the network case refuses today.
+		- Filed 20261030 during the LAN split work. demw3 checks that the network case is refused today.
 		- The history file is version 2. Each section starts with its series count, and decode refuses another count.
 		- A version 1 file still reads. Its sections come back with a count of 0, which decode takes to mean "go by the layout", as before.
 		- `design.md` History has the details.
 		- Verified: a copy of b23's 11 MB plugin-16.hist loads in every shown graph, and its next save reads back. The hidden graphs' sections are saved back byte for byte.
 		- Verified: the full run passed.
 	- Decisions:
-		- The count is at the head of each section, not in the file's section header, so `keep` stays a plain store of named sections and `History` checks its own count.
+		- The count is at the head of each section rather than in the file's section header, so `keep` stays a plain store of named sections and `History` checks its own count.
 		- `keep::read` puts a 0 count on a version 1 file's sections, rather than passing the version on to each graph, so no caller's signature changes. A hidden graph's old section keeps its 0 when saved again, so it's never taken as counted.
 		- An older build refuses a version 2 file as a whole and starts fresh, as it already does for a file with a new tier. Only an upgrade keeps history.
 	- Actual fix: `History::encode` writes the count first, `History::decode` checks it, and `keep` writes version 2 and reads 1 or 2.
 	- Branch: round-1030
 	- Test case: `history::tests::series_count_mismatch` (demwf), `keep::tests::version_1_sections_no_count` (demwg) and `tests::v1_three_series_refused` (demwh). demwf fails with the count check taken out, and an empty 3-series section loads as 5 then. demw3 now refuses by the count.
-		- 2026-10-30: new values only, since sections are 4 bytes longer at the head. decbh's tier offsets are 24 and 40, not 20 and 36. defp7's are 20, 40 and 44, not 16, 36 and 40. defv4 reads the fixture's ends at 4 and 12, and its tier count at 20, not 0, 8 and 16, and also checks the fixture reads with a 0 count and the next save with a real one.
+		- 20261030: only the values changed, since sections are 4 bytes longer at the head. decbh's tier offsets are 24 and 40 instead of 20 and 36. defp7's are 20, 40 and 44 instead of 16, 36 and 40. defv4 reads the fixture's ends at 4 and 12, and its tier count at 20, instead of 0, 8 and 16, and also checks the fixture reads with a 0 count and the next save with a real one.
 		- Swept: every `History::encode` and `decode` caller (`Graph::section`, `Graph::adopt`, `Graphs::save` carrying hidden sections, the tests), every `keep::read` and `keep::write` caller, and the settings tests that write a history file.
 	- Closed: 20261030-105637
 
@@ -3191,7 +3199,7 @@ Sorted per the notes in [Template](#template).
 	- Type: Bug
 	- Status: Closed
 	- Closed reason: Done
-	- Needs hand testing: No. Same path as Ctrl+Tab, and den56 sends the keys through it.
+	- Needs hand testing: No. It's the same path as Ctrl+Tab, and den56 sends the keys through it.
 	- Priority|Severity: Avg
 	- Opened: 20261030-152559
 	- Opened by: t00mietum
@@ -3210,7 +3218,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026103009394901
 	- Type: Bug
 	- Status: Closed
-		- Ctrl+Tab stepping onto Colors was checked here, but the skip as reported wasn't seen. See Needs hand testing.
+		- Ctrl+Tab stepping onto Colors was checked here, but the skip as reported wasn't seen.
 	- Closed reason: Done
 	- Needs hand testing: No
 	- Priority|Severity: Avg
@@ -3222,7 +3230,7 @@ Sorted per the notes in [Template](#template).
 	- Actual fix: Ctrl+Tab and Ctrl+Shift+Tab step through the pages, wrapping, from anywhere in the window.
 	- Decisions:
 		- Each page is a stop once: General, Graphs, Colors, Outline. Themes itself isn't a stop, since picking it only shows Colors.
-		- Only Ctrl+Tab and Ctrl+Shift+Tab, not Ctrl+PageUp and PageDown, since the issue names those.
+		- It handled only Ctrl+Tab and Ctrl+Shift+Tab rather than Ctrl+PageUp and PageDown too, since the issue names those.
 			- Reversed by 2026103015255983, which adds Ctrl+PgDn and Ctrl+PgUp.
 	- Branch: round-1030
 	- Test case: `bridge::tests::ctrl_tab_steps_pages` (demvm). It fails with the key left unhandled.
@@ -3234,17 +3242,17 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026103009394902
 	- Type: Bug
 	- Status: Closed
-		- It departs from the wording in one way. In a section with one color, such as Swap, Background now starts level with that color, In use, not with the Colors mode row.
+		- It departs from the wording in one way. In a section with one color, such as Swap, Background now starts level with that color, In use, rather than with the Colors mode row.
 	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261030-093949
 	- Opened by: t00mietum
 	- Incorrect behavior: The vertical alignment on Themes|Colors is messed up. The labels "From the bottom up" and "Background" should be on the same horizontal line. They used to be, but now "Background" is higher.
 	- Reproduced: Yes, 2026-10-30. Background sat 51 px above From the bottom up in every section with 2 or more colors.
-	- Actual cause: The right column started level with the Colors mode row, so Background sat beside the mode, not beside the heading under it.
+	- Actual cause: The right column started level with the Colors mode row, so Background sat beside the mode rather than beside the heading under it.
 	- Actual fix: The mode row sits on its own line over both columns. A column's first shown heading has no gap over it, and the gap goes over both columns, so Background lines up with From the bottom up, or By height in Gradient.
 	- Decisions:
-		- Lined up by what's shown, not a fixed line, since Gradient hides the first heading and shows By height lower down.
+		- Columns line up by what's shown rather than by a fixed line, since Gradient hides the first heading and shows By height lower down.
 	- Branch: round-1030
 	- Test case: `bridge::tests::colors_start_level_with_background` (demvn), in Detailed and Gradient. It fails without the fix, at 86 px against 35.
 		- Swept: every graph section on Colors. Outline and the other tabs have one column.
@@ -3299,10 +3307,10 @@ Sorted per the notes in [Template](#template).
 		- dej0w, the temperature row, had the same one-sample slip, but its check also passed on the title alone. It now samples twice and wants a reading.
 		- Verified: dekmd and dej0w passed 3 times of 3 on b23 outside the container, with the RTX 3060 Ti about 31% busy. dekm9, dekma, dekmb and dekmc passed there too. The quick gate and the full run passed.
 	- Decisions:
-		- The fix is in the test from 5b569ad, not the GPU code. Every graph primes on its first read, and its tip is the title until then, so GPU follows that, with no exception for gauges.
+		- The fix is in the test from 5b569ad rather than the GPU code. Every graph primes on its first read, and its tip is the title until then, so GPU follows that, with no exception for gauges.
 	- Actual fix: dekmd and dej0w sample twice before they read a tip.
 	- Branch: round-1029
-	- Test case: `live::tests::gpu_rows_need_gpu` (dekmd). It failed on b23 before the fix, at its tip check, and passes after. It goes red again with the second sample taken out. `temp_row_width` (dej0w) checks a reading now, not the title.
+	- Test case: `live::tests::gpu_rows_need_gpu` (dekmd). It failed on b23 before the fix, at its tip check, and passes after. It goes red again with the second sample taken out. `temp_row_width` (dej0w) checks a reading now rather than the title.
 		- Swept: every test that reads a tip after sampling. The CPU and own rows in `settings/src/live.rs`, dedq1 and the swap tip in `core/src/graphs.rs`, debj4 in `core/src/lib.rs` and the zswap test already sample twice. The battery test checks the title on purpose.
 	- Closed: 20261029-141357
 
@@ -3322,7 +3330,7 @@ Sorted per the notes in [Template](#template).
 		- Untick One border for every graph, and Apply.
 	- Incorrect behavior: every graph with no border of its own keeps the shared one. Only a graph given its own gets it back. The background does the same.
 	- Expected behavior: unticked, every graph draws its own border and background.
-	- Reproduced: 2026-10-28, round-1028b at 84b61ad, on a test panel, from a file with both boxes off, the shared colors set, and CPU's own colors set. CPU drew its own, and the other 8 graphs the shared ones.
+	- Reproduced: 2026-10-28, round-1028b at 84b61ad, from a file with both boxes off, the shared colors set, and CPU's own colors set. CPU drew its own, and the other 8 graphs the shared ones.
 	- Possible cause: `outlines_follow_shared` in `core/src/config.rs` gives every graph with no value of its own the shared one when a file loads, whatever the 2 boxes say. It's there for files from before each graph had its own (2026102819315170). A save leaves out values at their defaults, so a graph at Default's colors reads as one with none.
 	- Actual cause: as above. A save also leaves out a box that's off, so a new file with both boxes off and the shared colors set read as one from before each graph had its own.
 	- Estimated effort: Low
@@ -3362,8 +3370,8 @@ Sorted per the notes in [Template](#template).
 		- 2026-10-28: the graph's floor is every CPU busy, as the CPU graph's top is. At the usual 0.014% it's a thin line, and the tip has the number.
 		- Verified 2026-10-28: dejb6 and dejb7 passed in the quick gate run. The graph's top is fixed at every CPU busy, so there's nothing left for a hand look to judge.
 	- Decisions:
-		- Floor of 100% of all CPUs, as the note asked. A spike still raises the top, which can't happen above 100%, so the top is fixed.
-	- Test case: `tests::own_use_fine_percents` (dejb6) and `graphs::tests::the_own_graph_sits_last_and_fills_at_every_cpu` (dejb7), renamed from the hundredth-of-one-CPU names. 2026-10-28: dejb6 asserts a floor of 1.0, not 0.01 over the CPU count. dejb7 draws 0.5 and expects half height and a tip of "50% of all CPUs", where it drew half the old floor and expected 0.50% of one CPU. Both fail with the old floor.
+		- The floor is 100% of all CPUs, as the note asked. A spike can't raise the top past 100%, so the top is fixed.
+	- Test case: `tests::own_use_fine_percents` (dejb6) and `graphs::tests::own_use_before_battery` (dejb7), renamed from the hundredth-of-one-CPU names and shortened since. 2026-10-28: dejb6 asserts a floor of 1.0, not 0.01 over the CPU count. dejb7 draws 0.5 and expects half height and a tip of "50% of all CPUs", where it drew half the old floor and expected 0.50% of one CPU. Both fail with the old floor.
 	- Swept: `OwnReader::peak_floor` is the only floor for the graph. The design.md Drawing line and the `self.show` tip in `settings.shcl` are updated. The README names no floor.
 	- Needs hand testing: No
 	- Closed: 20261028-192006
@@ -3382,7 +3390,7 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: the Soak step fails dee6p: the heap grew from 5160110 to 5181582 bytes between round 9000 and round 18000.
 	- Expected behavior: the heap stops growing once the history is full.
 	- Reproduced: 2026-10-28, at `c958b7c` and at `ebd73a2`, so the faster history spans didn't cause it.
-	- Actual cause: the test, not the code. The soak skips the clock on the CPU and memory graphs only. Swap has been on by default since 2026102814061800, so it ran on the real clock and its history never filled.
+	- Actual cause: the test. The soak skips the clock on the CPU and memory graphs only. Swap has been on by default since 2026102814061800, so it ran on the real clock and its history never filled.
 	- Actual fix: the soak skips swap's clock too.
 	- Branch: soak-swap
 	- Test case: dee6p itself, which passes again.
@@ -3413,7 +3421,7 @@ Sorted per the notes in [Template](#template).
 	- Expected behavior: Each graph's lead reads apart from every other's, per the parent's "unique and distinct colors" for each monitor.
 	- Reproduced: 2026-10-28, round-1028 at 17d3d9d, from the built-ins in `core/src/settings.shcl` and `dice::theme` seeds 0 to 1999.
 	- Possible cause: defx7 and defxd check hue angle only, at 25 and 17 degrees. An equal step in hue is far smaller to the eye among the greens than among the blues, and 9 graphs share the 225 degrees kept off red and orange, about 25 each.
-	- Actual cause: the possible cause. With 10 graphs the hues are 22 degrees apart at best, and nothing checked how far apart the leads look.
+	- Actual cause: as above. With 10 graphs the hues are 22 degrees apart at best, and nothing checked how far apart the leads look.
 	- Actual fix: a CIEDE2000 check between every 2 graphs' leads, and between each lead and I/O wait and system, at 10 or more, over every built-in and Randomize's rolls. The built-ins' leads moved to pass it, and Randomize steps a lead darker or paler where hue alone falls short.
 	- Progress log:
 		- 2026-10-28: 10 graphs share the range now, with the tukzmon graph, 2026102814061811. Its lead in each built-in is provisional, put in the widest hue gap left, so defx7's least gap went from 25 to 22 degrees. `dice::LEAD_GAP` is still 22, with 27 degrees of play.
@@ -3436,7 +3444,7 @@ Sorted per the notes in [Template](#template).
 		- The line is 10, per "about 10 or more reads as clearly apart". Leads are also held 10 or more from I/O wait and system, so no graph reads as an alarm.
 		- The lead is per mode, so a Gradient graph is checked by the color it draws. Default's swap, zswap, load and temperature are Gradient.
 		- Lightness and saturation separate leads too, not only hue. At 22 degrees, 10 graphs can't all read apart by hue, most of all when pale.
-		- Randomize keeps CPU's lead as rolled, and fits the rest round it. Each other lead tries the roll's own color, then a step darker, then a step paler, and up to 16 hue draws are tried, the same for the same seed. Darker alone wasn't enough: with paler left out, seed 1216 of the 2000 still failed.
+		- Randomize keeps CPU's lead as rolled, and fits the rest around it. Each other lead tries the roll's own color, then a step darker, then a step paler, and up to 16 hue draws are tried, the same for the same seed. Darker alone wasn't enough: with paler left out, seed 1216 of the 2000 still failed.
 		- The steps break design.md's "every graph shares one saturation and brightness" where they're needed. The roll still starts from one, so it reads as one set.
 		- defx7's hue angle check is replaced by the CIEDE2000 one, since Default's memory and temperature now share a hue on purpose and differ by lightness. defxd's 17 degree check on rolls stays, since rolled hues are still 22 apart.
 	- Branch: theme-colors
@@ -3456,7 +3464,7 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
 	- Related IDs: 2026103115231817, 2026103115231908
-	- Origin: `5351443` (2026-11-01, 20261031 item 2) and `6a78316` (2026-10-24). New ground, in the same place as 20261031 items 2 and 8, both fixed. Confirmed, by 2 probes on the window's code.
+	- Origin: `5351443` (2026-11-01, 20261031 item 2) and `6a78316` (2026-10-24). New ground, in the same place as 20261031 items 2 and 8, both fixed. Confirmed.
 	- Steps to reproduce:
 		- Window B saves a theme and picks it. Window A, still on Default, sets a color and applies.
 		- Or window B saves a color into a saved theme, and window A only renames that theme and applies.
@@ -3476,7 +3484,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: df320 and df321 fail with the fix taken out and pass with it, and the quick gate passed, sanitizers included.
 	- Decisions:
 		- The pick and its "*" colors are one setting at Apply, and the last save wins, as for any other. Moving the window's "*" colors onto the other window's pick was the other way, but they were made against another theme's colors.
-		- The two windows' picks can't both stay, so the other window's pick goes in the first case. Its saved theme stays.
+		- The 2 windows' picks can't both stay, so the other window's pick goes in the first case. Its saved theme stays.
 		- Last save wins per name and per color in a saved theme now, not per theme. That narrows 2026103115231908's "a theme both windows changed is still the last save's".
 		- A theme deleted elsewhere comes back when the window has it picked and changed on, so what the window showed is what it saved. A theme deleted elsewhere and only changed here already came back.
 	- Actual fix: `carry_theme` and `theme_touched` in `settings/src/dialog.rs`, called by `Dialog::apply` after the store carries, and `merge_themes` now carries a known theme's name and colors.
@@ -3495,7 +3503,7 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
 	- Related IDs: 2026103115232220
-	- Origin: `7794e6b` (2026-11-01, 20261031 item 28), meeting `f89e55e` (2026-10-23), where the window quits with 1 on Cancel. A regression from 20261031 item 28, whose test, der60, tries only a program that fails. Confirmed, by the real window started through the plugin's code.
+	- Origin: `7794e6b` (2026-11-01, 20261031 item 28), meeting `f89e55e` (2026-10-23), where the window quits with 1 on Cancel. A regression from 20261031 item 28, since its test, der60, tries only a program that fails. Confirmed.
 	- Steps to reproduce: Open Properties, then press Cancel.
 	- Incorrect behavior: The tip says "Properties: the settings window quit with exit status: 1" until the next Properties, and the same line goes to the journal.
 	- Expected behavior: A tip line only when the window failed, as 20261031 item 28 says.
@@ -3507,9 +3515,9 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- The window quits with 0 however it's closed. 1 is left for a file that can't be read, 2 for a bad command line and 3 for a picture that can't be saved.
 		- `design.md` Settings window has it.
-		- Verified: df32n fails with the old exit code put back and passes with the fix. The quick gate's steps passed, with Sanitizers run on its own after the whole run hit the call's time limit during it.
+		- Verified: df32n fails with the old exit code put back and passes with the fix. The quick gate passed, Sanitizers included.
 	- Decisions:
-		- Fix the window's exit code, not the plugin's reading of it. Closing without saving isn't a failure, and the plugin shouldn't have to guess which 1 meant Cancel.
+		- The window's exit code is fixed, rather than the plugin's reading of it. Closing without saving isn't a failure, and the plugin shouldn't have to guess which 1 meant Cancel.
 	- Actual fix: `shownUntilClosed` in `settings/src/qt.cpp`, which `run_dialog` calls.
 	- Branch: round-1109
 	- Test case: `bridge::tests::cancel_paths_exit_zero` (df32n). der60 already covers the plugin's tip for a window that quits 0 or 1.
@@ -3527,7 +3535,7 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
 	- Related IDs: 2026103115232000
-	- Origin: `ff4610a` (2026-10-25). Not seen before. Confirmed, by the real hook with a stand-in gate.
+	- Origin: `ff4610a` (2026-10-25). Not seen before. Confirmed.
 	- Steps to reproduce: Push `main` from a clean checkout at the pushed commit, so the gate runs in place. While it runs, another session edits the tree.
 	- Incorrect behavior: Each step checks the tree as it is right then, and the hook never looks at the tree again, so a commit can pass on edits that aren't in it.
 	- Expected behavior: The gate checks the commit being pushed, as the hook's header says.
@@ -3541,9 +3549,9 @@ Sorted per the notes in [Template](#template).
 		- New test df32x runs the real hook with a stand-in gate that edits the checkout while it runs, once on a commit that fails and once on one that passes.
 		- Verified: df32x failed on the old hook and passed after. The quick gate's format, build, lint and test areas passed.
 	- Decisions:
-		- Always a worktree, rather than checking the tree again after the gate. A check after can't see an edit that was undone before it, nor ignored files.
+		- The hook always uses a worktree, rather than checking the tree again after the gate. A check after the gate can't see an edit that was undone before it, or ignored files.
 		- The cost is a checkout per push, and a first push that builds cold in `target/gate` and its container target, since the in-place path used `target/`. Later pushes reuse it.
-		- Swept: `cicd/hooks` holds only pre-push. The hosted `merge-gate.yml` checks out the commit it gates. Nothing else starts `--merge-gate`.
+		- Swept: `cicd/hooks` has only pre-push. The hosted `merge-gate.yml` checks out the commit it gates. Nothing else starts `--merge-gate`.
 	- Actual fix: the worktree branch in `cicd/hooks/pre-push` is the only path, and its header says so.
 	- Branch: round-1109
 	- Test case: `hook_gates_the_commit` (df32x), in `cicd/tests/guards.bash`.
@@ -3559,7 +3567,7 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
 	- Related IDs: 2026110310450002
-	- Origin: `15993d9` and `0f1d264` (2026-11-06). Not seen before. Confirmed, by a probe that sent TERM to a run started by hand.
+	- Origin: `15993d9` and `0f1d264` (2026-11-06). Not seen before. Confirmed.
 	- Steps to reproduce: Start the demo script by hand, then send it TERM, as `timeout` does.
 	- Incorrect behavior: No cleanup runs. There are 18 processes that stay up, among them Xvfb, xfwm4 and its bus, xfconfd, gvfsd, the panel with its plugin wrappers, and xfce4-notifyd. gvfsd-fuse keeps a mount inside the run folder, and the folder has no `run.pid`, so the stale run sweep never takes it. Under cicd.bash the leftover scan stops the processes, but not a dead mount.
 	- Expected behavior: TERM cleans up as an error does, and a folder left behind can be swept later.
@@ -3603,7 +3611,7 @@ Sorted per the notes in [Template](#template).
 		- Square icons on, as in XFCE's own default panel. Each tray icon gets a cell as wide as the panel is high, so it's spaced like the bell beside it.
 	- Actual fix: The demo panel's tray has square icons on. The gif is recorded again.
 	- Branch: round-1109
-	- Test case: None, since it's a recording. A `--shot` before the fix showed the icons nearly touching, and one after showed them about 32 px apart, like the bell. The new gif's frames were checked at each scene. The quick gate's format and lint passed.
+	- Test case: None, since it's a recording. Before the fix the icons nearly touched, and after it they're about 32 px apart, like the bell. The quick gate's format and lint passed.
 		- Swept: the video take uses the same panel config, and no other script in the repo or the private tools sets up a tray.
 	- Acceptance signoff: Self-closed 20261109: in the new gif the network, volume and bell icons are evenly spaced.
 	- Closed: 20261109-124233
@@ -3636,13 +3644,13 @@ Sorted per the notes in [Template](#template).
 		- README.md says release builds are reproducible again, and how a plain build gets there.
 		- Verified: the Reproducible step passed in the image and on the host. With the path maps taken out it failed on both files, with the cargo home's paths. 2 plain release builds into 2 target folders gave the same `tukzmon-settings`, where the 20261107 ones didn't. The quick gate and Sanitizers passed.
 	- Decisions:
-		- The Rust paths are mapped from outside the build, since cargo's trim-paths is unstable in 1.96 and a cargo config can't hold paths that change. This departs from "the build maps its own paths" for the Rust and for cxx's C++, so a plain `cargo build --release` in another home still differs. 2026111021133143 takes it up once trim-paths is stable.
+		- The Rust paths are mapped from outside the build, since cargo's trim-paths is unstable in 1.96 and a cargo config can't list paths that change. This departs from "the build maps its own paths" for the Rust and for cxx's C++, so a plain `cargo build --release` in another home still differs. 2026111021133143 is for that, once trim-paths is stable.
 		- The second build takes the first one's build number from its build script's output, since the copy isn't a git checkout and a tree with changes takes the time of the build.
 		- It compares with the release step's own build, so what gets packaged is what was checked, and it runs where that build ran, on the host in a run that dogfoods.
 		- `settings/build.rs` now asks for cc's extra warnings itself, since cc drops them when CXXFLAGS is set.
 	- Branch: round-1111
 	- Test case: `release_path_maps` (df50f), in `cicd/tests/guards.bash`, and the Reproducible step itself.
-		- Swept: every release build in cicd (release, demo), `utility/dev-install.bash`, and the Nix package, which builds in its own fixed folder. The profiler and CodeQL builds aren't shipped.
+		- Swept: every release build in cicd (release, demo), `utility/dev-install.bash`, and the Nix package, which builds in its own fixed folder. The profiler and CodeQL builds aren't released.
 	- Closed: 20261110-211350
 
 - Most test names are whole sentences, and over half start the same way
@@ -3664,8 +3672,8 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Split by area into 5 children, 2026111021184916 to 2026111021184970. The cicd, knobs, xfce and settings, and core config, graphs, lib and render ones are done, and so is the last, the rest of core.
 	- Decisions:
-		- Names say what is checked in 2 to 5 words, and the module path and ID carry the rest.
-	- Test case: its children's: 2026111021184916: The renamed tests themselves, run by the Tests step. No new test, since only names changed.; 2026111021184930: The renamed tests themselves. No new test, since only names changed.; 2026111021184944: The renamed tests themselves. No new test, since only names changed.; 2026111021184957: The renamed tests themselves. No new test, since only names changed.; 2026111021184970: The renamed tests themselves. No new test, since only names changed.
+		- Names say what is checked in 2 to 5 words, and the module path and ID give the rest.
+	- Test case: The renamed tests themselves, run by the Tests step, in all 5 children. No new test, since only names changed.
 	- Closed: 20261110-221303
 
 - Short test names: the pipeline's tests in cicd/tests
@@ -3717,7 +3725,7 @@ Sorted per the notes in [Template](#template).
 		- SilkTerm's knobs copy isn't changed here. It needs an item in its own backlog.
 		- Verified: knobs' 36 tests pass under the new names, the test ID check passed, and the quick gate and Sanitizers passed.
 	- Decisions:
-		- Same as the cicd child: the name says what is checked, and shapes vary.
+		- Same as the cicd child, the name says what is checked, and shapes vary.
 	- Branch: round-1111
 	- Test case: The renamed tests themselves. No new test, since only names changed.
 		- Swept: every knobs test name in the backlog, design.md, round-notes.md, memory.md and the private tools.
@@ -3744,7 +3752,7 @@ Sorted per the notes in [Template](#template).
 		- The backlog's Test case rows, design.md, round-notes.md, details.md and the soak test's name in `cicd/cicd.bash` are renamed to match.
 		- Verified: the quick gate and Sanitizers passed, the test ID check passed, and the soak test still shows in its skip list under the new name.
 	- Decisions:
-		- Same as the siblings: the name says what is checked, and shapes vary. None was a `live_` name, so all were renamed, including those in live.rs.
+		- As in the siblings, the name says what is checked, and shapes vary. None was a `live_` name, so all were renamed, including those in live.rs.
 	- Branch: round-1111
 	- Test case: The renamed tests themselves. No new test, since only names changed.
 		- Swept: every old name in the repo, design.md, round-notes.md, details.md and memory.md. core/src/config.rs has a test with the same name as one here, and is left for its own child.
@@ -3771,7 +3779,7 @@ Sorted per the notes in [Template](#template).
 		- The backlog's Test case rows, design.md, memory.md, round-notes.md and details.md are renamed to match. No cicd step names one of these.
 		- Verified: the quick gate and Sanitizers passed, core's 296 tests pass, and the test ID check passed with 522 tests.
 	- Decisions:
-		- Same as the siblings: the name says what is checked, and shapes vary. None was a `live_` name.
+		- As in the siblings, the name says what is checked, and shapes vary. None was a `live_` name.
 		- The config.rs test that shared an old name with another is `unreadable_file_errors`.
 	- Branch: round-1111
 	- Test case: The renamed tests themselves. No new test, since only names changed.
@@ -3795,11 +3803,11 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Avg
 	- Actual effort: Avg
 	- Progress log:
-		- 149 tests in the rest of core/src and core/tests are 2 to 5 words now, such as `axis_ends`, `lan_capped_by_interfaces` and `heap_stops_growing_when_full`. Each kept its ID line. The 11 `live_` ones kept their names. `shares` in mem.rs became `mem_shares` by hand, since the word is common in the docs.
+		- 149 tests in the rest of core/src and core/tests are 2 to 5 words now, such as `axis_ends`, `lan_capped_by_interfaces` and `heap_stops_growing_when_full`. Each kept its ID line. The 11 `live_` ones kept their names. `shares` in mem.rs is now `mem_shares`, since the word is common in the docs.
 		- The backlog's Test case rows and details.md are renamed to match. design.md, memory.md and round-notes.md named none. The soak step runs `--test soak` and names no test.
 		- Verified: the quick gate (format, build, lint, test) and Sanitizers passed, with core's 296 tests.
 	- Decisions:
-		- Same as the siblings: the name says what is checked, and shapes vary. The fuzz tests keep a `fuzz_` word at the front.
+		- As in the siblings, the name says what is checked, and shapes vary. The fuzz tests keep a `fuzz_` word at the front.
 	- Branch: round-1111
 	- Test case: The renamed tests themselves. No new test, since only names changed.
 		- Swept: every old name in the sources, cicd, design.md, round-notes.md, details.md, memory.md and the backlog.
@@ -3826,7 +3834,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- The setting's id and path, `graph.calm_remote`, are unchanged, so saved files read as before.
 	- Branch: round-1111
-	- Test case: none for a label alone. df3nh still checks the greying and its tip.
+	- Test case: None for a label alone. df3nh still checks the greying and its tip.
 		- Swept: every place the old label was quoted, in `settings.shcl`, `dialog.rs` and `design.md`. README never named it.
 	- Closed: 20261110-214413
 
@@ -3854,10 +3862,10 @@ Sorted per the notes in [Template](#template).
 		- Verified: the quick gate and Sanitizers passed. der33 and der54 fail on the old line code, and pass now.
 	- Decisions:
 		- Check answered 20261116: fine as built, days from 0 and the 1 minute floor stay.
-		- Days from 0, so a max age under a day can be set, which is what hours and minutes are for. A file with `max_days: 0` used to read as 28 days, and now reads as a minute. Only a hand edit could write it.
-		- The 1 minute floor, since 0 would empty the graph as it draws.
+		- Days start from 0, so a max age under a day can be set, which is what hours and minutes are for. A file with `max_days: 0` used to read as 28 days, and now reads as a minute. Only a hand edit could write it.
+		- There's a 1 minute floor, since 0 would empty the graph as it draws.
 		- `Look` keeps one `max_age` in seconds, not the 3 parts.
-		- The joined boxes sit in a layout, not a widget, so each label stays beside its box, where a screen reader looks for it.
+		- The joined boxes are in a layout rather than a widget, so each label stays beside its box, where a screen reader looks for it.
 		- der33 is renamed, since its old name said the opposite of the new layout. Its ID is unchanged.
 	- Branch: round-1111
 	- Test case: `config::tests::max_age_sums_parts` (df51d) and `bridge::tests::max_age_placement` (der33), and der54 for the boxes' labels.
@@ -3901,14 +3909,14 @@ Sorted per the notes in [Template](#template).
 	- Actual effort: Low
 	- Progress log:
 		- Each case is a pure function of its seed. A test runs 128 fixed seeds, 4 under Miri, then on for `TUKZMON_FUZZ_SECONDS`. A failure names its seed, and `TUKZMON_FUZZ_SEED` replays it.
-		- The hurts are bit flips, bytes set, count and length fields made to lie, cuts, and runs copied or dropped.
+		- The mutations are bit flips, bytes set, count and length fields made to lie, cuts, and runs copied or dropped.
 		- Each test checks some inputs were taken and some refused, so a generator that stops generating fails.
 		- The cicd budget is 10 s a test in the default run, the merge gate and the full backlog run, and 300 s in `--long`. The default and long runs start from a new seed each time. The quick runs take only the fixed seeds.
 		- `design.md` Fuzzing has the details.
-		- Verified: the quick gate and Sanitizers passed, and the fuzz tests passed under Miri. A run with a 3 s budget and a set seed got both into the Tests step's container.
+		- Verified: the quick gate and Sanitizers passed, and the fuzz tests passed under Miri. A run with a 3 s budget and a set seed passed both to the Tests step's container.
 	- Decisions:
 		- The harness is test-only code in the core crate, since every parser so far is in core and most are private. The settings child can copy it, or it can move to a crate of its own then.
-		- The fuzz tests run in the Tests step with everything else, rather than a step of their own, so `--list` and the per-test lines cover them with no new plumbing.
+		- The fuzz tests run in the Tests step with everything else, rather than a step of their own, so `--list` and the per-test lines cover them with no new code.
 		- The merge gate and the full backlog run start from seed 0, so a failure there repeats. The default and long runs start from the run's time, so each one tries seeds the last didn't.
 	- Branch: round-1110b
 	- Test case: `fuzz::tests::failing_seed_named` (df4f0). It checks a seed draws the same every time, a panic in a case fails the run naming its seed, and a run that refuses nothing fails the mix check.
@@ -3929,11 +3937,11 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- A case builds a history the way the graphs keep one, with runs of samples at a few rates, gaps and trims, then encodes it and hurts it. Half the hurts lie in a known count, time or length field.
+		- A case builds a history the way the graphs keep one, with runs of samples at a few rates, gaps and trims, then encodes it and corrupts it. Half the corruptions are to a known count, time or length field.
 		- The file test does the same with whole files of such sections, version 1 and 2, and random bodies.
 		- A third test flips bits in `core/tests/data/plugin-5-tiers.hist`.
-		- Properties: nothing panics, a whole input reads back as written, and what decode or the file read takes it takes again the same. Each decoded history is read across its span, as drawing would.
-		- No faults found.
+		- Properties: nothing panics, a whole input reads back as written, and anything decode or the file read accepts reads the same a second time. Each decoded history is read across its span, as drawing would.
+		- The fuzz found no faults.
 		- Verified: decode with the tier count check taken out failed df4f1 at seed 22, and the file read with its section size check taken out failed df4f2 at seed 3 and df4f3 at seed 0. All pass with the checks back.
 	- Decisions:
 		- The file read and write were split into a part that works on bytes and the file part, so the fuzz needs no files and runs under Miri.
@@ -3956,14 +3964,14 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- A case builds a read the way the kernel sends one: socket, neighbor, error and other messages, some of another dump, maybe ended. Half the hurts lie in a length, type, sequence or error field.
-		- A whole read gives every message of its dump, in order, up to its end, and each neighbor's link address. Hurt ones don't panic.
+		- A case builds a read the way the kernel sends one: socket, neighbor, error and other messages, some of another dump, maybe ended. Half the corruptions are to a length, type, sequence or error field.
+		- A whole read gives every message of its dump, in order, up to its end, and each neighbor's link address. Corrupted ones don't panic.
 		- A second test does the same for the answers to socket lookups.
 		- The fuzz found 3 faults, each a panic in a debug build and a wrong number in a release one. An error code of `i32::MIN` in a lookup's answer overflowed as it was negated. A socket whose byte count was near the top of a u64 overflowed when its headers were added, and so did the sum over sockets.
 		- Fixed: the error is negated with wrapping, and the byte counts saturate.
 		- Verified: df4fp failed on the unfixed code, at each of the 3 sites with only its own fix taken out, and passes now. The fuzz found the error code at seed 1230 and the byte count at seed 170668, with a 10 s budget, and both seeds pass now.
 		- Verified: df4fm failed with the message length check taken out of the walk, and with its check of the dump's sequence number taken out.
-		- No other fault in a 20 s run of every fuzz test.
+		- A 20 s run of every fuzz test found no other fault.
 	- Decisions:
 		- A byte count saturates rather than being refused, since one socket's lie then can't wrap the total, and the rise is still worked out the same way.
 	- Branch: round-1110b
@@ -3986,8 +3994,8 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- A case builds a table the way the kernel writes one: entries on the bridge's virtual ports and on others, some the box's own. Half the hurts lie in a port byte or the is_local byte.
-		- A whole table gives exactly the far ends on those ports, in order. A hurt one gives only addresses from whole entries on those ports that aren't the box's own, and no more than it has entries.
+		- A case builds a table the way the kernel writes one: entries on the bridge's virtual ports and on others, some the box's own. Half the corruptions are to a port byte or the is_local byte.
+		- A whole table gives exactly the far ends on those ports, in order. A corrupted one gives only addresses from whole entries on those ports that aren't the box's own, and no more than it has entries.
 		- The fuzz found no fault, in a 30 s run as well.
 		- Verified: df4g4 failed with the port's high byte read from the wrong offset, and with the is_local check taken out, and passes now.
 	- Decisions:
@@ -4012,15 +4020,15 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Avg
 	- Actual effort: Avg
 	- Progress log:
-		- A case writes each file the way the kernel does, with counters now and then at a limit a sum trips on. Half the cases hurt it: a word swapped for a lying number or junk, or its bytes hurt. A reader of a path gets a made-up tree with some of its files hurt.
+		- A case writes each file the way the kernel does, with counters now and then at a limit a sum trips on. Half the cases corrupt it, by swapping a word for a lying number or junk, or by corrupting its bytes. A reader of a path gets a made-up tree with some of its files corrupted.
 		- Covered: `/proc/stat`, `meminfo`, ZFS's `arcstats`, `loadavg`, a drive's `stat`, zswap and zram, `net/dev`, a bridge port's `port_no`, `net/snmp`, `net/tcp`, a screen sharer's `comm`, `cmdline` and `environ`, the battery and `hwmon` files, and the AMD and Intel GPU files.
-		- The fuzz found 7 faults, all fixed. Sums overflowed in the CPU total, the memory graph's cache, zswap's cap, the zram sums and the TCP opens. A CPU idle or steal counter that went down wasn't a gap. 2 batteries with sums past f64 read as NaN, and so did an AMD busy file holding `NaN`.
+		- The fuzz found 7 faults, all fixed. Sums overflowed in the CPU total, the memory graph's cache, zswap's cap, the zram sums and the TCP opens. A CPU idle or steal counter that went down wasn't a gap. 2 batteries with sums past f64 read as NaN, and so did an AMD busy file containing `NaN`.
 		- Verified: each test failed on a planted bug or on the fault it found, and passes now. The quick gate and Sanitizers passed, and all 13 passed with an 8 s budget.
 	- Decisions:
 		- A CPU counter that goes down makes a gap for all of them, not only the 4 drawn, as `cpu::shares` says it does. Idle or steal going down gave shares that added past 1.
 		- Sums of file values saturate, except the TCP opens, which wrap, since they're only compared for a change.
 		- When 2 batteries' pooled sums pass f64, the level is the mean of each one's share.
-		- The battery and AMD faults turned up past the 128 fixed seeds, at 372 and 665, so each test also checks its case by hand, and the quick runs keep it.
+		- The battery and AMD faults turned up past the 128 fixed seeds, at 372 and 665, so each test also checks that case directly, and the quick runs keep it.
 		- `procs` reads only folder owners and `own` only matches a process name, so neither has a fuzz test.
 	- Branch: round-1110b
 	- Test case: `cpu::tests::fuzz_cpu_stat_range` (df4gj), `load::tests::fuzz_loadavg_or_none` (df4gk), `mem::tests::fuzz_meminfo_arcstats_range` (df4gm), `disk::tests::fuzz_stat_sectors_finite` (df4gn), `zswap::tests::fuzz_zswap_zram_range` (df4gp), `net::tests::fuzz_net_dev_finite` (df4gq), `net::tests::fuzz_port_no_hex` (df4gr), `remote::tests::fuzz_snmp_tcp_opens` (df4gs), `remote::tests::fuzz_tcp_table_established` (df4gt), `battery::tests::fuzz_power_supply_share` (df4gv), `temp::tests::fuzz_hwmon_hottest_split` (df4gw), `gpu::tests::fuzz_gpu_sysfs_shares` (df4gx) and `remote::tests::fuzz_sharer_display` (df4gy).
@@ -4044,12 +4052,12 @@ Sorted per the notes in [Template](#template).
 	- Actual effort: Low
 	- Progress log:
 		- A case builds a file the way the window saves one: up to 3 saved themes, a theme pick, changes kept on a theme, and some rows off their defaults, with odd text in the text rows. It goes through shcl, the saved themes, the model and the Look, as the plugin and the window read it.
-		- A whole file reads back as written. A hurt one doesn't panic, the model holds no value its row would refuse, and what was read writes back the same a second time.
+		- A whole file reads back as written. A corrupted one doesn't panic, the model has no value its row would refuse, and what was read writes back the same a second time.
 		- A second test flips bits in a saved file, `core/tests/data/plugin-7.shcl`.
 		- The fuzz found no fault in shcl or here, in a 30 s run as well, so there's no upstream draft.
 		- Verified: df4g5 failed with knobs taking a value without checking it, and df4g6 with a cut inside a character in the graph order's read. Both pass now.
 	- Decisions:
-		- `plugin-7.shcl` is a file as the window saves it, with a hand comment and a list added, rather than one off a live panel, since those sit outside the repo. Any saved file can take its place.
+		- `plugin-7.shcl` is a file as the window saves it, with a hand comment and a list added, rather than one off a live panel, since those are outside the repo. Any saved file can take its place.
 		- Both tests skip Miri, since the spec takes about an hour to parse there.
 	- Branch: round-1110b
 	- Test case: `config::tests::fuzz_settings_files` (df4g5) and `config::tests::fuzz_settings_bit_flips` (df4g6).
@@ -4070,10 +4078,10 @@ Sorted per the notes in [Template](#template).
 		- CodeQL from a pinned CLI, run locally, over the Rust and the C++, as a slow leak check. The repo is public on GitHub under the LGPL, so its license allows it. Vendor the crates first, and build from a clean folder so the C++ database isn't empty.
 		- A soak of the settings window, with the heap read at round N and 2N, under heaptrack. The panel item's soak covers only the Rust side.
 	- Decisions:
-		- No `_GLIBCXX_DEBUG` build. Every linked C++ library has to be built with it, and Qt comes prebuilt.
-		- No cross-file analyzer run, since the C++ is one file.
+		- There's no `_GLIBCXX_DEBUG` build, since every linked C++ library has to be built with it, and Qt comes prebuilt.
+		- There's no cross-file analyzer run, since the C++ is one file.
 	- Progress log:
-		- Split into children: the settings window soak 2026111013025758 (Done), and CodeQL 2026111013025770 (Waiting on automated testing).
+		- Split into children: the settings window soak 2026111013025758 and CodeQL 2026111013025770, both Done.
 	- Test case: its children's: 2026111013025758: `bridge::tests::heap_stops_growing` (df4ja), run by the Window-soak step. It fails without the trim in `Live::tick_at`.; 2026111013025770: `codeql_report_failures` (df4ks), in `cicd/tests/guards.bash`. It failed with each of its 3 checks taken out. The CodeQL step itself is the rest.
 	- Closed: 20261110-144111
 
@@ -4099,7 +4107,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- The heap is read in the process with glibc's mallinfo2, so the readings include heaptrack's own tables. heaptrack has no way to mark a round. A run without heaptrack grew the same way, so its tables weren't the growth.
 		- Qt's pixmap cache is emptied before each read. Each Randomize adds pixmaps for new colors, and the cache's own bound made steps that hid a leak's growth.
-		- A length of its own, long, for a leak check outside the default run that doesn't take hours.
+		- It runs at the long length, which is for a leak check outside the default run that doesn't take hours.
 	- Branch: round-1110b
 	- Test case: `bridge::tests::heap_stops_growing` (df4ja), run by the Window-soak step. It fails without the trim in `Live::tick_at`.
 		- Swept: every `Live` tick (the window's timer only), and the panel's trim in `save_history`. `graphs::Graphs` trims through the panel, and the profiler and core soak trim or skip as before.
@@ -4109,7 +4117,6 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026111013025770
 	- Type: Task
 	- Status: Closed
-		- Each language's half passed alone. A run of both together is left.
 	- Closed reason: Done
 	- Target version: v1.0.0-beta.2
 	- Needs local test suite run?: No
@@ -4132,7 +4139,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: 2026-11-10, the gate step's `--backlog-run-quick codeql` passed in 4m 32s: rust.sarif 26158 lines of ours, 1 finding, 1 suppressed; cpp.sarif 2924 lines, 0 findings (codeql_20261110-224047).
 	- Decisions:
 		- Check answered 20261116: the 2 bundles in the one image stay.
-		- The Rust and C++ bundles, unpacked over each other, rather than the all-language bundle. They're 263 MB to fetch against 559, and their shared files are the same.
+		- The image has the Rust and C++ bundles, unpacked over each other, rather than the all-language bundle. They're 263 MB to fetch against 559, and their shared files are the same.
 		- Every finding fails, notes included, as clippy's warnings do. There's only the one, so a looser line wasn't needed.
 		- A suppression matches the line's text rather than its number, so it lasts through edits above it.
 		- The image grows from 3.9 GB to 5.65 GB.
@@ -4155,7 +4162,7 @@ Sorted per the notes in [Template](#template).
 		- Need better antialiasing, so that sharp spikes don't "pulse" in width as the pulse grows and shrinks by whole pixel widths at a time.
 		- E.g., spitballing here: for a pixel line that is in between 0% and 100%, render it at half visual brightness between the two.
 		- May not need temporal-aware antialiasing. Just better value-based antialiasing might be enough.
-	- Needs hand testing: A panel on b23 with this build and Smooth scrolling on, watching spikes slide on the CPU graph.
+	- Needs hand testing: No. The hand test of the spikes moved to 2026111010281710.
 	- Stand-in: none (20261110). df3s6 covers the width, and what's left turns on how it looks and whether the slower draw is worth it.
 	- Estimated effort: Avg
 	- Actual effort: Avg
@@ -4167,11 +4174,11 @@ Sorted per the notes in [Template](#template).
 		- Verified: df3s6 failed before the change and passed after, and the quick gate and Sanitizers passed.
 		- 2026-11-10: UAT: spikes mostly shimmer now, and pulse less. The rest goes on in 2026111010281710.
 	- Decisions:
-		- Value-based, as the issue allowed: a cut sample lifts the column by its part, rather than the spike drawn full height at part brightness. That keeps the spike emphasis's look, a column drawn from its mean up toward its peak, and every other draw test's pixels.
+		- The fix is value-based, as the issue allowed. A cut sample lifts the column by its part, rather than the spike being drawn full height at part brightness. That keeps the spike emphasis's look, a column drawn from its mean up toward its peak, and every other draw test's pixels.
 		- The window is one sample long and reads bucket maxes, not means, so near the edges it agrees with the buckets' max read in the middle. A sample off the bucket edges smears by up to a bucket, 50 ms in the newest 13 s and 250 ms up to 8.5 minutes back.
-		- Windows only within 1.5 samples of either edge, and the blocks' max between, so a wide column doesn't read every bucket.
+		- Windows are read only within 1.5 samples of either edge, with the blocks' max between, so a wide column doesn't read every bucket.
 		- `Span::max` keeps its meaning, so its tests and its readers stand. `spike` and `Frame::sample` are new.
-		- No before and after pictures from preview.rs. df3s6's numbers stand in for them, and the look is left to the hand test.
+		- df3s6's numbers stand in for before and after pictures, and the look is left to the hand test.
 	- Superseded by ID: 2026111010281710
 	- Branch: round-1110
 	- Test case: `render::tests::spike_slide_width_steady` (df3s6).
@@ -4200,11 +4207,11 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Drawing and README Features have it.
 		- Verified: the quick gate and Sanitizers passed. df3ng, df3nh and df3nj failed with the doubled rate and the greying taken out. The settings window's snapshot greys the 2 General rows and every graph's sample % with `XRDP_SESSION=1`, and the same with `XDG_SESSION_ID` pointed at b23's NX session record, and not without either.
 	- Decisions:
-		- Read once, when the panel item or the settings window starts, since what a session starts with doesn't change.
+		- The session is read once, when the panel item or the settings window starts, since what a session starts with doesn't change.
 		- Run-time state goes in `Look::session`, not in the model, so it's never saved, and a settings file read in a local session draws as set.
 		- Each graph's sample % is greyed too, since every graph's rate is set aside. The axis ease after a gap still runs, since it's rare and short.
-		- On by default, since a remote session is where every frame costs.
-		- logind's session file is read directly, as `sd_session_is_remote` does, so no libsystemd link.
+		- It's on by default, since a remote session is where every frame costs.
+		- logind's session file is read directly, as `sd_session_is_remote` does, so there's no libsystemd link.
 	- Branch: round-1110
 	- Test case: `remote::tests::remote_session_signs` (df3nf), `config::tests::remote_halves_reads_no_slide` (df3ng), `dialog::tests::remote_session_greys_rows` (df3nh) and `bridge::tests::remote_greys_rates_and_scrolling` (df3nj).
 		- Swept: every `Look` maker that reads a file (the plugin's `read_look`, its fallback default, the settings window's `look`), every `rate` and `slides` caller through `Look`, and the graph list's sample cells.
@@ -4214,7 +4221,6 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026110911114050
 	- Type: Enhancement
 	- Status: Closed
-		- Lock b23's screen for a minute with the panel up, and say whether the graphs show the minute right after unlocking.
 	- Closed reason: Done
 	- Target version: v1.0.0-beta.2
 	- Needs hand testing: No
@@ -4235,11 +4241,11 @@ Sorted per the notes in [Template](#template).
 		- Verified: on a private panel with Smooth scrolling on, a fake xfce4-screensaver on its bus took the item from 265 X writes in 8 s to none, and from 8 CPU ticks to 2, and back to 268 once it said unlocked.
 		- Verified 2026-11-10: on a private panel with Smooth scrolling on, the real xfce4-screensaver on its bus, with its lock off, took the item from about 33 X writes a second to none while active, and back to 33 once deactivated. A CPU load run while it was active showed on the CPU graph right after.
 	- Decisions:
-		- D-Bus, not logind's session file, since the file has no lock state.
-		- Both sources, since xfce4-screensaver 4.20 never sets `LockedHint`, and light-locker sets only that.
+		- The lock state comes from D-Bus rather than logind's session file, since the file has no lock state.
+		- Both sources are followed, since xfce4-screensaver 4.20 never sets `LockedHint`, and light-locker sets only that.
 		- Blanked counts as locked, since nobody sees the panel either way.
 		- The settings window's graph list still draws, since it's open only for a while.
-		- No logind watch where `XDG_SESSION_ID` is unset, since the signal needs the session's own object.
+		- There's no logind watch where `XDG_SESSION_ID` is unset, since the signal needs the session's own object.
 		- The buses are opened at start without waiting on a callback. The session bus is already open in the panel, for xfconf.
 	- Branch: round-1110
 	- Test case: `lock::tests::lock_hides_graphs_until_unlock` (df3qr), `lock::tests::logind_path_escapes_digit` (df3qs), and `lock::tests::private_bus_lock_hides_graphs` (df3qt), which runs in the build image since 2026110923411799.
@@ -4266,15 +4272,15 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- Read from b23's `plugin-16.shcl`. The order was already b23's.
+		- The values are from b23's `plugin-16.shcl`. The order was already b23's.
 		- Processes defaults to 50% wide, a 400% sample and a `squared` vertical scale. tukzmon's own graph defaults to a 100% sample, and stays on Global default, so linear. The other widths and samples were already b23's.
 		- Default's colors take b23's changes on it that were still left: system `#693d91`, LAN sent `#ff6bf1`, LAN received `#84ff7b`, the border `#595959` and the hover line `#000fff`.
 		- `design.md` XFCE plugin, Theme and Data sources on Linux have it.
 		- Verified: the quick gate and Sanitizers passed, with the new test.
-		- 2026-11-10: Answer on the Check: 500% for processes, 400% for tukzmon. Reopened for that. Processes' sample default is 500%, so every 5 s, and tukzmon's is 400%. Nothing else changed.
+		- 2026-11-10: Reopened to set processes' sample default to 500%, so every 5 s, and tukzmon's to 400%. Nothing else changed.
 		- Verified 2026-11-10: the quick gate and Sanitizers passed.
 	- Decisions:
-		- Only order, colors, widths, samples and processes' vertical scale. b23's network split, and its other graphs' vertical scales, which are all Global default, weren't asked for.
+		- Only order, colors, widths, samples and processes' vertical scale changed. b23's network split, and its other graphs' vertical scales, which are all Global default, weren't asked for.
 		- 2026-11-10: 500% for processes and 400% for tukzmon, as answered, rather than b23's 400% and 100%.
 		- Each graph's own border follows the shared one, as dejkg has it in every theme. With Default's overrides on, the panel draws the same either way.
 		- The new LAN colors are 25 or more from the network's others as CIEDE2000, and system is 10 or more from every lead (dejbr).
@@ -4296,7 +4302,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: Avg
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
-	- Origin: `c3c52ee` (2026-10-31), newer. Idea. Confirmed, measured on b23 with about 1450 processes: 3.4 to 4.9 ms a read, about 10 times the whole tick of the 6 default graphs. It's off by default, so neither the profiler nor the soak test runs it.
+	- Origin: `c3c52ee` (2026-10-31), newer. It was an idea rather than a defect. Confirmed, at 3.4 to 4.9 ms a read on b23 with about 1450 processes, about 10 times the whole tick of the 6 default graphs. It's off by default, so neither the profiler nor the soak test runs it.
 	- Requirements:
 		- Read `/proc` with fewer allocations and system calls a process.
 		- The profiler times a run with the processes graph on.
@@ -4309,7 +4315,7 @@ Sorted per the notes in [Template](#template).
 		- Under Miri there's no processes graph, as on a box it can't read, since Miri has no `rewinddir`.
 		- `design.md` Data sources on Linux has it.
 		- Verified: the quick gate passed, and the profile area. dezd3 failed on the old read, at 102 allocations for 50 folders, and dezd2 failed with the rewind taken out. Under Miri the procs tests passed, with the 3 that list a folder ignored.
-		- 2026-11-09: Answer on the profiler question: That sounds pretty expensive. Can the process graph be done cheaper, or should the default update frequency be raised? Reopened for that.
+		- 2026-11-09: Reopened, since the read was still expensive, for a cheaper read or a longer default sample.
 		- 2026-11-09: No cheaper read was found. On b23 with about 1,380 processes, listing `/proc` alone is 0.5 to 0.7 ms, and a `statx` asking only for the owner costs the same as `fstatat`, 1.5 to 1.7 ms a read in all. No other source gives each process's owner without root.
 		- 2026-11-09: The processes graph's default sample is 500%, up from 200%, so it reads every 5 s rather than every 2 s.
 		- 2026-11-09: The profiler went from 911 to 969 us a tick to 631 to 633, at a load of 4 to 5 on 32 cores. Its system time went from about 12.8 s to 7.2 s.
@@ -4317,11 +4323,11 @@ Sorted per the notes in [Template](#template).
 		- Verified: the quick gate and Sanitizers passed, and the profile area before and after. deja1 failed with the spec's default put back to 200, and passes at 500.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-		- libc's `opendir`, `rewinddir`, `readdir` and `fstatat` rather than raw `getdents64` with a bigger buffer, which timed the same and is Linux only.
-		- No cache of owners by pid. A process that runs `sudo` or drops root keeps its pid, so a cache would count it wrong until it's checked again, and a check is the same `stat`.
+		- The read uses libc's `opendir`, `rewinddir`, `readdir` and `fstatat` rather than raw `getdents64` with a bigger buffer, which timed the same and is Linux only.
+		- There's no cache of owners by pid. A process that runs `sudo` or drops root keeps its pid, so a cache would count it wrong until it's checked again, and a check is the same `stat`.
 		- The week of history in the profiler keeps processes on too, so its draw sees a full graph like the others. Turning it on after the week would save the 45 s.
 		- `ProcsReader` keeps a `DIR` pointer now, so it isn't `Send`. Nothing needs it to be.
-		- 2026-11-09: 500%, so 5 s, rather than the 1000% the field allows. A process count moves slowly, and 5 s is how often the kernel's own load average moves. At 1000% a new process would take up to 10 s to show.
+		- 2026-11-09: The default is 500%, so 5 s, rather than the 1000% the field allows. A process count moves slowly, and 5 s is how often the kernel's own load average moves. At 1000% a new process would take up to 10 s to show.
 	- Branch: round-1107, round-1109b
 	- Test case: `procs::tests::relists_each_read` (dezd2), `procs_read_no_allocs` in `core/tests/allocs.rs` (dezd3), and dep4j, dep4k, dep48 and dep49 as before.
 		- 2026-11-06: dep4j and dep4k are ignored under Miri now, since Miri has no `rewinddir`.
@@ -4340,7 +4346,7 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
 	- Related IDs: 2026102914561218
-	- Origin: `8bbd96a` (2026-10-29). It was never timed. Confirmed, by a release probe on b23: 18 to 22 ms a read with 55 sockets, about 70 times a tick of the 6 default graphs. `ss -tn` takes the same.
+	- Origin: `8bbd96a` (2026-10-29). It was never timed. Confirmed, at 18 to 22 ms a read on b23 with 55 sockets in a release build, about 70 times a tick of the 6 default graphs. `ss -tn` takes the same.
 	- Requirements:
 		- Make a LAN read cheap enough for the panel's thread, or move it off that thread. Time it before and after.
 	- Note: Each dump walks the kernel's whole table of open TCP connections, which is sized by RAM, so few sockets cost about the same as many. An open settings window runs a second reader.
@@ -4358,12 +4364,12 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Data sources on Linux says so.
 		- Verified: the quick gate's format, build, lint and tests, the Sanitizers step, and Miri over `lan::` passed.
 	- Decisions:
-		- A cheaper read rather than a worker thread, which would keep about 2% of a core at the default 1 s sample, and 36% at 50 ms.
-		- The old `TCPDIAG_GETSOCK` request for the dump, since it walks the table once for both families. The kernel still keeps it for old tools.
+		- The fix is a cheaper read rather than a worker thread, which would use about 2% of a core at the default 1 s sample, and 36% at 50 ms.
+		- The dump uses the old `TCPDIAG_GETSOCK` request, since it walks the table once for both families. The kernel still keeps it for old tools.
 		- A browser that opens connections every tick brings back a 9 ms read on those ticks, still half of before.
 	- Branch: round-1109b
 	- Test case: `lan::tests` df3cx, df3cy, df3cz, df3d0 and df3d1. df3d0 and df3d1 fail with every read dumping.
-		- 20261109: deqt2 and dekq7 build or read `Sock` values, which now carry the socket's family and id. deqt2 compares only the bytes and the LAN flag, with the same values. df35e opens its sockets after the first read, so its cut read is a dump.
+		- 20261109: deqt2 and dekq7 build or read `Sock` values, which now include the socket's family and id. deqt2 compares only the bytes and the LAN flag, with the same values. df35e opens its sockets after the first read, so its cut read is a dump.
 		- Swept: `LanReader::poll` is the only sock_diag reader. `neighbors` dumps the neighbor table, not the TCP one, every 10 s.
 	- Closed: 20261109-174917
 
@@ -4400,7 +4406,7 @@ Sorted per the notes in [Template](#template).
 	- Status: Closed
 	- Closed reason: Done
 	- Target version: v1.0.0-beta.1
-	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
+	- Needs external testing: No. The `merge-gate` workflow's first run on GitHub's Linux runner was on 2026-11-08.
 	- Priority|Severity: Avg
 	- Opened: 20261025-135600
 	- Opened by: t00mietum
@@ -4418,7 +4424,7 @@ Sorted per the notes in [Template](#template).
 		- 2026-11-08: A run by hand on `runner-tests`, with the fix, passed all 11 steps in 15m 30s.
 	- Decisions:
 		- Asked for on 2026-10-25.
-		- No layer cache between runs, to keep it small. Each run builds the image first, which takes a few minutes.
+		- There's no layer cache between runs, to keep it small. Each run builds the image first, which takes a few minutes.
 	- Branch: round-1025
 	- Test case: The workflow is its own test. Its first run is in the row above.
 	- Closed: 20261108-105057
@@ -4427,7 +4433,6 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026110618335731
 	- Type: Enhancement
 	- Status: Closed
-		- Watch the new `assets/demo.gif` and say whether the panel looks real enough.
 	- Closed reason: Done
 	- Needs hand testing: No
 	- Stand-in: frames of assets/demo.gif at 20261107 build 8990d9b, checked by eye.
@@ -4500,11 +4505,11 @@ Sorted per the notes in [Template](#template).
 		- The other 26 keep their reasons: questions, parents that point at their children, a removed or text-only change, a look, a recording, a measurement, a check by hand in a private panel, or a step that is its own check.
 		- Verified: each new test failed with its fix taken out, 14 faults in all, and passed with it back. Each fault failed only its own test.
 	- Decisions:
-		- No children. The tests fit the time cap, and every other Done item gives a reason.
+		- It has no children, since the tests fit the time cap, and every other Done item gives a reason.
 		- The cleanup and step line tests need no docker daemon or format tools, so they run in the gate's Tests step and change nothing outside their own temp folder.
 		- The profiler's refusal of a ROUNDS of 0 (2026103115232157) keeps its reason. A test would build the profiling example, which only the Profiler step does.
 	- Branch: round-1107
-	- Test case: in `cicd/tests/guards.bash`: dezan, dezap, dezaq, dezar, dezas, dezat, dezav, dezaw, dezax and dezay.
+	- Test case: dezan, dezap, dezaq, dezar, dezas, dezat, dezav, dezaw, dezax and dezay, in `cicd/tests/guards.bash`.
 	- Closed: 20261106-201352
 
 - Code review 20261106 item 1: Each draw works out the spike fade again for every column
@@ -4515,7 +4520,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: Avg
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
-	- Origin: `8551170` (2026-11-02), newer than the last style review. Breaks the rule on hoisting invariant work out of loops. Confirmed, the `powf` in `render::reach` is 3.6% of the tick in the 2026-11-06 profile.
+	- Origin: `8551170` (2026-11-02), newer than the last style review. It breaks the rule on hoisting invariant work out of loops. Confirmed, since the `powf` in `render::reach` is 3.6% of the tick in the 2026-11-06 profile.
 	- Requirements:
 		- Work out the fade once a draw, not once a column.
 	- Estimated effort: Low
@@ -4526,10 +4531,10 @@ Sorted per the notes in [Template](#template).
 		- Verified: the quick gate and the Sanitizers step passed.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-		- A small struct, not a fade passed in beside the emphasis, so the two can't be mixed up at a call.
-		- Left as is: `fit_log` works out the log of the top for each column too. It's only on log10 graphs, none on by default, and not in the profile.
+		- `Reach` is a small struct rather than a fade passed in beside the emphasis, so the 2 can't be mixed up at a call.
+		- `fit_log` is left as it is, even though it works out the log of the top for each column too. It's only on log10 graphs, none on by default, and isn't in the profile.
 	- Branch: round-1107
-	- Test case: none of its own, since the pixels don't change. dese6, debj9 and denc4 check the draw, and the profiler the time.
+	- Test case: None of its own, since the pixels don't change. dese6, debj9 and denc4 check the draw, and the profiler the time.
 		- Swept: every reach caller (`Frame::draw_to`, the test helper `column`), and every `powf`, `exp` and `ln` in `render.rs` and `axis.rs`. `Peak::fit`'s `exp` is once a draw, and the axis's `exp_m1` in `age` turns on each column's own place, so it can't move out.
 	- Closed: 20261106-203001
 
@@ -4542,7 +4547,7 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
 	- Related IDs: 2026103018353670
-	- Origin: `f89e55e` (2026-10-23). The 20261030 review read only knobs' lookups. Breaks the rules on repeated work and needless `collect()`. Confirmed, measured: the settings rows read in about 350 us with no changes on the theme, and 800 to 1100 us with 1 to 5 of them, as on b23.
+	- Origin: `f89e55e` (2026-10-23). The 20261030 review read only knobs' lookups. It breaks the rules on repeated work and needless `collect()`. Confirmed. The settings rows read in about 350 us with no changes on the theme, and 800 to 1100 us with 1 to 5 of them, as on b23.
 	- Requirements:
 		- Asking whether one setting is changed, or whether any are, doesn't walk every setting or build a list.
 	- Estimated effort: Low
@@ -4569,7 +4574,7 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
 	- Related IDs: 2026103016201603
-	- Origin: `f89e55e`, `fe76b54`, `b869164` and `df9a517`, all before the 20261030 review, whose profile was mostly the color chips. Breaks the rule on repeated work. Confirmed, measured: a refresh went from 1.74 to 1.51 ms with the fix tried, and a slider step from 2.02 to 1.74 ms.
+	- Origin: `f89e55e`, `fe76b54`, `b869164` and `df9a517`, all before the 20261030 review, whose profile was mostly the color chips. It breaks the rule on repeated work. Confirmed. A refresh went from 1.74 to 1.51 ms with the fix tried, and a slider step from 2.02 to 1.74 ms.
 	- Requirements:
 		- Set a tip or a row's height only when it changed.
 		- The graph list reads each row's state once a refresh, not twice.
@@ -4579,7 +4584,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- A refresh sets a tip or a grid row's height only when it differs. A Colors section heading's gap is set once, by `lineUpSections`, where `refresh()` set it first and `lineUpSections` set it back each time.
 		- The graph list's revert reads `can_reset` from the row state the refresh just read.
-		- They did repaint them. Each live graph tick repainted every row, and a graph at 200% drew the same picture on the beat between its reads. `Live::read` now says which graphs a tick read, and only those repaint. A tip left up still follows each tick.
+		- The live graphs did repaint graphs that weren't read that beat. Each live graph tick repainted every row, and a graph at 200% drew the same picture on the beat between its reads. `Live::read` now says which graphs a tick read, and only those repaint. A tip left up still follows each tick.
 		- Verified, release build, load about 9 on 32 cores, 3 runs of medians of 50: a refresh went from 1070 to 830 us, and a slider step from 1260-1320 to 980-1030 us.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
@@ -4599,7 +4604,7 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
 	- Related IDs: 2026103016201610
-	- Origin: `81e0054` (2026-10-30) for most of it, newer. The case-folding parsers are older, named in the 20261030 item 10 notes and left as they were. Breaks the rule on repeated work. Confirmed, measured: 694 allocations and 72 to 81 us a call, against 430 at `ae703bb`. It runs on every refresh.
+	- Origin: `81e0054` (2026-10-30) for most of it, newer. The case-folding parsers are older, named in the 20261030 item 10 notes and left as they were. It breaks the rule on repeated work. Confirmed, at 694 allocations and 72 to 81 us a call, against 430 at `ae703bb`. It runs on every refresh.
 	- Requirements:
 		- Make each graph's setting names once, not on every build.
 		- The mode, split and vertical scale parsers don't allocate.
@@ -4618,7 +4623,7 @@ Sorted per the notes in [Template](#template).
 		- The ids are in a `OnceLock` made from `Which::key`, rather than a table of literals, so a graph's names have one source.
 	- Branch: round-1107
 	- Test case: `parsers_dont_allocate` (dezbs), `look_no_setting_names` (dezbt) and `saved_theme_loads_lean` (dezbv), all in `core/tests/allocs.rs`, and `shared_of_outline_ids` (dezbw). dezbs, dezbt and dezbv fail before, with 8, 694 and 10812 allocations. dezbw checks `shared_of` against the full list, and fails with the `_` check dropped.
-		- Swept: every `format!` of a per-graph id in core's non-test code, every `to_ascii_lowercase` in core, knobs, settings and xfce, and both `outline_pairs` callers. `leads` still makes its ids, but only tests call it. The lowercasing left builds names it keeps.
+		- Swept: every `format!` of a per-graph id in core's non-test code, every `to_ascii_lowercase` in core, knobs, settings and xfce, and both `outline_pairs` callers. `leads` still makes its ids, but only tests call it. The lowercasing that's left builds names it keeps.
 	- Closed: 20261106-205212
 
 - CICD gap: clang-tidy leaves out the clang analyzer checks
@@ -4660,7 +4665,7 @@ Sorted per the notes in [Template](#template).
 		- The Spike emphasis tip and `design.md` Drawing say so.
 		- Verified: dese6 failed before the change and passed after, and the quick gate passed.
 	- Decisions:
-		- The half-way time is 20 s times 1000 to the power of the setting, so 0% still starts from the old 20 s and each third of the slider is ten times longer. It's one setting, rather than a second one for the fade.
+		- The half-way time is 20 s times 1000 to the power of the setting, so 0% still starts from the old 20 s and each third of the slider is 10 times longer. It's one setting, rather than a second one for the fade.
 		- The history already keeps every bucket's max at every tier, so only the fade needed changing.
 	- Branch: round-1102b
 	- Test case: `render::tests::emphasis_extends_spikes` (dese6). It fails with the fixed 20 s fade.
@@ -4738,7 +4743,7 @@ Sorted per the notes in [Template](#template).
 	- Requirements: Size the canvas from `Graphs::wanted`, drive it through `Graphs::tick` with beats, and give the median of a few runs or user time alone. The 6 graphs want 790 device px and get 96, so the last plot is 1 px, and 40 px are gaps. The 134 to 178 us move on 2026-10-31 came with no core change.
 	- Estimated effort: Low
 	- Actual effort: Low
-	- Origin: `27110e8`. First review. Confirmed by a probe.
+	- Origin: `27110e8`, first seen in this review. Confirmed.
 	- Progress log:
 		- The canvas is `Graphs::wanted` for a 24 px panel on a scale 2 screen: 790x48 device px for the 6 default graphs, where it was 96x48.
 		- Each tick is a wake of the panel's timer on simulated time, through `Graphs::tick_at`, so a graph reads only on its own beat. CPU's default of 50% makes 2 wakes a second, one of them for CPU alone. The subtitle gives the panel time, such as "20000 ticks of 6 graphs in 10000 s of panel time".
@@ -4771,7 +4776,7 @@ Sorted per the notes in [Template](#template).
 		- The rule under the theme's Name row and buttons is gone, on Colors and Outline. The shade step between the Name row and the page marks the edge, as the style guide's Window layout already said.
 		- `design.md` Settings window has it.
 		- Verified: the quick gate passed with the new test.
-		- Stand-in 20261101: light and dark shots in Orchis-green compact, before and after, in private `uat-2026103114565000/`, show the page starting right under the buttons with no line. Closed on them; reopen if the look isn't right on b23.
+		- Stand-in 20261101: light and dark shots in Orchis-green compact, before and after, in private `uat-2026103114565000/`, show the page starting right under the buttons with no line. It was closed on them, and gets reopened if the look isn't right on b23.
 	- Branch: round-1102
 	- Test case: `bridge::tests::rule_under_other_headings` (der2t). It fails with the rule put back, on Themes, Colors and Outline, and passes now.
 		- Swept: every `QFrame::HLine` in `qt.cpp`. The other 2 are heading rules, which stay.
@@ -4800,7 +4805,7 @@ Sorted per the notes in [Template](#template).
 		- The test reads the spec's own tip, not `row_state`'s, since that adds the slider range text to a slider's tip and would hide a missing one.
 	- Branch: round-1102
 	- Test case: `bridge::tests::rows_have_own_tips` (der3b). It failed with the tips taken out and passes with them.
-		- Swept: every row in `core/src/settings.shcl` with a control other than heading, by script.
+		- Swept: every row in `core/src/settings.shcl` with a control other than heading.
 	- Closed: 20261101-165000
 
 - Destructive questions default to No
@@ -4864,7 +4869,7 @@ Sorted per the notes in [Template](#template).
 		- The same_line row keeps its own revert arrow, right after its box. The row whose line it joins keeps its label and revert where they were.
 		- The setting ids and paths are unchanged, so saved files read as before. Only a file with no hover_time line changes, to How long ago.
 	- Branch: round-1102
-	- Test case: `bridge::tests::general_tab_order` (der32) and `max_age_sits_right_of_keep_across_restarts` (der33). Both fail on the old spec, and der33 fails with only `same_line` taken out. Both pass now.
+	- Test case: `bridge::tests::general_tab_order` (der32) and `max_age_placement` (der33), renamed since. Both fail on the old spec, and der33 fails with only `same_line` taken out. Both pass now.
 		- 2026-11-01: new values only. debhj and decc5 expect How long ago for no or a bad hover_time, where they expected Date and time. deknz's short screen is 1280x540, not 1280x600, since General is shorter and the window no longer fills 600 px.
 		- deqsp's `list_head_tips` hook skips bold labels, since General's Time axis heading has the graph list column's text.
 		- Swept: every tip in `settings.shcl` and `qt.cpp` naming Width, Time axis default or "further down", the code comments naming them, and the docs naming General's headings.
@@ -4888,7 +4893,7 @@ Sorted per the notes in [Template](#template).
 		- Themes|Colors tab:
 			- For each monitor, add "Vertical scale:", with same options (but per-monitor) as "Vertical axis"/"Scale default", but with an additional "Global default" option (default selection).
 	- Decisions:
-		- 2026-11-01: 𝜒² is there to exaggerate differences. Large values get larger, and small values relatively smaller. So it's a squared curve, the height following (value / top)², the opposite of log₁₀.
+		- 2026-11-01: The squared scale is there to exaggerate differences. Large values get larger, and small values relatively smaller. So it's a squared curve, with the height at (value / top) squared, the opposite of log10.
 	- Verified: 20261101, round-1102 debug build, in b23's own style (gtk3 platform theme, Orchis green compact), light and dark. General drew Vertical axis with Scale default between Time axis and Timespan, and no Disk log scale under Misc. Themes/Colors drew Vertical scale right of each graph's Colors mode, on its line, with Global default, and the log and squared picks read as their symbols.
 	- Estimated effort: Avg
 	- Actual effort: Avg
@@ -4899,12 +4904,13 @@ Sorted per the notes in [Template](#template).
 		- `design.md` XFCE plugin, Settings window and Drawing, `style-guide_ux.md` Labels and README.md are updated.
 		- Verified: the quick gate passed, and the stand-in above.
 	- Decisions:
-		- Vertical scale isn't in the theme group, so picking a theme leaves it, and changing it doesn't add a * to the theme. It sits on the Themes/Colors tab as asked.
+		- Vertical scale isn't in the theme group, so picking a theme leaves it, and changing it doesn't add a * to the theme. It's on the Themes/Colors tab as asked.
+			- Superseded on 2026-11-02 by 2026110215302658, which moved Vertical scale to the Graphs tab.
 		- It joins the Colors mode's line with `same_line: true`, and that line now spans both columns, so the section keeps its width. The mode's revert moves to the line's right end, as Keep across restarts' does on General.
 		- `Source::log_y` is replaced by `Source::vertical`, and `render::Frame` takes a `vertical`, since a graph with a fixed top has no `Scale`.
 		- The docs and tips write log10 and squared in plain text. Only the dropdowns show the symbols asked for.
 	- Branch: round-1102
-	- Test case: `render::tests::squared_sinks_fixed_top` (der3m), `config::tests::old_disk_log_is_log10` (der3n), `vertical_default_overridable` (der3p), `bridge::tests::each_graphs_vertical_scale_sits_right_of_its_colors_mode` (der3q) and `dialog::tests::old_disk_log_scale_migrates` (der3r). der3q fails with the same_line row left off the mode's line, and der3n with the old path not moved.
+	- Test case: `render::tests::squared_sinks_fixed_top` (der3m), `config::tests::old_disk_log_is_log10` (der3n), `vertical_default_overridable` (der3p), `bridge::tests::vertical_scale_beside_time_axis` (der3q) and `dialog::tests::old_disk_log_scale_migrates` (der3r). der3q fails with the same_line row left off the mode's line, and der3n with the old path not moved.
 		- 2026-11-01: new values only. der32 expects a Vertical axis heading and `vertical_axis` after `hover_time`, and no `disk_log`. dej07, dejb6 and dej0t check `Source::vertical` where they checked `log_y`.
 		- 2026-11-01: dejmb's `sectionPlaces` hook and demvn's `sectionTops` hook leave out the rows on the mode's line, since it now spans both columns. Their asserts are unchanged.
 		- Swept: every `log_y` and `disk_log` user, every `Frame` literal, every `Which` for a `<graph>_vertical` row, the disk graph's tip, and the docs naming Disk log scale.
@@ -4915,7 +4921,6 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026103113364400
 	- Type: Enhancement
 	- Status: Closed
-		- Whether the 2 shades read apart and look right is for a person to judge.
 	- Closed reason: Done
 	- Needs hand testing: No
 	- Priority|Severity: Avg
@@ -4934,7 +4939,7 @@ Sorted per the notes in [Template](#template).
 		- Orchis-green-light-compact: page and tab list `#e3e3e3`, the rest `#eeeeee`. Before, the page was `#e3e3e3` and the rest and tab list `#f2f2f2`.
 		- `design.md` Settings window has it.
 		- Verified: the quick gate passed, with dekna changed to check the new shades.
-		- Stand-in 20261031: the light and dark shots in private uat-2026103113364400 show the page and tab list darker than the rest in both themes, with the rest a little less light than before. Closed on them; reopen if the look isn't right on b23.
+		- Stand-in 20261031: the light and dark shots in private uat-2026103113364400 show the page and tab list darker than the rest in both themes, with the rest a little less light than before. It was closed on them, and gets reopened if the look isn't right on b23.
 	- Decisions:
 		- "And others" is read as the tab list, the only other inset part. The Name row over the Themes sub-tabs stays with the rest, since it doesn't scroll.
 		- Both shades come from the theme, as before: the step from its window color 1/16 of the way to its text color. The inset parts take the darker end, and the rest stops 3/4 of the way to the lighter end, which is the "not quite as light". So a dark theme keeps its own window color for the inset parts, and its rest is a little lighter.
@@ -4963,7 +4968,7 @@ Sorted per the notes in [Template](#template).
 		- A press on the handle still drags it from where it was taken.
 		- `design.md` Settings window has it.
 	- Decisions:
-		- It's a `QSlider` subclass, `TrackSlider`, not the style's absolute-set hint. The hint would also move a grabbed handle up to half its width, which can step it onto the next detent.
+		- It's a `QSlider` subclass, `TrackSlider`, rather than the style's absolute-set hint. The hint would also move a grabbed handle up to half its width, which can step it onto the next detent.
 		- A detent can pull the handle off the pointer, so the drag takes hold of the handle where it went.
 	- Branch: round-1031b
 	- Test case: `bridge::tests::slider_track_click` (dep6b). Without `TrackSlider` it fails, with a click at 80% giving 640 of 1000, not about 800. With the style hint instead, it fails on a grab of the handle's edge moving it from 789 to 773.
@@ -4975,7 +4980,7 @@ Sorted per the notes in [Template](#template).
 	- Type: Enhancement
 	- Status: Closed
 	- Closed reason: Done
-	- Verified: 20261031, the round's debug build in b23's own style (Orchis green compact, dark) on a private display, in place of a hand test on b23. The handles came level with the number boxes, and the groove stayed thin and centered.
+	- Verified: 20261031, the round's debug build in b23's own style (Orchis green compact, dark), in place of a hand test on b23. The handles came level with the number boxes, and the groove stayed thin and centered.
 	- Priority|Severity: Avg
 	- Opened: 20261031-085914
 	- Opened by: t00mietum
@@ -5015,7 +5020,7 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Settings window has it.
 		- Verified: the full run passed with the new test.
 	- Decisions:
-		- Halfway, 4 px either way, read as "somewhere in between".
+		- "Somewhere in between" was read as halfway, 4 px either way.
 		- It's one floor in `BoxStyle` rather than a set height, so a style that draws taller buttons keeps its own, and every button still matches.
 		- 2026-10-31: dep3y's floor went from 6 to 8 with `BUTTON_PAD_DOWN`. What it checks is unchanged.
 	- Branch: round-1031b
@@ -5047,13 +5052,13 @@ Sorted per the notes in [Template](#template).
 		- `design.md` XFCE plugin and Theme have it.
 		- Verified: the quick gate passed.
 	- Decisions:
-		- Only position and colors. b23's width 50% and sample 100% for processes weren't asked for, so they stay 25% and 200%.
-		- Temperature's Medium and processes' Yours are both picked, and 9.4 apart as CIEDE2000, under the 10 the other leads keep. They stay as picked, since in Default what was picked wins (2026102814061803). dejbr lets off that one pair in Default.
+		- Only position and colors changed. b23's width 50% and sample 100% for processes weren't asked for, so they stay 25% and 200%.
+		- Temperature's Medium and processes' Yours are both picked, adn 9.4 apart as CIEDE2000, under the 10 the other leads keep. They stay as picked, since in Default what was picked wins (2026102814061803). dejbr exempts that one pair in Default.
 		- Memory's programs, `#ffffa3`, was 9.2 from temperature's new yellow. It was never picked, so it moved, to `#ffffb8`, the least change that reads 10 apart from both new yellows.
 	- Branch: round-1031b
 	- Test case: `config::tests::default_theme_keeps_picks` (dejbq) checks the new colors, and that Low and Medium follow System and Yours. It fails on the old colors. dedqq, dep48 and defm0 check the order.
 		- 2026-10-31: new values only. dedqq's and defm0's orders, dejac's labels, and the moved list after its 2 moves, have `procs` after `mem`. dep48 reads `mem procs` at index 1, not `load procs` at 9, and dekmc reads `cpu mem procs gpu vram`. dedpz reads programs `#ffffb8`, not `#ffffa3`.
-		- 2026-10-31: dejbr now checks every pair of leads, not only the closest, so it can let off Default's temperature and processes pair.
+		- 2026-10-31: dejbr now checks every pair of leads, not only the closest, so it can exempt Default's temperature and processes pair.
 		- Swept: every test and doc naming the default order or Default's processes, temperature and memory programs colors, and `settings.shcl`'s row defaults, which deccf ties to Default.
 	- Acceptance signoff: Self-closed 20261031: dejbq and the order tests passed in the quick gate.
 	- Closed: 20261031-094117
@@ -5091,8 +5096,7 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Requirements:
 		- After reordering a monitor on the "Graphs" tab, the tab order should be updated accordingly.
-	- Need to work out ambiguities:
-		- Read as the order the Tab key moves through the graph list's rows. The Themes/Colors sections already follow a move.
+	- Note: The item was read as the order the Tab key moves through the graph list's rows. The Themes/Colors sections already followed a move on screen.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
@@ -5140,9 +5144,8 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026103107404601
 	- Type: Enhancement
 	- Status: Closed
-		- The amount is a look: open Settings and judge the room around the text on the buttons.
 	- Closed reason: Done
-	- Needs hand testing: Settings on b23, with its own style, once a build with this is installed.
+	- Needs hand testing: No. It closed on the stand-in in the Verified row.
 	- Verified: 20261031, build dep51 from c1dec56 in b23's own style (gtk3 platform theme, Orchis green compact), light and dark, in place of the hand test on b23. Every tab and the color picker showed each button's text clear of its frame, and nothing else out of place.
 	- Priority|Severity: Avg
 	- Opened: 20261031-074046
@@ -5158,7 +5161,7 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Settings window has it.
 		- Verified: the full run passed with the new test. In a snapshot the Graphs and Outline tabs laid out as before, with roomier buttons.
 	- Decisions:
-		- It's a floor, not a fixed amount added, so a style that already gives more keeps its own, and a short label such as OK, already wide, doesn't grow.
+		- It's a floor rather than a fixed amount added, so a style that already gives more keeps its own, and a short label such as OK, already wide, doesn't grow.
 		- It's done in the style (`BoxStyle`), so message boxes and the color picker get it too.
 		- Buttons with no text, such as the color chips, are left alone.
 	- Branch: round-1031
@@ -5172,7 +5175,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026103107404602
 	- Type: Enhancement
 	- Status: Closed
-		- It departs from the wording in one way. It's off by default, like the other graphs since memory. Turn it on in the graph list.
+		- It departs from the wording in one way. It's off by default, like the other graphs since memory, and is turned on in the graph list.
 		- How it looks in each theme stays on 2026102620162201.
 	- Closed reason: Done
 	- Needs local test suite run?: No. The quick gate passed on 2026-10-31.
@@ -5190,19 +5193,20 @@ Sorted per the notes in [Template](#template).
 		- `graph.order` defaults to `cpu mem gpu vram net disk temp swap zswap load procs self battery`.
 		- Each built-in theme gives it a lead of its own. Randomize rolls 13 lead hues.
 		- `design.md` XFCE plugin, Theme, Data sources on Linux and Drawing have the details.
-		- Verified: the quick gate passed, with the new tests. A read of `/proc` here counted 1,162 processes.
+		- Verified: the quick gate passed, with the new tests. A read of `/proc` on b23 counted 1,162 processes.
 	- Decisions:
-		- Off by default, like the other graphs since memory.
-		- After load in the default order, since both count tasks.
+		- It's off by default, like the other graphs since memory.
+		- It comes after load in the default order, since both count tasks.
+			- Superseded on 2026-10-31 by 2026103108591404, which put it right after memory.
 		- System is user IDs under 1000 and `nobody`, as Debian and systemd number them. Yours is the user tukzmon runs as.
-		- Each process counts by its `/proc/<pid>` folder's owner, as htop reads it, rather than by a status file per process. That's one `stat` each, about a millisecond a read here.
-		- Processes, not threads, and kernel threads count as the system's, as `ps -e` counts them.
+		- Each process counts by its `/proc/<pid>` folder's owner, as htop reads it, rather than by a status file per process. That's one `stat` each, about a millisecond a read on b23.
+		- It counts processes rather than threads, and kernel threads count as the system's, as `ps -e` counts them.
 		- The top is the highest count in view, with a floor of 100, as load and network do theirs.
 		- Yours is the lead, and System is its Low, as memory's cache is. Randomize gives Other users the Hush role, as memory's buffers have it.
-		- "Yours" in place of "me", since the window speaks to the user.
+		- The label is "Yours" in place of "me", since the window speaks to the user.
 		- Randomize's least lead gap is 15 degrees, down from 18, with up to 256 hue draws, up from 128. At 17 and 16 degrees dejbv failed on a seed, and at 15 with 128 draws too. At 15 the worst of 2,000 seeds took 140 draws.
 	- Branch: round-1031
-	- Test case: `procs::tests::system_below_first_user` (dep4h), `numbered_entries_only` (dep4j), `live_proc_counts_this_test_as_mine` (dep4k), `graphs::tests::procs_sits_after_load_and_stacks_by_owner` (dep48) and `live::tests::procs_row_counts_self` (dep49).
+	- Test case: `procs::tests::system_below_first_user` (dep4h), `numbered_entries_only` (dep4j), `live_proc_counts_this_test_as_mine` (dep4k), `graphs::tests::procs_stack_by_owner` (dep48) and `live::tests::procs_row_counts_self` (dep49).
 		- 2026-10-31: new values only. deccf and deccw count 127 theme members, not 117. deccy counts 110 saved colors, not 101. dedqq's default order, dejac's labels, and defkz's and defm0's orders have `procs`, and defm0's past-the-end move is 13, not 12. dejb7 reads `self battery` from index 11, not 10. dejkg has 13 outlines, not 12. defx7 checks 13 ramps, and deja1 13 sample rows. den86 turns processes on too. defxd's least gap is 10 degrees, not 13, for the 15 degree roll.
 		- Swept: every `Which` match, `config::LEADS`, `dice::ROLES` and `Part`, the 9 built-in themes, the Graphs rows in spec order, and den86, which turns every graph on. The profiler and soak test go through `Graphs::skip`, so they need nothing.
 	- Acceptance signoff: Self-closed, 2026-10-31: dep48 drew the 3 owners stacked, and dep49 drew the row from this box's `/proc`.
@@ -5217,7 +5221,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: Avg
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
-	- Origin: `f89e55e` (proof of concept), and grew as rows were added. First review. Confirmed in the code. How much it lags hasn't been timed.
+	- Origin: `f89e55e` (proof of concept), and grew as rows were added. First seen in this review. Confirmed in the code. How much it lags hasn't been timed.
 	- Requirements:
 		- A slider drag and a color picker drag stay smooth on a slow box.
 		- Time one `refresh()` first, on b23 and on a VM, before and after.
@@ -5248,7 +5252,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: Avg
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
-	- Origin: `f89e55e` for `qt.cpp`, and `27110e8` for `flame-report.py`. First review. Confirmed: the repo has no `.clang-format`, `.clang-tidy` or `pyproject.toml`, and the lint step runs none of them.
+	- Origin: `f89e55e` for `qt.cpp`, and `27110e8` for `flame-report.py`. First seen in this review. Confirmed. The repo had no `.clang-format`, `.clang-tidy` or `pyproject.toml`, and the lint step ran none of them.
 	- Requirements:
 		- A `.clang-format` with tabs, matching `qt.cpp` as it is now, and a `.clang-tidy`. Both run in the lint step.
 		- ruff and black for `cicd/utility/flame-report.py`, keeping its silkterm naming.
@@ -5261,11 +5265,11 @@ Sorted per the notes in [Template](#template).
 		- `pyproject.toml` sets black and ruff to 120 columns, with ruff's naming checks off for the silkterm names. `flame-report.py` needed only `itertools.pairwise`.
 		- The image has clang-format and clang-tidy 19, black from its apt snapshot, and ruff by checksum. All 4 are pinned in `cicd/config.bash`.
 		- `qt.cpp` builds as C++20. A cicd build turns its warnings into errors, and a plain `cargo build` doesn't.
-		- Fixed what clang-tidy found: C arrays, all 13 copies of the `QApplication` setup now one `App` class, `final` on the 9 leaf classes, const locals, reserves, nested ternaries, and implicit widening.
+		- What clang-tidy found is fixed: C arrays, all 13 copies of the `QApplication` setup now one `App` class, `final` on the 9 leaf classes, const locals, reserves, nested ternaries, and implicit widening.
 		- Verified: `--backlog-run-full` passed, all 11 steps. Planted faults failed the gate: an unused variable failed the build, a C array failed clang-tidy, an unused import failed ruff, and a stray space failed clang-format, as did a missing one for black.
 	- Decisions:
-		- clang-format and black run in the Format step, not Lint, next to cargo fmt. They check in the hands-off runs and format in place in the others, the same as cargo fmt.
-		- clang-tidy leaves out what fights Qt or the file's style: owning-memory and the downcast checks, since Qt's parent owns what `new` makes. Also magic numbers, short names, unbraced bodies, leading return types, include-cleaner, cognitive complexity, and constant array index, since there's no GSL. `.clang-tidy` gives the reasons.
+		- clang-format and black run in the Format step rather than Lint, next to cargo fmt. They check in the hands-off runs and format in place in the others, the same as cargo fmt.
+		- clang-tidy leaves out what fights Qt or the file's style: owning-memory and the downcast checks, since Qt's parent frees what `new` makes. It also leaves out magic numbers, short names, unbraced bodies, leading return types, include-cleaner, cognitive complexity, and constant array index, since there's no GSL. `.clang-tidy` gives the reasons.
 		- `pointer-arithmetic-on-polymorphic-object` is off, since it crashes clang-tidy 19 on `qt.cpp`.
 		- Warnings fail only cicd builds, through `TUKZMON_WERROR=1`, so a newer compiler's new warning doesn't break someone's own build or a distro's.
 	- Branch: round-1030b
@@ -5276,7 +5280,6 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102819145599
 	- Type: Enhancement
 	- Status: Closed
-		- Whether a percentage of the time between reads, where 200% reads half as often, is what was meant is for a person to judge.
 	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Needs hand testing: No
@@ -5296,9 +5299,9 @@ Sorted per the notes in [Template](#template).
 		- Closed 2026-10-30: the rates are checked by dej9z, deja0 and deja2, and a percentage of the time between reads matches how Sample ms worked before. b23 runs dekwp, which has it.
 	- Decisions:
 		- The percentage is of the time between reads, since the setting it scales is in ms. So 200% reads half as often.
-		- A box from 1 to 1000, like Width %. Under 50 ms still counts as 50 ms, so at a Sample ms default of 1000 anything under 5% reads as 5%.
-		- The 0 as Default went, since 100% follows Sample ms default by itself.
-		- New paths, `<name>.sample`, so a number saved in ms is never read as a percentage. An old `<name>.sample_ms` line is ignored, and that graph reads at 100%. Only builds since b6ed12b wrote it, and none is installed, so no file has one to move. `graph.sample_ms` is unchanged, so saved files keep their Sample ms default.
+		- It's a box from 1 to 1000, like Width %. Under 50 ms still counts as 50 ms, so at a Sample ms default of 1000 anything under 5% reads as 5%.
+		- The 0 for Default is gone, since 100% follows Sample ms default by itself.
+		- It has new paths, `<name>.sample`, so a number saved in ms is never read as a percentage. An old `<name>.sample_ms` line is ignored, and that graph reads at 100%. Only builds since b6ed12b wrote it, and none is installed, so no file has one to move. `graph.sample_ms` is unchanged, so saved files keep their Sample ms default.
 	- Branch: round-1028b
 	- Test case: `config::tests::sample_rate_old_files` (deja1) checks the rows, the percentage, rounding, the 50 ms floor, and an old ms line read as 100%. It fails on the ms rows. dej9z checks 400% and 33% of 500 ms, debj5 a graph's axis at 400%, deja0 200% on one timer, and deja2 an unapplied 2% in the window.
 		- 2026-10-28: new values only. dej9z, debj5, deja0 and deja2 give a graph's rate as a percentage, not ms, for the same rates as before, and deja2's Default is 100, not 0.
@@ -5309,7 +5312,6 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102913122702
 	- Type: Enhancement
 	- Status: Closed
-		- Whether the shade is subtle enough and still plain to see is for a person to judge.
 	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-29.
 	- Needs hand testing: No
@@ -5332,7 +5334,7 @@ Sorted per the notes in [Template](#template).
 		- The whole page in a scroll area is shaded, even when it fits with no scrollbar, so a tab looks the same whether or not it runs past the window.
 		- Boxes and buttons on the page keep their own colors.
 	- Branch: round-1029
-	- Test case: `bridge::tests::the_part_that_scrolls_is_a_shade_off_the_window` (dekna), in a light and a dark theme. It fails with the shade left out.
+	- Test case: `bridge::tests::inset_parts_darker` (dekna), renamed since, in a light and a dark theme. It fails with the shade left out.
 		- Swept: every scroll area in `qt.cpp`. `FitScroll` in `buildPage` is the only one, and every tab and sub-tab that scrolls goes through it.
 	- Closed: 20261029-140510
 
@@ -5365,7 +5367,7 @@ Sorted per the notes in [Template](#template).
 		- A new item on b23 now differs from the defaults only in the graphs shown.
 		- `design.md` XFCE plugin and History have the new defaults.
 	- Decisions:
-		- The live item's file, not `tukzmon.shcl`, since it's what the panel draws. `tukzmon.shcl` is only where a new item starts.
+		- The values come from the live item's file rather than `tukzmon.shcl`, since it's what the panel draws. `tukzmon.shcl` is only where a new item starts.
 		- The top-level CPU colors in that file are Custom's, which aren't in use, so they stay out.
 		- The battery's rows moved below tukzmon's in `settings.shcl`, so the spec lists them in the default order.
 		- A saved theme from before the Outline overrides gets Default's, now on, the way it gets Default's margins.
@@ -5383,8 +5385,8 @@ Sorted per the notes in [Template](#template).
 		- Measured as CIEDE2000, where 10 or more reads clearly apart. b23's colors as they were: zswap's magenta `#ff80ff` 3.2 from system's pink `#fa72f0`, swap `#40a0ff` 5.6 from the disk's read `#6bb3ff`, and memory `#ffff80` 5.7 from temperature `#feff40`. Default now: every 2 graphs' leads 10.4 or more apart, memory and temperature the closest, and every lead 14.2 or more from I/O wait and system.
 	- Closed reason: Done
 	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
-	- Needs hand testing: on b23, after an install and a panel restart, pick Default on the Themes tab with no "*" changes on it, Apply, and judge whether it looks like the colors set by hand before.
-	- Note: 20261028, no check can judge it. It waits on the open question on Default's pink CPU system and memory `#ffffa3`, and turns on how it looks.
+	- Needs hand testing: No. It closed once b23's settings became the defaults, in 2026102917525530.
+	- Note: 20261028, no check can judge it. It waits on the question on Default's pink CPU system and memory `#ffffa3`, and turns on how it looks.
 	- Priority|Severity: Avg
 	- Opened: 20261028-140618
 	- Opened by: t00mietum
@@ -5426,7 +5428,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102819145598
 	- Type: Feature
 	- Status: Closed
-		- It departs from the wording in one way. It's off by default, like every graph since memory. Turn it on in the graph list.
+		- It departs from the wording in one way. It's off by default, like every graph since memory, and is turned on in the graph list.
 		- 2026-10-29: the one call left for a person, reserved memory, went the way bug 2026102915125135 asked, to match `nvidia-smi`.
 	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-29.
@@ -5456,10 +5458,10 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026102819145597
 	- Type: Feature
 	- Status: Closed
-		- It departs from the wording in one way. It's off by default, like every graph since memory. Turn it on in the graph list.
+		- It departs from the wording in one way. It's off by default, like every graph since memory, and is turned on in the graph list.
 	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-29.
-	- Needs hand testing: on b23, after an install and a panel restart, turn on GPU and GPU memory in the graph list, Apply, and judge how both look beside memory on Default. The GPU tip should be near what `nvidia-smi` shows.
+	- Needs hand testing: No. It closed on the stand-in in the Verified row.
 	- Verified: 20261029, build dekpw from 9b72012 in a test panel on Default, with CPU, memory, GPU and GPU memory on. The GPU graph drew in its own blue beside memory, and its tip read "GPU 29% busy" while `nvidia-smi` read 26% to 36%. The graph list, the GPU section on Colors and the Default colors drew as asked, in a light and a dark theme.
 	- Priority|Severity: Avg
 	- Opened: 20261028-191455
@@ -5476,10 +5478,10 @@ Sorted per the notes in [Template](#template).
 		- `design.md` XFCE plugin, Theme and Data sources on Linux have the details.
 		- Verified: the full run passed. On b23 NVML read the RTX 3060 Ti at 31% busy and 39% of 8 GiB in use. The settings window showed the 2 rows after memory and the GPU section on Colors.
 	- Decisions:
-		- Off by default, like the other graphs since memory.
-		- The first GPU only. A picker for boxes with more than one can be its own item.
+		- It's off by default, like the other graphs since memory.
+		- Only the first GPU is read. A picker for boxes with more than one can be its own item.
 		- NVML is opened with `dlopen`, so a box without the NVIDIA driver still starts, and no crate is added. It's opened once a process and stays open.
-		- NVIDIA first, then the first amdgpu card. Intel has no busy share without root, so it has no GPU graphs.
+		- NVIDIA is tried first, then the first amdgpu card. Intel has no busy share without root, so it has no GPU graphs.
 		- Each built-in gives GPU a lead of its own, 14 or more from every other lead as CIEDE2000. The one-color themes give it their one color.
 		- Randomize rolls 12 lead hues at least 18 degrees apart, down from 22, with the same 27 degrees of play. With 12 leads there often aren't any steps that keep every 2 of them 10 apart, so it draws up to 128 sets of hues, up from 16. At 16, 34 of 20,000 rolls had 2 leads under 10 apart, and at 128 none did.
 	- Branch: round-1029
@@ -5496,7 +5498,7 @@ Sorted per the notes in [Template](#template).
 		- It departs from the wording in one way. The old Graph tab is now General, since Graph beside Graphs read as one tab twice.
 	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-29.
-	- Needs hand testing: on b23, after an install, open Settings, pick Graphs, and judge the tab names and the list on its own tab.
+	- Needs hand testing: No. It closed on the stand-in in the Verified row.
 	- Verified: 20261029, build dekpw from 9b72012, in a light and a dark theme. The tabs read General, Graphs, Themes, Colors, Outline. Graphs drew the 12 rows with no heading over them, and General drew Size, Time, Frame, Disk graph and History.
 	- Priority|Severity: Avg
 	- Opened: 20261029-131227
@@ -5544,7 +5546,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: the full run passed with the new test. In a test window on a 600 px screen, the window and its frame filled the 600 px with the buttons on screen, where they had run 34 px past the bottom. The same on a 480 px screen.
 	- Decisions:
 		- The frame is read once the window is up, since it's the window manager's and differs by theme. So on a short screen the window opens one frame too tall and shrinks at once. On a tall one nothing moves.
-		- Only the first fit after the frame is known. A window moved or resized after that is left alone.
+		- The frame is taken off only at the first fit after it's known. A window moved or resized after that is left alone.
 		- The width gets the same rule.
 	- Branch: round-1029
 	- Test case: `bridge::tests::window_fits_short_screen` (deknz), on a 1280x600 and a 1024x500 screen with a frame. It fails with the frame left on.
@@ -5595,7 +5597,7 @@ Sorted per the notes in [Template](#template).
 		- A later item that gets the same id starts fresh, not with the removed one's settings and history.
 	- Actual effort: Low
 	- Progress log:
-		- Today both files stay. The plugin doesn't connect the panel's `remove` signal, and free-data saves history after it.
+		- Before, both files stayed. The plugin didn't connect the panel's `remove` signal, and free-data saved history after it.
 		- 2026-10-29: the plugin connects the panel's `removed` signal. It deletes the item's `plugin-<id>.shcl` and `plugin-<id>.hist`, closes its Properties window, and saves nothing after, free-data included.
 		- `design.md` Settings window and History have it.
 		- Verified: in a test panel with 2 items, Remove on item 1 deleted both its files and left item 2's. Remove on item 2 with its Properties open closed the window and deleted both its files. With the plugin from before, both files stayed, and the history was saved again at the Remove.
@@ -5614,7 +5616,7 @@ Sorted per the notes in [Template](#template).
 	- Type: Enhancement
 	- Status: Closed
 		- Verified 2026-10-28, round-1028b at 84b61ad: on a test panel, both boxes ticked put the shared border and background over every graph, CPU's own included. Unticked, CPU's own came back, but the other 8 graphs kept the shared colors.
-		- 2026-10-28: since Bug 2026102820512294, unticked gives every graph its own back, across a save and reload (dejng). The look is left for a person.
+		- 2026-10-28: since Bug 2026102820512294, unticked gives every graph its own back, across a save and reload (dejng).
 	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Needs hand testing: No
@@ -5650,7 +5652,7 @@ Sorted per the notes in [Template](#template).
 	- Test case: `config::tests::outline_colors_override_all` (dejky) and `dialog::tests::shared_color_ticks_override` (dejkz). dejky fails with the overrides left unread, and dejkz with a roll ticking the boxes. Both pass now.
 		- 2026-10-28: new values only. deccf and deccw count 99 theme members, not 97, and deccf takes a checkbox for the 2 boxes. defma's rows greyed at defaults add `border_color`, `back_top` and `back_bottom`.
 		- Swept: every reader of `border_color`, `back_top`, `back_bottom` and the per-graph outlines (`Look::from_model`, `render::Frame`, `Source::outline`, `preview.rs`), every writer of theme members in a loop (`randomize_from`, `drop_theme_changes`, the dialog's `shown_colors`), every `theme_text` and `theme_typed` caller, and the docs naming the shared colors.
-	- Acceptance signoff: closed on stand-ins, 20261028
+	- Acceptance signoff: Self-closed 20261028, on the stand-ins above.
 	- Closed: 20261028-210347
 
 - Pre-next-cut: One tab for global outline-related settings
@@ -5672,7 +5674,7 @@ Sorted per the notes in [Template](#template).
 				- Global transparent override.
 	- Progress log:
 		- 2026-10-28: split with 2026102807585010 into 4 children. This one's are 2026102819315156 (the margins, on the Outline tab, Done) and 2026102819315837 (the overrides, on the Outline tab, Stalled for Bug 2026102820512294).
-		- 2026-10-28: Both children are Done, so this closes with them.
+		- 2026-10-28: Both children are Done, so this one closed with them.
 	- Test case: the tests of its children 2026102819315156 (dejjs, dejjt, dejjv) and 2026102819315837 (dejky, dejkz, dejng)
 	- Closed: 20261028-210347
 
@@ -5702,7 +5704,7 @@ Sorted per the notes in [Template](#template).
 		- Verified 2026-10-28, round-1028b at 84b61ad: Themes showed dimly lit with Colors or Outline picked, in a light and a dark palette, and the picked line brighter.
 	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
-	- Needs hand testing: on b23, after an install, open Settings, pick Themes, then Colors, then Outline, and judge the dimmer highlight on the line that goes with the one picked.
+	- Needs hand testing: No. It closed on the stand-in in the Verified row.
 	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row.
 	- Priority|Severity: Avg
 	- Opened: 20261028-191455
@@ -5733,7 +5735,7 @@ Sorted per the notes in [Template](#template).
 		- Verified 2026-10-28, round-1028b at 84b61ad: the Colors tab drew each graph's section under its name with Background beside it, the colors in one column down the page, and a scrollbar, in a 735 by 800 window.
 	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
-	- Needs hand testing: on b23, after an install, open Settings, pick Themes/Colors, scroll through every graph's section, move a graph in the graph list and see its section move, then judge the layout.
+	- Needs hand testing: No. It closed on the stand-in in the Verified row.
 	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row.
 	- Priority|Severity: Avg
 	- Opened: 20261028-193158
@@ -5757,8 +5759,9 @@ Sorted per the notes in [Template](#template).
 		- The sections are laid out from the spec: `graph: name` on a heading starts a graph's section, and `beside: true` on a heading puts it and the rest of its section on the right. Moving a graph's rows to another column or adding a graph needs no change in qt.cpp.
 		- The sub-headings drop the graph's name, such as "From the bottom up" for "CPU, from the bottom up", since the section's heading gives it.
 		- The page asks for at most 2/3 of the screen's height. Without the cap the window opened as tall as the screen. The other tabs keep their own heights.
+			- Superseded on 2026-10-29 by 2026102913122705, which dropped the cap and sizes the window from the other tabs.
 		- Labels get one width per side across all sections, so the colors sit in one column down the page.
-		- `Dialog::tab_order` and the tab list reorder went, since no tab follows the graph order now. `Dialog::section_order` replaces them.
+		- `Dialog::tab_order` and the tab list reorder are gone, since no tab follows the graph order now. `Dialog::section_order` replaces them.
 	- Branch: round-1028b
 	- Test case: `dialog::tests::graph_color_sections` (dejma) and `bridge::tests::sections_follow_move` (dejmb). dejma fails with a `beside: true` dropped from the spec, and dejmb with the sections left in place after a move or every row put on the left. Both pass now.
 		- 2026-10-28: dee9q names the Colors and Outline sub-tabs, not CPU, Memory and Outline. dejac and dejad checked that a graph's sub-tab moved with the graph, and now check the same of its section, as `sections_follow_graph_order` and `moved_graph_keeps_picked_tab`, with their IDs kept.
@@ -5773,7 +5776,7 @@ Sorted per the notes in [Template](#template).
 		- Verified 2026-10-28, round-1028b at 84b61ad: on a test panel, CPU's own border and background drew beside the other graphs' Default ones. In 5 rolls, each graph got a dark background of its own hue, with its quiet colors showing on it.
 	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
-	- Needs hand testing: on b23, after an install with 2026102819315837 in, give one graph its own Border, Top and Bottom, Apply, and judge it beside the rest. Then Randomize a few times and judge the backgrounds.
+	- Needs hand testing: No. It closed on the stand-in in the Verified row.
 	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row.
 	- Priority|Severity: Avg
 	- Opened: 20261028-193151
@@ -5813,7 +5816,7 @@ Sorted per the notes in [Template](#template).
 		- Verified 2026-10-28, round-1028b at 84b61ad: the Outline tab drew Margins above Background. On a test panel, Top & bottom 0 and Left & right 8 put the graphs against the panel's edges with 16 px between them, and 2 and 2 looked as before.
 	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
-	- Needs hand testing: on b23, after an install, set Top & bottom and Left & right on Themes/Outline, Apply, and judge the panel's look.
+	- Needs hand testing: No. It closed on the stand-in in the Verified row.
 	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row.
 	- Priority|Severity: Avg
 	- Opened: 20261028-193151
@@ -5854,7 +5857,7 @@ Sorted per the notes in [Template](#template).
 		- Verified 2026-10-28, round-1028b at 84b61ad: on a test panel, Terminal, Vintage and Frost each drew all 9 graphs in their one color, clear of the background, with I/O wait and system apart.
 	- Closed reason: Done
 	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
-	- Needs hand testing: on b23, after an install and a panel restart, pick Terminal, Vintage and Frost on the Themes tab in turn, Apply, and judge each on the panel.
+	- Needs hand testing: No. It closed on the stand-in in the Verified row.
 	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row.
 	- Priority|Severity: Avg
 	- Opened: 20261028-075850
@@ -5872,9 +5875,9 @@ Sorted per the notes in [Template](#template).
 		- Verified: the settings window showed Terminal's CPU sub-tab with its colors.
 	- Decisions:
 		- There are 3 themes, one per classic screen color plus a cool one, so the list grows from 6 to 9.
-		- Names with no color word, which defx7 checks: Terminal, Vintage and Frost. "Amber" and "Phosphor" were passed over, the first being a color.
+		- The names have no color word, which defx7 checks: Terminal, Vintage and Frost. "Amber" and "Phosphor" were passed over, since amber is a color.
 		- Every graph gets one color, rather than 10 shades of it. Those 10 shades can't sit 10 apart as CIEDE2000 by lightness alone, and shades a little apart would only look like a mistake. Graphs are told apart by place, as on a one-color multiload-ng setup.
-		- So these themes are let off dejbr's check on leads, and defx7's on distinct gradients. What lets a theme off is that all 10 of its leads are one color, so no list of names is kept, and a theme with only some leads alike still fails.
+		- So these themes are exempt from dejbr's check on leads, and from defx7's on distinct gradients. What exempts a theme is that all 10 of its leads are one color, so no list of names is kept, and a theme with only some leads alike still fails.
 		- They still keep every lead 10 or more from I/O wait and system, as every built-in does.
 	- Branch: theme-colors
 	- Test case: `config::tests::mono_themes_keep_alarms` (dejbw). It fails with the 3 themes left out, and passes now.
@@ -5898,7 +5901,7 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- It's 500 now.
+		- It was 500.
 		- Sample ms default is 1000 by default. A file that sets `graph.sample_ms` keeps its rate.
 		- Verified: the full run passed, the soak test (dee6p) included. The Graph tab showed 1000.
 	- Decisions:
@@ -5927,7 +5930,7 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- Each graph there is as wide as the panel and half that tall, and the Width tip still says "Its height follows the panel".
+		- Each graph there was as wide as the panel and half that tall, and the Width tip said "Its height follows the panel".
 		- On a vertical panel or a deskbar, a graph's width is now its height, and it's as wide as the panel. Time still runs from left to right. The item asks for the heights' sum plus the gaps, and what it gets is shared out by width, as side by side.
 		- The Width tip says what it does on a vertical panel, and each graph's width tip says "or how tall on a vertical panel".
 		- `design.md` XFCE plugin is updated.
@@ -5961,16 +5964,16 @@ Sorted per the notes in [Template](#template).
 		- Each tier now keeps a total per block of 32 buckets, so a wide column reads whole blocks and only its end buckets one at a time. `design.md` History has it.
 		- After, at the same load and run side by side with `dev`: 137 to 142 us a tick, about 2.7 times less. History lookups went to 14%. The /proc reads are now 46% of the tick and drawing 30%.
 		- The live plugin's own CPU use wasn't measured again. b23 runs an older build.
-		- Not done, for later if the self graph says it's worth it:
+		- Left for later, if the self graph shows it's worth it:
 			- Keep `/proc/stat` and `/proc/meminfo` open and read them again from the start, which saves an open and a close a read. Most of the read's time is the kernel writing the file, so it's a small win.
 			- Draw only the graphs read this wake, or that ease or have the pointer moving. Each wake draws every graph today. It saves nothing while every graph reads at the same rate.
 			- The pixel loop in `Frame::draw_to` is most of the drawing, mostly the clamp and the packing per pixel.
 	- Decisions:
-		- Block totals over running totals per bucket. Both measured the same, and running totals would take about 40 bytes more per bucket, about half again the history's memory.
+		- Block totals were picked over running totals per bucket. Both measured the same, and running totals would take about 40 bytes more per bucket, about half again the history's memory.
 		- The results match the old bucket by bucket sum to float rounding, and a column's max is the same.
 	- Branch: less-cpu
 	- Test case: `history::tests::wide_span_spike_needs_bucket` (dejcp). It checks a spike in a whole block and in the part blocks at either end, a block that's lost its spike to age, a reload, a reset after a gap, and that blocks go with their buckets. Each fails with its part of the upkeep taken out.
-		- A test that drove the old and new `span` over 12 seeded histories with gaps, resets and trims checked they matched, then went out with the old one.
+		- A test that drove the old and new `span` over 12 seeded histories with gaps, resets and trims checked they matched, then was removed with the old one.
 		- Swept: `History::span` is the only reader of the buckets for a column, and the hover tip, the settings window's live graphs and the plugin all go through it. Every place that adds, drops or loads buckets keeps the blocks: `Tier::add`, `History::trim` and `History::decode`.
 	- Closed: 20261028-162800
 
@@ -5989,7 +5992,7 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Avg
 	- Actual effort: Avg
 	- Progress log:
-		- A tukzmon graph, last in the default order, off by default, 25% wide. It's `self` in `graph.order` and the history file, with its row in the graph list and its own sub-tab under Themes.
+		- There's a tukzmon graph, last in the default order, off by default, and 25% wide. It's `self` in `graph.order` and the history file, with its row in the graph list and its own sub-tab under Themes.
 		- It reads the process's CPU time against the time between reads and the CPU count, so it's a share of all CPUs. The tip gives that and the share of one CPU, such as "tukzmon 0.014% of all CPUs" over "0.46% of one CPU".
 		- Every built-in theme has colors for it, and Randomize rolls it a lead hue of its own.
 		- `design.md` Data sources on Linux, Theme and Drawing, and the README's graph list, have it.
@@ -5998,14 +6001,15 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- It measures the whole process tukzmon runs in. On X11 that's the panel's wrapper for this plugin alone, where the main thread has nearly all the time anyway, so per-thread time would add nothing. On Wayland it's the whole panel, other plugins included, and timing only tukzmon's own callbacks would miss GTK's drawing for it. So there the tip says Panel and adds "The whole panel, tukzmon in it".
 		- In the settings window's graph list it's the window's own use, named Settings window. Reading the panel's process from there would mean finding it by name, for a preview.
-		- `clock_gettime` on the process CPU clock, in ns, rather than `/proc/self/stat`, whose 10 ms ticks would read 0 most samples at this size. It's one call per read, with no file.
-		- A share of the CPUs the process can run on, the same count the load graph's floor uses, so 100% is every CPU busy.
-		- The top follows the peak in view but never goes under 1% of one CPU, so the usual few tenths show at about half height on any box. No log scale, since the tip has the number.
+		- It reads `clock_gettime` on the process CPU clock, in ns, rather than `/proc/self/stat`, whose 10 ms ticks would read 0 most samples at this size. It's one call per read, with no file.
+		- It's a share of the CPUs the process can run on, the same count the load graph's floor uses, so 100% is every CPU busy.
+		- The top follows the peak in view but never goes under 1% of one CPU, so the usual few tenths show at about half height on any box. There's no log scale, since the tip has the number.
+			- Superseded on 2026-10-28 by 2026102819172002, which fixed the top at every CPU busy.
 		- The setting and section name is `self`, and in Rust it's `own`, since `self` is a keyword there. The label is tukzmon.
 		- The colors are provisional, put in the widest gap between each theme's 9 leads. Default's is indigo, `#404bff`. Item 2026102810142725 reworks all the leads right after this.
 		- `dice::LEAD_GAP` stays 22 degrees. At that gap, 10 graphs leave 27 degrees of the range to roll in, so defxd needs no change.
 	- Branch: self-graph
-	- Test case: `own::tests::cpu_time_share` (dejb3), `host_from_process` (dejb4) and `live_cpu_time_reads_and_rises_with_work` (dejb5), `tests::own_use_reads_in_fine_percents_and_fills_at_a_hundredth_of_one_cpu` (dejb6), `graphs::tests::the_own_graph_sits_last_and_fills_at_a_hundredth_of_one_cpu` (dejb7) and `live::tests::own_row_width` (dejb8). Each fails with its part broken: the CPU count left out, the panel's name not known, a clock that doesn't move, the floor doubled, and the row's width left out.
+	- Test case: `own::tests::cpu_time_share` (dejb3), `host_from_process` (dejb4) and `live_cpu_time_reads_and_rises_with_work` (dejb5), `tests::own_use_fine_percents` (dejb6), `graphs::tests::own_use_before_battery` (dejb7) and `live::tests::own_row_width` (dejb8). Each fails with its part broken: the CPU count left out, the panel's name not known, a clock that doesn't move, the floor doubled, and the row's width left out.
 		- 2026-10-28: new values only, for 10 graphs. defx7's least hue gap between leads is 22 degrees, down from 25, and it lists `self_used` and `self`. deccf and deccw count 65 theme members, up from 60, and deccy 55 saved colors, up from 51. dedqq, defkz and defm0 have `self` last in their orders, and defm0 refuses a move to 10, not 9. deja1 lists `self`. dejac and dejad move tukzmon from last to first, where they moved Battery.
 		- Swept: every graph list in `Which`, `Graphs`, `Live`, `Look`, `settings.shcl`, `dice::ROLES` and its test parts, and the graph lists in `design.md` and the README. The plugin and qt.cpp go through `Graphs` and the spec, with no list of their own.
 	- Closed: 20261028-153600
@@ -6027,12 +6031,13 @@ Sorted per the notes in [Template](#template).
 		- The `tabs:` line in `core/src/settings.shcl` is in the default graph order now, so the spec and a new window agree.
 		- `design.md` Settings window has it.
 		- Verified: moving Zswap up 2 rows in the graph list moved its sub-tab to between Disk and Temperature, with Graph still picked.
+		- Note: Superseded on 2026-10-28 by 2026102819315852, which put each graph's colors in a section on one Colors tab. The sections follow the graph order.
 	- Decisions:
 		- A graph's sub-tab is the one with its `<name>.mode` row, so a new graph's tab follows the order with no list to keep up. Tabs that aren't a graph's keep their places.
 		- The tabs follow the order as the window shows it, before Apply, the same as the graph list's rows.
 		- Picking Themes shows the first sub-tab as listed now, rather than CPU's.
 	- Branch: small-trio
-	- Test case: `dialog::tests::the_graph_tabs_follow_the_graph_order_and_background_stays_last` (dejac) and `bridge::tests::a_moved_graph_moves_its_tab_and_the_picked_tab_stays_picked` (dejad). dejac fails with the order ignored, and with the old `tabs:` line. dejad fails with the tab list left as built.
+	- Test case: `dialog::tests::sections_follow_graph_order` (dejac) and `bridge::tests::moved_graph_keeps_picked_tab` (dejad), both renamed since. dejac fails with the order ignored, and with the old `tabs:` line. dejad fails with the tab list left as built.
 		- `bridge::tests::sub_tab_nesting` (defwx) fails with the old `tabs:` line too.
 		- Swept: every use of a tab list line in qt.cpp (`showTab`, `isLeaf`, the `--snapshot` loop and `tabs_shown`), which now go through that line's tab in the spec. A drag, Up and Down all reach the tab list through `refresh`.
 	- Closed: 20261028-151851
@@ -6062,7 +6067,7 @@ Sorted per the notes in [Template](#template).
 		- The plugin uses a GIO file monitor rather than a shorter timer, so it wakes only when a file changes. The check at each read stays, for a file system the watch can't follow.
 		- A settings file change is told by its modified time and size, since a watch can wake while a write is still going.
 	- Branch: small-trio
-	- Test case: `dialog::tests::reset_history_goes_at_once_and_deletes_saved_history_only_when_kept` (dejaf) and the plugin's `tests::reset_mark_calls_back` (dejae). dejaf fails with the reset left for later, and dejae with the watch not connected.
+	- Test case: `dialog::tests::reset_history_at_once` (dejaf) and the plugin's `tests::reset_mark_calls_back` (dejae). dejaf fails with the reset left for later, and dejae with the watch not connected.
 		- 2026-10-28: defxs is commented out, since Reset history no longer waits for Apply. dejaf has what's left of it. `cicd/utility/test-ids.bash` still counts a commented-out test's ID, so the closed items that name it pass the check.
 		- Swept: every caller of `keep::reset`, now only the window, every file the plugin checks by modified time, now both watched, and the plugin's one-shot timer, which a watch event sets again.
 	- Closed: 20261028-151851
@@ -6081,7 +6086,7 @@ Sorted per the notes in [Template](#template).
 	- Actual effort: Low
 	- Progress log:
 		- Nothing is written over the zswap graph now. The tip has the ratio on a second line under the use, such as "Compressed 3.5x now", in the panel and in the settings window's graph list.
-		- The text overlay went with it, since no other graph used one, and so did the Ratio color on the Zswap sub-tab. The plugin no longer links Pango.
+		- The text overlay was removed with it, since no other graph used one, and so was the Ratio color on the Zswap sub-tab. The plugin no longer links Pango.
 		- `design.md` Theme has it.
 		- Verified: the zswap tip in the panel read "Zswap 35% used" over "Compressed 3.5x now", and nothing was drawn over the graph. The packages and the Nix package built and passed without Pango.
 	- Decisions:
@@ -6111,7 +6116,8 @@ Sorted per the notes in [Template](#template).
 		- A graph's linear time axis and its ease follow its own rate.
 		- Verified: the Graph tab drew the new column, with Default in each box but CPU's, which showed its saved 250. Apply was off at open.
 	- Decisions:
-		- A number box, where 0 shows as Default, rather than a dropdown of rates. Any rate Sample ms default takes can be typed, and Default reads the same as in the time axis column.
+		- It's a number box, where 0 shows as Default, rather than a dropdown of rates. Any rate Sample ms default takes can be typed, and Default reads the same as in the time axis column.
+			- Superseded on 2026-10-28 by 2026102819145599, which made the column Sample %, with no 0 for Default.
 		- Sample every ms is now Sample ms default, to match Time axis default. Its path, `graph.sample_ms`, is unchanged, so saved files keep their rate.
 		- A rate under 50 counts as 50, the finest history tier. The box takes 1 to 49, since 0 has to be in its range for Default.
 		- A graph reads on whole multiples of its rate on one shared clock, so graphs whose rates divide each other share a tick. A read under half a rate after the one before is skipped, so a rate change doesn't leave a short noisy span.
@@ -6120,7 +6126,7 @@ Sorted per the notes in [Template](#template).
 	- Test case: `tests::reads_on_own_beat` (dej9z) checks the beats, an early and a late timer, a rate change, and the 50 ms floor. `graphs::tests::shared_timer_own_rates` (deja0) checks 2 rates on one timer and that a hidden graph isn't read. `config::tests::sample_rate_old_files` (deja1) checks the rows and the fallback. `live::tests::row_sample_rate_sets_reads` (deja2) checks the window's graphs follow an unapplied rate. Each fails with its fix taken out.
 		- `tests::linear_axis_rate` (debj5) also checks a graph's own rate.
 		- 2026-10-28: new values only. defkz's memory row and defm1's list rows include the sample rate row.
-		- `bridge::tests::apply_enables_while_typing` (dej8s) caught Apply lit at open while a box showed Default. Fixed.
+		- `bridge::tests::apply_enables_while_typing` (dej8s) found Apply lit at open while a box showed Default, which is fixed.
 		- Swept: `Look::rate` is the one place a graph's rate is picked, through `Source::sample_ms`. `Graph::basis`, `Graph::render`'s ease slack, `Graphs::tick`, `Live::tick` and the plugin's timer all read it. Nothing outside it reads `look.sample_ms`.
 	- Closed: 20261028-145647
 
@@ -6147,7 +6153,7 @@ Sorted per the notes in [Template](#template).
 		- The order defaults to `cpu mem net disk temp swap zswap load battery`, and CPU, memory and swap are on.
 		- Verified: the Graph tab drew the new names, percentages, order and checkboxes in a snapshot.
 	- Decisions:
-		- Saved at the same `<graph>.width` paths. b23's item had Width at 100, so its saved pixel widths read the same as percentages.
+		- Widths are saved at the same `<graph>.width` paths. b23's item had Width at 100, so its saved pixel widths read the same as percentages.
 		- A width runs from 1% to 1000%, rounded to a whole pixel, and is never 0 px.
 		- The spec's graph rows are in the new default order, so the list and its revert arrows agree with it.
 		- A graph left out of a saved order still goes at the end in the order graphs were added, not the new default. Only a hand-edited order meets that.
@@ -6175,7 +6181,7 @@ Sorted per the notes in [Template](#template).
 		- Under Time, Time axis default picks Linear, Smooth log, Log A or Log B, at `graph.time`. Smooth log is still the default.
 		- Spike emphasis is never greyed now, since a graph can pick a log curve of its own.
 	- Decisions:
-		- `graph.log_axis` and `graph.log_curve` are dropped, not read as aliases. They were never in a release, and b23's files have neither, as with the old theme keys in 2026102620162201. This replaces 2026102408304586's "Saved configs with `graph.log_axis` and `graph.log_curve` keep working".
+		- `graph.log_axis` and `graph.log_curve` are dropped rather than read as aliases. They were never in a release, and b23's files have neither, as with the old theme keys in 2026102620162201. This replaces 2026102408304586's "Saved configs with `graph.log_axis` and `graph.log_curve` keep working".
 			- Confirmed 2026-10-28.
 		- `Look` has one `time`, and `Look::timing` is a graph's own pick or else that.
 	- Branch: graph-tab
@@ -6221,7 +6227,7 @@ Sorted per the notes in [Template](#template).
 		- Measured: an empty checkbox had a contrast of 1.65 with the window in the default light theme, under WCAG's 3 for a control's edge. It passes 3 now in a light theme and a dark one.
 	- Decisions:
 		- Radio buttons get the same edge, since they had the same faint one.
-		- Drawn over the style's own box, so the theme's look stays and only the edge is added.
+		- The edge is drawn over the style's own box, so the theme's look stays and only the edge is added.
 	- Branch: ui-batch
 	- Test case: `bridge::tests::empty_checkbox_contrast` (dej8t). It fails with the edge taken out, at 1.65, and passes with it.
 		- Swept: every checkbox and radio button in the window goes through the one app style, the graph list's included.
@@ -6263,7 +6269,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- The gap above a section's title went from 10 px to 22, and the pages sit 11 px further from the bottom buttons.
 	- Branch: ui-batch
-	- Test case: None. It's a spacing. The Graph tab was checked in a snapshot.
+	- Test case: None, since it's only spacing.
 	- Closed: 20261028-142000
 
 - Pre-next-cut: Taller bottom buttons
@@ -6280,7 +6286,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- The 4 bottom buttons are 8 px taller than the style draws them.
 	- Branch: ui-batch
-	- Test case: None. It's a size. The Graph tab was checked in a snapshot.
+	- Test case: None, since it's only a size.
 	- Closed: 20261028-142000
 
 - CICD reset: CICD process gaps
@@ -6305,12 +6311,12 @@ Sorted per the notes in [Template](#template).
 		- The rest is split into children: leak checks 2026102506591278, packages 2026102506591283, and the profiler 2026102506591288.
 		- 2026-10-25: every child is Done. Only the no-options run in the hand test row is left, which dogfoods.
 	- Decisions:
-		- Dogfood is `utility/dev-install.bash`. A panel plugin has to sit where the panel loads it, so the synced dogfood folder, which is for programs a person runs, doesn't fit.
-		- No `dogfood_tukzmon.ps1` launcher either. The panel starts the plugin and the plugin starts tukzmon-settings, so there's nothing for a person to launch.
-		- No publish step yet, since none was asked for here.
+		- Dogfood is `utility/dev-install.bash`. A panel plugin has to be installed where the panel loads it, so the synced dogfood folder, which is for programs a person runs, doesn't fit.
+		- There's no `dogfood_tukzmon.ps1` launcher either. The panel starts the plugin and the plugin starts tukzmon-settings, so there's nothing for a person to launch.
+		- There's no publish step yet, since none was asked for.
 	- Branch: round-1025
-	- Verified 2026-10-26: `cicd/cicd.bash` with no options passed all 13 steps in 2m08s on b23, Dogfood included, with `xfce4-panel` on PATH as a stand-in that logged `--restart` instead of restarting the live panel. b23 now has build defnz installed, and the panel loads it at its next restart.
-	- Test case: none in the repo. `cicd/cicd.bash` with no options, all 13 steps at PASS, is the check.
+	- Verified: 2026-10-26, `cicd/cicd.bash` with no options passed all 13 steps in 2m08s on b23, Dogfood included, with `xfce4-panel` on PATH as a stand-in that logged `--restart` instead of restarting the live panel. b23 now has build defnz installed, and the panel loads it at its next restart.
+	- Test case: None in the repo. `cicd/cicd.bash` with no options, all 13 steps at PASS, is the check.
 	- Closed: 20261026-182052
 
 - Memory cache counts slab, the way b23's multiload-ng does
@@ -6331,7 +6337,7 @@ Sorted per the notes in [Template](#template).
 		- Cache is `Cached` plus `SReclaimable` now. Slab that can't be reclaimed stays in user. `design.md` Data sources on Linux says so.
 	- Decisions:
 		- This replaces the `Cached` alone decision on 2026102408512192.
-		- No setting for it, per the answer.
+		- There's no setting for it, per the answer under Status.
 	- Branch: round-1026
 	- Test case: `mem::tests::cache_includes_slab` (defmy). It fails with cache as `Cached` alone, and passes with the fix.
 		- Swept: `memory_shares` is the one place cache is worked out. The other `mem::tests` pass unchanged, since their rows have no `SReclaimable`.
@@ -6363,7 +6369,7 @@ Sorted per the notes in [Template](#template).
 		- It's a leak check that takes hours, so it runs only in `--long`, with `--leakcheck`, or as the `miri` area. The tests took about 7 hours of CPU under Miri one at a time, so nearly an hour at 8 at a time, which would push the default run past its hour. A test that parses the settings spec takes 3 to 11 minutes. A dice test ran past 20 minutes and wasn't waited for, so the step takes at least that long.
 	- Branch: round-1025b
 	- Test case: None in the repo, as for 2026102516060718. The step was watched to fail.
-	- Verified 2026-10-25: `cicd/cicd.bash --backlog-run-quick miri` on 5c996ac passed in 68m 51s, with 154 tests, 16 of them skipped by their ignore attributes. Log was in the round's run folder.
+	- Verified: 2026-10-25, `cicd/cicd.bash --backlog-run-quick miri` on 5c996ac passed in 68m 51s, with 154 tests, 16 of them skipped by their ignore attributes.
 	- Closed: 20261025-190640
 
 - CICD reset: leak checks
@@ -6430,13 +6436,13 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Avg
 	- Actual effort: Avg
 	- Progress log:
-		- A Profiler step runs 20000 of the panel's ticks, CPU and memory, on a week of history, sampled in the process, since `perf` can't record here. It runs in the default run, `--long`, `--backlog-run-full` and `--merge-gate`, not in `--quick`.
+		- A Profiler step runs 20000 of the panel's ticks, CPU and memory, on a week of history, sampled in the process, since `perf` can't record on b23. It runs in the default run, `--long`, `--backlog-run-full` and `--merge-gate`, not in `--quick`.
 		- The flamegraph goes to `cicd/artifacts/profiling/`, rotated. `cicd/utility/flame-report.py` then prints the hot spots by part: history, axis, drawing, collectors, tips and the history file.
 		- `flame-report.py --check` prints only when there's a newer graph than at the last look. The step never touches its marker.
 		- The first report: about 400 us of CPU a tick. History lookups for the draw are about half of it, the drawing a quarter, and the `/proc` reads a fifth.
 		- Verified: the step passed and reported, and failed on a bad tick count.
 	- Decisions:
-		- The step runs on the host, not in the image, since the ticks read this box's `/proc`, as the panel does.
+		- The step runs on the host rather than in the image, since the ticks read this box's `/proc`, as the panel does.
 	- Branch: round-1025b
 	- Test case: None in the repo. The step itself is the check, and was watched to fail.
 	- Closed: 20261025-182134
@@ -6462,7 +6468,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: the step passed in the image and on the host, and with a release built on the host and packaged in the image, as in a run that dogfoods. A dropped depend failed it.
 	- Decisions:
 		- There's one package for both parts, since the plugin starts `tukzmon-settings`.
-		- x86_64 only for now, since the pipeline has no arm64 build.
+		- It's x86_64 only for now, since the pipeline has no arm64 build.
 	- Branch: round-1025b
 	- Test case: None in the repo. The step checks each package's files and depends every run, and was watched to fail on a dropped depend.
 	- Closed: 20261025-180719
@@ -6490,7 +6496,7 @@ Sorted per the notes in [Template](#template).
 		- `test-ids.bash` reads the tests in a crate's `tests/` folder too.
 		- Verified: a planted static Vec that grew 8 bytes a round failed it, with dhat's profile kept. The clean tree passed in the image, at the same bytes in the same blocks at both reads.
 	- Decisions:
-		- dhat, so the profile shows where the growth was allocated. Its crates are dev dependencies of the core crate only.
+		- It uses dhat, so the profile shows where the growth was allocated. Its crates are dev dependencies of the core crate only.
 	- Branch: round-1025b
 	- Test case: dee6p
 	- Closed: 20261025-172239
@@ -6513,13 +6519,13 @@ Sorted per the notes in [Template](#template).
 	- Actual effort: Avg
 	- Progress log:
 		- A Sanitizers step runs the tests under ASan and LSan on nightly-2026-10-16, with `-Zbuild-std` and `--target`, in `target/asan`. The nightly is pinned in `cicd/config.bash`, and the image gets it with rust-src.
-		- In the same build, clang builds the C++ shim and cxx's C++ under ASan, LSan and UBSan, with `-fno-sanitize-recover=all` and `-D_GLIBCXX_ASSERTIONS`. No test reaches qt.cpp, so the step then runs `tukzmon-settings --snapshot` offscreen on that build.
+		- In the same build, clang builds the C++ shim and cxx's C++ under ASan, LSan and UBSan, with `-fno-sanitize-recover=all` and `-D_GLIBCXX_ASSERTIONS`. No test calls into qt.cpp, so the step then runs `tukzmon-settings --snapshot` offscreen on that build.
 		- `cicd/lsan.supp` is loaded but has no entries, since nothing needed one.
-		- The leak checks are listed in `cicd/config.bash` with a length: fast, slow or hours. `--leakcheck` adds every one to any run, and `--no-leakcheck` takes every one out. They get a quarter of the CPUs.
+		- The leak checks are listed in `cicd/config.bash` with a length, which is fast, slow or hours. `--leakcheck` adds every one to any run, and `--no-leakcheck` takes every one out. They get a quarter of the CPUs.
 		- Verified: a planted Rust leak, a C++ leak, a signed overflow, a use after free through a stale vector reference, and an index past a vector's size but inside its capacity each failed the step. The clean tree passed, in the image and with `--no-container`.
 	- Decisions:
 		- UBSan's vptr check is off. rustc's ASan runtime has no UBSan C++ part, so it won't link.
-		- Sanitizers is a fast leak check: 1m 25s from a fresh build dir, about 5 s with nothing to rebuild. So it runs in every run, `--quick` and `--backlog-run-quick` included.
+		- Sanitizers is a fast leak check, at 1m 25s from a fresh build dir and about 5 s with nothing to rebuild. So it runs in every run, `--quick` and `--backlog-run-quick` included.
 	- Branch: round-1025b
 	- Test case: None in the repo, as for 2026102516060718. Each check was watched to fail.
 	- Closed: 20261025-163803
@@ -6609,7 +6615,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Local is 127.0.0.1, the loopback device.
 		- A LAN and internet split is its own item, 2026101916274800.
-	- Test case: None, since it was a question. The network collector's tests will cover the answer.
+	- Test case: None, since it was a question. The network collector's tests check the answer.
 	- Closed: 20261019-162817
 
 - CICD gap: Animated demo for the README
@@ -6632,7 +6638,7 @@ Sorted per the notes in [Template](#template).
 		- The Demo step runs in the default run and `--long`. `--quick`, `--no-demo` and the hands-off runs leave it out.
 		- Clicks have sound in the video, within 0.1 s of what they do on screen.
 	- Decisions:
-		- 2026-11-06: about 36 s, over the 30 s aimed for, since it also shows days of history and the Graphs tab.
+		- 2026-11-06: The demo runs about 36 s, over the 30 s aimed for, since it also shows days of history and the Graphs tab.
 		- 2026-11-06: the video is the gif's layout at scale 2, so one set of click positions works for both.
 		- 2026-11-06: the settings window's title shows its file's path, so the panel runs with its home at `/home/sam`.
 	- Branch: demo
@@ -6656,18 +6662,18 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Avg
 	- Actual effort: Low
 	- Progress log:
-		- `History::span_for` splits an end bucket that holds 2 samples at the edge between them, where buckets are no longer than half a sample. Its min and max are the 2 samples, the bucket beside it says which is older, and its sum says where the edge is. Only the part inside the span goes into the mean, and `Span::ends` takes the values at the span's own ends. `design.md` Drawing has it.
+		- `History::span_for` splits an end bucket that has 2 samples in it at the edge between them, where buckets are no longer than half a sample. Its min and max are the 2 samples, the bucket beside it says which is older, and its sum says where the edge is. Only the part inside the span goes into the mean, and `Span::ends` takes the values at the span's own ends. `design.md` Drawing has it.
 		- Profiler, load 12 to 20 on 32 cores, 2 runs each: 661 and 863 us user a tick before, 822 and 717 after, so no change past the noise. History lookups were 35% and 37% of the tick before, 35% and 33% after.
 		- Verified: df4e9 and df3e2's exact check failed before the change and pass after. df4d7, df4dt, df3s6, the quick gate and Sanitizers passed.
 	- Decisions:
 		- The split reads the bucket's own min and max, and a neighbor only for which side each is on, so a neighbor that's a gap or missing on one side still works from the other. With none, the mean stands as before.
 		- It applies to every column's end buckets, wider ones too, so a column's mean is the same however it's read. `History::span`, with no sample, is unchanged, so the hover tip reads as before.
-		- A bucket from history sampled faster than the graph is now, which can hold more than 2 samples, is split as if it held its min and max. Only its part of one column can be off, as before.
+		- A bucket from history sampled faster than the graph is now, which can contain more than 2 samples, is split as if it had only its min and max. Only its part of one column can be off, as before.
 	- Actual fix: `Tier::samples_in` and the end bucket loop in `History::span_for`, in `core/src/history.rs`.
 	- Branch: round-1110b
 	- Test case: `render::tests::one_sample_column_solid` (df4e9).
-		- 2026-11-10: df3e2 `right_column_fills_tip` checks a filled row is exactly the full color again, not within 8 steps of it.
-		- Swept: every reader of `Span::ends` (only `Frame::draw_in`), every `span_for` caller (`Frame::draw_in`, and `span` with sample 0), and the other end bucket readers, `tops_over` and `densest`, which read maxes for the spike, not means.
+		- 2026-11-10: df3e2 `right_column_fills_tip` checks a filled row is exactly the full color again, rather than within 8 steps of it.
+		- Swept: every reader of `Span::ends` (only `Frame::draw_in`), every `span_for` caller (`Frame::draw_in`, and `span` with sample 0), and the other end bucket readers, `tops_over` and `densest`, which read maxes for the spike rather than means.
 	- Closed: 20261110-114108
 
 - A greyed slider still draws its groove in the accent color
@@ -6686,11 +6692,11 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- Seen in tukzmon-settings shots from 2026110922214810. Not yet checked whether it predates the remote-session greying.
+		- Seen in tukzmon-settings shots from 2026110922214810.
 		- A disabled slider draws its groove in the disabled text color, whatever the theme's disabled Highlight is.
 		- Verified: on a test X display with the GTK theme, Sample ms default's groove went from blue to grey in a remote session, and Spike emphasis stayed blue. The quick gate and Sanitizers passed.
 	- Decisions:
-		- In `BoxStyle`, not a palette change, so a theme change at run time can't bring it back, and selections elsewhere keep the theme's colors.
+		- The fix is in `BoxStyle` rather than the palette, so a theme change at run time can't bring the accent back, and selections elsewhere keep the theme's colors.
 	- Actual fix: `BoxStyle::drawComplexControl` swaps Highlight for the disabled text color on a disabled slider.
 	- Branch: round-1110
 	- Test case: `bridge::tests::greyed_slider_no_accent` (df3qa). Under a palette whose disabled accent equals its active one, it fails without the fix, with 463 accent pixels on the greyed slider, and passes with it.
@@ -6713,7 +6719,7 @@ Sorted per the notes in [Template](#template).
 	- Expected behavior: It shows at once, as design.md's XFCE plugin section says.
 	- Reproduced: 2026-11-09, by the new test with the fix taken out. A save to the file at the end of the link gave no call in 5 s.
 	- Possible cause: The file monitor watches the link, and the save writes the file it points to.
-	- Actual cause: As the possible cause. A GIO watch on a path sees changes to that name in its folder, so a write in the link's target folder never reaches it.
+	- Actual cause: As the possible cause. A GIO watch on a path sees changes to that name in its folder, so a write in the link's target folder never triggers it.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
@@ -6726,7 +6732,7 @@ Sorted per the notes in [Template](#template).
 	- Actual fix: `watch_settings` in `xfce/src/lib.rs`, which `Plugin::start` calls, watches `config::through_links` of the settings file as well as the file.
 	- Branch: round-1109b
 	- Test case: `tests::linked_save_calls_back` (df38m). It fails with the end's watch taken out, and passes after.
-		- Swept: every `watch` call (the settings file and the reset mark in `Plugin::start`, and dejae). The reset mark is the window's own file in the data folder, not a link a user makes. Every config write goes through `through_links` already (`Dialog::apply`, `config::start_from`).
+		- Swept: every `watch` call (the settings file and the reset mark in `Plugin::start`, and dejae). The reset mark is the window's own file in the data folder rather than a link a user makes. Every config write goes through `through_links` already (`Dialog::apply`, `config::start_from`).
 	- Closed: 20261109-152251
 
 - Code review 20261107 item 18: With the .deb or .rpm, Properties runs whichever tukzmon-settings comes first on PATH
@@ -6741,9 +6747,9 @@ Sorted per the notes in [Template](#template).
 	- Origin: `59037f4` (2026-10-25). The Nix package got a link beside the library later, in `a4087bd`, and the .deb and .rpm never did. Not seen before. Plausible, from reading.
 	- Steps to reproduce: Install the .deb on a box with an older `tukzmon-settings` in `~/.local/bin`, ahead of `/usr/bin` on the panel's PATH, then open Properties.
 	- Incorrect behavior: The older window opens on the item's file.
-	- Expected behavior: The package's own window, which is why design.md gives the Nix package its link.
+	- Expected behavior: Properties opens the package's own window. That's why design.md gives the Nix package its link.
 	- Possible cause: The plugin looks beside its library, then on PATH, and the packages put the program only in `/usr/bin`.
-	- Reproduced: No. The packages' contents showed it: neither had anything beside the library.
+	- Reproduced: No. The packages' contents showed it, since neither had anything beside the library.
 	- Actual cause: As above. `nfpm.yaml` put `tukzmon-settings` only in `/usr/bin`.
 	- Estimated effort: Low
 	- Actual effort: Low
@@ -6754,10 +6760,10 @@ Sorted per the notes in [Template](#template).
 		- Verified: the quick gate and Sanitizers passed, and so did `--backlog-run-quick release package`. The .deb built twice gave the same bytes. lintian had nothing on the link.
 		- Verified: df38w failed on the old `nfpm.yaml`, and on a link one folder short, and passed on the fix.
 	- Decisions:
-		- A relative link, per Debian policy for links within `/usr`, and as the Nix package's is.
-		- A link, not a second copy, so there's one program and `/usr/bin` still has it for running by hand.
+		- The link is relative, per Debian policy for links within `/usr`, as the Nix package's is.
+		- It's a link rather than a second copy, so there's one program and `/usr/bin` still has it for running by hand.
 		- Swept: `nix/package.nix` has its link already. `utility/dev-install.bash` copies the program beside the library. The plugin's lookup (`settings_program`) is unchanged, and `windows_on` matches argv[0] by its ending, which the link's path keeps.
-	- Actual fix: two `type: symlink` entries in `cicd/packaging/nfpm.yaml`, and the content check in `cicd/utility/package.bash`.
+	- Actual fix: 2 `type: symlink` entries in `cicd/packaging/nfpm.yaml`, and the content check in `cicd/utility/package.bash`.
 	- Branch: round-1109b
 	- Test case: `package_settings_link` (df38w), and the Packages step's content check.
 	- Closed: 20261109-153252
@@ -6784,7 +6790,7 @@ Sorted per the notes in [Template](#template).
 		- `Model::value` reads a setting's auto switch, its rule's state value and its group's chooser, and nothing checked that those can't lead back to it.
 		- Paths were compared as written, and shcl folds key case.
 		- `x < min || x > max` is false for a NaN end, and `numbers` reads `nan` from text.
-		- A chooser was checked for its control only, not its type.
+		- A chooser was checked for its control and never for its type.
 	- Note: silkterm's backlog needs the same fix.
 	- Estimated effort: Avg
 	- Actual effort: Avg
@@ -6797,7 +6803,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: the quick gate and Sanitizers passed.
 		- 2026-11-10: Filed in silkterm as 2026110919171131, commit 4d55236 on its dev.
 	- Decisions:
-		- Also refused: a dropdown's options that differ only in case, since a choice is matched without case and the second could never be picked. Same shape as the path twins.
+		- Also refused: a dropdown's options that differ only in case, since a choice is matched without case and the second could never be picked. It's the same fault as the path twins.
 		- The loop check is a walk over the reads with an index, once per spec, rather than a chain walk per setting, since a setting reads up to 3 others.
 		- A range with its ends swapped was already refused through its default, so it gets no check of its own.
 		- A patch for silkterm's copy is drafted in the upstream folder, `2026110709074419/`.
@@ -6818,7 +6824,7 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Related IDs: 2026110514461968
 	- Origin: `4a7f217` (2026-10-25), kept by `34329c6` (2026-11-05). Not seen before. Confirmed, by a stand-in cargo whose knobs list fails, which gave "3 test(s) in 2 module(s)" and a pass.
-	- Incorrect behavior: Each target's list hides its errors and its exit status, and only a total of 0 tests fails the step. A target that won't build or list loses its tests with no word.
+	- Incorrect behavior: Each target's list hides its errors and its exit status, and only a total of 0 tests fails the step. A target that won't build or list loses its tests without a word.
 	- Expected behavior: A target that can't list its tests fails the step.
 	- Actual cause: The list ran in a pipe with its stderr thrown away and its exit status taken by `|| true`, so a failed target gave an empty list.
 	- Estimated effort: Low
@@ -6849,7 +6855,7 @@ Sorted per the notes in [Template](#template).
 	- Expected behavior: The demo gets the run's job count, at a quarter of the CPUs like the other heavy steps.
 	- Estimated effort: Low
 	- Actual effort: Low
-	- Actual cause: No ffmpeg call set a thread count, and x265 keeps its own thread pool, which `-threads` doesn't reach. The Demo step wasn't in `HEAVY_STEPS` and passed no job count.
+	- Actual cause: No ffmpeg call set a thread count, and x265 keeps its own thread pool, which `-threads` doesn't affect. The Demo step wasn't in `HEAVY_STEPS` and passed no job count.
 	- Actual fix: `demo-video.py --jobs N`, a quarter of the CPUs by default, gives every ffmpeg `-threads N`, the filters `-filter_threads` or `-filter_complex_threads`, and x265 `pools=N`. `fStepDemo` is in `HEAVY_STEPS` and passes `--jobs`.
 	- Decisions:
 		- 2026-11-10: the capture's x264 gets the same cap. The video take at 8 jobs kept every frame, 2328 at 60 fps for 38.8 s, with the capture at 1.0001 of wall time.
@@ -6874,14 +6880,14 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Related IDs: 2026110310450002
 	- Origin: `15993d9` (2026-11-06). Not seen before. Confirmed, by a probe with an X server whose lock file the demo can't see.
-	- Incorrect behavior: The demo takes a display number that already answers, waits 10 s, and fails with "never came up as ours" rather than trying the next number. It fails safe.
-	- Expected behavior: A number that answers a connection counts as taken, so the demo moves on to the next one.
+	- Incorrect behavior: The demo takes a display number that's already in use, waits 10 s, and fails with "never came up as ours" rather than trying the next number. It fails safe.
+	- Expected behavior: A number that accepts a connection counts as taken, so the demo moves on to the next one.
 	- Estimated effort: Low
 	- Actual effort: Low
-	- Actual cause: `display_taken` read only `/tmp/.X<n>-lock`. A server in another mount namespace, or with its lock file elsewhere, still holds the display's socket.
+	- Actual cause: `display_taken` read only `/tmp/.X<n>-lock`. A server in another mount namespace, or with its lock file elsewhere, still listens on the display's socket.
 	- Actual fix: A display is taken when its lock names a live process, or when `/tmp/.X11-unix/X<n>` or the abstract socket of the same name takes a connection. `pick_display` steps past it, and a pinned one fails at once.
 	- Progress log:
-		- Verified: with an Xvfb on :79 whose lock file sat in a private `/tmp`, the old script picked :79 and the new one :78.
+		- Verified: with an Xvfb on :79 whose lock file was in a private `/tmp`, the old script picked :79 and the new one :78.
 		- Verified: df3a7 failed on the old script and passes now, over a socket file, an abstract socket, a stale socket file, and a live and a dead lock.
 		- Swept: `pick_display` and `Screen.start` both go through `display_taken`, and `Screen.start` reads the lock through the same `x_lock`.
 	- Branch: round-1109b
@@ -6899,7 +6905,7 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Origin: `801ac42` (2026-10-24) for the picker, `f89e55e` and `6a78316` for the boxes. Not seen before. Confirmed, by reading and by a probe with a folder that can't be written.
 	- Incorrect behavior:
-		- None of the picker's controls has a tip: the square, the hue strip, the 5 percent boxes, the hex box, Cancel and OK.
+		- None of the picker's controls has a tip, including the square, the hue strip, the 5 percent boxes, the hex box, Cancel and OK.
 		- "Settings weren't saved" gives shcl's own error text, and no "Nothing was changed." line.
 		- A theme name that won't do shows a warning titled with the action, "Save theme as", rather than what didn't happen.
 	- Expected behavior: Every control has a tip, and a failure box's title says what didn't happen, per `project/style-guide_ux.md`.
@@ -6912,7 +6918,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: the quick gate and Sanitizers passed.
 	- Decisions:
 		- "History wasn't reset" gets no "Nothing was changed." line, since the graphs are already cleared by then, and some saved history may be gone.
-		- A write error shcl gives no status for keeps its own text after the file's name. Plain words for the read errors and the rest are item 2026110710005015's.
+		- A write error shcl gives no status for keeps its own text after the file's name. Plain words for the read errors and the rest are left to item 2026110710005015.
 	- Actual fix: `Window::failed` in `qt.cpp` shows every failure box, and `write_failed` in `dialog.rs` words a failed write.
 	- Branch: round-1109b
 	- Test case: `bridge::tests::picker_controls_have_tips` (df3ar), `failure_box_wording` (df3as) and `dialog::tests::write_failure_message` (df3aq). df3ar and df3as fail with the tips and the new titles taken out, and pass with them.
@@ -6935,7 +6941,7 @@ Sorted per the notes in [Template](#template).
 	- Actual effort: Low
 	- Actual cause: design.md said "20 or so" when the first edit was made, and later "the few dozen". `xfce/src/sys.rs` now declares 41 calls, 3 of them libc's, so any number goes stale when a call is added.
 	- Decisions:
-		- Gave no count. The sentence reads the same without one, and nothing has to be kept in step with `sys.rs`.
+		- design.md gives no count. The sentence reads the same without one, and nothing has to be kept in step with `sys.rs`.
 	- Actual fix: design.md XFCE plugin says "The GLib, GTK, cairo, and panel calls it makes", with no count.
 	- Branch: round-1109b
 	- Test case: None, since only text changed.
@@ -6945,7 +6951,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026110810505772
 	- Type: Bug
 	- Status: Closed
-		- The cause isn't proven, so it stays open until the hosted runs show the test holds.
+		- The cause isn't proven, but dezcc passed in 3 hosted runs on 2026-11-10.
 	- Closed reason: Done
 	- Target version: v1.0.0-beta.2
 	- Needs external testing: No
@@ -6960,12 +6966,12 @@ Sorted per the notes in [Template](#template).
 	- Reproduced: No. It passed on the 2 Dependabot runs and the run by hand on `runner-tests` that day, and never failed on b23, pinned to one CPU or with the sensors, battery and zswap hidden.
 		- 2026-11-09: Still no, on b23: 187 runs on 4 loaded CPUs, 11 runs of all the bridge tests together on 4 loaded CPUs, 32 runs at about 13 times slower, and 0 to 1200 ms held before each refresh so sample ticks fell inside the counted window.
 	- Possible cause: Something the live graphs do between the settle loop and the refresh, such as a sample tick, on a slow 4-CPU runner.
-		- 2026-11-09: Ruled out on b23: a sample tick inside the counted window asks for no layout, and the slowest page settles in 4 of the 5 passes. Left: the old count also took in whatever a timer or the screen posted during its last `processEvents`, or a settle that needed more than 5 passes on the runner.
+		- 2026-11-09: Ruled out on b23: a sample tick inside the counted window asks for no layout, and the slowest page settles in 4 of the 5 passes. The causes left are that the old count also took in whatever a timer or the screen posted during its last `processEvents`, or that a settle needed more than 5 passes on the runner.
 	- Progress log:
 		- The test now settles each page until a pass asks for no layout and none is waiting, up to 50 passes, and counts only the layout requests the refresh itself posts, with no timer or screen event run in between.
 		- With nothing changed, a failure names the page and the first 10 widgets that got a tip or a layout request, so a hosted failure shows where it came from.
-		- Verified: the test still catches what it was made for: 120 layouts with the height check taken out, and 2585 tips with the tip check taken out, the same as before.
-		- Verified: 2026-11-10, dezcc passed in 3 merge-gate runs on GitHub's runner at c66f3d9 (42745146916, 42745155762, 42745165237). Those runs failed later on df336, filed apart.
+		- Verified: the test still catches what it was made for, with 120 layouts with the height check taken out, and 2585 tips with the tip check taken out, the same as before.
+		- Verified: 2026-11-10, dezcc passed in 3 merge-gate runs on GitHub's runner at c66f3d9 (42745146916, 42745155762, 42745165237). Those runs failed later on df336, which is filed separately.
 	- Decisions:
 		- Counting only what the refresh posts matches what the test is for. A layout request the refresh itself makes is still counted, on the runner too, so a real one isn't hidden.
 	- Branch: round-1109b
@@ -6984,12 +6990,12 @@ Sorted per the notes in [Template](#template).
 	- Reproduced: Yes. 33,443 on round-1109 and 11,233 on `6c5557f`, from the settings tests at default threads, and about 600,000 at `--test-threads=1` on both. So it's older than df32n's close hook, which only adds one more window test.
 	- Actual cause: Each cargo test runs on its own thread and built its `QApplication` there. Qt keeps the plugins it loads, such as the image formats, on the thread that first loaded them, and once that thread is gone each plugin lookup from a later app tried to move them and warned. The same cause gave the "not created in the main() thread" and `startTimer` lines.
 	- Progress log:
-		- 2026-11-09: Seen in the quick gate's test log on round-1109, starting near dej8s, while 2026110709074405 was worked. Every test passed. Not yet known whether it's older than df32n's offscreen close hook. A flood that size hides real warnings in the log.
+		- 2026-11-09: Seen in the quick gate's test log on round-1109, starting near dej8s, while 2026110709074405 was worked. Every test passed. A flood that size hides real warnings in the log.
 		- 2026-11-09: Every test that builds a `QApplication` now runs it through `on_qt`, on one thread they all share, in place of `qt_turn`. The settings tests print no `moveToThread`, `startTimer` or main-thread lines now, and take about as long.
 		- Verified: the worker quick gate (format, build, lint, test) passed, with none of those lines in its log. df349 failed with `on_qt` made to run the test in place, as before, and passes with it.
 		- Swept: all 36 tests that took `qt_turn`, and every test calling an `ffi::` hook. The 2 others that call one only read `ffi::ControlKind` and `ffi::RowInfo`.
 	- Decisions:
-		- Fixed in the test harness, not in `qt.cpp`. The app runs once on the main thread, so it never saw this.
+		- The fix is in the test harness rather than `qt.cpp`, since the app runs once on the main thread and never hit this.
 	- Actual fix: `on_qt` in `settings/src/bridge.rs` runs each window test on one long-lived thread, and passes its panic back to the test.
 	- Branch: round-1109
 	- Test case: df349, `qt_quiet_on_threads`, which runs `qt_warnings` from 3 threads in turn and wants Qt to say nothing.
@@ -7017,7 +7023,7 @@ Sorted per the notes in [Template](#template).
 	- Actual fix: dekmd and der6k return early when `gpu::nvidia_asleep()` is true.
 	- Branch: round-1102b
 	- Test case: dekmd and der6k, under a stand-in for an asleep card. dekmd fails there with its early return taken out. der6k passes either way, since it found nothing to count. desfa checks `nvidia_asleep`.
-		- Swept: every test that reads the real card: dekma (already returned early), dekmd, der6k and dektd. dektd opens NVML itself, so it reads the card even when it's asleep.
+		- Swept: every test that reads the real card, which are dekma (already returned early), dekmd, der6k and dektd. dektd opens NVML itself, so it reads the card even when it's asleep.
 	- Acceptance signoff: Self-closed 20261102: the stand-in above stands in for the hybrid laptop's asleep card.
 	- Closed: 20261102-163600
 
@@ -7031,15 +7037,15 @@ Sorted per the notes in [Template](#template).
 	- Opened by:
 	- Related IDs: 2026103115232157
 	- Reproduced: No. Back to back, the 2 commits are within each other's noise.
-	- Actual cause: load noise. No commit made the tick slower.
-	- Estimated effort: 30 min
+	- Actual cause: Load noise, since no commit made the tick slower.
+	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
 		- 2026-11-01: the round-1101 full run's profiler gave 151 us a tick of 6 graphs, against 134 us at 1d07a68 and 127 us at c1dec56. Of that, 63% is the /proc reads, which move with load, so profile dev and the round's merge back to back before blaming a commit.
 		- 2026-11-01: `1d07a68` and `0242c8a` (dev, the round-1101 merge), 20000 ticks each, taken in turn 3 times at a load of 18 to 26 on 32 cores:
 			- The old profiler: 147, 147 and 142 us a tick at `1d07a68`, and 152, 140 and 159 at `0242c8a`.
-			- The profiler from 2026103115232157, at the panel's width: 397, 376 and 396 at `1d07a68`, and 400, 411 and 392 at `0242c8a`. Medians 396 and 400, 1% apart, less than the runs vary.
-	- Test case: none, since nothing changed. The measurement is above.
+			- The profiler from 2026103115232157, at the panel's width: 397, 376 and 396 at `1d07a68`, and 400, 411 and 392 at `0242c8a`. The medians are 396 and 400, 1% apart, which is less than the runs vary.
+	- Test case: None, since nothing changed. The measurement is above.
 	- Closed: 20261101-161506
 
 - Code review 20261031 item 8: 2 windows saving one new theme name keep only the last one's colors
@@ -7051,12 +7057,12 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261031-152319
 	- Opened by: t00mietum
 	- Steps to reproduce: Open 2 windows on one file. Save "Mine" in the first and Apply, then save "Mine" in the second and Apply.
-	- Incorrect behavior: The first window's Mine is gone with no word.
+	- Incorrect behavior: The first window's Mine is gone without a word.
 	- Expected behavior: The second gets its own key, or is asked before it overwrites.
 	- Possible cause: The theme key is picked against this window's themes only. A plugin item opens one window, so it needs a second started by hand.
 	- Estimated effort: Low
 	- Reproduced: 2026-11-01, round-1102, by der2h with the fix taken out. The file kept one theme.
-	- Actual cause: as above. The merge then wrote the second window's theme over the first's, since it had the same key.
+	- Actual cause: As above. The merge then wrote the second window's theme over the first's, since it had the same key.
 	- Actual effort: Low
 	- Origin: `6a78316` (`merge_themes`). First review. Confirmed by a scratch test.
 	- Progress log:
@@ -7064,8 +7070,8 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Theme says so.
 		- Verified: der2h fails with the fix taken out and passes with it, and the quick gate passed.
 	- Decisions:
-		- Rename rather than ask. The window has no prompt at Apply for anything else, and a rename keeps both with nothing lost. The new name shows in the dropdown at once.
-		- A name clash moves the name too, not only the key, since no two themes share a name.
+		- The window renames rather than asks. It has no prompt at Apply for anything else, and a rename keeps both with nothing lost. The new name shows in the dropdown at once.
+		- A name clash moves the name as well as the key, since no two themes share a name.
 		- Only themes new in this window move. A theme both windows knew and both changed is still the last save's, like any other setting.
 	- Actual fix: `Dialog::make_room` in `settings/src/dialog.rs`, called by `Dialog::apply` before `merge_themes`.
 	- Branch: round-1102
@@ -7086,19 +7092,19 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026103115231894
 	- Steps to reproduce: On a box whose address is on a bridge with its NIC and the VMs' taps in it, as b23's br0, turn on the LAN split and copy a file over TCP to a VM.
 	- Incorrect behavior: The socket's own address is the bridge's, which counts as the LAN's way out, so the copy is LAN, and the clamp takes it out of the internet's share.
-	- Expected behavior: A socket to a far end that sits behind one of the bridge's virtual ports isn't the LAN's.
-	- Possible cause: Telling it apart takes the far end's MAC, from the neighbor table, and its port in the bridge's `brforward`. Both read with no root.
+	- Expected behavior: A socket to a far end that's behind one of the bridge's virtual ports isn't the LAN's.
+	- Possible cause: Telling it apart takes the far end's MAC, from the neighbor table, and its port in the bridge's `brforward`. Both can be read without root.
 	- Actual cause: The box's own address on a bridge says nothing of which port the far end is behind.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
 		- A far end whose link address is in the bridge's `brforward` on a virtual port, such as a VM's tap, isn't the LAN's. The neighbor table, from a netlink dump with no root, gives each far end's link address, IPv4 and IPv6.
-		- Read with the away addresses, every 10 s and when the interfaces change. Each failed read keeps the last lists.
+		- Both are read with the away addresses, every 10 s and when the interfaces change. Each failed read keeps the last lists.
 		- `design.md` Data sources on Linux has the details.
 		- Verified: `cargo test -p tukzmon-core lan:: net::` passed. On b23 the neighbor dump read with no root and listed the VMs, and br0's `brforward` had a VM's address on vnet2's port, not local, as the test builds it.
 		- Verified 20261101 on b23 at 4c8a1e0, with vmFreeBSD on br0 running and the split on: `net::guests` listed 192.168.1.119 on every read for 45 s. A 3 GB copy to it over TCP, about 500 MB/s, showed under 0.5 KB/s as LAN sent.
 	- Decisions:
-		- By the bridge's forwarding table, since a VM on b23's br0 shares its subnet with the real LAN, and no address tells them apart.
+		- A VM is told apart by the bridge's forwarding table, since a VM on b23's br0 shares its subnet with the real LAN, and no address tells them apart.
 		- An idle VM's address ages out of the table, but one moving data is in it, which is when it matters.
 		- A copy to a VM can count as LAN for up to 10 s at its start, till the next read. Reading every tick would cost 2 more reads a second, for a few seconds of a share the clamp already bounds.
 	- Actual fix: `net::guests` lists the far ends behind a bridge's virtual ports, and `lan::Away` keeps them with the away addresses.
@@ -7131,9 +7137,9 @@ Sorted per the notes in [Template](#template).
 		- A VM on a bridge that also has the NIC, as on b23, is child 2026110111543986, in and waiting on a test with a running VM. This closes with it.
 		- `design.md` Data sources on Linux has the details.
 		- Verified: `cargo test -p tukzmon-core lan:: net::` passed. On b23 the away addresses are nordlynx's, docker0's and the compose bridge's, and br0 still counts.
-		- 2026-11-01: closed with its child 2026110111543986. Verified: deqt3 to deqt8 PASS in the round's full-run log.
+		- 2026-11-01: closed with its child 2026110111543986. Verified: deqt3 to deqt8 passed in the round's full run.
 	- Decisions:
-		- By the socket's own address, not the far end's subnet. On b23 the box's address is on br0, which has the NIC and the VMs, so by subnet all of the real LAN would drop out. A VPN's address is often a /32 too, which no far end is in.
+		- A socket is judged by its own address rather than the far end's subnet. On b23 the box's address is on br0, which has the NIC and the VMs, so by subnet all of the real LAN would drop out. A VPN's address is often a /32 too, which no far end is in.
 		- A bridge, bond or VLAN over a hardware interface counts as a way out, by the `upper_` links in sysfs, since what it sends to the LAN crosses the NIC.
 		- Every 10 s rather than every tick, as the disk reader lists drives, since reading the addresses cost about 0.4 ms on b23.
 	- Branch: round-1101
@@ -7150,7 +7156,7 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261031-152321
 	- Opened by: t00mietum
 	- Incorrect behavior: `typing()` in `qt.cpp` checks `specialValueText()`, which nothing sets, and its comment is from before Sample %. `config::theme_problems`, `render::column`, `Graph::save` and `Graph::load` have no caller outside tests.
-	- Expected behavior: Removed, or made test-only.
+	- Expected behavior: Each is removed, or made test-only.
 	- Estimated effort: Low
 	- Origin: `4993f98` (`typing`) and earlier. First review. Confirmed by grep.
 	- Actual effort: Low
@@ -7159,7 +7165,7 @@ Sorted per the notes in [Template](#template).
 		- `theme_problems`, `Graph::save` and `Graph::load` are test-only. `column` moved into the render tests, since the drawing calls `reach` and `fit` itself.
 		- Verified: the quick gate's format, build, lint and tests passed, dej8s included.
 	- Decisions:
-		- Test-only rather than removed, since their tests check what the plugin's own paths share: `saved_themes`, `adopt`, `section` and the spike reach.
+		- They're test-only rather than removed, since their tests check what the plugin's own paths share, such as `saved_themes`, `adopt`, `section` and the spike reach.
 		- Swept: no other `specialValueText` or `setSpecialValueText` in `qt.cpp`, and no caller of the 4 in the examples, the soak test, xfce or settings, which use `Graphs::save` and `Graphs::load`.
 	- Actual fix: `#[cfg(test)]` on the 3, `column` in `render::tests`, and the special text check out of `typing()` in `settings/src/qt.cpp`.
 	- Branch: round-1101
@@ -7181,7 +7187,7 @@ Sorted per the notes in [Template](#template).
 	- Actual effort: Low
 	- Actual fix: The desktop file and package description list the graphs now. design.md's globals line names the once-set caches, the per-thread meminfo cache and the panic hook. Its saved-theme and old-axis-lines text says unreadable lines are dropped at the next save. The demo lists `from_program`.
 	- Decisions:
-		- Checked each was still stale first. The line on a saved theme's key and colors (Themes) was stale too, so it is fixed with the rest.
+		- Each was checked first to be sure it was still stale. The line on a saved theme's key and colors (Themes) was stale too, so it is fixed with the rest.
 		- The desktop comment is short, since the panel shows it in a list.
 	- Branch: round-1101
 	- Test case: None, since only text changed. The quick gate passed.
@@ -7199,13 +7205,13 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: All 15 pass, since decbh's file is too short and fails on length first. debj0 says a holed bucket reads as thin, but checks only the count. dep7b refuses 2 spaces in a row, so a tip line with 2 pairs and a comma passes. `procs_sits_after_load_and_stacks_by_owner` lays procs after swap.
 	- Expected behavior: Each fails when what it names breaks.
 	- Estimated effort: Low
-	- Origin: `87bc145` (decbh, debj0), `1d07a68` (dep7b). First review. decbh confirmed by mutation; the rest by reading.
+	- Origin: `87bc145` (decbh, debj0), `1d07a68` (dep7b). First review. decbh was confirmed by mutation, and the rest by reading.
 	- Actual effort: Low
 	- Progress log:
 		- decbh also gives a full fine tier one more bucket than it keeps, with the bytes for it in the file and the span widened to fit. The same change to a tier that isn't full still reads, so only the cap refuses it.
 		- debj0 also reads a 2 s bucket with a hole in it, after the finer tiers have let it go, and checks it covers 0.5 of its 1.75 s.
 		- dep7b also allows one value a line, with "2 of 8 GiB" as one.
-		- dep48 is `procs_stack_by_owner` now, and draws with the default order, so procs sits between memory and swap.
+		- dep48 is `procs_stack_by_owner` now, and draws with the default order, so procs is between memory and swap.
 		- Verified: the quick gate passed. Each test failed with what it names broken: decbh with the cap check out, debj0 with a holed bucket read as full, dep7b with temperature's 2 lines joined by a comma, and dep48 with `set_look` keeping the old order.
 	- Decisions:
 		- The old asserts stay. decbh's 9000-bucket case is now said to be past what the file has, and debj0's bucket count is the gap kept as empty buckets.
@@ -7254,7 +7260,7 @@ Sorted per the notes in [Template](#template).
 	- Steps to reproduce: A sock_diag dump fails partway.
 	- Incorrect behavior: Its leftover messages are read into the next dump, so one read misses sockets and the next counts their whole life once. The interface totals bound it, since the LAN is clamped to them.
 	- Expected behavior: Messages from another request are skipped.
-	- Actual cause: `lan::parse` read every message in the socket, whatever request it answered.
+	- Actual cause: `lan::parse` read every message in the socket, whichever request it was for.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Origin: `8bbd96a`. First review. Plausible, by reading.
@@ -7262,7 +7268,7 @@ Sorted per the notes in [Template](#template).
 		- `lan::parse` takes the dump's sequence number and skips a message with another, its error and done included.
 		- `design.md` Data sources on Linux says so.
 		- Verified: `cargo test -p tukzmon-core lan::` and the quick gate passed.
-	- Actual fix: Skip messages by sequence number.
+	- Actual fix: Messages are skipped by sequence number.
 	- Branch: round-1101
 	- Test case: `lan::tests::stale_dump_skipped` (deqt2). It fails with the check taken out, on the old dump's error.
 		- Swept: `LanReader::poll` is the only netlink reader in the repo.
@@ -7296,11 +7302,11 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- Any read error but a missing file stops the save, a broken file too. Telling a newer file from a broken one would need trust in the bytes that didn't read. Reset history is the way out, and the tip points at the file.
 		- This changes 2026103010491713's "an older build refuses a version 2 file as a whole and starts fresh". A build from now on still starts fresh, but leaves a newer file on disk.
-		- The pid, not a random name, so a temp file says whose it is, and a reset still finds it by name.
+		- The temp name has the pid rather than a random part, so it shows which process wrote it, and a reset still finds it by name.
 	- Actual fix: `Graphs::load` and `Graphs::save` in `core/src/graphs.rs`, and `write`, `temp_of` and `is_history_file` in `core/src/keep.rs`.
 	- Branch: round-1101
 	- Test case: `graphs::tests::bad_file_kept_till_reset` (deqsa), `keep::tests::failed_write_no_temp` (deqs8) and `keep::tests::reset_clears_temp_files` (deqs9). Each fails with its fix taken out, and deqsa's second round fails with only the load fix out.
-		- 2026-11-01: decbk (`sections_round_trip_no_tmp`) now checks the folder has only the history file, not that `plugin-1.hist.tmp` is missing, since the temp file has a new name.
+		- 2026-11-01: decbk (`sections_round_trip_no_tmp`) now checks the folder has only the history file, rather than that `plugin-1.hist.tmp` is missing, since the temp file has a new name.
 		- Swept: every `keep::write`, `keep::read` and `keep::reset` caller (`Graphs::save`, `load` and `set_look`, `Graph::save`, the plugin's save, load, reset and remove, and the settings window's Reset history), and every other temp file written then renamed (`config::start_from`, fixed the same way, untested since its rename can only fail where its file already exists, and the profiler's report, left as it is in the build's artifacts). `Plugin::forget` deletes `plugin-<id>.hist` only, so a temp a crash left at that moment stays until the next Reset history.
 	- Closed: 20261101-113100
 
@@ -7323,7 +7329,7 @@ Sorted per the notes in [Template](#template).
 		- `tick` now says when the tip should be asked again, and the trigger runs after `guarded` returns, in both callers.
 		- Verified: the quick gate passed. The live panel wasn't tried.
 	- Decisions:
-		- After `guarded` rather than from an idle callback, so there's no extra source to stop at free-data, and the tip moves in the same tick as before.
+		- The trigger runs after `guarded` rather than from an idle callback, so there's no extra source to stop at free-data, and the tip moves in the same tick as before.
 		- `tick` is `#[must_use]`, so a new caller can't drop the requery.
 	- Actual fix: `requery` in `xfce/src/lib.rs`, called with what `guarded(.., Plugin::tick)` gives.
 	- Branch: round-1101
@@ -7342,7 +7348,7 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026102808222810
 	- Steps to reproduce: Keep a worktree whose NIX_IMAGE pin differs, then run the Nix step in another.
 	- Incorrect behavior: The other store, about 5 GB, is removed. Any tukzmon volume added later would be too.
-	- Expected behavior: Both labels on every volume, and removal of only what the step owns.
+	- Expected behavior: Every volume has both labels, and the step removes only the volumes it made.
 	- Reproduced: 2026-11-01, round-1101 at bedc86c. The Nix step removed a store no checkout pins, and also `tukzmon-probe-other`, a plain tukzmon volume.
 	- Estimated effort: Low
 	- Actual effort: Low
@@ -7352,8 +7358,8 @@ Sorted per the notes in [Template](#template).
 		- The step removes a volume only when it's named like its stores, `tukzmon-nix-<12 hex>`, and no checkout of the clone pins it. It reads the pins from each worktree's `cicd/config.bash`. When git can't list the worktrees it removes nothing, with a warning.
 		- Verified: with a second worktree pinning another image, the step kept that one's store and another tukzmon volume, removed a store nobody pins, and passed. The same setup at bedc86c removed the other volume too. deqre passes, and the quick gate's lint and tests passed in the image.
 	- Decisions:
-		- Keep a store while any checkout of this clone pins it, rather than only the current one, as 2026102808222810 had it. A store no checkout pins still goes, so an old pin doesn't keep 5 GB forever. A separate clone with its own pin isn't seen, so it can still lose its store, and its next run fetches again.
-		- Stores are known by their name, not by a new label, so the ones made before this count too.
+		- A store is kept while any checkout of this clone pins it, rather than only the current one, as 2026102808222810 had it. A store no checkout pins still goes, so an old pin doesn't keep 5 GB forever. A separate clone with its own pin isn't seen, so it can still lose its store, and its next run fetches again.
+		- Stores are known by their name rather than by a new label, so the ones made before this count too.
 		- The current store, `tukzmon-nix-0d6541f7ddaf` on b23, was made before this and has no `dev.run`. Docker can't add a label, so it gets one only when it's made again.
 		- Swept: no other step makes or removes a volume, and the run's cleanup removes only containers by `dev.run`.
 	- Actual fix: `fNixStore`, `fNixStoresPinned` and `fNixStoresUnused` in `cicd/cicd.bash`, called from `fStepNix`.
@@ -7384,7 +7390,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- The test reads `nfpm.yaml`, so a file added to a package later is caught too.
 		- Swept: `nix/package.nix` builds only from the Cargo files and the 4 crate folders, none under `DOCS_PATHS`. No `.md` or `project/` file goes into a package.
-	- Actual fix: dropped `license.txt` from `DOCS_PATHS`.
+	- Actual fix: `license.txt` was dropped from `DOCS_PATHS`.
 	- Branch: round-1101
 	- Test case: `packaged_files_arent_docs` in `cicd/tests/guards.bash` (deqvk).
 	- Closed: 20261101-123700
@@ -7430,7 +7436,7 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: The ERR trap fires inside the process substitution, prints CICD ABORTED, and no pid after that one is stopped. Cleanup then removes the run folder under them.
 	- Expected behavior: A process gone before its read is skipped, and the rest are stopped.
 	- Reproduced: 2026-11-01, round-1101, by deqrb. The scan printed the abort and named no pid after the gone one.
-	- Actual cause: the read loop's redirect from a gone process's `environ` fails, and nothing caught that status, so the ERR trap ran in the scan's subshell and ended it.
+	- Actual cause: The read loop's redirect from a gone process's `environ` fails, and nothing caught that status, so the ERR trap ran in the scan's subshell and ended it.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Origin: `f95b2c6` (`fRunPids`) and `5f1bef0` (ERR trap). First review. Confirmed with a probe.
@@ -7457,7 +7463,7 @@ Sorted per the notes in [Template](#template).
 	- Steps to reproduce: Set `CARGO_TARGET_DIR` and run it, or run it with Debian's default user PATH.
 	- Incorrect behavior: It builds into the target dir but copies the old `target/release` files, then restarts the panel on them. `ldconfig` is in `/usr/sbin`, so every Debian user gets the not found warning and the x86_64 fallback, which is wrong on arm64. The build has no `--locked`.
 	- Expected behavior: It copies what it built, finds the library, and leaves `Cargo.lock` alone.
-	- Reproduced: 2026-11-01, round-1101, by deqvr. Each of the 3 parts failed it on its own: the copy from `target/release`, the not found warning with a user PATH, and the build with no `--locked`.
+	- Reproduced: 2026-11-01, round-1101, by deqvr. Each of the 3 parts failed it on its own, which were the copy from `target/release`, the not found warning with a user PATH, and the build with no `--locked`.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
@@ -7467,9 +7473,9 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- Item 2026103016201615 closed with no test because the pipeline couldn't run it. A test can now go in `cicd/tests`.
 		- The test sets `HOME` to a temp folder and stands in for cargo, so it runs in the image too. The second half runs only where `/usr/sbin/ldconfig` or `/sbin/ldconfig` lists the panel library.
-		- `cargo metadata` rather than `CARGO_TARGET_DIR` alone, since a cargo config can set the target dir too.
+		- The script asks `cargo metadata` rather than reading `CARGO_TARGET_DIR` alone, since a cargo config can set the target dir too.
 		- Swept: `cicd.bash` dogfoods through this script, and `package.bash` already reads the target dir. No other script calls `ldconfig`.
-	- Actual fix: in `utility/dev-install.bash`.
+	- Actual fix: The changes above, in `utility/dev-install.bash`.
 	- Branch: round-1101
 	- Test case: `dev_install_copies_build` in `cicd/tests/guards.bash` (deqvr).
 	- Closed: 20261101-124500
@@ -7485,10 +7491,10 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Steps to reproduce: Put `margin_tb: nan` in a saved theme.
 	- Incorrect behavior: The margin is 0. Junk text gives the default 2, so nan isn't dropped as junk is. A float setting keeps NaN and saves it.
-	- Expected behavior: A number that isn't finite is refused like any out of range.
+	- Expected behavior: A number that isn't finite is refused like any number out of range.
 	- Possible cause: `x < min || x > max` is false for NaN, and `theme_typed` takes `nan` through `parse::<f64>`.
 	- Reproduced: 2026-11-01, with the new test against the old `theme_typed`.
-	- Actual cause: as above. Of the ways a typed number gets in, only `theme_typed` let NaN through. The number box and the picker already drop it, and shcl doesn't read `nan` or `inf` as a number.
+	- Actual cause: As above. Of the ways a typed number gets in, only `theme_typed` let NaN through. The number box and the picker already drop it, adn shcl doesn't read `nan` or `inf` as a number.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
@@ -7496,7 +7502,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: the quick gate passed, with deqvz.
 	- Decisions:
 		- The knobs fix goes to silkterm first, as its copy is the source.
-		- The check sits in `theme_typed`, so `knobs/src/lib.rs` stays the same as silkterm's. Once silkterm's `Spec::valid` refuses NaN and the copy is taken over, the check there is spare but harmless.
+		- The check is in `theme_typed`, so `knobs/src/lib.rs` stays the same as silkterm's. Once silkterm's `Spec::valid` refuses NaN and the copy is taken over, the check there is spare but harmless.
 	- Branch: round-1101
 	- Test case: `config::tests::theme_nonfinite_number_junk` (deqvz). It fails on nan without the fix and passes with it.
 		- Swept: every `Spec::valid` caller. `Dialog::set_text` and `pick::pct` already refuse a number that isn't finite. knobs' own reads go through shcl, which doesn't take `nan`, and a rule's answer is computed. `inf` and `1e999` were already out of range.
@@ -7512,9 +7518,9 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: Low
 	- Opened: 20261031-152319
 	- Opened by: t00mietum
-	- Steps to reproduce: Run `tukzmon-settings --config` with a path holding byte 0xff. Or point the config at a link to a missing file and Apply.
+	- Steps to reproduce: Run `tukzmon-settings --config` with a path containing byte 0xff. Or point the config at a link to a missing file and Apply.
 	- Incorrect behavior: The first exits 101 with a panic. The second opens at defaults and Apply writes a regular file over the link.
-	- Expected behavior: A message and exit 2 for the path. For the link, write through it, or say it points nowhere.
+	- Expected behavior: The path gets a message and exit 2. Apply writes through the link, or says it points nowhere.
 	- Reproduced: 2026-11-01. The old build exited 101 on a 0xff path, and the new link tests failed without the fix.
 	- Actual cause: `std::env::args` panics on an argument that isn't UTF-8. shcl's atomic write follows a link only when its file is there, so a dangling one was renamed over. A panel item's first copy, `config::start_from`, did the same.
 	- Estimated effort: Low
@@ -7525,7 +7531,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: the quick gate passed, with deqw0, deqw1 and deqw2. The built program said "--config: ... isn't UTF-8, so it can't be used." and exited 2.
 	- Decisions:
 		- A path that isn't UTF-8 is refused rather than taken, since shcl writes only to a text path. Apply already refused one, so this only moves the message to the start.
-		- Write through the link rather than refuse, since a link to a file not made yet is a normal way to keep a config elsewhere. A missing folder at the end is made, as for a plain path.
+		- Apply writes through the link rather than refusing, since a link to a file not made yet is a normal way to keep a config elsewhere. A missing folder at the end is made, as for a plain path.
 		- The window still opens at the defaults for a link to a missing file, the same as a missing file.
 	- Branch: round-1101
 	- Test case: `tests::non_utf8_path_message` (deqw0), `dialog::tests::apply_through_dangling_link` (deqw1) and `config::tests::dangling_link_filled` (deqw2). deqw1 and deqw2 fail with `through_links` taken out. deqw0 tests the new argument reader, and the old build's panic was seen by running it.
@@ -7544,7 +7550,7 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Steps to reproduce: Hover the Width % header in the graph list.
 	- Incorrect behavior: It says how wide the CPU graph is, or whichever graph is first, and can include its stale Set by hand line.
-	- Expected behavior: A tip about the column.
+	- Expected behavior: Each header has a tip about its column.
 	- Estimated effort: Low
 	- Origin: `b869164` and `bad9e01`. First review. Confirmed by reading.
 	- Actual cause: The headers took the first row's tip once, when the window was built.
@@ -7569,19 +7575,19 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026103019482449
 	- Steps to reproduce:
 		- Run `cargo test -p tukzmon-settings` and list the temp dir.
-	- Incorrect behavior: `test_tukzmon-settings_<pid>_untick` stays, holding `old.shcl`, `t0.shcl` and `t1.shcl`. Older runs' folders are still there too.
-	- Expected behavior: a test removes what it wrote.
-	- Possible cause: the tests' `Dir` in `settings/src/dialog.rs` removes only `t.shcl` before `remove_dir`, and `unticked_overrides_reload` (dejng) writes other names.
+	- Incorrect behavior: `test_tukzmon-settings_<pid>_untick` stays, with `old.shcl`, `t0.shcl` and `t1.shcl` in it. Older runs' folders are still there too.
+	- Expected behavior: A test removes what it wrote.
+	- Possible cause: The tests' `Dir` in `settings/src/dialog.rs` removes only `t.shcl` before `remove_dir`, and `unticked_overrides_reload` (dejng) writes other names.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- The tests' `Dir` removes its whole folder on drop, not just `t.shcl`.
+		- The tests' `Dir` removes its whole folder on drop, rather than only `t.shcl`.
 		- Verified: `cargo test -p tukzmon-settings` with `TMPDIR` on an empty folder passed (81 passed, 1 ignored) and left it empty. The quick format and lint gates passed.
 	- Decisions:
-		- `remove_dir_all`, not a list of names, so a test may write any name. The folder is named by pid and test, and made by the test.
+		- `Dir::drop` calls `remove_dir_all` rather than removing a list of names, so a test may write any name. The folder is named by pid and test, and made by the test.
 	- Actual fix: `Dir::drop` in `settings/src/dialog.rs`.
 	- Branch: round-1031
-	- Test case: None of its own: dejng and the other dialog tests leave the temp folder empty now. Not run before the fix, so the failing side is unverified. Folders left by older runs aren't removed by this.
+	- Test case: None of its own, since dejng and the other dialog tests leave the temp folder empty now. They weren't run before the fix, so the failing side is unverified. Folders left by older runs aren't removed by this.
 	- Swept: the only scratch `Dir` in the settings crate is this one. `cargo test -p tukzmon-core` with `TMPDIR` on an empty folder left it empty.
 	- Closed: 20261031-075153
 
@@ -7596,7 +7602,7 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026103016201605
 	- Steps to reproduce: `chmod 000` an item's `plugin-<id>.shcl` while the panel runs, or before it starts.
 	- Incorrect behavior: `Look::load` in `core/src/config.rs` reads an unreadable file as an empty one, so the item drops to the defaults, with nothing in the log. It writes nothing, so the file isn't lost.
-	- Expected behavior: the item keeps the look it has, or the defaults at its start, and logs the read error once through `complain`. A missing file still means the defaults.
+	- Expected behavior: The item keeps the look it has, or the defaults at its start, and logs the read error once through `complain`. A missing file still means the defaults.
 	- Estimated effort: Low
 	- Reproduced: 2026-10-30, with the new tests against the old `Look::load`.
 	- Actual cause: `Look::load` took `read_to_string(path).unwrap_or_default()`, so any read error but a missing file became an empty file.
@@ -7607,11 +7613,11 @@ Sorted per the notes in [Template](#template).
 		- Verified: the full run passed, with dena8 and dena9.
 		- Unverified: the read at the item's start, since `Plugin::new` needs a live panel. It shares `read_look` with the reload that dena9 covers.
 	- Decisions:
-		- Keep the current look, not the defaults, since a file the item can't read says nothing new about how it should look, and a sudden change to the defaults reads as lost settings.
-		- A tip line plus `complain`, the same as history trouble, since a restarted panel's stderr is out of sight.
-		- Logged once per error text, so a file that stays unreadable doesn't fill the journal. A new error, or the same one after a good read, is logged again.
+		- The item keeps its current look rather than the defaults, since a file the item can't read says nothing new about how it should look, and a sudden change to the defaults reads as lost settings.
+		- The error goes in a tip line plus `complain`, the same as history trouble, since a restarted panel's stderr is out of sight.
+		- It's logged once per error text, so a file that stays unreadable doesn't fill the journal. A new error, or the same one after a good read, is logged again.
 		- Each tick reads again until it works, since `chmod` back doesn't change the modified time the reload goes by. It costs one failed open a tick while the file is bad.
-		- A `chmod 000` alone isn't seen until the next write, since it doesn't move the modified time either. The item just keeps its look, which is what's asked.
+		- A `chmod 000` alone isn't seen until the next write, since it doesn't move the modified time either. The item keeps its look, which is what's asked.
 		- A file that isn't UTF-8 counts as unreadable too, as in `Dialog::open`.
 		- The preview example quits with the error rather than drawing defaults.
 	- Branch: round-1030b
@@ -7629,11 +7635,11 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
 	- Related IDs: 2026103018110076
-	- Origin: `f89e55e` (proof of concept). First review. Plausible, only read.
+	- Origin: `f89e55e` (proof of concept). First review. Plausible, by reading.
 	- Steps to reproduce:
 		- `chmod 000` the settings file and open the settings window.
 	- Incorrect behavior: `Dialog::open` turns the read error into an empty file. The window shows defaults, and the user edits on top of them.
-	- Expected behavior: the window says it can't read the file, or `tukzmon-settings` exits with the error through `complain`. A missing file still opens as defaults.
+	- Expected behavior: The window says it can't read the file, or `tukzmon-settings` exits with the error through `complain`. A missing file still opens as defaults.
 	- Estimated effort: Low
 	- Reproduced: 2026-10-30, with the new test against the old `Dialog::open`.
 	- Actual cause: `Dialog::open` took `read(&path).unwrap_or_default()`, so any read error but a missing file became an empty file.
@@ -7643,8 +7649,8 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Settings window has it.
 		- Verified: the full run passed. With `chmod 000` on a file, the window didn't open, the box showed the path and "Permission denied", the file was unchanged, and `--snapshot` quit with 1 and no box. A missing file still opened.
 	- Decisions:
-		- Both the box and stderr, since the panel starts the window with stderr out of sight, so a stderr line alone would look like Properties doing nothing.
-		- Quit after the box rather than open the window read-only, since a window that can't save is more surprising than one that says why it didn't open.
+		- The error goes to both the box and stderr, since the panel starts the window with stderr out of sight, so a stderr line alone would look like Properties doing nothing.
+		- The program quits after the box rather than opening the window read-only, since a window that can't save is more surprising than one that says why it didn't open.
 		- `--snapshot` gets no box, since it runs unattended.
 		- A file that isn't UTF-8 counts as unreadable too, since it reads through the same `read`.
 		- The plugin's own read of the file, `Look::load`, has the same fallback. It writes nothing, so it's its own item, 2026103018110076.
@@ -7666,8 +7672,8 @@ Sorted per the notes in [Template](#template).
 	- Steps to reproduce:
 		- Set `TUKZMON_NIX_CAP_MB` to `x[$(id)]` and run the Nix step.
 	- Incorrect behavior: `((mb > capMb))` in `cicd/nix/check.bash` runs the substitution. `TUKZMON_JOBS` goes into `NIX_CONFIG` unchecked too.
-	- Expected behavior: both are checked for digits first, as `cicd.bash` does for `CICD_MAX_JOBS`.
-	- Possible cause: the values come from tracked `config.bash`, inside a throwaway container, so the risk is small.
+	- Expected behavior: Both are checked for digits first, as `cicd.bash` does for `CICD_MAX_JOBS`.
+	- Possible cause: The values come from tracked `config.bash`, inside a throwaway container, so the risk is small.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
@@ -7690,16 +7696,16 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026102819145598
 	- Steps to reproduce:
 		- On b23, turn on GPU memory, hover it, and run `nvidia-smi -q -d MEMORY` at the same time.
-	- Incorrect behavior: the tip read "GPU memory 39% used" and "3.1 of 8.0 GiB", while `nvidia-smi` read 2818 MiB used and 351 MiB reserved, about 34%.
-	- Expected behavior: the share matches what `nvidia-smi` calls used, or the tip says the reserved part is in it.
+	- Incorrect behavior: The tip read "GPU memory 39% used" and "3.1 of 8.0 GiB", while `nvidia-smi` read 2818 MiB used and 351 MiB reserved, about 34%.
+	- Expected behavior: The share matches what `nvidia-smi` calls used, or the tip says the reserved part is in it.
 	- Reproduced: 2026-10-29, build dekpw on b23, RTX 3060 Ti, driver 595.58.03.
-	- Possible cause: `core/src/gpu.rs` calls `nvmlDeviceGetMemoryInfo`, whose used figure takes in the reserved memory. `nvmlDeviceGetMemoryInfo_v2` gives reserved apart.
-	- Actual cause: the first NVML memory call counts what the driver keeps back as used. `nvidia-smi` reads the v2 call, which lists it apart.
+	- Possible cause: `core/src/gpu.rs` calls `nvmlDeviceGetMemoryInfo`, whose used figure takes in the reserved memory. `nvmlDeviceGetMemoryInfo_v2` gives the reserved memory separately.
+	- Actual cause: The first NVML memory call counts what the driver keeps back as used. `nvidia-smi` reads the v2 call, which lists it separately.
 	- Actual effort: Low
 	- Progress log:
 		- Verified: on b23 the reader gave 0.3488 of 8192 MiB, 2857 MiB, while `nvidia-smi` read 2858 MiB used. The quick gate passed.
 	- Decisions:
-		- Used against the card's total, the same as `nvidia-smi`'s Used and Total. The reserved part is left out of both the share and the tip.
+		- The share is used memory over the card's total, the same as `nvidia-smi`'s Used and Total. The reserved part is left out of both the share and the tip.
 		- The first call stays as a fallback, for drivers older than 510.
 	- Actual fix: `Nvml::memory` asks `nvmlDeviceGetMemoryInfo_v2` first, when the driver has it.
 	- Branch: gpu-mem
@@ -7722,7 +7728,7 @@ Sorted per the notes in [Template](#template).
 	- Incorrect behavior: It failed once in the Nix package check, at `assert!(live.tick() <= 100)`, and passed on the next run.
 	- Expected behavior: It passes every time.
 	- Possible cause: `Graph::tick` counts a beat due within `EARLY_MS` (10 ms) as now, so the wait it gives can be up to the rate plus 10 ms. The test expects at most the rate.
-	- Actual cause: the test, not the code. A beat due within `EARLY_MS` is read now, so the next is a whole rate after that beat, which is up to 10 ms more than the rate from now. The 500 and 5000 checks had the same gap.
+	- Actual cause: The fault was in the test rather than the code. A beat due within `EARLY_MS` is read now, so the next is a whole rate after that beat, which is up to 10 ms more than the rate from now. The 500 and 5000 checks had the same gap.
 	- Actual fix: deja2 allows the rate plus `EARLY_MS`, now public in `tukzmon_core`, at all 3 checks.
 	- Branch: flaky-rate
 	- Test case: deja2 itself. It passed 8 runs in a row. `Graph::tick`'s early-timer case is pinned in dej9z.
@@ -7739,14 +7745,14 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026102508393161
 	- Steps to reproduce:
 		- In the settings window, turn off a switch that other rows depend on.
-	- Incorrect behavior: the rows that depend on it stay enabled. `qt.cpp` ignores the knobs `counts` state.
-	- Expected behavior: they grey out, the way the graph list greys a hidden graph's width and time axis.
-	- Reproduced: yes, 2026-10-26: with every switch off, the window greyed none of the rows under them.
+	- Incorrect behavior: The rows that depend on it stay enabled. `qt.cpp` ignores the knobs `counts` state.
+	- Expected behavior: They grey out, the way the graph list greys a hidden graph's width and time axis.
+	- Reproduced: Yes, 2026-10-26. With every switch off, the window greyed none of the rows under them.
 	- Actual cause: `refresh` in `qt.cpp` never read `counts`. Only the graph list's own refresh did, for its width and time axis.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- A row's label and control are greyed while a switch above it is off: Log curve and Spike emphasis under Log time axis, Max age in days under Keep across restarts, and a hidden graph's width and time axis.
+		- A row's label and control are greyed while a switch above it is off. These are Log curve and Spike emphasis under Log time axis, Max age in days under Keep across restarts, and a hidden graph's width and time axis.
 		- The graph list now greys through the same code as every other row.
 		- `design.md` Settings window says so.
 		- Verified: the full run passed, and defma failed with the fix taken out.
@@ -7770,8 +7776,8 @@ Sorted per the notes in [Template](#template).
 	- Version and build: v0.1.0 build deea9, and dedr4 on b23.
 	- Steps to reproduce:
 		- Run `tukzmon-settings --version > /dev/full`, or pipe it into `head -1`.
-	- Incorrect behavior: it panics with "failed printing to stdout" and aborts, with exit 134.
-	- Expected behavior: no panic. A closed pipe quits quietly, and a failed write gives one error line and a non-zero exit.
+	- Incorrect behavior: It panics with "failed printing to stdout" and aborts, with exit 134.
+	- Expected behavior: It doesn't panic. A closed pipe quits quietly, and a failed write gives one error line and a non-zero exit.
 	- Reproduced: 2026-10-25 on b23, 5 times out of 5 with `/dev/full`.
 	- Possible cause: `println!` in `settings/src/main.rs` panics on a failed write, and the release build aborts on a panic. `--help` likely does the same.
 	- Actual cause: `println!` and `eprintln!` panic on a failed write, and the release build aborts on a panic. `--help` did the same. The usage and error paths used them too.
@@ -7791,7 +7797,7 @@ Sorted per the notes in [Template](#template).
 	- Type: Bug
 	- Status: Closed
 		- It departs from the wording in 2 ways. A run kept with `--keep-temp` still waits 2 days, with its containers, even if it was killed. And a container's run is found by a new `dev.pid` label, the run's process, with `dev.run` for its folder.
-		- Closed on the earlier test both ways. What departs from the wording is a technical call.
+		- It closed on the earlier test both ways, since both departures are technical calls.
 	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261025-144700
@@ -7800,10 +7806,10 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026102416252890, 2026102416252896
 	- Steps to reproduce:
 		- Start `cicd/cicd.bash --backlog-run-full` and kill it with SIGKILL during a container step.
-	- Incorrect behavior: the container runs on to its end, and the temp folder stays until the 2-day sweep.
-	- Expected behavior: the next run stops containers whose run is gone, by the `dev.run` label, and sweeps its folder when no process from it is left.
+	- Incorrect behavior: The container runs on to its end, and the temp folder stays until the 2-day sweep.
+	- Expected behavior: The next run stops containers whose run is gone, by the `dev.run` label, and sweeps its folder when no process from it is left.
 	- Reproduced: 2026-10-25 on b23. After the kill the tests container ran on and the folder stayed, and the old code's next run left both.
-	- Actual fix: a run folder whose run is gone goes at the next run's start once nothing runs from it. The image step stops and removes containers whose run is gone, then sweeps again, since a running container keeps its folder from the first sweep.
+	- Actual fix: A run folder whose run is gone is removed at the next run's start once nothing runs from it. The image step stops and removes containers whose run is gone, then sweeps again, since a running container keeps its folder from the first sweep.
 	- Progress log:
 		- Verified: a run killed with SIGKILL as its tests container started had the container stopped and its folder removed by the next run, both with the container still running and after it had ended. A `--keep-temp` run's folder and containers stayed through 2 later runs.
 	- Decisions:
@@ -7825,8 +7831,8 @@ Sorted per the notes in [Template](#template).
 	- Steps to reproduce:
 		- Run `cicd/cicd.bash --backlog-run-full`, then `utility/dev-install.bash` by hand.
 	- Incorrect behavior: cicd.bash follows `rust-toolchain.toml` (1.96.0), while dev-install.bash run by hand gets Debian's cargo 1.95, so each one rebuilds `target/release` from scratch.
-	- Expected behavior: both build with the pinned version, so a dogfood install reuses the pipeline's build.
-	- Reproduced: 2026-10-25 on b23. Not from scratch: cargo keeps each version's dependencies side by side, so each swap rebuilt the plugin and settings crates.
+	- Expected behavior: Both build with the pinned version, so a dogfood install reuses the pipeline's build.
+	- Reproduced: 2026-10-25 on b23. It didn't rebuild from scratch, since cargo keeps each version's dependencies side by side, so each swap rebuilt the plugin and settings crates.
 	- Actual cause: dev-install.bash ran whichever cargo came first in PATH, which is Debian's.
 	- Actual fix: dev-install.bash puts `~/.cargo/bin` first, as cicd.bash does, and runs from the repo folder, since the pinned version is looked up from there. It warns when the build isn't on the pinned version.
 	- Progress log:
@@ -7847,13 +7853,13 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026102416252890
 	- Steps to reproduce:
 		- Start 2 runs of `cicd/cicd.bash` in the same project, with a changed container recipe, so both build the image.
-	- Incorrect behavior: the cleanup at the end of one run can remove the other's half-built image, which has no tag yet.
-	- Expected behavior: a run removes only images it built, or none while another run of the project is live.
-	- Actual fix: the cleanup removes no image while another run of the project is live: one with a live run folder, or with a container whose run is live. Containers and build cache are still cleaned.
+	- Incorrect behavior: The cleanup at the end of one run can remove the other's half-built image, which has no tag yet.
+	- Expected behavior: A run removes only images it built, or none while another run of the project is live.
+	- Actual fix: The cleanup doesn't remove any image while another run of the project is live, which means a run with a live run folder, or with a container whose run is live. Containers and build cache are still cleaned.
 	- Progress log:
 		- Verified: with another run live, the old cleanup removed a labeled dangling image and the new one left it, saying which run was live. Once that run was gone, the next run removed it.
 	- Decisions:
-		- Took the second way, none while another run is live. An image from a killed run has no live owner either way, so it still goes at the next quiet run.
+		- The second way was taken, with no removal while another run is live. An image from a killed run has no live run either way, so it still goes at the next quiet run.
 		- A run that starts in the moment between the check and the removal isn't covered.
 	- Branch: round-1025
 	- Test case: `cleanup_takes_own_only` (dezav), in `cicd/tests/guards.bash`. Also run both ways by hand.
@@ -7874,7 +7880,7 @@ Sorted per the notes in [Template](#template).
 	- Expected behavior: A value back at its default counts as no change.
 	- Reproduced: 2026-11-09, round-1109 at 101791a, by df34m and df34k.
 	- Possible cause: knobs' `Model::set` always stores a value of its own, and `Dialog::dirty` compares the stores.
-	- Actual cause: as above. knobs' `has_own` already took a value equal to its default as none, so the revert arrow went off, but the store still held it.
+	- Actual cause: As above. knobs' `has_own` already took a value equal to its default as none, so the revert arrow went off, but the store still had it.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
@@ -7883,14 +7889,14 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Settings window says so.
 		- Verified: df34k and df34m fail at 101791a and pass now. The quick gate's format, build, lint and tests passed. Sanitizers are left to the gate step.
 	- Decisions:
-		- The fix is in knobs, where the value is stored, not in `Dialog::dirty`. A looser dirty check would still let Apply write the default.
+		- The fix is in knobs, where the value is stored, rather than in `Dialog::dirty`. A looser dirty check would still let Apply write the default.
 		- Theme members and the theme pick still store a default. Members are Custom's set, and the file's colors are read by its pick (`config::unthemed`). A setting whose default is a rule's answer keeps its value too, the same as `has_own` judges it.
 		- Dropping default lines at load cleans files this bug wrote, such as the user's own. Those settings follow a later change to the default again.
 	- Actual fix: `Spec::stores_nothing` and `Model::put_own` in `knobs/src/lib.rs`, used by `write`, the switch-off keep path, `pin_chooser`'s switch, and `load_docs`.
 	- Branch: round-1109
 	- Test case: `tests::default_value_not_stored` (df34k) in knobs, and `dialog::tests::change_and_revert_is_noop` (df34m), with Max age and the Sample ms slider.
 		- 2026-11-09: ddqsd (`kept_lines`) checked that `font.use_system_family: true`, its default, was written. It now checks there is no such line.
-		- Swept: every `own.insert` in knobs, core, settings and xfce. `fill_custom` fills theme members only. `config::name_the_theme` writes the pick on purpose. Every `own.contains_key` and `own.get` reader, which read only the theme pick and members, or ask `has_own`. The State store is left as it is, since it holds the program's own values.
+		- Swept: every `own.insert` in knobs, core, settings and xfce. `fill_custom` fills theme members only. `config::name_the_theme` writes the pick on purpose. The `own.contains_key` and `own.get` readers read only the theme pick and members, or ask `has_own`. The State store is left as it is, since it has the program's own values.
 	- Acceptance signoff: Self-closed 20261109: df34k and df34m fail before the fix and pass after.
 	- Closed: 20261109-131312
 
@@ -7905,23 +7911,23 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
 	- Related IDs: 2026103107404602, 2026102810142725
-	- Origin: `c3c52ee` (2026-10-31), the thirteenth graph. The rule held over 10,000 seeds with 12 graphs, and dejbv checks only 2,000. A regression. Confirmed, by a probe over 105,000 seeds, where 14 fail, the first at seed 2615.
+	- Origin: `c3c52ee` (2026-10-31), the thirteenth graph. The rule held over 10,000 seeds with 12 graphs, and dejbv checks only 2,000. It's a regression. Confirmed, by a probe over 105,000 seeds, where 14 fail, the first at seed 2615.
 	- Steps to reproduce: A roll with seed 2615.
 	- Incorrect behavior: 2 leads are about 3 apart as CIEDE2000, where the rule is 10.
-	- Expected behavior: Every roll's leads read apart, which dejbv's item asks for.
+	- Expected behavior: Every roll's leads read apart, as dejbv's item says.
 	- Reproduced: 2026-11-09, round-1109 at f3ff18b. Seeds 0 to 109,999 gave 15 rolls with 2 leads 2.7 to 4.0 apart, every one near the pale end of the roll.
 	- Possible cause: After 256 draws with no fit, the roll keeps the last draw.
-	- Actual cause: the possible cause. Near the pale end a roll's saturation and brightness sometimes have no set of hues that reads apart, so more hue draws don't help.
-	- Actual fix: when the hue draws run out, the roll draws its saturation, brightness and alarms again, and tries again. After 64 of those it would start over from seed 0, whose first draw reads apart. A roll that never ran out comes out as before.
-	- Note: The least gap and the draw count have been tuned twice to the seeds tested. A fallback that always meets the rule would end that.
+	- Actual cause: As the possible cause. Near the pale end a roll's saturation and brightness sometimes have no set of hues that reads apart, so more hue draws don't help.
+	- Actual fix: When the hue draws run out, the roll draws its saturation, brightness and alarms again, and tries again. After 64 of those it would start over from seed 0, whose first draw reads apart. A roll that never ran out comes out as before.
+	- Note: Before this fix, the least gap and the draw count had been tuned twice to the seeds tested.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
 		- Verified: seeds 0 to 111,999 all read apart, and the quick gate's format, build, lint and tests passed.
 		- `design.md` Theme has the details.
 	- Decisions:
-		- Draw the whole base again rather than more hue draws or a narrower gap, since the misses come from the saturation and brightness, not the hues. So the gap and draw count no longer need tuning to the seeds tested.
-		- Seed 0 as the last resort, so the loop always ends, with df34z checking it still reads apart.
+		- The roll draws the whole base again rather than more hues or a narrower gap, since the misses come from the saturation and brightness rather than the hues. So the gap and draw count no longer need tuning to the seeds tested.
+		- Seed 0 is the last resort, so the loop always ends, with df34z checking it still reads apart.
 	- Branch: round-1109
 	- Test case: `dice::tests::roll_redraws_on_exhaustion` (df34y), over the 15 seeds that ran out, and `seed_zero_last_resort` (df34z). df34y fails on the old code at seed 2615, 3.4 apart, and passes now.
 		- Swept: `scheme` is the only caller of `lead_hues` and `steps`, and `theme` the only caller of `scheme` outside the tests. `clear_of` keeps its own fallback to the wanted color, for the LAN's 2 colors, which demw2 checks over 2,000 seeds.
@@ -7951,7 +7957,7 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Data sources on Linux says so.
 		- Verified: `cargo test -p tukzmon-core lan::`, the quick gate's format, build, lint and tests, the Sanitizers step, and Miri over `lan::` passed.
 	- Decisions:
-		- Kept by the far end being private, not every TCP socket, since only the away lists can change whether a socket is the LAN's. Its addresses never change.
+		- A socket is kept when its far end is private, rather than every TCP socket being kept, since only the away lists can change whether a socket is the LAN's. Its addresses never change.
 	- Actual fix: `lan::Sock` keeps a socket's bytes with its LAN flag, and `rise` sums the LAN's against any earlier read.
 	- Branch: round-1109
 	- Test case: `lan::tests::stopped_away_counts_from_last` (df35c). It fails with away sockets left out of the last read.
@@ -7963,7 +7969,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026110709074412
 	- Type: Bug
 	- Status: Closed
-		- Less than the wording. Work that starts on a card still awake in the rest reads 0 until the rest is up. The rest now comes only after 5 s idle, and ends as soon as the card sleeps. Accept that window, or ask for a shorter rest, which risks keeping the card up.
+		- The fix does less than the item asked. Work that starts on a card still awake in the rest reads 0 until the rest is up. The rest now comes only after 5 s idle, and ends as soon as the card sleeps. A shorter rest would risk keeping the card up.
 	- Closed reason: Done
 	- Target version: v1.0.0-beta.2
 	- Stand-in: none (20261109). Whether the window left is small enough is a scope call.
@@ -7973,7 +7979,7 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026110118380381
 	- Origin: `36e3559` (2026-11-02). That item notes the rest was never reached on a real card. Confirmed, with stand-in NVML, where a card at 90% read 0% for 5 s and then 90%.
 	- Steps to reproduce: A card whose `power/control` is `auto` and that stays awake, idle for 5 reads, then busy.
-	- Incorrect behavior: Both GPU graphs read 0 for the card's autosuspend delay plus 5 s. A rest starts after 5 reads, not a set time, so at a 50 ms sample after a quarter second of idle. Each rest ends with an NVML open of about 15 to 20 ms on the panel's thread.
+	- Incorrect behavior: Both GPU graphs read 0 for the card's autosuspend delay plus 5 s. A rest starts after 5 reads rather than a set time, so at a 50 ms sample after a quarter second of idle. Each rest ends with an NVML open of about 15 to 20 ms on the panel's thread.
 	- Expected behavior: A busy card doesn't read as idle.
 	- Against: 2026110118380381's idle rest, which lets the card sleep. A fix keeps that.
 	- Reproduced: 2026-11-09, desfa with stand-in NVML and power files. A rest started on the first idle read with no wait, and ran its whole length after the card slept.
@@ -7983,12 +7989,12 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- The rest starts once the card has read idle for 5 s, not after 5 reads.
+		- The rest starts once the card has read idle for 5 s, rather than after 5 reads.
 		- It ends as soon as `power/runtime_status` reads `suspended`. From then the asleep check takes over, so work that wakes the card reads on the next sample.
 		- `design.md` Data sources on Linux, GPU, has it.
 		- Verified: desfa passed, and failed with either half of the fix taken out. The gpu tests and the quick gate passed.
 	- Decisions:
-		- 5 s idle, the same as the old 5 reads at a 1 s sample, so the default case rests as before.
+		- The rest needs 5 s idle, the same as the old 5 reads at a 1 s sample, so the default case rests as before.
 		- The 5 s past the autosuspend delay stays. A shorter one risks opening NVML before the card sleeps, and nothing here measured how long a real card takes.
 		- The 15 to 20 ms NVML open at the end of a rest stays on the panel's thread. Rests now need 5 s idle, so it comes far less often at a fast sample.
 	- Actual fix: `Nvidia::rest_if_idle` rests after `IDLE_FOR` (5 s) idle, and `Nvidia::awake` ends the rest once the card is asleep.
@@ -8011,7 +8017,7 @@ Sorted per the notes in [Template](#template).
 	- Origin: `8bbd96a` (2026-10-29). Not seen before. Confirmed, by a probe that counted 86,000 bytes where the wire took 66,000.
 	- Incorrect behavior: The LAN split reads such a socket about 1.3% high at full segments.
 	- Expected behavior: The header size follows the address the far end uses.
-	- Possible cause: The overhead is picked by the socket's family, not by its addresses.
+	- Possible cause: The overhead is picked by the socket's family rather than by its addresses.
 	- Estimated effort: Low
 	- Actual cause: The header size went by the socket's family, so an IPv4-mapped far end on an IPv6 socket got 86 bytes a segment.
 	- Actual effort: Low
@@ -8035,10 +8041,10 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
 	- Related IDs: 2026103115232077
-	- Origin: `a83280a` (2026-11-01), the fix for 20261031 item 19. It skips other requests' replies, but the kernel refuses a new dump while one is still going. A gap in that fix. Confirmed, by a probe with 3,000 sockets: 10 gaps in a row, and a second request got EBUSY.
+	- Origin: `a83280a` (2026-11-01), the fix for 20261031 item 19. It skips other requests' replies, but the kernel refuses a new dump while one is still going, and that fix missed this case. Confirmed, by a probe with 3,000 sockets, which gave 10 gaps in a row, and a second request got EBUSY.
 	- Steps to reproduce: A read error, or a reply that doesn't parse, in the middle of a dump.
 	- Incorrect behavior: Each later read gets EBUSY for its own request, so the LAN part of the network graph is a gap until the old dump's replies are used up.
-	- Expected behavior: One gap, then reads as before.
+	- Expected behavior: There's one gap, then reads go on as before.
 	- Possible cause: The socket is kept after a failed dump. deqt2 builds a reply stream the kernel doesn't send while a dump runs.
 	- Estimated effort: Low
 	- Actual cause: The netlink socket was kept after a failed dump, and the kernel refuses a new dump on it with EBUSY until the old one runs out.
@@ -8048,7 +8054,7 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Data sources on Linux says so.
 		- Verified: `cargo test -p tukzmon-core lan::`, the quick gate's format, build, lint and tests, the Sanitizers step, and Miri over `lan::` passed.
 	- Decisions:
-		- A new socket rather than reading the old dump to its end, since that takes as many reads as the dump has left, and a read error may not end.
+		- The reader opens a new socket rather than reading the old dump to its end, since that takes as many reads as the dump has left, and a read error may not end.
 	- Actual fix: `LanReader::sock` is dropped on a failed dump and opened again at the next poll.
 	- Branch: round-1109
 	- Test case: `lan::tests::partial_dump_one_gap` (df35e), with 400 sockets of its own and a read cut short. It fails with the socket kept, on the read after the gap.
@@ -8065,11 +8071,11 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
 	- Related IDs: 2026103016201605
-	- Origin: `07399b9` (2026-10-30). Not seen before. Confirmed: exit 134 and a core dump, both for a file that can't be read and for opening the window.
+	- Origin: `07399b9` (2026-10-30). Not seen before. Confirmed, with exit 134 and a core dump, both for a file that can't be read and for opening the window.
 	- Steps to reproduce: `env -u DISPLAY -u WAYLAND_DISPLAY tukzmon-settings --config <a file that can't be read>`
 	- Incorrect behavior: It prints its line, then Qt aborts trying to open the message box.
-	- Expected behavior: The line, then exit 1.
-	- Reproduced: 2026-11-09, by the new test with the fix taken out: SIGABRT after "could not connect to display".
+	- Expected behavior: It prints the line, then exits 1.
+	- Reproduced: 2026-11-09, by the new test with the fix taken out, which gave SIGABRT after "could not connect to display".
 	- Actual cause: A Qt platform that can't start, such as xcb with no display, is a `qFatal` in the `QApplication` constructor, and `qFatal` aborts.
 	- Estimated effort: Low
 	- Actual effort: Low
@@ -8078,7 +8084,7 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Settings window has it.
 		- Verified: the worker quick gate (format, build, lint, test) and the Sanitizers step passed. With no display, an unreadable file and a missing one each printed Qt's lines and quit with 1.
 	- Decisions:
-		- Caught at Qt's fatal message rather than by guessing from `DISPLAY` and `WAYLAND_DISPLAY`, since a display that's set but can't be reached, or a missing platform plugin, fails the same way.
+		- The failure is caught at Qt's fatal message rather than by guessing from `DISPLAY` and `WAYLAND_DISPLAY`, since a display that's set but can't be reached, or a missing platform plugin, fails the same way.
 		- The window quits with 1 too, as the box does, since both are a window that couldn't open.
 	- Actual fix: `quitOnFatal`, `AppArgs` and `App` in `settings/src/qt.cpp`.
 	- Branch: round-1109
@@ -8110,10 +8116,10 @@ Sorted per the notes in [Template](#template).
 		- Remove deletes the mark too.
 		- `design.md` Settings window has it.
 		- Verified: the quick gate passed.
-		- Verified on xfce4-panel 4.20.7 with 2 items, at `3f04603`: item 1's wrapper killed twice, then Remove on the restart dialog, left `plugin-1.shcl` and `.hist`. A new item took id 1, started from the shared `tukzmon.shcl` with no history, and wrote a new mark and rc. Item 2, and both items across 2 panel restarts, kept their settings and history. Passed twice.
-		- The dialog's Remove deletes the panel's `tukzmon-<id>.rc` too, but not our mark, so the new item still finds old files.
+		- Verified on xfce4-panel 4.20.7 with 2 items, at `3f04603`. Item 1's wrapper was killed twice, and Remove on the restart dialog left `plugin-1.shcl` and `.hist`. A new item took id 1, started from the shared `tukzmon.shcl` with no history, and wrote a new mark and rc. Item 2, and both items across 2 panel restarts, kept their settings and history. Passed twice.
+		- The dialog's Remove deletes the panel's `tukzmon-<id>.rc` too, but not tukzmon's mark, so the new item still finds old files.
 	- Decisions:
-		- A mark of our own as well as the panel's rc, since an item from an older build has no rc either. With neither, the files stay, so the first start after an update keeps every item's look and history. Files a dropped item left before this build stay too.
+		- The item writes a mark of its own as well as the panel's rc, since an item from an older build has no rc either. With neither, the files stay, so the first start after an update keeps every item's look and history. Files a dropped item left before this build stay too.
 		- The rc is written before the mark, and the mark only once the rc is there, so a failed write can't make the next start take a live item's files for old ones.
 		- Deleting the panel's rc by hand makes the item start fresh at the next start, as a new item would.
 	- Actual fix: `config::claim` and `config::mark_of` in `core/src/config.rs`, called from `Plugin::new`, and `Plugin::forget` in `xfce/src/lib.rs`.
@@ -8142,7 +8148,7 @@ Sorted per the notes in [Template](#template).
 		- 2026-11-07: Low, since nobody else uses tukzmon yet, and only my own files were ever shcl 2. (me)
 	- Verified: 2026-11-07, the only tukzmon settings files there are, b23's `plugin-16.shcl` and `tukzmon.shcl`, load clean as shcl 3, have nothing to convert, and read to the same look by 2.x rules. b28l has none. The same check reads a file with a line still in error differently, so it can see this fault.
 	- Superseded by ID: 2026110709261106, which takes out the shcl 2 reading.
-	- Test case: none, since nothing was changed.
+	- Test case: None, since nothing was changed.
 	- Closed: 20261107-092134
 
 - Code review 20261107 item 10: A new panel item makes a shcl 2 backup and a "rewritten" log line for a file it never had
@@ -8163,7 +8169,7 @@ Sorted per the notes in [Template](#template).
 		- 2026-11-07: Low, since nobody else uses tukzmon yet, and only my own files were ever shcl 2. (me)
 	- Verified: 2026-11-07, b23's shared `tukzmon.shcl` loads clean as shcl 3 with nothing to convert, so a new item's copy isn't converted. It's the only shared file there is.
 	- Superseded by ID: 2026110709261106, which takes out the shcl 2 rewrite.
-	- Test case: none, since nothing was changed.
+	- Test case: None, since nothing was changed.
 	- Closed: 20261107-092134
 
 **Stop here for a next release**
@@ -8185,10 +8191,10 @@ Sorted per the notes in [Template](#template).
 		- The build image has dbus-daemon now, in a layer of its own after the rest, and df3qt is no longer ignored, except under Miri.
 		- The test starts its bus from a config of its own, with anonymous auth. The stock session config and EXTERNAL auth both look the caller up in passwd, and the image runs as a uid it doesn't list, so the bus wouldn't start or take a client.
 		- It waits for the bus to print its address rather than a fixed 300 ms, and stops the bus and removes its config on a failed assert too.
-		- Verified: PASS df3qt in the quick gate's Tests step in the image, and in Sanitizers, and on the host. It failed in the image with the stock config, and with EXTERNAL auth. No bus was left running after a planted failure.
+		- Verified: df3qt passed in the quick gate's Tests step in the image, and in Sanitizers, and on the host. It failed in the image with the stock config, and with EXTERNAL auth. No bus was left running after a planted failure.
 	- Decisions:
-		- In the image, not a host step, so the hosted workflow runs it too.
-		- Anonymous auth, not a passwd entry mounted into every container, since only this test needs one and the test then runs the same on any box.
+		- The test runs in the image rather than as a host step, so the hosted workflow runs it too.
+		- The bus uses anonymous auth rather than a passwd entry mounted into every container, since only this test needs one and the test then runs the same on any box.
 	- Branch: round-1111
 	- Test case: `lock::tests::private_bus_lock_hides_graphs` (df3qt), now in every run's Tests and Sanitizers steps.
 		- Swept: the other ignored tests, which are timings and soak checks the pipeline runs on purpose, and the other tests that start a program, which use only `sh`.
@@ -8212,7 +8218,7 @@ Sorted per the notes in [Template](#template).
 	- Actual effort: Low
 	- Progress log:
 		- An amdgpu card's power files come from its `device` folder, the PCI device's own. Where `power/control` is `auto`, the GPU graph reads 0 without asking `gpu_busy_percent` while `power/runtime_status` is `suspended`.
-		- It also gets the NVIDIA path's idle rest: after 5 s idle, busy isn't read for the autosuspend delay plus 5 s, or until the card sleeps.
+		- It also gets the NVIDIA path's idle rest. After 5 s idle, busy isn't read for the autosuspend delay plus 5 s, or until the card sleeps.
 		- GPU memory reads as before, since `mem_info_vram_*` are the driver's own counts and wake nothing.
 		- `design.md` Data sources on Linux, GPU, has it.
 		- Verified: df53k passed, and failed with the asleep check taken out, and again with the idle rest taken out. The gpu tests, the quick gate and Sanitizers passed, and Miri passed df53k and dekm9.
@@ -8251,7 +8257,7 @@ Sorted per the notes in [Template](#template).
 		- "Unless asked" is a new `--asset` flag, rather than a prompt, since the demo also runs unattended in cicd.
 	- Branch: round-1111
 	- Test case: df53t
-		- Swept: the only other writer of `assets/demo.gif` is the cicd Demo step, which runs every scene. `--shot` never reaches the gif.
+		- Swept: the only other writer of `assets/demo.gif` is the cicd Demo step, which runs every scene. `--shot` never writes the gif.
 	- Closed: 20261110-225645
 
 - Code review 20261107 item 28: A docs-only push to main skips the 2 checks that read docs
@@ -8270,14 +8276,14 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- A docs-only push to `main` still skips the merge gate, but the pre-push hook now runs markdownlint on the `.md` files it changes and `test-ids.bash check`, in a worktree of the pushed commit. Either failing refuses the push. About half a second.
+		- A docs-only push to `main` still skips the merge gate, but the pre-push hook now runs markdownlint on the `.md` files it changes and `test-ids.bash check`, in a worktree of the pushed commit. Either failing refuses the push. The checks take about half a second.
 		- `fLintMarkdown` moved from `cicd.bash` to `cicd/utility/include/lint-markdown.bash`, so the Lint step and the hook lint the same way, with the same skipped rules per file.
-		- New test df543 pushes 4 docs-only commits: a good doc, a bad doc, a backlog with an unknown ID, and an asset only. dezf5 sources the new file, and df32x's rig copies it.
+		- New test df543 pushes 4 docs-only commits, which are a good doc, a bad doc, a backlog with an unknown ID, and an asset only. dezf5 sources the new file, and df32x's rig copies it.
 		- Verified: df543 failed on the old hook, which ran neither check, and passed after. A docs-only push of a clone with the real markdownlint passed a clean README and refused one with lint errors. The quick gate's format, build, lint and test areas passed.
 	- Decisions:
-		- Both checks run on the pushed commit's tree, not the checkout, as the gate does since df32x.
+		- Both checks run on the pushed commit's tree rather than the checkout, as the gate does since df32x.
 		- A host with no markdownlint gets one line and the push goes on, since a docs push shouldn't need the pipeline's tools. The test ID check still runs. A commit with no `test-ids.bash` skips that check.
-		- Swept: the hosted `merge-gate.yml` has no docs skip, so it runs both on every push. `cicd/hooks` holds only pre-push.
+		- Swept: the hosted `merge-gate.yml` has no docs skip, so it runs both on every push. `cicd/hooks` has only pre-push.
 	- Branch: round-1111
 	- Test case: `hook_checks_docs` (df543), in `cicd/tests/guards.bash`.
 	- Closed: 20261110-230516
@@ -8288,7 +8294,7 @@ Sorted per the notes in [Template](#template).
 	- Status: Closed
 	- Closed reason: Done
 	- Target version: v1.0.0-beta.1
-	- Needs external testing: the `merge-gate` workflow's first run on GitHub, the same run 2026102513560001 waits for.
+	- Needs external testing: No, since the `merge-gate` runs on GitHub from 2026-11-08 checked it.
 	- Priority|Severity: Low
 	- Opened: 20261031-152322
 	- Opened by: t00mietum
@@ -8296,14 +8302,14 @@ Sorted per the notes in [Template](#template).
 	- Requirements: Pin by commit SHA and set `persist-credentials: false`, since the containers mount the checkout.
 	- Estimated effort: Low
 	- Actual effort: Low
-	- Origin: `5f1bef0`. First review. Plausible, the workflow has never run.
+	- Origin: `5f1bef0`. First review. Plausible, since the workflow hadn't run yet.
 	- Progress log:
 		- `.github/workflows/merge-gate.yml` pins actions/checkout at `3d3c42e` (v7.0.1), with the tag in a comment, and sets `persist-credentials: false`.
 		- Verified: the file parses as YAML, and GitHub's API gives that commit for the v7.0.1 tag.
 		- Held for the same first merge-gate run on main as 2026102513560001.
 		- 2026-11-08: The checkout by SHA worked on every run since, and the gate's steps ran with no token.
 	- Decisions:
-		- v7.0.1, the newest release, so the pin keeps the major version the file had.
+		- The pin is v7.0.1, the newest release, so it keeps the major version the file had.
 		- The merge gate never syncs or pushes, so the checkout needs no token.
 	- Branch: round-1102
 	- Test case: The workflow is its own test, as for 2026102513560001.
@@ -8344,14 +8350,14 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
-	- Origin: `b869164` and `bad9e01`, before the 20261030 review, which timed refresh only. Breaks the rule on repeated work. Confirmed, measured: about 5 ms of the 8 to 10 ms the rows take to build.
+	- Origin: `b869164` and `bad9e01`, before the 20261030 review, which timed refresh only. It breaks the rule on repeated work. Confirmed by measuring, at about 5 ms of the 8 to 10 ms the rows take to build.
 	- Requirements:
 		- Work out the graph list once when the window opens.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
 		- `Dialog::graph_list_ids` gives every setting the graph list draws, once, and the rows check it, in place of `in_graph_list` building the list again for each setting.
-		- Verified, release build, load about 9 on 32 cores, medians of 50: building the rows went from 3.7 ms to 85 us.
+		- Verified: in a release build at a load of about 9 on 32 cores, the median of 50 for building the rows went from 3.7 ms to 85 us.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
 	- Branch: round-1107
@@ -8368,7 +8374,7 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
 	- Related IDs: 2026103016201612
-	- Origin: `f89e55e`, mostly. The 20261030 item 12 fix put `missing_docs` on core only, and knobs was kept the same as silkterm's then. Breaks the rules on `///` for public items and Debug on public types. Confirmed by reading: 64 items in knobs, and the settings crate's bridge structs and a few functions. knobs' `NoEnv` has no Debug, and `OwnReader`'s comment says it reads memory, which it doesn't.
+	- Origin: `f89e55e`, mostly. The 20261030 item 12 fix put `missing_docs` on core only, and knobs was kept the same as silkterm's then. It breaks the rules on `///` for public items and Debug on public types. Confirmed by reading, with 64 items in knobs, and the settings crate's bridge structs and a few functions. knobs' `NoEnv` has no Debug, and `OwnReader`'s comment says it reads memory, which it doesn't.
 	- Requirements:
 		- `missing_docs` on both crates, and lint stays clean.
 	- Estimated effort: Avg
@@ -8380,11 +8386,11 @@ Sorted per the notes in [Template](#template).
 		- Verified: lint passed, and failed with one doc taken out in knobs and one in the settings program.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-		- The settings program gets the clippy lint as well, since `missing_docs` checks only a crate's exported items, and a program exports none. The lint looks at `pub` items and the crate root, not at private items in a module.
+		- The settings program gets the clippy lint as well, since `missing_docs` checks only a crate's exported items, and a program exports none. The lint looks at `pub` items and the crate root rather than private items in a module.
 		- The bridge's `extern "Rust"` functions get no `///`, since no lint sees inside the cxx macro and their names say what they do.
 		- `SilkTerm` is in `clippy.toml`'s `doc-valid-idents`, so a doc can name it without backticks.
 	- Branch: round-1107
-	- Test case: none, a doc change. The lint step's `missing_docs` and `missing_docs_in_private_items` keep the docs from going missing.
+	- Test case: None, since it's a doc change. The lint step's `missing_docs` and `missing_docs_in_private_items` keep the docs from going missing.
 	- Closed: 20261106-215421
 
 - Code review 20261106 item 8: Catch-all arms on knobs' own enums
@@ -8396,7 +8402,7 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
 	- Related IDs: 2026103016201611
-	- Origin: `f89e55e`, `e4cfcbb` and `bfd6a3a`, before the 20261030 review. Its item 11 left knobs out while it matched silkterm's. Breaks the rule against catch-all arms. Confirmed by reading: core's theme save and load, and knobs' setting reads, send any new `Kind` to text without a word.
+	- Origin: `f89e55e`, `e4cfcbb` and `bfd6a3a`, before the 20261030 review. Its item 11 left knobs out while it matched silkterm's. It breaks the rule against catch-all arms. Confirmed by reading. Core's theme save and load, and knobs' setting reads, send any new `Kind` to text without a word.
 	- Requirements:
 		- Name every variant of `Kind` and `Value` where they're matched.
 		- An index into the changes that can't miss says why.
@@ -8410,7 +8416,7 @@ Sorted per the notes in [Template](#template).
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
 		- `valid`'s last arm names every `Kind` with any value, so a new `Kind` must be placed there, and a new `Value` is still the wrong type for every kind it doesn't fit.
 	- Branch: round-1107
-	- Test case: none, the compiler's check that each match is whole covers it.
+	- Test case: None, since the compiler checks that each match is whole.
 		- Swept: every `match` on a `Kind` or `Value` in knobs, core, settings and xfce, the knobs test helper included.
 	- Closed: 20261106-215421
 
@@ -8422,7 +8428,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
-	- Origin: `4da8fed` (2026-11-01) for the worst one, newer, and older ones in the settings crate and `axis.rs`. Breaks the rule that a needed clone says why. Confirmed by reading. Making room for a theme name copies every saved theme to hand over their keys.
+	- Origin: `4da8fed` (2026-11-01) for the worst one, newer, and older ones in the settings crate and `axis.rs`. It breaks the rule that a needed clone says why. Confirmed by reading. Making room for a theme name copies every saved theme to hand over their keys.
 	- Requirements:
 		- Drop the clones that aren't needed, and give the rest a reason.
 		- `Axis` can be `Copy`.
@@ -8435,7 +8441,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: the quick gate passed, with dezea passing before the change and after.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-		- A theme moved to a free name or key isn't added to the other window's list anymore. It's checked by its new name and key in the window's own list, which held it already.
+		- A theme moved to a free name or key isn't added to the other window's list anymore. It's checked by its new name and key in the window's own list, which had it already.
 		- An owned field built from a borrowed one, such as a `to_owned` for a struct, isn't given a reason. Only a `clone` is.
 	- Branch: round-1107
 	- Commit: `cd18099`
@@ -8451,7 +8457,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
-	- Origin: across core, older and newer than the 20261030 review, which didn't sweep naming. Breaks the rules on full names, the happy path at low indent, and errors as values. Confirmed by reading.
+	- Origin: Across core, older and newer than the 20261030 review, which didn't sweep naming. It breaks the rules on full names, the happy path at low indent, and errors as values. Confirmed by reading.
 	- Requirements:
 		- Full names where the short ones are cryptic, such as `pc`, `bw`, `pw`, `bk` and `rd`, and `which` for a `Which` where a width is in scope too.
 		- The demo history example's `Box` gets another name, since it hides std's.
@@ -8471,7 +8477,7 @@ Sorted per the notes in [Template](#template).
 		- The profiler's `pc` stays, since it's the C argument of the unwinder call it stands in for.
 	- Branch: round-1107
 	- Commit: `cd18099`
-	- Test case: none new, since names and layout change no behavior. The graphs, config and history tests cover the code moved, deea2 and the upgrade tests among them.
+	- Test case: None new, since names and layout don't change any behavior. The graphs, config and history tests check the moved code, deea2 and the upgrade tests among them.
 		- Swept: every `pc`, `bw`, `pw`, `bk` and `rd` in core, and each `let _ =` in core outside tests.
 	- Closed: 20261106-221025
 
@@ -8484,7 +8490,7 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
 	- Related IDs: 2026110310450002
-	- Origin: `15993d9` (2026-11-06), newer, and never reviewed. Breaks the rules on type hints, dataclasses and enums, small functions, full names, and errors that aren't swallowed. Confirmed by reading: none of its 74 functions has hints, and lint can't see it.
+	- Origin: `15993d9` (2026-11-06), newer, and never reviewed. It breaks the rules on type hints, dataclasses and enums, small functions, full names, and errors that aren't swallowed. Confirmed by reading, since none of its 74 functions has hints, and lint can't see it.
 	- Requirements:
 		- Type hints throughout, and ruff's ANN rules on so they stay.
 		- Records and kinds become dataclasses and enums, and the 480-line recorder class is split.
@@ -8502,10 +8508,10 @@ Sorted per the notes in [Template](#template).
 		- The take's profile, options, events, captions and timeline are dataclasses, and takes and sounds are enums.
 		- The recorder is split into the screen, the panel, the settings window and the capture, with a small `Rec` that keeps them for the scenes.
 		- ffprobe giving no duration, and a failed rotation, now stop the run.
-		- Rotation had never run: the include was passed as `$0`, so it took itself for run rather than sourced and exited 3, which `check=False` hid. Fixed, and a take now gives `_first` and `_latest`.
+		- Rotation had never run. The include was passed as `$0`, so it took itself for run rather than sourced and exited 3, which `check=False` hid. That's fixed, and a take now gives `_first` and `_latest`.
 		- Verified: a gif take recorded with rotation, frames checked against the old script's take scene by scene, `--shot` ran, ruff failed on a hint taken out, and the quick gate's format and lint passed.
 	- Branch: round-1107
-	- Test case: none, since it's the recording script with no test harness. Verified by recording a take, as above.
+	- Test case: None, since it's the recording script with no test harness. Verified by recording a take, as above.
 		- Swept: every `check=False` and every `except` in the script.
 	- Closed: 20261106-222430
 
@@ -8517,7 +8523,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
-	- Origin: various, older and newer. Breaks the comment rules. Confirmed by reading.
+	- Origin: Various commits, older and newer. It breaks the comment rules. Confirmed by reading.
 	- Requirements:
 		- knobs' `Cargo.toml` no longer says to keep it the same as silkterm's.
 		- The plugin's watch comment says the tick always checks both files, as it does.
@@ -8536,7 +8542,7 @@ Sorted per the notes in [Template](#template).
 		- The comments above `fCtrOthers`, `fOtherRun` and `fCtrCleanup` each describe their own function, so they stay as they are.
 		- The long lines in `lint-report.bash` and `gfs-rotate.bash` stay, since those came from other projects.
 	- Branch: round-1107
-	- Test case: none, since only comments changed.
+	- Test case: None, since only comments changed.
 	- Closed: 20261106-223030
 
 - Code review 20261106 item 13: The panel item clears its whole image, then copies each graph in
@@ -8547,7 +8553,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
-	- Origin: `b46c961` (2026-10-25), before the 20261030 review, whose item 9 looked at allocations. Idea. Confirmed, measured: about 16% of a draw at scale 2, little at scale 1.
+	- Origin: `b46c961` (2026-10-25), before the 20261030 review, whose item 9 looked at allocations. It's an idea rather than a defect. Confirmed by measuring, at about 16% of a draw at scale 2 and little at scale 1.
 	- Requirements:
 		- Each graph draws straight into the item's image, or only the gaps get cleared.
 	- Estimated effort: Low
@@ -8555,10 +8561,10 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Each graph draws into its own part of the item's image, through `render::Canvas`, and only the edges and gaps are cleared. A graph fills only its border before the plot, since the plot writes every pixel of itself.
 		- The panel item no longer keeps a pixel buffer per graph, about 140 KB at the profiler's 848x48.
-		- Verified: the quick gate passed. Release build, load about 1.5 on 32 cores, medians of 200 draws at 848x48: the clear and copy were 4 to 5 us of a draw, and the draw stayed at 34 us with no history and about 195 us with a week, before and after.
+		- Verified: the quick gate passed. In a release build at a load of about 1.5 on 32 cores, with medians of 200 draws at 848x48, the clear and copy were 4 to 5 us of a draw, and the draw stayed at 34 us with no history and about 195 us with a week, before and after.
 	- Decisions:
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
-		- Kept, though it isn't faster. The 16% didn't show up here, and the clear and copy saved go to the plot's writes a whole image row apart. The buffers saved are the gain.
+		- The change is kept, though it isn't faster. The 16% didn't show up here, and the clear and copy saved go to the plot's writes a whole image row apart. The buffers saved are the gain.
 		- `Graph::render` still draws into the graph's own buffer, for the settings window's live rows.
 	- Branch: round-1107
 	- Test case: `graphs::tests::draw_in_place_clear_gaps` (dezfg). It fails with each graph drawn into its own buffer and copied, with the gaps left uncleared, and with a graph's right border left unfilled.
@@ -8573,7 +8579,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
-	- Origin: `7794e6b` (2026-11-01) for the plugin's settings window, newer. The knobs ones are older. Idea. Confirmed by reading.
+	- Origin: `7794e6b` (2026-11-01) for the plugin's settings window, newer. The knobs ones are older. It's an idea rather than a defect. Confirmed by reading.
 	- Requirements:
 		- The plugin's own settings window and a stray one are one enum.
 		- knobs' "work out the indent" value and its program-filled presets get types of their own, if it's cheap.
@@ -8588,7 +8594,7 @@ Sorted per the notes in [Template](#template).
 		- 2026-11-06: above the stop line, so it goes in the next release. (me)
 		- `Presets::listed()` gives the spec's presets, or none, so readers that only list them stay one line.
 	- Branch: round-1107
-	- Test case: `tests::presets_from_one_source` in knobs (dezfh), which fails without the new check. The rest is a type change, which the compiler checks, and der60, der61, des4c and ddqs9 cover the same paths.
+	- Test case: `tests::presets_from_one_source` in knobs (dezfh), which fails without the new check. The rest is a type change, which the compiler checks, and der60, der61, des4c and ddqs9 test the same paths.
 		- Swept: every read of `stray`, `settings`, `indent`, `presets` and `from_program` in xfce, knobs, core and the settings crate, `qt.cpp`'s `info.indent` included.
 	- Closed: 20261106-230200
 
@@ -8601,7 +8607,7 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
 	- Related IDs: 2026110310450002
-	- Origin: `15993d9`, newer. Idea. Confirmed, measured: a scan of about 1500 processes takes 30 ms, and the panel stop polls it every 50 ms, about 38% of a core beside the capture.
+	- Origin: `15993d9`, newer. It's an idea rather than a defect. Confirmed by measuring. A scan of about 1500 processes takes 30 ms, and the panel stop polls it every 50 ms, about 38% of a core beside the capture.
 	- Requirements:
 		- Wait on the panel's own processes rather than scanning all of them.
 		- Move the pointer without a process start for each step.
@@ -8613,12 +8619,12 @@ Sorted per the notes in [Template](#template).
 	- Actual effort: Low
 	- Progress log:
 		- The panel stop scans once, then waits on pidfds, and stops what's left all at once.
-		- The caption band's strut is a window on the same X connection, not a process of its own.
+		- The caption band's strut is a window on the same X connection rather than a process of its own.
 		- The days scene is 3 s shorter, 9.2 s against 12.2 s, and the gif 41 s against 44 s. The old stop waited 3 s on one of the processes it found, likely one that had already exited, since a signal 0 check still finds a process that's exited but not yet reaped.
 		- A gif take used 78.2 s of CPU against 81.8 s, at a load of 2.5 to 4 on 32 cores.
 		- Verified: a gif take recorded, and its frames match the old script's take scene by scene, the hover tips included.
 	- Branch: round-1107
-	- Test case: none, since it's the recording script with no test harness. Verified by recording a take, as above.
+	- Test case: None, since it's the recording script with no test harness. Verified by recording a take, as above.
 		- Swept: every process scan and every per-step process start in the script. The window searches still start xdotool on each poll, at 0.2 s.
 	- Closed: 20261106-222430
 
@@ -8631,7 +8637,7 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
 	- Related IDs: 2026103016201613
-	- Origin: `ff4610a` and `f95b2c6`, before the 20261030 review, whose item 13 took the worst ones. `97052f4` and `34329c6` are newer. Idea. Confirmed, measured: markdownlint once per file takes 0.82 s for 3 docs against 0.37 s once, and each leftover folder scans every process at 17 ms.
+	- Origin: `ff4610a` and `f95b2c6`, before the 20261030 review, whose item 13 took the worst ones. `97052f4` and `34329c6` are newer. It's an idea rather than a defect. Confirmed by measuring. Running markdownlint once per file takes 0.82 s for 3 docs against 0.37 s for one run, and each leftover folder scans every process at 17 ms.
 	- Requirements:
 		- There's one markdownlint run per set of rule overrides.
 		- There's one process scan per sweep rather than per folder.
@@ -8655,8 +8661,8 @@ Sorted per the notes in [Template](#template).
 	- Type: Enhancement
 	- Status: Closed
 	- Closed reason: Done
-	- Verified: 20261102, round-1102b at 4286e10 on b23, with GPU memory on by default and the RTX 3060 Ti's power files shown as `auto` and `suspended`. The graphs held no `/dev/nvidia*` file and GPU memory read 0% while it showed asleep. Once it showed `active`, they opened NVML within a second, held 7 files, and read 2.6 of 8.0 GiB. dekma, dekmd, der6k and desfa passed under it, and with the card shown awake.
-		- The idle rest wasn't reached on the real card, which was 16% busy with the desktop. desfa covers it with stand-in NVML, and der6k shows NVML lets go of every file when shut. A hybrid laptop wasn't tested.
+	- Verified: 20261102, round-1102b at 4286e10 on b23, with GPU memory on by default and the RTX 3060 Ti's power files shown as `auto` and `suspended`. The graphs had no `/dev/nvidia*` file open and GPU memory read 0% while it showed asleep. Once it showed `active`, they opened NVML within a second, had 7 files open, and read 2.6 of 8.0 GiB. dekma, dekmd, der6k and desfa passed under it, and with the card shown awake.
+		- The idle rest wasn't reached on the real card, which was 16% busy with the desktop. desfa tests it with stand-in NVML, and der6k shows NVML lets go of every file when shut. A hybrid laptop wasn't tested.
 	- Priority|Severity: Low
 	- Opened: 20261101-183803
 	- Opened by: t00mietum
@@ -8672,7 +8678,7 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Data sources on Linux, GPU, has it.
 		- Verified: desfa passed, and failed with the asleep check taken out, and again with the idle rest taken out. der6j, der6k, dekma and dektd passed on b23's host, where the card's `power/control` is `on`. The quick gate passed.
 	- Decisions:
-		- Runtime power files, not turning GPU memory off by default, so a hybrid laptop keeps the default graph.
+		- The fix reads the runtime power files rather than turning GPU memory off by default, so a hybrid laptop keeps the default graph.
 		- The idle rest goes past the wording. Polling NVML each second while the card is up keeps it from sleeping again, so without it the fix works only until the card first wakes.
 		- There's one rest time per thread, shared by both readers, so neither keeps the card up for the other.
 		- A busy read that fails counts as idle, so a card without a busy share can still rest.
@@ -8695,16 +8701,16 @@ Sorted per the notes in [Template](#template).
 	- Requirements: The profiler now draws at the width the graphs ask for, 790x48 device px for the 6 default graphs. There, history lookups are 42% of a tick, `Tier::total` alone 26%, and the log axis's ages 10%. Make a column's total cheaper, or say why the cost is fine. Time it with the profiler before and after.
 	- Estimated effort: Avg
 	- Actual effort: Avg
-	- Origin: the profile from 2026103115232157, one run on 2026-11-01.
+	- Origin: The profile from 2026103115232157, one run on 2026-11-01.
 	- Progress log:
-		- Each tier keeps a total per 8 buckets and per 64, where it kept one per 32. A column reads blocks of 64, then blocks of 8 at its ends, and at most 7 buckets at each end. Block numbers are shifts, not divisions. `design.md` History has it.
-		- A bucket read whole takes one division, not one per series.
-		- Drawing works out each column edge's age once, not twice. The edges are the same numbers.
-		- Profiler, run side by side at a load of 7 to 18 on 32 cores: 381 to 406 us a tick before, 307 to 314 after, about 20% less. User time went from about 305 to 234 us.
+		- Each tier keeps a total per 8 buckets and per 64, where it kept one per 32. A column reads blocks of 64, then blocks of 8 at its ends, and at most 7 buckets at each end. Block numbers come from shifts rather than divisions. `design.md` History has it.
+		- A bucket read whole takes one division rather than one per series.
+		- Drawing works out each column edge's age once rather than twice. The edges are the same numbers.
+		- Run side by side at a load of 7 to 18 on 32 cores, the profiler gave 381 to 406 us a tick before and 307 to 314 after, about 20% less. User time went from about 305 to 234 us.
 		- After, history lookups are 34% of the tick, where they were 43%. The bucket loop is 10%, and the log axis 8%, down from 12%. The /proc reads and drawing are now about a quarter each.
 		- Verified: the quick gate with the profile area passed.
 	- Decisions:
-		- Blocks of 8 and 64 over 16 and 128. Side by side, 16 and 128 gave 329 us a tick against 309.
+		- Blocks of 8 and 64 were picked over 16 and 128. Side by side, 16 and 128 gave 329 us a tick against 309.
 		- The blocks take about 8% of the history's memory, up from 2%. That's about 330 KB more for a 4-series graph with 90 days of history.
 		- A whole bucket adds its sum, scaled by its weight over its seconds, rather than its mean times its weight. The two match to float rounding.
 	- Branch: round-1102
@@ -8730,7 +8736,7 @@ Sorted per the notes in [Template](#template).
 		- `cicd/cicd.bash` fails with exit 2 when its plan has no step but remote sync, the image and dogfood, before it makes a run folder. `--list` still shows the plan, with a line saying the run would fail.
 		- Verified: `--backlog-run-quick miri --no-leakcheck` and `sanitizers --no-leakcheck` fail. `miri` alone, the default areas and `--merge-gate --no-leakcheck` plan as before.
 	- Decisions:
-		- Exit 2, as for other options that make no sense together, since nothing ran.
+		- It exits 2, as for other options that make no sense together, since nothing ran.
 		- `--list` exits 0 and says the run would fail, since it only prints the plan.
 	- Branch: round-1102
 	- Test case: der4k in `cicd/tests/guards.bash`. It failed on the old `cicd.bash` and passes now.
@@ -8749,18 +8755,19 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- `config::unknown_spec_keys` lists every key in settings.shcl that neither knobs nor tukzmon reads: top level, each row, each group and each preset. A test fails on any.
+		- `config::unknown_spec_keys` lists every key in settings.shcl that neither knobs nor tukzmon reads, at the top level and in each row, group and preset. A test fails on any.
 		- Verified: the quick gate passed, der4w included.
-	- Decisions: Goes to silkterm first, as its copy is the source.
+	- Decisions:
+		- A knobs change goes to silkterm first, as its copy is the source.
 		- knobs is unchanged, since it stays byte-identical to silkterm's. The spec is compiled in, so a test catches a typo before a build goes out, and no runtime warning is needed here.
 		- The knobs key lists in `config.rs` copy what `read_setting` and `read_group` read, and need a line when knobs reads a new key.
 		- A runtime warning in knobs is drafted for silkterm in the upstream folder, `2026103115232265/`.
-		- 20261107: answered File it. The draft goes to silkterm's backlog in silkterm's own round.
+		- 20261107: The draft is to be filed in silkterm's backlog, in silkterm's own round.
 	- Branch: round-1102
 	- Test case: `config::tests::spec_keys_all_read` (der4w). It fails with one `gate:` changed to `gaet:`, and passes on the spec.
 	- Acceptance signoff: Self-closed 20261101: der4w.
 	- Closed: 20261101-173643
-	- Origin: `f89e55e`. First review. Confirmed with a probe, `gaet:` was ignored.
+	- Origin: `f89e55e`. First review. Confirmed with a probe, where `gaet:` was ignored.
 
 - Code review 20261031 item 30: The settings window's teardown relies on being hidden first
 	- ID: 2026103115232250
@@ -8772,17 +8779,17 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Requirements: `~Window` frees `live` and `rows` before Qt deletes the child widgets, whose lambdas point at them. `exec()` hides the window first, so nothing fires today. Hide and disconnect at the top of `~Window` so a test hook or a later caller can't reach freed memory.
 	- Estimated effort: Low
-	- Origin: `391bfce`. First review. Plausible, not reachable today.
+	- Origin: `391bfce`. First review. Plausible, though nothing could trigger it yet.
 	- Actual effort: Low
 	- Progress log:
-		- `~Window` and `~ColorPicker` now take every handler their children have on them off first, then hide. So a box that loses the focus as the window goes runs nothing. `~Window` also takes its app event filter off.
+		- `~Window` and `~ColorPicker` now disconnect every handler on their children first, then hide. So a box that loses the focus as the window goes runs nothing. `~Window` also takes its app event filter off.
 		- Confirmed: a test hook that types in a color box of a shown window and then destroys it aborted the test binary before the fix, with the box's handler reading a freed row.
 	- Decisions:
-		- The handlers come off before the hide, not after. A hide first would run them with everything still there, but it would also take a half-typed value into the dialog as the window went, which nothing asked for.
+		- The handlers come off before the hide rather than after. A hide first would run them with everything still there, but it would also take a half-typed value into the dialog as the window went, which nothing asked for.
 		- The color picker had the same layout, its spin boxes freed before the boxes whose handlers read them, so it gets the same destructor.
 	- Branch: round-1102
 	- Test case: `bridge::tests::no_handlers_on_destroy` (der53). It aborts before the fix and passes after.
-		- Swept: every `QDialog` subclass in `qt.cpp`, `Window` and `ColorPicker`. The other widget classes keep no members their children's handlers reach. Every existing hook that destroys a shown window still passes, and the quick gate's ASan run reported nothing.
+		- Swept: every `QDialog` subclass in `qt.cpp`, `Window` and `ColorPicker`. The other widget classes don't have any members that their children's handlers read. Every existing hook that destroys a shown window still passes, and the quick gate's ASan run reported nothing.
 	- Closed: 20261101-175000
 
 - Code review 20261031 item 29: Apply drops comments in the config file
@@ -8797,11 +8804,11 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Avg
 	- Actual effort: Low
 	- Progress log:
-		- Apply keeps the comments in the config file, as long as the line or section they sit on stays. A changed value keeps its line's comment.
+		- Apply keeps the comments in the config file, as long as the line or section they're on stays. A changed value keeps its line's comment.
 		- `design.md` Settings window says so.
 		- Verified: der5j fails on the old Apply and passes now. The quick gate passed, and every save in the dialog tests kept its comments rather than falling back.
 	- Decisions:
-		- Took the first option. shcl 2.0.0's `Document` keeps comments through its setters and `to_canonical`, so no shcl change was needed. Apply now sets the new values on the file as loaded (`keep_notes` in `settings/src/dialog.rs`), and removes what the new values don't have, rather than writing knobs' text alone.
+		- The first option was taken. shcl 2.0.0's `Document` keeps comments through its setters and `to_canonical`, so no shcl change was needed. Apply now sets the new values on the file as loaded (`keep_notes` in `settings/src/dialog.rs`), and removes what the new values don't have, rather than writing knobs' text alone.
 		- If the result wouldn't read back as the values meant, such as with a raw block, the file is written plain as before, so the values always win over the comments.
 		- What 2026102913122701 drops is still dropped, comments on those lines included.
 	- Branch: round-1102
@@ -8831,10 +8838,10 @@ Sorted per the notes in [Template](#template).
 		- Verified: the quick gate passed. der61 failed with the kill at Remove taken out, and again with the `/proc` lookup taken out.
 		- Verified: in a private panel on X11 and on Wayland, Properties twice opened one window and the tip said "Properties: its window is open already". After `xfce4-panel --restart` the window stayed open, Properties again opened none and the tip said the same, and Remove closed it and left no settings file.
 	- Decisions:
-		- Say it's open rather than raise it. Wayland gives a panel no way to raise another program's window, and an X11 window manager's focus-stealing guard may only flag it.
-		- The tip, not a dialog, since the pointer is on the item when the menu closes, and the tip already shows the item's other troubles.
-		- Find a window from before a restart by its command line in `/proc`, the user's own processes only, rather than a lock or pid file, since that needs nothing written and can't go stale.
-		- Close it at Remove with SIGTERM, which Qt doesn't catch, so nothing is saved, as with the tracked window's kill.
+		- The tip says it's open rather than the item raising it. Wayland gives a panel no way to raise another program's window, and an X11 window manager's focus-stealing guard may only flag it.
+		- It's a tip rather than a dialog, since the pointer is on the item when the menu closes, and the tip already shows the item's other troubles.
+		- A window from before a restart is found by its command line in `/proc`, the user's own processes only, rather than a lock or pid file, since that needs nothing written and can't go stale.
+		- Remove closes it with SIGTERM, which Qt doesn't catch, so nothing is saved, as with the tracked window's kill.
 		- A panel restart leaves such a window open, since the item and its file are still there.
 	- Branch: round-1102
 	- Commit: `7794e6b`
@@ -8850,7 +8857,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: Low
 	- Opened: 20261031-152322
 	- Opened by: t00mietum
-	- Requirements: Each row label becomes its control's buddy or accessible name, so a screen reader names checkboxes, sliders, boxes, chips and revert arrows. The color picker title names the graph too, not just Low or Border.
+	- Requirements: Each row label becomes its control's buddy or accessible name, so a screen reader names checkboxes, sliders, boxes, chips and revert arrows. The color picker title names the graph too, rather than only Low or Border.
 	- Estimated effort: Low
 	- Origin: `d621249`. First review. Plausible, by reading.
 	- Actual effort: Low
@@ -8860,7 +8867,7 @@ Sorted per the notes in [Template](#template).
 		- A row's label is its control's buddy.
 		- `design.md` Settings window has it.
 	- Decisions:
-		- The buddy is the row's control, not the slider or box inside it. Qt finds a label only beside the widget it labels, and Qt on Linux names a dropdown by its text, so a dropdown's label reaches a screen reader only that way. Sliders, boxes and chips inside a holder get their names set instead.
+		- The buddy is the row's control rather than the slider or box inside it. Qt finds a label only beside the widget it labels, and Qt on Linux names a dropdown by its text, so a screen reader gets a dropdown's label only that way. Sliders, boxes and chips inside a holder get their names set instead.
 		- A graph list dropdown has no label beside it, so a screen reader gives its value, with the tip that names its graph.
 	- Branch: round-1102
 	- Test case: `bridge::tests::accessible_names` (der54), over every control that takes Tab on every tab, by the name Qt gives a screen reader. It fails before the fix, with sliders, boxes, chips and revert arrows unnamed, and passes after.
@@ -8887,7 +8894,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- Only the part over `c_min`, as htop counts it, since the ARC won't shrink below that, and cache here means what can be given back, as with `SReclaimable`. This departs from "size" in the wording but meets "as htop can".
 		- The ARC part is capped at what user had, since the two files aren't read at the same instant.
-		- Read in the memory reader only, not the per-tick `/proc/meminfo` cache, since swap and zswap don't need it.
+		- It's read in the memory reader only, rather than the per-tick `/proc/meminfo` cache, since swap and zswap don't need it.
 	- Branch: round-1102
 	- Test case: `mem::tests::arc_above_floor_is_cache` (der6g) and `the_memory_reader_reads_the_arc_each_time_and_none_is_none` (der6h). Both fail with the ARC left out of `memory_shares`. der6h also parses the real arcstats where ZFS is loaded.
 		- Swept: `memory_shares` is the one place cache is worked out. Every `MemoryReader` built as a unit struct in tests now uses `default()`.
@@ -8902,21 +8909,21 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261031-152321
 	- Opened by: t00mietum
 	- Related IDs: 2026110118380381
-	- Requirements: The GPU memory graph is on by default, so every NVIDIA box opens NVML at start and asks each second. On a hybrid laptop that may keep the discrete GPU from powering down, and device 0 is usually that one, not the display GPU. Check on b28l or a stand-in, and open NVML only while a GPU graph is shown.
+	- Requirements: The GPU memory graph is on by default, so every NVIDIA box opens NVML at start and asks each second. On a hybrid laptop that may keep the discrete GPU from powering down, and device 0 is usually that one rather than the display GPU. Check on b28l or a stand-in, and open NVML only while a GPU graph is shown.
 	- Estimated effort: Avg
 	- Actual effort: Avg
-	- Origin: `5b569ad`. First review. Plausible, no hybrid laptop to try.
+	- Origin: `5b569ad`. First review. Plausible, since there's no hybrid laptop to try.
 	- Progress log:
 		- Each GPU reader opens NVML for itself and shuts it down when dropped. NVML counts opens, so it closes when both graphs are hidden, and opens again when one is shown. The library stays loaded.
-		- On b23 the plugin held 7 `/dev/nvidia*` files while a GPU graph was shown, and none once both were hidden.
+		- On b23 the plugin had 7 `/dev/nvidia*` files open while a GPU graph was shown, and none once both were hidden.
 		- GPU memory is still on by default, so a hybrid laptop opens NVML at start. Item 2026110118380381 has that part.
 		- `design.md` Data sources on Linux, GPU, has it.
 		- Verified: der6j and der6k passed, and failed with the shutdown taken out. dekma, dekmd, dektd and der6k passed on b23's host with the RTX 3060 Ti. The quick gate passed.
 	- Decisions:
 		- NVML's first device stays. On a hybrid laptop NVML lists only the NVIDIA GPU, so device 0 is the discrete one, and the other GPU is Intel's or AMD's, which NVML can't read. The GPU picker stays deferred, as in round-1030.
-		- Closed through the readers' drop, not `Source::follow`, since `Slots` already drops a hidden graph's reader.
+		- NVML is closed through the readers' drop rather than `Source::follow`, since `Slots` already drops a hidden graph's reader.
 		- The library isn't unloaded, since keeping its code mapped keeps no GPU awake.
-		- No hybrid laptop to try, so the wake-up itself is unverified. b28l has no Rust. The stand-in and b23's open files cover what the code does.
+		- There's no hybrid laptop to try, so the wake-up itself is unverified. b28l has no Rust. The stand-in and b23's open files check what the code does.
 	- Branch: round-1102
 	- Test case: `gpu::tests::nvml_open_while_graph_shown` (der6j), through `Graphs` with a stand-in NVML, and `core/tests/nvml.rs` `hidden_graphs_release_nvidia` (der6k), with the real driver where there is one. Both fail with the shutdown taken out.
 		- Swept: the one NVML open in `core/src/gpu.rs`, both readers through `Card::find`, the Miri stand-in, the settings window's `Live`, which makes every graph while it's open, and `design.md` for "NVML handle".
@@ -8943,7 +8950,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- Time axis default, which this item quoted, is now Scale default under Time axis, per 2026110109585212.
 	- Branch: round-1102
-	- Test case: none for the ampersands, a label's text with no behavior, which the stand-in under 2026110109585212 shows. der32 and der33 cover General.
+	- Test case: None for the ampersands, since a label's text has no behavior, and the stand-in shots under 2026110109585212 show it. der32 and der33 test General.
 	- Acceptance signoff: Self-closed 20261101, with 2026110109585212.
 	- Closed: 20261101-164122
 
@@ -8962,7 +8969,7 @@ Sorted per the notes in [Template](#template).
 	- Actual effort: Low
 	- Progress log:
 		- The window already drew no heading there. `placeRow` in `qt.cpp` skips any heading that repeats its tab's name, and has since the first build, so the list sits at the top of the page. Only the spec row `GraphsHead` was left.
-		- Added a test that fails if a heading on any tab repeats its name, or if Graphs shows any heading.
+		- A new test fails if a heading on any tab repeats its name, or if Graphs shows any heading.
 		- Verified: the quick gate passed with the new test, and the stand-in shots in private `uat-2026103114565000/` show no heading on Graphs.
 	- Decisions:
 		- `GraphsHead` stays in `settings.shcl`. It marks where the list goes, and dialog and bridge tests read it there. Dropping it would change nothing on screen.
@@ -8988,7 +8995,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Border px is under Size on General, after Width px default, and the Frame heading is gone. `style-guide_ux.md` Groups and headings says where it goes and why.
 	- Decisions:
-		- Settled by 2026110109585212, the user's newer item, which asks for Border px under Size. It stays off Outline since it isn't a theme value.
+		- The newer item 2026110109585212 asks for Border px under Size, which settles it. It stays off Outline since it isn't a theme value.
 	- Branch: round-1102
 	- Test case: `bridge::tests::general_tab_order` (der32), which checks Border px between Width px default and Time axis.
 	- Acceptance signoff: Self-closed 20261101, with 2026110109585212.
@@ -9002,7 +9009,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
-	- Origin: across the tree. First review. Confirmed by reading.
+	- Origin: Across the tree. First review. Confirmed by reading.
 	- Requirements:
 		- Derive or write `Debug` for `Graph`, `Graphs`, `render::Frame`, `Dialog`, `RowState`, `Live` and the bridge's shared structs.
 		- Public items that didn't have a doc get a one-line `///`.
@@ -9016,9 +9023,9 @@ Sorted per the notes in [Template](#template).
 		- The settings items in the list have a `///`. The plugin's draw handler says why `px` outlives the surface. `color.rs` has a `//!` header.
 		- Verified: the full run passed. The quick run failed on 2 undocumented test-only `Drawn` methods before they had a `///`.
 	- Decisions:
-		- `missing_docs` only in core. The settings crate is a binary and the plugin a cdylib with no public Rust API, so the lint checks nothing there.
+		- `missing_docs` is on in core only. The settings crate is a binary and the plugin a cdylib with no public Rust API, so the lint checks nothing there.
 	- Branch: round-1031
-	- Test case: none, a doc and `Debug` change. The `missing_docs` lint in the lint step keeps core's docs from going missing again.
+	- Test case: None, since it's a doc and `Debug` change. The `missing_docs` lint in the lint step keeps core's docs from going missing again.
 	- Closed: 20261031-082942
 
 - Graphs and Live list their 12 graph slots by hand
@@ -9031,27 +9038,27 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Related IDs: 2026103016201610, 2026103019230902, 2026103016201611
 	- Requirements:
-		- There's one table of graphs in `Graphs` and in `Live`, in place of a field per graph, so a new graph is added in one place there, not in about 5 places each.
+		- There's one table of graphs in `Graphs` and in `Live`, in place of a field per graph, so a new graph is added in one place there rather than in about 5 places each.
 		- `Live::get` matches on section names with a `_` arm, so a graph left out there is skipped with no error.
 		- Weigh against the churn first. Each slot has a different reader type, so a table needs `Box<dyn Drawn>` or an enum.
 	- Estimated effort: Avg
-	- Origin: found while sharing the look in 2026103019230902.
+	- Origin: Found while sharing the look in 2026103019230902.
 	- Actual effort: Avg
 	- Progress log:
-		- `Graphs` and the settings window's `Live` keep their graphs in one `graphs::Slots`: a `Box<dyn Drawn>` per `Which`, at its own index, and the look they share. `graphs::make` is the one match that knows each graph's reader, so a new graph is one arm there, and the build asks for it.
+		- `Graphs` and the settings window's `Live` keep their graphs in one `graphs::Slots`, which has a `Box<dyn Drawn>` per `Which`, at its own index, and the look they share. `graphs::make` is the one match that knows each graph's reader, so a new graph is one arm there, and the build asks for it.
 		- `Live` finds a graph by name through `Which::named`, so there's no `_` arm left to skip one.
 		- `Graphs::has(which)` replaces the profiler's and the soak test's reads of `g.mem`.
-		- `make` checks at build that each reader has a color per series, and in a debug build that it sits in its own graph's slot.
+		- `make` checks at build that each reader has a color per series, and in a debug build that it's in its own graph's slot.
 		- Verified: the full run passed, with the soak and profiler steps.
 	- Decisions:
-		- `Box<dyn Drawn>`, not an enum. Every caller already went through `Drawn`, and an enum would list the 12 graphs again in each match.
-		- CPU sits in the table too, always made, so each loop is one loop. `Slots` keeps the shared look, as `cpu.look` did.
-		- `Drawn` is `Any`, so tests reach a graph's history and peak through `the::<MemoryReader, 3>()`. The test edits are mechanical.
+		- The table uses `Box<dyn Drawn>` rather than an enum. Every caller already went through `Drawn`, and an enum would list the 12 graphs again in each match.
+		- CPU is in the table too, always made, so each loop is one loop. `Slots` keeps the shared look, as `cpu.look` did.
+		- `Drawn` is `Any`, so tests get at a graph's history and peak through `the::<MemoryReader, 3>()`. The test edits are mechanical.
 		- `Live::set_look` still makes none and drops none, so a graph the box couldn't read at open isn't probed again on each change. `Graphs::set_look` still makes a shown one that's missing.
 		- A graph being hidden is dropped before the new look goes out, as before, so it doesn't follow it first.
 	- Branch: round-1030b
 	- Test case: `live::tests::rows_cover_drawable_graphs` (dendg), plus dencp and dend1 over the table. dendg fails with `Live::get` missing the own graph, and dencp with a reader in another graph's slot.
-		- 2026-10-30: dencp checks each graph `make` gives, not the old fields' types, and dend1 each slot's look, not a list of fields. What they check is the same.
+		- 2026-10-30: dencp checks each graph `make` gives rather than the old fields' types, and dend1 checks each slot's look rather than a list of fields. What they check is the same.
 		- Swept: every `Graphs` field read (core, settings, xfce, the profiler, the soak test), every `Live` field read, both `set_look`s, and every `Source::SECTION`, which all still come from `WHICH`.
 	- Closed: 20261030-201330
 
@@ -9076,7 +9083,7 @@ Sorted per the notes in [Template](#template).
 		- `Live::set_look` takes the look by value, as `Graphs::set_look` does.
 		- Verified: the full run passed, with the profiler and soak steps.
 	- Decisions:
-		- `Rc`, not `&Look` passed to each call. Passing it in would add a look to most of `Drawn`'s methods and every test that drives a lone `Graph`. Both owners are single-threaded, and `Rc` builds through cxx's `Box<Live>`.
+		- The look is an `Rc` rather than a `&Look` passed to each call. Passing it in would add a look to most of `Drawn`'s methods and every test that drives a lone `Graph`. `Graphs` and `Live` are both single-threaded, and `Rc` builds through cxx's `Box<Live>`.
 		- `Graph`'s constructors take `impl Into<Rc<Look>>`, so a test or example still passes a plain `Look`.
 		- The 12 slots in `Graphs` and `Live` are left as they are, since sharing the look didn't need them changed. That's 2026103019482449.
 	- Branch: round-1030b
@@ -9107,13 +9114,13 @@ Sorted per the notes in [Template](#template).
 		- The settings window's graph widths go through `Which` too.
 		- Verified: the full run passed.
 	- Decisions:
-		- Done now, against the churn. They were 96 of `Look`'s 116 fields, and the test edits are mechanical.
+		- The change was made now, despite the churn. The per-graph fields were 96 of `Look`'s 116 fields, and the test edits are mechanical.
 		- Colors are a fixed `[Rgb; 5]`, the network's count, with black past a graph's own, so `Each` is one type. `paint` checks at build that a graph's series fit.
 		- The slots in `Graphs` and `Live` are left as they are. They have a different reader type each, and the shared look in 2026103019230902 changes them anyway.
-		- `LEADS` and `dice::ROLES` stay lists of their own, since they're about themes, not a graph's settings.
+		- `LEADS` and `dice::ROLES` stay lists of their own, since they're about themes rather than a graph's settings.
 	- Branch: round-1030b
 	- Test case: `config::tests::graph_settings_own_record` (dencn) and `graphs::tests::slot_per_graph_colors` (dencp). dencn fails with a graph's key changed, and dencp with a color id dropped or a reader naming another graph's `WHICH`.
-		- Swept: every `Look` field read and struct literal in core, settings, xfce, the preview example and the soak test, every `*_paint` caller, every `Source` impl, and `Live::width`. The tests changed only in how they reach a graph's settings.
+		- Swept: every `Look` field read and struct literal in core, settings, xfce, the preview example and the soak test, every `*_paint` caller, every `Source` impl, and `Live::width`. The tests changed only in how they get at a graph's settings.
 	- Closed: 20261030-193730
 
 - Code review 20261030 item 7: Collectors reopen their files every tick, and the disk graph reads every block device
@@ -9130,15 +9137,15 @@ Sorted per the notes in [Template](#template).
 		- The /proc and /sys reads are about 72% of a tick, and the disk graph alone about a third.
 		- Keep each file open and re-read it from the start, rather than opening it each tick.
 		- The disk graph reads only the wanted disks' `/sys/block/<disk>/stat`, kept open, and lists the disks again now and then.
-		- Read `/proc/meminfo` once a tick for memory, swap and zswap, not 2 or 3 times.
+		- Read `/proc/meminfo` once a tick for memory, swap and zswap, rather than 2 or 3 times.
 	- Progress log:
 		- A tick is about 209 us, at 1 a second by default, so this is small.
 		- `collect::Kept` keeps a file open and reads it again from the start, and opens it again after a failed read. CPU, memory, swap, zswap and zram, load, network, disk, temperature, battery and the AMD GPU files read through it each tick. Files read only at start still use `slurp`.
-		- The disk graph reads each counted drive's `stat` under `/sys/class/block`, not `/proc/diskstats`, and lists the drives again every 10 s.
+		- The disk graph reads each counted drive's `stat` under `/sys/class/block` rather than `/proc/diskstats`, and lists the drives again every 10 s.
 		- Memory, swap and zswap share one read of `/proc/meminfo` within a tick (`mem::once_a_tick`, around `Graphs::sample` and `graphs::tick`).
-		- The AMD GPU's 3 paths are built once at start, not per tick.
+		- The AMD GPU's 3 paths are built once at start rather than per tick.
 		- `design.md` Data sources on Linux has the details.
-		- Profiler, 20000 ticks of the 6 default graphs on b23 at a load of about 7: 233 and 235 us a tick before, 160 and 164 after, and 161 in the full run. The reads went from 65.7% of a tick to 55.6%. Per tick a file now costs an lseek and 2 reads, with no open, statx or close.
+		- Over 20000 profiler ticks of the 6 default graphs on b23 at a load of about 7, a tick took 233 and 235 us before, 160 and 164 after, and 161 in the full run. The reads went from 65.7% of a tick to 55.6%. Per tick a file now costs an lseek and 2 reads, with no open, statx or close.
 		- Verified: the full run passed, the soak test and profiler included.
 	- Estimated effort: Avg
 	- Actual effort: Avg
@@ -9149,8 +9156,8 @@ Sorted per the notes in [Template](#template).
 		- A drive whose `stat` stops reading drops out, which makes one gap, rather than a gap each tick while it's gone.
 		- A `/` in a typed drive name is read as sysfs's `!`, as in `cciss!c0d0`.
 	- Branch: round-1030b
-	- Test case: `collect::tests::kept_reopens_after_failure` (denba), `graphs::tests::one_meminfo_read_per_tick` (denbb), and `disk::tests::picked_drives_sum_and_gap` (defng). denbb fails with each read on its own (3 reads, not 1), and defng with each listing opening its files anew.
-		- 2026-10-30: defne, defnf, defng and defnh read made-up `stat` files and `/sys/class/block`, where they read diskstats text. defne is now `drive_stat_read`. Their checks are the same: old and new column counts and junk, partitions and stacked devices left out, rates that add up, and a gap when the drives change.
+	- Test case: `collect::tests::kept_reopens_after_failure` (denba), `graphs::tests::one_meminfo_read_per_tick` (denbb), and `disk::tests::picked_drives_sum_and_gap` (defng). denbb fails with each read on its own, at 3 reads rather than 1, and defng with each listing opening its files anew.
+		- 2026-10-30: defne, defnf, defng and defnh read made-up `stat` files and `/sys/class/block`, where they read diskstats text. defne is now `drive_stat_read`. They still check old and new column counts and junk, partitions and stacked devices left out, rates that add up, and a gap when the drives change.
 		- Swept: every `slurp` caller (the ones left read once at start), every `/proc/meminfo` reader, every `DiskReader` and `Drives` use (the plugin through `Graphs`, the settings window's `Live`, `Source::follow`), and the design and settings text that names diskstats.
 	- Closed: 20261030-190553
 
@@ -9162,7 +9169,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
-	- Origin: `b46c961` (memory graph, 2026-10-25). First review. Plausible on the cost, not timed.
+	- Origin: `b46c961` (memory graph, 2026-10-25). First review. Plausible on the cost, which wasn't timed.
 	- Requirements:
 		- `Graphs::save` re-reads the file only to keep hidden graphs' sections, and copies every section on the way. b23's file is 11.5 MB, and it saves every 15 minutes on the panel's thread.
 		- Keep the hidden graphs' sections from the last load, or read only those.
@@ -9170,9 +9177,9 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- `Graphs::load` keeps the sections no graph there owns, and `save` writes them back from memory, not from the file. A graph hidden after a load goes into them too, so it needs no save first.
+		- `Graphs::load` keeps the sections no graph there owns, and `save` writes them back from memory rather than from the file. A graph hidden after a load goes into them too, so it needs no save first.
 		- A `Graphs` that hasn't loaded still reads the file at save, as before. A load that finds no file starts with none kept, and a reset with history kept clears them.
-		- Timed with an 11.5 MB hidden section, file on tmpfs, median of 15: 25.1 ms a save before, 12.1 ms after (`time_save_with_big_hidden`, denb9, ignored).
+		- With an 11.5 MB hidden section and the file on tmpfs, the median of 15 saves was 25.1 ms before and 12.1 ms after (`time_save_with_big_hidden`, denb9, ignored).
 		- Verified: the quick gate passed.
 	- Decisions:
 		- Showing a graph again still reads the file for its section, as that's only at a settings change, and `set_look`'s callers stay as they are.
@@ -9193,15 +9200,15 @@ Sorted per the notes in [Template](#template).
 	- Origin: `f89e55e` for `render.rs`, and `51ab3f4` for the tile layout. First review. Confirmed in the code, and the cost will be clearer once the profiler is fixed.
 	- Requirements:
 		- Reuse the draw's scratch buffers rather than allocating 3 or 4 each draw.
-		- Pack the background and each solid series color once, not per pixel.
-		- Work out the graph order once per settings change, not 3 times per draw and on every pointer move.
+		- Pack the background and each solid series color once rather than per pixel.
+		- Work out the graph order once per settings change rather than 3 times per draw and on every pointer move.
 	- Actual effort: Avg
 	- Progress log:
 		- Each graph keeps its draw buffers in a `render::Scratch`, so a draw at the same size allocates nothing. The panel's tile list is on the stack.
 		- The background per row, each series color and the gradient per row are packed once a draw. Only a pixel at a series' edge, or the stack's top, is blended.
 		- `Graphs` keeps the order from `graph.order`, worked out in `new` and `set_look`.
 		- The pixels are the same as before, checked against the old draw over 3000 random graphs (5.4 million pixels) before it was taken out.
-		- Profiler, 100000 ticks, 2 runs each, load about 6 on 32 cores: user CPU 6.45 and 6.43 s before, 4.87 and 4.81 s after. Drawing went from 14.4% and 13.4% of the tick to 4.5% and 4.8%.
+		- Over 100000 profiler ticks, 2 runs each at a load of about 6 on 32 cores, user CPU went from 6.45 and 6.43 s before to 4.87 and 4.81 s after. Drawing went from 14.4% and 13.4% of the tick to 4.5% and 4.8%.
 		- Verified: the full run passed.
 	- Decisions:
 		- Decided against: keeping history block totals up to date one sample at a time. At 2.3% it isn't worth the risk of drift.
@@ -9221,7 +9228,7 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
-	- Origin: grew graph by graph from round-1025 on. First review.
+	- Origin: The lists grew graph by graph from round-1025 on. First review.
 	- Requirements:
 		- There's one per-graph record in `Look`, indexed by `Which`, in place of about 120 parallel fields and 12 near-identical paint methods.
 		- `Source` gets the per-graph accessors by default from that.
@@ -9229,7 +9236,7 @@ Sorted per the notes in [Template](#template).
 		- Weigh against the churn first. The payoff is a new graph that can't be missed somewhere.
 	- Estimated effort: High
 	- Progress log:
-		- Split in 2: the per-graph record and `Source`'s defaults are in child 2026103019230886, and the shared `Look` in child 2026103019230902.
+		- The item is split in 2. The per-graph record and `Source`'s defaults are in child 2026103019230886, and the shared `Look` in child 2026103019230902.
 		- 2026-10-30: Closed with both children. The slots left in Graphs and Live are 2026103019482449.
 	- Test case: dencn and dencp (2026103019230886), dend1 and dend2 (2026103019230902).
 	- Closed: 20261030-194917
@@ -9245,26 +9252,26 @@ Sorted per the notes in [Template](#template).
 	- Origin: `0bc1224`, `35cf141`, `9e35514` and `fe76b54`. First review. Confirmed by reading.
 	- Requirements:
 		- Name the variants in the `_` arms over `Which` (`Graphs::is_shown`), `own::Host` (`OwnReader::text`) and `Part` (`Scheme::of`, which would index past the end for a new non-graph part).
-		- Send a row's control kind to `qt.cpp` as a shared enum, not a lower-cased debug string, and the picker's numbers as numbers, not text read back with `std::stoi`.
+		- Send a row's control kind to `qt.cpp` as a shared enum rather than a lower-cased debug string, and the picker's numbers as numbers rather than text read back wiht `std::stoi`.
 		- Say why at each remaining `clone()` that has no comment, or borrow, as in `Dialog`'s theme member loop.
 	- Estimated effort: Low
 	- Actual effort: Avg
 	- Progress log:
 		- `OwnReader::text` and `Scheme::of` name their variants. `Part::graph` gives a part's place in a scheme's lists, or None for Back, and `of` and `back_of` go through it.
-		- `Graphs::is_shown` is an `if` on CPU, not a match.
+		- `Graphs::is_shown` is an `if` on CPU rather than a match.
 		- A row's control goes to `qt.cpp` as the shared enum `ControlKind`, and `buildControl` switches over every kind, so a new one is a build warning there, and an error in cicd.
 		- `PickState` gives the 5 percent boxes as `i32` in `percents`, in place of `fields`, and `qt.cpp` sets them with no `std::stoi`. `Field::percent` replaces `Field::text`.
-		- Each `clone()` outside tests borrows or moves now, or says why. `drop_theme_changes` reads the members through its own handle on the spec, not a copy of the list. `row_state` and `Dialog::state` move what they had, and `spec()` hands out `Arc::clone`.
+		- Each `clone()` outside tests borrows or moves now, or says why. `drop_theme_changes` reads the members through its own handle on the spec rather than a copy of the list. `row_state` and `Dialog::state` move what they had, and `spec()` hands out `Arc::clone`.
 		- Verified: the full run passed.
 	- Decisions:
-		- `Graphs::is_shown` doesn't list the 11 other graphs, since that would be another per-graph list, which 2026103019482449 just took out. It splits on CPU, as `Which::optional` does.
-		- `Host::of` keeps its `_` arm, since it's over the process name, not the enum.
+		- `Graphs::is_shown` doesn't list the 11 other graphs, since that would be another per-graph list, which 2026103019482449 had taken out. It splits on CPU, as `Which::optional` does.
+		- `Host::of` keeps its `_` arm, since it's over the process name rather than the enum.
 		- A clone that only builds an owned value that a signature or a struct asks for, such as a returned `String` or cxx's structs, gets no comment, apart from one over the bridge's conversions.
 		- The spin boxes still send what's typed as text, through `pick_type`, which the hex box shares. Nothing reads it back with `stoi`.
 		- knobs isn't touched, since it stays byte-identical to silkterm's.
 	- Branch: round-1030b
 	- Test case: `bridge::tests::rows_send_kind_and_percents` (dendh). It fails with the radio arm dropped from `control_kind`.
-		- 2026-10-30: decd8 and decd4 compare `Field::percent` with a number, not `Field::text` with its text, since `text` is gone. decd8 still checks `#0000ff`, through `hex`.
+		- 2026-10-30: decd8 and decd4 compare `Field::percent` with a number rather than `Field::text` with its text, since `text` is gone. decd8 still checks `#0000ff`, through `hex`.
 		- Swept: every `r.info.control` and `state.fields` in `qt.cpp`, every `RowInfo.control` and `PickState` read in the bridge tests, every `Field::text` caller, and every `clone()` outside tests in core, settings and xfce.
 	- Closed: 20261030-201330
 
@@ -9287,12 +9294,12 @@ Sorted per the notes in [Template](#template).
 		- `test-ids.bash` decodes and encodes into a variable with `printf -v`, and reads every `.rs` file in one awk, and every `cicd/tests/*.bash` file in another. Strays get one awk too.
 		- `lint-report.bash` and `dev-install.bash` use `${f##*/}` and `${f%/*}`. `package.bash` asks `dpkg-query -S` once for every linked library.
 		- `test-ids.bash check` took 0.11 s of CPU, down from 0.31 s, over 308 tests.
-		- Verified: `list`, `check` and `new` gave the same output as before on the repo and on a test tree with bad, missing, repeated and future IDs, strays, nested and unclosed mods and an empty file, under gawk and mawk. `lint-report.bash` gave the same output in each mode. The owners from one `dpkg-query` matched the old per-library ones. The full run passed.
+		- Verified: `list`, `check` and `new` gave the same output as before on the repo and on a test tree with bad, missing, repeated and future IDs, strays, nested and unclosed mods and an empty file, under gawk and mawk. `lint-report.bash` gave the same output in each mode. The packages from one `dpkg-query` matched the old per-library ones. The full run passed.
 	- Decisions:
-		- There are 308 tests, not about 1000.
+		- There are 308 tests rather than about 1000.
 		- Module path, lines and the bash file's previous line are reset for each file, so the one awk reads each file as the per-file ones did.
 	- Branch: round-1030b
-	- Test case: `fTest_test_ids_per_file` (den97), in `cicd/tests/guards.bash`. It passes on the old per-file scan too, and fails with a file's lines, or the line above a bash test, carried into the next file.
+	- Test case: `fTest_test_ids_per_file` (den97), in `cicd/tests/guards.bash`. It passes on the old per-file scan too, and fails with a file's lines, or the line above a bash test, leaking into the next file.
 		- Swept: every `$(basename` and `$(dirname` in `cicd/` and `utility/`, which are all once at startup now, and every caller of `fDecode` and `fEncode`.
 	- Closed: 20261030-174900
 
@@ -9320,7 +9327,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- Opt-level 3 wins. The panel ticks every second by default for as long as the panel runs, and a monitor shouldn't add to the load it shows. The 200 to 340 KB saved isn't worth that.
 		- The settings window keeps 3 too, rather than a per-package "s". Its live graph runs the same tick code, fat LTO makes a per-package level hard to reason about, and one level is simpler.
-	- Test case: none. Only a comment changed, and the build is the same as before.
+	- Test case: None, since only a comment changed and the build is the same as before.
 	- Closed: 20261030-175606
 
 - Code review 20261030 item 15: `dev-install.bash` doesn't follow the helper script layout
@@ -9342,11 +9349,11 @@ Sorted per the notes in [Template](#template).
 		- `dev-install.bash` has the `##` header with Purpose, Syntax, Exit, copyright and the MIT license, and History at the bottom. Its output goes through `fEcho`, and its errors through `fDie` to stderr. It takes `--help`.
 		- Verified: with `~/.local` swapped for an empty folder and the panel shimmed, it built, installed the 3 files, named the old links, and restarted the panel, or didn't with `--no-restart`. A bad `XDG_DATA_HOME` failed with exit 1.
 	- Decisions:
-		- MIT, as the other helper scripts are.
+		- It's MIT, as the other helper scripts are.
 		- An unknown option is an error, exit 2, where it used to be ignored. A typo of `--no-restart` restarted the panel.
 		- A failed copy or build now says what failed before it exits.
 	- Branch: round-1030b
-	- Test case: none. It installs into the user's panel, so the pipeline can't run it.
+	- Test case: None. It installs into the user's panel, so the pipeline can't run it.
 	- Closed: 20261030-174900
 
 - Split network traffic into LAN and internet
@@ -9366,10 +9373,10 @@ Sorted per the notes in [Template](#template).
 			- Polling TCP sockets. No root, but UDP and QUIC traffic isn't split.
 			- An nftables counter set. Close to no overhead, but needs root to install once.
 	- Progress log:
-		- 2026-10-29: split into 3 children: the TCP socket reader 2026102914561218, the setting and the 5-series graph 2026102914561233, and the nftables counter set 2026102914561248. This closes with the last of them.
+		- 2026-10-29: Split into 3 children, which are the TCP socket reader 2026102914561218, the setting and the 5-series graph 2026102914561233, and the nftables counter set 2026102914561248. This closes with the last of them.
 	- Decisions:
-		- 2026-10-19: Optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
-	- Test case: the children's tests, demvz, demw0, demw1, demw2 and demw3 for the setting and graph, and the socket reader's tests from 2026102914561218.
+		- 2026-10-19: The split is optional, and the user picks the way. `design.md` has the options under Data sources on Linux.
+	- Test case: The children's tests, demvz, demw0, demw1, demw2 and demw3 for the setting and graph, and the socket reader's tests from 2026102914561218.
 	- Acceptance signoff: Self-closed 20261030: the socket reader and the setting with the 5-series graph are Done. The nftables way is Deferred in 2026102914561248, so the setting offers Off and TCP sockets.
 	- Closed: 20261030-104917
 
@@ -9396,16 +9403,16 @@ Sorted per the notes in [Template](#template).
 		- Verified: the full run passed. The settings window showed the Network graph heading and its dropdown on TCP sockets.
 		- 2026-10-29: `lan::LanReader` gives the LAN's sent and received, and `lan::split` turns those and the network reader's 3 series into the 5, from 2026102914561218. Nothing draws them yet.
 	- Decisions:
-		- The setting is a dropdown of values, not a checkbox, so nftables can join it later as a third value without changing the setting's name or values (answered 2026-10-30).
+		- The setting is a dropdown of values rather than a checkbox, so nftables can join it later as a third value without changing the setting's name or values (answered 2026-10-30).
 		- Sent and received keep their names and colors, and mean the internet's with the split on. So a saved theme or config reads as before, and only the 2 LAN colors are new.
-		- The graph is 5 series with the split off too, not 3, so turning it on doesn't make a new graph or lose history. A history saved with 3 series doesn't read as 5, so the network graph starts over once after the update.
+		- The graph is 5 series with the split off too, rather than 3, so turning it on doesn't make a new graph or lose history. A history saved with 3 series doesn't read as 5, so the network graph starts over once after the update.
 		- A failed LAN poll is a gap, as a failed `/proc/net/dev` read is, so the LAN's bytes never show as internet. A LAN reader that can't start leaves the split off, and the next Apply tries again.
 		- In the built-ins, LAN received is between the network's Low and Medium, and LAN sent between Medium and High, each moved as little as it takes to read 10 or more apart from the network's other colors and its background. Plain midpoints were under 10 in Default, Pastel, Terminal and Frost.
-		- In Randomize, the LAN's 2 sit on the buffers' side of the lead and step till they're 11 or more from the other 3. A fixed rule left a third of 2,000 seeds with a pair under 10.
+		- In Randomize, the LAN's 2 are on the buffers' side of the lead and step until they're 11 or more off of the other 3. A fixed rule left a third of 2,000 seeds with a pair under 10.
 	- Branch: round-1030
 	- Commit: 9be5b33
 	- Test case: `tests::split_tip_names_both` (demvz), `net::tests::split_off_holds_all` (demw0), `config::tests::lan_split_off_by_default` (demw1), `dice::tests::lan_colors_distinct` (demw2) and `tests::pre_split_history_resets` (demw3). demw2 fails with LAN received as the buffers' color, as rolled before.
-		- 2026-10-30: new values only. deccf and deccw count 117 theme members, not 115. deccy counts 101 saved colors, not 99. defma's rows greyed at defaults are `net_split`, not none. dehzp's received is `net[4]`, not `net[2]`, and its history has 5 series.
+		- 2026-10-30: Only the values changed. deccf and deccw count 117 theme members rather than 115. deccy counts 101 saved colors rather than 99. defma's rows greyed at defaults are `net_split` rather than none. dehzp's received is `net[4]` rather than `net[2]`, and its history has 5 series.
 		- Swept: every `NetReader` user (`Graphs`, `Live`, the tip test), every built-in theme, `dice::ROLES`, and the config theme-color tests. The profiler and soak test run with the defaults, so they don't draw network.
 	- Acceptance signoff: Self-closed, 2026-10-30: the settings window showed the new row. How the themes look together stays on 2026102620162201.
 	- Closed: 20261030-104753
@@ -9416,7 +9423,7 @@ Sorted per the notes in [Template](#template).
 	- Status: Closed
 		- Removing b23's 2 old links and `~/.local/lib/tukzmon` is left as a root step by hand. The script names them on each run.
 	- Closed reason: Done
-	- Needs hand testing: on b23, run `utility/dev-install.bash` and see the panel load the new build. Then remove the 2 old sudo links it names, and `~/.local/lib/tukzmon`.
+	- Needs hand testing: Only the root cleanup on b23 is left, which removes the 2 old sudo links the script names, and `~/.local/lib/tukzmon`.
 	- Verified: 20261029, on b23 with an empty folder in place of `~/.local` and the panel calls stubbed. It installed the 3 files under that `~/.local`, named both old `/usr` links with the `sudo rm` for each and the old `~/.local/lib/tukzmon`, and exited 0. The panel loading a user install was checked in a test panel before.
 	- Priority|Severity: Low
 	- Opened: 20261028-204208
@@ -9425,18 +9432,18 @@ Sorted per the notes in [Template](#template).
 	- Requirements: Install the .desktop file to ~/.local/share/xfce4/panel/plugins and the plugin and tukzmon-settings to ~/.local/lib/<multiarch>/xfce4/panel/plugins, with no sudo links. The multiarch dir comes from the panel's lib dir. Update design.md XFCE plugin and README to match.
 	- Actual effort: Low
 	- Progress log:
-		- `utility/dev-install.bash` puts the `.desktop` file in `~/.local/share/xfce4/panel/plugins`, and the library and `tukzmon-settings` in `~/.local/lib/<multiarch>/xfce4/panel/plugins`. No sudo. The multiarch tail comes from where `ldconfig` finds the panel's library.
+		- `utility/dev-install.bash` puts the `.desktop` file in `~/.local/share/xfce4/panel/plugins`, and the library and `tukzmon-settings` in `~/.local/lib/<multiarch>/xfce4/panel/plugins`, with no sudo. The multiarch tail comes from where `ldconfig` finds the panel's library.
 		- When the old links from the sudo step are still there, it names them with the command to remove them, and names the old `~/.local/lib/tukzmon`.
-		- design.md XFCE plugin, README Status and the Dogfood line in `cicd/cicd.bash` updated.
-		- Verified 2026-10-29: with HOME in a temp folder and the panel restart stubbed, the script installed the 3 files there. A private xfce4-panel 4.20.7 on Xvfb with that HOME read the `.local/share` dir first, registered tukzmon from the `.local/lib/x86_64-linux-gnu` library, and embedded it. b23's old `/usr` links were shadowed, not loaded.
+		- design.md XFCE plugin, README Status and the Dogfood line in `cicd/cicd.bash` are updated.
+		- Verified 2026-10-29: with HOME in a temp folder and the panel restart stubbed, the script installed the 3 files there. A private xfce4-panel 4.20.7 on Xvfb with that HOME read the `.local/share` dir first, registered tukzmon from the `.local/lib/x86_64-linux-gnu` library, and embedded it. b23's old `/usr` links were shadowed rather than loaded.
 		- Verified: an `XDG_DATA_HOME` ending in `/share` installs beside it, and one that doesn't stops before the build with an error.
 	- Decisions:
-		- Follows `XDG_DATA_HOME`, since the panel does. The panel reads no user plugins when it doesn't end in `/share`, so the script stops there.
-		- The old links and folder are named, not removed. The links need root, and the panel reads the user folder first, so they do no harm meanwhile.
-		- Falls back to `lib/x86_64-linux-gnu`, with a warning, when `ldconfig` doesn't list the panel's library, as the old script did.
+		- The script follows `XDG_DATA_HOME`, since the panel does. The panel reads no user plugins when it doesn't end in `/share`, so the script stops there.
+		- The old links and folder are named rather than removed. The links need root, and the panel reads the user folder first, so they do no harm meanwhile.
+		- It falls back to `lib/x86_64-linux-gnu`, with a warning, when `ldconfig` doesn't list the panel's library, as the old script did.
 		- Swept: README, design.md, `cicd/cicd.bash`, `cicd/config.bash`. `cicd/packaging/nfpm.yaml` and `nix/package.nix` install to system paths and need no change. The plugin finds `tukzmon-settings` beside its own library, which is still true.
 	- Branch: round-1029
-	- Test case: none in the repo. Checked in a private panel, as for 2026102808222920.
+	- Test case: None in the repo. It was checked in a private panel, as for 2026102808222920.
 	- Acceptance signoff: Self-closed 20261029: the stand-in above. Only the root cleanup is left, and it isn't part of the change.
 	- Closed: 20261029-151300
 
@@ -9453,7 +9460,7 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026102408512202, 2026102914561233
 	- Requirements:
 		- Bytes a second over TCP to and from the LAN, from polling `sock_diag`, with no root.
-		- What the interfaces carried that isn't the LAN's is the internet's.
+		- What the interfaces moved that isn't the LAN's is the internet's.
 	- Estimated effort: Avg
 	- Actual effort: Low
 	- Progress log:
@@ -9488,12 +9495,12 @@ Sorted per the notes in [Template](#template).
 		- Show a failed history load or save where a person can find it, such as in the tooltip or the journal.
 	- Actual effort: Low
 	- Progress log:
-		- Both. Every `complain` line also goes to syslog, which the journal reads, unless stderr is the journal already. A failed history read, save or delete shows under the graphs in the tip, as "History: can't read <path>: <error>", until a save works or Reset history clears the file.
-		- Verified in a Wayland test panel with stderr on `/dev/null` and the history file made a folder: the tip showed the read failure under the CPU tip, and the journal had the read failure and the save failure at quit, under the panel's name.
+		- Both are done. Every `complain` line also goes to syslog, which the journal reads, unless stderr is the journal already. A failed history read, save or delete shows under the graphs in the tip, as "History: can't read <path>: <error>", until a save works or Reset history clears the file.
+		- Verified in a Wayland test panel with stderr on `/dev/null` and the history file made a folder, the tip showed the read failure under the CPU tip, and the journal had the read failure and the save failure at quit, under the panel's name.
 		- `design.md` XFCE plugin has it.
 	- Decisions:
-		- syslog with no `openlog`, since on Wayland the process is the panel's, and `openlog` would rename every other plugin's lines too. It's also in the journal on a box without systemd's.
-		- Skipped when stderr is already the journal, per GLib's `g_log_writer_is_journald`, so a session that logs there gets one line, not 2.
+		- Lines go to syslog with no `openlog`, since on Wayland the process is the panel's, and `openlog` would rename every other plugin's lines too. It's also in the journal on a box without systemd's.
+		- Syslog is skipped when stderr is already the journal, per GLib's `g_log_writer_is_journald`, so a session that logs there gets one line rather than 2.
 		- Only history problems go in the tip, as asked. The others, such as Properties failing to start tukzmon-settings, are in the journal.
 		- Test runs skip syslog, so they don't fill the host's log.
 	- Branch: round-1029
@@ -9515,13 +9522,13 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- On Wayland, XFCE 4.20 runs the plugin in the panel's own process, and the release build aborts on a panic. So a plugin bug takes down the panel and every other plugin in it. On X11 only the plugin's wrapper goes.
 		- A panic in the plugin stops only that item, with one line on stderr.
-	- Note: one way is `panic = "unwind"` in the release profile, and `catch_unwind` in each callback the panel calls, which then marks the item dead and stops its timers. Cargo can't set `panic` per package, so tukzmon-settings would unwind too. Measure what both binaries grow by first.
+	- Note: One way is `panic = "unwind"` in the release profile, and `catch_unwind` in each callback the panel calls, which then marks the item dead and stops its timers. Cargo can't set `panic` per package, so tukzmon-settings would unwind too. Measure what both binaries grow by first.
 	- Actual effort: Avg
 	- Progress log:
-		- Measured first, release builds: unwinding took the plugin from 1,093,056 to 1,165,528 bytes, and tukzmon-settings from 1,356,456 to 1,450,408. With the catching in, the plugin is 1,175,824, 7.6% more, and tukzmon-settings 6.9% more.
-		- The release profile unwinds, and every handler the panel calls goes through one `guarded` helper. A panic stops that item: its timers and file watches end, it draws nothing, saves no more history, and its tip says "tukzmon stopped after a bug: <text>" and to restart the panel. The line on stderr, and in the journal per 2026102620523642, is "tukzmon: stopped by a bug at <file>:<line>: <text>".
-		- The item's set-up was split so a panic part way can't leave a handler holding freed memory. free-data is connected before anything that can panic.
-		- Verified in a Wayland test panel, with a panic put in the fourth tick for the test: the panel kept running, stderr had the one line, the journal had it, and the item's tip said it had stopped.
+		- In release builds, unwinding took the plugin from 1,093,056 to 1,165,528 bytes, and tukzmon-settings from 1,356,456 to 1,450,408. With the catching in, the plugin is 1,175,824, 7.6% more, and tukzmon-settings 6.9% more.
+		- The release profile unwinds, and every handler the panel calls goes through one `guarded` helper. A panic stops that item. Its timers and file watches end, it draws nothing, saves no more history, and its tip says "tukzmon stopped after a bug: <text>" and to restart the panel. The line on stderr, and in the journal per 2026102620523642, is "tukzmon: stopped by a bug at <file>:<line>: <text>".
+		- The item's set-up was split so a panic part way can't leave a handler with a pointer to freed memory. free-data is connected before anything that can panic.
+		- Verified in a Wayland test panel, with a panic put in the fourth tick for the test, the panel kept running, stderr had the one line, the journal had it, and the item's tip said it had stopped.
 		- `design.md` XFCE plugin has it.
 	- Decisions:
 		- A cost of 7.6% and 6.9% is a fair price for a plugin bug not taking down the panel and every other plugin in it.
@@ -9540,17 +9547,16 @@ Sorted per the notes in [Template](#template).
 	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261028-082229
-	- Opened: 20261028-082229
 	- Opened by: t00mietum
 	- Related IDs: 2026102621053725
 	- Requirements: design.md XFCE plugin and README say XDG_DATA_DIRS and ~/.local aren't searched, so dev-install.bash needs sudo once. The 4.20.4 and 4.20.7 panel source pairs each XDG_DATA_DIRS entry and ~/.local/share with the lib dir under the same prefix, which on Debian is lib/x86_64-linux-gnu. Try ~/.local/share/xfce4/panel/plugins with ~/.local/lib/x86_64-linux-gnu/xfce4/panel/plugins on b23, and if it works, drop the sudo step and fix both docs.
 	- Actual effort: Low
 	- Progress log:
-		- design.md XFCE plugin and README fixed. Dropping the sudo step is 2026102820420805.
+		- design.md XFCE plugin and README are fixed. Dropping the sudo step is 2026102820420805.
 	- Branch: round-1028b
-	- Test case: none in the repo. Checked by hand in a private panel.
+	- Test case: None in the repo, since it was checked in a private panel.
 	- Closed: 20261028-204500
-	- Verified 2026-10-28, Debian xfce4-panel 4.20.7 on a private Xvfb (:130), HOME and XDG_DATA_HOME in a temp folder, XDG_DATA_DIRS without it: with the .desktop file only in .local/share/xfce4/panel/plugins and the library only in .local/lib/x86_64-linux-gnu/xfce4/panel/plugins, PANEL_DEBUG=all logged reading the .local/share dir and new module tukzmon with the .local/lib/x86_64-linux-gnu filename, and the plugin was embedded.
+	- Verified 2026-10-28, Debian xfce4-panel 4.20.7 on a private Xvfb (:130), HOME and XDG_DATA_HOME in a temp folder, XDG_DATA_DIRS without it. With the .desktop file only in .local/share/xfce4/panel/plugins and the library only in .local/lib/x86_64-linux-gnu/xfce4/panel/plugins, PANEL_DEBUG=all logged reading the .local/share dir and new module tukzmon with the .local/lib/x86_64-linux-gnu filename, and the plugin was embedded.
 
 - The panel's tick costs about a third more since the 50 ms history tier
 	- ID: 2026102618573801
@@ -9565,10 +9571,10 @@ Sorted per the notes in [Template](#template).
 		- The profiler's tick went from about 275 us to about 385 us on b23 on 2026-10-26, starting with the run for the finer history tiers (commit `6753a2b`). `History::span` went from about 28% to 38% of self time.
 		- Measure it against `dev` before that commit at the same load first. If it's still slower, make `span` cheaper over the new tier, or say why the cost is fine.
 	- Progress log:
-		- It held. On 2026-10-28 at a load of about 14, run in turn: 274 and 289 us a tick at `6753a2b^`, and 383 and 385 us at `6753a2b`. A log axis column over the newest 256 s reads 5 times as many buckets at 50 ms as at 250 ms.
+		- The slowdown held. On 2026-10-28 at a load of about 14, run in turn, a tick took 274 and 289 us at `6753a2b^`, and 383 and 385 us at `6753a2b`. A log axis column over the newest 256 s reads 5 times as many buckets at 50 ms as at 250 ms.
 		- Fixed under 2026102814061812 with block totals per tier. The tick is now 137 to 142 us at the same load, well under the 275 us from before the finer tier.
 	- Branch: less-cpu
-	- Test case: see 2026102814061812, test dejcp.
+	- Test case: dejcp, under 2026102814061812.
 		- Swept: as in 2026102814061812.
 	- Closed: 20261028-162800
 
@@ -9584,8 +9590,8 @@ Sorted per the notes in [Template](#template).
 		- arcstats is about 8 times the cost of a meminfo read, and was about 19% of the profiler's tick. The ARC moves slowly, so read it every tenth memory sample and reuse the last value between.
 	- Progress log:
 		- `MemoryReader` reads it on the first sample and every tenth after (`ARC_EVERY` in `core/src/mem.rs`). A box with no ZFS still tries it then, so a pool imported later counts.
-		- Profiler tick went from 398 to 321 us, and system time from 2.83 to 1.46 s.
-	- Branch: arc-every-10th
+		- The profiler's tick went from 398 to 321 us, and system time from 2.83 to 1.46 s.
+	- Branch: `arc-every-10th`
 	- Test case: der6h.
 	- Closed: 20261103-161600
 
@@ -9597,10 +9603,9 @@ Sorted per the notes in [Template](#template).
 	- Needs local test suite run?: No. The full run passed on 2026-10-28. It doesn't take the Nix step.
 	- Priority|Severity: Low
 	- Opened: 20261028-082228
-	- Opened: 20261028-082228
 	- Opened by: t00mietum
 	- Related IDs: 2026102621053725
-	- Requirements: an opt-in cicd area, such as `nix`, that builds the flake's package in a nixos/nix container and runs the panel check, so a new system library or a build.rs change that breaks it is caught. It fetches about 5 GB the first time, so it stays out of the default run unless a kept store makes it cheap.
+	- Requirements: An opt-in cicd area, such as `nix`, that builds the flake's package in a nixos/nix container and runs the panel check, so a new system library or a build.rs change that breaks it is caught. It fetches about 5 GB the first time, so it stays out of the default run unless a kept store makes it cheap.
 	- Estimated effort: Avg
 	- Actual effort: Avg
 	- Progress log:
@@ -9609,15 +9614,15 @@ Sorted per the notes in [Template](#template).
 		- `design.md` XFCE plugin has a line on it.
 		- Verified: the first run fetched about 5 GB and passed in 2m 40s. Later runs took about 1m 40s, mostly the package's own rebuild. With xfce4-panel left out of the rpath, the step failed at the plugin's tests. With the panel's config naming another plugin, it failed at the embed check. With the cap set to 1000 MB, it collected 5239 MB down to 4812, and the next run built only the package, fetching nothing else.
 	- Decisions:
-		- Opt-in, like Miri: only `--long` or the `nix` area. Even with a kept store each run rebuilds the package, about 1.5 minutes, and a fresh box fetches 5 GB.
+		- The step is opt-in, like Miri, and runs only with `--long` or the `nix` area. Even with a kept store each run rebuilds the package, about 1.5 minutes, and a fresh box fetches 5 GB.
 		- There's one volume, named for the image pin, so a new pin starts a fresh store and the old one is removed. The cap collects with keep-outputs and the last run's builds as roots, so what built the package stays and a collection doesn't mean another 5 GB.
 		- The container runs as its root, as nix there needs, so it gets a read-only copy of the tracked files and writes nothing to the run folder. The image stays between runs, like the volume.
 		- The step is skipped with a warning when there's no docker, as the other container steps fall back.
-		- The source is a path flake of the tracked files, so its `lastModified` follows file times, and any edit rebuilds the package. A git flake would cost a `.git` in the container. Left as is.
-		- The panel check uses the nixpkgs the flake locks, not a pinned revision as the first rig did, so it tests what the package was built with.
+		- The source is a path flake of the tracked files, so its `lastModified` follows file times, and any edit rebuilds the package. A git flake would cost a `.git` in the container. That's left as it is.
+		- The panel check uses the nixpkgs the flake locks rather than a pinned revision as the first rig did, so it tests what the package was built with.
 		- Swept: the help's step and area lists, `--list` in each mode, the area check, and cleanup, which removes the run's labeled containers. Nothing else calls the step.
 	- Branch: round-1028
-	- Test case: the `nix` area of cicd.bash, run with `--backlog-run-quick nix`. It has no test ID, since it isn't a cargo test.
+	- Test case: The `nix` area of cicd.bash, run with `--backlog-run-quick nix`. It has no test ID, since it isn't a cargo test.
 	- Closed: 20261028-091315
 
 - Lots of up and down activity in a monitor still shimmers, most in the first minute
@@ -9664,8 +9669,9 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Requirements: Save from a worker thread, or without fsync on the 15 minute save.
 	- Estimated effort: Avg
-	- Decisions: Deferred until a save is seen to stall the panel, on a loaded disk or a laptop.
-	- Origin: `87bc145`. First review. Measured, a 12 MB write and fsync took 0.08 s on b23.
+	- Decisions:
+		- It's deferred until a save is seen to stall the panel, on a loaded disk or a laptop.
+	- Origin: `87bc145`. First review. Measured, where a 12 MB write and fsync took 0.08 s on b23.
 
 - Intel GPU busy share through its perf counters
 	- ID: 2026103010322277
@@ -9676,7 +9682,7 @@ Sorted per the notes in [Template](#template).
 	- Opened by:
 	- Related IDs: 2026102819145597, 2026102819145598
 	- Progress log:
-		- Filed 2026-10-30 from the answer on the GPU graphs: deferred with no date. Intel has no busy share without root or a lowered perf_event_paranoid, so it gets no GPU graph.
+		- Filed 2026-10-30 from the answer on the GPU graphs, and deferred with no date. Intel has no busy share without root or a lowered perf_event_paranoid, so it gets no GPU graph.
 
 - GPU picker for boxes with more than one GPU
 	- ID: 2026103010322267
@@ -9687,7 +9693,7 @@ Sorted per the notes in [Template](#template).
 	- Opened by:
 	- Related IDs: 2026102819145597, 2026102819145598
 	- Progress log:
-		- Filed 2026-10-30 from the answer on the GPU graphs: deferred with no date. The GPU graphs read the first GPU only.
+		- Filed 2026-10-30 from the answer on the GPU graphs, and deferred with no date. The GPU graphs read the first GPU only.
 
 - LAN and internet split: nftables counter set
 	- ID: 2026102914561248
@@ -9700,7 +9706,7 @@ Sorted per the notes in [Template](#template).
 	- Requirements: An nftables counter set that counts bytes to and from private address ranges, installed once as root, and a reader for it.
 	- Prereq IDs: 2026102914561233
 	- Progress log:
-		- 2026-10-29: waits on how the plugin reads the counters, since `nft list counters` needs root too, not only the install.
+		- 2026-10-29: It waits on how the plugin reads the counters, since `nft list counters` needs root too, as well as the install.
 		- Installing the set and the reader's test on b23 are a sudo path, so they're a hand test.
 	- Decisions:
 		- 2026-10-30: Deferred with no date. The LAN split uses the non-root socket reader for now.

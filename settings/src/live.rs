@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
-//! The graph list's live graphs. The window reads them itself from when it
-//! opens, and draws them with its own look, Apply or not.
+//! The graph list's live graphs. The window reads them itself from the moment
+//! it opens, and draws them with its own look, whether or not Apply was pressed.
 
 use tukzmon_core::config::{Look, Which};
 use tukzmon_core::graphs::{self, Drawn, Slots};
@@ -10,8 +10,8 @@ use tukzmon_core::graphs::{self, Drawn, Slots};
 /// The graphs drawn in the graph list's rows, read live as the panel would.
 #[derive(Debug)]
 pub struct Live {
-	/// Every graph this box can read. The own graph is the settings window's,
-	/// not the panel's.
+	/// Every graph this box can read. Here the own graph measures the settings
+	/// window rather than the panel.
 	slots: Slots,
 	/// Which graphs the last tick read, by [`Which`] index. The rest draw
 	/// as they did.
@@ -40,8 +40,7 @@ impl Live {
 		self.slots.iter_mut()
 	}
 
-	/// Each row keeps the graph it has, and one this box couldn't read
-	/// stays out.
+	/// Each row keeps its graph, and a graph this box couldn't read stays out.
 	pub fn set_look(&mut self, look: Look) {
 		self.slots.set_look(look);
 	}
@@ -53,7 +52,7 @@ impl Live {
 		}
 	}
 
-	/// Moves every graph's clock on, so the window soak runs days in
+	/// Moves every graph's clock forward, so the window soak cna run days in
 	/// seconds, as the panel's soak does.
 	pub fn skip(&mut self, secs: f64) {
 		for (_, g) in self.all_mut() {
@@ -61,7 +60,7 @@ impl Live {
 		}
 	}
 
-	/// Every graph read now, for tests that can't wait for a beat. The first
+	/// Reads every graph now, for tests that can't wait for a beat. The first
 	/// call only primes them.
 	#[cfg(test)]
 	pub fn sample(&mut self) {
@@ -70,8 +69,8 @@ impl Live {
 		}
 	}
 
-	/// Reads each graph whose beat has come, and gives the ms to the next
-	/// one's, as the panel does. A hidden graph is read too, since its row
+	/// Reads each graph whose beat has come, and returns the ms until the next
+	/// beat, as the panel does. A hidden graph is read too, since its row
 	/// still draws it. See [`Graph::tick`].
 	pub fn tick(&mut self) -> u32 {
 		self.tick_at(tukzmon_core::clock_ms())
@@ -81,8 +80,8 @@ impl Live {
 		let last = |slots: &Slots| Which::ALL.map(|w| slots.get(w).and_then(Drawn::last_read_ms));
 		let was = last(&self.slots);
 		let wait = graphs::tick(self.all_mut().map(|(_, g)| g), at);
-		// past the max age, as the panel drops it, or a window left open
-		// keeps every hour it saw
+		// drop what's past the max age, as the panel does, or a window left
+		// open keeps every hour it saw
 		for (_, g) in self.all_mut() {
 			g.trim();
 		}
@@ -91,7 +90,7 @@ impl Live {
 		wait
 	}
 
-	/// True when the last tick read the named graph, so its row wants
+	/// True when the last tick read the named graph, so its row needs
 	/// drawing again.
 	pub fn read(&self, name: &str) -> bool {
 		Which::named(name).is_some_and(|w| self.read[w as usize])
@@ -106,7 +105,7 @@ impl Live {
 			.map_or(0, |w| l.share(l[w].width))
 	}
 
-	/// Cairo ARGB32 pixels, `w` by `h`, or none for a name that isn't drawn.
+	/// Cairo ARGB32 pixels, `w` by `h`, or empty for a name that isn't drawn.
 	pub fn render(&mut self, name: &str, w: usize, h: usize, scale: usize) -> &[u32] {
 		match self.get_mut(name) {
 			Some(g) => g.render(w, h, scale),
@@ -131,9 +130,9 @@ impl Live {
 		self.get(name).map(Drawn::tooltip).unwrap_or_default()
 	}
 
-	/// Puts the hover line on the named graph at device column `x` of its
-	/// `w`, as the panel does, or with None takes it off every graph. True
-	/// when that changed what's drawn.
+	/// Puts the hover line on the named graph at device column `x` of `w`, as
+	/// the panel does. None takes it off every graph. True when the drawing
+	/// changed.
 	pub fn hover(&mut self, name: &str, x: Option<usize>, w: usize) -> bool {
 		let hit = Which::named(name)
 			.zip(x.zip(w.checked_sub(1)))
@@ -142,7 +141,7 @@ impl Live {
 	}
 
 	/// The panel's tip for the named graph's hover line, drawn `w` by `h`, or
-	/// its latest read with no line on it.
+	/// its latest read when there's no line.
 	pub fn hover_tip(&self, name: &str, w: usize, h: usize, scale: usize) -> String {
 		match self.get(name).and_then(|g| Some((g, g.hover()?))) {
 			Some((g, x)) => g.hover_tip(x, w, h, scale),
@@ -358,7 +357,7 @@ mod tests {
 		assert!(live.read("cpu") && !live.read("mem"));
 		live.tick_at(at + 2000.0);
 		assert!(live.read("cpu") && live.read("mem"));
-		// a wake before anyone's beat reads nothing
+		// a wake before any beat reads nothing
 		live.tick_at(at + 2300.0);
 		assert!(Which::ALL.iter().all(|w| !live.read(w.key())));
 		assert!(!live.read("nope"));
@@ -498,7 +497,7 @@ mod tests {
 		assert_eq!(live.render("load", 60, 24, 1).len(), 60 * 24);
 		let tip = live.tip("load");
 		assert!(tip.starts_with("Load"), "{tip}");
-		// a container has no disk, so no disk row
+		// a container doesn't have a disk, so there's no disk row
 		if live.has(Which::Disk) {
 			assert_eq!(live.width("disk"), 50);
 			assert_eq!(live.render("disk", 50, 24, 1).len(), 50 * 24);
@@ -520,7 +519,7 @@ mod tests {
 		d.set("width", &Value::Float(100.0));
 		d.set("temp_width", &Value::Float(40.0));
 		live.set_look(d.look());
-		// the box, or a container, may have no CPU sensor, and then no row
+		// a box or container may not have a CPU sensor, and then there's no row
 		if live.has(Which::Temp) {
 			assert_eq!(live.width("temp"), 40);
 			live.sample();
@@ -538,7 +537,7 @@ mod tests {
 	#[cfg_attr(miri, ignore = "Miri can't load a library")]
 	fn gpu_rows_need_gpu() {
 		if tukzmon_core::gpu::nvidia_asleep() {
-			// no total from a card asleep since start, so no GiB in its tip
+			// a card asleep since start doesn't give a total, so its tip has no GiB
 			return;
 		}
 		let path = std::env::temp_dir().join(format!(
@@ -587,7 +586,7 @@ mod tests {
 
 	// Test ID: dejb8
 	#[test]
-	#[cfg_attr(miri, ignore = "Miri has no CPU time clock")]
+	#[cfg_attr(miri, ignore = "Miri doesn't have a CPU time clock")]
 	fn own_row_width() {
 		let path = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_live_self_never_written.shcl",

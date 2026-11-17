@@ -6,7 +6,7 @@
 <!-- TOC ignore:true -->
 # UX style guide
 
-Rules for the settings window, taken from how it already behaves and adjusted where it didn't agree with itself. The window is built from `core/src/settings.shcl` and `settings/src/qt.cpp`. When the window and this guide disagree, one of them is a bug. Where the window doesn't follow a rule yet, the [backlog](backlog.md) has an item. Layout and behavior are described in [design.md](design.md).
+These are the rules for the settings window. They were taken from how it already behaves, and adjusted where it didn't agree with itself. The window is built from `core/src/settings.shcl` and `settings/src/qt.cpp`. When the window and this guide disagree, one of them is a bug. Where the window doesn't follow a rule yet, the [backlog](backlog.md) has an item. Layout and behavior are described in [design.md](design.md).
 
 <!-- TOC ignore:true -->
 ## Table of contents
@@ -37,7 +37,7 @@ Rules for the settings window, taken from how it already behaves and adjusted wh
 
 - The page and the tab list are a shade darker than the rest of the window. Whatever stays put while a page scrolls is the lighter shade, so that way the page reads as set in, and no rule is drawn between the two. The lighter shade includes the theme Name row with its buttons over the sub-tabs, and the bottom strip.
 
-- A page scrolls instead of growing. The window is as tall as its tallest tab needs, but never taller than the screen.
+- A page scrolls instead of growing. The window is as tall as its tallest tab needs, leaving out Colors, but never taller than the screen.
 
 - Settings take effect at Apply or OK. An action such as Reset history takes effect when it's pressed, and Cancel doesn't undo it.
 
@@ -59,7 +59,7 @@ Rules for the settings window, taken from how it already behaves and adjusted wh
 
 - A row that only matters while a switch is on goes under that switch, and it's indented 16 px per level.
 	- The switch comes first.
-	- A switch with one short row may have it to its right, on the same line, through `same_line: true`, such as the hours and minutes beside Max age in days.
+	- A short row that belongs with the row above it may go to that row's right, on the same line, through `same_line: true`, such as the hours and minutes beside Max age in days.
 	- While the switch is off, its rows are greyed. Their revert arrows stay live.
 
 - A row that only makes sense in one mode, such as the Gradient colors, is hidden rather than greyed while another mode is picked.
@@ -96,7 +96,7 @@ Rules for the settings window, taken from how it already behaves and adjusted wh
 
 - Graph names are CPU, Memory, GPU, GPU memory, Network, Swap, Zswap, Load, Disk, Temperature, Battery, Processes, and tukzmon. A per-graph row is the graph name and then the setting, such as "Memory width %".
 
-- Say "graph" in any text that people see.
+- Call a graph a "graph" in any text that people see, rather than another word for it.
 
 - Units follow the thing they measure, in short form, such as px, ms, and %. A unit that is a plain word follows "in", as "Max age in days".
 	- A General row that each graph can take a share of says "default" after the unit, such as "Width px default" and "Sample ms default". Scale default follows the same rule, under both Time axis and Vertical axis.
@@ -136,7 +136,7 @@ Rules for the settings window, taken from how it already behaves and adjusted wh
 
 ## Buttons
 
-- A button's text is in sentence case, one or two words.
+- A button's text is in sentence case, and 1 or 2 words long.
 
 - A button ends in "..." when it asks for more before it acts, such as Save as... and Rename.... A button that only asks for a confirmation, like Delete, doesn't get one.
 
@@ -171,7 +171,7 @@ Rules for the settings window, taken from how it already behaves and adjusted wh
 
 ## Wording
 
-- Text is ASCII. The ellipsis is three dots.
+- Text is ASCII. The ellipsis is 3 dots.
 
 - Text uses contractions where a person would use them, digits for numbers, and the Oxford comma.
 

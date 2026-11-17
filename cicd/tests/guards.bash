@@ -7,11 +7,11 @@
 
 ##	Purpose:
 ##		Tests of the pipeline's own guards. Each fTest_ function is a test,
-##		with its ID on the line above, and prints "PASS|FAIL ID name". Works
-##		in a folder of its own under the run's temp folder, or under
-##		<HOST_TEMP>/tukzmon when run by hand.
+##		with its ID on the line above, and each gets a "PASS|FAIL ID name"
+##		line. The tests work in a folder of their own under the run's temp
+##		folder, or under <HOST_TEMP>/tukzmon when run by hand.
 ##	Syntax: cicd/tests/guards.bash
-##	Exit: 0 every test passed, 1 one failed.
+##	Exit: 0 every test passed, 1 any failed.
 ##	History: At bottom of file.
 
 ##	Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
@@ -25,7 +25,7 @@ set -Eeuo pipefail
 cicd="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 projectName="tukzmon"
 source "${cicd}/utility/include/run-tmp.bash"
-fRunTmpMake || { echo "guards: could not make a temp folder under ${HOST_TEMP}/${projectName}" >&2; exit 1; }
+fRunTmpMake || { echo "guards: couldn't make a temp folder under ${HOST_TEMP}/${projectName}" >&2; exit 1; }
 work="${runTmp}"
 trap 'fSafeRm "${work}" || true' EXIT
 
@@ -36,7 +36,7 @@ fTest_safe_rm_scope() {
 	local root="${work}/host" run='' p='' ok=0
 	run="${root}/${projectName}/20261030-000000_001"
 	mkdir -p -- "${run}/sub"
-	## A subshell, so the guard sees this test's temp root and not the run's.
+	## A subshell, so the guard sees this test's temp root rather than the run's.
 	(
 		HOST_TEMP="${root}"
 		source "${cicd}/utility/include/run-tmp.bash"
@@ -55,7 +55,7 @@ fTest_safe_rm_scope() {
 fTest_nix_env_numbers_only() {
 	local mark="${work}/ran" out='' bad=''
 	for bad in 'x[$(touch '"${mark}"')]' '8 9' '0'; do
-		## A refused value stops it before it makes a folder or calls nix.
+		## check.bash stops on a refused value before it makes a folder or calls nix.
 		if out="$(TUKZMON_JOBS=1 TUKZMON_NIX_CAP_MB="${bad}" bash "${cicd}/nix/check.bash" 2>&1)"; then fWhy "took cap '${bad}'"; return 1; fi
 		[[ "${out}" == *"TUKZMON_NIX_CAP_MB isn't a size in MB"* ]] || { fWhy "cap '${bad}': ${out}"; return 1; }
 		if out="$(TUKZMON_JOBS="${bad}" TUKZMON_NIX_CAP_MB=100 bash "${cicd}/nix/check.bash" 2>&1)"; then fWhy "took jobs '${bad}'"; return 1; fi
@@ -93,8 +93,8 @@ fTest_run_pids_vanished_process() {
 	## Its environ is the fork's until sleep starts.
 	for _ in 1 2 3 4 5 6 7 8 9 10; do ! grep -qszF -- "TMPDIR=${dir}" "/proc/${live}/environ" || break; sleep 0.1; done
 	## A bash of its own, since the if that runs each test turns off errexit
-	## and the ERR trap all the way down. It runs as cicd.bash does, and its
-	## grep names a process that's gone, then one that's live.
+	## and the ERR trap for everything under it. It runs as cicd.bash does,
+	## and its stand-in grep names a process that's gone, then a live one.
 	printf '%s\n' 'set -Eeuo pipefail' "trap 'echo ABORTED; exit 1' ERR" 'projectName=tukzmon' \
 		'source "${1}/utility/include/run-tmp.bash"' \
 		'live="${3}"' 'grep() { printf "%s\n" /proc/999999999/environ "/proc/${live}/environ"; }' 'fRunPids "${2}"' > "${dir}/scan.bash"
@@ -114,7 +114,7 @@ fTest_file_lists_fail_with_git() {
 		eval "$(awk '/^(fTreeFiles|fSomeOf)\(\)/, /^}/' "${cicd}/cicd.bash")"
 		fEcho_Clean() { :; }
 		local -a got=()
-		## The folder above isn't a repo, as one that git refuses isn't.
+		## No repo above it, so git fails the same way it does on a repo it refuses.
 		cd "${t}/none" && export GIT_CEILING_DIRECTORIES="${t}"
 		if fTreeFiles got 2> /dev/null; then fWhy "listed ${#got[@]} file(s) with no repo"; exit 1; fi
 		cd "${t}/repo" && git init -q . && printf 'x\n' > a.md && printf 'y\n' > b.py && git add a.md
@@ -169,7 +169,7 @@ fTest_packaged_files_arent_docs() {
 	local f='' pat='' n=0 ok=0
 	(
 		source "${cicd}/config.bash"
-		## The literal ones. A ${TUKZMON_*} one is a build output.
+		## Only literal paths, since a ${TUKZMON_*} one is a build output.
 		while IFS= read -r f; do
 			[[ -n "${f}" && "${f}" != *'${'* ]] || continue
 			n=$((n + 1))
@@ -341,8 +341,8 @@ fTest_dev_install_copies_build() {
 	done
 	[[ -s "${t}/home/.local/share/xfce4/panel/plugins/tukzmon.desktop" ]] || { fWhy "no .desktop file"; return 1; }
 	[[ " $(cat -- "${t}/build-args") " == *' --locked '* ]] || { fWhy "built without --locked: $(cat -- "${t}/build-args")"; return 1; }
-	## With a Debian user's PATH and the box's own ldconfig, when it knows
-	## the panel's library.
+	## Again with a Debian user's PATH and the box's own ldconfig, if that
+	## ldconfig knows the panel's library.
 	mv -- "${t}/bin/ldconfig" "${t}/ldconfig.off"
 	for f in /usr/sbin/ldconfig /sbin/ldconfig; do
 		if [[ ! -x "${f}" ]] || ! grep -qF 'libxfce4panel-2.0.so.4 ' <<< "$("${f}" -p 2> /dev/null || true)"; then continue; fi
@@ -358,7 +358,7 @@ fTest_dev_install_cargo_choice() {
 	repo="$(cd "${cicd}/.." && pwd)"
 	pin="$(sed -n 's/^channel *= *"\(.*\)"/\1/p' "${repo}/rust-toolchain.toml")"
 	mkdir -p -- "${t}/home/.cargo/bin" "${t}/bin" "${t}/target"
-	## rustup's, which says where it ran, and Debian's ahead of it in PATH.
+	## A rustup cargo that records where it ran, and a Debian one ahead of it in PATH.
 	printf '%s\n' '#!/bin/sh' 'case "$1" in' \
 		"metadata) printf '{\"target_directory\":\"%s\"}\\n' '${t}/target' ;;" \
 		"build) pwd > '${t}/build-dir'; mkdir -p '${t}/target/release'; for f in libtukzmon.so tukzmon-settings; do echo built > '${t}/target/release/'\"\$f\"; done ;;" \
@@ -402,7 +402,7 @@ fTest_release_path_maps() {
 fTest_step_output_lines() {
 	local t="${work}/step-lines" out='' rc=0 rule='' f='' result=''
 	mkdir -p -- "${t}/bin" "${t}/host"
-	## Format's tools stand in, exiting STUB_RC, in a temp root of the test's own.
+	## Stand-ins for Format's tools exit STUB_RC, in a temp root of the test's own.
 	for f in cargo clang-format black; do printf '#!/bin/sh\nexit "${STUB_RC:-0}"\n' > "${t}/bin/${f}"; done
 	chmod +x -- "${t}/bin/"*
 	rule="$(printf '%.0s•' {1..79})"
@@ -422,7 +422,7 @@ fTest_step_output_lines() {
 ## Test ID: der4k
 fTest_all_checks_off_fails() {
 	local out='' rc=0
-	## It stops while planning, before it makes a run folder or calls docker.
+	## cicd.bash stops while planning, before it makes a run folder or calls docker.
 	out="$(env -u TUKZMON_IN_IMAGE bash "${cicd}/cicd.bash" --backlog-run-quick miri --no-leakcheck 2>&1)" || rc=$?
 	((rc == 2)) || { fWhy "exit ${rc}, not 2: ${out}"; return 1; }
 	[[ "${out}" == *"every check is off"* ]] || { fWhy "got: ${out}"; return 1; }
@@ -436,8 +436,8 @@ fTest_all_checks_off_fails() {
 fTest_miri_names_stuck_test() {
 	local dir="${work}/miri-group" log='' rc=0 c=''
 	mkdir -p -- "${dir}/bin"
-	## cargo stands in for Miri: it prints STUB_OUT, with a warning on stderr
-	## where the first one says, and exits STUB_RC.
+	## A cargo stand-in for Miri prints STUB_OUT, with a warning on stderr at
+	## its first |, and exits STUB_RC.
 	printf '#!/usr/bin/env bash\nprintf "     Running unittests (x/pkg-0a1b)\\n" >&2\nprintf "%%b" "${STUB_OUT%%%%|*}"\nprintf "warning: files in /proc\\nerror: memory leaked\\n" >&2\nprintf "%%b" "${STUB_OUT#*|}"\nexit "${STUB_RC}"\n' > "${dir}/bin/cargo"
 	chmod +x -- "${dir}/bin/cargo"
 	fRun() {   ## fRun NUM OUT RC -> the group's exit in rc, its log in log
@@ -626,7 +626,7 @@ fTest_shared_flags() {
 ## Test ID: dezas
 fTest_no_build_cache_prune() {
 	local hits=''
-	## That cache is every project's, and docker trims it itself.
+	## The build cache is shared by every project, and docker trims it itself.
 	hits="$(find "${cicd}" "${cicd}/../utility" -type f \( -name '*.bash' -o -path '*/hooks/*' \) \
 		-exec awk '!/^[ \t]*#/ && /(builder|buildx|system)[ \t]+prune/ { print FILENAME ":" FNR ": " $0 }' {} +)"
 	[[ -z "${hits}" ]] || { fWhy "prunes it:"; printf '      %s\n' "${hits}"; return 1; }
@@ -677,9 +677,9 @@ fTest_run_folders_and_sweep() {
 	((ok))
 }
 
-## cicd.bash's container cleanup, with docker a function that logs each call
-## to DIR/calls and answers from STUB_PS, the project's containers as
-## "id|run|stamp" lines. Run in a subshell.
+## Loads cicd.bash's container cleanup, with docker as a function that logs
+## each call to DIR/calls. Its ps output comes from STUB_PS, the project's
+## containers as "id|run|stamp" lines. Call it in a subshell.
 fCtrRig() {   ## fCtrRig DIR
 	dir="$1"
 	mkdir -p -- "${dir}/host/${projectName}"
@@ -1062,7 +1062,7 @@ fTest_demo_display_taken() {
 			with listen(str(root / ".X11-unix/X89")):
 			    want(89, True, "with a socket")
 			    if demo.pick_display(":89", False) != ":88":
-			        sys.exit("pick_display didn't step past an answering :89")
+			        sys.exit("pick_display didn't step past a taken :89")
 			want(89, False, "with a stale socket file")
 			with listen("\0" + str(root / ".X11-unix/X88")):
 			    want(88, True, "with an abstract socket")
@@ -1295,9 +1295,9 @@ exit "${failed}"
 ##		- 2026-11-09: Each package links tukzmon-settings beside the library.
 ##		- 2026-11-09: A Miri target that can't list its tests fails the step.
 ##		- 2026-11-10: The demo's encodes get the run's job count, and a display
-##		  that answers counts as taken without a lock file.
+##		  that takes a connection counts as taken without a lock file.
 ##		- 2026-11-10: codeql-report.py fails what isn't suppressed, a stale
-##		  suppression and an empty database.
+##		  suppression, and an empty database.
 ##		- 2026-11-10: install.bash's version order, and its sum check, user
 ##		  and system installs, and second runs.
 ##		- 2026-11-11: A test name in a Test case row isn't read for IDs.

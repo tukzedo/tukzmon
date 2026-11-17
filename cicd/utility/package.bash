@@ -4,11 +4,11 @@
 #  shellcheck enable=require-variable-braces  ## Every expansion braced: "${var}", not "$var".
 
 ##	Purpose:
-##		- A .deb and an .rpm through nfpm from the release build in
+##		- Builds a .deb and an .rpm through nfpm from the release build in
 ##		  RELEASE_DIR, named tukzmon-<version>-linux-x86_64.<deb|rpm>, with
 ##		  tukzmon-<version>-sha256sums.txt beside them in OUT_DIR.
-##		- Two builds of one commit give the same bytes: the mtimes inside are
-##		  SOURCE_DATE_EPOCH, else HEAD's commit time.
+##		- Two builds of one commit give the same bytes, since the mtimes inside
+##		  are SOURCE_DATE_EPOCH, or else HEAD's commit time.
 ##		- Checks each package has what nfpm.yaml says, and that the .deb's
 ##		  depends name every library the binaries link, where dpkg can say
 ##		  which package owns one.
@@ -47,8 +47,8 @@ mtime="$(date -u -d "@${epoch}" +%Y-%m-%dT%H:%M:%SZ)"
 glibc=""; needed=""
 for f in "${bins[@]}"; do
 	glibc+="$(objdump -T "${f}" | { grep -o 'GLIBC_[0-9.]*' || true; } | sed 's/GLIBC_//')"$'\n'
-	## Into a variable first: a grep that quits early kills readelf with
-	## SIGPIPE under pipefail.
+	## Into a variable first, since a grep that quits early kills readelf
+	## with SIGPIPE under pipefail.
 	needed+="$(readelf -d "${f}")"$'\n'
 done
 glibc="$(sort -uV <<< "${glibc}" | tail -n 1)"
@@ -81,9 +81,9 @@ if command -v dpkg-query > /dev/null 2>&1; then
 		if [[ -z "${owner}" ]]; then unowned=$((unowned + 1)); continue; fi
 		[[ " ${debDeps[*]} " == *" ${owner} "* ]] || fDie "${s} is from ${owner}, which the .deb's depends in nfpm.yaml don't name"
 	done
-	((unowned == 0)) || echo "WARNING: dpkg owns no file for ${unowned} of the linked libraries, so those went unchecked"
+	((unowned == 0)) || echo "WARNING: dpkg doesn't list an owner for ${unowned} of the linked libraries, so those went unchecked"
 else
-	echo "WARNING: no dpkg here, so the .deb's depends went unchecked against the libraries"
+	echo "WARNING: dpkg isn't installed, so the .deb's depends weren't checked against the libraries"
 fi
 
 base="tukzmon-${ver}-linux-x86_64"
@@ -105,14 +105,14 @@ want="$(printf '%s\n' /usr/bin/tukzmon-settings /usr/share/xfce4/panel/plugins/t
 debLib=/usr/lib/x86_64-linux-gnu/xfce4/panel/plugins
 got="$(dpkg-deb -c "${workDir}/${base}.deb" 2> /dev/null | awk '$1 !~ /^d/ { sub(/^\./, "", $6); print $6, $7, $8 }' | fResolved | LC_ALL=C sort)"
 [[ "${got}" == "$(printf '%s\n' "${want}" "${debLib}/libtukzmon.so" "${debLib}/tukzmon-settings -> /usr/bin/tukzmon-settings" /usr/share/doc/tukzmon/copyright | LC_ALL=C sort)" ]] \
-	|| fDie "the .deb has something else:"$'\n'"${got}"
+	|| fDie "the .deb's files don't match nfpm.yaml:"$'\n'"${got}"
 if command -v rpm > /dev/null 2>&1; then
 	rpmLib=/usr/lib64/xfce4/panel/plugins
 	got="$(rpm -qp --qf '[%{FILENAMES} -> %{FILELINKTOS}\n]' "${workDir}/${base}.rpm" 2> /dev/null | sed 's/ -> $//' | fResolved | LC_ALL=C sort)"
 	[[ "${got}" == "$(printf '%s\n' "${want}" "${rpmLib}/libtukzmon.so" "${rpmLib}/tukzmon-settings -> /usr/bin/tukzmon-settings" /usr/share/licenses/tukzmon/license.txt | LC_ALL=C sort)" ]] \
-		|| fDie "the .rpm has something else:"$'\n'"${got}"
+		|| fDie "the .rpm's files don't match nfpm.yaml:"$'\n'"${got}"
 else
-	echo "WARNING: no rpm here, so the .rpm's contents went unchecked"
+	echo "WARNING: rpm isn't installed, so the .rpm's contents went unchecked"
 fi
 
 (cd "${workDir}" && sha256sum -- "${base}.deb" "${base}.rpm" > "${sums}")

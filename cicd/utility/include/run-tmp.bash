@@ -5,9 +5,9 @@
 ##		- A run's temp folder, and the only rm -rf the pipeline does. Source it
 ##		  after projectName is set, then call fRunTmpMake.
 ##		- The folder is <HOST_TEMP>/<project>/<YYYYmmDD-HHMMSS>_<NNN>, with a
-##		  run.pid in it, and a keep file under --keep-temp. fSweepStale takes
-##		  the ones whose run is gone and that nothing runs from any more: at
-##		  once, or after 2 days for a kept one.
+##		  run.pid in it, and a keep file under --keep-temp. fSweepStale removes
+##		  the ones whose run is gone and that nothing runs from any more, right
+##		  away or after 2 days for a kept one.
 ##		- fStopLeftovers stops what a run left running, such as a session bus
 ##		  a test started and what the bus started in turn. They're found by the
 ##		  run folder in their TMPDIR, which they inherit.
@@ -79,9 +79,9 @@ fRunAbove() {   ## fRunAbove DIR
 	return 1
 }
 
-## The pids of ours with DIR, or a folder in it, as their TMPDIR, which every
-## child of a run inherits. One grep over every process for a rough match,
-## then an exact look at the few it names.
+## Prints the pids of our processes whose TMPDIR is DIR or a folder in it,
+## which every child of a run inherits. One grep over every process finds a
+## rough match, then the few it names get an exact look.
 fRunPids() {   ## fRunPids DIR
 	local dir="${1:?}" p='' e=''
 	while IFS= read -r p; do
@@ -95,9 +95,9 @@ fRunPids() {   ## fRunPids DIR
 	done < <(LC_ALL=C grep -lszF -- "TMPDIR=${dir}" /proc/[0-9]*/environ 2> /dev/null || true)
 }
 
-## The run folders some process of ours has as its TMPDIR, or a folder in
-## it, as keys of the associative array named. One scan for a whole sweep,
-## the same as fRunPids does for one folder.
+## Sets the keys of the associative array named to the run folders that some
+## process of ours has as its TMPDIR, or a folder in it. It's one scan for a
+## whole sweep, the same as fRunPids does for one folder.
 fRunsInUse() {   ## fRunsInUse ASSOC_NAME
 	local -n inUse_fRIU="${1:?}"
 	local base="${HOST_TEMP}/${projectName}/" p='' e='' name=''
@@ -134,7 +134,8 @@ fRunTmpMake() {
 
 ## Removes our own run folders whose run is gone and that nothing runs from,
 ## such as one a kill -9 left. A kept one waits 2 days. Only folders with a
-## run.pid, so a temp folder made by hand is left alone. Prints how many went.
+## run.pid count, so a temp folder made by hand is left alone. Prints how many
+## were removed.
 fSweepStale() {
 	local d='' name='' got='' old=0 epoch='' cutoff='' n=0 scanned=0
 	local -A inUse=()

@@ -74,7 +74,8 @@ enum Tick {
 	Read(Option<Meminfo>),
 }
 
-/// `/proc/meminfo` for every graph that reads it: memory, swap and zswap.
+/// `/proc/meminfo` for every graph that reads it, which is memory, swap, and
+/// zswap.
 struct Shared {
 	file: Kept,
 	buf: String,
@@ -93,7 +94,7 @@ thread_local! {
 	});
 }
 
-/// What `/proc/meminfo` reads now, or read earlier in this
+/// What `/proc/meminfo` says now, or said earlier in this
 /// [`once_a_tick`].
 pub(crate) fn meminfo() -> Option<Meminfo> {
 	SHARED.with_borrow_mut(|s| {
@@ -134,8 +135,8 @@ pub(crate) fn once_a_tick<R>(f: impl FnOnce() -> R) -> R {
 	f()
 }
 
-/// The part of ZFS's ARC that would give way to programs, in kB: its `size`
-/// over `c_min`, as htop counts it. None without both rows.
+/// The part of ZFS's ARC that would give way to programs, in kB. That's its
+/// `size` over `c_min`, as htop counts it. None without both rows.
 pub fn parse_arcstats(text: &str) -> Option<u64> {
 	let (mut size, mut min) = (None, None);
 	for line in text.lines() {
@@ -151,9 +152,9 @@ pub fn parse_arcstats(text: &str) -> Option<u64> {
 	Some(size?.saturating_sub(min?) / 1024)
 }
 
-/// User, buffers and cache, as shares of all memory. User is what's left
-/// once free, buffers and cache are taken out. Cache takes in reclaimable
-/// slab, as `free` counts it (backlog 2026102508354893), and `arc` kB of
+/// User, buffers, and cache, as shares of all memory. User is what's left
+/// once free, buffers, and cache are taken out. Cache includes reclaimable
+/// slab, as `free` counts it, per backlog 2026102508354893, and `arc` kB of
 /// ZFS's ARC, which `Cached` leaves out.
 pub fn memory_shares(m: &Meminfo, arc: u64) -> Option<[f32; 3]> {
 	if m.total == 0 {
@@ -165,7 +166,7 @@ pub fn memory_shares(m: &Meminfo, arc: u64) -> Option<[f32; 3]> {
 		.saturating_sub(m.buffers)
 		.saturating_sub(m.cached)
 		.saturating_sub(m.sreclaimable);
-	// the two files aren't read at the same instant
+	// the 2 files aren't read at the same instant
 	let arc = arc.min(used);
 	let cache = m.cached.saturating_add(m.sreclaimable).saturating_add(arc);
 	let user = used - arc;
@@ -209,8 +210,8 @@ impl MemoryReader {
 		}
 	}
 
-	// arcstats costs about 8 meminfo reads, and the ARC moves slowly. Still
-	// tried, so a pool imported after start counts.
+	// arcstats costs about 8 meminfo reads, and the ARC moves slowly. It's
+	// still read now and then, so a pool imported after start counts.
 	fn arc_kb(&mut self) -> u64 {
 		if self.reads.is_multiple_of(ARC_EVERY) {
 			self.arc_was = self
@@ -323,7 +324,7 @@ Hugepagesize:       2048 kB
 	fn junk_row_none() {
 		assert!(parse_meminfo("MemTotal: 100 kB\nMemFree: lots kB\n").is_none());
 		assert!(parse_meminfo("MemTotal: 100 kB\nMemFree:\n").is_none());
-		// rows not read here can hold anything
+		// rows not read here can have anything in them
 		assert!(parse_meminfo("MemTotal: 100 kB\nMemFree: 1 kB\nOdd: x\nno colon\n").is_some());
 	}
 
@@ -375,7 +376,7 @@ size                            4    8053063680
 		let m = parse_meminfo(MEMINFO_TEXT).unwrap();
 		// programs 8 GB, of which 2 GB is ARC
 		assert_eq!(memory_shares(&m, 2_000_000), Some([0.375, 0.0625, 0.3125]));
-		// never more than programs had, as the files are read apart
+		// never more than programs had, since the files are read at different times
 		assert_eq!(memory_shares(&m, 9_000_000), Some([0.0, 0.0625, 0.6875]));
 	}
 
@@ -455,7 +456,7 @@ size                            4    8053063680
 		if let (Some(z), Some(zd)) = (m.zswap, m.zswapped) {
 			rows.extend([("Zswap", Some(z)), ("Zswapped", Some(zd))]);
 		}
-		// the kernel keeps an order, but nothing here leans on it
+		// the kernel keeps an order, but nothing here relies on it
 		for i in (1..rows.len()).rev() {
 			rows.swap(i, dice.below(i + 1));
 		}

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
-//! The panel's work in a loop, days of it with the clock skipped on, and the
-//! heap read at round N and 2N. Past the first max age the history is as big
-//! as it gets, so what's left to grow is a leak. cicd.bash runs it as the
-//! Soak leak check. `TUKZMON_SOAK_DIR` is where the report goes, and the dhat
+//! Runs the panel's work in a loop for days, with the clock skipped ahead,
+//! and reads the heap at round N and 2N. Past the first max age the history
+//! is as big as it gets, so anything still growing is a leak. cicd.bash runs
+//! it as the Soak leak check. `TUKZMON_SOAK_DIR` is where the report goes, and the dhat
 //! profile when it fails.
 
 use std::fmt::Write as _;
@@ -19,7 +19,7 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 /// Simulated seconds per round. A day is 4320 of them.
 const STEP: f64 = 20.0;
 /// Round N, at 50 hours. With the 1 day max age the test sets, the heap
-/// stops growing at about 22.
+/// stops growing at about 22 hours.
 const N: usize = 9000;
 /// Rounds between a save and load. N is a multiple, so both reads come
 /// straight after a load, when the history's buffers are sized alike.

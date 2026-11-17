@@ -70,7 +70,7 @@ fn look_no_setting_names() {
 	m.set("back_all", &Value::Bool(true), &NoEnv);
 	let first = Look::from_model(&m);
 	let n = allocs_in(|| assert_eq!(Look::from_model(&m), first));
-	// about 23 a graph, from knobs' values. Making its names would add 12.
+	// about 23 a graph, from knobs' values. Making the setting names would add 12.
 	let most = 30 * Which::ALL.len();
 	assert!(n <= most, "{n} allocations, more than {most}");
 }
@@ -110,6 +110,6 @@ fn procs_read_no_allocs() {
 	let n = allocs_in(|| assert_eq!(r.read(), first));
 	let _ = std::fs::remove_dir_all(&dir);
 	assert_eq!(first.map(|c| c.iter().sum::<f32>()), Some(50.0));
-	// it was 2 an entry
+	// it was 2 per entry
 	assert_eq!(n, 0);
 }

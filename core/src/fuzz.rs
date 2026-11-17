@@ -62,8 +62,8 @@ const LIARS: [u64; 9] = [
 	u64::MAX,
 ];
 
-/// Puts a number a count or length is likely to trip on in the `width`
-/// bytes at `at`, as far as they go.
+/// Writes a number a count or length is likely to trip on into the `width`
+/// bytes at `at`, cut short at the end of `bytes`.
 pub(crate) fn lie(dice: &mut Dice, bytes: &mut [u8], at: usize, width: usize) {
 	let lie = dice
 		.pick(&LIARS)
@@ -79,7 +79,7 @@ pub(crate) fn lie(dice: &mut Dice, bytes: &mut [u8], at: usize, width: usize) {
 }
 
 /// A few random hurts to `bytes`: bit flips, bytes set, lying fields, cuts,
-/// and runs copied, dropped or put in.
+/// and runs copied, dropped, or put in.
 pub(crate) fn mangle(dice: &mut Dice, bytes: &mut Vec<u8>) {
 	for _ in 0..=dice.below(4) {
 		let at = dice.below(bytes.len());
@@ -125,8 +125,8 @@ const WORDS: [&str; 16] = [
 	"\n",
 ];
 
-/// A counter as the kernel writes it: mostly in reach, now and then at a
-/// limit a sum can trip on.
+/// A counter as the kernel writes it. It's mostly in range, and now and then
+/// at a limit a sum can trip on.
 pub(crate) fn count(dice: &mut Dice) -> u64 {
 	match dice.below(5) {
 		0 => *dice.pick(&LIARS),
@@ -159,9 +159,9 @@ pub(crate) fn lie_text(dice: &mut Dice, text: &mut String) {
 	text.replace_range(at..end, word);
 }
 
-/// A hurt copy of a `/proc` or `/sys` file: lying words, hurt bytes, or
-/// both. A file that isn't UTF-8 fails its read, so bad bytes come out
-/// replaced, as what's left of them would reach a parser.
+/// A hurt copy of a `/proc` or `/sys` file, with lying words, hurt bytes, or
+/// both. A file that isn't UTF-8 fails its read and never gets to a parser,
+/// so bad bytes are replaced instead.
 pub(crate) fn hurt_text(dice: &mut Dice, text: &str) -> String {
 	let mut out = text.to_owned();
 	if dice.one_in(2) {
@@ -228,7 +228,7 @@ impl Files {
 	}
 }
 
-/// How many cases ran, and how many of those `case` called accepted.
+/// How many cases ran, and how many of them `case` accepted.
 #[derive(Debug)]
 pub(crate) struct Tally {
 	pub(crate) cases: u64,
@@ -237,7 +237,7 @@ pub(crate) struct Tally {
 
 impl Tally {
 	/// Fails unless some inputs were taken and some refused, so a generator
-	/// that stopped making either one shows. Miri runs too few to judge.
+	/// that stops making either one is caught. Miri runs too few to judge.
 	pub(crate) fn assert_mixed(&self) {
 		if cfg!(miri) {
 			return;
@@ -256,8 +256,8 @@ fn env_number<T: std::str::FromStr>(name: &str) -> Option<T> {
 }
 
 /// Runs `case` over the fixed seeds, then on until the budget is spent.
-/// `case` gives true when the input it made was read as good. A panic in
-/// one fails the test with its seed.
+/// `case` returns true when its input was read as good. A panic in a case
+/// fails the test with its seed.
 pub(crate) fn run(name: &str, case: impl Fn(&mut Dice) -> bool) -> Tally {
 	let first: u64 = env_number("TUKZMON_FUZZ_SEED").unwrap_or(0);
 	let budget = env_number::<f64>("TUKZMON_FUZZ_SECONDS")

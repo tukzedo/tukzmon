@@ -3,7 +3,7 @@
 # - Qt's parent owns what `new` makes, so owning-memory and the casts Qt's
 #   event and widget calls need say nothing useful here.
 # - The cairo pixels the live graphs draw take a reinterpret_cast.
-# - Layout pixels, short names, unbraced one-line bodies and leading return
+# - Layout pixels, short names, unbraced one-line bodies, and leading return
 #   types are the file's style. So are pointers tested as bools, unnamed
 #   unused parameters, plain structs with public members, x and y side by
 #   side, and no nodiscard.

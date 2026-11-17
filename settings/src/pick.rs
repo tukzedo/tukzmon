@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
-//! The color picker's model, the same as SilkTerm's: a saturation and
-//! brightness square, a hue strip, and value boxes, all over one HSV color.
+//! The color picker's model, the same as SilkTerm's. It has a saturation and
+//! brightness square, a hue strip, and value boxes, all for one HSV color.
 
 use tukzmon_core::config::Rgb;
 
-/// Hue 0 to 1 (wrapping), saturation and brightness 0 to 1. The picker keeps
-/// this rather than the bytes, since a gray has no hue to read back and black
-/// has no saturation either.
+/// Hue, saturation, and brightness, each 0 to 1, with hue wrapping. The picker
+/// keeps this rather than the bytes, since a gray doesn't have a hue to read
+/// back and black doesn't have a saturation.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Hsv {
 	/// Hue.
@@ -110,8 +110,8 @@ impl Field {
 			Field::Red => "How much red is in the color, from 0 to 100.",
 			Field::Green => "How much green is in the color, from 0 to 100.",
 			Field::Blue => "How much blue is in the color, from 0 to 100.",
-			Field::Brightness => "How bright the color is, from 0, which is black, to 100.",
-			Field::Saturation => "How strong the color is, from 0, which is a gray, to 100.",
+			Field::Brightness => "How bright the color is, from 0 to 100. At 0 it's black.",
+			Field::Saturation => "How strong the color is, from 0 to 100. At 0 it's a gray.",
 			Field::Hex => "The color as #rrggbb, with 2 hex digits each for red, green, and blue.",
 		}
 	}
@@ -125,7 +125,7 @@ impl Field {
 		}
 	}
 
-	/// The whole percent the box shows while nobody types in it, or None
+	/// The whole percent the box shows while it isn't being typed in, or None
 	/// for the hex box.
 	pub fn percent(self, c: Hsv) -> Option<i32> {
 		let mut rgb = to_rgb(c);
@@ -140,8 +140,8 @@ impl Field {
 		Some((x * 100.0).round().clamp(0.0, 100.0) as i32)
 	}
 
-	/// A typed value read back into the color. None for one that says nothing
-	/// yet, such as a half-typed hex or an empty box.
+	/// A typed value read back into the color, or None while it's incomplete,
+	/// such as a half-typed hex or an empty box.
 	pub fn apply(self, c: Hsv, typed: &str) -> Option<Hsv> {
 		match self {
 			Field::Hex => {
@@ -174,8 +174,8 @@ mod tests {
 		Hsv { h, s, v }
 	}
 
-	// Every edit crosses this both ways, so a color that shifted on the way
-	// would creep each time the picker opened.
+	// Every edit converts both ways, so a color that shifted would creep each
+	// time the picker opened.
 	// Test ID: decd5
 	#[test]
 	fn color_hsv_round_trip() {
@@ -240,7 +240,7 @@ mod tests {
 			"the # is optional, as in the row's own box"
 		);
 		assert_eq!(Field::Brightness.apply(start, "250").unwrap().v, 1.0);
-		// half-typed says nothing yet, rather than jumping to black
+		// half-typed changes nothing yet, rather than jumping to black
 		assert!(Field::Hex.apply(start, "#a0b").is_none());
 		assert!(Field::Red.apply(start, "").is_none());
 		assert!(Field::Red.apply(start, "inf").is_none());

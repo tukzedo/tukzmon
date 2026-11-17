@@ -61,11 +61,9 @@ pub const FASTEST_MS: u32 = 50;
 /// early. So the wait to the next read can be up to this much over the rate.
 pub const EARLY_MS: f64 = 10.0;
 
-/// How far past now saved history may end, in seconds, and still load with
-/// the clock moved up to it. A clock behind by a time zone, as a dual boot
-/// that keeps local time in the hardware clock leaves it until it syncs, is
-/// under this. Further ahead is a broken file, or a clock set back for good,
-/// and that history starts over. See design.md History.
+/// How far past now saved history may end, in seconds, and still load. A
+/// clock a time zone behind after a dual boot is under this. See design.md
+/// History.
 pub const AHEAD_MAX: f64 = 14.0 * 3600.0;
 
 /// The CPUs this process can run on, read once.
@@ -78,17 +76,14 @@ pub(crate) fn cpus() -> f32 {
 /// Drawing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Pace {
-	/// As often as the screen allows, up to 60 a second: every frame at
-	/// 60 Hz, every other at 120 and every third at 144.
+	/// As often as the screen allows, up to 60 a second.
 	UpTo60,
-	/// Every fourth frame, kept to 24 to 50 a second: every other frame at
-	/// 60 Hz, every third at 75, every fourth from 96 to 200 Hz, and every
-	/// fifth at 240.
+	/// Every fourth frame, kept to 24 to 50 a second.
 	Quarter,
 }
 
 /// The pace the panel and the settings window draw a moving graph at.
-/// [`Pace::UpTo60`] looked fine at 60 Hz, and Quarter costs less.
+/// [`Pace::UpTo60`] looked fine at 60 Hz, but Quarter costs less.
 pub const PACE: Pace = Pace::Quarter;
 
 impl Pace {
@@ -126,8 +121,8 @@ fn unix_now() -> f64 {
 		.map_or(0.0, |d| d.as_secs_f64())
 }
 
-/// Milliseconds to the next graph's read, from the least of
-/// [`Graph::tick`]'s answers, for a one-shot timer.
+/// Milliseconds to the next graph's read, for a one-shot timer. `next` is
+/// the least that [`Graph::tick`] returned.
 pub fn wait_ms(next: f64) -> u32 {
 	if next.is_nan() {
 		return FASTEST_MS;
@@ -166,8 +161,8 @@ pub trait Source<const N: usize>: Collector<N> {
 		look.rate(look[Self::WHICH].sample)
 	}
 
-	/// Some for a source with no fixed top, such as bytes per second: the
-	/// least its peak goes down to. See [`render::Peak`].
+	/// The lowest the peak goes, for a source with no fixed top such as
+	/// bytes per second. See [`render::Peak`].
 	fn peak_floor(&self) -> Option<f32> {
 		None
 	}
@@ -178,8 +173,8 @@ pub trait Source<const N: usize>: Collector<N> {
 		look.scaling(look[Self::WHICH].vertical)
 	}
 
-	/// Takes up a new look's settings for the reader itself, such as which
-	/// drives to count.
+	/// Applies a new look's settings to the reader, such as which drives to
+	/// count.
 	fn follow(&mut self, _look: &Look) {}
 }
 
@@ -412,7 +407,7 @@ impl Source<1> for OwnReader {
 			fine_pc(all * cpus())
 		);
 		match self.host() {
-			own::Host::Panel => format!("{tip}\nThe whole panel, tukzmon in it"),
+			own::Host::Panel => format!("{tip}\nCounts the whole panel, other plugins too"),
 			own::Host::Own | own::Host::Settings => tip,
 		}
 	}
@@ -442,10 +437,10 @@ impl Source<3> for ProcsReader {
 	}
 }
 
-/// One graph: reads, history, and drawing. CPU unless said otherwise.
+/// One graph, with its reads, history, and drawing. CPU by default.
 pub struct Graph<S: Source<N> = CpuReader, const N: usize = 4> {
-	/// The same one for every graph of a panel item, or of the settings
-	/// window, so a new look is one allocation, not one per graph.
+	/// Shared by every graph of a panel item, or of the settings window, so
+	/// a new look is one allocation rather than one per graph.
 	pub look: Rc<Look>,
 	hist: History<N>,
 	src: S,
@@ -619,8 +614,8 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		t
 	}
 
-	/// Unix time. The wall clock, but never back: set back, the graph's time
-	/// runs on from where it was.
+	/// Unix time from the wall clock, but never going back. When the clock is
+	/// set back, the graph's time runs on from where it was.
 	fn now(&self) -> f64 {
 		(self.epoch + self.steady()).max(self.wall())
 	}
@@ -632,7 +627,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 	}
 
 	/// Forgets the last read, so the next one only primes and the time
-	/// between is a gap. For a graph that isn't read for a while.
+	/// between is a gap. Use it on a graph that won't be read for a while.
 	pub fn pause(&mut self) {
 		self.read_at = None;
 		self.latest = None;
@@ -672,9 +667,9 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 	}
 
 	/// Swaps in this graph's saved history from a file's sections, read once
-	/// for every graph in it. The time since it was saved is a gap. False,
-	/// with nothing changed, when none of them is this graph's, or its
-	/// history ends more than [`AHEAD_MAX`] after now.
+	/// for every graph in it. The time since it was saved is a gap. Returns
+	/// false and changes nothing when none of them is this graph's, or when
+	/// its history ends more than [`AHEAD_MAX`] after now.
 	pub fn adopt(&mut self, sections: &[(String, Vec<u8>)]) -> bool {
 		let now = self.now();
 		let Some(saved) = sections
@@ -714,7 +709,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		keep::write(path, &[(name, &body)])
 	}
 
-	/// Read the source and keep it. The first call only primes it.
+	/// Reads the source and adds it to the history. The first call only primes.
 	pub fn sample(&mut self) {
 		let steady = self.steady();
 		// time the monotonic clock didn't see, as in a suspend or the clock set on
@@ -729,7 +724,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 			let shown = self.edge();
 			self.hist.add(was, now, &v);
 			self.latest = Some(v);
-			// a gap or a jump is the axis ease's, not a slide
+			// the axis ease takes a gap or a jump, so it doesn't slide
 			self.slide = shown
 				.filter(|&from| self.slides() && now - from <= self.slack())
 				.map(|from| (from, self.now()));
@@ -750,8 +745,8 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		f64::from(self.sample_ms()) / 1000.0
 	}
 
-	/// The time at the right edge as drawn: the newest sample's end, or on
-	/// the way there while it slides in. None with no history yet.
+	/// The time at the right edge as drawn. That's the newest sample's end,
+	/// or partway there while it slides in. None with no history yet.
 	fn edge(&self) -> Option<f64> {
 		let last = self.hist.last()?;
 		let Some((from, at)) = self.slide.filter(|_| self.slides()) else {
@@ -781,7 +776,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		S::sample_ms(&self.look)
 	}
 
-	/// Reads the source when its next beat has come, and gives the ms from
+	/// Reads the source when its next beat has come, and returns the ms from
 	/// `at` to the beat after. Beats are whole multiples of the sample rate on
 	/// [`clock_ms`], so graphs whose rates divide each other read on the same
 	/// timer tick. The first call only primes it, as [`Self::sample`] does.
@@ -852,8 +847,8 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		Some((now - axis.age(u(x0)), now - axis.age(u(x0 + thick))))
 	}
 
-	/// The tip for the pointer at device column `x`: when that is, and what
-	/// the source read then.
+	/// The tip for the pointer at device column `x`, with the time there and
+	/// what the source read then.
 	pub fn hover_tip(&self, x: usize, w: usize, h: usize, scale: usize) -> String {
 		let Some((a, b)) = self.span_at(x, w, h, scale) else {
 			return self.tooltip();
@@ -1105,7 +1100,7 @@ mod tests {
 		assert!(own.text(&[one]).starts_with("Panel "));
 		assert!(
 			own.text(&[one])
-				.ends_with("\nThe whole panel, tukzmon in it")
+				.ends_with("\nCounts the whole panel, other plugins too")
 		);
 		assert_eq!(own.peak_floor(), Some(1.0));
 		assert_eq!(OwnReader::vertical(&Look::default()), Vertical::Linear);

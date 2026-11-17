@@ -21,16 +21,16 @@ pub struct Ticks {
 	pub idle: u64,
 	/// Time idle waiting on I/O.
 	pub iowait: u64,
-	/// Time serving interrupts.
+	/// Time handling interrupts.
 	pub irq: u64,
-	/// Time serving soft interrupts.
+	/// Time handling soft interrupts.
 	pub softirq: u64,
 	/// Time a hypervisor gave to another guest.
 	pub steal: u64,
 }
 
 impl Ticks {
-	/// None past `u64::MAX`, which only a lying file reaches.
+	/// None past `u64::MAX`, which only a lying file can add up to.
 	fn total(&self) -> Option<u64> {
 		[
 			self.nice,

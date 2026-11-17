@@ -8,7 +8,7 @@ license = "MIT"
 publish = false
 
 # Started as SilkTerm's knobs, and free to change on its own since. A fix here
-# that SilkTerm's copy needs too goes in its backlog.
+# that SilkTerm's copy needs too goes in SilkTerm's backlog.
 
 [lib]
 doctest = false

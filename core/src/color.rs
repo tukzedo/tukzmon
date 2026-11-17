@@ -6,7 +6,7 @@
 
 use crate::config::Rgb;
 
-/// 2 graphs' leads at least this far apart read as 2 colors at a glance.
+/// Leads of 2 graphs at least this far apart read as 2 colors at a glance.
 pub const APART: f64 = 10.0;
 
 /// CIELAB, D65.
@@ -51,7 +51,7 @@ impl Lab {
 	}
 }
 
-/// Sharma, Wu and Dalal's form, which their test pairs check.
+/// Sharma, Wu, and Dalal's form, checked against their test pairs.
 pub fn ciede2000(x: Lab, y: Lab) -> f64 {
 	let c7 = |c: f64| c.powi(7);
 	let mean_c = f64::midpoint(x.a.hypot(x.b), y.a.hypot(y.b));
@@ -128,7 +128,7 @@ mod tests {
 	// Test ID: dejbs
 	#[test]
 	fn published_pairs_match() {
-		// Sharma, Wu and Dalal 2005, table 1: Lab 1, Lab 2, and the distance
+		// Sharma, Wu, and Dalal 2005, table 1: Lab 1, Lab 2, and the distance
 		// to 4 places
 		#[rustfmt::skip]
 		let pairs: [([f64; 3], [f64; 3], f64); 34] = [

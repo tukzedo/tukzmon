@@ -156,7 +156,7 @@ impl Locks {
 				None,
 				saver_changed,
 			);
-			// a screensaver that quits or crashes while up blanks nothing
+			// a screensaver that quits or crashes while up isn't blanking anything
 			self.subscribe(
 				&mut bus,
 				BUS,
@@ -290,8 +290,8 @@ impl Locks {
 		}
 	}
 
-	/// Ends the subscriptions and forgets the area. A reply still on its
-	/// way finds no area to draw.
+	/// Ends the subscriptions and forgets the area, so a reply that comes in
+	/// later doesn't draw.
 	pub fn stop(&mut self) {
 		self.seen.area.set(std::ptr::null_mut());
 		for bus in self.buses.drain(..) {
@@ -325,8 +325,8 @@ fn bus(kind: c_int) -> Option<*mut c_void> {
 	(!connection.is_null()).then_some(connection)
 }
 
-/// logind's object for session `id`, escaped as `sd_bus_path_encode` does:
-/// a leading digit, and anything not a letter or digit, as `_` and 2 hex
+/// logind's object for session `id`, escaped as `sd_bus_path_encode` does it.
+/// A leading digit, and anything but a letter or digit, becomes `_` and 2 hex
 /// digits.
 fn session_path(id: &str) -> String {
 	let mut path = String::from("/org/freedesktop/login1/session/");
@@ -368,7 +368,7 @@ unsafe fn boolean_in(v: *mut c_void) -> Option<bool> {
 		return None;
 	}
 	// SAFETY: a live variant, per the caller. Each child and inner value is
-	// a new ref, which with lets go.
+	// a new ref, which `with` lets go.
 	unsafe {
 		match CStr::from_ptr(g_variant_get_type_string(v)).to_bytes() {
 			b"b" => Some(g_variant_get_boolean(v) != 0),
@@ -615,9 +615,9 @@ mod tests {
 				let _ = std::fs::remove_file(&self.1);
 			}
 		}
-		// A config of its own, since the stock one, and EXTERNAL auth, look
-		// the caller up in passwd, and the build image runs as a uid it
-		// doesn't list. Its policy lets all through, as the stock one does.
+		// Its own config, since the stock config and EXTERNAL auth both look
+		// the caller up in passwd, and the build image runs as a uid passwd
+		// doesn't list. The policy lets everything through, as the stock one does.
 		let address = format!("unix:abstract=tukzmon-lock-test-{}", std::process::id());
 		let config =
 			std::env::temp_dir().join(format!("tukzmon-lock-test-{}.conf", std::process::id()));
@@ -736,7 +736,7 @@ mod tests {
 				c"('org.freedesktop.login1.Session', {'LockedHint': <true>}, @as [])",
 				c"('org.freedesktop.login1.Session', {'LockedHint': <false>}, @as [])",
 			);
-			// a stranger, and another session, are let be
+			// a stranger and another session are ignored
 			active(stranger, c"(true,)");
 			hint(&other, on);
 			let until = Instant::now() + Duration::from_millis(300);

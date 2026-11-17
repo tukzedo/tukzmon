@@ -3,15 +3,15 @@
 #  shellcheck enable=require-variable-braces  ## Every expansion braced: "${var}", not "$var".
 
 ##	Purpose:
-##		One Miri over one module's tests, for cicd.bash's Miri step. A module's
-##		tests share one Miri so they parse the settings spec once, which takes
-##		over 30 minutes under Miri. They run one at a time, in name order, as
-##		libtest sorts them.
+##		Runs one Miri over one module's tests, for cicd.bash's Miri step. A
+##		module's tests share one Miri so they parse the settings spec once,
+##		which takes over 30 minutes under Miri. They run one at a time, in name
+##		order, as libtest sorts them.
 ##		When Miri doesn't finish clean, the log gets lines saying why:
-##		- past the time limit, or stopped by an error, the test that was running
-##		  fails and the ones after it are listed as not run
-##		- an error after every test finished, such as a leak, fails the module,
-##		  since Miri can't say which test it came from
+##		- If Miri runs past the time limit or stops on an error, the test that
+##		  was running fails, and the ones after it are listed as not run.
+##		- An error after every test finished, such as a leak, fails the module,
+##		  since Miri can't say which test it came from.
 ##		A test that fails its asserts already has its own FAILED line. stdout and
 ##		stderr stay in NUM.out and NUM.err, and NUM.log is what the step reads.
 ##	Syntax:
@@ -31,9 +31,10 @@ module="${1%::*}"; [[ "${module}" != "${1}" ]] || module="${pkg} top level"
 
 # shellcheck disable=2086  ## LOCKED is empty or --locked, and goes unquoted.
 timeout -k 30s "${MINUTES}m" cargo "+${NIGHTLY}" miri test ${LOCKED} -p "${pkg}" "${kind}" -- --exact --test-threads=1 "$@" > "${out}" 2> "${err}" || rc=$?
-## Apart, since Miri's warnings land between libtest's "test X ... " and its
-## result. cargo's Running line goes first, as test-ids.bash finds the crate
-## by it, then Miri's own error when there is one.
+## stdout and stderr are kept apart, since Miri prints warnings between
+## libtest's "test X ... " and its result. cargo's Running line goes first,
+## since test-ids.bash finds the crate by it, then Miri's own error when there
+## is one.
 {
 	sed -n 's/\x1b\[[0-9;]*m//g; /^ *Running /{p;q}' "${err}"
 	cat -- "${out}"
