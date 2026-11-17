@@ -9159,6 +9159,26 @@ Sorted per the notes in [Template](#template).
 	- Test case: the `nix` area of cicd.bash, run with `--backlog-run-quick nix`. It has no test ID, since it isn't a cargo test.
 	- Closed: 20261028-091315
 
+- Pre-next-cut: Lots of up and down activity in a monitor still shimmers, most in the first minute
+	- ID: 2026111623513501
+	- Type: Enhancement
+	- Status: Deferred
+	- Priority|Severity: Avg
+	- Opened: 20261116-235135
+	- Opened by: t00mietum
+	- Related IDs: 2026111010281710, 2026111020033357
+	- Requirements:
+		- Lots of up and down activity in a monitor still results in "shimmering", most noticeable in the first minute. Need to fix this.
+		- Would a 1px blur help? That might be very expensive at 30 hz. And might, well, also look blurry.
+	- Decisions:
+		- 20261117: deferred. What's left of the shimmer is acceptable for now, and 2026111010281710 and 2026111020033357 are signed off.
+	- Note: Options to test, none tried yet:
+		- First count which pixels change from one frame to the next in the first minute, to see which option fits.
+		- A 1px blur over the plot, along time only, such as each pixel mixed 1:2:1 with the 2 beside it. It softens steady edges too. Measure its cost with the profiler.
+		- The same blur on the newest minute only, where the shimmer is worst.
+		- Mix each frame with the last one, such as half and half, so a pixel can't flip in one frame. It leaves a trail behind a moving spike.
+		- Slide by whole pixels only, so a sample's edges don't land part way into a pixel each frame. Smooth scrolling then steps a pixel at a time.
+
 - Other Linux and BSD panels
 	- ID: 2026101916013890
 	- Type: Feature
@@ -9236,22 +9256,6 @@ Sorted per the notes in [Template](#template).
 		- Cross platform: Linux, Windows, macOS, BSD.
 		- Windows 11 has no taskbar toolbars, so it gets a tray icon plus a small window docked over the taskbar.
 		- macOS gets a menu bar item, which can be wide.
-
-- Pre-next-cut: Lots of up and down activity in a monitor still shimmers, most in the first minute
-	- ID: 2026111623513501
-	- Type: Enhancement
-	- Status: Canceled
-	- Priority|Severity: Avg
-	- Opened: 20261116-235135
-	- Opened by: t00mietum
-	- Related IDs: 2026111010281710, 2026111020033357
-	- Requirements:
-		- Lots of up and down activity in a monitor still results in "shimmering", most noticeable in the first minute. Need to fix this.
-		- Would a 1px blur help? That might be very expensive at 30 hz. And might, well, also look blurry.
-	- Decisions:
-		- 20261117: what's left of the shimmer is acceptable, so it gets no more work. 2026111010281710 and 2026111020033357 are signed off.
-	- Test case: none, canceled.
-	- Closed: 20261117-000639
 
 - Pre-next-cut: "Colors: detailed|gradient" applies to all monitors, with a granularity option
 	- ID: 2026102807585030
