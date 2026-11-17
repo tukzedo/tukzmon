@@ -9159,7 +9159,7 @@ Sorted per the notes in [Template](#template).
 	- Test case: the `nix` area of cicd.bash, run with `--backlog-run-quick nix`. It has no test ID, since it isn't a cargo test.
 	- Closed: 20261028-091315
 
-- Pre-next-cut: Lots of up and down activity in a monitor still shimmers, most in the first minute
+- Lots of up and down activity in a monitor still shimmers, most in the first minute
 	- ID: 2026111623513501
 	- Type: Enhancement
 	- Status: Deferred
