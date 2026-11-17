@@ -10,9 +10,9 @@
 
 use std::collections::VecDeque;
 
-/// Bucket length and how long it's kept, in seconds, finest first.
-/// Each fine tier keeps a linear graph at the width slider's top, at any rate
-/// the next tier is too coarse for.
+/// Bucket length and how long the buckets are kept, in seconds, finest
+/// first. Each fine tier keeps enough for a linear graph at the widest width
+/// setting, at any sample rate the next tier is too coarse for.
 pub const TIERS: [(f64, f64); 6] = [
 	(0.05, 256.0),
 	(0.25, 2048.0),
@@ -89,11 +89,11 @@ impl<const N: usize> Bucket<N> {
 	}
 }
 
-/// Buckets a block covers at each level of [`Tier::blocks`], as a power of
-/// 2, so a bucket's block is a shift. Each level's blocks are made of whole
-/// blocks of the level below.
+/// The number of buckets in a block at each level of [`Tier::blocks`], as a
+/// power of 2, so finding a bucket's block is a shift. Each level's blocks
+/// are made of whole blocks of the level below.
 const BLOCK_BITS: [u32; 2] = [3, 6];
-/// Buckets a block covers, at each level.
+/// The number of buckets in a block at each level.
 const BLOCKS: [i64; 2] = [1 << BLOCK_BITS[0], 1 << BLOCK_BITS[1]];
 
 /// What [`History::span`] adds up over buckets it covers whole.
@@ -206,7 +206,7 @@ impl<const N: usize> Tier<N> {
 		self.gather(level, b1 * size, a1, out);
 	}
 
-	/// The buckets from `i0` to `i1`, as [`Self::add_buckets`] adds them.
+	/// The total of buckets `i0` to `i1`, as [`Self::add_buckets`] adds them.
 	fn total_over(&self, i0: usize, i1: usize) -> Total<N> {
 		let mut out = Total::zero();
 		self.gather(
@@ -218,7 +218,7 @@ impl<const N: usize> Tier<N> {
 		out
 	}
 
-	/// Works out the blocks again from the ones holding bucket `from` on.
+	/// Rebuilds the blocks from the ones that contain bucket `from` onward.
 	fn reindex(&mut self, from: usize) {
 		if self.buckets.is_empty() {
 			for level in &mut self.blocks {
@@ -271,7 +271,7 @@ impl<const N: usize> Tier<N> {
 		let at0 = (t0 / self.len).floor() as i64;
 		let at1 = ((t1 / self.len).ceil() as i64 - 1).max(at0);
 		let cap = self.cap();
-		// only the newest cap buckets stay, so none older is made
+		// only the newest `cap` buckets stay, so don't make older ones
 		let keep_from = at1.saturating_sub(cap - 1);
 		if self.buckets.is_empty() || self.first + self.buckets.len() as i64 <= keep_from {
 			// nothing kept would survive the gap
@@ -375,10 +375,10 @@ impl<const N: usize> Tier<N> {
 		best
 	}
 
-	// bucket `i`'s older and newer sample, and how much of its data is the
-	// older one, for a bucket no longer than half a sample, which holds at
-	// most 2. Its min and max are the 2, and the bucket beside it says which
-	// side each is on. None when it holds one value, or nothing's beside it.
+	// bucket `i`'s older and newer sample, and the share of its data from the
+	// older one. A bucket no longer than half a sample can only have at most 2 samples,
+	// which are its min and max, and the bucket beside it shows which side
+	// each is on. None when it has one value, or there's nothing beside it.
 	fn samples_in(&self, i: usize) -> Option<([f32; N], [f32; N], f64)> {
 		let bucket = self.buckets.get(i)?;
 		let spread = |s: usize| bucket.max[s] - bucket.min[s];
@@ -407,10 +407,11 @@ impl<const N: usize> Tier<N> {
 		Some((older, newer, share))
 	}
 
-	// the most of any `run` secs from `a` to `b`, from windows near the ends,
-	// where a sample can be cut, and the buckets' max between, which is also
-	// given alone. A bucket wholly past `clear` from either end holds no
-	// sample cut by it, even one a late tick made longer.
+	// the most any `run` secs from `a` to `b` averages, from windows near the
+	// ends, where a sample can be cut, and from the buckets' max in between,
+	// which is also returned alone. A bucket wholly past `clear` from either
+	// end can't contain a sample that end cut, even one a late tick made
+	// longer.
 	fn spike_over(&self, a: f64, b: f64, run: f64) -> (Option<[f32; N]>, Option<[f32; N]>) {
 		let clear = 1.5 * run;
 		let anchored = [self.tops_over(a, a + run), self.tops_over(b - run, b)];
@@ -435,10 +436,10 @@ impl<const N: usize> Tier<N> {
 		(spike, inner)
 	}
 
-	// up to 4 samples wide: the most any `run` secs within half a column of
-	// each point averages, averaged over the column, so a narrow gap keeps
-	// its ink as it slides (design.md Drawing). Also its most. None for no
-	// data, or too many buckets.
+	// for a column up to 4 samples wide, the most any `run` secs within half
+	// a column of each point averages, averaged over the column, so a narrow
+	// gap keeps its ink as it slides (design.md Drawing). Also returns the
+	// highest of those. None for no data, or too many buckets.
 	fn spread_over(&self, a: f64, b: f64, run: f64) -> Option<([f32; N], [f32; N])> {
 		const CAP: usize = 128;
 		let len = self.len;
@@ -549,20 +550,21 @@ pub struct Span<const N: usize> {
 	pub mean: [f32; N],
 	/// The most of each value.
 	pub max: [f32; N],
-	/// As `max`, but a bucket only partly in the span reaches above the mean
+	/// As `max`, but a bucket only partly in the span lifts it above the mean
 	/// by that part, so a spike grows into a column as it slides in rather
 	/// than filling it at once. See design.md Drawing.
 	pub spike: [f32; N],
-	/// The most `spike` reaches toward, so at least `max`. A column up to 4
-	/// samples wide also reaches into a spike half a column past either end.
+	/// The top that `spike` is drawn toward, so at least `max`. For a column
+	/// up to 4 samples wide it also takes in a spike up to half a column past
+	/// either end.
 	pub peak: [f32; N],
 	/// The least of each value.
 	pub min: [f32; N],
 	/// The means of the oldest and newest buckets in the span, so a span no
-	/// longer than a sample has the 2 samples it can hold.
+	/// longer than a sample has the 2 samples it can contain.
 	pub ends: [[f32; N]; 2],
-	/// As `max`, from only the buckets far enough in from both ends that no
-	/// sample cut by an end reaches them, or None where there are none.
+	/// As `max`, but only from buckets far enough in from both ends that a
+	/// sample cut by an end can't overlap them. None in the case where there aren't any.
 	pub uncut: Option<[f32; N]>,
 	/// Share of the span that had data, 0 to 1.
 	pub covered: f32,
@@ -590,8 +592,8 @@ impl<const N: usize> Default for History<N> {
 }
 
 impl<const N: usize> History<N> {
-	/// Values that held from `t0` to `t1`. Every tier gets them, so none waits
-	/// on a roll-up. Time already covered is skipped.
+	/// Adds values that held from `t0` to `t1`. Every tier gets them, so no
+	/// tier waits on a roll-up. Time already covered is skipped.
 	pub fn add(&mut self, t0: f64, t1: f64, v: &[f32; N]) {
 		let t0 = self.last.map_or(t0, |l| t0.max(l));
 		if t1 <= t0 || !t0.is_finite() || !t1.is_finite() {
@@ -614,7 +616,7 @@ impl<const N: usize> History<N> {
 		self.last
 	}
 
-	/// The finest tier still holding time `a`, or the coarsest one.
+	/// The finest tier that still has time `a`, or the coarsest one.
 	fn tier_for(&self, a: f64) -> &Tier<N> {
 		self.tiers
 			.iter()
@@ -708,7 +710,7 @@ impl<const N: usize> History<N> {
 				max[s] = max[s].max(bucket.max[s]);
 				min[s] = min[s].min(bucket.min[s]);
 			}
-			// a span inside one bucket has all of it that it can
+			// a span inside one bucket counts the bucket in full
 			let part = (overlap / (hi - lo).min(b - a)).min(1.0) as f32;
 			cut[end] = (part, bucket.max);
 			end_values[end] = Some(values);
@@ -793,10 +795,10 @@ impl<const N: usize> History<N> {
 	}
 
 	/// None for anything [`History::encode`] wouldn't have written with
-	/// today's tiers, or with today's less the finest ones, so a stale or
-	/// broken file starts fresh. Also None for another series count. A count
-	/// of 0 is a section from before counts were saved, which only its
-	/// layout can refuse.
+	/// today's tiers, or with today's minus the finest ones, so a stale or
+	/// broken file starts fresh. Also None for a different series count. A
+	/// count of 0 means a section from before counts were saved, which only
+	/// its layout can rule out.
 	///
 	/// Times out of order, or buckets outside them, are None too. A bucket
 	/// with a value that isn't finite comes back as a gap.
@@ -830,7 +832,7 @@ impl<const N: usize> History<N> {
 			if count > tier.cap() {
 				return None;
 			}
-			// every bucket lies over first to last, give or take one for rounding
+			// every bucket is between first and last, give or take one for rounding
 			if count > 0 {
 				let (f, l) = span?;
 				let from = (f / tier.len).floor() as i64 - 1;
@@ -857,8 +859,8 @@ impl<const N: usize> History<N> {
 	}
 }
 
-/// Unix seconds past this are taken as a broken file, and it keeps every
-/// bucket number far inside an i64. Year 5138.
+/// Unix seconds past this mean a broken file. The limit also keeps every
+/// bucket number far inside an i64. It's in the year 5138.
 const LATEST: f64 = 1e11;
 
 struct Reader<'a>(&'a [u8]);

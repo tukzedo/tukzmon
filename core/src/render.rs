@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
-//! Stacked column graphs into a pixel buffer. Pixels are cairo's ARGB32:
-//! premultiplied, native-endian `0xAARRGGBB`. Only a transparent background
-//! is less than opaque.
+//! Draws stacked column graphs into a pixel buffer. Pixels are cairo's
+//! ARGB32, which is premultiplied, native-endian `0xAARRGGBB`. Only a
+//! transparent background is less than opaque.
 
 use crate::axis::Ages;
 use crate::config::{Look, Outline, Rgb};
 use crate::history::History;
 
 /// Seconds a column can cover before its spike emphasis is down by half, at
-/// an emphasis near 0. The setting stretches it, see design.md Drawing.
+/// an emphasis near 0. The setting stretches it. See design.md Drawing.
 const SPIKE_FADE: f64 = 20.0;
 
 /// A column with less data than this is a gap.
@@ -21,7 +21,7 @@ fn mix(a: Rgb, b: Rgb, t: f32) -> [f32; 3] {
 	[m(a.0, b.0), m(a.1, b.1), m(a.2, b.2)]
 }
 
-/// `c` already premultiplied by `alpha`, 0 to 1.
+/// Packs a pixel. `c` is already premultiplied by `alpha`, which is 0 to 1.
 fn pack_alpha(c: [f32; 3], alpha: f32) -> u32 {
 	let q = |v: f32| v.round().clamp(0.0, 255.0) as u32;
 	q(alpha * 255.0) << 24 | q(c[0]) << 16 | q(c[1]) << 8 | q(c[2])
@@ -33,7 +33,7 @@ const SNAP: f32 = 0.002;
 /// Seconds for a falling peak to come most of the way down to what's in view.
 const PEAK_FALL: f64 = 2.0;
 
-// the spike emphasis, with its fade worked out once a draw
+// the spike emphasis, with its fade worked out once per draw
 #[derive(Clone, Copy, Debug)]
 struct Reach {
 	spikes: f32,
@@ -106,8 +106,8 @@ pub struct Scale<'a> {
 	pub floor: f32,
 }
 
-/// How height goes up the graph. A stack keeps its shares of the column's
-/// height on every one. See design.md, Drawing.
+/// How values map to height up the graph. On every scale, a stack keeps its
+/// shares of the column's height. See design.md, Drawing.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Vertical {
 	/// In proportion to the value.
@@ -240,7 +240,7 @@ impl<'a> Canvas<'a> {
 pub enum Paint<'a, const N: usize> {
 	/// A color per series, stacked from the bottom.
 	Stack(&'a [Rgb; N]),
-	/// Low, Medium and High. The whole column takes the blend at each
+	/// Low, Medium, and High. The whole column takes the blend at each
 	/// pixel's height in the plot, so the colors stay put as it grows.
 	Gradient([Rgb; 3]),
 }
@@ -255,9 +255,9 @@ pub fn blend(stops: [Rgb; 3], t: f32) -> [f32; 3] {
 	}
 }
 
-/// What a column draws: `lo` solid, with `hi` over it at `share` of full
-/// strength. A sample cut by the column's edge is drawn full height, as
-/// faint as how little of it is in. See design.md Drawing.
+/// What a column draws. `lo` is solid, and `hi` is drawn over it at `share`
+/// of full strength. A sample cut by the column's edge is drawn at full
+/// height, faded by how much of it is outside. See design.md Drawing.
 #[derive(Clone, Copy, Debug)]
 struct Column<const N: usize> {
 	lo: [f32; N],
@@ -322,7 +322,7 @@ pub struct Frame<'a, const N: usize> {
 	pub paint: Paint<'a, N>,
 	/// Its frame and background.
 	pub outline: Outline,
-	/// How height goes up it.
+	/// How values map to height.
 	pub vertical: Vertical,
 }
 
@@ -342,15 +342,15 @@ impl<const N: usize> std::fmt::Debug for Frame<'_, N> {
 }
 
 impl<const N: usize> Frame<'_, N> {
-	/// Draw into `px`, `w` by `h`, rows top first. `scale` multiplies the
+	/// Draws into `px`, `w` by `h`, rows top first. `scale` multiplies the
 	/// border for high-DPI screens.
 	pub fn draw(&self, px: &mut Vec<u32>, w: usize, h: usize, scale: usize) {
 		self.draw_to(px, w, h, scale, None, &mut Scratch::default());
 	}
 
-	/// As [`Self::draw`], for a source with no fixed top: `scaled` sets the
-	/// top, in the source's own unit, instead of 1. `scratch` is kept from
-	/// one draw to the next.
+	/// As [`Self::draw`], for a source without a fixed top. `scaled` sets the
+	/// top in the source's own unit, instead of 1. `scratch` is kept from one
+	/// draw to the next.
 	pub fn draw_to(
 		&self,
 		px: &mut Vec<u32>,
@@ -430,8 +430,9 @@ impl<const N: usize> Frame<'_, N> {
 			);
 			grad_px.extend(grad.iter().map(|&g| pack_alpha(g, 1.0)));
 		}
-		// a part-covered pixel mixes as sRGB numbers, not in linear light,
-		// which all but hides a split dark gap (design.md Drawing)
+		// a part-covered pixel mixes as sRGB numbers rather than in linear
+		// light, since linear light all but hides a split dark gap (design.md
+		// Drawing)
 		reached.clear();
 		let emphasis = Reach::new(self.look.spikes);
 		// each column's old edge is the new edge of the one left of it
@@ -1265,7 +1266,7 @@ mod tests {
 	// Test ID: df4e9
 	#[test]
 	fn one_sample_column_solid() {
-		// samples off the buckets' edges, so each column's end buckets hold
+		// samples off the buckets' edges, so each column's end buckets have
 		// a bit of the sample beside it, with columns lined up on the samples
 		let mut h = History::<2>::default();
 		for t in 0..100 {
@@ -1306,10 +1307,7 @@ mod tests {
 	#[test]
 	fn narrow_gap_slide_depth() {
 		// one sample of 0.1 between ones of 0.9, and the other way round, on
-		// columns of half a sample to 3. A split gap mixed in linear light
-		// showed about half as deep as a whole one. Past a sample wide, the
-		// spike emphasis filled the gap only where a column held a whole
-		// sample of the bar beside it.
+		// columns of half a sample to 3 (2026111010281710, 2026111020033357)
 		for (base, odd) in [(0.9, 0.1), (0.1, 0.9)] {
 			let mut h = History::<2>::default();
 			for t in 0..300 {

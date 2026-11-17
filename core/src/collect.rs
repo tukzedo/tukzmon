@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
-//! What every graph's source sits behind. See design.md, Data sources on
-//! Linux.
+//! The trait every graph's source implements, and the file readers they
+//! share. See design.md, Data sources on Linux.
 
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
@@ -16,7 +16,7 @@ pub trait Collector<const N: usize>: Sized {
 	/// None when the source isn't on this box, so its graph is hidden.
 	fn probe() -> Option<Self>;
 
-	/// Each series in the source's own unit, [`Self::SERIES`] order. Shares
+	/// Each series in the source's own unit, in [`Self::SERIES`] order. Shares
 	/// are 0 to 1. None is a gap. A source that counts up, like CPU, only
 	/// primes on its first call.
 	fn read(&mut self) -> Option<[f32; N]>;
@@ -30,8 +30,8 @@ pub(crate) fn slurp<'a>(path: &str, buf: &'a mut String) -> Option<&'a str> {
 }
 
 /// A `/proc` or `/sys` file read each tick. It's kept open and read again
-/// from the start, since the open is most of what a read costs. A read that
-/// fails, as when its device went away, closes it, and the next opens it
+/// from the start, since the open costs more than the read. A failed read,
+/// such as when its device goes away, closes it, and the next read opens it
 /// again.
 #[derive(Debug)]
 pub(crate) struct Kept {
@@ -307,7 +307,7 @@ mod tests {
 		assert_eq!(f.read(&mut buf), Some("two, longer\n"));
 		std::fs::write(t.at("a"), "3\n").unwrap();
 		assert_eq!(f.read(&mut buf), Some("3\n"));
-		// a folder opens but doesn't read, as a removed sysfs file
+		// a folder opens but doesn't read, like a removed sysfs file
 		let mut b = Kept::new(t.at("b"));
 		assert_eq!(b.read(&mut buf), None);
 		assert!(!b.is_open());

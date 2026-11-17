@@ -4,9 +4,9 @@
 //! Whether this desktop is shown remotely, so the graphs can draw less often.
 //! See design.md Drawing.
 //!
-//! A session a remote desktop server started, such as an RDP or NoMachine
-//! virtual desktop, is told once, by what it was started with. A viewer that
-//! joins a local desktop, such as x11vnc, RustDesk or NoMachine on the
+//! A session started by a remote desktop server, such as an RDP or NoMachine
+//! virtual desktop, is detected once, from what it was started with. A viewer
+//! that joins a local desktop, such as x11vnc, RustDesk, or NoMachine on the
 //! physical display, comes and goes, so [`Watch`] looks for one again every
 //! few seconds.
 
@@ -14,8 +14,8 @@ use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-/// Variables a remote desktop server sets in the sessions it starts: xrdp,
-/// X2Go, Chrome Remote Desktop, and the classic vncserver script.
+/// Variables set by xrdp, X2Go, Chrome Remote Desktop, and the classic
+/// vncserver script in the sessions they start.
 const REMOTE_VARS: [&str; 4] = [
 	"XRDP_SESSION",
 	"X2GO_SESSION",
@@ -23,8 +23,8 @@ const REMOTE_VARS: [&str; 4] = [
 	"VNCDESKTOP",
 ];
 
-/// The PAM services logind names for sessions a remote desktop server opens:
-/// NoMachine's virtual desktops and xrdp.
+/// The PAM services logind names for sessions opened by NoMachine's virtual
+/// desktops and xrdp.
 const REMOTE_SERVICES: [&str; 2] = ["nx", "xrdp-sesman"];
 
 /// How soon a viewer that joins or leaves the desktop is seen.
@@ -73,8 +73,8 @@ pub fn detected_by(var: impl Fn(&str) -> bool, session: Option<&str>) -> bool {
 		})
 }
 
-/// Follows where the desktop is shown: the session it was started in, read
-/// once, and a remote viewer on its display, looked for at most once each
+/// Follows where the desktop is shown. The session it was started in is read
+/// once, and a remote viewer on its display is looked for at most once each
 /// [`CHECK_EVERY`].
 #[derive(Debug)]
 pub struct Watch {
@@ -108,10 +108,10 @@ impl Watch {
 		}
 	}
 
-	/// The session at `now`, which looks for a viewer again only once
+	/// The session at `now`. It looks for a viewer again only once
 	/// [`CHECK_EVERY`] has gone by since the last look.
 	pub fn session(&mut self, now: Instant) -> Session {
-		// out for the look, since session_by takes all of self
+		// taken out for the look, since session_by borrows all of self
 		let mut probe = std::mem::take(&mut self.probe);
 		let session = self.session_by(now, |display| probe.viewed(display, &SHARERS));
 		self.probe = probe;
@@ -143,10 +143,10 @@ impl Watch {
 	}
 }
 
-/// What tells that a sharer's peer is connected.
+/// How to tell that a sharer's peer is connected.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Sign {
-	/// It holds the peer's connection itself.
+	/// The sharer has the peer's socket open itself.
 	Holds,
 	/// RustDesk's server runs as root, and starts this connection manager in
 	/// the desktop only while a peer is connected.
@@ -211,14 +211,14 @@ fn links_in(text: &str) -> impl Iterator<Item = Link> + '_ {
 	})
 }
 
-/// The X display number in a name such as `:0`, `:0.0` or `unix:1`.
+/// The X display number in a name such as `:0`, `:0.0`, or `unix:1`.
 fn display_number(name: &str) -> Option<u32> {
 	let (_, after) = name.rsplit_once(':')?;
 	after.split('.').next()?.parse().ok()
 }
 
-/// The display a process shows: its `-display` argument, as x11vnc takes,
-/// or else its `DISPLAY`.
+/// The display a process shows, from its `-display` argument as x11vnc takes
+/// it, or else from its `DISPLAY`.
 fn display_of(args: &[String], env: Option<&str>) -> Option<u32> {
 	args.iter()
 		.position(|a| a == "-display" || a == "--display")
@@ -256,8 +256,8 @@ fn viewed_by(display: u32, links: &[Link], sharers: &[Sharer]) -> bool {
 }
 
 /// The TCP opens since boot, and the connections up now, from the text of
-/// `/proc/net/snmp`. The established connections seldom change with neither
-/// moving.
+/// `/proc/net/snmp`. The established connections seldom change without one
+/// of these counts moving.
 fn tcp_counts(snmp: &str) -> Option<[u64; 2]> {
 	let mut rows = snmp.lines().filter_map(|l| l.strip_prefix("Tcp:"));
 	let (names, values) = (rows.next()?, rows.next()?);
@@ -271,7 +271,7 @@ fn tcp_counts(snmp: &str) -> Option<[u64; 2]> {
 	Some([crate::lan::opens(snmp)?, established])
 }
 
-/// Looks for a remote viewer, with no root. The kernel walks its whole
+/// Looks for a remote viewer, without root. The kernel walks its whole
 /// connection table for each read of `/proc/net/tcp`, a few ms on a box
 /// with a lot of memory, so the [`Link`]s found are kept until the TCP
 /// counters move.
@@ -478,7 +478,7 @@ mod tests {
 		assert!(!viewed_by(1, &links, std::slice::from_ref(&cm)));
 		assert!(!viewed_by(0, &links, &[tray]));
 		assert!(!viewed_by(0, &[], &[cm]));
-		// as b23's NoMachine node watches :0 with no client connected
+		// as NoMachine's node watches :0 with no client connected
 		let nx = || {
 			p(
 				Sign::NoMachineMonitor,

@@ -7,11 +7,9 @@ fn main() {
 	qt();
 }
 
-// The build number is the commit's time, so a rebuild of one commit gets the
-// same one. SOURCE_DATE_EPOCH wins when it's set. A tree with changes to what
-// goes into the program, or one outside git, isn't any commit, so it takes the
-// time of the build. main.rs shows it, and the day too unless
-// TUKZMON_RELEASE=1.
+// The build number is the commit's time, so a rebuild of a commit gets the same
+// number. SOURCE_DATE_EPOCH overrides it, and a changed tree or one outside git
+// uses the build time.
 fn built() {
 	let secs = std::env::var("SOURCE_DATE_EPOCH")
 		.ok()
@@ -87,7 +85,7 @@ fn qt() {
 	{
 		Ok(lib) => lib,
 		Err(e) => panic!(
-			"Qt 6 Widgets wasn't found, so the settings window can't be built: {e}\nOn Debian: apt install qt6-base-dev. Or build with --no-default-features."
+			"Qt 6 Widgets wasn't found, so the settings window can't be built: {e}\nOn Debian, install qt6-base-dev, or build with --no-default-features."
 		),
 	};
 	let mut b = cxx_build::bridge("src/bridge.rs");
@@ -100,7 +98,7 @@ fn qt() {
 		// cicd sets it, so a warning fails the gate but not someone's own build
 		// on a newer compiler
 		.warnings_into_errors(std::env::var("TUKZMON_WERROR").is_ok_and(|v| v == "1"));
-	// cxx.h's __FILE__ held the target dir, so a build elsewhere gave other bytes
+	// cxx.h's __FILE__ would put the target dir in the binary
 	for (var, to) in [("OUT_DIR", "/out"), ("CARGO_MANIFEST_DIR", "/src/settings")] {
 		if let Ok(dir) = std::env::var(var) {
 			b.flag(format!("-ffile-prefix-map={dir}={to}"));
@@ -113,7 +111,7 @@ fn qt() {
 		b.define(k, v.as_deref());
 	}
 	b.compile("tukzmon-settings-qt");
-	// after the archive, or the linker has already passed Qt by when it's needed
+	// after the archive, or the linker has passed Qt before it's needed
 	for dir in &lib.link_paths {
 		println!("cargo:rustc-link-search=native={}", dir.display());
 	}

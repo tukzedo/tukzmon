@@ -49,9 +49,8 @@ fn slider_ranges() -> &'static [(String, f64, f64)] {
 	})
 }
 
-/// How far a slider reaches, where `slider_range` in settings.shcl makes it
-/// shorter than the range the number box beside it takes. knobs has no such
-/// key, so it's read here.
+/// A slider's range, where `slider_range` in settings.shcl sets it shorter
+/// than the number box's. knobs has no such key, so it's read here.
 pub fn slider_range(id: &str) -> Option<(f64, f64)> {
 	slider_ranges()
 		.iter()
@@ -134,7 +133,7 @@ pub fn shown_when(id: &str) -> Option<(&'static str, &'static str)> {
 	.map(|(_, on, key)| (on.as_str(), key.as_str()))
 }
 
-// knobs drops a key it doesn't know with no word, so a typo such as `gaet:`
+// knobs silently drops a key it doesn't know, so a typo such as `gaet:`
 // is caught here instead.
 const KNOBS_ROW_KEYS: &[&str] = &[
 	"auto",
@@ -229,7 +228,7 @@ pub enum Split {
 	/// No split.
 	#[default]
 	Off,
-	/// Polls every TCP socket, with no root. UDP, QUIC among it, counts as
+	/// Polls every TCP socket, without root. UDP, QUIC included, counts as
 	/// internet.
 	Sockets,
 }
@@ -243,7 +242,7 @@ impl Split {
 	}
 }
 
-/// Whether graphs slide between samples. `animate` in settings.shcl, and
+/// Whether graphs slide between samples. See `animate` in settings.shcl, and
 /// design.md Drawing.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Motion {
@@ -252,7 +251,7 @@ pub enum Motion {
 	Auto,
 	/// Always slides.
 	On,
-	/// A whole step at each sample.
+	/// Moves a whole step at each sample.
 	Off,
 }
 
@@ -281,9 +280,9 @@ impl Motion {
 /// No graph is read more often than this while [`Look::calmed`].
 pub const CALM_MS: u32 = 1000;
 
-/// True for a setting [`Look::calmed`] stands in for: Sample ms default,
-/// each graph's sample %, and Smooth scrolling. The settings window greys
-/// them and says why.
+/// True for a setting that [`Look::calmed`] overrides, which is Sample ms
+/// default, each graph's sample %, and Smooth scrolling. The settings window
+/// grays them out and says why.
 pub fn calmed_id(id: &str) -> bool {
 	id == "sample_ms" || id == "animate" || Which::ALL.iter().any(|w| w.ids().sample == id)
 }
@@ -310,8 +309,8 @@ pub fn unthemed_is_custom(m: &mut Model) {
 	}
 }
 
-/// Before a save: knobs leaves out a theme pick that is the default, but
-/// still writes the Custom colors, which would read back as Custom.
+/// Call before a save. knobs leaves out a theme pick that's the default but
+/// still writes the Custom colors, which would then read back as Custom.
 pub fn name_the_theme(m: &mut Model) {
 	if unthemed(m) {
 		let on = m.stored_choice(THEME, &NoEnv);
@@ -333,8 +332,8 @@ pub struct SavedTheme {
 }
 
 /// A theme member's value as [`SavedTheme`] keeps it. The margins are
-/// numbers, the override checkboxes `on` or `off` as the window shows them,
-/// and the rest text.
+/// numbers, the override checkboxes are `on` or `off` as the window shows
+/// them, and the rest are text.
 pub fn theme_text(v: &knobs::Value) -> String {
 	match v {
 		knobs::Value::Text(t) => t.clone(),
@@ -394,7 +393,7 @@ pub fn saved_themes(doc: &shcl::Document) -> Vec<SavedTheme> {
 			let colors = g
 				.members
 				.iter()
-				// a saved theme owns its ids, apart from the spec's
+				// its own value, then the old shared outline color, then the default
 				.map(|id| {
 					let read = |id: &str| {
 						doc.get_string(&at(id))
@@ -413,7 +412,7 @@ pub fn saved_themes(doc: &shcl::Document) -> Vec<SavedTheme> {
 				.ok()
 				.map(|n| n.trim().to_string())
 				.filter(|n| !n.is_empty())
-				// with no name of its own it goes by its key, a copy since both are kept
+				// without a name it goes by its key, cloned since both are kept
 				.unwrap_or_else(|| key.clone());
 			SavedTheme { key, name, colors }
 		})
@@ -448,7 +447,7 @@ pub fn theme_problems(doc: &shcl::Document) -> Vec<String> {
 			};
 			if !fine {
 				out.push(format!(
-					"line {}: {path} isn't a theme value I can read",
+					"line {}: {path} isn't a theme value that can be read",
 					doc.line(&path)
 				));
 			}
@@ -517,7 +516,8 @@ pub fn themes_text(themes: &[SavedTheme]) -> String {
 	doc.to_canonical()
 }
 
-/// A key for a new theme from its name, not a built-in's nor one of `keys`.
+/// A key for a new theme, made from its name, that isn't a built-in's or one
+/// of `keys`.
 pub fn theme_key<'a, I>(name: &str, keys: I) -> String
 where
 	I: IntoIterator<Item = &'a str>,
@@ -553,7 +553,7 @@ where
 // `<graph>_<id>`.
 const SHARED_OUTLINE: [&str; 3] = ["border_color", "back_top", "back_bottom"];
 
-// The Outline sub-tab's border and background ids, each with one graph's.
+// Each shared outline id, paired with every graph's own copy of it.
 fn outline_pairs() -> impl Iterator<Item = (&'static str, String)> {
 	SHARED_OUTLINE.into_iter().flat_map(|shared| {
 		LEADS
@@ -577,8 +577,8 @@ const OLD_SHARED: [(&str, &str); 3] = [
 	("graph.colors.bottom", "back_bottom"),
 ];
 
-// Old paths moved on load: see shared_colors_upgraded and the disk graph's
-// log scale, which became its Vertical scale.
+// Moves old paths on load. That's the shared outline colors, and the disk
+// graph's log scale, which became its Vertical scale.
 fn upgraded(doc: &shcl::Document) -> Option<shcl::Document> {
 	let mut out = shared_colors_upgraded(doc);
 	if doc.exists(OLD_DISK_LOG) {
@@ -595,9 +595,9 @@ fn upgraded(doc: &shcl::Document) -> Option<shcl::Document> {
 const OLD_DISK_LOG: &str = "disk.log";
 
 // A file from before each graph had its own border and background gives every
-// graph the shared ones, so it keeps its look. The old paths are how it's told
-// apart: a save leaves out a graph's colors when they're its theme's, so a
-// missing one says nothing. 2026102820512294.
+// graph the shared ones, so it keeps its look. Only the old paths tell such a
+// file apart, since a save leaves out a graph's colors when they match its
+// theme. 2026102820512294.
 fn shared_colors_upgraded(doc: &shcl::Document) -> Option<shcl::Document> {
 	let bases = [String::new(), format!("kept.changes.{THEME}.values.")];
 	let old_at = |base: &String| OLD_SHARED.map(|(old, shared)| (format!("{base}{old}"), shared));
@@ -620,7 +620,7 @@ fn shared_colors_upgraded(doc: &shcl::Document) -> Option<shcl::Document> {
 		);
 		let paths = ids.filter_map(|id| Some(format!("{base}{}", spec.get(&id)?.path)));
 		for path in paths {
-			// a spec path, and text the file held already, so it takes
+			// a spec path, and text that was in the file already, so it takes
 			if !out.exists(&path) {
 				let _ = out.set_string(&path, &v);
 			}
@@ -645,7 +645,7 @@ pub fn model(text: &str) -> Model {
 	model_on(spec_with(&saved_themes(&doc)), &doc)
 }
 
-/// A color, red, green and blue.
+/// A color as red, green, and blue.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Rgb(pub u8, pub u8, pub u8);
 
@@ -677,8 +677,8 @@ pub struct Outline {
 	pub bottom: Rgb,
 }
 
-/// Each graph's section and its main series, the color it reads as in
-/// Detailed. In Gradient that's its Medium. See design.md Theme.
+/// Each graph's section and its main series, whose color the graph reads as
+/// in Detailed. In Gradient that's its Medium. See design.md Theme.
 pub const LEADS: [(&str, &str); 13] = [
 	("cpu", "user"),
 	("mem", "mem_user"),
@@ -699,7 +699,7 @@ pub const LEADS: [(&str, &str); 13] = [
 pub const ALARMS: [&str; 2] = ["iowait", "system"];
 
 /// A theme's leads, in `LEADS` order, each in the mode the theme draws its
-/// graph in. `get` gives a theme member's value by its setting id.
+/// graph in. `get` returns a theme member's value by its setting id.
 pub fn leads<'a>(get: impl Fn(&str) -> Option<&'a str>) -> Vec<Rgb> {
 	LEADS
 		.iter()
@@ -740,16 +740,16 @@ pub enum Which {
 	Temp,
 	/// Battery charge.
 	Battery,
-	/// tukzmon's own CPU and memory.
+	/// tukzmon's own CPU use.
 	Own,
 	/// Process counts.
 	Procs,
 }
 
 impl Which {
-	/// The order with nothing saved. Graphs a saved order leaves out go
-	/// last, in this order. Declaration order too, so a `Which` is its own
-	/// index in [`Look::graphs`].
+	/// The draw order when none is saved. Graphs a saved order leaves out go
+	/// last, in this order. It's also declaration order, so a `Which` is its
+	/// own index in [`Look::graphs`].
 	pub const ALL: [Which; 13] = [
 		Which::Cpu,
 		Which::Mem,
@@ -837,7 +837,7 @@ impl Which {
 	}
 }
 
-// A graph's setting ids, but its Detailed colors, which are `color_ids`.
+// A graph's setting ids, except its Detailed colors, which are in `color_ids`.
 #[derive(Debug)]
 struct GraphIds {
 	show: String,
@@ -873,7 +873,7 @@ pub const MOST_SERIES: usize = 5;
 /// One graph's settings in a [`Look`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct Each {
-	/// Draw it, where the box has it. CPU is drawn anyway when no other
+	/// Shown, where the box can read it. CPU is drawn anyway when no other
 	/// graph is.
 	pub show: bool,
 	/// A percentage of `width`. See [`Look::share`].
@@ -899,9 +899,9 @@ pub struct Each {
 pub struct Look {
 	/// Each graph's width in logical pixels, before its own share.
 	pub width: u32,
-	/// What a graph with no time axis of its own follows.
+	/// What a graph follows when it doesn't have its own time axis.
 	pub time: Timing,
-	/// What a graph with no vertical scale of its own follows.
+	/// What a graph follows when it doesn't have its own vertical scale.
 	pub vertical: Vertical,
 	/// Milliseconds between reads, before each graph's own rate.
 	pub sample_ms: u32,
@@ -911,10 +911,10 @@ pub struct Look {
 	pub motion: Motion,
 	/// Draw less often in a remote desktop session. See [`Look::calmed`].
 	pub calm_remote: bool,
-	/// Where this runs. Not in the file, since it's found at run time, by
-	/// [`crate::remote::session`].
+	/// Where this runs. It isn't in the file, since
+	/// [`crate::remote::session`] finds it at run time.
 	pub session: Session,
-	/// 0 to 1.
+	/// How far a squeezed column rises up toward its peak, 0 to 1.
 	pub spikes: f32,
 	/// The frame's width in logical pixels.
 	pub border: u32,
@@ -925,21 +925,22 @@ pub struct Look {
 	pub margin_lr: u32,
 	/// Save history and load it back on start.
 	pub keep: bool,
-	/// History older than this many seconds is dropped. Max age's days, hours
-	/// and minutes added up, and never under a minute.
+	/// History older than this many seconds is dropped. It's Max age's days,
+	/// hours, and minutes added up, and never under a minute.
 	pub max_age: u32,
-	/// Each graph's own, by [`Which`]: `look[Which::Mem].width`.
+	/// Each graph's own settings, indexed by [`Which`], as in
+	/// `look[Which::Mem].width`.
 	pub graphs: [Each; Which::ALL.len()],
 	/// How the network graph tells the LAN from the internet.
 	pub net_split: Split,
 	/// `/proc/diskstats` names, or `all`. See [`Look::drives`].
 	pub disk_drives: Vec<String>,
-	/// Graph names as saved, first drawn first. See [`graph_order`].
+	/// Graph names as saved, in draw order. See [`graph_order`].
 	pub order: Vec<String>,
-	/// The Outline sub-tab's. A graph draws with its own unless
-	/// `border_all` or `back_all` is on, and then each one's `outline` is these.
+	/// The Outline sub-tab's border color. A graph draws with its own unless
+	/// `border_all` or `back_all` is on, and then each one's `outline` uses these.
 	pub border_color: Rgb,
-	/// No background, so the panel shows through, whatever the theme.
+	/// Leaves out the background so the panel shows through, whatever the theme.
 	pub transparent: bool,
 	/// The background at the top, for every graph, when `back_all` is on.
 	pub top: Rgb,
@@ -969,7 +970,7 @@ impl IndexMut<Which> for Look {
 }
 
 impl Look {
-	/// The model as read from a file, so [`unthemed_is_custom`] applies.
+	/// From a model as read from a file, so [`unthemed_is_custom`] applies.
 	pub fn from_model(m: &Model) -> Look {
 		let custom;
 		let m = if unthemed(m) {
@@ -993,7 +994,7 @@ impl Look {
 			for (c, id) in colors.iter_mut().zip(w.color_ids()) {
 				*c = color(id);
 			}
-			// the Outline sub-tab's go over every graph's own when ticked
+			// the Outline sub-tab's colors replace every graph's own when checked
 			let pick = |all: bool, i: usize| {
 				color(if all {
 					SHARED_OUTLINE[i]
@@ -1089,8 +1090,8 @@ impl Look {
 	}
 
 	/// A graph's sample rate in ms from its percentage of Sample ms default,
-	/// rounded, and never under [`crate::FASTEST_MS`]. While [`Look::calmed`],
-	/// twice that, and never under [`CALM_MS`].
+	/// rounded, and never under [`crate::FASTEST_MS`]. While [`Look::calmed`]
+	/// it's twice that, and never under [`CALM_MS`].
 	pub fn rate(&self, percent: u32) -> u32 {
 		let ms = (u64::from(self.sample_ms) * u64::from(percent) + 50) / 100;
 		let ms = u32::try_from(ms).unwrap_or(u32::MAX).max(crate::FASTEST_MS);
@@ -1135,7 +1136,7 @@ impl Look {
 }
 
 /// The names in a `graph.order` line, lower case, each once. Commas work as
-/// well as spaces, and so does a list, which shcl hands back as its text.
+/// well as spaces, and so does a list, which shcl returns as its text.
 pub fn graph_order(text: &str) -> Vec<String> {
 	let mut names: Vec<String> = Vec::new();
 	for word in text.split(|c: char| c == ',' || c.is_whitespace()) {
@@ -1159,8 +1160,8 @@ pub fn config_dir() -> PathBuf {
 	base.join("tukzmon")
 }
 
-/// The shared file: what tukzmon-settings edits with no `--config`, and what
-/// a new panel item starts from. See [`instance_file`].
+/// The shared file, which tukzmon-settings edits without `--config` and a new
+/// panel item starts from. See [`instance_file`].
 pub fn config_file() -> PathBuf {
 	shared_file(&config_dir())
 }
@@ -1176,11 +1177,11 @@ pub fn instance_file(dir: &Path, id: i32) -> PathBuf {
 	dir.join(format!("plugin-{id}.shcl"))
 }
 
-/// Where a write to `path` goes: the file its links end at, even one that
-/// isn't there yet, so a save keeps the link rather than putting a file over it.
+/// Where a write to `path` goes, which is the file its links end at, even one
+/// that isn't there yet. So a save keeps the link rather than replacing it.
 pub fn through_links(path: &Path) -> PathBuf {
 	let mut at = path.to_path_buf();
-	// the kernel's own limit; a loop fails at the read before this matters
+	// the kernel's own limit, though a loop fails at the read first
 	for _ in 0..40 {
 		let Ok(to) = std::fs::read_link(&at) else {
 			break;
@@ -1195,11 +1196,12 @@ pub fn through_links(path: &Path) -> PathBuf {
 
 /// Gives `own` a copy of `shared` when it has no file yet, so an item set up
 /// before each one had its own keeps its look, and a new one starts from it.
-/// With neither, nothing is written, and the item has the defaults.
+/// When `shared` isn't there either, nothing is written and the item has the
+/// defaults.
 ///
 /// # Errors
 ///
-/// Whatever reading `shared` or writing `own` hit.
+/// Any error from reading `shared` or writing `own`.
 pub fn start_from(own: &Path, shared: &Path) -> std::io::Result<()> {
 	let own = &through_links(own);
 	if own.exists() {
@@ -1214,7 +1216,7 @@ pub fn start_from(own: &Path, shared: &Path) -> std::io::Result<()> {
 	std::fs::write(&tmp, text)
 		.and_then(|()| std::fs::rename(&tmp, own))
 		.inspect_err(|_| {
-			// the write's error is the one to give
+			// return the write's error rather than the cleanup's
 			let _ = std::fs::remove_file(&tmp);
 		})
 }
@@ -1236,7 +1238,7 @@ pub fn mark_of(own: &Path) -> PathBuf {
 ///
 /// # Errors
 ///
-/// Whatever checking, deleting, or writing hit. Nothing is marked then.
+/// Any error from checking, deleting, or writing. Nothing is marked then.
 pub fn claim(rc: &Path, own: &Path, history: &Path) -> std::io::Result<()> {
 	let mark = mark_of(own);
 	if !rc.try_exists()? {
@@ -1947,7 +1949,7 @@ mod tests {
 				"battery", "self", "procs",
 			]
 			.map(ramp);
-			// how far apart the leads look is dejbr's, by CIEDE2000, not hue angle
+			// dejbr checks how far apart the leads look, by CIEDE2000 rather than hue
 			if ramps.iter().all(|r| *r == ramps[0]) {
 				// one color, like dejbw's
 				continue;

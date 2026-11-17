@@ -86,8 +86,8 @@ fn sensors_in(dir: &str, buf: &mut String) -> Vec<(u32, Option<String>)> {
 /// `k10temp`. Zen's own limit is 95 C.
 pub const CRIT_UNKNOWN: f32 = 95.0;
 
-/// The CPU package in degrees C, the hottest one on a box with more than one
-/// socket, split at the critical level.
+/// The CPU package temperature in degrees C, split at the critical level. A
+/// box with more than one socket shows the hottest.
 #[derive(Debug, Default)]
 pub struct TempReader {
 	inputs: Vec<Kept>,
@@ -102,7 +102,7 @@ impl TempReader {
 		self.crit
 	}
 
-	/// Where normal ends and critical starts: [`Self::crit`], or else
+	/// Where normal ends and critical starts, which is [`Self::crit`] or else
 	/// [`CRIT_UNKNOWN`].
 	pub fn limit(&self) -> f32 {
 		self.crit.unwrap_or(CRIT_UNKNOWN)
@@ -143,7 +143,7 @@ impl Collector<2> for TempReader {
 		Self::probe_at(HWMON)
 	}
 
-	/// A sensor that stops reading drops out. None when all of them have.
+	/// A sensor that can't be read is left out. None when all of them fail.
 	fn read(&mut self) -> Option<[f32; 2]> {
 		let buf = &mut self.buf;
 		let limit = self.crit.unwrap_or(CRIT_UNKNOWN);
@@ -250,7 +250,7 @@ mod tests {
 			],
 		);
 		assert!(TempReader::probe_at(&none.at("hwmon")).is_none());
-		// a package sensor there that doesn't read
+		// a package sensor that can't be read
 		let junk = Tree::new(
 			"temp_junk",
 			&[

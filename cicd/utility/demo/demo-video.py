@@ -5,7 +5,7 @@
 ##		A real xfce4-panel with the release plugin runs on a private Xvfb (never
 ##		:0), under xfwm4, with a throwaway HOME. The mouse is driven through
 ##		XTEST, clicks get foley synced to the input times, and captions sit in a
-##		band under the desktop. 2 takes from one scene list:
+##		band under the desktop. It makes 2 takes from one scene list:
 ##		  video: 1920x1080 at 60 fps, h265, GDK_SCALE=2 and QT_SCALE_FACTOR=2, with audio
 ##		  gif:   960x540 at 50 fps, scale 1, silent
 ##		Both lay out the same, so scene coordinates are written once, in gif px.
@@ -174,8 +174,8 @@ MARK = "TUKZMON_DEMO_RUN"
 DESK_MARK = "TUKZMON_DEMO_DESK"
 
 # The clients on the private display get only these, plus LC_*. Anything else
-# from the desktop it's started in, such as SESSION_MANAGER, the session bus or
-# the ssh agent, would let the WM, panel or settings window reach the live session.
+# from the desktop it's started in, such as SESSION_MANAGER, the session bus, or
+# the ssh agent, would let the WM, panel, or settings window talk to the live session.
 KEPT_ENV = frozenset(
     ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LANGUAGE", "TZ", "TMPDIR", "TMP", "TEMP", "HOST_TEMP")
 )
@@ -282,7 +282,7 @@ def pick_display(wanted: str, explicit: bool) -> str:
     base = int(wanted.lstrip(":"))
     for num in range(base - 1, base - DISPLAY_TRIES, -1):
         if not display_taken(num):
-            log(f"display {wanted} is taken; using :{num}")
+            log(f"display {wanted} is taken, so using :{num}")
             return f":{num}"
     raise RuntimeError(f"no free display from {wanted} down {DISPLAY_TRIES}")
 
@@ -541,7 +541,7 @@ class Screen:
     def make_theme(self, wmhome: Path) -> str:
         base = Path("/usr/share/themes") / WM_BASE_THEME / "xfwm4"
         if not base.is_dir():
-            log(f"WARNING: theme {WM_BASE_THEME} not installed, so the WM default")
+            log(f"WARNING: theme {WM_BASE_THEME} isn't installed, so the WM uses its default")
             return "Default"
         dst = wmhome / ".themes" / WM_THEME / "xfwm4"
         dst.parent.mkdir(parents=True, exist_ok=True)
@@ -786,7 +786,7 @@ class Panel:
             stdin=subprocess.DEVNULL,
             start_new_session=True,
         )
-        # has the panel side's mark, so stop() takes it down too
+        # it gets the panel side's mark, so stop() takes it down too
         subprocess.Popen(
             [*self.sandbox(), sys.executable, "-c", TRAY, *TRAY_ICONS],
             env=self.desk_env(),
@@ -811,7 +811,7 @@ class Panel:
         raise RuntimeError("the panel never showed (see panel.log)")
 
     def find_item(self, pids: list[int], timeout: float = 10) -> int:
-        # the items beside it set where it lands, so it's measured rather than fixed
+        # its place depends on the items beside it, so it's measured rather than fixed
         scale = self.screen.scale
         deadline = time.time() + timeout
         while time.time() < deadline:
@@ -1453,7 +1453,7 @@ def encode_gif(rec: Rec, out_gif: Path, video_end_e: float) -> Path:
         ]
     )
     if not shutil.which("gifsicle"):
-        log("WARNING: no gifsicle, so the gif isn't optimized")
+        log("WARNING: gifsicle isn't installed, so the gif isn't optimized")
         return out_gif
     opt = out_gif.with_name(out_gif.stem + "-opt.gif")
     run(["gifsicle", "-O3", "--no-warnings", "-o", str(opt), str(out_gif)])
@@ -1478,7 +1478,7 @@ def media_seconds(path: Path) -> float:
 
 def rotate(out_dir: Path, prefix: str, ext: str) -> None:
     inc = REPO / "cicd/utility/include/gfs-rotate.bash"
-    # not the include as $0, or it takes itself for run rather than sourced, and exits
+    # the include can't be $0, or it thinks it was run rather than sourced, and exits
     run(
         ["bash", "-c", 'source "$1" && gfs_rotate "$2" "$3" "$4"', "bash", str(inc), str(out_dir), prefix, ext],
         stdout=subprocess.DEVNULL,
@@ -1588,7 +1588,7 @@ def record(opts: Options, take: Take, base: Path) -> None:
 
 
 def quarter_of_cpus() -> int:
-    # the encodes pin every core they get, so a heavy step's share, as cicd gives
+    # the encodes use every core they get, so they take a heavy step's share, as cicd gives
     return max(1, len(os.sched_getaffinity(0)) // 4)
 
 
@@ -1604,9 +1604,9 @@ def comma_list(text: str) -> list[str]:
 
 def parse_args() -> Options:
     ap = argparse.ArgumentParser(description="Record the tukzmon demo video and gif.")
-    ap.add_argument("--display", default="", help=f"pin a display; by default a search from {DEFAULT_DISPLAY} down")
-    ap.add_argument("--profile", default="video,gif", help="comma list: video,gif")
-    ap.add_argument("--scenes", default="", help="comma list; all by default")
+    ap.add_argument("--display", default="", help=f"pin a display, rather than search down from {DEFAULT_DISPLAY}")
+    ap.add_argument("--profile", default="video,gif", help="comma list of video and gif")
+    ap.add_argument("--scenes", default="", help="comma list, all by default")
     ap.add_argument("--lib-dir", default=str(REPO / "target/release"))
     ap.add_argument("--history-bin", default=str(REPO / "target/release/examples/demo-history"))
     ap.add_argument("--keep-work", action="store_true")
@@ -1620,7 +1620,7 @@ def parse_args() -> Options:
         "--jobs",
         type=job_count,
         default=quarter_of_cpus(),
-        help="threads for each ffmpeg; a quarter of the CPUs by default",
+        help="threads for each ffmpeg, a quarter of the CPUs by default",
     )
     args = ap.parse_args()
 
@@ -1661,7 +1661,7 @@ def exit_on_term() -> None:
     # session, panel and mounts up.
     def stop(signum: int, _frame: object) -> None:
         for sig in (signal.SIGTERM, signal.SIGHUP):
-            # not SIG_IGN, which what the cleanup starts would inherit
+            # not SIG_IGN, which the processes the cleanup starts would inherit
             signal.signal(sig, lambda *_: None)
         sys.exit(128 + signum)
 
@@ -1695,20 +1695,20 @@ if __name__ == "__main__":
 ##		  days of history from core/examples/demo-history.rs, and the settings
 ##		  window's Graphs tab.
 ##		- 2026-11-06: The panel has the usual items, with tukzmon at the right,
-##		  and the scenes' panel points are from wherever it lands.
+##		  and the scenes' panel points are from wherever it ends up.
 ##		- 2026-11-07: Type hints, dataclasses and enums, and the recorder split
 ##		  into the screen, panel, settings window and capture. A failed probe or
 ##		  rotation stops the run. The pointer moves through XTEST, the caption
 ##		  band's strut is on the same connection, and the panel stop waits on
 ##		  pidfds after one scan.
 ##		- 2026-11-09: Its processes get only a short list of env names, so the
-##		  WM, panel and settings window never reach the live session.
+##		  WM, panel, and settings window can't talk to the live session.
 ##		- 2026-11-09: TERM and HUP clean up as an error does. Its own run folder
 ##		  gets a run.pid for cicd's stale sweep, and the removal unmounts a
 ##		  FUSE mount inside it and won't walk into any other.
 ##		- 2026-11-10: Each ffmpeg gets --jobs threads, a quarter of the CPUs by
-##		  default, and a display whose socket answers counts as taken, lock
-##		  file or not.
+##		  default, and a display whose socket takes a connection counts as
+##		  taken, lock file or not.
 ##		- 2026-11-10: It removes its own run folder under a temp root not named
 ##		  tmp too, such as GitHub's _temp.
 ##		- 2026-11-11: A take of only some scenes leaves assets/demo.gif alone,

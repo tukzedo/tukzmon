@@ -17,11 +17,11 @@ const NET_DEV: &str = "/proc/net/dev";
 const CLASS: &str = "/sys/class/net";
 
 /// How often the LAN reader's away addresses are read again, besides when
-/// the interfaces change. One read cost about 0.4 ms on b23.
+/// the interfaces change. One read costs about 0.4 ms.
 const RELIST: Duration = Duration::from_secs(10);
 
 fn names(text: &str) -> impl Iterator<Item = &str> {
-	// the 2 header lines have no colon, and a name can't hold one
+	// the 2 header lines have no colon, and a name can't contain one
 	text.lines()
 		.filter_map(|line| line.split_once(':'))
 		.map(|(name, _)| name.trim())
@@ -32,24 +32,25 @@ fn names(text: &str) -> impl Iterator<Item = &str> {
 enum Link {
 	/// Has a `device` link, and counts.
 	Hardware,
-	/// A bridge, bond or VLAN over a hardware one, which carries it too.
+	/// A bridge, bond, or VLAN on top of a hardware link, so its traffic
+	/// crosses that one too.
 	Stacked,
-	/// A bridge, VPN tunnel, or VM or container link with no hardware under
-	/// it, so what it carries never crosses a counted one as itself.
+	/// A bridge, VPN tunnel, or VM or container link without any hardware
+	/// under it.
 	Virtual,
 }
 
 /// Which interfaces count: `lo`, and those on hardware, which have a
-/// `device` link in `/sys/class/net`. Bridges, VPN tunnels and VM and
-/// container links have none, and what they carry either crosses a counted
-/// one too or never leaves the box. A box with no hardware interface, such
-/// as a container, counts them all.
+/// `device` link in `/sys/class/net`. Bridges, VPN tunnels, and VM and
+/// container links don't have one. Their traffic either crosses a counted
+/// interface too or never leaves the box. A box without any hardware
+/// interface, such as a container, counts them all.
 #[derive(Debug)]
 struct Wired {
 	class: String,
 	known: Vec<(String, Link)>,
 	any: bool,
-	/// Goes up each time it looks again.
+	/// Goes up by 1 each time `sort` looks again.
 	looks: u32,
 }
 
@@ -117,8 +118,8 @@ impl Wired {
 		name == "lo" || !self.any || self.link(name) == Some(Link::Hardware)
 	}
 
-	/// True when what goes out by `name` never crosses a counted interface,
-	/// as with a VM's NAT bridge, a container's or a VPN tunnel.
+	/// True when traffic out by `name` never crosses a counted interface,
+	/// as with a VM's NAT bridge, a container's link, or a VPN tunnel.
 	fn away(&self, name: &str) -> bool {
 		self.any && name != "lo" && self.link(name) == Some(Link::Virtual)
 	}
@@ -152,10 +153,10 @@ fn on_ports(fdb: &[u8], ports: &[u16]) -> Vec<[u8; 6]> {
 		.collect()
 }
 
-/// The far ends behind a virtual port of a bridge that has a hardware
-/// interface too, such as a VM on b23's br0. The box's own address is on
-/// that bridge, but what goes to them never crosses the NIC. False when
-/// the neighbors can't be had.
+/// Adds the addresses behind a virtual port of a bridge that also has a
+/// hardware interface, such as a VM on br0. The box's own address is on
+/// that bridge, but traffic to them never crosses the NIC. False when the
+/// neighbors can't be read.
 fn guests(wired: &Wired, out: &mut Vec<IpAddr>) -> bool {
 	let mut macs = Vec::new();
 	for (bridge, _) in wired
@@ -179,17 +180,18 @@ fn guests(wired: &Wired, out: &mut Vec<IpAddr>) -> bool {
 		})
 }
 
-/// Every interface's addresses. False when they can't be had.
+/// Passes every interface's addresses to `each`. False when they can't be
+/// read.
 fn addresses(mut each: impl FnMut(&str, IpAddr)) -> bool {
 	let mut list: *mut libc::ifaddrs = std::ptr::null_mut();
 	// SAFETY: getifaddrs only writes the list head, which freeifaddrs below
-	// gives back.
+	// frees.
 	if unsafe { libc::getifaddrs(&raw mut list) } != 0 {
 		return false;
 	}
 	let mut at = list;
 	while !at.is_null() {
-		// SAFETY: every node and what it points to lives till freeifaddrs,
+		// SAFETY: every node and what it points to stays valid until freeifaddrs,
 		// and ifa_addr's family says which sockaddr it is.
 		unsafe {
 			let ifa = &*at;
@@ -218,8 +220,8 @@ fn addresses(mut each: impl FnMut(&str, IpAddr)) -> bool {
 	true
 }
 
-/// Received and sent bytes for each interface `keep` takes. None on a row
-/// that doesn't read.
+/// Received and sent bytes for each interface `keep` accepts. None when a
+/// row doesn't parse.
 pub(crate) fn parse_net_dev(
 	text: &str,
 	out: &mut Counts<2>,
@@ -258,7 +260,7 @@ fn rates(climb: &mut Climb<2>, wired: &mut Wired, text: &str, at: Instant) -> Op
 
 /// Bytes per second over the hardware interfaces, as [`Wired`] picks them.
 /// A counted interface that comes or goes, or a counter that wraps or
-/// resets, makes a gap.
+/// resets, leaves a gap.
 #[derive(Debug)]
 pub struct NetReader {
 	climb: Climb<2>,
@@ -287,7 +289,7 @@ impl Collector<3> for NetReader {
 		r.climb.primed().then_some(r)
 	}
 
-	/// Rates since the last call. The first call only primes it.
+	/// Rates since the last call. The first call only primes the reader.
 	fn read(&mut self) -> Option<[f32; 3]> {
 		rates(
 			&mut self.climb,
@@ -298,9 +300,9 @@ impl Collector<3> for NetReader {
 	}
 }
 
-/// What the network graph draws: [`NetReader`]'s 3 series split 5 ways by
-/// [`lan::split`]. With the split off, or no LAN reader, the LAN's 2 are 0
-/// and sent and received have it all.
+/// The network graph's 5 series, which are [`NetReader`]'s 3 split by
+/// [`lan::split`]. With the split off, or without a LAN reader, the 2 LAN
+/// series are 0 and sent and received get all the traffic.
 #[derive(Debug, Default)]
 pub struct Traffic {
 	net: NetReader,
@@ -316,8 +318,8 @@ impl Traffic {
 		self.lan.is_some()
 	}
 
-	/// Starts or stops the LAN reader. One that can't start leaves the split
-	/// off, and the next pick tries again.
+	/// Starts or stops the LAN reader. When it can't start, the split stays
+	/// off, and the next call with [`Split::Sockets`] tries again.
 	pub fn set_split(&mut self, split: Split) {
 		match split {
 			Split::Off => self.lan = None,
@@ -343,8 +345,8 @@ impl Collector<5> for Traffic {
 
 	/// A failed LAN poll is a gap, like a failed `/proc/net/dev` read, so
 	/// the LAN's bytes never show as internet. A socket that goes out by a
-	/// VM's, container's or VPN's interface isn't the LAN's, since the
-	/// network reader doesn't count those.
+	/// VM's, container's, or VPN's interface isn't counted as LAN, since the
+	/// network reader doesn't count those interfaces.
 	fn read(&mut self) -> Option<[f32; 5]> {
 		let net = self.net.read();
 		let lan = match &mut self.lan {

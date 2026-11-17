@@ -24,8 +24,8 @@ fn ratio(stored: u64, packed: u64) -> Option<f32> {
 	(packed > 0).then(|| (stored as f64 / packed as f64) as f32)
 }
 
-/// Used is the pool against the cap zswap stops taking pages at,
-/// `max_pool_percent` of all memory. None on a kernel without the rows.
+/// Used is the pool against zswap's cap, which is `max_pool_percent` of all
+/// memory. None on a kernel without the rows.
 pub fn zswap_squeeze(m: &Meminfo, max_pool_percent: u64) -> Option<Squeeze> {
 	let (pool, stored) = (m.zswap?, m.zswapped?);
 	let cap =
@@ -167,7 +167,7 @@ impl ZswapReader {
 			}
 			Pool::Zram(devices) => {
 				let (mut stored, mut packed, mut size) = (0, 0, 0);
-				// a device reset or removed since start just drops out
+				// a device that was reset or removed since start is skipped
 				for [mm_stat, disksize] in devices {
 					let Some((s, p)) = mm_stat.read(buf).and_then(parse_mm_stat) else {
 						continue;
@@ -310,7 +310,7 @@ mod tests {
 			("Zswap", Some([0.25]), Some(4.2))
 		);
 
-		// off, or on with no rows to read, falls to zram
+		// off, or on with no rows to read, falls back to zram
 		for (name, enabled, meminfo) in [("off", "N\n", MEMINFO_ZSWAP), ("old", "Y\n", MEMINFO_OLD)]
 		{
 			let t = Tree::new(
@@ -384,9 +384,9 @@ mod tests {
 		assert!(r.ratio().is_none_or(|x| x > 0.0));
 	}
 
-	// Out since 2026-10-28: the ratio moved from text over the graph to the
-	// tip, per backlog 2026102814061810, so there's no overlay to check. dejab
-	// has the rest.
+	// Commented out on 2026-10-28. Backlog 2026102814061810 moved the ratio
+	// from text over the graph to the tip, so there's no overlay left to
+	// check. dejab has the rest of its checks.
 	// // Test ID: dehy3
 	// #[test]
 	// fn graph_ratio_write_over_pool() {

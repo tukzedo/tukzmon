@@ -10,7 +10,7 @@ publish = false
 
 [features]
 default = ["qt"]
-# Off builds only the model side, for testing on a box with no Qt headers.
+# Turn it off to build only the model side, on a box without Qt headers.
 qt = ["dep:cxx", "dep:cxx-build", "dep:pkg-config"]
 
 [dependencies]

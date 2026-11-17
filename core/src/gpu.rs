@@ -2,10 +2,10 @@
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
 //! The first GPU's busy time and memory, for the GPU and GPU memory graphs.
-//! NVIDIA's through NVML, loaded at run time so a box without the driver
-//! still starts, AMD's from amdgpu's files in sysfs, and Intel's busy time
-//! from its sleep counter in sysfs. None of them needs root. See design.md,
-//! Data sources on Linux.
+//! NVIDIA's come from NVML, which is loaded at run time so a box without the
+//! driver still starts. AMD's come from amdgpu's sysfs files, and Intel's
+//! busy time from its sleep counter in sysfs. None of them needs root. See
+//! design.md, Data sources on Linux.
 
 use crate::collect::{Collector, Kept};
 
@@ -31,8 +31,8 @@ mod nvml {
 		pub(super) used: u64,
 	}
 
-	// nvmlMemory_v2_t. Its used leaves out what the driver keeps back,
-	// as nvidia-smi does (2026102915125135).
+	// nvmlMemory_v2_t. Its `used` leaves out what the driver reserves, as
+	// nvidia-smi does (2026102915125135).
 	#[repr(C)]
 	#[derive(Default)]
 	pub(super) struct MemoryV2 {
@@ -50,8 +50,8 @@ mod nvml {
 		(m.total > 0).then_some((m.used, m.total))
 	}
 
-	/// The library's calls used here. It's loaded once a process, and never
-	/// unloaded.
+	/// The library's calls used here. It's loaded once per process, and
+	/// never unloaded.
 	#[derive(Debug)]
 	pub(super) struct Lib {
 		pub(super) init: unsafe extern "C" fn() -> c_int,
@@ -77,8 +77,8 @@ mod nvml {
 		LIB.get_or_init(load).as_ref()
 	}
 
-	/// NVML, opened on the first device. NVML counts its opens, and the last
-	/// one dropped shuts it down, so a GPU graph that's hidden doesn't keep a
+	/// NVML, opened on the first device. NVML counts its opens, and dropping
+	/// the last one shuts it down, so a hidden GPU graph doesn't keep a
 	/// laptop's GPU awake (2026103115232174).
 	#[derive(Debug)]
 	pub(super) struct Nvml {
@@ -87,7 +87,7 @@ mod nvml {
 	}
 
 	impl Nvml {
-		/// Whether the library loads. That touches no GPU.
+		/// Whether the library loads. Loading it doesn't touch the GPU.
 		pub(super) fn loads() -> bool {
 			lib().is_some()
 		}
@@ -110,7 +110,7 @@ mod nvml {
 			}
 		}
 
-		/// A share of the last sample period, 0 to 1.
+		/// The busy share of the last sample period, 0 to 1.
 		pub(super) fn busy(&self) -> Option<f32> {
 			let mut u = Utilization::default();
 			// SAFETY: the device came from NVML, and u is the struct it fills.
@@ -234,9 +234,10 @@ use std::time::{Duration, Instant};
 const DRM: &str = "/sys/class/drm";
 const PCI: &str = "/sys/bus/pci/devices";
 
-// How long a card that may sleep reads idle before NVML lets go of it, and
-// how long it then stays shut past the card's own autosuspend delay. A set
-// time, not a count of reads, so a fast sample doesn't rest it in a lull.
+// How long a card that may sleep reads idle before NVML is closed, and how
+// long NVML then stays closed past the card's own autosuspend delay. These
+// are times rather than read counts, so a fast sample rate doesn't rest the
+// card in a short lull.
 const IDLE_FOR: Duration = Duration::from_secs(5);
 const REST_PAST_DELAY: Duration = Duration::from_secs(5);
 
@@ -277,8 +278,8 @@ fn drm() -> String {
 	DRM.to_owned()
 }
 
-/// Whether the first NVIDIA card is asleep, where the kernel may put it to
-/// sleep. The GPU graphs then read 0 without asking NVML.
+/// True when the kernel may put the first NVIDIA card to sleep and the card
+/// is asleep now. The GPU graphs then read 0 without asking NVML.
 pub fn nvidia_asleep() -> bool {
 	let mut buf = String::new();
 	Power::find(&pci()).is_some_and(|mut p| p.may_sleep(&mut buf) && p.asleep(&mut buf))
@@ -292,8 +293,8 @@ enum Card {
 	Intel(Intel),
 }
 
-/// A card's runtime power files. Reading them doesn't wake the card, as an
-/// NVML call or an amdgpu busy read does (2026110118380381).
+/// A card's runtime power files. Reading them doesn't wake the card, unlike
+/// an NVML call or an amdgpu busy read (2026110118380381).
 #[derive(Debug)]
 struct Power {
 	control: Kept,
@@ -302,8 +303,8 @@ struct Power {
 }
 
 impl Power {
-	/// The first function bound to the nvidia driver that's a display
-	/// card, in bus order, as NVML numbers them.
+	/// The first PCI function bound to the nvidia driver that's a display
+	/// card, in bus order, which is how NVML numbers them.
 	fn find(pci: &str) -> Option<Power> {
 		let mut names: Vec<String> = std::fs::read_dir(pci)
 			.ok()?
@@ -350,8 +351,8 @@ fn is_nvidia_display(dir: &str) -> bool {
 }
 
 /// NVML on the first NVIDIA card. Where the kernel may put the card to
-/// sleep, NVML stays shut while it's asleep, and lets go of it once it's
-/// been idle a while, since every NVML call keeps it awake.
+/// sleep, NVML stays closed while the card is asleep, and is closed once the
+/// card has been idle a while, since every NVML call keeps it awake.
 #[derive(Debug)]
 struct Nvidia {
 	nvml: Option<Nvml>,
@@ -388,8 +389,8 @@ impl Nvidia {
 		self.sleepy = self.power.as_mut().is_some_and(|p| p.may_sleep(buf));
 		if self.sleepy && resting() {
 			self.nvml = None;
-			// once it sleeps the rest has done its job, and whatever wakes it
-			// next is work to read, not something to wait out (2026110709074412)
+			// once it sleeps the rest is over, so whatever wakes it next is
+			// read at once (2026110709074412)
 			if self.power.as_mut().is_some_and(|p| p.asleep(buf)) {
 				REST_UNTIL.set(None);
 			}
@@ -408,7 +409,7 @@ impl Nvidia {
 	fn busy(&mut self, buf: &mut String) -> Option<f32> {
 		let n = match self.awake(buf) {
 			Awake::Open(n) => n,
-			// it went quiet before it rested, or it sleeps
+			// it was idle before the rest, or it's asleep
 			Awake::Resting => return Some(0.0),
 			Awake::Failed => return None,
 		};
@@ -421,7 +422,7 @@ impl Nvidia {
 		let n = match self.awake(buf) {
 			Awake::Open(n) => n,
 			Awake::Resting => {
-				// a card asleep holds nothing
+				// a sleeping card has nothing in use
 				if self.power.as_mut().is_some_and(|p| p.asleep(buf)) {
 					self.used = 0;
 				}
@@ -448,8 +449,8 @@ impl Nvidia {
 }
 
 /// Starts the shared rest once a card that may sleep has read idle for
-/// `idle_for()`, and says whether it did. A card with no busy share to give
-/// counts as idle.
+/// `idle_for()`, and returns whether it did. A card that can't give a busy
+/// share counts as idle.
 fn rest_after_idle(idle_since: &mut Option<Instant>, busy: Option<f32>, rest: Duration) -> bool {
 	if busy.is_some_and(|b| b > 0.0) {
 		*idle_since = None;
@@ -474,10 +475,11 @@ enum Awake<'a> {
 	Failed,
 }
 
-/// An amdgpu card's files, in its `device` folder, which is its PCI
-/// device's. A busy read wakes a card asleep, or fails, by kernel, and each
-/// one puts off its next sleep, so where it may sleep that waits as NVML
-/// does. The memory files are the driver's own counts, and wake nothing.
+/// An amdgpu card's files, in its `device` folder, which is the PCI
+/// device's folder. A busy read wakes a sleeping card, or fails on some
+/// kernels, and each read puts off the next sleep. So where the card may
+/// sleep, busy reads rest the way NVML does. The memory files are the
+/// driver's own counts, and reading them doesn't wake anything.
 #[derive(Debug)]
 struct Amd {
 	busy: Kept,
@@ -526,19 +528,20 @@ impl Amd {
 	}
 }
 
-// Where an Intel card's time asleep is, in ms, the first one there. i915
-// has the second wherever it has RC6, and puts each GT's own at the first
-// since 5.18. xe has the third.
+// Files with an Intel card's time asleep in ms, and the first one found is
+// used. i915 has the second wherever it has RC6, and since 5.18 puts each
+// GT's own count at the first. xe has the third.
 const INTEL_ASLEEP: [&str; 3] = [
 	"gt/gt0/rc6_residency_ms",
 	"power/rc6_residency_ms",
 	"device/tile0/gt0/gtidle/idle_residency_ms",
 ];
 
-/// An Intel card's time in RC6, the sleep its graphics core drops into as
-/// soon as it has nothing to run. Its busy share needs perf counters, which
-/// need root, so busy is the share of the time it was awake. That reads a
-/// little over the engines' own busy time (2026110920595600).
+/// An Intel card's time in RC6, which is the sleep state its graphics core
+/// enters as soon as it has nothing to run. The real busy share needs perf
+/// counters and root, so busy here is the share of time the card was awake.
+/// That reads a little higher than the engines' own busy time
+/// (2026110920595600).
 #[derive(Debug)]
 struct Intel {
 	asleep_ms: Kept,
@@ -553,11 +556,11 @@ impl Intel {
 		}
 	}
 
-	/// The first call only primes it.
+	/// The first call only primes the reader.
 	fn busy_at(&mut self, buf: &mut String, now: Instant) -> Option<f32> {
 		let asleep: u64 = self.asleep_ms.read(buf)?.trim().parse().ok()?;
 		let (was_asleep, then) = self.was.replace((asleep, now))?;
-		// gone down, as after the driver is loaded again, so this read primes
+		// the count went down, as after a driver reload, so this read primes
 		let slept = asleep.checked_sub(was_asleep)?;
 		let awake_for = now.duration_since(then).as_secs_f64() * 1000.0;
 		(awake_for > 0.0).then(|| (1.0 - slept as f64 / awake_for).clamp(0.0, 1.0) as f32)
@@ -596,8 +599,8 @@ impl Card {
 				let total = num(&mut amd.vram_total)?;
 				(total > 0).then_some((used, total))
 			}
-			// an integrated card's memory is the system's, and nothing short
-			// of root says how much of it the GPU holds
+			// an integrated card's memory is the system's, and only root can
+			// read how much of it the GPU uses
 			Card::Intel(_) => None,
 		}
 	}
@@ -744,7 +747,7 @@ mod tests {
 			std::fs::write(t.at(&format!("card0/device/{file}")), text).unwrap();
 		};
 		let (mut gpu, mut vram) = amd_readers(&t.at("card0/device"));
-		// the busy file would read 50, so it wasn't asked
+		// the busy file would read 50, so it wasn't read
 		assert_eq!((gpu.read(), vram.read()), (Some([0.0]), Some([0.25])));
 		// and isn't readable on a newer kernel while it sleeps
 		set("gpu_busy_percent", "junk\n");

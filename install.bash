@@ -4,16 +4,16 @@
 ##	Purpose:
 ##		Installs the newest tukzmon release from GitHub, for this user or for
 ##		the whole system. It finds the release, checks the package's sha256,
-##		says what it's about to do, and asks first. Run again on a current
-##		install, it changes nothing.
+##		says what it's about to do, and asks first. On a current install it
+##		changes nothing.
 ##		- A user install unpacks the package into the panel's folders under
 ##		  ~/.local, as utility/dev-install.bash does, with no sudo.
-##		- A system install hands the .deb or .rpm to apt-get, dnf, zypper or
+##		- A system install hands the .deb or .rpm to apt-get, dnf, zypper, or
 ##		  yum, with sudo.
 ##	Syntax:
 ##		bash <(curl -fsSL https://raw.githubusercontent.com/tukzedo/tukzmon/main/install.bash) [options]
 ##		--help lists the options.
-##	Needs: bash 3.2 or later, curl or wget, and sha256sum, shasum or openssl.
+##	Needs: bash 3.2 or later, curl or wget, and sha256sum, shasum, or openssl.
 ##	  A user install also needs dpkg-deb, rpm2cpio and cpio, bsdtar, or ar.
 ##	Exit: 0 installed or nothing to do, 1 failed, 2 bad arguments.
 ##	History: At bottom of script.
@@ -27,7 +27,7 @@
 installerVersion="1.0.0"
 ownerRepo="tukzedo/tukzmon"
 appName="tukzmon"
-## {version} {arch} and {ext} are filled in. {ext} is deb or rpm.
+## {version}, {arch}, and {ext} are filled in. {ext} is deb or rpm.
 assetPattern="tukzmon-{version}-linux-{arch}.{ext}"
 sumsPattern="tukzmon-{version}-sha256sums.txt"
 
@@ -51,33 +51,33 @@ fHelp() {
 ${appName} installer ${installerVersion}
 
 Installs the newest ${appName} release from GitHub, after checking its sha256.
-It says what it's about to do and asks first. Run again on a current install,
-it changes nothing.
+It says what it's about to do and asks first. On a current install it changes
+nothing.
 
 Usage:
   bash <(curl -fsSL ${rawBase}/install.bash) [options]
 
 Options:
   --release stable|dev   stable (default): the newest full release, or the
-                                           newest prerelease while there's none
+                                           newest prerelease if there isn't one
                          dev:              the newest release, prereleases too
   --target  user|system  user (default):   the panel's folders under ~/.local,
                                            with no sudo
                          system:           the .deb or .rpm, through apt-get,
-                                           dnf, zypper or yum, with sudo
+                                           dnf, zypper, or yum, with sudo
   --yes, -y              don't ask before installing
   --version              print this installer's version
-  --help, -h             this text
+  --help, -h             show this text
 
-The OS, the CPU and which package to use are worked out here.
+The installer works out the OS, the CPU, and which package to use.
 
 EOF
 }
 
 fLower() { echo "${1}" | tr '[:upper:]' '[:lower:]'; }
 
-## Https on the first request and every redirect, or a redirect could walk
-## the download down to http, where the checksum stops meaning anything.
+## HTTPS on every request and redirect, since over http the sums file could
+## be swapped along with the package.
 httpsOnly_curl=(--proto '=https' --proto-redir '=https')
 httpsOnly_wget=(--https-only)
 
@@ -86,8 +86,8 @@ fGet() {   ## fGet URL OUTFILE
 	else wget -qO "${2}" "${httpsOnly_wget[@]}" "${1}"; fi
 }
 
-## Only the API is rate limited per IP, so only it gets the optional token,
-## through a 0600 file rather than argv, where ps shows it to everyone.
+## Only the API is rate limited per IP, so only it gets the optional token.
+## The token goes in a 0600 file, since ps shows argv to everyone.
 authFile=""
 fAuthInit() {
 	[[ -n "${GITHUB_TOKEN:-}" ]] || return 0
@@ -100,7 +100,7 @@ fAuthInit() {
 	fi
 }
 
-## The body is kept whatever the status, since GitHub says why in it.
+## Keeps the body on any status, since GitHub's reason for an error is in it.
 fApi() {   ## fApi URL OUTFILE
 	local url="${1}" out="${2}" code="" rc=0
 	if [[ "${dlTool}" == curl ]]; then
@@ -129,10 +129,10 @@ fSha256() {
 	esac
 }
 
-## One line per release: tag, draft or -, pre or full. No jq: JSON strings
-## hold no raw newline, so the body goes on one line and each "tag_name"
-## starts a new one. A release's draft and prerelease flags come after its
-## tag and before the next one's.
+## Prints a line per release, as tag, draft or -, and pre or full. There's
+## no jq, but a JSON string can't contain a raw newline, so the body is
+## joined into one line and split again before each "tag_name". A release's
+## draft and prerelease flags come after its tag and before the next tag.
 fReleaseRows() {
 	tr -d '\r\n' | sed 's/"tag_name"/\
 "tag_name"/g' | awk '/^"tag_name"/ {
@@ -144,8 +144,8 @@ fReleaseRows() {
 	}'
 }
 
-## -1, 0 or 1 for one dotted field. Numbers sort below words, and beta10 is
-## above beta3.
+## Compares one dotted field and prints -1, 0, or 1. Numbers sort below
+## words, and beta10 is above beta3.
 fFieldCmp() {
 	local a="${1}" b="${2}" num='^[0-9]+$' word='^([^0-9]*)([0-9]+)$'
 	local aStem="" aNum="" bStem="" bNum=""
@@ -163,8 +163,9 @@ fFieldCmp() {
 	if [[ ${a} < ${b} ]]; then echo -1; elif [[ ${a} > ${b} ]]; then echo 1; else echo 0; fi
 }
 
-## Dotted lists, field by field. MISSING is what a shorter list's missing
-## field counts as: -1 in a prerelease, or 0 in the core, where 1.0 is 1.0.0.
+## Compares dotted lists field by field. MISSING is the value of a field a
+## shorter list doesn't have. It's -1 in a prerelease, and 0 in the core,
+## where 1.0 is 1.0.0.
 fListCmp() {   ## fListCmp A B MISSING
 	local a="${1}" b="${2}" missing="${3}" c=""
 	while [[ -n "${a}" || -n "${b}" ]]; do
@@ -192,8 +193,8 @@ fNewer() {   ## fNewer A B
 	[[ "$(fListCmp "${aPre}" "${bPre}" -1)" == 1 ]]
 }
 
-## The highest tag in the rows on stdin, with no drafts, and for stable no
-## prereleases. Prints nothing when there's none.
+## Prints the highest tag in the rows on stdin. Drafts are skipped, and so
+## are prereleases for stable. Prints nothing when there isn't one.
 fPickTag() {   ## fPickTag stable|dev
 	local want="${1}" tag draft pre best=""
 	while read -r tag draft pre; do
@@ -204,7 +205,7 @@ fPickTag() {   ## fPickTag stable|dev
 	[[ -z "${best}" ]] || echo "${best}"
 }
 
-## The temp folder is the one mktemp made, so that's the only one removed.
+## Removes only a folder with the name mktemp gave it.
 tmpDir=""
 fCleanup() {
 	if [[ -n "${tmpDir}" && "${tmpDir}" == /*/tukzmon-install.?????? && "${tmpDir}" != *..* && -d "${tmpDir}" && ! -L "${tmpDir}" ]]; then
@@ -213,8 +214,8 @@ fCleanup() {
 	fi
 }
 
-## 0 yes, 1 no, 2 nobody to ask. The terminal first, since with curl | bash
-## the script itself is on stdin.
+## Returns 0 for yes, 1 for no, and 2 when there's nobody to ask. It reads
+## the terminal first, since with curl | bash the script itself is on stdin.
 fConfirm() {
 	local answer=""
 	printf '%s [y/N]: ' "${1}"
@@ -226,7 +227,7 @@ fConfirm() {
 	case "${answer}" in y|Y|yes|Yes|YES) return 0 ;; *) return 1 ;; esac
 }
 
-## The package's files into DIR, by whichever tool is here.
+## Unpacks the package's files into DIR with whichever tool is installed.
 fUnpack() {   ## fUnpack PACKAGE DIR
 	local pkg="${1}" dir="${2}" member=""
 	case "${unpackTool}" in
@@ -285,8 +286,8 @@ fMain() {
 	elif command -v openssl > /dev/null 2>&1; then shaTool=openssl
 	else fFail "there's no sha256sum, shasum or openssl here" "Nothing is installed that can't be checked."; fi
 
-	## What reads the package: unpacking for a user, a package manager for
-	## the system.
+	## A user install unpacks the package, and a system install hands it to a
+	## package manager.
 	local ext="" pkgTool="" sudoCmd=""
 	unpackTool=""
 	if [[ "${target}" == user ]]; then
@@ -303,7 +304,7 @@ fMain() {
 			elif command -v yum > /dev/null 2>&1; then pkgTool=yum; fi
 			ext=rpm
 		fi
-		[[ -n "${pkgTool}" ]] || fFail "there's no apt-get, dnf, zypper or yum here for the .deb or .rpm" "Use --target user to install for this user instead."
+		[[ -n "${pkgTool}" ]] || fFail "there's no apt-get, dnf, zypper, or yum here for the .deb or .rpm" "Use --target user to install for this user instead."
 		if [[ "$(id -u)" != 0 ]]; then
 			command -v sudo > /dev/null 2>&1 || fFail "a system install needs root, and there's no sudo" "Run it as root, or use --target user."
 			sudoCmd=sudo
@@ -350,8 +351,8 @@ fMain() {
 		exit 1
 	fi
 
-	## Into the temp folder before the plan, so the plan can say what would
-	## change. Nothing outside it is touched until the answer is yes.
+	## Downloads into the temp folder before the plan, so the plan can say what
+	## would change. Nothing outside that folder is touched before a yes.
 	local pkg="${tmpDir}/${asset}"
 	echo "Downloading ${asset} ..."
 	fGet "${dlBase}/${tag}/${asset}" "${pkg}" || fFail "the download failed" "URL: ${dlBase}/${tag}/${asset}"
@@ -365,11 +366,11 @@ fMain() {
 	if pgrep -x -u "$(id -u)" xfce4-panel > /dev/null 2>&1; then panelUp=1; fi
 	if [[ "${target}" == user ]]; then
 		local dataHome="${XDG_DATA_HOME:-${HOME}/.local/share}" panelLib="" libTail="" unpacked="${tmpDir}/unpacked" lib="" missing=""
-		[[ "${dataHome}" == */share ]] || fFail "the panel reads no user plugins when XDG_DATA_HOME ('${dataHome}') doesn't end in /share"
-		## The panel pairs its user data folder with a lib folder under the
-		## same prefix, with its own lib folder's tail, such as
-		## lib/x86_64-linux-gnu on Debian. ldconfig is in /usr/sbin, which a
-		## Debian user's PATH doesn't have.
+		[[ "${dataHome}" == */share ]] || fFail "XDG_DATA_HOME is '${dataHome}', and the panel doesn't read any user plugins unless it ends in /share"
+		## The panel looks for user plugins in a lib folder under the data
+		## folder's prefix, with the same tail as its own lib folder, such as
+		## lib/x86_64-linux-gnu on Debian. ldconfig is in /usr/sbin, which isn't
+		## on a Debian user's PATH.
 		panelLib="$(PATH="${PATH}:/usr/sbin:/sbin" ldconfig -p 2> /dev/null | grep -m 1 -F 'libxfce4panel-2.0.so.4 ' | sed 's/.*=> //' || true)"
 		if [[ -n "${panelLib}" ]]; then
 			libTail="${panelLib%/*}"; libTail="lib${libTail##*/lib}"
@@ -384,8 +385,8 @@ fMain() {
 		fUnpack "${pkg}" "${unpacked}" || fFail "couldn't unpack ${asset}"
 		lib="$(find "${unpacked}" -name libtukzmon.so -type f | head -n 1)"
 		[[ -n "${lib}" && -f "${unpacked}/usr/bin/tukzmon-settings" && -f "${unpacked}/usr/share/xfce4/panel/plugins/tukzmon.desktop" ]] \
-			|| fFail "${asset} doesn't hold the files it should"
-		## Source, folder, mode, three to a row.
+			|| fFail "${asset} is missing files it should have"
+		## Each row is source, folder, and mode.
 		set -- "${lib}" "${libDir}" 0644 "${unpacked}/usr/bin/tukzmon-settings" "${libDir}" 0755 \
 			"${unpacked}/usr/share/xfce4/panel/plugins/tukzmon.desktop" "${shareDir}" 0644
 		while (($#)); do
@@ -411,7 +412,7 @@ fMain() {
 		fi
 		[[ -n "${pkgVer}" ]] || fFail "couldn't read the version in ${asset}"
 		[[ "${haveVer}" == "${pkgVer}" ]] || todo+=("${pkg}")
-		## A user install goes ahead of the package, for that user.
+		## For that user, the panel loads a user install ahead of the package.
 		for want in "${XDG_DATA_HOME:-${HOME}/.local/share}/xfce4/panel/plugins/tukzmon.desktop" "${HOME}"/.local/lib*/xfce4/panel/plugins/libtukzmon.so "${HOME}"/.local/lib/*/xfce4/panel/plugins/libtukzmon.so; do
 			[[ ! -e "${want}" ]] || notes+=("$(fShown "${want}") is a user install, which the panel loads ahead of the package. Remove it to use the package.")
 		done
@@ -474,7 +475,7 @@ fMain() {
 
 set -Eeuo pipefail
 shopt -s inherit_errexit 2> /dev/null || true
-## Sourced, it only defines the functions.
+## When sourced, it only defines the functions.
 if [[ "${BASH_SOURCE[0]:-}" == "${0}" || -z "${BASH_SOURCE[0]:-}" ]]; then
 	## "$@" with nothing in it is unbound under set -u in bash 3.2.
 	if (($#)); then fMain "${@}"; else fMain; fi

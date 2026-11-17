@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const MAGIC: &[u8; 8] = b"tukzhist";
-// 2 put each graph's series count at the head of its section, 2026103010491713
+// version 2 adds a series count at the head of each section, 2026103010491713
 const VERSION: u32 = 2;
 
 /// `$XDG_DATA_HOME/tukzmon`, else `~/.local/share/tukzmon`.
@@ -31,7 +31,7 @@ fn bad(what: &str) -> io::Error {
 ///
 /// # Errors
 ///
-/// Whatever creating the folder, writing, or renaming hit.
+/// Any error from creating the folder, writing, or renaming.
 pub fn write(path: &Path, sections: &[(&str, &[u8])]) -> io::Result<()> {
 	let out = pack(sections)?;
 	if let Some(dir) = path.parent() {
@@ -71,7 +71,7 @@ fn pack(sections: &[(&str, &[u8])]) -> io::Result<Vec<u8>> {
 	Ok(out)
 }
 
-// by pid, since 2 sessions can each run an item with one id
+// by pid, since 2 sessions can each run an item with the same id
 fn temp_of(path: &Path, pid: u32) -> PathBuf {
 	let mut tmp = path.as_os_str().to_owned();
 	tmp.push(format!(".{pid}.tmp"));
@@ -128,8 +128,8 @@ pub fn history_file(dir: &Path, id: i32) -> PathBuf {
 	dir.join(format!("plugin-{id}.hist"))
 }
 
-// the item id of a history file, or of its temp file, as a crash mid-write
-// leaves, or a failed one before 2026103115232061
+// the item id of a history file, or of a temp file left by a crash mid-write,
+// or by a failed write before 2026103115232061
 fn history_id(name: &str) -> Option<i32> {
 	let name = name.strip_suffix(".tmp").map_or(name, |n| {
 		n.rsplit_once('.')
@@ -142,7 +142,7 @@ fn history_id(name: &str) -> Option<i32> {
 }
 
 /// The panel item ids with a history file in `dir`, temp files included.
-/// A folder that doesn't read has none.
+/// A folder that can't be read gives none.
 pub fn history_ids(dir: &Path) -> Vec<i32> {
 	let Ok(entries) = std::fs::read_dir(dir) else {
 		return Vec::new();
@@ -155,8 +155,8 @@ pub fn history_ids(dir: &Path) -> Vec<i32> {
 	ids
 }
 
-/// The file whose modified time tells every running panel item to start its
-/// graphs over. See [`reset`].
+/// The file whose modified time is the signal for every running panel item
+/// to start its graphs over. See [`reset`].
 pub fn reset_mark(dir: &Path) -> PathBuf {
 	dir.join("reset")
 }
@@ -165,7 +165,7 @@ pub fn reset_mark(dir: &Path) -> PathBuf {
 ///
 /// # Errors
 ///
-/// Whatever else removing it hit.
+/// Any other error from removing it.
 pub fn remove(path: &Path) -> io::Result<()> {
 	match std::fs::remove_file(path) {
 		Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
@@ -173,14 +173,14 @@ pub fn remove(path: &Path) -> io::Result<()> {
 	}
 }
 
-/// Asks every panel item to start its graphs over. The history file of each
-/// item id that `goes` picks goes as well, and its temp files, so an item that
-/// isn't running doesn't bring it back. A running one that keeps history
-/// deletes its own again, since it may save in between.
+/// Asks every panel item to start its graphs over. For each item id `goes`
+/// picks, the history file and its temp files are deleted too, so an item that
+/// isn't running can't bring them back. A running item that keeps history
+/// deletes its own file again, since it may save in between.
 ///
 /// # Errors
 ///
-/// Whatever reading `dir`, deleting, or writing the mark hit.
+/// Any error from reading `dir`, deleting, or writing the mark.
 pub fn reset(dir: &Path, goes: impl Fn(i32) -> bool) -> io::Result<()> {
 	std::fs::create_dir_all(dir)?;
 	for entry in std::fs::read_dir(dir)? {
@@ -329,7 +329,7 @@ mod tests {
 		assert!(watch.asked());
 		assert!(!watch.asked());
 		assert!(hist.iter().chain(&other).all(|p| p.exists()));
-		// timestamps are coarse, so the next reset must be told apart
+		// mtimes are coarse, so wait to tell the next reset apart
 		std::thread::sleep(std::time::Duration::from_millis(50));
 		reset(&dir, |_| true).unwrap();
 		assert!(watch.asked());

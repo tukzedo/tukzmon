@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
-//! Every graph one panel item shows, side by side, or stacked on a vertical
-//! panel, with a little room across the panel and twice that between them.
-//! Each takes its width along the panel, so stacked, that's its height.
+//! The graphs one panel item shows, side by side or stacked on a vertical
+//! panel. A graph's width runs along the panel, so stacked, it's the height.
 
 use std::any::Any;
 use std::io;
@@ -17,8 +16,8 @@ use crate::{Graph, Source, clock_ms, wait_ms};
 
 /// Every graph in one panel item, and how they share its space.
 pub struct Graphs {
-	/// CPU always, shown or not. Any other only while shown, and where it
-	/// can be read.
+	/// CPU is always here, shown or not. Any other graph is here only while
+	/// it's shown and can be read.
 	slots: Slots,
 	/// Top to bottom, for a vertical panel.
 	pub stacked: bool,
@@ -27,8 +26,8 @@ pub struct Graphs {
 	order: [Which; Which::ALL.len()],
 	px: Vec<u32>,
 	/// The history file's sections that no graph here owns, such as a hidden
-	/// graph's, as of the last load. None before one, so a save reads the
-	/// file for them.
+	/// graph's, as of the last load. None before the first load, so a save
+	/// reads the file for them.
 	kept: Option<Vec<(String, Vec<u8>)>>,
 }
 
@@ -53,16 +52,16 @@ impl Which {
 	}
 }
 
-/// What [`Graphs`] needs of a graph, whatever it reads, so each one isn't
-/// handled by hand everywhere. `Any`, so a test can get at the graph itself.
+/// What [`Graphs`] needs of a graph, whatever it reads. It's `Any` so a test
+/// can get at the graph itself.
 pub trait Drawn: Any {
-	/// The graph its reader says it is.
+	/// Which graph this is, from its reader.
 	fn which(&self) -> Which;
 	/// The look it draws with.
 	fn look(&self) -> &Rc<Look>;
-	/// Read the source and keep it. The first call only primes it.
+	/// Reads the source and adds it to the history. The first call only primes.
 	fn sample(&mut self);
-	/// Reads the source when its next beat has come, and gives the ms from `at` to the beat after.
+	/// Reads the source when its beat has come, and returns the ms from `at` to the next.
 	fn tick(&mut self, at: f64) -> f64;
 	/// When `tick` last read the source, on [`crate::clock_ms`].
 	fn last_read_ms(&self) -> Option<f64>;
@@ -82,7 +81,7 @@ pub trait Drawn: Any {
 	fn clear(&mut self);
 	/// The graph's history file section.
 	fn section(&self) -> (&'static str, Vec<u8>);
-	/// Loads its own section, if `sections` has it. False if not.
+	/// Loads its own section from `sections`, or returns false if there isn't one.
 	fn adopt(&mut self, sections: &[(String, Vec<u8>)]) -> bool;
 	/// The pointer's device column, if it's over the graph.
 	fn hover(&self) -> Option<usize>;
@@ -176,7 +175,7 @@ impl<S: Source<N> + 'static, const N: usize> Drawn for Graph<S, N> {
 	}
 }
 
-// the saved order, unknown names skipped, then any it doesn't name
+// the saved order minus unknown names, then any graph it leaves out
 fn order_of(saved: &[String]) -> [Which; Which::ALL.len()] {
 	let mut out = Which::ALL;
 	let mut n = 0;
@@ -192,15 +191,15 @@ fn order_of(saved: &[String]) -> [Which; Which::ALL.len()] {
 	out
 }
 
-/// Every graph's name, first drawn first, from a saved `graph.order`. The
-/// settings window's graph list goes by this too, so it shows the panel's order.
+/// Every graph's name in draw order, from a saved `graph.order`. The settings
+/// window's graph list uses it too, so it shows the panel's order.
 pub fn draw_order(saved: &[String]) -> Vec<&'static str> {
 	order_of(saved).into_iter().map(Which::key).collect()
 }
 
 /// Puts the hover line on the graph `hit` names, at its device column, and
-/// takes it off every other one. True when that changed what's drawn. The
-/// settings window's graph list goes through this too.
+/// takes it off every other one. Returns true when that changes what's
+/// drawn. The settings window's graph list uses it too.
 pub fn point<'a, K: PartialEq + Copy>(
 	all: impl IntoIterator<Item = (K, &'a mut dyn Drawn)>,
 	hit: Option<(K, usize)>,
@@ -216,9 +215,9 @@ pub fn point<'a, K: PartialEq + Copy>(
 	changed
 }
 
-/// Reads each graph whose beat has come, at `at` on [`clock_ms`], and gives
-/// the ms to the next one's, for a one-shot timer. The settings window's graph
-/// list goes through this too.
+/// Reads each graph whose beat has come, at `at` on [`clock_ms`], and returns
+/// the ms to the next beat, for a one-shot timer. The settings window's graph
+/// list uses it too.
 pub fn tick<'a>(all: impl IntoIterator<Item = &'a mut dyn Drawn>, at: f64) -> u32 {
 	crate::mem::once_a_tick(|| {
 		wait_ms(
@@ -229,16 +228,16 @@ pub fn tick<'a>(all: impl IntoIterator<Item = &'a mut dyn Drawn>, at: f64) -> u3
 	})
 }
 
-/// `which`'s graph, or None on a box where it can't be read. The one place
-/// that knows each graph's reader, for [`Slots`].
+/// `which`'s graph, or None on a box where it can't be read. This is the
+/// only place that matches a graph to its reader.
 fn make(which: Which, look: &Rc<Look>) -> Option<Box<dyn Drawn>> {
 	fn boxed<S: Source<N> + 'static, const N: usize>(
 		which: Which,
 		g: Option<Graph<S, N>>,
 	) -> Option<Box<dyn Drawn>> {
 		const { assert!(S::WHICH.color_ids().len() == N, "a color per series") };
-		// before the probe's answer, so a test of every graph catches one
-		// put in another's slot on a box that can't read it
+		// checked before the probe, so a test catches a graph in the wrong
+		// slot even on a box that can't read it
 		debug_assert_eq!(S::WHICH, which, "each slot has its own graph");
 		Some(Box::new(g?))
 	}
@@ -263,9 +262,8 @@ fn make(which: Which, look: &Rc<Look>) -> Option<Box<dyn Drawn>> {
 	}
 }
 
-/// One place per [`Which`], at its own index, and the look every graph in
-/// them shares. [`Graphs`] and the settings window's graph list both keep
-/// their graphs in one.
+/// A slot per [`Which`], at its own index, plus the look every graph shares.
+/// [`Graphs`] and the settings window's graph list both use it.
 pub struct Slots {
 	look: Rc<Look>,
 	all: [Option<Box<dyn Drawn>>; Which::ALL.len()],
@@ -285,7 +283,7 @@ impl std::fmt::Debug for Slots {
 }
 
 impl Slots {
-	/// With each graph `wanted` made, where it can be read.
+	/// Makes each graph that `wanted` picks, where it can be read.
 	pub fn new(look: Look, wanted: impl Fn(&Look, Which) -> bool) -> Slots {
 		let look = Rc::new(look);
 		let all = Which::ALL.map(|w| {
@@ -323,7 +321,7 @@ impl Slots {
 			.filter_map(|(w, g)| Some((w, g.as_deref_mut()? as &mut dyn Drawn)))
 	}
 
-	/// Gives every graph there the new look. It makes none and drops none.
+	/// Gives every graph the new look, without making or dropping any.
 	pub fn set_look(&mut self, look: Look) {
 		self.look = Rc::new(look);
 		for g in self.all.iter_mut().flatten() {
@@ -331,9 +329,8 @@ impl Slots {
 		}
 	}
 
-	// as set_look, but drops each graph `wanted` no longer is, before it
-	// follows the look, and makes each wanted one that's missing. Gives the
-	// ones made.
+	// as set_look, but also drops graphs `wanted` no longer picks and makes
+	// missing ones. Returns the ones made.
 	fn switch(&mut self, look: Look, wanted: impl Fn(&Look, Which) -> bool) -> Vec<Which> {
 		self.look = Rc::new(look);
 		let mut made = Vec::new();
@@ -375,8 +372,8 @@ impl Graphs {
 		self.slots.look()
 	}
 
-	/// True when `which`'s graph is there: shown, and read on this box.
-	/// CPU's always is.
+	/// True when `which`'s graph is shown and can be read on this box. CPU's
+	/// always is.
 	pub fn has(&self, which: Which) -> bool {
 		self.slot(which).is_some()
 	}
@@ -404,7 +401,7 @@ impl Graphs {
 		}
 	}
 
-	/// In the order drawn.
+	/// The shown graphs, in the order drawn.
 	fn shown(&self) -> impl Iterator<Item = Which> + '_ {
 		self.order.into_iter().filter(|&w| self.is_shown(w))
 	}
@@ -424,10 +421,10 @@ impl Graphs {
 		self.shown().map(|which| self.width_of(which))
 	}
 
-	/// The size to ask a panel of `size` logical pixels for: the widths' sum
-	/// and the gaps along the panel, by `size` across it. Stacked, a graph's
-	/// width is its height, as multiload-ng's Size is, and time still runs
-	/// across.
+	/// The size to ask a panel of `size` logical pixels for. Along the panel
+	/// it's the widths plus the gaps, and across it's `size`. Stacked, a
+	/// graph's width is its height, as multiload-ng's Size is, and time still
+	/// runs across.
 	pub fn wanted(&self, size: u32) -> (u32, u32) {
 		let n = u32::try_from(self.count()).unwrap_or(u32::MAX);
 		let gaps = self
@@ -449,13 +446,13 @@ impl Graphs {
 		Which::optional().any(|w| self.slot(w).is_some() && !look[w].show)
 	}
 
-	/// Takes a new look, adding or dropping graphs to match. One added loads
-	/// its history from `history`, when that's given.
+	/// Takes a new look and adds or drops graphs to match. An added graph
+	/// loads its history from `history`, if given.
 	///
 	/// # Errors
 	///
-	/// As [`keep::read`], but not for a file that isn't there. The look is
-	/// taken anyway.
+	/// As [`keep::read`], except for a missing file. The look is taken
+	/// either way.
 	pub fn set_look(&mut self, look: Look, history: Option<&Path>) -> io::Result<()> {
 		if self.kept.is_some() {
 			for w in Which::optional().filter(|w| !look[*w].show) {
@@ -481,7 +478,7 @@ impl Graphs {
 		{
 			cpu.set_hover(None);
 		}
-		// one kept but not read, as CPU hidden, comes back with a gap
+		// a graph kept but not read, such as a hidden CPU, comes back with a gap
 		for w in Which::ALL {
 			if !self.is_shown(w)
 				&& let Some(g) = self.slot_mut(w)
@@ -492,7 +489,8 @@ impl Graphs {
 		res
 	}
 
-	/// A hidden graph isn't read, so it shows a gap when it's back.
+	/// Reads every shown graph. A hidden one isn't read, so it shows a gap
+	/// when it's back.
 	pub fn sample(&mut self) {
 		crate::mem::once_a_tick(|| {
 			for w in Which::ALL {
@@ -505,8 +503,8 @@ impl Graphs {
 		});
 	}
 
-	/// Reads each shown graph whose beat has come, and gives the ms to the
-	/// next one's. See [`Graph::tick`].
+	/// Reads each shown graph whose beat has come, and returns the ms to the
+	/// next beat. See [`Graph::tick`].
 	pub fn tick(&mut self) -> u32 {
 		self.tick_at(clock_ms())
 	}
@@ -548,8 +546,8 @@ impl Graphs {
 		}
 	}
 
-	/// Starts every graph over. With `saved`, that file goes too, a hidden
-	/// graph's history and all.
+	/// Starts every graph over. With `saved`, that file is deleted too, along
+	/// with any hidden graph's history in it.
 	///
 	/// # Errors
 	///
@@ -579,12 +577,12 @@ impl Graphs {
 	/// Every graph's history, plus any section in the file that none of them
 	/// owns, such as a hidden graph's, so showing it again brings it back.
 	/// Those come from the last [`Self::load`], or from the file before one.
-	/// A file that doesn't read, as one from a newer build, is left as it
-	/// is, until it reads or a [`Self::reset`] deletes it.
+	/// A file that can't be read, such as one from a newer build, is left
+	/// alone until it can be or a [`Self::reset`] deletes it.
 	///
 	/// # Errors
 	///
-	/// As [`keep::write`], or the file's read error when it doesn't read.
+	/// As [`keep::write`], or the read error when the file can't be read.
 	pub fn save(&self, path: &Path) -> io::Result<()> {
 		let ours: Vec<(&str, Vec<u8>)> = Which::ALL
 			.into_iter()
@@ -600,7 +598,7 @@ impl Graphs {
 				Err(e) => {
 					return Err(io::Error::new(
 						e.kind(),
-						format!("it doesn't read, so it's left as it is: {e}"),
+						format!("can't read the old file, so it's left alone: {e}"),
 					));
 				}
 			};
@@ -621,8 +619,8 @@ impl Graphs {
 
 	/// # Errors
 	///
-	/// As [`keep::read`], or `InvalidData` when no graph's history in it
-	/// reads. A graph with none in the file keeps what it has.
+	/// As [`keep::read`], or `InvalidData` when no graph's history in it can
+	/// be read. A graph without any history in the file keeps what it has.
 	pub fn load(&mut self, path: &Path) -> io::Result<()> {
 		let mut sections = match keep::read(path) {
 			Ok(s) => s,
@@ -663,11 +661,10 @@ impl Graphs {
 		}
 	}
 
-	// what the gaps leave along the panel is shared out by width, since the
-	// panel may not give exactly what was asked for. Stacked, that's down it.
-	// A panel too thin for the edges keeps most of itself for graphs. The
-	// item's 2 ends along the panel get no margin, since the panel spaces
-	// its items.
+	// the room left after the gaps is shared out by width, since the panel
+	// may not give exactly what was asked for. A panel too thin for the
+	// edges keeps most of itself for graphs. The item's ends get no margin,
+	// since the panel spaces its items.
 	fn tiles(&self, w: usize, h: usize, scale: usize) -> impl Iterator<Item = (Which, Tile)> + '_ {
 		let (n, stacked) = (self.count(), self.stacked);
 		let total = self.widths().map(|x| x as usize).sum::<usize>().max(1);
@@ -694,7 +691,7 @@ impl Graphs {
 
 	// which graph has device pixel (x, y), and the column in it. The edges
 	// count as the graph beside them, so a pointer pushed to the screen's edge
-	// still finds it. A gap between 2 finds neither.
+	// still finds it. A gap between 2 graphs finds neither.
 	fn find(
 		&self,
 		x: usize,
@@ -712,8 +709,8 @@ impl Graphs {
 			.map(|(which, t)| (which, t, x.clamp(t.0, t.0 + t.2 - 1) - t.0))
 	}
 
-	/// Puts the hover line under device pixel (x, y), or takes it away. True
-	/// when that changed what's drawn.
+	/// Puts the hover line under device pixel (x, y), or takes it away.
+	/// Returns true when that changes what's drawn.
 	pub fn hover(&mut self, at: Option<(usize, usize)>, w: usize, h: usize, scale: usize) -> bool {
 		let hit = at
 			.and_then(|(x, y)| self.find(x, y, w, h, scale))
@@ -1469,7 +1466,7 @@ mod tests {
 		std::fs::remove_file(&path).unwrap();
 	}
 
-	// cargo test -p tukzmon-core --release -- --ignored --nocapture time_a_save
+	// cargo test -p tukzmon-core --release -- --ignored --nocapture time_save_with_big_hidden
 	// Test ID: denb9
 	#[test]
 	#[ignore = "timing, by hand"]

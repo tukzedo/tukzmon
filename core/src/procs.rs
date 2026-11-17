@@ -13,7 +13,7 @@ use std::ptr::NonNull;
 
 use crate::collect::Collector;
 
-/// Below the first login user, as Debian and systemd number them.
+/// Uids below this are system ones, as Debian and systemd number them.
 const FIRST_USER: u32 = 1000;
 const NOBODY: u32 = 65534;
 
@@ -46,9 +46,9 @@ impl ProcsReader {
 	}
 }
 
-/// A folder kept open and listed again from the start, so a read is one
-/// `fstatat` a process, by name off the folder, with nothing allocated. A
-/// `std::fs::ReadDir` can't rewind, and makes 2 strings an entry.
+/// A folder kept open and listed again from the start, so a read costs one
+/// `fstatat` per process and allocates nothing. `std::fs::ReadDir` can't
+/// rewind, and makes 2 strings per entry.
 #[derive(Debug)]
 struct Listing(NonNull<libc::DIR>);
 
@@ -69,7 +69,7 @@ impl Listing {
 		};
 		// SAFETY: as above. Null is the end, or an error, which ends it too.
 		while let Some(entry) = NonNull::new(unsafe { libc::readdir(dir) }) {
-			// SAFETY: d_name is NUL-terminated, and holds until the next readdir.
+			// SAFETY: d_name is NUL-terminated, and valid until the next readdir.
 			let name = unsafe { CStr::from_ptr((*entry.as_ptr()).d_name.as_ptr()) };
 			if !name.to_bytes().iter().all(u8::is_ascii_digit) {
 				continue;
@@ -118,8 +118,8 @@ impl Collector<3> for ProcsReader {
 		Some(r)
 	}
 
-	// The folder's owner, as htop reads it, rather than a status file per
-	// process. A process that stopped itself being dumped reads as root's.
+	// Reads the folder's owner, as htop does, rather than a status file per
+	// process. A process that made itself undumpable reads as root's.
 	fn read(&mut self) -> Option<[f32; 3]> {
 		let dir = match &mut self.dir {
 			Some(d) => d,

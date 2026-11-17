@@ -205,10 +205,10 @@ pub mod ffi {
 		fn live_new(d: &Dialog) -> Box<Live>;
 		fn live_look(l: &mut Live, d: &Dialog);
 		fn live_clear(l: &mut Live);
-		/// Moves every graph's clock on `secs`, for the window soak.
+		/// Moves every graph's clock forward by `secs`, for the window soak.
 		fn live_skip(l: &mut Live, secs: f64);
-		/// Reads each graph whose beat has come, and gives the ms to the next
-		/// one's.
+		/// Reads each graph whose beat has come, and returns the ms until the
+		/// next beat.
 		fn live_sample(l: &mut Live) -> u32;
 		/// True when the last `live_sample` read the named graph.
 		fn live_read(l: &Live, name: &str) -> bool;
@@ -231,7 +231,7 @@ pub mod ffi {
 		fn live_leave(l: &mut Live) -> bool;
 		/// A tip broken into lines of at most `TIP_CHARS` characters.
 		fn wrap_tip(text: &str) -> String;
-		/// True while the graph slides or its time axis eases in, so it wants
+		/// True while the graph slides or its time axis eases in, so it needs
 		/// drawing again soon.
 		fn live_moving(l: &Live, name: &str) -> bool;
 		/// Screen frames between draws while a graph moves, on a screen of `hz`.
@@ -372,7 +372,7 @@ pub mod ffi {
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn empty_box_contrast(dark: bool) -> f64;
 		/// Pixels drawn in the accent on a slider set to half, enabled and
-		/// then greyed, under a palette whose disabled accent is the same as
+		/// then grayed, under a palette whose disabled accent is the same as
 		/// its active one.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn slider_accent_pixels() -> Vec<i32>;
@@ -661,7 +661,7 @@ fn live_leave(l: &mut Live) -> bool {
 	l.hover("", None, 0)
 }
 
-/// GTK's own tooltips wrap at 70 characters, so the panel's and these match.
+/// GTK wraps its tooltips at 70 characters, so the panel's tips and these match.
 pub const TIP_CHARS: usize = 70;
 
 fn wrap_tip(text: &str) -> String {
@@ -708,7 +708,7 @@ fn frames_apart(hz: f64) -> u32 {
 }
 
 /// Shows the window until it closes, or saves pictures of it to `snapshot`
-/// when that isn't "". The exit code.
+/// when that isn't "". Returns the exit code.
 pub fn run(d: &mut Dialog, snapshot: &str) -> i32 {
 	ffi::run_dialog(d, snapshot)
 }
@@ -726,11 +726,10 @@ mod tests {
 
 	type QtJob = Box<dyn FnOnce() + Send>;
 
-	// Runs a test that builds a QApplication on the one thread every such test
-	// shares. Qt keeps the plugins it loads on the thread that first loaded
-	// them. Each later app on another thread then warned on every plugin
-	// lookup, tens of thousands of times a run. One thread also means one app
-	// at a time, since 2 tests' windows crash each other.
+	// Runs a test that builds a QApplication on one shared thread. Qt ties its
+	// plugins to the thread that first loaded them, so an app on another thread
+	// warns on every plugin lookup. One thread also means one app at a time,
+	// the reason is because 2 tests' windows crash each other.
 	fn on_qt(test: impl FnOnce() + Send + 'static) {
 		static QT: std::sync::OnceLock<Option<std::sync::mpsc::Sender<QtJob>>> =
 			std::sync::OnceLock::new();
@@ -1507,7 +1506,7 @@ mod tests {
 				let mut words = line.split(' ');
 				let id = words.next().unwrap();
 				let at: Vec<i32> = words.map(|n| n.parse().unwrap()).collect();
-				// the theme's revert follows its buttons, not a color
+				// the theme's revert follows its buttons rather than a color
 				if id == "theme" {
 					continue;
 				}
@@ -1755,7 +1754,7 @@ mod tests {
 				std::process::id()
 			));
 			let mut d = Dialog::open(path).unwrap();
-			// the box's handler would reach rows already freed
+			// the box's handler would touch rows already freed
 			assert_eq!(ffi::teardown_while_typing(&mut d), [true, true, false]);
 		});
 	}
@@ -1972,7 +1971,7 @@ mod tests {
 	type Rect = [i32; 4];
 
 	// Opens the window on one offscreen screen of that size, with a frame
-	// round the window or none, and gives the screen less its panels, the
+	// around the window or none, and gives the screen less its panels, the
 	// window with its frame, and each tab's label, view and content.
 	fn fit_on(w: u32, h: u32, frame: bool) -> (Rect, Rect, Vec<(String, i32, i32)>) {
 		let dir = std::env::temp_dir();

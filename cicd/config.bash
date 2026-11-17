@@ -3,12 +3,12 @@
 
 ##	Purpose:
 ##		- tukzmon's settings for cicd.bash and the pre-push hook.
-##		  Assignments, and tests that run no command, since the hook sources
-##		  it too.
-##		- Tool pins live here. The image's Dockerfile repeats the ones it
+##		  Only assignments, and tests that don't run a command, since the
+##		  hook sources it too.
+##		- The tool pins are here. The image's Dockerfile repeats the ones it
 ##		  installs, and the Rust toolchain is pinned in rust-toolchain.toml,
-##		  since rustup reads it from there. Bump a pin on purpose: change it,
-##		  run the full pipeline, commit.
+##		  since rustup reads it from there. To bump a pin, change it, run the
+##		  full pipeline, and commit.
 ##	History: At bottom of file.
 
 ##	Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
@@ -46,9 +46,9 @@ TOOL_PINS=(
 RUST_NIGHTLY="nightly-2026-10-16"
 
 ## Paths that don't change the product. A push to main that changes only
-## these skips the merge gate. Bash patterns, matched against the whole path.
-## Nothing a package has, such as license.txt, since the Packages step reads
-## it (test deqvk).
+## these skips the merge gate. They're bash patterns, matched against the
+## whole path. A file a package includes, such as license.txt, doesn't go
+## here, since the Packages step reads it. Test deqvk checks that.
 DOCS_PATHS=(
 	'*.md'
 	'project/*'
@@ -70,25 +70,25 @@ MARKDOWNLINT_DISABLE_FOR=(
 ## version, gitignored.
 PACKAGE_DIR="cicd/artifacts/packages"
 
-## The profiler: core/examples/profile.rs, the panel's tick under pprof's
-## sampler, since perf can't record on b23. Its flamegraphs go here as
-## flame_<stamp>.svg, rotated, gitignored, and flame-report.py's summary of the
-## newest goes in the log. 20000 ticks are about 7 s of CPU (2026-10-25).
+## The profiler runs the panel's tick in core/examples/profile.rs under
+## pprof's sampler, since perf can't record on b23. Its flamegraphs go here as
+## flame_<stamp>.svg, rotated and gitignored, and flame-report.py's summary of
+## the newest goes in the log. 20000 ticks take about 7 s of CPU (2026-10-25).
 PROFILE_DIR="cicd/artifacts/profiling"
 PROFILE_ROUNDS=20000
 
-## The leak checks, "name|step function|length". The length is by measured
-## time: fast ones run in every run, slow ones in all but --quick and
-## --backlog-run-quick, and hours ones only in --long. --leakcheck adds every
-## one to any run, and --no-leakcheck takes every one out. The name, in lower
-## case, is its --backlog-run-quick area.
+## The leak checks, "name|step function|length". The length comes from
+## measured time. Fast ones run in every run, slow ones in all but --quick and
+## --backlog-run-quick, and long and hours ones only in --long. --leakcheck
+## adds every one to any run, and --no-leakcheck takes every one out. The
+## name, in lower case, is its --backlog-run-quick area.
 LEAK_CHECKS=(
 	## The tests under ASan and LSan, then tukzmon-settings --snapshot with
 	## its C++ under UBSan too. 1m 25s from a fresh target dir and about 5 s
 	## with nothing to rebuild, at 8 jobs and load 14 (2026-10-25).
 	"Sanitizers|fStepSanitizers|fast"
-	## The tests under Miri, one Miri per module. Hours, which would push the
-	## default run past its hour.
+	## The tests under Miri, one Miri per module. It takes hours, which is far
+	## too long for the default run.
 	"Miri|fStepMiri|hours"
 	## The soak test, core/tests/soak.rs. About 1 minute in a debug build.
 	"Soak|fStepSoak|slow"

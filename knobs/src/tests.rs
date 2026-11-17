@@ -57,7 +57,7 @@ fn demo_spec_indents() {
 	assert_eq!(
 		m.spec.at("scrim").indent,
 		Indent::Steps(0),
-		"a group is not a parent"
+		"a group isn't a parent"
 	);
 	let profile = m.spec.at("profile");
 	let keys: Vec<&str> = profile.options.iter().map(|(k, _)| k.as_str()).collect();
@@ -74,7 +74,7 @@ fn demo_spec_indents() {
 	assert_eq!(
 		m.spec.tabs_under(Some(look)).len(),
 		2,
-		"Text and Colors sit under Look"
+		"Text and Colors are under Look"
 	);
 }
 
@@ -173,16 +173,19 @@ fn case_only_twins() {
 		"\t\tcontrol: number\n",
 		"\t\tcontrol: dropdown\n\t\toptions: [\"low\", \"Low\"]\n\t\tdefault: low\n",
 	);
-	assert!(all.contains("n: options low and Low are one"), "{all}");
+	assert!(
+		all.contains("n: options low and Low differ only in case"),
+		"{all}"
+	);
 }
 
 // Test ID: df39b
 #[test]
 fn non_numeric_range_refused() {
 	let all = small_errs("range: [0, 10]", "range: [nan, 10]");
-	assert!(all.contains("n: a range end is not a number"), "{all}");
+	assert!(all.contains("n: a range end isn't a number"), "{all}");
 	let all = small_errs("range: [0, 10]", "range: [0, nan]");
-	assert!(all.contains("n: a range end is not a number"), "{all}");
+	assert!(all.contains("n: a range end isn't a number"), "{all}");
 	let all = small_errs("range: [0, 10]", "range: [0, 10]\n\t\tdetents: [nan, 5]");
 	assert!(all.contains("n: detent NaN is out of range"), "{all}");
 }
@@ -192,7 +195,7 @@ fn non_numeric_range_refused() {
 fn chooser_must_be_choice() {
 	let all = small_errs("\t\tdefault: one\n", "\t\tdefault: one\n\t\ttype: text\n");
 	assert!(
-		all.contains("group g: chooser pick is not a choice"),
+		all.contains("group g: chooser pick isn't a choice"),
 		"{all}"
 	);
 }
@@ -401,7 +404,7 @@ fn choice_case_insensitive() {
 	assert!(m.spec.valid(s, &text("bogus")).is_err());
 }
 
-// A file that names a temporary preset was not written by a save, and loads
+// A file that names a temporary preset wasn't written by a save, and loads
 // as if it named nothing.
 // Test ID: ddqvn
 #[test]
@@ -513,7 +516,7 @@ fn custom_starts_from_preset() {
 	let (config, _) = m.save(&DESK);
 	assert!(
 		!config.contains("set_aside"),
-		"a Custom value is not set aside:\n{config}"
+		"a Custom value isn't set aside:\n{config}"
 	);
 }
 
@@ -553,8 +556,8 @@ fn choose_auto_on_drops_changes() {
 	);
 }
 
-// A spec a program builds in code: a theme group with presets of its own, and
-// an opener whose default is the desktop's.
+// A spec a program builds in code. It has a theme group with presets of its
+// own, and an opener whose default is the desktop's.
 struct Shop {
 	dark: bool,
 }
@@ -685,7 +688,7 @@ fn program_presets() {
 	assert_eq!(
 		m.value("bg", &light),
 		text("#f4f4f0"),
-		"the program's answer moves"
+		"the program's value changes"
 	);
 	m.set("bg", &text("#123456"), &dark);
 	assert_eq!(m.shown_choice("theme", &dark), "SilkTerm *");
@@ -866,7 +869,7 @@ fn default_value_not_stored() {
 	assert_eq!(m.values, fresh, "back at the default is no change");
 	let (config, _) = m.save(&DESK);
 	assert!(!config.contains("idle_min"), "{config}");
-	// a file that names a default, as an older build wrote one, holds nothing
+	// a file that names a default, as an older build wrote one, loads as no change
 	let back = Model::load(m.spec.clone(), "window:\n\tidle_min: 5\n", "");
 	assert_eq!(back.values, fresh);
 	// a group member at its default on Custom is still part of Custom's set

@@ -3,8 +3,8 @@
 
 // The settings window in Qt Widgets. Rows come from settings.shcl through the
 // Rust side, and every change goes back there, so this file only lays out
-// controls and copies state onto them. Same model as SilkTerm's dialog: tabs
-// down the left, a revert arrow per row, and Cancel, Apply, OK.
+// controls and copies state onto them. It follows SilkTerm's dialog, with tabs
+// down the left, a revert arrow per row, and Cancel, Apply, and OK.
 
 #include "tukzmon-settings/src/qt.h"
 #include "tukzmon-settings/src/bridge.rs.h"
@@ -103,11 +103,10 @@ void softenSelection(QWidget *w) {
 	w->setPalette(pal);
 }
 
-// The parts set in, the pages that scroll and the tab list, sit darker than the
-// rest of the window, so a page reads apart from what stays put. The two shades
-// span the step from the theme's window color 1/16 of the way to its text
-// color, with the inset parts at the darker end and the rest 3/4 of the way to
-// the lighter. So a dark theme keeps its own window color for the inset parts.
+// The scrolling pages and the tab list are a shade darker than the rest, so a
+// page stands apart from what stays put. Both shades are within 1/16 of the way
+// from the window color to the text color, so a dark theme keeps its own window
+// color for the inset parts.
 QColor shadeOf(const QColor &back, const QColor &ink, bool inset) {
 	const float step = 1.0F / 16;
 	const float darker = ink.lightnessF() > back.lightnessF() ? 0.0F : step;
@@ -169,8 +168,8 @@ constexpr int BUTTON_PAD_DOWN = 8;
 class BoxStyle final : public QProxyStyle {
 public:
 	// Fusion fills a slider's groove in the palette's Highlight, and the GTK
-	// theme's disabled Highlight is the same accent, so a greyed slider stayed
-	// blue beside its greyed label.
+	// theme's disabled Highlight is the same accent, so a grayed slider stayed
+	// blue beside its grayed label.
 	void drawComplexControl(ComplexControl cc, const QStyleOptionComplex *opt, QPainter *p,
 		const QWidget *w) const override {
 		const auto *s = qstyleoption_cast<const QStyleOptionSlider *>(opt);
@@ -399,16 +398,16 @@ protected:
 };
 
 // For a dialog's destructor. Its members go before Qt deletes the children,
-// whose handlers reach them, and a shown child that loses the focus or the
-// pointer then fires one. So nothing of theirs runs once the members start
-// going.
+// whose handlers use them, and a shown child that loses the focus or the
+// pointer then fires one. So none of those handlers run once the members
+// start going.
 void quiet(QDialog *w) {
 	for (QObject *o : w->findChildren<QObject *>())
 		QObject::disconnect(o, nullptr, w, nullptr);
 	w->hide();
 }
 
-// SilkTerm's picker, not the toolkit's. The row behind follows every change,
+// SilkTerm's picker rather than the toolkit's. The row behind follows every change,
 // and Cancel puts back all of it.
 class ColorPicker final : public QDialog {
 public:
@@ -421,9 +420,9 @@ public:
 		square->moved = [this](double s, double v) { set(state.h, s, v); };
 		strip->moved = [this](double h, double) { set(h, state.s, state.v); };
 		square->setToolTip("Pick how strong the color is, left to right, and how bright, bottom to top. The "
-						   "arrow keys move it, and Shift with them moves it further.");
-		strip->setToolTip("Pick the color's hue, top to bottom. Up and Down move it, and Shift with them "
-						  "moves it further.");
+						   "arrow keys move the marker, and holding Shift moves it further.");
+		strip->setToolTip("Pick the color's hue, top to bottom. Up and Down move the marker, and holding "
+						  "Shift moves it further.");
 
 		state = pick_state(d);
 		auto *form = new QFormLayout;
@@ -600,8 +599,8 @@ public:
 		update();
 	}
 
-	// after a tick, so a tip left up keeps up, as the panel's does. One the
-	// tick didn't read would draw the same.
+	// after a tick, so an open tip stays current, as in the panel. A graph the
+	// tick didn't read would draw the same, so it isn't redrawn.
 	void tick(bool read) {
 		if (read)
 			update();
@@ -806,7 +805,7 @@ public:
 			if (parent) {
 				stackOf[i] = new QStackedWidget;
 				subPage.back() = {.stack = stackOf[i], .index = 0};
-				// no rule under the parent's rows: the shade change marks the edge
+				// no rule under the parent's rows, since the shade change marks the edge
 				auto *holder = new QWidget;
 				auto *v = new QVBoxLayout(holder);
 				v->setContentsMargins(0, 0, 0, 0);
@@ -965,8 +964,9 @@ public:
 		QDialog::moveEvent(e);
 		fitFrame();
 	}
-	// Opened to fit the screen, the frame then pushed the buttons past its
-	// bottom. So once the frame is known, take it off, and keep it on screen.
+	// The window opens sized to the screen, and then the frame pushes the
+	// buttons off the bottom. So once the frame is known, take it off the size
+	// and keep the window on screen.
 	void fitFrame() {
 		const QMargins frame = windowHandle() ? windowHandle()->frameMargins() : QMargins();
 		const QScreen *sc = screen();
@@ -1008,7 +1008,7 @@ public:
 		return out;
 	}
 	// the first color box, or the first whole number box at 10 or more that
-	// isn't greyed
+	// isn't grayed
 	QWidget *firstBox(bool number) const {
 		for (const auto &r : rows) {
 			if (number && r->spin && r->spin->isEnabled() && r->info.whole && r->spin->value() >= 10)
@@ -1069,8 +1069,8 @@ public:
 
 	bool askReset() {
 		return QMessageBox::question(this, "Reset history",
-				   "This deletes the saved history of every panel item, not only what's on "
-				   "screen, whether Keep across restarts is on or off.\n\nReset history?",
+				   "This deletes the saved history of every panel item, including ones that "
+				   "aren't on screen, whether Keep across restarts is on or off.\n\nReset history?",
 				   QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes;
 	}
 
@@ -1116,8 +1116,8 @@ public:
 		for (int i = 0; i < tabCount(); i++) {
 			select(i);
 			// A layout can ask for another as it settles, and a timer or the
-			// screen can post one any time, so it settles until a pass asks for
-			// none and none is left waiting.
+			// screen can post one any time, so loop until a pass doesn't ask for
+			// any and none are waiting.
 			for (int k = 0; k < 50; k++) {
 				layouts.reset();
 				QApplication::processEvents();
@@ -1662,7 +1662,7 @@ private:
 		if (r.info.same_line && prev && prev->grid == grid) {
 			// the row above keeps its label and revert, and shares its
 			// control's cell with this row's 3, and with the next same_line's.
-			// A layout, not a widget, so each label stays its box's sibling,
+			// A layout rather than a widget, so each label stays its box's sibling,
 			// where a screen reader looks for it.
 			QHBoxLayout *h = prev->joined;
 			if (!h) {
@@ -1707,7 +1707,7 @@ private:
 
 	// What a screen reader calls each of the row's controls, which have no
 	// text of their own. It finds a label only beside what it labels, so the
-	// buddy is the control, not a box inside it. A dropdown takes its label
+	// buddy is the control rather than a box inside it. A dropdown takes its label
 	// from there, since Qt on Linux names it by its text.
 	static void nameRow(Row &r, const QString &name) {
 		if (r.label)
@@ -1751,8 +1751,8 @@ private:
 			lr.revert->setIcon(QIcon::fromTheme("edit-undo", style()->standardIcon(QStyle::SP_BrowserReload)));
 			lr.revert->setAutoRaise(true);
 			lr.grip = new Gripper;
-			lr.grip->setToolTip("Drag up or down to move this graph, or use Up and Down here. The top one is "
-								"drawn first: on the left in a horizontal panel, on top in a vertical one.");
+			lr.grip->setToolTip("Drag up or down to move this graph, or use Up and Down here. The top graph in the "
+								"list goes first, on the left of a horizontal panel or at the top of a vertical one.");
 			nameRow(*lr.width, graph + " width %");
 			nameRow(*lr.sample, graph + " sample %");
 			nameRow(*lr.time, graph + " time axis");
@@ -1780,12 +1780,12 @@ private:
 		widthHead->setToolTip("How wide each graph is, or how tall on a vertical panel, as a percentage of Width px "
 							  "default, on the General tab.");
 		sampleHead->setToolTip("How often each graph is read and redrawn, as a percentage of Sample ms default, on "
-							   "the General tab. At 200% it's read half as often, and at 50% twice as often. Under "
-							   "50 ms counts as 50 ms.");
+							   "the General tab. At 200% it's read half as often, and at 50% twice as often. Anything "
+							   "under 50 ms counts as 50 ms.");
 		timeHead->setToolTip("How each graph spreads time across its width. Default follows Scale default under "
-							 "Time axis, on the General tab, where the tip tells the curves apart.");
-		verticalHead->setToolTip("How height goes up each graph. Global default follows Scale default under "
-								 "Vertical axis, on the General tab, where the tip tells the scales apart.");
+							 "Time axis, on the General tab, where its tip describes each curve.");
+		verticalHead->setToolTip("How each graph turns values into height. Global default follows Scale default "
+								 "under Vertical axis, on the General tab, where its tip describes each scale.");
 		listGrid->addWidget(widthHead, 0, 2);
 		listGrid->addWidget(sampleHead, 0, 3);
 		listGrid->addWidget(timeHead, 0, 4);
@@ -1940,7 +1940,7 @@ private:
 				r.radios.push_back(b);
 				r.keys.push_back(std::string(r.info.options[i]));
 				connect(b, &QRadioButton::toggled, this, [this, &r, i](bool on) {
-					// the one turned off says so too, and the other one covers it
+					// the button turned off fires too, and the one turned on handles it
 					if (!on)
 						return;
 					set_text(d, r.id(), r.keys[i]);
@@ -2000,13 +2000,13 @@ private:
 		renameTheme = new QPushButton("Rename...");
 		deleteTheme = new QPushButton("Delete");
 		auto *dice = new QPushButton("Randomize");
-		saveTheme->setToolTip("Keep the colors changed here in this theme.");
-		saveAs->setToolTip("Keep the colors showing as a new theme of your own.");
+		saveTheme->setToolTip("Save the colors changed here into this theme.");
+		saveAs->setToolTip("Save the colors shown here as a new theme of your own.");
 		renameTheme->setToolTip("Give this theme another name.");
 		deleteTheme->setToolTip("Delete this theme. Default is picked in its place.");
-		dice->setToolTip("Random colors for every graph, in one scheme around the User color, with the "
-						 "ones to watch kept red and orange. They're changes on this theme, so Save as keeps "
-						 "them and picking a theme drops them.");
+		dice->setToolTip("Pick random colors for every graph, in one scheme around the User color. Warning "
+						 "colors, such as I/O wait, stay red and orange. The new colors are changes on top of "
+						 "this theme, so Save as keeps them, and picking a theme drops them.");
 		for (auto *b : {saveTheme, saveAs, renameTheme, deleteTheme, dice})
 			b->setAutoDefault(false);
 		connect(saveTheme, &QPushButton::clicked, this, [this] {
@@ -2146,7 +2146,7 @@ private:
 			for (QWidget *w : {static_cast<QWidget *>(r.label), r.control, static_cast<QWidget *>(r.revert)})
 				if (w)
 					w->setVisible(st.shown);
-			// greyed while a switch above it is off, but its revert still works
+			// grayed while a switch above it is off, but its revert still works
 			for (QWidget *w : {static_cast<QWidget *>(r.label), r.control})
 				if (w)
 					w->setEnabled(st.counts);
@@ -2268,7 +2268,7 @@ private:
 			(void)!write(writeEnd, "w", 1);
 		errno = saved;
 	}
-	// a signal handler can reach nothing else
+	// a signal handler can't safely touch anything else
 	static inline volatile std::sig_atomic_t writeEnd =
 		-1; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 	std::array<int, 2> fds{-1, -1};
@@ -2300,9 +2300,9 @@ struct XcbClientMessage {
 };
 
 // A window on another workspace is unmapped there, and Qt doesn't ask to
-// activate a window it thinks is unmapped. So this asks the way a task list
-// does, as a pager, which the window manager follows to the window's
-// workspace or brings it over, as it's set to. Nothing on Wayland.
+// activate a window it thinks is unmapped. So this asks as a pager would, and
+// the window manager either switches to the window's workspace or brings the
+// window over, depending on its settings. Does nothing on Wayland.
 void askActive(QWidget &w) {
 	auto *x11 = qApp->nativeInterface<QNativeInterface::QX11Application>();
 	void *lib = x11 ? dlopen("libxcb.so.1", RTLD_LAZY | RTLD_NOLOAD) : nullptr;

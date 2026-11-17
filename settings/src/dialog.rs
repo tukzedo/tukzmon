@@ -40,7 +40,7 @@ pub struct RowState {
 	pub counts: bool,
 	/// The flyover text.
 	pub tip: String,
-	/// What a dropdown shows, with " *" on a theme changed on top of.
+	/// What a dropdown shows, with " *" on a theme that has changes on top.
 	pub choice: String,
 	/// A dropdown's keys and labels, which change as themes are saved.
 	pub options: Vec<(String, String)>,
@@ -191,9 +191,10 @@ fn carry<V: Clone + PartialEq>(
 	}
 }
 
-// The theme pick and the changes made on it are one thing. Once the file picks
-// another theme than this window, and this window changed either, its own go
-// whole, or its changes would land on the file's pick (2026110709074404).
+// The theme pick and its changes go together. When the file picks a different
+// theme than this window, and this window changed either, the window's pick and
+// changes are copied whole, or its changes would end up on the file's pick
+// (2026110709074404).
 fn carry_theme(was: &Model, now: &Model, file_pick: &str, to: &mut Model) {
 	if now.stored_choice(THEME, &NoEnv) == file_pick || !theme_touched(was, now) {
 		return;
@@ -277,15 +278,15 @@ impl Dialog {
 		})
 	}
 
-	/// Takes where this runs from `watch`, now and at each
-	/// [`Self::follow_session`]. Never saved.
+	/// Reads the session from `watch`, now and at each
+	/// [`Self::follow_session`]. It's never saved.
 	pub fn watch_session(&mut self, mut watch: Watch) {
 		self.session = watch.session(Instant::now());
 		self.watch = Some(watch);
 	}
 
 	/// Looks at the session again. True when it changed, so the rows it
-	/// greys and the graph previews need a refresh.
+	/// grays and the graph previews need a refresh.
 	pub fn follow_session(&mut self) -> bool {
 		let Some(watch) = &mut self.watch else {
 			return false;
@@ -327,15 +328,15 @@ impl Dialog {
 		self.model != self.saved || self.themes != self.saved_themes
 	}
 
-	/// Whether Reset history deletes any saved history: some panel item, this
-	/// one or another, has a history file, whether it keeps history now or not.
+	/// Whether Reset history deletes any saved history, which is true when any
+	/// panel item has a history file, whether it keeps history now or not.
 	pub fn reset_deletes_saved(&self) -> bool {
 		!keep::history_ids(&self.history_dir).is_empty()
 	}
 
 	/// Starts every graph in every panel item over now. Every item's saved
-	/// history goes too, Keep across restarts on or off, per backlog
-	/// 2026110709074402.
+	/// history is deleted too, whether Keep across restarts is on or not
+	/// (backlog 2026110709074402).
 	///
 	/// # Errors
 	///
@@ -355,7 +356,8 @@ impl Dialog {
 		self.themes.iter().position(|t| t.key == key)
 	}
 
-	/// Which theme buttons do anything now. None do off a saved theme.
+	/// Which theme buttons do anything now. None do unless a saved theme is in
+	/// force.
 	pub fn theme_buttons(&self) -> ThemeButtons {
 		if self.on_saved().is_none() {
 			return ThemeButtons::default();
@@ -564,7 +566,8 @@ impl Dialog {
 	/// [`Self::randomize`], from `seed`, so a test gets the same colors each time.
 	pub fn randomize_from(&mut self, seed: u64) {
 		let rolled = crate::dice::theme(seed);
-		// a set turns its gate on, and a roll is colors, not the overrides
+		// setting a color turns its gate on, but a roll only changes colors, so
+		// the gates go back after
 		let gates: Vec<(String, Value)> = rolled
 			.iter()
 			// owned, since the sets below take self
@@ -602,7 +605,7 @@ impl Dialog {
 				short.min, short.max, s.min, s.max
 			);
 		}
-		// greyed, but the value stays the person's own and is saved as it is
+		// grayed, but the value is kept and saved as it is
 		let remote = self.session == Session::Remote;
 		let calmed = remote
 			&& config::calmed_id(id)
@@ -617,7 +620,7 @@ impl Dialog {
 		if calmed {
 			tip.insert_str(
 				0,
-				"Set aside while this is a remote desktop session, by Reduce motion in remote session, on the General tab. It comes back in a local session.\n\n",
+				"Reduce motion in remote session, on the General tab, overrides this during a remote desktop session. It's used again in a local session.\n\n",
 			);
 		}
 		let on = v.as_bool();
@@ -725,9 +728,9 @@ impl Dialog {
 			.collect()
 	}
 
-	/// Per spec row, the graph whose section it's in, from that section's
-	/// `graph:` heading to the next one or the end of its tab, and whether it
-	/// sits beside the rest, from a `beside: true` heading on.
+	/// For each spec row, the graph whose section it's in, and whether it's
+	/// beside the rest. A section runs from its `graph:` heading to the next one
+	/// or the end of its tab, and `beside: true` applies from its heading on.
 	pub fn sections(&self) -> Vec<Option<(&'static str, bool)>> {
 		let mut now: Option<(&'static str, usize, bool)> = None;
 		self.spec
@@ -828,8 +831,8 @@ impl Dialog {
 		self.set(&id, &Value::Text(text));
 	}
 
-	/// A value typed into one of the picker's boxes. False while it says
-	/// nothing yet, and nothing changes.
+	/// A value typed into one of the picker's boxes. False while the text is
+	/// incomplete, and nothing changes.
 	pub fn pick_type(&mut self, field: Field, typed: &str) -> bool {
 		let Some(hsv) = self.pick_hsv() else {
 			return false;
@@ -891,7 +894,7 @@ impl Dialog {
 		};
 		if let Some(dir) = target.parent() {
 			std::fs::create_dir_all(dir)
-				.map_err(|e| format!("{} can't be made: {e}", dir.display()))?;
+				.map_err(|e| format!("{} can't be created: {e}", dir.display()))?;
 		}
 		let themes_text = config::themes_text(&themes);
 		let text = stamped(keep_notes(doc, &format!("{body}{themes_text}")));
@@ -920,9 +923,9 @@ fn stamped(mut text: String) -> String {
 	text
 }
 
-/// The file as `file` has it, comments and all, with the values of `fresh`
-/// in place of its own. `fresh` as it is when that wouldn't read back the same,
-/// such as with a raw block, so the values always win (2026103115232235).
+/// `file` with its comments, and with the values of `fresh` in place of its
+/// own. Where that wouldn't read back the same, such as with a raw block, it's
+/// `fresh` alone, so the values always win (2026103115232235).
 fn keep_notes(mut file: shcl::Document, fresh: &str) -> String {
 	let plain = format!("{HEADER}{fresh}");
 	let want = shcl::Document::parse(fresh);
@@ -1074,7 +1077,7 @@ mod tests {
 		assert!(keep::reset_mark(&data).exists());
 		assert!(!hist.exists());
 		let mut watch = keep::ResetWatch::new(&data);
-		// off in the window but not yet applied: the panel still keeps it
+		// off in the window but not applied yet, so the panel still keeps it
 		keep::write(&hist, &[("cpu", b"x")]).unwrap();
 		dlg.set("keep_history", &Value::Bool(false));
 		assert!(dlg.reset_deletes_saved());
@@ -1082,7 +1085,7 @@ mod tests {
 		std::thread::sleep(std::time::Duration::from_millis(50));
 		dlg.reset_history().unwrap();
 		assert!(watch.asked() && !hist.exists());
-		// off and applied: the saved file still goes, per backlog 2026110709074402
+		// off and applied, adn the saved file is still deleted (2026110709074402)
 		dlg.saved = dlg.model.clone();
 		keep::write(&hist, &[("cpu", b"x")]).unwrap();
 		assert!(dlg.reset_deletes_saved());
@@ -1758,10 +1761,15 @@ mod tests {
 		for id in set_aside {
 			let s = dlg.state(id);
 			assert!(!s.counts, "{id}");
-			assert!(s.tip.starts_with("Set aside while"), "{id}: {}", s.tip);
+			assert!(
+				s.tip
+					.starts_with("Reduce motion in remote session, on the General tab,"),
+				"{id}: {}",
+				s.tip
+			);
 		}
 		assert!(dlg.state(config::CALM_REMOTE).counts && dlg.state("cpu_width").counts);
-		// the previews follow the session, but the file keeps the person's own
+		// the previews follow the session, but the file keeps the saved values
 		assert!(dlg.look().calmed());
 		assert_eq!((dlg.look().rate(100), dlg.look().rate(300)), (1000, 2400));
 		dlg.apply().unwrap();

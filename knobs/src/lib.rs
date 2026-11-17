@@ -3,10 +3,10 @@
 
 //! Settings declared in shcl, and what a change to one does to the others.
 //!
-//! Three parts, top to bottom: the spec (parsed once from a compiled-in file),
-//! the stored values with the rules for reading and changing them, and the
-//! files they are saved to. Nothing here draws anything. `demo/demo.shcl`
-//! documents the spec format.
+//! From top to bottom, there's the spec, which is parsed once from a
+//! compiled-in file, then the stored values with the rules for reading and
+//! changing them, then the files they're saved to. Nothing here draws
+//! anything. The spec format is described in `demo/demo.shcl`.
 
 #![allow(clippy::must_use_candidate)]
 #![warn(missing_docs)]
@@ -130,7 +130,7 @@ pub enum Store {
 pub enum Rule {
 	/// A stored state value, by setting id.
 	State(String),
-	/// Answered by the program at run time, see [`Env`].
+	/// Looked up by the program at run time, through [`Env`].
 	Named(String),
 }
 
@@ -156,7 +156,7 @@ pub struct Setting {
 	pub control: Control,
 	/// What it holds.
 	pub kind: Kind,
-	/// Where it lives in its file.
+	/// Where it's stored in its file.
 	pub path: String,
 	/// Which file that is.
 	pub store: Store,
@@ -197,7 +197,7 @@ pub enum Indent {
 }
 
 impl Indent {
-	/// The steps, with none for one not worked out yet.
+	/// The steps, or 0 for one not worked out yet.
 	pub fn steps(self) -> u8 {
 		match self {
 			Indent::Steps(n) => n,
@@ -287,7 +287,7 @@ pub struct Spec {
 	pub groups: Vec<Group>,
 }
 
-// Block names a preset uses for itself, so no setting may have them as an id.
+// Block names a preset uses for itself, so a setting can't use them as an id.
 const PRESET_WORDS: &[&str] = &["label", "temporary"];
 
 impl Spec {
@@ -315,11 +315,11 @@ impl Spec {
 			.map(|s| s.id.as_str())
 			.collect()
 	}
-	// A value that is its setting's default stores nothing, so the setting
-	// follows a later change to the default, and the file lists only what was
-	// changed. A group's members keep theirs, since they are Custom's set, and
-	// so does its chooser, since the file's colors are read by it. So does one
-	// whose default is a rule's answer, which can change under it.
+	// A value equal to its default isn't stored, so the setting follows a later
+	// change to the default, and the file lists only what was changed. A
+	// group's members are stored anyway, since they're Custom's set, and so is
+	// its chooser, since the file's colors are read by it. So is a setting whose
+	// value always comes from a rule, which can change under it.
 	fn stores_nothing(&self, s: &Setting, v: &Value) -> bool {
 		*v == s.default
 			&& s.group.is_none()
@@ -392,9 +392,9 @@ impl Spec {
 		}
 	}
 
-	/// The last step of [`Spec::parse`], for a spec a program built itself:
-	/// choosers get their presets as options, the links are checked, and indents
-	/// are worked out. A group's `members` are filled here too.
+	/// The last step of [`Spec::parse`], for a spec a program built itself.
+	/// Choosers get their presets as options, the links are checked, and
+	/// indents are worked out. A group's `members` are filled here too.
 	///
 	/// # Errors
 	///
@@ -457,7 +457,7 @@ impl Spec {
 			let is_bool = |other: &str| self.get(other).is_some_and(|o| o.kind == Kind::Bool);
 			if let Some(g) = &s.gate {
 				if !is_bool(g) {
-					errs.push(format!("{id}: gate {g} is not a checkbox"));
+					errs.push(format!("{id}: gate {g} isn't a checkbox"));
 				}
 			}
 			if let Some(a) = &s.auto {
@@ -465,7 +465,7 @@ impl Spec {
 					errs.push(format!("{id}: auto with no rule"));
 				}
 				if !is_bool(a) {
-					errs.push(format!("{id}: auto {a} is not a checkbox"));
+					errs.push(format!("{id}: auto {a} isn't a checkbox"));
 				} else if self.at(a).auto.is_some() {
 					errs.push(format!("{id}: auto {a} is automatic itself"));
 				}
@@ -473,7 +473,7 @@ impl Spec {
 			if let Some(Rule::State(from)) = &s.rule {
 				if self.get(from).is_none_or(|f| f.store != Store::State) {
 					errs.push(format!(
-						"{id}: rule names {from}, which is not a state value"
+						"{id}: rule names {from}, which isn't a state value"
 					));
 				}
 			}
@@ -491,7 +491,7 @@ impl Spec {
 				}
 			}
 			if s.min.is_nan() || s.max.is_nan() {
-				errs.push(format!("{id}: a range end is not a number"));
+				errs.push(format!("{id}: a range end isn't a number"));
 			} else if s.control == Control::Slider
 				&& !(s.min < s.max && s.min.is_finite() && s.max.is_finite())
 			{
@@ -508,7 +508,7 @@ impl Spec {
 					.iter()
 					.find(|(t, _)| t.eq_ignore_ascii_case(k))
 				{
-					errs.push(format!("{id}: options {twin} and {k} are one"));
+					errs.push(format!("{id}: options {twin} and {k} differ only in case"));
 				}
 			}
 		}
@@ -529,18 +529,18 @@ impl Spec {
 		for g in &self.groups {
 			match self.get(&g.chooser) {
 				Some(c) if c.control == Control::Dropdown && c.kind != Kind::Choice => {
-					errs.push(format!("group {}: chooser {} is not a choice", g.id, c.id));
+					errs.push(format!("group {}: chooser {} isn't a choice", g.id, c.id));
 				}
 				Some(c) if c.control == Control::Dropdown => {
 					if matches!(g.presets, Presets::Listed(_))
 						&& g.preset(c.default.as_text()).is_none()
 						&& c.default.as_text() != CUSTOM
 					{
-						errs.push(format!("group {}: chooser default is not a preset", g.id));
+						errs.push(format!("group {}: chooser default isn't a preset", g.id));
 					}
 				}
 				_ => errs.push(format!(
-					"group {}: chooser {} is not a dropdown",
+					"group {}: chooser {} isn't a dropdown",
 					g.id, g.chooser
 				)),
 			}
@@ -656,8 +656,8 @@ impl Spec {
 		}
 	}
 
-	/// A value checked against what the setting takes. Ints and floats turn
-	/// into each other; nothing else is converted.
+	/// A value checked against what the setting takes. Ints and floats are
+	/// converted to each other, but nothing else is.
 	///
 	/// # Errors
 	///
@@ -700,7 +700,7 @@ impl Spec {
 				{
 					Ok(v.clone())
 				} else {
-					Err(format!("{t} is not one of the choices"))
+					Err(format!("{t} isn't one of the choices"))
 				}
 			}
 			(Kind::Bool | Kind::Int | Kind::Float | Kind::Text | Kind::Color | Kind::Choice, _) => {
@@ -727,7 +727,7 @@ fn read_setting(doc: &shcl::Document, id: &str, tabs: &[Tab]) -> Result<Setting,
 		"color" => Control::Color,
 		"file" => Control::File,
 		"none" => Control::None,
-		other => return Err(format!("control {other:?} is not one I know")),
+		other => return Err(format!("control {other:?} isn't one I know")),
 	};
 	let whole = doc.get_bool(&at("whole")).unwrap_or(false);
 	let kind = match text("type").as_str() {
@@ -746,7 +746,7 @@ fn read_setting(doc: &shcl::Document, id: &str, tabs: &[Tab]) -> Result<Setting,
 			Control::Heading | Control::Text | Control::File => Kind::Text,
 			Control::None => return Err("a control of none needs a type".into()),
 		},
-		other => return Err(format!("type {other:?} is not one I know")),
+		other => return Err(format!("type {other:?} isn't one I know")),
 	};
 	let tab = if matches!(control, Control::None) {
 		0
@@ -760,7 +760,7 @@ fn read_setting(doc: &shcl::Document, id: &str, tabs: &[Tab]) -> Result<Setting,
 	let (min, max) = match range.as_slice() {
 		[] => (f64::NEG_INFINITY, f64::INFINITY),
 		[lo, hi] => (*lo, *hi),
-		_ => return Err("range wants 2 numbers".into()),
+		_ => return Err("range needs 2 numbers".into()),
 	};
 	let labels = doc
 		.get_string_array(&at("detent_labels"))
@@ -793,12 +793,12 @@ fn read_setting(doc: &shcl::Document, id: &str, tabs: &[Tab]) -> Result<Setting,
 		"" | "linear" => Scale::Linear,
 		"log" => Scale::Log,
 		"exp" => Scale::Exp,
-		other => return Err(format!("scale {other:?} is not one I know")),
+		other => return Err(format!("scale {other:?} isn't one I know")),
 	};
 	let store = match text("store").as_str() {
 		"" | "config" => Store::Config,
 		"state" => Store::State,
-		other => return Err(format!("store {other:?} is not one I know")),
+		other => return Err(format!("store {other:?} isn't one I know")),
 	};
 	let rule = doc
 		.get_string(&at("rule"))
@@ -836,7 +836,7 @@ fn read_setting(doc: &shcl::Document, id: &str, tabs: &[Tab]) -> Result<Setting,
 	})
 }
 
-// shcl keeps ints and floats apart; a spec author shouldn't have to.
+// shcl keeps ints and floats apart, but a spec author shouldn't have to.
 fn number(doc: &shcl::Document, path: &str) -> Option<f64> {
 	doc.get_float(path)
 		.ok()
@@ -880,7 +880,7 @@ fn read_group(doc: &shcl::Document, id: &str, settings: &[Setting]) -> Result<Gr
 				continue;
 			};
 			if s.group.as_deref() != Some(id) {
-				errs.push(format!("preset {key}: {name} is not in this group"));
+				errs.push(format!("preset {key}: {name} isn't in this group"));
 				continue;
 			}
 			let path = p(&name);
@@ -972,11 +972,12 @@ impl Setting {
 	}
 }
 
-/// What the program answers at run time: a named rule, such as the desktop's
-/// font or colors picked from the wallpaper, and the presets of a group that
-/// has the program's own. `None` when there is nothing to follow.
+/// What the program looks up at run time. That's a named rule, such as the
+/// desktop's font or colors picked from the wallpaper, and the presets of a
+/// group that has the program's own. Each gives `None` when there's nothing to
+/// follow.
 pub trait Env {
-	/// The answer to a named rule.
+	/// The value of a named rule.
 	fn rule(&self, name: &str) -> Option<Value>;
 	/// A preset of a group that has the program's own.
 	fn preset(&self, _group: &str, _key: &str) -> Option<Preset> {
@@ -984,7 +985,7 @@ pub trait Env {
 	}
 }
 
-/// No answers, for code that never reaches a named rule.
+/// No values, for code that never uses a named rule.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct NoEnv;
 impl Env for NoEnv {
@@ -996,7 +997,7 @@ impl Env for NoEnv {
 /// Everything stored, by setting id.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Values {
-	/// The person's own values. For a group member it is the Custom set.
+	/// The person's own values. For a group member it's the Custom set.
 	pub own: BTreeMap<String, Value>,
 	/// Changes made while a preset is in force, the "*" ones.
 	pub changes: BTreeMap<String, Value>,
@@ -1045,19 +1046,19 @@ pub enum Source {
 	Held,
 }
 
-/// What the files hold, in spec order. `kept` lines have their full path.
+/// What goes in the files, in spec order. `kept` lines have their full path.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Lines {
 	/// The settings file, by path.
 	pub config: Vec<(String, Value)>,
-	/// Also the settings file, under `kept`: values set aside under a switch
-	/// that is on, and changes on a preset.
+	/// Also the settings file, under `kept`. These are values set aside under
+	/// a switch that's on, and changes on a preset.
 	pub kept: Vec<(String, Value)>,
 	/// The state file, by path.
 	pub state: Vec<(String, Value)>,
 }
 
-/// A spec and what is stored for it.
+/// A spec and what's stored for it.
 #[derive(Clone, Debug)]
 pub struct Model {
 	/// Shared by every model of one spec.
@@ -1073,7 +1074,7 @@ impl PartialEq for Model {
 	}
 }
 
-// A preset by key, from the spec or from the program. Custom is none.
+// A preset by key, from the spec or from the program. Custom gives None.
 fn preset_of<'a>(g: &'a Group, key: &str, env: &dyn Env) -> Option<Cow<'a, Preset>> {
 	if key == CUSTOM {
 		return None;
@@ -1113,7 +1114,7 @@ impl Model {
 		self.base(s, env)
 	}
 
-	// The rule's value while the auto checkbox is on and the rule has an answer.
+	// The rule's value while the auto checkbox is on and the rule gives one.
 	fn automatic(&self, s: &Setting, env: &dyn Env) -> Option<Value> {
 		let sw = s.auto.as_deref()?;
 		if !self.value(sw, env).as_bool() {
@@ -1130,8 +1131,8 @@ impl Model {
 		self.spec.valid(s, &v).ok()
 	}
 
-	/// What a setting has with nothing of its own: its rule's answer where it
-	/// has a rule and no switch, else its default.
+	/// What a setting has with nothing of its own. That's its rule's value
+	/// where it has a rule and no switch, or else its default.
 	pub fn default_of(&self, id: &str, env: &dyn Env) -> Value {
 		self.fallback(self.spec.at(id), env)
 	}
@@ -1145,8 +1146,8 @@ impl Model {
 		s.default.clone()
 	}
 
-	// A value of its own that counts as set. Where the default comes from a
-	// rule any value does, since the rule's answer can change under it.
+	// Whether it has a value of its own that counts as set. Where the default
+	// comes from a rule, any value counts, since the rule's value can change.
 	fn has_own(&self, s: &Setting) -> bool {
 		match self.values.own.get(&s.id) {
 			None => false,
@@ -1204,8 +1205,8 @@ impl Model {
 		}
 	}
 
-	/// Put a temporary preset in force, or take it away with `None`. It stores
-	/// nothing, and the "*" changes of the pick under it wait.
+	/// Put a temporary preset in force, or take it away with `None`. Nothing is
+	/// stored, and the "*" changes of the pick under it wait until it's gone.
 	pub fn temporary(&mut self, group: &str, key: Option<&str>) {
 		match key {
 			Some(k) => {
@@ -1296,7 +1297,7 @@ impl Model {
 		if starred { format!("{label} *") } else { label }
 	}
 
-	/// Only counts while every gate above it is on.
+	/// Whether a setting counts, which is only while every gate above it is on.
 	pub fn counts(&self, id: &str, env: &dyn Env) -> bool {
 		let mut at = self.spec.at(id).gate.as_deref();
 		while let Some(g) = at {
@@ -1359,7 +1360,8 @@ impl Model {
 		}
 	}
 
-	/// The tip: the description, a blank line, then where the value comes from.
+	/// The tip, which is the description, a blank line, then where the value
+	/// comes from.
 	pub fn tip(&self, id: &str, env: &dyn Env) -> String {
 		let mut out = self.spec.at(id).tip.clone();
 		let line = self.state_line(id, env);
@@ -1395,7 +1397,10 @@ impl Model {
 			),
 			Source::Automatic { kept: None } => "Automatic.".into(),
 			Source::Automatic { kept: Some(v) } => {
-				format!("Automatic. Your value, {}, is kept for later.", show(s, &v))
+				format!(
+					"Automatic. Your value of {} is kept for later.",
+					show(s, &v)
+				)
 			}
 			Source::Preset { preset, noun } => format!("From the {preset} {noun}."),
 			Source::Changed { preset, noun, was } => {
@@ -1443,8 +1448,8 @@ impl Model {
 		}
 	}
 
-	/// The reset arrow: a change goes back to its preset's value, anything else
-	/// to its default. It is the one way a value set by hand is thrown away.
+	/// The reset arrow. A change goes back to its preset's value, and anything
+	/// else to its default. It's the one way a value set by hand is thrown away.
 	pub fn reset(&mut self, id: &str, env: &dyn Env) {
 		let spec = Arc::clone(&self.spec);
 		let s = spec.at(id);
@@ -1543,8 +1548,8 @@ impl Model {
 		self.picking_again(id, env);
 	}
 
-	// Store a value where its setting keeps one right now: as a change while
-	// a preset is in force, or as its own.
+	// Store a value where its setting keeps one right now, as a change while
+	// a preset is in force or else as its own.
 	fn write(&mut self, id: &str, v: Value, env: &dyn Env) {
 		let spec = Arc::clone(&self.spec);
 		let s = spec.at(id);
@@ -1579,7 +1584,7 @@ impl Model {
 		}
 	}
 
-	// A change to a preset's row stops the machine choosing, and keeps the
+	// A change to a preset's row stops the program choosing, and keeps the
 	// preset it had chosen, since a fresh pick would undo the change.
 	fn pin_chooser(&mut self, group: &str, env: &dyn Env) {
 		let spec = Arc::clone(&self.spec);
@@ -1604,7 +1609,7 @@ impl Model {
 		self.values.changed_on.remove(group);
 	}
 
-	/// Fill a group's own set from what is showing, if it has none yet. Run
+	/// Fill a group's own set from what's showing, if it has none yet. Run
 	/// once on a first launch, so Custom starts as the preset in force.
 	pub fn fill_custom(&mut self, group: &str, env: &dyn Env) {
 		let spec = Arc::clone(&self.spec);
@@ -1614,15 +1619,15 @@ impl Model {
 		if members.iter().any(|m| self.values.own.contains_key(m)) {
 			return;
 		}
-		// the preset's own values, not what a rule shows over them
+		// the preset's own values rather than what a rule shows over them
 		for m in members {
 			let v = self.base(spec.at(m), env);
 			self.values.own.insert(m.clone(), v);
 		}
 	}
 
-	/// What the files hold. Own values go at their paths, except one under a
-	/// checkbox that is on, which goes under `kept.set_aside`. Changes go under
+	/// What goes in the files. Own values go at their paths, except one under a
+	/// checkbox that's on, which goes under `kept.set_aside`. Changes go under
 	/// `kept.changes`, with the preset they were made on, and stay there while a
 	/// temporary preset hides them. A group member's own value is its Custom
 	/// one, so it always stays put.
@@ -1691,8 +1696,8 @@ impl Model {
 	}
 
 	/// Read the files back. A value that fails its setting's checks is dropped,
-	/// as is a change made on a preset that is no longer the one picked, and a
-	/// value that is only its default, so the next save leaves it out.
+	/// as is a change made on a preset that's no longer the one picked, and a
+	/// value that's only its default, so the next save leaves it out.
 	pub fn load(spec: impl Into<Arc<Spec>>, config: &str, state: &str) -> Model {
 		Model::load_docs(
 			spec,

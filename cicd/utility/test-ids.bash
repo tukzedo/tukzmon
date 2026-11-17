@@ -3,11 +3,12 @@
 #  shellcheck enable=require-variable-braces  ## Every expansion braced: "${var}", not "$var".
 
 ##	Purpose:
-##		Test IDs. Every test has one, from when it was first committed: whole
-##		minutes since 2000-01-01 00:00 UTC, in lower-case Crockford base 32, so
-##		2026-10-24 22:00 UTC is decp8. 2 that come out the same take the next
-##		free minute, and an ID never changes, even when its test is renamed or
-##		moved. A Rust test has it on a "// Test ID: decp8" line just above
+##		Makes, lists, and checks test IDs. Every test has one, from when it was
+##		first committed. An ID is the whole minutes since 2000-01-01 00:00 UTC
+##		in lower-case Crockford base 32, so 2026-10-24 22:00 UTC is decp8. When
+##		2 come out the same, the second takes the next free minute. An ID never
+##		changes, even when its test is renamed or moved. A Rust test has it on
+##		a "// Test ID: decp8" line just above
 ##		its attributes, and a test of the pipeline in cicd/tests/*.bash on a
 ##		"## Test ID: decp8" line just above its fTest_ function.
 ##		Ported from silkterm's cicd/utility/test-id.py, which was base 62 in ms.
@@ -20,9 +21,9 @@
 ##		                                every Done item in the backlog has a
 ##		                                Test case row, and every ID one names
 ##		                                is a test's
-##		test-ids.bash annotate          a filter on cargo test's output (stderr
-##		                                too), turning each libtest result line
-##		                                into "PASS|FAIL|SKIP ID name"
+##		test-ids.bash annotate          a filter on cargo test's output, stderr
+##		                                included, that turns each libtest result
+##		                                line into "PASS|FAIL|SKIP ID name"
 ##	Exit: 0 fine, 1 check found a problem, 2 bad arguments.
 ##	History: At bottom of script.
 
@@ -125,8 +126,9 @@ fScan() {
 	fScanBash
 }
 
-## The pipeline's own tests, in cicd/tests/*.bash: each is an fTest_ function
-## with a "## Test ID: decp8" line just above it. The crate is the file's name.
+## The pipeline's own tests in cicd/tests/*.bash. Each is an fTest_ function
+## with a "## Test ID: decp8" line just above it, and the crate is the file's
+## name.
 fScanBash() {
 	local f; local -a files=()
 	for f in "${root}"/cicd/tests/*.bash; do [[ ! -f "${f}" ]] || files+=("${f#"${root}/"}"); done
@@ -189,8 +191,8 @@ fNew() {   ## fNew MINUTES COUNT
 
 fWhen() { local -i m; fDecode "$1" m || return 1; printf '%s  %s\n' "$1" "$(date -u -d "@$((epoch2000 + m * 60))" '+%Y-%m-%d %H:%M UTC')"; }
 
-## Items closed as Done with no Test case row, and IDs a Test case row names that no
-## test has. A word counts as an ID when it would be a sane one, so "seven",
+## Prints items closed as Done without a Test case row, and IDs a Test case
+## row names that no test has. A word counts as an ID when it would be a sane one, so "seven",
 ## which stands for 2050, doesn't.
 fBacklog() {   ## fBacklog FIRST NOW KNOWN-IDS-FILE
 	local log="${root}/project/backlog.md"
@@ -204,7 +206,7 @@ fBacklog() {   ## fBacklog FIRST NOW KNOWN-IDS-FILE
 		/^\t- Status: / { status = $0; sub(/^\t- Status: */, "", status) }
 		/^\t- Closed reason: / { reason = $0; sub(/^\t- Closed reason: */, "", reason) }
 		/^\t- Test case:/ {
-			## a test name in backticks can hold a word such as "depth"
+			## a test name in backticks can contain a word such as "depth"
 			tc = 1; row = $0; gsub(/`[^`]*`/, " ", row); n = split(row, w, /[^0-9a-z]+/)
 			for (i = 1; i <= n; i++) {
 				if (length(w[i]) != 5) continue

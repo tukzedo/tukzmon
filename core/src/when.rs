@@ -68,9 +68,9 @@ fn local(t: f64) -> Option<libc::tm> {
 	}
 }
 
-/// `t` in local time, in the locale's own short formats: just the time if it's
-/// on the same day as `now`, else the date and the time. Whether that's 12 or
-/// 24 hour is `LC_TIME`'s call, which GTK has set by the time a panel calls.
+/// `t` in local time, in the locale's own short formats. It's the time alone
+/// on the same day as `now`, or else the date and also the time. Whether that's 12
+/// or 24 hour is up to `LC_TIME`, which GTK has set by the time a panel calls.
 #[cfg(unix)]
 pub fn clock(t: f64, now: f64) -> Option<String> {
 	let tm = local(t)?;

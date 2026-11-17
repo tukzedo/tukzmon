@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
-//! tukzmon-settings: the settings window, a program of its own so every panel
-//! and platform can share it.
+//! The settings window. It's a program of its own so every panel and platform
+//! can share it.
 
-// missing_docs alone checks nothing in a program, so the clippy lint looks at
-// what the crate can see (clippy.toml)
+// missing_docs checks nothing in a binary crate, so the clippy lint does
+// (clippy.toml)
 #![warn(missing_docs, clippy::missing_docs_in_private_items)]
 
 use std::ffi::OsString;
@@ -27,10 +27,10 @@ const USAGE: &str = "Usage: tukzmon-settings [--config FILE]
 
 Opens the settings window for tukzmon's graphs.
 
-  --config FILE    Settings file to edit. A panel item passes its own. Default:
-                   ~/.config/tukzmon/tukzmon.shcl, what a new item starts from.
-  --snapshot PNG   Save a picture of each tab and the color picker, and quit, for
-                   checking the layout.
+  --config FILE    Settings file to edit. A panel item passes its own. The
+                   default is ~/.config/tukzmon/tukzmon.shcl, which a new item
+                   starts from.
+  --snapshot PNG   Save a picture of each tab and the color picker, then quit.
   -h, --help       Show this and quit.
   --version        Show the version and quit.";
 
@@ -120,9 +120,8 @@ fn main() -> ExitCode {
 	}
 }
 
-/// Writes a line to stdout without println!, which panics (and aborts in a
-/// release build) when the write fails. A closed pipe quits quietly, as `head`
-/// expects, and any other failure gets one line on stderr and a failure code.
+/// Writes a line to stdout. println! panics on a failed write, which aborts a
+/// release build. A closed pipe quits quietly, as `head` expects.
 fn print_text(out: &mut impl io::Write, text: &str) -> ExitCode {
 	match writeln!(out, "{text}").and_then(|()| out.flush()) {
 		Ok(()) => ExitCode::SUCCESS,
@@ -135,7 +134,7 @@ fn print_text(out: &mut impl io::Write, text: &str) -> ExitCode {
 }
 
 /// A line on stderr. eprintln! panics on a failed write too, and a closed
-/// stderr is no reason to hide the exit code.
+/// stderr shouldn't hide the exit code.
 fn complain(text: &str) {
 	let _ = writeln!(io::stderr().lock(), "{text}");
 }
@@ -151,9 +150,9 @@ fn version() -> String {
 	)
 }
 
-/// "tukzmon-settings v0.1.0 build decp8 (2026-10-24)". The build number is
-/// minutes since 2000 in Crockford base 32, and a dev build adds the day in
-/// the local time zone of whoever asks.
+/// Such as "tukzmon-settings v0.1.0 build decp8 (2026-10-24)". The build number
+/// is minutes since 2000 in Crockford base 32, and a dev build adds the day in
+/// the local time zone.
 fn version_line(minutes: u64, release: bool) -> String {
 	const DIGITS: &[u8; 32] = b"0123456789abcdefghjkmnpqrstvwxyz";
 	let mut build = Vec::new();
@@ -211,7 +210,7 @@ fn say_unreadable(text: &str) {
 	bridge::say_unreadable(text);
 }
 
-/// No Qt, no box. main says it on stderr too.
+/// Without Qt there's no box, and main prints the error on stderr anyway.
 #[cfg(not(feature = "qt"))]
 fn say_unreadable(_text: &str) {}
 

@@ -5,16 +5,16 @@
 #  shellcheck enable=require-variable-braces  ## Every expansion braced: "${var}", not "$var".
 
 ##	- Purpose: Run cicd.bash --merge-gate before a push moves main. A push to
-##	  dev, a feature branch or a tag isn't gated.
+##	  dev, a feature branch, or a tag isn't gated.
 ##	- A push to main whose changes are all under DOCS_PATHS in
-##	  cicd/config.bash skips the gate. That's judged against what the remote's
-##	  main has, so a new or unknown remote commit runs the gate.
-##	- It still gets the 2 checks that read docs, which take seconds:
-##	  markdownlint on the .md files it changes, and test-ids.bash check,
-##	  which reads the backlog's Test case rows.
-##	- Both run on the commit being pushed, in a detached worktree in the
-##	  run's temp folder, building into target/gate. Edits to the checkout,
-##	  made before or during the run, don't reach it.
+##	  cicd/config.bash skips the gate. The changes are taken against the
+##	  remote's main, so a new or unknown remote commit runs the gate.
+##	- A docs-only push still gets the 2 checks that read docs, which take
+##	  seconds. They're markdownlint on the .md files it changes, and
+##	  test-ids.bash check, which reads the backlog's Test case rows.
+##	- The gate and the docs checks run on the commit being pushed, in a
+##	  detached worktree in the run's temp folder, building into target/gate.
+##	  Edits to the checkout, made before or during the run, don't affect them.
 ##	- A commit with no cicd/cicd.bash in it, from before the pipeline, isn't
 ##	  gated.
 ##	- Escape hatch: TUKZMON_SKIP_HOOK=1, or `git push --no-verify`.
@@ -69,7 +69,7 @@ fDocsOnly() {   ## fDocsOnly OLD_SHA NEW_SHA [ARRAY]
 	((any))
 }
 
-## The lint log's tee, which the hook has no log for.
+## fLintMarkdown calls this, and the hook has no lint log to tee into.
 fLintRun() { "$@"; }
 
 ## The docs checks, in the worktree of NEW_SHA.
@@ -104,11 +104,12 @@ fDone() {
 }
 trap fDone EXIT
 
-## Never in place. A clean checkout can still change while a check runs.
+## Always in a worktree, since a clean checkout can still change while a check
+## runs.
 fTreeOf() {   ## fTreeOf SHA
-	[[ -n "${runTmp}" ]] || fRunTmpMake || { fSay "could not make a temp folder, so the push is refused"; exit 1; }
+	[[ -n "${runTmp}" ]] || fRunTmpMake || { fSay "couldn't make a temp folder, so the push is refused"; exit 1; }
 	worktree="${runTmp}/tree"
-	git -C "${root}" worktree add --detach --quiet "${worktree}" "$1" || { fSay "could not check ${1:0:12} out to check it"; exit 1; }
+	git -C "${root}" worktree add --detach --quiet "${worktree}" "$1" || { fSay "couldn't check out ${1:0:12} to test it, so the push is refused"; exit 1; }
 }
 fTreeDone() { if [[ -n "${worktree}" ]]; then git -C "${root}" worktree remove --force "${worktree}" || true; worktree=""; fi; }
 

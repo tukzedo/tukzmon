@@ -21,8 +21,8 @@ RUN sed -i -e "s|^URIs: http://deb.debian.org/debian-security|URIs: http://snaps
 		-e 's|^Signed-By:|Check-Valid-Until: no\nSigned-By:|' /etc/apt/sources.list.d/debian.sources \
 	&& ! grep -q deb.debian.org /etc/apt/sources.list.d/debian.sources
 
-# g++ for the cxx bridge and qt.cpp. The plugin links GTK, cairo and the panel
-# library by soname, so their runtime packages are enough. No -dev for those.
+# g++ for the cxx bridge and qt.cpp. The plugin links GTK, cairo, and the panel
+# library by soname, so their runtime packages are enough.
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
 		bash ca-certificates curl git xz-utils \
@@ -53,7 +53,7 @@ RUN cd /opt/mdl && PATH="/opt/node/bin:${PATH}" npm ci --no-fund --no-audit --ig
 	&& ln -s /opt/mdl/node_modules/.bin/markdownlint /usr/local/bin/markdownlint
 
 # The toolchain and components rust-toolchain.toml names, so rustup never
-# reaches for the network at run time.
+# needs the network at run time.
 ARG RUSTUP_VER=1.29.1
 ARG RUSTUP_SHA256=dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71
 ENV RUSTUP_HOME=/opt/rustup
@@ -90,8 +90,8 @@ RUN test -n "${RUST_NIGHTLY}" \
 	&& CARGO_HOME=/opt/cargo /opt/cargo/bin/rustup toolchain install "${RUST_NIGHTLY}" --profile minimal --component rust-src,miri \
 	&& rm -rf /opt/cargo/registry
 
-# The .deb and .rpm. rpm is only here to list what nfpm wrote. Last, so a bump
-# rebuilds nothing above it.
+# The .deb and .rpm. rpm is only here to list what nfpm wrote. Its own layer,
+# so a bump doesn't rebuild anything above it.
 ARG NFPM_VER=2.47.0
 ARG NFPM_SHA256=0660ca602b2d2d2ae4781a06c692b3eeb9d437ffea05b831d76e41f4a3188783
 RUN apt-get update \
@@ -118,14 +118,15 @@ RUN apt-get update \
 	&& rm -f /tmp/ruff.tgz
 
 # heaptrack for the window soak, from the snapshot like the rest. Its own
-# layer, so it rebuilds nothing above.
+# layer, so it doesn't rebuild anything above.
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends heaptrack \
 	&& rm -rf /var/lib/apt/lists/*
 
-# CodeQL for its step: the Rust and the C++ bundles, each the CLI plus one
-# language's extractor and queries, unpacked over each other. Their shared
-# files are the same, and the 2 come to half the all-language bundle. The
+# CodeQL for its step. The Rust and C++ bundles each have the CLI plus one
+# language's extractor and queries, and they're unpacked over each other.
+# Their shared files are identical, and the 2 together are half the size of
+# the all-language bundle. The
 # version is pinned in cicd/config.bash too. Its Rust extractor runs on a
 # toolchain of its own, with rust-src, which it would otherwise try to install
 # at run time, with no network and a rustup it can't write.
@@ -148,7 +149,7 @@ RUN apt-get update \
 	&& rm -rf /opt/cargo/registry
 
 # dbus-daemon for the test that runs the lock watch on a private bus (df3qt).
-# Last but the env, so it rebuilds nothing above.
+# Last but the env, so it doesn't rebuild anything above.
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends dbus-daemon \
 	&& rm -rf /var/lib/apt/lists/*

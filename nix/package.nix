@@ -11,7 +11,7 @@
   cairo,
   gtk3,
   xfce4-panel,
-  # The build number is this time. Nix's own default is 1980.
+  # The build number comes from this time. Nix's own default is 1980.
   sourceDateEpoch ? null,
 }:
 
@@ -53,8 +53,8 @@ rustPlatform.buildRustPackage {
   ];
 
   env = {
-    # xfce/build.rs links these by soname, which Nix's linker wrapper adds
-    # no rpath for.
+    # xfce/build.rs links these by soname, and Nix's linker wrapper doesn't
+    # add an rpath for them.
     RUSTFLAGS = "-C link-arg=-Wl,-rpath,${
       lib.makeLibraryPath [
         xfce4-panel

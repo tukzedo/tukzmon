@@ -2,7 +2,7 @@
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
 // The cicd profiler step's workload: the panel's tick, sampled on SIGPROF in
-// this process, since perf can't record on b23. A week of history goes in
+// this process, since perf can't record without root. A week of history goes in
 // first, unsampled, so the axis and the draw see a full graph. The canvas is
 // what the graphs ask a panel for, and the timer runs on the beats the panel
 // would wake on, only faster.
@@ -34,8 +34,8 @@ const RUNS: usize = 5;
 /// pprof files a sample under the start address of each function on its
 /// stack, then names the whole bucket from the inline frames of whichever
 /// sample opened it. Fat LTO folds most of a tick into a few functions, so one
-/// name would take all of each. Answering with the address itself files each
-/// instruction on its own. From shcl's, by way of tukfs-hash's.
+/// name would get all of each one's samples. Returning the address itself
+/// files each instruction on its own. From shcl's, by way of tukfs-hash's.
 #[unsafe(no_mangle)]
 pub extern "C" fn _Unwind_FindEnclosingFunction(
 	pc: *mut std::ffi::c_void,
@@ -54,7 +54,7 @@ fn cpu_us() -> (i64, i64) {
 	(us(ru.ru_utime), us(ru.ru_stime))
 }
 
-/// The panel's timer, on simulated time: when it wakes, and how long until
+/// The panel's timer on simulated time, with when it wakes and how long until
 /// the next wake.
 struct Timer {
 	at: f64,
@@ -89,7 +89,7 @@ fn main() -> Result<(), String> {
 		.map_or(Ok(20_000), |s| s.parse())
 		.map_err(|e| format!("ROUNDS: {e}"))?;
 	if rounds == 0 {
-		return Err("ROUNDS: at least 1".into());
+		return Err("ROUNDS must be at least 1".into());
 	}
 	let hist = std::env::temp_dir().join(format!("tukzmon-profile_{}.hist", std::process::id()));
 	let mut look = Look::default();

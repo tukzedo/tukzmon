@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
 
-//! The XFCE panel plugin. design.md, XFCE plugin, has the why of doing this
-//! with hand-declared calls instead of headers.
+//! The XFCE panel plugin. Why it declares its calls by hand instead of using
+//! headers is in design.md, under XFCE plugin.
 
 use std::any::Any;
 use std::ffi::{CStr, CString, OsStr, c_char, c_int, c_uint, c_ulong, c_void};
@@ -83,7 +83,7 @@ struct Plugin {
 	watch: Watch,
 	/// While the screen is locked or blanked, the graphs read but don't draw.
 	locks: lock::Locks,
-	/// Why a panic stopped this item. It draws nothing and does nothing after.
+	/// Why a panic stopped this item. It doesn't draw or do anything after.
 	stopped: Option<String>,
 }
 
@@ -94,12 +94,12 @@ const SAVE_EVERY: Duration = Duration::from_secs(15 * 60);
 /// again restarts that wait. So the tick leaves the tip alone until then.
 const TIP_SHOWN: Duration = Duration::from_secs(1);
 
-/// eprintln! panics on a failed write, such as to /dev/full or a hung-up tty,
-/// and on Wayland the panel runs the plugin in its own process, so that abort
-/// takes the whole panel down.
+/// eprintln! panics on a failed write, such as to /dev/full or a hung-up tty.
+/// On Wayland the plugin runs inside the panel's process, so that abort takes
+/// the whole panel down.
 ///
-/// A panel that `xfce4-panel --restart` started has stderr on /dev/null, so
-/// the line goes to the system log too, unless stderr is the journal already.
+/// A panel started by `xfce4-panel --restart` has stderr on /dev/null, so the
+/// line goes to the system log too, unless stderr is the journal already.
 fn complain(what: std::fmt::Arguments) {
 	let line = format!("tukzmon: {what}");
 	let _ = writeln!(std::io::stderr().lock(), "{line}");
@@ -150,8 +150,8 @@ fn report_panics() {
 }
 
 /// Runs a handler's body on the Plugin at `data`, or `stopped` once a panic
-/// has stopped the item. A panic stops only this item, where on Wayland it
-/// would take down the panel and every plugin in it.
+/// has stopped the item. A panic stops only this item. Otherwise on Wayland
+/// it would take down the panel and every plugin in it.
 fn guarded<R>(
 	data: *mut c_void,
 	stopped: impl FnOnce(&str) -> R,
@@ -337,7 +337,7 @@ impl Plugin {
 		tip
 	}
 
-	/// Ends the timers and file watches, which keep a pointer to this.
+	/// Ends the timers and file watches, which have a pointer to this Plugin.
 	fn quiet(&mut self) {
 		if self.timer != 0 {
 			// SAFETY: the id is ours and still running, since its callback
@@ -362,8 +362,8 @@ impl Plugin {
 		self.locks.stop();
 	}
 
-	/// After a panic, since what it was changing may be half done. The
-	/// history file isn't saved again, and the tip says why it stopped.
+	/// Stops the item after a panic, since what it was changing may be half
+	/// done. The history file isn't saved again, and the tip says why.
 	fn stop(&mut self, why: &str) {
 		self.stopped = Some(why.replace('\n', " "));
 		self.quiet();
@@ -420,7 +420,7 @@ impl Plugin {
 
 	/// Properties opens the settings window on this item's file. One that's
 	/// open already is asked to come to the front. The tip says it's open
-	/// when that can't be asked, or on Wayland, which may not let it.
+	/// when it can't be asked, or on Wayland, which may not let it come up.
 	fn open_settings(&mut self, program: &Path) {
 		self.reap_settings();
 		if self.settings.is_none() {
@@ -457,7 +457,7 @@ impl Plugin {
 		if t == self.config_time {
 			return;
 		}
-		// the time stays old until it reads, since a chmod back doesn't move it
+		// the time stays old until a read works, since a chmod back doesn't change it
 		let Some(look) = read_look(&self.config, &mut self.unreadable, self.session) else {
 			return;
 		};
@@ -652,10 +652,9 @@ extern "C" fn draw(widget: *mut c_void, cr: *mut c_void, data: *mut c_void) -> G
 
 fn draw_graphs(p: &mut Plugin, widget: *mut c_void, cr: *mut c_void) -> Gboolean {
 	// SAFETY: widget and cr come from GTK for this draw. The surface wraps
-	// px, which is the graphs' own buffer and isn't touched again until the
-	// next render. Nothing here frees or moves it before the destroy, and cr,
-	// which still holds the surface as its source after that, is GTK's for
-	// this draw only and goes before the next one.
+	// px, the graphs' own buffer, and nothing frees or moves it before the
+	// next render. cr still has the surface as its source after the destroy,
+	// but GTK drops cr before the next draw.
 	unsafe {
 		let scale = gtk_widget_get_scale_factor(widget).max(1);
 		let w = gtk_widget_get_allocated_width(widget).max(0) * scale;
@@ -692,11 +691,11 @@ enum Pacing {
 	Timer(f64),
 }
 
-/// GTK's frame clock knows the screen's frames only from the window
-/// manager's frame timings, the time a frame was `presented` among them.
-/// Without them, as under xfwm4, it says 60 Hz and ticks at that on its own,
-/// so the draws go by a timer at the monitor's rate, in mHz, or 60 Hz where
-/// that's unknown too. See design.md Drawing.
+/// GTK's frame clock gets the screen's frames only from the window manager's
+/// frame timings, such as when a frame was `presented`. Without them, as
+/// under xfwm4, it reports 60 Hz and ticks at that on its own. Then the draws
+/// go by a timer at the monitor's rate, or 60 Hz where that's unknown too.
+/// See design.md Drawing.
 fn pacing(interval_us: i64, presented_us: i64, monitor_mhz: impl FnOnce() -> c_int) -> Pacing {
 	if presented_us != 0 && interval_us > 0 {
 		return Pacing::Frames(1e6 / interval_us as f64);
@@ -899,7 +898,7 @@ fn windows_on(config: &Path) -> Vec<u32> {
 
 /// Asks the settings window in process `pid` to come to the front. SIGUSR1
 /// ends a process that doesn't catch it, so a window from an older build is
-/// left alone, and this says false.
+/// left alone, and this returns false.
 fn wake(pid: u32) -> bool {
 	let Ok(id) = c_int::try_from(pid) else {
 		return false;
@@ -1142,7 +1141,7 @@ extern "C" fn realize(plugin: *mut c_void, _data: *mut c_void) {
 	guarded(data, |_| (), |p| p.start(data));
 }
 
-/// What `XFCE_PANEL_PLUGIN_REGISTER` would make: the panel's wrapper looks
+/// What `XFCE_PANEL_PLUGIN_REGISTER` would make. The panel's wrapper looks
 /// this up by name and calls it to get the plugin object.
 ///
 /// # Safety
@@ -1292,7 +1291,7 @@ mod tests {
 		super::free_data(std::ptr::null_mut(), data);
 		std::fs::remove_file(&own).unwrap();
 		std::fs::remove_dir(&dir).unwrap();
-		// a color, since a new size would reach for the missing widgets
+		// a color, since a new size would call into the missing widgets
 		let (old, new) = (Rgb(0x12, 0x34, 0x56), Rgb(0x65, 0x43, 0x21));
 		assert_eq!((first, kept), (old, old));
 		assert!(
@@ -1312,7 +1311,7 @@ mod tests {
 		let hist = dir.join("history");
 		let data = plugin(&dir, &dir.join("own.shcl"), &hist);
 		let first = super::guarded(data, str::to_owned, |_| panic!("boom\nat two"));
-		// a handler that ran would reach GTK with a null area
+		// a handler that ran would call GTK with a null area
 		let ran = super::guarded(data, |_| false, |_| true);
 		assert_eq!(super::tick(data), 0);
 		assert_eq!(

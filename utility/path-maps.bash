@@ -3,8 +3,9 @@
 
 ##	Purpose:
 ##		- The compilers' path maps for a release build, so its bytes don't
-##		  depend on where the checkout, the target dir or the cargo home are.
-##		  Panic locations and the C++ __FILE__s would hold them otherwise.
+##		  depend on where the checkout, the target dir, or the cargo home is.
+##		  Otherwise panic locations and the C++ __FILE__ strings would include
+##		  those paths.
 ##		  settings/build.rs maps OUT_DIR and the crate for its own C++, but a
 ##		  crate's Rust and cxx's own C++ can only be mapped from outside.
 ##		- Sourced by cicd/cicd.bash and utility/dev-install.bash.
@@ -25,7 +26,7 @@ fPathMaps() {   ## fPathMaps ARRAY REPO TARGET
 	## The last match wins in rustc and gcc, and the target dir and the cargo
 	## home can each be inside the one before.
 	for pair in "${repo}=/src" "${target}=/target" "${cargoHome}=/cargo"; do
-		[[ "${pair}" == /* && "${pair}" != *[[:space:]]* ]] || { printf 'path maps: no absolute path without spaces in "%s"\n' "${pair}" >&2; return 1; }
+		[[ "${pair}" == /* && "${pair}" != *[[:space:]]* ]] || { printf 'path maps: "%s" needs an absolute path without spaces\n' "${pair}" >&2; return 1; }
 		rust+=" --remap-path-prefix=${pair}"
 		cc+=" -ffile-prefix-map=${pair}"
 	done

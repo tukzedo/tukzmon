@@ -21,9 +21,9 @@ const SECTOR: f64 = 512.0;
 /// Which drives the graph counts.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Drives {
-	/// Every disk with hardware behind it. That leaves out partitions, and
-	/// what sits on top of a disk, such as LVM, LUKS, RAID and loop
-	/// devices, so nothing is counted twice. zram isn't a disk either.
+	/// Every disk with hardware behind it. Partitions and the layers built on
+	/// a disk, such as LVM, LUKS, RAID, and loop devices, are left out, so
+	/// nothing is counted twice. zram isn't counted either.
 	All,
 	/// These, by their kernel names, as in `/proc/diskstats`, such as `sda`
 	/// or `nvme0n1`.
@@ -73,7 +73,8 @@ impl Picker {
 				};
 				let mut names: Vec<String> = dir
 					.filter_map(|e| e.ok()?.file_name().into_string().ok())
-					// partitions sit a level down, under their disk
+					// loop, dm, and zram have no device link, and partitions
+					// are a level down, under their disk
 					.filter(|n| Path::new(&self.block).join(n).join("device").exists())
 					.collect();
 				names.sort();
@@ -89,7 +90,7 @@ impl Picker {
 }
 
 /// Bytes per second read and written over the drives picked. A drive that
-/// comes or goes, or a counter that wraps or resets, makes a gap.
+/// comes or goes, or a counter that wraps or resets, leaves a gap.
 #[derive(Debug)]
 pub struct DiskReader {
 	picker: Picker,
@@ -142,7 +143,7 @@ impl DiskReader {
 		}
 		let rows = self.climb.next();
 		for (name, stat) in &mut self.disks {
-			// one that doesn't read is left out, so its going is a gap
+			// a drive that can't be read is left out, so losing it leaves a gap
 			if let Some(counts) = stat.read(&mut self.buf).and_then(parse_stat) {
 				rows.push(name, counts);
 			}
@@ -248,8 +249,8 @@ mod tests {
 		set("sda1", 4, 8);
 		set("sdb", 104, 108);
 		assert_eq!(r.read_at(t0 + s(2)), Some([4096.0, 2048.0]));
-		// a drive plugged in counts from the next list, then its counters
-		// back from 0 after a replug
+		// a drive plugged in is counted from the next list, and a replug
+		// that sets its counters back to 0 leaves a gap
 		std::fs::write(t.at("sdc/device"), "").unwrap();
 		set("sdc", 50, 0);
 		assert_eq!(r.read_at(t0 + s(3)), Some([0.0, 0.0]));
