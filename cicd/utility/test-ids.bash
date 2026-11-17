@@ -189,7 +189,7 @@ fNew() {   ## fNew MINUTES COUNT
 
 fWhen() { local -i m; fDecode "$1" m || return 1; printf '%s  %s\n' "$1" "$(date -u -d "@$((epoch2000 + m * 60))" '+%Y-%m-%d %H:%M UTC')"; }
 
-## Done items with no Test case row, and IDs a Test case row names that no
+## Items closed as Done with no Test case row, and IDs a Test case row names that no
 ## test has. A word counts as an ID when it would be a sane one, so "seven",
 ## which stands for 2050, doesn't.
 fBacklog() {   ## fBacklog FIRST NOW KNOWN-IDS-FILE
@@ -197,11 +197,12 @@ fBacklog() {   ## fBacklog FIRST NOW KNOWN-IDS-FILE
 	[[ -f "${log}" ]] || return 0
 	awk -v first="$1" -v now="$2" -v known="$3" -v file="project/backlog.md" -v digits="${digits}" '
 		BEGIN { while ((getline k < known) > 0) have[k] = 1 }
-		function done_item() { if (status == "Done" && !tc) printf "%s:%d: %s is Done with no Test case row\n", file, at, id }
+		function done_item() { if (status == "Closed" && reason == "Done" && !tc) printf "%s:%d: %s is closed as Done with no Test case row\n", file, at, id }
 		/^## Template/ { done_item(); status = ""; exit }
-		/^- / { done_item(); at = NR; id = "?"; status = ""; tc = 0 }
+		/^- / { done_item(); at = NR; id = "?"; status = ""; reason = ""; tc = 0 }
 		/^\t- ID: / { id = $3 }
 		/^\t- Status: / { status = $0; sub(/^\t- Status: */, "", status) }
+		/^\t- Closed reason: / { reason = $0; sub(/^\t- Closed reason: */, "", reason) }
 		/^\t- Test case:/ {
 			## a test name in backticks can hold a word such as "depth"
 			tc = 1; row = $0; gsub(/`[^`]*`/, " ", row); n = split(row, w, /[^0-9a-z]+/)

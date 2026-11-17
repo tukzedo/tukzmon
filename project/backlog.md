@@ -26,6 +26,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026110911114037
 	- Type: Enhancement
 	- Status: Waiting on automated testing
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261109-111140
 	- Opened by: t00mietum
@@ -48,6 +49,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026111709483900
 	- Type: Task
 	- Status: Waiting on automated testing
+	- Target version: v1.0.0-beta.2
 	- Needs external testing: the real RustDesk on a private display, with a peer connected directly on port 21118, then through a relay. The panel or `remote::Watch` should say Remote while the peer is on, and Local after.
 	- Priority|Severity: Low
 	- Opened: 20261117-094839
@@ -67,6 +69,7 @@ Sorted per the notes in [Template](#template).
 	- Status: Stalled
 		- Held for a Linux box with Intel graphics, i915 or xe, and no other card. None of the test boxes has one, and the hosted runner has no GPU (20261110).
 		- The GPU graph is in. The GPU memory graph is child 2026110921252043, which waits on a question.
+	- Target version: v1.0.0-beta.2
 	- Needs external testing: on a box with Intel graphics, i915 or xe, and no NVIDIA or AMD card, check that one of the 3 files in df3kx is there and readable as the user, and run `cargo test -p tukzmon-core gpu::` and `cargo test -p tukzmon-settings the_gpu_rows` (dekmd), which reads the live card twice.
 	- Needs hand testing: on that box, with the GPU graph on and the GPU busy, as from `glxgears`, its tip should read near 100% less the RC6 share `sudo intel_gpu_top` gives.
 	- Priority|Severity: Avg
@@ -98,6 +101,7 @@ Sorted per the notes in [Template](#template).
 	- Type: Feature
 	- Status: Stalled
 		- Held for the README one-liner, which runs only once `install.bash` is on `main`.
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261103-104500
 	- Opened by: t00mietum
@@ -137,6 +141,7 @@ Sorted per the notes in [Template](#template).
 	- Type: Task
 	- Status: Stalled
 		- Held for a pinned toolchain whose cargo has trim-paths on stable. It's unstable in 1.96.
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261110-211331
 	- Opened by: t00mietum
@@ -150,6 +155,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026111000270812
 	- Type: Enhancement
 	- Status: Queued
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261110-002708
 	- Opened by: t00mietum
@@ -164,6 +170,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026111623513500
 	- Type: Feature
 	- Status: Queued
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261116-235135
 	- Opened by: t00mietum
@@ -176,6 +183,7 @@ Sorted per the notes in [Template](#template).
 	- Status: Queued
 		- Was held for silkterm's copy of knobs to get the index first. 2026-11-05: the copy here doesn't have to match silkterm's, so it can go in here first.
 		- 2026-11-03: moved below the stop line. It's a small speedup and doesn't need to block a release.
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261030-183536
 	- Opened by: t00mietum
@@ -191,6 +199,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026110519470058
 	- Type: Enhancement
 	- Status: Queued
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261105-194700
 	- Opened by: JC
@@ -205,6 +214,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026110310450004
 	- Type: Task
 	- Status: Queued
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261103-104500
 	- Opened by: t00mietum
@@ -217,6 +227,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026110310450006
 	- Type: Task
 	- Status: Queued
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261103-104500
 	- Opened by: t00mietum
@@ -229,6 +240,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026110710005015
 	- Type: Enhancement
 	- Status: Queued
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261107-100050
 	- Opened by: t00mietum
@@ -243,6 +255,7 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026111014581529
 	- Type: Task
 	- Status: Queued
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261110-145815
 	- Opened by: t00mietum
@@ -255,7 +268,9 @@ Sorted per the notes in [Template](#template).
 - Smoothly animate each graph on each tick
 	- ID: 2026110911114024
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261109-111140
 	- Opened by: t00mietum
@@ -279,7 +294,9 @@ Sorted per the notes in [Template](#template).
 - Smooth scrolling: the setting, and each graph sliding between samples
 	- ID: 2026110918080223
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Stand-in: none (20261110). Turns on how smooth the slide looks.
 	- Priority|Severity: Avg
 	- Opened: 20261109-180802
@@ -315,7 +332,9 @@ Sorted per the notes in [Template](#template).
 - Smooth scrolling: frames at the screen's rate, and the CPU cost
 	- ID: 2026110918081021
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Stand-in: none (20261110). The draw rate is measured, and what's left turns on whether the slide stutters to the eye on b23's own screen.
 	- Priority|Severity: Avg
 	- Opened: 20261109-180810
@@ -359,7 +378,9 @@ Sorted per the notes in [Template](#template).
 - Smooth scrolling: try a quarter of the screen's frame rate
 	- ID: 2026110920595603
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Stand-in: none (20261110). Turns on whether 25 a second looks as good as 60.
 	- Priority|Severity: Avg
 	- Opened: 20261109-205956
@@ -392,7 +413,9 @@ Sorted per the notes in [Template](#template).
 - Reduce motion: a remote viewer on the local desktop, as RustDesk, x11vnc or NoMachine on the physical display
 	- ID: 2026110922214810
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Stand-in: a TCP connection to b23's NoMachine server on port 4000, for a client (20261117).
 	- Priority|Severity: Avg
 	- Opened: 20261109-222148
@@ -434,7 +457,9 @@ Sorted per the notes in [Template](#template).
 - Antialiasing still needs to be better, so sharp spikes don't pulse or shimmer
 	- ID: 2026111010281710
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261110-102817
 	- Opened by: t00mietum
@@ -488,7 +513,9 @@ Sorted per the notes in [Template](#template).
 - Narrow gaps on columns 1 to 3 samples wide come and go as they slide
 	- ID: 2026111020033357
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261110-200333
 	- Opened by:
@@ -528,7 +555,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-29.
 	- Priority|Severity: Critical
 	- Opened: 20261029-131227
@@ -558,7 +586,8 @@ Sorted per the notes in [Template](#template).
 - The pipeline prunes every project's docker build cache
 	- ID: 2026110311291910
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261103-112919
 	- Opened by: JC
@@ -580,7 +609,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 2: Apply resets Custom colors edited before another theme was picked
 	- ID: 2026103115231817
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261031-152318
 	- Opened by: t00mietum
@@ -610,7 +640,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 1: A hidden CPU graph, shown again, fills the hidden time and can take gigabytes
 	- ID: 2026103115231801
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261031-152318
 	- Opened by: t00mietum
@@ -639,8 +670,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Graphs aren't remembering history between restarts
 	- ID: 2026102620162195
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
 		- Saving and loading work in build defqn. What's left is to see it on b23 at the next panel restart.
+	- Closed reason: Could not reproduce
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Needs hand testing: No
 	- Priority|Severity: High
@@ -673,7 +705,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Mouseover tip's "x seconds ago" doesn't update with ticks
 	- ID: 2026102620162196
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Works as intended
 	- Priority|Severity: High
 	- Opened: 20261026-201621
 	- Opened by: t00mietum
@@ -698,7 +731,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 2: Reset history in a window whose item keeps no history asks nothing, then deletes the saved history of items that keep it
 	- ID: 2026110709074402
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: High
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -742,7 +777,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 3: The demo's window manager, panel and settings window join the live desktop session
 	- ID: 2026110709074403
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: High
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -772,7 +809,8 @@ Sorted per the notes in [Template](#template).
 - Color themes tab
 	- ID: 2026102408304612
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261024-082803
 	- Opened by: t00mietum
@@ -810,9 +848,10 @@ Sorted per the notes in [Template](#template).
 - Randomize: a hue of its own for each graph
 	- ID: 2026102621562349
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- Measured 2026-10-28 over 10,000 seeds, as CIEDE2000: every 2 leads of a roll are 10.0 or more apart, 10.6 at the median, and every lead 21.7 or more from I/O wait and system. Before 2026102810142725 the closest 2 were 4.7 apart at the median and 1.8 at worst. A roll steps 3 of its 10 leads darker or paler at the median, and 6 at most.
 		- Verified 2026-10-28, round-1028b at 84b61ad: 5 rolls, seeds 17, 423, 1999, 5150 and 8888, drawn on a test panel with all 9 graphs. Each read as one set, with every graph apart and clear of the alarms.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
 	- Needs hand testing: on b23, after an install, with swap on, press Randomize a few times with Apply, and judge whether CPU, memory and swap read apart and look good together.
 	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row. dejbv checks that every roll's leads read apart.
@@ -850,12 +889,13 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Generic theme names, and distinct colors per monitor
 	- ID: 2026102620162201
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. Randomize still gives every graph the same lead hue. That part is child 2026102621562349.
 		- Verified 2026-10-26, build defyt: in the window Fire drew CPU red and brown, memory violet and swap blue, and with b23's settings a test panel drew CPU, memory and swap apart on Default. Only the look is left.
 		- 2026-10-28: with 9 graphs now, some leads nearly match in every built-in but Fire, and in most rolls. That part is child 2026102810142725, a Bug.
 		- 2026-10-28: 2026102810142725 is fixed. As CIEDE2000, any 2 leads sit 10.4 or more apart in every built-in, and 10.0 or more in every roll over 10,000 seeds. The one-color themes from 2026102807585040 give every graph one color on purpose.
 		- Verified 2026-10-28, round-1028b at 84b61ad: a test panel drew all 9 graphs in each of the 9 built-ins. Every graph read apart, outside the one-color themes, and none looked broken.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Needs hand testing: on b23, after an install, with swap on, pick each built-in theme on the Themes tab, Apply, and judge whether CPU, memory and swap read apart and look good together, Fire most of all.
 	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row. dejbr and dejbv check what can be measured.
@@ -895,12 +935,13 @@ Sorted per the notes in [Template](#template).
 - Randomize button on the Themes tab
 	- ID: 2026102409400700
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
 		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
 		- Verified 2026-10-25, build deea9: in the window a roll changed every color as "Default *", Save as kept it, and the panel graph took it at Apply. Only the look is left.
 		- Measured 2026-10-28 over 2000 seeds, round-1028 at 17d3d9d, as CIEDE2000: I/O wait and system roll 23.5 or more from every lead, and each gradient step 11.0 or more. A graph's own colors roll as close as 4.8, buffers and cache, and 9.1 or more in 9 rolls of 10. CPU's Low rolls as close as 1.9 to the background top, which takes CPU's hue, and 5.6 or more in 9 of 10. Default's own nice sits 5.1 from its top, so that matches the built-in. Leads that nearly match are 2026102810142725.
 		- Measured again 2026-10-28 over 10,000 seeds, branch theme-colors, after 2026102810142725: every 2 leads 10.0 or more apart, and I/O wait and system 21.7 or more from every lead. A graph's own colors roll as close as 5.8, buffers and cache, and 9.0 or more in 9 rolls of 10. CPU's Low rolls as close as 1.3 to the top, and 6.0 or more in 9 of 10, as before. Each gradient step rolls 8.9 or more, in a graph stepped darker, and 12.4 or more in 9 of 10. Default's nice is 24.4 from its top now, so the closest rolls no longer match a built-in.
 		- Verified 2026-10-28, round-1028b at 84b61ad: 5 rolls, seeds 17, 423, 1999, 5150 and 8888, drawn on a test panel with all 9 graphs. Each read as one set, with every graph apart and clear of the alarms.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
 	- Needs hand testing: on b23, after a panel restart, press Randomize a few times with Apply, and judge whether the rolls look good together.
 	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row.
@@ -933,13 +974,14 @@ Sorted per the notes in [Template](#template).
 - Theme presets, with a coordinated Default
 	- ID: 2026102409400679
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
 		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
 		- It departs from the wording in one way. b23's file sets 2 colors with no theme line, so it opens as Custom, with exactly the colors it has now. Picking Default there gives the coordinated set.
 		- Verified 2026-10-25, build deea9: each built-in theme drew both graphs in a test panel, and a pick took effect at once. Only the look is left.
 		- Measured 2026-10-28, round-1028 at 17d3d9d, as CIEDE2000: in every built-in, a graph's own colors sit 10.8 or more apart, I/O wait and system 24 or more from every graph's lead, and every color 16.6 or more from the background, except one. Default's nice and Low, `#205f40`, sit 5.1 from the top, `#2a543f`. They were 7.1 from multiload-ng's top, `#2a5446`, before Default moved it. That and the look are left for a person.
 		- Measured again 2026-10-28, branch theme-colors, after 2026102814061803, 2026102810142725 and 2026102807585040: any 2 graphs' leads sit 10.4 or more apart in every built-in but the one-color ones, where all are alike on purpose. In every built-in, a graph's own colors sit 10.6 or more apart, I/O wait and system 14.2 or more from every lead, 21.7 outside Default, every color 15.8 or more from the background, and each gradient step 10.6 or more. Default's nice now sits 24.4 from its gray top, `#313131`. Only the look is left.
 		- Verified 2026-10-28, round-1028b at 84b61ad: a test panel drew all 9 graphs in each of the 9 built-ins. Every graph read apart, outside the one-color themes, and none looked broken.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
 	- Needs hand testing: on b23, after a panel restart, pick each theme on the Themes tab, Apply, and judge how it looks on the panel graph, Default most of all.
 	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row.
@@ -977,7 +1019,8 @@ Sorted per the notes in [Template](#template).
 - XFCE panel plugin
 	- ID: 2026101916013889
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261019-160138
 	- Opened by: t00mietum
@@ -999,12 +1042,13 @@ Sorted per the notes in [Template](#template).
 - Memory graph
 	- ID: 2026102408304625
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
 		- Self-closed 2026-10-28. As CIEDE2000, Default's cache `#408060` sits 15.2 from the top `#2a543f`, clearly apart, and 40.6 from buffers. Every built-in keeps cache 15.2 or more from its top. Cache is also Default's border color, as in multiload-ng.
 		- b23 has had build dedr4 since 2026-10-25, which has this. The panel needs a restart to load it.
 		- How the 2 graphs look side by side is for a person to judge. On Default, cache is `#408060`, close to the shared top color `#2a543f`.
 		- It departs from the wording in one way. multiload-ng's memory border and background, `#404020` and `#13261d`, aren't used, since every graph shares the Background sub-tab.
 		- Verified 2026-10-25, build deea9: in a test panel the memory graph drew beside CPU, its tip read "Memory 33% in use", every built-in theme recolored it, and with Memory graph off the item narrowed to CPU alone. Only the look is left.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-25.
 	- Needs hand testing: on b23, after a panel restart, look at the memory graph beside CPU on Default, and judge whether cache (`#408060`) stands apart from the top color (`#2a543f`).
 	- Priority|Severity: High
@@ -1041,11 +1085,12 @@ Sorted per the notes in [Template](#template).
 - Battery graph
 	- ID: 2026102618353013
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
 		- Self-closed 2026-10-28. As CIEDE2000, plugged in, on battery and critical sit 11.1 or more apart in every built-in, and 32.8 or more where plugged in is one of the pair. The stand-in below drew all 3 states, and a real battery changes only what's read, not how it's drawn.
 		- How it looks, in each theme, is for a person to judge, and b23 has no battery, so a laptop has to show it.
 		- It departs from the wording in one way. It's off by default, like swap. Turn it on in the graph list.
 		- Verified 2026-10-26, build defyt: with a made-up battery in a test window, the row drew plugged in at 80% in lavender, on battery at 60% in orange and critical at 4% in red on Default, and Fire colored the charge by its gradient. Only the look on a real laptop is left.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Needs hand testing: on a laptop, after an install, turn on Battery graph in the graph list, Apply, and judge how plugged in, on battery and critical look in Default and Fire.
 	- Priority|Severity: High
@@ -1079,7 +1124,8 @@ Sorted per the notes in [Template](#template).
 - The graphs
 	- ID: 2026101916013887
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261019-160138
 	- Opened by: t00mietum
@@ -1113,7 +1159,8 @@ Sorted per the notes in [Template](#template).
 - Live graph list on the first settings tab
 	- ID: 2026102408304639
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261024-082803
 	- Opened by: t00mietum
@@ -1136,8 +1183,9 @@ Sorted per the notes in [Template](#template).
 - CPU temperature graph
 	- ID: 2026102618353011
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. It's off by default, so an existing panel doesn't grow wider. Turn it on in the graph list.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Priority|Severity: High
 	- Opened: 20261026-183530
@@ -1176,8 +1224,9 @@ Sorted per the notes in [Template](#template).
 - Load graph
 	- ID: 2026102618353006
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. It's off by default, so an existing panel doesn't grow wider. Turn it on in the graph list.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Priority|Severity: High
 	- Opened: 20261026-183530
@@ -1214,8 +1263,9 @@ Sorted per the notes in [Template](#template).
 - Disk graph
 	- ID: 2026102618353008
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. It's off by default, so an existing panel doesn't grow wider. Turn it on in the graph list.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Priority|Severity: High
 	- Opened: 20261026-183530
@@ -1254,8 +1304,9 @@ Sorted per the notes in [Template](#template).
 - Network graph
 	- ID: 2026102618353004
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. It's off by default, so an existing panel doesn't grow wider. Turn it on in the graph list.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Priority|Severity: High
 	- Opened: 20261026-183530
@@ -1295,8 +1346,9 @@ Sorted per the notes in [Template](#template).
 - Zswap or zram graph
 	- ID: 2026102618353002
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. It's off by default, so an existing panel doesn't grow wider. Turn it on in the graph list.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Priority|Severity: High
 	- Opened: 20261026-183530
@@ -1333,7 +1385,8 @@ Sorted per the notes in [Template](#template).
 - Nix package for tukzedo-linux's NixOS edition
 	- ID: 2026102621053725
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261026-210537
 	- Opened by: t00mietum
@@ -1365,8 +1418,9 @@ Sorted per the notes in [Template](#template).
 - The graph list on the Graph tab
 	- ID: 2026102508393161
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in 2 ways. The width is a number box, with arrows, like every other number in the window. And each row also has a revert arrow, left of the gripper.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Priority|Severity: High
 	- Opened: 20261025-083931
@@ -1401,8 +1455,9 @@ Sorted per the notes in [Template](#template).
 - Live graphs in the graph list
 	- ID: 2026102508393163
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in 2 ways. A graph wider than 512 px is squeezed to that, so the window stays on screen. And a hidden graph's row still draws it.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Priority|Severity: High
 	- Opened: 20261025-083931
@@ -1437,8 +1492,9 @@ Sorted per the notes in [Template](#template).
 - Graphs with an optional (default) log X axis
 	- ID: 2026101916013886
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
 		- It departs from the progress log's wording in one way. A width change eases only a linear graph, since a log graph's divisions stay at the same fractions of the width.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Priority|Severity: High
 	- Opened: 20261019-160138
@@ -1491,8 +1547,9 @@ Sorted per the notes in [Template](#template).
 - Swap graph
 	- ID: 2026102618353000
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. It's off by default, so an existing panel doesn't grow wider. Turn it on in the graph list.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Priority|Severity: High
 	- Opened: 20261026-183530
@@ -1525,8 +1582,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Padding above, below, and between the graphs
 	- ID: 2026102620162197
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. On a vertical panel or a deskbar the 2 px go either side of the graphs, across the panel, rather than above and below.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Priority|Severity: High
 	- Opened: 20261026-201621
@@ -1557,8 +1615,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Wrap tip text at a readable width
 	- ID: 2026102620162198
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. Only the settings window's tips changed. GTK already wraps the panel's tips at 70 characters, and theirs are short lines anyway.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Priority|Severity: High
 	- Opened: 20261026-201621
@@ -1586,8 +1645,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Hover line on the graphs in the Settings dialog
 	- ID: 2026102620162199
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. The row's tip now gives the time under the line and the values there, as the panel's does, in place of the latest read.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Priority|Severity: High
 	- Opened: 20261026-201621
@@ -1616,7 +1676,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Sub-tabs nested under their parent tab
 	- ID: 2026102620162200
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Priority|Severity: High
 	- Opened: 20261026-201621
@@ -1644,8 +1705,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Reset history button
 	- ID: 2026102620162202
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. The reset goes at Apply, the same as theme Delete, so Cancel drops it. The window's own graphs start over when it's pressed.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Priority|Severity: High
 	- Opened: 20261026-201621
@@ -1675,7 +1737,8 @@ Sorted per the notes in [Template](#template).
 - A settings file per plugin instance
 	- ID: 2026102621053715
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261026-210537
 	- Opened by: t00mietum
@@ -1709,7 +1772,8 @@ Sorted per the notes in [Template](#template).
 - XFCE on Wayland
 	- ID: 2026102621053720
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Priority|Severity: High
 	- Opened: 20261026-210537
@@ -1738,7 +1802,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Rename the "Apply and close" button to "OK"
 	- ID: 2026102620162203
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Priority|Severity: High
 	- Opened: 20261026-201621
@@ -1761,7 +1826,8 @@ Sorted per the notes in [Template](#template).
 - Vertical and deskbar panels
 	- ID: 2026102621053709
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261026-210537
 	- Opened by: t00mietum
@@ -1787,7 +1853,8 @@ Sorted per the notes in [Template](#template).
 - History store
 	- ID: 2026101916013885
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run's steps passed on 2026-10-26, Soak included. Its Lint step failed only on the test ID check, for 2026102416252898, which this didn't touch. Clippy, shellcheck and markdownlint passed.
 	- Priority|Severity: High
 	- Opened: 20261019-160138
@@ -1824,9 +1891,10 @@ Sorted per the notes in [Template](#template).
 - CICD reset: containers
 	- ID: 2026102416252889
 	- Type: Task
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. GTK 3 is in the image as its runtime libraries, not the dev package, since the plugin links GTK, cairo and the panel library by soname. The Debian snapshot the image reads pins them, as it does Qt.
 		- Verified 2026-10-25: `--list` for the default run shows Release build and Dogfood on the host, and the merge gate on e131b57 passed in the image. Only the run that dogfoods is left, which a round may not do.
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261024-162528
 	- Opened by: t00mietum
@@ -1855,8 +1923,9 @@ Sorted per the notes in [Template](#template).
 - Battery collector
 	- ID: 2026102408512223
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
 		- Verified on file layouts only. This box has no `BAT*` battery, so defny returned early and the live path hasn't run on real hardware.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-26.
 	- Priority|Severity: High
 	- Opened: 20261024-085122
@@ -1890,7 +1959,8 @@ Sorted per the notes in [Template](#template).
 - Core library and Linux collectors
 	- ID: 2026101916013884
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261019-160138
 	- Opened by: t00mietum
@@ -1909,7 +1979,8 @@ Sorted per the notes in [Template](#template).
 - Load collector
 	- ID: 2026102408512207
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261024-085122
 	- Opened by: t00mietum
@@ -1933,7 +2004,8 @@ Sorted per the notes in [Template](#template).
 - CPU temperature collector
 	- ID: 2026102408512217
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261024-085122
 	- Opened by: t00mietum
@@ -1964,7 +2036,8 @@ Sorted per the notes in [Template](#template).
 - Network collector
 	- ID: 2026102408512202
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261024-085122
 	- Opened by: t00mietum
@@ -1994,7 +2067,8 @@ Sorted per the notes in [Template](#template).
 - Disk collector
 	- ID: 2026102408512212
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261024-085122
 	- Opened by: t00mietum
@@ -2026,7 +2100,8 @@ Sorted per the notes in [Template](#template).
 - Zswap and zram collector
 	- ID: 2026102408512197
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261024-085122
 	- Opened by: t00mietum
@@ -2057,7 +2132,8 @@ Sorted per the notes in [Template](#template).
 - Proof of concept: CPU graph in the XFCE panel, dogfooded on b23
 	- ID: 2026102319155124
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261023-183946
 	- Opened by: t00mietum
@@ -2083,7 +2159,8 @@ Sorted per the notes in [Template](#template).
 - Settings window: tabs, highlight, number boxes, tips, and buttons
 	- ID: 2026102408304546
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261024-082803
 	- Opened by: t00mietum
@@ -2120,7 +2197,8 @@ Sorted per the notes in [Template](#template).
 - Option for persistent graph
 	- ID: 2026102408304572
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261024-082803
 	- Opened by: t00mietum
@@ -2148,8 +2226,9 @@ Sorted per the notes in [Template](#template).
 - A dropdown for time function
 	- ID: 2026102408304586
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in 2 ways. Log B was read as the fixed divisions laid over the 5 s floor curve. And one tip covers all 3 choices and names the divisions, rather than a tip per item in the list.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
 	- Priority|Severity: High
 	- Opened: 20261024-082803
@@ -2184,8 +2263,9 @@ Sorted per the notes in [Template](#template).
 - Show snapshot time on mouseover
 	- ID: 2026102408304599
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in 2 ways. The tip also gives the CPU shares at the line's time, in place of the old tip with the latest read. And the line's color can be changed, under Colors.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
 	- Priority|Severity: High
 	- Opened: 20261024-082803
@@ -2226,8 +2306,9 @@ Sorted per the notes in [Template](#template).
 - Themes tab, with Save, Save as, Rename and Delete
 	- ID: 2026102409400684
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. The colors the graphs share, the border, background and hover line, are on a Background sub-tab beside CPU.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
 	- Priority|Severity: High
 	- Opened: 20261024-094007
@@ -2261,7 +2342,8 @@ Sorted per the notes in [Template](#template).
 - Color picker in place of the toolkit's
 	- ID: 2026102409400689
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
 	- Priority|Severity: High
 	- Opened: 20261024-094007
@@ -2292,8 +2374,9 @@ Sorted per the notes in [Template](#template).
 - Gradient mode per graph, and a Fire theme
 	- ID: 2026102409400695
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. Only the CPU graph has a sub-tab so far, so only it has the mode. A new graph's sub-tab gets the same rows.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
 	- Priority|Severity: High
 	- Opened: 20261024-094007
@@ -2327,7 +2410,8 @@ Sorted per the notes in [Template](#template).
 - Transparent background setting
 	- ID: 2026102409400705
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The gates and the release build passed on 2026-10-24.
 	- Priority|Severity: High
 	- Opened: 20261024-094007
@@ -2356,7 +2440,8 @@ Sorted per the notes in [Template](#template).
 - Turn each graph on or off, with a width each
 	- ID: 2026102508393152
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-25.
 	- Priority|Severity: High
 	- Opened: 20261025-083931
@@ -2390,7 +2475,8 @@ Sorted per the notes in [Template](#template).
 - Graph order
 	- ID: 2026102508393154
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-25.
 	- Priority|Severity: High
 	- Opened: 20261025-083931
@@ -2423,7 +2509,8 @@ Sorted per the notes in [Template](#template).
 - A time function per graph
 	- ID: 2026102508393156
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-25.
 	- Priority|Severity: High
 	- Opened: 20261025-083931
@@ -2456,9 +2543,10 @@ Sorted per the notes in [Template](#template).
 - CICD reset: standard flags
 	- ID: 2026102416252892
 	- Type: Task
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. `--message` is taken but does nothing yet, since the pipeline has no publish step.
 		- `core.hooksPath` is set to `cicd/hooks` in b23's clone since 2026-10-25.
+	- Closed reason: Done
 	- Needs local test suite run?: No. `--backlog-run-full` passed on 2026-10-25.
 	- Priority|Severity: High
 	- Opened: 20261024-162528
@@ -2489,8 +2577,9 @@ Sorted per the notes in [Template](#template).
 - CICD reset: CPU and priority
 	- ID: 2026102416252891
 	- Type: Task
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. `CICD_MAX_JOBS` lets a caller set a lower cap.
+	- Closed reason: Done
 	- Needs local test suite run?: No. `--backlog-run-full` passed on 2026-10-25.
 	- Priority|Severity: High
 	- Opened: 20261024-162528
@@ -2517,8 +2606,9 @@ Sorted per the notes in [Template](#template).
 - CICD reset: test IDs
 	- ID: 2026102416252895
 	- Type: Task
-	- Status: Done
+	- Status: Closed
 		- The knobs copy's test IDs now differ from SilkTerm's, until SilkTerm converts its own. The 2 copies match only if SilkTerm's other tests leave the same minutes free.
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261024-162528
 	- Opened by: t00mietum
@@ -2548,8 +2638,9 @@ Sorted per the notes in [Template](#template).
 - A theme per graph
 	- ID: 2026102508393159
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
 		- 2026-10-25: one theme colors every graph, so no graph picks its own. That leaves checking that the Themes tab works this way, a test, and taking the theme dropdown out of the graph list item.
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261025-083931
 	- Opened by: t00mietum
@@ -2578,7 +2669,8 @@ Sorted per the notes in [Template](#template).
 - CICD reset: a test for every Done item
 	- ID: 2026102416252894
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261024-162528
 	- Opened by: t00mietum
@@ -2599,7 +2691,8 @@ Sorted per the notes in [Template](#template).
 - CICD reset: container cleanup
 	- ID: 2026102416252890
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261024-162528
 	- Opened by: t00mietum
@@ -2627,7 +2720,8 @@ Sorted per the notes in [Template](#template).
 - CICD reset: step output
 	- ID: 2026102416252893
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261024-162528
 	- Opened by: t00mietum
@@ -2648,7 +2742,8 @@ Sorted per the notes in [Template](#template).
 - Update default colors to my current selection
 	- ID: 2026102408304559
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261024-082803
 	- Opened by: t00mietum
@@ -2669,7 +2764,8 @@ Sorted per the notes in [Template](#template).
 - Collector trait, memory and swap
 	- ID: 2026102408512192
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261024-085122
 	- Opened by: t00mietum
@@ -2692,7 +2788,8 @@ Sorted per the notes in [Template](#template).
 - Finish the requirement for moving between time spans
 	- ID: 2026101916013880
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261019-160138
 	- Opened by: t00mietum
@@ -2707,7 +2804,8 @@ Sorted per the notes in [Template](#template).
 - Confirm the language split
 	- ID: 2026101916013881
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: High
 	- Opened: 20261019-160138
 	- Opened by: t00mietum
@@ -2722,8 +2820,10 @@ Sorted per the notes in [Template](#template).
 - GPU memory graph on integrated Intel graphics
 	- ID: 2026110921252043
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
 		- Waits on the question in questions.md on what the graph counts on an integrated card.
+	- Closed reason: Won't fix
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261109-212520
 	- Opened by: t00mietum
@@ -2739,7 +2839,9 @@ Sorted per the notes in [Template](#template).
 - df336 fails on GitHub's runner: a demo stopped by TERM leaves run.pid and .demo-run
 	- ID: 2026110919021646
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Needs external testing: No
 	- Priority|Severity: Medium
 	- Opened: 20261109-190216
@@ -2771,7 +2873,8 @@ Sorted per the notes in [Template](#template).
 - The Miri step ran over 31 hours and never finished
 	- ID: 2026110514461968
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261105-144619
 	- Opened by: JC
@@ -2806,7 +2909,8 @@ Sorted per the notes in [Template](#template).
 - Properties seems to do nothing when the item's settings window is open already
 	- ID: 2026110210171300
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261102-101713
 	- Opened by: t00mietum
@@ -2836,7 +2940,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 7: The network graph counts bridge, VM and VPN traffic as well
 	- ID: 2026103115231894
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-152318
 	- Opened by: t00mietum
@@ -2867,7 +2972,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 6: Format and Lint pass on no files when git ls-files fails
 	- ID: 2026103115231879
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-152318
 	- Opened by: t00mietum
@@ -2896,8 +3002,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 5: History files aren't checked for times and values out of bounds
 	- ID: 2026103115231863
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording for times past now. A section that ends up to 14 hours ahead still loads, with the clock moved up to it, as design.md had it. Only one further ahead starts over.
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-152318
 	- Opened by: t00mietum
@@ -2930,9 +3037,10 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 4: Graph times fall behind the clock after a suspend
 	- ID: 2026103115231848
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording for a clock set back while running. The graph's time runs on from where it was, ahead of the wall clock by the step, rather than going back with it.
 		- It closed on a stand-in for a real suspend, which b23 can't do.
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-152318
 	- Opened by: t00mietum
@@ -2965,7 +3073,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 3: Enter on a focused button saves and closes the settings window
 	- ID: 2026103115231832
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-152318
 	- Opened by: t00mietum
@@ -2987,7 +3096,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 1: The profiler measures a mostly empty history for 4 of its 6 graphs
 	- ID: 2026103016201601
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -3018,7 +3128,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 2: The temp folder guard accepts the project's whole temp folder
 	- ID: 2026103016201602
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -3045,7 +3156,8 @@ Sorted per the notes in [Template](#template).
 - History file sections don't record their series count
 	- ID: 2026103010491713
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-30.
 	- Priority|Severity: Avg
 	- Opened: 20261030-104917
@@ -3077,7 +3189,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Ctrl+PgDn and Ctrl+PgUp skip Graphs and Themes|Colors
 	- ID: 2026103015255983
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs hand testing: No. Same path as Ctrl+Tab, and den56 sends the keys through it.
 	- Priority|Severity: Avg
 	- Opened: 20261030-152559
@@ -3096,8 +3209,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Ctrl+Tab skips Themes|Colors
 	- ID: 2026103009394901
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
 		- Ctrl+Tab stepping onto Colors was checked here, but the skip as reported wasn't seen. See Needs hand testing.
+	- Closed reason: Done
 	- Needs hand testing: No
 	- Priority|Severity: Avg
 	- Opened: 20261030-093949
@@ -3119,8 +3233,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Themes|Colors labels out of vertical alignment
 	- ID: 2026103009394902
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. In a section with one color, such as Swap, Background now starts level with that color, In use, not with the Colors mode row.
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261030-093949
 	- Opened by: t00mietum
@@ -3138,7 +3253,8 @@ Sorted per the notes in [Template](#template).
 - Apply turns an unticked Outline override back on after Randomize
 	- ID: 2026102917525531
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-29.
 	- Priority|Severity: Avg
 	- Opened: 20261029-175255
@@ -3162,7 +3278,8 @@ Sorted per the notes in [Template](#template).
 - GPU test fails on a box with an NVIDIA GPU
 	- ID: 2026102914040910
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261029-140409
 	- Opened by: t00mietum
@@ -3192,7 +3309,8 @@ Sorted per the notes in [Template](#template).
 - Unticking the Outline tab's overrides leaves the shared colors on the other graphs
 	- ID: 2026102820512294
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Priority|Severity: Avg
 	- Opened: 20261028-205122
@@ -3231,7 +3349,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: tukzmon's own CPU graph reads too high
 	- ID: 2026102819172002
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261028-191720
 	- Opened by: t00mietum
@@ -3252,7 +3371,8 @@ Sorted per the notes in [Template](#template).
 - The soak check fails since swap is on by default
 	- ID: 2026102816343100
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261028-163431
 	- Opened by: t00mietum
@@ -3272,7 +3392,8 @@ Sorted per the notes in [Template](#template).
 - Some graphs' lead colors nearly match
 	- ID: 2026102810142725
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
 	- Priority|Severity: Avg
 	- Opened: 20261028-101427
@@ -3328,7 +3449,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 4: With 2 windows on one file, or a hand edit, Apply drops or reverts theme edits
 	- ID: 2026110709074404
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -3365,7 +3488,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 5: Cancel, Esc or the close button leaves a false error in the panel's tip and the journal
 	- ID: 2026110709074405
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -3395,7 +3520,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 6: The pre-push hook can pass a commit it never tested
 	- ID: 2026110709074406
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -3425,7 +3552,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 7: A demo stopped by TERM leaves its X session running, a FUSE mount, and a folder no sweep removes
 	- ID: 2026110709074407
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -3457,7 +3586,9 @@ Sorted per the notes in [Template](#template).
 - Demo GIF: Status tray and notification icons too close together
 	- ID: 2026110911114063
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261109-111140
 	- Opened by: t00mietum
@@ -3480,7 +3611,9 @@ Sorted per the notes in [Template](#template).
 - CICD gap: tukzmon-settings built in another folder gives different bytes
 	- ID: 2026110710005013
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261107-100050
 	- Opened by: t00mietum
@@ -3515,7 +3648,9 @@ Sorted per the notes in [Template](#template).
 - Most test names are whole sentences, and over half start the same way
 	- ID: 2026110710005014
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261107-100050
 	- Opened by: t00mietum
@@ -3536,7 +3671,9 @@ Sorted per the notes in [Template](#template).
 - Short test names: the pipeline's tests in cicd/tests
 	- ID: 2026111021184916
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261110-211849
 	- Opened by: t00mietum
@@ -3561,7 +3698,9 @@ Sorted per the notes in [Template](#template).
 - Short test names: knobs
 	- ID: 2026111021184930
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261110-211849
 	- Opened by: t00mietum
@@ -3587,7 +3726,9 @@ Sorted per the notes in [Template](#template).
 - Short test names: xfce and settings
 	- ID: 2026111021184944
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261110-211849
 	- Opened by: t00mietum
@@ -3612,7 +3753,9 @@ Sorted per the notes in [Template](#template).
 - Short test names: core config, graphs, lib and render
 	- ID: 2026111021184957
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261110-211849
 	- Opened by: t00mietum
@@ -3638,7 +3781,9 @@ Sorted per the notes in [Template](#template).
 - Short test names: the rest of core
 	- ID: 2026111021184970
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261110-211849
 	- Opened by: t00mietum
@@ -3663,7 +3808,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Settings, General: "Reduce motion in remote session"
 	- ID: 2026111019111679
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261110-191116
 	- Opened by: t00mietum
@@ -3686,7 +3833,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Settings, General: Max age below Keep across restarts, with hours and minutes
 	- ID: 2026111019111684
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261110-191116
 	- Opened by: t00mietum
@@ -3719,7 +3868,9 @@ Sorted per the notes in [Template](#template).
 - CICD gap: Fuzz the parsers of files and kernel messages
 	- ID: 2026110310450001
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261103-104500
 	- Opened by: t00mietum
@@ -3738,7 +3889,9 @@ Sorted per the notes in [Template](#template).
 - Fuzz: the seed and budget harness, and its cicd hookup
 	- ID: 2026111011435200
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261110-114352
 	- Opened by: t00mietum
@@ -3764,7 +3917,9 @@ Sorted per the notes in [Template](#template).
 - Fuzz: the history file decode
 	- ID: 2026111011435314
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261110-114353
 	- Opened by: t00mietum
@@ -3789,7 +3944,9 @@ Sorted per the notes in [Template](#template).
 - Fuzz: the netlink socket and neighbor dumps
 	- ID: 2026111011435428
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261110-114354
 	- Opened by: t00mietum
@@ -3817,7 +3974,9 @@ Sorted per the notes in [Template](#template).
 - Fuzz: the bridge forwarding table
 	- ID: 2026111011435542
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261110-114355
 	- Opened by: t00mietum
@@ -3841,7 +4000,9 @@ Sorted per the notes in [Template](#template).
 - Fuzz: the /proc and /sys readers
 	- ID: 2026111011435657
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261110-114356
 	- Opened by: t00mietum
@@ -3870,7 +4031,9 @@ Sorted per the notes in [Template](#template).
 - Fuzz: a settings file loaded through shcl
 	- ID: 2026111011435771
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261110-114357
 	- Opened by: t00mietum
@@ -3896,7 +4059,9 @@ Sorted per the notes in [Template](#template).
 - CICD gap: Slow leak checks still missing
 	- ID: 2026110310450003
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261103-104500
 	- Opened by: t00mietum
@@ -3915,7 +4080,9 @@ Sorted per the notes in [Template](#template).
 - Slow leak checks: settings window soak
 	- ID: 2026111013025758
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261110-130257
 	- Opened by: t00mietum
@@ -3941,8 +4108,10 @@ Sorted per the notes in [Template](#template).
 - Slow leak checks: CodeQL
 	- ID: 2026111013025770
 	- Type: Task
-	- Status: Done
+	- Status: Closed
 		- Each language's half passed alone. A run of both together is left.
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Needs local test suite run?: No
 	- Priority|Severity: Avg
 	- Opened: 20261110-130257
@@ -3975,7 +4144,9 @@ Sorted per the notes in [Template](#template).
 - Better antialiasing, so sharp spikes don't pulse in width
 	- ID: 2026110920595602
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Superseded
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261109-205956
 	- Opened by: t00mietum
@@ -4010,7 +4181,9 @@ Sorted per the notes in [Template](#template).
 - Reduce motion: the setting, and sessions a remote desktop server starts
 	- ID: 2026110922214697
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261109-222146
 	- Opened by:
@@ -4040,8 +4213,10 @@ Sorted per the notes in [Template](#template).
 - Keep logging but don't display updates while the desktop is locked
 	- ID: 2026110911114050
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- Lock b23's screen for a minute with the panel up, and say whether the graphs show the minute right after unlocking.
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Needs hand testing: No
 	- Stand-in: the real xfce4-screensaver blanking a private panel, with its lock off (20261110). Left for a person: the lock and its unlock dialog on b23's own screen.
 	- Priority|Severity: Avg
@@ -4076,8 +4251,10 @@ Sorted per the notes in [Template](#template).
 - New default settings for Graphs and Themes
 	- ID: 2026110920595601
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- It goes a little past the wording in one way. Each graph's own border in Default moved to `#595959` with the shared one, so a graph keeps it with One border for every graph off.
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261109-205956
 	- Opened by: t00mietum
@@ -4112,8 +4289,10 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 5: The processes graph takes about 4 ms a read
 	- ID: 2026110618502905
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. A read is still one `stat` a process, so the system calls a process are the same, and the kernel's part of the read, nearly all of it, is the same.
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -4154,7 +4333,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 25: With the LAN split on, each network read spends about 20 ms in the kernel on the panel's thread
 	- ID: 2026110709074425
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -4189,7 +4370,9 @@ Sorted per the notes in [Template](#template).
 - Video & GIF: Bigger font for the fake text
 	- ID: 2026110708212499
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261107-082124
 	- Opened by: t00mietum
@@ -4214,7 +4397,9 @@ Sorted per the notes in [Template](#template).
 - Hosted workflow for the merge gate
 	- ID: 2026102513560001
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
 	- Priority|Severity: Avg
 	- Opened: 20261025-135600
@@ -4241,8 +4426,9 @@ Sorted per the notes in [Template](#template).
 - Video & GIF: Make the XFCE task bar more realistic.
 	- ID: 2026110618335731
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- Watch the new `assets/demo.gif` and say whether the panel looks real enough.
+	- Closed reason: Done
 	- Needs hand testing: No
 	- Stand-in: frames of assets/demo.gif at 20261107 build 8990d9b, checked by eye.
 	- Priority|Severity: Avg
@@ -4270,7 +4456,8 @@ Sorted per the notes in [Template](#template).
 - Move to shcl 3.0.0-beta1
 	- ID: 2026110610124433
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261106-101244
 	- Opened by: JC
@@ -4295,7 +4482,8 @@ Sorted per the notes in [Template](#template).
 - Every finished feature and fixed bug on the backlog has a regression test in CI
 	- ID: 2026110618355727
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261106-183557
 	- Opened by: t00mietum
@@ -4322,7 +4510,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 1: Each draw works out the spike fade again for every column
 	- ID: 2026110618502901
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -4347,7 +4536,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 2: knobs lists a theme's changes again for each row it reads
 	- ID: 2026110618502902
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -4373,7 +4563,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 3: Each settings refresh sets every tip and row height again
 	- ID: 2026110618502903
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -4402,7 +4593,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 4: Building the look for the settings window allocates about 700 times
 	- ID: 2026110618502904
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -4432,7 +4624,8 @@ Sorted per the notes in [Template](#template).
 - CICD gap: clang-tidy leaves out the clang analyzer checks
 	- ID: 2026110310450007
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261103-104500
 	- Opened by: t00mietum
@@ -4451,7 +4644,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: A spike emphasis of 100 should preserve more of prior spikes
 	- ID: 2026110215302657
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Verified: 20261102, round-1102b at 4286e10 against 8551170's parent, drawing a CPU graph 200 px wide from 24 and 72 hours of made-up history with a 20 s spike to 85% each hour, on b23's own settings at 100%, 75% and 50%. Before, the hourly spikes were gone past the middle of the graph. Now they stand out as separate lines back to about the last tenth at 100% and 75%, and to the second quarter at 50%, lower but clear.
 		- At 100% the leftmost tenth, where each column covers hours that all have a spike, fills to the top, and at 75% most of the way. A short blip each minute lifts the older columns' floor to about a quarter of the height, against about 5% before.
 	- Priority|Severity: Avg
@@ -4478,7 +4672,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Move vertical axis override from "Colors" tab, to "Graphs", next to "Time axis"
 	- ID: 2026110215302658
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Verified: 20261102, round-1102b debug build, in b23's own style (gtk3 platform theme, Orchis green compact), light and dark. Graphs drew a Vertical scale column right of Time axis, Global default in each row, with nothing cut off. Colors drew each mode on its own line with no Vertical scale.
 	- Priority|Severity: Avg
 	- Opened: 20261102-153026
@@ -4507,7 +4702,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Themes|Colors reset icons closer to the boxes they reset
 	- ID: 2026110215302659
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Verified: 20261102, round-1102b debug build, in b23's own style, light and dark. On Colors every revert arrow sat just right of its hex box, in both columns, and the mode's just right of Gradient.
 	- Priority|Severity: Avg
 	- Opened: 20261102-153026
@@ -4533,7 +4729,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 24: The profiler draws into a canvas far smaller than a panel's, and one run varies 20%
 	- ID: 2026103115232157
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-152321
 	- Opened by: t00mietum
@@ -4561,7 +4758,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: No horizontal line between the theme buttons and the scrollable region
 	- ID: 2026103114565000
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-145650
 	- Opened by: t00mietum
@@ -4583,7 +4781,8 @@ Sorted per the notes in [Template](#template).
 - Every control and color chip has a tip
 	- ID: 2026103115015700
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-150157
 	- Opened by: t00mietum
@@ -4607,7 +4806,8 @@ Sorted per the notes in [Template](#template).
 - Destructive questions default to No
 	- ID: 2026103115020000
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-150157
 	- Opened by: t00mietum
@@ -4631,7 +4831,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: General tab names and layout
 	- ID: 2026110109585212
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261101-095852
 	- Opened by: t00mietum
@@ -4673,7 +4874,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Vertical axis scale, as a default and per graph
 	- ID: 2026110109585213
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261101-095852
 	- Opened by: t00mietum
@@ -4712,8 +4914,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Settings dialog brightness inverted
 	- ID: 2026103113364400
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- Whether the 2 shades read apart and look right is for a person to judge.
+	- Closed reason: Done
 	- Needs hand testing: No
 	- Priority|Severity: Avg
 	- Opened: 20261031-133644
@@ -4745,7 +4948,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Clicking a slider's track moves the slider there
 	- ID: 2026103108591401
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-085914
 	- Opened by: t00mietum
@@ -4769,7 +4973,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Taller slider grab buttons
 	- ID: 2026103108591402
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Verified: 20261031, the round's debug build in b23's own style (Orchis green compact, dark) on a private display, in place of a hand test on b23. The handles came level with the number boxes, and the groove stayed thin and centered.
 	- Priority|Severity: Avg
 	- Opened: 20261031-085914
@@ -4793,7 +4998,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Same height for all buttons
 	- ID: 2026103108591403
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Verified: 20261031, the release build from the full run, in b23's own style (Orchis green compact), light and dark, in place of a hand test on b23. On Themes/Colors the theme buttons and the bottom row came out one height.
 	- Priority|Severity: Avg
 	- Opened: 20261031-085914
@@ -4821,8 +5027,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Default position and colors for Processes
 	- ID: 2026103108591404
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- It goes a little past the wording. Default's memory programs moved from `#ffffa3` to `#ffffb8`, to read apart from the new yellows.
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-085914
 	- Opened by: t00mietum
@@ -4854,7 +5061,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Default temperature colors from b23's
 	- ID: 2026103108591405
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-085914
 	- Opened by: t00mietum
@@ -4876,7 +5084,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Tab order follows a graph reorder
 	- ID: 2026103108591406
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-085914
 	- Opened by: t00mietum
@@ -4903,7 +5112,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Flyover tip text: one "Key: Value" pair per line
 	- ID: 2026103109002399
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261031-090023
 	- Opened by: t00mietum
@@ -4929,8 +5139,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: More minimum padding between buttons' inner edges and their text
 	- ID: 2026103107404601
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- The amount is a look: open Settings and judge the room around the text on the buttons.
+	- Closed reason: Done
 	- Needs hand testing: Settings on b23, with its own style, once a build with this is installed.
 	- Verified: 20261031, build dep51 from c1dec56 in b23's own style (gtk3 platform theme, Orchis green compact), light and dark, in place of the hand test on b23. Every tab and the color picker showed each button's text clear of its frame, and nothing else out of place.
 	- Priority|Severity: Avg
@@ -4960,9 +5171,10 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Monitor for the number of processes
 	- ID: 2026103107404602
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. It's off by default, like the other graphs since memory. Turn it on in the graph list.
 		- How it looks in each theme stays on 2026102620162201.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The quick gate passed on 2026-10-31.
 	- Priority|Severity: Avg
 	- Opened: 20261031-074046
@@ -4999,7 +5211,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 3: The settings window redoes its whole refresh on each step of a slider or color drag
 	- ID: 2026103016201603
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs external testing: No
 	- Priority|Severity: Avg
 	- Opened: 20261030-162016
@@ -5030,7 +5243,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 4: Nothing formats or lints the C++ and Python files
 	- ID: 2026103016201604
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -5061,8 +5275,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: "Sample ms" becomes "Sample %"
 	- ID: 2026102819145599
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- Whether a percentage of the time between reads, where 200% reads half as often, is what was meant is for a person to judge.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Needs hand testing: No
 	- Note: 20261028, no check can judge it, since it turns on what the percentage was meant to be of. The rates are checked by dej9z, deja0 and deja2.
@@ -5093,8 +5308,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Scrollable region of the dialog a different color
 	- ID: 2026102913122702
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- Whether the shade is subtle enough and still plain to see is for a person to judge.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-29.
 	- Needs hand testing: No
 	- Note: 20261029, no check can judge it, since it turns on how subtle the shade looks. Build dekpw drew every tab in Adwaita and Adwaita dark: the page at `#f4f3f2` on a `#faf9f8` window, and `#383838` on `#323232`, with the tab list, the Name row and the buttons in the window color.
@@ -5123,7 +5339,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Defaults from my current settings
 	- ID: 2026102917525530
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run and the soak passed on 2026-10-29.
 	- Priority|Severity: Avg
 	- Opened: 20261029-175255
@@ -5162,8 +5379,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Default per-monitor colors from my current settings
 	- ID: 2026102814061803
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- Measured as CIEDE2000, where 10 or more reads clearly apart. b23's colors as they were: zswap's magenta `#ff80ff` 3.2 from system's pink `#fa72f0`, swap `#40a0ff` 5.6 from the disk's read `#6bb3ff`, and memory `#ffff80` 5.7 from temperature `#feff40`. Default now: every 2 graphs' leads 10.4 or more apart, memory and temperature the closest, and every lead 14.2 or more from I/O wait and system.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
 	- Needs hand testing: on b23, after an install and a panel restart, pick Default on the Themes tab with no "*" changes on it, Apply, and judge whether it looks like the colors set by hand before.
 	- Note: 20261028, no check can judge it. It waits on the open question on Default's pink CPU system and memory `#ffffa3`, and turns on how it looks.
@@ -5207,9 +5425,10 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: GPU memory graph
 	- ID: 2026102819145598
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. It's off by default, like every graph since memory. Turn it on in the graph list.
 		- 2026-10-29: the one call left for a person, reserved memory, went the way bug 2026102915125135 asked, to match `nvidia-smi`.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-29.
 	- Verified: 20261029, build dekpw from 9b72012 in a test panel on Default. The graph drew in its own violet after GPU, and its tip read "GPU memory 39% used" and "3.1 of 8.0 GiB", while `nvidia-smi` read 2818 MiB used and 351 MiB reserved. So the tip counts the reserved part as used, and reads about 4 points over `nvidia-smi`. Left for a person, since which one is right is a call on what the graph means. The rest matched 2026102819145597.
 	- Priority|Severity: Avg
@@ -5236,8 +5455,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: GPU utilization graph
 	- ID: 2026102819145597
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. It's off by default, like every graph since memory. Turn it on in the graph list.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-29.
 	- Needs hand testing: on b23, after an install and a panel restart, turn on GPU and GPU memory in the graph list, Apply, and judge how both look beside memory on Default. The GPU tip should be near what `nvidia-smi` shows.
 	- Verified: 20261029, build dekpw from 9b72012 in a test panel on Default, with CPU, memory, GPU and GPU memory on. The GPU graph drew in its own blue beside memory, and its tip read "GPU 29% busy" while `nvidia-smi` read 26% to 36%. The graph list, the GPU section on Colors and the Default colors drew as asked, in a light and a dark theme.
@@ -5272,8 +5492,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Graphs editing section on its own tab
 	- ID: 2026102913122704
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. The old Graph tab is now General, since Graph beside Graphs read as one tab twice.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-29.
 	- Needs hand testing: on b23, after an install, open Settings, pick Graphs, and judge the tab names and the list on its own tab.
 	- Verified: 20261029, build dekpw from 9b72012, in a light and a dark theme. The tabs read General, Graphs, Themes, Colors, Outline. Graphs drew the 12 rows with no heading over them, and General drew Size, Time, Frame, Disk graph and History.
@@ -5305,7 +5526,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Dialog never taller than the screen
 	- ID: 2026102913122703
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-29.
 	- Priority|Severity: Avg
 	- Opened: 20261029-131227
@@ -5333,7 +5555,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Dialog height from the tallest other tab
 	- ID: 2026102913122705
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-29.
 	- Priority|Severity: Avg
 	- Opened: 20261029-131227
@@ -5360,7 +5583,8 @@ Sorted per the notes in [Template](#template).
 - An item's files go when it's removed from the panel
 	- ID: 2026102622311676
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-29.
 	- Priority|Severity: Avg
 	- Opened: 20261026-223116
@@ -5388,9 +5612,10 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Outline, background and transparent overrides on the Outline tab
 	- ID: 2026102819315837
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- Verified 2026-10-28, round-1028b at 84b61ad: on a test panel, both boxes ticked put the shared border and background over every graph, CPU's own included. Unticked, CPU's own came back, but the other 8 graphs kept the shared colors.
 		- 2026-10-28: since Bug 2026102820512294, unticked gives every graph its own back, across a save and reload (dejng). The look is left for a person.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Needs hand testing: No
 	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row.
@@ -5431,7 +5656,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: One tab for global outline-related settings
 	- ID: 2026102807585020
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261028-075850
 	- Opened by: t00mietum
@@ -5453,7 +5679,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: All monitor colors on one tab
 	- ID: 2026102807585010
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261028-075850
 	- Opened by: t00mietum
@@ -5471,8 +5698,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Themes tab stays highlighted with a sub-tab
 	- ID: 2026102819145601
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- Verified 2026-10-28, round-1028b at 84b61ad: Themes showed dimly lit with Colors or Outline picked, in a light and a dark palette, and the picked line brighter.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Needs hand testing: on b23, after an install, open Settings, pick Themes, then Colors, then Outline, and judge the dimmer highlight on the line that goes with the one picked.
 	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row.
@@ -5501,8 +5729,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Every graph's colors on one scrolling tab
 	- ID: 2026102819315852
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- Verified 2026-10-28, round-1028b at 84b61ad: the Colors tab drew each graph's section under its name with Background beside it, the colors in one column down the page, and a scrollbar, in a 735 by 800 window.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Needs hand testing: on b23, after an install, open Settings, pick Themes/Colors, scroll through every graph's section, move a graph in the graph list and see its section move, then judge the layout.
 	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row.
@@ -5540,8 +5769,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Outline and background colors per graph
 	- ID: 2026102819315170
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- Verified 2026-10-28, round-1028b at 84b61ad: on a test panel, CPU's own border and background drew beside the other graphs' Default ones. In 5 rolls, each graph got a dark background of its own hue, with its quiet colors showing on it.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Needs hand testing: on b23, after an install with 2026102819315837 in, give one graph its own Border, Top and Bottom, Apply, and judge it beside the rest. Then Randomize a few times and judge the backgrounds.
 	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row.
@@ -5579,8 +5809,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Margins around each graph, on the Outline tab
 	- ID: 2026102819315156
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- Verified 2026-10-28, round-1028b at 84b61ad: the Outline tab drew Margins above Background. On a test panel, Top & bottom 0 and Left & right 8 put the graphs against the panel's edges with 16 px between them, and 2 and 2 looked as before.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Needs hand testing: on b23, after an install, set Top & bottom and Left & right on Themes/Outline, Apply, and judge the panel's look.
 	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row.
@@ -5618,9 +5849,10 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Monochromatic themes
 	- ID: 2026102807585040
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- Measured 2026-10-28 as CIEDE2000: in all 3, I/O wait and system sit 13.0 or more apart and 24.9 or more from the lead, each graph's own colors 10.6 or more apart, and every color 21.0 or more from the top. Vintage's I/O wait and system are the closest pair.
 		- Verified 2026-10-28, round-1028b at 84b61ad: on a test panel, Terminal, Vintage and Frost each drew all 9 graphs in their one color, clear of the background, with I/O wait and system apart.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
 	- Needs hand testing: on b23, after an install and a panel restart, pick Terminal, Vintage and Frost on the Themes tab in turn, Apply, and judge each on the panel.
 	- Verified: 2026-10-28, round-1028b at 84b61ad, per the status row.
@@ -5654,7 +5886,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: "Sample ms default" of 1000
 	- ID: 2026102819145600
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Priority|Severity: Avg
 	- Opened: 20261028-191455
@@ -5680,7 +5913,8 @@ Sorted per the notes in [Template](#template).
 - Graph sizes on a vertical panel
 	- ID: 2026102621105420
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-28.
 	- Priority|Severity: Avg
 	- Opened: 20261026-211054
@@ -5712,7 +5946,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Less CPU used by tukzmon
 	- ID: 2026102814061812
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261028-140618
 	- Opened by: t00mietum
@@ -5742,7 +5977,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: A graph of tukzmon's own CPU use
 	- ID: 2026102814061811
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The quick gate passed on 2026-10-28.
 	- Priority|Severity: Avg
 	- Opened: 20261028-140618
@@ -5777,7 +6013,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Tab order follows the graph order
 	- ID: 2026102814061802
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261028-140618
 	- Opened by: t00mietum
@@ -5803,7 +6040,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Reset history clears the panel's graphs at once
 	- ID: 2026102814061807
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261028-140618
 	- Opened by: t00mietum
@@ -5832,7 +6070,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Zswap ratio moves to the tip
 	- ID: 2026102814061810
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261028-140618
 	- Opened by: t00mietum
@@ -5858,7 +6097,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Sample ms override per graph
 	- ID: 2026102814061806
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261028-140618
 	- Opened by: t00mietum
@@ -5887,7 +6127,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Graph tab, Graphs section names, widths, order, and defaults
 	- ID: 2026102814061800
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261028-140618
 	- Opened by: t00mietum
@@ -5919,7 +6160,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Time subsection, a default time axis
 	- ID: 2026102814061804
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261028-140618
 	- Opened by: t00mietum
@@ -5945,7 +6187,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Time axis dropdowns in the Graphs section
 	- ID: 2026102814061805
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261028-140618
 	- Opened by: t00mietum
@@ -5966,7 +6209,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Empty checkboxes need to be more visible
 	- ID: 2026102807585000
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261028-075850
 	- Opened by: t00mietum
@@ -5986,7 +6230,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Apply turns on while typing in a text box
 	- ID: 2026102814061801
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261028-140618
 	- Opened by: t00mietum
@@ -6006,7 +6251,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: More space between settings sections
 	- ID: 2026102814061808
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261028-140618
 	- Opened by: t00mietum
@@ -6023,7 +6269,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Taller bottom buttons
 	- ID: 2026102814061809
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261028-140618
 	- Opened by: t00mietum
@@ -6039,7 +6286,8 @@ Sorted per the notes in [Template](#template).
 - CICD reset: CICD process gaps
 	- ID: 2026102416252898
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261024-162528
 	- Opened by: t00mietum
@@ -6068,8 +6316,9 @@ Sorted per the notes in [Template](#template).
 - Memory cache counts slab, the way b23's multiload-ng does
 	- ID: 2026102508354893
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
 		- 2026-10-25: Count reclaimable slab as cache, always, like `free`.
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261025-083548
 	- Opened by: t00mietum
@@ -6091,7 +6340,8 @@ Sorted per the notes in [Template](#template).
 - CICD reset: leak checks, Miri
 	- ID: 2026102516060729
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full Miri step passed on 2026-10-25.
 	- Priority|Severity: Avg
 	- Opened: 20261025-160607
@@ -6119,7 +6369,8 @@ Sorted per the notes in [Template](#template).
 - CICD reset: leak checks
 	- ID: 2026102506591278
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261025-065912
 	- Opened by: t00mietum
@@ -6137,9 +6388,10 @@ Sorted per the notes in [Template](#template).
 - CICD reset: version line
 	- ID: 2026102416252897
 	- Type: Task
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. Nothing has an About box yet, so only `--version` prints the line. An About box added later would show the same line.
 		- A build from a tree with changes to the program's sources, or from outside git, isn't any commit, so it takes the time it was built.
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261024-162528
 	- Opened by: t00mietum
@@ -6167,7 +6419,8 @@ Sorted per the notes in [Template](#template).
 - CICD reset: profiler stage
 	- ID: 2026102506591288
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261025-065912
 	- Opened by: t00mietum
@@ -6191,7 +6444,8 @@ Sorted per the notes in [Template](#template).
 - CICD reset: .deb and .rpm packages
 	- ID: 2026102506591283
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261025-065912
 	- Opened by: t00mietum
@@ -6216,7 +6470,8 @@ Sorted per the notes in [Template](#template).
 - CICD reset: leak checks, soak test
 	- ID: 2026102516060734
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. `--backlog-run-full` passed on 2026-10-25.
 	- Priority|Severity: Avg
 	- Opened: 20261025-160607
@@ -6243,7 +6498,8 @@ Sorted per the notes in [Template](#template).
 - CICD reset: leak checks, sanitizers
 	- ID: 2026102516060724
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. `--backlog-run-full` passed on 2026-10-25.
 	- Priority|Severity: Avg
 	- Opened: 20261025-160607
@@ -6271,7 +6527,8 @@ Sorted per the notes in [Template](#template).
 - CICD reset: leak checks, clippy and advisories
 	- ID: 2026102516060718
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261025-160607
 	- Opened by: t00mietum
@@ -6295,7 +6552,8 @@ Sorted per the notes in [Template](#template).
 - CICD reset: temp files and safe removal
 	- ID: 2026102416252896
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261024-162528
 	- Opened by: t00mietum
@@ -6322,7 +6580,8 @@ Sorted per the notes in [Template](#template).
 - Build date after the version, for non-release builds
 	- ID: 2026102408304652
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261024-082803
 	- Opened by: t00mietum
@@ -6339,7 +6598,8 @@ Sorted per the notes in [Template](#template).
 - What "Local" means on the network graph
 	- ID: 2026101916013883
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261019-160138
 	- Opened by: t00mietum
@@ -6355,7 +6615,8 @@ Sorted per the notes in [Template](#template).
 - CICD gap: Animated demo for the README
 	- ID: 2026110310450002
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Avg
 	- Opened: 20261103-104500
 	- Opened by: t00mietum
@@ -6381,7 +6642,9 @@ Sorted per the notes in [Template](#template).
 - A bucket cut by a sample's edge tints a narrow column
 	- ID: 2026111011172485
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261110-111724
 	- Opened by:
@@ -6410,7 +6673,9 @@ Sorted per the notes in [Template](#template).
 - A greyed slider still draws its groove in the accent color
 	- ID: 2026110923034356
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261109-230343
 	- Opened by:
@@ -6435,7 +6700,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 17: A save through a linked item settings file shows in the panel only at the next read
 	- ID: 2026110709074417
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -6465,7 +6732,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 18: With the .deb or .rpm, Properties runs whichever tukzmon-settings comes first on PATH
 	- ID: 2026110709074418
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -6496,7 +6765,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 19: knobs' spec checks let a relation loop, case-only twins, a NaN range end, and a text chooser through
 	- ID: 2026110709074419
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -6539,7 +6810,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 20: The Miri step drops a target whose test list fails and still passes
 	- ID: 2026110709074420
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -6564,7 +6837,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 21: The demo's video encodes use every core
 	- ID: 2026110709074421
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -6591,7 +6866,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 22: The demo judges a display free by its lock file alone
 	- ID: 2026110709074422
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -6614,7 +6891,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 23: The color picker has no tips, and 2 message boxes break the UX guide
 	- ID: 2026110709074423
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -6643,7 +6922,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 24: design.md gives a stale count of the plugin's library calls
 	- ID: 2026110709074424
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -6663,8 +6944,10 @@ Sorted per the notes in [Template](#template).
 - A settings window refresh test fails now and then on GitHub's runner
 	- ID: 2026110810505772
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
 		- The cause isn't proven, so it stays open until the hosted runs show the test holds.
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Needs external testing: No
 	- Priority|Severity: Low
 	- Opened: 20261108-105057
@@ -6692,7 +6975,9 @@ Sorted per the notes in [Template](#template).
 - The settings tests print about 95,000 QObject::moveToThread warnings
 	- ID: 2026110912124929
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261109-121249
 	- Opened by:
@@ -6713,7 +6998,8 @@ Sorted per the notes in [Template](#template).
 - GPU tests dekmd and der6k fail on a hybrid laptop whose NVIDIA card sleeps
 	- ID: 2026110216211209
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Verified: 20261102, round-1102b at 4286e10 on b23, with the RTX 3060 Ti's power files shown as `auto` and `suspended`. dekma, dekmd, der6k and desfa passed, and dekmd and der6k returned early. With the card shown awake, all 4 passed and checked the real card. A hybrid laptop wasn't tested.
 	- Priority|Severity: Low
 	- Opened: 20261102-162112
@@ -6738,7 +7024,8 @@ Sorted per the notes in [Template](#template).
 - Profiler tick 151 us at round-1101, up from 134 us
 	- ID: 2026110113023600
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261101-130236
 	- Opened by:
@@ -6758,7 +7045,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 8: 2 windows saving one new theme name keep only the last one's colors
 	- ID: 2026103115231908
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152319
 	- Opened by: t00mietum
@@ -6789,7 +7077,8 @@ Sorted per the notes in [Template](#template).
 - With the LAN split on, TCP to a VM on a bridge that also has the NIC counts as LAN
 	- ID: 2026110111543986
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261101-115439
 	- Opened by: t00mietum
@@ -6822,7 +7111,8 @@ Sorted per the notes in [Template](#template).
 - With the LAN split on, TCP to a VM or over a VPN counts as LAN
 	- ID: 2026110110445455
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261101-104454
 	- Opened by: t00mietum
@@ -6854,7 +7144,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 23: Dead code in the settings window and public items only tests use
 	- ID: 2026103115232140
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152321
 	- Opened by: t00mietum
@@ -6878,7 +7169,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 22: Stale text in the desktop file, package description, design.md and the knobs demo
 	- ID: 2026103115232125
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152321
 	- Opened by: t00mietum
@@ -6898,7 +7190,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 21: Tests that can't fail, or check less than their names say
 	- ID: 2026103115232109
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152321
 	- Opened by: t00mietum
@@ -6924,7 +7217,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 20: Each trim past the max age eases the time axis again
 	- ID: 2026103115232093
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152320
 	- Opened by: t00mietum
@@ -6952,7 +7246,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 19: The LAN reader doesn't check netlink sequence numbers
 	- ID: 2026103115232077
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152320
 	- Opened by: t00mietum
@@ -6976,7 +7271,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 18: History saves can lose hidden graphs' sections or leave a temp file
 	- ID: 2026103115232061
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152320
 	- Opened by: t00mietum
@@ -7011,7 +7307,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 17: The plugin's tick makes a second mutable borrow through the tooltip requery
 	- ID: 2026103115232046
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152320
 	- Opened by: t00mietum
@@ -7037,7 +7334,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 16: The Nix store volume has no dev.run label, and the Nix step removes other tukzmon volumes
 	- ID: 2026103115232031
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152320
 	- Opened by: t00mietum
@@ -7066,7 +7364,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 15: license.txt counts as docs only for the pre-push hook
 	- ID: 2026103115232016
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152320
 	- Opened by: t00mietum
@@ -7093,7 +7392,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 14: The pre-push hook keeps the gate from removing images, and any value skips it
 	- ID: 2026103115232000
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152320
 	- Opened by: t00mietum
@@ -7121,7 +7421,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 13: The leftover process scan stops at the first one that exits, and prints a false abort
 	- ID: 2026103115231984
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152319
 	- Opened by: t00mietum
@@ -7147,7 +7448,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 12: dev-install.bash ignores the target dir and can't find ldconfig
 	- ID: 2026103115231969
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152319
 	- Opened by: t00mietum
@@ -7176,7 +7478,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 11: knobs lets NaN past a range check
 	- ID: 2026103115231954
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152319
 	- Opened by: t00mietum
@@ -7204,7 +7507,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 10: A non-UTF-8 config path panics, and a dangling config link is replaced
 	- ID: 2026103115231938
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152319
 	- Opened by: t00mietum
@@ -7233,7 +7537,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 9: The graph list's Width % and Sample % header tips are the first row's
 	- ID: 2026103115231923
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152319
 	- Opened by: t00mietum
@@ -7256,7 +7561,8 @@ Sorted per the notes in [Template](#template).
 - A dialog test leaves its scratch folder in the temp dir
 	- ID: 2026103020140879
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-201408
 	- Opened by: t00mietum
@@ -7282,7 +7588,8 @@ Sorted per the notes in [Template](#template).
 - A panel item whose settings file can't be read draws at the defaults with no message
 	- ID: 2026103018110076
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-181100
 	- Opened by: t00mietum
@@ -7316,7 +7623,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 5: A settings file that can't be read opens as defaults with no message
 	- ID: 2026103016201605
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -7349,7 +7657,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 6: The Nix check puts env values into arithmetic unchecked
 	- ID: 2026103016201606
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -7373,7 +7682,8 @@ Sorted per the notes in [Template](#template).
 - GPU memory counts the driver's reserved memory as used
 	- ID: 2026102915125135
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261029-151251
 	- Opened by: t00mietum
@@ -7401,7 +7711,8 @@ Sorted per the notes in [Template](#template).
 - Bug: deja2 fails now and then
 	- ID: 2026102815185131
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261028-151851
 	- Opened by: t00mietum
@@ -7420,7 +7731,8 @@ Sorted per the notes in [Template](#template).
 - Settings rows that depend on a switch are never greyed
 	- ID: 2026102617084201
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261026-170842
 	- Opened by: t00mietum
@@ -7450,7 +7762,8 @@ Sorted per the notes in [Template](#template).
 - tukzmon-settings --version aborts when its output can't be written
 	- ID: 2026102519030128
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261025-190301
 	- Opened by: t00mietum
@@ -7476,9 +7789,10 @@ Sorted per the notes in [Template](#template).
 - A killed pipeline run leaves its container and temp folder
 	- ID: 2026102514470001
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in 2 ways. A run kept with `--keep-temp` still waits 2 days, with its containers, even if it was killed. And a container's run is found by a new `dev.pid` label, the run's process, with `dev.run` for its folder.
 		- Closed on the earlier test both ways. What departs from the wording is a technical call.
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261025-144700
 	- Opened by: t00mietum
@@ -7502,7 +7816,8 @@ Sorted per the notes in [Template](#template).
 - Dogfood install and cicd build with different Rust versions
 	- ID: 2026102514130001
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261025-141300
 	- Opened by: t00mietum
@@ -7524,7 +7839,8 @@ Sorted per the notes in [Template](#template).
 - Pipeline runs at the same time can remove each other's image
 	- ID: 2026102514470002
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261025-144700
 	- Opened by: t00mietum
@@ -7546,7 +7862,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 8: A setting changed and changed back keeps Apply on, and Apply writes the default into the file
 	- ID: 2026110709074408
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7579,7 +7897,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 9: Randomize gives 2 graphs leads that don't read apart in about 1 roll in 7,500
 	- ID: 2026110709074409
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Needs local test suite run?: No. The quick gate's format, build, lint and tests passed on 2026-11-09.
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
@@ -7611,7 +7931,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 11: With the LAN split on, a socket that stops counting as away adds its whole life as LAN in one sample
 	- ID: 2026110709074411
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7640,8 +7962,10 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 12: Work that starts during the GPU's idle rest reads as 0% until the rest ends
 	- ID: 2026110709074412
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
 		- Less than the wording. Work that starts on a card still awake in the rest reads 0 until the rest is up. The rest now comes only after 5 s idle, and ends as soon as the card sleeps. Accept that window, or ask for a shorter rest, which risks keeping the card up.
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Stand-in: none (20261109). Whether the window left is small enough is a scope call.
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
@@ -7677,7 +8001,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 13: An IPv4 client on a dual-stack socket is counted with IPv6 header bytes
 	- ID: 2026110709074413
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7702,7 +8028,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 14: A LAN dump left partway makes a gap at each read until the old dump runs out
 	- ID: 2026110709074414
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7730,7 +8058,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 15: With no display, tukzmon-settings aborts with a core dump instead of exiting 1
 	- ID: 2026110709074415
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7759,7 +8089,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 16: An item the panel drops without Remove keeps its files, and a later item on that id takes them over
 	- ID: 2026110709074416
 	- Type: Bug
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7791,10 +8123,57 @@ Sorted per the notes in [Template](#template).
 		- Swept: every place an item's files are made or deleted (`Plugin::new`, `start_from`, `forget`, `Graphs::save` through `keep::write`), and every `instance_file` and `xfce_panel_plugin_get_unique_id` caller. The settings window's `keeps_history` still reads an old `plugin-<id>.shcl` until a new item takes the id, as before.
 	- Closed: 20261109-142358
 
+- Code review 20261107 item 1: A shcl 2 settings file with one bad line loses its graph order, drives and theme names, and Apply makes the loss stick
+	- ID: 2026110709074401
+	- Type: Bug
+	- Status: Closed
+	- Closed reason: Moot
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110610124433, 2026110709074410
+	- Origin: `dbbe34f` (2026-11-06), merged at `8900d3d`. New since the last full review. Confirmed, by probes against core and against the settings window's code, found by 2 reviewers apart.
+	- Steps to reproduce: A settings file with no Format line, with `order: mem, cpu` under `graph:`, and one line that is still an error once converted, such as `show true` with its colon missing. Start the plugin, or open the settings window, change any color, and Apply.
+	- Incorrect behavior: The graph order falls back to the default, `disk.drives` to all, and a quoted theme name to its key. The plugin logs that the file would still have an error once converted, and makes no backup. Apply then writes the file without the order and stamps it Format 3, so the old values are gone with no copy left.
+	- Expected behavior: The file reads the way shcl 2 read it, with only the bad line dropped, as 2026110610124433 asks. A file that gets rewritten keeps a backup first.
+	- Possible cause: `config::as_shcl3` reads `shcl::upgrade(text, true).text`. When the converted text would still have an error, shcl gives back the input as it was, and shcl 3 then reads its 2.x lists and quotes by the new rules.
+	- Sweep: `config::model`, the window's `read` and through it `Dialog::open` and `apply`, both `upgrade_file` callers, and the ambiguous case, which also gives back the input.
+	- Decisions:
+		- 2026-11-07: Low, since nobody else uses tukzmon yet, and only my own files were ever shcl 2. (me)
+	- Verified: 2026-11-07, the only tukzmon settings files there are, b23's `plugin-16.shcl` and `tukzmon.shcl`, load clean as shcl 3, have nothing to convert, and read to the same look by 2.x rules. b28l has none. The same check reads a file with a line still in error differently, so it can see this fault.
+	- Superseded by ID: 2026110709261106, which takes out the shcl 2 reading.
+	- Test case: none, since nothing was changed.
+	- Closed: 20261107-092134
+
+- Code review 20261107 item 10: A new panel item makes a shcl 2 backup and a "rewritten" log line for a file it never had
+	- ID: 2026110709074410
+	- Type: Bug
+	- Status: Closed
+	- Closed reason: Moot
+	- Priority|Severity: Low
+	- Opened: 20261107-090744
+	- Opened by: t00mietum
+	- Related IDs: 2026110610124433, 2026110709074401
+	- Origin: `dbbe34f` (2026-11-06), on `config::start_from` from `60e885c` (2026-10-26). Confirmed, by a probe.
+	- Steps to reproduce: Leave the shared `tukzmon.shcl` as shcl 2, then add a tukzmon item to the panel.
+	- Incorrect behavior: The new item's file is a copy of the 2.x text, which is then converted at once. That leaves `plugin-N_backup_<time>_format-v2.shcl` and a journal line saying the file is rewritten, for every item added.
+	- Expected behavior: A new item starts with a shcl 3 file and no backup.
+	- Possible cause: `start_from` copies the shared file as it is.
+	- Decisions:
+		- 2026-11-07: Low, since nobody else uses tukzmon yet, and only my own files were ever shcl 2. (me)
+	- Verified: 2026-11-07, b23's shared `tukzmon.shcl` loads clean as shcl 3 with nothing to convert, so a new item's copy isn't converted. It's the only shared file there is.
+	- Superseded by ID: 2026110709261106, which takes out the shcl 2 rewrite.
+	- Test case: none, since nothing was changed.
+	- Closed: 20261107-092134
+
+**Stop here for a next release**
+
 - CICD gap: df3qt never runs in the pipeline, since the image has no dbus-daemon
 	- ID: 2026110923411799
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261109-234117
 	- Opened by:
@@ -7818,7 +8197,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 26: The amdgpu reads have none of the NVIDIA path's runtime power checks
 	- ID: 2026110709074426
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7850,7 +8231,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 27: A demo run of only some scenes writes over assets/demo.gif
 	- ID: 2026110709074427
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7874,7 +8257,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261107 item 28: A docs-only push to main skips the 2 checks that read docs
 	- ID: 2026110709074428
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261107-090744
 	- Opened by: t00mietum
@@ -7900,7 +8285,9 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 33: The workflow pins actions/checkout by tag and keeps the token in the checkout
 	- ID: 2026103115232296
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
 	- Needs external testing: the `merge-gate` workflow's first run on GitHub, the same run 2026102513560001 waits for.
 	- Priority|Severity: Low
 	- Opened: 20261031-152322
@@ -7925,7 +8312,8 @@ Sorted per the notes in [Template](#template).
 - Drop the shcl 2 reading and rewrite of settings files
 	- ID: 2026110709261106
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261107-092611
 	- Opened by: t00mietum
@@ -7951,7 +8339,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 6: Opening the settings window works out the graph list once per setting
 	- ID: 2026110618502906
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -7973,7 +8362,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 7: Public items in knobs and the settings crate have no doc comments
 	- ID: 2026110618502907
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -8000,7 +8390,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 8: Catch-all arms on knobs' own enums
 	- ID: 2026110618502908
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -8026,7 +8417,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 9: Clones and a collect with no reason given
 	- ID: 2026110618502909
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -8054,7 +8446,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 10: Short names, deep nesting and dropped results in core
 	- ID: 2026110618502910
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -8085,7 +8478,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 11: The demo script doesn't follow the Python rules
 	- ID: 2026110618502911
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -8118,7 +8512,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 12: Comments that say the wrong thing, and comment layout in scripts
 	- ID: 2026110618502912
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -8147,7 +8542,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 13: The panel item clears its whole image, then copies each graph in
 	- ID: 2026110618502913
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -8172,7 +8568,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 14: States that exclude each other kept in separate fields
 	- ID: 2026110618502914
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -8198,7 +8595,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 15: The demo scans every process while it records
 	- ID: 2026110618502915
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -8227,7 +8625,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261106 item 16: Scripts still start a process per file or folder in a few loops
 	- ID: 2026110618502916
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261106-185029
 	- Opened by: t00mietum
@@ -8254,7 +8653,8 @@ Sorted per the notes in [Template](#template).
 - Hybrid laptop: GPU memory, on by default, keeps the NVIDIA GPU awake
 	- ID: 2026110118380381
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Verified: 20261102, round-1102b at 4286e10 on b23, with GPU memory on by default and the RTX 3060 Ti's power files shown as `auto` and `suspended`. The graphs held no `/dev/nvidia*` file and GPU memory read 0% while it showed asleep. Once it showed `active`, they opened NVML within a second, held 7 files, and read 2.6 of 8.0 GiB. dekma, dekmd, der6k and desfa passed under it, and with the card shown awake.
 		- The idle rest wasn't reached on the real card, which was 16% busy with the desktop. desfa covers it with stand-in NVML, and der6k shows NVML lets go of every file when shut. A hybrid laptop wasn't tested.
 	- Priority|Severity: Low
@@ -8286,7 +8686,8 @@ Sorted per the notes in [Template](#template).
 - At a panel's width, history lookups are 42% of the profiler's tick
 	- ID: 2026110116150685
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261101-161506
 	- Opened by: t00mietum
@@ -8315,7 +8716,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 32: A run whose named areas are all turned off checks nothing and passes
 	- ID: 2026103115232280
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. `--backlog-run-full` passed on 2026-11-01.
 	- Priority|Severity: Low
 	- Opened: 20261031-152322
@@ -8338,7 +8740,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 31: knobs drops unknown spec keys with no word
 	- ID: 2026103115232265
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152322
 	- Opened by: t00mietum
@@ -8362,7 +8765,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 30: The settings window's teardown relies on being hidden first
 	- ID: 2026103115232250
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152322
 	- Opened by: t00mietum
@@ -8384,7 +8788,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 29: Apply drops comments in the config file
 	- ID: 2026103115232235
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152322
 	- Opened by: t00mietum
@@ -8409,7 +8814,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 28: Properties gives no sign when its window is open or fails to start
 	- ID: 2026103115232220
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152322
 	- Opened by: t00mietum
@@ -8439,7 +8845,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 27: The settings window's controls have no accessible names
 	- ID: 2026103115232204
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152322
 	- Opened by: t00mietum
@@ -8463,7 +8870,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 26: ZFS ARC counts as programs in the memory graph
 	- ID: 2026103115232189
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152321
 	- Opened by: t00mietum
@@ -8488,7 +8896,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261031 item 25: NVML keeps a hybrid laptop's NVIDIA GPU open, and reads device 0
 	- ID: 2026103115232174
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-152321
 	- Opened by: t00mietum
@@ -8516,7 +8925,8 @@ Sorted per the notes in [Template](#template).
 - Label wording: "and" for ampersands, and "default" on Width
 	- ID: 2026103115020300
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-150157
 	- Opened by: t00mietum
@@ -8540,7 +8950,8 @@ Sorted per the notes in [Template](#template).
 - No heading on the Graphs tab that repeats the tab's name
 	- ID: 2026103115020600
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-150157
 	- Opened by: t00mietum
@@ -8563,7 +8974,8 @@ Sorted per the notes in [Template](#template).
 - Border width is on General, but margins and border colors are on Themes
 	- ID: 2026103115020900
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261031-150157
 	- Opened by: t00mietum
@@ -8585,7 +8997,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 12: Public types without Debug and public items without doc comments
 	- ID: 2026103016201612
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -8611,7 +9024,8 @@ Sorted per the notes in [Template](#template).
 - Graphs and Live list their 12 graph slots by hand
 	- ID: 2026103019482449
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-194824
 	- Opened by: t00mietum
@@ -8644,7 +9058,8 @@ Sorted per the notes in [Template](#template).
 - Graphs share one Look
 	- ID: 2026103019230902
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-30.
 	- Priority|Severity: Low
 	- Opened: 20261030-192309
@@ -8673,7 +9088,8 @@ Sorted per the notes in [Template](#template).
 - A single record per graph in Look
 	- ID: 2026103019230886
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-30.
 	- Priority|Severity: Low
 	- Opened: 20261030-192308
@@ -8703,7 +9119,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 7: Collectors reopen their files every tick, and the disk graph reads every block device
 	- ID: 2026103016201607
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -8740,7 +9157,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 8: Each history save reads the whole history file again first
 	- ID: 2026103016201608
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -8766,7 +9184,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 9: Drawing allocates on every draw and packs every pixel
 	- ID: 2026103016201609
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -8797,7 +9216,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 10: Each graph's settings are listed by hand in about 15 places
 	- ID: 2026103016201610
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -8817,7 +9237,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 11: Catch-all matches and string-typed values across the bridge
 	- ID: 2026103016201611
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -8850,7 +9271,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 13: Scripts fork inside loops
 	- ID: 2026103016201613
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -8877,7 +9299,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 14: The release build's opt-level has never been measured against size
 	- ID: 2026103016201614
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -8903,7 +9326,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 15: `dev-install.bash` doesn't follow the helper script layout
 	- ID: 2026103016201615
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261030-162016
 	- Opened by: t00mietum
@@ -8928,7 +9352,8 @@ Sorted per the notes in [Template](#template).
 - Split network traffic into LAN and internet
 	- ID: 2026101916274800
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261019-162748
 	- Opened by: t00mietum
@@ -8951,8 +9376,9 @@ Sorted per the notes in [Template](#template).
 - LAN and internet split: setting and the 5-series network graph
 	- ID: 2026102914561233
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
 		- It departs from the wording in one way. The setting offers Off and TCP sockets only, since the nftables way was deferred on 2026-10-30.
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-30.
 	- Priority|Severity: Low
 	- Opened: 20261029-145612
@@ -8987,8 +9413,9 @@ Sorted per the notes in [Template](#template).
 - Drop the sudo step in dev-install.bash
 	- ID: 2026102820420805
 	- Type: Task
-	- Status: Done
+	- Status: Closed
 		- Removing b23's 2 old links and `~/.local/lib/tukzmon` is left as a root step by hand. The script names them on each run.
+	- Closed reason: Done
 	- Needs hand testing: on b23, run `utility/dev-install.bash` and see the panel load the new build. Then remove the 2 old sudo links it names, and `~/.local/lib/tukzmon`.
 	- Verified: 20261029, on b23 with an empty folder in place of `~/.local` and the panel calls stubbed. It installed the 3 files under that `~/.local`, named both old `/usr` links with the `sudo rm` for each and the old `~/.local/lib/tukzmon`, and exited 0. The panel loading a user install was checked in a test panel before.
 	- Priority|Severity: Low
@@ -9016,7 +9443,8 @@ Sorted per the notes in [Template](#template).
 - LAN and internet split: TCP socket reader
 	- ID: 2026102914561218
 	- Type: Feature
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-29.
 	- Priority|Severity: Low
 	- Opened: 20261029-145612
@@ -9047,7 +9475,8 @@ Sorted per the notes in [Template](#template).
 - Plugin errors go nowhere after a panel restart
 	- ID: 2026102620523642
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-29.
 	- Priority|Severity: Low
 	- Opened: 20261026-205236
@@ -9075,7 +9504,8 @@ Sorted per the notes in [Template](#template).
 - A panic in the plugin takes the whole panel down on Wayland
 	- ID: 2026102622434311
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-29.
 	- Priority|Severity: Low
 	- Opened: 20261026-224343
@@ -9106,7 +9536,8 @@ Sorted per the notes in [Template](#template).
 - Check whether XFCE 4.20 finds plugins under ~/.local
 	- ID: 2026102808222920
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261028-082229
 	- Opened: 20261028-082229
@@ -9124,7 +9555,8 @@ Sorted per the notes in [Template](#template).
 - The panel's tick costs about a third more since the 50 ms history tier
 	- ID: 2026102618573801
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261026-185738
 	- Opened by: t00mietum
@@ -9143,7 +9575,8 @@ Sorted per the notes in [Template](#template).
 - The memory graph reads ZFS's arcstats every tick
 	- ID: 2026110316100001
 	- Type: Enhancement
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Priority|Severity: Low
 	- Opened: 20261103-161000
 	- Opened by: t00mietum
@@ -9159,7 +9592,8 @@ Sorted per the notes in [Template](#template).
 - Nix package build as a pipeline area
 	- ID: 2026102808222810
 	- Type: Task
-	- Status: Done
+	- Status: Closed
+	- Closed reason: Done
 	- Needs local test suite run?: No. The full run passed on 2026-10-28. It doesn't take the Nix step.
 	- Priority|Severity: Low
 	- Opened: 20261028-082228
@@ -9300,49 +9734,6 @@ Sorted per the notes in [Template](#template).
 	- Decided against: I'm leaving it per-monitor.
 	- Closed: 20261028-140707
 
-- Code review 20261107 item 1: A shcl 2 settings file with one bad line loses its graph order, drives and theme names, and Apply makes the loss stick
-	- ID: 2026110709074401
-	- Type: Bug
-	- Status: Moot
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026110610124433, 2026110709074410
-	- Origin: `dbbe34f` (2026-11-06), merged at `8900d3d`. New since the last full review. Confirmed, by probes against core and against the settings window's code, found by 2 reviewers apart.
-	- Steps to reproduce: A settings file with no Format line, with `order: mem, cpu` under `graph:`, and one line that is still an error once converted, such as `show true` with its colon missing. Start the plugin, or open the settings window, change any color, and Apply.
-	- Incorrect behavior: The graph order falls back to the default, `disk.drives` to all, and a quoted theme name to its key. The plugin logs that the file would still have an error once converted, and makes no backup. Apply then writes the file without the order and stamps it Format 3, so the old values are gone with no copy left.
-	- Expected behavior: The file reads the way shcl 2 read it, with only the bad line dropped, as 2026110610124433 asks. A file that gets rewritten keeps a backup first.
-	- Possible cause: `config::as_shcl3` reads `shcl::upgrade(text, true).text`. When the converted text would still have an error, shcl gives back the input as it was, and shcl 3 then reads its 2.x lists and quotes by the new rules.
-	- Sweep: `config::model`, the window's `read` and through it `Dialog::open` and `apply`, both `upgrade_file` callers, and the ambiguous case, which also gives back the input.
-	- Decisions:
-		- 2026-11-07: Low, since nobody else uses tukzmon yet, and only my own files were ever shcl 2. (me)
-	- Verified: 2026-11-07, the only tukzmon settings files there are, b23's `plugin-16.shcl` and `tukzmon.shcl`, load clean as shcl 3, have nothing to convert, and read to the same look by 2.x rules. b28l has none. The same check reads a file with a line still in error differently, so it can see this fault.
-	- Superseded by ID: 2026110709261106, which takes out the shcl 2 reading.
-	- Test case: none, since nothing was changed.
-	- Closed: 20261107-092134
-
-- Code review 20261107 item 10: A new panel item makes a shcl 2 backup and a "rewritten" log line for a file it never had
-	- ID: 2026110709074410
-	- Type: Bug
-	- Status: Moot
-	- Priority|Severity: Low
-	- Opened: 20261107-090744
-	- Opened by: t00mietum
-	- Related IDs: 2026110610124433, 2026110709074401
-	- Origin: `dbbe34f` (2026-11-06), on `config::start_from` from `60e885c` (2026-10-26). Confirmed, by a probe.
-	- Steps to reproduce: Leave the shared `tukzmon.shcl` as shcl 2, then add a tukzmon item to the panel.
-	- Incorrect behavior: The new item's file is a copy of the 2.x text, which is then converted at once. That leaves `plugin-N_backup_<time>_format-v2.shcl` and a journal line saying the file is rewritten, for every item added.
-	- Expected behavior: A new item starts with a shcl 3 file and no backup.
-	- Possible cause: `start_from` copies the shared file as it is.
-	- Decisions:
-		- 2026-11-07: Low, since nobody else uses tukzmon yet, and only my own files were ever shcl 2. (me)
-	- Verified: 2026-11-07, b23's shared `tukzmon.shcl` loads clean as shcl 3 with nothing to convert, so a new item's copy isn't converted. It's the only shared file there is.
-	- Superseded by ID: 2026110709261106, which takes out the shcl 2 rewrite.
-	- Test case: none, since nothing was changed.
-	- Closed: 20261107-092134
-
-**Stop here for a next release**
-
 ## Template
 
 - Notes:
@@ -9351,12 +9742,21 @@ Sorted per the notes in [Template](#template).
 
 	- The ID is the local time to the hundredth of a second. Opened is when it was written down, which may differ. (Use a keyboard macro and possibly something like project 'zuid' to generate.)
 
-	- Status values meaning: Testing means the fix is in and checks are running or still to run. Waiting on UAT means automated testing passed and a person has to try it. Moot means something else changed that made it irrelevant. Canceled means it still applies but was decided against. Waiting on automated testing means the fix is in and waits on a long CI run or an outside test host, with no person needed. Can't reproduce means a real attempt to reproduce it failed.
-		- An item with nothing left for a person to judge skips Waiting on UAT and goes straight to Done, such as a mechanical fix, or one whose test failed before the fix and passes after.
+	- Status values meaning: Testing means the fix is in and checks are running or still to run. Waiting on UAT means automated testing passed and a person has to try it. Canceled means it still applies but was decided against. Waiting on automated testing means the fix is in and waits on a long CI run or an outside test host, with no person needed. Closed means work on it is over, and its Closed reason row says why.
+		- Closed reason values:
+			- Done: fixed or built, with nothing left to do.
+			- Could not reproduce: a real attempt to reproduce it failed.
+			- Won't fix: the bug is real and stays as it is, and the item says why.
+			- Moot: something else changed that made it irrelevant.
+			- Duplicate: another item covers it, named in Superseded by ID.
+			- Superseded: a newer item replaces it, named in Superseded by ID.
+			- Works as intended: the behavior is right as it is, and the item says why.
+		- An item with nothing left for a person to judge skips Waiting on UAT and closes as Done, such as a mechanical fix, or one whose test failed before the fix and passes after.
+		- Target version is the release an item is meant for. Every open item has one, and so does every item closed since the last release.
 		- Waiting on a full CICD run means the test left is a whole pipeline run. Waiting on a partial CICD run means only some of its steps, such as a quick run. Either one can be started by a person or a round.
 
 	- As issues are worked, and statuses change, place them in correct sorting order within the list:
-		- First by status: Waiting for answers, Waiting on UAT, Testing, Waiting on automated testing, Waiting on a full CICD run, Waiting on a partial CICD run, Can't reproduce, Stalled, Started, Queued, Done, Deferred, Canceled, Moot
+		- First by status: Waiting for answers, Waiting on UAT, Testing, Waiting on automated testing, Waiting on a full CICD run, Waiting on a partial CICD run, Stalled, Started, Queued, Closed, Deferred, Canceled
 		- Then by severity|priority: Critical, High, Avg, Low
 		- Then by type: Bugs, [not bugs together]
 
@@ -9367,7 +9767,9 @@ Template:
 - Title
 	- ID: YYYYmmDDHHMMSSNN
 	- Type: [Bug|Feature|Enhancement|Task]
-	- Status: [Queued|Waiting for answers|Waiting on UAT|Waiting on automated testing|Waiting on a full CICD run|Waiting on a partial CICD run|Started|Testing|Stalled|Can't reproduce|Moot|Canceled|Deferred|Done]
+	- Status: [Queued|Waiting for answers|Waiting on UAT|Waiting on automated testing|Waiting on a full CICD run|Waiting on a partial CICD run|Started|Testing|Stalled|Closed|Canceled|Deferred]
+	- Closed reason: [Done|Could not reproduce|Won't fix|Moot|Duplicate|Superseded|Works as intended]
+	- Target version:
 	- Needs local test suite run?:
 	- Needs external testing:
 	- Priority [Feature|Enhancement] | Severity [Bug]: [Critical|High|Avg|Low]

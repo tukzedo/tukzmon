@@ -545,19 +545,24 @@ fTest_bad_test_ids() {
 fTest_backlog_test_case_rows() {
 	local t="${work}/ids-backlog" out='' row=''
 	fIdsTree "${t}" 'mod tests {\n\t// Test ID: dek00\n\t#[test]\n\tfn one() {}\n}\n'
-	fItem() { printf -- '- %s\n\t- ID: %s\n\t- Status: %s\n' "$1" "$2" "$3"; [[ -z "$4" ]] || printf '\t- Test case: %s\n' "$4"; }
-	## A queued item needs no row, and nothing under the template counts.
+	## STATUS is Closed:REASON for a closed item
+	fItem() {
+		printf -- '- %s\n\t- ID: %s\n\t- Status: %s\n' "$1" "$2" "${3%%:*}"
+		[[ "$3" != *:* ]] || printf '\t- Closed reason: %s\n' "${3#*:}"
+		[[ -z "$4" ]] || printf '\t- Test case: %s\n' "$4"
+	}
+	## A queued or moot item needs no row, and nothing under the template counts.
 	## A test name's words, such as "depth", aren't IDs.
-	{ fItem Named 1001 Done '`one` (dek00)'; fItem Asked 1002 Done 'none, since it was a question.'; fItem Later 1003 Queued ''
-		fItem Deep 1006 Done '`keeps_its_depth` (dek00)'
-		printf '\n## Template\n\n'; fItem Title 1004 Done ''; } > "${t}/project/backlog.md"
+	{ fItem Named 1001 Closed:Done '`one` (dek00)'; fItem Asked 1002 Closed:Done 'none, since it was a question.'; fItem Later 1003 Queued ''
+		fItem Deep 1006 Closed:Done '`keeps_its_depth` (dek00)'; fItem Gone 1007 Closed:Moot ''
+		printf '\n## Template\n\n'; fItem Title 1004 Closed:Done ''; } > "${t}/project/backlog.md"
 	out="$(bash "${t}/cicd/utility/test-ids.bash" check 2>&1)" || { fWhy "a good backlog failed: ${out}"; return 1; }
 	for row in '' dek07; do
 		## The last item, with no template under it, so the end of the file closes it.
-		{ fItem Named 1001 Done '`one` (dek00)'; fItem Bad 1005 Done "${row:+\`two\` (${row})}"; } > "${t}/project/backlog.md"
+		{ fItem Named 1001 Closed:Done '`one` (dek00)'; fItem Bad 1005 Closed:Done "${row:+\`two\` (${row})}"; } > "${t}/project/backlog.md"
 		if out="$(bash "${t}/cicd/utility/test-ids.bash" check 2>&1)"; then fWhy "passed with row '${row}': ${out}"; return 1; fi
 		if [[ -z "${row}" ]]; then
-			[[ "${out}" == *"1005 is Done with no Test case row"* ]] || { fWhy "no row: ${out}"; return 1; }
+			[[ "${out}" == *"1005 is closed as Done with no Test case row"* ]] || { fWhy "no row: ${out}"; return 1; }
 		else
 			[[ "${out}" == *"1005 names dek07, which no test has"* ]] || { fWhy "an unknown ID: ${out}"; return 1; }
 		fi
