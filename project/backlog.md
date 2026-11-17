@@ -4399,7 +4399,7 @@ Sorted per the notes in [Template](#template).
 	- Type: Task
 	- Status: Closed
 	- Closed reason: Done
-	- Target version: v1.0.0-beta.2
+	- Target version: v1.0.0-beta.1
 	- Needs external testing: the `merge-gate` workflow's first run on GitHub's Linux runner. It comes after the round's merge to `main`, or a manual dispatch of the workflow on a branch.
 	- Priority|Severity: Avg
 	- Opened: 20261025-135600
@@ -8287,7 +8287,7 @@ Sorted per the notes in [Template](#template).
 	- Type: Enhancement
 	- Status: Closed
 	- Closed reason: Done
-	- Target version: v1.0.0-beta.2
+	- Target version: v1.0.0-beta.1
 	- Needs external testing: the `merge-gate` workflow's first run on GitHub, the same run 2026102513560001 waits for.
 	- Priority|Severity: Low
 	- Opened: 20261031-152322
