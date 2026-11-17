@@ -1506,7 +1506,7 @@ mod tests {
 				let mut words = line.split(' ');
 				let id = words.next().unwrap();
 				let at: Vec<i32> = words.map(|n| n.parse().unwrap()).collect();
-				// the theme's revert follows its buttons, not a color
+				// the theme's revert follows its buttons rather than a color
 				if id == "theme" {
 					continue;
 				}

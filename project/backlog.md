@@ -267,293 +267,6 @@ Sorted per the notes in [Template](#template).
 		- deqw1 and deqw2 still need to pass.
 	- Note: shcl 3.0.0-beta1 writes through a link to a missing file and keeps the link. Checked 2026-11-10.
 
-- Smoothly animate each graph on each tick
-	- ID: 2026110911114024
-	- Type: Enhancement
-	- Status: Closed
-	- Closed reason: Done
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Avg
-	- Opened: 20261109-111140
-	- Opened by: t00mietum
-	- Related IDs: 2026110911114037
-	- Requirements:
-		- Settings option, on by default if the CPU has 8 or more cores: Smoothly animate the graph on each tick, rather than wholesale replace previous contents.
-		- Maybe animate over 1/2 of each graph's update ms? Smooth animation at high fps.
-		- If this makes sense: An even division of the screen refresh rate, minimum 30, max 60. With smooth antialiasing.
-		- It should look absolutely incredibly buttery smooth.
-	- Progress log:
-		- It was split in 2. The setting and the slide went to 2026110918080223, and frames at the screen's rate with the CPU cost went to 2026110918081021. Both are in, waiting on UAT.
-		- 20261109: children 2026110918080223 and 2026110918081021 wait on UAT, and the rest are closed.
-		- 20261110: back to Queued with its child 2026110918081021, which needed the panel's frame rate fixed on a screen whose window manager gives GTK no frame timings. That fix and the quarter rate in 2026110920595603 are in, waiting on UAT.
-		- 20261109: children 2026110918080223, 2026110918081021, and 2026110920595603 wait on UAT, and the rest are closed.
-		- 20261117: all 3 children are closed.
-	- Test case: its children's: 2026110918080223: `tests::slide_steady_gap_jumps` (df3e1), `tests::right_column_fills_tip` (df3e2), and `config::tests::smooth_auto_by_cpus` (df3e3); 2026110918081021: `tests::frame_split_30_to_60` (df3e4) and `tests::draw_rate_without_frame_timings` (df3mf). The frame clock's and the timer's own pacing need a real screen, so they have no test. dekpt now calls the tick callback and the timer; 2026110920595603: `tests::quarter_pace_24_to_50` (df3me).
-	- Stand-in: none (20261110). It closes with its children 2026110918080223, 2026110918081021, and 2026110920595603, which each needed a look at b23's own screen.
-	- Acceptance signoff: Self-closed 20261117: all 3 children are closed.
-	- Closed: 20261117-094915
-
-- Smooth scrolling: the setting, and each graph sliding between samples
-	- ID: 2026110918080223
-	- Type: Enhancement
-	- Status: Closed
-	- Closed reason: Done
-	- Target version: v1.0.0-beta.2
-	- Stand-in: none (20261110), since it turns on how smooth the slide looks.
-	- Priority|Severity: Avg
-	- Opened: 20261109-180802
-	- Opened by: t00mietum
-	- Parent ID: 2026110911114024
-	- Version and build: b23's panel has run df54v, which has this, since 20261116.
-	- Requirements:
-		- A Smooth scrolling setting, on by default with 8 or more CPUs.
-		- Each graph slides to its newest sample over the time to the next one, rather than jumping a step.
-		- The hover tip matches what's drawn.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- General, under Time axis, has Smooth scrolling: Auto, On or Off, at `graph.animate`. Auto is the default, and is on with 8 or more CPUs.
-		- The right edge runs one sample behind and slides to the newest sample at a steady speed over one sample period. The edge column is drawn part way, weighted like any other.
-		- The panel and the settings window's graph rows redraw every 33 ms while a graph slides, through the frame timers the axis ease already had.
-		- `design.md` Drawing and README Features have it.
-		- Verified: the quick gate and Sanitizers passed. The new tests failed with the edge left at the newest sample, and df3e2 also with the tip going by the newest sample. The General tab still fits with no scroll bar.
-		- UAT 20261109: "60 Hz looks good", in 2026110920595603's requirements, was a look at this slide.
-		- A panel tick costs about 620 us of CPU, 274 of it user, on the profiler's 7 graphs. So 30 frames a second likely costs around 10 times an idle panel. The panel's own number is on 2026110918081021.
-	- Decisions:
-		- It's a dropdown with Auto rather than a checkbox, so the default follows the box a settings file is used on, instead of being saved as one box's answer.
-		- CPUs are counted by `available_parallelism`, threads included, which is the same count the load graph uses.
-		- The slide takes the whole sample period at a steady speed, rather than half of it. Half with easing stops the graph once a sample, which reads as a pulse. A steady slide never stops.
-		- A step longer than the ease's slack, as after a gap, isn't slid, so the axis ease stays the one that handles jumps.
-		- `Drawn::moving` is new, and the 2 frame timers use it. `easing` keeps its meaning, so its tests stand.
-	- Branch: round-1109b
-	- Test case: `tests::slide_steady_gap_jumps` (df3e1), `tests::right_column_fills_tip` (df3e2), and `config::tests::smooth_auto_by_cpus` (df3e3).
-		- Swept: every `hist.last()` in `Graph` that places the right edge (`basis`, `span_at`, `render_in`), both frame timers (the plugin's draw, qt.cpp's `LiveGraph`), and every `Drawn` impl.
-	- Acceptance signoff: Self-closed 20261117: the slide was called good at 60 Hz, and b23's panel has drawn it since 20261110. The 20261111 and 20261117 looks at the drawing found shimmer rather than a slow or uneven slide.
-	- Closed: 20261117-094915
-
-- Smooth scrolling: frames at the screen's rate, and the CPU cost
-	- ID: 2026110918081021
-	- Type: Enhancement
-	- Status: Closed
-	- Closed reason: Done
-	- Target version: v1.0.0-beta.2
-	- Stand-in: none (20261110). The draw rate was measured, and what's left is whether the slide looks like it stutters on b23's own screen.
-	- Priority|Severity: Avg
-	- Opened: 20261109-180810
-	- Opened by: t00mietum
-	- Parent ID: 2026110911114024
-	- Prereq IDs: 2026110918080223
-	- Version and build: b23's panel has run df54v, which has this, since 20261116.
-	- Requirements:
-		- While a graph slides, draw at an even division of the screen's refresh rate, from 30 to 60 a second, in the panel and in the settings window's graph rows, in place of the fixed 33 ms timer.
-		- Measure the panel's CPU with Smooth scrolling on and off. If on costs too much for a panel that runs all day, revisit what Auto turns on.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- While a graph slides or an axis eases, the panel draws from its frame clock: every frame up to 60 Hz, every other at 120, every third at 144. The settings window's graph rows use the same rule on a timer, from the screen's refresh rate.
-		- With Smooth scrolling on, a panel item with the default graphs took 31 CPU ticks in 20 s, about 1.6% of a core, and its X server 9. Off, they took 2 and 1. That's at 60 frames a second, the most it draws.
-		- `design.md` Drawing and Time axis have it.
-		- Verified: the quick gate and Sanitizers passed, and a panel item kept drawing while it slid, by the CPU numbers above.
-		- 20261110: the call was to try 60 fps, with a clean factor found on its own for a 100 Hz screen, such as 50. `frames_apart` already gives 50 at 99.99 Hz, and the settings window gets 99.99 from Qt. The panel doesn't get it, since xfwm4 on b23 has no `_NET_WM_FRAME_DRAWN` or `_NET_WM_FRAME_TIMINGS`, so GTK's frame clock reports its 60 Hz default and paces itself to it. Without a real timing, the panel needs to take the rate from its monitor with `gdk_monitor_get_refresh_rate` and pace the draws to that.
-		- 20261110: with no frame timings, GTK's frame clock gives its 60 Hz guess rather than 0, so the old fallback never ran. The panel now looks for a presented frame. Without one, it draws on a timer at its monitor's refresh rate, read again once a second, and goes back to the frame clock once timings show up.
-		- 20261110: on a 100 Hz screen with no frame timings, the old build drew 60 times a second, and this one every 40 ms, at the quarter rate of 2026110920595603. A panel item took 18 CPU ticks in 20 s, against 26 before, and its X server 5, against 9, at a load of 9 to 11 on 32 cores.
-		- `design.md` Drawing has the timer.
-		- Verified: the quick gate, Sanitizers and the release build passed, and the panel drew every 40 ms on a 100 Hz screen, by its X requests.
-		- Verified 20261117: b23's panel, df54v with Smooth scrolling on by Auto, drew 289 times in 10 s by its writes. The gaps between draws had a median of 39.7 ms, and 95% of them were under 40.8 ms, with 1 at 51 ms, at load 5.5. The shorter gaps are the sample tick's writes between draws.
-	- Decisions:
-		- The panel uses GTK's frame clock rather than a timer, so each draw falls on a screen frame instead of beating against them.
-			- 20261110: this applies only where the window manager gives GTK frame timings. Without them, the clock ticks 60 times a second whatever the screen runs at, and 60 doesn't split into 25, so a timer at the monitor's rate is used instead.
-		- The timer goes by when the last draw was due rather than when it ran, so it keeps to the screen's rate instead of drifting by each wakeup's delay.
-		- The monitor's rate is read at most once a second, since each read waits on the X server for the window's place. A panel moved to another monitor takes up its rate within a second.
-		- An unknown monitor rate counts as 60 Hz.
-		- The panel and the settings window both use one rule, `frames_apart` in core. It splits by 61 rather than 60, so a 60.002 Hz screen still gets every frame.
-		- Below 60 Hz it draws every frame, since none come faster.
-		- Auto stays on at 8 CPUs, since 1.6% of one core is 0.2% of an 8 CPU box.
-	- Branch: round-1109b, round-1110
-	- Test case: `tests::frame_split_30_to_60` (df3e4) and `tests::draw_rate_without_frame_timings` (df3mf). The frame clock's and the timer's own pacing need a real screen, so they have no test. dekpt now calls the tick callback and the timer.
-		- 20261110: df3e4 calls `Pace::UpTo60.frames_apart` rather than `frames_apart`, which now goes by `PACE`. Its values are as they were.
-		- df3mf is new with the function it tests, so it has no run on the old code. The old code's 60 a second on a 100 Hz screen is in the Progress log.
-		- Swept: both frame timers (the plugin's draw and `quiet`, qt.cpp's `LiveGraph`), and every `frame` caller, the panic test included. 20261110: also the new timer, `paced`, in the draw, `quiet`, and dekpt.
-	- Acceptance signoff: Self-closed 20261117: the draws stay at 40 ms on b23's screen, and the 20261117 look at the slide found only shimmer, which is filed as 2026111623513501.
-	- Closed: 20261117-094915
-
-- Smooth scrolling: try a quarter of the screen's frame rate
-	- ID: 2026110920595603
-	- Type: Enhancement
-	- Status: Closed
-	- Closed reason: Done
-	- Target version: v1.0.0-beta.2
-	- Stand-in: none (20261110), since it turns on whether 25 a second looks as good as 60.
-	- Priority|Severity: Avg
-	- Opened: 20261109-205956
-	- Opened by: t00mietum
-	- Parent ID: 2026110911114024
-	- Related IDs: 2026110918081021
-	- Version and build: b23's panel has run df54v, which has this, since 20261116.
-	- Requirements:
-		- 60 Hz looks good.
-		- Now let's try 1/4 framerate, evenly divisible by framerate, but not less than 24 and not more than 50 Hz.
-		- Don't delete the 60 Hz code, just use a code constant to isolate it.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- While a graph slides or an axis eases, it draws every fourth screen frame, kept to 24 to 50 a second: every other frame at 60 Hz, every third at 75, every fourth from 96 to 200 Hz, and every fifth at 240. On b23's 99.99 Hz screen that's 25 a second, in the panel and in the settings window's graph rows.
-		- The up-to-60 rule is `Pace::UpTo60`, and the `PACE` constant in core picks one.
-		- `design.md` Drawing and Time axis have it.
-		- Verified: the quick gate, Sanitizers and the release build passed, and the panel drew every 40 ms on a 100 Hz screen, by its X requests. The settings window's rows weren't watched.
-		- 20261117: b23's panel has drawn 25 a second since 20261110. The 20261117 look at it signed off the drawing, and left the shimmer to 2026111623513501.
-	- Decisions:
-		- It's an enum and a constant rather than a setting, per the requirements.
-		- Where a quarter falls outside 24 to 50, it takes the split nearest 4 that's inside, so 60 Hz draws 30 a second and 240 Hz draws 48.
-		- There's 1% slack each way, so a screen a hair off its rate, such as 95.9 or 200.01 Hz, still splits by 4.
-	- Branch: round-1110
-	- Test case: `tests::quarter_pace_24_to_50` (df3me).
-		- Swept: every `frames_apart` caller: the plugin's tick callback and timer, and qt.cpp's `LiveGraph` through `bridge::frames_apart`.
-	- Acceptance signoff: Self-closed 20261117: the 20261117 UAT on 2026111010281710 was a look at the slide at 25 a second, and called it fine. `PACE` still builds the 60 one.
-	- Closed: 20261117-094915
-
-- Reduce motion: a remote viewer on the local desktop, as RustDesk, x11vnc or NoMachine on the physical display
-	- ID: 2026110922214810
-	- Type: Enhancement
-	- Status: Closed
-	- Closed reason: Done
-	- Target version: v1.0.0-beta.2
-	- Stand-in: a TCP connection to b23's NoMachine server on port 4000, for a client (20261117).
-	- Priority|Severity: Avg
-	- Opened: 20261109-222148
-	- Opened by:
-	- Parent ID: 2026110911114037
-	- Prereq IDs: 2026110922214697
-	- Version and build: b23's panel has run df54v, which has this, since 20261116.
-	- Requirements:
-		- Treat the local desktop as remote while a remote viewer is connected to it, and go back to the person's settings once it leaves.
-		- Check again every few seconds, in the panel and in the settings window, rather than once at start.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- The possible signs were RustDesk's `--cm` window, which runs only while a peer is connected, and an established socket on a VNC or RDP port. NoMachine's per-session node was another, if it could be told apart from the one for a virtual desktop on another display. Each needed a check with the real tool on b23.
-		- The panel item and the settings window look for a remote viewer on their own display about every 5 s, and go back to the person's settings once it leaves (`remote::Watch`). It doesn't need root.
-		- A look reads the TCP counters, and reads the TCP tables only when those moved. It reads this user's processes only while a connection is up on a VNC, RDP, NoMachine or RustDesk port.
-		- The signs are x11vnc, x0vncserver, krfb or freerdp-shadow-cli with that connection open, RustDesk's `--cm`, and NoMachine's `nxrunner.bin --monitor` on this display while NoMachine has a connection.
-		- On b23, :1001 is NoMachine's node for the physical display. Its `nxrunner.bin --monitor` watches :0 and runs with no client connected.
-		- `design.md` Drawing and README Features have it.
-		- Verified: the quick gate and Sanitizers passed. With a stand-in x11vnc on a private Xvfb, the settings window greyed Sample ms default and Smooth scrolling, and went back 6 s after it quit. Before the early-timer fix below, it was still grey then. df3p7 failed with the socket read taken out, and df3p6 without the slack.
-		- On b23, a read of the TCP tables takes about 6 ms, the counters 18 us, and the process walk about 5 ms.
-		- Verified 20261110: on a private panel with Smooth scrolling on, a stand-in x11vnc on its display took the item from 33 X writes a second to 1 within 3 s of joining, and back to 33 within 2 s of quitting.
-		- Verified 20261117: on b23's live panel, df54v, a connection held to the NoMachine server on port 4000 took the item from about 31 writes a second to 1 or 2 within 2 s, and back to 31 within 2 s of closing. NoMachine's own `nxrunner.bin --monitor` on :0 was the sign.
-		- Verified 20261117 with the real x11vnc 0.9.17 on a private display. `remote::Watch`, read once a second, said Remote 4 s after a client joined and Local 4 s after it left.
-		- RustDesk hasn't been checked with the real tool. That check is split off to 2026111709483900.
-	- Decisions:
-		- It goes by ports and process names, since none of these servers says which display it's for in a way that can be read without root.
-		- NoMachine is counted by its monitor and any connection on port 4000, since its node for the physical display runs between connections. A connection to a NoMachine virtual desktop on the same box would calm the physical display too.
-		- A server on a port of its own isn't seen.
-		- A look up to a tenth early still counts, since Qt's coarse timer can wake early, and skipping it doubled the wait.
-		- The tables are kept until the TCP counters move, since each read walks the kernel's whole table.
-		- `Dialog::set_session` gave way to `watch_session`, and tests pass `Watch::fixed`.
-	- Branch: round-1110
-	- Test case: `remote::tests::tcp_table_established_ports` (df3p4), `remote::tests::viewer_needs_peer_here` (df3p5), `remote::tests::watch_rechecks_every_few_seconds` (df3p6) and `remote::tests::stand_in_vnc_viewer_seen` (df3p7).
-		- Swept: both callers of `remote::session` (the plugin's start and the settings window's), both `set_session` callers, and every `Look` maker that takes the session.
-	- Acceptance signoff: Self-closed 20261117: NoMachine and x11vnc passed with the real servers, and RustDesk is split off to 2026111709483900.
-	- Closed: 20261117-094915
-
-- Antialiasing still needs to be better, so sharp spikes don't pulse or shimmer
-	- ID: 2026111010281710
-	- Type: Enhancement
-	- Status: Closed
-	- Closed reason: Done
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Avg
-	- Opened: 20261110-102817
-	- Opened by: t00mietum
-	- Related IDs: 2026110920595602, 2026111000270812
-	- Version and build: b23 has df54t installed (20261111), which has this round's change. The panel loads it on its next restart.
-	- Requirements:
-		- Antialiasing still needs to be better. Sharp spikes shouldn't "pulse" in width, and shouldn't "shimmer".
-		- Do your own research for this.
-		- Spitballing: for a pixel line that is in between 0% and 100%, render it at an in-between color of foreground and background (or adjacent color), using the correct blending gamma.
-		- May not need temporal-aware antialiasing, but might.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- 20261110: after 2026110920595602, spikes mostly shimmer, and pulse less.
-		- Cause: a sample split between 2 columns lifted each one only by its part, so a spike half way across was drawn about half as tall in both. Its top went from 90 rows of 100 down to 50 and back each time it crossed a column.
-		- Each column now draws a solid stack and a taller one over it at part strength. A cut sample is drawn at its full height, as faint as how little of it is in. A part-covered pixel mixes in linear light, except over a transparent background. `design.md` Drawing has it.
-		- df4d7: the spike's top now stays at 90 rows on 1 s columns and 72 on 10 s ones, at every step. df3s6's ink, read in linear light, stays within 0.01 and 0.04.
-		- The profiler read 480 and 514 us user a tick before, and 634 after, at load 6 to 8 on 32 cores. 2026111000270812 is for the cost.
-		- Verified: df4d7 failed before the change and passed after. df4dt failed with each series' own min and max as the 2 stacks, and passed with the end buckets'. The quick gate and Sanitizers passed.
-		- 20261110: the cut-bucket tint in the Decisions is fixed by 2026111011172485 (660a3de).
-		- UAT 20261111: not yet. Very narrow gaps tend to appear, fill in, and reappear as the graph marches left. Needs even better antialiasing.
-		- 20261110: one low sample between high ones was drawn at 21 steps across a column, with the gap's depth read as the screen shows it. On columns a sample wide it went from 1.0 column whole to 0.53 split, and on half-sample columns from 2.0 to 1.53. Linear light left a split dark gap only about a quarter as dark in each column, and made a split spike about 1.5 times as bright.
-		- Part-covered pixels now mix as sRGB numbers over any background, as they did over a transparent one. A split gap or spike shows the same depth at every step. `design.md` Drawing has it.
-		- On columns 1 to 3 samples wide the gap still goes from 0.17 to 0.67 of a column at 1.5 s, and 0.13 to 0.46 at 2 s, since the spike emphasis fills it only where a whole sample of the bar is in the column. From 3 s it stays steady. That's 2026111020033357. Spikes there stay within 5%.
-		- The profiler read 673.8 us user a tick at load 8 to 15 on 32 cores, and 916.5 at 16 to 27. The old drawing took 729.1 at 16 to 24. Drawing is 17.6% and 18.5% of self time, against 19.9%. That's within the noise.
-		- Verified: df4y1 failed on the old drawing, at 1.53 to 2.0 on half-sample columns, and passed after. The quick gate and Sanitizers passed.
-		- UAT 20261117: signed off. What's left of the shimmer is acceptable.
-	- Decisions:
-		- 20261116: every part-covered pixel mixes as sRGB numbers. This replaces the earlier call for linear light.
-		- A column's ink stays what the drawing gave before, so the area under a spike doesn't change. Only its shape changes, to full height at part strength rather than part height.
-		- A column no wider than a sample takes its oldest and newest buckets as its 2 samples. Each series' own min and max can come from different samples, and stack over either one's total.
-		- On a wider column, the solid stack reaches toward the max of the buckets clear of both edges, and the tall one toward the column's max, as before 2026110920595602.
-		- Linear light was used only over an opaque background, since the panel blends a transparent one as sRGB numbers.
-			- 20261110: this was turned back, as below.
-		- A bucket cut by a sample's edge can leave a narrow column up to a twentieth short of full, as a faint tint, where before it showed as a part-filled top pixel. That's 2026111011172485.
-		- df4d7's numbers stand in for before and after pictures, and the look was left to the hand test.
-		- 20261110: every part-covered pixel mixes as sRGB numbers rather than in linear light. Half covered then looks half way, for a bright spike and a dark gap alike. Linear light keeps the light a split spike gives off, which is right only if the eye blurs the 2 columns together. The report of gaps filling in shows the eye sees them one by one. The transparent path and the rest of the panel, drawn by cairo, mix as sRGB numbers too.
-		- That's a swing back. Pixels mixed as sRGB numbers before this item, in linear light from df4e4, and as sRGB numbers again now. Linear light was picked for a bright spike over a dark background, and nobody looked at a dark gap between bars then.
-		- The wider columns were left to 2026111020033357, since a fix taht works at every step splits a spike thinner than a column between 2 columns, which df3s6 checks against at 10 s.
-	- Branch: round-1110b, round-1111
-	- Test case: `render::tests::spike_slide_height_steady` (df4d7), `render::tests::share_trade_stays_in_total` (df4dt) and `render::tests::narrow_gap_slide_depth` (df4y1), with df3s6.
-		- 20261110: in debj7 `exact_stack_heights`, the pixel shared half and half by red and green was 0x80 in each, and is now 0xbc, mixed in linear light.
-		- 20261110: df3s6 reads red in linear light rather than as sRGB numbers.
-		- 20261110: in df3e2 `right_column_fills_tip`, half slid in, 7 to 11 of 18 rows were filled, and now every row is at part strength. A filled row is now within 8 steps of the full color rather than exactly it.
-		- Swept: every reader of `Span` (only `Frame::draw_in` reads `spike`, `min`, `ends` and `uncut`), both paints, the opaque and transparent paths, `Peak`'s highest, which now takes the taller stack, and every `Span` literal (only `span_for`).
-		- 20261110: in debj7, the half and half pixel is 0x80 in each again, from 0xbc. df3s6 reads red as sRGB numbers again. In df3e2, half slid in, red was 0xa0 to 0xd8, and is now 0x70 to 0xb0.
-		- Swept: both paints, the opaque and transparent paths, which are now one, every user of the linear light helpers (only `render.rs`), and every test that read linear light or its values (debj7, df3s6, df3e2).
-	- Acceptance signoff: UAT 20261117: the look is fine, and the shimmer left is acceptable.
-	- Closed: 20261117-000639
-
-- Narrow gaps on columns 1 to 3 samples wide come and go as they slide
-	- ID: 2026111020033357
-	- Type: Enhancement
-	- Status: Closed
-	- Closed reason: Done
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Avg
-	- Opened: 20261110-200333
-	- Opened by:
-	- Parent ID: 2026111010281710
-	- Related IDs: 2026111000270812
-	- Version and build: b23 has df54t installed (20261111), which has this round's change. The panel loads it on its next restart.
-	- Requirements:
-		- A narrow gap between 2 bars shows as deep at every scroll step on columns over a sample wide, as it does on narrower ones since 2026111010281710.
-		- Keep the spike emphasis's look where that allows.
-	- Estimated effort: Avg
-	- Progress log:
-		- Cause: past a sample wide, a column reaches toward the most that any sample's length in it averages. A column with a whole sample of the bar beside the gap reaches the bar and fills the gap, while one with the gap in its middle and the bar cut at both edges doesn't. So whether the gap shows depends on where the column edges fall.
-		- With one low sample between high ones at 21 steps across a column, the gap's depth goes from 0.17 to 0.67 of a column on 1.5 s columns, and 0.13 to 0.46 on 2 s ones. From 3 s it stays steady, at 0.08 and 0.06. A spike stays within 5% on each. A gap of 2 samples should do the same on columns up to about 4 samples wide.
-		- These are the columns just left of a log graph's right end: 11 to 21 of 98 on Smooth log, with an hour to a day of history.
-		- The options were filed in questions.md.
-		- 20261111: on columns up to 4 samples wide, each point in a column takes the most that a sample's length within half a column of it averages, and the column reaches toward that, averaged over the column. The tall stack reaches toward its most. `design.md` Drawing has it.
-		- At 21 steps, the gap's depth is now 0.42 to 0.43 of a column at 1.5 s, 0.21 at 2 s, and 0.08 at 3 s. A spike's ink stays within 0.01 plot heights. Its tallest column at 1.5 s went from 0.83 to 0.74 of the plot, since it's split between 2 now.
-		- The profiler read 1066.1 us user a tick with the first cut, at load 5 to 22 on 32 cores, then 889.2 at 14 to 40. With the new part off it was 657.7 at 19 to 23. So it costs about a quarter more. 2026111000270812 is for the cost.
-		- A spike's top on 1.5 s columns still moves between 77 and 84 rows of 100 as it slides, the same with the change off.
-		- Verified: df4y1 failed with the change off, at 0.17 to 0.67 on 1.5 s columns, and passed with it on. The quick gate and Sanitizers passed.
-		- 20261111: the test ID check read `depth` in df4y1's name in a Test case row as an ID. It now skips names in backticks. Test dezap failed before that and passes after.
-		- UAT 20261117: signed off. What's left of the shimmer is acceptable.
-	- Decisions:
-		- 20261116: the change stays, and its cost is left to 2026111000270812.
-		- Option A was picked, since it works for every width of gap and is easy to undo. The emphasis comes from the history widened by a column less a sample, then averaged over the column, and df3s6's 10 s check becomes a check on the 2 columns' total (20261111).
-		- It applies only up to 4 samples wide rather than at every width. Past that, a column already shows every gap up to 3 samples, and the slide costs about a bucket per point, which is too much on wide columns. So df3s6's 10 s check is unchanged. It now also slides the spike across 1.5 and 3 s columns.
-		- Each point looks half a column each way, so a point's value goes by its time alone. Then the ink across columns of one width stays the same as they slide.
-		- The window starts go by buckets, as `densest` has them, and the sliding most is kept per series. A column over 126 buckets long in the reach, as with samples over 1.5 s, still uses the old way.
-		- `Span::peak` is new, for the tall stack, since the most can come from a spike half a column past the column's edge. `Span::max` keeps its meaning.
-	- Actual effort: Avg
-	- Branch: round-1111
-	- Test case: `render::tests::narrow_gap_slide_depth` (df4y1) and `render::tests::spike_slide_width_steady` (df3s6), both now on columns 1.5 to 3 samples wide too.
-		- Swept: every `span_for` caller (the draw, and the history fuzz test), every reader of `Span::max` and `spike`, and `spike_over`, which wider columns still use.
-	- Acceptance signoff: UAT 20261117: the look is fine, and the shimmer left is acceptable.
-	- Closed: 20261117-000639
-
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
 	- Type: Bug
@@ -1118,7 +831,7 @@ Sorted per the notes in [Template](#template).
 		- A default `BatteryReader` has no battery and reads as a gap, so tests can build the graph on a box with none.
 	- Branch: round-1026
 	- Test case: `graphs::tests::battery_state_colors` (defqc), `four_graphs_battery_hidden` (defqd), and `live::tests::battery_row_needs_battery` (defqe), which takes its no-battery branch on b23.
-		- 20261026: only the values changed. deccf and `themes_round_trip` count 31 theme members instead of 24. `save_as_new_theme` counts 27 colors instead of 21. dedqq, defkz and defm0 have `battery` after `swap` in their orders, and defm0's past-the-end move is 4 instead of 3. defma's rows greyed at defaults add `battery_width` and `battery_time`.
+		- 20261026: only the values changed. deccf and `themes_round_trip` count 31 theme members instead of 24. `save_as_new_theme` counts 27 colors instead of 21. dedqq, defkz and defm0 have `battery` after `swap` in their orders, and defm0's past-the-end move is 4 instead of 3. defma's rows grayed at defaults add `battery_width` and `battery_time`.
 		- Swept: every `Which` match, the slots in `Graphs` and `Live`, the 6 built-in themes, and `dice::ROLES`.
 	- Acceptance signoff: Self-closed: defqc, defqd and defqe passed in round-1028's full run at 17d3d9d, and the 3 states measured 11.1 or more apart in every built-in.
 	- Closed: 20261028-101427
@@ -1217,7 +930,7 @@ Sorted per the notes in [Template](#template).
 		- Built-in temperature leads are in each theme's widest gap, at least 25 degrees from the others, so defx7 keeps its 25. Randomize's least gap is 22 degrees, down from 25, which leaves 49 degrees of play for 9 leads.
 	- Branch: round-1028
 	- Test case: `temp::tests::over_crit_is_critical` (dej0s), `tests::temp_degrees_to_crit` (dej0t), `graphs::tests::temp_critical_on_top` (dej0v) and `live::tests::temp_row_width` (dej0w). dej0s fails with the reading unsplit, dej0t and dej0v with no peak floor.
-		- 20261028: only the values changed. deccf and deccw count 61 theme members instead of 55. deccy counts 52 saved colors instead of 47. dedqq's default order, and defkz's and defm0's orders, have `temp` before `battery`, and defm0's past-the-end move is 9 instead of 8. defma's rows greyed at defaults add `temp_width` and `temp_time`. defx7 checks 9 lead colors instead of 8. defxd's `PARTS` takes temperature too, and its least gap is 17 degrees instead of 20, for the 22 degree roll. decdt also checks temperature's alarm is CPU's.
+		- 20261028: only the values changed. deccf and deccw count 61 theme members instead of 55. deccy counts 52 saved colors instead of 47. dedqq's default order, and defkz's and defm0's orders, have `temp` before `battery`, and defm0's past-the-end move is 9 instead of 8. defma's rows grayed at defaults add `temp_width` and `temp_time`. defx7 checks 9 lead colors instead of 8. defxd's `PARTS` takes temperature too, and its least gap is 17 degrees instead of 20, for the 22 degree roll. decdt also checks temperature's alarm is CPU's.
 		- 20261028: the temperature collector's tests defnn, defnp and defnr read 2 series, with critical at 0, where they read one.
 		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 6 built-in themes, `dice::ROLES`, and every `TempReader` use. The profiler and soak test run with the defaults, so they don't draw temperature.
 	- Acceptance signoff: Self-closed 20261028: a test panel drew the temperature graph. How the themes look together stays on 2026102620162201.
@@ -1256,7 +969,7 @@ Sorted per the notes in [Template](#template).
 		- Built-in lead hues are at least 25 degrees apart, down from 30. At 30, 8 leads beside red and orange didn't fit without moving colors already there. Randomize's least gap is 25 degrees, down from 36, which leaves 50 degrees of play.
 	- Branch: round-1028
 	- Test case: `graphs::tests::load_disk_after_swap` (dej05), `tests::load_number_disk_rates` (dej07) and `live::tests::load_disk_row_width` (dej08). dej05 and dej07 fail with the floor at 1.
-		- 20261028: only the values changed, for both graphs. deccf and deccw count 55 theme members instead of 44. deccy counts 47 saved colors instead of 38. dedqq's default order, and defkz's and defm0's orders, have `load disk` after `zswap`, and defm0's past-the-end move is 8 instead of 6. defma's rows greyed at defaults add `load_width`, `load_time`, `disk_width`, `disk_time`, `disk_drives` and `disk_log`. defx7 checks 8 lead colors at least 25 degrees apart, instead of 6 at 30. defxd's `PARTS` takes load and disk too, and its least gap is 20 degrees instead of 31, for the 25 degree roll.
+		- 20261028: only the values changed, for both graphs. deccf and deccw count 55 theme members instead of 44. deccy counts 47 saved colors instead of 38. dedqq's default order, and defkz's and defm0's orders, have `load disk` after `zswap`, and defm0's past-the-end move is 8 instead of 6. defma's rows grayed at defaults add `load_width`, `load_time`, `disk_width`, `disk_time`, `disk_drives` and `disk_log`. defx7 checks 8 lead colors at least 25 degrees apart, instead of 6 at 30. defxd's `PARTS` takes load and disk too, and its least gap is 20 degrees instead of 31, for the 25 degree roll.
 		- 20261028: dehzm's helper builds a `render::Scale` in place of the `(peak, floor)` pair. Its values are unchanged.
 		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 6 built-in themes, `dice::ROLES`, every `draw_to` caller, and every `PEAK_FLOOR` use. The profiler and soak test run with the defaults, so they don't draw load or disk.
 	- Acceptance signoff: Self-closed 20261028: a test panel drew the load graph. How the themes look together stays on 2026102620162201.
@@ -1339,7 +1052,7 @@ Sorted per the notes in [Template](#template).
 		- The LAN and internet split stays on 2026101916274800.
 	- Branch: round-1028
 	- Test case: `render::tests::peak_jumps_eases_down` (dehzk), `open_top_peak_floor` (dehzm), `tests::network_decimal_units` (dehzn), `graphs::tests::net_after_memory_peak` (dehzp), and `live::tests::net_row_width` (dehzq). dehzm and dehzp fail with the peak ignored and the top left at 1.
-		- 20261028: only the values changed. deccf and deccw count 44 theme members instead of 37. deccy counts 38 saved colors instead of 32. dedqq's default order, and defkz's and defm0's orders, have `net` after `mem`, and defm0's past-the-end move is 6 instead of 5. defma's rows greyed at defaults add `net_width` and `net_time`. defx7 checks 6 lead colors instead of 5. defxd's `PARTS` takes net too, and its least gap is 31 degrees instead of 40, for the 36 degree roll.
+		- 20261028: only the values changed. deccf and deccw count 44 theme members instead of 37. deccy counts 38 saved colors instead of 32. dedqq's default order, and defkz's and defm0's orders, have `net` after `mem`, and defm0's past-the-end move is 6 instead of 5. defma's rows grayed at defaults add `net_width` and `net_time`. defx7 checks 6 lead colors instead of 5. defxd's `PARTS` takes net too, and its least gap is 31 degrees instead of 40, for the 36 degree roll.
 		- 20261028: defm0 used `net` as a name it doesn't know. That's a graph now, so it uses `nope`.
 		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 6 built-in themes, `dice::ROLES`, and every `Frame` user. The profiler and soak test run with the defaults, so they don't draw network.
 	- Acceptance signoff: Self-closed 20261028: a test panel drew the network graph, filled to its peak. How the themes look together stays on 2026102620162201.
@@ -1379,7 +1092,7 @@ Sorted per the notes in [Template](#template).
 		- `Source::text` takes the reader, so the tip can say Zswap or Zram.
 	- Branch: round-1028
 	- Test case: `zswap::tests::graph_ratio_write_over_pool` (dehy3), `graphs::tests::zswap_hidden_history` (dehy4), and `live::tests::zswap_row_needs_zswap` (dehy5). dehy3 and dehy4 fail with zswap's overlay taken out, and dehy4 with the overlay left at its graph's own place rather than its tile's.
-		- 20261028: only the values changed. deccf and deccw count 37 theme members instead of 31. deccy counts 32 saved colors instead of 27. dedqq's default order, and defkz's and defm0's orders, have `zswap` after `swap`, and defm0's past-the-end move is 5 instead of 4. defma's rows greyed at defaults add `zswap_width` and `zswap_time`, since Zswap graph is off by default. defx7 checks 5 lead colors instead of 4, and defxd's `PARTS` takes zswap too.
+		- 20261028: only the values changed. deccf and deccw count 37 theme members instead of 31. deccy counts 32 saved colors instead of 27. dedqq's default order, and defkz's and defm0's orders, have `zswap` after `swap`, and defm0's past-the-end move is 5 instead of 4. defma's rows grayed at defaults add `zswap_width` and `zswap_time`, since Zswap graph is off by default. defx7 checks 5 lead colors instead of 4, and defxd's `PARTS` takes zswap too.
 		- Swept: every `Which` match, the `Graphs` and `Live` slot lists, the 6 built-in themes, `dice::ROLES`, every `Source::text` caller, and both front ends' draw paths. The profiler and soak test run with the defaults, so they don't draw zswap.
 	- Acceptance signoff: Self-closed 20261028: a test panel drew the ratio in the panel's font. How the themes look together stays on 2026102620162201.
 	- Closed: 20261028-084635
@@ -1437,7 +1150,7 @@ Sorted per the notes in [Template](#template).
 	- Actual effort: Avg
 	- Progress log:
 		- Under Graphs on the Graph tab, a row per graph in the saved order: the checkbox with the graph's name, an empty space for its live graph, Width px, Time axis, a revert arrow and a gripper. The 6 rows and the Order row are gone.
-		- Dragging a gripper moves the row and writes `graph.order`, and so do Up and Down while the gripper has focus. A hidden graph's width and time axis are greyed.
+		- Dragging a gripper moves the row and writes `graph.order`, and so do Up and Down while the gripper has focus. A hidden graph's width and time axis are grayed.
 		- `design.md` XFCE plugin and Settings window have the details.
 		- Verified: in a test window, dragging CPU's gripper below memory saved `order: "mem cpu"`. Down on the top gripper put back the default, with no order line, and Up on the second saved `mem cpu` again.
 	- Decisions:
@@ -1576,7 +1289,7 @@ Sorted per the notes in [Template](#template).
 		- It has one color, without a heading over it on the sub-tab, since there's one series.
 	- Branch: round-1026
 	- Test case: `graphs::tests::swap_is_off_by_default_and_draws_its_own_color_when_on` (defq5), `three_graphs_find_swap` (defq6), `swap_hide_keeps_history` (defq7), and `live::tests::swap_row_width` (defq8). defq6 and defq7 fail with swap left out of `Graphs`' slots.
-		- 20261026: only the values changed. `config::tests::default_theme_is_row_defaults` (deccf) and `themes_round_trip` count 24 theme members instead of 19. `dialog::tests::save_as_new_theme` counts 21 colors instead of 17. `order_spaces_or_commas` (dedqq) has the default order `cpu mem swap` instead of `cpu mem`. defkz's typed order reads back with `swap` at the end, and defm0's past-the-end move is 3 instead of 2, with `swap` in its orders. defma's rows greyed at defaults are `swap_width` and `swap_time`, where there were none, since Swap graph is off by default.
+		- 20261026: only the values changed. `config::tests::default_theme_is_row_defaults` (deccf) and `themes_round_trip` count 24 theme members instead of 19. `dialog::tests::save_as_new_theme` counts 21 colors instead of 17. `order_spaces_or_commas` (dedqq) has the default order `cpu mem swap` instead of `cpu mem`. defkz's typed order reads back with `swap` at the end, and defm0's past-the-end move is 3 instead of 2, with `swap` in its orders. defma's rows grayed at defaults are `swap_width` and `swap_time`, where there were none, since Swap graph is off by default.
 		- Swept: every user of `Graphs.mem` (the plugin, `Live`, the profiler, the soak test), every `Which` match, the 6 built-in themes, and `dice::ROLES`, which the role test walks. The profiler and soak test run with the defaults, so they don't draw swap.
 	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: with b23's settings, which turn swap on at 64 px, a test panel drew swap beside CPU and memory in each of 2 items, and the window drew its row in Default and Fire. How the themes look together stays on 2026102620162201.
 	- Closed: 20261026-230215
@@ -1633,7 +1346,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Every tip in the settings window is broken into lines of at most 70 characters, between words. Its own line breaks are kept.
 		- `design.md` Settings window has the details.
-		- Verified: in a test window, Log curve's tip showed as 11 lines in 2 paragraphs, and a greyed time axis box's tip as 3 lines.
+		- Verified: in a test window, Log curve's tip showed as 11 lines in 2 paragraphs, and a grayed time axis box's tip as 3 lines.
 	- Decisions:
 		- Tips break at 70 characters, the width GTK wraps its own tips at, so the panel's tips and the window's read alike.
 		- The wrap is in Rust, `wrap_tip` in `settings/src/bridge.rs`, so it has a plain test. An event filter in `qt.cpp` sends every tip in the window through it, the fixed texts in `qt.cpp` included, rather than each `setToolTip` call.
@@ -1641,7 +1354,7 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1027
 	- Test case: `bridge::tests::tips_wrap_keep_words` (defw3), which walks every row's tip in the spec. It fails with the wrap taken out.
 		- Swept: every `setToolTip` and `QToolTip::showText` in `qt.cpp`. The graph list's live tips go through `wrap_tip` directly, since that widget shows its own.
-	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: in a test window, Log curve's tip wrapped to 9 lines in 2 paragraphs, Spike emphasis %'s to 5, and a greyed swap width box showed its one short line.
+	- Acceptance signoff: Self-closed, 2026-10-26, build defyt: in a test window, Log curve's tip wrapped to 9 lines in 2 paragraphs, Spike emphasis %'s to 5, and a grayed swap width box showed its one short line.
 	- Closed: 20261026-230215
 
 - Pre-next-cut: Hover line on the graphs in the Settings dialog
@@ -1728,7 +1441,7 @@ Sorted per the notes in [Template](#template).
 		- The reset waits for Apply, like theme Delete, so Cancel takes it back. The window's own graphs start over at once, since they show changes before Apply.
 		- The window tells the plugin through a file in the history folder, whose modified time the plugin checks each sample, as it does the settings file's. It needs no plugin id, works for every panel item, and costs one stat a sample.
 		- With Keep across restarts off, only what's on screen goes, and the file is left as it is, the same as Off always does. So there's no question then, as the requirement says.
-		- Once pressed, the button is greyed until Apply.
+		- Once pressed, the button is grayed until Apply.
 	- Branch: round-1027
 	- Test case: `keep::tests::reset_seen_once` (defxq), `graphs::tests::reset_drops_kept_file` (defxr), `dialog::tests::reset_history_waits_for_apply_and_deletes_saved_history_only_when_kept` (defxs), and defwy for the button. defxq fails with no file matched, defxr with the file left at a reset, and defxs with saved history deleted while it's off.
 		- 20261026: only the value changed. `bridge::tests::button_set` (defwy) now lists Reset history before Cancel, Apply and OK.
@@ -2048,7 +1761,7 @@ Sorted per the notes in [Template](#template).
 	- Related IDs: 2026102408512212, 2026101916013883
 	- Requirements:
 		- Bytes per second from `/proc/net/dev`: local (`lo`), sent, and received.
-		- Counters that wrap or reset, as when an interface goes away, make a gap, not a spike.
+		- Counters that wrap or reset, as when an interface goes away, make a gap rather than a spike.
 	- Estimated effort: Avg
 	- Actual effort: Low
 	- Progress log:
@@ -2538,7 +2251,7 @@ Sorted per the notes in [Template](#template).
 		- They're saved as `cpu.time` and `mem.time`, with `same`, `linear`, `smooth`, `fixed_a` or `fixed_b`. A file without them gets `same`.
 		- `same` follows the Time settings the way a width of 0 follows Width, so one setting still changes every graph with no pick of its own.
 		- Linear is in, since the Time settings already offer it.
-		- Spike emphasis stays under Log time axis. It still applies to a graph on its own log curve while Log time axis is off, though its slider is greyed then. The graph list can sort that out.
+		- Spike emphasis stays under Log time axis. It still applies to a graph on its own log curve while Log time axis is off, though its slider is grayed then. The graph list can sort that out.
 		- These rows were for 2026102508393161 to replace with the list's time function dropdown, which writes `<graph>.time`.
 	- Branch: round-1025b
 	- Test case: `graphs::tests::axis_own_or_shared` (deea2) and `config::tests::time_axis_old_files` (deea4). deea2 fails with the pick ignored, and deea4 with `cpu.time` left unread.
@@ -3349,7 +3062,7 @@ Sorted per the notes in [Template](#template).
 	- Actual fix: `config::upgraded`, called by `model_on`, in place of `outlines_follow_shared`. `config::moved_path` names the old paths for the save's check.
 	- Branch: round-1028b
 	- Test case: `dialog::tests::unticked_overrides_reload` (dejng), on Default and on Custom, through 2 saves and reloads, plus an old file saved once. It fails at 84b61ad, with CPU's top still the shared one after unticking, and passes now.
-		- 2026-10-28: new value only. dejky's file has the shared colors at the new paths, and with both boxes off its memory graph reads Default's grey, not the shared colors. The old-file cases stay in dejkg.
+		- 2026-10-28: new value only. dejky's file has the shared colors at the new paths, and with both boxes off its memory graph reads Default's gray instead of the shared colors. The old-file cases stay in dejkg.
 		- Swept: every `model_on` caller (`Dialog::open`, `Dialog::apply`, `config::model`, so `Look::load` in the plugin and `preview.rs`), `would_lose`, `saved_themes` and its `shared_of` fallback, both the own and the `kept.changes` stores, and every doc and test naming `graph.colors.border`, `.top` or `.bottom`.
 	- Acceptance signoff: Self-closed 20261028: dejng and the full run.
 	- Closed: 20261028-210400
@@ -3443,7 +3156,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- The line is 10, per "about 10 or more reads as clearly apart". Leads are also held 10 or more from I/O wait and system, so no graph reads as an alarm.
 		- The lead is per mode, so a Gradient graph is checked by the color it draws. Default's swap, zswap, load and temperature are Gradient.
-		- Lightness and saturation separate leads too, not only hue. At 22 degrees, 10 graphs can't all read apart by hue, most of all when pale.
+		- Hue, lightness, and saturation all separate leads. At 22 degrees, 10 graphs can't all read apart by hue, most of all when pale.
 		- Randomize keeps CPU's lead as rolled, and fits the rest around it. Each other lead tries the roll's own color, then a step darker, then a step paler, and up to 16 hue draws are tried, the same for the same seed. Darker alone wasn't enough: with paler left out, seed 1216 of the 2000 still failed.
 		- The steps break design.md's "every graph shares one saturation and brightness" where they're needed. The roll still starts from one, so it reads as one set.
 		- defx7's hue angle check is replaced by the CIEDE2000 one, since Default's memory and temperature now share a hue on purpose and differ by lightness. defxd's 17 degree check on rolls stays, since rolled hues are still 22 apart.
@@ -3616,6 +3329,293 @@ Sorted per the notes in [Template](#template).
 	- Acceptance signoff: Self-closed 20261109: in the new gif the network, volume and bell icons are evenly spaced.
 	- Closed: 20261109-124233
 
+- Smoothly animate each graph on each tick
+	- ID: 2026110911114024
+	- Type: Enhancement
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261109-111140
+	- Opened by: t00mietum
+	- Related IDs: 2026110911114037
+	- Requirements:
+		- Settings option, on by default if the CPU has 8 or more cores: Smoothly animate the graph on each tick, rather than wholesale replace previous contents.
+		- Maybe animate over 1/2 of each graph's update ms? Smooth animation at high fps.
+		- If this makes sense: An even division of the screen refresh rate, minimum 30, max 60. With smooth antialiasing.
+		- It should look absolutely incredibly buttery smooth.
+	- Progress log:
+		- It was split in 2. The setting and the slide went to 2026110918080223, and frames at the screen's rate with the CPU cost went to 2026110918081021. Both are in, waiting on UAT.
+		- 20261109: children 2026110918080223 and 2026110918081021 wait on UAT, and the rest are closed.
+		- 20261110: back to Queued with its child 2026110918081021, which needed the panel's frame rate fixed on a screen whose window manager gives GTK no frame timings. That fix and the quarter rate in 2026110920595603 are in, waiting on UAT.
+		- 20261109: children 2026110918080223, 2026110918081021, and 2026110920595603 wait on UAT, and the rest are closed.
+		- 20261117: all 3 children are closed.
+	- Test case: its children's: 2026110918080223: `tests::slide_steady_gap_jumps` (df3e1), `tests::right_column_fills_tip` (df3e2), and `config::tests::smooth_auto_by_cpus` (df3e3); 2026110918081021: `tests::frame_split_30_to_60` (df3e4) and `tests::draw_rate_without_frame_timings` (df3mf). The frame clock's and the timer's own pacing need a real screen, so they have no test. dekpt now calls the tick callback and the timer; 2026110920595603: `tests::quarter_pace_24_to_50` (df3me).
+	- Stand-in: none (20261110). It closes with its children 2026110918080223, 2026110918081021, and 2026110920595603, which each needed a look at b23's own screen.
+	- Acceptance signoff: Self-closed 20261117: all 3 children are closed.
+	- Closed: 20261117-094915
+
+- Smooth scrolling: the setting, and each graph sliding between samples
+	- ID: 2026110918080223
+	- Type: Enhancement
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Stand-in: none (20261110), since it turns on how smooth the slide looks.
+	- Priority|Severity: Avg
+	- Opened: 20261109-180802
+	- Opened by: t00mietum
+	- Parent ID: 2026110911114024
+	- Version and build: b23's panel has run df54v, which has this, since 20261116.
+	- Requirements:
+		- A Smooth scrolling setting, on by default with 8 or more CPUs.
+		- Each graph slides to its newest sample over the time to the next one, rather than jumping a step.
+		- The hover tip matches what's drawn.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- General, under Time axis, has Smooth scrolling: Auto, On or Off, at `graph.animate`. Auto is the default, and is on with 8 or more CPUs.
+		- The right edge runs one sample behind and slides to the newest sample at a steady speed over one sample period. The edge column is drawn part way, weighted like any other.
+		- The panel and the settings window's graph rows redraw every 33 ms while a graph slides, through the frame timers the axis ease already had.
+		- `design.md` Drawing and README Features have it.
+		- Verified: the quick gate and Sanitizers passed. The new tests failed with the edge left at the newest sample, and df3e2 also with the tip going by the newest sample. The General tab still fits with no scroll bar.
+		- UAT 20261109: "60 Hz looks good", in 2026110920595603's requirements, was a look at this slide.
+		- A panel tick costs about 620 us of CPU, 274 of it user, on the profiler's 7 graphs. So 30 frames a second likely costs around 10 times an idle panel. The panel's own number is on 2026110918081021.
+	- Decisions:
+		- It's a dropdown with Auto rather than a checkbox, so the default follows the box a settings file is used on, instead of being saved as one box's answer.
+		- CPUs are counted by `available_parallelism`, threads included, which is the same count the load graph uses.
+		- The slide takes the whole sample period at a steady speed, rather than half of it. Half with easing stops the graph once a sample, which reads as a pulse. A steady slide never stops.
+		- A step longer than the ease's slack, as after a gap, isn't slid, so the axis ease stays the one that handles jumps.
+		- `Drawn::moving` is new, and the 2 frame timers use it. `easing` keeps its meaning, so its tests stand.
+	- Branch: round-1109b
+	- Test case: `tests::slide_steady_gap_jumps` (df3e1), `tests::right_column_fills_tip` (df3e2), and `config::tests::smooth_auto_by_cpus` (df3e3).
+		- Swept: every `hist.last()` in `Graph` that places the right edge (`basis`, `span_at`, `render_in`), both frame timers (the plugin's draw, qt.cpp's `LiveGraph`), and every `Drawn` impl.
+	- Acceptance signoff: Self-closed 20261117: the slide was called good at 60 Hz, and b23's panel has drawn it since 20261110. The 20261111 and 20261117 looks at the drawing found shimmer rather than a slow or uneven slide.
+	- Closed: 20261117-094915
+
+- Smooth scrolling: frames at the screen's rate, and the CPU cost
+	- ID: 2026110918081021
+	- Type: Enhancement
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Stand-in: none (20261110). The draw rate was measured, and what's left is whether the slide looks like it stutters on b23's own screen.
+	- Priority|Severity: Avg
+	- Opened: 20261109-180810
+	- Opened by: t00mietum
+	- Parent ID: 2026110911114024
+	- Prereq IDs: 2026110918080223
+	- Version and build: b23's panel has run df54v, which has this, since 20261116.
+	- Requirements:
+		- While a graph slides, draw at an even division of the screen's refresh rate, from 30 to 60 a second, in the panel and in the settings window's graph rows, in place of the fixed 33 ms timer.
+		- Measure the panel's CPU with Smooth scrolling on and off. If on costs too much for a panel that runs all day, revisit what Auto turns on.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- While a graph slides or an axis eases, the panel draws from its frame clock: every frame up to 60 Hz, every other at 120, every third at 144. The settings window's graph rows use the same rule on a timer, from the screen's refresh rate.
+		- With Smooth scrolling on, a panel item with the default graphs took 31 CPU ticks in 20 s, about 1.6% of a core, and its X server 9. Off, they took 2 and 1. That's at 60 frames a second, the most it draws.
+		- `design.md` Drawing and Time axis have it.
+		- Verified: the quick gate and Sanitizers passed, and a panel item kept drawing while it slid, by the CPU numbers above.
+		- 20261110: the call was to try 60 fps, with a clean factor found on its own for a 100 Hz screen, such as 50. `frames_apart` already gives 50 at 99.99 Hz, and the settings window gets 99.99 from Qt. The panel doesn't get it, since xfwm4 on b23 has no `_NET_WM_FRAME_DRAWN` or `_NET_WM_FRAME_TIMINGS`, so GTK's frame clock reports its 60 Hz default and paces itself to it. Without a real timing, the panel needs to take the rate from its monitor with `gdk_monitor_get_refresh_rate` and pace the draws to that.
+		- 20261110: with no frame timings, GTK's frame clock gives its 60 Hz guess rather than 0, so the old fallback never ran. The panel now looks for a presented frame. Without one, it draws on a timer at its monitor's refresh rate, read again once a second, and goes back to the frame clock once timings show up.
+		- 20261110: on a 100 Hz screen with no frame timings, the old build drew 60 times a second, and this one every 40 ms, at the quarter rate of 2026110920595603. A panel item took 18 CPU ticks in 20 s, against 26 before, and its X server 5, against 9, at a load of 9 to 11 on 32 cores.
+		- `design.md` Drawing has the timer.
+		- Verified: the quick gate, Sanitizers and the release build passed, and the panel drew every 40 ms on a 100 Hz screen, by its X requests.
+		- Verified 20261117: b23's panel, df54v with Smooth scrolling on by Auto, drew 289 times in 10 s by its writes. The gaps between draws had a median of 39.7 ms, and 95% of them were under 40.8 ms, with 1 at 51 ms, at load 5.5. The shorter gaps are the sample tick's writes between draws.
+	- Decisions:
+		- The panel uses GTK's frame clock rather than a timer, so each draw falls on a screen frame instead of beating against them.
+			- 20261110: this applies only where the window manager gives GTK frame timings. Without them, the clock ticks 60 times a second whatever the screen runs at, and 60 doesn't split into 25, so a timer at the monitor's rate is used instead.
+		- The timer goes by when the last draw was due rather than when it ran, so it keeps to the screen's rate instead of drifting by each wakeup's delay.
+		- The monitor's rate is read at most once a second, since each read waits on the X server for the window's place. A panel moved to another monitor takes up its rate within a second.
+		- An unknown monitor rate counts as 60 Hz.
+		- The panel and the settings window both use one rule, `frames_apart` in core. It splits by 61 rather than 60, so a 60.002 Hz screen still gets every frame.
+		- Below 60 Hz it draws every frame, since none come faster.
+		- Auto stays on at 8 CPUs, since 1.6% of one core is 0.2% of an 8 CPU box.
+	- Branch: round-1109b, round-1110
+	- Test case: `tests::frame_split_30_to_60` (df3e4) and `tests::draw_rate_without_frame_timings` (df3mf). The frame clock's and the timer's own pacing need a real screen, so they have no test. dekpt now calls the tick callback and the timer.
+		- 20261110: df3e4 calls `Pace::UpTo60.frames_apart` rather than `frames_apart`, which now goes by `PACE`. Its values are as they were.
+		- df3mf is new with the function it tests, so it has no run on the old code. The old code's 60 a second on a 100 Hz screen is in the Progress log.
+		- Swept: both frame timers (the plugin's draw and `quiet`, qt.cpp's `LiveGraph`), and every `frame` caller, the panic test included. 20261110: also the new timer, `paced`, in the draw, `quiet`, and dekpt.
+	- Acceptance signoff: Self-closed 20261117: the draws stay at 40 ms on b23's screen, and the 20261117 look at the slide found only shimmer, which is filed as 2026111623513501.
+	- Closed: 20261117-094915
+
+- Smooth scrolling: try a quarter of the screen's frame rate
+	- ID: 2026110920595603
+	- Type: Enhancement
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Stand-in: none (20261110), since it turns on whether 25 a second looks as good as 60.
+	- Priority|Severity: Avg
+	- Opened: 20261109-205956
+	- Opened by: t00mietum
+	- Parent ID: 2026110911114024
+	- Related IDs: 2026110918081021
+	- Version and build: b23's panel has run df54v, which has this, since 20261116.
+	- Requirements:
+		- 60 Hz looks good.
+		- Now let's try 1/4 framerate, evenly divisible by framerate, but not less than 24 and not more than 50 Hz.
+		- Don't delete the 60 Hz code, just use a code constant to isolate it.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- While a graph slides or an axis eases, it draws every fourth screen frame, kept to 24 to 50 a second: every other frame at 60 Hz, every third at 75, every fourth from 96 to 200 Hz, and every fifth at 240. On b23's 99.99 Hz screen that's 25 a second, in the panel and in the settings window's graph rows.
+		- The up-to-60 rule is `Pace::UpTo60`, and the `PACE` constant in core picks one.
+		- `design.md` Drawing and Time axis have it.
+		- Verified: the quick gate, Sanitizers and the release build passed, and the panel drew every 40 ms on a 100 Hz screen, by its X requests. The settings window's rows weren't watched.
+		- 20261117: b23's panel has drawn 25 a second since 20261110. The 20261117 look at it signed off the drawing, and left the shimmer to 2026111623513501.
+	- Decisions:
+		- It's an enum and a constant rather than a setting, per the requirements.
+		- Where a quarter falls outside 24 to 50, it takes the split nearest 4 that's inside, so 60 Hz draws 30 a second and 240 Hz draws 48.
+		- There's 1% slack each way, so a screen a hair off its rate, such as 95.9 or 200.01 Hz, still splits by 4.
+	- Branch: round-1110
+	- Test case: `tests::quarter_pace_24_to_50` (df3me).
+		- Swept: every `frames_apart` caller: the plugin's tick callback and timer, and qt.cpp's `LiveGraph` through `bridge::frames_apart`.
+	- Acceptance signoff: Self-closed 20261117: the 20261117 UAT on 2026111010281710 was a look at the slide at 25 a second, and called it fine. `PACE` still builds the 60 one.
+	- Closed: 20261117-094915
+
+- Reduce motion: a remote viewer on the local desktop, as RustDesk, x11vnc or NoMachine on the physical display
+	- ID: 2026110922214810
+	- Type: Enhancement
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Stand-in: a TCP connection to b23's NoMachine server on port 4000, for a client (20261117).
+	- Priority|Severity: Avg
+	- Opened: 20261109-222148
+	- Opened by:
+	- Parent ID: 2026110911114037
+	- Prereq IDs: 2026110922214697
+	- Version and build: b23's panel has run df54v, which has this, since 20261116.
+	- Requirements:
+		- Treat the local desktop as remote while a remote viewer is connected to it, and go back to the person's settings once it leaves.
+		- Check again every few seconds, in the panel and in the settings window, rather than once at start.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- The possible signs were RustDesk's `--cm` window, which runs only while a peer is connected, and an established socket on a VNC or RDP port. NoMachine's per-session node was another, if it could be told apart from the one for a virtual desktop on another display. Each needed a check with the real tool on b23.
+		- The panel item and the settings window look for a remote viewer on their own display about every 5 s, and go back to the person's settings once it leaves (`remote::Watch`). It doesn't need root.
+		- A look reads the TCP counters, and reads the TCP tables only when those moved. It reads this user's processes only while a connection is up on a VNC, RDP, NoMachine or RustDesk port.
+		- The signs are x11vnc, x0vncserver, krfb or freerdp-shadow-cli with that connection open, RustDesk's `--cm`, and NoMachine's `nxrunner.bin --monitor` on this display while NoMachine has a connection.
+		- On b23, :1001 is NoMachine's node for the physical display. Its `nxrunner.bin --monitor` watches :0 and runs with no client connected.
+		- `design.md` Drawing and README Features have it.
+		- Verified: the quick gate and Sanitizers passed. With a stand-in x11vnc on a private Xvfb, the settings window grayed Sample ms default and Smooth scrolling, and went back 6 s after it quit. Before the early-timer fix below, it was still gray then. df3p7 failed with the socket read taken out, and df3p6 without the slack.
+		- On b23, a read of the TCP tables takes about 6 ms, the counters 18 us, and the process walk about 5 ms.
+		- Verified 20261110: on a private panel with Smooth scrolling on, a stand-in x11vnc on its display took the item from 33 X writes a second to 1 within 3 s of joining, and back to 33 within 2 s of quitting.
+		- Verified 20261117: on b23's live panel, df54v, a connection held to the NoMachine server on port 4000 took the item from about 31 writes a second to 1 or 2 within 2 s, and back to 31 within 2 s of closing. NoMachine's own `nxrunner.bin --monitor` on :0 was the sign.
+		- Verified 20261117 with the real x11vnc 0.9.17 on a private display. `remote::Watch`, read once a second, said Remote 4 s after a client joined and Local 4 s after it left.
+		- RustDesk hasn't been checked with the real tool. That check is split off to 2026111709483900.
+	- Decisions:
+		- It goes by ports and process names, since none of these servers says which display it's for in a way that can be read without root.
+		- NoMachine is counted by its monitor and any connection on port 4000, since its node for the physical display runs between connections. A connection to a NoMachine virtual desktop on the same box would calm the physical display too.
+		- A server on a port of its own isn't seen.
+		- A look up to a tenth early still counts, since Qt's coarse timer can wake early, and skipping it doubled the wait.
+		- The tables are kept until the TCP counters move, since each read walks the kernel's whole table.
+		- `Dialog::set_session` gave way to `watch_session`, and tests pass `Watch::fixed`.
+	- Branch: round-1110
+	- Test case: `remote::tests::tcp_table_established_ports` (df3p4), `remote::tests::viewer_needs_peer_here` (df3p5), `remote::tests::watch_rechecks_every_few_seconds` (df3p6) and `remote::tests::stand_in_vnc_viewer_seen` (df3p7).
+		- Swept: both callers of `remote::session` (the plugin's start and the settings window's), both `set_session` callers, and every `Look` maker that takes the session.
+	- Acceptance signoff: Self-closed 20261117: NoMachine and x11vnc passed with the real servers, and RustDesk is split off to 2026111709483900.
+	- Closed: 20261117-094915
+
+- Antialiasing still needs to be better, so sharp spikes don't pulse or shimmer
+	- ID: 2026111010281710
+	- Type: Enhancement
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261110-102817
+	- Opened by: t00mietum
+	- Related IDs: 2026110920595602, 2026111000270812
+	- Version and build: b23 has df54t installed (20261111), which has this round's change. The panel loads it on its next restart.
+	- Requirements:
+		- Antialiasing still needs to be better. Sharp spikes shouldn't "pulse" in width, and shouldn't "shimmer".
+		- Do your own research for this.
+		- Spitballing: for a pixel line that is in between 0% and 100%, render it at an in-between color of foreground and background (or adjacent color), using the correct blending gamma.
+		- May not need temporal-aware antialiasing, but might.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- 20261110: after 2026110920595602, spikes mostly shimmer, and pulse less.
+		- Cause: a sample split between 2 columns lifted each one only by its part, so a spike half way across was drawn about half as tall in both. Its top went from 90 rows of 100 down to 50 and back each time it crossed a column.
+		- Each column now draws a solid stack and a taller one over it at part strength. A cut sample is drawn at its full height, as faint as how little of it is in. A part-covered pixel mixes in linear light, except over a transparent background. `design.md` Drawing has it.
+		- df4d7: the spike's top now stays at 90 rows on 1 s columns and 72 on 10 s ones, at every step. df3s6's ink, read in linear light, stays within 0.01 and 0.04.
+		- The profiler read 480 and 514 us user a tick before, and 634 after, at load 6 to 8 on 32 cores. 2026111000270812 is for the cost.
+		- Verified: df4d7 failed before the change and passed after. df4dt failed with each series' own min and max as the 2 stacks, and passed with the end buckets'. The quick gate and Sanitizers passed.
+		- 20261110: the cut-bucket tint in the Decisions is fixed by 2026111011172485 (660a3de).
+		- UAT 20261111: not yet. Very narrow gaps tend to appear, fill in, and reappear as the graph marches left. Needs even better antialiasing.
+		- 20261110: one low sample between high ones was drawn at 21 steps across a column, with the gap's depth read as the screen shows it. On columns a sample wide it went from 1.0 column whole to 0.53 split, and on half-sample columns from 2.0 to 1.53. Linear light left a split dark gap only about a quarter as dark in each column, and made a split spike about 1.5 times as bright.
+		- Part-covered pixels now mix as sRGB numbers over any background, as they did over a transparent one. A split gap or spike shows the same depth at every step. `design.md` Drawing has it.
+		- On columns 1 to 3 samples wide the gap still goes from 0.17 to 0.67 of a column at 1.5 s, and 0.13 to 0.46 at 2 s, since the spike emphasis fills it only where a whole sample of the bar is in the column. From 3 s it stays steady. That's 2026111020033357. Spikes there stay within 5%.
+		- The profiler read 673.8 us user a tick at load 8 to 15 on 32 cores, and 916.5 at 16 to 27. The old drawing took 729.1 at 16 to 24. Drawing is 17.6% and 18.5% of self time, against 19.9%. That's within the noise.
+		- Verified: df4y1 failed on the old drawing, at 1.53 to 2.0 on half-sample columns, and passed after. The quick gate and Sanitizers passed.
+		- UAT 20261117: signed off. What's left of the shimmer is acceptable.
+	- Decisions:
+		- 20261116: every part-covered pixel mixes as sRGB numbers. This replaces the earlier call for linear light.
+		- A column's ink stays what the drawing gave before, so the area under a spike doesn't change. Only its shape changes, to full height at part strength rather than part height.
+		- A column no wider than a sample takes its oldest and newest buckets as its 2 samples. Each series' own min and max can come from different samples, and stack over either one's total.
+		- On a wider column, the solid stack reaches toward the max of the buckets clear of both edges, and the tall one toward the column's max, as before 2026110920595602.
+		- Linear light was used only over an opaque background, since the panel blends a transparent one as sRGB numbers.
+			- 20261110: this was turned back, as below.
+		- A bucket cut by a sample's edge can leave a narrow column up to a twentieth short of full, as a faint tint, where before it showed as a part-filled top pixel. That's 2026111011172485.
+		- df4d7's numbers stand in for before and after pictures, and the look was left to the hand test.
+		- 20261110: every part-covered pixel mixes as sRGB numbers rather than in linear light. Half covered then looks half way, for a bright spike and a dark gap alike. Linear light keeps the light a split spike gives off, which is right only if the eye blurs the 2 columns together. The report of gaps filling in shows the eye sees them one by one. The transparent path and the rest of the panel, drawn by cairo, mix as sRGB numbers too.
+		- That's a swing back. Pixels mixed as sRGB numbers before this item, in linear light from df4e4, and as sRGB numbers again now. Linear light was picked for a bright spike over a dark background, and nobody looked at a dark gap between bars then.
+		- The wider columns were left to 2026111020033357, since a fix taht works at every step splits a spike thinner than a column between 2 columns, which df3s6 checks against at 10 s.
+	- Branch: round-1110b, round-1111
+	- Test case: `render::tests::spike_slide_height_steady` (df4d7), `render::tests::share_trade_stays_in_total` (df4dt) and `render::tests::narrow_gap_slide_depth` (df4y1), with df3s6.
+		- 20261110: in debj7 `exact_stack_heights`, the pixel shared half and half by red and green was 0x80 in each, and is now 0xbc, mixed in linear light.
+		- 20261110: df3s6 reads red in linear light rather than as sRGB numbers.
+		- 20261110: in df3e2 `right_column_fills_tip`, half slid in, 7 to 11 of 18 rows were filled, and now every row is at part strength. A filled row is now within 8 steps of the full color rather than exactly it.
+		- Swept: every reader of `Span` (only `Frame::draw_in` reads `spike`, `min`, `ends` and `uncut`), both paints, the opaque and transparent paths, `Peak`'s highest, which now takes the taller stack, and every `Span` literal (only `span_for`).
+		- 20261110: in debj7, the half and half pixel is 0x80 in each again, from 0xbc. df3s6 reads red as sRGB numbers again. In df3e2, half slid in, red was 0xa0 to 0xd8, and is now 0x70 to 0xb0.
+		- Swept: both paints, the opaque and transparent paths, which are now one, every user of the linear light helpers (only `render.rs`), and every test that read linear light or its values (debj7, df3s6, df3e2).
+	- Acceptance signoff: UAT 20261117: the look is fine, and the shimmer left is acceptable.
+	- Closed: 20261117-000639
+
+- Narrow gaps on columns 1 to 3 samples wide come and go as they slide
+	- ID: 2026111020033357
+	- Type: Enhancement
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261110-200333
+	- Opened by:
+	- Parent ID: 2026111010281710
+	- Related IDs: 2026111000270812
+	- Version and build: b23 has df54t installed (20261111), which has this round's change. The panel loads it on its next restart.
+	- Requirements:
+		- A narrow gap between 2 bars shows as deep at every scroll step on columns over a sample wide, as it does on narrower ones since 2026111010281710.
+		- Keep the spike emphasis's look where that allows.
+	- Estimated effort: Avg
+	- Progress log:
+		- Cause: past a sample wide, a column reaches toward the most that any sample's length in it averages. A column with a whole sample of the bar beside the gap reaches the bar and fills the gap, while one with the gap in its middle and the bar cut at both edges doesn't. So whether the gap shows depends on where the column edges fall.
+		- With one low sample between high ones at 21 steps across a column, the gap's depth goes from 0.17 to 0.67 of a column on 1.5 s columns, and 0.13 to 0.46 on 2 s ones. From 3 s it stays steady, at 0.08 and 0.06. A spike stays within 5% on each. A gap of 2 samples should do the same on columns up to about 4 samples wide.
+		- These are the columns just left of a log graph's right end: 11 to 21 of 98 on Smooth log, with an hour to a day of history.
+		- The options were filed in questions.md.
+		- 20261111: on columns up to 4 samples wide, each point in a column takes the most that a sample's length within half a column of it averages, and the column reaches toward that, averaged over the column. The tall stack reaches toward its most. `design.md` Drawing has it.
+		- At 21 steps, the gap's depth is now 0.42 to 0.43 of a column at 1.5 s, 0.21 at 2 s, and 0.08 at 3 s. A spike's ink stays within 0.01 plot heights. Its tallest column at 1.5 s went from 0.83 to 0.74 of the plot, since it's split between 2 now.
+		- The profiler read 1066.1 us user a tick with the first cut, at load 5 to 22 on 32 cores, then 889.2 at 14 to 40. With the new part off it was 657.7 at 19 to 23. So it costs about a quarter more. 2026111000270812 is for the cost.
+		- A spike's top on 1.5 s columns still moves between 77 and 84 rows of 100 as it slides, the same with the change off.
+		- Verified: df4y1 failed with the change off, at 0.17 to 0.67 on 1.5 s columns, and passed with it on. The quick gate and Sanitizers passed.
+		- 20261111: the test ID check read `depth` in df4y1's name in a Test case row as an ID. It now skips names in backticks. Test dezap failed before that and passes after.
+		- UAT 20261117: signed off. What's left of the shimmer is acceptable.
+	- Decisions:
+		- 20261116: the change stays, and its cost is left to 2026111000270812.
+		- Option A was picked, since it works for every width of gap and is easy to undo. The emphasis comes from the history widened by a column less a sample, then averaged over the column, and df3s6's 10 s check becomes a check on the 2 columns' total (20261111).
+		- It applies only up to 4 samples wide rather than at every width. Past that, a column already shows every gap up to 3 samples, and the slide costs about a bucket per point, which is too much on wide columns. So df3s6's 10 s check is unchanged. It now also slides the spike across 1.5 and 3 s columns.
+		- Each point looks half a column each way, so a point's value goes by its time alone. Then the ink across columns of one width stays the same as they slide.
+		- The window starts go by buckets, as `densest` has them, and the sliding most is kept per series. A column over 126 buckets long in the reach, as with samples over 1.5 s, still uses the old way.
+		- `Span::peak` is new, for the tall stack, since the most can come from a spike half a column past the column's edge. `Span::max` keeps its meaning.
+	- Actual effort: Avg
+	- Branch: round-1111
+	- Test case: `render::tests::narrow_gap_slide_depth` (df4y1) and `render::tests::spike_slide_width_steady` (df3s6), both now on columns 1.5 to 3 samples wide too.
+		- Swept: every `span_for` caller (the draw, and the history fuzz test), every reader of `Span::max` and `spike`, and `spike_over`, which wider columns still use.
+	- Acceptance signoff: UAT 20261117: the look is fine, and the shimmer left is acceptable.
+	- Closed: 20261117-000639
+
 - CICD gap: tukzmon-settings built in another folder gives different bytes
 	- ID: 2026110710005013
 	- Type: Task
@@ -3697,7 +3697,7 @@ Sorted per the notes in [Template](#template).
 		- The backlog's Test case rows that named them are renamed to match. design.md and round-notes.md named none.
 		- Verified: guards.bash gives 39 PASS lines with the new names, the test ID check finds 521 tests with unique IDs, and the quick gate and Sanitizers passed.
 	- Decisions:
-		- The name says what is checked, not the whole outcome, since the PASS line and the ID point to the body. Shapes vary: a noun phrase, a short claim, or a verb.
+		- The name says what is checked rather than the whole outcome, since the PASS line and the ID point to the body. Shapes vary: a noun phrase, a short claim, or a verb.
 	- Branch: round-1111
 	- Test case: The renamed tests themselves, run by the Tests step. No new test, since only names changed.
 		- Swept: every `fTest_` name in the backlog, design.md, round-notes.md, memory.md and the private tools.
@@ -3829,12 +3829,12 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- The checkbox reads Reduce motion in remote session. The tip on the rows it greys, and `design.md` Drawing, use the new name.
+		- The checkbox reads Reduce motion in remote session. The tip on the rows it grays, and `design.md` Drawing, use the new name.
 		- Verified: the quick gate and Sanitizers passed.
 	- Decisions:
 		- The setting's id and path, `graph.calm_remote`, are unchanged, so saved files read as before.
 	- Branch: round-1111
-	- Test case: None for a label alone. df3nh still checks the greying and its tip.
+	- Test case: None for a label alone. df3nh still checks the graying and its tip.
 		- Swept: every place the old label was quoted, in `settings.shcl`, `dialog.rs` and `design.md`. README never named it.
 	- Closed: 20261110-214413
 
@@ -3855,7 +3855,7 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- Max age in days is on its own line under Keep across restarts, indented and greyed with it, with hours and minutes to its right, each with its own revert.
+		- Max age in days is on its own line under Keep across restarts, indented and grayed with it, with hours and minutes to its right, each with its own revert.
 		- The max age is the 3 added up, at `history.max_hours` and `history.max_minutes` beside `history.max_days`. Days now go from 0, hours to 23 and minutes to 59. With all 3 at 0 a minute is kept.
 		- A row after a `same_line` row can be `same_line` too, and joins the same line.
 		- `design.md` Settings window and History, and `style-guide_ux.md` Groups and headings, are updated.
@@ -3864,7 +3864,7 @@ Sorted per the notes in [Template](#template).
 		- Check answered 20261116: fine as built, days from 0 and the 1 minute floor stay.
 		- Days start from 0, so a max age under a day can be set, which is what hours and minutes are for. A file with `max_days: 0` used to read as 28 days, and now reads as a minute. Only a hand edit could write it.
 		- There's a 1 minute floor, since 0 would empty the graph as it draws.
-		- `Look` keeps one `max_age` in seconds, not the 3 parts.
+		- `Look` keeps one `max_age` in seconds instead of the 3 parts.
 		- The joined boxes are in a layout rather than a widget, so each label stays beside its box, where a screen reader looks for it.
 		- der33 is renamed, since its old name said the opposite of the new layout. Its ID is unchanged.
 	- Branch: round-1111
@@ -4025,7 +4025,7 @@ Sorted per the notes in [Template](#template).
 		- The fuzz found 7 faults, all fixed. Sums overflowed in the CPU total, the memory graph's cache, zswap's cap, the zram sums and the TCP opens. A CPU idle or steal counter that went down wasn't a gap. 2 batteries with sums past f64 read as NaN, and so did an AMD busy file containing `NaN`.
 		- Verified: each test failed on a planted bug or on the fault it found, and passes now. The quick gate and Sanitizers passed, and all 13 passed with an 8 s budget.
 	- Decisions:
-		- A CPU counter that goes down makes a gap for all of them, not only the 4 drawn, as `cpu::shares` says it does. Idle or steal going down gave shares that added past 1.
+		- A CPU counter that goes down makes a gap for all of them rather than only the 4 drawn, as `cpu::shares` says it does. Idle or steal going down gave shares that added past 1.
 		- Sums of file values saturate, except the TCP opens, which wrap, since they're only compared for a change.
 		- When 2 batteries' pooled sums pass f64, the level is the mean of each one's share.
 		- The battery and AMD faults turned up past the 128 fixed seeds, at 372 and 665, so each test also checks that case directly, and the quick runs keep it.
@@ -4196,20 +4196,20 @@ Sorted per the notes in [Template](#template).
 	- Opened by:
 	- Parent ID: 2026110911114037
 	- Requirements:
-		- The setting, with the parent's overrides, controls greyed with a tip, and nothing saved for them.
+		- The setting, with the parent's overrides, controls grayed with a tip, and nothing saved for them.
 		- Detect a session that a remote desktop server started, such as an RDP or NoMachine virtual desktop.
 	- Estimated effort: Avg
 	- Actual effort: Avg
 	- Progress log:
 		- General, under Time axis, has Reduce motion if remote desktop session detected, at `graph.calm_remote`, on by default.
-		- In a remote session with it on, every graph reads at twice its rate in ms, never under 1000, and none slides. The settings window greys Sample ms default, Smooth scrolling and each graph's sample %, and their tips say why. Its graph previews follow the session too.
+		- In a remote session with it on, every graph reads at twice its rate in ms, never under 1000, and none slides. The settings window grays Sample ms default, Smooth scrolling and each graph's sample %, and their tips say why. Its graph previews follow the session too.
 		- A session counts as remote by `XRDP_SESSION`, `X2GO_SESSION`, `CHROME_REMOTE_DESKTOP_SESSION` or `VNCDESKTOP`, or by its logind record: `REMOTE=1`, or the PAM service `nx` or `xrdp-sesman`. b23's NX session on :1001 has `SERVICE=nx` and `REMOTE=0`.
 		- `design.md` Drawing and README Features have it.
-		- Verified: the quick gate and Sanitizers passed. df3ng, df3nh and df3nj failed with the doubled rate and the greying taken out. The settings window's snapshot greys the 2 General rows and every graph's sample % with `XRDP_SESSION=1`, and the same with `XDG_SESSION_ID` pointed at b23's NX session record, and not without either.
+		- Verified: the quick gate and Sanitizers passed. df3ng, df3nh and df3nj failed with the doubled rate and the graying taken out. The settings window's snapshot grays the 2 General rows and every graph's sample % with `XRDP_SESSION=1`, and the same with `XDG_SESSION_ID` pointed at b23's NX session record, and not without either.
 	- Decisions:
 		- The session is read once, when the panel item or the settings window starts, since what a session starts with doesn't change.
 		- Run-time state goes in `Look::session`, not in the model, so it's never saved, and a settings file read in a local session draws as set.
-		- Each graph's sample % is greyed too, since every graph's rate is set aside. The axis ease after a gap still runs, since it's rare and short.
+		- Each graph's sample % is grayed too, since every graph's rate is set aside. The axis ease after a gap still runs, since it's rare and short.
 		- It's on by default, since a remote session is where every frame costs.
 		- logind's session file is read directly, as `sd_session_is_remote` does, so there's no libsystemd link.
 	- Branch: round-1110
@@ -4370,7 +4370,7 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1109b
 	- Test case: `lan::tests` df3cx, df3cy, df3cz, df3d0 and df3d1. df3d0 and df3d1 fail with every read dumping.
 		- 20261109: deqt2 and dekq7 build or read `Sock` values, which now include the socket's family and id. deqt2 compares only the bytes and the LAN flag, with the same values. df35e opens its sockets after the first read, so its cut read is a dump.
-		- Swept: `LanReader::poll` is the only sock_diag reader. `neighbors` dumps the neighbor table, not the TCP one, every 10 s.
+		- Swept: `LanReader::poll` is the only sock_diag reader. `neighbors` dumps the neighbor table rather than the TCP one, every 10 s.
 	- Closed: 20261109-174917
 
 - Video & GIF: Bigger font for the fake text
@@ -4669,8 +4669,8 @@ Sorted per the notes in [Template](#template).
 		- The history already keeps every bucket's max at every tier, so only the fade needed changing.
 	- Branch: round-1102b
 	- Test case: `render::tests::emphasis_extends_spikes` (dese6). It fails with the fixed 20 s fade.
-		- 2026-11-02: `spike_reach_fades` (debj9) checks its far column at 30 days, not an hour, since an hour now keeps most of a spike at 100%. What it checks is the same.
-		- Swept: `render::reach` is the only place the setting is read, through `Frame::draw_to` and the test helper `column`. The hover tip shows means, not the reach.
+		- 2026-11-02: `spike_reach_fades` (debj9) checks its far column at 30 days instead of an hour, since an hour now keeps most of a spike at 100%. What it checks is the same.
+		- Swept: `render::reach` is the only place the setting is read, through `Frame::draw_to` and the test helper `column`. The hover tip shows means rather than the reach.
 	- Acceptance signoff: Self-closed 20261102: dese6 and the stand-in above, which shows older spikes kept at 100% and 50%.
 	- Closed: 20261102-163600
 
@@ -4865,7 +4865,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: the quick gate passed, and the stand-in above.
 	- Decisions:
 		- Disk log scale moved into Misc with Disk drives, since Disk graph is gone. Item 2026110109585213 removes it.
-		- The rows under Misc keep their indent, since they still grey with their graph's checkbox on the Graphs tab.
+		- The rows under Misc keep their indent, since they still gray with their graph's checkbox on the Graphs tab.
 		- The same_line row keeps its own revert arrow, right after its box. The row whose line it joins keeps its label and revert where they were.
 		- The setting ids and paths are unchanged, so saved files read as before. Only a file with no hover_time line changes, to How long ago.
 	- Branch: round-1102
@@ -5058,7 +5058,7 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1031b
 	- Test case: `config::tests::default_theme_keeps_picks` (dejbq) checks the new colors, and that Low and Medium follow System and Yours. It fails on the old colors. dedqq, dep48 and defm0 check the order.
 		- 2026-10-31: new values only. dedqq's and defm0's orders, dejac's labels, and the moved list after its 2 moves, have `procs` after `mem`. dep48 reads `mem procs` at index 1, not `load procs` at 9, and dekmc reads `cpu mem procs gpu vram`. dedpz reads programs `#ffffb8`, not `#ffffa3`.
-		- 2026-10-31: dejbr now checks every pair of leads, not only the closest, so it can exempt Default's temperature and processes pair.
+		- 2026-10-31: dejbr now checks every pair of leads instead of only the closest, so it can exempt Default's temperature and processes pair.
 		- Swept: every test and doc naming the default order or Default's processes, temperature and memory programs colors, and `settings.shcl`'s row defaults, which deccf ties to Default.
 	- Acceptance signoff: Self-closed 20261031: dejbq and the order tests passed in the quick gate.
 	- Closed: 20261031-094117
@@ -5401,7 +5401,7 @@ Sorted per the notes in [Template](#template).
 	- Actual effort: Avg
 	- Progress log:
 		- The current config is b23's `~/.config/tukzmon/tukzmon.shcl`, read by build defqn.
-		- 2026-10-28: b23's current colors are the changes kept on Default in `plugin-16.shcl`, the live panel item's own file, not the Custom colors at the top of it.
+		- 2026-10-28: b23's current colors are the changes kept on Default in `plugin-16.shcl`, the live panel item's own file, rather than the Custom colors at the top of it.
 		- Default now has every one of those changes, with their modes: swap, zswap, load and temperature as gradients.
 		- Where they clashed, colors nobody picked moved. Zswap's gradient was magenta, beside system's new pink, and swap's was the disk's blue. Each now runs through the color picked for it in Detailed, the way load's already did. Memory's programs went from `#ffff80` to `#ffffa3`, apart from temperature's yellow.
 		- The network's and the disk's gradients follow their new leads, and temperature's normal is its Medium.
@@ -5635,22 +5635,22 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- The Outline sub-tab's Background group has One border for every graph over Border, and One background for every graph over Top and Bottom, at `graph.overrides.border` and `.background`. Ticked, that color goes over every graph's own.
 		- Both are in the `theme` group, off in every built-in, and kept in a saved theme as `true` or `false`.
-		- The colors under a box are greyed while it's off. Picking one ticks its box.
+		- The colors under a box are grayed while it's off. Picking one ticks its box.
 		- Randomize still rolls the shared colors, and leaves the 2 boxes as they were.
 		- Transparent still wins over every background.
 		- `design.md` Theme has the details.
-		- Verified: the full run passed with the 2 new tests. The Outline tab shows both boxes, with their colors indented under them, and Border greyed while its box is off.
+		- Verified: the full run passed with the 2 new tests. The Outline tab shows both boxes, with their colors indented under them, and Border grayed while its box is off.
 		- Verified 2026-10-28: in the batch's test panel the ticked boxes drew the shared colors over every graph. Unticking now gives each graph its own back across a save and reload (dejng, after Bug 2026102820512294), and the last full run passed.
 	- Decisions:
 		- There are 2 boxes rather than 3, one for the border, and one for Top and Bottom together, as the parent's "Global background colors override" says. A shared top over a graph's own bottom would rarely be wanted.
 		- The boxes are per theme, as asked, and off in every built-in. The built-ins give every graph the shared colors anyway, so they look the same either way, and off keeps each graph's sub-tab live.
-		- The shared colors are gated on their box, so they grey out while they draw nothing. That's knobs' gate, which also ticks the box when one of them is picked, so picking a shared color does what it looks like.
+		- The shared colors are gated on their box, so they gray out while they draw nothing. That's knobs' gate, which also ticks the box when one of them is picked, so picking a shared color does what it looks like.
 		- Randomize would tick both through that gate, so it puts the boxes back after a roll. A roll is colors, as with the margins.
 		- The override applies in `Look::from_model`, so the plugin, the renderer and `preview.rs` all get it through each graph's `Outline`, with no second place to keep in step.
 		- A checkbox in a saved theme is written as a shcl bool, and read as `true`, `false`, `on` or `off`. `config::theme_text` gives `on` or `off`, as the window shows it.
 	- Branch: round-1028b
 	- Test case: `config::tests::outline_colors_override_all` (dejky) and `dialog::tests::shared_color_ticks_override` (dejkz). dejky fails with the overrides left unread, and dejkz with a roll ticking the boxes. Both pass now.
-		- 2026-10-28: new values only. deccf and deccw count 99 theme members, not 97, and deccf takes a checkbox for the 2 boxes. defma's rows greyed at defaults add `border_color`, `back_top` and `back_bottom`.
+		- 2026-10-28: new values only. deccf and deccw count 99 theme members, not 97, and deccf takes a checkbox for the 2 boxes. defma's rows grayed at defaults add `border_color`, `back_top` and `back_bottom`.
 		- Swept: every reader of `border_color`, `back_top`, `back_bottom` and the per-graph outlines (`Look::from_model`, `render::Frame`, `Source::outline`, `preview.rs`), every writer of theme members in a loop (`randomize_from`, `drop_theme_changes`, the dialog's `shown_colors`), every `theme_text` and `theme_typed` caller, and the docs naming the shared colors.
 	- Acceptance signoff: Self-closed 20261028, on the stand-ins above.
 	- Closed: 20261028-210347
@@ -5804,7 +5804,7 @@ Sorted per the notes in [Template](#template).
 		- The colors go to the renderer as one `Outline` per graph, through `Source::outline`, so the overrides have one place to apply.
 	- Branch: round-1028b
 	- Test case: `config::tests::outline_per_graph_per_theme` (dejkg), `graphs::tests::border_and_background_each` (dejkh) and `dice::tests::backgrounds_roll_own_hue` (dejkf). dejkg fails with memory reading CPU's outline or with the shared colors not carried over, dejkh with the border drawn from the shared color, and dejkf with every graph rolled one background or at the old brightness. All pass now.
-		- 2026-10-28: new values only. deccf and deccw count 97 theme members, not 67, and deccy 85 saved colors, not 55. The one-color theme check in `mono_themes_keep_alarms` measures each graph's colors against its own top, not the shared one.
+		- 2026-10-28: new values only. deccf and deccw count 97 theme members instead of 67, and deccy counts 85 saved colors instead of 55. The one-color theme check in `mono_themes_keep_alarms` measures each graph's colors against its own top rather than the shared one.
 		- Swept: every reader of `border_color`, `back_top` and `back_bottom` (`Look::from_model`, `render::Frame`, `dice`, the dialog's `shown_colors`, `preview.rs`), every `Frame` construction, every `Source` impl, and the docs naming the shared background.
 	- Acceptance signoff: Self-closed 20261028: own colors and 5 rolls drawn on a test panel, and dejkg, dejkh and dejkf.
 	- Closed: 20261028-205317
@@ -5831,7 +5831,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- The Background sub-tab is now Outline. Its Margins group has Top & bottom px and Left & right px, at `graph.margins.top_bottom` and `.left_right`, 2 each by default, above the Background group.
 		- They replace the fixed 2 px edges and 4 px gaps. Graphs are drawn upright, so on a vertical panel top and bottom are the gaps between graphs.
-		- The panel asks for a new size when the margins change, not only the widths.
+		- The panel asks for a new size when the margins change, as well as the widths.
 		- A theme saved before the margins existed gets Default's 2 and 2, and stays listed.
 		- `design.md` XFCE plugin, Settings window and Theme have the details.
 		- Verified: the full run passed with the 3 new tests. In a test panel, Top & bottom 0 and Left & right 8 put the graphs against the panel's edges with 16 px between them, and the item grew to fit, at once.
@@ -5905,7 +5905,7 @@ Sorted per the notes in [Template](#template).
 		- Sample ms default is 1000 by default. A file that sets `graph.sample_ms` keeps its rate.
 		- Verified: the full run passed, the soak test (dee6p) included. The Graph tab showed 1000.
 	- Decisions:
-		- The history tiers stay as they are, since the 50 ms floor sets them, not the default. A linear graph at the default now spans twice the time.
+		- The history tiers stay as they are, since the 50 ms floor sets them rather than the default. A linear graph at the default now spans twice the time.
 		- Tests about something else that counted on 500 now set 500 themselves (deja0, defz1), so their timings stay right.
 	- Branch: round-1028b
 	- Test case: `config::tests::multiload_default_colors` (debhj) and `overrides_and_bad_lines` (debhk) check 1000 as the default.
@@ -6156,7 +6156,7 @@ Sorted per the notes in [Template](#template).
 		- Widths are saved at the same `<graph>.width` paths. b23's item had Width at 100, so its saved pixel widths read the same as percentages.
 		- A width runs from 1% to 1000%, rounded to a whole pixel, and is never 0 px.
 		- The spec's graph rows are in the new default order, so the list and its revert arrows agree with it.
-		- A graph left out of a saved order still goes at the end in the order graphs were added, not the new default. Only a hand-edited order meets that.
+		- A graph left out of a saved order still goes at the end in the order graphs were added rather than the new default. Only a hand-edited order meets that.
 	- Branch: graph-tab
 	- Test case: `config::tests::switch_and_width_rows` (dedqf) now checks the defaults and how a percentage turns into pixels. It fails with widths still in pixels.
 		- 2026-10-28: new values only, for the new defaults. dedqq, defkz and defm0 read the new default order. `graphs::tests` lay out a `two()` look with the old defaults, swap off, every width 100% and the old order, so their tiles still check the layout. defq5 is now `swap_default_on`. defvs, the hidden CPU test, the saved order test, defmk and the live row tests set Width to 100, so a percentage reads as pixels.
@@ -6179,14 +6179,14 @@ Sorted per the notes in [Template](#template).
 				- Same dropdown options as the individual graph dropdowns.
 	- Progress log:
 		- Under Time, Time axis default picks Linear, Smooth log, Log A or Log B, at `graph.time`. Smooth log is still the default.
-		- Spike emphasis is never greyed now, since a graph can pick a log curve of its own.
+		- Spike emphasis is never grayed now, since a graph can pick a log curve of its own.
 	- Decisions:
 		- `graph.log_axis` and `graph.log_curve` are dropped rather than read as aliases. They were never in a release, and b23's files have neither, as with the old theme keys in 2026102620162201. This replaces 2026102408304586's "Saved configs with `graph.log_axis` and `graph.log_curve` keep working".
 			- Confirmed 2026-10-28.
 		- `Look` has one `time`, and `Look::timing` is a graph's own pick or else that.
 	- Branch: graph-tab
 	- Test case: `config::tests::axis_default_from_file` (decbx) and `dialog::tests::time_axis_default_dropdown` (decbz), renamed from the log curve ones, and `axis::tests::curve_spellings_parse` (decbw), which now wants Linear first.
-		- 2026-10-28: debjh's switch is Keep across restarts over Max age, since Log time axis is gone. deea4's old-file part reads `graph.time`. defma no longer finds Log curve or Spike emphasis greyed.
+		- 2026-10-28: debjh's switch is Keep across restarts over Max age, since Log time axis is gone. deea4's old-file part reads `graph.time`. defma no longer finds Log curve or Spike emphasis grayed.
 		- Swept: every `log_axis`, `log_curve` and `curve` reader, `core/examples/preview.rs` included, and the tips that named Log time axis or Log curve.
 	- Closed: 20261028-143000
 
@@ -6206,10 +6206,10 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- A hidden graph's time axis and width are live, and the first choice reads Default.
 	- Decisions:
-		- The width box isn't greyed either, so a hidden graph's row reads one way across.
+		- The width box isn't grayed either, so a hidden graph's row reads one way across.
 		- The saved key stays `same`, so only the label changed.
 	- Branch: graph-tab
-	- Test case: deea4 and dedqf check the time and width rows have no gate, and both fail with the gates put back. dedqq checks a hidden graph's still count, and defma that the window greys neither.
+	- Test case: deea4 and dedqf check the time and width rows have no gate, and both fail with the gates put back. dedqq checks a hidden graph's still count, and defma that the window grays neither.
 	- Closed: 20261028-143000
 
 - Pre-next-cut: Empty checkboxes need to be more visible
@@ -6666,7 +6666,7 @@ Sorted per the notes in [Template](#template).
 		- Profiler, load 12 to 20 on 32 cores, 2 runs each: 661 and 863 us user a tick before, 822 and 717 after, so no change past the noise. History lookups were 35% and 37% of the tick before, 35% and 33% after.
 		- Verified: df4e9 and df3e2's exact check failed before the change and pass after. df4d7, df4dt, df3s6, the quick gate and Sanitizers passed.
 	- Decisions:
-		- The split reads the bucket's own min and max, and a neighbor only for which side each is on, so a neighbor that's a gap or missing on one side still works from the other. With none, the mean stands as before.
+		- The split reads the bucket's own min and max, and a neighbor only for which side each is on, so a neighbor that's a gap or missing on one side still works from the other. With neither, the mean is used as before.
 		- It applies to every column's end buckets, wider ones too, so a column's mean is the same however it's read. `History::span`, with no sample, is unchanged, so the hover tip reads as before.
 		- A bucket from history sampled faster than the graph is now, which can contain more than 2 samples, is split as if it had only its min and max. Only its part of one column can be off, as before.
 	- Actual fix: `Tier::samples_in` and the end bucket loop in `History::span_for`, in `core/src/history.rs`.
@@ -6676,7 +6676,7 @@ Sorted per the notes in [Template](#template).
 		- Swept: every reader of `Span::ends` (only `Frame::draw_in`), every `span_for` caller (`Frame::draw_in`, and `span` with sample 0), and the other end bucket readers, `tops_over` and `densest`, which read maxes for the spike rather than means.
 	- Closed: 20261110-114108
 
-- A greyed slider still draws its groove in the accent color
+- A grayed slider still draws its groove in the accent color
 	- ID: 2026110923034356
 	- Type: Bug
 	- Status: Closed
@@ -6685,22 +6685,22 @@ Sorted per the notes in [Template](#template).
 	- Priority|Severity: Low
 	- Opened: 20261109-230343
 	- Opened by:
-	- Incorrect behavior: When a row is greyed, as Sample ms default in a remote session, its label and number box go grey but the slider's groove stays blue.
-	- Expected behavior: The slider greys with the rest of its row.
-	- Reproduced: 2026-11-09, with `XRDP_SESSION=1` on a test X display, where Qt takes the GTK theme's palette. Under the offscreen platform, with Qt's own palette, the groove was already grey.
-	- Actual cause: Fusion fills a slider's groove in the palette's Highlight, and the GTK theme's disabled Highlight is the same accent as its active one. The slider was disabled with its row. It predates the remote-session greying, but no slider in the spec has a gate, so that greying was the first to show it.
+	- Incorrect behavior: When a row is grayed, as Sample ms default in a remote session, its label and number box go gray but the slider's groove stays blue.
+	- Expected behavior: The slider grays with the rest of its row.
+	- Reproduced: 2026-11-09, with `XRDP_SESSION=1` on a test X display, where Qt takes the GTK theme's palette. Under the offscreen platform, with Qt's own palette, the groove was already gray.
+	- Actual cause: Fusion fills a slider's groove in the palette's Highlight, and the GTK theme's disabled Highlight is the same accent as its active one. The slider was disabled with its row. It predates the remote-session graying, but no slider in the spec has a gate, so that graying was the first to show it.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
 		- Seen in tukzmon-settings shots from 2026110922214810.
 		- A disabled slider draws its groove in the disabled text color, whatever the theme's disabled Highlight is.
-		- Verified: on a test X display with the GTK theme, Sample ms default's groove went from blue to grey in a remote session, and Spike emphasis stayed blue. The quick gate and Sanitizers passed.
+		- Verified: on a test X display with the GTK theme, Sample ms default's groove went from blue to gray in a remote session, and Spike emphasis stayed blue. The quick gate and Sanitizers passed.
 	- Decisions:
 		- The fix is in `BoxStyle` rather than the palette, so a theme change at run time can't bring the accent back, and selections elsewhere keep the theme's colors.
 	- Actual fix: `BoxStyle::drawComplexControl` swaps Highlight for the disabled text color on a disabled slider.
 	- Branch: round-1110
-	- Test case: `bridge::tests::greyed_slider_no_accent` (df3qa). Under a palette whose disabled accent equals its active one, it fails without the fix, with 463 accent pixels on the greyed slider, and passes with it.
-		- Swept: `TrackSlider` is the window's only slider. The other Highlight draws in `qt.cpp`, the color picker's edge and the gripper's dots, use it only with focus, which a disabled widget can't hold. Greyed dropdowns and number boxes were already grey.
+	- Test case: `bridge::tests::greyed_slider_no_accent` (df3qa). Under a palette whose disabled accent equals its active one, it fails without the fix, with 463 accent pixels on the grayed slider, and passes with it.
+		- Swept: `TrackSlider` is the window's only slider. The other Highlight draws in `qt.cpp`, the color picker's edge and the gripper's dots, use it only with focus, which a disabled widget can't hold. Grayed dropdowns and number boxes were already gray.
 	- Closed: 20261109-231624
 
 - Code review 20261107 item 17: A save through a linked item settings file shows in the panel only at the next read
@@ -7734,7 +7734,7 @@ Sorted per the notes in [Template](#template).
 	- Test case: deja2 itself. It passed 8 runs in a row. `Graph::tick`'s early-timer case is pinned in dej9z.
 	- Closed: 20261028-154500
 
-- Settings rows that depend on a switch are never greyed
+- Settings rows that depend on a switch are never grayed
 	- ID: 2026102617084201
 	- Type: Bug
 	- Status: Closed
@@ -7746,22 +7746,22 @@ Sorted per the notes in [Template](#template).
 	- Steps to reproduce:
 		- In the settings window, turn off a switch that other rows depend on.
 	- Incorrect behavior: The rows that depend on it stay enabled. `qt.cpp` ignores the knobs `counts` state.
-	- Expected behavior: They grey out, the way the graph list greys a hidden graph's width and time axis.
-	- Reproduced: Yes, 2026-10-26. With every switch off, the window greyed none of the rows under them.
+	- Expected behavior: They gray out, the way the graph list grays a hidden graph's width and time axis.
+	- Reproduced: Yes, 2026-10-26. With every switch off, the window grayed none of the rows under them.
 	- Actual cause: `refresh` in `qt.cpp` never read `counts`. Only the graph list's own refresh did, for its width and time axis.
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- A row's label and control are greyed while a switch above it is off. These are Log curve and Spike emphasis under Log time axis, Max age in days under Keep across restarts, and a hidden graph's width and time axis.
-		- The graph list now greys through the same code as every other row.
+		- A row's label and control are grayed while a switch above it is off. These are Log curve and Spike emphasis under Log time axis, Max age in days under Keep across restarts, and a hidden graph's width and time axis.
+		- The graph list now grays through the same code as every other row.
 		- `design.md` Settings window says so.
 		- Verified: the full run passed, and defma failed with the fix taken out.
 	- Decisions:
-		- The revert arrow stays live on a greyed row, as it does in the graph list, so a value can still be put back while its switch is off.
-		- Only `refresh` greys rows, rather than a second copy in the list's refresh.
+		- The revert arrow stays live on a grayed row, as it does in the graph list, so a value can still be put back while its switch is off.
+		- Only `refresh` grays rows, rather than a second copy in the list's refresh.
 	- Actual fix: `refresh` sets each row's label and control enabled from `counts`.
 	- Branch: round-1026
-	- Test case: `bridge::tests::row_greyed_when_switch_off` (defma). It builds the window off screen and checks the greyed rows match the gated ones, with every switch on and then off. It fails without the fix.
+	- Test case: `bridge::tests::row_greyed_when_switch_off` (defma). It builds the window off screen and checks the grayed rows match the gated ones, with every switch on and then off. It fails without the fix.
 		- Swept: every `setEnabled` in `qt.cpp`, the graph list's refresh, and every `gate:` in `core/src/settings.shcl`, which the test walks.
 	- Closed: 20261026-171422
 
@@ -9396,7 +9396,7 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Avg
 	- Actual effort: Avg
 	- Progress log:
-		- LAN and internet, at `net.split` under a Network graph heading on the General tab, takes `off`, the default, or `sockets`. It greys out while the network graph is off.
+		- LAN and internet, at `net.split` under a Network graph heading on the General tab, takes `off`, the default, or `sockets`. It grays out while the network graph is off.
 		- The network graph always stacks 5 series, from `net::Traffic`: local, LAN sent, LAN received, sent and received. With the split off the LAN's 2 are 0. With it on, the tip reads "Internet received ... Sent ...", then "LAN received ... Sent ...", then "Local ...".
 		- LAN sent and LAN received are new colors in the Network section, at `net.colors.lan_sent` and `.lan_received`, in every built-in theme and in Randomize.
 		- `design.md` XFCE plugin, Theme and Data sources on Linux have the details.
@@ -9412,7 +9412,7 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1030
 	- Commit: 9be5b33
 	- Test case: `tests::split_tip_names_both` (demvz), `net::tests::split_off_holds_all` (demw0), `config::tests::lan_split_off_by_default` (demw1), `dice::tests::lan_colors_distinct` (demw2) and `tests::pre_split_history_resets` (demw3). demw2 fails with LAN received as the buffers' color, as rolled before.
-		- 2026-10-30: Only the values changed. deccf and deccw count 117 theme members rather than 115. deccy counts 101 saved colors rather than 99. defma's rows greyed at defaults are `net_split` rather than none. dehzp's received is `net[4]` rather than `net[2]`, and its history has 5 series.
+		- 2026-10-30: Only the values changed. deccf and deccw count 117 theme members rather than 115. deccy counts 101 saved colors rather than 99. defma's rows grayed at defaults are `net_split` rather than none. dehzp's received is `net[4]` rather than `net[2]`, and its history has 5 series.
 		- Swept: every `NetReader` user (`Graphs`, `Live`, the tip test), every built-in theme, `dice::ROLES`, and the config theme-color tests. The profiler and soak test run with the defaults, so they don't draw network.
 	- Acceptance signoff: Self-closed, 2026-10-30: the settings window showed the new row. How the themes look together stays on 2026102620162201.
 	- Closed: 20261030-104753

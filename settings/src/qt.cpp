@@ -168,8 +168,8 @@ constexpr int BUTTON_PAD_DOWN = 8;
 class BoxStyle final : public QProxyStyle {
 public:
 	// Fusion fills a slider's groove in the palette's Highlight, and the GTK
-	// theme's disabled Highlight is the same accent, so a greyed slider stayed
-	// blue beside its greyed label.
+	// theme's disabled Highlight is the same accent, so a grayed slider stayed
+	// blue beside its grayed label.
 	void drawComplexControl(ComplexControl cc, const QStyleOptionComplex *opt, QPainter *p,
 		const QWidget *w) const override {
 		const auto *s = qstyleoption_cast<const QStyleOptionSlider *>(opt);
@@ -407,7 +407,7 @@ void quiet(QDialog *w) {
 	w->hide();
 }
 
-// SilkTerm's picker, not the toolkit's. The row behind follows every change,
+// SilkTerm's picker rather than the toolkit's. The row behind follows every change,
 // and Cancel puts back all of it.
 class ColorPicker final : public QDialog {
 public:
@@ -1008,7 +1008,7 @@ public:
 		return out;
 	}
 	// the first color box, or the first whole number box at 10 or more that
-	// isn't greyed
+	// isn't grayed
 	QWidget *firstBox(bool number) const {
 		for (const auto &r : rows) {
 			if (number && r->spin && r->spin->isEnabled() && r->info.whole && r->spin->value() >= 10)
@@ -1662,7 +1662,7 @@ private:
 		if (r.info.same_line && prev && prev->grid == grid) {
 			// the row above keeps its label and revert, and shares its
 			// control's cell with this row's 3, and with the next same_line's.
-			// A layout, not a widget, so each label stays its box's sibling,
+			// A layout rather than a widget, so each label stays its box's sibling,
 			// where a screen reader looks for it.
 			QHBoxLayout *h = prev->joined;
 			if (!h) {
@@ -1707,7 +1707,7 @@ private:
 
 	// What a screen reader calls each of the row's controls, which have no
 	// text of their own. It finds a label only beside what it labels, so the
-	// buddy is the control, not a box inside it. A dropdown takes its label
+	// buddy is the control rather than a box inside it. A dropdown takes its label
 	// from there, since Qt on Linux names it by its text.
 	static void nameRow(Row &r, const QString &name) {
 		if (r.label)
@@ -2146,7 +2146,7 @@ private:
 			for (QWidget *w : {static_cast<QWidget *>(r.label), r.control, static_cast<QWidget *>(r.revert)})
 				if (w)
 					w->setVisible(st.shown);
-			// greyed while a switch above it is off, but its revert still works
+			// grayed while a switch above it is off, but its revert still works
 			for (QWidget *w : {static_cast<QWidget *>(r.label), r.control})
 				if (w)
 					w->setEnabled(st.counts);

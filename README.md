@@ -15,9 +15,9 @@ Tukzmon is a system monitor for your desktop panel. It shows graphs for CPU, mem
 
 <!-- Video: [Watch the demo on YouTube](https://www.youtube.com/watch?v=VIDEO_ID) -->
 
-The time axis is logarithmic by default. The last minute gets the most room, and older history is squeezed to the left, so one small graph shows the last few seconds and the last few weeks at once. History is kept across restarts and reboots (by default), with gaps where the computer was off.
+The time axis is logarithmic by default. The last minute gets the most room, and older history is squeezed to the left, so one small graph shows the last few seconds and the last few weeks at once. By default, history is kept across restarts and reboots, with gaps where the computer was off.
 
-Height can go up on a straight, log, or squared scale, for every graph or one at a time. Log allows trickles to be visible next to large bursts; whereas squared exaggerates differences.
+Height can go up on a straight, log, or squared scale, for every graph or one at a time. Log lets a trickle show up next to a large burst, while squared exaggerates differences.
 
 <!-- TOC ignore:true -->
 ## Table of contents
@@ -41,11 +41,11 @@ Height can go up on a straight, log, or squared scale, for every graph or one at
 
 ## Status
 
-The first version is an XFCE panel plugin. Other desktops will follow. And then after that - Windows, macOS, and the BSDs.
+The first version is an XFCE panel plugin. Other desktops will follow, and after that Windows, macOS, and the BSDs.
 
-Tukzmon doesn't need any of the [related projects](#related-projects). It works on any distro with a supported panel.
+Tukzmon doesn't need any of the [related projects](#related-projects). It works on any distro with a supported panel, which for now means the XFCE 4.20 panel. If you're on another desktop, it won't run there yet.
 
-The first release is 1.0.0-beta.1. Although beta, it's very solid. Packages for Debian, Ubuntu, and Fedora are on the [releases page](https://github.com/tukzedo/tukzmon/releases).
+The first release is 1.0.0-beta.1. It's a beta, but it's very solid. Packages for Debian, Ubuntu, and Fedora are on the [releases page](https://github.com/tukzedo/tukzmon/releases).
 
 ## Graphs
 
@@ -69,7 +69,7 @@ The first release is 1.0.0-beta.1. Although beta, it's very solid. Packages for 
 
 - Battery charge and discharge are shown with the critical level.
 
-- tukzmon's own CPU use, so you can see what it costs. (A boring indicator as it is typically a tiny fraction of a % of one CPU, and usually shows nothing.)
+- tukzmon's own CPU use, so you can see what it costs. It's a boring graph, since that's usually a tiny fraction of a percent of one CPU, and it mostly shows nothing.
 
 ## Features
 
@@ -159,11 +159,11 @@ Work is done on `dev`, and releases are merged into `main`.
 
 - [Tukzedo Linux](https://github.com/tukzedo/tukzedo-linux), an ultra-secure distro with similar design principles.
 
-- [LXQtukz](https://github.com/tukzedo/lxqtukz), a highly configurable desktop with multiple "personas" out-of-the-box. (An LXQt panel version of tukzmon is in the works for it.)
+- [LXQtukz](https://github.com/tukzedo/lxqtukz), a highly configurable desktop with multiple "personas" out of the box. An LXQt panel version of tukzmon is in the works for it.
 
 ## Background
 
-Inspired by A) The "Non-linear time" scale option in XFCE4's "CPU Graph", and B) The now-abandoned and stale "Multiload-ng" project. (The latter was a revival fork of the defunct "Multiload" project, which was a reimplementation of the original monitors available in the original Gnome desktop panel - and also available in MATE.)
+Tukzmon was inspired by the "Non-linear time" scale option in XFCE's CPU Graph plugin, and by the now abandoned Multiload-ng project. Multiload-ng was a revival fork of the defunct Multiload, which reimplemented the monitors from the original GNOME desktop panel, also found in MATE.
 
 ## Copyright and license
 

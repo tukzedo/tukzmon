@@ -60,9 +60,9 @@ These are the rules for the settings window. They were taken from how it already
 - A row that only matters while a switch is on goes under that switch, and it's indented 16 px per level.
 	- The switch comes first.
 	- A short row that belongs with the row above it may go to that row's right, on the same line, through `same_line: true`, such as the hours and minutes beside Max age in days.
-	- While the switch is off, its rows are greyed. Their revert arrows stay live.
+	- While the switch is off, its rows are grayed. Their revert arrows stay live.
 
-- A row that only makes sense in one mode, such as the Gradient colors, is hidden rather than greyed while another mode is picked.
+- A row that only makes sense in one mode, such as the Gradient colors, is hidden rather than grayed while another mode is picked.
 
 ## Rows
 
