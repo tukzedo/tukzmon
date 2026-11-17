@@ -192,100 +192,6 @@ Sorted per the notes in [Template](#template).
 	- Test case: `remote::tests::tcp_table_established_ports` (df3p4), `remote::tests::viewer_needs_peer_here` (df3p5), `remote::tests::watch_rechecks_every_few_seconds` (df3p6) and `remote::tests::stand_in_vnc_viewer_seen` (df3p7).
 		- Swept: both callers of `remote::session` (the plugin's start and the settings window's), both `set_session` callers, and every `Look` maker that takes the session.
 
-- Antialiasing still needs to be better, so sharp spikes don't pulse or shimmer
-	- ID: 2026111010281710
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- Watch narrow dips between bars, and spikes, slide with Smooth scrolling on near the right end of the CPU graph, and say whether a dip still fills in and comes back, and whether a spike looks weaker split between 2 columns than whole in one. Builds with test df4y1 have it. Further left, on columns over a sample wide, 2026111020033357 holds a dip too, with a hand test of its own.
-	- Needs hand testing: A panel on b23 with a build that has df4y1 and Smooth scrolling on, watching dips and spikes slide on the CPU graph.
-	- Stand-in: none (20261110). df4y1, df4d7 and df3s6 cover the depth, the height and the width, and what's left turns on how it looks.
-	- Priority|Severity: Avg
-	- Opened: 20261110-102817
-	- Opened by: t00mietum
-	- Related IDs: 2026110920595602, 2026111000270812
-	- Version and build: b23 has df54t installed (20261111), which has this round's change. The panel loads it on its next restart.
-	- Requirements:
-		- Antialiasing still needs to be better. Sharp spikes shouldn't "pulse" in width, and shouldn't "shimmer".
-		- Do your own research for this.
-		- Spitballing: for a pixel line that is in between 0% and 100%, render it at an in-between color of foreground and background (or adjacent color), using the correct blending gamma.
-		- May not need temporal-aware antialiasing, but might.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- 2026-11-10: After 2026110920595602, spikes mostly shimmer now, less so the pulsing.
-		- Cause: a sample split between 2 columns lifted each one only by its part, so a spike half way across was drawn about half as tall in both. Its top went from 90 rows of 100 down to 50 and back each time it crossed a column.
-		- Each column now draws a solid stack and a taller one over it at part strength. A cut sample is drawn at its full height, as faint as how little of it is in. A part-covered pixel mixes in linear light, except over a transparent background. `design.md` Drawing has it.
-		- df4d7: the spike's top now stays at 90 rows on 1 s columns and 72 on 10 s ones, at every step. df3s6's ink, read in linear light, stays within 0.01 and 0.04.
-		- Profiler, load 6 to 8 on 32 cores: 480 and 514 us user a tick before, 634 after. 2026111000270812 is for the cost.
-		- Verified: df4d7 failed before the change and passed after. df4dt failed with each series' own min and max as the 2 stacks, and passed with the end buckets'. The quick gate and Sanitizers passed.
-		- 2026-11-10: The cut-bucket tint in the Decisions is fixed by 2026111011172485 (660a3de).
-		- UAT 20261111: not yet. Very narrow gaps tend to appear, fill in, and reappear as the graph marches left. Needs even better antialiasing.
-		- 2026-11-10: One low sample between high ones, drawn at 21 steps across a column, with the gap's depth read as the screen shows it. On columns a sample wide it went from 1.0 column whole to 0.53 split, and on half-sample columns from 2.0 to 1.53. Linear light left a split dark gap only about a quarter as dark in each column, and made a split spike about 1.5 times as bright.
-		- Part-covered pixels now mix as sRGB numbers over any background, as they did over a transparent one. A split gap or spike shows the same depth at every step. `design.md` Drawing has it.
-		- On columns 1 to 3 samples wide the gap still goes from 0.17 to 0.67 of a column at 1.5 s, and 0.13 to 0.46 at 2 s, since the spike emphasis fills it only where a whole sample of the bar is in the column. From 3 s it holds. That's 2026111020033357. Spikes there stay within 5%.
-		- Profiler: 673.8 us user a tick at load 8 to 15 on 32 cores, and 916.5 at 16 to 27. The old drawing took 729.1 at 16 to 24. Drawing is 17.6% and 18.5% of self time, against 19.9%. That's within the noise.
-		- Verified: df4y1 failed on the old drawing, at 1.53 to 2.0 on half-sample columns, and passed after. The quick gate and Sanitizers passed.
-	- Decisions:
-		- Check answered 20261116: sRGB numbers for every part-covered pixel. The earlier linear light Check is superseded.
-		- A column's ink stays what the drawing gave before, so the area under a spike holds. Only its shape changes: full height at part strength, rather than part height.
-		- A column no wider than a sample takes its oldest and newest buckets as its 2 samples. Each series' own min and max can come from different samples, and stack over either one's total.
-		- Wider, the solid stack reaches toward the max of the buckets clear of both edges, and the tall one toward the column's max, as before 2026110920595602.
-		- Linear light only over an opaque background, since the panel blends a transparent one as sRGB numbers.
-			- 2026-11-10: turned back, see below.
-		- A bucket cut by a sample's edge can leave a narrow column up to a twentieth short of full, as a faint tint, where before it showed as a part-filled top pixel. That's 2026111011172485.
-		- No before and after pictures. df4d7's numbers stand in, and the look is left to the hand test.
-		- 2026-11-10: sRGB numbers for every part-covered pixel, not linear light. Half covered then looks half way, for a bright spike and a dark gap alike. Linear light keeps the light a split spike gives off, which holds only if the eye blurs the 2 columns together. The report of gaps filling in says it sees them one by one. The transparent path and the rest of the panel, drawn by cairo, mix as sRGB numbers too.
-		- That's a swing back: sRGB numbers before this item, linear light from df4e4, and sRGB numbers again. Linear light was picked for a bright spike over a dark background, and a dark gap between bars wasn't looked at then.
-		- The wider columns wait on a question, in 2026111020033357, since a fix that holds at every step splits a spike thinner than a column between 2 columns, which df3s6 checks against at 10 s.
-	- Branch: round-1110b, round-1111
-	- Test case: `render::tests::spike_slide_height_steady` (df4d7), `render::tests::share_trade_stays_in_total` (df4dt) and `render::tests::narrow_gap_slide_depth` (df4y1), with df3s6.
-		- 2026-11-10: debj7 `exact_stack_heights`: the pixel shared half and half by red and green was 0x80 in each, now 0xbc, mixed in linear light.
-		- 2026-11-10: df3s6 reads red in linear light, not as sRGB numbers.
-		- 2026-11-10: df3e2 `right_column_fills_tip`: half slid in, 7 to 11 of 18 rows were filled, now every row is at part strength. A filled row is now within 8 steps of the full color, not exactly it.
-		- Swept: every reader of `Span` (only `Frame::draw_in` reads `spike`, `min`, `ends` and `uncut`), both paints, the opaque and transparent paths, `Peak`'s highest, which now takes the taller stack, and every `Span` literal (only `span_for`).
-		- 2026-11-10: debj7: the half and half pixel is 0x80 in each again, from 0xbc. df3s6 reads red as sRGB numbers again. df3e2: half slid in, red was 0xa0 to 0xd8, and is now 0x70 to 0xb0.
-		- Swept: both paints, the opaque and transparent paths, which are now one, every user of the linear light helpers (only `render.rs`), and every test that read linear light or its values (debj7, df3s6, df3e2).
-
-- Narrow gaps on columns 1 to 3 samples wide come and go as they slide
-	- ID: 2026111020033357
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- Watch dips between bars, and spikes, slide with Smooth scrolling on, a few columns in from the right end of the CPU graph. Say whether a dip holds its depth there, and whether a spike split between 2 columns looks weaker than whole in one.
-	- Needs hand testing: A panel on b23 with a build that has this change and Smooth scrolling on, watching dips and spikes slide a few columns in from the right end of the CPU graph.
-	- Stand-in: none (20261111). df4y1 and df3s6 cover the depth and the ink, and what's left turns on how it looks.
-	- Priority|Severity: Avg
-	- Opened: 20261110-200333
-	- Opened by:
-	- Parent ID: 2026111010281710
-	- Related IDs: 2026111000270812
-	- Version and build: b23 has df54t installed (20261111), which has this round's change. The panel loads it on its next restart.
-	- Requirements:
-		- A narrow gap between 2 bars shows as deep at every scroll step on columns over a sample wide, as it does on narrower ones since 2026111010281710.
-		- Keep the spike emphasis's look where that allows.
-	- Estimated effort: Avg
-	- Progress log:
-		- Cause: past a sample wide, a column reaches toward the most that any sample's length in it averages. A column with a whole sample of the bar beside the gap reaches the bar and fills the gap, while one with the gap in its middle and the bar cut at both edges doesn't. So the gap shows or not by where the column edges fall.
-		- One low sample between high ones, at 21 steps across a column: the gap's depth goes from 0.17 to 0.67 of a column on 1.5 s columns, and 0.13 to 0.46 on 2 s ones. From 3 s it holds, at 0.08 and 0.06. A spike stays within 5% on each. A gap of 2 samples should do the same on columns up to about 4 samples wide.
-		- These are the columns just left of a log graph's right end: 11 to 21 of 98 on Smooth log, with an hour to a day of history.
-		- The options are in questions.md.
-		- 2026-11-11: Up to 4 samples wide, each point in a column takes the most that a sample's length within half a column of it averages, and the column reaches toward that, averaged over the column. The tall stack reaches toward its most. `design.md` Drawing has it.
-		- The gap's depth at 21 steps: 0.42 to 0.43 of a column at 1.5 s, 0.21 at 2 s, 0.08 at 3 s. A spike's ink holds within 0.01 plot heights. Its tallest column at 1.5 s went from 0.83 to 0.74 of the plot, since it's split between 2 now.
-		- Profiler, user time a tick: 1066.1 us with the first cut, at load 5 to 22 on 32 cores, then 889.2 at 14 to 40. With the new part off it was 657.7 at 19 to 23. So it costs about a quarter more. 2026111000270812 is for the cost.
-		- A spike's top on 1.5 s columns still moves between 77 and 84 rows of 100 as it slides, the same with the change off.
-		- Verified: df4y1 failed with the change off, at 0.17 to 0.67 on 1.5 s columns, and passed with it on. The quick gate and Sanitizers passed.
-		- 2026-11-11: The test ID check read `depth` in df4y1's name in a Test case row as an ID. It now skips names in backticks. Test dezap failed before that and passes after.
-	- Decisions:
-		- Check answered 20261116: keep it, and the cost stays with 2026111000270812.
-		- Picked A, the worker's call, since it holds for every width of gap and is easy to undo. The emphasis comes from the history widened by a column less a sample, then averaged over the column, and df3s6's 10 s check becomes a check on the 2 columns' total (20261111).
-		- Only up to 4 samples wide, not every width. Past that a column already holds every gap up to 3 samples, and the slide costs about a bucket per point, which is too much on wide columns. So df3s6's 10 s check is unchanged. It now also slides the spike across 1.5 and 3 s columns.
-		- Each point looks half a column each way, so a point's value goes by its time alone. Then the ink across columns of one width stays the same as they slide.
-		- The window starts go by buckets, as `densest` has them, and the sliding most is kept per series. A column over 126 buckets long in the reach, as with samples over 1.5 s, keeps the old way.
-		- `Span::peak` is new, for the tall stack, since the most can come from a spike half a column past the column's edge. `Span::max` keeps its meaning.
-	- Actual effort: Avg
-	- Branch: round-1111
-	- Test case: `render::tests::narrow_gap_slide_depth` (df4y1) and `render::tests::spike_slide_width_steady` (df3s6), both now on columns 1.5 to 3 samples wide too.
-		- Swept: every `span_for` caller (the draw, and the history fuzz test), every reader of `Span::max` and `spike`, and `spike_over`, which wider columns still use.
-
 - Reduce motion if a remote desktop session is detected
 	- ID: 2026110911114037
 	- Type: Enhancement
@@ -338,20 +244,6 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1110
 	- Test case: `gpu::tests::intel_busy_from_rc6` (df3kw) and `intel_gpu_graph_only` (df3kx). df3kx fails on the old `Card::find`.
 		- Swept: every `Card` match, both readers' probes, `amd_in`, which now shares `cards_in`, the settings window's GPU rows (dekmd), the README's graph list, and `design.md` for "Intel".
-
-- Cut the cost of the spike windows in each draw
-	- ID: 2026111000270812
-	- Type: Enhancement
-	- Status: Stalled
-	- Priority|Severity: Avg
-	- Opened: 20261110-002708
-	- Opened by: t00mietum
-	- Related IDs: 2026110920595602
-	- Requirements: Bring the profiled tick back near its 241 us of user time, from the 480 us that 2026110920595602's windows took it to, with the same pixels.
-	- Estimated effort: Avg
-	- Prereq IDs: 2026111010281710
-	- 2026-11-10: Answer on 2026110920595602's Check: get it looking right first, then the cost. Waits on 2026111010281710, since both change the spike windows.
-	- Held for UAT signoff of 2026111010281710's new look, per the answer on 2026110920595602: look first, then cost. Set back to Queued once it's signed off.
 
 - Installer script for a direct install
 	- ID: 2026110310450005
@@ -406,6 +298,20 @@ Sorted per the notes in [Template](#template).
 		- Then `utility/path-maps.bash` keeps only what trim-paths doesn't cover, such as cxx's own C++.
 	- Estimated effort: Low
 
+- Cut the cost of the spike windows in each draw
+	- ID: 2026111000270812
+	- Type: Enhancement
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261110-002708
+	- Opened by: t00mietum
+	- Related IDs: 2026110920595602
+	- Requirements: Bring the profiled tick back near its 241 us of user time, from the 480 us that 2026110920595602's windows took it to, with the same pixels.
+	- Estimated effort: Avg
+	- Prereq IDs: 2026111010281710
+	- 2026-11-10: Answer on 2026110920595602's Check: get it looking right first, then the cost. Waits on 2026111010281710, since both change the spike windows.
+	- 2026-11-17: 2026111010281710's look is signed off, so this is Queued.
+
 - Pre-next-cut: Show the highest recorded values on the tip of monitors with no obvious absolute max
 	- ID: 2026111623513500
 	- Type: Feature
@@ -415,20 +321,6 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Requirements:
 		- On monitors with no obvious absolute max (e.g. 100%), show on the tooltip the highest values recorded so far for each metric.
-
-- Pre-next-cut: Lots of up and down activity in a monitor still shimmers, most in the first minute
-	- ID: 2026111623513501
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: Avg
-	- Opened: 20261116-235135
-	- Opened by: t00mietum
-	- Related IDs: 2026111010281710, 2026111020033357
-	- Requirements:
-		- Lots of up and down activity in a monitor still results in "shimmering", most noticeable in the first minute. Need to fix this.
-		- Would a 1px blur help? That might be very expensive at 30 hz. And might, well, also look blurry.
-	- Decisions:
-		- Answered 20261116: no blur as the first try. It softens every edge, steady ones too, which works against keeping spikes sharp, and it would only lower the shimmer. First find which pixels change from frame to frame in the first minute, and why. A blur stays a fallback if that finds nothing to fix.
 
 - Code review 20261030 item 3, part 2: Look up a setting by an index in knobs
 	- ID: 2026103018353670
@@ -511,6 +403,100 @@ Sorted per the notes in [Template](#template).
 		- Apply saves through `write_file_atomic` alone, with no `config::through_links` first, and the comment saying shcl breaks the link goes.
 		- deqw1 and deqw2 still pass.
 	- Note: shcl 3.0.0-beta1 writes through a link to a missing file and keeps the link. Checked 2026-11-10.
+
+- Antialiasing still needs to be better, so sharp spikes don't pulse or shimmer
+	- ID: 2026111010281710
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261110-102817
+	- Opened by: t00mietum
+	- Related IDs: 2026110920595602, 2026111000270812
+	- Version and build: b23 has df54t installed (20261111), which has this round's change. The panel loads it on its next restart.
+	- Requirements:
+		- Antialiasing still needs to be better. Sharp spikes shouldn't "pulse" in width, and shouldn't "shimmer".
+		- Do your own research for this.
+		- Spitballing: for a pixel line that is in between 0% and 100%, render it at an in-between color of foreground and background (or adjacent color), using the correct blending gamma.
+		- May not need temporal-aware antialiasing, but might.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- 2026-11-10: After 2026110920595602, spikes mostly shimmer now, less so the pulsing.
+		- Cause: a sample split between 2 columns lifted each one only by its part, so a spike half way across was drawn about half as tall in both. Its top went from 90 rows of 100 down to 50 and back each time it crossed a column.
+		- Each column now draws a solid stack and a taller one over it at part strength. A cut sample is drawn at its full height, as faint as how little of it is in. A part-covered pixel mixes in linear light, except over a transparent background. `design.md` Drawing has it.
+		- df4d7: the spike's top now stays at 90 rows on 1 s columns and 72 on 10 s ones, at every step. df3s6's ink, read in linear light, stays within 0.01 and 0.04.
+		- Profiler, load 6 to 8 on 32 cores: 480 and 514 us user a tick before, 634 after. 2026111000270812 is for the cost.
+		- Verified: df4d7 failed before the change and passed after. df4dt failed with each series' own min and max as the 2 stacks, and passed with the end buckets'. The quick gate and Sanitizers passed.
+		- 2026-11-10: The cut-bucket tint in the Decisions is fixed by 2026111011172485 (660a3de).
+		- UAT 20261111: not yet. Very narrow gaps tend to appear, fill in, and reappear as the graph marches left. Needs even better antialiasing.
+		- 2026-11-10: One low sample between high ones, drawn at 21 steps across a column, with the gap's depth read as the screen shows it. On columns a sample wide it went from 1.0 column whole to 0.53 split, and on half-sample columns from 2.0 to 1.53. Linear light left a split dark gap only about a quarter as dark in each column, and made a split spike about 1.5 times as bright.
+		- Part-covered pixels now mix as sRGB numbers over any background, as they did over a transparent one. A split gap or spike shows the same depth at every step. `design.md` Drawing has it.
+		- On columns 1 to 3 samples wide the gap still goes from 0.17 to 0.67 of a column at 1.5 s, and 0.13 to 0.46 at 2 s, since the spike emphasis fills it only where a whole sample of the bar is in the column. From 3 s it holds. That's 2026111020033357. Spikes there stay within 5%.
+		- Profiler: 673.8 us user a tick at load 8 to 15 on 32 cores, and 916.5 at 16 to 27. The old drawing took 729.1 at 16 to 24. Drawing is 17.6% and 18.5% of self time, against 19.9%. That's within the noise.
+		- Verified: df4y1 failed on the old drawing, at 1.53 to 2.0 on half-sample columns, and passed after. The quick gate and Sanitizers passed.
+		- UAT 20261117: signed off. What's left of the shimmer is acceptable.
+	- Decisions:
+		- Check answered 20261116: sRGB numbers for every part-covered pixel. The earlier linear light Check is superseded.
+		- A column's ink stays what the drawing gave before, so the area under a spike holds. Only its shape changes: full height at part strength, rather than part height.
+		- A column no wider than a sample takes its oldest and newest buckets as its 2 samples. Each series' own min and max can come from different samples, and stack over either one's total.
+		- Wider, the solid stack reaches toward the max of the buckets clear of both edges, and the tall one toward the column's max, as before 2026110920595602.
+		- Linear light only over an opaque background, since the panel blends a transparent one as sRGB numbers.
+			- 2026-11-10: turned back, see below.
+		- A bucket cut by a sample's edge can leave a narrow column up to a twentieth short of full, as a faint tint, where before it showed as a part-filled top pixel. That's 2026111011172485.
+		- No before and after pictures. df4d7's numbers stand in, and the look is left to the hand test.
+		- 2026-11-10: sRGB numbers for every part-covered pixel, not linear light. Half covered then looks half way, for a bright spike and a dark gap alike. Linear light keeps the light a split spike gives off, which holds only if the eye blurs the 2 columns together. The report of gaps filling in says it sees them one by one. The transparent path and the rest of the panel, drawn by cairo, mix as sRGB numbers too.
+		- That's a swing back: sRGB numbers before this item, linear light from df4e4, and sRGB numbers again. Linear light was picked for a bright spike over a dark background, and a dark gap between bars wasn't looked at then.
+		- The wider columns wait on a question, in 2026111020033357, since a fix that holds at every step splits a spike thinner than a column between 2 columns, which df3s6 checks against at 10 s.
+	- Branch: round-1110b, round-1111
+	- Test case: `render::tests::spike_slide_height_steady` (df4d7), `render::tests::share_trade_stays_in_total` (df4dt) and `render::tests::narrow_gap_slide_depth` (df4y1), with df3s6.
+		- 2026-11-10: debj7 `exact_stack_heights`: the pixel shared half and half by red and green was 0x80 in each, now 0xbc, mixed in linear light.
+		- 2026-11-10: df3s6 reads red in linear light, not as sRGB numbers.
+		- 2026-11-10: df3e2 `right_column_fills_tip`: half slid in, 7 to 11 of 18 rows were filled, now every row is at part strength. A filled row is now within 8 steps of the full color, not exactly it.
+		- Swept: every reader of `Span` (only `Frame::draw_in` reads `spike`, `min`, `ends` and `uncut`), both paints, the opaque and transparent paths, `Peak`'s highest, which now takes the taller stack, and every `Span` literal (only `span_for`).
+		- 2026-11-10: debj7: the half and half pixel is 0x80 in each again, from 0xbc. df3s6 reads red as sRGB numbers again. df3e2: half slid in, red was 0xa0 to 0xd8, and is now 0x70 to 0xb0.
+		- Swept: both paints, the opaque and transparent paths, which are now one, every user of the linear light helpers (only `render.rs`), and every test that read linear light or its values (debj7, df3s6, df3e2).
+	- Acceptance signoff: UAT 20261117: the look is fine, and the shimmer left is acceptable.
+	- Closed: 20261117-000639
+
+- Narrow gaps on columns 1 to 3 samples wide come and go as they slide
+	- ID: 2026111020033357
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: Avg
+	- Opened: 20261110-200333
+	- Opened by:
+	- Parent ID: 2026111010281710
+	- Related IDs: 2026111000270812
+	- Version and build: b23 has df54t installed (20261111), which has this round's change. The panel loads it on its next restart.
+	- Requirements:
+		- A narrow gap between 2 bars shows as deep at every scroll step on columns over a sample wide, as it does on narrower ones since 2026111010281710.
+		- Keep the spike emphasis's look where that allows.
+	- Estimated effort: Avg
+	- Progress log:
+		- Cause: past a sample wide, a column reaches toward the most that any sample's length in it averages. A column with a whole sample of the bar beside the gap reaches the bar and fills the gap, while one with the gap in its middle and the bar cut at both edges doesn't. So the gap shows or not by where the column edges fall.
+		- One low sample between high ones, at 21 steps across a column: the gap's depth goes from 0.17 to 0.67 of a column on 1.5 s columns, and 0.13 to 0.46 on 2 s ones. From 3 s it holds, at 0.08 and 0.06. A spike stays within 5% on each. A gap of 2 samples should do the same on columns up to about 4 samples wide.
+		- These are the columns just left of a log graph's right end: 11 to 21 of 98 on Smooth log, with an hour to a day of history.
+		- The options are in questions.md.
+		- 2026-11-11: Up to 4 samples wide, each point in a column takes the most that a sample's length within half a column of it averages, and the column reaches toward that, averaged over the column. The tall stack reaches toward its most. `design.md` Drawing has it.
+		- The gap's depth at 21 steps: 0.42 to 0.43 of a column at 1.5 s, 0.21 at 2 s, 0.08 at 3 s. A spike's ink holds within 0.01 plot heights. Its tallest column at 1.5 s went from 0.83 to 0.74 of the plot, since it's split between 2 now.
+		- Profiler, user time a tick: 1066.1 us with the first cut, at load 5 to 22 on 32 cores, then 889.2 at 14 to 40. With the new part off it was 657.7 at 19 to 23. So it costs about a quarter more. 2026111000270812 is for the cost.
+		- A spike's top on 1.5 s columns still moves between 77 and 84 rows of 100 as it slides, the same with the change off.
+		- Verified: df4y1 failed with the change off, at 0.17 to 0.67 on 1.5 s columns, and passed with it on. The quick gate and Sanitizers passed.
+		- 2026-11-11: The test ID check read `depth` in df4y1's name in a Test case row as an ID. It now skips names in backticks. Test dezap failed before that and passes after.
+		- UAT 20261117: signed off. What's left of the shimmer is acceptable.
+	- Decisions:
+		- Check answered 20261116: keep it, and the cost stays with 2026111000270812.
+		- Picked A, the worker's call, since it holds for every width of gap and is easy to undo. The emphasis comes from the history widened by a column less a sample, then averaged over the column, and df3s6's 10 s check becomes a check on the 2 columns' total (20261111).
+		- Only up to 4 samples wide, not every width. Past that a column already holds every gap up to 3 samples, and the slide costs about a bucket per point, which is too much on wide columns. So df3s6's 10 s check is unchanged. It now also slides the spike across 1.5 and 3 s columns.
+		- Each point looks half a column each way, so a point's value goes by its time alone. Then the ink across columns of one width stays the same as they slide.
+		- The window starts go by buckets, as `densest` has them, and the sliding most is kept per series. A column over 126 buckets long in the reach, as with samples over 1.5 s, keeps the old way.
+		- `Span::peak` is new, for the tall stack, since the most can come from a spike half a column past the column's edge. `Span::max` keeps its meaning.
+	- Actual effort: Avg
+	- Branch: round-1111
+	- Test case: `render::tests::narrow_gap_slide_depth` (df4y1) and `render::tests::spike_slide_width_steady` (df3s6), both now on columns 1.5 to 3 samples wide too.
+		- Swept: every `span_for` caller (the draw, and the history fuzz test), every reader of `Span::max` and `spike`, and `spike_over`, which wider columns still use.
+	- Acceptance signoff: UAT 20261117: the look is fine, and the shimmer left is acceptable.
+	- Closed: 20261117-000639
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
@@ -9250,6 +9236,22 @@ Sorted per the notes in [Template](#template).
 		- Cross platform: Linux, Windows, macOS, BSD.
 		- Windows 11 has no taskbar toolbars, so it gets a tray icon plus a small window docked over the taskbar.
 		- macOS gets a menu bar item, which can be wide.
+
+- Pre-next-cut: Lots of up and down activity in a monitor still shimmers, most in the first minute
+	- ID: 2026111623513501
+	- Type: Enhancement
+	- Status: Canceled
+	- Priority|Severity: Avg
+	- Opened: 20261116-235135
+	- Opened by: t00mietum
+	- Related IDs: 2026111010281710, 2026111020033357
+	- Requirements:
+		- Lots of up and down activity in a monitor still results in "shimmering", most noticeable in the first minute. Need to fix this.
+		- Would a 1px blur help? That might be very expensive at 30 hz. And might, well, also look blurry.
+	- Decisions:
+		- 20261117: what's left of the shimmer is acceptable, so it gets no more work. 2026111010281710 and 2026111020033357 are signed off.
+	- Test case: none, canceled.
+	- Closed: 20261117-000639
 
 - Pre-next-cut: "Colors: detailed|gradient" applies to all monitors, with a granularity option
 	- ID: 2026102807585030
