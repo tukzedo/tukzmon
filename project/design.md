@@ -66,6 +66,7 @@ A Rust core was chosen over C or C++, with C only where a panel's API needed it.
 	- A panel started by `xfce4-panel --restart` has stderr on `/dev/null`, so each message also goes to syslog, unless stderr is the journal already.
 	- A failed history read, save, or delete also shows in the tip, under the graphs, up until a save works.
 	- A settings file that's there but can't be read is logged once, and the item keeps the look it has, or the defaults at its start. The tip says so until the file reads again, which each tick tries. A missing file means the defaults.
+	- These errors, and the settings window's message boxes, say what's wrong in plain words, such as "it's cut short" or "it isn't text", rather than the file reader's own terms. `plain_error` in core gives the words for the usual system errors.
 	- Nothing else in the plugin assumes X11. The drawing, the tip, the hover line, the right-click menu, and Properties work the same on Wayland, and tukzmon-settings opens as a Wayland window.
 
 - The plugin draws its graphs side by side in one drawing area, in the saved order. `core/src/graphs.rs` has the layout.
@@ -478,6 +479,7 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 	- The battery's tip says plugged in rather than charging, since a full battery with the power in counts as charging.
 	- The tukzmon graph's tip gives the share of all CPUs, then of one CPU, as top shows it, such as "tukzmon 0.014% of all CPUs" over "0.46% of one CPU". The share is often under 0.1%, so it's shown to 2 figures or so rather than in whole percents.
 	- The processes graph's tip gives the total, then the count for each kind of user, such as "Processes 612", "Yours 112", "Other users 20", and "System 480", one to a line.
+	- The network, disk, load, and processes graphs don't have a clear top, so their tips end with the highest each value reached in the history kept, one to a line, such as "Read highest 80 MB/s". The history goes back as far as the max age under [History](#history), and Reset history starts it over. It's the same wherever the pointer is. The processes graph doesn't give a highest total, since the history keeps each kind's highest but not their sum's. `History::highest` reads it from the coarsest tier, whose buckets keep the max of the samples in them. The temperature graph has its critical level, and the tukzmon graph is a share of all CPUs, so they leave it out.
 
 - A still pointer's tip keeps its age and moves its clock time. The right edge is always now and the graph scrolls left under the pointer, so each column is a fixed age, while the time in that column advances a sample each tick. Both describe the column under the line. The line and tip follow the column rather than the moment that was first pointed at.
 

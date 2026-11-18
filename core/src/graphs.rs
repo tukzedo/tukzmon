@@ -598,7 +598,7 @@ impl Graphs {
 				Err(e) => {
 					return Err(io::Error::new(
 						e.kind(),
-						format!("can't read the old file, so it's left alone: {e}"),
+						format!("{}, so it's left alone", crate::plain_error(&e)),
 					));
 				}
 			};
@@ -646,7 +646,10 @@ impl Graphs {
 		if any {
 			Ok(())
 		} else {
-			Err(io::Error::new(io::ErrorKind::InvalidData, "no history"))
+			Err(io::Error::new(
+				io::ErrorKind::InvalidData,
+				"it doesn't have any history that can be used",
+			))
 		}
 	}
 

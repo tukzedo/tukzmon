@@ -261,7 +261,7 @@ fTest_hook_gates_the_commit() {
 	mkdir -p -- "${r}/cicd/hooks" "${r}/cicd/utility/include" "${t}/tmp"
 	cp -- "${cicd}/hooks/pre-push" "${r}/cicd/hooks/"
 	cp -- "${cicd}/config.bash" "${r}/cicd/"
-	cp -- "${cicd}/utility/include/run-tmp.bash" "${cicd}/utility/include/lint-markdown.bash" "${r}/cicd/utility/include/"
+	cp -- "${cicd}/utility/include/run-tmp.bash" "${cicd}/utility/include/lint-markdown.bash" "${cicd}/utility/include/content-scrub.bash" "${r}/cicd/utility/include/"
 	## The stand-in gate passes on its tree's verdict, after another session
 	## writes the opposite one into the checkout.
 	printf '%s\n' '#!/usr/bin/env bash' 'echo "${GATE_EDIT}" > "${GATE_CHECKOUT}/verdict"' \
@@ -293,7 +293,7 @@ fTest_hook_checks_docs() {
 	mkdir -p -- "${r}/cicd/hooks" "${r}/cicd/utility/include" "${r}/project" "${r}/assets" "${t}/tmp" "${t}/bin"
 	cp -- "${cicd}/hooks/pre-push" "${r}/cicd/hooks/"
 	cp -- "${cicd}/config.bash" "${r}/cicd/"
-	cp -- "${cicd}/utility/include/run-tmp.bash" "${cicd}/utility/include/lint-markdown.bash" "${r}/cicd/utility/include/"
+	cp -- "${cicd}/utility/include/run-tmp.bash" "${cicd}/utility/include/lint-markdown.bash" "${cicd}/utility/include/content-scrub.bash" "${r}/cicd/utility/include/"
 	## Stand-ins: the gate leaves a mark, markdownlint fails a doc that says
 	## bad, and the ID check fails a backlog that names an unknown ID.
 	printf '%s\n' '#!/usr/bin/env bash' 'echo gate >> "${DOCS_MARKS}"' > "${r}/cicd/cicd.bash"
@@ -320,6 +320,105 @@ fTest_hook_checks_docs() {
 		{ ((wantRc)) && ((gotRc)); } || { ((! wantRc)) && ((! gotRc)); } || { fWhy "${what}: exit ${gotRc}, not ${wantRc}: ${out}"; return 1; }
 	done
 	[[ "$("${g[@]}" worktree list --porcelain | grep -c '^worktree ')" == 1 ]] || { fWhy "left a worktree"; return 1; }
+}
+
+## Test ID: dfen5
+fTest_content_scrub() {
+	local t="${work}/scrub" r="${work}/scrub/repo" ok=0
+	local -a g=(git -C "${r}" -c user.name=t -c user.email=t@t.invalid -c commit.gpgsign=false)
+	mkdir -p -- "${r}" "${t}/private/hooks"
+	{ "${g[@]}" init -q && echo x > "${r}/a" && "${g[@]}" add a && "${g[@]}" commit -qm a; } || { fWhy "git setup failed"; return 1; }
+	"${g[@]}" worktree add -q --detach "${t}/linked" || { fWhy "worktree add failed"; return 1; }
+	(
+		unset TUKZMON_CONTENT_SCRUB
+		source "${cicd}/config.bash"
+		source "${cicd}/utility/include/content-scrub.bash"
+		local out='' want="${t}/private/hooks/scrub.bash" d=''
+		## A fresh clone has no script, and passes with one line.
+		out="$(fContentScrub "${r}")" || { fWhy "failed with no script: ${out}"; exit 1; }
+		[[ "${out}" == "content scrub: no script at ${want}, so it's skipped" ]] || { fWhy "no script: ${out}"; exit 1; }
+		## The stand-in finds what's in its tree's a, and says which tree.
+		printf '%s\n' '#!/usr/bin/env bash' 'echo "tree $1" >> "$(dirname "$0")/calls"' '! grep -H bad "$1/a"' > "${want}"
+		for d in "${r}" "${t}/linked"; do
+			[[ "$(fContentScrubPath "${d}")" == "${want}" ]] || { fWhy "${d}: path $(fContentScrubPath "${d}")"; exit 1; }
+		done
+		out="$(fContentScrub "${t}/linked")" || { fWhy "failed on a clean tree: ${out}"; exit 1; }
+		[[ "${out}" == "content scrub: clean" && "$(< "${t}/private/hooks/calls")" == "tree ${t}/linked" ]] || { fWhy "clean: ${out}"; exit 1; }
+		echo bad > "${r}/a"
+		CONTENT_SCRUB_FAILS=1
+		if out="$(fContentScrub "${r}" "${t}/log")"; then fWhy "passed a finding: ${out}"; exit 1; fi
+		[[ "${out}" == "${r}/a:bad"$'\n'"content scrub: exit 1, 1 line(s) of findings" ]] || { fWhy "fails: ${out}"; exit 1; }
+		[[ "$(< "${t}/log")" == "${r}/a:bad" ]] || { fWhy "the findings file while failing: $(< "${t}/log")"; exit 1; }
+		echo stale > "${t}/log"
+		# shellcheck disable=2034  ## Read by fContentScrub.
+		CONTENT_SCRUB_FAILS=0
+		out="$(fContentScrub "${r}" "${t}/log")" || { fWhy "failed while CONTENT_SCRUB_FAILS is 0: ${out}"; exit 1; }
+		[[ "${out}" == *"1 line(s) of findings, in ${t}/log, not failing"* && "$(< "${t}/log")" == "${r}/a:bad" ]] || { fWhy "report only: ${out}"; exit 1; }
+		out="$(TUKZMON_CONTENT_SCRUB="${t}/elsewhere.bash" fContentScrub "${r}")" || { fWhy "failed on a named script that's missing: ${out}"; exit 1; }
+		[[ "${out}" == *"no script at ${t}/elsewhere.bash"* ]] || { fWhy "named script: ${out}"; exit 1; }
+	) && ok=1
+	"${g[@]}" worktree remove --force "${t}/linked" || true
+	((ok))
+}
+
+## Test ID: dfen6
+fTest_hook_runs_content_scrub() {
+	local t="${work}/hookscrub" r="${work}/hookscrub/repo" base='' sha='' out='' fails='' rc=0
+	local -a g=(git -C "${r}" -c user.name=t -c user.email=t@t.invalid -c commit.gpgsign=false)
+	mkdir -p -- "${r}/cicd/hooks" "${r}/cicd/utility/include" "${t}/tmp" "${t}/bin" "${t}/private/hooks"
+	cp -- "${cicd}/hooks/pre-push" "${r}/cicd/hooks/"
+	cp -- "${cicd}/utility/include/run-tmp.bash" "${cicd}/utility/include/lint-markdown.bash" "${cicd}/utility/include/content-scrub.bash" "${r}/cicd/utility/include/"
+	printf '%s\n' '#!/usr/bin/env bash' 'exit 1' > "${r}/cicd/cicd.bash"
+	printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "${t}/bin/markdownlint"
+	## The stand-in scrub finds what's in the tree it's handed.
+	printf '%s\n' '#!/usr/bin/env bash' 'echo "$1" > "$(dirname "$0")/tree"' '! grep -H bad "$1/README.md"' > "${t}/private/hooks/scrub.bash"
+	chmod +x "${r}/cicd/cicd.bash" "${t}/bin/markdownlint"
+	echo fine > "${r}/README.md"
+	"${g[@]}" init -q || { fWhy "git init failed"; return 1; }
+	cp -- "${cicd}/config.bash" "${r}/cicd/"
+	{ "${g[@]}" add -- cicd README.md && "${g[@]}" commit -qm base; } || { fWhy "commit failed"; return 1; }
+	base="$("${g[@]}" rev-parse HEAD)"
+	echo bad > "${r}/README.md"
+	{ "${g[@]}" add -- README.md && "${g[@]}" commit -qm doc; } || { fWhy "commit failed"; return 1; }
+	sha="$("${g[@]}" rev-parse HEAD)"
+	## The checkout's own README says fine, so a scrub of it would pass.
+	echo fine > "${r}/README.md"
+	for fails in 1 0; do
+		sed -i "s/^CONTENT_SCRUB_FAILS=.*/CONTENT_SCRUB_FAILS=${fails}/" "${r}/cicd/config.bash"
+		rm -f -- "${t}/private/hooks/tree"
+		rc=0
+		out="$(printf 'refs/heads/main %s refs/heads/main %s\n' "${sha}" "${base}" \
+			| env -u TUKZMON_CONTENT_SCRUB HOST_TEMP="${t}/tmp" PATH="${t}/bin:${PATH}" bash "${r}/cicd/hooks/pre-push" 2>&1)" || rc=$?
+		[[ -s "${t}/private/hooks/tree" && "$(< "${t}/private/hooks/tree")" != "${r}" ]] || { fWhy "fails=${fails}: didn't scrub the pushed commit's tree: ${out}"; return 1; }
+		if ((fails)); then ((rc)) || { fWhy "a finding didn't refuse the push: ${out}"; return 1; }
+		else ((rc == 0)) || { fWhy "refused with CONTENT_SCRUB_FAILS=0 (${rc}): ${out}"; return 1; }; fi
+	done
+	[[ "$("${g[@]}" worktree list --porcelain | grep -c '^worktree ')" == 1 ]] || { fWhy "left a worktree"; return 1; }
+}
+
+## Test ID: dfeq1
+fTest_content_scrub_lint_log_clean() {
+	local t="${work}/scrub-log" ok=0
+	mkdir -p -- "${t}/lint"
+	## Quoted repo lines with the word in them, and the scrub's own stderr.
+	printf '%s\n' '#!/usr/bin/env bash' 'echo "contrast: a.bash:1: fEcho \"WARNING: no pin\""' \
+		'echo "line 49: warning: command substitution: ignored null byte in input" >&2' 'exit 1' > "${t}/scrub.bash"
+	(
+		source "${cicd}/config.bash"
+		source "${cicd}/utility/include/content-scrub.bash"
+		# shellcheck disable=2034  ## Read by fContentScrub.
+		{ TUKZMON_CONTENT_SCRUB="${t}/scrub.bash"; CONTENT_SCRUB_FAILS=0; }
+		local log="${t}/lint/lint_20261118-000000.log" out=''
+		## As fStepLint calls it.
+		lintLog="${log}"
+		fLintRun() { local rc=0; "$@" 2>&1 | tee -a "${lintLog}" || rc=$?; return "${rc}"; }
+		fLintRun fContentScrub "${t}" "$(fContentScrubFindings "${t}/lint")" > /dev/null || { fWhy "failed while CONTENT_SCRUB_FAILS is 0"; exit 1; }
+		printf '[ lint: done, 0 failed ]\n' >> "${log}"
+		out="$(bash "${cicd}/utility/lint-report.bash" --file "${log}" --no-mark)"
+		[[ "${out}" == "CLEAN "* ]] || { fWhy "lint-report: ${out}"; exit 1; }
+		grep -q 'WARNING: no pin' -- "$(fContentScrubFindings "${t}/lint")" || { fWhy "the findings aren't in their own file"; exit 1; }
+	) && ok=1
+	((ok))
 }
 
 ## Test ID: deqvr
@@ -1304,3 +1403,5 @@ exit "${failed}"
 ##		- 2026-11-11: The release build's path maps.
 ##		- 2026-11-11: Shorter test names. Each keeps its ID.
 ##		- 2026-11-11: A docs-only push still gets its docs checks.
+##		- 2026-11-17: The content scrub, alone and in the pre-push hook.
+##		- 2026-11-18: The content scrub's findings don't count as lint warnings.

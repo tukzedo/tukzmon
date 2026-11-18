@@ -62,7 +62,8 @@ fn pack(sections: &[(&str, &[u8])]) -> io::Result<Vec<u8>> {
 	out.extend_from_slice(&VERSION.to_le_bytes());
 	out.extend_from_slice(&(sections.len() as u32).to_le_bytes());
 	for (name, body) in sections {
-		let len = u8::try_from(name.len()).map_err(|_| bad("section name"))?;
+		let len =
+			u8::try_from(name.len()).map_err(|_| bad("a graph's name is too long to save"))?;
 		out.push(len);
 		out.extend_from_slice(name.as_bytes());
 		out.extend_from_slice(&(body.len() as u64).to_le_bytes());
@@ -91,24 +92,32 @@ pub fn read(path: &Path) -> io::Result<Vec<(String, Vec<u8>)>> {
 fn sections(bytes: &[u8]) -> io::Result<Vec<(String, Vec<u8>)>> {
 	let rest = bytes
 		.strip_prefix(MAGIC)
-		.ok_or_else(|| bad("not a history file"))?;
-	let (version, rest) = rest.split_first_chunk::<4>().ok_or_else(|| bad("short"))?;
+		.ok_or_else(|| bad("it isn't a tukzmon history file"))?;
+	let (version, rest) = rest
+		.split_first_chunk::<4>()
+		.ok_or_else(|| bad("it's cut short"))?;
 	let uncounted = match u32::from_le_bytes(*version) {
 		1 => true,
 		VERSION => false,
-		_ => return Err(bad("history file version")),
+		_ => return Err(bad("it's from a version of tukzmon this one can't read")),
 	};
-	let (count, mut rest) = rest.split_first_chunk::<4>().ok_or_else(|| bad("short"))?;
+	let (count, mut rest) = rest
+		.split_first_chunk::<4>()
+		.ok_or_else(|| bad("it's cut short"))?;
 	let mut sections = Vec::new();
 	for _ in 0..u32::from_le_bytes(*count) {
-		let (&len, r) = rest.split_first().ok_or_else(|| bad("short"))?;
+		let (&len, r) = rest.split_first().ok_or_else(|| bad("it's cut short"))?;
 		let (name, r) = r
 			.split_at_checked(len as usize)
-			.ok_or_else(|| bad("short"))?;
-		let (size, r) = r.split_first_chunk::<8>().ok_or_else(|| bad("short"))?;
-		let size = usize::try_from(u64::from_le_bytes(*size)).map_err(|_| bad("short"))?;
-		let (body, r) = r.split_at_checked(size).ok_or_else(|| bad("short"))?;
-		let name = std::str::from_utf8(name).map_err(|_| bad("section name"))?;
+			.ok_or_else(|| bad("it's cut short"))?;
+		let (size, r) = r
+			.split_first_chunk::<8>()
+			.ok_or_else(|| bad("it's cut short"))?;
+		let size = usize::try_from(u64::from_le_bytes(*size)).map_err(|_| bad("it's cut short"))?;
+		let (body, r) = r
+			.split_at_checked(size)
+			.ok_or_else(|| bad("it's cut short"))?;
+		let name = std::str::from_utf8(name).map_err(|_| bad("it's damaged"))?;
 		let body = if uncounted {
 			[&0u32.to_le_bytes()[..], body].concat()
 		} else {
@@ -118,7 +127,7 @@ fn sections(bytes: &[u8]) -> io::Result<Vec<(String, Vec<u8>)>> {
 		rest = r;
 	}
 	if !rest.is_empty() {
-		return Err(bad("trailing bytes"));
+		return Err(bad("it's damaged at the end"));
 	}
 	Ok(sections)
 }
@@ -312,6 +321,26 @@ mod tests {
 	fn missing_file_not_found() {
 		let e = read(Path::new("/nonexistent/tukzmon/plugin-1.hist")).unwrap_err();
 		assert_eq!(e.kind(), io::ErrorKind::NotFound);
+	}
+
+	// Test ID: dfemm
+	#[test]
+	fn read_errors_plain() {
+		let dir = scratch("plain");
+		let path = dir.join("h");
+		let why = |bytes: &[u8]| {
+			std::fs::write(&path, bytes).unwrap();
+			crate::plain_error(&read(&path).unwrap_err())
+		};
+		write(&path, &[("cpu", b"abcdef")]).unwrap();
+		let full = std::fs::read(&path).unwrap();
+		assert_eq!(why(&full[..full.len() - 1]), "it's cut short");
+		assert_eq!(why(&[&full[..], b"x"].concat()), "it's damaged at the end");
+		assert_eq!(why(b"plain text"), "it isn't a tukzmon history file");
+		std::fs::remove_file(&path).unwrap();
+		std::fs::remove_dir(&dir).unwrap();
+		let gone = read(&dir.join("h")).unwrap_err();
+		assert_eq!(crate::plain_error(&gone), "it isn't there");
 	}
 
 	// Test ID: defxq

@@ -115,10 +115,13 @@ struct Picker {
 }
 
 fn read(path: &Path) -> Result<String, String> {
-	match std::fs::read_to_string(path) {
-		Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
-		r => r.map_err(|e| format!("{} can't be read: {e}", path.display())),
-	}
+	config::read_text(path).map_err(|e| {
+		format!(
+			"{} can't be read, since {}.",
+			path.display(),
+			tukzmon_core::plain_error(&e)
+		)
+	})
 }
 
 // In the window's words rather than shcl's, which are for a log.
@@ -344,8 +347,9 @@ impl Dialog {
 	pub fn reset_history(&self) -> Result<(), String> {
 		keep::reset(&self.history_dir, |_| true).map_err(|e| {
 			format!(
-				"History in {} wasn't reset: {e}",
-				self.history_dir.display()
+				"History in {} wasn't reset, since {}.",
+				self.history_dir.display(),
+				tukzmon_core::plain_error(&e)
 			)
 		})
 	}
@@ -887,12 +891,13 @@ impl Dialog {
 		carry_theme(&self.saved, &self.model, &file_pick, &mut fresh);
 		config::name_the_theme(&mut fresh);
 		let (body, _) = fresh.save(&NoEnv);
-		// shcl writes through a link only when its file is there
-		let target = config::through_links(&self.path);
-		let Some(file) = target.to_str() else {
-			return Err(format!("{} isn't a path shcl can write", target.display()));
+		let Some(file) = self.path.to_str() else {
+			return Err(format!(
+				"{} can't be written, since its name isn't valid text.",
+				self.path.display()
+			));
 		};
-		if let Some(dir) = target.parent() {
+		if let Some(dir) = self.path.parent() {
 			std::fs::create_dir_all(dir)
 				.map_err(|e| format!("{} can't be created: {e}", dir.display()))?;
 		}
@@ -1265,9 +1270,9 @@ mod tests {
 		std::fs::create_dir(&path).unwrap();
 		let e = Dialog::open(path.clone()).err().unwrap();
 		std::fs::remove_dir(&path).unwrap();
-		assert!(
-			e.starts_with(&format!("{} can't be read: ", path.display())),
-			"{e}"
+		assert_eq!(
+			e,
+			format!("{} can't be read, since it's a folder.", path.display())
 		);
 		std::fs::write(&path, "graph.width: 120\n").unwrap();
 		// Miri has no chmod

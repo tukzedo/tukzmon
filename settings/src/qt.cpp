@@ -1777,13 +1777,13 @@ private:
 		auto *timeHead = new QLabel("Time axis");
 		auto *verticalHead = new QLabel("Vertical scale");
 		// about the column, since a row's tip names its graph and how it was set
-		widthHead->setToolTip("How wide each graph is, or how tall on a vertical panel, as a percentage of Width px "
-							  "default, on the General tab.");
+		widthHead->setToolTip("How wide each graph is, as a percentage of Width px default on the General tab. On a "
+							  "vertical panel it's how tall.");
 		sampleHead->setToolTip("How often each graph is read and redrawn, as a percentage of Sample ms default, on "
 							   "the General tab. At 200% it's read half as often, and at 50% twice as often. Anything "
 							   "under 50 ms counts as 50 ms.");
 		timeHead->setToolTip("How each graph spreads time across its width. Default follows Scale default under "
-							 "Time axis, on the General tab, where its tip describes each curve.");
+							 "Time axis on the General tab.");
 		verticalHead->setToolTip("How each graph turns values into height. Global default follows Scale default "
 								 "under Vertical axis, on the General tab, where its tip describes each scale.");
 		listGrid->addWidget(widthHead, 0, 2);
