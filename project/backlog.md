@@ -25,7 +25,8 @@ Sorted per the notes in [Template](#template).
 - A column up to 4 samples wide beside a gap draws at its full peak
 	- ID: 2026111716050389
 	- Type: Bug
-	- Status: Queued
+	- Status: Closed
+	- Closed reason: Done
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261117-160503
@@ -37,6 +38,18 @@ Sorted per the notes in [Template](#template).
 	- Reproduced: Yes, 20261117, by a probe test: 0.25 s samples with a 0.5 s gap, and `span_for` over 0.6 s columns near it at sample 0.25 gave a NaN spike. Columns over 4 samples wide stayed finite.
 	- Possible cause: `take` in `Tier::spread_over` and `Tier::densest` adds secs times max for every bucket, and a gap bucket has 0 secs and a max of minus infinity, which multiply to NaN. `densest` mostly hides it, since its max skips NaN.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Actual cause: As the possible cause. Once NaN was in a window's running total it stayed there as the window slid on.
+	- Actual fix: `take` in `Tier::spread_over` and `Tier::densest`, in `core/src/history.rs`, skips a bucket with no secs. The test's plain version of `spread_over` does the same.
+	- Decisions:
+		- 20261117: columns with a gap in reach now draw as their spike says, so their pixels change. That's the fix, not a float math change, so the 1-step limit in 2026111715361287 doesn't apply.
+	- Verified: dfej7 failed with the fix taken out and passes with it. dfehq, df4y1, df3s6, the quick gate and Sanitizers passed.
+	- Test case: `history::tests::gap_adds_nothing_to_window` (dfej7) checks `span_for` spikes and `densest` stay finite and in range near a 0.5 s gap.
+		- Swept: every place that weights a bucket's max or sum by its secs in history.rs. `tops_over`, the part bucket in `densest` and `spread_over`, the end bucket split and the block totals already skip gaps.
+	- Branch: nov17-2026111716050389
+	- Commit: 668edc7
+	- Acceptance signoff: Self-closed: clear intent, and its test failed before and passes after.
+	- Closed: 20261117-161353
 
 - Reduce motion if a remote desktop session is detected
 	- ID: 2026110911114037

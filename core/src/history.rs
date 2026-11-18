@@ -366,8 +366,9 @@ impl<const N: usize> Tier<N> {
 		let k1 = (floor_i(x1 / self.len) - self.first).min(count);
 		// a window's whole buckets, kept as it slides a bucket at a time
 		let mut win = (0.0f64, [0.0f64; N]);
+		// a gap's max is -inf, and 0 secs times that is NaN
 		let take = |win: &mut (f64, [f64; N]), j: i64, sign: f64| {
-			if let Some(bk) = bucket(j) {
+			if let Some(bk) = bucket(j).filter(|bk| bk.secs > 0.0) {
 				let secs = f64::from(bk.secs);
 				win.0 += sign * secs;
 				for (sum, top) in win.1.iter_mut().zip(bk.max) {
@@ -495,8 +496,9 @@ impl<const N: usize> Tier<N> {
 		let bucket = |j: i64| (0..count).contains(&j).then(|| &self.buckets[j as usize]);
 		let whole = floor_i(run / len);
 		let frac = run - whole as f64 * len;
+		// a gap's max is -inf, and 0 secs times that is NaN
 		let take = |win: &mut (f64, [f64; N]), j: i64, sign: f64| {
-			if let Some(bk) = bucket(j) {
+			if let Some(bk) = bucket(j).filter(|bk| bk.secs > 0.0) {
 				let secs = f64::from(bk.secs);
 				win.0 += sign * secs;
 				for (sum, top) in win.1.iter_mut().zip(bk.max) {
@@ -1110,6 +1112,9 @@ mod tests {
 			let (mut weight, mut sums) = (0.0f64, [0.0f64; 2]);
 			for j in (k..k + whole).filter(|j| (0..n).contains(j)) {
 				let bk = &t.buckets[j as usize];
+				if bk.secs <= 0.0 {
+					continue;
+				}
 				weight += f64::from(bk.secs);
 				for (sum, top) in sums.iter_mut().zip(bk.max) {
 					*sum += f64::from(bk.secs) * f64::from(top);
@@ -1199,6 +1204,43 @@ mod tests {
 				),
 				(None, None) => {}
 				_ => panic!("{a} to {} at {run}: {got:?}, want {want:?}", a + w),
+			}
+		}
+	}
+
+	// Test ID: dfej7
+	#[test]
+	fn gap_adds_nothing_to_window() {
+		let mut h = History::<2>::default();
+		let t0 = 1.76e9;
+		let mut t = t0;
+		for k in 0..400 {
+			// a 0.5 s gap after sample 200
+			if k == 200 {
+				t += 0.5;
+			}
+			let v = if k % 7 == 0 { 0.9 } else { 0.3 };
+			h.add(t, t + 0.25, &[v, v * 0.5]);
+			t += 0.25;
+		}
+		let gap = t0 + 50.0;
+		let finite = |x: [f32; 2]| x.iter().all(|v| v.is_finite());
+		for step in 0..40 {
+			let a = gap - 2.0 + 0.1 * f64::from(step);
+			for w in [0.3, 0.6, 0.9] {
+				let span = h.span_for(a, a + w, 0.25);
+				assert!(
+					finite(span.spike) && finite(span.peak),
+					"{w} s from {}: {span:?}",
+					a - gap
+				);
+				if span.covered > 0.0 {
+					assert!((0.3..=0.9).contains(&span.spike[0]), "{span:?}");
+				}
+			}
+			let tier = &h.tiers[0];
+			if let Some(top) = tier.densest(a, a + 1.0, 0.25) {
+				assert!(finite(top), "densest from {}: {top:?}", a - gap);
 			}
 		}
 	}
