@@ -358,7 +358,8 @@ Sorted per the notes in [Template](#template).
 - Find why shcl's parse slows faster than its text grows under Miri
 	- ID: 2026111717051144
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Closed
+	- Closed reason: Done
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261117-170511
@@ -366,7 +367,19 @@ Sorted per the notes in [Template](#template).
 	- Parent ID: 2026110519470058
 	- Requirements: Find what in `shcl::Document::parse` grows faster than the text under Miri, and draft a fix in the upstream folder.
 	- Estimated effort: Avg
+	- Actual effort: Avg
 	- Progress log: 20261117: under Miri a parse of the spec's first 470 lines took 30 s, 940 lines 90 s, and 2413 lines over 225 s. A native parse grows in line with the text. With Stacked Borrows off it was 23 s and 65 s, so that isn't it. With provenance GC off it was slower and took 44 GB.
+		- 20261117: the spec's first lines are mostly comments, so time per line rises even where time per value doesn't. Per value, with Stacked Borrows and provenance GC off, a parse took 85 ms at every length from 60 to 1445 values. With them on, it went from 101 ms at 136 values to 139 ms at 1853 values. That rise is Stacked Borrows.
+		- Cause, in shcl: the parse splits the text with std's `split('\n')`, then searches the whole text for a Format line. Each step of the split reborrows the whole text, and Stacked Borrows charges each reborrow for every piece the text was already cut into, so both grow with the square of the lines there. A repro with no shcl showed it: at 2000 lines a split took 21.8 s under Miri, against 3.4 s with Stacked Borrows off.
+		- A fix splits by searching only what's left of the text, and reads the Format line before the split. It took a parse of 2413 lines from 258 s to 209 s of CPU under Miri, with the time per value flat again, at load 5 to 9 on 32 cores.
+		- The upstream draft is in `upstream/2026111717051144/`: the issue text, the patch and the repro. Nothing changes on this side.
+		- What's left under Miri is a flat cost of about 85 ms a value, mostly per-character checks inside shcl. The draft names one of them.
+	- Decisions:
+		- Closed on the finding and the draft, since the item asked for those. The fix itself waits on shcl.
+		- Rarer provenance GC, at 100000, was slower at 470 and 940 lines and took twice the memory, so a Miri flag isn't the way.
+	- Test case: None here, since nothing changed on this side. The patch was checked against the old parse on 313 texts, with the same output.
+	- Acceptance signoff: Self-closed: the finding and the draft are what the item asked for.
+	- Closed: 20261117-183000
 
 - CICD gap: Run the content scrub from the pipeline and the pre-push hook
 	- ID: 2026110310450004
