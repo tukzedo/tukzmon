@@ -26,10 +26,16 @@ fContentScrubPath() {   ## fContentScrubPath DIR
 	printf '%s\n' "${path}"
 }
 
+## The file in the lint log folder DIR that the findings go to. They quote
+## repo lines, and some have "warning" in them, so they stay out of the lint
+## log, which lint-report.bash greps for that word.
+fContentScrubFindings() { printf '%s\n' "$1/content-scrub.txt"; }   ## fContentScrubFindings DIR
+
 ## Runs the scrub over the tree at DIR. A finding fails it when
-## CONTENT_SCRUB_FAILS is 1. Otherwise it gets a count, and the findings go
-## to LOG when one is given.
-fContentScrub() {   ## fContentScrub DIR [LOG]
+## CONTENT_SCRUB_FAILS is 1. Otherwise it gets a count. Every run that has a
+## script writes what it said to FILE, when one is given, so the file is
+## never left over from an older run.
+fContentScrub() {   ## fContentScrub DIR [FILE]
 	local dir="$1" log="${2:-}" script='' out='' rc=0 n=0
 	[[ "${log}" != /dev/null ]] || log=''
 	script="$(fContentScrubPath "${dir}")" || script=''
@@ -38,13 +44,13 @@ fContentScrub() {   ## fContentScrub DIR [LOG]
 		return 0
 	fi
 	out="$(bash "${script}" "${dir}" 2>&1)" || rc=$?
+	if [[ -n "${log}" ]]; then printf '%s\n' "${out}" > "${log}" || true; fi
 	if ((rc == 0)); then printf '%s\n' "content scrub: clean"; return 0; fi
 	n="$(grep -c '' <<< "${out}" || true)"
 	if [[ "${CONTENT_SCRUB_FAILS:-0}" == 1 ]]; then
 		printf '%s\n' "${out}" "content scrub: exit ${rc}, ${n} line(s) of findings"
 		return 1
 	fi
-	if [[ -n "${log}" ]]; then printf '%s\n' "${out}" >> "${log}"; fi
 	printf '%s\n' "content scrub: exit ${rc}, ${n} line(s) of findings${log:+, in ${log}}, not failing while CONTENT_SCRUB_FAILS isn't 1"
 	return 0
 }
@@ -52,3 +58,5 @@ fContentScrub() {   ## fContentScrub DIR [LOG]
 
 ##	History:
 ##		- 2026-11-17: Created.
+##		- 2026-11-18: The findings go to a file of their own, so the lint log
+##		  has only their count while they don't fail.

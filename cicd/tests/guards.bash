@@ -348,7 +348,8 @@ fTest_content_scrub() {
 		CONTENT_SCRUB_FAILS=1
 		if out="$(fContentScrub "${r}" "${t}/log")"; then fWhy "passed a finding: ${out}"; exit 1; fi
 		[[ "${out}" == "${r}/a:bad"$'\n'"content scrub: exit 1, 1 line(s) of findings" ]] || { fWhy "fails: ${out}"; exit 1; }
-		[[ ! -e "${t}/log" ]] || { fWhy "wrote the log itself while failing"; exit 1; }
+		[[ "$(< "${t}/log")" == "${r}/a:bad" ]] || { fWhy "the findings file while failing: $(< "${t}/log")"; exit 1; }
+		echo stale > "${t}/log"
 		# shellcheck disable=2034  ## Read by fContentScrub.
 		CONTENT_SCRUB_FAILS=0
 		out="$(fContentScrub "${r}" "${t}/log")" || { fWhy "failed while CONTENT_SCRUB_FAILS is 0: ${out}"; exit 1; }
@@ -393,6 +394,31 @@ fTest_hook_runs_content_scrub() {
 		else ((rc == 0)) || { fWhy "refused with CONTENT_SCRUB_FAILS=0 (${rc}): ${out}"; return 1; }; fi
 	done
 	[[ "$("${g[@]}" worktree list --porcelain | grep -c '^worktree ')" == 1 ]] || { fWhy "left a worktree"; return 1; }
+}
+
+## Test ID: dfeq1
+fTest_content_scrub_lint_log_clean() {
+	local t="${work}/scrub-log" ok=0
+	mkdir -p -- "${t}/lint"
+	## Quoted repo lines with the word in them, and the scrub's own stderr.
+	printf '%s\n' '#!/usr/bin/env bash' 'echo "contrast: a.bash:1: fEcho \"WARNING: no pin\""' \
+		'echo "line 49: warning: command substitution: ignored null byte in input" >&2' 'exit 1' > "${t}/scrub.bash"
+	(
+		source "${cicd}/config.bash"
+		source "${cicd}/utility/include/content-scrub.bash"
+		# shellcheck disable=2034  ## Read by fContentScrub.
+		{ TUKZMON_CONTENT_SCRUB="${t}/scrub.bash"; CONTENT_SCRUB_FAILS=0; }
+		local log="${t}/lint/lint_20261118-000000.log" out=''
+		## As fStepLint calls it.
+		lintLog="${log}"
+		fLintRun() { local rc=0; "$@" 2>&1 | tee -a "${lintLog}" || rc=$?; return "${rc}"; }
+		fLintRun fContentScrub "${t}" "$(fContentScrubFindings "${t}/lint")" > /dev/null || { fWhy "failed while CONTENT_SCRUB_FAILS is 0"; exit 1; }
+		printf '[ lint: done, 0 failed ]\n' >> "${log}"
+		out="$(bash "${cicd}/utility/lint-report.bash" --file "${log}" --no-mark)"
+		[[ "${out}" == "CLEAN "* ]] || { fWhy "lint-report: ${out}"; exit 1; }
+		grep -q 'WARNING: no pin' -- "$(fContentScrubFindings "${t}/lint")" || { fWhy "the findings aren't in their own file"; exit 1; }
+	) && ok=1
+	((ok))
 }
 
 ## Test ID: deqvr
@@ -1378,3 +1404,4 @@ exit "${failed}"
 ##		- 2026-11-11: Shorter test names. Each keeps its ID.
 ##		- 2026-11-11: A docs-only push still gets its docs checks.
 ##		- 2026-11-17: The content scrub, alone and in the pre-push hook.
+##		- 2026-11-18: The content scrub's findings don't count as lint warnings.

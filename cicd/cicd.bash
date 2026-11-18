@@ -528,7 +528,7 @@ fLintTidy() {
 }
 
 fStepLint() {
-	local f pin pinName pinWant pinCmd have
+	local f pin pinName pinWant pinCmd have scrubFile=''
 	local -a failed=() files=() shFiles=() mdFiles=() pinArgv=() cppFiles=() pyFiles=()
 	if mkdir -p -- "${root}/${LINT_LOG_DIR}" 2> /dev/null; then
 		lintLog="${root}/${LINT_LOG_DIR}/lint_$(printf '%(%Y%m%d-%H%M%S)T' -1).log"
@@ -583,7 +583,8 @@ fStepLint() {
 		if fLintRun ruff check --no-cache --quiet -- "${pyFiles[@]}"; then fEcho_Clean "ruff: clean"; else failed+=(ruff); fi
 	fi
 	fLintRun "${here}/utility/test-ids.bash" check || failed+=("test IDs")
-	fLintRun fContentScrub "${root}" "${lintLog}" || failed+=("content scrub")
+	scrubFile=''; [[ "${lintLog}" == /dev/null ]] || scrubFile="$(fContentScrubFindings "${root}/${LINT_LOG_DIR}")"
+	fLintRun fContentScrub "${root}" "${scrubFile}" || failed+=("content scrub")
 	if [[ "${lintLog}" != /dev/null ]]; then
 		printf '[ lint: done, %d failed ]\n' "${#failed[@]}" >> "${lintLog}"
 		gfs_rotate "${root}/${LINT_LOG_DIR}" lint log > /dev/null 2>&1 || true
@@ -1555,3 +1556,5 @@ exit 0
 ##		  step, with the repro area.
 ##		- 2026-11-11: fLintMarkdown is in utility/include, for the pre-push hook.
 ##		- 2026-11-17: Lint runs the content scrub when it's beside the repo.
+##		- 2026-11-18: Its findings go to content-scrub.txt beside the lint logs,
+##		  so they aren't read as lint warnings.

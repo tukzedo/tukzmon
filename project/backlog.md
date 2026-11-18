@@ -399,15 +399,19 @@ Sorted per the notes in [Template](#template).
 		- Lint runs the content scrub after the test ID check, and the pre-push hook runs it in a docs-only push's checks, on the pushed commit's worktree. A push the merge gate checks gets it through Lint. `fContentScrub` in `cicd/utility/include/content-scrub.bash` is shared by both.
 		- The script is found at `CONTENT_SCRUB` in `cicd/config.bash`, relative to the main checkout, so a linked worktree finds the same one. When it isn't there, one line says it was skipped.
 		- In the image, Lint gets the script's folder mounted read-only.
-		- A finding fails only when `CONTENT_SCRUB_FAILS` is 1. It's 0 for now, since the tree has 312 lines of findings. Until then a run prints the count, and Lint puts the findings in its log. Making them fail is child 2026111717545314.
+		- A finding fails only when `CONTENT_SCRUB_FAILS` is 1. It's 0 for now, since the tree has 312 lines of findings. Until then a run prints the count, and Lint writes the findings to `cicd/artifacts/lint/content-scrub.txt`, with only the count in its log. Making them fail is child 2026111717545314.
 		- Verified: dfen5 and dfen6 failed with the hook's call taken out, with the hook handed the checkout instead of the worktree, and with the fail switch read wrong, and passed after. `--backlog-run-quick format build lint test` and `sanitizers` passed. With `CONTENT_SCRUB_FAILS=1`, Lint failed on the scrub in the image. The scrub gave 312 lines in the image and 312 on the host. Only the counts were compared.
+		- Sent back 2026-11-18: findings quoted in the lint log, and the scrub's own stderr, have the word "warning", so `lint-report.bash` gave FLAG on a log that was clean before. They now go to their own file, rewritten each run.
+		- Verified: new test dfeq1 got FLAG from `lint-report.bash` with the findings in the lint log, and CLEAN after. On the real tree, `--backlog-run-quick format build lint test` passed and `lint-report.bash` gave CLEAN.
+		- 2026-11-18: dfen5 changed one check. It used to check that a failing scrub writes no findings file, and now checks that the file has the findings. A failing run writes the file too, so it's never left from an older run.
 	- Decisions:
 		- Findings don't fail yet, since failing now would turn every gate red. That waits on the child's question.
 		- The scrub runs in the image with Lint, rather than on the host, so Lint stays one step. The image's awk is mawk, and it gave as many lines as the host's.
+		- The findings go to a file of their own rather than `lint-report.bash` skipping a block of the log. The lint log then has only lint output, and lint-report needs no change. With `CONTENT_SCRUB_FAILS=1` they're printed in the lint log too, which fails anyway.
 		- Swept: `cicd/hooks` has only pre-push, and the merge gate's path gets the scrub through Lint. df32x and df543 copy the hook's includes into their own repos, and copy the new one too.
-	- Branch: nov17-2026110310450004
-	- Commit: c899ab2
-	- Test case: `content_scrub` (dfen5) and `hook_runs_content_scrub` (dfen6), in `cicd/tests/guards.bash`.
+	- Branch: nov17-2026110310450004, then nov17-2026110310450004-fix
+	- Commit: c899ab2, 80f3d95
+	- Test case: `content_scrub` (dfen5), `hook_runs_content_scrub` (dfen6) and `content_scrub_lint_log_clean` (dfeq1), in `cicd/tests/guards.bash`.
 
 - CICD gap: Clear the content scrub's findings on the tree, then make them fail Lint and the pre-push hook
 	- ID: 2026111717545314
