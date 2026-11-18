@@ -261,13 +261,34 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Show the highest recorded values on the tip of monitors with no obvious absolute max
 	- ID: 2026111623513500
 	- Type: Feature
-	- Status: Queued
+	- Status: Waiting on UAT
+		- Hover over the network, disk, load and processes graphs on a panel that has run a while, and judge the "highest" lines' wording and length, with the network split on and off.
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261116-235135
 	- Opened by: t00mietum
+	- Related IDs: 2026103109002399
 	- Requirements:
 		- On monitors with no obvious absolute max (e.g. 100%), show on the tooltip the highest values recorded so far for each metric.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- The network, disk, load and processes tips end with a line per value for the highest it reached, such as "Read highest 80 MB/s". The hover tip and the latest-read tip both have them.
+		- The highest is over the history kept, so it goes back to the max age, comes back after a restart with Keep across restarts on, and Reset history starts it over.
+		- `design.md` Drawing and README Features have it.
+		- Verified: the quick gate and Sanitizers passed, with the new tests.
+	- Decisions:
+		- The graphs with no clear top are network, disk, load and processes. Temperature has its critical level in the tip, and the tukzmon graph is a share of all CPUs, so they leave it out.
+		- The highest lines go under the tip's own lines, one value a line, since 2026103109002399 put one pair on each line.
+		- The lines read "Name highest value", so every graph's lines follow one rule. "Highest yours" read badly on processes.
+		- Processes get no highest total, since the history keeps each kind's highest but not their sum's.
+		- It's read from the coarsest history tier, rather than kept as a running max, so it isn't a second copy of what the history already has. A bucket's max is of the samples in it, so a 50 ms spike counts.
+		- Under the network split, the highest goes by the series as kept, so history from before the split was turned on has its LAN traffic in the internet lines.
+		- Check entry filed in questions.md for the wording.
+	- Branch: nov17-2026111623513500
+	- Commit: b1bbee5
+	- Test case: `history::tests::highest_of_all_kept` (dfejh), `tests::highest_on_no_top_tips` (dfejj) and `tests::graph_tip_gives_history_highest` (dfejk). dfejh and dfejk fail with the finest tier read in place of the coarsest, and dfejk fails with the tip left without the highest.
+		- Swept: every `Source` impl in `core/src/lib.rs`, the only file with any, and both `Graph` tip paths, `tooltip` and `hover_tip`, which the panel and the settings window's graph list share. Tests quoting the 4 tips use `contains` or `Source::text`, so they're unchanged.
 
 - Code review 20261030 item 3, part 2: Look up a setting by an index in knobs
 	- ID: 2026103018353670

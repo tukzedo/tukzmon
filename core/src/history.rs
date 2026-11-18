@@ -691,6 +691,14 @@ impl<const N: usize> History<N> {
 		self.last
 	}
 
+	/// The most each value reached in all the history kept, or None with no
+	/// data. The coarsest tier keeps it all, and a bucket's max is of the
+	/// samples themselves, however long the bucket.
+	pub fn highest(&self) -> Option<[f32; N]> {
+		let tier = &self.tiers[self.tiers.len() - 1];
+		tier.max_over(0, tier.buckets.len())
+	}
+
 	/// The finest tier that still has time `a`, or the coarsest one.
 	fn tier_for(&self, a: f64) -> &Tier<N> {
 		self.tiers
@@ -970,6 +978,28 @@ mod tests {
 
 	fn close(a: f32, b: f32) -> bool {
 		(a - b).abs() < 1e-5
+	}
+
+	// Test ID: dfejh
+	#[test]
+	fn highest_of_all_kept() {
+		let mut h = History::<2>::default();
+		assert_eq!(h.highest(), None);
+		h.add(1000.0, 1060.0, &[1.0, 2.0]);
+		// a 50 ms spike, an hour's bucket away from anything finer
+		h.add(1060.0, 1060.05, &[9.0, 0.5]);
+		h.add(1060.05, 1100.0, &[1.0, 2.0]);
+		// a day's gap, then lower
+		h.add(90_000.0, 90_060.0, &[3.0, 1.0]);
+		assert_eq!(h.highest(), Some([9.0, 2.0]));
+		let mut bytes = Vec::new();
+		h.encode(&mut bytes);
+		let back = History::<2>::decode(&bytes).expect("a whole history decodes");
+		assert_eq!(back.highest(), Some([9.0, 2.0]));
+		h.trim(80_000.0);
+		assert_eq!(h.highest(), Some([3.0, 1.0]));
+		h.trim(100_000.0);
+		assert_eq!(h.highest(), None);
 	}
 
 	// Test ID: dejcp

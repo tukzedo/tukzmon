@@ -141,6 +141,13 @@ pub trait Source<const N: usize>: Collector<N> {
 	/// The hover tip's text for one read.
 	fn text(&self, v: &[f32; N]) -> String;
 
+	/// As [`Self::text`], with `top`, the most each value reached in the
+	/// history kept. A graph with no clear top, such as bytes a second, adds
+	/// a line for each. The rest leave it out.
+	fn text_topped(&self, v: &[f32; N], _top: &[f32; N]) -> String {
+		self.text(v)
+	}
+
 	/// How the graph is colored, from its settings.
 	fn paint(look: &Look) -> Paint<'_, N> {
 		look.paint(Self::WHICH)
@@ -180,6 +187,15 @@ pub trait Source<const N: usize>: Collector<N> {
 
 fn percent(x: f32) -> i32 {
 	(x * 100.0).round() as i32
+}
+
+// "Read highest 80 MB/s", a line each, in the order the tip names them
+fn highest(names: &[(&str, f32)], show: impl Fn(f32) -> String) -> String {
+	let lines: Vec<String> = names
+		.iter()
+		.map(|&(name, top)| format!("{name} highest {}", show(top)))
+		.collect();
+	lines.join("\n")
 }
 
 impl Source<4> for CpuReader {
@@ -320,6 +336,22 @@ impl Source<5> for Traffic {
 		)
 	}
 
+	fn text_topped(&self, v: &[f32; 5], top: &[f32; 5]) -> String {
+		let [local, lan_sent, lan_received, sent, received] = *top;
+		let names: &[(&str, f32)] = if self.split() {
+			&[
+				("Internet received", received),
+				("Internet sent", sent),
+				("LAN received", lan_received),
+				("LAN sent", lan_sent),
+				("Local", local),
+			]
+		} else {
+			&[("Received", received), ("Sent", sent), ("Local", local)]
+		};
+		format!("{}\n{}", self.text(v), highest(names, per_sec))
+	}
+
 	fn follow(&mut self, look: &Look) {
 		self.set_split(look.net_split);
 	}
@@ -331,6 +363,11 @@ impl Source<1> for LoadReader {
 
 	fn text(&self, v: &[f32; 1]) -> String {
 		format!("Load {:.2}", v[0].max(0.0))
+	}
+
+	fn text_topped(&self, v: &[f32; 1], top: &[f32; 1]) -> String {
+		let line = highest(&[("Load", top[0])], |x| format!("{:.2}", x.max(0.0)));
+		format!("{}\n{line}", self.text(v))
 	}
 
 	// full at a load of one a CPU, as the CPU graph is at 100%
@@ -345,6 +382,11 @@ impl Source<2> for DiskReader {
 
 	fn text(&self, v: &[f32; 2]) -> String {
 		format!("Disk\nRead {}\nWrite {}", per_sec(v[1]), per_sec(v[0]))
+	}
+
+	fn text_topped(&self, v: &[f32; 2], top: &[f32; 2]) -> String {
+		let lines = highest(&[("Read", top[1]), ("Write", top[0])], per_sec);
+		format!("{}\n{lines}", self.text(v))
 	}
 
 	// so a log file's odd flush doesn't fill the graph
@@ -429,6 +471,16 @@ impl Source<3> for ProcsReader {
 			"Processes {}\nYours {me}\nOther users {others}\nSystem {system}",
 			system + others + me
 		)
+	}
+
+	// no total, since the history keeps only each kind's own max
+	fn text_topped(&self, v: &[f32; 3], top: &[f32; 3]) -> String {
+		let [system, others, me] = *top;
+		let lines = highest(
+			&[("Yours", me), ("Other users", others), ("System", system)],
+			|x| (x.max(0.0).round() as u32).to_string(),
+		);
+		format!("{}\n{lines}", self.text(v))
 	}
 
 	// a count has no top, and a box runs more than this anyway
@@ -863,7 +915,7 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		if span.covered < render::MIN_COVER {
 			return format!("{when}\nNo data");
 		}
-		format!("{when}\n{}", self.src.text(&span.mean))
+		format!("{when}\n{}", self.text(&span.mean))
 	}
 
 	/// The graph as cairo ARGB32 pixels, `w` by `h`.
@@ -912,7 +964,15 @@ impl<S: Source<N>, const N: usize> Graph<S, N> {
 		let Some(v) = self.latest else {
 			return S::TITLE.into();
 		};
-		self.src.text(&v)
+		self.text(&v)
+	}
+
+	// the source's text, with the highest in the history for one that gives it
+	fn text(&self, v: &[f32; N]) -> String {
+		match self.hist.highest() {
+			Some(top) => self.src.text_topped(v, &top),
+			None => self.src.text(v),
+		}
 	}
 }
 
@@ -1069,6 +1129,97 @@ mod tests {
 		assert_eq!(DiskReader::vertical(&Look::default()), Vertical::Linear);
 		assert_eq!(LoadReader::vertical(&log), Vertical::Linear);
 		assert!(Traffic::default().peak_floor().is_some());
+	}
+
+	// Test ID: dfejj
+	#[test]
+	#[cfg_attr(miri, ignore = "Miri has no netlink sockets")]
+	fn highest_on_no_top_tips() {
+		let load = LoadReader::default();
+		assert_eq!(
+			load.text_topped(&[1.254], &[7.8]),
+			"Load 1.25\nLoad highest 7.80"
+		);
+		let disk = DiskReader::new(disk::Drives::Only(Vec::new())).unwrap();
+		assert_eq!(
+			disk.text_topped(&[30_000.0, 1.5e6], &[1.2e8, 8e7]),
+			"Disk\nRead 1.5 MB/s\nWrite 30 kB/s\nRead highest 80 MB/s\nWrite highest 120 MB/s"
+		);
+		let v = [2000.0, 1000.0, 5e5, 30_000.0, 1.5e6];
+		let top = [3e8, 5e7, 1.1e8, 1.1e6, 1.2e7];
+		let mut net = Traffic::default();
+		net.set_split(config::Split::Off);
+		assert_eq!(
+			net.text_topped(&v, &top),
+			"Network\nReceived 1.5 MB/s\nSent 30 kB/s\nLocal 2.0 kB/s\n\
+			 Received highest 12 MB/s\nSent highest 1.1 MB/s\nLocal highest 300 MB/s"
+		);
+		net.set_split(config::Split::Sockets);
+		let split = net.text_topped(&v, &top);
+		assert!(
+			split.ends_with(
+				"\nInternet received highest 12 MB/s\nInternet sent highest 1.1 MB/s\n\
+				 LAN received highest 110 MB/s\nLAN sent highest 50 MB/s\nLocal highest 300 MB/s"
+			),
+			"{split}"
+		);
+		let mut tips = vec![load.text_topped(&[1.0], &[2.0]), split];
+		#[cfg(unix)]
+		{
+			let procs = ProcsReader::at("/proc/no/such", 1000);
+			let tip = procs.text_topped(&[480.0, 20.0, 112.0], &[500.0, 25.4, 130.0]);
+			assert_eq!(
+				tip,
+				"Processes 612\nYours 112\nOther users 20\nSystem 480\n\
+				 Yours highest 130\nOther users highest 25\nSystem highest 500"
+			);
+			tips.push(tip);
+		}
+		// a graph with a clear top leaves it out
+		let cpu = [0.01, 0.02, 0.03, 0.04];
+		assert_eq!(
+			CpuReader::default().text_topped(&cpu, &[1.0; 4]),
+			CpuReader::default().text(&cpu)
+		);
+		assert_eq!(
+			TempReader::default().text_topped(&[60.0, 0.0], &[90.0, 5.0]),
+			TempReader::default().text(&[60.0, 0.0])
+		);
+		assert_eq!(
+			OwnReader::default().text_topped(&[0.5], &[1.0]),
+			OwnReader::default().text(&[0.5])
+		);
+		// still a value a line, as dep7b has it
+		for line in tips.iter().flat_map(|t| t.lines()) {
+			let values = line
+				.split(|c: char| !(c.is_ascii_digit() || c == '.'))
+				.filter(|w| w.starts_with(|c: char| c.is_ascii_digit()))
+				.count();
+			assert!(values <= 1, "{line:?}");
+		}
+	}
+
+	// Test ID: dfejk
+	#[test]
+	fn graph_tip_gives_history_highest() {
+		let look = Look {
+			said: Said::Ago,
+			..Look::default()
+		};
+		let mut g = Graph::with(look, LoadReader::default());
+		assert_eq!(g.tooltip(), "Load");
+		let now = g.now();
+		g.hist.add(now - 120.0, now - 60.0, &[6.5]);
+		g.hist.add(now - 60.0, now, &[0.5]);
+		g.latest = Some([0.5]);
+		assert_eq!(g.tooltip(), "Load 0.50\nLoad highest 6.50");
+		let (w, h) = (130, 20);
+		let tip = g.hover_tip(128, w, h, 1);
+		assert!(tip.ends_with("\nLoad 0.50\nLoad highest 6.50"), "{tip}");
+		let mut cpu = Graph::new(Look::default());
+		cpu.hist.add(now - 60.0, now, &[0.1, 0.2, 0.1, 0.0]);
+		cpu.latest = Some([0.1, 0.2, 0.1, 0.0]);
+		assert!(!cpu.tooltip().contains("highest"), "{}", cpu.tooltip());
 	}
 
 	// Test ID: dejb6
