@@ -22,6 +22,22 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- A column up to 4 samples wide beside a gap draws at its full peak
+	- ID: 2026111716050389
+	- Type: Bug
+	- Status: Queued
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Low
+	- Opened: 20261117-160503
+	- Opened by:
+	- Related IDs: 2026111715361287
+	- Steps to reproduce: Leave a gap of a sample or 2 in a graph's last 256 s, such as by a short suspend, then watch a column 1 to 4 samples wide that has the gap in reach.
+	- Incorrect behavior: The column's spike is NaN. By the code, unverified on screen, `Column::new` then takes its share as 1 and draws the whole column at its peak.
+	- Expected behavior: A gap bucket adds nothing to a window, and the column is drawn as its spike says.
+	- Reproduced: Yes, 20261117, by a probe test: 0.25 s samples with a 0.5 s gap, and `span_for` over 0.6 s columns near it at sample 0.25 gave a NaN spike. Columns over 4 samples wide stayed finite.
+	- Possible cause: `take` in `Tier::spread_over` and `Tier::densest` adds secs times max for every bucket, and a gap bucket has 0 secs and a max of minus infinity, which multiply to NaN. `densest` mostly hides it, since its max skips NaN.
+	- Estimated effort: Low
+
 - Reduce motion if a remote desktop session is detected
 	- ID: 2026110911114037
 	- Type: Enhancement
@@ -209,14 +225,25 @@ Sorted per the notes in [Template](#template).
 	- Opened: 20261117-153612
 	- Opened by: t00mietum
 	- Parent ID: 2026111000270812
-	- Prereq IDs: 2026111715360663
+	- Prereq IDs: 2026111715360663, 2026111716050389
 	- Requirements: Bring the profiled tick near 241 us of user time, with the same pixels, after 2026111715360663 took it from about 775 to 690 to 750 at load 6 to 13 on 32 cores.
 	- Estimated effort: Avg
 	- Progress log:
 		- 20261117: draw-bench's `kinds` mode times the history lookups by column, at sample 0.5 s on the smooth curve. On a fine tier, a column up to 4 samples wide takes 0.9 us, 14 a graph, and a wider one 0.41 us, 48 a graph. The other 61 take 0.15 us. Reading the blocks is about a third of it, mostly the end buckets read one by one.
 		- Ideas left: a block level of 2 or 4 buckets, prefix sums per fine tier for the windows, and a multiply by the bucket length's inverse. Each one changes the float math, so check the pixels with draw-bench's hashes.
 		- Drawing the pixels is about a quarter of a draw.
-	- Decisions: 20261117: a change to the float math may move a pixel by at most 1 in any channel against draw-bench's base build, and the existing drawing tests must pass unchanged. Anything bigger needs a look by eye, so the item goes to Waiting on UAT.
+		- 20261117: `spread_over` takes each step's window bounds from the whole numbers it already keeps, rather than from a floor and a ceil of the step's middle. All 24 draw-bench cases give the same pixels. At sample 1 s, a column up to 4 samples wide went from about 1.73 to 1.47 us, the lookups from about 55 to 51 us a draw, and all cases from about 111 to 106 us a draw, in 3 runs each in turn at load 2.4 to 2.7 on 32 cores.
+		- Tried and dropped, since none moved the bench past its noise: block levels of 4, 16 and 64 buckets, a multiply by the inverse of each window's weight in `spread_over` and `densest`, one bounds check per bucket read, and skipping the ring's drops while its low end stays put. All gave the same pixels.
+		- At sample 1 s, a draw's lookups are about 22 us in the 15 columns up to 4 samples wide, 20 us in the 40 wider fine-tier ones, and 9 us in the 61 on coarse tiers. Most of the first two is the windows, which read their buckets one at a time.
+		- Next: prefix sums of secs and of secs times max, per fine tier, would make each window 2 reads. They'd also skip gap buckets, which fixes 2026111716050389 and changes those columns' pixels by more than a step, so they wait on it. They'd cost about 32 bytes a bucket in the 2 fine tiers, about 0.4 MB per 3-series graph.
+		- The lookups were about 35% of the profiled tick in 2026111011172485's runs, so even none at all leaves the tick near 450 us, not 241. The profiler wasn't run for this cut, since its noise is bigger than the cut.
+	- Decisions:
+		- 20261117: a change to the float math may move a pixel by at most 1 in any channel against draw-bench's base build, and the existing drawing tests must pass unchanged. Anything bigger needs a look by eye, so the item goes to Waiting on UAT.
+		- 20261117: only the window bounds change went in, as the one change that moved the bench. The prefix sums wait on 2026111716050389 rather than fixing it here, since that fix moves pixels past the limit above.
+	- Test case: `history::tests::spread_over_as_plain` (dfehq) checks `spread_over` against a plain version that takes each step's windows from the ceil to the floor of its middle and sums each window afresh. It fails with either bound off by one.
+		- Swept: every floor or ceil of a step's middle in history.rs. `spread_over` had the only one, and `densest` takes its window range once per call.
+	- Branch: nov17-2026111715361287
+	- Commit: 16ee014
 
 - Pre-next-cut: Show the highest recorded values on the tip of monitors with no obvious absolute max
 	- ID: 2026111623513500

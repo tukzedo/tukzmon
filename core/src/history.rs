@@ -547,8 +547,9 @@ impl<const N: usize> Tier<N> {
 			if x_next <= x {
 				break;
 			}
-			let mid = f64::midpoint(x, x_next);
-			let (lo, hi) = (ceil_i(mid), floor_i(mid + reach));
+			// windows from the first whole number past x to the last one not
+			// past x + reach, all through the step
+			let (lo, hi) = (whole_x as i64, whole_r as i64 - 1);
 			for s in 0..N {
 				while size[s] > 0 && i64::from(ring[s][head[s]].0) + base < lo {
 					head[s] = (head[s] + 1) % CAP;
@@ -1093,6 +1094,113 @@ mod tests {
 		let s = holed.span(0.0, 1.75);
 		assert!(close(s.mean[0], 0.5));
 		assert!(close(s.covered, 0.5 / 1.75), "{}", s.covered);
+	}
+
+	// spread_over the slow way: each step's windows from the ceil to the
+	// floor of its middle, and each window summed afresh
+	fn spread_plain(t: &Tier<2>, a: f64, b: f64, run: f64) -> Option<([f32; 2], [f32; 2])> {
+		let len = t.len;
+		let reach = (b - a - run) / len + 1.0;
+		let x0 = (a - f64::midpoint(b - a, len)) / len - t.first as f64;
+		let x_end = x0 + (b - a) / len;
+		let whole = (run / len).floor() as i64;
+		let frac = run - whole as f64 * len;
+		let n = t.buckets.len() as i64;
+		let window = |k: i64| {
+			let (mut weight, mut sums) = (0.0f64, [0.0f64; 2]);
+			for j in (k..k + whole).filter(|j| (0..n).contains(j)) {
+				let bk = &t.buckets[j as usize];
+				weight += f64::from(bk.secs);
+				for (sum, top) in sums.iter_mut().zip(bk.max) {
+					*sum += f64::from(bk.secs) * f64::from(top);
+				}
+			}
+			let j = k + whole;
+			if let Some(bk) = (0..n)
+				.contains(&j)
+				.then(|| &t.buckets[j as usize])
+				.filter(|bk| frac > 0.0 && bk.secs > 0.0)
+			{
+				let start = (t.first + j) as f64 * len;
+				let (lo, hi) = (start + bk.lo, start + bk.hi);
+				let overlap = (start + frac).min(hi) - lo;
+				if overlap > 0.0 {
+					let w = overlap * (f64::from(bk.secs) / (hi - lo)).min(1.0);
+					weight += w;
+					for (sum, top) in sums.iter_mut().zip(bk.max) {
+						*sum += w * f64::from(top);
+					}
+				}
+			}
+			(weight > 0.0).then(|| sums.map(|x| x / weight))
+		};
+		// where x or x + reach is a whole number
+		let mut cuts = vec![x0, x_end];
+		for first in [x0.floor() + 1.0, (x0 + reach).floor() + 1.0 - reach] {
+			let mut c = first;
+			while c < x_end {
+				cuts.push(c);
+				c += 1.0;
+			}
+		}
+		cuts.sort_by(f64::total_cmp);
+		let (mut weight, mut sums, mut peak) = (0.0, [0.0f64; 2], [f32::NEG_INFINITY; 2]);
+		for pair in cuts.windows(2) {
+			let (x, x_next) = (pair[0], pair[1]);
+			if x_next <= x {
+				continue;
+			}
+			let mid = f64::midpoint(x, x_next);
+			let best = (mid.ceil() as i64..=(mid + reach).floor() as i64)
+				.filter_map(window)
+				.reduce(|p, q| [p[0].max(q[0]), p[1].max(q[1])]);
+			if let Some(top) = best {
+				weight += x_next - x;
+				for s in 0..2 {
+					sums[s] += (x_next - x) * top[s];
+					peak[s] = peak[s].max(top[s] as f32);
+				}
+			}
+		}
+		(weight > 0.0).then(|| (sums.map(|v| (v / weight) as f32), peak))
+	}
+
+	// Test ID: dfehq
+	#[test]
+	fn spread_over_as_plain() {
+		let mut seed = 0x51f1_5eed_c0ff_ee11_u64;
+		let mut rand = move || {
+			seed ^= seed << 13;
+			seed ^= seed >> 7;
+			seed ^= seed << 17;
+			(seed >> 11) as f64 / (1u64 << 53) as f64
+		};
+		let mut h = History::<2>::default();
+		let mut t = 1.76e9;
+		for _ in 0..1200 {
+			// a late tick now and then
+			let step = if rand() < 0.1 { 0.5 + rand() } else { 0.5 };
+			h.add(t, t + step, &[rand() as f32, (rand() * 0.2) as f32]);
+			t += step;
+		}
+		let tier = &h.tiers[0];
+		let rounds = if cfg!(miri) { 20 } else { 400 };
+		for _ in 0..rounds {
+			let run = 0.1 + rand() * 0.9;
+			let (a, w) = (t - 200.0 + rand() * 190.0, run * (1.0 + 3.0 * rand()));
+			let got = tier.spread_over(a, a + w, run);
+			let want = spread_plain(tier, a, a + w, run);
+			let near = |x: [f32; 2], y: [f32; 2]| (0..2).all(|s| (x[s] - y[s]).abs() <= 1e-5);
+			match (got, want) {
+				(Some(g), Some(p)) => assert!(
+					near(g.0, p.0) && near(g.1, p.1),
+					"{a} to {} at {run}: {g:?}, want {p:?}",
+					a + w
+				),
+				(None, None) => {}
+				_ => panic!("{a} to {} at {run}: {got:?}, want {want:?}", a + w),
+			}
+		}
 	}
 
 	// Test ID: dfegt
