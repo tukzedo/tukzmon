@@ -637,6 +637,7 @@ fn shop() -> Model {
 			presets: Presets::FromProgram,
 			members: Vec::new(),
 		}],
+		..Spec::default()
 	};
 	Model::new(spec.finish().unwrap_or_else(|e| panic!("{e:#?}")))
 }
@@ -655,6 +656,54 @@ fn code_spec_checked() {
 	let errs = broken.finish().err().unwrap_or_default().join("\n");
 	assert!(errs.contains("gate nothing"), "{errs}");
 	assert!(errs.contains("no presets"), "{errs}");
+}
+
+// Test ID: dfek0
+#[test]
+fn key_case_reads_same() {
+	let mut shouty = DEMO.to_string();
+	for key in ["label", "default", "range", "detents", "gate", "options"] {
+		let up = format!("\n\t\t{}:", key.to_ascii_uppercase());
+		shouty = shouty.replace(&format!("\n\t\t{key}:"), &up);
+		assert!(shouty.contains(&up), "{key}");
+	}
+	let plain = Spec::parse(DEMO).unwrap();
+	let loud = Spec::parse(&shouty).unwrap_or_else(|e| panic!("{e:#?}"));
+	assert_eq!(
+		format!("{:?}", loud.settings),
+		format!("{:?}", plain.settings)
+	);
+}
+
+// Test ID: dfejz
+#[test]
+fn lookups_after_spec_edits() {
+	let spec = demo().spec;
+	for s in &spec.settings {
+		assert_eq!(spec.get(&s.id).map(|g| &g.path), Some(&s.path));
+	}
+	assert!(spec.get("no_such_setting").is_none());
+	assert!(spec.get("").is_none());
+
+	// changed after finish, and not finished again
+	let mut moved = (*spec).clone();
+	moved.settings.reverse();
+	moved
+		.settings
+		.push(plain("late", Kind::Int, "late", int(1)));
+	for s in &spec.settings {
+		assert_eq!(moved.get(&s.id).map(|m| &m.path), Some(&s.path));
+	}
+	assert_eq!(moved.get("late").map(|s| s.path.as_str()), Some("late"));
+	assert!(moved.get("no_such_setting").is_none());
+
+	// never finished
+	let raw = Spec {
+		settings: vec![plain("a", Kind::Int, "a", int(1))],
+		..Spec::default()
+	};
+	assert_eq!(raw.get("a").map(|s| s.id.as_str()), Some("a"));
+	assert!(raw.get("b").is_none());
 }
 
 // Test ID: ddqsa

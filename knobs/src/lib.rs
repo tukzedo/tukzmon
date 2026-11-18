@@ -12,7 +12,7 @@
 #![warn(missing_docs)]
 
 use std::borrow::Cow;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
 use std::sync::Arc;
 
@@ -285,14 +285,27 @@ pub struct Spec {
 	pub settings: Vec<Setting>,
 	/// In spec order.
 	pub groups: Vec<Group>,
+	// Setting ids to their place in `settings`, built by `finish`.
+	index: HashMap<String, usize>,
 }
 
 // Block names a preset uses for itself, so a setting can't use them as an id.
 const PRESET_WORDS: &[&str] = &["label", "temporary"];
 
 impl Spec {
-	/// A setting by id.
+	/// A setting by id. A spec changed after [`Spec::finish`] should go
+	/// through it again, or an id renamed in place isn't found.
 	pub fn get(&self, id: &str) -> Option<&Setting> {
+		match self.index.get(id) {
+			Some(&i) => {
+				if let Some(s) = self.settings.get(i).filter(|s| s.id == id) {
+					return Some(s);
+				}
+			}
+			None if self.index.len() == self.settings.len() => return None,
+			None => {}
+		}
+		// not finished, or settings moved since
 		self.settings.iter().find(|s| s.id == id)
 	}
 	fn at(&self, id: &str) -> &Setting {
@@ -343,7 +356,16 @@ impl Spec {
 	///
 	/// Every mistake in it, not only the first.
 	pub fn parse(text: &str) -> Result<Spec, Vec<String>> {
-		let doc = shcl::Document::parse(text);
+		Spec::from_doc(&shcl::Document::parse(text))
+	}
+
+	/// [`Spec::parse`] on a document already parsed, for a program that reads
+	/// keys of its own from the same text.
+	///
+	/// # Errors
+	///
+	/// Every mistake in it, not only the first.
+	pub fn from_doc(doc: &shcl::Document) -> Result<Spec, Vec<String>> {
 		let mut errs: Vec<String> = doc
 			.diagnostics()
 			.iter()
@@ -371,13 +393,13 @@ impl Spec {
 		}
 
 		for id in doc.children("settings") {
-			match read_setting(&doc, &id, &spec.tabs) {
+			match read_setting(doc, &id, &spec.tabs) {
 				Ok(s) => spec.settings.push(s),
 				Err(e) => errs.push(format!("{id}: {e}")),
 			}
 		}
 		for id in doc.children("groups") {
-			match read_group(&doc, &id, &spec.settings) {
+			match read_group(doc, &id, &spec.settings) {
 				Ok(g) => spec.groups.push(g),
 				Err(e) => errs.extend(e.into_iter().map(|e| format!("group {id}: {e}"))),
 			}
@@ -400,6 +422,10 @@ impl Spec {
 	///
 	/// Every broken link.
 	pub fn finish(mut self) -> Result<Spec, Vec<String>> {
+		self.index = HashMap::with_capacity(self.settings.len());
+		for (i, s) in self.settings.iter().enumerate() {
+			self.index.entry(s.id.clone()).or_insert(i);
+		}
 		for g in &mut self.groups {
 			g.members = self
 				.settings
@@ -575,18 +601,12 @@ impl Spec {
 			Open,
 			Done,
 		}
-		let index: BTreeMap<&str, usize> = self
-			.settings
-			.iter()
-			.enumerate()
-			.map(|(i, s)| (s.id.as_str(), i))
-			.collect();
 		let reads: Vec<Vec<usize>> = self
 			.settings
 			.iter()
 			.map(|s| {
 				self.reads(s)
-					.filter_map(|id| index.get(id).copied())
+					.filter_map(|id| self.index.get(id).copied())
 					.collect()
 			})
 			.collect();
@@ -715,8 +735,16 @@ fn is_color(t: &str) -> bool {
 }
 
 fn read_setting(doc: &shcl::Document, id: &str, tabs: &[Tab]) -> Result<Setting, String> {
-	let at = |key: &str| format!("settings.{id}.{key}");
-	let text = |key: &str| doc.get_string(&at(key)).unwrap_or_default();
+	// A row sets a few of the keys read here, and a lookup of one it doesn't
+	// have costs as much as one it does. shcl lists them folded to lower case.
+	let keys = doc.children(&format!("settings.{id}"));
+	let at = |key: &str| {
+		keys.iter()
+			.any(|k| k == key)
+			.then(|| format!("settings.{id}.{key}"))
+	};
+	let opt = |key: &str| at(key).and_then(|p| doc.get_string(&p).ok());
+	let text = |key: &str| opt(key).unwrap_or_default();
 	let control = match text("control").as_str() {
 		"heading" => Control::Heading,
 		"checkbox" => Control::Checkbox,
@@ -729,7 +757,9 @@ fn read_setting(doc: &shcl::Document, id: &str, tabs: &[Tab]) -> Result<Setting,
 		"none" => Control::None,
 		other => return Err(format!("control {other:?} isn't one I know")),
 	};
-	let whole = doc.get_bool(&at("whole")).unwrap_or(false);
+	let whole = at("whole")
+		.and_then(|p| doc.get_bool(&p).ok())
+		.unwrap_or(false);
 	let kind = match text("type").as_str() {
 		"bool" => Kind::Bool,
 		"int" => Kind::Int,
@@ -756,16 +786,21 @@ fn read_setting(doc: &shcl::Document, id: &str, tabs: &[Tab]) -> Result<Setting,
 			.position(|t| t.path == name)
 			.ok_or_else(|| format!("no tab {name:?}"))?
 	};
-	let range = numbers(doc, &at("range"));
+	let range = at("range").map(|p| numbers(doc, &p)).unwrap_or_default();
 	let (min, max) = match range.as_slice() {
 		[] => (f64::NEG_INFINITY, f64::INFINITY),
 		[lo, hi] => (*lo, *hi),
 		_ => return Err("range needs 2 numbers".into()),
 	};
-	let labels = doc
-		.get_string_array(&at("detent_labels"))
-		.unwrap_or_default();
-	let detents = numbers(doc, &at("detents"))
+	let strings = |key: &str| {
+		at(key)
+			.and_then(|p| doc.get_string_array(&p).ok())
+			.unwrap_or_default()
+	};
+	let labels = strings("detent_labels");
+	let detents = at("detents")
+		.map(|p| numbers(doc, &p))
+		.unwrap_or_default()
 		.into_iter()
 		.enumerate()
 		.map(|(i, value)| Detent {
@@ -773,20 +808,20 @@ fn read_setting(doc: &shcl::Document, id: &str, tabs: &[Tab]) -> Result<Setting,
 			label: labels.get(i).cloned().unwrap_or_default(),
 		})
 		.collect();
-	let keys = doc.get_string_array(&at("options")).unwrap_or_default();
-	let shown = doc
-		.get_string_array(&at("option_labels"))
-		.unwrap_or_default();
-	let options = keys
+	let picks = strings("options");
+	let shown = strings("option_labels");
+	let options = picks
 		.iter()
 		.enumerate()
 		.map(|(i, k)| (k.clone(), shown.get(i).unwrap_or(k).clone()))
 		.collect();
+	let given = at("default");
+	let given = given.as_deref();
 	let default = match kind {
 		_ if control == Control::Heading => Value::Text(String::new()),
-		Kind::Bool => Value::Bool(doc.get_bool(&at("default")).unwrap_or(false)),
-		Kind::Int => Value::Int(doc.get_int(&at("default")).unwrap_or(0)),
-		Kind::Float => Value::Float(number(doc, &at("default")).unwrap_or(0.0)),
+		Kind::Bool => Value::Bool(given.and_then(|p| doc.get_bool(p).ok()).unwrap_or(false)),
+		Kind::Int => Value::Int(given.and_then(|p| doc.get_int(p).ok()).unwrap_or(0)),
+		Kind::Float => Value::Float(given.and_then(|p| number(doc, p)).unwrap_or(0.0)),
 		Kind::Text | Kind::Color | Kind::Choice => Value::Text(text("default")),
 	};
 	let scale = match text("scale").as_str() {
@@ -800,14 +835,10 @@ fn read_setting(doc: &shcl::Document, id: &str, tabs: &[Tab]) -> Result<Setting,
 		"state" => Store::State,
 		other => return Err(format!("store {other:?} isn't one I know")),
 	};
-	let rule = doc
-		.get_string(&at("rule"))
-		.ok()
-		.map(|r| match r.strip_prefix("state:") {
-			Some(from) => Rule::State(from.to_string()),
-			None => Rule::Named(r),
-		});
-	let opt = |key: &str| doc.get_string(&at(key)).ok();
+	let rule = opt("rule").map(|r| match r.strip_prefix("state:") {
+		Some(from) => Rule::State(from.to_string()),
+		None => Rule::Named(r),
+	});
 	Ok(Setting {
 		id: id.to_string(),
 		label: text("label"),
@@ -823,12 +854,10 @@ fn read_setting(doc: &shcl::Document, id: &str, tabs: &[Tab]) -> Result<Setting,
 		detents,
 		options,
 		tip: text("tip"),
-		indent: doc
-			.get_int(&at("indent"))
-			.map_or(
-				Indent::FromRelations,
-				|n| Indent::Steps(n.clamp(0, 8) as u8),
-			),
+		indent: at("indent").and_then(|p| doc.get_int(&p).ok()).map_or(
+			Indent::FromRelations,
+			|n| Indent::Steps(n.clamp(0, 8) as u8),
+		),
 		gate: opt("gate"),
 		auto: opt("auto"),
 		rule,
@@ -867,6 +896,10 @@ fn read_group(doc: &shcl::Document, id: &str, settings: &[Setting]) -> Result<Gr
 		.filter(|s| s.group.as_deref() == Some(id))
 		.map(|s| s.id.clone())
 		.collect();
+	let mut by_id: HashMap<&str, &Setting> = HashMap::with_capacity(settings.len());
+	for s in settings {
+		by_id.entry(s.id.as_str()).or_insert(s);
+	}
 	let mut presets = Vec::new();
 	for key in doc.children(&at("presets")) {
 		let p = |k: &str| format!("groups.{id}.presets.{key}.{k}");
@@ -875,7 +908,7 @@ fn read_group(doc: &shcl::Document, id: &str, settings: &[Setting]) -> Result<Gr
 			if PRESET_WORDS.contains(&name.as_str()) {
 				continue;
 			}
-			let Some(s) = settings.iter().find(|s| s.id == name) else {
+			let Some(&s) = by_id.get(name.as_str()) else {
 				errs.push(format!("preset {key}: no setting {name}"));
 				continue;
 			};

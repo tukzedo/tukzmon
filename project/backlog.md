@@ -293,7 +293,8 @@ Sorted per the notes in [Template](#template).
 - Code review 20261030 item 3, part 2: Look up a setting by an index in knobs
 	- ID: 2026103018353670
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Closed
+	- Closed reason: Done
 		- It was held for silkterm's copy of knobs to get the index first. 20261105: the copy here doesn't have to match silkterm's, so it can go in here first.
 		- 20261103: moved below the stop line. It's a small speedup and doesn't need to block a release.
 	- Target version: v1.0.0-beta.2
@@ -306,13 +307,28 @@ Sorted per the notes in [Template](#template).
 		- Time denam before and after the change.
 	- Progress log:
 		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
+		- `Spec` keeps an index from id to place, built in `finish`, and `get` gives `None` for an unknown id without a scan. A spec changed after `finish` and not finished again, or never finished, falls back to a scan.
+		- `read_loops` uses the same index rather than building its own.
+		- Verified on b23, release build, load 1.3 to 1.6 on 32 cores, medians of 50 in 3 runs each: a refresh went from 820 us to 520 us, a slider step from 965 us to 660 us, and the rows' states from 525 us to 216 us. `dialog_rows`, which looks nothing up in the spec, stayed at 77 us.
+		- Verified: dfejz fails with the fallback scan taken out.
+	- Decisions:
+		- The index is private and checked on each hit, so code that changes `settings` after `finish` still gets the right setting. An id renamed in place, with the count unchanged, isn't found until `finish` runs again, as `get`'s doc says.
+		- An id given twice finds the first, as the scan did.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Branch: nov17-2026103018353670
+	- Commit: 940dd33
+	- Test case: `tests::lookups_after_spec_edits` (dfejz), in knobs. `bridge::tests::time_refresh_and_slider` (denam) is the timing.
+		- Swept: `get`, `at`, `check_links`, `read_loops` and `set_indents` all go through the index. `group` and `chooser_of` scan the groups, of which there's 1. `under_switch` and `is_switch` scan for a switch's settings, only on `set`.
+	- Acceptance signoff: Self-closed: dfejz passes, and denam was timed before and after.
+	- Closed: 20261117-170557
 
 - Parse the settings spec faster
 	- ID: 2026110519470058
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on automated testing
 	- Target version: v1.0.0-beta.2
+	- Needs local test suite run?: The Miri run of `config::tests::parse_spec` (debhg) alone, `TUKZMON_MIRI_FILTER=parse_spec cicd/cicd.bash --backlog-run-quick miri`, against about 65 minutes before.
 	- Priority|Severity: Low
 	- Opened: 20261105-194700
 	- Opened by: JC
@@ -321,7 +337,36 @@ Sorted per the notes in [Template](#template).
 		- `config::spec()` and what reads `settings.shcl` beside it take less time, measured natively and under Miri.
 	- Progress log:
 		- 20261105: a parse takes 0.11 s in a debug build, and about 65 minutes under Miri, which nearly every Miri module pays once. The text is parsed by shcl 4 times, by `Spec::parse`, `slider_ranges` and 2 more readers in `config.rs`, each then looking rows up by dotted path. Measure which part costs before changing it.
+		- 20261117, each part of a parse, debug build: shcl's parse of the text 27 ms, the settings 22 ms, the groups 10 ms, and `finish` under 1 ms. Each of 6 readers in `config.rs` parsed the text again, at about 30 ms each.
+		- The 6 readers share one parse, `config::spec_doc`. `spec()` still parses its own and drops it, so the panel, which uses no reader, doesn't keep a document of about 1 MB. `parse_spec` and 2 more tests read `spec_doc` through `Spec::from_doc`, so `config::tests` parses the text twice in all.
+		- knobs looks up only the keys a row has, from one listing of the row, since a key a row doesn't have costs a lookup too. A row has 7 of the 25 or so.
+		- Presets find their settings through a map.
+		- Verified on b23, load 3 to 6 on 32 cores: in a debug build `spec()` went from 62 ms to 47 ms, and with the 6 readers from 242 ms to 83 ms. In a release build, from 8.7 ms to 6.5 ms, and from 27.6 ms to 10.5 ms.
+		- Verified under Miri on knobs' demo spec: a parse went from 67 s to 52 s, of which shcl's parse is 30 s.
+		- Verified: the old and new parse give the same tabs, settings and groups for the spec, the demo spec, and the spec with its keys in upper case. Both refuse a broken spec with the same errors.
+		- What's left under Miri is mostly shcl's own parse, which grows faster than the text there. That part is in child 2026111717051144.
+	- Decisions:
+		- The readers share one parsed document, rather than one pass that reads all our keys into a struct, so a new reader needs nothing else changed. Sharing it with `spec()` too saved another 30 ms in a debug build, but the panel would keep the document for its whole life.
+		- `unknown_spec_keys` still parses the text it's given, since der4w feeds it a changed copy.
 	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Branch: nov17-2026103018353670
+	- Commit: 940dd33, f258556
+	- Test case: `tests::key_case_reads_same` (dfek0), in knobs, and `config::tests::parse_spec` (debhg).
+		- Swept: every `Document::parse(SPEC_TEXT)` in core and settings, now only in `spec_doc`, and every lookup in `read_setting`.
+
+- Find why shcl's parse slows faster than its text grows under Miri
+	- ID: 2026111717051144
+	- Type: Enhancement
+	- Status: Queued
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Low
+	- Opened: 20261117-170511
+	- Opened by: t00mietum
+	- Parent ID: 2026110519470058
+	- Requirements: Find what in `shcl::Document::parse` grows faster than the text under Miri, and draft a fix in the upstream folder.
+	- Estimated effort: Avg
+	- Progress log: 20261117: under Miri a parse of the spec's first 470 lines took 30 s, 940 lines 90 s, and 2413 lines over 225 s. A native parse grows in line with the text. With Stacked Borrows off it was 23 s and 65 s, so that isn't it. With provenance GC off it was slower and took 44 GB.
 
 - CICD gap: Run the content scrub from the pipeline and the pre-push hook
 	- ID: 2026110310450004

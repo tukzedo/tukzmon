@@ -28,10 +28,17 @@ pub fn spec() -> Arc<Spec> {
 	}))
 }
 
+// One parse for every key of our own below, which only the settings window
+// reads. spec() parses its own and drops it, so the panel doesn't keep this.
+fn spec_doc() -> &'static shcl::Document {
+	static DOC: OnceLock<shcl::Document> = OnceLock::new();
+	DOC.get_or_init(|| shcl::Document::parse(SPEC_TEXT))
+}
+
 fn slider_ranges() -> &'static [(String, f64, f64)] {
 	static RANGES: OnceLock<Vec<(String, f64, f64)>> = OnceLock::new();
 	RANGES.get_or_init(|| {
-		let doc = shcl::Document::parse(SPEC_TEXT);
+		let doc = spec_doc();
 		doc.children("settings")
 			.into_iter()
 			.filter_map(|id| {
@@ -59,7 +66,7 @@ pub fn slider_range(id: &str) -> Option<(f64, f64)> {
 }
 
 fn row_texts(key: &str) -> Vec<(String, String)> {
-	let doc = shcl::Document::parse(SPEC_TEXT);
+	let doc = spec_doc();
 	doc.children("settings")
 		.into_iter()
 		.filter_map(|id| {
@@ -89,7 +96,7 @@ pub fn section_graph(id: &str) -> Option<&'static str> {
 }
 
 fn rows_with(key: &str) -> Vec<String> {
-	let doc = shcl::Document::parse(SPEC_TEXT);
+	let doc = spec_doc();
 	doc.children("settings")
 		.into_iter()
 		.filter(|row| doc.get_bool_or(&format!("settings.{row}.{key}"), false))
@@ -1273,7 +1280,7 @@ mod tests {
 	// Test ID: debhg
 	#[test]
 	fn parse_spec() {
-		if let Err(e) = Spec::parse(SPEC_TEXT) {
+		if let Err(e) = Spec::from_doc(spec_doc()) {
 			panic!("{}", e.join("\n"));
 		}
 	}
@@ -1293,7 +1300,7 @@ mod tests {
 	// Test ID: decb4
 	#[test]
 	fn slider_inside_range() {
-		let doc = shcl::Document::parse(SPEC_TEXT);
+		let doc = spec_doc();
 		let named: Vec<String> = doc
 			.paths()
 			.into_iter()
@@ -2344,7 +2351,7 @@ mod tests {
 		assert_eq!(shown_when("back_top"), None);
 		// every shown_when names a dropdown and one of its keys
 		let spec = spec();
-		let named = shcl::Document::parse(SPEC_TEXT)
+		let named = spec_doc()
 			.paths()
 			.into_iter()
 			.filter(|p| p.ends_with(".shown_when"))
