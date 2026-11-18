@@ -887,12 +887,13 @@ impl Dialog {
 		carry_theme(&self.saved, &self.model, &file_pick, &mut fresh);
 		config::name_the_theme(&mut fresh);
 		let (body, _) = fresh.save(&NoEnv);
-		// shcl writes through a link only when its file is there
-		let target = config::through_links(&self.path);
-		let Some(file) = target.to_str() else {
-			return Err(format!("{} isn't a path shcl can write", target.display()));
+		let Some(file) = self.path.to_str() else {
+			return Err(format!(
+				"{} isn't a path shcl can write",
+				self.path.display()
+			));
 		};
-		if let Some(dir) = target.parent() {
+		if let Some(dir) = self.path.parent() {
 			std::fs::create_dir_all(dir)
 				.map_err(|e| format!("{} can't be created: {e}", dir.display()))?;
 		}

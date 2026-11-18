@@ -412,7 +412,8 @@ Sorted per the notes in [Template](#template).
 - Drop the dangling link workaround left over from shcl 2
 	- ID: 2026111014581529
 	- Type: Task
-	- Status: Queued
+	- Status: Closed
+	- Closed reason: Done
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261110-145815
@@ -422,6 +423,18 @@ Sorted per the notes in [Template](#template).
 		- Make Apply save through `write_file_atomic` alone, without `config::through_links` first, and remove the comment saying shcl breaks the link.
 		- deqw1 and deqw2 still need to pass.
 	- Note: shcl 3.0.0-beta1 writes through a link to a missing file and keeps the link. Checked 2026-11-10.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `Dialog::apply` saves through `write_file_atomic` alone, and the comment is gone.
+		- Verified: the quick gate passed, with deqw1 and deqw2, and Sanitizers as a second call.
+	- Decisions:
+		- `config::through_links` stays, since `config::start_from` and the plugin's watch still need it. Only Apply drops it.
+		- A link to a file in a folder that isn't there now fails Apply with shcl's message that the folder isn't there, where it used to make the folder. Checked by a probe, then removed. A link into a missing folder is rare, and the file's own folder is still made.
+	- Test case: `dialog::tests::apply_through_dangling_link` (deqw1) and `config::tests::dangling_link_filled` (deqw2), unchanged. deqw1 passes with the link kept and the file made.
+		- Swept: every `through_links` caller. `config::start_from` and `watch_settings` in `xfce/src/lib.rs` use it for their own reasons.
+	- Acceptance signoff: Self-closed: mechanical, and deqw1 and deqw2 pass.
+	- Closed: 20261117-172300
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
