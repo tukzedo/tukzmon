@@ -22,103 +22,84 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- Reduce motion misses a RustDesk peer that connects by ID without a relay
-	- ID: 2026111719090679
-	- Type: Bug
-	- Status: Queued
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Avg
-	- Opened: 20261117-190906
-	- Opened by:
-	- Related IDs: 2026110911114037, 2026111709483900
-	- Steps to reproduce:
-		- Run the real RustDesk server on a desktop, and connect a peer to it by ID, through a rendezvous server, where the two can reach each other directly.
-	- Incorrect behavior: the connection is LAN-direct or hole-punched on ephemeral ports at both ends, with neither 21118 nor 21117, so `remote::Watch` says Local while the peer is on, though RustDesk's `--cm` runs on that display.
-	- Expected behavior: Remote while the peer is on, and Local after.
-	- Reproduced: 20261117 on b23, RustDesk 1.5.3 with a local hbbs, server and peer on two private displays, twice, both by the LAN path, since both reached hbbs from one address. In those 2 runs the peer still shared the server's IPC folder. A hole punched across the internet takes the same kind of ports, which is read only. Direct IP on 21118 and a forced relay on 21117 were both seen.
-	- Possible cause: `viewed_by` wants a connection on a RustDesk port for `Sign::RustDeskCm`. A by-ID connection over a punched hole uses whatever port the punch got, so the sign could be `--cm` alone, or an established socket held by the `rustdesk --server` process that isn't to the rendezvous server.
-	- Test environment: `private/claude_simple/tools/rustdesk-peer-rig.bash` sets up the real server, a peer and a local relay with no root. Without `ALWAYS_USE_RELAY=Y` on hbbs, or with both reaching hbbs from one address, the peer takes the punched path.
-
-- A column up to 4 samples wide beside a gap draws at its full peak
-	- ID: 2026111716050389
-	- Type: Bug
-	- Status: Closed
-	- Closed reason: Done
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Low
-	- Opened: 20261117-160503
-	- Opened by:
-	- Related IDs: 2026111715361287
-	- Steps to reproduce: Leave a gap of a sample or 2 in a graph's last 256 s, such as by a short suspend, then watch a column 1 to 4 samples wide that has the gap in reach.
-	- Incorrect behavior: The column's spike is NaN. By the code, unverified on screen, `Column::new` then takes its share as 1 and draws the whole column at its peak.
-	- Expected behavior: A gap bucket adds nothing to a window, and the column is drawn as its spike says.
-	- Reproduced: Yes, 20261117, by a probe test: 0.25 s samples with a 0.5 s gap, and `span_for` over 0.6 s columns near it at sample 0.25 gave a NaN spike. Columns over 4 samples wide stayed finite.
-	- Possible cause: `take` in `Tier::spread_over` and `Tier::densest` adds secs times max for every bucket, and a gap bucket has 0 secs and a max of minus infinity, which multiply to NaN. `densest` mostly hides it, since its max skips NaN.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Actual cause: As the possible cause. Once NaN was in a window's running total it stayed there as the window slid on.
-	- Actual fix: `take` in `Tier::spread_over` and `Tier::densest`, in `core/src/history.rs`, skips a bucket with no secs. The test's plain version of `spread_over` does the same.
-	- Decisions:
-		- 20261117: columns with a gap in reach now draw as their spike says, so their pixels change. That's the fix, not a float math change, so the 1-step limit in 2026111715361287 doesn't apply.
-	- Verified: dfej7 failed with the fix taken out and passes with it. dfehq, df4y1, df3s6, the quick gate and Sanitizers passed.
-	- Test case: `history::tests::gap_adds_nothing_to_window` (dfej7) checks `span_for` spikes and `densest` stay finite and in range near a 0.5 s gap.
-		- Swept: every place that weights a bucket's max or sum by its secs in history.rs. `tops_over`, the part bucket in `densest` and `spread_over`, the end bucket split and the block totals already skip gaps.
-	- Branch: nov17-2026111716050389
-	- Commit: 668edc7
-	- Acceptance signoff: Self-closed: clear intent, and its test failed before and passes after.
-	- Closed: 20261117-161353
-
-- Reduce motion if a remote desktop session is detected
-	- ID: 2026110911114037
-	- Type: Enhancement
-	- Status: Closed
-	- Closed reason: Done
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Avg
-	- Opened: 20261109-111140
-	- Opened by: t00mietum
-	- Related IDs: 2026110911114024
-	- Requirements:
-		- Add a setting, "Reduce motion if remote desktop session detected."
-		- If a VNC, RDP, RustDesk, etc. session is detected:
-			- Double the ms for every graph, with a minimum floor of 1000 ms.
-			- Disable smooth animation.
-			- Disable the controls for the overridden settings, with flyover text explaining why.
-			- Don't store the temporarily overridden values.
-		- Resume the previous animation settings when the desktop is connected normally.
-	- Progress log:
-		- It was split in 2. The setting and the sessions a remote desktop server starts went to 2026110922214697, and a viewer that joins the local desktop went to 2026110922214810.
-		- 20261110: child 2026110922214810 waits on UAT, adn the rest are closed.
-		- 20261117: 2026110922214810 is closed. Its RustDesk check is split off to 2026111709483900, which waits on a run with a real RustDesk peer.
-		- 20261117: 2026111709483900 is closed, so every child is closed.
-	- Decisions:
-		- It closes with its last child. The by-ID RustDesk peer it misses is a defect in what was built, filed as Bug 2026111719090679, not a child.
-	- Test case: its children's: 2026111709483900: `remote::tests::viewer_needs_peer_here` (df3p5); 2026110922214810: `remote::tests::tcp_table_established_ports` (df3p4), `remote::tests::viewer_needs_peer_here` (df3p5), `remote::tests::watch_rechecks_every_few_seconds` (df3p6) and `remote::tests::stand_in_vnc_viewer_seen` (df3p7); 2026110922214697: `remote::tests::remote_session_signs` (df3nf), `config::tests::remote_halves_reads_no_slide` (df3ng), `dialog::tests::remote_session_greys_rows` (df3nh) and `bridge::tests::remote_greys_rates_and_scrolling` (df3nj).
-	- Acceptance signoff: Self-closed: every child closed, the last after a real RustDesk check.
-	- Closed: 20261117-190941
-
-- Reduce motion: check the RustDesk signs with a real RustDesk peer
-	- ID: 2026111709483900
+- CICD gap: Clear the content scrub's findings on the tree, then make them fail Lint and the pre-push hook
+	- ID: 2026111717545314
 	- Type: Task
-	- Status: Closed
-	- Closed reason: Done
+	- Status: Waiting for answers
+		- Waits on the 2026111717545314 question in questions.md: which findings get reworded in the repo, and which the scrub or its allow list should stop reporting.
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
-	- Opened: 20261117-094839
-	- Opened by:
-	- Parent ID: 2026110911114037
-	- Related IDs: 2026110922214810
+	- Opened: 20261117-175453
+	- Opened by: t00mietum
+	- Parent ID: 2026110310450004
 	- Requirements:
-		- A RustDesk peer on the local desktop calms the panel, and it lets go once the peer leaves, checked with the real RustDesk.
+		- The content scrub reports 312 lines on the tree as of 2026-11-17, so for now its findings are only counted. Clear them, then set `CONTENT_SCRUB_FAILS` to 1 in `cicd/config.bash`, so a finding fails Lint and the pre-push hook's docs checks.
+	- Estimated effort: Avg
+
+- Pre-next-cut: Show the highest recorded values on the tip of monitors with no obvious absolute max
+	- ID: 2026111623513500
+	- Type: Feature
+	- Status: Waiting on UAT
+		- Hover over the network, disk, load and processes graphs on a panel that has run a while, and judge the "highest" lines' wording and length, with the network split on and off.
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261116-235135
+	- Opened by: t00mietum
+	- Related IDs: 2026103109002399
+	- Requirements:
+		- On monitors with no obvious absolute max (e.g. 100%), show on the tooltip the highest values recorded so far for each metric.
+	- Estimated effort: Avg
+	- Actual effort: Low
 	- Progress log:
-		- Split from 2026110922214810, whose NoMachine and x11vnc parts passed with the real servers. The signs are RustDesk's `--cm` process and a connection on 21118 or out to 21117.
-		- RustDesk isn't on b23. Its package can be unpacked with no root, as x11vnc's was.
-		- 20261117: RustDesk 1.5.3 and rustdesk-server 1.1.16, unpacked with no root, ran on 2 private displays. A peer connected by IP on 21118, then by ID through a local hbbr on 21117 with `ALWAYS_USE_RELAY=Y`.
-	- Verified: `remote::Watch` on the server's display said Remote while each peer was on, and Local at its next look, 5 s apart, after the peer left. On the peer's display it said Local.
-	- Note: a peer that connects by ID and gets a LAN-direct or punched connection isn't seen. That's Bug 2026111719090679.
-	- Test case: `remote::tests::viewer_needs_peer_here` (df3p5), with stand-in RustDesk processes. `private/claude_simple/tools/rustdesk-peer-rig.bash` runs the real check.
-	- Acceptance signoff: Self-closed: direct and relay peers passed with the real RustDesk on b23.
-	- Closed: 20261117-190941
+		- The network, disk, load and processes tips end with a line per value for the highest it reached, such as "Read highest 80 MB/s". The hover tip and the latest-read tip both have them.
+		- The highest is over the history kept, so it goes back to the max age, comes back after a restart with Keep across restarts on, and Reset history starts it over.
+		- `design.md` Drawing and README Features have it.
+		- Verified: the quick gate and Sanitizers passed, with the new tests.
+	- Decisions:
+		- The graphs with no clear top are network, disk, load and processes. Temperature has its critical level in the tip, and the tukzmon graph is a share of all CPUs, so they leave it out.
+		- The highest lines go under the tip's own lines, one value a line, since 2026103109002399 put one pair on each line.
+		- The lines read "Name highest value", so every graph's lines follow one rule. "Highest yours" read badly on processes.
+		- Processes get no highest total, since the history keeps each kind's highest but not their sum's.
+		- It's read from the coarsest history tier, rather than kept as a running max, so it isn't a second copy of what the history already has. A bucket's max is of the samples in it, so a 50 ms spike counts.
+		- Under the network split, the highest goes by the series as kept, so history from before the split was turned on has its LAN traffic in the internet lines.
+		- Check entry filed in questions.md for the wording.
+	- Branch: nov17-2026111623513500
+	- Commit: b1bbee5
+	- Test case: `history::tests::highest_of_all_kept` (dfejh), `tests::highest_on_no_top_tips` (dfejj) and `tests::graph_tip_gives_history_highest` (dfejk). dfejh and dfejk fail with the finest tier read in place of the coarsest, and dfejk fails with the tip left without the highest.
+		- Swept: every `Source` impl in `core/src/lib.rs`, the only file with any, and both `Graph` tip paths, `tooltip` and `hover_tip`, which the panel and the settings window's graph list share. Tests quoting the 4 tips use `contains` or `Source::text`, so they're unchanged.
+
+- Some settings tips are long and technical, and stack asides
+	- ID: 2026110710005015
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- Hover the General tab's Scale defaults, Spike emphasis, LAN and internet, Disk drives, and the Outline sub-tab's 2 margins, and judge the wording and length.
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Low
+	- Opened: 20261107-100050
+	- Opened by: t00mietum
+	- Requirements:
+		- Cut the tips for both Scale defaults, LAN and internet, Spike emphasis, and Disk drives to a sentence or 2 on what the setting does. Numbers and kernel terms stay in design.md.
+		- Give the width and time axis tips, which are the same on every graph, fewer asides.
+		- Use "box" for the number box only, and "computer" for the computer.
+		- Make the Margins tip say plainly that 2 graphs side by side get both margins between them.
+		- Put history and settings errors in the tip and in message boxes in plain words, rather than the file reader's own, such as "short" or "trailing bytes", or the name of the file format.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- The tips for both Scale defaults, Spike emphasis, LAN and internet, and Disk drives are 2 sentences each. Spike emphasis still says what 0% and 100% do, per 2026102408304546.
+		- Every graph's width and time axis tips, and the graph list's Width % and Time axis headers, have one aside fewer.
+		- Every tip that meant the computer says "computer". "Box" is left only for the number box.
+		- Both margin tips say that 2 graphs side by side get both margins between them.
+		- History and settings errors in the tip and the window's message boxes are plain, such as "it's cut short", "it's damaged at the end", "it isn't text", or "it's a folder". The window's path error no longer names shcl.
+		- `design.md` XFCE plugin has the plain error words.
+		- Verified: the quick gate and Sanitizers passed, with the new tests.
+	- Decisions:
+		- The details cut from the tips were already in `design.md`, so nothing moved there.
+		- The vertical scale and sample % tips on each graph were left as they are, since the item names only width and time axis.
+		- System errors get plain words for the usual kinds, such as no permission or a full disk. Any other one keeps the system's own text, as does a write error shcl gives no status for.
+	- Branch: nov17-2026110710005015
+	- Commit: 0f3cba2
+	- Test case: `keep::tests::read_errors_plain` (dfemm) and `config::tests::settings_not_text_plain` (dfemn). Both fail with the old wording. `dialog::tests::unreadable_file_is_error` (den9y) now pins the window's whole message. The tip wording has no test, apart from the wrap check, defw3.
 
 - The 2 GPU graphs aren't available with integrated Intel graphics
 	- ID: 2026110920595600
@@ -209,6 +190,23 @@ Sorted per the notes in [Template](#template).
 		- Then cut `utility/path-maps.bash` down to what trim-paths doesn't handle, such as cxx's own C++.
 	- Estimated effort: Low
 
+- Reduce motion misses a RustDesk peer that connects by ID without a relay
+	- ID: 2026111719090679
+	- Type: Bug
+	- Status: Queued
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261117-190906
+	- Opened by:
+	- Related IDs: 2026110911114037, 2026111709483900
+	- Steps to reproduce:
+		- Run the real RustDesk server on a desktop, and connect a peer to it by ID, through a rendezvous server, where the two can reach each other directly.
+	- Incorrect behavior: the connection is LAN-direct or hole-punched on ephemeral ports at both ends, with neither 21118 nor 21117, so `remote::Watch` says Local while the peer is on, though RustDesk's `--cm` runs on that display.
+	- Expected behavior: Remote while the peer is on, and Local after.
+	- Reproduced: 20261117 on b23, RustDesk 1.5.3 with a local hbbs, server and peer on two private displays, twice, both by the LAN path, since both reached hbbs from one address. In those 2 runs the peer still shared the server's IPC folder. A hole punched across the internet takes the same kind of ports, which is read only. Direct IP on 21118 and a forced relay on 21117 were both seen.
+	- Possible cause: `viewed_by` wants a connection on a RustDesk port for `Sign::RustDeskCm`. A by-ID connection over a punched hole uses whatever port the punch got, so the sign could be `--cm` alone, or an established socket held by the `rustdesk --server` process that isn't to the rendezvous server.
+	- Test environment: `private/claude_simple/tools/rustdesk-peer-rig.bash` sets up the real server, a peer and a local relay with no root. Without `ALWAYS_USE_RELAY=Y` on hbbs, or with both reaching hbbs from one address, the peer takes the punched path.
+
 - Cut the cost of the spike windows in each draw
 	- ID: 2026111000270812
 	- Type: Enhancement
@@ -225,37 +223,6 @@ Sorted per the notes in [Template](#template).
 		- 20261110: the look comes first, then the cost. This waits on 2026111010281710, since both change the spike windows.
 		- 20261117: 2026111010281710's look is signed off, so this is Queued.
 		- 20261117: split. 2026111715360663 has the cuts that keep the same numbers, and 2026111715361287 has the rest.
-
-- Same-pixel cuts to the history lookups each draw makes
-	- ID: 2026111715360663
-	- Type: Enhancement
-	- Status: Closed
-	- Closed reason: Done
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Avg
-	- Opened: 20261117-153606
-	- Opened by: t00mietum
-	- Parent ID: 2026111000270812
-	- Requirements: Cut what the history lookups cost a draw, with every pixel the same.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- Each floor and ceil in the history lookups, and each round per pixel channel, was a libm call, since a baseline x86-64 build has no instruction for them. They now use integer casts that give the same numbers.
-		- `spike_over` read the middle buckets' sums only to take their max. `Tier::max_over` reads only the max.
-		- `spread_over` worked out the next whole number twice at each step. It now keeps them as it moves.
-		- `densest` kept its best window through an iterator per window. It now updates it in place.
-		- `private/claude_simple/tools/draw-bench.rs` draws a week of made-up history 24 ways and hashes the pixels. The hashes are the same before and after. A draw took 140.7 us of user time before and 111.0 after, in 3 runs each in turn at load 8.6 to 9.7 on 32 cores. The history lookups alone went from 53.5 to 41.5 us a draw.
-		- The profiler read 774.6 us user a tick before and 747.2 after at load 6 to 9, then 887.3 before and 690.8 after at load 9 to 14. Its noise is bigger than the cut.
-		- Tried and dropped: filling whole pixels without mixing, and skipping a division where it's x / x. Neither moved the bench.
-		- Verified: the draw-bench hashes match. dfegt and dfegv failed with the helpers broken, and der45 with the max left out of `max_over`. The quick gate and Sanitizers passed.
-	- Decisions:
-		- Only changes that give the same numbers went in, not just the same pixels, so the result doesn't rest on the bench's data. Changes that reorder float math are left to 2026111715361287.
-	- Test case: `history::tests::whole_numbers_as_libm` (dfegt), `render::tests::pack_rounds_as_round` (dfegv), and `history::tests::block_totals_match_buckets` (der45), which now checks `max_over` too. df3s6, df4d7 and df4y1 cover the window paths.
-		- Swept: every `floor()`, `ceil()` and `round()` outside tests in history.rs and render.rs, and every `gather` and `add_buckets` caller.
-	- Branch: nov17-2026111000270812
-	- Acceptance signoff: Self-closed 20261117: same numbers by construction, with the bench hashes and the tests above.
-	- Closed: 20261117-153629
-	- Commit: d7296e4
 
 - Cut the history lookups each draw makes down toward the tick's old cost
 	- ID: 2026111715361287
@@ -285,132 +252,6 @@ Sorted per the notes in [Template](#template).
 		- Swept: every floor or ceil of a step's middle in history.rs. `spread_over` had the only one, and `densest` takes its window range once per call.
 	- Branch: nov17-2026111715361287
 	- Commit: 16ee014
-
-- Pre-next-cut: Show the highest recorded values on the tip of monitors with no obvious absolute max
-	- ID: 2026111623513500
-	- Type: Feature
-	- Status: Waiting on UAT
-		- Hover over the network, disk, load and processes graphs on a panel that has run a while, and judge the "highest" lines' wording and length, with the network split on and off.
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Avg
-	- Opened: 20261116-235135
-	- Opened by: t00mietum
-	- Related IDs: 2026103109002399
-	- Requirements:
-		- On monitors with no obvious absolute max (e.g. 100%), show on the tooltip the highest values recorded so far for each metric.
-	- Estimated effort: Avg
-	- Actual effort: Low
-	- Progress log:
-		- The network, disk, load and processes tips end with a line per value for the highest it reached, such as "Read highest 80 MB/s". The hover tip and the latest-read tip both have them.
-		- The highest is over the history kept, so it goes back to the max age, comes back after a restart with Keep across restarts on, and Reset history starts it over.
-		- `design.md` Drawing and README Features have it.
-		- Verified: the quick gate and Sanitizers passed, with the new tests.
-	- Decisions:
-		- The graphs with no clear top are network, disk, load and processes. Temperature has its critical level in the tip, and the tukzmon graph is a share of all CPUs, so they leave it out.
-		- The highest lines go under the tip's own lines, one value a line, since 2026103109002399 put one pair on each line.
-		- The lines read "Name highest value", so every graph's lines follow one rule. "Highest yours" read badly on processes.
-		- Processes get no highest total, since the history keeps each kind's highest but not their sum's.
-		- It's read from the coarsest history tier, rather than kept as a running max, so it isn't a second copy of what the history already has. A bucket's max is of the samples in it, so a 50 ms spike counts.
-		- Under the network split, the highest goes by the series as kept, so history from before the split was turned on has its LAN traffic in the internet lines.
-		- Check entry filed in questions.md for the wording.
-	- Branch: nov17-2026111623513500
-	- Commit: b1bbee5
-	- Test case: `history::tests::highest_of_all_kept` (dfejh), `tests::highest_on_no_top_tips` (dfejj) and `tests::graph_tip_gives_history_highest` (dfejk). dfejh and dfejk fail with the finest tier read in place of the coarsest, and dfejk fails with the tip left without the highest.
-		- Swept: every `Source` impl in `core/src/lib.rs`, the only file with any, and both `Graph` tip paths, `tooltip` and `hover_tip`, which the panel and the settings window's graph list share. Tests quoting the 4 tips use `contains` or `Source::text`, so they're unchanged.
-
-- Code review 20261030 item 3, part 2: Look up a setting by an index in knobs
-	- ID: 2026103018353670
-	- Type: Enhancement
-	- Status: Closed
-	- Closed reason: Done
-		- It was held for silkterm's copy of knobs to get the index first. 20261105: the copy here doesn't have to match silkterm's, so it can go in here first.
-		- 20261103: moved below the stop line. It's a small speedup and doesn't need to block a release.
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Low
-	- Opened: 20261030-183536
-	- Opened by: t00mietum
-	- Parent ID: 2026103016201603
-	- Requirements:
-		- Make `Spec` look ids up through an index built in `finish`, and also an `Option` path for an unknown id.
-		- Time denam before and after the change.
-	- Progress log:
-		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
-		- `Spec` keeps an index from id to place, built in `finish`, and `get` gives `None` for an unknown id without a scan. A spec changed after `finish` and not finished again, or never finished, falls back to a scan.
-		- `read_loops` uses the same index rather than building its own.
-		- Verified on b23, release build, load 1.3 to 1.6 on 32 cores, medians of 50 in 3 runs each: a refresh went from 820 us to 520 us, a slider step from 965 us to 660 us, and the rows' states from 525 us to 216 us. `dialog_rows`, which looks nothing up in the spec, stayed at 77 us.
-		- Verified: dfejz fails with the fallback scan taken out.
-	- Decisions:
-		- The index is private and checked on each hit, so code that changes `settings` after `finish` still gets the right setting. An id renamed in place, with the count unchanged, isn't found until `finish` runs again, as `get`'s doc says.
-		- An id given twice finds the first, as the scan did.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Branch: nov17-2026103018353670
-	- Commit: 940dd33
-	- Test case: `tests::lookups_after_spec_edits` (dfejz), in knobs. `bridge::tests::time_refresh_and_slider` (denam) is the timing.
-		- Swept: `get`, `at`, `check_links`, `read_loops` and `set_indents` all go through the index. `group` and `chooser_of` scan the groups, of which there's 1. `under_switch` and `is_switch` scan for a switch's settings, only on `set`.
-	- Acceptance signoff: Self-closed: dfejz passes, and denam was timed before and after.
-	- Closed: 20261117-170557
-
-- Parse the settings spec faster
-	- ID: 2026110519470058
-	- Type: Enhancement
-	- Status: Closed
-	- Target version: v1.0.0-beta.2
-	- Needs local test suite run?: No
-	- Priority|Severity: Low
-	- Opened: 20261105-194700
-	- Opened by: JC
-	- Related IDs: 2026110514461968, 2026103018353670
-	- Requirements:
-		- `config::spec()` and what reads `settings.shcl` beside it take less time, measured natively and under Miri.
-	- Progress log:
-		- 20261105: a parse takes 0.11 s in a debug build, and about 65 minutes under Miri, which nearly every Miri module pays once. The text is parsed by shcl 4 times, by `Spec::parse`, `slider_ranges` and 2 more readers in `config.rs`, each then looking rows up by dotted path. Measure which part costs before changing it.
-		- 20261117, each part of a parse, debug build: shcl's parse of the text 27 ms, the settings 22 ms, the groups 10 ms, and `finish` under 1 ms. Each of 6 readers in `config.rs` parsed the text again, at about 30 ms each.
-		- The 6 readers share one parse, `config::spec_doc`. `spec()` still parses its own and drops it, so the panel, which uses no reader, doesn't keep a document of about 1 MB. `parse_spec` and 2 more tests read `spec_doc` through `Spec::from_doc`, so `config::tests` parses the text twice in all.
-		- knobs looks up only the keys a row has, from one listing of the row, since a key a row doesn't have costs a lookup too. A row has 7 of the 25 or so.
-		- Presets find their settings through a map.
-		- Verified on b23, load 3 to 6 on 32 cores: in a debug build `spec()` went from 62 ms to 47 ms, and with the 6 readers from 242 ms to 83 ms. In a release build, from 8.7 ms to 6.5 ms, and from 27.6 ms to 10.5 ms.
-		- Verified under Miri on knobs' demo spec: a parse went from 67 s to 52 s, of which shcl's parse is 30 s.
-		- Verified: the old and new parse give the same tabs, settings and groups for the spec, the demo spec, and the spec with its keys in upper case. Both refuse a broken spec with the same errors.
-		- What's left under Miri is mostly shcl's own parse, which grows faster than the text there. That part is in child 2026111717051144.
-		- Verified: 20261117, debhg passed alone under Miri in 15 minutes (18:53 to 19:08, load 3.3, 8 jobs), against about 65 before, by `TUKZMON_MIRI_FILTER=parse_spec cicd/cicd.bash --backlog-run-quick miri` on nov17.
-	- Decisions:
-		- The readers share one parsed document, rather than one pass that reads all our keys into a struct, so a new reader needs nothing else changed. Sharing it with `spec()` too saved another 30 ms in a debug build, but the panel would keep the document for its whole life.
-		- `unknown_spec_keys` still parses the text it's given, since der4w feeds it a changed copy.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Branch: nov17-2026103018353670
-	- Commit: 940dd33, f258556
-	- Test case: `tests::key_case_reads_same` (dfek0), in knobs, and `config::tests::parse_spec` (debhg).
-		- Swept: every `Document::parse(SPEC_TEXT)` in core and settings, now only in `spec_doc`, and every lookup in `read_setting`.
-	- Closed reason: Done
-	- Closed: 20261117
-
-- Find why shcl's parse slows faster than its text grows under Miri
-	- ID: 2026111717051144
-	- Type: Enhancement
-	- Status: Closed
-	- Closed reason: Done
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Low
-	- Opened: 20261117-170511
-	- Opened by: t00mietum
-	- Parent ID: 2026110519470058
-	- Requirements: Find what in `shcl::Document::parse` grows faster than the text under Miri, and draft a fix in the upstream folder.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log: 20261117: under Miri a parse of the spec's first 470 lines took 30 s, 940 lines 90 s, and 2413 lines over 225 s. A native parse grows in line with the text. With Stacked Borrows off it was 23 s and 65 s, so that isn't it. With provenance GC off it was slower and took 44 GB.
-		- 20261117: the spec's first lines are mostly comments, so time per line rises even where time per value doesn't. Per value, with Stacked Borrows and provenance GC off, a parse took 85 ms at every length from 60 to 1445 values. With them on, it went from 101 ms at 136 values to 139 ms at 1853 values. That rise is Stacked Borrows.
-		- Cause, in shcl: the parse splits the text with std's `split('\n')`, then searches the whole text for a Format line. Each step of the split reborrows the whole text, and Stacked Borrows charges each reborrow for every piece the text was already cut into, so both grow with the square of the lines there. A repro with no shcl showed it: at 2000 lines a split took 21.8 s under Miri, against 3.4 s with Stacked Borrows off.
-		- A fix splits by searching only what's left of the text, and reads the Format line before the split. It took a parse of 2413 lines from 258 s to 209 s of CPU under Miri, with the time per value flat again, at load 5 to 9 on 32 cores.
-		- The upstream draft is in `upstream/2026111717051144/`: the issue text, the patch and the repro. Nothing changes on this side.
-		- What's left under Miri is a flat cost of about 85 ms a value, mostly per-character checks inside shcl. The draft names one of them.
-	- Decisions:
-		- Closed on the finding and the draft, since the item asked for those. The fix itself waits on shcl.
-		- Rarer provenance GC, at 100000, was slower at 470 and 940 lines and took twice the memory, so a Miri flag isn't the way.
-	- Test case: None here, since nothing changed on this side. The patch was checked against the old parse on 313 texts, with the same output.
-	- Acceptance signoff: Self-closed: the finding and the draft are what the item asked for.
-	- Closed: 20261117-183000
 
 - CICD gap: Run the content scrub from the pipeline and the pre-push hook
 	- ID: 2026110310450004
@@ -444,20 +285,6 @@ Sorted per the notes in [Template](#template).
 	- Commit: c899ab2, 80f3d95
 	- Test case: `content_scrub` (dfen5), `hook_runs_content_scrub` (dfen6) and `content_scrub_lint_log_clean` (dfeq1), in `cicd/tests/guards.bash`.
 
-- CICD gap: Clear the content scrub's findings on the tree, then make them fail Lint and the pre-push hook
-	- ID: 2026111717545314
-	- Type: Task
-	- Status: Waiting for answers
-		- Waits on the 2026111717545314 question in questions.md: which findings get reworded in the repo, and which the scrub or its allow list should stop reporting.
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Low
-	- Opened: 20261117-175453
-	- Opened by: t00mietum
-	- Parent ID: 2026110310450004
-	- Requirements:
-		- The content scrub reports 312 lines on the tree as of 2026-11-17, so for now its findings are only counted. Clear them, then set `CONTENT_SCRUB_FAILS` to 1 in `cicd/config.bash`, so a finding fails Lint and the pre-push hook's docs checks.
-	- Estimated effort: Avg
-
 - CICD gap: arm64 Linux build and packages
 	- ID: 2026110310450006
 	- Type: Task
@@ -470,66 +297,6 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- Add a release build for arm64 Linux, with its `.deb` and `.rpm`, named `linux-arm64` beside `linux-x86_64`.
 		- Put it behind a flag such as `--include-arm` if it's much slower than x86_64. Qt and the panel libraries for arm64 are the hard part.
-
-- Some settings tips are long and technical, and stack asides
-	- ID: 2026110710005015
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- Hover the General tab's Scale defaults, Spike emphasis, LAN and internet, Disk drives, and the Outline sub-tab's 2 margins, and judge the wording and length.
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Low
-	- Opened: 20261107-100050
-	- Opened by: t00mietum
-	- Requirements:
-		- Cut the tips for both Scale defaults, LAN and internet, Spike emphasis, and Disk drives to a sentence or 2 on what the setting does. Numbers and kernel terms stay in design.md.
-		- Give the width and time axis tips, which are the same on every graph, fewer asides.
-		- Use "box" for the number box only, and "computer" for the computer.
-		- Make the Margins tip say plainly that 2 graphs side by side get both margins between them.
-		- Put history and settings errors in the tip and in message boxes in plain words, rather than the file reader's own, such as "short" or "trailing bytes", or the name of the file format.
-	- Estimated effort: Avg
-	- Actual effort: Low
-	- Progress log:
-		- The tips for both Scale defaults, Spike emphasis, LAN and internet, and Disk drives are 2 sentences each. Spike emphasis still says what 0% and 100% do, per 2026102408304546.
-		- Every graph's width and time axis tips, and the graph list's Width % and Time axis headers, have one aside fewer.
-		- Every tip that meant the computer says "computer". "Box" is left only for the number box.
-		- Both margin tips say that 2 graphs side by side get both margins between them.
-		- History and settings errors in the tip and the window's message boxes are plain, such as "it's cut short", "it's damaged at the end", "it isn't text", or "it's a folder". The window's path error no longer names shcl.
-		- `design.md` XFCE plugin has the plain error words.
-		- Verified: the quick gate and Sanitizers passed, with the new tests.
-	- Decisions:
-		- The details cut from the tips were already in `design.md`, so nothing moved there.
-		- The vertical scale and sample % tips on each graph were left as they are, since the item names only width and time axis.
-		- System errors get plain words for the usual kinds, such as no permission or a full disk. Any other one keeps the system's own text, as does a write error shcl gives no status for.
-	- Branch: nov17-2026110710005015
-	- Commit: 0f3cba2
-	- Test case: `keep::tests::read_errors_plain` (dfemm) and `config::tests::settings_not_text_plain` (dfemn). Both fail with the old wording. `dialog::tests::unreadable_file_is_error` (den9y) now pins the window's whole message. The tip wording has no test, apart from the wrap check, defw3.
-
-- Drop the dangling link workaround left over from shcl 2
-	- ID: 2026111014581529
-	- Type: Task
-	- Status: Closed
-	- Closed reason: Done
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Low
-	- Opened: 20261110-145815
-	- Opened by: t00mietum
-	- Related IDs: 2026103115231938
-	- Requirements:
-		- Make Apply save through `write_file_atomic` alone, without `config::through_links` first, and remove the comment saying shcl breaks the link.
-		- deqw1 and deqw2 still need to pass.
-	- Note: shcl 3.0.0-beta1 writes through a link to a missing file and keeps the link. Checked 2026-11-10.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- `Dialog::apply` saves through `write_file_atomic` alone, and the comment is gone.
-		- Verified: the quick gate passed, with deqw1 and deqw2, and Sanitizers as a second call.
-	- Decisions:
-		- `config::through_links` stays, since `config::start_from` and the plugin's watch still need it. Only Apply drops it.
-		- A link to a file in a folder that isn't there now fails Apply with shcl's message that the folder isn't there, where it used to make the folder. Checked by a probe, then removed. A link into a missing folder is rare, and the file's own folder is still made.
-	- Test case: `dialog::tests::apply_through_dangling_link` (deqw1) and `config::tests::dangling_link_filled` (deqw2), unchanged. deqw1 passes with the link kept and the file made.
-		- Swept: every `through_links` caller. `config::start_from` and `watch_settings` in `xfce/src/lib.rs` use it for their own reasons.
-	- Acceptance signoff: Self-closed: mechanical, and deqw1 and deqw2 pass.
-	- Closed: 20261117-172300
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
@@ -3592,6 +3359,66 @@ Sorted per the notes in [Template](#template).
 		- Swept: the video take uses the same panel config, and no other script in the repo or the private tools sets up a tray.
 	- Acceptance signoff: Self-closed 20261109: in the new gif the network, volume and bell icons are evenly spaced.
 	- Closed: 20261109-124233
+
+- Reduce motion if a remote desktop session is detected
+	- ID: 2026110911114037
+	- Type: Enhancement
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261109-111140
+	- Opened by: t00mietum
+	- Related IDs: 2026110911114024
+	- Requirements:
+		- Add a setting, "Reduce motion if remote desktop session detected."
+		- If a VNC, RDP, RustDesk, etc. session is detected:
+			- Double the ms for every graph, with a minimum floor of 1000 ms.
+			- Disable smooth animation.
+			- Disable the controls for the overridden settings, with flyover text explaining why.
+			- Don't store the temporarily overridden values.
+		- Resume the previous animation settings when the desktop is connected normally.
+	- Progress log:
+		- It was split in 2. The setting and the sessions a remote desktop server starts went to 2026110922214697, and a viewer that joins the local desktop went to 2026110922214810.
+		- 20261110: child 2026110922214810 waits on UAT, adn the rest are closed.
+		- 20261117: 2026110922214810 is closed. Its RustDesk check is split off to 2026111709483900, which waits on a run with a real RustDesk peer.
+		- 20261117: 2026111709483900 is closed, so every child is closed.
+	- Decisions:
+		- It closes with its last child. The by-ID RustDesk peer it misses is a defect in what was built, filed as Bug 2026111719090679, not a child.
+	- Test case: its children's: 2026111709483900: `remote::tests::viewer_needs_peer_here` (df3p5); 2026110922214810: `remote::tests::tcp_table_established_ports` (df3p4), `remote::tests::viewer_needs_peer_here` (df3p5), `remote::tests::watch_rechecks_every_few_seconds` (df3p6) and `remote::tests::stand_in_vnc_viewer_seen` (df3p7); 2026110922214697: `remote::tests::remote_session_signs` (df3nf), `config::tests::remote_halves_reads_no_slide` (df3ng), `dialog::tests::remote_session_greys_rows` (df3nh) and `bridge::tests::remote_greys_rates_and_scrolling` (df3nj).
+	- Acceptance signoff: Self-closed: every child closed, the last after a real RustDesk check.
+	- Closed: 20261117-190941
+
+- Same-pixel cuts to the history lookups each draw makes
+	- ID: 2026111715360663
+	- Type: Enhancement
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261117-153606
+	- Opened by: t00mietum
+	- Parent ID: 2026111000270812
+	- Requirements: Cut what the history lookups cost a draw, with every pixel the same.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- Each floor and ceil in the history lookups, and each round per pixel channel, was a libm call, since a baseline x86-64 build has no instruction for them. They now use integer casts that give the same numbers.
+		- `spike_over` read the middle buckets' sums only to take their max. `Tier::max_over` reads only the max.
+		- `spread_over` worked out the next whole number twice at each step. It now keeps them as it moves.
+		- `densest` kept its best window through an iterator per window. It now updates it in place.
+		- `private/claude_simple/tools/draw-bench.rs` draws a week of made-up history 24 ways and hashes the pixels. The hashes are the same before and after. A draw took 140.7 us of user time before and 111.0 after, in 3 runs each in turn at load 8.6 to 9.7 on 32 cores. The history lookups alone went from 53.5 to 41.5 us a draw.
+		- The profiler read 774.6 us user a tick before and 747.2 after at load 6 to 9, then 887.3 before and 690.8 after at load 9 to 14. Its noise is bigger than the cut.
+		- Tried and dropped: filling whole pixels without mixing, and skipping a division where it's x / x. Neither moved the bench.
+		- Verified: the draw-bench hashes match. dfegt and dfegv failed with the helpers broken, and der45 with the max left out of `max_over`. The quick gate and Sanitizers passed.
+	- Decisions:
+		- Only changes that give the same numbers went in, not just the same pixels, so the result doesn't rest on the bench's data. Changes that reorder float math are left to 2026111715361287.
+	- Test case: `history::tests::whole_numbers_as_libm` (dfegt), `render::tests::pack_rounds_as_round` (dfegv), and `history::tests::block_totals_match_buckets` (der45), which now checks `max_over` too. df3s6, df4d7 and df4y1 cover the window paths.
+		- Swept: every `floor()`, `ceil()` and `round()` outside tests in history.rs and render.rs, and every `gather` and `add_buckets` caller.
+	- Branch: nov17-2026111000270812
+	- Acceptance signoff: Self-closed 20261117: same numbers by construction, with the bench hashes and the tests above.
+	- Closed: 20261117-153629
+	- Commit: d7296e4
 
 - Smoothly animate each graph on each tick
 	- ID: 2026110911114024
@@ -6909,6 +6736,35 @@ Sorted per the notes in [Template](#template).
 	- Test case: None, since it's a recording. The gif and the video were checked frame by frame.
 	- Closed: 20261106-182817
 
+- A column up to 4 samples wide beside a gap draws at its full peak
+	- ID: 2026111716050389
+	- Type: Bug
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Low
+	- Opened: 20261117-160503
+	- Opened by:
+	- Related IDs: 2026111715361287
+	- Steps to reproduce: Leave a gap of a sample or 2 in a graph's last 256 s, such as by a short suspend, then watch a column 1 to 4 samples wide that has the gap in reach.
+	- Incorrect behavior: The column's spike is NaN. By the code, unverified on screen, `Column::new` then takes its share as 1 and draws the whole column at its peak.
+	- Expected behavior: A gap bucket adds nothing to a window, and the column is drawn as its spike says.
+	- Reproduced: Yes, 20261117, by a probe test: 0.25 s samples with a 0.5 s gap, and `span_for` over 0.6 s columns near it at sample 0.25 gave a NaN spike. Columns over 4 samples wide stayed finite.
+	- Possible cause: `take` in `Tier::spread_over` and `Tier::densest` adds secs times max for every bucket, and a gap bucket has 0 secs and a max of minus infinity, which multiply to NaN. `densest` mostly hides it, since its max skips NaN.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Actual cause: As the possible cause. Once NaN was in a window's running total it stayed there as the window slid on.
+	- Actual fix: `take` in `Tier::spread_over` and `Tier::densest`, in `core/src/history.rs`, skips a bucket with no secs. The test's plain version of `spread_over` does the same.
+	- Decisions:
+		- 20261117: columns with a gap in reach now draw as their spike says, so their pixels change. That's the fix, not a float math change, so the 1-step limit in 2026111715361287 doesn't apply.
+	- Verified: dfej7 failed with the fix taken out and passes with it. dfehq, df4y1, df3s6, the quick gate and Sanitizers passed.
+	- Test case: `history::tests::gap_adds_nothing_to_window` (dfej7) checks `span_for` spikes and `densest` stay finite and in range near a 0.5 s gap.
+		- Swept: every place that weights a bucket's max or sum by its secs in history.rs. `tops_over`, the part bucket in `densest` and `spread_over`, the end bucket split and the block totals already skip gaps.
+	- Branch: nov17-2026111716050389
+	- Commit: 668edc7
+	- Acceptance signoff: Self-closed: clear intent, and its test failed before and passes after.
+	- Closed: 20261117-161353
+
 - A bucket cut by a sample's edge tints a narrow column
 	- ID: 2026111011172485
 	- Type: Bug
@@ -8435,6 +8291,150 @@ Sorted per the notes in [Template](#template).
 	- Superseded by ID: 2026110709261106, which takes out the shcl 2 rewrite.
 	- Test case: None, since nothing was changed.
 	- Closed: 20261107-092134
+
+- Reduce motion: check the RustDesk signs with a real RustDesk peer
+	- ID: 2026111709483900
+	- Type: Task
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Low
+	- Opened: 20261117-094839
+	- Opened by:
+	- Parent ID: 2026110911114037
+	- Related IDs: 2026110922214810
+	- Requirements:
+		- A RustDesk peer on the local desktop calms the panel, and it lets go once the peer leaves, checked with the real RustDesk.
+	- Progress log:
+		- Split from 2026110922214810, whose NoMachine and x11vnc parts passed with the real servers. The signs are RustDesk's `--cm` process and a connection on 21118 or out to 21117.
+		- RustDesk isn't on b23. Its package can be unpacked with no root, as x11vnc's was.
+		- 20261117: RustDesk 1.5.3 and rustdesk-server 1.1.16, unpacked with no root, ran on 2 private displays. A peer connected by IP on 21118, then by ID through a local hbbr on 21117 with `ALWAYS_USE_RELAY=Y`.
+	- Verified: `remote::Watch` on the server's display said Remote while each peer was on, and Local at its next look, 5 s apart, after the peer left. On the peer's display it said Local.
+	- Note: a peer that connects by ID and gets a LAN-direct or punched connection isn't seen. That's Bug 2026111719090679.
+	- Test case: `remote::tests::viewer_needs_peer_here` (df3p5), with stand-in RustDesk processes. `private/claude_simple/tools/rustdesk-peer-rig.bash` runs the real check.
+	- Acceptance signoff: Self-closed: direct and relay peers passed with the real RustDesk on b23.
+	- Closed: 20261117-190941
+
+- Code review 20261030 item 3, part 2: Look up a setting by an index in knobs
+	- ID: 2026103018353670
+	- Type: Enhancement
+	- Status: Closed
+	- Closed reason: Done
+		- It was held for silkterm's copy of knobs to get the index first. 20261105: the copy here doesn't have to match silkterm's, so it can go in here first.
+		- 20261103: moved below the stop line. It's a small speedup and doesn't need to block a release.
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Low
+	- Opened: 20261030-183536
+	- Opened by: t00mietum
+	- Parent ID: 2026103016201603
+	- Requirements:
+		- Make `Spec` look ids up through an index built in `finish`, and also an `Option` path for an unknown id.
+		- Time denam before and after the change.
+	- Progress log:
+		- The rows' states are about half of what's left of a refresh, about 480 us on b23, and nearly all of it is `Spec::at` scans inside `Model`.
+		- `Spec` keeps an index from id to place, built in `finish`, and `get` gives `None` for an unknown id without a scan. A spec changed after `finish` and not finished again, or never finished, falls back to a scan.
+		- `read_loops` uses the same index rather than building its own.
+		- Verified on b23, release build, load 1.3 to 1.6 on 32 cores, medians of 50 in 3 runs each: a refresh went from 820 us to 520 us, a slider step from 965 us to 660 us, and the rows' states from 525 us to 216 us. `dialog_rows`, which looks nothing up in the spec, stayed at 77 us.
+		- Verified: dfejz fails with the fallback scan taken out.
+	- Decisions:
+		- The index is private and checked on each hit, so code that changes `settings` after `finish` still gets the right setting. An id renamed in place, with the count unchanged, isn't found until `finish` runs again, as `get`'s doc says.
+		- An id given twice finds the first, as the scan did.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Branch: nov17-2026103018353670
+	- Commit: 940dd33
+	- Test case: `tests::lookups_after_spec_edits` (dfejz), in knobs. `bridge::tests::time_refresh_and_slider` (denam) is the timing.
+		- Swept: `get`, `at`, `check_links`, `read_loops` and `set_indents` all go through the index. `group` and `chooser_of` scan the groups, of which there's 1. `under_switch` and `is_switch` scan for a switch's settings, only on `set`.
+	- Acceptance signoff: Self-closed: dfejz passes, and denam was timed before and after.
+	- Closed: 20261117-170557
+
+- Parse the settings spec faster
+	- ID: 2026110519470058
+	- Type: Enhancement
+	- Status: Closed
+	- Target version: v1.0.0-beta.2
+	- Needs local test suite run?: No
+	- Priority|Severity: Low
+	- Opened: 20261105-194700
+	- Opened by: JC
+	- Related IDs: 2026110514461968, 2026103018353670
+	- Requirements:
+		- `config::spec()` and what reads `settings.shcl` beside it take less time, measured natively and under Miri.
+	- Progress log:
+		- 20261105: a parse takes 0.11 s in a debug build, and about 65 minutes under Miri, which nearly every Miri module pays once. The text is parsed by shcl 4 times, by `Spec::parse`, `slider_ranges` and 2 more readers in `config.rs`, each then looking rows up by dotted path. Measure which part costs before changing it.
+		- 20261117, each part of a parse, debug build: shcl's parse of the text 27 ms, the settings 22 ms, the groups 10 ms, and `finish` under 1 ms. Each of 6 readers in `config.rs` parsed the text again, at about 30 ms each.
+		- The 6 readers share one parse, `config::spec_doc`. `spec()` still parses its own and drops it, so the panel, which uses no reader, doesn't keep a document of about 1 MB. `parse_spec` and 2 more tests read `spec_doc` through `Spec::from_doc`, so `config::tests` parses the text twice in all.
+		- knobs looks up only the keys a row has, from one listing of the row, since a key a row doesn't have costs a lookup too. A row has 7 of the 25 or so.
+		- Presets find their settings through a map.
+		- Verified on b23, load 3 to 6 on 32 cores: in a debug build `spec()` went from 62 ms to 47 ms, and with the 6 readers from 242 ms to 83 ms. In a release build, from 8.7 ms to 6.5 ms, and from 27.6 ms to 10.5 ms.
+		- Verified under Miri on knobs' demo spec: a parse went from 67 s to 52 s, of which shcl's parse is 30 s.
+		- Verified: the old and new parse give the same tabs, settings and groups for the spec, the demo spec, and the spec with its keys in upper case. Both refuse a broken spec with the same errors.
+		- What's left under Miri is mostly shcl's own parse, which grows faster than the text there. That part is in child 2026111717051144.
+		- Verified: 20261117, debhg passed alone under Miri in 15 minutes (18:53 to 19:08, load 3.3, 8 jobs), against about 65 before, by `TUKZMON_MIRI_FILTER=parse_spec cicd/cicd.bash --backlog-run-quick miri` on nov17.
+	- Decisions:
+		- The readers share one parsed document, rather than one pass that reads all our keys into a struct, so a new reader needs nothing else changed. Sharing it with `spec()` too saved another 30 ms in a debug build, but the panel would keep the document for its whole life.
+		- `unknown_spec_keys` still parses the text it's given, since der4w feeds it a changed copy.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Branch: nov17-2026103018353670
+	- Commit: 940dd33, f258556
+	- Test case: `tests::key_case_reads_same` (dfek0), in knobs, and `config::tests::parse_spec` (debhg).
+		- Swept: every `Document::parse(SPEC_TEXT)` in core and settings, now only in `spec_doc`, and every lookup in `read_setting`.
+	- Closed reason: Done
+	- Closed: 20261117
+
+- Find why shcl's parse slows faster than its text grows under Miri
+	- ID: 2026111717051144
+	- Type: Enhancement
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Low
+	- Opened: 20261117-170511
+	- Opened by: t00mietum
+	- Parent ID: 2026110519470058
+	- Requirements: Find what in `shcl::Document::parse` grows faster than the text under Miri, and draft a fix in the upstream folder.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log: 20261117: under Miri a parse of the spec's first 470 lines took 30 s, 940 lines 90 s, and 2413 lines over 225 s. A native parse grows in line with the text. With Stacked Borrows off it was 23 s and 65 s, so that isn't it. With provenance GC off it was slower and took 44 GB.
+		- 20261117: the spec's first lines are mostly comments, so time per line rises even where time per value doesn't. Per value, with Stacked Borrows and provenance GC off, a parse took 85 ms at every length from 60 to 1445 values. With them on, it went from 101 ms at 136 values to 139 ms at 1853 values. That rise is Stacked Borrows.
+		- Cause, in shcl: the parse splits the text with std's `split('\n')`, then searches the whole text for a Format line. Each step of the split reborrows the whole text, and Stacked Borrows charges each reborrow for every piece the text was already cut into, so both grow with the square of the lines there. A repro with no shcl showed it: at 2000 lines a split took 21.8 s under Miri, against 3.4 s with Stacked Borrows off.
+		- A fix splits by searching only what's left of the text, and reads the Format line before the split. It took a parse of 2413 lines from 258 s to 209 s of CPU under Miri, with the time per value flat again, at load 5 to 9 on 32 cores.
+		- The upstream draft is in `upstream/2026111717051144/`: the issue text, the patch and the repro. Nothing changes on this side.
+		- What's left under Miri is a flat cost of about 85 ms a value, mostly per-character checks inside shcl. The draft names one of them.
+	- Decisions:
+		- Closed on the finding and the draft, since the item asked for those. The fix itself waits on shcl.
+		- Rarer provenance GC, at 100000, was slower at 470 and 940 lines and took twice the memory, so a Miri flag isn't the way.
+	- Test case: None here, since nothing changed on this side. The patch was checked against the old parse on 313 texts, with the same output.
+	- Acceptance signoff: Self-closed: the finding and the draft are what the item asked for.
+	- Closed: 20261117-183000
+
+- Drop the dangling link workaround left over from shcl 2
+	- ID: 2026111014581529
+	- Type: Task
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Low
+	- Opened: 20261110-145815
+	- Opened by: t00mietum
+	- Related IDs: 2026103115231938
+	- Requirements:
+		- Make Apply save through `write_file_atomic` alone, without `config::through_links` first, and remove the comment saying shcl breaks the link.
+		- deqw1 and deqw2 still need to pass.
+	- Note: shcl 3.0.0-beta1 writes through a link to a missing file and keeps the link. Checked 2026-11-10.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- `Dialog::apply` saves through `write_file_atomic` alone, and the comment is gone.
+		- Verified: the quick gate passed, with deqw1 and deqw2, and Sanitizers as a second call.
+	- Decisions:
+		- `config::through_links` stays, since `config::start_from` and the plugin's watch still need it. Only Apply drops it.
+		- A link to a file in a folder that isn't there now fails Apply with shcl's message that the folder isn't there, where it used to make the folder. Checked by a probe, then removed. A link into a missing folder is rare, and the file's own folder is still made.
+	- Test case: `dialog::tests::apply_through_dangling_link` (deqw1) and `config::tests::dangling_link_filled` (deqw2), unchanged. deqw1 passes with the link kept and the file made.
+		- Swept: every `through_links` caller. `config::start_from` and `watch_settings` in `xfce/src/lib.rs` use it for their own reasons.
+	- Acceptance signoff: Self-closed: mechanical, and deqw1 and deqw2 pass.
+	- Closed: 20261117-172300
 
 **Stop here for a next release**
 
