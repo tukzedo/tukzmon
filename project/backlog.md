@@ -397,7 +397,8 @@ Sorted per the notes in [Template](#template).
 - Some settings tips are long and technical, and stack asides
 	- ID: 2026110710005015
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- Hover the General tab's Scale defaults, Spike emphasis, LAN and internet, Disk drives, and the Outline sub-tab's 2 margins, and judge the wording and length.
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261107-100050
@@ -408,6 +409,23 @@ Sorted per the notes in [Template](#template).
 		- Use "box" for the number box only, and "computer" for the computer.
 		- Make the Margins tip say plainly that 2 graphs side by side get both margins between them.
 		- Put history and settings errors in the tip and in message boxes in plain words, rather than the file reader's own, such as "short" or "trailing bytes", or the name of the file format.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- The tips for both Scale defaults, Spike emphasis, LAN and internet, and Disk drives are 2 sentences each. Spike emphasis still says what 0% and 100% do, per 2026102408304546.
+		- Every graph's width and time axis tips, and the graph list's Width % and Time axis headers, have one aside fewer.
+		- Every tip that meant the computer says "computer". "Box" is left only for the number box.
+		- Both margin tips say that 2 graphs side by side get both margins between them.
+		- History and settings errors in the tip and the window's message boxes are plain, such as "it's cut short", "it's damaged at the end", "it isn't text", or "it's a folder". The window's path error no longer names shcl.
+		- `design.md` XFCE plugin has the plain error words.
+		- Verified: the quick gate and Sanitizers passed, with the new tests.
+	- Decisions:
+		- The details cut from the tips were already in `design.md`, so nothing moved there.
+		- The vertical scale and sample % tips on each graph were left as they are, since the item names only width and time axis.
+		- System errors get plain words for the usual kinds, such as no permission or a full disk. Any other one keeps the system's own text, as does a write error shcl gives no status for.
+	- Branch: nov17-2026110710005015
+	- Commit: 0f3cba2
+	- Test case: `keep::tests::read_errors_plain` (dfemm) and `config::tests::settings_not_text_plain` (dfemn). Both fail with the old wording. `dialog::tests::unreadable_file_is_error` (den9y) now pins the window's whole message. The tip wording has no test, apart from the wrap check, defw3.
 
 - Drop the dangling link workaround left over from shcl 2
 	- ID: 2026111014581529

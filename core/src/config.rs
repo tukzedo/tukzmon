@@ -1134,11 +1134,21 @@ impl Look {
 	/// A file that's there but can't be read, or isn't UTF-8, so the caller
 	/// can keep what it has.
 	pub fn load(path: &Path) -> std::io::Result<Look> {
-		let text = match std::fs::read_to_string(path) {
-			Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
-			r => r?,
-		};
-		Ok(Look::from_model(&model(&text)))
+		Ok(Look::from_model(&model(&read_text(path)?)))
+	}
+}
+
+/// A settings file's text, or "" when it's missing.
+///
+/// # Errors
+///
+/// As [`std::fs::read`], or `InvalidData` when it isn't UTF-8.
+pub fn read_text(path: &Path) -> std::io::Result<String> {
+	match std::fs::read(path) {
+		Ok(bytes) => String::from_utf8(bytes)
+			.map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "it isn't text")),
+		Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+		Err(e) => Err(e),
 	}
 }
 
@@ -1850,6 +1860,21 @@ mod tests {
 		assert_eq!(loaded, l);
 	}
 
+	// Test ID: dfemn
+	#[test]
+	fn settings_not_text_plain() {
+		let dir =
+			std::env::temp_dir().join(format!("test_tukzmon_{}_not_text", std::process::id()));
+		std::fs::create_dir_all(&dir).unwrap();
+		let path = dir.join("t.shcl");
+		assert_eq!(read_text(&path).unwrap(), "");
+		std::fs::write(&path, b"graph.width = 7\xff\n").unwrap();
+		let e = Look::load(&path).unwrap_err();
+		std::fs::remove_file(&path).unwrap();
+		std::fs::remove_dir(&dir).unwrap();
+		assert_eq!(crate::plain_error(&e), "it isn't text");
+	}
+
 	// Test ID: decdg
 	#[test]
 	fn fire_gradient_rest_detailed() {
@@ -2473,12 +2498,15 @@ mod tests {
 		assert_eq!(pick("Fixed_B"), Timing::Log(Curve::FixedB));
 		assert_eq!(pick("linear"), Timing::Linear);
 		assert_eq!(pick("wobbly"), Timing::Log(Curve::Smooth));
-		// the tip's paragraph break is a real one
+		// a tip's paragraph break is a real one
 		let tip = spec()
-			.get("time_axis")
+			.get("width")
 			.map(|s| s.tip.clone())
 			.unwrap_or_default();
-		assert!(tip.contains("\n\nLog A") && !tip.contains("\\n"), "{tip}");
+		assert!(
+			tip.contains("\n\nOn a vertical panel") && !tip.contains("\\n"),
+			"{tip}"
+		);
 	}
 
 	// Test ID: decbf

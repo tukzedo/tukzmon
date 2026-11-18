@@ -66,6 +66,7 @@ A Rust core was chosen over C or C++, with C only where a panel's API needed it.
 	- A panel started by `xfce4-panel --restart` has stderr on `/dev/null`, so each message also goes to syslog, unless stderr is the journal already.
 	- A failed history read, save, or delete also shows in the tip, under the graphs, up until a save works.
 	- A settings file that's there but can't be read is logged once, and the item keeps the look it has, or the defaults at its start. The tip says so until the file reads again, which each tick tries. A missing file means the defaults.
+	- These errors, and the settings window's message boxes, say what's wrong in plain words, such as "it's cut short" or "it isn't text", rather than the file reader's own terms. `plain_error` in core gives the words for the usual system errors.
 	- Nothing else in the plugin assumes X11. The drawing, the tip, the hover line, the right-click menu, and Properties work the same on Wayland, and tukzmon-settings opens as a Wayland window.
 
 - The plugin draws its graphs side by side in one drawing area, in the saved order. `core/src/graphs.rs` has the layout.

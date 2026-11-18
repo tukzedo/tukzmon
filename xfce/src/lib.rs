@@ -178,7 +178,11 @@ fn read_look(path: &Path, unreadable: &mut Option<String>, session: Session) -> 
 			Some(Look { session, ..look })
 		}
 		Err(e) => {
-			let what = format!("can't read {}: {e}", path.display());
+			let what = format!(
+				"can't read {}: {}",
+				path.display(),
+				tukzmon_core::plain_error(&e)
+			);
 			if unreadable.as_ref() != Some(&what) {
 				complain(format_args!("{what}"));
 			}
@@ -296,7 +300,11 @@ impl Plugin {
 	/// Logged, and kept for the tip, since a restarted panel's stderr is
 	/// /dev/null.
 	fn history_trouble(&mut self, doing: &str, e: &std::io::Error) {
-		let what = format!("can't {doing} {}: {e}", self.history.display());
+		let what = format!(
+			"can't {doing} {}: {}",
+			self.history.display(),
+			tukzmon_core::plain_error(e)
+		);
 		complain(format_args!("{what}"));
 		self.trouble = Some(what);
 	}

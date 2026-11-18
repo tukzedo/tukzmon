@@ -51,6 +51,25 @@ use own::OwnReader;
 use procs::ProcsReader;
 use render::{Canvas, Frame, Paint, Peak, Scale, Scratch, Vertical};
 use temp::TempReader;
+
+/// A file error in words for a tip or a message box. A system error gets
+/// plain words for the usual kinds, and any other error is already in them,
+/// such as one of [`keep::read`]'s.
+pub fn plain_error(e: &std::io::Error) -> String {
+	use std::io::ErrorKind as K;
+	if e.raw_os_error().is_none() {
+		return e.to_string();
+	}
+	match e.kind() {
+		K::NotFound => "it isn't there",
+		K::PermissionDenied => "there's no permission",
+		K::StorageFull => "the disk is full",
+		K::ReadOnlyFilesystem => "the disk is read-only",
+		K::IsADirectory => "it's a folder",
+		_ => return e.to_string(),
+	}
+	.to_string()
+}
 use when::Said;
 use zswap::ZswapReader;
 

@@ -66,7 +66,7 @@ settings:
 		option_labels: ["Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: graph.time
 		default: smooth
-		tip: "How a graph spreads time across its width, unless it picks its own on the Graphs tab. Linear is a plain scrolling graph. The log curves squeeze older history to the left, so the last minute and the last day fit in one graph.◉NEWLINE◉◉NEWLINE◉Smooth log is one log curve across the whole graph, where each pixel covers a little more time than the one to its right.◉NEWLINE◉◉NEWLINE◉Log A and Log B split the graph into 4 fixed divisions. From the right, they cover at most the last minute, the next 59 minutes, the next 23 hours, and everything older. Log A fills them early. The first fills after about half an hour of history, and all 3 within a week. Log B follows Smooth log until a division fills, after about a day and a half for the first and 4 months for all 3."
+		tip: "How a graph spreads time across its width, unless it picks its own on the Graphs tab. Linear scrolls evenly, and the log curves squeeze older history to the left so the last minute and the last day both fit."
 
 	sample_ms:
 		label: Sample ms default
@@ -89,7 +89,7 @@ settings:
 		range: [0, 100]
 		path: graph.spikes
 		default: 75
-		tip: "How far a squeezed column rises from its average toward its peak. At 0% every column shows only its average, so short spikes in older history are smoothed away. At 100% a column that covers a few minutes shows nearly its full peak. The effect fades as a column covers more time. It's halved at about 10 minutes at 50%, and at about 5.5 hours at 100%. So at the far left, spikes fade into the background even at 100%."
+		tip: "How far a squeezed column of older history rises from its average toward its peak. At 0% it shows only the average, and at 100% nearly its full peak, but spikes still fade toward the far left."
 
 	hover_time:
 		label: Hover shows
@@ -132,7 +132,7 @@ settings:
 		option_labels: ["Linear", "log₁₀", "χ²"]
 		path: graph.vertical
 		default: linear
-		tip: "How a graph turns values into height, unless it picks its own scale on the Graphs tab. Linear makes height proportional to the value.◉NEWLINE◉◉NEWLINE◉log₁₀ lifts small values, so a trickle still shows next to a big copy. The scale starts at a thousandth of the top. On a graph without a fixed top, such as disk or network, it starts at a thousandth of the lowest value its top can drop to.◉NEWLINE◉◉NEWLINE◉χ² squares the share of the top, so big values stand out and small ones sink. A value at half the top is drawn a quarter of the way up."
+		tip: "How a graph turns values into height, unless it picks its own scale on the Graphs tab. Linear is in proportion to the value, log₁₀ lifts small values so a trickle still shows, and χ² makes big values stand out."
 
 	GraphsHead:
 		label: Graphs
@@ -155,7 +155,7 @@ settings:
 		range: [1, 1000]
 		path: cpu.width
 		default: 100
-		tip: "How wide the CPU graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
+		tip: "How wide the CPU graph is, as a percentage of Width px default on the General tab. On a vertical panel it\'s how tall."
 
 	cpu_sample:
 		label: CPU sample %
@@ -175,7 +175,7 @@ settings:
 		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: cpu.time
 		default: same
-		tip: "How the CPU graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where its tip describes each curve."
+		tip: "How the CPU graph spreads time across its width. Default follows Scale default under Time axis on the General tab."
 
 	cpu_vertical:
 		label: CPU vertical scale
@@ -193,7 +193,7 @@ settings:
 		control: checkbox
 		path: mem.show
 		default: true
-		tip: "Show memory use beside the CPU graph, stacked from the bottom up as what programs use, then buffers, then cache. It's left out on a box where memory can't be read."
+		tip: "Show memory use beside the CPU graph, stacked from the bottom up as what programs use, then buffers, then cache. It's left out on a computer where memory can't be read."
 
 	mem_width:
 		label: Memory width %
@@ -203,7 +203,7 @@ settings:
 		range: [1, 1000]
 		path: mem.width
 		default: 100
-		tip: "How wide the memory graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
+		tip: "How wide the memory graph is, as a percentage of Width px default on the General tab. On a vertical panel it\'s how tall."
 
 	mem_sample:
 		label: Memory sample %
@@ -223,7 +223,7 @@ settings:
 		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: mem.time
 		default: same
-		tip: "How the memory graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where its tip describes each curve."
+		tip: "How the memory graph spreads time across its width. Default follows Scale default under Time axis on the General tab."
 
 	mem_vertical:
 		label: Memory vertical scale
@@ -251,7 +251,7 @@ settings:
 		range: [1, 1000]
 		path: procs.width
 		default: 50
-		tip: "How wide the processes graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
+		tip: "How wide the processes graph is, as a percentage of Width px default on the General tab. On a vertical panel it\'s how tall."
 
 	procs_sample:
 		label: Processes sample %
@@ -271,7 +271,7 @@ settings:
 		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: procs.time
 		default: same
-		tip: "How the processes graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where its tip describes each curve."
+		tip: "How the processes graph spreads time across its width. Default follows Scale default under Time axis on the General tab."
 
 	procs_vertical:
 		label: Processes vertical scale
@@ -289,7 +289,7 @@ settings:
 		control: checkbox
 		path: gpu.show
 		default: false
-		tip: "Show how busy the GPU is, as the share of time it was running work. The first NVIDIA card is read through its driver, or else the first AMD card. It's left out on a box that has neither."
+		tip: "Show how busy the GPU is, as the share of time it was running work. The first NVIDIA card is read through its driver, or else the first AMD card. It's left out on a computer that has neither."
 
 	gpu_width:
 		label: GPU width %
@@ -299,7 +299,7 @@ settings:
 		range: [1, 1000]
 		path: gpu.width
 		default: 50
-		tip: "How wide the GPU graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
+		tip: "How wide the GPU graph is, as a percentage of Width px default on the General tab. On a vertical panel it\'s how tall."
 
 	gpu_sample:
 		label: GPU sample %
@@ -319,7 +319,7 @@ settings:
 		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: gpu.time
 		default: same
-		tip: "How the GPU graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where its tip describes each curve."
+		tip: "How the GPU graph spreads time across its width. Default follows Scale default under Time axis on the General tab."
 
 	gpu_vertical:
 		label: GPU vertical scale
@@ -337,7 +337,7 @@ settings:
 		control: checkbox
 		path: vram.show
 		default: true
-		tip: "Show how much of the GPU's own memory is in use. The graph's hover tip also shows it in GiB. It's read from the same card as the GPU graph, and left out on a box that has neither an NVIDIA nor an AMD card."
+		tip: "Show how much of the GPU's own memory is in use. The graph's hover tip also shows it in GiB. It's read from the same card as the GPU graph, and left out on a computer that has neither an NVIDIA nor an AMD card."
 
 	vram_width:
 		label: GPU memory width %
@@ -347,7 +347,7 @@ settings:
 		range: [1, 1000]
 		path: vram.width
 		default: 50
-		tip: "How wide the GPU memory graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
+		tip: "How wide the GPU memory graph is, as a percentage of Width px default on the General tab. On a vertical panel it\'s how tall."
 
 	vram_sample:
 		label: GPU memory sample %
@@ -367,7 +367,7 @@ settings:
 		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: vram.time
 		default: same
-		tip: "How the GPU memory graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where its tip describes each curve."
+		tip: "How the GPU memory graph spreads time across its width. Default follows Scale default under Time axis on the General tab."
 
 	vram_vertical:
 		label: GPU memory vertical scale
@@ -385,7 +385,7 @@ settings:
 		control: checkbox
 		path: net.show
 		default: false
-		tip: "Show network traffic in bytes a second, stacked from the bottom up as local, then sent, then received. Local is the box talking to itself. The top follows the busiest moment in view, so the graph has no fixed scale. The graph's hover tip shows the rates. LAN and internet, under Misc on the General tab, splits sent and received into LAN and internet traffic."
+		tip: "Show network traffic in bytes a second, stacked from the bottom up as local, then sent, then received. Local is the computer talking to itself. The top follows the busiest moment in view, so the graph has no fixed scale. The graph's hover tip shows the rates. LAN and internet, under Misc on the General tab, splits sent and received into LAN and internet traffic."
 
 	net_width:
 		label: Network width %
@@ -395,7 +395,7 @@ settings:
 		range: [1, 1000]
 		path: net.width
 		default: 50
-		tip: "How wide the network graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
+		tip: "How wide the network graph is, as a percentage of Width px default on the General tab. On a vertical panel it\'s how tall."
 
 	net_sample:
 		label: Network sample %
@@ -415,7 +415,7 @@ settings:
 		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: net.time
 		default: same
-		tip: "How the network graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where its tip describes each curve."
+		tip: "How the network graph spreads time across its width. Default follows Scale default under Time axis on the General tab."
 
 	net_vertical:
 		label: Network vertical scale
@@ -443,7 +443,7 @@ settings:
 		range: [1, 1000]
 		path: disk.width
 		default: 50
-		tip: "How wide the disk graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
+		tip: "How wide the disk graph is, as a percentage of Width px default on the General tab. On a vertical panel it\'s how tall."
 
 	disk_sample:
 		label: Disk sample %
@@ -463,7 +463,7 @@ settings:
 		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: disk.time
 		default: same
-		tip: "How the disk graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where its tip describes each curve."
+		tip: "How the disk graph spreads time across its width. Default follows Scale default under Time axis on the General tab."
 
 	disk_vertical:
 		label: Disk vertical scale
@@ -481,7 +481,7 @@ settings:
 		control: checkbox
 		path: temp.show
 		default: true
-		tip: "Show the CPU's temperature. It fills to the top at the sensor's critical level, or at 95 degrees C when the sensor doesn't give one, and anything over that is drawn on top in the critical color. It's left out on a box that doesn't have a CPU sensor tukzmon knows."
+		tip: "Show the CPU's temperature. It fills to the top at the sensor's critical level, or at 95 degrees C when the sensor doesn't give one, and anything over that is drawn on top in the critical color. It's left out on a computer that doesn't have a CPU sensor tukzmon knows."
 
 	temp_width:
 		label: Temperature width %
@@ -491,7 +491,7 @@ settings:
 		range: [1, 1000]
 		path: temp.width
 		default: 50
-		tip: "How wide the temperature graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
+		tip: "How wide the temperature graph is, as a percentage of Width px default on the General tab. On a vertical panel it\'s how tall."
 
 	temp_sample:
 		label: Temperature sample %
@@ -511,7 +511,7 @@ settings:
 		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: temp.time
 		default: same
-		tip: "How the temperature graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where its tip describes each curve."
+		tip: "How the temperature graph spreads time across its width. Default follows Scale default under Time axis on the General tab."
 
 	temp_vertical:
 		label: Temperature vertical scale
@@ -529,7 +529,7 @@ settings:
 		control: checkbox
 		path: swap.show
 		default: true
-		tip: "Show how much swap is in use. It's left out on a box without swap."
+		tip: "Show how much swap is in use. It's left out on a computer without swap."
 
 	swap_width:
 		label: Swap width %
@@ -539,7 +539,7 @@ settings:
 		range: [1, 1000]
 		path: swap.width
 		default: 25
-		tip: "How wide the swap graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
+		tip: "How wide the swap graph is, as a percentage of Width px default on the General tab. On a vertical panel it\'s how tall."
 
 	swap_sample:
 		label: Swap sample %
@@ -559,7 +559,7 @@ settings:
 		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: swap.time
 		default: same
-		tip: "How the swap graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where its tip describes each curve."
+		tip: "How the swap graph spreads time across its width. Default follows Scale default under Time axis on the General tab."
 
 	swap_vertical:
 		label: Swap vertical scale
@@ -577,7 +577,7 @@ settings:
 		control: checkbox
 		path: zswap.show
 		default: false
-		tip: "Show how full the compressed swap pool is, from zswap or else zram. The graph's hover tip also shows how far the pool compresses what it stores, such as 2.1x. It's left out on a box that has neither."
+		tip: "Show how full the compressed swap pool is, from zswap or else zram. The graph's hover tip also shows how far the pool compresses what it stores, such as 2.1x. It's left out on a computer that has neither."
 
 	zswap_width:
 		label: Zswap width %
@@ -587,7 +587,7 @@ settings:
 		range: [1, 1000]
 		path: zswap.width
 		default: 25
-		tip: "How wide the zswap graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
+		tip: "How wide the zswap graph is, as a percentage of Width px default on the General tab. On a vertical panel it\'s how tall."
 
 	zswap_sample:
 		label: Zswap sample %
@@ -607,7 +607,7 @@ settings:
 		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: zswap.time
 		default: same
-		tip: "How the zswap graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where its tip describes each curve."
+		tip: "How the zswap graph spreads time across its width. Default follows Scale default under Time axis on the General tab."
 
 	zswap_vertical:
 		label: Zswap vertical scale
@@ -635,7 +635,7 @@ settings:
 		range: [1, 1000]
 		path: load.width
 		default: 25
-		tip: "How wide the load graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
+		tip: "How wide the load graph is, as a percentage of Width px default on the General tab. On a vertical panel it\'s how tall."
 
 	load_sample:
 		label: Load sample %
@@ -655,7 +655,7 @@ settings:
 		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: load.time
 		default: same
-		tip: "How the load graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where its tip describes each curve."
+		tip: "How the load graph spreads time across its width. Default follows Scale default under Time axis on the General tab."
 
 	load_vertical:
 		label: Load vertical scale
@@ -683,7 +683,7 @@ settings:
 		range: [1, 1000]
 		path: self.width
 		default: 12
-		tip: "How wide the tukzmon graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
+		tip: "How wide the tukzmon graph is, as a percentage of Width px default on the General tab. On a vertical panel it\'s how tall."
 
 	self_sample:
 		label: tukzmon sample %
@@ -703,7 +703,7 @@ settings:
 		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: self.time
 		default: same
-		tip: "How the tukzmon graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where its tip describes each curve."
+		tip: "How the tukzmon graph spreads time across its width. Default follows Scale default under Time axis on the General tab."
 
 	self_vertical:
 		label: tukzmon vertical scale
@@ -721,7 +721,7 @@ settings:
 		control: checkbox
 		path: battery.show
 		default: false
-		tip: "Show the battery's charge, in one color while plugged in, another on battery, and a third once it's critical. It's left out on a box without a battery."
+		tip: "Show the battery's charge, in one color while plugged in, another on battery, and a third once it's critical. It's left out on a computer without a battery."
 
 	battery_width:
 		label: Battery width %
@@ -731,7 +731,7 @@ settings:
 		range: [1, 1000]
 		path: battery.width
 		default: 100
-		tip: "How wide the battery graph is, or how tall on a vertical panel, as a percentage of Width px default, on the General tab."
+		tip: "How wide the battery graph is, as a percentage of Width px default on the General tab. On a vertical panel it\'s how tall."
 
 	battery_sample:
 		label: Battery sample %
@@ -751,7 +751,7 @@ settings:
 		option_labels: ["Default", "Linear", "Smooth log", "Log A, fixed divisions", "Log B, fixed divisions"]
 		path: battery.time
 		default: same
-		tip: "How the battery graph spreads time across its width. Default follows Scale default under Time axis, on the General tab, where its tip describes each curve."
+		tip: "How the battery graph spreads time across its width. Default follows Scale default under Time axis on the General tab."
 
 	battery_vertical:
 		label: Battery vertical scale
@@ -832,7 +832,7 @@ settings:
 		path: disk.drives
 		default: all
 		gate: show_disk
-		tip: "Which drives the disk graph counts. Type all, or drive names as /proc/diskstats lists them, such as sda nvme0n1. All is every disk with hardware behind it. It leaves out partitions and anything built on a disk, such as LUKS, LVM, and RAID, so nothing is counted twice. A named drive is counted as it is, and a partition can be named too."
+		tip: "Which drives the disk graph counts. Type all for every physical disk, or drive names such as sda nvme0n1."
 
 	net_split:
 		label: LAN and internet
@@ -843,7 +843,7 @@ settings:
 		path: net.split
 		default: off
 		gate: show_net
-		tip: "Split sent and received into LAN and internet traffic, so the network graph draws local, LAN sent, LAN received, internet sent, and internet received. Off draws local, sent, and received.◉NEWLINE◉◉NEWLINE◉TCP sockets asks the kernel for each TCP connection's byte counts at every read, and doesn't need root. UDP doesn't have those counts, so UDP and QUIC to the LAN count as internet. The LAN is the private address ranges and this box's own IPv6 /64."
+		tip: "Split the network graph's sent and received into LAN and internet traffic. With TCP sockets only TCP traffic is sorted that way, and the rest counts as internet."
 
 	theme:
 		label: Name
@@ -1335,7 +1335,7 @@ settings:
 		default: "#ffed00"
 		group: theme
 		shown_when: "net_mode = detailed"
-		tip: "Traffic the box sends itself, on the loopback device."
+		tip: "Traffic the computer sends itself, on the loopback device."
 
 	net_lan_sent:
 		label: LAN sent
@@ -1559,7 +1559,7 @@ settings:
 		path: zswap.mode
 		default: gradient
 		group: theme
-		tip: "Detailed draws the pool in one color. Gradient colors the whole column by its height, from Low at the bottom through Medium to High at the top. On a box that has zram but not zswap, these colors are used for zram."
+		tip: "Detailed draws the pool in one color. Gradient colors the whole column by its height, from Low at the bottom through Medium to High at the top. On a computer that has zram but not zswap, these colors are used for zram."
 
 	zswap_used:
 		label: In use
@@ -2321,7 +2321,7 @@ settings:
 		path: graph.margins.top_bottom
 		default: 2
 		group: theme
-		tip: "Space left clear above and below each graph, so the panel shows through. On a vertical panel, where the graphs are stacked, 2 graphs next to each other have twice this between them. The top and bottom of the whole item don't get any there, since the panel spaces its items."
+		tip: "Space left clear above and below each graph, so the panel shows through. On a vertical panel the graphs are stacked, so 2 of them next to each other get both margins between them, which is twice this."
 
 	margin_lr:
 		label: Left and right px
@@ -2333,7 +2333,7 @@ settings:
 		path: graph.margins.left_right
 		default: 2
 		group: theme
-		tip: "Space left clear on either side of each graph, so 2 graphs side by side have twice this between them. The 2 ends of the whole item don't get any, since the panel spaces its items. On a vertical panel this is the space on either side of every graph."
+		tip: "Space left clear on either side of each graph. Each graph has its own margins, so 2 graphs side by side get both margins between them, which is twice this."
 
 	BackHead:
 		label: Background
