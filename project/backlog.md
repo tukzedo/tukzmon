@@ -22,6 +22,23 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- Reduce motion misses a RustDesk peer that connects by ID without a relay
+	- ID: 2026111719090679
+	- Type: Bug
+	- Status: Queued
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261117-190906
+	- Opened by:
+	- Related IDs: 2026110911114037, 2026111709483900
+	- Steps to reproduce:
+		- Run the real RustDesk server on a desktop, and connect a peer to it by ID, through a rendezvous server, where the two can reach each other directly.
+	- Incorrect behavior: the connection is LAN-direct or hole-punched on ephemeral ports at both ends, with neither 21118 nor 21117, so `remote::Watch` says Local while the peer is on, though RustDesk's `--cm` runs on that display.
+	- Expected behavior: Remote while the peer is on, and Local after.
+	- Reproduced: 20261117 on b23, RustDesk 1.5.3 with a local hbbs, server and peer on two private displays, twice, both by the LAN path, since both reached hbbs from one address. In those 2 runs the peer still shared the server's IPC folder. A hole punched across the internet takes the same kind of ports, which is read only. Direct IP on 21118 and a forced relay on 21117 were both seen.
+	- Possible cause: `viewed_by` wants a connection on a RustDesk port for `Sign::RustDeskCm`. A by-ID connection over a punched hole uses whatever port the punch got, so the sign could be `--cm` alone, or an established socket held by the `rustdesk --server` process that isn't to the rendezvous server.
+	- Test environment: `private/claude_simple/tools/rustdesk-peer-rig.bash` sets up the real server, a peer and a local relay with no root. Without `ALWAYS_USE_RELAY=Y` on hbbs, or with both reaching hbbs from one address, the peer takes the punched path.
+
 - A column up to 4 samples wide beside a gap draws at its full peak
 	- ID: 2026111716050389
 	- Type: Bug
@@ -54,7 +71,8 @@ Sorted per the notes in [Template](#template).
 - Reduce motion if a remote desktop session is detected
 	- ID: 2026110911114037
 	- Type: Enhancement
-	- Status: Waiting on automated testing
+	- Status: Closed
+	- Closed reason: Done
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261109-111140
@@ -72,14 +90,19 @@ Sorted per the notes in [Template](#template).
 		- It was split in 2. The setting and the sessions a remote desktop server starts went to 2026110922214697, and a viewer that joins the local desktop went to 2026110922214810.
 		- 20261110: child 2026110922214810 waits on UAT, adn the rest are closed.
 		- 20261117: 2026110922214810 is closed. Its RustDesk check is split off to 2026111709483900, which waits on a run with a real RustDesk peer.
+		- 20261117: 2026111709483900 is closed, so every child is closed.
+	- Decisions:
+		- It closes with its last child. The by-ID RustDesk peer it misses is a defect in what was built, filed as Bug 2026111719090679, not a child.
 	- Test case: its children's: 2026111709483900: `remote::tests::viewer_needs_peer_here` (df3p5); 2026110922214810: `remote::tests::tcp_table_established_ports` (df3p4), `remote::tests::viewer_needs_peer_here` (df3p5), `remote::tests::watch_rechecks_every_few_seconds` (df3p6) and `remote::tests::stand_in_vnc_viewer_seen` (df3p7); 2026110922214697: `remote::tests::remote_session_signs` (df3nf), `config::tests::remote_halves_reads_no_slide` (df3ng), `dialog::tests::remote_session_greys_rows` (df3nh) and `bridge::tests::remote_greys_rates_and_scrolling` (df3nj).
+	- Acceptance signoff: Self-closed: every child closed, the last after a real RustDesk check.
+	- Closed: 20261117-190941
 
 - Reduce motion: check the RustDesk signs with a real RustDesk peer
 	- ID: 2026111709483900
 	- Type: Task
-	- Status: Waiting on automated testing
+	- Status: Closed
+	- Closed reason: Done
 	- Target version: v1.0.0-beta.2
-	- Needs external testing: the real RustDesk on a private display, with a peer connected directly on port 21118, then through a relay. The panel or `remote::Watch` should say Remote while the peer is on, and Local after.
 	- Priority|Severity: Low
 	- Opened: 20261117-094839
 	- Opened by:
@@ -90,7 +113,12 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Split from 2026110922214810, whose NoMachine and x11vnc parts passed with the real servers. The signs are RustDesk's `--cm` process and a connection on 21118 or out to 21117.
 		- RustDesk isn't on b23. Its package can be unpacked with no root, as x11vnc's was.
-	- Test case: `remote::tests::viewer_needs_peer_here` (df3p5), with stand-in RustDesk processes.
+		- 20261117: RustDesk 1.5.3 and rustdesk-server 1.1.16, unpacked with no root, ran on 2 private displays. A peer connected by IP on 21118, then by ID through a local hbbr on 21117 with `ALWAYS_USE_RELAY=Y`.
+	- Verified: `remote::Watch` on the server's display said Remote while each peer was on, and Local at its next look, 5 s apart, after the peer left. On the peer's display it said Local.
+	- Note: a peer that connects by ID and gets a LAN-direct or punched connection isn't seen. That's Bug 2026111719090679.
+	- Test case: `remote::tests::viewer_needs_peer_here` (df3p5), with stand-in RustDesk processes. `private/claude_simple/tools/rustdesk-peer-rig.bash` runs the real check.
+	- Acceptance signoff: Self-closed: direct and relay peers passed with the real RustDesk on b23.
+	- Closed: 20261117-190941
 
 - The 2 GPU graphs aren't available with integrated Intel graphics
 	- ID: 2026110920595600
