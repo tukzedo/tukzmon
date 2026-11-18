@@ -354,9 +354,9 @@ Sorted per the notes in [Template](#template).
 - Parse the settings spec faster
 	- ID: 2026110519470058
 	- Type: Enhancement
-	- Status: Waiting on automated testing
+	- Status: Closed
 	- Target version: v1.0.0-beta.2
-	- Needs local test suite run?: The Miri run of `config::tests::parse_spec` (debhg) alone, `TUKZMON_MIRI_FILTER=parse_spec cicd/cicd.bash --backlog-run-quick miri`, against about 65 minutes before.
+	- Needs local test suite run?: No
 	- Priority|Severity: Low
 	- Opened: 20261105-194700
 	- Opened by: JC
@@ -373,6 +373,7 @@ Sorted per the notes in [Template](#template).
 		- Verified under Miri on knobs' demo spec: a parse went from 67 s to 52 s, of which shcl's parse is 30 s.
 		- Verified: the old and new parse give the same tabs, settings and groups for the spec, the demo spec, and the spec with its keys in upper case. Both refuse a broken spec with the same errors.
 		- What's left under Miri is mostly shcl's own parse, which grows faster than the text there. That part is in child 2026111717051144.
+		- Verified: 20261117, debhg passed alone under Miri in 15 minutes (18:53 to 19:08, load 3.3, 8 jobs), against about 65 before, by `TUKZMON_MIRI_FILTER=parse_spec cicd/cicd.bash --backlog-run-quick miri` on nov17.
 	- Decisions:
 		- The readers share one parsed document, rather than one pass that reads all our keys into a struct, so a new reader needs nothing else changed. Sharing it with `spec()` too saved another 30 ms in a debug build, but the panel would keep the document for its whole life.
 		- `unknown_spec_keys` still parses the text it's given, since der4w feeds it a changed copy.
@@ -382,6 +383,8 @@ Sorted per the notes in [Template](#template).
 	- Commit: 940dd33, f258556
 	- Test case: `tests::key_case_reads_same` (dfek0), in knobs, and `config::tests::parse_spec` (debhg).
 		- Swept: every `Document::parse(SPEC_TEXT)` in core and settings, now only in `spec_doc`, and every lookup in `read_setting`.
+	- Closed reason: Done
+	- Closed: 20261117
 
 - Find why shcl's parse slows faster than its text grows under Miri
 	- ID: 2026111717051144
