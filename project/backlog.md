@@ -380,6 +380,35 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- Make the lint step and the pre-push hook run the private content scrub script when it's there, and fail on what it finds. A fresh clone without it still builds, with one line saying it was skipped.
 		- Keep its names in the repo neutral, such as "content scrub".
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Lint runs the content scrub after the test ID check, and the pre-push hook runs it in a docs-only push's checks, on the pushed commit's worktree. A push the merge gate checks gets it through Lint. `fContentScrub` in `cicd/utility/include/content-scrub.bash` is shared by both.
+		- The script is found at `CONTENT_SCRUB` in `cicd/config.bash`, relative to the main checkout, so a linked worktree finds the same one. When it isn't there, one line says it was skipped.
+		- In the image, Lint gets the script's folder mounted read-only.
+		- A finding fails only when `CONTENT_SCRUB_FAILS` is 1. It's 0 for now, since the tree has 312 lines of findings. Until then a run prints the count, and Lint puts the findings in its log. Making them fail is child 2026111717545314.
+		- Verified: dfen5 and dfen6 failed with the hook's call taken out, with the hook handed the checkout instead of the worktree, and with the fail switch read wrong, and passed after. `--backlog-run-quick format build lint test` and `sanitizers` passed. With `CONTENT_SCRUB_FAILS=1`, Lint failed on the scrub in the image. The scrub gave 312 lines in the image and 312 on the host. Only the counts were compared.
+	- Decisions:
+		- Findings don't fail yet, since failing now would turn every gate red. That waits on the child's question.
+		- The scrub runs in the image with Lint, rather than on the host, so Lint stays one step. The image's awk is mawk, and it gave as many lines as the host's.
+		- Swept: `cicd/hooks` has only pre-push, and the merge gate's path gets the scrub through Lint. df32x and df543 copy the hook's includes into their own repos, and copy the new one too.
+	- Branch: nov17-2026110310450004
+	- Commit: c899ab2
+	- Test case: `content_scrub` (dfen5) and `hook_runs_content_scrub` (dfen6), in `cicd/tests/guards.bash`.
+
+- CICD gap: Clear the content scrub's findings on the tree, then make them fail Lint and the pre-push hook
+	- ID: 2026111717545314
+	- Type: Task
+	- Status: Waiting for answers
+		- Waits on the 2026111717545314 question in questions.md: which findings get reworded in the repo, and which the scrub or its allow list should stop reporting.
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Low
+	- Opened: 20261117-175453
+	- Opened by: t00mietum
+	- Parent ID: 2026110310450004
+	- Requirements:
+		- The content scrub reports 312 lines on the tree as of 2026-11-17, so for now its findings are only counted. Clear them, then set `CONTENT_SCRUB_FAILS` to 1 in `cicd/config.bash`, so a finding fails Lint and the pre-push hook's docs checks.
+	- Estimated effort: Avg
 
 - CICD gap: arm64 Linux build and packages
 	- ID: 2026110310450006

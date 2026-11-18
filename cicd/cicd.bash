@@ -18,7 +18,8 @@
 ##	   4. Build (debug)   every crate and test target, with qt.cpp's warnings
 ##	                      as errors
 ##	   5. Lint            clippy -D warnings, shellcheck, markdownlint,
-##	                      clang-tidy, ruff, and the test ID check, with the
+##	                      clang-tidy, ruff, the test ID check, and the
+##	                      content scrub when it's beside the repo, with the
 ##	                      output also rotated into cicd/artifacts/lint/
 ##	   6. Advisories      cargo deny check advisories, which checks the crates
 ##	                      in Cargo.lock against RustSec's database, per
@@ -205,6 +206,7 @@ export TUKZMON_WERROR=1
 source "${here}/config.bash"
 source "${here}/utility/include/gfs-rotate.bash"
 source "${here}/utility/include/lint-markdown.bash"
+source "${here}/utility/include/content-scrub.bash"
 source "${root}/utility/path-maps.bash"
 cd "${root}"
 started="${SECONDS}"
@@ -581,6 +583,7 @@ fStepLint() {
 		if fLintRun ruff check --no-cache --quiet -- "${pyFiles[@]}"; then fEcho_Clean "ruff: clean"; else failed+=(ruff); fi
 	fi
 	fLintRun "${here}/utility/test-ids.bash" check || failed+=("test IDs")
+	fLintRun fContentScrub "${root}" "${lintLog}" || failed+=("content scrub")
 	if [[ "${lintLog}" != /dev/null ]]; then
 		printf '[ lint: done, %d failed ]\n' "${#failed[@]}" >> "${lintLog}"
 		gfs_rotate "${root}/${LINT_LOG_DIR}" lint log > /dev/null 2>&1 || true
@@ -1376,7 +1379,7 @@ fStepImage() {
 ## repo, the run's temp folder and the image's target dir are mounted at their
 ## own paths, so every path reads the same inside.
 fCtrStep() {   ## fCtrStep FUNCTION
-	local fn="$1" step='' common=''
+	local fn="$1" step='' common='' scrub=''
 	local -a mounts=() env=() net=()
 	step="${fn#fStep}"; step="${step,,}"
 	mounts=(-v "${root}:${root}" -v "${runTmp}:${runTmp}" -v "${ctrBase}:${ctrBase}")
@@ -1389,6 +1392,10 @@ fCtrStep() {   ## fCtrStep FUNCTION
 		-e CARGO_TERM_QUIET -e SOURCE_DATE_EPOCH -e TUKZMON_RELEASE -e TUKZMON_MIRI_FILTER -e TUKZMON_MIRI_MINUTES
 		-e TUKZMON_FUZZ_SECONDS -e TUKZMON_FUZZ_SEED)
 	[[ ! -t 1 ]] || env+=(-e CARGO_TERM_COLOR=always)
+	## The content scrub is outside the repo, so Lint gets its folder too.
+	if [[ "${fn}" == fStepLint ]] && scrub="$(fContentScrubPath "${root}")" && [[ -f "${scrub}" ]]; then
+		mounts+=(-v "$(dirname -- "${scrub}"):$(dirname -- "${scrub}"):ro"); env+=(-e "TUKZMON_CONTENT_SCRUB=${scrub}")
+	fi
 	## A run that dogfoods built the release here, so the packages come from
 	## that one.
 	if [[ "${fn}" == fStepPackage ]] && ! fInImage fStepRelease; then
@@ -1547,3 +1554,4 @@ exit 0
 ##		- 2026-11-10: The release build's path maps, and the Reproducible
 ##		  step, with the repro area.
 ##		- 2026-11-11: fLintMarkdown is in utility/include, for the pre-push hook.
+##		- 2026-11-17: Lint runs the content scrub when it's beside the repo.

@@ -55,6 +55,12 @@ DOCS_PATHS=(
 	'assets/*'
 )
 
+## The content scrub, relative to the main checkout. It's outside the repo, so
+## a fresh clone skips it. Lint and the pre-push hook's docs checks run it.
+## Its findings fail them only when CONTENT_SCRUB_FAILS is 1.
+CONTENT_SCRUB="../private/hooks/scrub.bash"
+CONTENT_SCRUB_FAILS=0
+
 ## The release build dogfood copies from, and the dogfood itself.
 RELEASE_PACKAGES=(-p tukzmon-xfce -p tukzmon-settings)
 DOGFOOD_CMD=(utility/dev-install.bash)
@@ -169,3 +175,4 @@ CTR_NET_STEPS=(fStepAdvisories)
 ##		- 2026-11-10: The demo is a heavy step.
 ##		- 2026-11-10: CodeQL, a long leak check, with its suites and suppressions.
 ##		- 2026-11-10: The Reproducible step runs in the image.
+##		- 2026-11-17: The content scrub's path, and whether it fails.
