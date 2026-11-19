@@ -87,6 +87,7 @@ Sorted per the notes in [Template](#template).
 		- History and settings errors in the tip and the window's message boxes are plain, such as "it's cut short", "it's damaged at the end", "it isn't text", or "it's a folder". The window's path error no longer names shcl.
 		- `design.md` XFCE plugin has the plain error words.
 		- Verified: the quick gate and Sanitizers passed, with the new tests.
+		- 20261119: b23 runs build dfh6f, from dev at 00c2090, which has the tip fix. The settings window from Properties shows it.
 	- Decisions:
 		- The details cut from the tips were already in `design.md`, so nothing moved there.
 		- The vertical scale and sample % tips on each graph were left as they are, since the item names only width and time axis.
