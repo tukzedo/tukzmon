@@ -8407,6 +8407,7 @@ Sorted per the notes in [Template](#template).
 		- The upstream draft is in `upstream/2026111717051144/`: the issue text, the patch and the repro. Nothing changes on this side.
 		- What's left under Miri is a flat cost of about 85 ms a value, mostly per-character checks inside shcl. The draft names one of them.
 		- Answer 20261119: yes, file the draft in shcl's backlog. Held while a shcl round runs (branch nov19). The draft is copied to shcl's `private/claude_simple/upstream/tukzmon-2026111717051144/`.
+		- 20261119: filed in shcl's backlog as 2026111910541579.
 	- Decisions:
 		- Closed on the finding and the draft, since the item asked for those. The fix itself waits on shcl.
 		- Rarer provenance GC, at 100000, was slower at 470 and 940 lines and took twice the memory, so a Miri flag isn't the way.
