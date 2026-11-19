@@ -27,6 +27,8 @@ Sorted per the notes in [Template](#template).
 	- Type: Feature
 	- Status: Waiting on UAT
 		- A look at the panel with the blur at 0, 0.5 and 1 tells whether it helps the shimmer in 2026111623513501, and whether 0.5 stays the default.
+		- 20261119: b23 runs build dfh6f, from before the blur went in, so it needs a new build before the look.
+	- Stand-in: none (20261119). Whether the blur helps the shimmer turns on how it looks to the eye.
 	- Priority|Severity: High
 	- Opened: 20261119-135451
 	- Opened by: t00mietum
@@ -140,9 +142,9 @@ Sorted per the notes in [Template](#template).
 - Reduce motion misses a RustDesk peer that connects by ID without a relay
 	- ID: 2026111719090679
 	- Type: Bug
-	- Status: Waiting on automated testing
+	- Status: Closed
+	- Closed reason: Done
 	- Target version: v1.0.0-beta.2
-	- Needs external testing: `RIG_CASES=id rustdesk-peer-rig.bash`, from the private tools folder, on a box with no installed RustDesk service running. b23 has one since 20261119, so there the service needs stopping by hand first.
 	- Priority|Severity: Avg
 	- Opened: 20261117-190906
 	- Opened by:
@@ -163,24 +165,28 @@ Sorted per the notes in [Template](#template).
 		- Cost: 200 looks on b23's `:0`, with the installed RustDesk up, took 0.56 s of CPU, about 3 ms a look, against under 0.01 s before, at a load of 5. A look comes every 5 s.
 		- 20261119: the rig wasn't run. b23's installed service and `rustdesk --server` stay up, since stopping them drops live sessions. The other boxes in the host lock are Windows, macOS, FreeBSD, and vmDebARM64, which runs under emulation, so none fits the rig. No `--cm` was up on b23 to check a live peer against. Still waits for the rig on b23 with the service stopped by hand, or on another Linux desktop with no RustDesk service.
 		- Answer 20261119: run it on b28l if it has RustDesk. Otherwise it's OK to stop b23's installed RustDesk service by hand for the check.
+		- 20261119: b28l has no RustDesk installed and no service, so the rig ran there, by ID with no relay, from the nov19b branch at 3f39eb2. The peer came in on ephemeral ports at both ends, with neither 21118 nor 21117, and `--cm` came up.
+		- Verified: on b28l, `Watch` said Remote at both looks while the peer was on, and Local after it left. The same run at 32a4438, before the fix, said Local while the peer was on.
+		- 20261119: the rig's probe now drops `XDG_SESSION_ID`. Run over ssh, logind marks that session remote, and `Watch` then says Remote from its start whatever the peer does.
 	- Decisions:
 		- `--cm` alone rather than a socket held by `rustdesk --server`, since it covers TCP and UDP paths alike and needs no read of the server's sockets.
 		- A connection manager kept open after a chat or a file transfer counts as remote until someone closes it, since RustDesk keeps its tab then.
 		- The 21118 and 21117 links stay, as a reason to read the processes at once.
 	- Actual fix: `Sign::RustDeskCm` in `core/src/remote.rs` counts `--cm` or `--cm-no-ui` on the display alone. `Probe::viewed` also reads the processes when the TCP counters moved, or when RustDesk ran at the last look. design.md Drawing has it.
 	- Branch: nov19-2026111719090679
-	- Commit: f4f01e0
+	- Commit: f4f01e0, on nov19b as ca4e6ee
 	- Test case: `remote::tests::rustdesk_peer_by_id_seen` (dfh2y) and `remote::tests::stand_in_rustdesk_cm_seen` (dfh2z), with stand-in RustDesk processes. The rig runs the real check.
 		- 20261119: `remote::tests::viewer_needs_peer_here` (df3p5) asserted that a `--cm` with no link isn't viewed. It now asserts that it is, as this item asks.
 		- Swept: the other sign that wants a link, NoMachine's, stays by decision. The panel and the settings window both look through `Watch`, so `Probe::viewed`.
+	- Acceptance signoff: Self-closed: the by-ID rig passed on b28l, and failed at the commit before the fix.
+	- Closed: 20261119-151403
 
 - CICD gap: arm64 Linux build and packages
 	- ID: 2026110310450006
 	- Type: Task
-	- Status: Waiting on automated testing
+	- Status: Closed
+	- Closed reason: Done
 	- Target version: v1.0.0-beta.2
-	- Needs external testing: Install the arm64 `.deb` on an arm64 Debian 13 box, such as vmDebARM64, and check that the panel loads the plugin and Properties opens the settings window. The arm64 `.rpm` the same on an arm64 Fedora 42, if there's one.
-		- 20261119: `arm64-deb-vm-check.bash`, in the private tools folder, does the `.deb` part on vmDebARM64 under the VM state script's `wrap`, and puts the VM's packages back after. Not run yet.
 	- Priority|Severity: Low
 	- Opened: 20261103-104500
 	- Opened by: t00mietum
@@ -198,6 +204,9 @@ Sorted per the notes in [Template](#template).
 		- Verified: dfh54 failed on the old `package.bash` and passed on the new one.
 		- Verified: the nov19 gate run at 125c908 passed Release (arm64) and Packages. Its 4 packages match their sums file. The arm64 and amd64 `.deb` have the same files under their own library folder, and the same depends. Both arm64 binaries are AArch64, the plugin exports `xfce_panel_module_construct`, and the `.rpm` is `aarch64`.
 		- Answer 20261119: wait. The vmDebARM64 run waits until `arm64-deb-vm-check.bash` does its root steps through `ssh root@vmDebARM64` rather than sudo.
+		- 20261119: `arm64-deb-vm-check.bash` now does its apt steps through `ssh root@vmDebARM64`, with no sudo. It ran on vmDebARM64 with the arm64 `.deb` from the nov19b branch at 3f39eb2, build dfha2.
+		- Verified: on vmDebARM64, Debian 13 arm64, apt installed the `.deb` with its 35 depends, and xfce4-panel loaded `libtukzmon.so` from `/usr/lib/aarch64-linux-gnu` and embedded the plugin. `tukzmon-settings`, the program Properties starts, opened and saved a picture of each of its 4 tabs and the color picker, and they show the whole window. The purge then put the VM's package set back as found.
+		- 20261119: the `.rpm` wasn't installed, since there's no arm64 Fedora box. The Packages step's `.rpm` content and depends checks cover it.
 	- Decisions:
 		- No `--include-arm` flag, since the arm64 build takes about as long as the x86_64 one. It's left out of `--quick`, as Packages is.
 		- Cross-compiled rather than emulated. b23 has no arm64 binfmt handler, and an emulated build would be many times slower.
@@ -206,6 +215,8 @@ Sorted per the notes in [Template](#template).
 		- The Nix package stays x86_64 only.
 	- Branch: nov19-2026110310450006
 	- Test case: `package_arch_names` (dfh54), and the Packages step's per-arch content and depends checks.
+	- Acceptance signoff: Self-closed: the arm64 `.deb` installed, loaded in the panel, and opened its settings window on vmDebARM64.
+	- Closed: 20261119-152159
 
 - The 2 GPU graphs aren't available with integrated Intel graphics
 	- ID: 2026110920595600
