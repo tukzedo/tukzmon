@@ -22,6 +22,19 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- Test options in settings: horizontal and vertical blur radius
+	- ID: 2026111913545113
+	- Type: Feature
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261119-135451
+	- Opened by: t00mietum
+	- Related IDs: 2026111623513501
+	- Requirements:
+		- Add 2 test options to the settings window: Horizontal blur radius, and Vertical blur radius.
+		- Make these features a code constant that can be turned off.
+		- Default to 0.5 px.
+
 - Cut the history lookups each draw makes down toward the tick's old cost
 	- ID: 2026111715361287
 	- Type: Enhancement
