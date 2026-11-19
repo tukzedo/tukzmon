@@ -140,6 +140,18 @@ pub fn shown_when(id: &str) -> Option<(&'static str, &'static str)> {
 	.map(|(_, on, key)| (on.as_str(), key.as_str()))
 }
 
+/// Builds in the test blur radius rows, horizontal and vertical, and draws
+/// with them. Off, the settings window hides them and nothing is blurred.
+pub const BLUR_TEST: bool = true;
+
+const BLUR_ROWS: [&str; 2] = ["blur_x", "blur_y"];
+
+/// False for a row this build leaves out of the settings window, as the blur
+/// rows with [`BLUR_TEST`] off.
+pub fn built_in(id: &str) -> bool {
+	BLUR_TEST || !BLUR_ROWS.contains(&id)
+}
+
 // knobs silently drops a key it doesn't know, so a typo such as `gaet:`
 // is caught here instead.
 const KNOBS_ROW_KEYS: &[&str] = &[
@@ -923,6 +935,10 @@ pub struct Look {
 	pub session: Session,
 	/// How far a squeezed column rises up toward its peak, 0 to 1.
 	pub spikes: f32,
+	/// Blur radius left and right, in logical pixels. 0 with [`BLUR_TEST`] off.
+	pub blur_x: f32,
+	/// Blur radius up and down, in logical pixels. 0 with [`BLUR_TEST`] off.
+	pub blur_y: f32,
 	/// The frame's width in logical pixels.
 	pub border: u32,
 	/// Logical pixels clear above and below each graph, and either side of it.
@@ -1037,6 +1053,8 @@ impl Look {
 			calm_remote: on("calm_remote"),
 			session: Session::Local,
 			spikes: (num("spikes") / 100.0) as f32,
+			blur_x: if BLUR_TEST { num("blur_x") as f32 } else { 0.0 },
+			blur_y: if BLUR_TEST { num("blur_y") as f32 } else { 0.0 },
 			border: num("border") as u32,
 			margin_tb: num("margin_tb") as u32,
 			margin_lr: num("margin_lr") as u32,
@@ -1286,6 +1304,20 @@ pub fn claim(rc: &Path, own: &Path, history: &Path) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	// Test ID: dfh8a
+	#[test]
+	fn blur_rows_follow_build() {
+		let l = Look::default();
+		let want = if BLUR_TEST { 0.5 } else { 0.0 };
+		assert_eq!((l.blur_x, l.blur_y), (want, want));
+		let rows = spec_doc().children("settings");
+		for id in BLUR_ROWS {
+			assert!(rows.iter().any(|r| r == id), "{id}");
+			assert_eq!(built_in(id), BLUR_TEST, "{id}");
+		}
+		assert!(built_in("spikes") && built_in("mischead"));
+	}
 
 	// Test ID: debhg
 	#[test]

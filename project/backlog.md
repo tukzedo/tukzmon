@@ -25,7 +25,8 @@ Sorted per the notes in [Template](#template).
 - Test options in settings: horizontal and vertical blur radius
 	- ID: 2026111913545113
 	- Type: Feature
-	- Status: Queued
+	- Status: Waiting on UAT
+		- A look at the panel with the blur at 0, 0.5 and 1 tells whether it helps the shimmer in 2026111623513501, and whether 0.5 stays the default.
 	- Priority|Severity: High
 	- Opened: 20261119-135451
 	- Opened by: t00mietum
@@ -35,6 +36,23 @@ Sorted per the notes in [Template](#template).
 		- Make these features a code constant that can be turned off.
 		- Default to 0.5 px.
 	- Target version: v1.0.0-beta.2
+	- Actual effort: Avg
+	- Progress log:
+		- 20261119: General, under Misc, has "Test blur radius px, horizontal" and "vertical", at `graph.blur_x` and `graph.blur_y`, 0 to 4, default 0.5. The plot is blurred after it's drawn, over a box 2r + 1 pixels wide, so 0.5 mixes 1:2:1. The border and the hover line aren't blurred. `config::BLUR_TEST` off hides both rows and draws with no blur. `design.md` Drawing has it.
+		- Cost of the default, at scale 2: draw-bench's 24 cases took about 110 us a draw at 0 and 170 at 0.5, in 3 runs each in turn at load 10 to 11 on 32 cores. A first cut took 205.
+		- The profiler's panel tick, 7 graphs at 898x48 scale 2, took 686 us user at 0, at load 13, and 1059 at 0.5, at load 16. So the default costs about 370 us user a tick there. A second run at 0 came at load 35 and was dropped.
+		- At 0 the blur is skipped, so nothing else changes. The render tests pass unchanged with it at 0.
+		- Verified: dfh89 failed with the blur skipped and passed with it. dfh8a and dfh8b passed with `BLUR_TEST` on and off. With it off, the General tab showed neither row. With it on, the General tab still fits with no scroll bar on an 800 px offscreen screen. The quick gate's format, build, lint and tests, and Sanitizers passed.
+	- Decisions:
+		- The 2 rows share one line under Misc, as number boxes. As sliders under a heading of their own, the General tab needed a scroll bar on an 800 px screen.
+		- The radius is in logical pixels, like Border px, so a scale 2 screen blurs twice as far.
+		- The blur is a box 2r + 1 wide, so a fractional radius takes part of the outer pixels. It works in premultiplied color, so a transparent background blurs right.
+		- The plot's end pixels stand in for what's past them, so the border color doesn't bleed into the plot.
+		- Tests that read exact pixels from the default look now set the blur to 0: the render tests' `look()`, the graphs tests' `two()`, and `right_column_fills_tip`. Their asserts are unchanged.
+	- Branch: nov19b-2026111913545113
+	- Commit: 272d273
+	- Test case: `render::tests::blur_taps_box` (dfh88), `render::tests::blur_mixes_neighbors_only` (dfh89), `config::tests::blur_rows_follow_build` (dfh8a), and `dialog::tests::blur_rows_follow_build` (dfh8b).
+		- Swept: every draw goes through `Frame::draw_in`, which the panel, the settings window's graph list, and the preview and profile examples call. Every `Look` literal in the tests takes the new fields from `Look::default()`.
 
 - Cut the history lookups each draw makes down toward the tick's old cost
 	- ID: 2026111715361287

@@ -453,6 +453,9 @@ The graph needs data at a finer grain than its own pixels, so it can be widened 
 
 - A column with data for less than half its time is drawn as a gap.
 
+- Test blur radius px, horizontal and vertical, under Misc on the General tab, are test settings for the shimmer. Each is 0.5 by default. The plot is blurred after it's drawn, each pixel mixed with its neighbors over a box 2r + 1 pixels wide, so 0.5 mixes 1:2:1. It's done in premultiplied color, over the plot only. The plot's end pixels stand in for what's past them, so the border doesn't bleed in. The radius is in logical pixels, so a scale 2 screen blurs twice as far. `config::BLUR_TEST` off hides both settings and draws with no blur.
+	- At scale 2, the default doubles the cost of a draw. The draw-bench cases went from about 110 to 170 us a draw, and the profiler's panel tick from about 690 to 1060 us user.
+
 - With Smooth scrolling on, a graph slides to its newest sample rather than stepping to it. The right edge runs one sample behind. It moves from where it was drawn to the newest sample's end at a steady speed, over the time until the next sample, so one slide ends as the next one starts. A column at the edge covers part of 2 samples, weighted like any other, and that's what draws it part way.
 	- A step longer than a late or missed tick allows, as after a gap, isn't slid. The time axis eases it in instead.
 	- Auto, the default, turns it on with 8 or more CPUs, as `available_parallelism` counts them. On, a panel item with the default graphs took about 0.9% of a core at 25 frames a second on a 100 Hz screen, and 1.3 to 1.6% at 60, against 0.1% off.
