@@ -34,7 +34,7 @@
 ##	  directory listing is chronological. Pre-existing files that don't follow the
 ##	  convention are conformed: the timestamp is parsed from the name, else taken
 ##	  from the file mtime. Re-running is idempotent (already-canonical files are left
-##	  alone until their role actually changes).
+##	  alone until their role changes).
 ##	- Retention is tunable via env (defaults sum to ~30):
 ##		GFS_KEEP_FREQUENT, GFS_KEEP_HOURLY, GFS_KEEP_DAILY, GFS_KEEP_WEEKLY, GFS_KEEP_MONTHLY,
 ##		GFS_KEEP_YEARLY. GFS_NOW (epoch seconds) overrides "now" for testing.
@@ -55,7 +55,7 @@
 ## a fork per file per field was most of the run time.
 
 ## Set $1 to strftime format $2 of epoch $3. printf reads -1 and -2 as "now" and
-## "shell start", so those two seconds of 1969 go to date.
+## "shell start", so those 2 seconds of 1969 go to date.
 _gfs_fmt(){
 	if [[ "$3" == -1 || "$3" == -2 ]]; then printf -v "$1" '%s' "$(date -d "@$3" "+$2")"
 	else printf -v "$1" "%($2)T" "$3"; fi
@@ -73,7 +73,7 @@ _gfs_civil(){
 ## Set $1 to the epoch of local time $2 $3 (YYYYmmDD HHMMSS), or to "" when there
 ## is no such time: a bad date, or one skipped by a clock change. It steps the way
 ## glibc's mktime does from a fresh start, so a time a clock change repeats gets
-## the same one of its two instants that date -d gives.
+## the same one of its 2 instants that date -d gives.
 _gfs_epoch(){
 	local -n epoch_x5q="$1"; local -i wall e i; local s
 	_gfs_civil wall "$2" "$3"; e=wall; epoch_x5q=""
@@ -145,7 +145,7 @@ gfs_rotate(){
 
 	## Latest file in each *completed* period (the still-open current one is skipped
 	##   so it can't be tagged yet - that is what makes the roles retrospective).
-	## One format per file, "YYYYmmDDHH GGGGVV", cut into the five period keys.
+	## One format per file, "YYYYmmDDHH GGGGVV", cut into the 5 period keys.
 	local cur curH curD curW curM curY
 	_gfs_fmt cur '%Y%m%d%H %G%V' "${now}"
 	curH="${cur:0:10}"; curD="${cur:0:8}"; curW="${cur:11}"; curM="${cur:0:6}"; curY="${cur:0:4}"
@@ -217,12 +217,12 @@ declare -i isSourced_t6wq5=0; [[ "${BASH_SOURCE[0]}" == "${0}" ]] || isSourced_t
 ##	History:
 ##		- 2026-06-05: Created.
 ##		- 2026-07-25: Harmonized every copy of this file to one identical file.
-##		- 2026-08-29: Period keys through one builtin strftime instead of five
+##		- 2026-08-29: Period keys through one builtin strftime instead of 5
 ##		  date forks per file; the bucket maps and loop locals got real names.
 ##		- 2026-09-15: A GFS_KEEP_* value that is not a plain count gets its
 ##		  default. It reached arithmetic, which could run a command.
-##		- 2026-10-04: Dates are read and written by printf and arithmetic, not a
-##		  date fork per file and field. Same names and output as before.
+##		- 2026-10-04: Dates are read and written by printf and arithmetic, in place of
+##		  a date fork per file and field. Same names and output as before.
 ##		- 2026-10-04: Every expansion braced, and shellcheck enforces it. The loop
 ##		  variables in gfs_rotate have real names. No change in behavior.
 ##		- 2026-10-04: The prune refuses an empty path, and ends options before it.

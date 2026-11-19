@@ -257,7 +257,7 @@ def lock_live(num: int | str) -> bool:
 
 def x_answers(num: int | str) -> bool:
     # A server in another mount namespace, or one started with its lock file
-    # elsewhere, still holds the socket, or the abstract one beside it.
+    # elsewhere, still has the socket open, or the abstract one beside it.
     path = str(X_TMP / ".X11-unix" / f"X{num}")
     for addr in (path, "\0" + path):
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:

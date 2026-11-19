@@ -47,7 +47,7 @@ cd "${repo}"
 pin="$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)"
 have="$(rustc --version 2> /dev/null || true)"
 if [[ "${have}" != "rustc ${pin} "* ]]; then
-	fEcho "WARNING: building with '${have:-no rustc}', not the pinned ${pin}. Install rustup to get it."
+	fEcho "WARNING: building with '${have:-no rustc}' in place of the pinned ${pin}. Install rustup to get it."
 fi
 
 ## The panel looks for user plugins in a lib dir under the data dir's prefix,

@@ -7,7 +7,7 @@
 ##		Show the warnings and errors from the newest lint log. cicd's lint step
 ##		tees what each tool says to cicd/artifacts/lint/lint_<ts>.log (gitignored,
 ##		GFS-rotated); this greps out the warning and error lines so they can be
-##		dealt with. Two modes:
+##		dealt with. It has 2 modes:
 ##		plain, which reports on the newest log, and --check, for a look at session
 ##		start that says nothing new until a new run has happened.
 ##		- --check prints one "SEEN ..." line when the newest log is the one the

@@ -488,7 +488,8 @@ impl<const N: usize> Tier<N> {
 		let x_end = x0 + (b - a) / len;
 		let mut ring = [[(0u32, 0.0f32); CAP]; N];
 		let (mut head, mut size) = ([0usize; N], [0usize; N]);
-		let mut next = ceil_i(x0);
+		// the first window in reach of x0
+		let mut next = floor_i(x0) + 1;
 		let base = next;
 		// as `densest` slides its window, the whole buckets of the one
 		// starting at bucket `next`
@@ -528,62 +529,56 @@ impl<const N: usize> Tier<N> {
 		}
 		let (mut sums, mut weight) = ([0.0f64; N], 0.0f64);
 		let mut peak = [f32::NEG_INFINITY; N];
-		// the next whole number past x, and past x + reach, kept as x moves
-		// up rather than worked out at each step
-		let past = |was: f64, v: f64| {
-			if was > v {
-				was
-			} else if was + 1.0 > v {
-				was + 1.0
-			} else {
-				floor_f(v) + 1.0
-			}
-		};
-		let (mut whole_x, mut whole_r) = (floor_f(x0) + 1.0, floor_f(x0 + reach) + 1.0);
-		let mut x = x0;
-		while x < x_end {
-			let at_reach = x + reach;
-			whole_x = past(whole_x, x);
-			whole_r = past(whole_r, at_reach);
-			let x_next = (x + (whole_x - x).min(whole_r - at_reach)).min(x_end);
-			if x_next <= x {
-				break;
-			}
-			// windows from the first whole number past x to the last one not
-			// past x + reach, all through the step
-			let (lo, hi) = (whole_x as i64, whole_r as i64 - 1);
+		// in each whole unit of x from m, windows m + 1 to m + whole_reach
+		// are in reach, then one more for the last `extra` of it, when x +
+		// reach passes a whole number
+		let whole_reach = floor_i(reach);
+		let extra = reach - whole_reach as f64;
+		let m0 = floor_f(x0);
+		for u in 0..ceil_i(x_end - m0).max(0) {
+			let m = m0 + u as f64;
+			let (from, to) = (x0.max(m), x_end.min(m + 1.0));
+			let cut = m + 1.0 - extra;
+			let lo = m as i64 + 1;
 			for s in 0..N {
 				while size[s] > 0 && i64::from(ring[s][head[s]].0) + base < lo {
 					head[s] = (head[s] + 1) % CAP;
 					size[s] -= 1;
 				}
 			}
-			while next <= hi {
-				let v = window(&win, next);
-				take(&mut win, next, -1.0);
-				take(&mut win, next + whole, 1.0);
-				if let Some(v) = v {
-					for s in 0..N {
-						while size[s] > 0 && ring[s][(head[s] + size[s] - 1) % CAP].1 <= v[s] {
-							size[s] -= 1;
+			let parts = [
+				(cut.min(to) - from, lo + whole_reach - 1),
+				(to - cut.max(from), lo + whole_reach),
+			];
+			for (w, hi) in parts {
+				if w <= 0.0 {
+					continue;
+				}
+				while next <= hi {
+					let v = window(&win, next);
+					take(&mut win, next, -1.0);
+					take(&mut win, next + whole, 1.0);
+					if let Some(v) = v {
+						for s in 0..N {
+							while size[s] > 0 && ring[s][(head[s] + size[s] - 1) % CAP].1 <= v[s] {
+								size[s] -= 1;
+							}
+							ring[s][(head[s] + size[s]) % CAP] = ((next - base) as u32, v[s]);
+							size[s] += 1;
 						}
-						ring[s][(head[s] + size[s]) % CAP] = ((next - base) as u32, v[s]);
-						size[s] += 1;
+					}
+					next += 1;
+				}
+				// every series has data in the same windows
+				if size.iter().any(|&n| n > 0) {
+					weight += w;
+					for s in 0..N {
+						let top = ring[s][head[s]].1;
+						sums[s] += w * f64::from(top);
+						peak[s] = peak[s].max(top);
 					}
 				}
-				next += 1;
 			}
-			// every series has data in the same windows
-			if size.iter().any(|&n| n > 0) {
-				let w = x_next - x;
-				weight += w;
-				for s in 0..N {
-					let top = ring[s][head[s]].1;
-					sums[s] += w * f64::from(top);
-					peak[s] = peak[s].max(top);
-				}
-			}
-			x = x_next;
 		}
 		(weight > 0.0).then(|| (sums.map(|v| (v / weight) as f32), peak))
 	}
@@ -1220,9 +1215,14 @@ mod tests {
 		}
 		let tier = &h.tiers[0];
 		let rounds = if cfg!(miri) { 20 } else { 400 };
-		for _ in 0..rounds {
+		for round in 0..rounds {
 			let run = 0.1 + rand() * 0.9;
-			let (a, w) = (t - 200.0 + rand() * 190.0, run * (1.0 + 3.0 * rand()));
+			let (a, mut w) = (t - 200.0 + rand() * 190.0, run * (1.0 + 3.0 * rand()));
+			// now and then a whole number of buckets past a sample, so the
+			// windows in reach don't change in the middle of a bucket
+			if round % 4 == 0 {
+				w = run + tier.len * (1.0 + (rand() * 30.0).floor());
+			}
 			let got = tier.spread_over(a, a + w, run);
 			let want = spread_plain(tier, a, a + w, run);
 			let near = |x: [f32; 2], y: [f32; 2]| (0..2).all(|s| (x[s] - y[s]).abs() <= 1e-5);

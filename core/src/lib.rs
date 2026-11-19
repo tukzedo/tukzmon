@@ -162,7 +162,7 @@ pub trait Source<const N: usize>: Collector<N> {
 
 	/// As [`Self::text`], with `top`, the most each value reached in the
 	/// history kept. A graph with no clear top, such as bytes a second, adds
-	/// a line for each. The rest leave it out.
+	/// a line for each, and so does temperature. The rest leave it out.
 	fn text_topped(&self, v: &[f32; N], _top: &[f32; N]) -> String {
 		self.text(v)
 	}
@@ -208,11 +208,11 @@ fn percent(x: f32) -> i32 {
 	(x * 100.0).round() as i32
 }
 
-// "Read highest 80 MB/s", a line each, in the order the tip names them
+// "Highest Read: 80 MB/s", a line each, in the order the tip names them
 fn highest(names: &[(&str, f32)], show: impl Fn(f32) -> String) -> String {
 	let lines: Vec<String> = names
 		.iter()
-		.map(|&(name, top)| format!("{name} highest {}", show(top)))
+		.map(|&(name, top)| format!("Highest {name}: {}", show(top)))
 		.collect();
 	lines.join("\n")
 }
@@ -433,6 +433,15 @@ impl Source<2> for TempReader {
 			v[0] + v[1],
 			self.limit()
 		)
+	}
+
+	// normal stops at the crit and critical starts there, so the sum of
+	// their highests is the highest reading
+	fn text_topped(&self, v: &[f32; 2], top: &[f32; 2]) -> String {
+		let line = highest(&[("Temperature", top[0] + top[1])], |x| {
+			format!("{x:.0} \u{b0}C")
+		});
+		format!("{}\n{line}", self.text(v))
 	}
 
 	// full at the critical level, and higher once it's over
@@ -1157,12 +1166,12 @@ mod tests {
 		let load = LoadReader::default();
 		assert_eq!(
 			load.text_topped(&[1.254], &[7.8]),
-			"Load 1.25\nLoad highest 7.80"
+			"Load 1.25\nHighest Load: 7.80"
 		);
 		let disk = DiskReader::new(disk::Drives::Only(Vec::new())).unwrap();
 		assert_eq!(
 			disk.text_topped(&[30_000.0, 1.5e6], &[1.2e8, 8e7]),
-			"Disk\nRead 1.5 MB/s\nWrite 30 kB/s\nRead highest 80 MB/s\nWrite highest 120 MB/s"
+			"Disk\nRead 1.5 MB/s\nWrite 30 kB/s\nHighest Read: 80 MB/s\nHighest Write: 120 MB/s"
 		);
 		let v = [2000.0, 1000.0, 5e5, 30_000.0, 1.5e6];
 		let top = [3e8, 5e7, 1.1e8, 1.1e6, 1.2e7];
@@ -1171,18 +1180,29 @@ mod tests {
 		assert_eq!(
 			net.text_topped(&v, &top),
 			"Network\nReceived 1.5 MB/s\nSent 30 kB/s\nLocal 2.0 kB/s\n\
-			 Received highest 12 MB/s\nSent highest 1.1 MB/s\nLocal highest 300 MB/s"
+			 Highest Received: 12 MB/s\nHighest Sent: 1.1 MB/s\nHighest Local: 300 MB/s"
 		);
 		net.set_split(config::Split::Sockets);
 		let split = net.text_topped(&v, &top);
 		assert!(
 			split.ends_with(
-				"\nInternet received highest 12 MB/s\nInternet sent highest 1.1 MB/s\n\
-				 LAN received highest 110 MB/s\nLAN sent highest 50 MB/s\nLocal highest 300 MB/s"
+				"\nHighest Internet received: 12 MB/s\nHighest Internet sent: 1.1 MB/s\n\
+				 Highest LAN received: 110 MB/s\nHighest LAN sent: 50 MB/s\nHighest Local: 300 MB/s"
 			),
 			"{split}"
 		);
-		let mut tips = vec![load.text_topped(&[1.0], &[2.0]), split];
+		// the reading's highest, from normal up to the crit and critical over it
+		let temp = TempReader::default();
+		let tip = temp.text_topped(&[60.0, 0.0], &[95.0, 3.4]);
+		assert_eq!(
+			tip,
+			"Temperature 60 \u{b0}C\nCritical at 95 \u{b0}C\nHighest Temperature: 98 \u{b0}C"
+		);
+		assert!(
+			temp.text_topped(&[60.0, 0.0], &[71.6, 0.0])
+				.ends_with("\nHighest Temperature: 72 \u{b0}C")
+		);
+		let mut tips = vec![load.text_topped(&[1.0], &[2.0]), split, tip];
 		#[cfg(unix)]
 		{
 			let procs = ProcsReader::at("/proc/no/such", 1000);
@@ -1190,7 +1210,7 @@ mod tests {
 			assert_eq!(
 				tip,
 				"Processes 612\nYours 112\nOther users 20\nSystem 480\n\
-				 Yours highest 130\nOther users highest 25\nSystem highest 500"
+				 Highest Yours: 130\nHighest Other users: 25\nHighest System: 500"
 			);
 			tips.push(tip);
 		}
@@ -1199,10 +1219,6 @@ mod tests {
 		assert_eq!(
 			CpuReader::default().text_topped(&cpu, &[1.0; 4]),
 			CpuReader::default().text(&cpu)
-		);
-		assert_eq!(
-			TempReader::default().text_topped(&[60.0, 0.0], &[90.0, 5.0]),
-			TempReader::default().text(&[60.0, 0.0])
 		);
 		assert_eq!(
 			OwnReader::default().text_topped(&[0.5], &[1.0]),
@@ -1231,14 +1247,14 @@ mod tests {
 		g.hist.add(now - 120.0, now - 60.0, &[6.5]);
 		g.hist.add(now - 60.0, now, &[0.5]);
 		g.latest = Some([0.5]);
-		assert_eq!(g.tooltip(), "Load 0.50\nLoad highest 6.50");
+		assert_eq!(g.tooltip(), "Load 0.50\nHighest Load: 6.50");
 		let (w, h) = (130, 20);
 		let tip = g.hover_tip(128, w, h, 1);
-		assert!(tip.ends_with("\nLoad 0.50\nLoad highest 6.50"), "{tip}");
+		assert!(tip.ends_with("\nLoad 0.50\nHighest Load: 6.50"), "{tip}");
 		let mut cpu = Graph::new(Look::default());
 		cpu.hist.add(now - 60.0, now, &[0.1, 0.2, 0.1, 0.0]);
 		cpu.latest = Some([0.1, 0.2, 0.1, 0.0]);
-		assert!(!cpu.tooltip().contains("highest"), "{}", cpu.tooltip());
+		assert!(!cpu.tooltip().contains("Highest"), "{}", cpu.tooltip());
 	}
 
 	// Test ID: dejb6

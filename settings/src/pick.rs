@@ -38,7 +38,7 @@ pub fn to_rgb(c: Hsv) -> Rgb {
 }
 
 /// `keep` gives what the bytes can't, so typing 0 into Brightness doesn't
-/// reset the hue and saturation just set.
+/// reset the hue and saturation that were set.
 pub fn from_rgb(c: Rgb, keep: Hsv) -> Hsv {
 	let [r, g, b] = [c.0, c.1, c.2].map(|x| f64::from(x) / 255.0);
 	let max = r.max(g).max(b);

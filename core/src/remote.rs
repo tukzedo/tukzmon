@@ -148,8 +148,10 @@ impl Watch {
 enum Sign {
 	/// The sharer has the peer's socket open itself.
 	Holds,
-	/// RustDesk's server runs as root, and starts this connection manager in
-	/// the desktop only while a peer is connected.
+	/// RustDesk starts this connection manager in the desktop when a peer
+	/// connects, and it quits a few seconds after the last one leaves. It's
+	/// the sign whatever path the peer took, since a peer by ID can come in
+	/// on any port, over TCP or UDP.
 	RustDeskCm,
 	/// NoMachine's node keeps this up for the physical display between
 	/// connections too, so it counts only while NoMachine has a connection.
@@ -250,7 +252,8 @@ fn viewed_by(display: u32, links: &[Link], sharers: &[Sharer]) -> bool {
 				.sockets
 				.iter()
 				.any(|s| links.iter().any(|l| l.inode == *s)),
-			Sign::RustDeskCm => has(Server::RustDesk) && arg(p, "--cm"),
+			// --cm-no-ui is for a desktop RustDesk started itself
+			Sign::RustDeskCm => arg(p, "--cm") || arg(p, "--cm-no-ui"),
 			Sign::NoMachineMonitor => has(Server::NoMachine) && arg(p, "--monitor"),
 		})
 }
@@ -279,18 +282,23 @@ fn tcp_counts(snmp: &str) -> Option<[u64; 2]> {
 struct Probe {
 	counts: Option<[u64; 2]>,
 	links: Vec<Link>,
+	/// This user ran RustDesk at the last look, so its connection manager
+	/// can come or go with no TCP change.
+	rustdesk: bool,
 }
 
 impl Probe {
 	/// True when a remote viewer is connected to X display `display`. This
 	/// user's processes are read only while a connection is on a remote
-	/// desktop server's port.
+	/// desktop server's port, when the TCP counters moved, or while RustDesk
+	/// runs.
 	fn viewed(&mut self, display: u32, names: &[(&str, Sign)]) -> bool {
 		let counts = std::fs::read_to_string("/proc/net/snmp")
 			.ok()
 			.as_deref()
 			.and_then(tcp_counts);
-		if counts.is_none() || counts != self.counts {
+		let moved = counts.is_none() || counts != self.counts;
+		if moved {
 			self.counts = counts;
 			self.links.clear();
 			for table in ["/proc/net/tcp", "/proc/net/tcp6"] {
@@ -299,11 +307,14 @@ impl Probe {
 				}
 			}
 		}
-		// nearly every look ends here
-		if self.links.is_empty() {
+		// most looks on a quiet box end here
+		if self.links.is_empty() && !moved && !self.rustdesk {
 			return false;
 		}
-		viewed_by(display, &self.links, &sharers(names))
+		let sharers = sharers(names);
+		// on any display, since the server's may not be readable
+		self.rustdesk = sharers.iter().any(|p| p.sign == Sign::RustDeskCm);
+		viewed_by(display, &self.links, &sharers)
 	}
 }
 
@@ -477,7 +488,8 @@ mod tests {
 		assert!(viewed_by(0, &links, std::slice::from_ref(&cm)));
 		assert!(!viewed_by(1, &links, std::slice::from_ref(&cm)));
 		assert!(!viewed_by(0, &links, &[tray]));
-		assert!(!viewed_by(0, &[], &[cm]));
+		// a peer by ID has no link on a RustDesk port
+		assert!(viewed_by(0, &[], &[cm]));
 		// as NoMachine's node watches :0 with no client connected
 		let nx = || {
 			p(
@@ -517,6 +529,86 @@ mod tests {
 		assert_eq!(started.session_by(t0, |_| false), Session::Remote);
 		let mut headless = Watch::of(Session::Local, None);
 		assert_eq!(headless.session_by(t0, |_| true), Session::Local);
+	}
+
+	// Test ID: dfh2y
+	#[test]
+	fn rustdesk_peer_by_id_seen() {
+		let p = |args: &[&str], display| Sharer {
+			sign: Sign::RustDeskCm,
+			args: args.iter().map(|s| (*s).to_owned()).collect(),
+			display: Some(display),
+			sockets: Vec::new(),
+		};
+		// punched or LAN-direct, on ports no other rule knows
+		let other: Vec<Link> = links_in(TCP)
+			.filter(|l| l.server != Server::RustDesk)
+			.collect();
+		let server = || p(&["/usr/share/rustdesk/rustdesk", "--server"], 0);
+		let tray = || p(&["/usr/share/rustdesk/rustdesk", "--tray"], 0);
+		let cm = || p(&["/usr/share/rustdesk/rustdesk", "--cm"], 0);
+		for links in [&other[..], &[]] {
+			assert!(viewed_by(0, links, &[server(), tray(), cm()]));
+			assert!(viewed_by(0, links, &[p(&["rustdesk", "--cm-no-ui"], 0)]));
+			assert!(!viewed_by(0, links, &[server(), tray()]));
+			assert!(!viewed_by(1, links, &[server(), tray(), cm()]));
+			assert!(!viewed_by(0, links, &[p(&["rustdesk", "--cmx"], 0)]));
+		}
+	}
+
+	// a stand-in for RustDesk's connection manager on display :76, with no
+	// connection on any remote desktop port, as for a peer by ID
+	// Test ID: dfh2z
+	#[test]
+	#[cfg_attr(miri, ignore)]
+	fn stand_in_rustdesk_cm_seen() {
+		use std::os::unix::process::CommandExt;
+		use std::process::{Command, Stdio};
+		const CHILD: &str = "TUKZMON_TEST_CM";
+		if std::env::var_os(CHILD).is_some() {
+			// until the parent closes stdin
+			let _ = std::io::stdin().lines().count();
+			return;
+		}
+		let exe = std::env::current_exe().unwrap();
+		let mut child = Command::new(exe)
+			// as `rustdesk --cm`, since libtest would refuse it as an option
+			.arg0("--cm")
+			.args([
+				"--exact",
+				"remote::tests::stand_in_rustdesk_cm_seen",
+				"--test-threads=1",
+			])
+			.env(CHILD, "1")
+			.env("DISPLAY", ":76")
+			.stdin(Stdio::piped())
+			.stdout(Stdio::null())
+			.spawn()
+			.unwrap();
+		let comm = format!("/proc/{}/comm", child.id());
+		// comm is set at exec, and reads as the parent's until then
+		let mut name = String::new();
+		for _ in 0..200 {
+			name = std::fs::read_to_string(&comm).unwrap_or_default();
+			let args = std::fs::read(format!("/proc/{}/cmdline", child.id())).unwrap_or_default();
+			if args.starts_with(b"--cm\0") {
+				break;
+			}
+			std::thread::sleep(Duration::from_millis(10));
+		}
+		let names = [(name.trim_end(), Sign::RustDeskCm)];
+		let mut probe = Probe::default();
+		let seen = probe.viewed(76, &names);
+		// the TCP counters may not have moved since
+		let again = probe.viewed(76, &names);
+		let elsewhere = Probe::default().viewed(75, &names);
+		drop(child.stdin.take());
+		child.wait().unwrap();
+		let after = probe.viewed(76, &names);
+		assert!(seen);
+		assert!(again);
+		assert!(!elsewhere);
+		assert!(!after);
 	}
 
 	// a stand-in for x11vnc: a copy of this test binary on display :77,

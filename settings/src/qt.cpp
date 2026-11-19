@@ -248,7 +248,7 @@ protected:
 		const int x = e->position().toPoint().x() - groove.x() - (handle.width() / 2);
 		setSliderPosition(
 			QStyle::sliderValueFromPosition(minimum(), maximum(), x, groove.width() - handle.width(), opt.upsideDown));
-		// a detent can pull it off the pointer, so take hold of it where it went
+		// a detent can pull it off the pointer, so grab it where it went
 		handle = part(QStyle::SC_SliderHandle);
 		const QPointF at = handle.center();
 		QMouseEvent grab(e->type(), at, mapToGlobal(at), e->button(), e->buttons(), e->modifiers(),
@@ -296,7 +296,7 @@ public:
 	double h = 0, s = 0, v = 0;
 
 protected:
-	// x and y are 0 to 1 across the area, clamped, so a drag off the edge holds it there
+	// x and y are 0 to 1 across the area, clamped, so a drag off the edge keeps it there
 	virtual void pickAt(double x, double y) = 0;
 	virtual void arrow(int dx, int dy, double by) = 0;
 

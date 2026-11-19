@@ -146,7 +146,7 @@ fSweepStale() {
 		name="${d##*/}"
 		old=0; [[ ! "${name:0:15}" < "${cutoff}" ]] || old=1
 		if [[ -e "${d}/keep" ]] && ((! old)); then continue; fi
-		## A run.pid not yet written may be a run just starting.
+		## A run.pid not yet written may be a run still starting.
 		got=''; { read -r got < "${d}/run.pid"; } 2> /dev/null || true
 		if [[ ! "${got}" =~ ^[0-9]+\ [0-9]+$ ]] && ((! old)); then continue; fi
 		! fStampLive "${got}" || continue

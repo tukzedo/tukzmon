@@ -51,7 +51,7 @@ source "${root}/cicd/utility/include/content-scrub.bash"
 
 fSay() { printf '\n[ pre-push: %s ]\n\n' "$*"; }
 
-## True when every file that differs between the two commits is under
+## True when every file that differs between the 2 commits is under
 ## DOCS_PATHS, with the .md files among them in ARRAY. A missing commit, or
 ## none at all, reads as code, and so does a failed diff.
 fDocsOnly() {   ## fDocsOnly OLD_SHA NEW_SHA [ARRAY]

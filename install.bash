@@ -6,7 +6,7 @@
 ##		the whole system. It finds the release, checks the package's sha256,
 ##		says what it's about to do, and asks first. On a current install it
 ##		changes nothing.
-##		- A user install unpacks the package into the panel's folders under
+##		- A user install extracts the package into the panel's folders under
 ##		  ~/.local, as utility/dev-install.bash does, with no sudo.
 ##		- A system install hands the .deb or .rpm to apt-get, dnf, zypper, or
 ##		  yum, with sudo.
@@ -227,7 +227,7 @@ fConfirm() {
 	case "${answer}" in y|Y|yes|Yes|YES) return 0 ;; *) return 1 ;; esac
 }
 
-## Unpacks the package's files into DIR with whichever tool is installed.
+## Extracts the package's files into DIR with whichever tool is installed.
 fUnpack() {   ## fUnpack PACKAGE DIR
 	local pkg="${1}" dir="${2}" member=""
 	case "${unpackTool}" in
@@ -286,7 +286,7 @@ fMain() {
 	elif command -v openssl > /dev/null 2>&1; then shaTool=openssl
 	else fFail "there's no sha256sum, shasum or openssl here" "Nothing is installed that can't be checked."; fi
 
-	## A user install unpacks the package, and a system install hands it to a
+	## A user install extracts the package, and a system install hands it to a
 	## package manager.
 	local ext="" pkgTool="" sudoCmd=""
 	unpackTool=""
@@ -295,7 +295,7 @@ fMain() {
 		elif command -v rpm2cpio > /dev/null 2>&1 && command -v cpio > /dev/null 2>&1; then unpackTool=rpm2cpio; ext=rpm
 		elif command -v bsdtar > /dev/null 2>&1; then unpackTool=bsdtar; ext=deb
 		elif command -v ar > /dev/null 2>&1 && command -v tar > /dev/null 2>&1; then unpackTool="ar"; ext=deb
-		else fFail "there's nothing here that unpacks a .deb or .rpm" "Install dpkg, rpm2cpio and cpio, libarchive's bsdtar, or binutils, and run this again."; fi
+		else fFail "there's nothing here that extracts a .deb or .rpm" "Install dpkg, rpm2cpio and cpio, libarchive's bsdtar, or binutils, and run this again."; fi
 	else
 		if command -v apt-get > /dev/null 2>&1 && command -v dpkg-deb > /dev/null 2>&1; then pkgTool=apt-get; ext=deb
 		elif command -v rpm > /dev/null 2>&1; then
@@ -382,7 +382,7 @@ fMain() {
 		libDir="${dataHome%/share}/${libTail}/xfce4/panel/plugins"
 
 		mkdir "${unpacked}" || fFail "couldn't make ${unpacked}"
-		fUnpack "${pkg}" "${unpacked}" || fFail "couldn't unpack ${asset}"
+		fUnpack "${pkg}" "${unpacked}" || fFail "couldn't extract ${asset}"
 		lib="$(find "${unpacked}" -name libtukzmon.so -type f | head -n 1)"
 		[[ -n "${lib}" && -f "${unpacked}/usr/bin/tukzmon-settings" && -f "${unpacked}/usr/share/xfce4/panel/plugins/tukzmon.desktop" ]] \
 			|| fFail "${asset} is missing files it should have"
@@ -484,5 +484,5 @@ fi
 
 ##	History:
 ##		- 2026-11-10: Created, from silkterm's install.bash. User installs
-##		  unpack the package into the folders dev-install.bash uses, and
+##		  extract the package into the folders dev-install.bash uses, and
 ##		  system installs hand it to the package manager.

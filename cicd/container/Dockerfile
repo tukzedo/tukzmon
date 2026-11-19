@@ -149,10 +149,32 @@ RUN apt-get update \
 	&& rm -rf /opt/cargo/registry
 
 # dbus-daemon for the test that runs the lock watch on a private bus (df3qt).
-# Last but the env, so it doesn't rebuild anything above.
+# Its own layer, so it doesn't rebuild anything above.
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends dbus-daemon \
 	&& rm -rf /var/lib/apt/lists/*
+
+# The arm64 release build and packages, cross-compiled: the cross gcc, and
+# Qt, GTK and the panel library for arm64 from the same snapshot, which
+# multiarch puts beside the amd64 ones. The panel library's package isn't
+# multiarch, and apt would remove the amd64 one for it, so only its library
+# is unpacked. Then the toolchain's arm64 std. Last but the env, so it doesn't
+# rebuild anything above.
+RUN dpkg --add-architecture arm64 \
+	&& apt-get update \
+	&& apt-get install -y --no-install-recommends \
+		gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev:arm64 qt6-base-dev:arm64 \
+		libgtk-3-0t64:arm64 libcairo2:arm64 libglib2.0-0t64:arm64 \
+	&& mkdir /tmp/panel && cd /tmp/panel \
+	&& apt-get download libxfce4panel-2.0-4:arm64 \
+	&& dpkg-deb -x libxfce4panel-2.0-4_*_arm64.deb . \
+	&& cp -a usr/lib/aarch64-linux-gnu/libxfce4panel-2.0.so.4* /usr/lib/aarch64-linux-gnu/ \
+	&& cd / && rm -rf /tmp/panel /var/lib/apt/lists/* \
+	&& test -e /usr/lib/x86_64-linux-gnu/libxfce4panel-2.0.so.4 \
+	&& test -e /usr/lib/aarch64-linux-gnu/libxfce4panel-2.0.so.4 \
+	&& cd /opt/rustup-pin \
+	&& CARGO_HOME=/opt/cargo /opt/cargo/bin/rustup target add aarch64-unknown-linux-gnu \
+	&& rm -rf /opt/cargo/registry
 
 # Runs as the caller's uid, which has no passwd entry here. CARGO_HOME, HOME
 # and TMPDIR are set per run to dirs mounted from the host.

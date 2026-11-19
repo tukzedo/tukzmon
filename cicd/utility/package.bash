@@ -5,9 +5,13 @@
 
 ##	Purpose:
 ##		- Builds a .deb and an .rpm through nfpm from the release build in
-##		  RELEASE_DIR, named tukzmon-<version>-linux-x86_64.<deb|rpm>, with
-##		  tukzmon-<version>-sha256sums.txt beside them in OUT_DIR.
-##		- Two builds of one commit give the same bytes, since the mtimes inside
+##		  RELEASE_DIR, named tukzmon-<version>-linux-<ARCH>.<deb|rpm>, with
+##		  tukzmon-<version>-sha256sums.txt beside them in OUT_DIR. ARCH is
+##		  x86_64, the default, or arm64.
+##		- The sums cover every package of the version in WORK_DIR, so a run
+##		  that calls it once per arch with the same WORK_DIR gets one file for
+##		  them all.
+##		- One commit built twice gives the same bytes, since the mtimes inside
 ##		  are SOURCE_DATE_EPOCH, or else HEAD's commit time.
 ##		- Checks each package has what nfpm.yaml says, and that the .deb's
 ##		  depends name every library the binaries link, where dpkg can say
@@ -15,7 +19,7 @@
 ##		- Writes only into OUT_DIR and WORK_DIR, and removes nothing but the
 ##		  same-named files it replaces in OUT_DIR.
 ##	Syntax:
-##		package.bash RELEASE_DIR VERSION OUT_DIR WORK_DIR
+##		package.bash RELEASE_DIR VERSION OUT_DIR WORK_DIR [ARCH]
 ##		NFPM names the nfpm to run, if it isn't on PATH.
 ##	History: At bottom of script.
 
@@ -27,13 +31,20 @@
 
 set -Eeuo pipefail
 
-usage="usage: package.bash RELEASE_DIR VERSION OUT_DIR WORK_DIR"
-relDir="${1:?${usage}}"; ver="${2:?${usage}}"; outDir="${3:?${usage}}"; workDir="${4:?${usage}}"
+usage="usage: package.bash RELEASE_DIR VERSION OUT_DIR WORK_DIR [x86_64|arm64]"
+relDir="${1:?${usage}}"; ver="${2:?${usage}}"; outDir="${3:?${usage}}"; workDir="${4:?${usage}}"; arch="${5:-x86_64}"
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 nfpm="${NFPM:-nfpm}"
 fDie() { echo "package: $*" >&2; exit 1; }
 
 [[ "${ver}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]] || fDie "not a version: '${ver}'"
+## The release name, Debian's name, which nfpm turns into aarch64 for the
+## .rpm, and the multiarch folder.
+case "${arch}" in
+	x86_64) debArch="amd64"; multiarch="x86_64-linux-gnu" ;;
+	arm64)  debArch="arm64"; multiarch="aarch64-linux-gnu" ;;
+	*) fDie "no arch '${arch}'. ${usage}" ;;
+esac
 [[ -d "${outDir}" && -d "${workDir}" ]] || fDie "no such dir: ${outDir} or ${workDir}"
 command -v "${nfpm}" > /dev/null 2>&1 || fDie "nfpm isn't installed (pinned in cicd/config.bash), or set NFPM"
 bins=("${relDir}/libtukzmon.so" "${relDir}/tukzmon-settings")
@@ -58,14 +69,14 @@ rpmSonames=""
 for s in "${sonames[@]}"; do rpmSonames+="\\n      - ${s}()(64bit)"; done
 
 yaml="${workDir}/nfpm.yaml"
-sed -e "s|\${TUKZMON_VERSION}|${ver}|g" -e "s|\${TUKZMON_ARCH}|amd64|g" -e "s|\${TUKZMON_MTIME}|${mtime}|g" \
+sed -e "s|\${TUKZMON_VERSION}|${ver}|g" -e "s|\${TUKZMON_ARCH}|${debArch}|g" -e "s|\${TUKZMON_MULTIARCH}|${multiarch}|g" -e "s|\${TUKZMON_MTIME}|${mtime}|g" \
 	-e "s|\${TUKZMON_GLIBC}|${glibc}|g" -e "s|\${TUKZMON_RELEASE_DIR}|${relDir}|g" -e "s|\${TUKZMON_RPM_SONAMES}|${rpmSonames}|g" \
 	cicd/packaging/nfpm.yaml > "${yaml}"
 if grep -q '^[^#]*\${TUKZMON_' "${yaml}"; then fDie "nfpm.yaml has a name package.bash doesn't fill"; fi
 
 ## Every linked library's owner has to be among the .deb's depends.
 mapfile -t debDeps < <(sed -n '/^  deb:/,/^  [a-z]/s/^      - \([^ ]*\).*/\1/p' "${yaml}"; sed -n '/^  deb:/,/^  [a-z]/s/^      - .* | \([^ ]*\).*/\1/p' "${yaml}")
-unowned=0
+unowned=()
 if command -v dpkg-query > /dev/null 2>&1; then
 	## One query for them all. Each line is "pkg[:arch][, pkg...]: path", and
 	## the first one for a soname wins.
@@ -74,19 +85,21 @@ if command -v dpkg-query > /dev/null 2>&1; then
 		while IFS= read -r line; do
 			s="${line##*/}"
 			[[ -n "${owners["${s}"]:-}" ]] || owners["${s}"]="${line%%[:,]*}"
-		done < <(dpkg-query -S "${sonames[@]/#/*/x86_64-linux-gnu/}" 2> /dev/null || true)
+		done < <(dpkg-query -S "${sonames[@]/#/*/${multiarch}/}" 2> /dev/null || true)
 	fi
 	for s in "${sonames[@]}"; do
 		owner="${owners["${s}"]:-}"
-		if [[ -z "${owner}" ]]; then unowned=$((unowned + 1)); continue; fi
+		if [[ -z "${owner}" ]]; then unowned+=("${s}"); continue; fi
 		[[ " ${debDeps[*]} " == *" ${owner} "* ]] || fDie "${s} is from ${owner}, which the .deb's depends in nfpm.yaml don't name"
 	done
-	((unowned == 0)) || echo "WARNING: dpkg doesn't list an owner for ${unowned} of the linked libraries, so those went unchecked"
+	## The image's arm64 panel library is unpacked rather than installed,
+	## since its package isn't multiarch.
+	((${#unowned[@]} == 0)) || echo "WARNING: dpkg doesn't list an owner for ${unowned[*]}, so the depends weren't checked for those"
 else
 	echo "WARNING: dpkg isn't installed, so the .deb's depends weren't checked against the libraries"
 fi
 
-base="tukzmon-${ver}-linux-x86_64"
+base="tukzmon-${ver}-linux-${arch}"
 sums="tukzmon-${ver}-sha256sums.txt"
 for fmt in deb rpm; do
 	"${nfpm}" package -f "${yaml}" -p "${fmt}" -t "${workDir}/${base}.${fmt}" > /dev/null || fDie "nfpm failed on ${base}.${fmt}"
@@ -102,7 +115,7 @@ fResolved() { # "path target" lines, or bare paths
 	done
 }
 want="$(printf '%s\n' /usr/bin/tukzmon-settings /usr/share/xfce4/panel/plugins/tukzmon.desktop)"
-debLib=/usr/lib/x86_64-linux-gnu/xfce4/panel/plugins
+debLib="/usr/lib/${multiarch}/xfce4/panel/plugins"
 got="$(dpkg-deb -c "${workDir}/${base}.deb" 2> /dev/null | awk '$1 !~ /^d/ { sub(/^\./, "", $6); print $6, $7, $8 }' | fResolved | LC_ALL=C sort)"
 [[ "${got}" == "$(printf '%s\n' "${want}" "${debLib}/libtukzmon.so" "${debLib}/tukzmon-settings -> /usr/bin/tukzmon-settings" /usr/share/doc/tukzmon/copyright | LC_ALL=C sort)" ]] \
 	|| fDie "the .deb's files don't match nfpm.yaml:"$'\n'"${got}"
@@ -115,13 +128,13 @@ else
 	echo "WARNING: rpm isn't installed, so the .rpm's contents went unchecked"
 fi
 
-(cd "${workDir}" && sha256sum -- "${base}.deb" "${base}.rpm" > "${sums}")
+(cd "${workDir}" && sha256sum -- "tukzmon-${ver}-linux-"*.deb "tukzmon-${ver}-linux-"*.rpm > "${sums}")
 for f in "${base}.deb" "${base}.rpm" "${sums}"; do
 	cp -- "${workDir}/${f}" "${outDir}/.${f}.new"
 	mv -f -- "${outDir}/.${f}.new" "${outDir}/${f}"
 	echo "${f} ($(stat -c %s -- "${outDir}/${f}") bytes)"
 done
-echo "depends: glibc ${glibc}, ${#sonames[@]} linked libraries"
+echo "${arch} depends: glibc ${glibc}, ${#sonames[@]} linked libraries"
 
 
 ##	History:
@@ -130,3 +143,4 @@ echo "depends: glibc ${glibc}, ${#sonames[@]} linked libraries"
 ##		- 2026-10-30: One dpkg-query for every linked library.
 ##		- 2026-11-09: A link to tukzmon-settings beside the library, checked by
 ##		  where it resolves.
+##		- 2026-11-19: arm64, with one sums file for both arches.

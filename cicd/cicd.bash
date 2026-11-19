@@ -35,49 +35,53 @@
 ##	                      seed
 ##	   8. Release build   the plugin and tukzmon-settings, with the path maps
 ##	                      in utility/path-maps.bash
-##	   9. Reproducible    the release build again, from a copy of the tree in
+##	   9. Release (arm64) the same for arm64, cross-compiled in the image,
+##	                      into the target dir's aarch64-unknown-linux-gnu/.
+##	                      Not in --quick
+##	  10. Reproducible    the release build again, from a copy of the tree in
 ##	                      another folder, into another target dir, and with
 ##	                      another path to the cargo home. A byte that differs
 ##	                      fails the step, which lists the paths only one build
 ##	                      has
-##	  10. Packages        a .deb and an .rpm of the release build through nfpm,
-##	                      with a sha256 sums file, in cicd/artifacts/packages/
-##	  11. Sanitizers      a leak check that runs the tests under ASan and LSan
+##	  11. Packages        a .deb and an .rpm of the release build through nfpm,
+##	                      for x86_64 and for arm64, with one sha256 sums file,
+##	                      in cicd/artifacts/packages/
+##	  12. Sanitizers      a leak check that runs the tests under ASan and LSan
 ##	                      on the nightly config.bash pins, std included, then
 ##	                      tukzmon-settings --snapshot, with its C++ under
 ##	                      ASan, LSan, and UBSan too
-##	  12. Miri            a leak check that takes hours. It runs the tests under
+##	  13. Miri            a leak check that takes hours. It runs the tests under
 ##	                      Miri on the same nightly, one Miri per module.
 ##	                      TUKZMON_MIRI_FILTER=<part of a name> runs only those.
 ##	                      A module past TUKZMON_MIRI_MINUTES fails
-##	  13. Soak            a slow leak check. core/tests/soak.rs runs the
+##	  14. Soak            a slow leak check. core/tests/soak.rs runs the
 ##	                      panel's work over days of skipped clock and reads the
 ##	                      heap at round N and 2N. Its report goes to
 ##	                      cicd/artifacts/soak/
-##	  14. Window soak     a long leak check. tukzmon-settings' window runs off
+##	  15. Window soak     a long leak check. tukzmon-settings' window runs off
 ##	                      screen under heaptrack, with its live graphs over days
 ##	                      of skipped clock, and the heap is read at round N and
 ##	                      2N. Its report goes to cicd/artifacts/soak/
-##	  15. CodeQL          a long leak check. CodeQL's security and quality
+##	  16. CodeQL          a long leak check. CodeQL's security and quality
 ##	                      queries run over the Rust and the C++, from a copy of
 ##	                      the tree with its crates vendored, and a build of
 ##	                      its own for the C++. A finding fails it unless
 ##	                      cicd/codeql.supp lets it by. The SARIF and a report
 ##	                      go to cicd/artifacts/codeql/
-##	  16. Nix package     the flake's package, with the workspace tests, in a
+##	  17. Nix package     the flake's package, with the workspace tests, in a
 ##	                      nixos/nix container, then nixpkgs' xfce4-panel loads
 ##	                      it from a NixOS system with the module, on Xvfb. Its
 ##	                      store is a docker volume kept between runs
-##	  17. Profiler        the panel's tick, core/examples/profile.rs, under
+##	  18. Profiler        the panel's tick, core/examples/profile.rs, under
 ##	                      pprof's sampler, on this box. The flamegraph goes to
 ##	                      cicd/artifacts/profiling/, with a report on its hot
 ##	                      spots from utility/flame-report.py
-##	  18. Demo            the README gif and a video, from
+##	  19. Demo            the README gif and a video, from
 ##	                      utility/demo/script.txt, on a private Xvfb. They go
 ##	                      to private/demo/ beside the repo, and the gif to
 ##	                      assets/demo.gif when it changed. It's a heavy step,
 ##	                      so it gets a quarter of the CPUs
-##	  19. Dogfood         utility/dev-install.bash, which installs the build
+##	  20. Dogfood         utility/dev-install.bash, which installs the build
 ##	                      under ~/.local and restarts the panel
 ##	  A step that's off isn't counted, and the first section says why it's off.
 ##	  A run whose options leave no check on fails, with exit 2.
@@ -109,7 +113,8 @@
 ##	                         release the release build, only when named
 ##	                         repro   the release build twice, in 2 folders,
 ##	                                 only when named
-##	                         package the packages and the release build they
+##	                         arm64   the arm64 release build, only when named
+##	                         package the packages and the release builds they
 ##	                                 come from, only when named
 ##	                         sanitizers  the Sanitizers leak check
 ##	                         miri    the Miri leak check, only when named
@@ -272,7 +277,7 @@ esac; done
 
 handsOff=0
 case "${mode}" in backlog-run-quick|backlog-run-full|merge-gate) handsOff=1 ;; esac
-allAreas=(format build lint test advisories release repro package profile nix)
+allAreas=(format build lint test advisories release arm64 repro package profile nix)
 for entry in "${LEAK_CHECKS[@]}"; do entry="${entry%%|*}"; allAreas+=("${entry,,}"); done
 namedAreas="${#areas[@]}"
 if [[ "${mode}" == backlog-run-quick ]]; then
@@ -315,6 +320,10 @@ fPlan "Tests" fStepTests test
 ## The packages are made from the release build, so naming package runs it too.
 if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" release "* && " ${areas[*]} " != *" package "* && " ${areas[*]} " != *" repro "* ]]; then offLines+=("Release build: --backlog-run-quick runs it only when the release, package, or repro area is named")
 else fPlan "Release build" fStepRelease ""; fi
+## Only the packages use it, so it runs where they do.
+if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" arm64 "* && " ${areas[*]} " != *" package "* ]]; then offLines+=("Release (arm64): --backlog-run-quick runs it only when the arm64 or package area is named")
+elif [[ "${mode}" == quick ]]; then offLines+=("Release (arm64): --quick")
+else fPlan "Release (arm64)" fStepReleaseArm64 ""; fi
 if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" repro "* ]]; then offLines+=("Reproducible: --backlog-run-quick runs it only when the repro area is named")
 else fPlan "Reproducible" fStepRepro ""; fi
 if [[ "${mode}" == backlog-run-quick ]] && [[ " ${areas[*]} " != *" package "* ]]; then offLines+=("Packages: --backlog-run-quick runs it only when the package area is named")
@@ -505,7 +514,7 @@ lintLog="/dev/null"
 fLintRun() { local rc=0; "$@" 2>&1 | tee -a "${lintLog}" || rc=$?; return "${rc}"; }
 
 ## Runs clang-tidy over the C++, per .clang-tidy. It reads the cxx bridge's
-## headers from the clippy build just before it. qt.cpp includes
+## headers from the clippy build right before it. qt.cpp includes
 ## tukzmon-settings/src/qt.h, which resolves through a link to settings/
 ## under TMPDIR, in the image too.
 fLintTidy() {
@@ -646,6 +655,27 @@ fStepRelease() {
 	env "${maps[@]}" cargo build --release "${locked[@]}" "${RELEASE_PACKAGES[@]}" -j "${jobs}" || return 1
 }
 
+## The release build for arm64, with the cross gcc and Debian's arm64 Qt, GTK
+## and panel library, which the image has. The pkg-config and compiler
+## variables are named for the target, so the build scripts, which run here,
+## keep the host's.
+armTarget="aarch64-unknown-linux-gnu"
+fArmRelDir() { local t="${CARGO_TARGET_DIR:-${root}/target}"; [[ "${t}" == /* ]] || t="${root}/${t}"; echo "${t}/${armTarget}/release"; }
+fStepReleaseArm64() {
+	local u="${armTarget//-/_}"
+	local -a maps=() cross=()
+	if ! command -v aarch64-linux-gnu-gcc > /dev/null 2>&1 || [[ "$(rustup target list --installed 2> /dev/null || true)" != *"${armTarget}"* ]]; then
+		fEcho_Clean "there's no aarch64-linux-gnu-gcc or ${armTarget} std here, which the image has"
+		((! handsOff)) || return 1
+		fEcho_Clean "WARNING: nothing was built for arm64"; return 0
+	fi
+	fReleaseMaps maps || return 1
+	cross=("CARGO_TARGET_${u^^}_LINKER=aarch64-linux-gnu-gcc" "CC_${u}=aarch64-linux-gnu-gcc" "CXX_${u}=aarch64-linux-gnu-g++"
+		"PKG_CONFIG_ALLOW_CROSS_${u}=1" "PKG_CONFIG_LIBDIR_${u}=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig")
+	fEcho_Clean "cargo build --release --target ${armTarget} ${RELEASE_PACKAGES[*]} -j ${jobs}, with the path maps"
+	env "${maps[@]}" "${cross[@]}" cargo build --release --target "${armTarget}" "${locked[@]}" "${RELEASE_PACKAGES[@]}" -j "${jobs}" || return 1
+}
+
 ## Builds the release again from a copy of the tree in another folder, into
 ## another target dir, with the cargo home through a link, and checks that the
 ## bytes match. The copy isn't a git checkout, so it's given the first build's
@@ -687,16 +717,30 @@ fStepRepro() {
 }
 
 ## Makes a .deb and an .rpm of whichever release build the run made, which is
-## the host's in a run that dogfoods. The version comes from the workspace in
-## Cargo.toml. A new set replaces the old set of the same version.
+## the host's in a run that dogfoods, then of the arm64 one. The version comes
+## from the workspace in Cargo.toml. A new set replaces the old set of the
+## same version.
 fStepPackage() {
-	local ver='' rel="${TUKZMON_RELEASE_DIR:-${CARGO_TARGET_DIR:-${root}/target}/release}" work="${TMPDIR}/packages"
+	local ver='' rel="${TUKZMON_RELEASE_DIR:-${CARGO_TARGET_DIR:-${root}/target}/release}" work="${TMPDIR}/packages" arm='' f=''
 	ver="$(sed -n '/^\[workspace\.package\]/,/^\[/s/^version *= *"\(.*\)"/\1/p' "${root}/Cargo.toml")"
 	[[ -n "${ver}" ]] || { fEcho_Clean "no version under [workspace.package] in Cargo.toml"; return 1; }
 	[[ "${rel}" == /* ]] || rel="${root}/${rel}"
 	mkdir -p -- "${work}" "${root}/${PACKAGE_DIR}" || return 1
 	fEcho_Clean "cicd/utility/package.bash, v${ver}, from ${rel#"${root}/"}"
-	"${here}/utility/package.bash" "${rel}" "${ver}" "${root}/${PACKAGE_DIR}" "${work}" || return 1
+	"${here}/utility/package.bash" "${rel}" "${ver}" "${root}/${PACKAGE_DIR}" "${work}" x86_64 || return 1
+	## The arm64 build runs wherever this does, but skips with a warning on a
+	## host without the cross tools, outside the hands-off runs.
+	arm="$(fArmRelDir)"
+	if [[ -f "${arm}/libtukzmon.so" ]] || ((handsOff)); then
+		"${here}/utility/package.bash" "${arm}" "${ver}" "${root}/${PACKAGE_DIR}" "${work}" arm64 || return 1
+	else
+		fEcho_Clean "WARNING: no arm64 packages, since there's no arm64 build in ${arm#"${root}/"}"
+	fi
+	## One left from an earlier run, such as arm64's when its build was
+	## skipped, would go out without a sum.
+	for f in "${root}/${PACKAGE_DIR}/tukzmon-${ver}-linux-"*.deb "${root}/${PACKAGE_DIR}/tukzmon-${ver}-linux-"*.rpm; do
+		[[ ! -f "${f}" ]] || grep -qF "  ${f##*/}" "${work}/tukzmon-${ver}-sha256sums.txt" || fEcho_Clean "WARNING: ${f##*/} is from an earlier run, and the sums don't list it"
+	done
 	fEcho_Clean "in ${PACKAGE_DIR}/"
 }
 
@@ -1558,3 +1602,5 @@ exit 0
 ##		- 2026-11-17: Lint runs the content scrub when it's beside the repo.
 ##		- 2026-11-18: Its findings go to content-scrub.txt beside the lint logs,
 ##		  so they aren't read as lint warnings.
+##		- 2026-11-19: The arm64 release build, in the image, and its packages,
+##		  with the arm64 area.

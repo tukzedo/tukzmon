@@ -76,7 +76,7 @@ The first release is 1.0.0-beta.1. It's a beta, but it's very solid. Packages fo
 
 - Hover over a graph to see its values at that point, and how long ago that was.
 
-- Graphs with no fixed top, such as network and disk, also give the highest each value reached in the history in their tip.
+- The network, disk, load, processes and temperature graphs also give the highest each value reached in the history in their tip.
 
 - Graphs slide along smoothly between samples, rather than jumping a step at a time. It's on by default with 8 or more CPUs.
 
