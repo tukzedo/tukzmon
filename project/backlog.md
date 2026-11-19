@@ -57,8 +57,9 @@ Sorted per the notes in [Template](#template).
 - Cut the history lookups each draw makes down toward the tick's old cost
 	- ID: 2026111715361287
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting for answers
 		- The tick stays far above 241 us, since the lookups are only about a third of it. The call is whether to close this and leave the rest of the cost to 2026111000270812.
+		- Waits on the 2026111715361287 question in questions.md, on closing it.
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261117-153612
@@ -82,10 +83,17 @@ Sorted per the notes in [Template](#template).
 		- At sample 1 s a draw's lookups are now about 20 us in the narrow columns, 20 us in the wider fine-tier ones, and 10 us on coarse tiers. `total_over` is about a quarter of the lookups, in every column.
 		- Verified: the profiler on nov19 at 125c908, at load about 5, gave 1079.8 us a tick, 658.2 of it user, the median of 5 runs from 1017.8 to 1154.7. That's below the 690 to 750 us of user time before, at a lower load, and far above 241. History lookups and upkeep were 37.8% of self time, the `/proc` reads 39.6%, and drawing 18.2%.
 		- Answer 20261119: keep going. Make it cheaper with no visual loss, so the same pixels, or a change of at most 1 per channel that draw-bench cmp shows.
+		- 20261119: a cycle count per phase of `span_for`, in draw-bench `kinds` at sample 1 s, takes the indices and `total_over` as 1. Against that, the end buckets are 0.39, `spike_over` 1.1, and the `spread_over` loop 1.43. Of the loop, about a third is the window sums, a third the sliding max and its sums, and the rest the stepping. Each ratio held to about 1% from run to run at load 20 to 40, where whole-draw times swing 10%.
+		- Tried and dropped, all with the same pixels:
+			- A sliding max in `spread_over` with no branch on the values, from blocks of windows with each one's max to its block's end. The loop moved about 1%, so mispredicts weren't the cost.
+			- Keeping the windows from one column for the next within a draw. Neighbors shared only about 18% of their windows, and the cases drew about 117 us against 108.
+			- Checking for a part bucket before reading it, and one divide per window rather than one per series. About 1% together.
+		- Nothing left in the lookups moves the bench past its noise. A bigger cut needs a different design, such as drawing only the graphs read at that wake, which is 2026111000270812's.
 	- Decisions:
 		- 20261117: a change to the float math may move a pixel by at most 1 in any channel against draw-bench's base build, and the existing drawing tests must pass unchanged. Anything bigger needs a look by eye, so the item goes to Waiting on UAT.
 		- 20261117: only the window bounds change went in, as the one change that moved the bench. The prefix sums wait on 2026111716050389 rather than fixing it here, since that fix moves pixels past the limit above.
 		- 20261119: the prefix sums are out, since they cost about 0.4 MB per graph and made the narrow columns slower. Only the whole-bucket stepping went in.
+		- 20261119: none of the second round's tries went in, since none moved the bench past its noise.
 	- Test case: `history::tests::spread_over_as_plain` (dfehq) checks `spread_over` against a plain version that takes each step's windows from the ceil to the floor of its middle and sums each window afresh. It fails with either bound off by one.
 		- 20261119: dfehq now also tries columns a whole number of buckets past a sample. It failed with the second part's last window, the point where it starts, or the unit's first window off by one, and passes on 1d49e84.
 		- Swept: every floor or ceil of a step's middle in history.rs. `spread_over` had the only one, and `densest` takes its window range once per call.
