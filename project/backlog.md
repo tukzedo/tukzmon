@@ -343,8 +343,9 @@ Sorted per the notes in [Template](#template).
 - CICD gap: arm64 Linux build and packages
 	- ID: 2026110310450006
 	- Type: Task
-	- Status: Queued
+	- Status: Waiting on automated testing
 	- Target version: v1.0.0-beta.2
+	- Needs external testing: Install the arm64 `.deb` on an arm64 Debian 13 box, such as vmDebARM64, and check that the panel loads the plugin and Properties opens the settings window. The arm64 `.rpm` the same on an arm64 Fedora 42, if there's one.
 	- Priority|Severity: Low
 	- Opened: 20261103-104500
 	- Opened by: t00mietum
@@ -352,6 +353,37 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- Add a release build for arm64 Linux, with its `.deb` and `.rpm`, named `linux-arm64` beside `linux-x86_64`.
 		- Put it behind a flag such as `--include-arm` if it's much slower than x86_64. Qt and the panel libraries for arm64 are the hard part.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A Release (arm64) step cross-compiles the plugin and `tukzmon-settings` in the build image, into the target dir's `aarch64-unknown-linux-gnu/release`. The image has the cross gcc, and Debian's arm64 Qt and GTK beside the amd64 ones.
+		- The Packages step then makes `tukzmon-<version>-linux-arm64.deb` and `.rpm` too, with one sha256 sums file for all 4. Each is checked for its files and depends, as the x86_64 ones are.
+		- It runs wherever Packages runs, and with the new `arm64` area. design.md XFCE plugin has it. The README's install section waits for a release with the arm64 files, in child 2026111912302333.
+		- Verified: `--backlog-run-quick arm64 package` passed. The arm64 build took 30.6 s and the x86_64 one 27.3 s, at 8 jobs and load 13. Both binaries are AArch64, the `.deb` is `Architecture: arm64` with its library in `/usr/lib/aarch64-linux-gnu`, and the `.rpm` is `aarch64`. The x86_64 `.deb` built twice gave the same bytes.
+		- Verified: dfh54 failed on the old `package.bash` and passed on the new one.
+	- Decisions:
+		- No `--include-arm` flag, since the arm64 build takes about as long as the x86_64 one. It's left out of `--quick`, as Packages is.
+		- Cross-compiled rather than emulated. b23 has no arm64 binfmt handler, and an emulated build would be many times slower.
+		- The panel library's package isn't multiarch, and apt removes the amd64 one to install it. So the image extracts only its arm64 library, and the depends check skips that one library with a warning naming it. The `.deb` still depends on `libxfce4panel-2.0-4`.
+		- One sums file for both arches, since `install.bash` reads one per version. A package left from an earlier run that the new sums don't list gets a warning.
+		- The Nix package stays x86_64 only.
+	- Branch: nov19-2026110310450006
+	- Test case: `package_arch_names` (dfh54), and the Packages step's per-arch content and depends checks.
+
+- README: arm64 package names in the install section
+	- ID: 2026111912302333
+	- Type: Task
+	- Status: Stalled
+		- Held for the first release that has the arm64 packages, since beta.1 has only x86_64.
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Low
+	- Opened: 20261119-123023
+	- Opened by: t00mietum
+	- Parent ID: 2026110310450006
+	- Requirements:
+		- README.md's Debian, Ubuntu, Fedora section names the `linux-arm64` files beside the `linux-x86_64` ones.
+		- Its install table gives the `.deb`'s library folder as `/usr/lib/<multiarch>/...`, or names both, since arm64's is `aarch64-linux-gnu`.
+	- Estimated effort: Low
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701

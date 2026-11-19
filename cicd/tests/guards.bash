@@ -209,6 +209,29 @@ fTest_package_settings_link() {
 	done
 }
 
+## Test ID: dfh54
+fTest_package_arch_names() {
+	local t="${work}/package-arch" arch='' want='' multi='' out=''
+	mkdir -p -- "${t}/rel" "${t}/out" "${t}/work"
+	## Any linked ELF will do for the symbol and library reads.
+	cp -- /bin/true "${t}/rel/libtukzmon.so"; cp -- /bin/true "${t}/rel/tukzmon-settings"
+	## Keeps the config and the output name, then stops the script.
+	printf '#!/bin/sh\nwhile [ $# -gt 0 ]; do case "$1" in -f) cp "$2" "%s/yaml"; shift 2 ;; -t) echo "$2" > "%s/name"; shift 2 ;; *) shift ;; esac; done\nexit 1\n' "${t}" "${t}" > "${t}/nfpm"
+	chmod +x "${t}/nfpm"
+	for arch in x86_64 arm64; do
+		case "${arch}" in x86_64) want=amd64; multi=x86_64-linux-gnu ;; arm64) want=arm64; multi=aarch64-linux-gnu ;; esac
+		rm -f -- "${t}/yaml" "${t}/name"
+		out="$(NFPM="${t}/nfpm" SOURCE_DATE_EPOCH=1700000000 bash "${cicd}/utility/package.bash" "${t}/rel" 1.2.3 "${t}/out" "${t}/work" "${arch}" 2>&1)" && { fWhy "${arch}: the stand-in nfpm's failure didn't stop it"; return 1; }
+		[[ -f "${t}/yaml" ]] || { fWhy "${arch}: nfpm never ran: ${out}"; return 1; }
+		[[ "$(sed -n 's/^arch: //p' "${t}/yaml")" == "${want}" ]] || { fWhy "${arch}: arch is $(sed -n 's/^arch: //p' "${t}/yaml")"; return 1; }
+		grep -qx "    dst: /usr/lib/${multi}/xfce4/panel/plugins/libtukzmon.so" "${t}/yaml" || { fWhy "${arch}: no library in /usr/lib/${multi}"; return 1; }
+		! grep -q '^[^#]*\${TUKZMON_' "${t}/yaml" || { fWhy "${arch}: a name left unfilled"; return 1; }
+		[[ "$(cat -- "${t}/name")" == "${t}/work/tukzmon-1.2.3-linux-${arch}.deb" ]] || { fWhy "${arch}: named $(cat -- "${t}/name")"; return 1; }
+	done
+	out="$(NFPM="${t}/nfpm" SOURCE_DATE_EPOCH=1700000000 bash "${cicd}/utility/package.bash" "${t}/rel" 1.2.3 "${t}/out" "${t}/work" i386 2>&1)" && { fWhy "took arch i386"; return 1; }
+	[[ "${out}" == *"no arch 'i386'"* ]] || { fWhy "i386: ${out}"; return 1; }
+}
+
 ## Test ID: deqvm
 fTest_hook_isnt_another_run() {
 	local t="${work}/other-run" live='' out='' ok=0
@@ -1405,3 +1428,5 @@ exit "${failed}"
 ##		- 2026-11-11: A docs-only push still gets its docs checks.
 ##		- 2026-11-17: The content scrub, alone and in the pre-push hook.
 ##		- 2026-11-18: The content scrub's findings don't count as lint warnings.
+##		- 2026-11-19: Each arch's packages get its own arch, library folder and
+##		  name.

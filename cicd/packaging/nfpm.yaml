@@ -49,10 +49,11 @@ rpm:
   # rpm puts the build host's name in the package.
   buildhost: localhost
 # XFCE 4.20 reads plugins only from its own folders, which differ by distro
-# family for the library.
+# family for the library. TUKZMON_MULTIARCH is Debian's folder for the arch,
+# such as aarch64-linux-gnu. Fedora's is lib64 for both.
 contents:
   - src: ${TUKZMON_RELEASE_DIR}/libtukzmon.so
-    dst: /usr/lib/x86_64-linux-gnu/xfce4/panel/plugins/libtukzmon.so
+    dst: /usr/lib/${TUKZMON_MULTIARCH}/xfce4/panel/plugins/libtukzmon.so
     packager: deb
     file_info: { mode: 0644, mtime: "${TUKZMON_MTIME}" }
   - src: ${TUKZMON_RELEASE_DIR}/libtukzmon.so
@@ -68,7 +69,7 @@ contents:
   # The plugin looks beside its library first, then on PATH, so the link
   # keeps an older tukzmon-settings earlier on PATH from opening instead.
   - src: ../../../../../bin/tukzmon-settings
-    dst: /usr/lib/x86_64-linux-gnu/xfce4/panel/plugins/tukzmon-settings
+    dst: /usr/lib/${TUKZMON_MULTIARCH}/xfce4/panel/plugins/tukzmon-settings
     type: symlink
     packager: deb
     file_info: { mtime: "${TUKZMON_MTIME}" }

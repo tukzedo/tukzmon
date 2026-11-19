@@ -10,7 +10,7 @@
   outputs =
     { self, nixpkgs }:
     let
-      # x86_64 only, as for the .deb and .rpm.
+      # x86_64 only for now, though the .deb and .rpm come for arm64 too.
       system = "x86_64-linux";
       tukzmonFor = pkgs: pkgs.callPackage ./nix/package.nix { sourceDateEpoch = self.lastModified; };
     in
