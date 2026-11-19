@@ -40,8 +40,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Show the highest recorded values on the tip of monitors with no obvious absolute max
 	- ID: 2026111623513500
 	- Type: Feature
-	- Status: Queued
-		- Hover over the network, disk, load and processes graphs on a panel that has run a while, and judge the "highest" lines' wording and length, with the network split on and off.
+	- Status: Closed
+	- Closed reason: Done
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261116-235135
@@ -59,18 +59,24 @@ Sorted per the notes in [Template](#template).
 		- Answer 20261119: the highest line reads "Highest Read: 80 MB/s", one per series, on its own line below the current values.
 		- Answer 20261119: Temperature gets the highest line too.
 		- Answer 20261119: losing the highest values on Reset history is expected.
+		- 20261119: the lines read "Highest Read: 80 MB/s", and the temperature tip ends with "Highest Temperature: 98 °C". `design.md` Drawing and README Features say so.
+		- Verified: the quick gate and Sanitizers passed, with the changed tests.
 	- Decisions:
-		- The graphs with no clear top are network, disk, load and processes. Temperature has its critical level in the tip, and the tukzmon graph is a share of all CPUs, so they leave it out.
+		- The graphs with a highest line are network, disk, load, processes and temperature. The tukzmon graph is a share of all CPUs, so it leaves it out.
 		- The highest lines go under the tip's own lines, one value a line, since 2026103109002399 put one pair on each line.
-		- The lines read "Name highest value", so every graph's lines follow one rule. "Highest yours" read badly on processes.
+		- The lines read "Highest Name: value", per the 20261119 answer, with the name as the tip gives it, so processes read "Highest Yours: 130".
+		- Temperature gets one line, for the reading, with the sum of its normal and critical highests. Normal stops at the critical level and critical starts there, so the sum is the highest reading. The critical level is left out, since the tip already gives it.
 		- Processes get no highest total, since the history keeps each kind's highest but not their sum's.
 		- It's read from the coarsest history tier, rather than kept as a running max, so it isn't a second copy of what the history already has. A bucket's max is of the samples in it, so a 50 ms spike counts.
 		- Under the network split, the highest goes by the series as kept, so history from before the split was turned on has its LAN traffic in the internet lines.
 		- Check entry filed in questions.md for the wording.
-	- Branch: nov17-2026111623513500
-	- Commit: b1bbee5
-	- Test case: `history::tests::highest_of_all_kept` (dfejh), `tests::highest_on_no_top_tips` (dfejj) and `tests::graph_tip_gives_history_highest` (dfejk). dfejh and dfejk fail with the finest tier read in place of the coarsest, and dfejk fails with the tip left without the highest.
-		- Swept: every `Source` impl in `core/src/lib.rs`, the only file with any, and both `Graph` tip paths, `tooltip` and `hover_tip`, which the panel and the settings window's graph list share. Tests quoting the 4 tips use `contains` or `Source::text`, so they're unchanged.
+	- Branch: nov17-2026111623513500, then nov19-2026111623513500
+	- Commit: b1bbee5, then febb64c
+	- Test case: `history::tests::highest_of_all_kept` (dfejh), `tests::highest_on_no_top_tips` (dfejj) and `tests::graph_tip_gives_history_highest` (dfejk). dfejh and dfejk fail with the finest tier read in place of the coarsest, and dfejk fails with the tip left without the highest. dfejj fails with the temperature tip left without its highest.
+		- 20261119: new values only, for the "Highest Name: value" wording: dfejj's and dfejk's expected tips. dfejj's check that temperature leaves the line out now checks its line.
+		- Swept: every `Source` impl in `core/src/lib.rs`, the only file with any, and both `Graph` tip paths, `tooltip` and `hover_tip`, which the panel and the settings window's graph list share. Tests quoting the 5 tips use `contains` or `Source::text`, so they're unchanged. No other code, doc or test quotes the old "highest" wording.
+	- Acceptance signoff: Self-closed 20261119: the answers set the wording and scope, and dfejj and dfejk pin the text.
+	- Closed: 20261119-113408
 
 - Some settings tips are long and technical, and stack asides
 	- ID: 2026110710005015
