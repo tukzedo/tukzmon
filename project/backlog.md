@@ -255,7 +255,8 @@ Sorted per the notes in [Template](#template).
 - Cut the history lookups each draw makes down toward the tick's old cost
 	- ID: 2026111715361287
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on automated testing
+		- After the profile, Waiting on UAT: the tick stays far above 241 us, since the lookups are only about a third of it. The call is whether to close this and leave the rest of the cost to 2026111000270812.
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261117-153612
@@ -273,13 +274,20 @@ Sorted per the notes in [Template](#template).
 		- At sample 1 s, a draw's lookups are about 22 us in the 15 columns up to 4 samples wide, 20 us in the 40 wider fine-tier ones, and 9 us in the 61 on coarse tiers. Most of the first two is the windows, which read their buckets one at a time.
 		- Next: prefix sums of secs and of secs times max, per fine tier, would make each window 2 reads. They'd also skip gap buckets, which fixes 2026111716050389 and changes those columns' pixels by more than a step, so they wait on it. They'd cost about 32 bytes a bucket in the 2 fine tiers, about 0.4 MB per 3-series graph.
 		- The lookups were about 35% of the profiled tick in 2026111011172485's runs, so even none at all leaves the tick near 450 us, not 241. The profiler wasn't run for this cut, since its noise is bigger than the cut.
+		- 20261119: prefix sums of secs and of secs times max, per fine tier, made each window 2 reads in `densest`, `spread_over` and the buckets wholly inside `tops_over`. They gave the same pixels, but at sample 1 s a column up to 4 samples wide went from about 1.58 to 1.83 us, and wider ones stayed near 0.53 us. The windows already slide a bucket in and a bucket out, so the sums only save the first fill. Dropped.
+		- 20261119: `spread_over` steps a whole bucket at a time, taking the window in reach for the last part of each bucket as a second part, rather than stepping at each whole number of x and of x plus the reach. All 24 draw-bench cases give the same pixels. At sample 1 s the columns up to 4 samples wide went from about 22.8 to 20.3 us a draw, and all cases from about 108.7 to 104.6 us a draw, in 3 runs each in turn at load 9.5 to 11 on 32 cores.
+		- Tried and dropped: skipping the divide in `add_buckets` when all of a bucket's data is in. Coarse-tier columns went from about 9.8 to 9.2 us a draw, but the others moved the other way within the noise.
+		- At sample 1 s a draw's lookups are now about 20 us in the narrow columns, 20 us in the wider fine-tier ones, and 10 us on coarse tiers. `total_over` is about a quarter of the lookups, in every column.
 	- Decisions:
 		- 20261117: a change to the float math may move a pixel by at most 1 in any channel against draw-bench's base build, and the existing drawing tests must pass unchanged. Anything bigger needs a look by eye, so the item goes to Waiting on UAT.
 		- 20261117: only the window bounds change went in, as the one change that moved the bench. The prefix sums wait on 2026111716050389 rather than fixing it here, since that fix moves pixels past the limit above.
+		- 20261119: the prefix sums are out, since they cost about 0.4 MB per graph and made the narrow columns slower. Only the whole-bucket stepping went in.
 	- Test case: `history::tests::spread_over_as_plain` (dfehq) checks `spread_over` against a plain version that takes each step's windows from the ceil to the floor of its middle and sums each window afresh. It fails with either bound off by one.
+		- 20261119: dfehq now also tries columns a whole number of buckets past a sample. It failed with the second part's last window, the point where it starts, or the unit's first window off by one, and passes on 1d49e84.
 		- Swept: every floor or ceil of a step's middle in history.rs. `spread_over` had the only one, and `densest` takes its window range once per call.
-	- Branch: nov17-2026111715361287
-	- Commit: 16ee014
+	- Needs local test suite run?: the profiler, `--backlog-run-quick profile`, to read the tick against 241 us.
+	- Branch: nov17-2026111715361287, nov19-2026111715361287
+	- Commit: 16ee014, 1d49e84
 
 - CICD gap: Run the content scrub from the pipeline and the pre-push hook
 	- ID: 2026110310450004
