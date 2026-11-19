@@ -25,7 +25,7 @@ Sorted per the notes in [Template](#template).
 - CICD gap: Clear the content scrub's findings on the tree, then make them fail Lint and the pre-push hook
 	- ID: 2026111717545314
 	- Type: Task
-	- Status: Waiting for answers
+	- Status: Queued
 		- Waits on the 2026111717545314 question in questions.md: which findings get reworded in the repo, and which the scrub or its allow list should stop reporting.
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
@@ -35,11 +35,12 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- The content scrub reports 312 lines on the tree as of 2026-11-17, so for now its findings are only counted. Clear them, then set `CONTENT_SCRUB_FAILS` to 1 in `cicd/config.bash`, so a finding fails Lint and the pre-push hook's docs checks.
 	- Estimated effort: Avg
+	- Answer 20261119: (a). The scrub skips binary and stock files, and checks spelled-out numbers and dash-parens only in prose (`.md` files and comments). Then the rest gets reworded in the repo, and `CONTENT_SCRUB_FAILS` goes to 1. `private/hooks/scrub.bash` is changed for this.
 
 - Pre-next-cut: Show the highest recorded values on the tip of monitors with no obvious absolute max
 	- ID: 2026111623513500
 	- Type: Feature
-	- Status: Waiting on UAT
+	- Status: Queued
 		- Hover over the network, disk, load and processes graphs on a panel that has run a while, and judge the "highest" lines' wording and length, with the network split on and off.
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
@@ -55,6 +56,9 @@ Sorted per the notes in [Template](#template).
 		- The highest is over the history kept, so it goes back to the max age, comes back after a restart with Keep across restarts on, and Reset history starts it over.
 		- `design.md` Drawing and README Features have it.
 		- Verified: the quick gate and Sanitizers passed, with the new tests.
+		- Answer 20261119: the highest line reads "Highest Read: 80 MB/s", one per series, on its own line below the current values.
+		- Answer 20261119: Temperature gets the highest line too.
+		- Answer 20261119: losing the highest values on Reset history is expected.
 	- Decisions:
 		- The graphs with no clear top are network, disk, load and processes. Temperature has its critical level in the tip, and the tukzmon graph is a share of all CPUs, so they leave it out.
 		- The highest lines go under the tip's own lines, one value a line, since 2026103109002399 put one pair on each line.
@@ -8402,6 +8406,7 @@ Sorted per the notes in [Template](#template).
 		- A fix splits by searching only what's left of the text, and reads the Format line before the split. It took a parse of 2413 lines from 258 s to 209 s of CPU under Miri, with the time per value flat again, at load 5 to 9 on 32 cores.
 		- The upstream draft is in `upstream/2026111717051144/`: the issue text, the patch and the repro. Nothing changes on this side.
 		- What's left under Miri is a flat cost of about 85 ms a value, mostly per-character checks inside shcl. The draft names one of them.
+		- Answer 20261119: yes, file the draft in shcl's backlog. Held while a shcl round runs (branch nov19). The draft is copied to shcl's `private/claude_simple/upstream/tukzmon-2026111717051144/`.
 	- Decisions:
 		- Closed on the finding and the draft, since the item asked for those. The fix itself waits on shcl.
 		- Rarer provenance GC, at 100000, was slower at 470 and 940 lines and took twice the memory, so a Miri flag isn't the way.
