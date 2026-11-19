@@ -309,7 +309,7 @@ Sorted per the notes in [Template](#template).
 - CICD gap: Run the content scrub from the pipeline and the pre-push hook
 	- ID: 2026110310450004
 	- Type: Task
-	- Status: Queued
+	- Status: Closed
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261103-104500
@@ -336,7 +336,9 @@ Sorted per the notes in [Template](#template).
 		- Swept: `cicd/hooks` has only pre-push, and the merge gate's path gets the scrub through Lint. df32x and df543 copy the hook's includes into their own repos, and copy the new one too.
 	- Branch: nov17-2026110310450004, then nov17-2026110310450004-fix
 	- Commit: c899ab2, 80f3d95
-	- Test case: `content_scrub` (dfen5), `hook_runs_content_scrub` (dfen6) and `content_scrub_lint_log_clean` (dfeq1), in `cicd/tests/guards.bash`.
+	- Test case: its children's: 2026111717545314: `scrub-rules-check.bash` in the private tools folder, since the scrub isn't in the repo. dfen5, dfen6 and dfeq1 still pass with the new default.
+	- Closed: 20261119-121412
+	- Closed reason: Done
 
 - CICD gap: arm64 Linux build and packages
 	- ID: 2026110310450006
