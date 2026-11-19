@@ -1019,7 +1019,7 @@ mod tests {
 		for _ in 0..3 {
 			g.sample();
 		}
-		assert_eq!((OPEN.get(), INITS.get()), (2, 2), "opened once, not a read");
+		assert_eq!((OPEN.get(), INITS.get()), (2, 2), "opened once, no read");
 		g.set_look(shown(false, true), None).unwrap();
 		assert_eq!(OPEN.get(), 1);
 		g.set_look(shown(false, false), None).unwrap();

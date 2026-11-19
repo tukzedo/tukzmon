@@ -505,7 +505,7 @@ lintLog="/dev/null"
 fLintRun() { local rc=0; "$@" 2>&1 | tee -a "${lintLog}" || rc=$?; return "${rc}"; }
 
 ## Runs clang-tidy over the C++, per .clang-tidy. It reads the cxx bridge's
-## headers from the clippy build just before it. qt.cpp includes
+## headers from the clippy build right before it. qt.cpp includes
 ## tukzmon-settings/src/qt.h, which resolves through a link to settings/
 ## under TMPDIR, in the image too.
 fLintTidy() {

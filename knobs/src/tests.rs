@@ -511,7 +511,7 @@ fn custom_starts_from_preset() {
 	assert_eq!(
 		m.values.own.get("fg"),
 		Some(&text("#d0d0d0")),
-		"Dark's, not the wallpaper's"
+		"Dark's rather than the wallpaper's"
 	);
 	let (config, _) = m.save(&DESK);
 	assert!(
@@ -744,7 +744,7 @@ fn program_presets() {
 	assert_eq!(
 		m.value("bg", &light),
 		text("#123456"),
-		"a change holds in both"
+		"a change stays in both"
 	);
 	let back = Model::load(Arc::clone(&m.spec), &m.save(&dark).0, "");
 	assert_eq!(back.values, m.values);

@@ -8,9 +8,9 @@
 ##		in lower-case Crockford base 32, so 2026-10-24 22:00 UTC is decp8. When
 ##		2 come out the same, the second takes the next free minute. An ID never
 ##		changes, even when its test is renamed or moved. A Rust test has it on
-##		a "// Test ID: decp8" line just above
+##		a "// Test ID: decp8" line right above
 ##		its attributes, and a test of the pipeline in cicd/tests/*.bash on a
-##		"## Test ID: decp8" line just above its fTest_ function.
+##		"## Test ID: decp8" line right above its fTest_ function.
 ##		Ported from silkterm's cicd/utility/test-id.py, which was base 62 in ms.
 ##	Syntax:
 ##		test-ids.bash new [N]           print N fresh IDs for now (default 1)
@@ -127,7 +127,7 @@ fScan() {
 }
 
 ## The pipeline's own tests in cicd/tests/*.bash. Each is an fTest_ function
-## with a "## Test ID: decp8" line just above it, and the crate is the file's
+## with a "## Test ID: decp8" line right above it, and the crate is the file's
 ## name.
 fScanBash() {
 	local f; local -a files=()
@@ -192,8 +192,8 @@ fNew() {   ## fNew MINUTES COUNT
 fWhen() { local -i m; fDecode "$1" m || return 1; printf '%s  %s\n' "$1" "$(date -u -d "@$((epoch2000 + m * 60))" '+%Y-%m-%d %H:%M UTC')"; }
 
 ## Prints items closed as Done without a Test case row, and IDs a Test case
-## row names that no test has. A word counts as an ID when it would be a sane one, so "seven",
-## which stands for 2050, doesn't.
+## row names that no test has. A word counts as an ID when it would be a sane one, so a
+## word that decodes to a far-off date, such as 2050, doesn't.
 fBacklog() {   ## fBacklog FIRST NOW KNOWN-IDS-FILE
 	local log="${root}/project/backlog.md"
 	[[ -f "${log}" ]] || return 0

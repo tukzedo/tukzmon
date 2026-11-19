@@ -165,7 +165,7 @@ A Rust core was chosen over C or C++, with C only where a panel's API needed it.
 	- The window opens as wide as its widest tab needs, so the graph list's dropdowns aren't squeezed.
 	- The window opens as tall as its tallest tab needs, Colors left out, and never taller than the screen less its panels, with the title bar and border included. The window manager's frame isn't known until the window is up, so the window's size is cut by the frame at its first move after that, and the window is kept on screen.
 	- The tabs are General, Graphs, and Themes. Graphs is a list with a row per graph rather than a row per setting. See [XFCE plugin](#xfce-plugin). General has what every graph shares. Its groups are Size, with Width px default and Border px, then Time axis, Vertical axis, Timespan, and Misc. Max age in days is under Keep across restarts, with its hours and minutes to its right, on its line.
-	- The page that scrolls and the tab list are set in, a shade darker than the rest of the window. So the page reads apart from what stays put, which is the theme's Name row over the Themes sub-tabs and the buttons at the bottom. No rule is drawn between the two, since the shade marks the edge. Both shades are worked out from the theme's window and text colors.
+	- The page that scrolls and the tab list are set in, a shade darker than the rest of the window. So the page reads apart from what stays put, which is the theme's Name row over the Themes sub-tabs and the buttons at the bottom. No rule is drawn between them, since the shade marks the edge. Both shades are worked out from the theme's window and text colors.
 	- A color chip opens a picker, and the hex value can be typed beside it. The picker is SilkTerm's rather than the toolkit's. It has a saturation and brightness square, a hue strip, and boxes for red, green, blue, brightness, saturation, and hex. The row behind it follows every change, and Cancel puts back all of it, the theme's "*" included. The color model is in `settings/src/pick.rs`.
 	- A screen reader names each control by its row's label, with the graph's name in front on Colors, as "CPU Low". A revert arrow is "Revert" and that name, a color chip "Pick a color for" it, and the color picker's title is the name too. In the graph list each control names its graph. A row's label is its control's buddy, since Qt on Linux names a dropdown by its text and finds its label that way.
 	- A tip is broken into lines of at most 70 characters, the width GTK wraps its own tips at, so the panel's and the window's read alike. Qt would show a plain tip as one line.
@@ -219,7 +219,7 @@ A Rust core was chosen over C or C++, with C only where a panel's API needed it.
 	- Terminal, Vintage, and Frost are one-color themes, like a green phosphor screen, an amber one, and pale ice. Every graph has the same colors in them, so graphs are told apart by place and by the gap between them, as on a one-color multiload-ng setup.
 		- There's no way to space 13 graphs 10 apart by lightness alone, so these themes are let off the check on leads. A theme whose graphs all lead with one color is one of them, and only that lets a theme off.
 		- I/O wait and system stay red and orange, 10 or more from the lead and from each other, so trouble still reads. Each graph's own colors are 10 or more apart, and from the top.
-	- Each color row's default is Default's color, so Custom starts from it. A test ties the two together.
+	- Each color row's default is Default's color, so Custom starts from it. A test checks they match.
 	- A color changed on a theme is kept apart from it, and the dropdown says "Name *", the way SilkTerm's does. Picking another theme drops those changes.
 	- knobs reads a color line at its own path as the Custom set. A file with colors and no theme line reads as Custom, so a hand edit or an older file isn't hidden under Default. A save names the theme whenever Custom colors are stored, even Default, or the file would read back as Custom.
 
@@ -268,7 +268,7 @@ A Rust core was chosen over C or C++, with C only where a panel's API needed it.
 - Saved themes are kept whole in the config file, under `themes.<key>`, with a `name` and every color and mode by its setting id, laid out the same way as a built-in in settings.shcl. The dropdown lists them after the built-ins, and before Custom.
 	- They join the `theme` group as presets on a copy of the spec, through knobs' `Spec::finish`. The plugin reads them the same way, so knobs is unchanged.
 	- The key comes from the name when the theme is made, and stays through a rename. A key that is a built-in's is left out, and a color line that can't be read is dropped at the next save, like any other. A missing color is Default's.
-	- Save puts the "*" changes into the saved theme in force. Save as makes a new theme from the colors showing and picks it. Delete picks Default. Built-in themes can't be saved over, renamed or deleted, and no two themes share a name.
+	- Save puts the "*" changes into the saved theme in force. Save as makes a new theme from the colors showing and picks it. Delete picks Default. Built-in themes can't be saved over, renamed or deleted, and themes never share a name.
 	- A save writes every saved theme. A theme this window didn't touch is written as the file has it, so a theme added by hand meanwhile isn't lost. One it changed gets only the name and colors changed here, so another window's edits to it stay.
 	- A theme made in this window whose key or name another window saved meanwhile moves to a free one at save, such as "Mine 2" at `mine_2`, and stays picked. So both are kept.
 
@@ -334,7 +334,7 @@ Splitting network traffic into LAN and internet is optional, per backlog item 20
 
 - Polling every TCP socket through `sock_diag` and summing bytes by remote address. It needs no root, but it misses UDP, which includes QUIC, and sockets that close between polls.
 
-- eBPF is exact, but it needs root too. It won't be offered unless the other two fall short.
+- eBPF is exact, but it needs root too. It won't be offered unless the other 2 fall short.
 
 Either way the LAN is what's counted, and the internet is the rest of the interfaces' traffic. So UDP and QUIC to the LAN show as internet with socket polling. The LAN is never shown as more than the interfaces' total.
 

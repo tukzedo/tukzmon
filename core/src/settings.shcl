@@ -18,7 +18,7 @@
 ## Every color is in the theme group, and so are each graph's mode, the
 ## margins and the 2 checkboxes that put the Outline tab's colors over every
 ## graph's. A row's default is the Default theme's value, and config::tests
-## ties the two together.
+## checks they match.
 
 tabs: ["General", "Graphs", "Themes", "Themes/Colors", "Themes/Outline"]
 

@@ -7,7 +7,7 @@
 ##		- Builds a .deb and an .rpm through nfpm from the release build in
 ##		  RELEASE_DIR, named tukzmon-<version>-linux-x86_64.<deb|rpm>, with
 ##		  tukzmon-<version>-sha256sums.txt beside them in OUT_DIR.
-##		- Two builds of one commit give the same bytes, since the mtimes inside
+##		- One commit built twice gives the same bytes, since the mtimes inside
 ##		  are SOURCE_DATE_EPOCH, or else HEAD's commit time.
 ##		- Checks each package has what nfpm.yaml says, and that the .deb's
 ##		  depends name every library the binaries link, where dpkg can say

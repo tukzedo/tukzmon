@@ -35,7 +35,7 @@ These are the rules for the settings window. They were taken from how it already
 	- Each tab has one kind of setting. General has what every graph shares, Graphs has the list of graphs, and Themes has the looks.
 	- Tab names are one word.
 
-- The page and the tab list are a shade darker than the rest of the window. Whatever stays put while a page scrolls is the lighter shade, so that way the page reads as set in, and no rule is drawn between the two. The lighter shade includes the theme Name row with its buttons over the sub-tabs, and the bottom strip.
+- The page and the tab list are a shade darker than the rest of the window. Whatever stays put while a page scrolls is the lighter shade, so that way the page reads as set in, and no rule is drawn between them. The lighter shade includes the theme Name row with its buttons over the sub-tabs, and the bottom strip.
 
 - A page scrolls instead of growing. The window is as tall as its tallest tab needs, leaving out Colors, but never taller than the screen.
 
@@ -142,12 +142,12 @@ These are the rules for the settings window. They were taken from how it already
 
 - Every button with text is at least 12 px from its text to the frame across and 8 px over and under, so all buttons are one height.
 
-- The bottom strip has Reset history on the left, under the pages. Cancel, Apply, and OK are on the right, with Cancel set a little apart from the other two.
+- The bottom strip has Reset history on the left, under the pages. Cancel, Apply, and OK are on the right, with Cancel set a little apart from the other 2.
 
 - OK saves and closes. Apply saves and stays. Cancel discards and closes.
 	- Enter is OK and Esc is Cancel, even from inside a field.
 	- Apply turns on as soon as a box is typed in.
-	- Apply has the accelerator Alt+A. The other two don't have one.
+	- Apply has the accelerator Alt+A. The other 2 don't have one.
 
 - A button has a tip that says what it does in one sentence.
 

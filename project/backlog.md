@@ -25,8 +25,8 @@ Sorted per the notes in [Template](#template).
 - CICD gap: Clear the content scrub's findings on the tree, then make them fail Lint and the pre-push hook
 	- ID: 2026111717545314
 	- Type: Task
-	- Status: Queued
-		- Waits on the 2026111717545314 question in questions.md: which findings get reworded in the repo, and which the scrub or its allow list should stop reporting.
+	- Status: Closed
+	- Closed reason: Done
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261117-175453
@@ -36,6 +36,23 @@ Sorted per the notes in [Template](#template).
 		- The content scrub reports 312 lines on the tree as of 2026-11-17, so for now its findings are only counted. Clear them, then set `CONTENT_SCRUB_FAILS` to 1 in `cicd/config.bash`, so a finding fails Lint and the pre-push hook's docs checks.
 	- Estimated effort: Avg
 	- Answer 20261119: (a). The scrub skips binary and stock files, and checks spelled-out numbers and dash-parens only in prose (`.md` files and comments). Then the rest gets reworded in the repo, and `CONTENT_SCRUB_FAILS` goes to 1. `private/hooks/scrub.bash` is changed for this.
+	- Actual effort: Avg
+	- Progress log:
+		- The scrub skips binary files and `license.txt`, and checks spelled-out numbers and dash-parens only in `.md` files and the comment part of code lines. Its not-X-it's-Y check no longer matches "net", as in "internet".
+		- The other findings were reworded in code comments, messages, test asserts, `design.md`, `style-guide_ux.md` and the backlog. Code names, shcl's tip line break, the tip's "just now" and degree sign, and the person's own backlog lines went to the scrub's allow list.
+		- `CONTENT_SCRUB_FAILS` is 1, so a finding fails Lint and the pre-push hook's docs checks.
+		- Verified: the scrub gave 320 lines before and none after, on the host, and Lint in the image gave "content scrub: clean". A comment line with 2 findings added to `cicd/config.bash` failed `fContentScrub`. `--backlog-run-quick format build lint test` and `sanitizers` passed, and `lint-report.bash` gave CLEAN.
+		- Verified: `scrub-rules-check.bash` in the private tools folder failed on the old scrub and passes on the new one. It checks that code names and strings are skipped, comments and `.md` lines are checked, and binary and stock files are skipped.
+	- Decisions:
+		- The person's backlog lines went to the allow list rather than being reworded. So did code names such as `Sign::Holds`, `carry()` and knobs' `hold()`, since renaming code for word choice is churn with no gain.
+		- `install.bash`'s comments and 2 error messages now say "extract" for what a user install does with the package.
+		- The not-X-it's-Y check was tightened past what the answer asked, since its pattern matched "internet" in 2 settings tips that read fine.
+		- The scrub's commit message check still reads the whole history in a detached worktree, or on a branch with no upstream. That passes today.
+	- Branch: nov19-2026111717545314
+	- Commit: 0c5909e
+	- Test case: `scrub-rules-check.bash` in the private tools folder, since the scrub isn't in the repo. dfen5, dfen6 and dfeq1 still pass with the new default.
+	- Acceptance signoff: Self-closed: built as the answer said, and the gates pass with findings failing.
+	- Closed: 20261119-121147
 
 - Pre-next-cut: Show the highest recorded values on the tip of monitors with no obvious absolute max
 	- ID: 2026111623513500
@@ -168,15 +185,15 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Avg
 	- Actual effort: Avg
 	- Progress log:
-		- `install.bash` at the repo root, from silkterm's. It picks the release from the API's list in semver order, and takes the newest prerelease while there's no stable one. A user install unpacks the `.deb` or `.rpm` into the folders `dev-install.bash` uses, and a system install hands the package to apt-get, dnf, zypper or yum through sudo. It restarts a running panel.
+		- `install.bash` at the repo root, from silkterm's. It picks the release from the API's list in semver order, and takes the newest prerelease while there's no stable one. A user install extracts the `.deb` or `.rpm` into the folders `dev-install.bash` uses, and a system install hands the package to apt-get, dnf, zypper or yum through sudo. It restarts a running panel.
 		- README.md has a Direct section with the one-liner, `--help` and the install folders. design.md XFCE plugin names it.
 		- Verified: against the real v1.0.0-beta.1, it took the prerelease, installed the 3 files, and a second run said up to date and changed nothing. The installed `tukzmon-settings --version` gave v1.0.0-beta.1 build df1j9.
-		- Verified: under bash 3.2.57, the same, through the `ar` unpack. dpkg-deb, rpm2cpio, bsdtar and ar each unpacked the real packages to the same files.
+		- Verified: under bash 3.2.57, the same, through the `ar` path. dpkg-deb, rpm2cpio, bsdtar and ar each extracted the real packages to the same files.
 		- Verified: df4xa and df4xb pass, and each failed on a broken installer: a release not above its prerelease, fields compared as text, no sum check, a reinstall when current, and stable taking a prerelease. The quick gate and Sanitizers passed.
 		- Verified 20261111: `--target system --yes`, as a user with sudo on clean Debian 13 and Fedora 42, installed the real v1.0.0-beta.1 package and its dependencies through apt-get and dnf. A second run said up to date and changed nothing, and the installed `tukzmon-settings --version` gave v1.0.0-beta.1 build df1j9. A user install into an empty home with this round's `install.bash` did the same.
 	- Decisions:
 		- 20261116: both calls below stay as built.
-		- The package is downloaded and checked in a temp folder before the plan, so the plan lists only what would change. The release has no tarball, so a user install unpacks the package with whatever tool is there.
+		- The package is downloaded and checked in a temp folder before the plan, so the plan lists only what would change. The release has no tarball, so a user install extracts the package with whatever tool is there.
 		- A system install without `--yes` leaves the package manager's own prompt in place, for its dependency list.
 		- Exit 2 on a bad option, as `dev-install.bash` does, where silkterm's gives 1.
 		- No signature check, since releases aren't signed.
@@ -205,18 +222,18 @@ Sorted per the notes in [Template](#template).
 	- Type: Bug
 	- Status: Waiting on automated testing
 	- Target version: v1.0.0-beta.2
-	- Needs external testing: `RIG_CASES=id private/claude_simple/tools/rustdesk-peer-rig.bash` on a box with no installed RustDesk service running. b23 has one since 20261119, so there the service needs stopping by hand first.
+	- Needs external testing: `RIG_CASES=id rustdesk-peer-rig.bash`, from the private tools folder, on a box with no installed RustDesk service running. b23 has one since 20261119, so there the service needs stopping by hand first.
 	- Priority|Severity: Avg
 	- Opened: 20261117-190906
 	- Opened by:
 	- Related IDs: 2026110911114037, 2026111709483900
 	- Steps to reproduce:
-		- Run the real RustDesk server on a desktop, and connect a peer to it by ID, through a rendezvous server, where the two can reach each other directly.
+		- Run the real RustDesk server on a desktop, and connect a peer to it by ID, through a rendezvous server, where they can reach each other directly.
 	- Incorrect behavior: the connection is LAN-direct or hole-punched on ephemeral ports at both ends, with neither 21118 nor 21117, so `remote::Watch` says Local while the peer is on, though RustDesk's `--cm` runs on that display.
 	- Expected behavior: Remote while the peer is on, and Local after.
-	- Reproduced: 20261117 on b23, RustDesk 1.5.3 with a local hbbs, server and peer on two private displays, twice, both by the LAN path, since both reached hbbs from one address. In those 2 runs the peer still shared the server's IPC folder. A hole punched across the internet takes the same kind of ports, which is read only. Direct IP on 21118 and a forced relay on 21117 were both seen.
+	- Reproduced: 20261117 on b23, RustDesk 1.5.3 with a local hbbs, server and peer on 2 private displays, twice, both by the LAN path, since both reached hbbs from one address. In those 2 runs the peer still shared the server's IPC folder. A hole punched across the internet takes the same kind of ports, which is read only. Direct IP on 21118 and a forced relay on 21117 were both seen.
 	- Possible cause: `viewed_by` wants a connection on a RustDesk port for `Sign::RustDeskCm`. A by-ID connection over a punched hole uses whatever port the punch got, so the sign could be `--cm` alone, or an established socket held by the `rustdesk --server` process that isn't to the rendezvous server.
-	- Test environment: `private/claude_simple/tools/rustdesk-peer-rig.bash` sets up the real server, a peer and a local relay with no root. Without `ALWAYS_USE_RELAY=Y` on hbbs, or with both reaching hbbs from one address, the peer takes the punched path.
+	- Test environment: `rustdesk-peer-rig.bash`, in the private tools folder, sets up the real server, a peer and a local relay with no root. Without `ALWAYS_USE_RELAY=Y` on hbbs, or with both reaching hbbs from one address, the peer takes the punched path.
 	- Actual cause: the RustDesk sign wanted a connection on 21118 or 21117 beside `--cm`, and a look read the processes only while a connection on a known port was up. A peer by ID comes in on any port, and RustDesk can punch over UDP, which the TCP table doesn't show.
 	- Actual effort: Avg
 	- Progress log:
@@ -271,7 +288,7 @@ Sorted per the notes in [Template](#template).
 		- Drawing the pixels is about a quarter of a draw.
 		- 20261117: `spread_over` takes each step's window bounds from the whole numbers it already keeps, rather than from a floor and a ceil of the step's middle. All 24 draw-bench cases give the same pixels. At sample 1 s, a column up to 4 samples wide went from about 1.73 to 1.47 us, the lookups from about 55 to 51 us a draw, and all cases from about 111 to 106 us a draw, in 3 runs each in turn at load 2.4 to 2.7 on 32 cores.
 		- Tried and dropped, since none moved the bench past its noise: block levels of 4, 16 and 64 buckets, a multiply by the inverse of each window's weight in `spread_over` and `densest`, one bounds check per bucket read, and skipping the ring's drops while its low end stays put. All gave the same pixels.
-		- At sample 1 s, a draw's lookups are about 22 us in the 15 columns up to 4 samples wide, 20 us in the 40 wider fine-tier ones, and 9 us in the 61 on coarse tiers. Most of the first two is the windows, which read their buckets one at a time.
+		- At sample 1 s, a draw's lookups are about 22 us in the 15 columns up to 4 samples wide, 20 us in the 40 wider fine-tier ones, and 9 us in the 61 on coarse tiers. Most of the first 2 is the windows, which read their buckets one at a time.
 		- Next: prefix sums of secs and of secs times max, per fine tier, would make each window 2 reads. They'd also skip gap buckets, which fixes 2026111716050389 and changes those columns' pixels by more than a step, so they wait on it. They'd cost about 32 bytes a bucket in the 2 fine tiers, about 0.4 MB per 3-series graph.
 		- The lookups were about 35% of the profiled tick in 2026111011172485's runs, so even none at all leaves the tick near 450 us, not 241. The profiler wasn't run for this cut, since its noise is bigger than the cut.
 		- 20261119: prefix sums of secs and of secs times max, per fine tier, made each window 2 reads in `densest`, `spread_over` and the buckets wholly inside `tops_over`. They gave the same pixels, but at sample 1 s a column up to 4 samples wide went from about 1.58 to 1.83 us, and wider ones stayed near 0.53 us. The windows already slide a bucket in and a bucket out, so the sums only save the first fill. Dropped.
@@ -653,7 +670,7 @@ Sorted per the notes in [Template](#template).
 		- I/O wait and system stay red and orange, and so do the battery's critical and on battery.
 		- `design.md` Theme has the details.
 		- Verified: the full run passed with the new test.
-		- 20261028: 2026102810142725 checks every roll's leads apart as CIEDE2000, so the hold is off. The hues are 22 degrees apart now, for 10 graphs.
+		- 20261028: 2026102810142725 checks every roll's leads apart as CIEDE2000, so it's no longer held. The hues are 22 degrees apart now, for 10 graphs.
 	- Decisions:
 		- The leads are 45 degrees apart, which leaves 90 degrees of the range to roll in, and keeps clear of defx7's 30 for the built-ins.
 		- All 4 share one saturation and brightness, so a roll reads as one set, the way each built-in does.
@@ -3254,7 +3271,7 @@ Sorted per the notes in [Template](#template).
 	- Note: This is the third fault in how Apply merges with a changed file, in 2 rounds. A table in design.md of what Apply does for each kind of change made elsewhere would stop each case being answered on its own.
 	- Estimated effort: Avg
 	- Reproduced: 2026-11-09, round-1109, by df320 and df321 with the fix taken out. The first read "Mine" after Apply, and the second lost the other window's color.
-	- Actual cause: as above. The pick and the changes on it were carried one store at a time, so the changes kept the window's Default while the pick stayed the file's. And a theme changed here, even only renamed, was written whole over the file's copy.
+	- Actual cause: as above. The pick and the changes on it were copied one store at a time, so the changes kept the window's Default while the pick stayed the file's. And a theme changed here, even only renamed, was written whole over the file's copy.
 	- Actual effort: Avg
 	- Progress log:
 		- When the file picks another theme than the window and the window changed its pick or the "*" colors on it, the window's pick and its "*" colors go together. A Custom color edited while on Custom counts too.
@@ -3267,7 +3284,7 @@ Sorted per the notes in [Template](#template).
 		- The 2 windows' picks can't both stay, so the other window's pick goes in the first case. Its saved theme stays.
 		- Last save wins per name and per color in a saved theme now, not per theme. That narrows 2026103115231908's "a theme both windows changed is still the last save's".
 		- A theme deleted elsewhere comes back when the window has it picked and changed on, so what the window showed is what it saved. A theme deleted elsewhere and only changed here already came back.
-	- Actual fix: `carry_theme` and `theme_touched` in `settings/src/dialog.rs`, called by `Dialog::apply` after the store carries, and `merge_themes` now carries a known theme's name and colors.
+	- Actual fix: `carry_theme` and `theme_touched` in `settings/src/dialog.rs`, called by `Dialog::apply` after the stores are copied, and `merge_themes` now keeps a known theme's name and colors.
 	- Branch: round-1109
 	- Test case: `dialog::tests::color_survives_other_window_pick` (df320), with a window that changed nothing on the theme, Custom, and a deleted theme, and `rename_keeps_other_windows_colors` (df321).
 		- Swept: every `merge_themes`, `carry` and `themes_text` use, and `Dialog::apply` as the one place a file is merged. deqqp, der2h, dezea and the rest of `dialog::tests` still pass.
@@ -3420,7 +3437,7 @@ Sorted per the notes in [Template](#template).
 		- 20261117: 2026110922214810 is closed. Its RustDesk check is split off to 2026111709483900, which waits on a run with a real RustDesk peer.
 		- 20261117: 2026111709483900 is closed, so every child is closed.
 	- Decisions:
-		- It closes with its last child. The by-ID RustDesk peer it misses is a defect in what was built, filed as Bug 2026111719090679, not a child.
+		- It closes with its last child. The by-ID RustDesk peer it misses is a defect in what was built, filed as Bug 2026111719090679 rather than a child.
 	- Test case: its children's: 2026111709483900: `remote::tests::viewer_needs_peer_here` (df3p5); 2026110922214810: `remote::tests::tcp_table_established_ports` (df3p4), `remote::tests::viewer_needs_peer_here` (df3p5), `remote::tests::watch_rechecks_every_few_seconds` (df3p6) and `remote::tests::stand_in_vnc_viewer_seen` (df3p7); 2026110922214697: `remote::tests::remote_session_signs` (df3nf), `config::tests::remote_halves_reads_no_slide` (df3ng), `dialog::tests::remote_session_greys_rows` (df3nh) and `bridge::tests::remote_greys_rates_and_scrolling` (df3nj).
 	- Acceptance signoff: Self-closed: every child closed, the last after a real RustDesk check.
 	- Closed: 20261117-190941
@@ -3443,12 +3460,12 @@ Sorted per the notes in [Template](#template).
 		- `spike_over` read the middle buckets' sums only to take their max. `Tier::max_over` reads only the max.
 		- `spread_over` worked out the next whole number twice at each step. It now keeps them as it moves.
 		- `densest` kept its best window through an iterator per window. It now updates it in place.
-		- `private/claude_simple/tools/draw-bench.rs` draws a week of made-up history 24 ways and hashes the pixels. The hashes are the same before and after. A draw took 140.7 us of user time before and 111.0 after, in 3 runs each in turn at load 8.6 to 9.7 on 32 cores. The history lookups alone went from 53.5 to 41.5 us a draw.
+		- `draw-bench.rs`, in the private tools folder, draws a week of made-up history 24 ways and hashes the pixels. The hashes are the same before and after. A draw took 140.7 us of user time before and 111.0 after, in 3 runs each in turn at load 8.6 to 9.7 on 32 cores. The history lookups alone went from 53.5 to 41.5 us a draw.
 		- The profiler read 774.6 us user a tick before and 747.2 after at load 6 to 9, then 887.3 before and 690.8 after at load 9 to 14. Its noise is bigger than the cut.
 		- Tried and dropped: filling whole pixels without mixing, and skipping a division where it's x / x. Neither moved the bench.
 		- Verified: the draw-bench hashes match. dfegt and dfegv failed with the helpers broken, and der45 with the max left out of `max_over`. The quick gate and Sanitizers passed.
 	- Decisions:
-		- Only changes that give the same numbers went in, not just the same pixels, so the result doesn't rest on the bench's data. Changes that reorder float math are left to 2026111715361287.
+		- Only changes that give the same numbers, as well as the same pixels, went in, so the result doesn't rest on the bench's data. Changes that reorder float math are left to 2026111715361287.
 	- Test case: `history::tests::whole_numbers_as_libm` (dfegt), `render::tests::pack_rounds_as_round` (dfegv), and `history::tests::block_totals_match_buckets` (der45), which now checks `max_over` too. df3s6, df4d7 and df4y1 cover the window paths.
 		- Swept: every `floor()`, `ceil()` and `round()` outside tests in history.rs and render.rs, and every `gather` and `add_buckets` caller.
 	- Branch: nov17-2026111000270812
@@ -3720,7 +3737,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Cause: past a sample wide, a column reaches toward the most that any sample's length in it averages. A column with a whole sample of the bar beside the gap reaches the bar and fills the gap, while one with the gap in its middle and the bar cut at both edges doesn't. So whether the gap shows depends on where the column edges fall.
 		- With one low sample between high ones at 21 steps across a column, the gap's depth goes from 0.17 to 0.67 of a column on 1.5 s columns, and 0.13 to 0.46 on 2 s ones. From 3 s it stays steady, at 0.08 and 0.06. A spike stays within 5% on each. A gap of 2 samples should do the same on columns up to about 4 samples wide.
-		- These are the columns just left of a log graph's right end: 11 to 21 of 98 on Smooth log, with an hour to a day of history.
+		- These are the columns a little left of a log graph's right end: 11 to 21 of 98 on Smooth log, with an hour to a day of history.
 		- The options were filed in questions.md.
 		- 20261111: on columns up to 4 samples wide, each point in a column takes the most that a sample's length within half a column of it averages, and the column reaches toward that, averaged over the column. The tall stack reaches toward its most. `design.md` Drawing has it.
 		- At 21 steps, the gap's depth is now 0.42 to 0.43 of a column at 1.5 s, 0.21 at 2 s, and 0.08 at 3 s. A spike's ink stays within 0.01 plot heights. Its tallest column at 1.5 s went from 0.83 to 0.74 of the plot, since it's split between 2 now.
@@ -4710,7 +4727,7 @@ Sorted per the notes in [Template](#template).
 	- Actual effort: Low
 	- Progress log:
 		- A refresh sets a tip or a grid row's height only when it differs. A Colors section heading's gap is set once, by `lineUpSections`, where `refresh()` set it first and `lineUpSections` set it back each time.
-		- The graph list's revert reads `can_reset` from the row state the refresh just read.
+		- The graph list's revert reads `can_reset` from the row state the refresh read.
 		- The live graphs did repaint graphs that weren't read that beat. Each live graph tick repainted every row, and a graph at 200% drew the same picture on the beat between its reads. `Live::read` now says which graphs a tick read, and only those repaint. A tip left up still follows each tick.
 		- Verified, release build, load about 9 on 32 cores, 3 runs of medians of 50: a refresh went from 1070 to 830 us, and a slider step from 1260-1320 to 980-1030 us.
 	- Decisions:
@@ -4836,7 +4853,7 @@ Sorted per the notes in [Template](#template).
 	- Type: Enhancement
 	- Status: Closed
 	- Closed reason: Done
-	- Verified: 20261102, round-1102b debug build, in b23's own style, light and dark. On Colors every revert arrow sat just right of its hex box, in both columns, and the mode's just right of Gradient.
+	- Verified: 20261102, round-1102b debug build, in b23's own style, light and dark. On Colors every revert arrow sat right beside its hex box, in both columns, and the mode's right beside Gradient.
 	- Priority|Severity: Avg
 	- Opened: 20261102-153026
 	- Opened by: t00mietum
@@ -5096,7 +5113,7 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Settings window has it.
 	- Decisions:
 		- It's a `QSlider` subclass, `TrackSlider`, rather than the style's absolute-set hint. The hint would also move a grabbed handle up to half its width, which can step it onto the next detent.
-		- A detent can pull the handle off the pointer, so the drag takes hold of the handle where it went.
+		- A detent can pull the handle off the pointer, so the drag grabs the handle where it went.
 	- Branch: round-1031b
 	- Test case: `bridge::tests::slider_track_click` (dep6b). Without `TrackSlider` it fails, with a click at 80% giving 640 of 1000, not about 800. With the style hint instead, it fails on a grab of the handle's edge moving it from 789 to 773.
 		- Swept: `TrackSlider` is the window's only slider. The color picker uses number boxes.
@@ -5264,7 +5281,7 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1031b
 	- Test case: `tests::tip_line_per_pair` (dep7b), which walks every graph's tip. It fails with either the old CPU line or the old network, disk and processes lines put back.
 		- 2026-10-31: new values only, for the one-pair-a-line text: dehzn, demvz and dej07 in `core/src/lib.rs`, dedq1, dej05 and dep48 in `core/src/graphs.rs`, and dep49 in `settings/src/live.rs`.
-		- Swept: every `Source::text` impl in `core/src/lib.rs`, every test and doc that quoted a two-pair line, and the other tip text in `xfce/src/lib.rs` and `qt.cpp`, which has no two-pair lines.
+		- Swept: every `Source::text` impl in `core/src/lib.rs`, every test and doc that quoted a 2-pair line, and the other tip text in `xfce/src/lib.rs` and `qt.cpp`, which has no 2-pair lines.
 	- Closed: 20261031-094952
 
 - Pre-next-cut: More minimum padding between buttons' inner edges and their text
@@ -5847,10 +5864,10 @@ Sorted per the notes in [Template](#template).
 		- `design.md` Settings window has the details.
 		- Verified: the full run passed with the new test. The window showed Themes dimly lit with Colors or Outline picked.
 	- Decisions:
-		- The dim tint is a little under half the picked one, from the same theme highlight, so it reads in a dark theme too.
+		- The dim tint is a little under half the picked one, from the same theme's highlight, so it reads in a dark theme too.
 		- It follows the tab list, not Themes by name: every tab over the line picked, and the sub-tab a parent shows. A new parent tab gets it too.
 	- Branch: round-1028b
-	- Test case: `bridge::tests::theme_and_sub_tab_lit` (dejmn). It fails with the highlight left out, and passes now.
+	- Test case: `bridge::tests::theme_and_sub_tab_lit` (dejmn). It fails with the tint left out, and passes now.
 		- Swept: `showTab` is the one place a picked line takes effect. The `--snapshot` loop, `tabs_shown` and `tabs_after_move` all pick through it.
 	- Acceptance signoff: Self-closed 20261028: the tab list drawn in a light and a dark palette, and dejmn.
 	- Closed: 20261028-205317
@@ -5930,7 +5947,7 @@ Sorted per the notes in [Template](#template).
 		- A border rolls under 85% of its lead's brightness, since a lead that stepped darker could fall below it.
 		- The colors go to the renderer as one `Outline` per graph, through `Source::outline`, so the overrides have one place to apply.
 	- Branch: round-1028b
-	- Test case: `config::tests::outline_per_graph_per_theme` (dejkg), `graphs::tests::border_and_background_each` (dejkh) and `dice::tests::backgrounds_roll_own_hue` (dejkf). dejkg fails with memory reading CPU's outline or with the shared colors not carried over, dejkh with the border drawn from the shared color, and dejkf with every graph rolled one background or at the old brightness. All pass now.
+	- Test case: `config::tests::outline_per_graph_per_theme` (dejkg), `graphs::tests::border_and_background_each` (dejkh) and `dice::tests::backgrounds_roll_own_hue` (dejkf). dejkg fails with memory reading CPU's outline or with the shared colors not copied over, dejkh with the border drawn from the shared color, and dejkf with every graph rolled one background or at the old brightness. All pass now.
 		- 2026-10-28: new values only. deccf and deccw count 97 theme members instead of 67, and deccy counts 85 saved colors instead of 55. The one-color theme check in `mono_themes_keep_alarms` measures each graph's colors against its own top rather than the shared one.
 		- Swept: every reader of `border_color`, `back_top` and `back_bottom` (`Look::from_model`, `render::Frame`, `dice`, the dialog's `shown_colors`, `preview.rs`), every `Frame` construction, every `Source` impl, and the docs naming the shared background.
 	- Acceptance signoff: Self-closed 20261028: own colors and 5 rolls drawn on a test panel, and dejkg, dejkh and dejkf.
@@ -6792,7 +6809,7 @@ Sorted per the notes in [Template](#template).
 	- Actual cause: As the possible cause. Once NaN was in a window's running total it stayed there as the window slid on.
 	- Actual fix: `take` in `Tier::spread_over` and `Tier::densest`, in `core/src/history.rs`, skips a bucket with no secs. The test's plain version of `spread_over` does the same.
 	- Decisions:
-		- 20261117: columns with a gap in reach now draw as their spike says, so their pixels change. That's the fix, not a float math change, so the 1-step limit in 2026111715361287 doesn't apply.
+		- 20261117: columns with a gap in reach now draw as their spike says, so their pixels change. That's the fix rather than a float math change, so the 1-step limit in 2026111715361287 doesn't apply.
 	- Verified: dfej7 failed with the fix taken out and passes with it. dfehq, df4y1, df3s6, the quick gate and Sanitizers passed.
 	- Test case: `history::tests::gap_adds_nothing_to_window` (dfej7) checks `span_for` spikes and `densest` stay finite and in range near a 0.5 s gap.
 		- Swept: every place that weights a bucket's max or sum by its secs in history.rs. `tops_over`, the part bucket in `densest` and `spread_over`, the end bucket split and the block totals already skip gaps.
@@ -7227,7 +7244,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: der2h fails with the fix taken out and passes with it, and the quick gate passed.
 	- Decisions:
 		- The window renames rather than asks. It has no prompt at Apply for anything else, and a rename keeps both with nothing lost. The new name shows in the dropdown at once.
-		- A name clash moves the name as well as the key, since no two themes share a name.
+		- A name clash moves the name as well as the key, since themes never share a name.
 		- Only themes new in this window move. A theme both windows knew and both changed is still the last save's, like any other setting.
 	- Actual fix: `Dialog::make_room` in `settings/src/dialog.rs`, called by `Dialog::apply` before `merge_themes`.
 	- Branch: round-1102
@@ -8347,7 +8364,7 @@ Sorted per the notes in [Template](#template).
 		- 20261117: RustDesk 1.5.3 and rustdesk-server 1.1.16, unpacked with no root, ran on 2 private displays. A peer connected by IP on 21118, then by ID through a local hbbr on 21117 with `ALWAYS_USE_RELAY=Y`.
 	- Verified: `remote::Watch` on the server's display said Remote while each peer was on, and Local at its next look, 5 s apart, after the peer left. On the peer's display it said Local.
 	- Note: a peer that connects by ID and gets a LAN-direct or punched connection isn't seen. That's Bug 2026111719090679.
-	- Test case: `remote::tests::viewer_needs_peer_here` (df3p5), with stand-in RustDesk processes. `private/claude_simple/tools/rustdesk-peer-rig.bash` runs the real check.
+	- Test case: `remote::tests::viewer_needs_peer_here` (df3p5), with stand-in RustDesk processes. `rustdesk-peer-rig.bash`, in the private tools folder, runs the real check.
 	- Acceptance signoff: Self-closed: direct and relay peers passed with the real RustDesk on b23.
 	- Closed: 20261117-190941
 
@@ -8438,7 +8455,7 @@ Sorted per the notes in [Template](#template).
 		- A fix splits by searching only what's left of the text, and reads the Format line before the split. It took a parse of 2413 lines from 258 s to 209 s of CPU under Miri, with the time per value flat again, at load 5 to 9 on 32 cores.
 		- The upstream draft is in `upstream/2026111717051144/`: the issue text, the patch and the repro. Nothing changes on this side.
 		- What's left under Miri is a flat cost of about 85 ms a value, mostly per-character checks inside shcl. The draft names one of them.
-		- Answer 20261119: yes, file the draft in shcl's backlog. Held while a shcl round runs (branch nov19). The draft is copied to shcl's `private/claude_simple/upstream/tukzmon-2026111717051144/`.
+		- Answer 20261119: yes, file the draft in shcl's backlog. Held while a shcl round runs (branch nov19). The draft is copied to shcl's private upstream folder, as `tukzmon-2026111717051144/`.
 		- 20261119: filed in shcl's backlog as 2026111910541579.
 	- Decisions:
 		- Closed on the finding and the draft, since the item asked for those. The fix itself waits on shcl.
@@ -8552,7 +8569,7 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Low
 	- Actual effort: Low
 	- Progress log:
-		- A gif take of only some scenes leaves `assets/demo.gif` alone and says why. `--asset` updates it anyway, and `--no-asset` still never does. The two can't be given together.
+		- A gif take of only some scenes leaves `assets/demo.gif` alone and says why. `--asset` updates it anyway, and `--no-asset` still never does. They can't be given together.
 		- Verified: df53t failed on the old script, which replaced the gif from a `days` take, and passes now. The quick gate's format, build, lint and test areas passed, and so did Sanitizers.
 	- Decisions:
 		- `--scenes` naming every scene counts as a run of every scene.
@@ -9014,7 +9031,7 @@ Sorted per the notes in [Template](#template).
 	- Decisions:
 		- Blocks of 8 and 64 were picked over 16 and 128. Side by side, 16 and 128 gave 329 us a tick against 309.
 		- The blocks take about 8% of the history's memory, up from 2%. That's about 330 KB more for a 4-series graph with 90 days of history.
-		- A whole bucket adds its sum, scaled by its weight over its seconds, rather than its mean times its weight. The two match to float rounding.
+		- A whole bucket adds its sum, scaled by its weight over its seconds, rather than its mean times its weight. They match to float rounding.
 	- Branch: round-1102
 	- Test case: `history::tests::block_totals_match_buckets` (der45). It checks every kept block at both sizes and random runs of buckets against a plain bucket sum, through gaps, long samples, trims and reloads. It fails with the gap rule taken out of `reindex`, with the coarse blocks never dropped, or with a block read that starts mid-block.
 		- 2026-11-01: dejcp and deqqq check the block counts and capacities at both sizes, where they checked blocks of 32. The rest of each test is unchanged.
@@ -9195,7 +9212,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: der6g and der6h passed, and failed with the ARC left out. The quick gate passed.
 	- Decisions:
 		- Only the part over `c_min`, as htop counts it, since the ARC won't shrink below that, and cache here means what can be given back, as with `SReclaimable`. This departs from "size" in the wording but meets "as htop can".
-		- The ARC part is capped at what user had, since the two files aren't read at the same instant.
+		- The ARC part is capped at what user had, since the 2 files aren't read at the same instant.
 		- It's read in the memory reader only, rather than the per-tick `/proc/meminfo` cache, since swap and zswap don't need it.
 	- Branch: round-1102
 	- Test case: `mem::tests::arc_above_floor_is_cache` (der6g) and `the_memory_reader_reads_the_arc_each_time_and_none_is_none` (der6h). Both fail with the ARC left out of `memory_shares`. der6h also parses the real arcstats where ZFS is loaded.
@@ -9945,7 +9962,7 @@ Sorted per the notes in [Template](#template).
 		- A 1px blur over the plot, along time only, such as each pixel mixed 1:2:1 with the 2 beside it. It softens steady edges too. Measure its cost with the profiler.
 		- The same blur on the newest minute only, where the shimmer is worst.
 		- Mix each frame with the last one, such as half and half, so a pixel can't flip in one frame. It leaves a trail behind a moving spike.
-		- Slide by whole pixels only, so a sample's edges don't land part way into a pixel each frame. Smooth scrolling then steps a pixel at a time.
+		- Slide by whole pixels only, so a sample's edges don't fall part way into a pixel each frame. Smooth scrolling then steps a pixel at a time.
 
 - Other Linux and BSD panels
 	- ID: 2026101916013890

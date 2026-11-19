@@ -102,7 +102,7 @@ fTest_run_pids_vanished_process() {
 	kill "${live}" 2> /dev/null || true
 	wait "${live}" 2> /dev/null || true
 	((ok)) || { fWhy "the scan failed: ${out}"; return 1; }
-	[[ "${out}" == "${live}" ]] || { fWhy "got '${out}', not the live pid ${live}"; return 1; }
+	[[ "${out}" == "${live}" ]] || { fWhy "got '${out}' in place of the live pid ${live}"; return 1; }
 }
 
 ## Test ID: deqrc
@@ -475,7 +475,7 @@ fTest_dev_install_cargo_choice() {
 	## No rustup rustc, so the build isn't on the pinned version.
 	mv -- "${t}/home/.cargo/bin/rustc" "${t}/rustc.off"
 	out="$(cd / && env -u XDG_DATA_HOME -u CARGO_TARGET_DIR HOME="${t}/home" PATH="${t}/bin:${PATH}" bash "${repo}/utility/dev-install.bash" --no-restart 2>&1)" || { fWhy "failed off the pin: ${out}"; return 1; }
-	[[ "${out}" == *"building with 'rustc 1.95.0 (debian)', not the pinned ${pin}"* ]] || { fWhy "no warning off the pin: ${out}"; return 1; }
+	[[ "${out}" == *"building with 'rustc 1.95.0 (debian)' in place of the pinned ${pin}"* ]] || { fWhy "no warning off the pin: ${out}"; return 1; }
 }
 
 ## Test ID: df50f
@@ -1388,7 +1388,7 @@ exit "${failed}"
 ##		  container, and the run's rerun in a capped scope.
 ##		- 2026-11-09: The demo's WM, panel and settings window get nothing of
 ##		  the live session's env.
-##		- 2026-11-09: The pre-push hook gates the commit, not the checkout.
+##		- 2026-11-09: The pre-push hook gates the commit rather than the checkout.
 ##		- 2026-11-09: A demo stopped by TERM cleans up, and one killed leaves a
 ##		  folder the stale sweep takes.
 ##		- 2026-11-09: Each package links tukzmon-settings beside the library.

@@ -9,7 +9,7 @@ tukzmon: system graphs for the XFCE panel
 	@ the panel starts with no history
 
 From a fresh start, the graphs fill in and settle
-	@ hold while the time axis eases out
+	@ pause while the time axis eases out
 
 A few days later, the log time axis still fits them all
 	@ panel restarts with 4 days of made-up history: busy days, quiet nights, a few builds, one night off
@@ -27,4 +27,4 @@ One theme colors every graph
 	@ Themes tab, pick Neon, Apply, OK
 
 github.com/tukzedo/tukzmon
-	@ pointer rests, hold
+	@ pointer rests, pause

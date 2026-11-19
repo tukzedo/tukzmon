@@ -76,7 +76,7 @@ env -u DISPLAY "${pkg}/bin/tukzmon-settings" --version | head -n 1 || fFail "tuk
 cp -r -- "${src}/cicd/nix/system" "${work}/system"
 for shape in plain xfce; do
 	got="$(nix eval --raw "path:${work}/system#${shape}" 2> "${work}/eval.log")" || { tail -n 20 -- "${work}/eval.log"; fFail "the ${shape} system didn't evaluate"; }
-	[[ "${got}" == "package links" ]] || fFail "the ${shape} system has '${got}', not the package and both links"
+	[[ "${got}" == "package links" ]] || fFail "the ${shape} system has '${got}' where the package and both links should be"
 done
 fSay "a system with the module has the package and both links, with the XFCE desktop and without"
 sys="$(nix build --print-out-paths "path:${work}/system#path" -o "${roots}/system" 2> "${work}/system.log" | tail -n 1)" \
