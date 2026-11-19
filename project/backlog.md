@@ -25,7 +25,7 @@ Sorted per the notes in [Template](#template).
 - Cut the history lookups each draw makes down toward the tick's old cost
 	- ID: 2026111715361287
 	- Type: Enhancement
-	- Status: Waiting on UAT
+	- Status: Queued
 		- The tick stays far above 241 us, since the lookups are only about a third of it. The call is whether to close this and leave the rest of the cost to 2026111000270812.
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
@@ -49,6 +49,7 @@ Sorted per the notes in [Template](#template).
 		- Tried and dropped: skipping the divide in `add_buckets` when all of a bucket's data is in. Coarse-tier columns went from about 9.8 to 9.2 us a draw, but the others moved the other way within the noise.
 		- At sample 1 s a draw's lookups are now about 20 us in the narrow columns, 20 us in the wider fine-tier ones, and 10 us on coarse tiers. `total_over` is about a quarter of the lookups, in every column.
 		- Verified: the profiler on nov19 at 125c908, at load about 5, gave 1079.8 us a tick, 658.2 of it user, the median of 5 runs from 1017.8 to 1154.7. That's below the 690 to 750 us of user time before, at a lower load, and far above 241. History lookups and upkeep were 37.8% of self time, the `/proc` reads 39.6%, and drawing 18.2%.
+		- Answer 20261119: keep going. Make it cheaper with no visual loss, so the same pixels, or a change of at most 1 per channel that draw-bench cmp shows.
 	- Decisions:
 		- 20261117: a change to the float math may move a pixel by at most 1 in any channel against draw-bench's base build, and the existing drawing tests must pass unchanged. Anything bigger needs a look by eye, so the item goes to Waiting on UAT.
 		- 20261117: only the window bounds change went in, as the one change that moved the bench. The prefix sums wait on 2026111716050389 rather than fixing it here, since that fix moves pixels past the limit above.
@@ -56,7 +57,6 @@ Sorted per the notes in [Template](#template).
 	- Test case: `history::tests::spread_over_as_plain` (dfehq) checks `spread_over` against a plain version that takes each step's windows from the ceil to the floor of its middle and sums each window afresh. It fails with either bound off by one.
 		- 20261119: dfehq now also tries columns a whole number of buckets past a sample. It failed with the second part's last window, the point where it starts, or the unit's first window off by one, and passes on 1d49e84.
 		- Swept: every floor or ceil of a step's middle in history.rs. `spread_over` had the only one, and `densest` takes its window range once per call.
-	- Stand-in: none (20261119). Whether to close short of 241 us is a call on scope, which no run can make.
 	- Branch: nov17-2026111715361287, nov19-2026111715361287
 	- Commit: 16ee014, 1d49e84
 
@@ -88,6 +88,7 @@ Sorted per the notes in [Template](#template).
 		- `design.md` XFCE plugin has the plain error words.
 		- Verified: the quick gate and Sanitizers passed, with the new tests.
 		- 20261119: b23 runs build dfh6f, from dev at 00c2090, which has the tip fix. The settings window from Properties shows it.
+		- Answer 20261119: leave at Waiting on UAT for now.
 	- Decisions:
 		- The details cut from the tips were already in `design.md`, so nothing moved there.
 		- The vertical scale and sample % tips on each graph were left as they are, since the item names only width and time axis.
@@ -121,6 +122,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: dfh2y and dfh2z failed on the old code and pass. dfh2z also failed with only the old early return put back. The quick gate and Sanitizers passed.
 		- Cost: 200 looks on b23's `:0`, with the installed RustDesk up, took 0.56 s of CPU, about 3 ms a look, against under 0.01 s before, at a load of 5. A look comes every 5 s.
 		- 20261119: the rig wasn't run. b23's installed service and `rustdesk --server` stay up, since stopping them drops live sessions. The other boxes in the host lock are Windows, macOS, FreeBSD, and vmDebARM64, which runs under emulation, so none fits the rig. No `--cm` was up on b23 to check a live peer against. Still waits for the rig on b23 with the service stopped by hand, or on another Linux desktop with no RustDesk service.
+		- Answer 20261119: run it on b28l if it has RustDesk. Otherwise it's OK to stop b23's installed RustDesk service by hand for the check.
 	- Decisions:
 		- `--cm` alone rather than a socket held by `rustdesk --server`, since it covers TCP and UDP paths alike and needs no read of the server's sockets.
 		- A connection manager kept open after a chat or a file transfer counts as remote until someone closes it, since RustDesk keeps its tab then.
@@ -155,6 +157,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: `--backlog-run-quick arm64 package` passed. The arm64 build took 30.6 s and the x86_64 one 27.3 s, at 8 jobs and load 13. Both binaries are AArch64, the `.deb` is `Architecture: arm64` with its library in `/usr/lib/aarch64-linux-gnu`, and the `.rpm` is `aarch64`. The x86_64 `.deb` built twice gave the same bytes.
 		- Verified: dfh54 failed on the old `package.bash` and passed on the new one.
 		- Verified: the nov19 gate run at 125c908 passed Release (arm64) and Packages. Its 4 packages match their sums file. The arm64 and amd64 `.deb` have the same files under their own library folder, and the same depends. Both arm64 binaries are AArch64, the plugin exports `xfce_panel_module_construct`, and the `.rpm` is `aarch64`.
+		- Answer 20261119: wait. The vmDebARM64 run waits until `arm64-deb-vm-check.bash` does its root steps through `ssh root@vmDebARM64` rather than sudo.
 	- Decisions:
 		- No `--include-arm` flag, since the arm64 build takes about as long as the x86_64 one. It's left out of `--quick`, as Packages is.
 		- Cross-compiled rather than emulated. b23 has no arm64 binfmt handler, and an emulated build would be many times slower.
