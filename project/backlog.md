@@ -22,78 +22,43 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- CICD gap: Clear the content scrub's findings on the tree, then make them fail Lint and the pre-push hook
-	- ID: 2026111717545314
-	- Type: Task
-	- Status: Closed
-	- Closed reason: Done
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Low
-	- Opened: 20261117-175453
-	- Opened by: t00mietum
-	- Parent ID: 2026110310450004
-	- Requirements:
-		- The content scrub reports 312 lines on the tree as of 2026-11-17, so for now its findings are only counted. Clear them, then set `CONTENT_SCRUB_FAILS` to 1 in `cicd/config.bash`, so a finding fails Lint and the pre-push hook's docs checks.
-	- Estimated effort: Avg
-	- Answer 20261119: (a). The scrub skips binary and stock files, and checks spelled-out numbers and dash-parens only in prose (`.md` files and comments). Then the rest gets reworded in the repo, and `CONTENT_SCRUB_FAILS` goes to 1. `private/hooks/scrub.bash` is changed for this.
-	- Actual effort: Avg
-	- Progress log:
-		- The scrub skips binary files and `license.txt`, and checks spelled-out numbers and dash-parens only in `.md` files and the comment part of code lines. Its not-X-it's-Y check no longer matches "net", as in "internet".
-		- The other findings were reworded in code comments, messages, test asserts, `design.md`, `style-guide_ux.md` and the backlog. Code names, shcl's tip line break, the tip's "just now" and degree sign, and the person's own backlog lines went to the scrub's allow list.
-		- `CONTENT_SCRUB_FAILS` is 1, so a finding fails Lint and the pre-push hook's docs checks.
-		- Verified: the scrub gave 320 lines before and none after, on the host, and Lint in the image gave "content scrub: clean". A comment line with 2 findings added to `cicd/config.bash` failed `fContentScrub`. `--backlog-run-quick format build lint test` and `sanitizers` passed, and `lint-report.bash` gave CLEAN.
-		- Verified: `scrub-rules-check.bash` in the private tools folder failed on the old scrub and passes on the new one. It checks that code names and strings are skipped, comments and `.md` lines are checked, and binary and stock files are skipped.
-	- Decisions:
-		- The person's backlog lines went to the allow list rather than being reworded. So did code names such as `Sign::Holds`, `carry()` and knobs' `hold()`, since renaming code for word choice is churn with no gain.
-		- `install.bash`'s comments and 2 error messages now say "extract" for what a user install does with the package.
-		- The not-X-it's-Y check was tightened past what the answer asked, since its pattern matched "internet" in 2 settings tips that read fine.
-		- The scrub's commit message check still reads the whole history in a detached worktree, or on a branch with no upstream. That passes today.
-	- Branch: nov19-2026111717545314
-	- Commit: 0c5909e
-	- Test case: `scrub-rules-check.bash` in the private tools folder, since the scrub isn't in the repo. dfen5, dfen6 and dfeq1 still pass with the new default.
-	- Acceptance signoff: Self-closed: built as the answer said, and the gates pass with findings failing.
-	- Closed: 20261119-121147
-
-- Pre-next-cut: Show the highest recorded values on the tip of monitors with no obvious absolute max
-	- ID: 2026111623513500
-	- Type: Feature
-	- Status: Closed
-	- Closed reason: Done
+- Cut the history lookups each draw makes down toward the tick's old cost
+	- ID: 2026111715361287
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- The tick stays far above 241 us, since the lookups are only about a third of it. The call is whether to close this and leave the rest of the cost to 2026111000270812.
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
-	- Opened: 20261116-235135
+	- Opened: 20261117-153612
 	- Opened by: t00mietum
-	- Related IDs: 2026103109002399
-	- Requirements:
-		- On monitors with no obvious absolute max (e.g. 100%), show on the tooltip the highest values recorded so far for each metric.
+	- Parent ID: 2026111000270812
+	- Prereq IDs: 2026111715360663, 2026111716050389
+	- Requirements: Bring the profiled tick near 241 us of user time, with the same pixels, after 2026111715360663 took it from about 775 to 690 to 750 at load 6 to 13 on 32 cores.
 	- Estimated effort: Avg
-	- Actual effort: Low
 	- Progress log:
-		- The network, disk, load and processes tips end with a line per value for the highest it reached, such as "Read highest 80 MB/s". The hover tip and the latest-read tip both have them.
-		- The highest is over the history kept, so it goes back to the max age, comes back after a restart with Keep across restarts on, and Reset history starts it over.
-		- `design.md` Drawing and README Features have it.
-		- Verified: the quick gate and Sanitizers passed, with the new tests.
-		- Answer 20261119: the highest line reads "Highest Read: 80 MB/s", one per series, on its own line below the current values.
-		- Answer 20261119: Temperature gets the highest line too.
-		- Answer 20261119: losing the highest values on Reset history is expected.
-		- 20261119: the lines read "Highest Read: 80 MB/s", and the temperature tip ends with "Highest Temperature: 98 °C". `design.md` Drawing and README Features say so.
-		- Verified: the quick gate and Sanitizers passed, with the changed tests.
+		- 20261117: draw-bench's `kinds` mode times the history lookups by column, at sample 0.5 s on the smooth curve. On a fine tier, a column up to 4 samples wide takes 0.9 us, 14 a graph, and a wider one 0.41 us, 48 a graph. The other 61 take 0.15 us. Reading the blocks is about a third of it, mostly the end buckets read one by one.
+		- Ideas left: a block level of 2 or 4 buckets, prefix sums per fine tier for the windows, and a multiply by the bucket length's inverse. Each one changes the float math, so check the pixels with draw-bench's hashes.
+		- Drawing the pixels is about a quarter of a draw.
+		- 20261117: `spread_over` takes each step's window bounds from the whole numbers it already keeps, rather than from a floor and a ceil of the step's middle. All 24 draw-bench cases give the same pixels. At sample 1 s, a column up to 4 samples wide went from about 1.73 to 1.47 us, the lookups from about 55 to 51 us a draw, and all cases from about 111 to 106 us a draw, in 3 runs each in turn at load 2.4 to 2.7 on 32 cores.
+		- Tried and dropped, since none moved the bench past its noise: block levels of 4, 16 and 64 buckets, a multiply by the inverse of each window's weight in `spread_over` and `densest`, one bounds check per bucket read, and skipping the ring's drops while its low end stays put. All gave the same pixels.
+		- At sample 1 s, a draw's lookups are about 22 us in the 15 columns up to 4 samples wide, 20 us in the 40 wider fine-tier ones, and 9 us in the 61 on coarse tiers. Most of the first 2 is the windows, which read their buckets one at a time.
+		- Next: prefix sums of secs and of secs times max, per fine tier, would make each window 2 reads. They'd also skip gap buckets, which fixes 2026111716050389 and changes those columns' pixels by more than a step, so they wait on it. They'd cost about 32 bytes a bucket in the 2 fine tiers, about 0.4 MB per 3-series graph.
+		- The lookups were about 35% of the profiled tick in 2026111011172485's runs, so even none at all leaves the tick near 450 us, not 241. The profiler wasn't run for this cut, since its noise is bigger than the cut.
+		- 20261119: prefix sums of secs and of secs times max, per fine tier, made each window 2 reads in `densest`, `spread_over` and the buckets wholly inside `tops_over`. They gave the same pixels, but at sample 1 s a column up to 4 samples wide went from about 1.58 to 1.83 us, and wider ones stayed near 0.53 us. The windows already slide a bucket in and a bucket out, so the sums only save the first fill. Dropped.
+		- 20261119: `spread_over` steps a whole bucket at a time, taking the window in reach for the last part of each bucket as a second part, rather than stepping at each whole number of x and of x plus the reach. All 24 draw-bench cases give the same pixels. At sample 1 s the columns up to 4 samples wide went from about 22.8 to 20.3 us a draw, and all cases from about 108.7 to 104.6 us a draw, in 3 runs each in turn at load 9.5 to 11 on 32 cores.
+		- Tried and dropped: skipping the divide in `add_buckets` when all of a bucket's data is in. Coarse-tier columns went from about 9.8 to 9.2 us a draw, but the others moved the other way within the noise.
+		- At sample 1 s a draw's lookups are now about 20 us in the narrow columns, 20 us in the wider fine-tier ones, and 10 us on coarse tiers. `total_over` is about a quarter of the lookups, in every column.
+		- Verified: the profiler on nov19 at 125c908, at load about 5, gave 1079.8 us a tick, 658.2 of it user, the median of 5 runs from 1017.8 to 1154.7. That's below the 690 to 750 us of user time before, at a lower load, and far above 241. History lookups and upkeep were 37.8% of self time, the `/proc` reads 39.6%, and drawing 18.2%.
 	- Decisions:
-		- The graphs with a highest line are network, disk, load, processes and temperature. The tukzmon graph is a share of all CPUs, so it leaves it out.
-		- The highest lines go under the tip's own lines, one value a line, since 2026103109002399 put one pair on each line.
-		- The lines read "Highest Name: value", per the 20261119 answer, with the name as the tip gives it, so processes read "Highest Yours: 130".
-		- Temperature gets one line, for the reading, with the sum of its normal and critical highests. Normal stops at the critical level and critical starts there, so the sum is the highest reading. The critical level is left out, since the tip already gives it.
-		- Processes get no highest total, since the history keeps each kind's highest but not their sum's.
-		- It's read from the coarsest history tier, rather than kept as a running max, so it isn't a second copy of what the history already has. A bucket's max is of the samples in it, so a 50 ms spike counts.
-		- Under the network split, the highest goes by the series as kept, so history from before the split was turned on has its LAN traffic in the internet lines.
-		- Check entry filed in questions.md for the wording.
-	- Branch: nov17-2026111623513500, then nov19-2026111623513500
-	- Commit: b1bbee5, then febb64c
-	- Test case: `history::tests::highest_of_all_kept` (dfejh), `tests::highest_on_no_top_tips` (dfejj) and `tests::graph_tip_gives_history_highest` (dfejk). dfejh and dfejk fail with the finest tier read in place of the coarsest, and dfejk fails with the tip left without the highest. dfejj fails with the temperature tip left without its highest.
-		- 20261119: new values only, for the "Highest Name: value" wording: dfejj's and dfejk's expected tips. dfejj's check that temperature leaves the line out now checks its line.
-		- Swept: every `Source` impl in `core/src/lib.rs`, the only file with any, and both `Graph` tip paths, `tooltip` and `hover_tip`, which the panel and the settings window's graph list share. Tests quoting the 5 tips use `contains` or `Source::text`, so they're unchanged. No other code, doc or test quotes the old "highest" wording.
-	- Acceptance signoff: Self-closed 20261119: the answers set the wording and scope, and dfejj and dfejk pin the text.
-	- Closed: 20261119-113408
+		- 20261117: a change to the float math may move a pixel by at most 1 in any channel against draw-bench's base build, and the existing drawing tests must pass unchanged. Anything bigger needs a look by eye, so the item goes to Waiting on UAT.
+		- 20261117: only the window bounds change went in, as the one change that moved the bench. The prefix sums wait on 2026111716050389 rather than fixing it here, since that fix moves pixels past the limit above.
+		- 20261119: the prefix sums are out, since they cost about 0.4 MB per graph and made the narrow columns slower. Only the whole-bucket stepping went in.
+	- Test case: `history::tests::spread_over_as_plain` (dfehq) checks `spread_over` against a plain version that takes each step's windows from the ceil to the floor of its middle and sums each window afresh. It fails with either bound off by one.
+		- 20261119: dfehq now also tries columns a whole number of buckets past a sample. It failed with the second part's last window, the point where it starts, or the unit's first window off by one, and passes on 1d49e84.
+		- Swept: every floor or ceil of a step's middle in history.rs. `spread_over` had the only one, and `densest` takes its window range once per call.
+	- Stand-in: none (20261119). Whether to close short of 241 us is a call on scope, which no run can make.
+	- Branch: nov17-2026111715361287, nov19-2026111715361287
+	- Commit: 16ee014, 1d49e84
 
 - Some settings tips are long and technical, and stack asides
 	- ID: 2026110710005015
@@ -129,6 +94,74 @@ Sorted per the notes in [Template](#template).
 	- Branch: nov17-2026110710005015
 	- Commit: 0f3cba2
 	- Test case: `keep::tests::read_errors_plain` (dfemm) and `config::tests::settings_not_text_plain` (dfemn). Both fail with the old wording. `dialog::tests::unreadable_file_is_error` (den9y) now pins the window's whole message. The tip wording has no test, apart from the wrap check, defw3.
+
+- Reduce motion misses a RustDesk peer that connects by ID without a relay
+	- ID: 2026111719090679
+	- Type: Bug
+	- Status: Waiting on automated testing
+	- Target version: v1.0.0-beta.2
+	- Needs external testing: `RIG_CASES=id rustdesk-peer-rig.bash`, from the private tools folder, on a box with no installed RustDesk service running. b23 has one since 20261119, so there the service needs stopping by hand first.
+	- Priority|Severity: Avg
+	- Opened: 20261117-190906
+	- Opened by:
+	- Related IDs: 2026110911114037, 2026111709483900
+	- Steps to reproduce:
+		- Run the real RustDesk server on a desktop, and connect a peer to it by ID, through a rendezvous server, where they can reach each other directly.
+	- Incorrect behavior: the connection is LAN-direct or hole-punched on ephemeral ports at both ends, with neither 21118 nor 21117, so `remote::Watch` says Local while the peer is on, though RustDesk's `--cm` runs on that display.
+	- Expected behavior: Remote while the peer is on, and Local after.
+	- Reproduced: 20261117 on b23, RustDesk 1.5.3 with a local hbbs, server and peer on 2 private displays, twice, both by the LAN path, since both reached hbbs from one address. In those 2 runs the peer still shared the server's IPC folder. A hole punched across the internet takes the same kind of ports, which is read only. Direct IP on 21118 and a forced relay on 21117 were both seen.
+	- Possible cause: `viewed_by` wants a connection on a RustDesk port for `Sign::RustDeskCm`. A by-ID connection over a punched hole uses whatever port the punch got, so the sign could be `--cm` alone, or an established socket held by the `rustdesk --server` process that isn't to the rendezvous server.
+	- Test environment: `rustdesk-peer-rig.bash`, in the private tools folder, sets up the real server, a peer and a local relay with no root. Without `ALWAYS_USE_RELAY=Y` on hbbs, or with both reaching hbbs from one address, the peer takes the punched path.
+	- Actual cause: the RustDesk sign wanted a connection on 21118 or 21117 beside `--cm`, and a look read the processes only while a connection on a known port was up. A peer by ID comes in on any port, and RustDesk can punch over UDP, which the TCP table doesn't show.
+	- Actual effort: Avg
+	- Progress log:
+		- 20261119: `--cm` alone is the RustDesk sign now, and `--cm-no-ui` too. RustDesk's source closes the connection manager 6 s after its last client goes. A look reads the processes when the TCP counters moved, and on every look while this user runs RustDesk, since the connection manager can come or go with no TCP change.
+		- 20261119: the rig's by-ID runs on b23 never got a peer on. b23 now has RustDesk installed, and its service kills every `rustdesk --server` of the user, the rig's included, then restarts its own. The 2 runs restarted the installed server 3 times. The rig now runs its server in its own mount namespace too, reads the ID from the server's log rather than `--get-id`, and won't start while an installed service runs.
+		- Verified: dfh2y and dfh2z failed on the old code and pass. dfh2z also failed with only the old early return put back. The quick gate and Sanitizers passed.
+		- Cost: 200 looks on b23's `:0`, with the installed RustDesk up, took 0.56 s of CPU, about 3 ms a look, against under 0.01 s before, at a load of 5. A look comes every 5 s.
+		- 20261119: the rig wasn't run. b23's installed service and `rustdesk --server` stay up, since stopping them drops live sessions. The other boxes in the host lock are Windows, macOS, FreeBSD, and vmDebARM64, which runs under emulation, so none fits the rig. No `--cm` was up on b23 to check a live peer against. Still waits for the rig on b23 with the service stopped by hand, or on another Linux desktop with no RustDesk service.
+	- Decisions:
+		- `--cm` alone rather than a socket held by `rustdesk --server`, since it covers TCP and UDP paths alike and needs no read of the server's sockets.
+		- A connection manager kept open after a chat or a file transfer counts as remote until someone closes it, since RustDesk keeps its tab then.
+		- The 21118 and 21117 links stay, as a reason to read the processes at once.
+	- Actual fix: `Sign::RustDeskCm` in `core/src/remote.rs` counts `--cm` or `--cm-no-ui` on the display alone. `Probe::viewed` also reads the processes when the TCP counters moved, or when RustDesk ran at the last look. design.md Drawing has it.
+	- Branch: nov19-2026111719090679
+	- Commit: f4f01e0
+	- Test case: `remote::tests::rustdesk_peer_by_id_seen` (dfh2y) and `remote::tests::stand_in_rustdesk_cm_seen` (dfh2z), with stand-in RustDesk processes. The rig runs the real check.
+		- 20261119: `remote::tests::viewer_needs_peer_here` (df3p5) asserted that a `--cm` with no link isn't viewed. It now asserts that it is, as this item asks.
+		- Swept: the other sign that wants a link, NoMachine's, stays by decision. The panel and the settings window both look through `Watch`, so `Probe::viewed`.
+
+- CICD gap: arm64 Linux build and packages
+	- ID: 2026110310450006
+	- Type: Task
+	- Status: Waiting on automated testing
+	- Target version: v1.0.0-beta.2
+	- Needs external testing: Install the arm64 `.deb` on an arm64 Debian 13 box, such as vmDebARM64, and check that the panel loads the plugin and Properties opens the settings window. The arm64 `.rpm` the same on an arm64 Fedora 42, if there's one.
+		- 20261119: `arm64-deb-vm-check.bash`, in the private tools folder, does the `.deb` part on vmDebARM64 under the VM state script's `wrap`, and puts the VM's packages back after. Not run yet.
+	- Priority|Severity: Low
+	- Opened: 20261103-104500
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- Add a release build for arm64 Linux, with its `.deb` and `.rpm`, named `linux-arm64` beside `linux-x86_64`.
+		- Put it behind a flag such as `--include-arm` if it's much slower than x86_64. Qt and the panel libraries for arm64 are the hard part.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A Release (arm64) step cross-compiles the plugin and `tukzmon-settings` in the build image, into the target dir's `aarch64-unknown-linux-gnu/release`. The image has the cross gcc, and Debian's arm64 Qt and GTK beside the amd64 ones.
+		- The Packages step then makes `tukzmon-<version>-linux-arm64.deb` and `.rpm` too, with one sha256 sums file for all 4. Each is checked for its files and depends, as the x86_64 ones are.
+		- It runs wherever Packages runs, and with the new `arm64` area. design.md XFCE plugin has it. The README's install section waits for a release with the arm64 files, in child 2026111912302333.
+		- Verified: `--backlog-run-quick arm64 package` passed. The arm64 build took 30.6 s and the x86_64 one 27.3 s, at 8 jobs and load 13. Both binaries are AArch64, the `.deb` is `Architecture: arm64` with its library in `/usr/lib/aarch64-linux-gnu`, and the `.rpm` is `aarch64`. The x86_64 `.deb` built twice gave the same bytes.
+		- Verified: dfh54 failed on the old `package.bash` and passed on the new one.
+		- Verified: the nov19 gate run at 125c908 passed Release (arm64) and Packages. Its 4 packages match their sums file. The arm64 and amd64 `.deb` have the same files under their own library folder, and the same depends. Both arm64 binaries are AArch64, the plugin exports `xfce_panel_module_construct`, and the `.rpm` is `aarch64`.
+	- Decisions:
+		- No `--include-arm` flag, since the arm64 build takes about as long as the x86_64 one. It's left out of `--quick`, as Packages is.
+		- Cross-compiled rather than emulated. b23 has no arm64 binfmt handler, and an emulated build would be many times slower.
+		- The panel library's package isn't multiarch, and apt removes the amd64 one to install it. So the image extracts only its arm64 library, and the depends check skips that one library with a warning naming it. The `.deb` still depends on `libxfce4panel-2.0-4`.
+		- One sums file for both arches, since `install.bash` reads one per version. A package left from an earlier run that the new sums don't list gets a warning.
+		- The Nix package stays x86_64 only.
+	- Branch: nov19-2026110310450006
+	- Test case: `package_arch_names` (dfh54), and the Packages step's per-arch content and depends checks.
 
 - The 2 GPU graphs aren't available with integrated Intel graphics
 	- ID: 2026110920595600
@@ -219,41 +252,20 @@ Sorted per the notes in [Template](#template).
 		- Then cut `utility/path-maps.bash` down to what trim-paths doesn't handle, such as cxx's own C++.
 	- Estimated effort: Low
 
-- Reduce motion misses a RustDesk peer that connects by ID without a relay
-	- ID: 2026111719090679
-	- Type: Bug
-	- Status: Waiting on automated testing
+- README: arm64 package names in the install section
+	- ID: 2026111912302333
+	- Type: Task
+	- Status: Stalled
+		- Held for the first release that has the arm64 packages, since beta.1 has only x86_64.
 	- Target version: v1.0.0-beta.2
-	- Needs external testing: `RIG_CASES=id rustdesk-peer-rig.bash`, from the private tools folder, on a box with no installed RustDesk service running. b23 has one since 20261119, so there the service needs stopping by hand first.
-	- Priority|Severity: Avg
-	- Opened: 20261117-190906
-	- Opened by:
-	- Related IDs: 2026110911114037, 2026111709483900
-	- Steps to reproduce:
-		- Run the real RustDesk server on a desktop, and connect a peer to it by ID, through a rendezvous server, where they can reach each other directly.
-	- Incorrect behavior: the connection is LAN-direct or hole-punched on ephemeral ports at both ends, with neither 21118 nor 21117, so `remote::Watch` says Local while the peer is on, though RustDesk's `--cm` runs on that display.
-	- Expected behavior: Remote while the peer is on, and Local after.
-	- Reproduced: 20261117 on b23, RustDesk 1.5.3 with a local hbbs, server and peer on 2 private displays, twice, both by the LAN path, since both reached hbbs from one address. In those 2 runs the peer still shared the server's IPC folder. A hole punched across the internet takes the same kind of ports, which is read only. Direct IP on 21118 and a forced relay on 21117 were both seen.
-	- Possible cause: `viewed_by` wants a connection on a RustDesk port for `Sign::RustDeskCm`. A by-ID connection over a punched hole uses whatever port the punch got, so the sign could be `--cm` alone, or an established socket held by the `rustdesk --server` process that isn't to the rendezvous server.
-	- Test environment: `rustdesk-peer-rig.bash`, in the private tools folder, sets up the real server, a peer and a local relay with no root. Without `ALWAYS_USE_RELAY=Y` on hbbs, or with both reaching hbbs from one address, the peer takes the punched path.
-	- Actual cause: the RustDesk sign wanted a connection on 21118 or 21117 beside `--cm`, and a look read the processes only while a connection on a known port was up. A peer by ID comes in on any port, and RustDesk can punch over UDP, which the TCP table doesn't show.
-	- Actual effort: Avg
-	- Progress log:
-		- 20261119: `--cm` alone is the RustDesk sign now, and `--cm-no-ui` too. RustDesk's source closes the connection manager 6 s after its last client goes. A look reads the processes when the TCP counters moved, and on every look while this user runs RustDesk, since the connection manager can come or go with no TCP change.
-		- 20261119: the rig's by-ID runs on b23 never got a peer on. b23 now has RustDesk installed, and its service kills every `rustdesk --server` of the user, the rig's included, then restarts its own. The 2 runs restarted the installed server 3 times. The rig now runs its server in its own mount namespace too, reads the ID from the server's log rather than `--get-id`, and won't start while an installed service runs.
-		- Verified: dfh2y and dfh2z failed on the old code and pass. dfh2z also failed with only the old early return put back. The quick gate and Sanitizers passed.
-		- Cost: 200 looks on b23's `:0`, with the installed RustDesk up, took 0.56 s of CPU, about 3 ms a look, against under 0.01 s before, at a load of 5. A look comes every 5 s.
-		- 20261119: the rig wasn't run. b23's installed service and `rustdesk --server` stay up, since stopping them drops live sessions. The other boxes in the host lock are Windows, macOS, FreeBSD, and vmDebARM64, which runs under emulation, so none fits the rig. No `--cm` was up on b23 to check a live peer against. Still waits for the rig on b23 with the service stopped by hand, or on another Linux desktop with no RustDesk service.
-	- Decisions:
-		- `--cm` alone rather than a socket held by `rustdesk --server`, since it covers TCP and UDP paths alike and needs no read of the server's sockets.
-		- A connection manager kept open after a chat or a file transfer counts as remote until someone closes it, since RustDesk keeps its tab then.
-		- The 21118 and 21117 links stay, as a reason to read the processes at once.
-	- Actual fix: `Sign::RustDeskCm` in `core/src/remote.rs` counts `--cm` or `--cm-no-ui` on the display alone. `Probe::viewed` also reads the processes when the TCP counters moved, or when RustDesk ran at the last look. design.md Drawing has it.
-	- Branch: nov19-2026111719090679
-	- Commit: f4f01e0
-	- Test case: `remote::tests::rustdesk_peer_by_id_seen` (dfh2y) and `remote::tests::stand_in_rustdesk_cm_seen` (dfh2z), with stand-in RustDesk processes. The rig runs the real check.
-		- 20261119: `remote::tests::viewer_needs_peer_here` (df3p5) asserted that a `--cm` with no link isn't viewed. It now asserts that it is, as this item asks.
-		- Swept: the other sign that wants a link, NoMachine's, stays by decision. The panel and the settings window both look through `Watch`, so `Probe::viewed`.
+	- Priority|Severity: Low
+	- Opened: 20261119-123023
+	- Opened by: t00mietum
+	- Parent ID: 2026110310450006
+	- Requirements:
+		- README.md's Debian, Ubuntu, Fedora section names the `linux-arm64` files beside the `linux-x86_64` ones.
+		- Its install table gives the `.deb`'s library folder as `/usr/lib/<multiarch>/...`, or names both, since arm64's is `aarch64-linux-gnu`.
+	- Estimated effort: Low
 
 - Cut the cost of the spike windows in each draw
 	- ID: 2026111000270812
@@ -271,125 +283,6 @@ Sorted per the notes in [Template](#template).
 		- 20261110: the look comes first, then the cost. This waits on 2026111010281710, since both change the spike windows.
 		- 20261117: 2026111010281710's look is signed off, so this is Queued.
 		- 20261117: split. 2026111715360663 has the cuts that keep the same numbers, and 2026111715361287 has the rest.
-
-- Cut the history lookups each draw makes down toward the tick's old cost
-	- ID: 2026111715361287
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- The tick stays far above 241 us, since the lookups are only about a third of it. The call is whether to close this and leave the rest of the cost to 2026111000270812.
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Avg
-	- Opened: 20261117-153612
-	- Opened by: t00mietum
-	- Parent ID: 2026111000270812
-	- Prereq IDs: 2026111715360663, 2026111716050389
-	- Requirements: Bring the profiled tick near 241 us of user time, with the same pixels, after 2026111715360663 took it from about 775 to 690 to 750 at load 6 to 13 on 32 cores.
-	- Estimated effort: Avg
-	- Progress log:
-		- 20261117: draw-bench's `kinds` mode times the history lookups by column, at sample 0.5 s on the smooth curve. On a fine tier, a column up to 4 samples wide takes 0.9 us, 14 a graph, and a wider one 0.41 us, 48 a graph. The other 61 take 0.15 us. Reading the blocks is about a third of it, mostly the end buckets read one by one.
-		- Ideas left: a block level of 2 or 4 buckets, prefix sums per fine tier for the windows, and a multiply by the bucket length's inverse. Each one changes the float math, so check the pixels with draw-bench's hashes.
-		- Drawing the pixels is about a quarter of a draw.
-		- 20261117: `spread_over` takes each step's window bounds from the whole numbers it already keeps, rather than from a floor and a ceil of the step's middle. All 24 draw-bench cases give the same pixels. At sample 1 s, a column up to 4 samples wide went from about 1.73 to 1.47 us, the lookups from about 55 to 51 us a draw, and all cases from about 111 to 106 us a draw, in 3 runs each in turn at load 2.4 to 2.7 on 32 cores.
-		- Tried and dropped, since none moved the bench past its noise: block levels of 4, 16 and 64 buckets, a multiply by the inverse of each window's weight in `spread_over` and `densest`, one bounds check per bucket read, and skipping the ring's drops while its low end stays put. All gave the same pixels.
-		- At sample 1 s, a draw's lookups are about 22 us in the 15 columns up to 4 samples wide, 20 us in the 40 wider fine-tier ones, and 9 us in the 61 on coarse tiers. Most of the first 2 is the windows, which read their buckets one at a time.
-		- Next: prefix sums of secs and of secs times max, per fine tier, would make each window 2 reads. They'd also skip gap buckets, which fixes 2026111716050389 and changes those columns' pixels by more than a step, so they wait on it. They'd cost about 32 bytes a bucket in the 2 fine tiers, about 0.4 MB per 3-series graph.
-		- The lookups were about 35% of the profiled tick in 2026111011172485's runs, so even none at all leaves the tick near 450 us, not 241. The profiler wasn't run for this cut, since its noise is bigger than the cut.
-		- 20261119: prefix sums of secs and of secs times max, per fine tier, made each window 2 reads in `densest`, `spread_over` and the buckets wholly inside `tops_over`. They gave the same pixels, but at sample 1 s a column up to 4 samples wide went from about 1.58 to 1.83 us, and wider ones stayed near 0.53 us. The windows already slide a bucket in and a bucket out, so the sums only save the first fill. Dropped.
-		- 20261119: `spread_over` steps a whole bucket at a time, taking the window in reach for the last part of each bucket as a second part, rather than stepping at each whole number of x and of x plus the reach. All 24 draw-bench cases give the same pixels. At sample 1 s the columns up to 4 samples wide went from about 22.8 to 20.3 us a draw, and all cases from about 108.7 to 104.6 us a draw, in 3 runs each in turn at load 9.5 to 11 on 32 cores.
-		- Tried and dropped: skipping the divide in `add_buckets` when all of a bucket's data is in. Coarse-tier columns went from about 9.8 to 9.2 us a draw, but the others moved the other way within the noise.
-		- At sample 1 s a draw's lookups are now about 20 us in the narrow columns, 20 us in the wider fine-tier ones, and 10 us on coarse tiers. `total_over` is about a quarter of the lookups, in every column.
-		- Verified: the profiler on nov19 at 125c908, at load about 5, gave 1079.8 us a tick, 658.2 of it user, the median of 5 runs from 1017.8 to 1154.7. That's below the 690 to 750 us of user time before, at a lower load, and far above 241. History lookups and upkeep were 37.8% of self time, the `/proc` reads 39.6%, and drawing 18.2%.
-	- Decisions:
-		- 20261117: a change to the float math may move a pixel by at most 1 in any channel against draw-bench's base build, and the existing drawing tests must pass unchanged. Anything bigger needs a look by eye, so the item goes to Waiting on UAT.
-		- 20261117: only the window bounds change went in, as the one change that moved the bench. The prefix sums wait on 2026111716050389 rather than fixing it here, since that fix moves pixels past the limit above.
-		- 20261119: the prefix sums are out, since they cost about 0.4 MB per graph and made the narrow columns slower. Only the whole-bucket stepping went in.
-	- Test case: `history::tests::spread_over_as_plain` (dfehq) checks `spread_over` against a plain version that takes each step's windows from the ceil to the floor of its middle and sums each window afresh. It fails with either bound off by one.
-		- 20261119: dfehq now also tries columns a whole number of buckets past a sample. It failed with the second part's last window, the point where it starts, or the unit's first window off by one, and passes on 1d49e84.
-		- Swept: every floor or ceil of a step's middle in history.rs. `spread_over` had the only one, and `densest` takes its window range once per call.
-	- Stand-in: none (20261119). Whether to close short of 241 us is a call on scope, which no run can make.
-	- Branch: nov17-2026111715361287, nov19-2026111715361287
-	- Commit: 16ee014, 1d49e84
-
-- CICD gap: Run the content scrub from the pipeline and the pre-push hook
-	- ID: 2026110310450004
-	- Type: Task
-	- Status: Closed
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Low
-	- Opened: 20261103-104500
-	- Opened by: t00mietum
-	- Parent ID: 2026102416252898
-	- Requirements:
-		- Make the lint step and the pre-push hook run the private content scrub script when it's there, and fail on what it finds. A fresh clone without it still builds, with one line saying it was skipped.
-		- Keep its names in the repo neutral, such as "content scrub".
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- Lint runs the content scrub after the test ID check, and the pre-push hook runs it in a docs-only push's checks, on the pushed commit's worktree. A push the merge gate checks gets it through Lint. `fContentScrub` in `cicd/utility/include/content-scrub.bash` is shared by both.
-		- The script is found at `CONTENT_SCRUB` in `cicd/config.bash`, relative to the main checkout, so a linked worktree finds the same one. When it isn't there, one line says it was skipped.
-		- In the image, Lint gets the script's folder mounted read-only.
-		- A finding fails only when `CONTENT_SCRUB_FAILS` is 1. It's 0 for now, since the tree has 312 lines of findings. Until then a run prints the count, and Lint writes the findings to `cicd/artifacts/lint/content-scrub.txt`, with only the count in its log. Making them fail is child 2026111717545314.
-		- Verified: dfen5 and dfen6 failed with the hook's call taken out, with the hook handed the checkout instead of the worktree, and with the fail switch read wrong, and passed after. `--backlog-run-quick format build lint test` and `sanitizers` passed. With `CONTENT_SCRUB_FAILS=1`, Lint failed on the scrub in the image. The scrub gave 312 lines in the image and 312 on the host. Only the counts were compared.
-		- Sent back 2026-11-18: findings quoted in the lint log, and the scrub's own stderr, have the word "warning", so `lint-report.bash` gave FLAG on a log that was clean before. They now go to their own file, rewritten each run.
-		- Verified: new test dfeq1 got FLAG from `lint-report.bash` with the findings in the lint log, and CLEAN after. On the real tree, `--backlog-run-quick format build lint test` passed and `lint-report.bash` gave CLEAN.
-		- 2026-11-18: dfen5 changed one check. It used to check that a failing scrub writes no findings file, and now checks that the file has the findings. A failing run writes the file too, so it's never left from an older run.
-	- Decisions:
-		- Findings don't fail yet, since failing now would turn every gate red. That waits on the child's question.
-		- The scrub runs in the image with Lint, rather than on the host, so Lint stays one step. The image's awk is mawk, and it gave as many lines as the host's.
-		- The findings go to a file of their own rather than `lint-report.bash` skipping a block of the log. The lint log then has only lint output, and lint-report needs no change. With `CONTENT_SCRUB_FAILS=1` they're printed in the lint log too, which fails anyway.
-		- Swept: `cicd/hooks` has only pre-push, and the merge gate's path gets the scrub through Lint. df32x and df543 copy the hook's includes into their own repos, and copy the new one too.
-	- Branch: nov17-2026110310450004, then nov17-2026110310450004-fix
-	- Commit: c899ab2, 80f3d95
-	- Test case: its children's: 2026111717545314: `scrub-rules-check.bash` in the private tools folder, since the scrub isn't in the repo. dfen5, dfen6 and dfeq1 still pass with the new default.
-	- Closed: 20261119-121412
-	- Closed reason: Done
-
-- CICD gap: arm64 Linux build and packages
-	- ID: 2026110310450006
-	- Type: Task
-	- Status: Waiting on automated testing
-	- Target version: v1.0.0-beta.2
-	- Needs external testing: Install the arm64 `.deb` on an arm64 Debian 13 box, such as vmDebARM64, and check that the panel loads the plugin and Properties opens the settings window. The arm64 `.rpm` the same on an arm64 Fedora 42, if there's one.
-		- 20261119: `arm64-deb-vm-check.bash`, in the private tools folder, does the `.deb` part on vmDebARM64 under the VM state script's `wrap`, and puts the VM's packages back after. Not run yet.
-	- Priority|Severity: Low
-	- Opened: 20261103-104500
-	- Opened by: t00mietum
-	- Parent ID: 2026102416252898
-	- Requirements:
-		- Add a release build for arm64 Linux, with its `.deb` and `.rpm`, named `linux-arm64` beside `linux-x86_64`.
-		- Put it behind a flag such as `--include-arm` if it's much slower than x86_64. Qt and the panel libraries for arm64 are the hard part.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- A Release (arm64) step cross-compiles the plugin and `tukzmon-settings` in the build image, into the target dir's `aarch64-unknown-linux-gnu/release`. The image has the cross gcc, and Debian's arm64 Qt and GTK beside the amd64 ones.
-		- The Packages step then makes `tukzmon-<version>-linux-arm64.deb` and `.rpm` too, with one sha256 sums file for all 4. Each is checked for its files and depends, as the x86_64 ones are.
-		- It runs wherever Packages runs, and with the new `arm64` area. design.md XFCE plugin has it. The README's install section waits for a release with the arm64 files, in child 2026111912302333.
-		- Verified: `--backlog-run-quick arm64 package` passed. The arm64 build took 30.6 s and the x86_64 one 27.3 s, at 8 jobs and load 13. Both binaries are AArch64, the `.deb` is `Architecture: arm64` with its library in `/usr/lib/aarch64-linux-gnu`, and the `.rpm` is `aarch64`. The x86_64 `.deb` built twice gave the same bytes.
-		- Verified: dfh54 failed on the old `package.bash` and passed on the new one.
-		- Verified: the nov19 gate run at 125c908 passed Release (arm64) and Packages. Its 4 packages match their sums file. The arm64 and amd64 `.deb` have the same files under their own library folder, and the same depends. Both arm64 binaries are AArch64, the plugin exports `xfce_panel_module_construct`, and the `.rpm` is `aarch64`.
-	- Decisions:
-		- No `--include-arm` flag, since the arm64 build takes about as long as the x86_64 one. It's left out of `--quick`, as Packages is.
-		- Cross-compiled rather than emulated. b23 has no arm64 binfmt handler, and an emulated build would be many times slower.
-		- The panel library's package isn't multiarch, and apt removes the amd64 one to install it. So the image extracts only its arm64 library, and the depends check skips that one library with a warning naming it. The `.deb` still depends on `libxfce4panel-2.0-4`.
-		- One sums file for both arches, since `install.bash` reads one per version. A package left from an earlier run that the new sums don't list gets a warning.
-		- The Nix package stays x86_64 only.
-	- Branch: nov19-2026110310450006
-	- Test case: `package_arch_names` (dfh54), and the Packages step's per-arch content and depends checks.
-
-- README: arm64 package names in the install section
-	- ID: 2026111912302333
-	- Type: Task
-	- Status: Stalled
-		- Held for the first release that has the arm64 packages, since beta.1 has only x86_64.
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Low
-	- Opened: 20261119-123023
-	- Opened by: t00mietum
-	- Parent ID: 2026110310450006
-	- Requirements:
-		- README.md's Debian, Ubuntu, Fedora section names the `linux-arm64` files beside the `linux-x86_64` ones.
-		- Its install table gives the `.deb`'s library folder as `/usr/lib/<multiarch>/...`, or names both, since arm64's is `aarch64-linux-gnu`.
-	- Estimated effort: Low
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
@@ -3452,6 +3345,47 @@ Sorted per the notes in [Template](#template).
 		- Swept: the video take uses the same panel config, and no other script in the repo or the private tools sets up a tray.
 	- Acceptance signoff: Self-closed 20261109: in the new gif the network, volume and bell icons are evenly spaced.
 	- Closed: 20261109-124233
+
+- Pre-next-cut: Show the highest recorded values on the tip of monitors with no obvious absolute max
+	- ID: 2026111623513500
+	- Type: Feature
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261116-235135
+	- Opened by: t00mietum
+	- Related IDs: 2026103109002399
+	- Requirements:
+		- On monitors with no obvious absolute max (e.g. 100%), show on the tooltip the highest values recorded so far for each metric.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- The network, disk, load and processes tips end with a line per value for the highest it reached, such as "Read highest 80 MB/s". The hover tip and the latest-read tip both have them.
+		- The highest is over the history kept, so it goes back to the max age, comes back after a restart with Keep across restarts on, and Reset history starts it over.
+		- `design.md` Drawing and README Features have it.
+		- Verified: the quick gate and Sanitizers passed, with the new tests.
+		- Answer 20261119: the highest line reads "Highest Read: 80 MB/s", one per series, on its own line below the current values.
+		- Answer 20261119: Temperature gets the highest line too.
+		- Answer 20261119: losing the highest values on Reset history is expected.
+		- 20261119: the lines read "Highest Read: 80 MB/s", and the temperature tip ends with "Highest Temperature: 98 °C". `design.md` Drawing and README Features say so.
+		- Verified: the quick gate and Sanitizers passed, with the changed tests.
+	- Decisions:
+		- The graphs with a highest line are network, disk, load, processes and temperature. The tukzmon graph is a share of all CPUs, so it leaves it out.
+		- The highest lines go under the tip's own lines, one value a line, since 2026103109002399 put one pair on each line.
+		- The lines read "Highest Name: value", per the 20261119 answer, with the name as the tip gives it, so processes read "Highest Yours: 130".
+		- Temperature gets one line, for the reading, with the sum of its normal and critical highests. Normal stops at the critical level and critical starts there, so the sum is the highest reading. The critical level is left out, since the tip already gives it.
+		- Processes get no highest total, since the history keeps each kind's highest but not their sum's.
+		- It's read from the coarsest history tier, rather than kept as a running max, so it isn't a second copy of what the history already has. A bucket's max is of the samples in it, so a 50 ms spike counts.
+		- Under the network split, the highest goes by the series as kept, so history from before the split was turned on has its LAN traffic in the internet lines.
+		- Check entry filed in questions.md for the wording.
+	- Branch: nov17-2026111623513500, then nov19-2026111623513500
+	- Commit: b1bbee5, then febb64c
+	- Test case: `history::tests::highest_of_all_kept` (dfejh), `tests::highest_on_no_top_tips` (dfejj) and `tests::graph_tip_gives_history_highest` (dfejk). dfejh and dfejk fail with the finest tier read in place of the coarsest, and dfejk fails with the tip left without the highest. dfejj fails with the temperature tip left without its highest.
+		- 20261119: new values only, for the "Highest Name: value" wording: dfejj's and dfejk's expected tips. dfejj's check that temperature leaves the line out now checks its line.
+		- Swept: every `Source` impl in `core/src/lib.rs`, the only file with any, and both `Graph` tip paths, `tooltip` and `hover_tip`, which the panel and the settings window's graph list share. Tests quoting the 5 tips use `contains` or `Source::text`, so they're unchanged. No other code, doc or test quotes the old "highest" wording.
+	- Acceptance signoff: Self-closed 20261119: the answers set the wording and scope, and dfejj and dfejk pin the text.
+	- Closed: 20261119-113408
 
 - Reduce motion if a remote desktop session is detected
 	- ID: 2026110911114037
@@ -8384,6 +8318,72 @@ Sorted per the notes in [Template](#template).
 	- Superseded by ID: 2026110709261106, which takes out the shcl 2 rewrite.
 	- Test case: None, since nothing was changed.
 	- Closed: 20261107-092134
+
+- CICD gap: Clear the content scrub's findings on the tree, then make them fail Lint and the pre-push hook
+	- ID: 2026111717545314
+	- Type: Task
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Low
+	- Opened: 20261117-175453
+	- Opened by: t00mietum
+	- Parent ID: 2026110310450004
+	- Requirements:
+		- The content scrub reports 312 lines on the tree as of 2026-11-17, so for now its findings are only counted. Clear them, then set `CONTENT_SCRUB_FAILS` to 1 in `cicd/config.bash`, so a finding fails Lint and the pre-push hook's docs checks.
+	- Estimated effort: Avg
+	- Answer 20261119: (a). The scrub skips binary and stock files, and checks spelled-out numbers and dash-parens only in prose (`.md` files and comments). Then the rest gets reworded in the repo, and `CONTENT_SCRUB_FAILS` goes to 1. `private/hooks/scrub.bash` is changed for this.
+	- Actual effort: Avg
+	- Progress log:
+		- The scrub skips binary files and `license.txt`, and checks spelled-out numbers and dash-parens only in `.md` files and the comment part of code lines. Its not-X-it's-Y check no longer matches "net", as in "internet".
+		- The other findings were reworded in code comments, messages, test asserts, `design.md`, `style-guide_ux.md` and the backlog. Code names, shcl's tip line break, the tip's "just now" and degree sign, and the person's own backlog lines went to the scrub's allow list.
+		- `CONTENT_SCRUB_FAILS` is 1, so a finding fails Lint and the pre-push hook's docs checks.
+		- Verified: the scrub gave 320 lines before and none after, on the host, and Lint in the image gave "content scrub: clean". A comment line with 2 findings added to `cicd/config.bash` failed `fContentScrub`. `--backlog-run-quick format build lint test` and `sanitizers` passed, and `lint-report.bash` gave CLEAN.
+		- Verified: `scrub-rules-check.bash` in the private tools folder failed on the old scrub and passes on the new one. It checks that code names and strings are skipped, comments and `.md` lines are checked, and binary and stock files are skipped.
+	- Decisions:
+		- The person's backlog lines went to the allow list rather than being reworded. So did code names such as `Sign::Holds`, `carry()` and knobs' `hold()`, since renaming code for word choice is churn with no gain.
+		- `install.bash`'s comments and 2 error messages now say "extract" for what a user install does with the package.
+		- The not-X-it's-Y check was tightened past what the answer asked, since its pattern matched "internet" in 2 settings tips that read fine.
+		- The scrub's commit message check still reads the whole history in a detached worktree, or on a branch with no upstream. That passes today.
+	- Branch: nov19-2026111717545314
+	- Commit: 0c5909e
+	- Test case: `scrub-rules-check.bash` in the private tools folder, since the scrub isn't in the repo. dfen5, dfen6 and dfeq1 still pass with the new default.
+	- Acceptance signoff: Self-closed: built as the answer said, and the gates pass with findings failing.
+	- Closed: 20261119-121147
+
+- CICD gap: Run the content scrub from the pipeline and the pre-push hook
+	- ID: 2026110310450004
+	- Type: Task
+	- Status: Closed
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Low
+	- Opened: 20261103-104500
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- Make the lint step and the pre-push hook run the private content scrub script when it's there, and fail on what it finds. A fresh clone without it still builds, with one line saying it was skipped.
+		- Keep its names in the repo neutral, such as "content scrub".
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Lint runs the content scrub after the test ID check, and the pre-push hook runs it in a docs-only push's checks, on the pushed commit's worktree. A push the merge gate checks gets it through Lint. `fContentScrub` in `cicd/utility/include/content-scrub.bash` is shared by both.
+		- The script is found at `CONTENT_SCRUB` in `cicd/config.bash`, relative to the main checkout, so a linked worktree finds the same one. When it isn't there, one line says it was skipped.
+		- In the image, Lint gets the script's folder mounted read-only.
+		- A finding fails only when `CONTENT_SCRUB_FAILS` is 1. It's 0 for now, since the tree has 312 lines of findings. Until then a run prints the count, and Lint writes the findings to `cicd/artifacts/lint/content-scrub.txt`, with only the count in its log. Making them fail is child 2026111717545314.
+		- Verified: dfen5 and dfen6 failed with the hook's call taken out, with the hook handed the checkout instead of the worktree, and with the fail switch read wrong, and passed after. `--backlog-run-quick format build lint test` and `sanitizers` passed. With `CONTENT_SCRUB_FAILS=1`, Lint failed on the scrub in the image. The scrub gave 312 lines in the image and 312 on the host. Only the counts were compared.
+		- Sent back 2026-11-18: findings quoted in the lint log, and the scrub's own stderr, have the word "warning", so `lint-report.bash` gave FLAG on a log that was clean before. They now go to their own file, rewritten each run.
+		- Verified: new test dfeq1 got FLAG from `lint-report.bash` with the findings in the lint log, and CLEAN after. On the real tree, `--backlog-run-quick format build lint test` passed and `lint-report.bash` gave CLEAN.
+		- 2026-11-18: dfen5 changed one check. It used to check that a failing scrub writes no findings file, and now checks that the file has the findings. A failing run writes the file too, so it's never left from an older run.
+	- Decisions:
+		- Findings don't fail yet, since failing now would turn every gate red. That waits on the child's question.
+		- The scrub runs in the image with Lint, rather than on the host, so Lint stays one step. The image's awk is mawk, and it gave as many lines as the host's.
+		- The findings go to a file of their own rather than `lint-report.bash` skipping a block of the log. The lint log then has only lint output, and lint-report needs no change. With `CONTENT_SCRUB_FAILS=1` they're printed in the lint log too, which fails anyway.
+		- Swept: `cicd/hooks` has only pre-push, and the merge gate's path gets the scrub through Lint. df32x and df543 copy the hook's includes into their own repos, and copy the new one too.
+	- Branch: nov17-2026110310450004, then nov17-2026110310450004-fix
+	- Commit: c899ab2, 80f3d95
+	- Test case: its children's: 2026111717545314: `scrub-rules-check.bash` in the private tools folder, since the scrub isn't in the repo. dfen5, dfen6 and dfeq1 still pass with the new default.
+	- Closed: 20261119-121412
+	- Closed reason: Done
 
 - Reduce motion: check the RustDesk signs with a real RustDesk peer
 	- ID: 2026111709483900
