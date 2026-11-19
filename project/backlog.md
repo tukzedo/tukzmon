@@ -22,40 +22,6 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- Test options in settings: horizontal and vertical blur radius
-	- ID: 2026111913545113
-	- Type: Feature
-	- Status: Waiting on UAT
-		- A look at the panel with the blur at 0, 0.5 and 1 tells whether it helps the shimmer in 2026111623513501, and whether 0.5 stays the default.
-		- 20261119: b23 runs build dfh6f, from before the blur went in, so it needs a new build before the look.
-	- Stand-in: none (20261119). Whether the blur helps the shimmer turns on how it looks to the eye.
-	- Priority|Severity: High
-	- Opened: 20261119-135451
-	- Opened by: t00mietum
-	- Related IDs: 2026111623513501
-	- Requirements:
-		- Add 2 test options to the settings window: Horizontal blur radius, and Vertical blur radius.
-		- Make these features a code constant that can be turned off.
-		- Default to 0.5 px.
-	- Target version: v1.0.0-beta.2
-	- Actual effort: Avg
-	- Progress log:
-		- 20261119: General, under Misc, has "Test blur radius px, horizontal" and "vertical", at `graph.blur_x` and `graph.blur_y`, 0 to 4, default 0.5. The plot is blurred after it's drawn, over a box 2r + 1 pixels wide, so 0.5 mixes 1:2:1. The border and the hover line aren't blurred. `config::BLUR_TEST` off hides both rows and draws with no blur. `design.md` Drawing has it.
-		- Cost of the default, at scale 2: draw-bench's 24 cases took about 110 us a draw at 0 and 170 at 0.5, in 3 runs each in turn at load 10 to 11 on 32 cores. A first cut took 205.
-		- The profiler's panel tick, 7 graphs at 898x48 scale 2, took 686 us user at 0, at load 13, and 1059 at 0.5, at load 16. So the default costs about 370 us user a tick there. A second run at 0 came at load 35 and was dropped.
-		- At 0 the blur is skipped, so nothing else changes. The render tests pass unchanged with it at 0.
-		- Verified: dfh89 failed with the blur skipped and passed with it. dfh8a and dfh8b passed with `BLUR_TEST` on and off. With it off, the General tab showed neither row. With it on, the General tab still fits with no scroll bar on an 800 px offscreen screen. The quick gate's format, build, lint and tests, and Sanitizers passed.
-	- Decisions:
-		- The 2 rows share one line under Misc, as number boxes. As sliders under a heading of their own, the General tab needed a scroll bar on an 800 px screen.
-		- The radius is in logical pixels, like Border px, so a scale 2 screen blurs twice as far.
-		- The blur is a box 2r + 1 wide, so a fractional radius takes part of the outer pixels. It works in premultiplied color, so a transparent background blurs right.
-		- The plot's end pixels stand in for what's past them, so the border color doesn't bleed into the plot.
-		- Tests that read exact pixels from the default look now set the blur to 0: the render tests' `look()`, the graphs tests' `two()`, and `right_column_fills_tip`. Their asserts are unchanged.
-	- Branch: nov19b-2026111913545113
-	- Commit: 272d273
-	- Test case: `render::tests::blur_taps_box` (dfh88), `render::tests::blur_mixes_neighbors_only` (dfh89), `config::tests::blur_rows_follow_build` (dfh8a), and `dialog::tests::blur_rows_follow_build` (dfh8b).
-		- Swept: every draw goes through `Frame::draw_in`, which the panel, the settings window's graph list, and the preview and profile examples call. Every `Look` literal in the tests takes the new fields from `Look::default()`.
-
 - Cut the history lookups each draw makes down toward the tick's old cost
 	- ID: 2026111715361287
 	- Type: Enhancement
@@ -102,6 +68,41 @@ Sorted per the notes in [Template](#template).
 	- Branch: nov17-2026111715361287, nov19-2026111715361287
 	- Commit: 16ee014, 1d49e84
 
+- Test options in settings: horizontal and vertical blur radius
+	- ID: 2026111913545113
+	- Type: Feature
+	- Status: Waiting on UAT
+		- A look at the panel with the blur at 0, 0.5 and 1 tells whether it helps the shimmer in 2026111623513501, and whether 0.5 stays the default.
+		- 20261119: b23 runs build dfh6f, from before the blur went in, so it needs a new build before the look.
+	- Stand-in: none (20261119). Whether the blur helps the shimmer turns on how it looks to the eye.
+	- Priority|Severity: High
+	- Opened: 20261119-135451
+	- Opened by: t00mietum
+	- Related IDs: 2026111623513501
+	- Requirements:
+		- Add 2 test options to the settings window: Horizontal blur radius, and Vertical blur radius.
+		- Make these features a code constant that can be turned off.
+		- Default to 0.5 px.
+	- Target version: v1.0.0-beta.2
+	- Actual effort: Avg
+	- Progress log:
+		- 20261119: General, under Misc, has "Test blur radius px, horizontal" and "vertical", at `graph.blur_x` and `graph.blur_y`, 0 to 4, default 0.5. The plot is blurred after it's drawn, over a box 2r + 1 pixels wide, so 0.5 mixes 1:2:1. The border and the hover line aren't blurred. `config::BLUR_TEST` off hides both rows and draws with no blur. `design.md` Drawing has it.
+		- Cost of the default, at scale 2: draw-bench's 24 cases took about 110 us a draw at 0 and 170 at 0.5, in 3 runs each in turn at load 10 to 11 on 32 cores. A first cut took 205.
+		- The profiler's panel tick, 7 graphs at 898x48 scale 2, took 686 us user at 0, at load 13, and 1059 at 0.5, at load 16. So the default costs about 370 us user a tick there. A second run at 0 came at load 35 and was dropped.
+		- At 0 the blur is skipped, so nothing else changes. The render tests pass unchanged with it at 0.
+		- Verified: dfh89 failed with the blur skipped and passed with it. dfh8a and dfh8b passed with `BLUR_TEST` on and off. With it off, the General tab showed neither row. With it on, the General tab still fits with no scroll bar on an 800 px offscreen screen. The quick gate's format, build, lint and tests, and Sanitizers passed.
+		- 20261119: b23 gets the merged dev build through `utility/dev-install.bash --no-restart` at the round's end, per the round settings. The look needs a panel restart first.
+	- Decisions:
+		- The 2 rows share one line under Misc, as number boxes. As sliders under a heading of their own, the General tab needed a scroll bar on an 800 px screen.
+		- The radius is in logical pixels, like Border px, so a scale 2 screen blurs twice as far.
+		- The blur is a box 2r + 1 wide, so a fractional radius takes part of the outer pixels. It works in premultiplied color, so a transparent background blurs right.
+		- The plot's end pixels stand in for what's past them, so the border color doesn't bleed into the plot.
+		- Tests that read exact pixels from the default look now set the blur to 0: the render tests' `look()`, the graphs tests' `two()`, and `right_column_fills_tip`. Their asserts are unchanged.
+	- Branch: nov19b-2026111913545113
+	- Commit: 272d273
+	- Test case: `render::tests::blur_taps_box` (dfh88), `render::tests::blur_mixes_neighbors_only` (dfh89), `config::tests::blur_rows_follow_build` (dfh8a), and `dialog::tests::blur_rows_follow_build` (dfh8b).
+		- Swept: every draw goes through `Frame::draw_in`, which the panel, the settings window's graph list, and the preview and profile examples call. Every `Look` literal in the tests takes the new fields from `Look::default()`.
+
 - Some settings tips are long and technical, and stack asides
 	- ID: 2026110710005015
 	- Type: Enhancement
@@ -138,85 +139,6 @@ Sorted per the notes in [Template](#template).
 	- Branch: nov17-2026110710005015
 	- Commit: 0f3cba2
 	- Test case: `keep::tests::read_errors_plain` (dfemm) and `config::tests::settings_not_text_plain` (dfemn). Both fail with the old wording. `dialog::tests::unreadable_file_is_error` (den9y) now pins the window's whole message. The tip wording has no test, apart from the wrap check, defw3.
-
-- Reduce motion misses a RustDesk peer that connects by ID without a relay
-	- ID: 2026111719090679
-	- Type: Bug
-	- Status: Closed
-	- Closed reason: Done
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Avg
-	- Opened: 20261117-190906
-	- Opened by:
-	- Related IDs: 2026110911114037, 2026111709483900
-	- Steps to reproduce:
-		- Run the real RustDesk server on a desktop, and connect a peer to it by ID, through a rendezvous server, where they can reach each other directly.
-	- Incorrect behavior: the connection is LAN-direct or hole-punched on ephemeral ports at both ends, with neither 21118 nor 21117, so `remote::Watch` says Local while the peer is on, though RustDesk's `--cm` runs on that display.
-	- Expected behavior: Remote while the peer is on, and Local after.
-	- Reproduced: 20261117 on b23, RustDesk 1.5.3 with a local hbbs, server and peer on 2 private displays, twice, both by the LAN path, since both reached hbbs from one address. In those 2 runs the peer still shared the server's IPC folder. A hole punched across the internet takes the same kind of ports, which is read only. Direct IP on 21118 and a forced relay on 21117 were both seen.
-	- Possible cause: `viewed_by` wants a connection on a RustDesk port for `Sign::RustDeskCm`. A by-ID connection over a punched hole uses whatever port the punch got, so the sign could be `--cm` alone, or an established socket held by the `rustdesk --server` process that isn't to the rendezvous server.
-	- Test environment: `rustdesk-peer-rig.bash`, in the private tools folder, sets up the real server, a peer and a local relay with no root. Without `ALWAYS_USE_RELAY=Y` on hbbs, or with both reaching hbbs from one address, the peer takes the punched path.
-	- Actual cause: the RustDesk sign wanted a connection on 21118 or 21117 beside `--cm`, and a look read the processes only while a connection on a known port was up. A peer by ID comes in on any port, and RustDesk can punch over UDP, which the TCP table doesn't show.
-	- Actual effort: Avg
-	- Progress log:
-		- 20261119: `--cm` alone is the RustDesk sign now, and `--cm-no-ui` too. RustDesk's source closes the connection manager 6 s after its last client goes. A look reads the processes when the TCP counters moved, and on every look while this user runs RustDesk, since the connection manager can come or go with no TCP change.
-		- 20261119: the rig's by-ID runs on b23 never got a peer on. b23 now has RustDesk installed, and its service kills every `rustdesk --server` of the user, the rig's included, then restarts its own. The 2 runs restarted the installed server 3 times. The rig now runs its server in its own mount namespace too, reads the ID from the server's log rather than `--get-id`, and won't start while an installed service runs.
-		- Verified: dfh2y and dfh2z failed on the old code and pass. dfh2z also failed with only the old early return put back. The quick gate and Sanitizers passed.
-		- Cost: 200 looks on b23's `:0`, with the installed RustDesk up, took 0.56 s of CPU, about 3 ms a look, against under 0.01 s before, at a load of 5. A look comes every 5 s.
-		- 20261119: the rig wasn't run. b23's installed service and `rustdesk --server` stay up, since stopping them drops live sessions. The other boxes in the host lock are Windows, macOS, FreeBSD, and vmDebARM64, which runs under emulation, so none fits the rig. No `--cm` was up on b23 to check a live peer against. Still waits for the rig on b23 with the service stopped by hand, or on another Linux desktop with no RustDesk service.
-		- Answer 20261119: run it on b28l if it has RustDesk. Otherwise it's OK to stop b23's installed RustDesk service by hand for the check.
-		- 20261119: b28l has no RustDesk installed and no service, so the rig ran there, by ID with no relay, from the nov19b branch at 3f39eb2. The peer came in on ephemeral ports at both ends, with neither 21118 nor 21117, and `--cm` came up.
-		- Verified: on b28l, `Watch` said Remote at both looks while the peer was on, and Local after it left. The same run at 32a4438, before the fix, said Local while the peer was on.
-		- 20261119: the rig's probe now drops `XDG_SESSION_ID`. Run over ssh, logind marks that session remote, and `Watch` then says Remote from its start whatever the peer does.
-	- Decisions:
-		- `--cm` alone rather than a socket held by `rustdesk --server`, since it covers TCP and UDP paths alike and needs no read of the server's sockets.
-		- A connection manager kept open after a chat or a file transfer counts as remote until someone closes it, since RustDesk keeps its tab then.
-		- The 21118 and 21117 links stay, as a reason to read the processes at once.
-	- Actual fix: `Sign::RustDeskCm` in `core/src/remote.rs` counts `--cm` or `--cm-no-ui` on the display alone. `Probe::viewed` also reads the processes when the TCP counters moved, or when RustDesk ran at the last look. design.md Drawing has it.
-	- Branch: nov19-2026111719090679
-	- Commit: f4f01e0, on nov19b as ca4e6ee
-	- Test case: `remote::tests::rustdesk_peer_by_id_seen` (dfh2y) and `remote::tests::stand_in_rustdesk_cm_seen` (dfh2z), with stand-in RustDesk processes. The rig runs the real check.
-		- 20261119: `remote::tests::viewer_needs_peer_here` (df3p5) asserted that a `--cm` with no link isn't viewed. It now asserts that it is, as this item asks.
-		- Swept: the other sign that wants a link, NoMachine's, stays by decision. The panel and the settings window both look through `Watch`, so `Probe::viewed`.
-	- Acceptance signoff: Self-closed: the by-ID rig passed on b28l, and failed at the commit before the fix.
-	- Closed: 20261119-151403
-
-- CICD gap: arm64 Linux build and packages
-	- ID: 2026110310450006
-	- Type: Task
-	- Status: Closed
-	- Closed reason: Done
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Low
-	- Opened: 20261103-104500
-	- Opened by: t00mietum
-	- Parent ID: 2026102416252898
-	- Requirements:
-		- Add a release build for arm64 Linux, with its `.deb` and `.rpm`, named `linux-arm64` beside `linux-x86_64`.
-		- Put it behind a flag such as `--include-arm` if it's much slower than x86_64. Qt and the panel libraries for arm64 are the hard part.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Progress log:
-		- A Release (arm64) step cross-compiles the plugin and `tukzmon-settings` in the build image, into the target dir's `aarch64-unknown-linux-gnu/release`. The image has the cross gcc, and Debian's arm64 Qt and GTK beside the amd64 ones.
-		- The Packages step then makes `tukzmon-<version>-linux-arm64.deb` and `.rpm` too, with one sha256 sums file for all 4. Each is checked for its files and depends, as the x86_64 ones are.
-		- It runs wherever Packages runs, and with the new `arm64` area. design.md XFCE plugin has it. The README's install section waits for a release with the arm64 files, in child 2026111912302333.
-		- Verified: `--backlog-run-quick arm64 package` passed. The arm64 build took 30.6 s and the x86_64 one 27.3 s, at 8 jobs and load 13. Both binaries are AArch64, the `.deb` is `Architecture: arm64` with its library in `/usr/lib/aarch64-linux-gnu`, and the `.rpm` is `aarch64`. The x86_64 `.deb` built twice gave the same bytes.
-		- Verified: dfh54 failed on the old `package.bash` and passed on the new one.
-		- Verified: the nov19 gate run at 125c908 passed Release (arm64) and Packages. Its 4 packages match their sums file. The arm64 and amd64 `.deb` have the same files under their own library folder, and the same depends. Both arm64 binaries are AArch64, the plugin exports `xfce_panel_module_construct`, and the `.rpm` is `aarch64`.
-		- Answer 20261119: wait. The vmDebARM64 run waits until `arm64-deb-vm-check.bash` does its root steps through `ssh root@vmDebARM64` rather than sudo.
-		- 20261119: `arm64-deb-vm-check.bash` now does its apt steps through `ssh root@vmDebARM64`, with no sudo. It ran on vmDebARM64 with the arm64 `.deb` from the nov19b branch at 3f39eb2, build dfha2.
-		- Verified: on vmDebARM64, Debian 13 arm64, apt installed the `.deb` with its 35 depends, and xfce4-panel loaded `libtukzmon.so` from `/usr/lib/aarch64-linux-gnu` and embedded the plugin. `tukzmon-settings`, the program Properties starts, opened and saved a picture of each of its 4 tabs and the color picker, and they show the whole window. The purge then put the VM's package set back as found.
-		- 20261119: the `.rpm` wasn't installed, since there's no arm64 Fedora box. The Packages step's `.rpm` content and depends checks cover it.
-	- Decisions:
-		- No `--include-arm` flag, since the arm64 build takes about as long as the x86_64 one. It's left out of `--quick`, as Packages is.
-		- Cross-compiled rather than emulated. b23 has no arm64 binfmt handler, and an emulated build would be many times slower.
-		- The panel library's package isn't multiarch, and apt removes the amd64 one to install it. So the image extracts only its arm64 library, and the depends check skips that one library with a warning naming it. The `.deb` still depends on `libxfce4panel-2.0-4`.
-		- One sums file for both arches, since `install.bash` reads one per version. A package left from an earlier run that the new sums don't list gets a warning.
-		- The Nix package stays x86_64 only.
-	- Branch: nov19-2026110310450006
-	- Test case: `package_arch_names` (dfh54), and the Packages step's per-arch content and depends checks.
-	- Acceptance signoff: Self-closed: the arm64 `.deb` installed, loaded in the panel, and opened its settings window on vmDebARM64.
-	- Closed: 20261119-152159
 
 - The 2 GPU graphs aren't available with integrated Intel graphics
 	- ID: 2026110920595600
@@ -2608,6 +2530,48 @@ Sorted per the notes in [Template](#template).
 		- It was OK'd as proposed. `design.md` now lists it as settled.
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019-162817
+
+- Reduce motion misses a RustDesk peer that connects by ID without a relay
+	- ID: 2026111719090679
+	- Type: Bug
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261117-190906
+	- Opened by:
+	- Related IDs: 2026110911114037, 2026111709483900
+	- Steps to reproduce:
+		- Run the real RustDesk server on a desktop, and connect a peer to it by ID, through a rendezvous server, where they can reach each other directly.
+	- Incorrect behavior: the connection is LAN-direct or hole-punched on ephemeral ports at both ends, with neither 21118 nor 21117, so `remote::Watch` says Local while the peer is on, though RustDesk's `--cm` runs on that display.
+	- Expected behavior: Remote while the peer is on, and Local after.
+	- Reproduced: 20261117 on b23, RustDesk 1.5.3 with a local hbbs, server and peer on 2 private displays, twice, both by the LAN path, since both reached hbbs from one address. In those 2 runs the peer still shared the server's IPC folder. A hole punched across the internet takes the same kind of ports, which is read only. Direct IP on 21118 and a forced relay on 21117 were both seen.
+	- Possible cause: `viewed_by` wants a connection on a RustDesk port for `Sign::RustDeskCm`. A by-ID connection over a punched hole uses whatever port the punch got, so the sign could be `--cm` alone, or an established socket held by the `rustdesk --server` process that isn't to the rendezvous server.
+	- Test environment: `rustdesk-peer-rig.bash`, in the private tools folder, sets up the real server, a peer and a local relay with no root. Without `ALWAYS_USE_RELAY=Y` on hbbs, or with both reaching hbbs from one address, the peer takes the punched path.
+	- Actual cause: the RustDesk sign wanted a connection on 21118 or 21117 beside `--cm`, and a look read the processes only while a connection on a known port was up. A peer by ID comes in on any port, and RustDesk can punch over UDP, which the TCP table doesn't show.
+	- Actual effort: Avg
+	- Progress log:
+		- 20261119: `--cm` alone is the RustDesk sign now, and `--cm-no-ui` too. RustDesk's source closes the connection manager 6 s after its last client goes. A look reads the processes when the TCP counters moved, and on every look while this user runs RustDesk, since the connection manager can come or go with no TCP change.
+		- 20261119: the rig's by-ID runs on b23 never got a peer on. b23 now has RustDesk installed, and its service kills every `rustdesk --server` of the user, the rig's included, then restarts its own. The 2 runs restarted the installed server 3 times. The rig now runs its server in its own mount namespace too, reads the ID from the server's log rather than `--get-id`, and won't start while an installed service runs.
+		- Verified: dfh2y and dfh2z failed on the old code and pass. dfh2z also failed with only the old early return put back. The quick gate and Sanitizers passed.
+		- Cost: 200 looks on b23's `:0`, with the installed RustDesk up, took 0.56 s of CPU, about 3 ms a look, against under 0.01 s before, at a load of 5. A look comes every 5 s.
+		- 20261119: the rig wasn't run. b23's installed service and `rustdesk --server` stay up, since stopping them drops live sessions. The other boxes in the host lock are Windows, macOS, FreeBSD, and vmDebARM64, which runs under emulation, so none fits the rig. No `--cm` was up on b23 to check a live peer against. Still waits for the rig on b23 with the service stopped by hand, or on another Linux desktop with no RustDesk service.
+		- Answer 20261119: run it on b28l if it has RustDesk. Otherwise it's OK to stop b23's installed RustDesk service by hand for the check.
+		- 20261119: b28l has no RustDesk installed and no service, so the rig ran there, by ID with no relay, from the nov19b branch at 3f39eb2. The peer came in on ephemeral ports at both ends, with neither 21118 nor 21117, and `--cm` came up.
+		- Verified: on b28l, `Watch` said Remote at both looks while the peer was on, and Local after it left. The same run at 32a4438, before the fix, said Local while the peer was on.
+		- 20261119: the rig's probe now drops `XDG_SESSION_ID`. Run over ssh, logind marks that session remote, and `Watch` then says Remote from its start whatever the peer does.
+	- Decisions:
+		- `--cm` alone rather than a socket held by `rustdesk --server`, since it covers TCP and UDP paths alike and needs no read of the server's sockets.
+		- A connection manager kept open after a chat or a file transfer counts as remote until someone closes it, since RustDesk keeps its tab then.
+		- The 21118 and 21117 links stay, as a reason to read the processes at once.
+	- Actual fix: `Sign::RustDeskCm` in `core/src/remote.rs` counts `--cm` or `--cm-no-ui` on the display alone. `Probe::viewed` also reads the processes when the TCP counters moved, or when RustDesk ran at the last look. design.md Drawing has it.
+	- Branch: nov19-2026111719090679
+	- Commit: f4f01e0, on nov19b as ca4e6ee
+	- Test case: `remote::tests::rustdesk_peer_by_id_seen` (dfh2y) and `remote::tests::stand_in_rustdesk_cm_seen` (dfh2z), with stand-in RustDesk processes. The rig runs the real check.
+		- 20261119: `remote::tests::viewer_needs_peer_here` (df3p5) asserted that a `--cm` with no link isn't viewed. It now asserts that it is, as this item asks.
+		- Swept: the other sign that wants a link, NoMachine's, stays by decision. The panel and the settings window both look through `Watch`, so `Probe::viewed`.
+	- Acceptance signoff: Self-closed: the by-ID rig passed on b28l, and failed at the commit before the fix.
+	- Closed: 20261119-151403
 
 - GPU memory graph on integrated Intel graphics
 	- ID: 2026110921252043
@@ -8373,6 +8337,43 @@ Sorted per the notes in [Template](#template).
 	- Superseded by ID: 2026110709261106, which takes out the shcl 2 rewrite.
 	- Test case: None, since nothing was changed.
 	- Closed: 20261107-092134
+
+- CICD gap: arm64 Linux build and packages
+	- ID: 2026110310450006
+	- Type: Task
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Low
+	- Opened: 20261103-104500
+	- Opened by: t00mietum
+	- Parent ID: 2026102416252898
+	- Requirements:
+		- Add a release build for arm64 Linux, with its `.deb` and `.rpm`, named `linux-arm64` beside `linux-x86_64`.
+		- Put it behind a flag such as `--include-arm` if it's much slower than x86_64. Qt and the panel libraries for arm64 are the hard part.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- A Release (arm64) step cross-compiles the plugin and `tukzmon-settings` in the build image, into the target dir's `aarch64-unknown-linux-gnu/release`. The image has the cross gcc, and Debian's arm64 Qt and GTK beside the amd64 ones.
+		- The Packages step then makes `tukzmon-<version>-linux-arm64.deb` and `.rpm` too, with one sha256 sums file for all 4. Each is checked for its files and depends, as the x86_64 ones are.
+		- It runs wherever Packages runs, and with the new `arm64` area. design.md XFCE plugin has it. The README's install section waits for a release with the arm64 files, in child 2026111912302333.
+		- Verified: `--backlog-run-quick arm64 package` passed. The arm64 build took 30.6 s and the x86_64 one 27.3 s, at 8 jobs and load 13. Both binaries are AArch64, the `.deb` is `Architecture: arm64` with its library in `/usr/lib/aarch64-linux-gnu`, and the `.rpm` is `aarch64`. The x86_64 `.deb` built twice gave the same bytes.
+		- Verified: dfh54 failed on the old `package.bash` and passed on the new one.
+		- Verified: the nov19 gate run at 125c908 passed Release (arm64) and Packages. Its 4 packages match their sums file. The arm64 and amd64 `.deb` have the same files under their own library folder, and the same depends. Both arm64 binaries are AArch64, the plugin exports `xfce_panel_module_construct`, and the `.rpm` is `aarch64`.
+		- Answer 20261119: wait. The vmDebARM64 run waits until `arm64-deb-vm-check.bash` does its root steps through `ssh root@vmDebARM64` rather than sudo.
+		- 20261119: `arm64-deb-vm-check.bash` now does its apt steps through `ssh root@vmDebARM64`, with no sudo. It ran on vmDebARM64 with the arm64 `.deb` from the nov19b branch at 3f39eb2, build dfha2.
+		- Verified: on vmDebARM64, Debian 13 arm64, apt installed the `.deb` with its 35 depends, and xfce4-panel loaded `libtukzmon.so` from `/usr/lib/aarch64-linux-gnu` and embedded the plugin. `tukzmon-settings`, the program Properties starts, opened and saved a picture of each of its 4 tabs and the color picker, and they show the whole window. The purge then put the VM's package set back as found.
+		- 20261119: the `.rpm` wasn't installed, since there's no arm64 Fedora box. The Packages step's `.rpm` content and depends checks cover it.
+	- Decisions:
+		- No `--include-arm` flag, since the arm64 build takes about as long as the x86_64 one. It's left out of `--quick`, as Packages is.
+		- Cross-compiled rather than emulated. b23 has no arm64 binfmt handler, and an emulated build would be many times slower.
+		- The panel library's package isn't multiarch, and apt removes the amd64 one to install it. So the image extracts only its arm64 library, and the depends check skips that one library with a warning naming it. The `.deb` still depends on `libxfce4panel-2.0-4`.
+		- One sums file for both arches, since `install.bash` reads one per version. A package left from an earlier run that the new sums don't list gets a warning.
+		- The Nix package stays x86_64 only.
+	- Branch: nov19-2026110310450006
+	- Test case: `package_arch_names` (dfh54), and the Packages step's per-arch content and depends checks.
+	- Acceptance signoff: Self-closed: the arm64 `.deb` installed, loaded in the panel, and opened its settings window on vmDebARM64.
+	- Closed: 20261119-152159
 
 - CICD gap: Clear the content scrub's findings on the tree, then make them fail Lint and the pre-push hook
 	- ID: 2026111717545314
