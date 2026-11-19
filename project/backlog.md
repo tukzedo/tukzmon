@@ -197,8 +197,9 @@ Sorted per the notes in [Template](#template).
 - Reduce motion misses a RustDesk peer that connects by ID without a relay
 	- ID: 2026111719090679
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting on automated testing
 	- Target version: v1.0.0-beta.2
+	- Needs external testing: `RIG_CASES=id private/claude_simple/tools/rustdesk-peer-rig.bash` on a box with no installed RustDesk service running. b23 has one since 20261119, so there the service needs stopping by hand first.
 	- Priority|Severity: Avg
 	- Opened: 20261117-190906
 	- Opened by:
@@ -210,6 +211,23 @@ Sorted per the notes in [Template](#template).
 	- Reproduced: 20261117 on b23, RustDesk 1.5.3 with a local hbbs, server and peer on two private displays, twice, both by the LAN path, since both reached hbbs from one address. In those 2 runs the peer still shared the server's IPC folder. A hole punched across the internet takes the same kind of ports, which is read only. Direct IP on 21118 and a forced relay on 21117 were both seen.
 	- Possible cause: `viewed_by` wants a connection on a RustDesk port for `Sign::RustDeskCm`. A by-ID connection over a punched hole uses whatever port the punch got, so the sign could be `--cm` alone, or an established socket held by the `rustdesk --server` process that isn't to the rendezvous server.
 	- Test environment: `private/claude_simple/tools/rustdesk-peer-rig.bash` sets up the real server, a peer and a local relay with no root. Without `ALWAYS_USE_RELAY=Y` on hbbs, or with both reaching hbbs from one address, the peer takes the punched path.
+	- Actual cause: the RustDesk sign wanted a connection on 21118 or 21117 beside `--cm`, and a look read the processes only while a connection on a known port was up. A peer by ID comes in on any port, and RustDesk can punch over UDP, which the TCP table doesn't show.
+	- Actual effort: Avg
+	- Progress log:
+		- 20261119: `--cm` alone is the RustDesk sign now, and `--cm-no-ui` too. RustDesk's source closes the connection manager 6 s after its last client goes. A look reads the processes when the TCP counters moved, and on every look while this user runs RustDesk, since the connection manager can come or go with no TCP change.
+		- 20261119: the rig's by-ID runs on b23 never got a peer on. b23 now has RustDesk installed, and its service kills every `rustdesk --server` of the user, the rig's included, then restarts its own. The 2 runs restarted the installed server 3 times. The rig now runs its server in its own mount namespace too, reads the ID from the server's log rather than `--get-id`, and won't start while an installed service runs.
+		- Verified: dfh2y and dfh2z failed on the old code and pass. dfh2z also failed with only the old early return put back. The quick gate and Sanitizers passed.
+		- Cost: 200 looks on b23's `:0`, with the installed RustDesk up, took 0.56 s of CPU, about 3 ms a look, against under 0.01 s before, at a load of 5. A look comes every 5 s.
+	- Decisions:
+		- `--cm` alone rather than a socket held by `rustdesk --server`, since it covers TCP and UDP paths alike and needs no read of the server's sockets.
+		- A connection manager kept open after a chat or a file transfer counts as remote until someone closes it, since RustDesk keeps its tab then.
+		- The 21118 and 21117 links stay, as a reason to read the processes at once.
+	- Actual fix: `Sign::RustDeskCm` in `core/src/remote.rs` counts `--cm` or `--cm-no-ui` on the display alone. `Probe::viewed` also reads the processes when the TCP counters moved, or when RustDesk ran at the last look. design.md Drawing has it.
+	- Branch: nov19-2026111719090679
+	- Commit: f4f01e0
+	- Test case: `remote::tests::rustdesk_peer_by_id_seen` (dfh2y) and `remote::tests::stand_in_rustdesk_cm_seen` (dfh2z), with stand-in RustDesk processes. The rig runs the real check.
+		- 20261119: `remote::tests::viewer_needs_peer_here` (df3p5) asserted that a `--cm` with no link isn't viewed. It now asserts that it is, as this item asks.
+		- Swept: the other sign that wants a link, NoMachine's, stays by decision. The panel and the settings window both look through `Watch`, so `Probe::viewed`.
 
 - Cut the cost of the spike windows in each draw
 	- ID: 2026111000270812
