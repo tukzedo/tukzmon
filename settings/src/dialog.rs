@@ -645,8 +645,9 @@ impl Dialog {
 			},
 			// the window's side owns its text
 			options: setting.map(|s| s.options.clone()).unwrap_or_default(),
-			shown: config::shown_when(id)
-				.is_none_or(|(on, key)| self.model.value(on, &NoEnv).as_text() == key),
+			shown: config::built_in(id)
+				&& config::shown_when(id)
+					.is_none_or(|(on, key)| self.model.value(on, &NoEnv).as_text() == key),
 		}
 	}
 
@@ -1844,6 +1845,19 @@ mod tests {
 		assert_eq!(dlg.state("theme").choice, "Neon *");
 		assert_eq!(dlg.state("user").text, "#111111");
 		assert_eq!(dlg.state("nice").text, "#1f6a10");
+	}
+
+	// Test ID: dfh8b
+	#[test]
+	#[cfg_attr(miri, ignore = "the open reads a file, which Miri can't")]
+	fn blur_rows_follow_build() {
+		let d = scratch("blur");
+		let dlg = Dialog::open(d.0.join("t.shcl")).unwrap();
+		for id in ["blur_x", "blur_y"] {
+			assert_eq!(dlg.state(id).shown, config::BLUR_TEST, "{id}");
+		}
+		assert_eq!(dlg.state("blur_x").text, "0.5");
+		assert!(dlg.state("net_split").shown);
 	}
 
 	// Test ID: decdn

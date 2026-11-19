@@ -1676,6 +1676,8 @@ mod tests {
 				time: Timing::Linear,
 				sample_ms: 1000,
 				spikes: 0.0,
+				blur_x: 0.0,
+				blur_y: 0.0,
 				..Look::default()
 			}
 			.with(Which::Cpu, |e| e.sample = 100),

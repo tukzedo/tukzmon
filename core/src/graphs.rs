@@ -856,11 +856,13 @@ mod tests {
 	// The defaults before 2026-10-28, which these tests lay out: CPU and
 	// memory shown, every graph as wide as Width, in the order they were added.
 	// Default draws swap, zswap, load, temperature and the GPU's as gradients,
-	// and these tests read each series' own color
+	// and these tests read each series' own color, unblurred
 	fn two() -> Look {
 		Look {
 			width: 128,
 			order: crate::config::graph_order("cpu mem net swap zswap load disk temp battery"),
+			blur_x: 0.0,
+			blur_y: 0.0,
 			..Look::default()
 		}
 		.with(Which::Swap, |e| {

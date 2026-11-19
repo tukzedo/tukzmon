@@ -845,6 +845,27 @@ settings:
 		gate: show_net
 		tip: "Split the network graph's sent and received into LAN and internet traffic. With TCP sockets only TCP traffic is sorted that way, and the rest counts as internet."
 
+	## Test knobs for the shimmer. config::BLUR_TEST off hides these and
+	## draws with no blur.
+	blur_x:
+		label: "Test blur radius px, horizontal"
+		tab: General
+		control: number
+		range: [0, 4]
+		path: graph.blur_x
+		default: 0.5
+		tip: "How far each pixel of a graph is blurred into its neighbors left and right, in pixels. At 0.5 a pixel keeps half its own color and takes a quarter from each side. 0 is off. A test setting."
+
+	blur_y:
+		label: vertical
+		tab: General
+		control: number
+		range: [0, 4]
+		path: graph.blur_y
+		same_line: true
+		default: 0.5
+		tip: "How far each pixel of a graph is blurred into its neighbors above and below, in pixels. At 0.5 a pixel keeps half its own color and takes a quarter from each side. 0 is off. A test setting."
+
 	theme:
 		label: Name
 		tab: Themes

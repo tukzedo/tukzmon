@@ -21,15 +21,63 @@ fn mix(a: Rgb, b: Rgb, t: f32) -> [f32; 3] {
 	[m(a.0, b.0), m(a.1, b.1), m(a.2, b.2)]
 }
 
+// as v.round().clamp(0.0, 255.0) as u32, without round's libm call
+fn byte(v: f32) -> u32 {
+	let v = v.clamp(0.0, 255.0);
+	let t = v as u32;
+	t + u32::from(v - t as f32 >= 0.5)
+}
+
 /// Packs a pixel. `c` is already premultiplied by `alpha`, which is 0 to 1.
 fn pack_alpha(c: [f32; 3], alpha: f32) -> u32 {
-	// as v.round().clamp(0.0, 255.0) as u32, without round's libm call
-	let q = |v: f32| {
-		let v = v.clamp(0.0, 255.0);
-		let t = v as u32;
-		t + u32::from(v - t as f32 >= 0.5)
-	};
-	q(alpha * 255.0) << 24 | q(c[0]) << 16 | q(c[1]) << 8 | q(c[2])
+	byte(alpha * 255.0) << 24 | byte(c[0]) << 16 | byte(c[1]) << 8 | byte(c[2])
+}
+
+/// The most blur drawn, in pixels each way, whatever the look says.
+const MOST_BLUR: f32 = 4.0;
+
+// a box 2r + 1 wide centered on each pixel, so r = 0.5 mixes 1:2:1. Center
+// first, then each step out. Empty for no blur.
+fn blur_taps(radius: f32, taps: &mut Vec<f32>) {
+	taps.clear();
+	if radius.is_nan() || radius <= 0.0 {
+		return;
+	}
+	let r = radius.min(MOST_BLUR);
+	let total = 2.0 * r + 1.0;
+	let n = (r + 1.0).ceil() as usize;
+	taps.extend((0..n).map(|k| if k == 0 { 1.0 } else { (r + 1.0 - k as f32).min(1.0) } / total));
+}
+
+// `src` blurred into `dst`, both `w` wide, along rows with `across` and down
+// columns without. The end pixels stand in for what's past them, so the border
+// doesn't bleed in.
+fn blur_pass(src: &[[f32; 4]], dst: &mut [[f32; 4]], w: usize, taps: &[f32], across: bool) {
+	let h = src.len() / w;
+	for (r, out) in dst.chunks_exact_mut(w).enumerate() {
+		let row = &src[r * w..][..w];
+		for (o, p) in out.iter_mut().zip(row) {
+			*o = p.map(|v| v * taps[0]);
+		}
+		for (k, &t) in taps.iter().enumerate().skip(1) {
+			if across {
+				for (x, o) in out.iter_mut().enumerate() {
+					let (a, b) = (row[x.saturating_sub(k)], row[(x + k).min(w - 1)]);
+					for ch in 0..4 {
+						o[ch] += (a[ch] + b[ch]) * t;
+					}
+				}
+			} else {
+				let up = &src[r.saturating_sub(k) * w..][..w];
+				let down = &src[(r + k).min(h - 1) * w..][..w];
+				for ((o, a), b) in out.iter_mut().zip(up).zip(down) {
+					for ch in 0..4 {
+						o[ch] += (a[ch] + b[ch]) * t;
+					}
+				}
+			}
+		}
+	}
 }
 
 // coverage this close to whole or none is drawn as that
@@ -309,6 +357,12 @@ pub struct Scratch<const N: usize> {
 	grad_px: Vec<u32>,
 	/// Each column, or None for a gap.
 	reached: Vec<Option<Column<N>>>,
+	/// The plot as A, R, G, B, while it's blurred.
+	img: Vec<[f32; 4]>,
+	/// The same, half blurred.
+	half: Vec<[f32; 4]>,
+	/// Blur weights across, then up and down.
+	taps: (Vec<f32>, Vec<f32>),
 }
 
 /// What one draw of a graph reads.
@@ -405,6 +459,9 @@ impl<const N: usize> Frame<'_, N> {
 			grad,
 			grad_px,
 			reached,
+			img,
+			half,
+			taps,
 		} = scratch;
 		// premultiplied, so a transparent one is all zeros
 		let back_alpha = if self.look.transparent { 0.0 } else { 1.0 };
@@ -569,6 +626,34 @@ impl<const N: usize> Frame<'_, N> {
 				px[at(r)] = pack_alpha(c, back_alpha * left + (1.0 - left));
 			}
 		}
+		// test knobs for the shimmer, off with config::BLUR_TEST
+		blur_taps(self.look.blur_x * scale as f32, &mut taps.0);
+		blur_taps(self.look.blur_y * scale as f32, &mut taps.1);
+		if taps.0.is_empty() && taps.1.is_empty() {
+			return;
+		}
+		img.clear();
+		for r in 0..plot_h {
+			let at = (r + border) * stride + border;
+			img.extend(
+				px[at..at + plot_w]
+					.iter()
+					.map(|&p| [24, 16, 8, 0].map(|sh| ((p >> sh) & 0xff) as f32)),
+			);
+		}
+		half.resize(img.len(), [0.0; 4]);
+		for (t, across) in [(&taps.0, true), (&taps.1, false)] {
+			if !t.is_empty() {
+				blur_pass(img, half, plot_w, t, across);
+				std::mem::swap(img, half);
+			}
+		}
+		for r in 0..plot_h {
+			let at = (r + border) * stride + border;
+			for (p, &[a, cr, cg, cb]) in px[at..at + plot_w].iter_mut().zip(&img[r * plot_w..]) {
+				*p = byte(a) << 24 | byte(cr) << 16 | byte(cg) << 8 | byte(cb);
+			}
+		}
 	}
 }
 
@@ -586,9 +671,12 @@ mod tests {
 		fit(Reach::new(spikes).of(mean, max, secs), 1.0)
 	}
 
+	// unblurred, so the drawing under the blur is what's checked
 	fn look() -> Look {
 		Look {
 			border: 1,
+			blur_x: 0.0,
+			blur_y: 0.0,
 			..Look::default()
 		}
 	}
@@ -1384,6 +1472,93 @@ mod tests {
 					"{base} on {column} s: {depths:?}"
 				);
 			}
+		}
+	}
+
+	// Test ID: dfh88
+	#[test]
+	fn blur_taps_box() {
+		let taps = |r: f32| {
+			let mut t = Vec::new();
+			blur_taps(r, &mut t);
+			t
+		};
+		assert_eq!(taps(0.5), [0.5, 0.25]);
+		assert_eq!(taps(1.0), [1.0 / 3.0; 2]);
+		assert!(taps(0.0).is_empty() && taps(-1.0).is_empty() && taps(f32::NAN).is_empty());
+		assert_eq!(taps(99.0), taps(MOST_BLUR));
+		for r in [0.1, 0.5, 1.0, 1.2, 2.5, 4.0] {
+			let t = taps(r);
+			let sum = t[0] + 2.0 * t[1..].iter().sum::<f32>();
+			assert!((sum - 1.0).abs() < 1e-6, "{r}: {t:?}");
+			assert!(t.iter().all(|&w| w > 0.0), "{r}: {t:?}");
+		}
+	}
+
+	// Test ID: dfh89
+	#[test]
+	fn blur_mixes_neighbors_only() {
+		// a spike over a steady level, so there are edges both ways
+		let mut h = steady([0.25, 0.25], 60.0);
+		h.add(60.0, 61.0, &[0.25, 0.7]);
+		h.add(61.0, 70.0, &[0.25, 0.25]);
+		let axis = Axis::linear(20.0);
+		let (w, ht) = (24, 30);
+		let draw = |bx: f32, by: f32| {
+			let l = Look {
+				blur_x: bx,
+				blur_y: by,
+				..look()
+			};
+			let f = Frame {
+				hist: &h,
+				axis: &axis,
+				now: 70.0,
+				sample: 1.0,
+				look: &l,
+				paint: Paint::Stack(&COLORS),
+				outline: OUTLINE,
+				vertical: Vertical::Linear,
+			};
+			let mut px = Vec::new();
+			f.draw(&mut px, w, ht, 1);
+			px
+		};
+		let sharp = draw(0.0, 0.0);
+		let ch = |p: u32, sh: u32| ((p >> sh) & 0xff) as f32;
+		// 1:2:1 along one way, the plot's end pixels standing in past its edge
+		for (bx, by) in [(0.5, 0.0), (0.0, 0.5)] {
+			let soft = draw(bx, by);
+			let mut changed = 0;
+			for y in 0..ht {
+				for x in 0..w {
+					let (at, inside) = (
+						y * w + x,
+						(1..w - 1).contains(&x) && (1..ht - 1).contains(&y),
+					);
+					if !inside {
+						assert_eq!(soft[at], sharp[at], "border at {x},{y}");
+						continue;
+					}
+					let (back, fwd) = if bx > 0.0 {
+						(y * w + (x - 1).max(1), y * w + (x + 1).min(w - 2))
+					} else {
+						((y - 1).max(1) * w + x, (y + 1).min(ht - 2) * w + x)
+					};
+					for sh in [24, 16, 8, 0] {
+						let want = 0.25 * ch(sharp[back], sh)
+							+ 0.5 * ch(sharp[at], sh)
+							+ 0.25 * ch(sharp[fwd], sh);
+						assert!(
+							(ch(soft[at], sh) - want).abs() <= 0.5 + 1e-3,
+							"{x},{y} {sh}: {} {want}",
+							ch(soft[at], sh)
+						);
+					}
+					changed += usize::from(soft[at] != sharp[at]);
+				}
+			}
+			assert!(changed > 0, "{bx} {by}");
 		}
 	}
 }
