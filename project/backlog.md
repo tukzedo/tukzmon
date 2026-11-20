@@ -22,52 +22,6 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- Cut the history lookups each draw makes down toward the tick's old cost
-	- ID: 2026111715361287
-	- Type: Enhancement
-	- Status: Waiting for answers
-		- The tick stays far above 241 us, since the lookups are only about a third of it. The call is whether to close this and leave the rest of the cost to 2026111000270812.
-		- Waits on the 2026111715361287 question in questions.md, on closing it.
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Avg
-	- Opened: 20261117-153612
-	- Opened by: t00mietum
-	- Parent ID: 2026111000270812
-	- Prereq IDs: 2026111715360663, 2026111716050389
-	- Requirements: Bring the profiled tick near 241 us of user time, with the same pixels, after 2026111715360663 took it from about 775 to 690 to 750 at load 6 to 13 on 32 cores.
-	- Estimated effort: Avg
-	- Progress log:
-		- 20261117: draw-bench's `kinds` mode times the history lookups by column, at sample 0.5 s on the smooth curve. On a fine tier, a column up to 4 samples wide takes 0.9 us, 14 a graph, and a wider one 0.41 us, 48 a graph. The other 61 take 0.15 us. Reading the blocks is about a third of it, mostly the end buckets read one by one.
-		- Ideas left: a block level of 2 or 4 buckets, prefix sums per fine tier for the windows, and a multiply by the bucket length's inverse. Each one changes the float math, so check the pixels with draw-bench's hashes.
-		- Drawing the pixels is about a quarter of a draw.
-		- 20261117: `spread_over` takes each step's window bounds from the whole numbers it already keeps, rather than from a floor and a ceil of the step's middle. All 24 draw-bench cases give the same pixels. At sample 1 s, a column up to 4 samples wide went from about 1.73 to 1.47 us, the lookups from about 55 to 51 us a draw, and all cases from about 111 to 106 us a draw, in 3 runs each in turn at load 2.4 to 2.7 on 32 cores.
-		- Tried and dropped, since none moved the bench past its noise: block levels of 4, 16 and 64 buckets, a multiply by the inverse of each window's weight in `spread_over` and `densest`, one bounds check per bucket read, and skipping the ring's drops while its low end stays put. All gave the same pixels.
-		- At sample 1 s, a draw's lookups are about 22 us in the 15 columns up to 4 samples wide, 20 us in the 40 wider fine-tier ones, and 9 us in the 61 on coarse tiers. Most of the first 2 is the windows, which read their buckets one at a time.
-		- Next: prefix sums of secs and of secs times max, per fine tier, would make each window 2 reads. They'd also skip gap buckets, which fixes 2026111716050389 and changes those columns' pixels by more than a step, so they wait on it. They'd cost about 32 bytes a bucket in the 2 fine tiers, about 0.4 MB per 3-series graph.
-		- The lookups were about 35% of the profiled tick in 2026111011172485's runs, so even none at all leaves the tick near 450 us, not 241. The profiler wasn't run for this cut, since its noise is bigger than the cut.
-		- 20261119: prefix sums of secs and of secs times max, per fine tier, made each window 2 reads in `densest`, `spread_over` and the buckets wholly inside `tops_over`. They gave the same pixels, but at sample 1 s a column up to 4 samples wide went from about 1.58 to 1.83 us, and wider ones stayed near 0.53 us. The windows already slide a bucket in and a bucket out, so the sums only save the first fill. Dropped.
-		- 20261119: `spread_over` steps a whole bucket at a time, taking the window in reach for the last part of each bucket as a second part, rather than stepping at each whole number of x and of x plus the reach. All 24 draw-bench cases give the same pixels. At sample 1 s the columns up to 4 samples wide went from about 22.8 to 20.3 us a draw, and all cases from about 108.7 to 104.6 us a draw, in 3 runs each in turn at load 9.5 to 11 on 32 cores.
-		- Tried and dropped: skipping the divide in `add_buckets` when all of a bucket's data is in. Coarse-tier columns went from about 9.8 to 9.2 us a draw, but the others moved the other way within the noise.
-		- At sample 1 s a draw's lookups are now about 20 us in the narrow columns, 20 us in the wider fine-tier ones, and 10 us on coarse tiers. `total_over` is about a quarter of the lookups, in every column.
-		- Verified: the profiler on nov19 at 125c908, at load about 5, gave 1079.8 us a tick, 658.2 of it user, the median of 5 runs from 1017.8 to 1154.7. That's below the 690 to 750 us of user time before, at a lower load, and far above 241. History lookups and upkeep were 37.8% of self time, the `/proc` reads 39.6%, and drawing 18.2%.
-		- Answer 20261119: keep going. Make it cheaper with no visual loss, so the same pixels, or a change of at most 1 per channel that draw-bench cmp shows.
-		- 20261119: a cycle count per phase of `span_for`, in draw-bench `kinds` at sample 1 s, takes the indices and `total_over` as 1. Against that, the end buckets are 0.39, `spike_over` 1.1, and the `spread_over` loop 1.43. Of the loop, about a third is the window sums, a third the sliding max and its sums, and the rest the stepping. Each ratio held to about 1% from run to run at load 20 to 40, where whole-draw times swing 10%.
-		- Tried and dropped, all with the same pixels:
-			- A sliding max in `spread_over` with no branch on the values, from blocks of windows with each one's max to its block's end. The loop moved about 1%, so mispredicts weren't the cost.
-			- Keeping the windows from one column for the next within a draw. Neighbors shared only about 18% of their windows, and the cases drew about 117 us against 108.
-			- Checking for a part bucket before reading it, and one divide per window rather than one per series. About 1% together.
-		- Nothing left in the lookups moves the bench past its noise. A bigger cut needs a different design, such as drawing only the graphs read at that wake, which is 2026111000270812's.
-	- Decisions:
-		- 20261117: a change to the float math may move a pixel by at most 1 in any channel against draw-bench's base build, and the existing drawing tests must pass unchanged. Anything bigger needs a look by eye, so the item goes to Waiting on UAT.
-		- 20261117: only the window bounds change went in, as the one change that moved the bench. The prefix sums wait on 2026111716050389 rather than fixing it here, since that fix moves pixels past the limit above.
-		- 20261119: the prefix sums are out, since they cost about 0.4 MB per graph and made the narrow columns slower. Only the whole-bucket stepping went in.
-		- 20261119: none of the second round's tries went in, since none moved the bench past its noise.
-	- Test case: `history::tests::spread_over_as_plain` (dfehq) checks `spread_over` against a plain version that takes each step's windows from the ceil to the floor of its middle and sums each window afresh. It fails with either bound off by one.
-		- 20261119: dfehq now also tries columns a whole number of buckets past a sample. It failed with the second part's last window, the point where it starts, or the unit's first window off by one, and passes on 1d49e84.
-		- Swept: every floor or ceil of a step's middle in history.rs. `spread_over` had the only one, and `densest` takes its window range once per call.
-	- Branch: nov17-2026111715361287, nov19-2026111715361287
-	- Commit: 16ee014, 1d49e84
-
 - Test options in settings: horizontal and vertical blur radius
 	- ID: 2026111913545113
 	- Type: Feature
@@ -243,6 +197,20 @@ Sorted per the notes in [Template](#template).
 		- README.md's Debian, Ubuntu, Fedora section names the `linux-arm64` files beside the `linux-x86_64` ones.
 		- Its install table gives the `.deb`'s library folder as `/usr/lib/<multiarch>/...`, or names both, since arm64's is `aarch64-linux-gnu`.
 	- Estimated effort: Low
+
+- Cheaper RustDesk check: find it once a minute, then follow only its processes
+	- ID: 2026111918305078
+	- Type: Enhancement
+	- Status: Queued
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261119-183050
+	- Opened by:
+	- Related IDs: 2026111719090679
+	- Requirements: Walk the user's processes at most once a minute to find RustDesk, then follow only its processes, so a peer by ID is still seen. Today a look reads every process of the user while RustDesk runs, about 3 ms a look on b23.
+	- Estimated effort: Avg
+	- Progress log:
+		- 20261119: from the answer on the Check entry for 2026111719090679, which picked this over the as-built walk on every look.
 
 - Cut the cost of the spike windows in each draw
 	- ID: 2026111000270812
@@ -2560,6 +2528,7 @@ Sorted per the notes in [Template](#template).
 		- 20261119: b28l has no RustDesk installed and no service, so the rig ran there, by ID with no relay, from the nov19b branch at 3f39eb2. The peer came in on ephemeral ports at both ends, with neither 21118 nor 21117, and `--cm` came up.
 		- Verified: on b28l, `Watch` said Remote at both looks while the peer was on, and Local after it left. The same run at 32a4438, before the fix, said Local while the peer was on.
 		- 20261119: the rig's probe now drops `XDG_SESSION_ID`. Run over ssh, logind marks that session remote, and `Watch` then says Remote from its start whatever the peer does.
+		- Answer 20261119 on its Check entry: find RustDesk at most once a minute, then follow only its processes. Filed as 2026111918305078.
 	- Decisions:
 		- `--cm` alone rather than a socket held by `rustdesk --server`, since it covers TCP and UDP paths alike and needs no read of the server's sockets.
 		- A connection manager kept open after a chat or a file transfer counts as remote until someone closes it, since RustDesk keeps its tab then.
@@ -3364,6 +3333,55 @@ Sorted per the notes in [Template](#template).
 		- Swept: the video take uses the same panel config, and no other script in the repo or the private tools sets up a tray.
 	- Acceptance signoff: Self-closed 20261109: in the new gif the network, volume and bell icons are evenly spaced.
 	- Closed: 20261109-124233
+
+- Cut the history lookups each draw makes down toward the tick's old cost
+	- ID: 2026111715361287
+	- Type: Enhancement
+	- Status: Closed
+		- The tick stays far above 241 us, since the lookups are only about a third of it. The call is whether to close this and leave the rest of the cost to 2026111000270812.
+		- Waits on the 2026111715361287 question in questions.md, on closing it.
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261117-153612
+	- Opened by: t00mietum
+	- Parent ID: 2026111000270812
+	- Prereq IDs: 2026111715360663, 2026111716050389
+	- Requirements: Bring the profiled tick near 241 us of user time, with the same pixels, after 2026111715360663 took it from about 775 to 690 to 750 at load 6 to 13 on 32 cores.
+	- Estimated effort: Avg
+	- Progress log:
+		- 20261117: draw-bench's `kinds` mode times the history lookups by column, at sample 0.5 s on the smooth curve. On a fine tier, a column up to 4 samples wide takes 0.9 us, 14 a graph, and a wider one 0.41 us, 48 a graph. The other 61 take 0.15 us. Reading the blocks is about a third of it, mostly the end buckets read one by one.
+		- Ideas left: a block level of 2 or 4 buckets, prefix sums per fine tier for the windows, and a multiply by the bucket length's inverse. Each one changes the float math, so check the pixels with draw-bench's hashes.
+		- Drawing the pixels is about a quarter of a draw.
+		- 20261117: `spread_over` takes each step's window bounds from the whole numbers it already keeps, rather than from a floor and a ceil of the step's middle. All 24 draw-bench cases give the same pixels. At sample 1 s, a column up to 4 samples wide went from about 1.73 to 1.47 us, the lookups from about 55 to 51 us a draw, and all cases from about 111 to 106 us a draw, in 3 runs each in turn at load 2.4 to 2.7 on 32 cores.
+		- Tried and dropped, since none moved the bench past its noise: block levels of 4, 16 and 64 buckets, a multiply by the inverse of each window's weight in `spread_over` and `densest`, one bounds check per bucket read, and skipping the ring's drops while its low end stays put. All gave the same pixels.
+		- At sample 1 s, a draw's lookups are about 22 us in the 15 columns up to 4 samples wide, 20 us in the 40 wider fine-tier ones, and 9 us in the 61 on coarse tiers. Most of the first 2 is the windows, which read their buckets one at a time.
+		- Next: prefix sums of secs and of secs times max, per fine tier, would make each window 2 reads. They'd also skip gap buckets, which fixes 2026111716050389 and changes those columns' pixels by more than a step, so they wait on it. They'd cost about 32 bytes a bucket in the 2 fine tiers, about 0.4 MB per 3-series graph.
+		- The lookups were about 35% of the profiled tick in 2026111011172485's runs, so even none at all leaves the tick near 450 us, not 241. The profiler wasn't run for this cut, since its noise is bigger than the cut.
+		- 20261119: prefix sums of secs and of secs times max, per fine tier, made each window 2 reads in `densest`, `spread_over` and the buckets wholly inside `tops_over`. They gave the same pixels, but at sample 1 s a column up to 4 samples wide went from about 1.58 to 1.83 us, and wider ones stayed near 0.53 us. The windows already slide a bucket in and a bucket out, so the sums only save the first fill. Dropped.
+		- 20261119: `spread_over` steps a whole bucket at a time, taking the window in reach for the last part of each bucket as a second part, rather than stepping at each whole number of x and of x plus the reach. All 24 draw-bench cases give the same pixels. At sample 1 s the columns up to 4 samples wide went from about 22.8 to 20.3 us a draw, and all cases from about 108.7 to 104.6 us a draw, in 3 runs each in turn at load 9.5 to 11 on 32 cores.
+		- Tried and dropped: skipping the divide in `add_buckets` when all of a bucket's data is in. Coarse-tier columns went from about 9.8 to 9.2 us a draw, but the others moved the other way within the noise.
+		- At sample 1 s a draw's lookups are now about 20 us in the narrow columns, 20 us in the wider fine-tier ones, and 10 us on coarse tiers. `total_over` is about a quarter of the lookups, in every column.
+		- Verified: the profiler on nov19 at 125c908, at load about 5, gave 1079.8 us a tick, 658.2 of it user, the median of 5 runs from 1017.8 to 1154.7. That's below the 690 to 750 us of user time before, at a lower load, and far above 241. History lookups and upkeep were 37.8% of self time, the `/proc` reads 39.6%, and drawing 18.2%.
+		- Answer 20261119: keep going. Make it cheaper with no visual loss, so the same pixels, or a change of at most 1 per channel that draw-bench cmp shows.
+		- 20261119: a cycle count per phase of `span_for`, in draw-bench `kinds` at sample 1 s, takes the indices and `total_over` as 1. Against that, the end buckets are 0.39, `spike_over` 1.1, and the `spread_over` loop 1.43. Of the loop, about a third is the window sums, a third the sliding max and its sums, and the rest the stepping. Each ratio held to about 1% from run to run at load 20 to 40, where whole-draw times swing 10%.
+		- Tried and dropped, all with the same pixels:
+			- A sliding max in `spread_over` with no branch on the values, from blocks of windows with each one's max to its block's end. The loop moved about 1%, so mispredicts weren't the cost.
+			- Keeping the windows from one column for the next within a draw. Neighbors shared only about 18% of their windows, and the cases drew about 117 us against 108.
+			- Checking for a part bucket before reading it, and one divide per window rather than one per series. About 1% together.
+		- Nothing left in the lookups moves the bench past its noise. A bigger cut needs a different design, such as drawing only the graphs read at that wake, which is 2026111000270812's.
+		- Answer 20261119: close it as Done, with the cuts in 16ee014 and 1d49e84. The rest of the tick's cost stays with 2026111000270812.
+	- Decisions:
+		- 20261117: a change to the float math may move a pixel by at most 1 in any channel against draw-bench's base build, and the existing drawing tests must pass unchanged. Anything bigger needs a look by eye, so the item goes to Waiting on UAT.
+		- 20261117: only the window bounds change went in, as the one change that moved the bench. The prefix sums wait on 2026111716050389 rather than fixing it here, since that fix moves pixels past the limit above.
+		- 20261119: the prefix sums are out, since they cost about 0.4 MB per graph and made the narrow columns slower. Only the whole-bucket stepping went in.
+		- 20261119: none of the second round's tries went in, since none moved the bench past its noise.
+	- Test case: `history::tests::spread_over_as_plain` (dfehq) checks `spread_over` against a plain version that takes each step's windows from the ceil to the floor of its middle and sums each window afresh. It fails with either bound off by one.
+		- 20261119: dfehq now also tries columns a whole number of buckets past a sample. It failed with the second part's last window, the point where it starts, or the unit's first window off by one, and passes on 1d49e84.
+		- Swept: every floor or ceil of a step's middle in history.rs. `spread_over` had the only one, and `densest` takes its window range once per call.
+	- Branch: nov17-2026111715361287, nov19-2026111715361287
+	- Commit: 16ee014, 1d49e84
+	- Closed reason: Done
+	- Closed: 20261119-160000
 
 - Pre-next-cut: Show the highest recorded values on the tip of monitors with no obvious absolute max
 	- ID: 2026111623513500
