@@ -20,6 +20,7 @@ rust::Vec<rust::String> tabs_by_key(Dialog &d, bool back, bool fromPage, bool pa
 rust::Vec<rust::String> section_tops(Dialog &d);
 rust::Vec<rust::String> row_spots(Dialog &d);
 rust::Vec<rust::String> colors_row_spots(Dialog &d);
+rust::Vec<rust::String> tab_row_spots(Dialog &d, rust::Str tab);
 rust::Vec<rust::String> list_cells(Dialog &d);
 rust::Vec<rust::String> bottom_buttons(Dialog &d);
 rust::Vec<rust::String> enter_on(Dialog &d, rust::Str button);

@@ -22,6 +22,21 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- lan test df3cz fails now and then when the whole test run goes in parallel
+	- ID: 2026112017273794
+	- Type: Bug
+	- Status: Queued
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Low
+	- Opened: 20261120-172737
+	- Opened by: t00mietum
+	- Steps to reproduce: Run `cargo test -p tukzmon-settings -p tukzmon-core -- --test-threads 8` at a load near 25 on 32 cores.
+	- Incorrect behavior: `lan::tests::census_both_families` failed once at `core/src/lan.rs:1001`. The lookup of the closed socket gave a socket reply (20), where it expects `NLMSG_ERROR` (2).
+	- Expected behavior: It passes every time.
+	- Reproduced: 20261120, once in a parallel run on round nov20. It passed alone right after, and in the quick gate's test step.
+	- Possible cause: Another test's socket took the same port, or the closed one hadn't gone yet.
+	- Estimated effort: Low
+
 - Test options in settings: horizontal and vertical blur radius
 	- ID: 2026111913545113
 	- Type: Feature
@@ -215,7 +230,9 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Reset icon for the leftmost control, on a row with more than one control, is all the way to the right
 	- ID: 2026112016262892
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting on UAT
+		- A look at General on b23, with a build from after this, tells whether Days and Horizontal read right with their arrows right after their boxes.
+	- Stand-in: none (20261120). Whether the line reads well turns on how it looks.
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261120-162628
@@ -227,13 +244,28 @@ Sorted per the notes in [Template](#template).
 	- Expected behavior:
 		- It should be immediately to the right of the actual control it affects - and in that case, there would be no reset icon in the "regular" reset "column", because each is immediately to the right of their controls.
 	- Reproduced: 20261120, by reading `settings/src/qt.cpp`. A row joined to the line above gets its revert right after its box. The first row on that line keeps its revert in the grid's last column. Those first rows are Max age in days, and Test blur radius px, horizontal.
+		- 20261120: dfjv7 fails on the old layout, with Max age's arrow at the right edge, 373 px past its box.
+	- Actual cause: `placeRow` in `qt.cpp` moved only the first row's box into the shared line, and left its arrow in the grid's last column.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Every row on a shared line has its arrow right after its box, the first one too, and the grid's last column is empty on that line.
+		- Verified: dfjv7 failed before the fix and passes after. The quick gate's format, build, lint and tests, and Sanitizers passed.
+	- Actual fix: The first row's box and arrow go in the line's layout together, through `lineFor`, which 2026112016262966 uses for every short control.
+	- Decisions:
+		- Done with 2026112016262929 and 2026112016262966 in one change, since all 3 move the same layout code.
+	- Branch: nov20-2026112016262892
+	- Commit: f419b74
+	- Test case: `bridge::tests::shared_line_reverts_by_their_boxes` (dfjv7), over every shared line on General.
+		- Swept: every `same_line` row (Max age's hours and minutes, the vertical blur), and the joined branch of `placeRow`.
 	- Note: `design.md` isn't updated with the fix. That waits until it passes UAT, as 2026112016263003.
 
 - Pre-next-cut: Test blur radius and Max age in days: the first control's label isn't in the row's "content" area, and labels are lower case
 	- ID: 2026112016262929
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting on UAT
+		- A look at General on b23, with a build from after this, tells whether "Max age in" and "Test blur radius px" read right with Days, Hours, Minutes, Horizontal and Vertical by their boxes.
+	- Stand-in: none (20261120). The wording and the look turn on taste.
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261120-162628
@@ -245,13 +277,34 @@ Sorted per the notes in [Template](#template).
 			- "horizontal" -> "Horizontal", and "vertical" -> "Vertical".
 			- Likewise, do the same treatments for "Max age in days", to look more like:
 				- `Max age in     Days [  ]   Hours [  ]   Minutes [  ]`
+	- Reproduced: 20261120. dfjv8 fails on the old spec, with no label of the line's own and "Max age in days" as the first box's label.
+	- Actual cause: The spec had one label per row, so the first row's label had to name the line too.
 	- Estimated effort: Low
-	- Note: `design.md` isn't updated with the fix. That waits until it passes UAT, as 2026112016263003.
+	- Actual effort: Low
+	- Progress log:
+		- A new spec key, `line_label`, puts the line's name in the label column, and the row's own label by its box. Max age reads "Max age in", then Days, Hours and Minutes, and the blur reads "Test blur radius px", then Horizontal and Vertical.
+		- The line's label grays and hides with the first row, and has its tip.
+		- The tips of Hours and Minutes say "of Max age" now, since no label says "Max age in days".
+		- The `settings.shcl` header has the new key.
+		- Verified: dfjv8 failed before the fix and passes after. General, with Keep across restarts on and off, showed the line's label grayed with its boxes.
+	- Actual fix: `config::line_label` reads the key, and `placeRow` draws it.
+	- Decisions:
+		- A screen reader gets the line's label in front, as "Max age in Days" and "Test blur radius px Vertical", since Days or Vertical alone doesn't say what.
+		- The gap before a label on a shared line is 12 px, not 22, and 2 px from its label to its box, not 6. With 22, the wider Max age line made General wider than Graphs, and it scrolled sideways on an 800 px screen.
+		- The setting ids and paths are unchanged, so saved files read as before.
+	- Branch: nov20-2026112016262892
+	- Commit: f419b74
+	- Test case: `bridge::tests::line_label_in_label_column` (dfjv8).
+		- 20261120: der54 looks for the label "Days" beside its box, where it looked for "Max age in days".
+		- Swept: every row on a shared line, the tips that quote these labels, and `OUR_ROW_KEYS` (der4w).
+	- Note: `design.md` isn't updated with the fix. That waits until it passes UAT, as 2026112016263003. `style-guide_ux.md` Groups and headings and Labels quote "Max age in days" too.
 
 - Pre-next-cut: Move the reset icon to the right of a control that doesn't span the entire width
 	- ID: 2026112016262966
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on UAT
+		- A look at General and Themes/Outline on b23, with a build from after this, tells whether the arrows read right beside the checkboxes, dropdowns and colors.
+	- Stand-in: none (20261120). Where the arrows look best turns on taste.
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261120-162628
@@ -263,6 +316,19 @@ Sorted per the notes in [Template](#template).
 	- Note:
 		- This replaces the call in 2026110215302659 that General, Graphs, and Outline keep their arrows in one column at the right edge, for controls that don't span the width.
 		- `design.md` isn't updated with the change. That waits until it passes UAT, as 2026112016263003.
+	- Actual effort: Low
+	- Progress log:
+		- On General, Outline and the theme's Name line, a checkbox, dropdown, number box or color has its arrow right after it. Sliders and text boxes still have theirs at the right edge, lined up.
+		- A dropdown's layout slot is now as wide as it's drawn. Qt's minimum for a short one, such as Auto, was wider, which left a gap before its arrow.
+		- Verified: dfjv9 failed before the change and passes after. The quick gate's format, build, lint and tests, and Sanitizers passed. General still fits an 800 px screen with no scroll bar.
+	- Decisions:
+		- Themes/Colors keeps its own layout, since its arrows already sit by their boxes and line up in each column.
+		- The theme's Name line counts as short, so its arrow follows Randomize.
+		- The graph list keeps its revert column, since every list row has the same cells.
+	- Branch: nov20-2026112016262892
+	- Commit: f419b74
+	- Test case: `bridge::tests::short_control_revert_beside_it` (dfjv9), over General and Outline.
+		- Swept: every grid `placeRow` fills outside a Colors section, and every dropdown `buildControl` makes, the graph list's too, which desen covers.
 
 - Cheaper RustDesk check: find it once a minute, then follow only its processes
 	- ID: 2026111918305078

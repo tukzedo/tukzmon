@@ -122,6 +122,17 @@ pub fn same_line(id: &str) -> bool {
 		.any(|row| row == id)
 }
 
+/// The text a row's `line_label` puts in the label column, when its own label
+/// goes by its box, as the first of a line of boxes.
+pub fn line_label(id: &str) -> Option<&'static str> {
+	static LINES: OnceLock<Vec<(String, String)>> = OnceLock::new();
+	LINES
+		.get_or_init(|| row_texts("line_label"))
+		.iter()
+		.find(|(k, _)| k == id)
+		.map(|(_, t)| t.as_str())
+}
+
 /// The dropdown and key a row is shown for, from `shown_when: "id = key"`.
 /// knobs' gates only take a checkbox, so this is read here.
 pub fn shown_when(id: &str) -> Option<(&'static str, &'static str)> {
@@ -179,6 +190,7 @@ const KNOBS_ROW_KEYS: &[&str] = &[
 const OUR_ROW_KEYS: &[&str] = &[
 	"beside",
 	"graph",
+	"line_label",
 	"same_line",
 	"shown_as",
 	"shown_when",
