@@ -474,6 +474,79 @@ fTest_dev_install_copies_build() {
 	done
 }
 
+## A release folder whose tukzmon-settings prints a version line of its own.
+fDogfoodRelease() {   ## fDogfoodRelease DIR BUILD
+	mkdir -p -- "${1}"
+	echo "lib ${2}" > "${1}/libtukzmon.so"
+	printf '#!/bin/sh\necho "tukzmon-settings v0.0.0 build %s (2026-11-20)"\n' "${2}" > "${1}/tukzmon-settings"
+	chmod +x -- "${1}/tukzmon-settings"
+}
+
+## Test ID: dfjx6
+fTest_dogfood_sync_copies() {
+	local t="${work}/dogfood-sync" out='' f='' app='' util=''
+	app="${t}/home/synced/0-0/common/exec/app/linux/tukzmon"; util="${t}/home/synced/0-0/common/exec/util/linux/bash"
+	fDogfoodRelease "${t}/rel" b1
+	## No synced folder: one line, and nothing made.
+	mkdir -p -- "${t}/home"
+	out="$(HOME="${t}/home" bash "${cicd}/utility/dogfood-sync.bash" "${t}/rel" 2>&1)" || { fWhy "failed with no synced folder: ${out}"; return 1; }
+	[[ "${out}" == *"no synced exec folder"* && -z "$(ls -A -- "${t}/home")" ]] || { fWhy "with no synced folder: ${out}"; return 1; }
+	mkdir -p -- "${t}/home/synced/0-0/common/exec"
+	out="$(HOME="${t}/home" bash "${cicd}/utility/dogfood-sync.bash" "${t}/rel" 2>&1)" || { fWhy "failed: ${out}"; return 1; }
+	for f in "${t}/rel/libtukzmon.so" "${t}/rel/tukzmon-settings" "${cicd}/../xfce/tukzmon.desktop"; do
+		cmp -s -- "${f}" "${app}/${f##*/}" || { fWhy "${app}/${f##*/} isn't the build's"; return 1; }
+	done
+	[[ "$(head -n 1 -- "${app}/build.txt")" == "tukzmon-settings v0.0.0 build b1 (2026-11-20)" ]] || { fWhy "stamp: $(head -n 1 -- "${app}/build.txt")"; return 1; }
+	(cd -- "${app}" && tail -n +2 build.txt | sha256sum --check --status --strict) || { fWhy "the stamp's sums don't match"; return 1; }
+	[[ -x "${util}/dogfood_tukzmon" ]] || { fWhy "no dogfood_tukzmon in ${util}"; return 1; }
+	cmp -s -- "${cicd}/../utility/dogfood_tukzmon.bash" "${util}/dogfood_tukzmon" || { fWhy "${util}/dogfood_tukzmon isn't the repo's"; return 1; }
+	for f in "${app}"/* "${util}"/*; do [[ "${f}" != *.new.* ]] || { fWhy "left ${f}"; return 1; }; done
+	out="$(HOME="${t}/home" bash "${cicd}/utility/dogfood-sync.bash" "${t}/rel" 2>&1)" || { fWhy "second run failed: ${out}"; return 1; }
+	[[ "${out}" == *"is already tukzmon-settings v0.0.0 build b1"* ]] || { fWhy "second run: ${out}"; return 1; }
+	fDogfoodRelease "${t}/rel" b2
+	out="$(HOME="${t}/home" bash "${cicd}/utility/dogfood-sync.bash" "${t}/rel" 2>&1)" || { fWhy "new build failed: ${out}"; return 1; }
+	cmp -s -- "${t}/rel/libtukzmon.so" "${app}/libtukzmon.so" || { fWhy "didn't take the new build: ${out}"; return 1; }
+	[[ "$(head -n 1 -- "${app}/build.txt")" == *"build b2 "* ]] || { fWhy "didn't stamp the new build: ${out}"; return 1; }
+}
+
+## Test ID: dfjx7
+fTest_dogfood_installs_synced() {
+	local t="${work}/dogfood-install" out='' exec='' lib='' share='' f=''
+	exec="${t}/home/synced/0-0/common/exec"
+	lib="${t}/home/.local/lib/aarch64-linux-gnu/xfce4/panel/plugins"; share="${t}/home/.local/share/xfce4/panel/plugins"
+	mkdir -p -- "${exec}" "${t}/bin"
+	fDogfoodRelease "${t}/rel" b1
+	HOME="${t}/home" bash "${cicd}/utility/dogfood-sync.bash" "${t}/rel" > /dev/null 2>&1 || { fWhy "dogfood-sync failed"; return 1; }
+	## dev-install.bash's arm64 ldconfig, and a live panel that only logs.
+	printf '%s\n' '#!/bin/sh' 'printf "\tlibxfce4panel-2.0.so.4 (libc6,AArch64) => /usr/lib/aarch64-linux-gnu/libxfce4panel-2.0.so.4\n"' > "${t}/bin/ldconfig"
+	printf '#!/bin/sh\n' > "${t}/bin/xfconf-query"
+	printf '#!/bin/sh\nexit 0\n' > "${t}/bin/pgrep"
+	printf '#!/bin/sh\necho "$*" >> "%s"\n' "${t}/restarts" > "${t}/bin/xfce4-panel"
+	chmod +x -- "${t}/bin/"*
+	fRun() { out="$(cd / && env -u XDG_DATA_HOME HOME="${t}/home" PATH="${t}/bin:${PATH}" bash "${exec}/util/linux/bash/dogfood_tukzmon" "$@" 2>&1)"; }
+	fRun || { fWhy "failed: ${out}"; return 1; }
+	for f in libtukzmon.so tukzmon-settings; do cmp -s -- "${t}/rel/${f}" "${lib}/${f}" || { fWhy "${lib}/${f} isn't the synced build: ${out}"; return 1; }; done
+	cmp -s -- "${cicd}/../xfce/tukzmon.desktop" "${share}/tukzmon.desktop" || { fWhy "no .desktop file in ${share}: ${out}"; return 1; }
+	[[ "$(cat -- "${t}/restarts" 2> /dev/null)" == "--restart" ]] || { fWhy "didn't restart the panel once: ${out}"; return 1; }
+	[[ "${out}" == *"Installed tukzmon-settings v0.0.0 build b1"* ]] || { fWhy "didn't say what it installed: ${out}"; return 1; }
+	## The same build again: says so, and leaves the panel alone.
+	fRun || { fWhy "second run failed: ${out}"; return 1; }
+	[[ "${out}" == *"Already installed: tukzmon-settings v0.0.0 build b1"* && "$(wc -l < "${t}/restarts")" -eq 1 ]] || { fWhy "second run: ${out}"; return 1; }
+	## A build only half synced, whose library isn't the one its stamp sums.
+	fDogfoodRelease "${t}/rel" b2
+	HOME="${t}/home" bash "${cicd}/utility/dogfood-sync.bash" "${t}/rel" > /dev/null 2>&1 || { fWhy "dogfood-sync of b2 failed"; return 1; }
+	echo "lib b3" > "${exec}/app/linux/tukzmon/libtukzmon.so"
+	if fRun; then fWhy "installed a build that doesn't match its stamp: ${out}"; return 1; fi
+	[[ "${out}" == *"may still be syncing"* ]] || { fWhy "half synced: ${out}"; return 1; }
+	cmp -s -- "${lib}/libtukzmon.so" <(echo "lib b1") || { fWhy "half synced, it replaced the installed build"; return 1; }
+	cp -- "${t}/rel/libtukzmon.so" "${exec}/app/linux/tukzmon/libtukzmon.so"
+	fRun --no-restart || { fWhy "b2 failed: ${out}"; return 1; }
+	cmp -s -- "${lib}/libtukzmon.so" <(echo "lib b2") || { fWhy "b2 with --no-restart wasn't installed: ${out}"; return 1; }
+	[[ "$(wc -l < "${t}/restarts")" -eq 1 ]] || { fWhy "b2 with --no-restart restarted the panel"; return 1; }
+	fRun --bogus && { fWhy "took --bogus"; return 1; }
+	[[ "${out}" == *"unknown option"* ]] || { fWhy "--bogus: ${out}"; return 1; }
+}
+
 ## Test ID: dezax
 fTest_dev_install_cargo_choice() {
 	local t="${work}/dev-install-pin" out='' pin='' repo=''
@@ -1430,3 +1503,5 @@ exit "${failed}"
 ##		- 2026-11-18: The content scrub's findings don't count as lint warnings.
 ##		- 2026-11-19: Each arch's packages get its own arch, library folder and
 ##		  name.
+##		- 2026-11-20: The Dogfood step's copy to the synced folder, and
+##		  dogfood_tukzmon's install from it.

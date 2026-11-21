@@ -57,6 +57,69 @@ Sorted per the notes in [Template](#template).
 	- Test case: `render::tests::blur_taps_box` (dfh88), `render::tests::blur_mixes_neighbors_only` (dfh89), `config::tests::blur_rows_follow_build` (dfh8a), and `dialog::tests::blur_rows_follow_build` (dfh8b).
 		- Swept: every draw goes through `Frame::draw_in`, which the panel, the settings window's graph list, and the preview and profile examples call. Every `Look` literal in the tests takes the new fields from `Look::default()`.
 
+- Pre-next-cut: Move the reset icon to the right of a control that doesn't span the entire width
+	- ID: 2026112016262966
+	- Type: Enhancement
+	- Status: Waiting on UAT
+		- A look at General and Themes/Outline on b23, with a build from after this, tells whether the arrows read right beside the checkboxes, dropdowns and colors.
+	- Stand-in: none (20261120). Where the arrows look best turns on taste.
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261120-162628
+	- Opened by: t00mietum
+	- Related IDs: 2026110215302659, 2026112016262892
+	- Requirements:
+		- For controls that don't span the entire width, move its reset icon from the "regular" reset "column", to be more immediately to the right of the control. E.g. "Reduce motion in remote session".
+	- Estimated effort: Avg
+	- Note:
+		- This replaces the call in 2026110215302659 that General, Graphs, and Outline keep their arrows in one column at the right edge, for controls that don't span the width.
+		- `design.md` isn't updated with the change. That waits until it passes UAT, as 2026112016263003.
+	- Actual effort: Low
+	- Progress log:
+		- On General, Outline and the theme's Name line, a checkbox, dropdown, number box or color has its arrow right after it. Sliders and text boxes still have theirs at the right edge, lined up.
+		- A dropdown's layout slot is now as wide as it's drawn. Qt's minimum for a short one, such as Auto, was wider, which left a gap before its arrow.
+		- Verified: dfjv9 failed before the change and passes after. The quick gate's format, build, lint and tests, and Sanitizers passed. General still fits an 800 px screen with no scroll bar.
+		- Verified 20261120: dfjv9 passed in the round's gate run at d214c59. General and Outline at d214c59, in both the GTK style and Qt's own, show each checkbox, dropdown, number box and color with its arrow right after it, and the Name line's arrow after Randomize. Left for a person: the calls in Decisions on which controls keep the right-edge column, since the requirement covers every control that doesn't span the width.
+	- Decisions:
+		- Themes/Colors keeps its own layout, since its arrows already sit by their boxes and line up in each column.
+		- The theme's Name line counts as short, so its arrow follows Randomize.
+		- The graph list keeps its revert column, since every list row has the same cells.
+	- Branch: nov20-2026112016262892
+	- Commit: f419b74
+	- Test case: `bridge::tests::short_control_revert_beside_it` (dfjv9), over General and Outline.
+		- Swept: every grid `placeRow` fills outside a Colors section, and every dropdown `buildControl` makes, the graph list's too, which desen covers.
+
+- Dogfood to the synced folder, so other boxes can install the latest build
+	- ID: 2026112016074145
+	- Type: Feature
+	- Status: Waiting on UAT
+		- Only the live dogfood is left, which a round never runs. Run `cicd/cicd.bash` on b23, then `dogfood_tukzmon` on b28l, and check its panel restarts on b23's build.
+	- Stand-in: none (20261120). The rest needs a real dogfood into the synced folder and a panel restart on b28l, which a round never runs. dfjx6 and dfjx7 passed in the round's gate run at d214c59, and the temp-home run already stood in for the rest.
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261120-160741
+	- Opened by: t00mietum
+	- Requirements:
+		- The dogfood step also copies `libtukzmon.so`, `tukzmon-settings` and `tukzmon.desktop` to `app/linux/tukzmon/` in the synced exec tree, with the build stamp beside them, as the other projects do.
+		- A `dogfood_tukzmon` script in `util/linux/bash` installs that copy into the user plugin folders, the same ones `dev-install.bash` uses, and restarts the panel. It says so and does nothing when the installed build is already the same.
+		- The backlog and merge gate runs still never write to the synced folder.
+	- Estimated effort: Low
+	- Progress log:
+		- 20261120: b28l wasn't getting b23's builds. The dogfood step only runs `dev-install.bash`, which installs on the box that runs it, and nothing of tukzmon's is in the synced tree.
+		- After `dev-install.bash`, the Dogfood step runs `cicd/utility/dogfood-sync.bash`. It copies the 3 files to `app/linux/tukzmon/` in the first synced exec folder that exists, with `build.txt`, which is the version line and a sha256 sum per file. It puts `utility/dogfood_tukzmon.bash` in `util/linux/bash/` as `dogfood_tukzmon`. With no synced folder it says so and copies nothing.
+		- `dogfood_tukzmon` finds the copy beside itself or under `~/synced`, and refuses one whose sums don't match yet. It installs to `dev-install.bash`'s folders and restarts the panel, unless given `--no-restart`. When the installed files are the same bytes, it says so and does nothing.
+		- Verified: dfjx6 and dfjx7 pass, and each failed with its part of the fix taken out. With the box's own release build and a temp home, the sync wrote build dfjsw's stamp, and `dogfood_tukzmon` installed it to `lib/x86_64-linux-gnu`. The quick gate and Sanitizers passed.
+	- Decisions:
+		- The stamp is `build.txt` with `tukzmon-settings --version`'s first line and the sums. The other projects have no shared stamp format. The sums let the install tell a copy still syncing from a whole one.
+		- "Already the same" compares the 3 files' bytes rather than the stamp, since a build's identity is its bytes.
+		- The repo copy is `utility/dogfood_tukzmon.bash`, so lint finds it, and the synced name has no extension, as the other `dogfood_*` launchers there have.
+		- `dogfood_tukzmon` keeps its own copy of `dev-install.bash`'s folder lookup, since it runs on boxes with no checkout. dfjx7 checks it gives the same arm64 folder as deqvr.
+		- The backlog and merge gate runs don't plan the Dogfood step, so they never reach the sync. dezar already checks that each says it never dogfoods.
+	- Test case: `dogfood_sync_copies` (dfjx6) and `dogfood_installs_synced` (dfjx7), in `cicd/tests/guards.bash`.
+		- Swept: `fStepDogfood` is the only caller of the sync. `dev-install.bash` and `dogfood_tukzmon` use the same folder lookup. No other script writes to the synced folder.
+	- Branch: nov20-2026112016074145
+	- Needs hand testing: the live run above, on b23 then b28l.
+
 - Some settings tips are long and technical, and stack asides
 	- ID: 2026110710005015
 	- Type: Enhancement
@@ -212,104 +275,20 @@ Sorted per the notes in [Template](#template).
 		- Once the changes are in place and pass UAT, update the design doc accordingly, as well as Silkterm's and Nemo Anywhere's.
 	- Estimated effort: Low
 
-- Pre-next-cut: Reset icon for the leftmost control, on a row with more than one control, is all the way to the right
-	- ID: 2026112016262892
+- Settings window opens smaller than the General tab under the GTK style, so General scrolls both ways
+	- ID: 2026112018370950
 	- Type: Bug
 	- Status: Queued
 	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Avg
-	- Opened: 20261120-162628
-	- Opened by: t00mietum
-	- Related IDs: 2026111019111684, 2026111913545113, 2026112016262929, 2026112016262966
-	- Incorrect behavior:
-		- The reset icons for the leftmost control, on a row with more than one control, is all the way to the right.
-			- Same problem with "Test blur radius".
-	- Expected behavior:
-		- It should be immediately to the right of the actual control it affects - and in that case, there would be no reset icon in the "regular" reset "column", because each is immediately to the right of their controls.
-	- Reproduced: 20261120, by reading `settings/src/qt.cpp`. A row joined to the line above gets its revert right after its box. The first row on that line keeps its revert in the grid's last column. Those first rows are Max age in days, and Test blur radius px, horizontal.
-	- Estimated effort: Low
-	- Note: `design.md` isn't updated with the fix. That waits until it passes UAT, as 2026112016263003.
-
-- Pre-next-cut: Test blur radius and Max age in days: the first control's label isn't in the row's "content" area, and labels are lower case
-	- ID: 2026112016262929
-	- Type: Bug
-	- Status: Queued
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Avg
-	- Opened: 20261120-162628
-	- Opened by: t00mietum
-	- Related IDs: 2026111019111684, 2026111913545113, 2026112016262892
-	- Incorrect behavior: The first control's name is part of the row's label, as in "Test blur radius px, horizontal" and "Max age in days". The labels "vertical", "hours", and "minutes" are lower case.
-	- Expected behavior:
-		- Test blur radius: The label "horizontal" should be in the "content" area of that row, more immediately to the left of the control. Also,
-			- "horizontal" -> "Horizontal", and "vertical" -> "Vertical".
-			- Likewise, do the same treatments for "Max age in days", to look more like:
-				- `Max age in     Days [  ]   Hours [  ]   Minutes [  ]`
-	- Estimated effort: Low
-	- Note: `design.md` isn't updated with the fix. That waits until it passes UAT, as 2026112016263003.
-
-- Pre-next-cut: Move the reset icon to the right of a control that doesn't span the entire width
-	- ID: 2026112016262966
-	- Type: Enhancement
-	- Status: Queued
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Avg
-	- Opened: 20261120-162628
-	- Opened by: t00mietum
-	- Related IDs: 2026110215302659, 2026112016262892
-	- Requirements:
-		- For controls that don't span the entire width, move its reset icon from the "regular" reset "column", to be more immediately to the right of the control. E.g. "Reduce motion in remote session".
-	- Estimated effort: Avg
-	- Note:
-		- This replaces the call in 2026110215302659 that General, Graphs, and Outline keep their arrows in one column at the right edge, for controls that don't span the width.
-		- `design.md` isn't updated with the change. That waits until it passes UAT, as 2026112016263003.
-
-- Cheaper RustDesk check: find it once a minute, then follow only its processes
-	- ID: 2026111918305078
-	- Type: Enhancement
-	- Status: Queued
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Avg
-	- Opened: 20261119-183050
+	- Priority|Severity: Low
+	- Opened: 20261120-183709
 	- Opened by:
-	- Related IDs: 2026111719090679
-	- Requirements: Walk the user's processes at most once a minute to find RustDesk, then follow only its processes, so a peer by ID is still seen. Today a look reads every process of the user while RustDesk runs, about 3 ms a look on b23.
-	- Estimated effort: Avg
-	- Progress log:
-		- 20261119: from the answer on the Check entry for 2026111719090679, which picked this over the as-built walk on every look.
-
-- Cut the cost of the spike windows in each draw
-	- ID: 2026111000270812
-	- Type: Enhancement
-	- Status: Queued
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Avg
-	- Opened: 20261110-002708
-	- Opened by: t00mietum
-	- Prereq IDs: 2026111010281710
-	- Related IDs: 2026110920595602
-	- Requirements: Bring the profiled tick back near its 241 us of user time, from the 480 us that 2026110920595602's windows took it to, with the same pixels.
-	- Estimated effort: Avg
-	- Progress log:
-		- 20261110: the look comes first, then the cost. This waits on 2026111010281710, since both change the spike windows.
-		- 20261117: 2026111010281710's look is signed off, so this is Queued.
-		- 20261117: split. 2026111715360663 has the cuts that keep the same numbers, and 2026111715361287 has the rest.
-
-- Dogfood to the synced folder, so other boxes can install the latest build
-	- ID: 2026112016074145
-	- Type: Feature
-	- Status: Queued
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Avg
-	- Opened: 20261120-160741
-	- Opened by: t00mietum
-	- Requirements:
-		- The dogfood step also copies `libtukzmon.so`, `tukzmon-settings` and `tukzmon.desktop` to `app/linux/tukzmon/` in the synced exec tree, with the build stamp beside them, as the other projects do.
-		- A `dogfood_tukzmon` script in `util/linux/bash` installs that copy into the user plugin folders, the same ones `dev-install.bash` uses, and restarts the panel. It says so and does nothing when the installed build is already the same.
-		- The backlog and merge gate runs still never write to the synced folder.
-	- Estimated effort: Low
-	- Progress log:
-		- 20261120: b28l wasn't getting b23's builds. The dogfood step only runs `dev-install.bash`, which installs on the box that runs it, and nothing of tukzmon's is in the synced tree.
+	- Related IDs: 2026112016262966
+	- Test environment: An X display at 1100x900 with the GTK style that XFCE gives Qt
+	- Incorrect behavior: General opens with a horizontal and a vertical scroll bar. The arrows at the right edge are cut off, and the Test blur radius line is half under the bottom edge.
+	- Expected behavior: The window opens big enough for General, as it does under Qt's own style, where General fits an 800 px screen with no scroll bar.
+	- Reproduced: 20261120, Confirmed off screen at 1100x900. Seen at d214c59 and at 50602f8 on dev, so it's older than round nov20. Under Qt's own style the same builds show no scroll bars. Not checked on a real XFCE screen.
+	- Possible cause: `openSized` in `settings/src/qt.cpp` sizes the window from `sizeHint`, which may not cover General's content when the GTK style draws wider boxes and text.
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
@@ -2581,6 +2560,82 @@ Sorted per the notes in [Template](#template).
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019-162817
 
+- Pre-next-cut: Reset icon for the leftmost control, on a row with more than one control, is all the way to the right
+	- ID: 2026112016262892
+	- Type: Bug
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261120-162628
+	- Opened by: t00mietum
+	- Related IDs: 2026111019111684, 2026111913545113, 2026112016262929, 2026112016262966
+	- Incorrect behavior:
+		- The reset icons for the leftmost control, on a row with more than one control, is all the way to the right.
+			- Same problem with "Test blur radius".
+	- Expected behavior:
+		- It should be immediately to the right of the actual control it affects - and in that case, there would be no reset icon in the "regular" reset "column", because each is immediately to the right of their controls.
+	- Reproduced: 20261120, by reading `settings/src/qt.cpp`. A row joined to the line above gets its revert right after its box. The first row on that line keeps its revert in the grid's last column. Those first rows are Max age in days, and Test blur radius px, horizontal.
+		- 20261120: dfjv7 fails on the old layout, with Max age's arrow at the right edge, 373 px past its box.
+	- Actual cause: `placeRow` in `qt.cpp` moved only the first row's box into the shared line, and left its arrow in the grid's last column.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Every row on a shared line has its arrow right after its box, the first one too, and the grid's last column is empty on that line.
+		- Verified: dfjv7 failed before the fix and passes after. The quick gate's format, build, lint and tests, and Sanitizers passed.
+		- Verified 20261120: dfjv7 passed in the round's gate run at d214c59. General at d214c59, in both the GTK style and Qt's own, shows the arrows for Days and Horizontal right after their boxes, and none at the right edge on those lines. The dev build at 50602f8 showed them at the right edge.
+	- Actual fix: The first row's box and arrow go in the line's layout together, through `lineFor`, which 2026112016262966 uses for every short control.
+	- Decisions:
+		- Done with 2026112016262929 and 2026112016262966 in one change, since all 3 move the same layout code.
+	- Branch: nov20-2026112016262892
+	- Commit: f419b74
+	- Test case: `bridge::tests::shared_line_reverts_by_their_boxes` (dfjv7), over every shared line on General.
+		- Swept: every `same_line` row (Max age's hours and minutes, the vertical blur), and the joined branch of `placeRow`.
+	- Note: `design.md` isn't updated with the fix. That waits until it passes UAT, as 2026112016263003.
+	- Acceptance signoff: Self-closed: the layout matches the expected behavior, and dfjv7 pins it.
+	- Closed: 20261120-183700
+
+- Pre-next-cut: Test blur radius and Max age in days: the first control's label isn't in the row's "content" area, and labels are lower case
+	- ID: 2026112016262929
+	- Type: Bug
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261120-162628
+	- Opened by: t00mietum
+	- Related IDs: 2026111019111684, 2026111913545113, 2026112016262892
+	- Incorrect behavior: The first control's name is part of the row's label, as in "Test blur radius px, horizontal" and "Max age in days". The labels "vertical", "hours", and "minutes" are lower case.
+	- Expected behavior:
+		- Test blur radius: The label "horizontal" should be in the "content" area of that row, more immediately to the left of the control. Also,
+			- "horizontal" -> "Horizontal", and "vertical" -> "Vertical".
+			- Likewise, do the same treatments for "Max age in days", to look more like:
+				- `Max age in     Days [  ]   Hours [  ]   Minutes [  ]`
+	- Reproduced: 20261120. dfjv8 fails on the old spec, with no label of the line's own and "Max age in days" as the first box's label.
+	- Actual cause: The spec had one label per row, so the first row's label had to name the line too.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- A new spec key, `line_label`, puts the line's name in the label column, and the row's own label by its box. Max age reads "Max age in", then Days, Hours and Minutes, and the blur reads "Test blur radius px", then Horizontal and Vertical.
+		- The line's label grays and hides with the first row, and has its tip.
+		- The tips of Hours and Minutes say "of Max age" now, since no label says "Max age in days".
+		- The `settings.shcl` header has the new key.
+		- Verified: dfjv8 failed before the fix and passes after. General, with Keep across restarts on and off, showed the line's label grayed with its boxes.
+		- Verified 20261120: dfjv8 passed in the round's gate run at d214c59. General at d214c59, in both the GTK style and Qt's own, reads `Max age in     Days [28]   Hours [0]   Minutes [0]`, and "Test blur radius px" then Horizontal and Vertical by their boxes, as the expected behavior gives.
+	- Actual fix: `config::line_label` reads the key, and `placeRow` draws it.
+	- Decisions:
+		- A screen reader gets the line's label in front, as "Max age in Days" and "Test blur radius px Vertical", since Days or Vertical alone doesn't say what.
+		- The gap before a label on a shared line is 12 px, not 22, and 2 px from its label to its box, not 6. With 22, the wider Max age line made General wider than Graphs, and it scrolled sideways on an 800 px screen.
+		- The setting ids and paths are unchanged, so saved files read as before.
+	- Branch: nov20-2026112016262892
+	- Commit: f419b74
+	- Test case: `bridge::tests::line_label_in_label_column` (dfjv8).
+		- 20261120: der54 looks for the label "Days" beside its box, where it looked for "Max age in days".
+		- Swept: every row on a shared line, the tips that quote these labels, and `OUR_ROW_KEYS` (der4w).
+	- Note: `design.md` isn't updated with the fix. That waits until it passes UAT, as 2026112016263003. `style-guide_ux.md` Groups and headings and Labels quote "Max age in days" too.
+	- Acceptance signoff: Self-closed: the labels and their places match the layout the expected behavior draws, and dfjv8 pins it.
+	- Closed: 20261120-183700
+
 - Reduce motion misses a RustDesk peer that connects by ID without a relay
 	- ID: 2026111719090679
 	- Type: Bug
@@ -3415,6 +3470,59 @@ Sorted per the notes in [Template](#template).
 		- Swept: the video take uses the same panel config, and no other script in the repo or the private tools sets up a tray.
 	- Acceptance signoff: Self-closed 20261109: in the new gif the network, volume and bell icons are evenly spaced.
 	- Closed: 20261109-124233
+
+- Cheaper RustDesk check: find it once a minute, then follow only its processes
+	- ID: 2026111918305078
+	- Type: Enhancement
+	- Status: Closed
+	- Target version: v1.0.0-beta.2
+	- Needs external testing: No
+		- 20261120: the rig's `RIG_EARLY=Y` does that order, through `b28l-rustdesk-rig.bash`. Not run yet. dfjwf and dfjwg passed in the round's gate run at d214c59.
+	- Priority|Severity: Avg
+	- Opened: 20261119-183050
+	- Opened by:
+	- Related IDs: 2026111719090679
+	- Requirements: Walk the user's processes at most once a minute to find RustDesk, then follow only its processes, so a peer by ID is still seen. Today a look reads every process of the user while RustDesk runs, about 3 ms a look on b23.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Progress log:
+		- 20261119: from the answer on the Check entry for 2026111719090679, which picked this over the as-built walk on every look.
+		- 20261120: a look reads all of this user's processes once a minute, or at once while a link on a remote desktop port is up. In between, it reads only the RustDesk processes it found and the ones they started, from each thread's `children` list in `/proc`. The TCP counters no longer start a full read.
+		- Verified 20261120: dfjwf and dfjwg pass. dfjwf failed with a full read put back on every look, and dfjwg with the children read taken out. The quick gate and Sanitizers passed.
+		- Cost 20261120: 200 looks 5 s apart, on b23 with its installed RustDesk up, took 0.25 to 0.29 s of CPU, about 1.3 ms a look. The same build at the commit before took 1.05 to 1.22 s, at a load near 25 on 32 cores.
+		- RustDesk's source starts `--cm` with `run_me` when its server isn't root, so it's a child of `--server`. On b23 the server's `--tray` is its child the same way. That isn't checked yet with a real peer.
+		- 20261120: Verified: `rustdesk-peer-rig.bash` by ID on b28l with `RIG_EARLY=Y`, on nov20 at 578608f. `--cm` was up by 14.1 s, and the probe said Local at 10.0 s and Remote at 15.0 s, its first look after that, then Remote to the end.
+	- Decisions:
+		- Every RustDesk process of the user is followed, since which one starts `--cm-no-ui` wasn't checked. On b23 that's about 0.6 ms a look, mostly the threads' `children` lists. Following `--server` alone would take about 0.25 ms.
+		- A connection manager that a root server starts through sudo isn't a child of a followed process, so it's seen at the next full read, within a minute. That's the login screen's case.
+		- A RustDesk started since the last full read is seen within a minute, as the requirement allows.
+	- Branch: nov20-2026111918305078
+	- Commit: 22701ca
+	- Test case: `remote::tests::rustdesk_found_once_a_minute` (dfjwf) and `remote::tests::stand_in_rustdesk_cm_followed` (dfjwg). The rig runs the real check.
+		- Swept: `Probe::viewed`'s callers, `Watch::session` and the 3 stand-in tests, `sharer`'s 3 callers, and every `Sharer` made in a test. dfh2z and df3p7 only pass the time now.
+	- Closed reason: Done
+	- Closed: 20261120-184600
+
+- Cut the cost of the spike windows in each draw
+	- ID: 2026111000270812
+	- Type: Enhancement
+	- Status: Closed
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261110-002708
+	- Opened by: t00mietum
+	- Prereq IDs: 2026111010281710
+	- Related IDs: 2026110920595602
+	- Requirements: Bring the profiled tick back near its 241 us of user time, from the 480 us that 2026110920595602's windows took it to, with the same pixels.
+	- Estimated effort: Avg
+	- Progress log:
+		- 20261110: the look comes first, then the cost. This waits on 2026111010281710, since both change the spike windows.
+		- 20261117: 2026111010281710's look is signed off, so this is Queued.
+		- 20261117: split. 2026111715360663 has the cuts that keep the same numbers, and 2026111715361287 has the rest.
+		- 20261120: both children are closed, and they split all of this item's work between them, so it closes with them.
+	- Test case: its children's: 2026111715361287: `history::tests::spread_over_as_plain` (dfehq) checks `spread_over` against a plain version that takes each step's windows from the ceil to the floor of its middle and sums each window afresh. It fails with either bound off by one.; 2026111715360663: `history::tests::whole_numbers_as_libm` (dfegt), `render::tests::pack_rounds_as_round` (dfegv), and `history::tests::block_totals_match_buckets` (der45), which now checks `max_over` too. df3s6, df4d7 and df4y1 cover the window paths.
+	- Closed: 20261120-170255
+	- Closed reason: Done
 
 - Cut the history lookups each draw makes down toward the tick's old cost
 	- ID: 2026111715361287
@@ -6882,6 +6990,39 @@ Sorted per the notes in [Template](#template).
 	- Branch: demo
 	- Test case: None, since it's a recording. The gif and the video were checked frame by frame.
 	- Closed: 20261106-182817
+
+- lan test df3cz fails now and then when the whole test run goes in parallel
+	- ID: 2026112017273794
+	- Type: Bug
+	- Status: Closed
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Low
+	- Opened: 20261120-172737
+	- Opened by: t00mietum
+	- Steps to reproduce: Run `cargo test -p tukzmon-settings -p tukzmon-core -- --test-threads 8` at a load near 25 on 32 cores.
+	- Incorrect behavior: `lan::tests::census_both_families` failed once at `core/src/lan.rs:1001`. The lookup of the closed socket gave a socket reply (20), where it expects `NLMSG_ERROR` (2).
+	- Expected behavior: It passes every time.
+	- Reproduced: 20261120, once in a parallel run on round nov20. It passed alone right after, and in the quick gate's test step.
+	- Possible cause: Another test's socket took the same port, or the closed one hadn't gone yet.
+	- Actual cause: The closed socket hadn't gone yet. A close ends the connection only when the last copy of the fd closes. Tests dfh2z and df3p7 in the same binary spawn children, and a child keeps a copy of every fd until its exec. A close in that window leaves the socket open, so the lookup still finds it.
+		- Another socket on the same port can't answer, since the lookup checks the socket's cookie.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Reproduced 20261120: with a second copy of the fd held across the close, df3cz fails every time with the same socket reply (20).
+		- The race with a spawning test wasn't caught in a run. It's inferred from the cause above.
+		- Verified: lan and remote tests passed 60 runs in a row at `--test-threads 8`, at a load near 16 on 32 cores. The quick gate and Sanitizers passed.
+	- Decisions:
+		- The test resets the connection with a `connect` to `AF_UNSPEC`, which acts on the socket rather than the fd. `SOCK_DESTROY` would need root.
+		- The reader itself is left as it is. A socket that another process still has open is still a live connection, and counts.
+	- Actual fix: df3cz resets its socket with a `connect` to `AF_UNSPEC` in place of `SO_LINGER` and a close, and keeps a copy of the fd across it.
+	- Branch: nov20-2026112017273794
+	- Commit: 8156755
+	- Test case: df3cz (`lan::tests::census_both_families`). With the copy held, it fails on the old close and passes with the reset.
+		- Swept: the other tests that end a socket and then read it. df3p7's child closes its pair and exits before the parent reads, so nothing else has the fds open. df3d1 uses a fake file and no real close.
+	- Acceptance signoff: Self-closed: the cause was reproduced, and the test failed before the fix and passes after.
+	- Closed: 20261120-174109
+	- Closed reason: Done
 
 - A column up to 4 samples wide beside a gap draws at its full peak
 	- ID: 2026111716050389

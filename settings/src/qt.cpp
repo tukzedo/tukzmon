@@ -725,6 +725,13 @@ protected:
 	}
 };
 
+// Qt's minimum for a dropdown is wider than a short one is drawn, so a
+// layout left a gap between it and its revert.
+class SnugCombo final : public QComboBox {
+public:
+	QSize minimumSizeHint() const override { return QComboBox::minimumSizeHint().boundedTo(sizeHint()); }
+};
+
 struct Row {
 	RowInfo info;
 	QLabel *label = nullptr;
@@ -739,8 +746,12 @@ struct Row {
 	QLabel *head = nullptr;
 	QFrame *rule = nullptr;
 	QGridLayout *grid = nullptr;
-	// the line a same_line row sits in, for the next one to join too
+	// the line its control and revert sit in, for a same_line row to join too
 	QHBoxLayout *joined = nullptr;
+	// in the label column, from line_label, while label sits by its box
+	QLabel *lineLabel = nullptr;
+	// the line's label, for a screen reader, on every row of the line
+	QString lineName;
 	int gap = -1;
 	// in a section's column, where lineUpSections sets the gap
 	bool sided = false;
@@ -833,7 +844,8 @@ public:
 			int labelWidth = 0;
 			for (auto &r : rows)
 				// a same_line row's label sits in the row it joins
-				if (r->label && !r->info.section.empty() && !r->info.same_line && size_t(r->info.beside) == side)
+				if (r->label && !r->info.section.empty() && !r->info.same_line && r->info.line_label.empty() &&
+					size_t(r->info.beside) == side)
 					labelWidth = std::max(labelWidth, r->label->sizeHint().width());
 			for (auto &s : sections) {
 				s.side[side]->setColumnMinimumWidth(0, labelWidth);
@@ -1206,7 +1218,7 @@ public:
 	std::vector<std::string> greyed() const {
 		std::vector<std::string> ids;
 		for (const auto &r : rows)
-			if (r->control && !r->control->isEnabled())
+			if (r->control && !r->control->isEnabled() && !(r->lineLabel && r->lineLabel->isEnabled()))
 				ids.push_back(r->id());
 		return ids;
 	}
@@ -1273,10 +1285,10 @@ public:
 		return out;
 	}
 
-	// "id left mid control right revert" per row shown with a label, in the
-	// window: its label's left edge and middle line, its control's left edge,
-	// the right edge of its last part, such as a color's hex box, and its
-	// revert's left edge
+	// "id left mid control right revert lead" per row shown with a label, in
+	// the window: its label's left edge and middle line, its control's left
+	// edge, the right edge of its last part, such as a color's hex box, its
+	// revert's left edge, and its line label's, or -1
 	std::vector<std::string> rowSpots() const {
 		std::vector<std::string> out;
 		for (const auto &r : rows) {
@@ -1289,8 +1301,10 @@ public:
 				last = r->radios.back();
 			const int right = last->mapTo(this, QPoint(last->width(), 0)).x();
 			const int back = r->revert ? r->revert->mapTo(this, QPoint(0, 0)).x() : -1;
+			const int lead = r->lineLabel ? r->lineLabel->mapTo(this, QPoint(0, 0)).x() : -1;
 			out.push_back(r->id() + " " + std::to_string(l.left()) + " " + std::to_string(l.center().y()) + " " +
-				std::to_string(c) + " " + std::to_string(right) + " " + std::to_string(back));
+				std::to_string(c) + " " + std::to_string(right) + " " + std::to_string(back) + " " +
+				std::to_string(lead));
 		}
 		return out;
 	}
@@ -1657,35 +1671,58 @@ private:
 			reset_row(d, r.id());
 			refresh();
 		});
-		nameRow(r, spokenName(r));
 		Row *prev = std::exchange(lastPlaced, &r);
 		if (r.info.same_line && prev && prev->grid == grid) {
-			// the row above keeps its label and revert, and shares its
-			// control's cell with this row's 3, and with the next same_line's.
-			// A layout rather than a widget, so each label stays its box's sibling,
-			// where a screen reader looks for it.
-			QHBoxLayout *h = prev->joined;
-			if (!h) {
-				h = new QHBoxLayout;
-				h->setContentsMargins(0, 0, 0, 0);
-				grid->removeWidget(prev->control);
-				h->addWidget(prev->control);
-				h->addStretch(1);
-				grid->addLayout(h, line - 1, 1);
-			}
-			r.label->setContentsMargins(HEAD_GAP, 0, 6, 0);
+			QHBoxLayout *h = prev->joined ? prev->joined : lineFor(*prev, line - 1);
+			r.label->setContentsMargins(12, 0, 2, 0);
 			int at = h->count() - 1;
 			h->insertWidget(at++, r.label);
 			h->insertWidget(at++, r.control);
 			h->insertWidget(at, r.revert);
 			r.joined = h;
+			r.lineName = prev->lineName;
+			nameRow(r, spokenName(r));
 			return;
 		}
 		r.label->setContentsMargins(16 * r.info.indent, 0, 12, 0);
-		grid->addWidget(r.label, line, 0);
-		grid->addWidget(r.control, line, 1);
-		grid->addWidget(r.revert, line, 2);
+		if (!r.info.line_label.empty()) {
+			r.lineLabel = new QLabel(qs(r.info.line_label));
+			r.lineLabel->setContentsMargins(16 * r.info.indent, 0, 12, 0);
+			r.lineName = r.lineLabel->text();
+			r.label->setContentsMargins(0, 0, 2, 0);
+			grid->addWidget(r.lineLabel, line, 0);
+		} else
+			grid->addWidget(r.label, line, 0);
+		nameRow(r, spokenName(r));
+		// A section's grid already keeps each revert by its box.
+		if (inSection || (spans(r) && !r.lineLabel)) {
+			grid->addWidget(r.control, line, 1);
+			grid->addWidget(r.revert, line, 2);
+		} else
+			lineFor(r, line);
 		line++;
+	}
+
+	// Sliders and text boxes take the width, so their reverts line up at the
+	// right edge. Anything shorter keeps its revert right after it, as the
+	// boxes on a shared line do.
+	static bool spans(const Row &r) { return r.slider || (r.line && !r.chip); }
+
+	// A layout rather than a widget, so each label stays its box's sibling,
+	// where a screen reader looks for it.
+	static QHBoxLayout *lineFor(Row &r, int line) {
+		auto *h = new QHBoxLayout;
+		h->setContentsMargins(0, 0, 0, 0);
+		r.grid->removeWidget(r.control);
+		r.grid->removeWidget(r.revert);
+		if (r.lineLabel)
+			h->addWidget(r.label);
+		h->addWidget(r.control);
+		h->addWidget(r.revert);
+		h->addStretch(1);
+		r.grid->addLayout(h, line, 1, 1, 2);
+		r.joined = h;
+		return h;
 	}
 
 	Row *rowFor(const rust::String &id) {
@@ -1698,7 +1735,7 @@ private:
 	// A row's label, after its graph's on Themes/Colors, where Low or Border
 	// alone doesn't say whose.
 	QString spokenName(const Row &r) const {
-		QString label = qs(r.info.label);
+		QString label = r.lineName.isEmpty() ? qs(r.info.label) : r.lineName + " " + qs(r.info.label);
 		for (const auto &s : sections)
 			if (s.graph == std::string(r.info.section) && s.title)
 				return qs(s.title->info.label) + " " + label;
@@ -1952,7 +1989,7 @@ private:
 			return w;
 		}
 		case ControlKind::Dropdown: {
-			r.combo = new QComboBox;
+			r.combo = new SnugCombo;
 			r.combo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
 			connect(r.combo, &QComboBox::activated, this, [this, &r](int i) {
 				if (i >= 0 && size_t(i) < r.keys.size())
@@ -2143,15 +2180,18 @@ private:
 				continue;
 			auto st = row_state(d, r.id());
 			r.canReset = st.can_reset;
-			for (QWidget *w : {static_cast<QWidget *>(r.label), r.control, static_cast<QWidget *>(r.revert)})
+			for (QWidget *w : {static_cast<QWidget *>(r.label), r.control, static_cast<QWidget *>(r.revert),
+					 static_cast<QWidget *>(r.lineLabel)})
 				if (w)
 					w->setVisible(st.shown);
 			// grayed while a switch above it is off, but its revert still works
-			for (QWidget *w : {static_cast<QWidget *>(r.label), r.control})
+			for (QWidget *w : {static_cast<QWidget *>(r.label), r.control, static_cast<QWidget *>(r.lineLabel)})
 				if (w)
 					w->setEnabled(st.counts);
 			const QString tip = qs(st.tip);
 			const QString text = qs(st.text);
+			if (r.lineLabel)
+				setTip(r.lineLabel, tip);
 			if (r.label) {
 				setTip(r.label, tip);
 				r.revert->setEnabled(st.can_reset);
@@ -2594,13 +2634,16 @@ rust::Vec<rust::String> row_spots(Dialog &d) {
 	return out;
 }
 
-rust::Vec<rust::String> colors_row_spots(Dialog &d) {
+rust::Vec<rust::String> colors_row_spots(Dialog &d) { return tab_row_spots(d, "Colors"); }
+
+rust::Vec<rust::String> tab_row_spots(Dialog &d, rust::Str tab) {
 	const App app("offscreen");
 	Window w(d);
 	openSized(w);
 	w.show();
+	const QString want = QString::fromUtf8(tab.data(), int(tab.size()));
 	for (int i = 0; i < w.tabCount(); i++)
-		if (QString::fromStdString(w.tabText(i)).trimmed() == "Colors")
+		if (QString::fromStdString(w.tabText(i)).trimmed() == want)
 			w.select(i);
 	tukzmon::App::processEvents();
 	rust::Vec<rust::String> out;

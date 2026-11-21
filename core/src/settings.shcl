@@ -10,7 +10,9 @@
 ## only while that dropdown is on that key. On Themes/Colors, graph: name on a
 ## heading starts that graph's section, which moves with the graph order, and
 ## beside: true puts a heading and the rest of its section on the right.
-## same_line: true puts a row on the line of the row above it.
+## same_line: true puts a row on the line of the row above it. line_label: text
+## puts that text in the label column, and the row's own label by its box, as
+## the first of a line of boxes.
 ##
 ## A graph's row in the Graphs list comes from its show, width, sample, time
 ## and vertical settings, in that order.
@@ -786,7 +788,8 @@ settings:
 		tip: "Save the graphs' history and load it back when the panel starts, with the time it wasn't running left as a gap. Off stops saving, but what's already saved is kept for when this is turned back on."
 
 	max_days:
-		label: Max age in days
+		line_label: Max age in
+		label: Days
 		tab: General
 		control: number
 		whole: true
@@ -797,7 +800,7 @@ settings:
 		tip: "History older than this is dropped. The hours and minutes beside it add to the days. With all 3 at 0, a minute is kept."
 
 	max_hours:
-		label: hours
+		label: Hours
 		tab: General
 		control: number
 		whole: true
@@ -806,10 +809,10 @@ settings:
 		same_line: true
 		default: 0
 		gate: keep_history
-		tip: "Hours added to Max age in days."
+		tip: "Hours added to the days of Max age."
 
 	max_minutes:
-		label: minutes
+		label: Minutes
 		tab: General
 		control: number
 		whole: true
@@ -818,7 +821,7 @@ settings:
 		same_line: true
 		default: 0
 		gate: keep_history
-		tip: "Minutes added to Max age in days and its hours."
+		tip: "Minutes added to the days and hours of Max age."
 
 	MiscHead:
 		label: Misc
@@ -848,7 +851,8 @@ settings:
 	## Test knobs for the shimmer. config::BLUR_TEST off hides these and
 	## draws with no blur.
 	blur_x:
-		label: "Test blur radius px, horizontal"
+		line_label: Test blur radius px
+		label: Horizontal
 		tab: General
 		control: number
 		range: [0, 4]
@@ -857,7 +861,7 @@ settings:
 		tip: "How far each pixel of a graph is blurred into its neighbors left and right, in pixels. At 0.5 a pixel keeps half its own color and takes a quarter from each side. 0 is off. A test setting."
 
 	blur_y:
-		label: vertical
+		label: Vertical
 		tab: General
 		control: number
 		range: [0, 4]

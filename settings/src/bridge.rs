@@ -85,6 +85,9 @@ pub mod ffi {
 		beside: bool,
 		/// It sits to the right of the row above it, on that row's line.
 		same_line: bool,
+		/// What goes in the label column when its own label sits by its box,
+		/// or "".
+		line_label: String,
 		/// It picks a theme, so the theme buttons go beside it.
 		chooser: bool,
 		/// The graph list draws it, so it gets no row of its own.
@@ -274,15 +277,18 @@ pub mod ffi {
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn section_tops(d: &mut Dialog) -> Vec<String>;
 		/// Per row shown with a label on the page the window opens on, "id
-		/// left mid control right revert": its label's left edge and middle
+		/// left mid control right revert lead": its label's left edge and middle
 		/// line, its control's left edge, the right edge of its last part,
-		/// such as a color's hex box, and its revert arrow's left edge, in
-		/// the window.
+		/// such as a color's hex box, its revert arrow's left edge, and its
+		/// line label's left edge, or -1 without one, in the window.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn row_spots(d: &mut Dialog) -> Vec<String>;
 		/// As `row_spots`, with Themes/Colors shown.
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn colors_row_spots(d: &mut Dialog) -> Vec<String>;
+		/// As `row_spots`, with the tab of that name shown.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn tab_row_spots(d: &mut Dialog, tab: &str) -> Vec<String>;
 		/// Per graph list row, with Graphs shown, "name" and then each cell's
 		/// left edge and middle line in the window: show, graph, width,
 		/// sample, time axis, vertical scale, revert and gripper.
@@ -465,6 +471,9 @@ fn dialog_rows(d: &Dialog) -> Vec<ffi::RowInfo> {
 			section: section.map_or_else(String::new, |(g, _)| g.to_string()),
 			beside: section.is_some_and(|(_, b)| b),
 			same_line: tukzmon_core::config::same_line(&s.id),
+			line_label: tukzmon_core::config::line_label(&s.id)
+				.unwrap_or_default()
+				.to_string(),
 			chooser: d.spec().chooser_of(&s.id).is_some(),
 			in_list: listed.contains(&s.id),
 		})
@@ -1459,6 +1468,152 @@ mod tests {
 		});
 	}
 
+	/// A tab's row spots by id, as numbers.
+	fn spots_by_id(spots: &[String]) -> Vec<(String, Vec<i32>)> {
+		spots
+			.iter()
+			.map(|l| {
+				let mut words = l.split(' ');
+				let id = words.next().unwrap_or_default().to_string();
+				(id, words.filter_map(|n| n.parse().ok()).collect())
+			})
+			.collect()
+	}
+
+	/// One row's numbers from `spots_by_id`.
+	fn spot_of(spots: &[(String, Vec<i32>)], id: &str) -> Vec<i32> {
+		spots
+			.iter()
+			.find(|(k, _)| k == id)
+			.map_or_else(|| panic!("no {id} in {spots:?}"), |(_, v)| v.clone())
+	}
+
+	/// The rows that share a line on General, each line left to right.
+	fn shared_lines(d: &Dialog) -> Vec<Vec<ffi::RowInfo>> {
+		let mut lines: Vec<Vec<ffi::RowInfo>> = Vec::new();
+		let mut last: Option<ffi::RowInfo> = None;
+		for r in dialog_rows(d) {
+			if r.control == ffi::ControlKind::Heading {
+				last = None;
+				continue;
+			}
+			if r.same_line {
+				if let Some(first) = last.take() {
+					lines.push(vec![first]);
+				}
+				if let Some(line) = lines.last_mut() {
+					line.push(r);
+				}
+				continue;
+			}
+			last = Some(r);
+		}
+		lines
+	}
+
+	// Test ID: dfjv7
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn shared_line_reverts_by_their_boxes() {
+		on_qt(|| {
+			let path = std::env::temp_dir().join(format!(
+				"test_tukzmon-settings_{}_shared_reverts_never_written.shcl",
+				std::process::id()
+			));
+			let mut d = Dialog::open(path).unwrap();
+			let lines = shared_lines(&d);
+			assert!(lines.len() >= 2, "{lines:?}");
+			let spots = spots_by_id(&ffi::row_spots(&mut d));
+			let spot = |id: &str| spot_of(&spots, id);
+			for line in &lines {
+				let at: Vec<Vec<i32>> = line.iter().map(|r| spot(&r.id)).collect();
+				for (r, a) in line.iter().zip(&at) {
+					let (right, revert) = (a[3], a[4]);
+					assert!(
+						revert >= right && revert - right <= 12,
+						"{} {a:?} in {spots:?}",
+						r.id
+					);
+				}
+				// and each revert before the next one's label
+				for pair in at.windows(2) {
+					assert!(pair[0][4] < pair[1][0], "{pair:?}");
+				}
+			}
+		});
+	}
+
+	// Test ID: dfjv8
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn line_label_in_label_column() {
+		on_qt(|| {
+			let path = std::env::temp_dir().join(format!(
+				"test_tukzmon-settings_{}_line_label_never_written.shcl",
+				std::process::id()
+			));
+			let mut d = Dialog::open(path).unwrap();
+			let lines = shared_lines(&d);
+			let spots = spots_by_id(&ffi::row_spots(&mut d));
+			let spot = |id: &str| spot_of(&spots, id);
+			// where every other row's label and control start
+			let (labels, controls) = (spot("width")[0], spot("width")[2]);
+			for line in &lines {
+				let first = &line[0];
+				assert!(!first.line_label.is_empty(), "{first:?}");
+				let a = spot(&first.id);
+				let lead = a[5];
+				assert!(lead >= labels && lead < controls, "{a:?}");
+				for r in line {
+					let a = spot(&r.id);
+					assert!(a[0] >= controls && a[0] < a[2], "{} {a:?}", r.id);
+					assert!(
+						r.label.starts_with(|c: char| c.is_uppercase()),
+						"{}",
+						r.label
+					);
+				}
+			}
+			// a row with no line label has none drawn
+			assert_eq!(spot("keep_history")[5], -1);
+		});
+	}
+
+	// Test ID: dfjv9
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn short_control_revert_beside_it() {
+		on_qt(|| {
+			let path = std::env::temp_dir().join(format!(
+				"test_tukzmon-settings_{}_short_reverts_never_written.shcl",
+				std::process::id()
+			));
+			let mut d = Dialog::open(path).unwrap();
+			let rows = dialog_rows(&d);
+			let mut short = 0;
+			for tab in ["General", "Outline"] {
+				let spots = spots_by_id(&ffi::tab_row_spots(&mut d, tab));
+				let mut edge = Vec::new();
+				for (id, a) in &spots {
+					let r = rows.iter().find(|r| &r.id == id).unwrap();
+					let (right, revert) = (a[3], a[4]);
+					// sliders and text boxes take the width, and theirs line up at the edge
+					if matches!(r.control, ffi::ControlKind::Slider | ffi::ControlKind::Text) {
+						edge.push(revert);
+						continue;
+					}
+					assert!(revert >= right && revert - right <= 12, "{tab}: {id} {a:?}");
+					short += 1;
+				}
+				assert!(!edge.is_empty(), "{tab}: {spots:?}");
+				assert!(edge.iter().all(|&x| x == edge[0]), "{tab}: {spots:?}");
+				let most = spots.iter().map(|(_, a)| a[4]).max().unwrap();
+				assert_eq!(edge[0], most, "{tab}: {spots:?}");
+			}
+			assert!(short >= 10, "{short}");
+		});
+	}
+
 	// Test ID: der3q
 	#[test]
 	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
@@ -1798,7 +1953,7 @@ mod tests {
 			}
 			// Qt on Linux names a dropdown by its text, so its label has to be
 			// found beside it
-			for label in ["Hover shows", "Max age in days"] {
+			for label in ["Hover shows", "Days"] {
 				assert!(
 					got.iter()
 						.any(|s| s.ends_with(&format!("|{label}")) && s.matches('|').count() == 2),
