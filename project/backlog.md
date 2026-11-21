@@ -198,6 +198,72 @@ Sorted per the notes in [Template](#template).
 		- Its install table gives the `.deb`'s library folder as `/usr/lib/<multiarch>/...`, or names both, since arm64's is `aarch64-linux-gnu`.
 	- Estimated effort: Low
 
+- Design docs: reset icon and label placement in the settings window, once it passes UAT
+	- ID: 2026112016263003
+	- Type: Task
+	- Status: Stalled
+		- Held for 2026112016262892, 2026112016262929, and 2026112016262966 to be in place and pass UAT.
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Low
+	- Opened: 20261120-162628
+	- Opened by: t00mietum
+	- Prereq IDs: 2026112016262892, 2026112016262929, 2026112016262966
+	- Requirements:
+		- Once the changes are in place and pass UAT, update the design doc accordingly, as well as Silkterm's and Nemo Anywhere's.
+	- Estimated effort: Low
+
+- Pre-next-cut: Reset icon for the leftmost control, on a row with more than one control, is all the way to the right
+	- ID: 2026112016262892
+	- Type: Bug
+	- Status: Queued
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261120-162628
+	- Opened by: t00mietum
+	- Related IDs: 2026111019111684, 2026111913545113, 2026112016262929, 2026112016262966
+	- Incorrect behavior:
+		- The reset icons for the leftmost control, on a row with more than one control, is all the way to the right.
+			- Same problem with "Test blur radius".
+	- Expected behavior:
+		- It should be immediately to the right of the actual control it affects - and in that case, there would be no reset icon in the "regular" reset "column", because each is immediately to the right of their controls.
+	- Reproduced: 20261120, by reading `settings/src/qt.cpp`. A row joined to the line above gets its revert right after its box. The first row on that line keeps its revert in the grid's last column. Those first rows are Max age in days, and Test blur radius px, horizontal.
+	- Estimated effort: Low
+	- Note: `design.md` isn't updated with the fix. That waits until it passes UAT, as 2026112016263003.
+
+- Pre-next-cut: Test blur radius and Max age in days: the first control's label isn't in the row's "content" area, and labels are lower case
+	- ID: 2026112016262929
+	- Type: Bug
+	- Status: Queued
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261120-162628
+	- Opened by: t00mietum
+	- Related IDs: 2026111019111684, 2026111913545113, 2026112016262892
+	- Incorrect behavior: The first control's name is part of the row's label, as in "Test blur radius px, horizontal" and "Max age in days". The labels "vertical", "hours", and "minutes" are lower case.
+	- Expected behavior:
+		- Test blur radius: The label "horizontal" should be in the "content" area of that row, more immediately to the left of the control. Also,
+			- "horizontal" -> "Horizontal", and "vertical" -> "Vertical".
+			- Likewise, do the same treatments for "Max age in days", to look more like:
+				- `Max age in     Days [  ]   Hours [  ]   Minutes [  ]`
+	- Estimated effort: Low
+	- Note: `design.md` isn't updated with the fix. That waits until it passes UAT, as 2026112016263003.
+
+- Pre-next-cut: Move the reset icon to the right of a control that doesn't span the entire width
+	- ID: 2026112016262966
+	- Type: Enhancement
+	- Status: Queued
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261120-162628
+	- Opened by: t00mietum
+	- Related IDs: 2026110215302659, 2026112016262892
+	- Requirements:
+		- For controls that don't span the entire width, move its reset icon from the "regular" reset "column", to be more immediately to the right of the control. E.g. "Reduce motion in remote session".
+	- Estimated effort: Avg
+	- Note:
+		- This replaces the call in 2026110215302659 that General, Graphs, and Outline keep their arrows in one column at the right edge, for controls that don't span the width.
+		- `design.md` isn't updated with the change. That waits until it passes UAT, as 2026112016263003.
+
 - Cheaper RustDesk check: find it once a minute, then follow only its processes
 	- ID: 2026111918305078
 	- Type: Enhancement
@@ -4895,6 +4961,7 @@ Sorted per the notes in [Template](#template).
 		- Verified: the quick gate passed, and the stand-in above.
 	- Decisions:
 		- Only Themes/Colors, as asked. General, Graphs and Outline keep their arrows in one column at the right edge, since their sliders and text boxes take the width.
+			- 20261120: 2026112016262966 replaces this for controls that don't span the width.
 	- Branch: round-1102b
 	- Test case: `bridge::tests::revert_beside_box` (desem). It fails with the old layout, where the CPU mode's arrow sat 380 px from Gradient.
 		- 2026-11-02: the `row_spots` hook gives each row's last part's right edge and its revert's left edge after the old 3 numbers. der32 and der33 read only the first 3.
