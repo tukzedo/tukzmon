@@ -25,7 +25,7 @@ Sorted per the notes in [Template](#template).
 - lan test df3cz fails now and then when the whole test run goes in parallel
 	- ID: 2026112017273794
 	- Type: Bug
-	- Status: Queued
+	- Status: Closed
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261120-172737
@@ -35,7 +35,25 @@ Sorted per the notes in [Template](#template).
 	- Expected behavior: It passes every time.
 	- Reproduced: 20261120, once in a parallel run on round nov20. It passed alone right after, and in the quick gate's test step.
 	- Possible cause: Another test's socket took the same port, or the closed one hadn't gone yet.
+	- Actual cause: The closed socket hadn't gone yet. A close ends the connection only when the last copy of the fd closes. Tests dfh2z and df3p7 in the same binary spawn children, and a child keeps a copy of every fd until its exec. A close in that window leaves the socket open, so the lookup still finds it.
+		- Another socket on the same port can't answer, since the lookup checks the socket's cookie.
 	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Reproduced 20261120: with a second copy of the fd held across the close, df3cz fails every time with the same socket reply (20).
+		- The race with a spawning test wasn't caught in a run. It's inferred from the cause above.
+		- Verified: lan and remote tests passed 60 runs in a row at `--test-threads 8`, at a load near 16 on 32 cores. The quick gate and Sanitizers passed.
+	- Decisions:
+		- The test resets the connection with a `connect` to `AF_UNSPEC`, which acts on the socket rather than the fd. `SOCK_DESTROY` would need root.
+		- The reader itself is left as it is. A socket that another process still has open is still a live connection, and counts.
+	- Actual fix: df3cz resets its socket with a `connect` to `AF_UNSPEC` in place of `SO_LINGER` and a close, and keeps a copy of the fd across it.
+	- Branch: nov20-2026112017273794
+	- Commit: 8156755
+	- Test case: df3cz (`lan::tests::census_both_families`). With the copy held, it fails on the old close and passes with the reset.
+		- Swept: the other tests that end a socket and then read it. df3p7's child closes its pair and exits before the parent reads, so nothing else has the fds open. df3d1 uses a fake file and no real close.
+	- Acceptance signoff: Self-closed: the cause was reproduced, and the test failed before the fix and passes after.
+	- Closed: 20261120-174109
+	- Closed reason: Done
 
 - Test options in settings: horizontal and vertical blur radius
 	- ID: 2026111913545113

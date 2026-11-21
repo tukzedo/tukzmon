@@ -981,24 +981,26 @@ mod tests {
 			)
 		};
 		assert_eq!(lookup(9), (Some(SOCK_DIAG_BY_FAMILY), Some(id.to_vec())));
-		// a reset leaves no TIME_WAIT behind to be found
-		let linger = libc::linger {
-			l_onoff: 1,
-			l_linger: 0,
+		// A close doesn't end the connection while another copy of the fd is
+		// open. A child that another test spawns has one until its exec. A
+		// connect to AF_UNSPEC resets the connection itself, and a reset
+		// leaves no TIME_WAIT behind to be found.
+		let held = v4.0.try_clone().unwrap();
+		let unspec = libc::sockaddr {
+			sa_family: libc::AF_UNSPEC as libc::sa_family_t,
+			sa_data: [0; 14],
 		};
-		// SAFETY: setsockopt reads size_of::<linger>() bytes of linger.
-		let set = unsafe {
-			libc::setsockopt(
+		// SAFETY: connect reads size_of::<sockaddr>() bytes of unspec.
+		let reset = unsafe {
+			libc::connect(
 				v4.0.as_raw_fd(),
-				libc::SOL_SOCKET,
-				libc::SO_LINGER,
-				(&raw const linger).cast(),
-				size_of::<libc::linger>() as u32,
+				&raw const unspec,
+				size_of::<libc::sockaddr>() as u32,
 			)
 		};
-		assert_eq!(set, 0);
-		drop(v4);
+		assert_eq!(reset, 0);
 		assert_eq!(lookup(10).0, Some(NLMSG_ERROR));
+		drop((v4, held));
 	}
 
 	// Test ID: df3d0
