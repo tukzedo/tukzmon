@@ -229,6 +229,22 @@ Sorted per the notes in [Template](#template).
 		- 20261117: 2026111010281710's look is signed off, so this is Queued.
 		- 20261117: split. 2026111715360663 has the cuts that keep the same numbers, and 2026111715361287 has the rest.
 
+- Dogfood to the synced folder, so other boxes can install the latest build
+	- ID: 2026112016074145
+	- Type: Feature
+	- Status: Queued
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261120-160741
+	- Opened by: t00mietum
+	- Requirements:
+		- The dogfood step also copies `libtukzmon.so`, `tukzmon-settings` and `tukzmon.desktop` to `app/linux/tukzmon/` in the synced exec tree, with the build stamp beside them, as the other projects do.
+		- A `dogfood_tukzmon` script in `util/linux/bash` installs that copy into the user plugin folders, the same ones `dev-install.bash` uses, and restarts the panel. It says so and does nothing when the installed build is already the same.
+		- The backlog and merge gate runs still never write to the synced folder.
+	- Estimated effort: Low
+	- Progress log:
+		- 20261120: b28l wasn't getting b23's builds. The dogfood step only runs `dev-install.bash`, which installs on the box that runs it, and nothing of tukzmon's is in the synced tree.
+
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
 	- Type: Bug
