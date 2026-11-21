@@ -371,9 +371,9 @@ Sorted per the notes in [Template](#template).
 - Cheaper RustDesk check: find it once a minute, then follow only its processes
 	- ID: 2026111918305078
 	- Type: Enhancement
-	- Status: Waiting on automated testing
+	- Status: Closed
 	- Target version: v1.0.0-beta.2
-	- Needs external testing: `rustdesk-peer-rig.bash` by ID on b28l, with the probe started before the peer joins and RustDesk up for over a minute. `Watch` should say Remote at the first look after `--cm` comes up, not up to a minute later.
+	- Needs external testing: No
 		- 20261120: the rig's `RIG_EARLY=Y` does that order, through `b28l-rustdesk-rig.bash`. Not run yet. dfjwf and dfjwg passed in the round's gate run at d214c59.
 	- Priority|Severity: Avg
 	- Opened: 20261119-183050
@@ -388,6 +388,7 @@ Sorted per the notes in [Template](#template).
 		- Verified 20261120: dfjwf and dfjwg pass. dfjwf failed with a full read put back on every look, and dfjwg with the children read taken out. The quick gate and Sanitizers passed.
 		- Cost 20261120: 200 looks 5 s apart, on b23 with its installed RustDesk up, took 0.25 to 0.29 s of CPU, about 1.3 ms a look. The same build at the commit before took 1.05 to 1.22 s, at a load near 25 on 32 cores.
 		- RustDesk's source starts `--cm` with `run_me` when its server isn't root, so it's a child of `--server`. On b23 the server's `--tray` is its child the same way. That isn't checked yet with a real peer.
+		- 20261120: Verified: `rustdesk-peer-rig.bash` by ID on b28l with `RIG_EARLY=Y`, on nov20 at 578608f. `--cm` was up by 14.1 s, and the probe said Local at 10.0 s and Remote at 15.0 s, its first look after that, then Remote to the end.
 	- Decisions:
 		- Every RustDesk process of the user is followed, since which one starts `--cm-no-ui` wasn't checked. On b23 that's about 0.6 ms a look, mostly the threads' `children` lists. Following `--server` alone would take about 0.25 ms.
 		- A connection manager that a root server starts through sudo isn't a child of a followed process, so it's seen at the next full read, within a minute. That's the login screen's case.
@@ -396,6 +397,8 @@ Sorted per the notes in [Template](#template).
 	- Commit: 22701ca
 	- Test case: `remote::tests::rustdesk_found_once_a_minute` (dfjwf) and `remote::tests::stand_in_rustdesk_cm_followed` (dfjwg). The rig runs the real check.
 		- Swept: `Probe::viewed`'s callers, `Watch::session` and the 3 stand-in tests, `sharer`'s 3 callers, and every `Sharer` made in a test. dfh2z and df3p7 only pass the time now.
+	- Closed reason: Done
+	- Closed: 20261120-184600
 
 - Cut the cost of the spike windows in each draw
 	- ID: 2026111000270812
