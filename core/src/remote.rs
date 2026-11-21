@@ -113,7 +113,7 @@ impl Watch {
 	pub fn session(&mut self, now: Instant) -> Session {
 		// taken out for the look, since session_by borrows all of self
 		let mut probe = std::mem::take(&mut self.probe);
-		let session = self.session_by(now, |display| probe.viewed(display, &SHARERS));
+		let session = self.session_by(now, |display| probe.viewed(display, &SHARERS, now));
 		self.probe = probe;
 		session
 	}
@@ -233,6 +233,7 @@ fn display_of(args: &[String], env: Option<&str>) -> Option<u32> {
 /// A process of a server in [`SHARERS`], as read from `/proc`.
 #[derive(Debug)]
 struct Sharer {
+	pid: u32,
 	sign: Sign,
 	args: Vec<String>,
 	display: Option<u32>,
@@ -274,6 +275,10 @@ fn tcp_counts(snmp: &str) -> Option<[u64; 2]> {
 	Some([crate::lan::opens(snmp)?, established])
 }
 
+/// How often a look reads all of this user's processes when no connection
+/// is on a remote desktop port, to find RustDesk.
+const FIND_EVERY: Duration = Duration::from_secs(60);
+
 /// Looks for a remote viewer, without root. The kernel walks its whole
 /// connection table for each read of `/proc/net/tcp`, a few ms on a box
 /// with a lot of memory, so the [`Link`]s found are kept until the TCP
@@ -282,23 +287,25 @@ fn tcp_counts(snmp: &str) -> Option<[u64; 2]> {
 struct Probe {
 	counts: Option<[u64; 2]>,
 	links: Vec<Link>,
-	/// This user ran RustDesk at the last look, so its connection manager
-	/// can come or go with no TCP change.
-	rustdesk: bool,
+	/// When all of this user's processes were last read.
+	walked: Option<Instant>,
+	/// This user's RustDesk processes at the last look. They and the
+	/// processes they start are read between walks, since the connection
+	/// manager can come or go with no TCP change.
+	rustdesk: Vec<u32>,
 }
 
 impl Probe {
-	/// True when a remote viewer is connected to X display `display`. This
-	/// user's processes are read only while a connection is on a remote
-	/// desktop server's port, when the TCP counters moved, or while RustDesk
-	/// runs.
-	fn viewed(&mut self, display: u32, names: &[(&str, Sign)]) -> bool {
+	/// True when a remote viewer is connected to X display `display`. All of
+	/// this user's processes are read while a connection is on a remote
+	/// desktop server's port, and otherwise once each [`FIND_EVERY`]. In
+	/// between, only RustDesk's are.
+	fn viewed(&mut self, display: u32, names: &[(&str, Sign)], now: Instant) -> bool {
 		let counts = std::fs::read_to_string("/proc/net/snmp")
 			.ok()
 			.as_deref()
 			.and_then(tcp_counts);
-		let moved = counts.is_none() || counts != self.counts;
-		if moved {
+		if counts.is_none() || counts != self.counts {
 			self.counts = counts;
 			self.links.clear();
 			for table in ["/proc/net/tcp", "/proc/net/tcp6"] {
@@ -307,13 +314,41 @@ impl Probe {
 				}
 			}
 		}
-		// most looks on a quiet box end here
-		if self.links.is_empty() && !moved && !self.rustdesk {
+		self.look(
+			display,
+			now,
+			|| sharers(names),
+			|pids| followed(pids, names),
+		)
+	}
+
+	/// As [`Probe::viewed`], once the links are read, with `walk` reading all
+	/// of this user's sharers and `follow` the ones given and what they started.
+	fn look(
+		&mut self,
+		display: u32,
+		now: Instant,
+		walk: impl FnOnce() -> Vec<Sharer>,
+		follow: impl FnOnce(&[u32]) -> Vec<Sharer>,
+	) -> bool {
+		let due = self
+			.walked
+			.is_none_or(|t| now.saturating_duration_since(t) >= FIND_EVERY);
+		let sharers = if due || !self.links.is_empty() {
+			self.walked = Some(now);
+			walk()
+		} else if !self.rustdesk.is_empty() {
+			follow(&self.rustdesk)
+		} else {
+			// most looks on a quiet box end here
 			return false;
-		}
-		let sharers = sharers(names);
+		};
 		// on any display, since the server's may not be readable
-		self.rustdesk = sharers.iter().any(|p| p.sign == Sign::RustDeskCm);
+		self.rustdesk = sharers
+			.iter()
+			.filter(|p| p.sign == Sign::RustDeskCm)
+			.map(|p| p.pid)
+			.collect();
 		viewed_by(display, &self.links, &sharers)
 	}
 }
@@ -327,17 +362,50 @@ fn sharers(names: &[(&str, Sign)]) -> Vec<Sharer> {
 		return Vec::new();
 	};
 	dir.flatten()
-		.filter(|e| {
-			e.file_name()
-				.to_str()
-				.is_some_and(|n| n.bytes().all(|b| b.is_ascii_digit()))
-		})
-		.filter(|e| e.metadata().is_ok_and(|m| m.uid() == me))
-		.filter_map(|e| sharer(&e.path(), names))
+		.filter_map(|e| Some((e.file_name().to_str()?.parse::<u32>().ok()?, e)))
+		.filter(|(_, e)| e.metadata().is_ok_and(|m| m.uid() == me))
+		.filter_map(|(pid, e)| sharer(&e.path(), pid, names))
 		.collect()
 }
 
-fn sharer(dir: &Path, names: &[(&str, Sign)]) -> Option<Sharer> {
+/// The processes of this user named in `names` that are in `pids`, or were
+/// started by one of them.
+fn followed(pids: &[u32], names: &[(&str, Sign)]) -> Vec<Sharer> {
+	let Ok(me) = std::fs::metadata("/proc/self").map(|m| m.uid()) else {
+		return Vec::new();
+	};
+	let mut all = pids.to_vec();
+	all.extend(pids.iter().flat_map(|&pid| children_of(pid)));
+	all.sort_unstable();
+	all.dedup();
+	all.into_iter()
+		.filter_map(|pid| {
+			let dir = Path::new("/proc").join(pid.to_string());
+			let mine = std::fs::metadata(&dir).is_ok_and(|m| m.uid() == me);
+			mine.then(|| sharer(&dir, pid, names)).flatten()
+		})
+		.collect()
+}
+
+/// The processes `pid` started that still run. The kernel lists them by the
+/// thread that started each one, and RustDesk's server starts its connection
+/// manager from a worker thread.
+fn children_of(pid: u32) -> Vec<u32> {
+	let Ok(tasks) = std::fs::read_dir(format!("/proc/{pid}/task")) else {
+		return Vec::new();
+	};
+	tasks
+		.flatten()
+		.filter_map(|t| std::fs::read_to_string(t.path().join("children")).ok())
+		.flat_map(|text| {
+			text.split_whitespace()
+				.filter_map(|p| p.parse().ok())
+				.collect::<Vec<u32>>()
+		})
+		.collect()
+}
+
+fn sharer(dir: &Path, pid: u32, names: &[(&str, Sign)]) -> Option<Sharer> {
 	let comm = std::fs::read_to_string(dir.join("comm")).ok()?;
 	let comm = comm.trim_end_matches('\n');
 	// the kernel cuts a process name to 15 bytes
@@ -362,6 +430,7 @@ fn sharer(dir: &Path, names: &[(&str, Sign)]) -> Option<Sharer> {
 		Sign::RustDeskCm | Sign::NoMachineMonitor => Vec::new(),
 	};
 	Some(Sharer {
+		pid,
 		sign,
 		args,
 		display,
@@ -473,6 +542,7 @@ mod tests {
 	fn viewer_needs_peer_here() {
 		let links: Vec<Link> = links_in(TCP).collect();
 		let p = |sign, args: &[&str], display, sockets: &[u64]| Sharer {
+			pid: 0,
 			sign,
 			args: args.iter().map(|s| (*s).to_owned()).collect(),
 			display: Some(display),
@@ -535,6 +605,7 @@ mod tests {
 	#[test]
 	fn rustdesk_peer_by_id_seen() {
 		let p = |args: &[&str], display| Sharer {
+			pid: 0,
 			sign: Sign::RustDeskCm,
 			args: args.iter().map(|s| (*s).to_owned()).collect(),
 			display: Some(display),
@@ -597,18 +668,143 @@ mod tests {
 			std::thread::sleep(Duration::from_millis(10));
 		}
 		let names = [(name.trim_end(), Sign::RustDeskCm)];
+		let t0 = Instant::now();
 		let mut probe = Probe::default();
-		let seen = probe.viewed(76, &names);
+		let seen = probe.viewed(76, &names, t0);
 		// the TCP counters may not have moved since
-		let again = probe.viewed(76, &names);
-		let elsewhere = Probe::default().viewed(75, &names);
+		let again = probe.viewed(76, &names, t0 + CHECK_EVERY);
+		let elsewhere = Probe::default().viewed(75, &names, t0);
 		drop(child.stdin.take());
 		child.wait().unwrap();
-		let after = probe.viewed(76, &names);
+		let after = probe.viewed(76, &names, t0 + CHECK_EVERY * 2);
 		assert!(seen);
 		assert!(again);
 		assert!(!elsewhere);
 		assert!(!after);
+	}
+
+	// Test ID: dfjwf
+	#[test]
+	fn rustdesk_found_once_a_minute() {
+		use std::cell::{Cell, RefCell};
+		let t0 = Instant::now();
+		let (walks, follows) = (Cell::new(0), RefCell::new(Vec::new()));
+		// a look at step n, 5 s apart, with these RustDesk processes running
+		let look = |probe: &mut Probe, n: u32, running: &[(u32, &str)]| {
+			let found = || -> Vec<Sharer> {
+				running
+					.iter()
+					.map(|&(pid, arg)| Sharer {
+						pid,
+						sign: Sign::RustDeskCm,
+						args: vec!["rustdesk".to_owned(), arg.to_owned()],
+						display: Some(0),
+						sockets: Vec::new(),
+					})
+					.collect()
+			};
+			probe.look(
+				0,
+				t0 + CHECK_EVERY * n,
+				|| {
+					walks.set(walks.get() + 1);
+					found()
+				},
+				// as if each one is followed or was started by one that is
+				|pids| {
+					follows.borrow_mut().push(pids.to_vec());
+					found()
+				},
+			)
+		};
+		let server = (10, "--server");
+		let cm = (11, "--cm");
+		let mut probe = Probe::default();
+		assert!(!look(&mut probe, 0, &[]));
+		// started after the walk, so not looked for until the next one
+		assert!(!look(&mut probe, 1, &[server]));
+		for n in 2..12 {
+			assert!(!look(&mut probe, n, &[server, cm]), "{n}");
+		}
+		assert_eq!((walks.get(), follows.borrow().len()), (1, 0));
+		assert!(look(&mut probe, 12, &[server, cm]));
+		assert_eq!(walks.get(), 2);
+		// followed from here, with no walk
+		assert!(!look(&mut probe, 13, &[server]));
+		assert!(look(&mut probe, 14, &[server, cm]));
+		assert_eq!(*follows.borrow(), [vec![10, 11], vec![10]]);
+		for n in 15..24 {
+			look(&mut probe, n, &[server]);
+		}
+		assert_eq!(walks.get(), 2);
+		look(&mut probe, 24, &[server]);
+		assert_eq!(walks.get(), 3);
+		// a link on a remote desktop port reads them all at once
+		probe.links.push(Link {
+			server: Server::Vnc,
+			inode: 1,
+		});
+		look(&mut probe, 25, &[server]);
+		assert_eq!(walks.get(), 4);
+		probe.links.clear();
+		// RustDesk quit, so nothing is read until the next walk
+		assert!(!look(&mut probe, 26, &[]));
+		let followed = follows.borrow().len();
+		assert!(!look(&mut probe, 27, &[server, cm]));
+		assert_eq!((walks.get(), follows.borrow().len()), (4, followed));
+	}
+
+	// a stand-in for a RustDesk server that starts its connection manager
+	// from a thread other than its first: this test process, and a copy of
+	// the test binary on display :74, found by following this process
+	// Test ID: dfjwg
+	#[test]
+	#[cfg_attr(miri, ignore)]
+	fn stand_in_rustdesk_cm_followed() {
+		use std::os::unix::process::CommandExt;
+		use std::process::{Command, Stdio};
+		const CHILD: &str = "TUKZMON_TEST_FOLLOWED_CM";
+		if std::env::var_os(CHILD).is_some() {
+			let _ = std::io::stdin().lines().count();
+			return;
+		}
+		let exe = std::env::current_exe().unwrap();
+		// libtest runs each test on a thread of its own
+		let mut child = Command::new(exe)
+			.arg0("--cm")
+			.args([
+				"--exact",
+				"remote::tests::stand_in_rustdesk_cm_followed",
+				"--test-threads=1",
+			])
+			.env(CHILD, "1")
+			.env("DISPLAY", ":74")
+			.stdin(Stdio::piped())
+			.stdout(Stdio::null())
+			.spawn()
+			.unwrap();
+		let me = std::process::id();
+		let name = std::fs::read_to_string("/proc/self/comm").unwrap();
+		let names = [(name.trim_end(), Sign::RustDeskCm)];
+		let mut found = Vec::new();
+		for _ in 0..200 {
+			found = followed(&[me], &names);
+			if found
+				.iter()
+				.any(|p| p.pid == child.id() && p.args.first().is_some_and(|a| a == "--cm"))
+			{
+				break;
+			}
+			std::thread::sleep(Duration::from_millis(10));
+		}
+		let missing = followed(&[u32::MAX], &names);
+		drop(child.stdin.take());
+		child.wait().unwrap();
+		let after = followed(&[me], &names);
+		assert!(found.iter().any(|p| p.pid == me), "{found:?}");
+		assert!(viewed_by(74, &[], &found), "{found:?}");
+		assert!(missing.is_empty());
+		assert!(!viewed_by(74, &[], &after));
 	}
 
 	// a stand-in for x11vnc: a copy of this test binary on display :77,
@@ -664,14 +860,15 @@ mod tests {
 		let name = std::fs::read_to_string(format!("/proc/{}/comm", child.id())).unwrap();
 		let names = [(name.trim_end(), Sign::Holds)];
 		let mut probe = Probe::default();
-		let seen = probe.viewed(77, &names);
-		let elsewhere = probe.viewed(78, &names);
+		let t0 = Instant::now();
+		let seen = probe.viewed(77, &names, t0);
+		let elsewhere = probe.viewed(78, &names, t0);
 		drop(child.stdin.take());
 		child.wait().unwrap();
 		assert!(line.contains("ready"), "no free VNC port in 5990 to 5999");
 		assert!(seen);
 		assert!(!elsewhere);
-		assert!(!Probe::default().viewed(77, &[("no-such-sharer", Sign::Holds)]));
+		assert!(!Probe::default().viewed(77, &[("no-such-sharer", Sign::Holds)], t0));
 	}
 
 	// Test ID: df4gs
@@ -770,7 +967,7 @@ mod tests {
 				format!("HOME=/home/sam\0DISPLAY=:{env}.0\0LANG=C\0"),
 			);
 			let t = f.tree("sharer_fuzz");
-			let got = sharer(Path::new(&t.at("p")), &SHARERS);
+			let got = sharer(Path::new(&t.at("p")), 1, &SHARERS);
 			if f.whole {
 				let want = if args.contains(&"-display") { arg } else { env };
 				assert_eq!(

@@ -351,16 +351,30 @@ Sorted per the notes in [Template](#template).
 - Cheaper RustDesk check: find it once a minute, then follow only its processes
 	- ID: 2026111918305078
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on automated testing
 	- Target version: v1.0.0-beta.2
+	- Needs external testing: `rustdesk-peer-rig.bash` by ID on b28l, with the probe started before the peer joins and RustDesk up for over a minute. `Watch` should say Remote at the first look after `--cm` comes up, not up to a minute later.
 	- Priority|Severity: Avg
 	- Opened: 20261119-183050
 	- Opened by:
 	- Related IDs: 2026111719090679
 	- Requirements: Walk the user's processes at most once a minute to find RustDesk, then follow only its processes, so a peer by ID is still seen. Today a look reads every process of the user while RustDesk runs, about 3 ms a look on b23.
 	- Estimated effort: Avg
+	- Actual effort: Avg
 	- Progress log:
 		- 20261119: from the answer on the Check entry for 2026111719090679, which picked this over the as-built walk on every look.
+		- 20261120: a look reads all of this user's processes once a minute, or at once while a link on a remote desktop port is up. In between, it reads only the RustDesk processes it found and the ones they started, from each thread's `children` list in `/proc`. The TCP counters no longer start a full read.
+		- Verified 20261120: dfjwf and dfjwg pass. dfjwf failed with a full read put back on every look, and dfjwg with the children read taken out. The quick gate and Sanitizers passed.
+		- Cost 20261120: 200 looks 5 s apart, on b23 with its installed RustDesk up, took 0.25 to 0.29 s of CPU, about 1.3 ms a look. The same build at the commit before took 1.05 to 1.22 s, at a load near 25 on 32 cores.
+		- RustDesk's source starts `--cm` with `run_me` when its server isn't root, so it's a child of `--server`. On b23 the server's `--tray` is its child the same way. That isn't checked yet with a real peer.
+	- Decisions:
+		- Every RustDesk process of the user is followed, since which one starts `--cm-no-ui` wasn't checked. On b23 that's about 0.6 ms a look, mostly the threads' `children` lists. Following `--server` alone would take about 0.25 ms.
+		- A connection manager that a root server starts through sudo isn't a child of a followed process, so it's seen at the next full read, within a minute. That's the login screen's case.
+		- A RustDesk started since the last full read is seen within a minute, as the requirement allows.
+	- Branch: nov20-2026111918305078
+	- Commit: 22701ca
+	- Test case: `remote::tests::rustdesk_found_once_a_minute` (dfjwf) and `remote::tests::stand_in_rustdesk_cm_followed` (dfjwg). The rig runs the real check.
+		- Swept: `Probe::viewed`'s callers, `Watch::session` and the 3 stand-in tests, `sharer`'s 3 callers, and every `Sharer` made in a test. dfh2z and df3p7 only pass the time now.
 
 - Cut the cost of the spike windows in each draw
 	- ID: 2026111000270812
