@@ -281,7 +281,7 @@ Sorted per the notes in [Template](#template).
 - Cut the cost of the spike windows in each draw
 	- ID: 2026111000270812
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Closed
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261110-002708
@@ -294,6 +294,10 @@ Sorted per the notes in [Template](#template).
 		- 20261110: the look comes first, then the cost. This waits on 2026111010281710, since both change the spike windows.
 		- 20261117: 2026111010281710's look is signed off, so this is Queued.
 		- 20261117: split. 2026111715360663 has the cuts that keep the same numbers, and 2026111715361287 has the rest.
+		- 20261120: both children are closed, and they split all of this item's work between them, so it closes with them.
+	- Test case: its children's: 2026111715361287: `history::tests::spread_over_as_plain` (dfehq) checks `spread_over` against a plain version that takes each step's windows from the ceil to the floor of its middle and sums each window afresh. It fails with either bound off by one.; 2026111715360663: `history::tests::whole_numbers_as_libm` (dfegt), `render::tests::pack_rounds_as_round` (dfegv), and `history::tests::block_totals_match_buckets` (der45), which now checks `max_over` too. df3s6, df4d7 and df4y1 cover the window paths.
+	- Closed: 20261120-170255
+	- Closed reason: Done
 
 - Dogfood to the synced folder, so other boxes can install the latest build
 	- ID: 2026112016074145
