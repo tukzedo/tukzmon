@@ -400,7 +400,8 @@ Sorted per the notes in [Template](#template).
 - Dogfood to the synced folder, so other boxes can install the latest build
 	- ID: 2026112016074145
 	- Type: Feature
-	- Status: Queued
+	- Status: Waiting on UAT
+		- Only the live dogfood is left, which a round never runs. Run `cicd/cicd.bash` on b23, then `dogfood_tukzmon` on b28l, and check its panel restarts on b23's build.
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261120-160741
@@ -412,6 +413,19 @@ Sorted per the notes in [Template](#template).
 	- Estimated effort: Low
 	- Progress log:
 		- 20261120: b28l wasn't getting b23's builds. The dogfood step only runs `dev-install.bash`, which installs on the box that runs it, and nothing of tukzmon's is in the synced tree.
+		- After `dev-install.bash`, the Dogfood step runs `cicd/utility/dogfood-sync.bash`. It copies the 3 files to `app/linux/tukzmon/` in the first synced exec folder that exists, with `build.txt`, which is the version line and a sha256 sum per file. It puts `utility/dogfood_tukzmon.bash` in `util/linux/bash/` as `dogfood_tukzmon`. With no synced folder it says so and copies nothing.
+		- `dogfood_tukzmon` finds the copy beside itself or under `~/synced`, and refuses one whose sums don't match yet. It installs to `dev-install.bash`'s folders and restarts the panel, unless given `--no-restart`. When the installed files are the same bytes, it says so and does nothing.
+		- Verified: dfjx6 and dfjx7 pass, and each failed with its part of the fix taken out. With the box's own release build and a temp home, the sync wrote build dfjsw's stamp, and `dogfood_tukzmon` installed it to `lib/x86_64-linux-gnu`. The quick gate and Sanitizers passed.
+	- Decisions:
+		- The stamp is `build.txt` with `tukzmon-settings --version`'s first line and the sums. The other projects have no shared stamp format. The sums let the install tell a copy still syncing from a whole one.
+		- "Already the same" compares the 3 files' bytes rather than the stamp, since a build's identity is its bytes.
+		- The repo copy is `utility/dogfood_tukzmon.bash`, so lint finds it, and the synced name has no extension, as the other `dogfood_*` launchers there have.
+		- `dogfood_tukzmon` keeps its own copy of `dev-install.bash`'s folder lookup, since it runs on boxes with no checkout. dfjx7 checks it gives the same arm64 folder as deqvr.
+		- The backlog and merge gate runs don't plan the Dogfood step, so they never reach the sync. dezar already checks that each says it never dogfoods.
+	- Test case: `dogfood_sync_copies` (dfjx6) and `dogfood_installs_synced` (dfjx7), in `cicd/tests/guards.bash`.
+		- Swept: `fStepDogfood` is the only caller of the sync. `dev-install.bash` and `dogfood_tukzmon` use the same folder lookup. No other script writes to the synced folder.
+	- Branch: nov20-2026112016074145
+	- Needs hand testing: the live run above, on b23 then b28l.
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701

@@ -82,7 +82,10 @@
 ##	                      assets/demo.gif when it changed. It's a heavy step,
 ##	                      so it gets a quarter of the CPUs
 ##	  20. Dogfood         utility/dev-install.bash, which installs the build
-##	                      under ~/.local and restarts the panel
+##	                      under ~/.local and restarts the panel, then
+##	                      cicd/utility/dogfood-sync.bash, which copies it to
+##	                      the synced exec folder for dogfood_tukzmon on other
+##	                      boxes
 ##	  A step that's off isn't counted, and the first section says why it's off.
 ##	  A run whose options leave no check on fails, with exit 2.
 ##	  Cleanup comes last, on failure and Ctrl+C too.
@@ -1126,6 +1129,8 @@ fStepDemo() {
 fStepDogfood() {
 	fEcho_Clean "${DOGFOOD_CMD[*]}"
 	"${root}/${DOGFOOD_CMD[0]}" "${DOGFOOD_CMD[@]:1}" || return 1
+	fEcho_Clean "cicd/utility/dogfood-sync.bash"
+	"${here}/utility/dogfood-sync.bash" "${hostTarget}/release" || return 1
 }
 
 
@@ -1604,3 +1609,5 @@ exit 0
 ##		  so they aren't read as lint warnings.
 ##		- 2026-11-19: The arm64 release build, in the image, and its packages,
 ##		  with the arm64 area.
+##		- 2026-11-20: Dogfood also copies the build to the synced exec folder,
+##		  for dogfood_tukzmon on other boxes.
