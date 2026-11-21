@@ -22,6 +22,21 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
+- Settings window opens smaller than the General tab under the GTK style, so General scrolls both ways
+	- ID: 2026112018370950
+	- Type: Bug
+	- Status: Queued
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Low
+	- Opened: 20261120-183709
+	- Opened by:
+	- Related IDs: 2026112016262966
+	- Test environment: An X display at 1100x900 with the GTK style that XFCE gives Qt
+	- Incorrect behavior: General opens with a horizontal and a vertical scroll bar. The arrows at the right edge are cut off, and the Test blur radius line is half under the bottom edge.
+	- Expected behavior: The window opens big enough for General, as it does under Qt's own style, where General fits an 800 px screen with no scroll bar.
+	- Reproduced: 20261120, Confirmed off screen at 1100x900. Seen at d214c59 and at 50602f8 on dev, so it's older than round nov20. Under Qt's own style the same builds show no scroll bars. Not checked on a real XFCE screen.
+	- Possible cause: `openSized` in `settings/src/qt.cpp` sizes the window from `sizeHint`, which may not cover General's content when the GTK style draws wider boxes and text.
+
 - lan test df3cz fails now and then when the whole test run goes in parallel
 	- ID: 2026112017273794
 	- Type: Bug
@@ -248,9 +263,8 @@ Sorted per the notes in [Template](#template).
 - Pre-next-cut: Reset icon for the leftmost control, on a row with more than one control, is all the way to the right
 	- ID: 2026112016262892
 	- Type: Bug
-	- Status: Waiting on UAT
-		- A look at General on b23, with a build from after this, tells whether Days and Horizontal read right with their arrows right after their boxes.
-	- Stand-in: none (20261120). Whether the line reads well turns on how it looks.
+	- Status: Closed
+	- Closed reason: Done
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261120-162628
@@ -269,6 +283,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- Every row on a shared line has its arrow right after its box, the first one too, and the grid's last column is empty on that line.
 		- Verified: dfjv7 failed before the fix and passes after. The quick gate's format, build, lint and tests, and Sanitizers passed.
+		- Verified 20261120: dfjv7 passed in the round's gate run at d214c59. General at d214c59, in both the GTK style and Qt's own, shows the arrows for Days and Horizontal right after their boxes, and none at the right edge on those lines. The dev build at 50602f8 showed them at the right edge.
 	- Actual fix: The first row's box and arrow go in the line's layout together, through `lineFor`, which 2026112016262966 uses for every short control.
 	- Decisions:
 		- Done with 2026112016262929 and 2026112016262966 in one change, since all 3 move the same layout code.
@@ -277,13 +292,14 @@ Sorted per the notes in [Template](#template).
 	- Test case: `bridge::tests::shared_line_reverts_by_their_boxes` (dfjv7), over every shared line on General.
 		- Swept: every `same_line` row (Max age's hours and minutes, the vertical blur), and the joined branch of `placeRow`.
 	- Note: `design.md` isn't updated with the fix. That waits until it passes UAT, as 2026112016263003.
+	- Acceptance signoff: Self-closed: the layout matches the expected behavior, and dfjv7 pins it.
+	- Closed: 20261120-183700
 
 - Pre-next-cut: Test blur radius and Max age in days: the first control's label isn't in the row's "content" area, and labels are lower case
 	- ID: 2026112016262929
 	- Type: Bug
-	- Status: Waiting on UAT
-		- A look at General on b23, with a build from after this, tells whether "Max age in" and "Test blur radius px" read right with Days, Hours, Minutes, Horizontal and Vertical by their boxes.
-	- Stand-in: none (20261120). The wording and the look turn on taste.
+	- Status: Closed
+	- Closed reason: Done
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261120-162628
@@ -305,6 +321,7 @@ Sorted per the notes in [Template](#template).
 		- The tips of Hours and Minutes say "of Max age" now, since no label says "Max age in days".
 		- The `settings.shcl` header has the new key.
 		- Verified: dfjv8 failed before the fix and passes after. General, with Keep across restarts on and off, showed the line's label grayed with its boxes.
+		- Verified 20261120: dfjv8 passed in the round's gate run at d214c59. General at d214c59, in both the GTK style and Qt's own, reads `Max age in     Days [28]   Hours [0]   Minutes [0]`, and "Test blur radius px" then Horizontal and Vertical by their boxes, as the expected behavior gives.
 	- Actual fix: `config::line_label` reads the key, and `placeRow` draws it.
 	- Decisions:
 		- A screen reader gets the line's label in front, as "Max age in Days" and "Test blur radius px Vertical", since Days or Vertical alone doesn't say what.
@@ -316,6 +333,8 @@ Sorted per the notes in [Template](#template).
 		- 20261120: der54 looks for the label "Days" beside its box, where it looked for "Max age in days".
 		- Swept: every row on a shared line, the tips that quote these labels, and `OUR_ROW_KEYS` (der4w).
 	- Note: `design.md` isn't updated with the fix. That waits until it passes UAT, as 2026112016263003. `style-guide_ux.md` Groups and headings and Labels quote "Max age in days" too.
+	- Acceptance signoff: Self-closed: the labels and their places match the layout the expected behavior draws, and dfjv8 pins it.
+	- Closed: 20261120-183700
 
 - Pre-next-cut: Move the reset icon to the right of a control that doesn't span the entire width
 	- ID: 2026112016262966
@@ -339,6 +358,7 @@ Sorted per the notes in [Template](#template).
 		- On General, Outline and the theme's Name line, a checkbox, dropdown, number box or color has its arrow right after it. Sliders and text boxes still have theirs at the right edge, lined up.
 		- A dropdown's layout slot is now as wide as it's drawn. Qt's minimum for a short one, such as Auto, was wider, which left a gap before its arrow.
 		- Verified: dfjv9 failed before the change and passes after. The quick gate's format, build, lint and tests, and Sanitizers passed. General still fits an 800 px screen with no scroll bar.
+		- Verified 20261120: dfjv9 passed in the round's gate run at d214c59. General and Outline at d214c59, in both the GTK style and Qt's own, show each checkbox, dropdown, number box and color with its arrow right after it, and the Name line's arrow after Randomize. Left for a person: the calls in Decisions on which controls keep the right-edge column, since the requirement covers every control that doesn't span the width.
 	- Decisions:
 		- Themes/Colors keeps its own layout, since its arrows already sit by their boxes and line up in each column.
 		- The theme's Name line counts as short, so its arrow follows Randomize.
@@ -354,6 +374,7 @@ Sorted per the notes in [Template](#template).
 	- Status: Waiting on automated testing
 	- Target version: v1.0.0-beta.2
 	- Needs external testing: `rustdesk-peer-rig.bash` by ID on b28l, with the probe started before the peer joins and RustDesk up for over a minute. `Watch` should say Remote at the first look after `--cm` comes up, not up to a minute later.
+		- 20261120: the rig's `RIG_EARLY=Y` does that order, through `b28l-rustdesk-rig.bash`. Not run yet. dfjwf and dfjwg passed in the round's gate run at d214c59.
 	- Priority|Severity: Avg
 	- Opened: 20261119-183050
 	- Opened by:
@@ -402,6 +423,7 @@ Sorted per the notes in [Template](#template).
 	- Type: Feature
 	- Status: Waiting on UAT
 		- Only the live dogfood is left, which a round never runs. Run `cicd/cicd.bash` on b23, then `dogfood_tukzmon` on b28l, and check its panel restarts on b23's build.
+	- Stand-in: none (20261120). The rest needs a real dogfood into the synced folder and a panel restart on b28l, which a round never runs. dfjx6 and dfjx7 passed in the round's gate run at d214c59, and the temp-home run already stood in for the rest.
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
 	- Opened: 20261120-160741
