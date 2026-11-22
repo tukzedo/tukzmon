@@ -7024,6 +7024,30 @@ Sorted per the notes in [Template](#template).
 	- Closed: 20261120-174109
 	- Closed reason: Done
 
+- fuzz test df4f0 fails on some timed runs
+	- ID: 2026112119071700
+	- Type: Bug
+	- Status: Closed
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Low
+	- Opened: 20261121-115528
+	- Opened by: t00mietum
+	- Steps to reproduce: Run `cargo test -p tukzmon-core --lib fuzz::tests::failing_seed_named` with `TUKZMON_FUZZ_SECONDS` set, as cicd's default and `--long` runs do.
+	- Incorrect behavior: The Tests step failed at `core/src/fuzz.rs:319`, `Tally { cases: 5334421997, accepted: 2667210998 }`.
+	- Expected behavior: It passes every time.
+	- Reproduced: 20261121, in a `--long` run, and once in 8 short timed runs with the old check.
+	- Actual cause: The test checked that exactly half the seeds were taken. A timed run stops on any count, and cicd starts it at `EPOCHSECONDS`, so on an odd count the even seeds are one more or one less than half.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Actual fix: The test works out the even seeds from the first seed and the count.
+	- Branch: fuzzodd
+	- Commit: 464d0c5
+	- Test case: df4f0 (`fuzz::tests::failing_seed_named`). It passed 18 short timed runs from odd and even first seeds, and the quick gate passed.
+		- Swept: no other test reads a tally's exact counts. The rest use `assert_mixed`.
+	- Acceptance signoff: Self-closed: the failure was reproduced with the old check and doesn't happen with the new one.
+	- Closed: 20261121-190717
+	- Closed reason: Done
+
 - A column up to 4 samples wide beside a gap draws at its full peak
 	- ID: 2026111716050389
 	- Type: Bug

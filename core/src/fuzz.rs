@@ -316,7 +316,14 @@ mod tests {
 		assert_ne!(draw(7), draw(8));
 		let tally = run("half", |d| d.0 % 2 == 0);
 		assert!(tally.cases >= CASES);
-		assert_eq!(tally.accepted * 2, tally.cases, "{tally:?}");
+		// a timed run can stop on an odd count, from any first seed
+		let first: u64 = env_number("TUKZMON_FUZZ_SEED").unwrap_or(0);
+		let evens = if first.is_multiple_of(2) {
+			tally.cases.div_ceil(2)
+		} else {
+			tally.cases / 2
+		};
+		assert_eq!(tally.accepted, evens, "{tally:?}");
 		let all = run("all", |_| true);
 		assert!(cfg!(miri) || catch_unwind(|| all.assert_mixed()).is_err());
 		let failed = catch_unwind(|| {
