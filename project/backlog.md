@@ -7065,6 +7065,7 @@ Sorted per the notes in [Template](#template).
 	- Actual effort: Low
 	- Actual fix: The test lets a 3-series read through when the count says 0 or 3.
 	- Branch: fuzzser
+	- Commit: f9f1edf
 	- Test case: df4f1 (`history::tests::fuzz_decode_any_bytes`). It failed on the seed before the fix and passes after, and a 2-minute timed run passed.
 		- Swept: the other decode fuzz tests in `keep.rs` take any series count, so none has this shape.
 	- Acceptance signoff: Self-closed: the failure was reproduced by its seed and doesn't happen with the fix.
