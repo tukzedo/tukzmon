@@ -1727,7 +1727,11 @@ mod tests {
 			} else {
 				crate::fuzz::mangle(dice, &mut bytes);
 			}
-			assert!(History::<3>::decode(&bytes).is_none_or(|_| bytes[..4] == [0; 4]));
+			// a history with no buckets whose series count was changed to 3
+			// is a real 3-series file
+			assert!(
+				History::<3>::decode(&bytes).is_none_or(|_| matches!(bytes[..4], [0 | 3, 0, 0, 0]))
+			);
 			let Some(got) = History::<2>::decode(&bytes) else {
 				return false;
 			};

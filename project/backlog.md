@@ -7048,6 +7048,29 @@ Sorted per the notes in [Template](#template).
 	- Closed: 20261121-190717
 	- Closed reason: Done
 
+- fuzz test df4f1 fails on an empty history read as 3 series
+	- ID: 2026112315295600
+	- Type: Bug
+	- Status: Closed
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Low
+	- Opened: 20261123-152956
+	- Opened by: t00mietum
+	- Steps to reproduce: `TUKZMON_FUZZ_SEED=1795477142 cargo test -p tukzmon-core --lib history::tests::fuzz_decode_any_bytes`.
+	- Incorrect behavior: The Tests step of a timed run failed at `core/src/history.rs:1730`, seed 1795477142.
+	- Expected behavior: It passes every time.
+	- Reproduced: 20261123, by its seed.
+	- Actual cause: The test said a 2-series history never decodes as 3 series unless its series count is 0. The seed made a history with no buckets, and the mangle set its count to 3. That is a real 3-series file, so `decode` was right.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Actual fix: The test lets a 3-series read through when the count says 0 or 3.
+	- Branch: fuzzser
+	- Test case: df4f1 (`history::tests::fuzz_decode_any_bytes`). It failed on the seed before the fix and passes after, and a 2-minute timed run passed.
+		- Swept: the other decode fuzz tests in `keep.rs` take any series count, so none has this shape.
+	- Acceptance signoff: Self-closed: the failure was reproduced by its seed and doesn't happen with the fix.
+	- Closed: 20261123-153600
+	- Closed reason: Done
+
 - A column up to 4 samples wide beside a gap draws at its full peak
 	- ID: 2026111716050389
 	- Type: Bug
