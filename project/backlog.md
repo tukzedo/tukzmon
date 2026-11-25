@@ -290,6 +290,21 @@ Sorted per the notes in [Template](#template).
 	- Reproduced: 20261120, Confirmed off screen at 1100x900. Seen at d214c59 and at 50602f8 on dev, so it's older than round nov20. Under Qt's own style the same builds show no scroll bars. Not checked on a real XFCE screen.
 	- Possible cause: `openSized` in `settings/src/qt.cpp` sizes the window from `sizeHint`, which may not cover General's content when the GTK style draws wider boxes and text.
 
+- Run the save tests under Miri again once shcl skips its folder fsync there
+	- ID: 2026112510392174
+	- Type: Task
+	- Status: Queued
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Low
+	- Opened: 20261125-103921
+	- Opened by: t00mietum
+	- Related IDs: 2026112510392074
+	- Requirements:
+		- File the draft in `upstream/2026112510392174/` in shcl's backlog, once the user says so.
+		- Once a shcl release has the fix, take the Miri ignores off the 33 tests that have them for the folder fsync, and drop `every_save_test_skips_miri` (dfsft).
+	- Progress log:
+		- 20261125: shcl's `sync_dir` fsyncs the folder after each save. Miri can't, and ends the test binary rather than returning an error, so every test that saves through shcl is ignored under Miri. shcl's `dev` still has it. The draft gates it on `not(miri)`, as shcl's `open_no_wait` already is.
+
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
 	- Type: Bug
@@ -7071,6 +7086,40 @@ Sorted per the notes in [Template](#template).
 	- Acceptance signoff: Self-closed: the failure was reproduced by its seed and doesn't happen with the fix.
 	- Closed: 20261123-153600
 	- Closed reason: Done
+
+- The Miri step stops on df3nh's save, and the rest of its module goes unrun
+	- ID: 2026112510392074
+	- Type: Bug
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261125-103920
+	- Opened by: t00mietum
+	- Related IDs: 2026112510392174
+	- Steps to reproduce: `cicd/cicd.bash --long`.
+	- Incorrect behavior: The Miri step failed hours in, on `dialog::tests::remote_session_greys_rows` (df3nh): "unsupported operation: `fsync` is only supported on file-backed file descriptors". The 17 dialog tests after it were listed as not run, and steps 14 to 20 never ran.
+	- Expected behavior: `--long` finishes. A test Miri can't run is found before a run of hours, and doesn't hide the tests after it.
+	- Reproduced: 20261125, in a `--long` run.
+	- Actual cause: df3nh ends with `Dialog::apply`, which saves through shcl, which fsyncs the folder. Miri can't do that, and ends the whole test binary. The 32 other tests that save have an ignore for it, and df3nh, added 2026-11-10, missed one. The step's logs were in the run folder, so they went with it.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Actual fix:
+		- df3nh keeps its greying checks, which still run under Miri. Its save moved to dfsfs, ignored under Miri like the others.
+		- dfsft fails in the quick gate on any settings test that calls `.apply()` with no ignore.
+		- When Miri stops on an error, the test it was on fails and a new Miri runs the rest of the module, in the same time limit.
+		- The step keeps its log in `cicd/artifacts/miri/`, rotated, with each module's time.
+		- Miri runs last of the leak checks, so Soak, Window soak and CodeQL report before it.
+		- dezay ran the real `cargo fmt --check`, since cicd puts `~/.cargo/bin` before its stand-in, so it failed whenever the tree had an unformatted edit. Its stand-ins now sit in a `~/.cargo/bin` of its own.
+	- Decisions:
+		- Fuzz tests under Miri keep taking the run's seed. A failure names it, so it can be replayed, and the native Tests step has already run those seeds.
+		- A test that stops Miri still fails the step rather than being skipped, so each one gets an ignore with its reason.
+	- Branch: mirisave
+	- Commit: 20e0110
+	- Test case: dfsft, and dfsfv for the new Miri, with dexn3 and df39n still passing.
+		- Swept: every test in `settings`, `core`, `knobs` and `xfce` that saves. Only df3nh was missing its ignore. Core's history save doesn't fsync its folder.
+	- Acceptance signoff: Self-closed: dfsft failed with dfsfs's ignore taken off, and passes with it. dfsfv passes with the new runner. Under Miri, df3nh passed in 34 minutes and dfsfs was skipped, and the log was kept with each module's time. The quick gate passed.
+	- Closed: 20261125-111900
 
 - A column up to 4 samples wide beside a gap draws at its full peak
 	- ID: 2026111716050389
