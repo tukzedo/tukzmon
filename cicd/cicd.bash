@@ -50,24 +50,27 @@
 ##	                      on the nightly config.bash pins, std included, then
 ##	                      tukzmon-settings --snapshot, with its C++ under
 ##	                      ASan, LSan, and UBSan too
-##	  13. Miri            a leak check that takes hours. It runs the tests under
-##	                      Miri on the same nightly, one Miri per module.
-##	                      TUKZMON_MIRI_FILTER=<part of a name> runs only those.
-##	                      A module past TUKZMON_MIRI_MINUTES fails
-##	  14. Soak            a slow leak check. core/tests/soak.rs runs the
+##	  13. Soak            a slow leak check. core/tests/soak.rs runs the
 ##	                      panel's work over days of skipped clock and reads the
 ##	                      heap at round N and 2N. Its report goes to
 ##	                      cicd/artifacts/soak/
-##	  15. Window soak     a long leak check. tukzmon-settings' window runs off
+##	  14. Window soak     a long leak check. tukzmon-settings' window runs off
 ##	                      screen under heaptrack, with its live graphs over days
 ##	                      of skipped clock, and the heap is read at round N and
 ##	                      2N. Its report goes to cicd/artifacts/soak/
-##	  16. CodeQL          a long leak check. CodeQL's security and quality
+##	  15. CodeQL          a long leak check. CodeQL's security and quality
 ##	                      queries run over the Rust and the C++, from a copy of
 ##	                      the tree with its crates vendored, and a build of
 ##	                      its own for the C++. A finding fails it unless
 ##	                      cicd/codeql.supp lets it by. The SARIF and a report
 ##	                      go to cicd/artifacts/codeql/
+##	  16. Miri            a leak check that takes hours, so the last of them. It
+##	                      runs the tests under Miri on the same nightly, one
+##	                      Miri per module. TUKZMON_MIRI_FILTER=<part of a name>
+##	                      runs only those. A test that stops Miri fails, and a
+##	                      new Miri runs the rest of its module. A module past
+##	                      TUKZMON_MIRI_MINUTES fails. The log, with each
+##	                      module's time, goes to cicd/artifacts/miri/
 ##	  17. Nix package     the flake's package, with the workspace tests, in a
 ##	                      nixos/nix container, then nixpkgs' xfce4-panel loads
 ##	                      it from a NixOS system with the module, on Xvfb. Its
@@ -844,14 +847,15 @@ fMiriList() {   ## fMiriList DIR
 ## the collectors and the history file read the host's files and clock. Miri
 ## runs a test binary on one core, so each module gets a Miri of its own
 ## through miri-group.bash, the step's jobs at a time. A Miri per test would
-## parse the settings spec every time, at over 30 minutes each. A test Miri
-## can't run, such as one that calls C, gets cfg_attr(miri, ignore) with the
-## reason. TUKZMON_MIRI_FILTER runs only the tests whose names contain it,
+## parse the settings spec every time, at minutes each. A test Miri can't
+## run, such as one that calls C, gets cfg_attr(miri, ignore) with the
+## reason. One that slips through fails, and a new Miri runs the tests after
+## it, so one run finds them all. TUKZMON_MIRI_FILTER runs only the tests whose names contain it,
 ## such as to rerun one that failed. A module past MIRI_MINUTES fails and
 ## names the test it was on. timeout signals the whole process group, so the
 ## miri under cargo stops too.
 fStepMiri() {
-	local dir="${CARGO_TARGET_DIR:-${root}/target}" logs="${TMPDIR}/miri" n=0 rc=0
+	local dir="${CARGO_TARGET_DIR:-${root}/target}" logs="${TMPDIR}/miri" art="${root}/${MIRI_DIR}" stamp='' n=0 rc=0
 	local -a miriEnv=()
 	if [[ "$(rustup toolchain list 2> /dev/null || true)" != *"${RUST_NIGHTLY}-"* ]] \
 		|| [[ "$(rustup component list --installed --toolchain "${RUST_NIGHTLY}" 2> /dev/null || true)" != *miri* ]]; then
@@ -876,12 +880,19 @@ fStepMiri() {
 	fEcho_Clean "${n} test(s) in $(wc -l < "${logs}/list") module(s), one Miri each, ${jobs} at a time, ${MIRI_MINUTES} min at most"
 	env -u DISPLAY -u WAYLAND_DISPLAY -u CARGO_TERM_QUIET "${miriEnv[@]}" NIGHTLY="${RUST_NIGHTLY}" LOCKED="${locked[*]}" MINUTES="${MIRI_MINUTES}" \
 		xargs -P "${jobs}" -L 1 bash "${here}/utility/miri-group.bash" "${logs}" < "${logs}/list" || rc=1
-	cat -- "${logs}"/[0-9]*.log | "${here}/utility/test-ids.bash" annotate | awk '
+	## Kept, since a failure hours in is no use once the run folder is gone.
+	stamp="$(printf '%(%Y%m%d-%H%M%S)T' -1)"
+	mkdir -p -- "${art}" || return 1
+	cat -- "${logs}"/[0-9]*.log | "${here}/utility/test-ids.bash" annotate > "${art}/miri_${stamp}.log" || rc=1
+	awk '
 		/^PASS / { n++; next }
-		/^ *(Running|Finished|Blocking waiting for file lock) |^running [0-9]+ tests?$|^test result: ok\.|has been running for over 60 seconds$|^$/ { next }
+		/^ *(Running|Finished|Blocking waiting for file lock) |^running [0-9]+ tests?$|^test result: ok\.|has been running for over 60 seconds$|^## |^$/ { next }
 		/^FAIL / { bad++ }
 		{ print }
-		END { printf "%d test(s) passed under Miri%s\n", n, bad ? ", " bad " failed" : "" }'
+		END { printf "%d test(s) passed under Miri%s\n", n, bad ? ", " bad " failed" : "" }' "${art}/miri_${stamp}.log"
+	## The rotation may add a tag to the name, such as _first.
+	fEcho_Clean "log: ${MIRI_DIR}/miri_${stamp}*.log, with each module's time"
+	gfs_rotate "${art}" miri log > /dev/null 2>&1 || true
 	return "${rc}"
 }
 
@@ -1611,3 +1622,5 @@ exit 0
 ##		  with the arm64 area.
 ##		- 2026-11-20: Dogfood also copies the build to the synced exec folder,
 ##		  for dogfood_tukzmon on other boxes.
+##		- 2026-11-25: Miri runs last of the leak checks, goes on past a test
+##		  that stops it, and keeps its log in cicd/artifacts/miri/.

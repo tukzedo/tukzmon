@@ -1026,6 +1026,65 @@ mod tests {
 		);
 	}
 
+	/// Names each test in `text` that calls `.apply()` with no Miri ignore.
+	fn saves_under_miri(text: &str) -> Vec<String> {
+		let mut found = Vec::new();
+		let mut lines = text.lines();
+		while let Some(line) = lines.next() {
+			if line.trim() != "#[test]" {
+				continue;
+			}
+			let mut ignored = false;
+			let mut head = "";
+			for l in lines.by_ref() {
+				// any ignore keeps it from Miri, on one line or split by rustfmt
+				ignored |= l.contains("ignore");
+				if l.trim_start().starts_with("fn ") {
+					head = l;
+					break;
+				}
+			}
+			let end = format!("{}}}", &head[..head.len() - head.trim_start().len()]);
+			let saves = lines
+				.by_ref()
+				.take_while(|l| *l != end)
+				.any(|l| l.contains(".apply()"));
+			if saves && !ignored {
+				found.push(head.trim().to_string());
+			}
+		}
+		found
+	}
+
+	// Test ID: dfsft
+	#[test]
+	#[cfg_attr(miri, ignore = "a source check, the same under Miri")]
+	fn every_save_test_skips_miri() {
+		// Miri stops on the folder fsync in shcl's save, which ends every test
+		// after it in the module too, hours into a --long run
+		let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+		let mut found = Vec::new();
+		let mut files = 0;
+		for entry in std::fs::read_dir(&dir).unwrap() {
+			let path = entry.unwrap().path();
+			if path.extension().is_some_and(|e| e == "rs") {
+				files += 1;
+				let text = std::fs::read_to_string(&path).unwrap();
+				found.extend(
+					saves_under_miri(&text)
+						.into_iter()
+						.map(|t| format!("{}: {t}", path.display())),
+				);
+			}
+		}
+		assert!(files > 3, "read only {files} files in {}", dir.display());
+		assert!(found.is_empty(), "no Miri ignore: {found:#?}");
+		let sample = "\t#[test]\n\tfn a() {\n\t\tx.apply().unwrap();\n\t}\n\
+			\t#[test]\n\t#[cfg_attr(\n\t\tmiri,\n\t\tignore = \"r\"\n\t)]\n\tfn b() {\n\t\tx.apply().unwrap();\n\t}\n\
+			\t#[test]\n\tfn c() {\n\t\tx.apply(h, t);\n\t}\n";
+		assert_eq!(saves_under_miri(sample), ["fn a() {"]);
+	}
+
 	fn scratch(name: &str) -> Dir {
 		let base = std::env::temp_dir().join(format!(
 			"test_tukzmon-settings_{}_{name}",
@@ -1745,8 +1804,7 @@ mod tests {
 	#[test]
 	fn remote_session_greys_rows() {
 		let d = scratch("remote");
-		let path = d.0.join("t.shcl");
-		let mut dlg = Dialog::open(path.clone()).unwrap();
+		let mut dlg = Dialog::open(d.0.join("t.shcl")).unwrap();
 		assert!(dlg.set_text("sample_ms", "400"));
 		let set_aside = ["sample_ms", "animate", "cpu_sample", "net_sample"];
 		for id in set_aside {
@@ -1775,9 +1833,23 @@ mod tests {
 			);
 		}
 		assert!(dlg.state(config::CALM_REMOTE).counts && dlg.state("cpu_width").counts);
-		// the previews follow the session, but the file keeps the saved values
 		assert!(dlg.look().calmed());
 		assert_eq!((dlg.look().rate(100), dlg.look().rate(300)), (1000, 2400));
+		assert!(dlg.set(config::CALM_REMOTE, &Value::Bool(false)));
+		assert!(dlg.state("sample_ms").counts && !dlg.look().calmed());
+	}
+
+	// Test ID: dfsfs
+	#[test]
+	#[cfg_attr(miri, ignore = "the save fsyncs its folder, which Miri can't")]
+	fn remote_session_saves_kept_values() {
+		let d = scratch("remote-save");
+		let path = d.0.join("t.shcl");
+		let mut dlg = Dialog::open(path.clone()).unwrap();
+		assert!(dlg.set_text("sample_ms", "400"));
+		dlg.watch_session(Watch::fixed(Session::Remote));
+		// the previews follow the session, but the file keeps the saved values
+		assert!(dlg.look().calmed());
 		dlg.apply().unwrap();
 		let text = std::fs::read_to_string(&path).unwrap();
 		assert!(text.contains("sample_ms: 400"), "{text}");
@@ -1786,8 +1858,6 @@ mod tests {
 			"{text}"
 		);
 		assert!(!config::Look::load(&path).unwrap().calmed());
-		assert!(dlg.set(config::CALM_REMOTE, &Value::Bool(false)));
-		assert!(dlg.state("sample_ms").counts && !dlg.look().calmed());
 	}
 
 	// Test ID: decb5

@@ -94,9 +94,6 @@ LEAK_CHECKS=(
 	## its C++ under UBSan too. 1m 25s from a fresh target dir and about 5 s
 	## with nothing to rebuild, at 8 jobs and load 14 (2026-10-25).
 	"Sanitizers|fStepSanitizers|fast"
-	## The tests under Miri, one Miri per module. It takes hours, which is far
-	## too long for the default run.
-	"Miri|fStepMiri|hours"
 	## The soak test, core/tests/soak.rs. About 1 minute in a debug build.
 	"Soak|fStepSoak|slow"
 	## The settings window's soak, under heaptrack. Long, so only in --long,
@@ -105,6 +102,10 @@ LEAK_CHECKS=(
 	## CodeQL over the Rust and the C++. About 5 minutes at 8 jobs, with its
 	## own build of tukzmon-settings (2026-11-10).
 	"CodeQL|fStepCodeql|long"
+	## The tests under Miri, one Miri per module. It takes hours, which is far
+	## too long for the default run. Last, so a failure hours in doesn't keep
+	## the checks of minutes from running.
+	"Miri|fStepMiri|hours"
 )
 ## Steps that get a quarter of the CPUs, busy or not.
 HEAVY_STEPS=(fStepSanitizers fStepMiri fStepSoak fStepWindowSoak fStepCodeql fStepDemo)
@@ -120,6 +121,8 @@ MIRI_TARGETS=(
 ## Whole minutes only, as with CICD_MAX_JOBS.
 MIRI_MINUTES=480
 [[ ! "${TUKZMON_MIRI_MINUTES:-}" =~ ^[1-9][0-9]{0,3}$ ]] || MIRI_MINUTES="${TUKZMON_MIRI_MINUTES}"
+## The Miri step's log, rotated, with each module's time on its "## " lines.
+MIRI_DIR="cicd/artifacts/miri"
 ## The soak test's reports, and dhat's heap profile when it fails, rotated.
 SOAK_DIR="cicd/artifacts/soak"
 ## LeakSanitizer's suppressions. Prebuilt libraries only, by name.
