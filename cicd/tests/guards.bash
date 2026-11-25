@@ -596,14 +596,16 @@ fTest_release_path_maps() {
 ## Test ID: dezay
 fTest_step_output_lines() {
 	local t="${work}/step-lines" out='' rc=0 rule='' f='' result=''
-	mkdir -p -- "${t}/bin" "${t}/host"
+	mkdir -p -- "${t}/home/.cargo/bin" "${t}/host"
 	## Stand-ins for Format's tools exit STUB_RC, in a temp root of the test's own.
-	for f in cargo clang-format black; do printf '#!/bin/sh\nexit "${STUB_RC:-0}"\n' > "${t}/bin/${f}"; done
-	chmod +x -- "${t}/bin/"*
+	## cicd.bash puts ~/.cargo/bin first, so they go there, under a HOME of
+	## the test's own, or the real cargo fmt checks the live tree.
+	for f in cargo clang-format black; do printf '#!/bin/sh\nexit "${STUB_RC:-0}"\n' > "${t}/home/.cargo/bin/${f}"; done
+	chmod +x -- "${t}/home/.cargo/bin/"*
 	rule="$(printf '%.0s•' {1..79})"
 	for result in PASS FAIL; do
 		rc=0
-		out="$(env -u TUKZMON_IN_IMAGE STUB_RC="$([[ "${result}" == PASS ]] && echo 0 || echo 1)" HOST_TEMP="${t}/host" PATH="${t}/bin:${PATH}" \
+		out="$(env -u TUKZMON_IN_IMAGE STUB_RC="$([[ "${result}" == PASS ]] && echo 0 || echo 1)" HOST_TEMP="${t}/host" HOME="${t}/home" PATH="${t}/home/.cargo/bin:${PATH}" \
 			bash "${cicd}/cicd.bash" --backlog-run-quick format --no-container 2>&1)" || rc=$?
 		[[ "${result}" == PASS ]] && ((rc != 0)) && { fWhy "a passing Format gave exit ${rc}: ${out}"; return 1; }
 		[[ "${result}" == FAIL ]] && ((rc == 0)) && { fWhy "a failing Format passed: ${out}"; return 1; }
@@ -663,8 +665,42 @@ fTest_miri_names_stuck_test() {
 	## A failed assert has its own line, and nothing is added.
 	fRun 0004 'test m::a ... FAILED\ntest m::b ... ok\ntest m::c ... ok\n|' 101
 	((rc == 1)) || { fWhy "a failed test gave ${rc}"; return 1; }
-	## the Running line, 3 results and the stand-in's error line
-	(($(wc -l < "${log}") == 5)) || { fWhy "a failed test got more lines: $(cat -- "${log}")"; return 1; }
+	## the Running line, 3 results and the stand-in's error line, then the time
+	(($(grep -vc '^## ' "${log}") == 5)) || { fWhy "a failed test got more lines: $(cat -- "${log}")"; return 1; }
+	[[ "$(tail -n 1 -- "${log}")" =~ ^'## m: 3 test(s), 1 Miri(s), '[0-9]+m\ [0-9]{2}s$ ]] || { fWhy "no time line last: $(cat -- "${log}")"; return 1; }
+}
+
+## Test ID: dfsfv
+fTest_miri_goes_on_after_a_stop() {
+	local dir="${work}/miri-stop" log='' rc=0 c=''
+	mkdir -p -- "${dir}/bin"
+	## A cargo stand-in for Miri that stops on m::b, as on an fsync it can't
+	## do, and runs clean when m::a isn't among its tests.
+	cat > "${dir}/bin/cargo" <<- 'EOF'
+		#!/usr/bin/env bash
+		printf '     Running unittests (x/pkg-0a1b)\n' >&2
+		echo "$*" >> "${STUB_CALLS}"
+		if [[ " $* " == *" m::a "* ]]; then
+			printf 'test m::a ... ok\ntest m::b ... '
+			printf 'error: unsupported operation: fsync\n' >&2
+			exit 1
+		fi
+		for t in m::c m::d; do [[ " $* " != *" ${t} "* ]] || printf 'test %s ... ok\n' "${t}"; done
+	EOF
+	chmod +x -- "${dir}/bin/cargo"
+	log="${dir}/0001.log"
+	PATH="${dir}/bin:${PATH}" STUB_CALLS="${dir}/calls" NIGHTLY=x LOCKED='' MINUTES=1 \
+		bash "${cicd}/utility/miri-group.bash" "${dir}" 0001 pkg --lib m::a m::b m::c m::d || rc=$?
+	((rc == 1)) || { fWhy "a stop gave ${rc}"; return 1; }
+	(($(wc -l < "${dir}/calls") == 2)) || { fWhy "Miri ran $(wc -l < "${dir}/calls") time(s): $(cat -- "${dir}/calls")"; return 1; }
+	[[ "$(tail -n 1 -- "${dir}/calls")" == *"--exact --test-threads=1 m::c m::d" ]] || { fWhy "the second Miri ran: $(tail -n 1 -- "${dir}/calls")"; return 1; }
+	for c in 'm::b stopped Miri, exit 1' 'test m::b ... FAILED' 'test m::c ... ok' 'test m::d ... ok' 'error: unsupported operation: fsync'; do
+		grep -qxF -- "${c}" "${log}" || { fWhy "no '${c}' in: $(cat -- "${log}")"; return 1; }
+	done
+	grep -qF 'not run' "${log}" && { fWhy "a test is still listed as not run: $(cat -- "${log}")"; return 1; }
+	(($(grep -c 'Running ' "${log}") == 1)) || { fWhy "the crate's line isn't there once: $(cat -- "${log}")"; return 1; }
+	## the crate's line still comes first, for test-ids.bash
+	[[ "$(head -n 1 -- "${log}")" == *"Running unittests"* ]] || { fWhy "the log starts: $(head -n 1 -- "${log}")"; return 1; }
 }
 
 ## Test ID: df39n
@@ -1505,3 +1541,5 @@ exit "${failed}"
 ##		  name.
 ##		- 2026-11-20: The Dogfood step's copy to the synced folder, and
 ##		  dogfood_tukzmon's install from it.
+##		- 2026-11-25: A test that stops Miri on an error, and the rest of its
+##		  module still run.
