@@ -300,10 +300,13 @@ Sorted per the notes in [Template](#template).
 	- Opened by: t00mietum
 	- Related IDs: 2026112510392074
 	- Requirements:
-		- File the draft in `upstream/2026112510392174/` in shcl's backlog, once the user says so.
+		- File the draft in `upstream/2026112510392174/` in shcl's backlog.
 		- Once a shcl release has the fix, take the Miri ignores off the 33 tests that have them for the folder fsync, and drop `every_save_test_skips_miri` (dfsft).
 	- Progress log:
 		- 20261125: shcl's `sync_dir` fsyncs the folder after each save. Miri can't, and ends the test binary rather than returning an error, so every test that saves through shcl is ignored under Miri. shcl's `dev` still has it. The draft gates it on `not(miri)`, as shcl's `open_no_wait` already is.
+		- Answer 20261125: yes, file it. Filed in shcl's backlog as 2026112517280964, with the draft copied to shcl's private upstream folder as `tukzmon-2026112510392174/`.
+	- Decisions:
+		- 20261125: the 33 tests stay as they are until then. They run natively and skip only under Miri, so commenting them out would only drop their native runs.
 
 - Pre-next-cut: Don't error on a config file with values that no longer exist
 	- ID: 2026102913122701
