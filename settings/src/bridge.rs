@@ -373,6 +373,11 @@ pub mod ffi {
 		/// narrower than it asks to be, as "page: name width of asked".
 		#[allow(dead_code, reason = "only the tests ask")]
 		fn squeezed(d: &mut Dialog, screens: &str) -> Vec<String>;
+		/// Opened as `window_fit` opens it with the window's font at that
+		/// many points, per tab with no tabs under it "label h v", where h and
+		/// v are 1 for a scroll bar shown across or down its page.
+		#[allow(dead_code, reason = "only the tests ask")]
+		fn page_scroll_bars(d: &mut Dialog, screens: &str, points: i32) -> Vec<String>;
 		/// The most contrast an empty checkbox has with the window, as WCAG
 		/// measures it.
 		#[allow(dead_code, reason = "only the tests ask")]
@@ -2190,6 +2195,44 @@ mod tests {
 			let got = ffi::squeezed(&mut d, screens.to_str().unwrap());
 			std::fs::remove_file(&screens).unwrap();
 			assert!(got.is_empty(), "{got:?}");
+		});
+	}
+
+	// Test ID: dfw90
+	#[test]
+	#[cfg_attr(miri, ignore = "it builds the Qt window, and Miri can't call C++")]
+	fn pages_open_without_scroll_bars() {
+		on_qt(|| {
+			let dir = std::env::temp_dir();
+			let screens = dir.join(format!(
+				"test_tukzmon-settings_{}_page_bars.json",
+				std::process::id()
+			));
+			std::fs::write(
+				&screens,
+				r#"{"windowFrameMargins": false, "screens": [{"name": "big", "x": 0, "y": 0, "width": 1920, "height": 1200, "logicalDpi": 96, "logicalBaseDpi": 96, "dpr": 1}]}"#,
+			)
+			.unwrap();
+			let mut d = Dialog::open(dir.join(format!(
+				"test_tukzmon-settings_{}_page_bars_never_written.shcl",
+				std::process::id()
+			)))
+			.unwrap();
+			// a bigger font makes General the widest page, which the GTK style's did
+			for points in [9, 12, 14] {
+				let got = ffi::page_scroll_bars(&mut d, screens.to_str().unwrap(), points);
+				assert!(got.len() >= 4, "{points} pt: {got:?}");
+				for line in &got {
+					// Colors is meant to scroll down
+					let want = if line.starts_with("Colors ") {
+						" 0 1"
+					} else {
+						" 0 0"
+					};
+					assert!(line.ends_with(want), "{points} pt: {got:?}");
+				}
+			}
+			std::fs::remove_file(&screens).unwrap();
 		});
 	}
 
