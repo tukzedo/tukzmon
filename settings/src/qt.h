@@ -39,6 +39,7 @@ rust::Vec<rust::String> tab_walk(Dialog &d, bool colors, std::size_t from, std::
 rust::Vec<rust::String> slider_clicks(Dialog &d);
 rust::Vec<rust::String> window_fit(Dialog &d, rust::Str screens);
 rust::Vec<rust::String> squeezed(Dialog &d, rust::Str screens);
+rust::Vec<rust::String> page_scroll_bars(Dialog &d, rust::Str screens, std::int32_t points);
 double empty_box_contrast(bool dark);
 rust::Vec<std::int32_t> slider_accent_pixels();
 rust::Vec<std::int32_t> chip_restyles(Dialog &d, rust::Str color);

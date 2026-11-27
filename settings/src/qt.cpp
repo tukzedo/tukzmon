@@ -1287,8 +1287,8 @@ public:
 
 	// "id left mid control right revert lead" per row shown with a label, in
 	// the window: its label's left edge and middle line, its control's left
-	// edge, the right edge of its last part, such as a color's hex box, its
-	// revert's left edge, and its line label's, or -1
+	// edge, the right edge of its last part, such as a color's hex box or the
+	// theme's dropdown, its revert's left edge, and its line label's, or -1
 	std::vector<std::string> rowSpots() const {
 		std::vector<std::string> out;
 		for (const auto &r : rows) {
@@ -1297,6 +1297,8 @@ public:
 			const QRect l(r->label->mapTo(this, QPoint(0, 0)), r->label->size());
 			const int c = r->control->mapTo(this, QPoint(0, 0)).x();
 			const QWidget *last = r->line ? static_cast<QWidget *>(r->line) : r->control;
+			if (r->info.chooser && r->combo)
+				last = r->combo;
 			if (!r->radios.empty())
 				last = r->radios.back();
 			const int right = last->mapTo(this, QPoint(last->width(), 0)).x();
@@ -1718,7 +1720,12 @@ private:
 		if (r.lineLabel)
 			h->addWidget(r.label);
 		h->addWidget(r.control);
-		h->addWidget(r.revert);
+		// the theme's revert resets only its dropdown, so it goes before the buttons
+		if (auto *box = r.info.chooser && r.combo ? qobject_cast<QBoxLayout *>(r.control->layout()) : nullptr) {
+			box->insertWidget(box->indexOf(r.combo) + 1, r.revert);
+			QWidget::setTabOrder(r.combo, r.revert);
+		} else
+			h->addWidget(r.revert);
 		h->addStretch(1);
 		r.grid->addLayout(h, line, 1, 1, 2);
 		r.joined = h;
@@ -2438,6 +2445,10 @@ void openSized(Window &w) {
 	// filled, which squeezed the graph list
 	for (auto *c : w.findChildren<QWidget *>())
 		c->updateGeometry();
+	// that only reaches each widget's own layout, and a row's line nested in it kept an old, narrower size, so General
+	// opened too narrow and scrolled
+	for (auto *l : w.findChildren<QLayout *>())
+		l->invalidate();
 	QSize size = w.sizeHint().expandedTo(QSize(560, 420));
 	if (const QScreen *screen = w.screen())
 		size = fitSize(size, screen->availableGeometry(), QMargins());
@@ -3198,6 +3209,30 @@ rust::Vec<rust::String> window_fit(Dialog &d, rust::Str screens) {
 		w.select(i);
 		tukzmon::App::processEvents();
 		out.push_back(rust::String(QString::fromStdString(w.tabText(i)).trimmed().toStdString() + " " + w.scrollNow()));
+	}
+	return out;
+}
+
+rust::Vec<rust::String> page_scroll_bars(Dialog &d, rust::Str screens, std::int32_t points) {
+	const App app("offscreen:configfile=" + QByteArray(screens.data(), qsizetype(screens.size())));
+	tukzmon::App::setStyle(new BoxStyle);
+	QFont font = QApplication::font();
+	font.setPointSize(points);
+	QApplication::setFont(font);
+	Window w(d);
+	openSized(w);
+	w.show();
+	rust::Vec<rust::String> out;
+	for (int i = 0; i < w.tabCount(); i++) {
+		if (!w.isLeaf(i))
+			continue;
+		w.select(i);
+		tukzmon::App::processEvents();
+		for (const auto *s : w.findChildren<QScrollArea *>())
+			if (s->isVisible())
+				out.push_back(rust::String(QString::fromStdString(w.tabText(i)).trimmed().toStdString() + " " +
+					std::to_string(int(s->horizontalScrollBar()->isVisible())) + " " +
+					std::to_string(int(s->verticalScrollBar()->isVisible()))));
 	}
 	return out;
 }

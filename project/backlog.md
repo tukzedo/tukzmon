@@ -61,7 +61,9 @@ Sorted per the notes in [Template](#template).
 	- ID: 2026112016262966
 	- Type: Enhancement
 	- Status: Waiting on UAT
+		- 20261127: The Name line's arrow now sits right after the dropdown, before Save. A look at Themes on b23 tells whether that reads right.
 		- A look at General and Themes/Outline on b23, with a build from after this, tells whether the arrows read right beside the checkboxes, dropdowns and colors.
+		- The reset for "Theme name [dropdown]" is to the right of the buttons, not the dropdown.
 	- Stand-in: none (20261120). Where the arrows look best turns on taste.
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Avg
@@ -80,14 +82,19 @@ Sorted per the notes in [Template](#template).
 		- A dropdown's layout slot is now as wide as it's drawn. Qt's minimum for a short one, such as Auto, was wider, which left a gap before its arrow.
 		- Verified: dfjv9 failed before the change and passes after. The quick gate's format, build, lint and tests, and Sanitizers passed. General still fits an 800 px screen with no scroll bar.
 		- Verified 20261120: dfjv9 passed in the round's gate run at d214c59. General and Outline at d214c59, in both the GTK style and Qt's own, show each checkbox, dropdown, number box and color with its arrow right after it, and the Name line's arrow after Randomize. Left for a person: the calls in Decisions on which controls keep the right-edge column, since the requirement covers every control that doesn't span the width.
+		- 20261127: The theme's arrow moved from after Randomize to right after the Name dropdown, and Tab goes from the dropdown to it before the buttons.
+		- Verified 20261127: dfjv9 failed with the arrow after Randomize, 448 px past the dropdown, and passes after. Outline in the GTK style shows the arrow right after the dropdown.
 	- Decisions:
 		- Themes/Colors keeps its own layout, since its arrows already sit by their boxes and line up in each column.
 		- The theme's Name line counts as short, so its arrow follows Randomize.
+			- 20261127: Replaced by the reopen. The arrow follows the dropdown, since it resets only the theme pick.
 		- The graph list keeps its revert column, since every list row has the same cells.
-	- Branch: nov20-2026112016262892
-	- Commit: f419b74
+	- Branch: nov20-2026112016262892, nov27-2026112018370950
+	- Commit: f419b74, 5861b17
 	- Test case: `bridge::tests::short_control_revert_beside_it` (dfjv9), over General and Outline.
 		- Swept: every grid `placeRow` fills outside a Colors section, and every dropdown `buildControl` makes, the graph list's too, which desen covers.
+		- 20261127: the `row_spots` hook gives the theme dropdown's right edge as the Name line's last part, where it gave the edge of the buttons. dfjv9's asserts are unchanged.
+		- Swept 20261127: the only chooser row is the theme's, and `lineFor` is the one place a short control's arrow is put.
 
 - Dogfood to the synced folder, so other boxes can install the latest build
 	- ID: 2026112016074145
@@ -278,7 +285,8 @@ Sorted per the notes in [Template](#template).
 - Settings window opens smaller than the General tab under the GTK style, so General scrolls both ways
 	- ID: 2026112018370950
 	- Type: Bug
-	- Status: Queued
+	- Status: Closed
+	- Closed reason: Done
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261120-183709
@@ -289,11 +297,24 @@ Sorted per the notes in [Template](#template).
 	- Expected behavior: The window opens big enough for General, as it does under Qt's own style, where General fits an 800 px screen with no scroll bar.
 	- Reproduced: 20261120, Confirmed off screen at 1100x900. Seen at d214c59 and at 50602f8 on dev, so it's older than round nov20. Under Qt's own style the same builds show no scroll bars. Not checked on a real XFCE screen.
 	- Possible cause: `openSized` in `settings/src/qt.cpp` sizes the window from `sizeHint`, which may not cover General's content when the GTK style draws wider boxes and text.
+		- 20261127: Reproduced with the GTK font at 12 pt on a 1100x900 screen. The window opened at 940x860 and General scrolled both ways. With the desktop's own font at 10 pt it didn't, since Graphs is wider there and sets the width.
+	- Actual cause: The lines with a short control and its arrow, such as Max age in, are layouts nested in each page's grid. They kept an old, narrower size when the window was sized, since `updateGeometry` reaches only a widget's own layout. General asked for 62 px less width than it took once shown. The font only decides whether General is the widest page.
+	- Actual fix: `openSized` clears every layout's kept size before it reads the window's size.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Verified: dfw90 failed before the fix, with General showing both scroll bars at 12 pt, and passes after. On a 1100x900 screen with the GTK style at 12 pt, General opens with no scroll bar, at 944x860. At 10 pt the window is the same size as before.
+	- Branch: nov27-2026112018370950
+	- Commit: 5861b17
+	- Test case: `bridge::tests::pages_open_without_scroll_bars` (dfw90), at 9, 12 and 14 pt. No page shows a scroll bar across, and only Themes/Colors one down.
+		- Swept: every place the window is sized, `openSized` and the `page_shades` hook, which only reads colors.
+	- Acceptance signoff: Self-closed: dfw90 fails before and passes after, and the expected behavior was checked under the GTK style.
+	- Closed: 20261127-101600
 
 - Run the save tests under Miri again once shcl skips its folder fsync there
 	- ID: 2026112510392174
 	- Type: Task
-	- Status: Queued
+	- Status: Stalled
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261125-103921
@@ -305,6 +326,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- 20261125: shcl's `sync_dir` fsyncs the folder after each save. Miri can't, and ends the test binary rather than returning an error, so every test that saves through shcl is ignored under Miri. shcl's `dev` still has it. The draft gates it on `not(miri)`, as shcl's `open_no_wait` already is.
 		- Answer 20261125: yes, file it. Filed in shcl's backlog as 2026112517280964, with the draft copied to shcl's private upstream folder as `tukzmon-2026112510392174/`.
+		- 20261127: Held for a shcl release with its 2026112517280964, which closed for v3.0.0-beta.2. The newest tag is still v3.0.0-beta1, which tukzmon pins.
 	- Decisions:
 		- 20261125: the 33 tests stay as they are until then. They run natively and skip only under Miri, so commenting them out would only drop their native runs.
 
