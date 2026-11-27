@@ -293,7 +293,7 @@ Sorted per the notes in [Template](#template).
 - Run the save tests under Miri again once shcl skips its folder fsync there
 	- ID: 2026112510392174
 	- Type: Task
-	- Status: Queued
+	- Status: Stalled
 	- Target version: v1.0.0-beta.2
 	- Priority|Severity: Low
 	- Opened: 20261125-103921
@@ -305,6 +305,7 @@ Sorted per the notes in [Template](#template).
 	- Progress log:
 		- 20261125: shcl's `sync_dir` fsyncs the folder after each save. Miri can't, and ends the test binary rather than returning an error, so every test that saves through shcl is ignored under Miri. shcl's `dev` still has it. The draft gates it on `not(miri)`, as shcl's `open_no_wait` already is.
 		- Answer 20261125: yes, file it. Filed in shcl's backlog as 2026112517280964, with the draft copied to shcl's private upstream folder as `tukzmon-2026112510392174/`.
+		- 20261127: Held for a shcl release with its 2026112517280964, which closed for v3.0.0-beta.2. The newest tag is still v3.0.0-beta1, which tukzmon pins.
 	- Decisions:
 		- 20261125: the 33 tests stay as they are until then. They run natively and skip only under Miri, so commenting them out would only drop their native runs.
 
