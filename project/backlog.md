@@ -22,181 +22,6 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template).
 
-- Test options in settings: horizontal and vertical blur radius
-	- ID: 2026111913545113
-	- Type: Feature
-	- Status: Waiting on UAT
-		- A look at the panel with the blur at 0, 0.5 and 1 tells whether it helps the shimmer in 2026111623513501, and whether 0.5 stays the default.
-		- 20261119: b23 runs build dfh6f, from before the blur went in, so it needs a new build before the look.
-	- Stand-in: none (20261119). Whether the blur helps the shimmer turns on how it looks to the eye.
-	- Priority|Severity: High
-	- Opened: 20261119-135451
-	- Opened by: t00mietum
-	- Related IDs: 2026111623513501
-	- Requirements:
-		- Add 2 test options to the settings window: Horizontal blur radius, and Vertical blur radius.
-		- Make these features a code constant that can be turned off.
-		- Default to 0.5 px.
-	- Target version: v1.0.0-beta.2
-	- Actual effort: Avg
-	- Progress log:
-		- 20261119: General, under Misc, has "Test blur radius px, horizontal" and "vertical", at `graph.blur_x` and `graph.blur_y`, 0 to 4, default 0.5. The plot is blurred after it's drawn, over a box 2r + 1 pixels wide, so 0.5 mixes 1:2:1. The border and the hover line aren't blurred. `config::BLUR_TEST` off hides both rows and draws with no blur. `design.md` Drawing has it.
-		- Cost of the default, at scale 2: draw-bench's 24 cases took about 110 us a draw at 0 and 170 at 0.5, in 3 runs each in turn at load 10 to 11 on 32 cores. A first cut took 205.
-		- The profiler's panel tick, 7 graphs at 898x48 scale 2, took 686 us user at 0, at load 13, and 1059 at 0.5, at load 16. So the default costs about 370 us user a tick there. A second run at 0 came at load 35 and was dropped.
-		- At 0 the blur is skipped, so nothing else changes. The render tests pass unchanged with it at 0.
-		- Verified: dfh89 failed with the blur skipped and passed with it. dfh8a and dfh8b passed with `BLUR_TEST` on and off. With it off, the General tab showed neither row. With it on, the General tab still fits with no scroll bar on an 800 px offscreen screen. The quick gate's format, build, lint and tests, and Sanitizers passed.
-		- 20261119: b23 gets the merged dev build through `utility/dev-install.bash --no-restart` at the round's end, per the round settings. The look needs a panel restart first.
-	- Decisions:
-		- The 2 rows share one line under Misc, as number boxes. As sliders under a heading of their own, the General tab needed a scroll bar on an 800 px screen.
-		- The radius is in logical pixels, like Border px, so a scale 2 screen blurs twice as far.
-		- The blur is a box 2r + 1 wide, so a fractional radius takes part of the outer pixels. It works in premultiplied color, so a transparent background blurs right.
-		- The plot's end pixels stand in for what's past them, so the border color doesn't bleed into the plot.
-		- Tests that read exact pixels from the default look now set the blur to 0: the render tests' `look()`, the graphs tests' `two()`, and `right_column_fills_tip`. Their asserts are unchanged.
-	- Branch: nov19b-2026111913545113
-	- Commit: 272d273
-	- Test case: `render::tests::blur_taps_box` (dfh88), `render::tests::blur_mixes_neighbors_only` (dfh89), `config::tests::blur_rows_follow_build` (dfh8a), and `dialog::tests::blur_rows_follow_build` (dfh8b).
-		- Swept: every draw goes through `Frame::draw_in`, which the panel, the settings window's graph list, and the preview and profile examples call. Every `Look` literal in the tests takes the new fields from `Look::default()`.
-
-- Pre-next-cut: Move the reset icon to the right of a control that doesn't span the entire width
-	- ID: 2026112016262966
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- 20261127: The Name line's arrow now sits right after the dropdown, before Save. A look at Themes on b23 tells whether that reads right.
-		- A look at General and Themes/Outline on b23, with a build from after this, tells whether the arrows read right beside the checkboxes, dropdowns and colors.
-		- The reset for "Theme name [dropdown]" is to the right of the buttons, not the dropdown.
-	- Stand-in: none (20261120). Where the arrows look best turns on taste.
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Avg
-	- Opened: 20261120-162628
-	- Opened by: t00mietum
-	- Related IDs: 2026110215302659, 2026112016262892
-	- Requirements:
-		- For controls that don't span the entire width, move its reset icon from the "regular" reset "column", to be more immediately to the right of the control. E.g. "Reduce motion in remote session".
-	- Estimated effort: Avg
-	- Note:
-		- This replaces the call in 2026110215302659 that General, Graphs, and Outline keep their arrows in one column at the right edge, for controls that don't span the width.
-		- `design.md` isn't updated with the change. That waits until it passes UAT, as 2026112016263003.
-	- Actual effort: Low
-	- Progress log:
-		- On General, Outline and the theme's Name line, a checkbox, dropdown, number box or color has its arrow right after it. Sliders and text boxes still have theirs at the right edge, lined up.
-		- A dropdown's layout slot is now as wide as it's drawn. Qt's minimum for a short one, such as Auto, was wider, which left a gap before its arrow.
-		- Verified: dfjv9 failed before the change and passes after. The quick gate's format, build, lint and tests, and Sanitizers passed. General still fits an 800 px screen with no scroll bar.
-		- Verified 20261120: dfjv9 passed in the round's gate run at d214c59. General and Outline at d214c59, in both the GTK style and Qt's own, show each checkbox, dropdown, number box and color with its arrow right after it, and the Name line's arrow after Randomize. Left for a person: the calls in Decisions on which controls keep the right-edge column, since the requirement covers every control that doesn't span the width.
-		- 20261127: The theme's arrow moved from after Randomize to right after the Name dropdown, and Tab goes from the dropdown to it before the buttons.
-		- Verified 20261127: dfjv9 failed with the arrow after Randomize, 448 px past the dropdown, and passes after. Outline in the GTK style shows the arrow right after the dropdown.
-	- Decisions:
-		- Themes/Colors keeps its own layout, since its arrows already sit by their boxes and line up in each column.
-		- The theme's Name line counts as short, so its arrow follows Randomize.
-			- 20261127: Replaced by the reopen. The arrow follows the dropdown, since it resets only the theme pick.
-		- The graph list keeps its revert column, since every list row has the same cells.
-	- Branch: nov20-2026112016262892, nov27-2026112018370950
-	- Commit: f419b74, 5861b17
-	- Test case: `bridge::tests::short_control_revert_beside_it` (dfjv9), over General and Outline.
-		- Swept: every grid `placeRow` fills outside a Colors section, and every dropdown `buildControl` makes, the graph list's too, which desen covers.
-		- 20261127: the `row_spots` hook gives the theme dropdown's right edge as the Name line's last part, where it gave the edge of the buttons. dfjv9's asserts are unchanged.
-		- Swept 20261127: the only chooser row is the theme's, and `lineFor` is the one place a short control's arrow is put.
-
-- Dogfood to the synced folder, so other boxes can install the latest build
-	- ID: 2026112016074145
-	- Type: Feature
-	- Status: Waiting on UAT
-		- Only the live dogfood is left, which a round never runs. Run `cicd/cicd.bash` on b23, then `dogfood_tukzmon` on b28l, and check its panel restarts on b23's build.
-	- Stand-in: none (20261120). The rest needs a real dogfood into the synced folder and a panel restart on b28l, which a round never runs. dfjx6 and dfjx7 passed in the round's gate run at d214c59, and the temp-home run already stood in for the rest.
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Avg
-	- Opened: 20261120-160741
-	- Opened by: t00mietum
-	- Requirements:
-		- The dogfood step also copies `libtukzmon.so`, `tukzmon-settings` and `tukzmon.desktop` to `app/linux/tukzmon/` in the synced exec tree, with the build stamp beside them, as the other projects do.
-		- A `dogfood_tukzmon` script in `util/linux/bash` installs that copy into the user plugin folders, the same ones `dev-install.bash` uses, and restarts the panel. It says so and does nothing when the installed build is already the same.
-		- The backlog and merge gate runs still never write to the synced folder.
-	- Estimated effort: Low
-	- Progress log:
-		- 20261120: b28l wasn't getting b23's builds. The dogfood step only runs `dev-install.bash`, which installs on the box that runs it, and nothing of tukzmon's is in the synced tree.
-		- After `dev-install.bash`, the Dogfood step runs `cicd/utility/dogfood-sync.bash`. It copies the 3 files to `app/linux/tukzmon/` in the first synced exec folder that exists, with `build.txt`, which is the version line and a sha256 sum per file. It puts `utility/dogfood_tukzmon.bash` in `util/linux/bash/` as `dogfood_tukzmon`. With no synced folder it says so and copies nothing.
-		- `dogfood_tukzmon` finds the copy beside itself or under `~/synced`, and refuses one whose sums don't match yet. It installs to `dev-install.bash`'s folders and restarts the panel, unless given `--no-restart`. When the installed files are the same bytes, it says so and does nothing.
-		- Verified: dfjx6 and dfjx7 pass, and each failed with its part of the fix taken out. With the box's own release build and a temp home, the sync wrote build dfjsw's stamp, and `dogfood_tukzmon` installed it to `lib/x86_64-linux-gnu`. The quick gate and Sanitizers passed.
-	- Decisions:
-		- The stamp is `build.txt` with `tukzmon-settings --version`'s first line and the sums. The other projects have no shared stamp format. The sums let the install tell a copy still syncing from a whole one.
-		- "Already the same" compares the 3 files' bytes rather than the stamp, since a build's identity is its bytes.
-		- The repo copy is `utility/dogfood_tukzmon.bash`, so lint finds it, and the synced name has no extension, as the other `dogfood_*` launchers there have.
-		- `dogfood_tukzmon` keeps its own copy of `dev-install.bash`'s folder lookup, since it runs on boxes with no checkout. dfjx7 checks it gives the same arm64 folder as deqvr.
-		- The backlog and merge gate runs don't plan the Dogfood step, so they never reach the sync. dezar already checks that each says it never dogfoods.
-	- Test case: `dogfood_sync_copies` (dfjx6) and `dogfood_installs_synced` (dfjx7), in `cicd/tests/guards.bash`.
-		- Swept: `fStepDogfood` is the only caller of the sync. `dev-install.bash` and `dogfood_tukzmon` use the same folder lookup. No other script writes to the synced folder.
-	- Branch: nov20-2026112016074145
-	- Needs hand testing: the live run above, on b23 then b28l.
-
-- Some settings tips are long and technical, and stack asides
-	- ID: 2026110710005015
-	- Type: Enhancement
-	- Status: Waiting on UAT
-		- Hover the General tab's Scale defaults, Spike emphasis, LAN and internet, Disk drives, and the Outline sub-tab's 2 margins, and judge the wording and length.
-		- 20261119: b23 has build dfeb5 installed, from before the fix went in as 35a956e, so its window still shows the old tips until b23 is updated.
-	- Stand-in: none (20261119). Turns on wording and length.
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Low
-	- Opened: 20261107-100050
-	- Opened by: t00mietum
-	- Requirements:
-		- Cut the tips for both Scale defaults, LAN and internet, Spike emphasis, and Disk drives to a sentence or 2 on what the setting does. Numbers and kernel terms stay in design.md.
-		- Give the width and time axis tips, which are the same on every graph, fewer asides.
-		- Use "box" for the number box only, and "computer" for the computer.
-		- Make the Margins tip say plainly that 2 graphs side by side get both margins between them.
-		- Put history and settings errors in the tip and in message boxes in plain words, rather than the file reader's own, such as "short" or "trailing bytes", or the name of the file format.
-	- Estimated effort: Avg
-	- Actual effort: Low
-	- Progress log:
-		- The tips for both Scale defaults, Spike emphasis, LAN and internet, and Disk drives are 2 sentences each. Spike emphasis still says what 0% and 100% do, per 2026102408304546.
-		- Every graph's width and time axis tips, and the graph list's Width % and Time axis headers, have one aside fewer.
-		- Every tip that meant the computer says "computer". "Box" is left only for the number box.
-		- Both margin tips say that 2 graphs side by side get both margins between them.
-		- History and settings errors in the tip and the window's message boxes are plain, such as "it's cut short", "it's damaged at the end", "it isn't text", or "it's a folder". The window's path error no longer names shcl.
-		- `design.md` XFCE plugin has the plain error words.
-		- Verified: the quick gate and Sanitizers passed, with the new tests.
-		- 20261119: b23 runs build dfh6f, from dev at 00c2090, which has the tip fix. The settings window from Properties shows it.
-		- Answer 20261119: leave at Waiting on UAT for now.
-	- Decisions:
-		- The details cut from the tips were already in `design.md`, so nothing moved there.
-		- The vertical scale and sample % tips on each graph were left as they are, since the item names only width and time axis.
-		- System errors get plain words for the usual kinds, such as no permission or a full disk. Any other one keeps the system's own text, as does a write error shcl gives no status for.
-	- Branch: nov17-2026110710005015
-	- Commit: 0f3cba2
-	- Test case: `keep::tests::read_errors_plain` (dfemm) and `config::tests::settings_not_text_plain` (dfemn). Both fail with the old wording. `dialog::tests::unreadable_file_is_error` (den9y) now pins the window's whole message. The tip wording has no test, apart from the wrap check, defw3.
-
-- The 2 GPU graphs aren't available with integrated Intel graphics
-	- ID: 2026110920595600
-	- Type: Bug
-	- Status: Stalled
-		- Held for a Linux box with Intel graphics, i915 or xe, and no other card. None of the test boxes has one, and the hosted runner has no GPU (20261110).
-		- The GPU graph is in. The GPU memory graph was child 2026110921252043, which closed as Won't fix.
-	- Target version: v1.0.0-beta.2
-	- Needs external testing: on a box with Intel graphics, i915 or xe, and no NVIDIA or AMD card, check that one of the 3 files in df3kx is there and readable as the user, and run `cargo test -p tukzmon-core gpu::` and `cargo test -p tukzmon-settings the_gpu_rows` (dekmd), which reads the live card twice.
-	- Needs hand testing: on that box, with the GPU graph on and the GPU busy, as from `glxgears`, its tip should read near 100% less the RC6 share `sudo intel_gpu_top` gives.
-	- Priority|Severity: Avg
-	- Opened: 20261109-205956
-	- Opened by: t00mietum
-	- Related IDs: 2026103010322277
-	- Incorrect behavior: The GPU and GPU memory graphs aren't available with integrated Intel graphics.
-	- Expected behavior: Both GPU graphs work on integrated Intel graphics.
-	- Reproduced: by reading `core/src/gpu.rs`. `Card::find` knew only NVML and amdgpu, so an Intel-only box found no card, and both graphs stayed hidden.
-	- Actual cause: Intel's engine busy time is only in its perf counters, which need root or a lowered `perf_event_paranoid`, so Intel was left out on purpose (2026102819145597).
-	- Actual effort: Avg
-	- Progress log:
-		- The GPU graph works out an Intel card's busy share from its RC6 time against the time between reads. RC6 is the sleep the graphics core drops into when it has nothing to run. It reads i915's `gt/gt0/rc6_residency_ms`, then its older `power/rc6_residency_ms`, then xe's `gtidle/idle_residency_ms`, and none of them needs root.
-		- An Intel card has no GPU memory graph yet. `design.md` Data sources on Linux and the README say so.
-		- Verified: df3kw and df3kx passed, and df3kx failed with the Intel card taken out of `Card::find`, and again with the GPU probe not taking a first read that only primes. The quick gate and Sanitizers passed, and Miri passed df3kw and dekm9. dekma, dekmd, dektd and der6k passed on b23's host with the RTX 3060 Ti, so NVIDIA still comes first.
-		- It hasn't been checked on real Intel hardware, since no box here has one. The paths are from the i915 and xe drivers' sysfs.
-	- Decisions:
-		- The graph uses awake time rather than engine busy time, since it's the only share the kernel gives without root. It reads a little over what the engines ran, since the core stays up a moment after its work. Moving to perf counters stays deferred, as 2026103010322277.
-		- Cards are tried NVIDIA first, then amdgpu, then Intel, so a laptop with an Intel GPU and another one still graphs the other one, as before.
-		- A card with `power/rc6_enable` at 0 is passed over, since it never sleeps and would read always busy.
-		- The GPU memory part is split off, since what it would count on an integrated card is a call for a person.
-	- Actual fix: `core/src/gpu.rs` has a new `Card::Intel` source, which `intel_in` looks for after amdgpu.
-	- Branch: round-1110
-	- Test case: `gpu::tests::intel_busy_from_rc6` (df3kw) and `intel_gpu_graph_only` (df3kx). df3kx fails on the old `Card::find`.
-		- Swept: every `Card` match, both readers' probes, `amd_in`, which now shares `cards_in`, the settings window's GPU rows (dekmd), the README's graph list, and `design.md` for "Intel".
-
 - Installer script for a direct install
 	- ID: 2026110310450005
 	- Type: Feature
@@ -281,35 +106,6 @@ Sorted per the notes in [Template](#template).
 	- Requirements:
 		- Once the changes are in place and pass UAT, update the design doc accordingly, as well as Silkterm's and Nemo Anywhere's.
 	- Estimated effort: Low
-
-- Settings window opens smaller than the General tab under the GTK style, so General scrolls both ways
-	- ID: 2026112018370950
-	- Type: Bug
-	- Status: Closed
-	- Closed reason: Done
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Low
-	- Opened: 20261120-183709
-	- Opened by:
-	- Related IDs: 2026112016262966
-	- Test environment: An X display at 1100x900 with the GTK style that XFCE gives Qt
-	- Incorrect behavior: General opens with a horizontal and a vertical scroll bar. The arrows at the right edge are cut off, and the Test blur radius line is half under the bottom edge.
-	- Expected behavior: The window opens big enough for General, as it does under Qt's own style, where General fits an 800 px screen with no scroll bar.
-	- Reproduced: 20261120, Confirmed off screen at 1100x900. Seen at d214c59 and at 50602f8 on dev, so it's older than round nov20. Under Qt's own style the same builds show no scroll bars. Not checked on a real XFCE screen.
-	- Possible cause: `openSized` in `settings/src/qt.cpp` sizes the window from `sizeHint`, which may not cover General's content when the GTK style draws wider boxes and text.
-		- 20261127: Reproduced with the GTK font at 12 pt on a 1100x900 screen. The window opened at 940x860 and General scrolled both ways. With the desktop's own font at 10 pt it didn't, since Graphs is wider there and sets the width.
-	- Actual cause: The lines with a short control and its arrow, such as Max age in, are layouts nested in each page's grid. They kept an old, narrower size when the window was sized, since `updateGeometry` reaches only a widget's own layout. General asked for 62 px less width than it took once shown. The font only decides whether General is the widest page.
-	- Actual fix: `openSized` clears every layout's kept size before it reads the window's size.
-	- Estimated effort: Low
-	- Actual effort: Low
-	- Progress log:
-		- Verified: dfw90 failed before the fix, with General showing both scroll bars at 12 pt, and passes after. On a 1100x900 screen with the GTK style at 12 pt, General opens with no scroll bar, at 944x860. At 10 pt the window is the same size as before.
-	- Branch: nov27-2026112018370950
-	- Commit: 5861b17
-	- Test case: `bridge::tests::pages_open_without_scroll_bars` (dfw90), at 9, 12 and 14 pt. No page shows a scroll bar across, and only Themes/Colors one down.
-		- Swept: every place the window is sized, `openSized` and the `page_shades` hook, which only reads colors.
-	- Acceptance signoff: Self-closed: dfw90 fails before and passes after, and the expected behavior was checked under the GTK style.
-	- Closed: 20261127-101600
 
 - Run the save tests under Miri again once shcl skips its folder fsync there
 	- ID: 2026112510392174
@@ -583,6 +379,43 @@ Sorted per the notes in [Template](#template).
 	- Branch: round-1109
 	- Test case: df31j
 	- Closed: 20261109-113915
+
+- Test options in settings: horizontal and vertical blur radius
+	- ID: 2026111913545113
+	- Type: Feature
+	- Status: Closed
+		- A look at the panel with the blur at 0, 0.5 and 1 tells whether it helps the shimmer in 2026111623513501, and whether 0.5 stays the default.
+		- 20261119: b23 runs build dfh6f, from before the blur went in, so it needs a new build before the look.
+	- Stand-in: none (20261119). Whether the blur helps the shimmer turns on how it looks to the eye.
+	- Priority|Severity: High
+	- Opened: 20261119-135451
+	- Opened by: t00mietum
+	- Related IDs: 2026111623513501
+	- Requirements:
+		- Add 2 test options to the settings window: Horizontal blur radius, and Vertical blur radius.
+		- Make these features a code constant that can be turned off.
+		- Default to 0.5 px.
+	- Target version: v1.0.0-beta.2
+	- Actual effort: Avg
+	- Progress log:
+		- 20261119: General, under Misc, has "Test blur radius px, horizontal" and "vertical", at `graph.blur_x` and `graph.blur_y`, 0 to 4, default 0.5. The plot is blurred after it's drawn, over a box 2r + 1 pixels wide, so 0.5 mixes 1:2:1. The border and the hover line aren't blurred. `config::BLUR_TEST` off hides both rows and draws with no blur. `design.md` Drawing has it.
+		- Cost of the default, at scale 2: draw-bench's 24 cases took about 110 us a draw at 0 and 170 at 0.5, in 3 runs each in turn at load 10 to 11 on 32 cores. A first cut took 205.
+		- The profiler's panel tick, 7 graphs at 898x48 scale 2, took 686 us user at 0, at load 13, and 1059 at 0.5, at load 16. So the default costs about 370 us user a tick there. A second run at 0 came at load 35 and was dropped.
+		- At 0 the blur is skipped, so nothing else changes. The render tests pass unchanged with it at 0.
+		- Verified: dfh89 failed with the blur skipped and passed with it. dfh8a and dfh8b passed with `BLUR_TEST` on and off. With it off, the General tab showed neither row. With it on, the General tab still fits with no scroll bar on an 800 px offscreen screen. The quick gate's format, build, lint and tests, and Sanitizers passed.
+		- 20261119: b23 gets the merged dev build through `utility/dev-install.bash --no-restart` at the round's end, per the round settings. The look needs a panel restart first.
+	- Decisions:
+		- The 2 rows share one line under Misc, as number boxes. As sliders under a heading of their own, the General tab needed a scroll bar on an 800 px screen.
+		- The radius is in logical pixels, like Border px, so a scale 2 screen blurs twice as far.
+		- The blur is a box 2r + 1 wide, so a fractional radius takes part of the outer pixels. It works in premultiplied color, so a transparent background blurs right.
+		- The plot's end pixels stand in for what's past them, so the border color doesn't bleed into the plot.
+		- Tests that read exact pixels from the default look now set the blur to 0: the render tests' `look()`, the graphs tests' `two()`, and `right_column_fills_tip`. Their asserts are unchanged.
+	- Branch: nov19b-2026111913545113
+	- Commit: 272d273
+	- Test case: `render::tests::blur_taps_box` (dfh88), `render::tests::blur_mixes_neighbors_only` (dfh89), `config::tests::blur_rows_follow_build` (dfh8a), and `dialog::tests::blur_rows_follow_build` (dfh8b).
+		- Swept: every draw goes through `Frame::draw_in`, which the panel, the settings window's graph list, and the preview and profile examples call. Every `Look` literal in the tests takes the new fields from `Look::default()`.
+	- Closed reason: Done
+	- Closed: 20261127-172516
 
 - Color themes tab
 	- ID: 2026102408304612
@@ -2600,6 +2433,41 @@ Sorted per the notes in [Template](#template).
 	- Test case: None, since it was a question about the code layout.
 	- Closed: 20261019-162817
 
+- The 2 GPU graphs aren't available with integrated Intel graphics
+	- ID: 2026110920595600
+	- Type: Bug
+	- Status: Closed
+		- Held for a Linux box with Intel graphics, i915 or xe, and no other card. None of the test boxes has one, and the hosted runner has no GPU (20261110).
+		- The GPU graph is in. The GPU memory graph was child 2026110921252043, which closed as Won't fix.
+	- Target version: v1.0.0-beta.2
+	- Needs external testing: on a box with Intel graphics, i915 or xe, and no NVIDIA or AMD card, check that one of the 3 files in df3kx is there and readable as the user, and run `cargo test -p tukzmon-core gpu::` and `cargo test -p tukzmon-settings the_gpu_rows` (dekmd), which reads the live card twice.
+	- Needs hand testing: on that box, with the GPU graph on and the GPU busy, as from `glxgears`, its tip should read near 100% less the RC6 share `sudo intel_gpu_top` gives.
+	- Priority|Severity: Avg
+	- Opened: 20261109-205956
+	- Opened by: t00mietum
+	- Related IDs: 2026103010322277
+	- Incorrect behavior: The GPU and GPU memory graphs aren't available with integrated Intel graphics.
+	- Expected behavior: Both GPU graphs work on integrated Intel graphics.
+	- Reproduced: by reading `core/src/gpu.rs`. `Card::find` knew only NVML and amdgpu, so an Intel-only box found no card, and both graphs stayed hidden.
+	- Actual cause: Intel's engine busy time is only in its perf counters, which need root or a lowered `perf_event_paranoid`, so Intel was left out on purpose (2026102819145597).
+	- Actual effort: Avg
+	- Progress log:
+		- The GPU graph works out an Intel card's busy share from its RC6 time against the time between reads. RC6 is the sleep the graphics core drops into when it has nothing to run. It reads i915's `gt/gt0/rc6_residency_ms`, then its older `power/rc6_residency_ms`, then xe's `gtidle/idle_residency_ms`, and none of them needs root.
+		- An Intel card has no GPU memory graph yet. `design.md` Data sources on Linux and the README say so.
+		- Verified: df3kw and df3kx passed, and df3kx failed with the Intel card taken out of `Card::find`, and again with the GPU probe not taking a first read that only primes. The quick gate and Sanitizers passed, and Miri passed df3kw and dekm9. dekma, dekmd, dektd and der6k passed on b23's host with the RTX 3060 Ti, so NVIDIA still comes first.
+		- It hasn't been checked on real Intel hardware, since no box here has one. The paths are from the i915 and xe drivers' sysfs.
+	- Decisions:
+		- The graph uses awake time rather than engine busy time, since it's the only share the kernel gives without root. It reads a little over what the engines ran, since the core stays up a moment after its work. Moving to perf counters stays deferred, as 2026103010322277.
+		- Cards are tried NVIDIA first, then amdgpu, then Intel, so a laptop with an Intel GPU and another one still graphs the other one, as before.
+		- A card with `power/rc6_enable` at 0 is passed over, since it never sleeps and would read always busy.
+		- The GPU memory part is split off, since what it would count on an integrated card is a call for a person.
+	- Actual fix: `core/src/gpu.rs` has a new `Card::Intel` source, which `intel_in` looks for after amdgpu.
+	- Branch: round-1110
+	- Test case: `gpu::tests::intel_busy_from_rc6` (df3kw) and `intel_gpu_graph_only` (df3kx). df3kx fails on the old `Card::find`.
+		- Swept: every `Card` match, both readers' probes, `amd_in`, which now shares `cards_in`, the settings window's GPU rows (dekmd), the README's graph list, and `design.md` for "Intel".
+	- Closed reason: Done
+	- Closed: 20261127-172516
+
 - Pre-next-cut: Reset icon for the leftmost control, on a row with more than one control, is all the way to the right
 	- ID: 2026112016262892
 	- Type: Bug
@@ -3510,6 +3378,115 @@ Sorted per the notes in [Template](#template).
 		- Swept: the video take uses the same panel config, and no other script in the repo or the private tools sets up a tray.
 	- Acceptance signoff: Self-closed 20261109: in the new gif the network, volume and bell icons are evenly spaced.
 	- Closed: 20261109-124233
+
+- The Miri step stops on df3nh's save, and the rest of its module goes unrun
+	- ID: 2026112510392074
+	- Type: Bug
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261125-103920
+	- Opened by: t00mietum
+	- Related IDs: 2026112510392174
+	- Steps to reproduce: `cicd/cicd.bash --long`.
+	- Incorrect behavior: The Miri step failed hours in, on `dialog::tests::remote_session_greys_rows` (df3nh): "unsupported operation: `fsync` is only supported on file-backed file descriptors". The 17 dialog tests after it were listed as not run, and steps 14 to 20 never ran.
+	- Expected behavior: `--long` finishes. A test Miri can't run is found before a run of hours, and doesn't hide the tests after it.
+	- Reproduced: 20261125, in a `--long` run.
+	- Actual cause: df3nh ends with `Dialog::apply`, which saves through shcl, which fsyncs the folder. Miri can't do that, and ends the whole test binary. The 32 other tests that save have an ignore for it, and df3nh, added 2026-11-10, missed one. The step's logs were in the run folder, so they went with it.
+	- Estimated effort: Avg
+	- Actual effort: Avg
+	- Actual fix:
+		- df3nh keeps its greying checks, which still run under Miri. Its save moved to dfsfs, ignored under Miri like the others.
+		- dfsft fails in the quick gate on any settings test that calls `.apply()` with no ignore.
+		- When Miri stops on an error, the test it was on fails and a new Miri runs the rest of the module, in the same time limit.
+		- The step keeps its log in `cicd/artifacts/miri/`, rotated, with each module's time.
+		- Miri runs last of the leak checks, so Soak, Window soak and CodeQL report before it.
+		- dezay ran the real `cargo fmt --check`, since cicd puts `~/.cargo/bin` before its stand-in, so it failed whenever the tree had an unformatted edit. Its stand-ins now sit in a `~/.cargo/bin` of its own.
+	- Decisions:
+		- Fuzz tests under Miri keep taking the run's seed. A failure names it, so it can be replayed, and the native Tests step has already run those seeds.
+		- A test that stops Miri still fails the step rather than being skipped, so each one gets an ignore with its reason.
+	- Branch: mirisave
+	- Commit: 20e0110
+	- Test case: dfsft, and dfsfv for the new Miri, with dexn3 and df39n still passing.
+		- Swept: every test in `settings`, `core`, `knobs` and `xfce` that saves. Only df3nh was missing its ignore. Core's history save doesn't fsync its folder.
+	- Acceptance signoff: Self-closed: dfsft failed with dfsfs's ignore taken off, and passes with it. dfsfv passes with the new runner. Under Miri, df3nh passed in 34 minutes and dfsfs was skipped, and the log was kept with each module's time. The quick gate passed.
+	- Closed: 20261125-111900
+
+- Pre-next-cut: Move the reset icon to the right of a control that doesn't span the entire width
+	- ID: 2026112016262966
+	- Type: Enhancement
+	- Status: Closed
+		- 20261127: The Name line's arrow now sits right after the dropdown, before Save. A look at Themes on b23 tells whether that reads right.
+		- A look at General and Themes/Outline on b23, with a build from after this, tells whether the arrows read right beside the checkboxes, dropdowns and colors.
+		- The reset for "Theme name [dropdown]" is to the right of the buttons, not the dropdown.
+	- Stand-in: none (20261120). Where the arrows look best turns on taste.
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261120-162628
+	- Opened by: t00mietum
+	- Related IDs: 2026110215302659, 2026112016262892
+	- Requirements:
+		- For controls that don't span the entire width, move its reset icon from the "regular" reset "column", to be more immediately to the right of the control. E.g. "Reduce motion in remote session".
+	- Estimated effort: Avg
+	- Note:
+		- This replaces the call in 2026110215302659 that General, Graphs, and Outline keep their arrows in one column at the right edge, for controls that don't span the width.
+		- `design.md` isn't updated with the change. That waits until it passes UAT, as 2026112016263003.
+	- Actual effort: Low
+	- Progress log:
+		- On General, Outline and the theme's Name line, a checkbox, dropdown, number box or color has its arrow right after it. Sliders and text boxes still have theirs at the right edge, lined up.
+		- A dropdown's layout slot is now as wide as it's drawn. Qt's minimum for a short one, such as Auto, was wider, which left a gap before its arrow.
+		- Verified: dfjv9 failed before the change and passes after. The quick gate's format, build, lint and tests, and Sanitizers passed. General still fits an 800 px screen with no scroll bar.
+		- Verified 20261120: dfjv9 passed in the round's gate run at d214c59. General and Outline at d214c59, in both the GTK style and Qt's own, show each checkbox, dropdown, number box and color with its arrow right after it, and the Name line's arrow after Randomize. Left for a person: the calls in Decisions on which controls keep the right-edge column, since the requirement covers every control that doesn't span the width.
+		- 20261127: The theme's arrow moved from after Randomize to right after the Name dropdown, and Tab goes from the dropdown to it before the buttons.
+		- Verified 20261127: dfjv9 failed with the arrow after Randomize, 448 px past the dropdown, and passes after. Outline in the GTK style shows the arrow right after the dropdown.
+	- Decisions:
+		- Themes/Colors keeps its own layout, since its arrows already sit by their boxes and line up in each column.
+		- The theme's Name line counts as short, so its arrow follows Randomize.
+			- 20261127: Replaced by the reopen. The arrow follows the dropdown, since it resets only the theme pick.
+		- The graph list keeps its revert column, since every list row has the same cells.
+	- Branch: nov20-2026112016262892, nov27-2026112018370950
+	- Commit: f419b74, 5861b17
+	- Test case: `bridge::tests::short_control_revert_beside_it` (dfjv9), over General and Outline.
+		- Swept: every grid `placeRow` fills outside a Colors section, and every dropdown `buildControl` makes, the graph list's too, which desen covers.
+		- 20261127: the `row_spots` hook gives the theme dropdown's right edge as the Name line's last part, where it gave the edge of the buttons. dfjv9's asserts are unchanged.
+		- Swept 20261127: the only chooser row is the theme's, and `lineFor` is the one place a short control's arrow is put.
+	- Closed reason: Done
+	- Acceptance signoff: 20261127, looks good on b23 build dfw9s
+	- Closed: 20261127-172516
+
+- Dogfood to the synced folder, so other boxes can install the latest build
+	- ID: 2026112016074145
+	- Type: Feature
+	- Status: Closed
+		- Only the live dogfood is left, which a round never runs. Run `cicd/cicd.bash` on b23, then `dogfood_tukzmon` on b28l, and check its panel restarts on b23's build.
+	- Stand-in: none (20261120). The rest needs a real dogfood into the synced folder and a panel restart on b28l, which a round never runs. dfjx6 and dfjx7 passed in the round's gate run at d214c59, and the temp-home run already stood in for the rest.
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Avg
+	- Opened: 20261120-160741
+	- Opened by: t00mietum
+	- Requirements:
+		- The dogfood step also copies `libtukzmon.so`, `tukzmon-settings` and `tukzmon.desktop` to `app/linux/tukzmon/` in the synced exec tree, with the build stamp beside them, as the other projects do.
+		- A `dogfood_tukzmon` script in `util/linux/bash` installs that copy into the user plugin folders, the same ones `dev-install.bash` uses, and restarts the panel. It says so and does nothing when the installed build is already the same.
+		- The backlog and merge gate runs still never write to the synced folder.
+	- Estimated effort: Low
+	- Progress log:
+		- 20261120: b28l wasn't getting b23's builds. The dogfood step only runs `dev-install.bash`, which installs on the box that runs it, and nothing of tukzmon's is in the synced tree.
+		- After `dev-install.bash`, the Dogfood step runs `cicd/utility/dogfood-sync.bash`. It copies the 3 files to `app/linux/tukzmon/` in the first synced exec folder that exists, with `build.txt`, which is the version line and a sha256 sum per file. It puts `utility/dogfood_tukzmon.bash` in `util/linux/bash/` as `dogfood_tukzmon`. With no synced folder it says so and copies nothing.
+		- `dogfood_tukzmon` finds the copy beside itself or under `~/synced`, and refuses one whose sums don't match yet. It installs to `dev-install.bash`'s folders and restarts the panel, unless given `--no-restart`. When the installed files are the same bytes, it says so and does nothing.
+		- Verified: dfjx6 and dfjx7 pass, and each failed with its part of the fix taken out. With the box's own release build and a temp home, the sync wrote build dfjsw's stamp, and `dogfood_tukzmon` installed it to `lib/x86_64-linux-gnu`. The quick gate and Sanitizers passed.
+	- Decisions:
+		- The stamp is `build.txt` with `tukzmon-settings --version`'s first line and the sums. The other projects have no shared stamp format. The sums let the install tell a copy still syncing from a whole one.
+		- "Already the same" compares the 3 files' bytes rather than the stamp, since a build's identity is its bytes.
+		- The repo copy is `utility/dogfood_tukzmon.bash`, so lint finds it, and the synced name has no extension, as the other `dogfood_*` launchers there have.
+		- `dogfood_tukzmon` keeps its own copy of `dev-install.bash`'s folder lookup, since it runs on boxes with no checkout. dfjx7 checks it gives the same arm64 folder as deqvr.
+		- The backlog and merge gate runs don't plan the Dogfood step, so they never reach the sync. dezar already checks that each says it never dogfoods.
+	- Test case: `dogfood_sync_copies` (dfjx6) and `dogfood_installs_synced` (dfjx7), in `cicd/tests/guards.bash`.
+		- Swept: `fStepDogfood` is the only caller of the sync. `dev-install.bash` and `dogfood_tukzmon` use the same folder lookup. No other script writes to the synced folder.
+	- Branch: nov20-2026112016074145
+	- Needs hand testing: the live run above, on b23 then b28l.
+	- Closed reason: Done
+	- Closed: 20261127-172516
 
 - Cheaper RustDesk check: find it once a minute, then follow only its processes
 	- ID: 2026111918305078
@@ -7031,6 +7008,35 @@ Sorted per the notes in [Template](#template).
 	- Test case: None, since it's a recording. The gif and the video were checked frame by frame.
 	- Closed: 20261106-182817
 
+- Settings window opens smaller than the General tab under the GTK style, so General scrolls both ways
+	- ID: 2026112018370950
+	- Type: Bug
+	- Status: Closed
+	- Closed reason: Done
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Low
+	- Opened: 20261120-183709
+	- Opened by:
+	- Related IDs: 2026112016262966
+	- Test environment: An X display at 1100x900 with the GTK style that XFCE gives Qt
+	- Incorrect behavior: General opens with a horizontal and a vertical scroll bar. The arrows at the right edge are cut off, and the Test blur radius line is half under the bottom edge.
+	- Expected behavior: The window opens big enough for General, as it does under Qt's own style, where General fits an 800 px screen with no scroll bar.
+	- Reproduced: 20261120, Confirmed off screen at 1100x900. Seen at d214c59 and at 50602f8 on dev, so it's older than round nov20. Under Qt's own style the same builds show no scroll bars. Not checked on a real XFCE screen.
+	- Possible cause: `openSized` in `settings/src/qt.cpp` sizes the window from `sizeHint`, which may not cover General's content when the GTK style draws wider boxes and text.
+		- 20261127: Reproduced with the GTK font at 12 pt on a 1100x900 screen. The window opened at 940x860 and General scrolled both ways. With the desktop's own font at 10 pt it didn't, since Graphs is wider there and sets the width.
+	- Actual cause: The lines with a short control and its arrow, such as Max age in, are layouts nested in each page's grid. They kept an old, narrower size when the window was sized, since `updateGeometry` reaches only a widget's own layout. General asked for 62 px less width than it took once shown. The font only decides whether General is the widest page.
+	- Actual fix: `openSized` clears every layout's kept size before it reads the window's size.
+	- Estimated effort: Low
+	- Actual effort: Low
+	- Progress log:
+		- Verified: dfw90 failed before the fix, with General showing both scroll bars at 12 pt, and passes after. On a 1100x900 screen with the GTK style at 12 pt, General opens with no scroll bar, at 944x860. At 10 pt the window is the same size as before.
+	- Branch: nov27-2026112018370950
+	- Commit: 5861b17
+	- Test case: `bridge::tests::pages_open_without_scroll_bars` (dfw90), at 9, 12 and 14 pt. No page shows a scroll bar across, and only Themes/Colors one down.
+		- Swept: every place the window is sized, `openSized` and the `page_shades` hook, which only reads colors.
+	- Acceptance signoff: Self-closed: dfw90 fails before and passes after, and the expected behavior was checked under the GTK style.
+	- Closed: 20261127-101600
+
 - lan test df3cz fails now and then when the whole test run goes in parallel
 	- ID: 2026112017273794
 	- Type: Bug
@@ -7111,40 +7117,6 @@ Sorted per the notes in [Template](#template).
 	- Acceptance signoff: Self-closed: the failure was reproduced by its seed and doesn't happen with the fix.
 	- Closed: 20261123-153600
 	- Closed reason: Done
-
-- The Miri step stops on df3nh's save, and the rest of its module goes unrun
-	- ID: 2026112510392074
-	- Type: Bug
-	- Status: Closed
-	- Closed reason: Done
-	- Target version: v1.0.0-beta.2
-	- Priority|Severity: Avg
-	- Opened: 20261125-103920
-	- Opened by: t00mietum
-	- Related IDs: 2026112510392174
-	- Steps to reproduce: `cicd/cicd.bash --long`.
-	- Incorrect behavior: The Miri step failed hours in, on `dialog::tests::remote_session_greys_rows` (df3nh): "unsupported operation: `fsync` is only supported on file-backed file descriptors". The 17 dialog tests after it were listed as not run, and steps 14 to 20 never ran.
-	- Expected behavior: `--long` finishes. A test Miri can't run is found before a run of hours, and doesn't hide the tests after it.
-	- Reproduced: 20261125, in a `--long` run.
-	- Actual cause: df3nh ends with `Dialog::apply`, which saves through shcl, which fsyncs the folder. Miri can't do that, and ends the whole test binary. The 32 other tests that save have an ignore for it, and df3nh, added 2026-11-10, missed one. The step's logs were in the run folder, so they went with it.
-	- Estimated effort: Avg
-	- Actual effort: Avg
-	- Actual fix:
-		- df3nh keeps its greying checks, which still run under Miri. Its save moved to dfsfs, ignored under Miri like the others.
-		- dfsft fails in the quick gate on any settings test that calls `.apply()` with no ignore.
-		- When Miri stops on an error, the test it was on fails and a new Miri runs the rest of the module, in the same time limit.
-		- The step keeps its log in `cicd/artifacts/miri/`, rotated, with each module's time.
-		- Miri runs last of the leak checks, so Soak, Window soak and CodeQL report before it.
-		- dezay ran the real `cargo fmt --check`, since cicd puts `~/.cargo/bin` before its stand-in, so it failed whenever the tree had an unformatted edit. Its stand-ins now sit in a `~/.cargo/bin` of its own.
-	- Decisions:
-		- Fuzz tests under Miri keep taking the run's seed. A failure names it, so it can be replayed, and the native Tests step has already run those seeds.
-		- A test that stops Miri still fails the step rather than being skipped, so each one gets an ignore with its reason.
-	- Branch: mirisave
-	- Commit: 20e0110
-	- Test case: dfsft, and dfsfv for the new Miri, with dexn3 and df39n still passing.
-		- Swept: every test in `settings`, `core`, `knobs` and `xfce` that saves. Only df3nh was missing its ignore. Core's history save doesn't fsync its folder.
-	- Acceptance signoff: Self-closed: dfsft failed with dfsfs's ignore taken off, and passes with it. dfsfv passes with the new runner. Under Miri, df3nh passed in 34 minutes and dfsfs was skipped, and the log was kept with each module's time. The quick gate passed.
-	- Closed: 20261125-111900
 
 - A column up to 4 samples wide beside a gap draws at its full peak
 	- ID: 2026111716050389
@@ -8701,6 +8673,45 @@ Sorted per the notes in [Template](#template).
 	- Superseded by ID: 2026110709261106, which takes out the shcl 2 rewrite.
 	- Test case: None, since nothing was changed.
 	- Closed: 20261107-092134
+
+- Some settings tips are long and technical, and stack asides
+	- ID: 2026110710005015
+	- Type: Enhancement
+	- Status: Closed
+		- Hover the General tab's Scale defaults, Spike emphasis, LAN and internet, Disk drives, and the Outline sub-tab's 2 margins, and judge the wording and length.
+		- 20261119: b23 has build dfeb5 installed, from before the fix went in as 35a956e, so its window still shows the old tips until b23 is updated.
+	- Stand-in: none (20261119). Turns on wording and length.
+	- Target version: v1.0.0-beta.2
+	- Priority|Severity: Low
+	- Opened: 20261107-100050
+	- Opened by: t00mietum
+	- Requirements:
+		- Cut the tips for both Scale defaults, LAN and internet, Spike emphasis, and Disk drives to a sentence or 2 on what the setting does. Numbers and kernel terms stay in design.md.
+		- Give the width and time axis tips, which are the same on every graph, fewer asides.
+		- Use "box" for the number box only, and "computer" for the computer.
+		- Make the Margins tip say plainly that 2 graphs side by side get both margins between them.
+		- Put history and settings errors in the tip and in message boxes in plain words, rather than the file reader's own, such as "short" or "trailing bytes", or the name of the file format.
+	- Estimated effort: Avg
+	- Actual effort: Low
+	- Progress log:
+		- The tips for both Scale defaults, Spike emphasis, LAN and internet, and Disk drives are 2 sentences each. Spike emphasis still says what 0% and 100% do, per 2026102408304546.
+		- Every graph's width and time axis tips, and the graph list's Width % and Time axis headers, have one aside fewer.
+		- Every tip that meant the computer says "computer". "Box" is left only for the number box.
+		- Both margin tips say that 2 graphs side by side get both margins between them.
+		- History and settings errors in the tip and the window's message boxes are plain, such as "it's cut short", "it's damaged at the end", "it isn't text", or "it's a folder". The window's path error no longer names shcl.
+		- `design.md` XFCE plugin has the plain error words.
+		- Verified: the quick gate and Sanitizers passed, with the new tests.
+		- 20261119: b23 runs build dfh6f, from dev at 00c2090, which has the tip fix. The settings window from Properties shows it.
+		- Answer 20261119: leave at Waiting on UAT for now.
+	- Decisions:
+		- The details cut from the tips were already in `design.md`, so nothing moved there.
+		- The vertical scale and sample % tips on each graph were left as they are, since the item names only width and time axis.
+		- System errors get plain words for the usual kinds, such as no permission or a full disk. Any other one keeps the system's own text, as does a write error shcl gives no status for.
+	- Branch: nov17-2026110710005015
+	- Commit: 0f3cba2
+	- Test case: `keep::tests::read_errors_plain` (dfemm) and `config::tests::settings_not_text_plain` (dfemn). Both fail with the old wording. `dialog::tests::unreadable_file_is_error` (den9y) now pins the window's whole message. The tip wording has no test, apart from the wrap check, defw3.
+	- Closed reason: Done
+	- Closed: 20261127-172516
 
 - CICD gap: arm64 Linux build and packages
 	- ID: 2026110310450006
